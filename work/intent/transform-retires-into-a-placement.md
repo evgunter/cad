@@ -1,15 +1,28 @@
 ---
 id: transform-retires-into-a-placement
 kind: issue
-title: D10 stage 3 PR D: Node::Transform retires; a rigid motion of a body is a copy placed by one frame mate
+title: D10 stage 3 PR D: constructions read no frame and nothing moves a body; Datum, Transform and PlacedFrom retire, each use becoming a placement
 status: parked
 opened: 2026-10-08
 priority: P0
-cost: M
-blocked_on: [a-placement-is-the-bundle-of-mates]
+cost: H
+blocked_on: [a-mate-relates-two-poses]
 refs: [intent-stage3-is-built]
 ---
 
-INTENT stage 3, PR D. Spec: `docs/INTENT-STAGE3-SPEC.md` §5.
+INTENT stage 3, PR D. Spec: `docs/INTENT-STAGE3-SPEC.md` §5. Built on FORK-S3P (row 95, PR 4324) and FORK-S3M (row 97, PR 4326).
 
-`Node::Transform` (`node.rs:2499`) and `PortKind::PlacedFrom` retire. A rigid motion of a body is a `Place` with one `Frame` mate to an `Offset` of the frame it is placed against. `Step::Literal` retires, and A6's admission runs on evaluated pose values. The tour's `chain`, `diefillet` and `teapot`, the viewer's transform gesture and Python's `.transform` follow. Geometry is bit-equal.
+Frames enter only at placement:
+
+- A profile is 2-D and reads no plane.
+- `Tube` and `HollowTube` are built about their own axis.
+- `Extrude` loses `side`: the side is the placement's mates' to say.
+- `Node::Datum` retires.
+
+Every construction is built in coordinates of its own. One combined with another body is placed against that body (the combine's first operand's root) by the restate ladder: a `Plane` mate to a parallel face at a `Standoff`, else `InFrame` of a constructed frame, else the migration names it and refuses to regenerate (spec Q8). Its values are computed from the two datums. A first operand, or a body never combined, keeps whatever world placement it had. Every value charted on a re-coordinated body is recomputed from the pre-D solve, so no solved world pose moves. No construction is placed against the world by this migration, so a cutter never joins the product. The last `Datum::FaceFrame` read as a frame goes with `Datum`.
+
+Nothing moves a body. `Node::Transform` and `PortKind::PlacedFrom` retire, and each use becomes a `Place`. A copy's names pass through as `Transform`'s did. `Step::Literal` retires, and A6's admission runs on evaluated pose values.
+
+An absolute pose read by a non-root operation (a `Split` tool) goes down the same ladder. Until D, every construction reading no body is of the document's one kind (spec §3's interim). D lands "a body's kind is its root". `Pattern` and `PlacedUnion` still place by rule until G. The `diefillet` pips' union is written against today's `Node::Union` and moves with FORK-DM4's units. The façade's "sketch on a face" writes profile, construction, placement and combine as one gesture. The tour's `chain`, `diefillet` and `teapot`, the viewer's transform gesture and Python's datum builders and `.transform` follow.
+
+Closes the placement half of `a-boxed-rotation-refuses-not-rigid-at-every-placer`. Waits on C (`a-mate-relates-two-poses`), because a construction placed against a face needs a mate reading its plane and values for the freedoms it leaves.

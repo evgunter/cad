@@ -15,13 +15,12 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanOp, BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError,
-    EvalError, Evaluation, HeldNodes, Node, NodeErrorKind, ParseError, ProfileProgram,
-    RecipeNodeId, Said, SlotId, Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName,
-    held_by,
+    BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError, EvalError,
+    Evaluation, HeldNodes, Node, Operand, ParseError, ProfileProgram, RecipeNodeId, Said, SlotId,
+    Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName, held_by,
 };
 use pncad::prelude::{Body, StableName, SurfaceKind};
-use pncad::select::{FlushFinding, InterrogateError, face_carrier_kind};
+use pncad::select::{InterrogateError, face_carrier_kind};
 use pncad::workspace::WorkspaceError;
 
 // The recourse this module's `NoSuchVariable` arm ends on, read from its
@@ -36,7 +35,6 @@ use crate::combine;
 use crate::display::{AdmissionFault, DisplayFault};
 use crate::docio::DocIoError;
 use crate::frame::Tone;
-use crate::generation::Generation;
 use crate::history::History;
 use crate::props::{self, Notation, SlotValue};
 use crate::session::{FaceSelection, SessionOp};
@@ -51,56 +49,28 @@ pub enum NodeKindWanted {
     /// A `Node::Datum(Datum::Axis)` — a world-space line, which is
     /// what a circular placement rule turns about.
     Axis,
-    /// A `Node::Datum(Datum::AxisInPlane)` — an axis written in a
-    /// sketch frame, which is what a revolve turns.
-    ///
-    /// Separate from [`Self::Axis`] because the two are separate node
-    /// kinds and the evaluator's operand door refuses across them. A
-    /// seat that admitted both would route a pick the door then
-    /// rejects, which is the drift this vocabulary exists to prevent.
-    SketchAxis,
     /// A `Node::Datum(Datum::Plane)`.
     Plane,
     /// A `Node::Datum(Datum::Frame)` or a `Node::Datum(Datum::FaceFrame)`
     /// — what a profile is drawn on. Both evaluate to a frame value.
     Frame,
-    /// A node whose value is ONE body — the combining seats' kind
-    /// ([`combine::denotes_body`] carries the admissible set and why a
-    /// split's sides and a pattern's instances are not in it).
+    /// A read of ONE body — the combining seats' kind: a node whose one
+    /// output is a body ([`combine::denotes_body`] carries the
+    /// admissible set and why a pattern's instances are not in it), or
+    /// a split's half read by its port ([`admits_read`]).
     Body,
-    /// A `Node::Split` — the value a [`pncad::document::PartSelect::
-    /// SplitHalf`] reads a half out of.
-    ///
-    /// The node kind IS the family here, with no placer to walk
-    /// through: `eval::wire`'s placeable operand door refuses a split
-    /// value outright, so a transform over a split is a failed node
-    /// and never a second way to hold one.
-    Split,
     /// A node whose value is a pattern's INSTANCES — what a
-    /// [`pncad::document::PartSelect::Instance`] indexes.
-    ///
-    /// **Classified off the node kind, and that is narrower than the
-    /// evaluator by one shape**: `Node::Transform` is shape-preserving
-    /// over its input's value, so a transform of a pattern evaluates to
-    /// `Instances` and `wire_part` would index it, while this answers
-    /// `no`. The viewer cannot author that shape — its body seats
-    /// refuse a pattern — but a loaded document may hold one, and the
-    /// direction of the disagreement is the safe one: an honest
-    /// refusal rather than a node that lands and then fails. It is the
-    /// same defect [`Self::Body`] has in the other direction, wanting
-    /// the same repair — read the family through the placer chain — so
-    /// it is tracked on the row that already asks for it,
-    /// `work/forms/body-seat-reads-through-the-placer-chain`. The row
-    /// `combine_ops::the_part_seats_track_the_evaluators_part_door`
-    /// asserts the disagreement by name, so the day the classifier
-    /// walks the chain that row says so.
+    /// [`pncad::document::PartSelect::Instance`] indexes: read alone,
+    /// it defines a `Bodies` variable, a pattern's or a transform's of
+    /// one (its kind fixed at minting off its operand).
     Instances,
 }
 
-/// **Whether `held` is the wanted kind** — the one classification
-/// behind every creation seat's gate, `None` (an absent node) reading
-/// as "no", because a seat naming nothing and a seat naming the wrong
-/// thing both mean there is nothing of that kind there to consume.
+/// **Whether `node` in `doc` is the wanted kind** — the one
+/// classification behind every creation seat's gate, a node `doc` does
+/// not hold reading as "no", because a seat naming nothing and a seat
+/// naming the wrong thing both mean there is nothing of that kind
+/// there to consume.
 ///
 /// A free function rather than a `DocSession` method because the
 /// question is asked in two places for two purposes: the commit door
@@ -108,29 +78,58 @@ pub enum NodeKindWanted {
 /// seats ask it to ROUTE a pick ([`crate::seats::Seats::pick`]). One
 /// answer for both is what keeps a seat from steering a pick the door
 /// would then reject.
-pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bool {
+pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWanted) -> bool {
+    let held = doc.node(node);
     match wanted {
-        NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
+        NodeKindWanted::Body => combine::denotes_body(doc, node),
+        NodeKindWanted::Instances => doc
+            .read_of_node(node)
+            .and_then(|read| doc.var(read))
+            .is_some_and(|var| {
+                pncad::document::SlotKind::Is(pncad::document::VarKind::Bodies).admits(var)
+            }),
         NodeKindWanted::Profile
         | NodeKindWanted::Axis
-        | NodeKindWanted::SketchAxis
         | NodeKindWanted::Plane
-        | NodeKindWanted::Frame
-        | NodeKindWanted::Split
-        | NodeKindWanted::Instances => held.and_then(seat_kind) == Some(wanted),
+        | NodeKindWanted::Frame => held.and_then(seat_kind) == Some(wanted),
     }
 }
 
-/// **Which non-body kind a node is**, or `None` for a node no
-/// profile, axis, plane, frame, split or instances seat takes — the one classification
-/// [`admits`] reads for every kind but [`NodeKindWanted::Body`], whose
-/// rule is [`combine::denotes_body`]'s.
-fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
+/// **Whether `read` in `doc` is the wanted kind**: [`admits`] for a
+/// node named alone, and for a port the kind of the variable it names
+/// (a split's half is a body) — the gate every body seat's commit asks
+/// of the read it holds.
+pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWanted) -> bool {
+    use pncad::document::{SlotKind, VarKind};
+    let var = match read {
+        Operand::Node(node) => return admits(doc, *node, wanted),
+        Operand::Output { node, port } => doc.output(*node, *port),
+        Operand::Var(var) => Some(*var),
+        Operand::Name(name) => doc.var_named(name.as_str()),
+        Operand::Select { .. } | Operand::Pose(_) => return false,
+    };
+    let kind = match wanted {
+        NodeKindWanted::Body => VarKind::Body,
+        NodeKindWanted::Instances => VarKind::Bodies,
+        NodeKindWanted::Profile
+        | NodeKindWanted::Axis
+        | NodeKindWanted::Plane
+        | NodeKindWanted::Frame => return false,
+    };
+    var.and_then(|var| doc.var(var))
+        .is_some_and(|var| SlotKind::Is(kind).admits(var))
+}
+
+/// **Which seat kind a node is by its kind alone**, or `None` for a
+/// node no profile, axis, plane or frame seat takes — the one
+/// classification [`admits`] reads for every kind but the two read off
+/// the variable a node named alone defines ([`NodeKindWanted::Body`],
+/// [`NodeKindWanted::Instances`]).
+pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
     match node {
         Node::Profile(_) => Some(NodeKindWanted::Profile),
         Node::Datum(datum) => match datum {
             Datum::Axis { .. } => Some(NodeKindWanted::Axis),
-            Datum::AxisInPlane { .. } => Some(NodeKindWanted::SketchAxis),
             Datum::Plane { .. } => Some(NodeKindWanted::Plane),
             // Both frame kinds: a profile is drawn on a frame VALUE,
             // and a derived frame evaluates to the same value an
@@ -139,9 +138,9 @@ fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
             // No seat asks for a point.
             Datum::Point { .. } => None,
         },
-        Node::Split { .. } => Some(NodeKindWanted::Split),
-        Node::Pattern { .. } => Some(NodeKindWanted::Instances),
-        Node::Extrude { .. }
+        Node::Split { .. }
+        | Node::Pattern { .. }
+        | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Tube { .. }
         | Node::HollowTube { .. }
@@ -150,8 +149,9 @@ fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
         | Node::Shell { .. }
-        | Node::Boolean { .. }
+        | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Intersect { .. }
         | Node::Transform { .. }
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
@@ -159,6 +159,7 @@ fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Mate { .. }
         | Node::Gauge { .. }
         | Node::Measure { .. }
+        | Node::PlaceInWorld { .. }
         | Node::Assertion { .. } => None,
     }
 }
@@ -169,11 +170,9 @@ impl NodeKindWanted {
         match self {
             Self::Profile => "a profile",
             Self::Axis => "an axis datum",
-            Self::SketchAxis => "an axis datum in a sketch frame",
             Self::Plane => "a plane datum",
             Self::Frame => "a frame datum",
             Self::Body => "a body",
-            Self::Split => "a split",
             Self::Instances => "a pattern",
         }
     }
@@ -288,6 +287,13 @@ pub enum Refusal {
     ///
     /// [`SessionOp::SetSlotVariable`]: crate::session::SessionOp::SetSlotVariable
     NotOffered(SpokenVar),
+    /// [`SessionOp::SetSlotVariable`] carried a name for a variable
+    /// that already has one. A name is given to share an unnamed
+    /// variable (VR2); a named one is shared by the name it holds, and
+    /// accepting its offer renames nothing.
+    ///
+    /// [`SessionOp::SetSlotVariable`]: crate::session::SessionOp::SetSlotVariable
+    OfferIsNamed(SpokenVar),
     /// A variable's field was given a constant expression that does
     /// not evaluate to a value — a non-finite result, or a count past
     /// its range. Constant text typed as a value is folded here, before
@@ -315,26 +321,22 @@ pub enum Refusal {
         /// The kind the seat requires.
         wanted: NodeKindWanted,
     },
+    /// A body seat's read names no output of the document: a selection,
+    /// or a variable name nothing defines. A seat reads a node or one of
+    /// its outputs.
+    NotABodyRead {
+        /// The read, as the session op held it.
+        read: Box<Operand>,
+    },
     /// A duplicate could not be placed — its input's landed value is
     /// not one body with a width ([`combine::DuplicateFault`]).
     Duplicate(combine::DuplicateFault),
-    /// The boolean the door evaluated refused a contact nobody
-    /// declared, so it was not committed ([`RefusedBoolean`]): the
-    /// kernel's refusal and the attempt it answered, which is what
-    /// makes the offer to declare it (`frame::declare_offer`).
-    ///
-    /// Boxed for [`Refusal::Edit`]'s reason.
-    Contact(Box<RefusedBoolean>),
     /// `apply` refused the edit — the door's own sentence, forwarded.
     ///
     /// **Layer 3 adds a frame and never a second opinion.** Every
     /// condition `apply` refuses is refused there and rendered in
     /// `EditError`'s words; a flat arm restating one would be two
     /// spellings of a rule with one home (`crates/viewer/README.md`).
-    /// One node in both operand seats used to be such an arm and is
-    /// now this one: `Node::input_fault`'s pairwise-distinct rule is a
-    /// fact about ANY node's inputs, so the boolean tool, `SetMembers`
-    /// and the load validator all reach it at the same door.
     ///
     /// Boxed, as `Io` is below: these two payloads are an order of
     /// magnitude larger than every other arm, and a refusal is
@@ -461,8 +463,8 @@ impl Refusal {
             },
             Self::VariableIsDefined(var) => Self::VariableIsDefined(var.respoken(doc)),
             Self::NotOffered(var) => Self::NotOffered(var.respoken(doc)),
+            Self::OfferIsNamed(var) => Self::OfferIsNamed(var.respoken(doc)),
             Self::Duplicate(fault) => Self::Duplicate(fault.respoken(doc)),
-            Self::Contact(refused) => Self::Contact(Box::new(refused.respoken(doc))),
             Self::Display(fault) => Self::Display(fault.respoken(doc)),
             Self::SlotUnit(fault) => Self::SlotUnit(fault.respoken(doc)),
             Self::Edit(error) => Self::Edit(Box::new(error.respoken(doc))),
@@ -480,6 +482,7 @@ impl Refusal {
                 notation,
             },
             unspoken @ (Self::NoSuchVariable(_)
+            | Self::NotABodyRead { .. }
             | Self::EmptyName
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -508,10 +511,11 @@ impl Refusal {
             | Self::ConstantRefused { .. }
             | Self::VariableIsDefined(_)
             | Self::NotOffered(_)
+            | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::NotABodyRead { .. }
             | Self::Duplicate(_)
-            | Self::Contact(_)
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::NoGesture
@@ -551,10 +555,11 @@ impl Refusal {
             | Self::ConstantRefused { .. }
             | Self::VariableIsDefined(_)
             | Self::NotOffered(_)
+            | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::NotABodyRead { .. }
             | Self::Duplicate(_)
-            | Self::Contact(_)
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -703,7 +708,7 @@ impl Refusal {
         match current {
             Some(value) => format!(
                 "driven by {over} (currently {}) — edit the expression?",
-                props::computed_text(slot.dimension(), value.as_f64(), notation)
+                props::computed_text(slot.expr_dimension(), value.as_f64(), notation)
             ),
             None => format!("driven by {over} — edit the expression?"),
         }
@@ -736,19 +741,6 @@ impl Refusal {
         format!("create variable {}?", name.as_str())
     }
 
-    /// The declare-offer question, and its one home — shown over the
-    /// pairs the offer declares, in the boolean tool.
-    pub fn declare_question(offer: &DeclareOffer) -> String {
-        let contacts = offer.findings.iter().all(|f| f.class.contact().is_some());
-        let what = match (offer.findings.len(), contacts) {
-            (1, true) => "this contact",
-            (_, true) => "these contacts",
-            (1, false) => "this pair",
-            (_, false) => "these pairs",
-        };
-        format!("declare {what} and commit the boolean?")
-    }
-
     /// The accept-offer question, and its one home — shown under an
     /// instance row whose pin no longer holds. It names the part by
     /// its file, as the row does, and says the accept reaches every
@@ -757,26 +749,6 @@ impl Refusal {
         format!(
             "accept the updated version of {}, at every instance of it?",
             offer.part
-        )
-    }
-
-    /// **One pair an offer declares, as the panel names it**: each
-    /// side's operand through the chrome's one spelling of a node, and
-    /// the class the declaration asserts: a contact's class, or a
-    /// continuation (one surface carried on, which is not a contact).
-    /// The line says "a face of" each operand, not which face: saying
-    /// the face in its words is
-    /// `work/doors/face-pick-cannot-name-which-face.md`'s to wire.
-    pub fn declare_pair_wording(doc: &Doc<ProfileProgram>, finding: &FlushFinding) -> String {
-        let (one, other) = &finding.pair;
-        let what = match finding.class.contact() {
-            Some(class) => format!("{} contact", class.name()),
-            None => "a continuation".to_owned(),
-        };
-        format!(
-            "a face of {} against a face of {} — {what}",
-            doc.spoken(one.at),
-            doc.spoken(other.at),
         )
     }
 }
@@ -827,6 +799,11 @@ impl core::fmt::Display for Refusal {
                 "{var} is no longer offered here — type the value again to be offered \
                  the variables equal to it"
             ),
+            Self::OfferIsNamed(var) => write!(
+                f,
+                "{var} already has a name, and the slot shares it by that name — accept \
+                 the offer without giving it another"
+            ),
             Self::EmptyName => {
                 write!(
                     f,
@@ -836,12 +813,18 @@ impl core::fmt::Display for Refusal {
             Self::WrongNodeKind { node, wanted } => {
                 write!(f, "{node} is not {} in this document", wanted.name())
             }
+            Self::NotABodyRead { read } => match &**read {
+                Operand::Name(name) => write!(f, "no variable is named {name} in this document"),
+                _ => f.write_str(
+                    "a selection names cells of a body, not the body: a body seat reads a node \
+                     or one of its outputs",
+                ),
+            },
             // The frame is layer 3's and the sentence is the door's.
             // Nothing is doubled: `EditError`'s arms state the problem
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
             Self::Duplicate(fault) => write!(f, "{fault}"),
-            Self::Contact(refused) => write!(f, "{refused}"),
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
             Self::Parse(error) => write!(f, "the expression did not parse: {error}"),
@@ -872,213 +855,6 @@ impl core::fmt::Display for Refusal {
 }
 
 impl core::error::Error for Refusal {}
-
-/// **A boolean the session door evaluated and did not commit, because
-/// it refused a contact nobody declared** — [`Refusal::Contact`]'s
-/// payload, and the one source of the offer to declare that contact.
-///
-/// It holds the attempt — the operation, its two operands, the findings
-/// it already declared, the generation it was judged at — beside the
-/// kernel's refusal as the kernel raised it, so the sentence a person
-/// reads is the kernel's own and the offer declares exactly the pair
-/// that sentence is about.
-#[derive(Debug)]
-pub struct RefusedBoolean {
-    op: BooleanOp,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
-    declared: Vec<FlushFinding>,
-    at: Generation,
-    /// Always the kernel's `NodeErrorKind::UndeclaredCoincidence`: the one
-    /// constructor admits nothing else.
-    refused: NodeErrorKind,
-    /// The nodes `refused` names, as the document the boolean was
-    /// judged in held them ([`held_by`]).
-    held: HeldNodes,
-}
-
-impl RefusedBoolean {
-    /// **What the boolean `op` of `a` and `b`, evaluated as `node` in
-    /// `eval` (of `doc`) with `declared` already declared, refused** — `None` when
-    /// the node has no failure of its own ([`crate::tree::own_error`]:
-    /// a poisoned node's cause is an ancestor's, sited at that
-    /// ancestor's operands), or fails for any reason but an undeclared
-    /// contact the node can declare.
-    ///
-    /// A contact between two faces of ONE operand is not one it can:
-    /// the pair boolean resolves a declared pair only across its two
-    /// operands, so declaring it would commit a boolean that refuses
-    /// the declaration instead. That refusal stays the node's own.
-    pub(crate) fn read(
-        doc: &Doc<ProfileProgram>,
-        eval: &Evaluation<f64>,
-        node: RecipeNodeId,
-        attempt: (BooleanOp, [RecipeNodeId; 2]),
-        declared: Vec<FlushFinding>,
-        at: Generation,
-    ) -> Option<Self> {
-        Self::of(
-            doc,
-            &crate::tree::own_error(node, eval)?.kind,
-            attempt,
-            declared,
-            at,
-        )
-    }
-
-    /// [`Self::read`]'s judgement of the node's own error `refused`,
-    /// its nodes said as `doc` holds them.
-    fn of(
-        doc: &Doc<ProfileProgram>,
-        refused: &NodeErrorKind,
-        (op, [a, b]): (BooleanOp, [RecipeNodeId; 2]),
-        declared: Vec<FlushFinding>,
-        at: Generation,
-    ) -> Option<Self> {
-        let NodeErrorKind::UndeclaredCoincidence {
-            finding,
-            merged,
-            diag,
-        } = refused
-        else {
-            return None;
-        };
-        if finding.pair.0.at == finding.pair.1.at {
-            return None;
-        }
-        Some(Self {
-            op,
-            a,
-            b,
-            declared,
-            at,
-            refused: NodeErrorKind::UndeclaredCoincidence {
-                finding: finding.clone(),
-                merged: merged.clone(),
-                diag: *diag,
-            },
-            held: held_by(refused, doc),
-        })
-    }
-
-    /// This refusal with its nodes spoken from `doc`, a later version of
-    /// the document it was judged in ([`Refusal::respoken`]).
-    #[must_use]
-    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
-        Self {
-            held: self.held.respoken(doc),
-            ..self
-        }
-    }
-
-    /// The finding the kernel refused: the pair and the class a
-    /// declaration of it asserts.
-    pub fn finding(&self) -> &FlushFinding {
-        let NodeErrorKind::UndeclaredCoincidence { finding, .. } = &self.refused else {
-            unreachable!("`RefusedBoolean::read` admits only an undeclared contact")
-        };
-        finding
-    }
-
-    /// **Whether the kernel refused a pair the attempt already
-    /// declared** — its own declaration, which no further declaring can
-    /// answer.
-    fn re_raised(&self) -> bool {
-        self.declared.contains(self.finding())
-    }
-
-    /// **The offer this refusal makes**: the same boolean again,
-    /// declaring what the attempt declared and the finding it refused.
-    /// `None` when the finding is one the attempt already declared.
-    pub fn offer(&self) -> Option<DeclareOffer> {
-        (!self.re_raised()).then(|| DeclareOffer {
-            at: self.at,
-            op: self.op,
-            a: self.a,
-            b: self.b,
-            findings: self
-                .declared
-                .iter()
-                .chain([self.finding()])
-                .cloned()
-                .collect(),
-        })
-    }
-}
-
-impl core::fmt::Display for RefusedBoolean {
-    /// The kernel's sentence, whole — it names what refused and why,
-    /// and adds no opening of its own. A pair the attempt already
-    /// declared says so after it: that is the kernel refusing its own
-    /// declaration, which no recourse in the sentence can answer.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", Said(&self.refused, Speaker::held(&self.held)))?;
-        if self.re_raised() {
-            write!(
-                f,
-                " — but that pair is already declared on this boolean. {}",
-                pncad::geom_core::KERNEL_DEFECT_ENDING
-            )?;
-        }
-        Ok(())
-    }
-}
-
-/// **The offer a [`RefusedBoolean`] makes** — a value, so the panel
-/// shows every pair accepting it declares before anything is
-/// committed.
-///
-/// The class of each pair is the finding's, confirmed rather than
-/// chosen: the author accepts the contact the kernel detected, and a
-/// class it did not detect is not on offer.
-#[derive(Clone, Debug, PartialEq)]
-pub struct DeclareOffer {
-    at: Generation,
-    op: BooleanOp,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
-    findings: Vec<FlushFinding>,
-}
-
-impl DeclareOffer {
-    /// The button that accepts the offer.
-    pub const ACCEPT_LABEL: &str = "Declare";
-
-    /// The button that drops the offer and declares nothing.
-    pub const DECLINE_LABEL: &str = "Decline";
-
-    /// Every finding accepting the offer declares, in the order the
-    /// refusals reported them.
-    pub fn findings(&self) -> &[FlushFinding] {
-        &self.findings
-    }
-
-    /// **Whether the offer still stands**: the session is at the
-    /// generation the boolean was refused at — no edit, undo or open
-    /// since — and the tool holds the same operation over the same two
-    /// picks. An offer failing either is about a document or a pair of
-    /// operands nobody is looking at.
-    pub fn is_for(
-        &self,
-        now: Generation,
-        op: BooleanOp,
-        a: Option<RecipeNodeId>,
-        b: Option<RecipeNodeId>,
-    ) -> bool {
-        self.at == now && self.op == op && a == Some(self.a) && b == Some(self.b)
-    }
-
-    /// **Accepting the offer**: the boolean again, declaring every
-    /// finding — one action at the session door, so one undo.
-    pub fn accept(&self) -> SessionOp {
-        SessionOp::AddBoolean {
-            op: self.op,
-            a: self.a,
-            b: self.b,
-            declare: self.findings.clone(),
-        }
-    }
-}
 
 /// **The offer an instance whose pin no longer holds makes**: accept
 /// its part's updated version ([`crate::frame::version_offer`] reads
@@ -1297,7 +1073,8 @@ impl core::error::Error for FaceFrameFault {}
 /// RENDERS the answer and decides nothing.
 ///
 /// `Ok` carries the two picks the seat needs — the node whose body the
-/// ray met and the frozen face name — in the order
+/// ray met and the frozen face name, a pick on a copy read on the body
+/// it places ([`crate::world::on_body`]) — in the order
 /// [`crate::session::DatumSpec::FaceFrame`] takes them.
 ///
 /// # Errors
@@ -1341,7 +1118,11 @@ pub fn face_frame_seat(
     // DM1b as a TAG READ, consulting no number: the same comparison
     // the node itself makes at evaluation.
     match face_carrier_kind(ev, at, &face.name) {
-        Ok(SurfaceKind::Plane) => Ok((at, face.name.clone())),
+        // A pick on a copy is read on its body (A10).
+        Ok(SurfaceKind::Plane) => {
+            let (at, _, name) = crate::world::on_body(doc, at, face.body, &face.name);
+            Ok((at, name))
+        }
         Ok(carrier) => Err(FaceFrameFault::NotPlanar { carrier }),
         Err(error) => {
             let error = crate::tree::interrogation_as_drawn(error, ev);
@@ -1416,116 +1197,6 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,
-    }
-}
-
-/// **What a boolean's contact refusal offers, judged on the kernel's own
-/// refusal** — the two cases no scene through the session door reaches:
-/// a pair the attempt already declares, and a pair between two faces of
-/// one operand. Each starts from the boss scene's plain union, the real
-/// refusal, and changes the one thing its case is about.
-#[cfg(test)]
-mod refused_boolean {
-    // Panicking is a test's failure mechanism (workspace lint note).
-    #![allow(clippy::expect_used)]
-    #![allow(clippy::panic)]
-
-    use pncad::document::{BooleanOp, Doc, Node, NodeErrorKind, ProfileProgram, RecipeNodeId};
-    use pncad::geom_core::{KERNEL_DEFECT_ENDING, Tol};
-
-    use super::RefusedBoolean;
-    use crate::generation::Generation;
-    use crate::test_support::{boss_on_block, inserted_and_evaluated};
-
-    /// The boss scene's union refusal as the kernel raised it, handed
-    /// to `with` beside the document the union was evaluated in — its
-    /// evaluation lives only as long as this call.
-    fn with_refusal<R>(
-        with: impl FnOnce(&Doc<ProfileProgram>, &NodeErrorKind, [RecipeNodeId; 2]) -> R,
-    ) -> R {
-        let tol = Tol::witness();
-        let (doc, block, boss) = boss_on_block("refused-boolean", tol);
-        let (judged, eval, union) = inserted_and_evaluated(
-            &doc,
-            Node::Boolean {
-                op: BooleanOp::Union,
-                a: block,
-                b: boss,
-                declare: Vec::new(),
-            },
-            tol,
-        );
-        let kind = &crate::tree::own_error(union, &eval)
-            .expect("the plain union fails on its own")
-            .kind;
-        with(&judged, kind, [block, boss])
-    }
-
-    /// **A pair the attempt already declares is not offered again**: the
-    /// kernel refusing its own declaration is a defect, and the refusal
-    /// says so. Red if the offer repeats the pair, or the sentence does
-    /// not name the defect.
-    #[test]
-    fn a_pair_already_declared_is_refused_as_a_defect_not_offered() {
-        with_refusal(|doc, kind, operands| {
-            let first = RefusedBoolean::of(
-                doc,
-                kind,
-                (BooleanOp::Union, operands),
-                Vec::new(),
-                Generation::FIRST,
-            )
-            .expect("the premise: the plain union's refusal is offerable");
-            assert!(first.offer().is_some(), "the premise: it offers");
-            let again = RefusedBoolean::of(
-                doc,
-                kind,
-                (BooleanOp::Union, operands),
-                vec![first.finding().clone()],
-                Generation::FIRST,
-            )
-            .expect("still a contact refusal");
-            assert_eq!(again.offer(), None, "no offer of a pair already declared");
-            assert!(
-                again.to_string().ends_with(KERNEL_DEFECT_ENDING),
-                "and it says whose defect it is: {again}"
-            );
-        });
-    }
-
-    /// **A contact between two faces of one operand is not offered**: the
-    /// pair boolean resolves a declared pair only across its operands, so
-    /// the refusal stays the node's own. Red if it is offered.
-    #[test]
-    fn a_same_operand_pair_is_not_offered() {
-        with_refusal(|doc, kind, operands| {
-            let NodeErrorKind::UndeclaredCoincidence {
-                finding,
-                merged,
-                diag,
-            } = kind
-            else {
-                panic!("the premise: an undeclared contact, got {kind:?}");
-            };
-            let mut same = (**finding).clone();
-            same.pair.1.at = same.pair.0.at;
-            let one_operand = NodeErrorKind::UndeclaredCoincidence {
-                finding: Box::new(same),
-                merged: merged.clone(),
-                diag: *diag,
-            };
-            assert!(
-                RefusedBoolean::of(
-                    doc,
-                    &one_operand,
-                    (BooleanOp::Union, operands),
-                    Vec::new(),
-                    Generation::FIRST
-                )
-                .is_none(),
-                "a one-operand pair is left to the node's own row"
-            );
-        });
     }
 }
 

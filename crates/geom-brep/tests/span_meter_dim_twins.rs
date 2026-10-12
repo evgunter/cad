@@ -44,7 +44,7 @@ use crate::shared::tol::band;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::keys::SurfaceKey;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Sign;
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
@@ -77,9 +77,9 @@ fn axis_planes() -> (Surface<Probe>, Surface<Probe>) {
 fn axis_segment(length: f64, domain: f64) -> Curve3<Probe> {
     let k = KnotVector::clamped(vec![0.0, 0.0, domain, domain], 1).expect("carrier knots");
     let n = NurbsCurve3::new(
-        k,
+        geom_core::spline::Knots::from(k).lift(geom_core::Real::from_f64),
         vec![p(0.0, 0.0, 0.0), p(0.0, 0.0, length)],
-        vec![1.0, 1.0],
+        vec![Probe(1.0); 2],
     )
     .expect("the carrier builds");
     Curve3::Nurbs(std::sync::Arc::new(n))
@@ -101,7 +101,10 @@ fn span_meter_sample(
     let witness = carrier.eval(Probe(domain * 0.5));
     let (start, end) = (carrier.eval(Probe(0.0)), carrier.eval(Probe(domain)));
     let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(s1, s2),
+            witness,
+        },
         carrier,
         param_start: Probe(0.0),
         param_end: Probe(domain),

@@ -161,3 +161,81 @@ the other".
 ## CONTACT close-out triage (2026-10-08)
 
 Priced P1, H: arm 1 refuses `CurvedWithinReach` (`census.rs`), which blocks SHELL adopting the tier-3-prime bar and REACHHOLD's census door. `census-backstop-separates-curved-pairs-only-along-world-axes` is a sub-step: do them together.
+
+## Also an annular tube in a plate (JOIN, `join/annular-tube-roles`)
+
+`crates/sweep/tests/an_annular_tube_through_a_plate.rs` pins four
+results that build at the closed form, with tier 2, the certificate
+and a legal operand, and fail tier 3′ on `CensusUndecidable` alone
+(all 8 and all 15 errors). Each is two solids, one in the other's
+bore:
+- the plate `(−3, 3)² × (0, 1)` less the tube `r ∈ [0.5, 1]`,
+  `z ∈ [−0.5, 1.5]`: the holed plate and the rod in its bore;
+- the union of the nested tubes `r ∈ [0.75, 1]` and `[0.25, 0.5]`,
+  `z ∈ [0.5, 2.5]`, and its `∩` with the plate (both orders) and its
+  `∖` the plate.
+
+## 2026-10-11 — 542 boolean results at a curved corner pinch, after CONTACTHOLD (FLUSH)
+
+Same probe as the at-infinity row's 2026-10-11 section
+(`curved_notch_pinch`, main `6e3985cb7`, after CONTACTHOLD's PRs 4598
+and 4604): 542 built bodies fail tier 3′ with `CensusUndecidable`
+alone. Each has the oracle's volume, passes tier 2 and the
+certificate, and has no definite tier-3′ finding. That is the 461 of
+main `875e049a` plus 81 that refused at the boolean there
+(`ClassificationInvariant`, `SharedVertexCrossings`) and build now.
+CONTACTHOLD's rewrite moved none of the 461.
+
+Read on poses `9 4 4 ab S` and `0 0 0 ab I`: the result is two solids
+that meet only at the pinch point, one vertex per cone, and the one
+record is the vertex–vertex contact there. The undecidable pairs are
+the cross-solid backstop's (`census.rs`, `CurvedWithinReach`), between
+the faces through `v`: the bowed wall (`Cylinder`) against the other
+solid's planes, and the notch's arc-bounded caps (planar, not
+line-bounded, so not skipped to the exact sweeps) against them. These
+pairs touch at `v`, so no box gap or `backstop_apart` direction can
+separate them, and the backstop does not read a vertex–vertex record.
+This is the JOIN pinch class above ("the planar pinches pass: the
+census's `same_point` clears the shared point key"). A curved face at
+the pinch, or a planar face carrying an arc edge, does not clear.
+
+Pinned by `a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet`
+(poses `0 0 0 ab I` and `9 4 4 ab S` undecidable, `0 0 0 ab U` one
+solid and clean): when this lane lands, flip those two expectations.
+
+## Boolean results meet it too (FLUSH, 2026-10-11)
+
+`crates/sweep/tests/join3_r2_probes.rs` `j3r2_pocket_battery` reads 14
+of its 10 800 runs BAD on tier 3′ alone (tiers 2 and the certificate
+pass, and the body unites with a far brick), on `main` at `121741a2b`
+and on `flush/e-tail` alike. All are at the offset `(0.75, 0.75)`,
+where the cutter reaches past the block's corner, and each result is
+two solids: block ∪ a `D-0.45` turned 4 rad, which the block does not
+meet (2 solids, 10 faces, the volume the block's 4 plus the cutter's,
+in all five entries, both orders), and block ∖ a `D0`, `D0.3` or
+`lens` cutter run through, which severs a corner (2 solids). Each
+fails `validate_pseudomanifold` with 5 to 7 `CensusUndecidable` ("a
+curved face of one is within reach of the other") between the cutter's
+or the corner's curved wall and the other solid's faces. The tags are
+`pocket D-0.45 phi=4.000 off=(0.75, 0.75) {top,bottom,through,flushtop,flushbot} U {AB,BA}`
+and `pocket {D0,D0.3,lens} phi={0.700,4.000} off=(0.75, 0.75) through S AB`.
+
+## 2026-10-11 — touching pieces, where no separation clears (FLUSH)
+
+`sweep` `join1_delta_probes::join1_delta_arc_battery` (ignored,
+release): `ARC tri {half, quarter, shallow} d=(0.0, 0.5)
+zb=(0.5, 1.5) U` build at their closed forms, tiers 2 and the
+certificate green, a legal operand, and fail tier 3′ on this arm alone
+(main `bef9a8f1`, and `b65bc54d` before PR 4613). The triangle prism's
+apex edge `x = 0, y = 0.5` lies along the partner's face `y = 0.5`
+over `z ∈ [0.5, 1.5]`, so the two solids TOUCH along that segment, and
+every census finding is `CensusUndecidable { CurvedWithinReach }`: the
+triangle's two slanted faces against the partner's arc-bounded caps,
+and its cylinder wall (planar but not line-bounded counts as curved
+here). These pairs meet at the apex segment's ends, so no box or
+turned direction separates them at any pose: the arm needs a contact
+read for curved or arc-bounded faces, not a sharper separation test.
+The all-planar twin `ARC tri tri` passes 3′. The op's records of the
+touch are complete since FLUSH's `an-apex-edge-…` (PR on
+`flush/apex-edge-in-face-plane`): the bound records plus the apex
+edge's span against the face (or the collinear edge, `quarter`).

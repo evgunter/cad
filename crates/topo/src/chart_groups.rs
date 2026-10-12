@@ -8,15 +8,18 @@
 //! selection — never the body's: a wearer outside the scope is another
 //! solid's face, which no edge of the scope reaches.
 //!
-//! [`ChartGroups::within`] is the one spelling of that grouping. It
-//! takes the scope, so a door cannot group without naming one; a door
-//! whose scope IS the whole body says so through [`ChartGroups::of_body`].
+//! Every door takes the scope, so none groups without naming one:
+//! [`ChartGroups::within`] takes it as face keys, and refuses a key
+//! that does not resolve; [`ChartGroups::of_live`] takes faces already
+//! read off the live arena with their data, so nothing can fail to
+//! resolve; and [`ChartGroups::of_body`] is that door over the whole
+//! body.
 
 use geom_core::Real;
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::entity::FaceKey;
+use crate::entity::{Face, FaceKey};
 use crate::geometry::SurfaceKey;
 
 /// A scope's faces grouped by surface key: groups in the order their
@@ -46,11 +49,16 @@ impl ChartGroups {
     }
 
     /// Groups EVERY face of `body`, in face-arena order: the scope of a
-    /// door whose scope is the whole body. The faces are read off the
-    /// live arena with their data, so nothing can fail to resolve.
+    /// door whose scope is the whole body.
     pub(crate) fn of_body<T: Real>(body: &Body<T>) -> Self {
+        Self::of_live(body.faces())
+    }
+
+    /// Groups `scope`, faces read off the live arena with their data, so
+    /// nothing can fail to resolve.
+    pub(crate) fn of_live<'a>(scope: impl IntoIterator<Item = (FaceKey, &'a Face)>) -> Self {
         let mut out = Self::empty();
-        for (face, data) in body.faces() {
+        for (face, data) in scope {
             out.push(data.surface, face);
         }
         out

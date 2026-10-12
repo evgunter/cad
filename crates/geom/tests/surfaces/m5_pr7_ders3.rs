@@ -178,12 +178,12 @@ fn an_invalid_span_pair_has_no_window_at_all() {
     assert!(!w.contains(4, 0) && !w.contains(0, 3));
 }
 
-/// `window_at` is total on all of `f64`², so an evaluator has no
-/// parameter to refuse either: out-of-domain and NaN land on an end
-/// span and evaluate that span's polynomial extension (the documented
-/// garbage-out contract), never panic.
+/// `window_at` locates every pair of numbers and refuses a NaN in
+/// either: out-of-domain values land on an end span and evaluate that
+/// span's polynomial extension (the documented garbage-out contract),
+/// never panic, and a NaN names no span at all.
 #[test]
-fn window_at_is_total_and_evaluation_stays_finite_in_domain() {
+fn window_at_locates_every_number_and_evaluation_stays_finite_in_domain() {
     let s = rational_patch();
     for u in [
         -1.0,
@@ -197,7 +197,11 @@ fn window_at_is_total_and_evaluation_stays_finite_in_domain() {
         -0.0,
     ] {
         for v in [-1.0, 0.0, 0.5, 1.0, 2.0, f64::NAN, f64::INFINITY] {
-            let w = s.window_at(u, v);
+            let Some(w) = s.window_at(u, v) else {
+                assert!(u.is_nan() || v.is_nan(), "window_at refused ({u}, {v})");
+                continue;
+            };
+            assert!(!u.is_nan() && !v.is_nan(), "window_at located ({u}, {v})");
             // In range for THIS surface: the last flat index the
             // window names must be inside the control net.
             let (nu, nv) = s.control_counts();
@@ -210,6 +214,9 @@ fn window_at_is_total_and_evaluation_stays_finite_in_domain() {
     }
     // In the domain the answer is genuinely finite — the totality above
     // is not being bought with universal poison.
-    let j = s.window_at(0.3, 0.6).ders3_in_span(0.3, 0.6);
+    let j = s
+        .window_at(0.3, 0.6)
+        .expect("numeric parameters")
+        .ders3_in_span(0.3, 0.6);
     assert!(j.jet.point.x.is_finite() && j.duuu.z.is_finite());
 }

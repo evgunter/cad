@@ -63,8 +63,9 @@ fn delta() -> DisplayTolerance {
     DisplayTolerance::new(1.5e-4).expect("a positive delta")
 }
 
-/// Two DISJOINT extruded blocks under two separate roots: block A is
+/// Two DISJOINT extruded blocks, each placed: block A is
 /// `[0,0.02]² × 0.01`, block B is `[0.1,0.14]×[0,0.04] × 0.02`.
+/// Answers the document and the two placements, the drawn copies.
 fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-two-blocks", tol);
     let (doc, plane) = inserted(&doc, xy_frame(), tol);
@@ -72,7 +73,7 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let (doc, a) = inserted(
         &doc,
         Node::Extrude {
-            profile: pa,
+            profile: pa.into(),
             distance: len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -82,12 +83,14 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let (doc, b) = inserted(
         &doc,
         Node::Extrude {
-            profile: pb,
+            profile: pb.into(),
             distance: len(0.02),
             side: ExtrudeSide::Along,
         },
         tol,
     );
+    let (doc, a) = common::placed(&doc, a, tol);
+    let (doc, b) = common::placed(&doc, b, tol);
     (doc, a, b)
 }
 
@@ -241,14 +244,14 @@ fn cursor_projection_is_exactly_a_shift_and_scale_in_ndc() {
     }
 }
 
-// --- the id alphabet over this suite's own two-root fixture ---------
+// --- the id alphabet over this suite's own two-copy fixture ---------
 
-/// Two separate roots' patches share no id, every drawn patch's name
+/// Two separate copies' patches share no id, every drawn patch's name
 /// is `Ok`, and the forward/backward maps agree — the bijection over a
 /// fixture whose bodies come from DIFFERENT nodes, where the unit's
 /// three-instance row had one node with three bodies.
 #[test]
-fn two_roots_draw_under_disjoint_ids_and_every_patch_is_named() {
+fn two_copies_draw_under_disjoint_ids_and_every_patch_is_named() {
     let tol = Tol::witness();
     let (doc, a, b) = two_blocks(tol);
     let (session, index) = landed(doc, tol);
@@ -273,7 +276,7 @@ fn two_roots_draw_under_disjoint_ids_and_every_patch_is_named() {
     assert_eq!(
         nodes,
         std::collections::BTreeSet::from([a, b]),
-        "both roots are drawn and no third node appears"
+        "both copies are drawn and no third node appears"
     );
     assert_eq!(ids.key_of(IdMap::NOTHING), None, "0 stays reserved");
 }
@@ -400,7 +403,7 @@ fn deleting_the_owner_kills_the_standing_and_undo_revives_it() {
         "typed verdict, not an absence: {standing:?}"
     );
     assert!(session.slot_rows().is_empty(), "affordances are off");
-    // The OTHER root is untouched and still selectable — the dead
+    // The OTHER copy is untouched and still selectable — the dead
     // selection poisoned nothing beside itself.
     session.perform(SessionOp::Select(Selection::Node(b)));
     assert!(session.standing().live());
@@ -427,7 +430,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.015),
             side: ExtrudeSide::Along,
         },
@@ -436,7 +439,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     let (doc, pattern) = inserted(
         &doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: pncad::document::Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -452,6 +455,14 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
         slot: SlotId::Count,
         value: SlotValue::Count(3),
     });
+    // The third copy reaches the world through its projection (A10).
+    let third = common::session_insert(
+        &mut session,
+        SessionOp::AddPart {
+            of: pattern,
+            select: viewer::session::PartSelectSpec::Instance(2),
+        },
+    );
     session.pump();
     let index = index_of(&session);
     // The third instance spans y ∈ [0.16, 0.19]; a horizontal ray
@@ -461,7 +472,11 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
         .face_at(session.evaluation().expect("landed"), &wall)
         .expect("no refusal")
         .expect("the third instance's wall is under this ray");
-    assert_eq!(face.body, 2, "the youngest instance is output body 2");
+    assert_eq!(
+        face.node,
+        common::copy_of(session.committed_doc(), third),
+        "the youngest instance's copy is hit"
+    );
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     assert!(session.standing().live());
 

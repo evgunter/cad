@@ -1,7 +1,7 @@
 //! **Two cylinder walls with parallel axes crossing**: they meet in two
 //! rulings, and the join's germ-pair dispatch splits each wall along its
 //! own ruling — the plane × cylinder ruling arm on both sides
-//! (`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`).
+//! (`parallel-cylinder-germ-pair-has-no-join-arm`, JOIN, closed by PR 4031).
 //!
 //! Every pose runs ∪, ∩ and both differences in both operand orders,
 //! and every run builds a body that is SOUND by
@@ -209,18 +209,20 @@ fn an_island_and_a_turned_pose_join_along_their_rulings() {
 }
 
 /// **The row's rods build in every op and order.** Their walls join
-/// along the rulings like the poses above. The classification's probe
-/// measures the drum's cut wall, trimmed by an ellipse, in closed form
-/// only (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`),
-/// so a probe ray that meets nothing cannot side its point; that ray is
-/// set aside, and the query refuses `Containment(VolumeUncertified)` only
-/// where no ray settles, which none of these poses reaches. Each build
-/// passes tiers 2 and 3′, the certificate and its closed-form volume.
-/// They are not yet legal operands (their union with a far brick
-/// refuses; why is not measured here).
+/// along the rulings like the poses above. Each build passes tiers 2 and
+/// 3′, the certificate and its closed-form volume, and is a legal
+/// operand: its union with a brick far away adds the brick. The
+/// closed-form volume cannot side the drum's cut wall, trimmed by an
+/// ellipse, for a ray from the far brick that meets nothing; a ray aimed
+/// at a planar face does.
 #[test]
 fn the_rim_crossing_rods_build_in_every_op() {
     let tol = Tol::witness();
+    let far = finished(
+        "a brick far away",
+        sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+        tol,
+    );
     for pose in rim_poses() {
         assert!(
             pose.shared > 0.0 && pose.shared < pose.vb,
@@ -252,6 +254,17 @@ fn the_rim_crossing_rods_build_in_every_op() {
                         "{label}: volume {} ± {} vs {want}",
                         m.volume,
                         m.volume_pad
+                    );
+                    let joined = topo::union(&bb.body, &far, tol)
+                        .unwrap_or_else(|e| panic!("{label}: ∪ a far brick builds, got {e:?}"));
+                    let j = topo::mass_properties(&joined.body().expect("not empty").body, tol)
+                        .unwrap_or_else(|e| panic!("{label}: ∪ a far brick measures, got {e:?}"));
+                    assert!(
+                        (j.volume - (want + 1.0)).abs() <= j.volume_pad + 1e-12,
+                        "{label}: ∪ a far brick: volume {} ± {} vs {}",
+                        j.volume,
+                        j.volume_pad,
+                        want + 1.0
                     );
                 }
                 other => panic!("{label}: {:?}", other.map(|_| "a body")),

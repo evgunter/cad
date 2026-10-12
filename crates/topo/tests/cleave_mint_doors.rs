@@ -9,12 +9,13 @@
 
 use crate::common;
 use crate::fixture::m7_8::{edge_findings, m7_8_cube, m7_8_edges, nurbs_wall};
+use geom_core::spline::{Knots, SpanLocate};
 
 use geom_core::{Dual64, Point3, Real, Tol};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, Rechart};
 
 /// The M7-8 edges of `body` with their restated specs, in arena order.
-fn wall_edges<T: Real>(body: &Body<T>) -> Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> {
+fn wall_edges<T: SpanLocate>(body: &Body<T>) -> Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> {
     body.edges()
         .filter_map(|(k, e)| match body.get_curve_geom(e.curve) {
             Some(topo::CurveGeom::Certified(c))
@@ -108,7 +109,7 @@ fn split_edge_splits_an_m7_8_edge_into_two_of_the_class_at_f64() {
             "whether two edges meeting at a vertex on one curve are one edge is undecided \
              (margin is invalid (NaN or a refused enclosure) against the ambiguity band ({:?}, {:?})). \
              Recourse: move the vertex clear of the pole, apex or tangency it sits near; an \
-             unreadable or collapsed margin may indicate a kernel bug worth reporting",
+             unreadable margin may indicate a kernel or file defect worth reporting",
             band.zero(),
             band.escalate()
         )
@@ -195,12 +196,16 @@ where
     let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let spec = geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
+            pair: geom_brep::SurfacePair::new(s1, s2),
             witness: p0.lerp(p1, T::from_f64(0.5)),
         },
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
+            geom::NurbsCurve3::new(
+                Knots::from(kv).lift(geom_core::Real::from_f64),
+                vec![p0, p1],
+                vec![Real::one(); 2],
+            )
+            .unwrap(),
         )),
         param_start: T::zero(),
         param_end: T::one(),

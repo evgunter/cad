@@ -267,12 +267,12 @@ fn pick_index_error_forwards_its_id_arm() {
     assert_eq!(outer, inner.to_string());
 }
 
-/// The indexing arm carries `editor-core`'s own refusal, and the root
-/// it names is this layer's contribution. The arm claims only that the
-/// root was not indexed, which is true of every payload: why — no
+/// The indexing arm carries `editor-core`'s own refusal, and the
+/// placement it names is this layer's contribution. The arm claims only
+/// that the placement was not indexed, which is true of every payload: why — no
 /// value, no body, a tessellation refusal — is the payload's to say.
 #[test]
-fn pick_index_error_says_only_that_its_root_was_not_indexed() {
+fn pick_index_error_says_only_that_its_placement_was_not_indexed() {
     let node = RecipeNodeId::new(0, tagged(7));
     let not_a_body = NodePickError::NotABody { node };
     let standing = NodeStanding::Failed { node };
@@ -285,7 +285,7 @@ fn pick_index_error_says_only_that_its_root_was_not_indexed() {
         assert_eq!(
             outer,
             format!(
-                "root 000000000007 could not be indexed: {}",
+                "placement 000000000007 could not be indexed: {}",
                 Said(&inner, Speaker::TAG.about(node))
             )
         );

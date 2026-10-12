@@ -29,7 +29,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Curve3;
-use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
+use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfacePair};
 use geom_core::k_stats::Bracket;
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec3};
 use profile::{Profile, SketchPlane};
@@ -185,7 +185,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
             );
             let (t0, t1) = c.params();
             assert!(t1 - t0 < core::f64::consts::PI, "{what}: the arc is short");
-            let EdgeDescription::Intersection { s1, s2, .. } = c.description() else {
+            let EdgeDescription::Intersection { pair, .. } = c.description() else {
                 panic!(
                     "{what}: the arc is a transverse intersection, got {:?}",
                     c.description()
@@ -193,11 +193,11 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
             };
             let (fa, fb) = edge_surfaces(&out.body, a);
             assert!(
-                (*s1 == fa && *s2 == fb) || (*s1 == fb && *s2 == fa),
+                *pair == SurfacePair::new(fa, fb),
                 "{what}: the arc's description names its two faces' surfaces"
             );
             assert!(
-                *s1 == band_surface || *s2 == band_surface,
+                pair.contains(band_surface),
                 "{what}: the arc's description cites the band"
             );
         }
@@ -223,7 +223,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                 dir.cross(axis).norm() < 1e-15,
                 "{what}: the trimline runs along the ruling"
             );
-            let EdgeDescription::TangentIntersection { s1, s2, .. } = c.description() else {
+            let EdgeDescription::TangentIntersection { pair, .. } = c.description() else {
                 panic!(
                     "{what}: a trimline is a tangent contact, got {:?}",
                     c.description()
@@ -231,8 +231,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
             };
             let support_surface = out.body.get_face(support).unwrap().surface;
             assert!(
-                (*s1 == band_surface && *s2 == support_surface)
-                    || (*s1 == support_surface && *s2 == band_surface),
+                *pair == SurfacePair::new(band_surface, support_surface),
                 "{what}: the trimline's description cites the band and its support"
             );
         }
@@ -630,10 +629,10 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
     else {
         panic!("an arc");
     };
-    let EdgeDescription::Intersection { s1, s2, witness } = c.description() else {
+    let EdgeDescription::Intersection { pair, witness } = c.description() else {
         panic!("a transverse intersection");
     };
-    let (s1, s2, witness) = (*s1, *s2, *witness);
+    let (pair, witness) = (*pair, *witness);
     let (t0, t1) = c.params();
     let mutants = [
         (
@@ -660,7 +659,7 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         let attached = body.set_edge_curve(
             arc,
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+                description: EdgeDescriptionSpec::Intersection { pair, witness },
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -679,14 +678,14 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
 
 /// **Phase-1 ground, kept as pins.** The `CylinderCylinderCylinder`
 /// consumer — two parallel cylinders of one height, overlapping,
-/// unioned — has no body: the rims' crossings of the walls are
-/// certified, but the two pairs of cap discs overlap in their planes,
-/// an undeclared coincidence the boolean never infers, so the concave
-/// ruled band has no fixture. And a box's single edge, which is not a
+/// unioned — has a body: the rims' crossings of the walls are
+/// certified, and the two pairs of cap discs, one plane each by margin,
+/// glue, so the union builds at its closed form, the fixture the concave
+/// ruled band can be cut from. And a box's single edge, which is not a
 /// ruled link, is cut off at its end faces by the plane–plane band's
 /// own cut-off.
 #[test]
-fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_cut_off() {
+fn the_parallel_cylinder_union_builds_and_a_box_edge_is_cut_off() {
     let cyl = |cx: f64| {
         let lp = profile::circle(Point2::new(cx, 0.0), 0.5, tol()).unwrap();
         let profile = Profile::new(SketchPlane::xy(), vec![lp.into()])
@@ -704,11 +703,16 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_cut_off() {
         .body;
         finished("the cylinder", body, tol())
     };
-    let err = topo::union(&cyl(0.0), &cyl(0.6), tol()).expect_err("the parallel pair refuses");
-    assert!(
-        matches!(err, topo::BooleanError::UndeclaredCoincidence { .. }),
-        "the boolean's undeclared-coincidence door on the cap discs, got {err:?}"
-    );
+    let (a, b) = (cyl(0.0), cyl(0.6));
+    let built = topo::union(&a, &b, tol());
+    let Ok(topo::BooleanResult::Body(bb)) = &built else {
+        panic!("the parallel pair builds: {built:?}");
+    };
+    // Two r = 1/2 discs whose centres are 0.6 apart, one high.
+    let lens = 0.5 * 0.6_f64.acos() - 0.3 * 0.8;
+    let want = 2.0 * core::f64::consts::PI * 0.25 - lens;
+    let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
+    assert!((v - want).abs() < 1e-9, "{v} vs the closed form {want}");
 
     let body = cube(1.0, tol());
     let e = query::all_edges(&body)[0];

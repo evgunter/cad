@@ -5,7 +5,7 @@ A selection names faces, edges or vertices of a solid so a later step
 how that is said: the naming table, the four whole-body
 materializers, the pattern language over the SHAPE of a name, the
 geometric filters that narrow one, the doors from a name back to
-geometry, and the detect/declare protocol for flush contact.
+geometry, and how flush contact glues.
 
 The vocabulary is `pncad::select`, and every worked example below is
 a doctest of this crate.
@@ -78,10 +78,10 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
-let (next, cube) = insert(&doc, Node::Extrude { profile, distance: len(1.0), side: ExtrudeSide::Along });
+let (next, cube) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(1.0), side: ExtrudeSide::Along });
 doc = next;
 // The datum the position rule is written against — one argument,
 // and the rule now moves WITH the part.
@@ -194,13 +194,13 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(
     &doc,
     Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: Formula::literal(1.0, Dimension::Length).expect("a length"),
         side: ExtrudeSide::Along,
     },
@@ -364,13 +364,13 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(
     &doc,
     Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: Formula::literal(1.0, Dimension::Length).expect("a length"),
         side: ExtrudeSide::Along,
     },
@@ -416,25 +416,18 @@ assert!(matches!(
 ));
 ```
 
-## Detect and declare: flush contact as a conversation
+## Flush contact glues
 
-Two bodies that touch face-to-face do not silently glue — the
-boolean REFUSES an undeclared coincidence, and the recourse
-menu has exactly two arms: declare the contact, or move the
-geometry. This is the declare arm's protocol:
-`find_flush_candidates` REPORTS the flush pairs as
-`FlushFinding` values — the contact verifier itself run in
-candidate-generation mode, so a finding can never disagree with
-the boolean's own verify-at-use — and `declare` /
-`declare_all` set findings the caller has INSPECTED as a live
-boolean's or union's declared pairs (the `SetDeclare` edit; a new
-node takes them as its `declare` list). Detection and declaration are
-separate doors on purpose (the ruled no-fusion boundary): findings
-pass through your hands as values, never straight into a recipe.
+Two bodies that touch face-to-face glue where their margins decide
+the faces one surface, and the boolean records each such coincidence
+on the node's value (`NodeValue::coincidences`), each cell named in
+the table of the member it came from. Nothing is declared: a pair the
+margin leaves in the tolerance's ambiguity band refuses, and its
+recourse is the geometry.
 
 ```
 use pncad::prelude::*;
-use pncad::document::{BooleanOp, BooleanValue, NodeErrorKind, NodeResult};
+use pncad::document::{Bodies, BooleanValue};
 
 let tol = Tol::witness();
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -452,8 +445,8 @@ let frame_at = |z: f64| {
     })
 };
 // v4: the profile payload is its PROGRAM, drawn on a frame NODE.
-let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane| ProfileProgram {
-    plane,
+let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane: RecipeNodeId| ProfileProgram {
+    frame: plane.into(),
     loops: vec![
         LoopProgram::polygon([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
             .expect("finite corners"),
@@ -467,47 +460,21 @@ let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane| ProfileProgram {
 let doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
 let (doc, ground) = insert(&doc, frame_at(0.0));
 let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, ground)));
-let (doc, base) = insert(&doc, Node::Extrude { profile: pf1, distance: len(1.0), side: ExtrudeSide::Along });
+let (doc, base) = insert(&doc, Node::Extrude { profile: pf1.into(), distance: len(1.0), side: ExtrudeSide::Along });
 let (doc, cap) = insert(&doc, frame_at(1.0));
 let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, cap)));
-let (doc, block) = insert(&doc, Node::Extrude { profile: pf2, distance: len(0.5), side: ExtrudeSide::Along });
+let (doc, block) = insert(&doc, Node::Extrude { profile: pf2.into(), distance: len(0.5), side: ExtrudeSide::Along });
 
-// Undeclared, the union refuses — coincidence is never inferred
-// from values (the coincidence ladder).
+// The union glues the rest its margin decides, and records it.
 let (doc, uni) = insert(
     &doc,
-    Node::Boolean { op: BooleanOp::Union, a: base, b: block, declare: Vec::new() },
+    Node::Union { members: Bodies::Spelled(vec![base.into(), block.into()]) },
 );
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
-let Some(NodeResult::Failed(e)) = ev.nodes.get(&uni) else {
-    panic!("the undeclared union must refuse");
-};
-// The refusal IS the menu: it carries the candidate
-// declaration — the pair by stable name, with its relation — in
-// the detector's own value shape.
-let NodeErrorKind::UndeclaredCoincidence { finding, .. } = &e.kind else {
-    panic!("expected the refusal menu, got {:?}", e.kind);
-};
-assert_eq!(finding.class, BooleanCoincidence::REST);
-
-// The declare arm: detect, INSPECT, declare on the live union,
-// and the SAME node that refused now verifies the declared contact.
-// (Declaring the menu's own finding — `declare(&doc, uni, finding)`
-// — is the same door; the detector shows the full inventory.)
-let findings = find_flush_candidates(&ev, base, block, tol).expect("definite findings");
-assert_eq!(findings.len(), 1);
-assert_eq!(findings[0].class, BooleanCoincidence::REST);
-let applied = declare_all(&doc, uni, &findings, tol).expect("declarable");
-// `applied` is the accepted edit whole: the document, and the
-// maintenance the edit performed (none — a declaration moves no
-// group). A caller that keeps a mirror of that record takes both
-// together; this one keeps none.
-let doc = applied.doc;
-let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
-let ValuePayload::Boolean(BooleanValue::Body { body, .. }) =
-    &ev.value(uni).expect("the declared union evaluates").payload
-else {
+let value = ev.value(uni).expect("the union evaluates");
+let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
     panic!("expected a body");
 };
 assert_eq!(mass_properties(body, tol).expect("mass").volume, 1.125);
+assert_eq!(value.coincidences.len(), 1, "the one resting pair of faces");
 ```

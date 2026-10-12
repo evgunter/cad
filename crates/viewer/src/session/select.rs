@@ -48,7 +48,7 @@ impl FaceSelection {
     /// the entity the name denotes, read off the name's own
     /// carry-through segments (`pncad::select::attribute`).
     ///
-    /// A fillet's `FromTarget(f)` face is still the target's face `f`,
+    /// A fillet's `From { of: f }` face is still the target's face `f`,
     /// so clicking a flat on a filleted body reaches the feature that
     /// swept the flat and not the fillet that shrank it. That is the
     /// question the feature tree's highlight, the property panel's
@@ -60,7 +60,7 @@ impl FaceSelection {
     ///
     /// Falls back to [`FaceSelection::node`] for a name the vocabulary
     /// walk cannot classify, so an unclassified role degrades to the
-    /// drawn root rather than to no feature at all.
+    /// drawn copy rather than to no feature at all.
     pub fn feature(&self) -> RecipeNodeId {
         attribute(&self.name).minted_by().unwrap_or(self.node)
     }
@@ -196,7 +196,7 @@ impl Selection {
     /// The recipe node this selection is about, when it is about one:
     /// the node itself, or the feature a picked face belongs to
     /// ([`FaceSelection::feature`] — the node that MADE the face, not
-    /// the root that drew it).
+    /// the copy that drew it).
     ///
     /// **The one home for the viewport→tree inversion.** The feature
     /// tree's highlight and the property panel's slot rows both read
@@ -226,16 +226,25 @@ impl Selection {
     /// highlight and the property panel ask [`Selection::node`], and
     /// every seated tool asks this — `crate::tools`' one pick route.
     ///
-    /// A pick on a pattern's or a split's picture answers the PATTERN
-    /// or the SPLIT, since that is the root whose value was drawn; the
-    /// output-body index riding on the pick says which of its bodies,
-    /// and no seat reads it.
+    /// A pick is on a world placement's copy (A10), and a seat takes the
+    /// body that placement places: [`crate::seats::Seats::pick`] reads
+    /// it through [`crate::world::seat_read`].
     pub fn seat_node(&self) -> Option<RecipeNodeId> {
         match self {
             Self::Node(id) => Some(*id),
             Self::Face(face) => Some(face.node),
             Self::Edge(edge) => Some(edge.node),
             Self::None | Self::Variable(_) => None,
+        }
+    }
+
+    /// **The output body a viewport pick hit** ([`FaceSelection::body`]),
+    /// beside [`Selection::seat_node`]; a tree click names none.
+    pub fn seat_body(&self) -> Option<u32> {
+        match self {
+            Self::Face(face) => Some(face.body),
+            Self::Edge(edge) => Some(edge.body),
+            Self::None | Self::Node(_) | Self::Variable(_) => None,
         }
     }
 

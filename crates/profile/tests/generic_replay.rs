@@ -35,10 +35,10 @@ use crate::common;
 
 use common::{coverage_corpus, tol, try_replay_at};
 use geom_core::{Dual64, Point2, Real};
-use profile::{ProfileLoop, ReplayError, Step};
+use profile::{ConstructedLoop, ReplayError, Step};
 
 /// One corpus row's program, embedded and replayed at `T`.
-fn replay_at<T: profile::ArcCarrierScalar>(program: &[Step<f64>]) -> ProfileLoop<T> {
+fn replay_at<T: profile::ArcCarrierScalar>(program: &[Step<f64>]) -> ConstructedLoop<T> {
     try_replay_at(program)
         .unwrap_or_else(|e| panic!("the corpus program refused at the lifted scalar: {e}"))
 }
@@ -99,13 +99,11 @@ fn the_corpus_replays_at_dual_with_bit_identical_values() {
                 );
             }
         }
-        let (mut want, mut got) = (
-            base.tangent_joints().to_vec(),
-            dual.tangent_joints().to_vec(),
+        assert_eq!(
+            base.constructed_joints(),
+            dual.constructed_joints(),
+            "row {i}: constructed tangent joints"
         );
-        want.sort_unstable();
-        got.sort_unstable();
-        assert_eq!(want, got, "row {i}: declared tangent joints");
     }
 }
 
@@ -153,10 +151,11 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
                 );
             }
         }
-        let (mut want, mut got) = (base.tangent_joints().to_vec(), iv.tangent_joints().to_vec());
-        want.sort_unstable();
-        got.sort_unstable();
-        assert_eq!(want, got, "row {i}: declared tangent joints");
+        assert_eq!(
+            base.constructed_joints(),
+            iv.constructed_joints(),
+            "row {i}: constructed tangent joints"
+        );
     }
 }
 

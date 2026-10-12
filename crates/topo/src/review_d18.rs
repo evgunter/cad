@@ -3512,7 +3512,6 @@ const READ_FIXTURES: [(&str, BuildFixture); 6] = [
         crate::test_support_fixtures::cyl_wall_sheet(
             &mut body,
             crate::test_support_fixtures::CylFrame::canonical(1.0),
-            None,
             (0.2, 1.4),
             (0.0, 1.0),
             tol,
@@ -3729,6 +3728,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
             Ok(_)
             | Err(
                 ContainError::Escalated { .. }
+                | ContainError::ArcEndClearOfCorners(_)
                 | ContainError::RayExhausted
                 | ContainError::EmptyLoop(_)
                 | ContainError::Uncrossable(_)

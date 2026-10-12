@@ -9,8 +9,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorClass, ProfileDoc,
-    RecipeNodeId, RoleSeg, evaluate,
+    CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorClass, ProfileDoc, RecipeNodeId,
+    RoleSeg, evaluate,
 };
 use fixture::{insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -42,7 +42,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -61,11 +61,8 @@ fn union_cross_bar_names_totally() {
     let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc);
@@ -85,11 +82,8 @@ fn union_cross_bar_swapped_names_totally() {
     let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc);
@@ -107,11 +101,9 @@ fn subtract_cross_bar_names_totally() {
     let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.25, 0.5);
     let (doc, s) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
         },
     );
     let ev = run(&doc);
@@ -129,11 +121,9 @@ fn subtract_block_from_bar_never_fails_in_naming() {
     let (doc, b) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, s) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
         },
     );
     let ev = run(&doc);
@@ -169,8 +159,8 @@ fn split_through_operand_edges_names_totally() {
     let (doc, sp) = insert(
         doc,
         Node::Split {
-            target: d,
-            tool: plane,
+            target: d.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc);
@@ -225,7 +215,7 @@ fn split_through_a_reflex_corner_names_its_copy_where_the_corner_stands() {
     let (doc, prism) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -240,8 +230,8 @@ fn split_through_a_reflex_corner_names_its_copy_where_the_corner_stands() {
     let (doc, sp) = insert(
         doc,
         Node::Split {
-            target: prism,
-            tool: plane,
+            target: prism.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc);
@@ -281,20 +271,20 @@ fn split_through_a_reflex_corner_names_its_copy_where_the_corner_stands() {
     );
 }
 
-// ---- R7: pattern of a multi-body master must refuse TYPED (never
-// silently conflate the split halves under instance body indices). ----
+// ---- R7: a pattern never conflates a split's halves under instance
+// body indices. ----
 //
-// **R7 register, narrowed (ASM-2K, PR #381).** This row is the whole
-// of what R7 still defers. The refusal is scoped to a master with
-// several output BODIES — body index is the instance index there, so
-// admitting one needs a ratified instance×body layout. A master whose
-// single body holds several SOLIDS is NOT this case and is admitted:
-// `Instance(i)` wraps every name uniformly, pinned by
-// `names::emit::pattern_tests` (the rule is stated at `name_pattern`'s
-// docs). The multi-solid reading of R7 retires there; this row stands.
+// **R7 register, closed by reads (INTENT stage 2 unit B).** The
+// deferral was a master with several output BODIES — body index is
+// the instance index there. A split named alone is either of its two
+// bodies, so the door refuses it as a pattern's operand
+// (`AmbiguousOutput`), and a read of one port IS that half: the
+// pattern is a pattern of one body, each copy carrying the half's rows
+// and no row of the other half. A master whose single body holds several
+// SOLIDS was always admitted (`names::emit::pattern_tests`).
 
 #[test]
-fn pattern_of_split_output_refuses_typed_never_misnames() {
+fn a_pattern_of_a_split_port_is_the_pattern_of_its_half() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
     let (doc, d) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
     let (doc, plane) = insert(
@@ -307,33 +297,51 @@ fn pattern_of_split_output_refuses_typed_never_misnames() {
     let (doc, sp) = insert(
         doc,
         Node::Split {
-            target: d,
-            tool: plane,
+            target: d.into(),
+            tool: plane.into(),
         },
     );
-    let (doc, pat) = insert(
-        doc,
-        Node::Pattern {
-            input: sp,
-            count: editor_core::Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(5.0),
-            },
+    let pattern = |input: editor_core::Operand| Node::Pattern {
+        input,
+        count: editor_core::Formula::count(2),
+        kind: editor_core::PatternKind::Linear {
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+            spacing: len(5.0),
         },
+    };
+    let refusal = crate::fixture::insert_refused(&doc, pattern(sp.into()));
+    assert!(
+        matches!(&refusal, editor_core::EditError::AmbiguousOutput { input, .. } if input.id() == sp),
+        "a split named alone is either half: {refusal:?}"
+    );
+    let (doc, by_port) = insert(
+        doc,
+        pattern(editor_core::Operand::output(
+            sp,
+            editor_core::SplitHalf::Above.port(),
+        )),
     );
     let ev = run(&doc);
-    assert!(
-        ev.value(pat).is_none(),
-        "pattern of a split output must refuse (typed), got a value"
-    );
-    let err = format!("{:?}", ev.nodes.get(&pat));
-    assert!(
-        matches!(
-            ev.node_error(pat).map(|e| e.kind.class()),
-            Some(NodeErrorClass::WrongOperand | NodeErrorClass::Naming)
-        ),
-        "expected a typed refusal, got: {err}"
+    let copies = ev
+        .value(by_port)
+        .unwrap_or_else(|| panic!("{:?}", ev.nodes.get(&by_port)));
+    let rows = |body: u32| {
+        ev.value(sp)
+            .expect("the split")
+            .name_table
+            .iter()
+            .filter(|(_, entry)| match entry {
+                editor_core::Entry::Unique(e) => e.body == body,
+                editor_core::Entry::Tied(c) => c.iter().any(|e| e.body == body),
+            })
+            .count()
+    };
+    let above = rows(editor_core::SplitHalf::Above.output_body());
+    assert!(above > 0 && rows(editor_core::SplitHalf::Below.output_body()) > 0);
+    assert_eq!(
+        copies.name_table.len(),
+        2 * above,
+        "each of the two copies carries the above half's rows, and no other"
     );
 }
 
@@ -378,7 +386,7 @@ fn graze_split_edge_names(
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: frame,
+            frame: frame.into(),
             loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).expect("a finite circle")],
             ids: Vec::new(),
         }),
@@ -386,7 +394,7 @@ fn graze_split_edge_names(
     let (doc, cylinder) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -401,8 +409,8 @@ fn graze_split_edge_names(
     let (doc, sp) = insert(
         doc,
         Node::Split {
-            target: cylinder,
-            tool: plane,
+            target: cylinder.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc);

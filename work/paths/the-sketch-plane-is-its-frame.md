@@ -26,3 +26,14 @@ Parked on 5b because both change `sweep`'s loft surface.
 ## Released from the D10 hold (2026-10-08)
 
 Nothing D10 changes gates this row, so it is open: a kernel witness refactor in profile/sweep/geom-core (SketchPlane holds an OrthoFrame); stage 3's Frame variables lower onto this witness rather than replace it. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## `SectionScalar` is gone (EDIT, 2026-10-11, PR 4741)
+
+The Crossings bullet's `SectionScalar::pinned_f64` no longer exists.
+A loft now reads each section's plane at the lane scalar from its
+evaluated profile value (`sweep::loft_profiles`), so editor-core
+pins no section plane to `f64`. `pinned_plane`, `pin`'s would-be
+editor-core consumer, was deleted, and `loft_body`'s placements are
+in `T` since PR 4726. Whether `pin` is still owed needs a consumer
+named again before this unit builds it.
+

@@ -65,7 +65,8 @@
 //! reclassification), against the run's linear band. This is the
 //! `classify_dihedral` pattern.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Vec3};
+use geom_core::k_stats::{Magnitude, NonzeroSign};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Real, Sign, Vec3};
 
 /// Which rung of a reading metered over a lever arm escalated: the arm
 /// gate or the reading itself. [`enters_material`],
@@ -92,7 +93,8 @@ pub struct LeverEscalation {
     /// Only [`LeverEscalation::arm`] mints it, from the gate's own
     /// escalation, so it is `Some` on the arm's rung alone; it is kept,
     /// never recomputed, when the escalation re-quotes the reading the
-    /// arm meters ([`LeverEscalation::with_diag`]).
+    /// arm meters ([`LeverEscalation::quoting_reading`]), which quotes
+    /// only a reading the gate's verdict pairs with.
     refused: Option<Sign>,
 }
 
@@ -115,12 +117,36 @@ impl LeverEscalation {
         }
     }
 
-    /// The same escalation quoting `diag`, the reading the arm meters,
-    /// for the margin its refusal offers: the rung and the gate's
-    /// verdict are kept.
+    /// Whether [`LeverEscalation::quoting_reading`] may re-quote this
+    /// escalation: the arm's rung, refused with a tolerance that decides
+    /// it. An exact zero or a poisoned margin is a verdict no smaller
+    /// tolerance re-decides, and the reading's rung meters nothing
+    /// further. A door asks this before it reads the metered quantity.
     #[must_use]
-    pub fn with_diag(self, diag: Indeterminate) -> Self {
-        Self { diag, ..self }
+    pub fn re_quotes(&self) -> bool {
+        self.rung == LeverRung::Arm && self.diag.offers_tolerance()
+    }
+
+    /// The same escalation quoting `diag`, the reading the arm meters,
+    /// for the margin its refusal offers: the rung and the gate's verdict
+    /// are kept, so an undecided arm stays undecided whatever the reading
+    /// reads. It is returned unchanged where it does not
+    /// [re-quote](LeverEscalation::re_quotes), and where the gate decided
+    /// a verdict that `diag`'s rejection is not: the reading is no longer
+    /// than the arm only up to the in-band excess of a unit vector's
+    /// length, so at the band's edge it can read in band where the arm
+    /// read zero, and the arm's own margin, whose tolerance decides
+    /// that reading too, keeps the verdict and its margin paired.
+    #[must_use]
+    pub fn quoting_reading(self, diag: Indeterminate) -> Self {
+        let pairs = self
+            .refused
+            .is_none_or(|sign| diag.margin.rejected_sign() == Some(sign));
+        if self.re_quotes() && pairs {
+            Self { diag, ..self }
+        } else {
+            self
+        }
     }
 
     /// The rung that could not decide.
@@ -287,16 +313,156 @@ pub fn enters_material<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, LeverEscalation> {
-    crate::dihedral::decide_positive("enters_material_arm", Margin::of(arm), band)
-        .map_err(LeverEscalation::arm)?;
-    let margin = Margin::levered(dir.normalize().dot(outward_normal.vec()), arm);
-    Ok(
-        match decide("enters_material", margin, band).map_err(LeverEscalation::reading)? {
+    enters_material_reported(dir, outward_normal, arm, band).map(|(verdict, _)| verdict)
+}
+
+/// [`enters_material`], keeping the reporting margin the verdict was
+/// decided on: for a `Tangent` a later refusal quotes.
+///
+/// # Errors
+///
+/// As [`enters_material`].
+pub fn enters_material_reported<T: Decide>(
+    dir: Vec3<T>,
+    outward_normal: OutwardNormal<T>,
+    arm: T,
+    band: Band,
+) -> Result<(EntersMaterial, MarginDiag), LeverEscalation> {
+    let margin = sense_margin(dir, outward_normal, arm, band)?;
+    let Decided { sign, margin } =
+        crate::dihedral::decide_reported("enters_material", margin, band)
+            .map_err(LeverEscalation::reading)?;
+    Ok((
+        match sign {
             Sign::Negative => EntersMaterial::Enters,
             Sign::Positive => EntersMaterial::Exits,
             Sign::Zero => EntersMaterial::Tangent,
         },
+        margin,
+    ))
+}
+
+/// How a face's outward normal stands against the line of a direction,
+/// read over an arm by [`normal_alignment`].
+#[derive(Clone, Copy, Debug)]
+pub enum NormalAlignment<T: Real> {
+    /// Definitely not parallel: the sine between them, metered at the arm,
+    /// decided past the band. Carries that reading.
+    Oblique(MarginDiag),
+    /// Parallel: the sine, metered at the arm, decided zero.
+    Parallel(ParallelNormal<T>),
+}
+
+/// **A face's outward normal decided parallel to the line of `dir`**,
+/// over an arm at a band ([`normal_alignment`], its only mint): the proof the
+/// sense read takes ([`ParallelNormal::sense`]), carrying the direction,
+/// the arm and the band it was decided against and the margin it was
+/// decided on.
+#[derive(Clone, Copy, Debug)]
+pub struct ParallelNormal<T: Real> {
+    dir: Vec3<T>,
+    outward_normal: OutwardNormal<T>,
+    arm: T,
+    band: Band,
+    margin: MarginDiag,
+}
+
+/// The verdict of [`ParallelNormal::sense`]: [`EntersMaterial`] for a
+/// direction parallel to the face's normal, which is never `Tangent`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ParallelSense {
+    /// `dir` points against the outward normal, into the material.
+    Enters,
+    /// `dir` points along the outward normal, away from the material.
+    Exits,
+}
+
+/// **`normal_alignment`** — whether `outward_normal` is parallel to the line of
+/// `dir`: the magnitude `‖n × dir‖` levered at `arm` (the sine metered
+/// there, D4 ¶1's parallelism arm), decided under the caller's `name`.
+/// `dir` is unit and `arm` is a length its caller decided positive.
+///
+/// # Errors
+///
+/// The funnel's [`Indeterminate`] for an in-band or poisoned margin.
+pub fn normal_alignment<T: Decide>(
+    name: &'static str,
+    dir: Vec3<T>,
+    outward_normal: OutwardNormal<T>,
+    arm: T,
+    band: Band,
+) -> Result<NormalAlignment<T>, Indeterminate> {
+    let sine = Margin::levered(outward_normal.vec().cross(dir).norm(), arm);
+    Ok(
+        match crate::dihedral::decide_magnitude_reported(name, sine, band)? {
+            (Magnitude::Positive, margin) => NormalAlignment::Oblique(margin),
+            (Magnitude::Zero, margin) => NormalAlignment::Parallel(ParallelNormal {
+                dir,
+                outward_normal,
+                arm,
+                band,
+                margin,
+            }),
+        },
     )
+}
+
+impl<T: Decide> ParallelNormal<T> {
+    /// The sine margin the parallel verdict was decided on.
+    #[must_use]
+    pub fn margin(&self) -> MarginDiag {
+        self.margin
+    }
+
+    /// The band the parallel verdict was decided against.
+    #[must_use]
+    pub fn band(&self) -> Band {
+        self.band
+    }
+
+    /// **Which way along the line the material lies**: [`enters_material`]
+    /// of `dir` against the face, read on the same arm and band. A parallel
+    /// `dir` is never tangent, so the sign is read through the nonzero gate
+    /// and the verdict has no `Tangent`; a margin decided zero is an arm too
+    /// short to read the sense at this ε, and the gate's rejection carries
+    /// it. The passing verdict comes with the margin it was decided on.
+    ///
+    /// # Errors
+    ///
+    /// As [`enters_material`]: [`LeverRung::Arm`], predicate
+    /// `"enters_material_arm"`, or [`LeverRung::Reading`], predicate
+    /// `"enters_material"`, which also carries the gate's rejection.
+    pub fn sense(self) -> Result<(ParallelSense, MarginDiag), LeverEscalation> {
+        let margin = sense_margin(self.dir, self.outward_normal, self.arm, self.band)?;
+        let (sign, read) =
+            crate::dihedral::decide_nonzero_reported("enters_material", margin, self.band)
+                .map_err(LeverEscalation::reading)?;
+        Ok((
+            match sign {
+                NonzeroSign::Negative => ParallelSense::Enters,
+                NonzeroSign::Positive => ParallelSense::Exits,
+            },
+            read,
+        ))
+    }
+}
+
+/// **The F3 sense margin**, the core [`enters_material`] and
+/// [`ParallelNormal::sense`] share: `dir`'s unit component along the
+/// outward normal, levered at `arm` once the arm is decided positive
+/// (`"enters_material_arm"`).
+fn sense_margin<T: Decide>(
+    dir: Vec3<T>,
+    outward_normal: OutwardNormal<T>,
+    arm: T,
+    band: Band,
+) -> Result<Margin<T>, LeverEscalation> {
+    crate::dihedral::decide_positive("enters_material_arm", Margin::of(arm), band)
+        .map_err(LeverEscalation::arm)?;
+    Ok(Margin::levered(
+        dir.normalize().dot(outward_normal.vec()),
+        arm,
+    ))
 }
 
 /// **`enters_material_order2`** — the second-order descent of the
@@ -347,7 +513,9 @@ pub fn enters_material_order2<T: Decide>(
         .map_err(LeverEscalation::arm)?;
     let margin = Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm);
     Ok(
-        match decide("tangent_sector_order2", margin, band).map_err(LeverEscalation::reading)? {
+        match crate::dihedral::decide("tangent_sector_order2", margin, band)
+            .map_err(LeverEscalation::reading)?
+        {
             Sign::Negative => EntersMaterial::Enters,
             Sign::Positive => EntersMaterial::Exits,
             Sign::Zero => EntersMaterial::Tangent,
@@ -448,7 +616,7 @@ pub fn bends_into_material<T: Decide>(
     let mean_into = trace / g_norm * fold / T::from_f64(2.0);
     let margin = Margin::sagitta(mean_into, arm);
     Ok(
-        match decide("wall_bend_order2", margin, band)
+        match crate::dihedral::decide("wall_bend_order2", margin, band)
             .map_err(|d| WallBendError::Lever(LeverEscalation::reading(d)))?
         {
             Sign::Positive => WallBend::IntoMaterial,
@@ -456,16 +624,6 @@ pub fn bends_into_material<T: Decide>(
             Sign::Zero => WallBend::Flat,
         },
     )
-}
-
-/// The crate-local funnel wrapper (the `geom-brep` pattern: one
-/// greppable `sign_within` door per crate, unified recorder — M2 PR 7).
-fn decide<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    geom_core::k_stats::decide(name, margin, band)
 }
 
 #[cfg(test)]
@@ -515,6 +673,73 @@ mod tests {
             (err.rung, err.diag.predicate),
             (LeverRung::Arm, Some("enters_material_arm"))
         );
+    }
+
+    /// **The one re-quote door** quotes the reading an arm meters only
+    /// on the arm's rung, refused with a tolerance that decides it, and
+    /// for a decided arm only a reading whose rejection is the gate's own
+    /// verdict, every margin minted by the gate's funnel. Rows: an exact
+    /// zero, a poisoned arm and the reading's rung are returned
+    /// unchanged; a zero-band arm quotes a zero-band reading and keeps its
+    /// verdict; an in-band arm quotes an in-band or a zero-band reading
+    /// and stays undecided; and at the band's edge a
+    /// zero arm metering a reading a normal's in-band excess carries into
+    /// the band (`|n| = 1 + 1e-9`) keeps its own margin, so the verdict
+    /// never quotes an untagged one.
+    #[test]
+    fn only_a_reading_the_gates_verdict_pairs_with_is_re_quoted() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let gate = |m: f64| {
+            crate::dihedral::decide_positive("enters_material_arm", Margin::of(m), band)
+                .unwrap_err()
+        };
+        let read = |m: f64| {
+            crate::dihedral::decide_positive("enters_material_rise", Margin::of(m), band)
+                .unwrap_err()
+        };
+        let unit = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let unchanged = [
+            (
+                "exact zero",
+                enters_material(unit.vec(), unit, 0.0, band).unwrap_err(),
+            ),
+            (
+                "poisoned arm",
+                enters_material(unit.vec(), unit, f64::NAN, band).unwrap_err(),
+            ),
+            ("reading's rung", LeverEscalation::reading(read(5e-9))),
+            (
+                "zero arm, in-band reading",
+                LeverEscalation::arm(gate(1e-9)),
+            ),
+        ];
+        for (row, escalation) in unchanged {
+            assert_eq!(
+                escalation.quoting_reading(read(1e-9 * (1.0 + 1e-9))),
+                escalation,
+                "{row}: {escalation:?}"
+            );
+        }
+        let (zero, in_band) = (
+            LeverEscalation::arm(gate(5e-10)),
+            LeverEscalation::arm(gate(5e-9)),
+        );
+        assert!(
+            zero.collapsed_arm().is_some() && in_band.collapsed_arm().is_none(),
+            "{zero:?} {in_band:?}"
+        );
+        for (row, escalation, reading) in [
+            ("zero arm, zero-band reading", zero, read(4e-10)),
+            ("in-band arm, in-band reading", in_band, read(4e-9)),
+            ("in-band arm, zero-band reading", in_band, read(4e-10)),
+        ] {
+            let quoted = escalation.quoting_reading(reading);
+            assert_eq!(
+                (quoted.rung(), quoted.diag(), quoted.refused),
+                (LeverRung::Arm, reading, escalation.refused),
+                "{row}: {escalation:?}"
+            );
+        }
     }
 
     /// A poisoned direction (zero vector normalizes to NaN) escalates
@@ -678,5 +903,52 @@ mod tests {
                 assert_eq!(got, Ok(want), "{label}, sense {sense}");
             }
         }
+    }
+
+    /// **A normal decided parallel reads its sense with no `Tangent`.**
+    /// The proof carries the band and the zero sine it was decided on;
+    /// its sense follows the face's sense bit, with the margin it read;
+    /// a normal clear of the line is oblique, with its sine; and an arm
+    /// too short to read the sense (both the sine and the cosine at 45°
+    /// in a zero band of 1.1 over an arm of 1.4) is the nonzero gate's
+    /// rejection, keeping the margin.
+    #[test]
+    fn a_normal_decided_parallel_reads_its_sense_through_the_nonzero_gate() {
+        let up = Vec3::new(0.0, 0.0, 1.0);
+        for band in [
+            band(),
+            Band::new(1e-12, 1e-11).unwrap(),
+            Band::new(1e-3, 2e-3).unwrap(),
+        ] {
+            for (bit, want, cos) in [
+                (true, ParallelSense::Exits, 1.0),
+                (false, ParallelSense::Enters, -1.0),
+            ] {
+                let n = OutwardNormal::from_chart(up, bit);
+                let NormalAlignment::Parallel(p) = normal_alignment("t", up, n, 2.0, band).unwrap()
+                else {
+                    panic!("{band:?}, {bit}: parallel");
+                };
+                assert_eq!(p.band(), band);
+                assert_eq!(p.margin(), MarginDiag::value(0.0));
+                assert_eq!(p.sense().unwrap(), (want, MarginDiag::value(2.0 * cos)));
+            }
+            let x = OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true);
+            assert!(matches!(
+                normal_alignment("t", up, x, 2.0, band).unwrap(),
+                NormalAlignment::Oblique(m) if m == MarginDiag::value(2.0)
+            ));
+        }
+        let short = Band::new(1.1, 1.3).unwrap();
+        let s = 0.5f64.sqrt();
+        let dir = Vec3::new(s, s, 0.0);
+        let x = OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true);
+        let NormalAlignment::Parallel(p) = normal_alignment("t", dir, x, 1.4, short).unwrap()
+        else {
+            panic!("the sine 0.99 reads zero");
+        };
+        let diag = p.sense().unwrap_err().diag();
+        assert_eq!(diag.predicate, Some("enters_material"));
+        assert_eq!(diag.margin.rejected_sign(), Some(Sign::Zero));
     }
 }

@@ -19,7 +19,7 @@ use sweep::ExtrudeSide;
 
 use crate::common::approx::band;
 use geom_core::{Point2, Tol};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::battery::{Chain, ChainClosure, Convexity};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendRefusal};
@@ -318,16 +318,11 @@ fn top_rim(body: &Body<f64>, h: f64) -> Vec<EdgeKey> {
         .collect()
 }
 
-/// Every joint of `vs` is tangent (line into arc into line), declared
-/// as the profile door requires.
+/// Every joint of `vs` is tangent (line into arc into line).
 fn extruded(vs: Vec<(Point2<f64>, f64)>, h: f64) -> Body<f64> {
-    let joints: Vec<usize> = (0..vs.len()).collect();
-    let pf = Profile::new(
-        SketchPlane::xy(),
-        vec![bulge_loop(vs).with_tangent_joints(joints)],
-    )
-    .validate(tol())
-    .unwrap();
+    let pf = Profile::new(SketchPlane::xy(), vec![bulge_loop(vs)])
+        .validate(tol())
+        .unwrap();
     extrude(
         &pf,
         Extrusion::Distance {

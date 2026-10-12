@@ -11,15 +11,19 @@ use std::f64::consts::FRAC_PI_2;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
+use geom_brep::recourse::Reading;
 use geom_brep::{
     AnalyticRung3Refusal, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane,
-    SsiLimb, SurfaceKey, chart_pcurve_over,
+    Rung3Limb, SurfaceKey, SurfacePair, chart_pcurve_over,
 };
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Interval, Point3, Real, Vec3};
+use geom_core::{
+    Band, FileCoincidence, Interval, KERNEL_OR_FILE_DEFECT_ENDING, Point3, Real, Vec3,
+};
 use slotmap::SlotMap;
 
 use crate::shared::tol::band;
+use geom_core::test_support::upper;
 
 /// The unit quarter circle in `z = 0`, as `n` rational quadratic
 /// sub-arcs joined at double knots `j/n`, each sub-arc's middle control
@@ -89,8 +93,7 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
     let (k1, k2) = (arena.insert(s1), arena.insert(s2));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: c.eval(T::from_f64(0.5 * (d0 + d1))),
         },
         carrier: c.clone(),
@@ -107,6 +110,17 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
     )
 }
 
+/// The import door's words on a measured miss of a fitted carrier that
+/// lies within the file's `eps_in`.
+fn in_file_words(eps_in: f64) -> String {
+    format!(
+        "This miss lies beyond the tolerance and within the file's declared coincidence \
+         distance ε_in = {eps_in:e} m, and may be the kernel's own approximation. Recourse: \
+         re-export the file more precisely, or, as a stopgap, set the tolerance to \
+         ε_in = {eps_in:e} m; this refusal may indicate a kernel bug worth reporting"
+    )
+}
+
 fn lift(c: &NurbsCurve3<f64>) -> NurbsCurve3<Interval> {
     c.map_scalar(Interval::from_f64)
 }
@@ -116,9 +130,11 @@ fn lift(c: &NurbsCurve3<f64>) -> NurbsCurve3<Interval> {
 /// every schedule sample, and leaves the plane by about `h/2` between
 /// them. The planar face stores no pcurve row, so no row's incidence
 /// term reads that distance: the edge certificate's limb 2 against the
-/// plane does, and refuses it with the measurement, at `f64` and at
-/// `Interval`. The same carrier without its bulge certifies. (Ported
-/// from PR 4304's review, both reviewers' plane-limb probes.)
+/// plane does. A uniform part break lands on the bulge's peak at `1/32`,
+/// where the carrier's certified distance from the plane is past the
+/// band, so it refuses on that measured miss, at `f64` and at
+/// `Interval`, which the import door reads. The same carrier without its
+/// bulge certifies.
 #[test]
 fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
     let h = 2e-3;
@@ -132,20 +148,50 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
     }
     let off = carrier.eval(1.0 / 32.0).z;
     assert!(off > 5e-4, "the bulge is real between samples: {off:e}");
+    // A lower bound on the distance at a break: at most the peak's, and
+    // close to it, since a break lands on the peak.
     let plane_limb = |e: &CertifyError| {
         matches!(
             e,
             CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                limb: SsiLimb::HullSup,
-                value,
-            }) if *value >= off
+                limb: Rung3Limb::HullValue,
+                margin,
+                ..
+            }) if upper(*margin) <= off && upper(*margin) >= 0.99 * off
         )
     };
     let at_f64 = certify(&carrier, plane(), cylinder_z(), true).map(|_| ());
     assert!(at_f64.as_ref().is_err_and(plane_limb), "f64: {at_f64:?}");
     let at_iv = certify(&lift(&carrier), plane(), cylinder_z(), true).map(|_| ());
     assert!(at_iv.as_ref().is_err_and(plane_limb), "Interval: {at_iv:?}");
+    // The limb refuses on the miss itself, measured: at rest a stored
+    // edge off its face is a contradiction, and the import door names
+    // the fit's approximation where ε_in holds the miss and the
+    // contradiction where it does not.
+    for refused in [&at_f64, &at_iv] {
+        let Err(e @ CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb { margin, .. })) =
+            refused
+        else {
+            panic!("the plane limb refused above: {refused:?}")
+        };
+        let value = upper(*margin);
+        assert_eq!(
+            e.ending(Reading::AtRest).as_deref(),
+            Some(KERNEL_OR_FILE_DEFECT_ENDING),
+            "{e:?}"
+        );
+        assert_eq!(
+            e.ending(FileCoincidence::new(2.0 * value)),
+            Some(in_file_words(2.0 * value)),
+            "{e:?}"
+        );
+        assert_eq!(
+            e.ending(FileCoincidence::new(0.5 * value)).as_deref(),
+            Some(KERNEL_OR_FILE_DEFECT_ENDING),
+            "{e:?}"
+        );
+    }
     let direct =
         geom_brep::analytic_rung3(&carrier, carrier.domain(), &plane(), &cylinder_z(), band());
     assert!(
@@ -198,8 +244,7 @@ fn lane_free_doors_refuse_an_analytic_rung3_edge() {
     let (k1, k2) = (arena.insert(plane()), arena.insert(cylinder_z()));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: c.eval(0.5),
         },
         carrier: c.clone(),
@@ -250,8 +295,7 @@ fn lane_free_doors_refuse_an_analytic_rung3_edge() {
     let half = Dual64::from_f64(0.5);
     let dual_spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: d1,
-            s2: d2,
+            pair: SurfacePair::new(d1, d2),
             witness: dc.eval(half),
         },
         carrier: dc.clone(),
@@ -373,8 +417,7 @@ fn certify_over(
     let (k1, k2) = (arena.insert(s1), arena.insert(s2));
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
-            s1: k1,
-            s2: k2,
+            pair: SurfacePair::new(k1, k2),
             witness: c.eval(0.5 * (t0 + t1)),
         },
         carrier: c.clone(),
@@ -396,8 +439,8 @@ fn certify_over(
 /// the plane over `[0, ½]` and bulged off it over `(½, 1]`: the edge
 /// over `[0, ½]` certifies (the net past its end is not the edge's — a
 /// split edge keeps its parent's carrier), and the edge over `[½, 1]`
-/// refuses on the plane limb. (Ported from PR 4304's confirming
-/// review.)
+/// refuses on the plane limb's measured miss. (Ported from PR 4304's
+/// confirming review.)
 #[test]
 fn an_edges_limbs_read_only_its_own_interval_of_the_carrier() {
     let bumped = bulged(16, 2e-3);
@@ -424,9 +467,9 @@ fn an_edges_limbs_read_only_its_own_interval_of_the_carrier() {
             past,
             Err(CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                value,
-                ..
-            })) if value >= off
+                limb: Rung3Limb::HullValue,
+                margin,
+            })) if upper(margin) <= off && upper(margin) >= 0.99 * off
         ),
         "{past:?}"
     );
@@ -458,4 +501,160 @@ fn a_rational_carriers_tube_reads_its_whole_net() {
             "{stretch:?}: {got:?}"
         );
     }
+}
+
+/// The `x` axis as one degree-6 span, `x = t`, `y = 0`, its `z`
+/// controls zero at the ends and alternating `∓a` between, so that
+/// `z(t) = a·((1 − 2t)⁶ − (1 − t)⁶ − t⁶)`, whose largest magnitude is
+/// `0.27204…·a`: a net much wider than its curve.
+fn oscillating(a: f64) -> NurbsCurve3<f64> {
+    let ctl: Vec<_> = (0..=6)
+        .map(|i| {
+            let z = match i {
+                0 | 6 => 0.0,
+                i if i % 2 == 0 => a,
+                _ => -a,
+            };
+            Point3::new(f64::from(i) / 6.0, 0.0, z)
+        })
+        .collect();
+    let knots = [[0.0; 7], [1.0; 7]].concat();
+    NurbsCurve3::new(KnotVector::clamped(knots, 6).unwrap(), ctl, vec![1.0; 7]).unwrap()
+}
+
+/// **Limb 2 halves the parts it cannot clear.** The oscillating span's
+/// fixed parts bound its distance from `z = 0` about 1.3 % above its
+/// peak, so a peak 0.3 % inside the band is past the band on those
+/// parts, and the edge certifies only on the halved ones. A peak twenty
+/// times the band's zero refuses on the plane, on a break's measured
+/// distance.
+#[test]
+fn limb_two_halves_the_parts_whose_bound_does_not_clear() {
+    let zero = band().zero();
+    let side = Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_z(),
+    };
+    let peak = |c: &NurbsCurve3<f64>| {
+        (0..=100_000)
+            .map(|k| c.eval(f64::from(k) / 1e5).z.abs())
+            .fold(0.0, f64::max)
+    };
+    let inside = oscillating(3.665 * zero);
+    assert!(peak(&inside) < 0.998 * zero, "{:e}", peak(&inside));
+    let got = geom_brep::analytic_rung3(&inside, inside.domain(), &plane(), &side, band());
+    assert!(got.is_ok(), "f64: {got:?}");
+    let lifted = lift(&inside);
+    let (d0, d1) = lifted.domain();
+    let got = geom_brep::analytic_rung3(
+        &lifted,
+        (Interval::from_f64(d0), Interval::from_f64(d1)),
+        &plane(),
+        &side.map_scalar(Interval::from_f64),
+        band(),
+    );
+    assert!(got.is_ok(), "Interval: {got:?}");
+    let past = oscillating(20.0 / 0.272_044 * zero);
+    let got = geom_brep::analytic_rung3(&past, past.domain(), &plane(), &side, band());
+    assert!(
+        matches!(
+            got,
+            Err(AnalyticRung3Refusal::Limb {
+                operand: geom::SurfaceKind::Plane,
+                limb: Rung3Limb::HullValue,
+                margin,
+            }) if upper(margin) > 10.0 * zero && upper(margin) <= 20.0 * zero
+        ),
+        "{got:?}"
+    );
+}
+
+/// The `x` axis as one degree-9 span, `x = t`, `y = 0`, with
+/// `z(t) = a·∏ⱼ (t − j/8)` over `j = 0..=8`: zero at every uniform part
+/// break `j/8`, and off the plane between them, its peak in `(0, 1/8)`.
+fn waved_between_the_breaks(a: f64) -> NurbsCurve3<f64> {
+    // Power coefficients of the product, then its Bernstein ones,
+    // `bᵢ = Σ_{k ≤ i} C(i, k)/C(9, k)·cₖ`.
+    let mut c = vec![a];
+    for j in 0..=8 {
+        let root = f64::from(j) / 8.0;
+        let mut next = vec![0.0; c.len() + 1];
+        for (k, ck) in c.iter().enumerate() {
+            next[k + 1] += ck;
+            next[k] -= root * ck;
+        }
+        c = next;
+    }
+    let choose = |n: u32, k: u32| (1..=k).fold(1.0, |m, i| m * f64::from(n + 1 - i) / f64::from(i));
+    let ctl: Vec<_> = (0..=9u32)
+        .map(|i| {
+            let z = (0..=i)
+                .map(|k| choose(i, k) / choose(9, k) * c[k as usize])
+                .sum();
+            Point3::new(f64::from(i) / 9.0, 0.0, z)
+        })
+        .collect();
+    let knots = [[0.0; 10], [1.0; 10]].concat();
+    NurbsCurve3::new(KnotVector::clamped(knots, 9).unwrap(), ctl, vec![1.0; 10]).unwrap()
+}
+
+/// **Limb 2 halves, then stops on a break's measured miss.** The carrier
+/// is on the plane at every uniform part break and well past the band's
+/// escalation between them, so the first hull neither clears nor names
+/// a miss. The halved parts' breaks `(2j + 1)/16` are past it, so the
+/// limb refuses on the plane there, on `HullValue`, at `f64` and at
+/// `Interval`.
+#[test]
+fn limb_two_halves_then_stops_on_a_breaks_miss() {
+    let band = band();
+    let side = Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_z(),
+    };
+    // `∏ⱼ |1/16 − j/8|`, the product at the first halved break.
+    let at_a_sixteenth = (1..=8).fold(1.0 / 16.0, |m, j| m * f64::from(2 * j - 1) / 16.0);
+    let carrier = waved_between_the_breaks(50.0 * band.zero() / at_a_sixteenth);
+    let z = |t: f64| carrier.eval(t).z.abs();
+    for j in 0..=8 {
+        let t = f64::from(j) / 8.0;
+        assert!(
+            z(t) < 1e-3 * band.zero(),
+            "on the plane at the break {t}: {:e}",
+            z(t)
+        );
+    }
+    let halved = (0..8)
+        .map(|j| z(f64::from(2 * j + 1) / 16.0))
+        .fold(0.0, f64::max);
+    let peak = (0..=100_000)
+        .map(|k| z(f64::from(k) / 1e5))
+        .fold(0.0, f64::max);
+    assert!(
+        halved > 2.0 * band.escalate(),
+        "past the band at a halved break: {halved:e}"
+    );
+    let refused = |got: &Result<(), AnalyticRung3Refusal>| {
+        matches!(
+            got,
+            Err(AnalyticRung3Refusal::Limb {
+                operand: geom::SurfaceKind::Plane,
+                limb: Rung3Limb::HullValue,
+                margin,
+            }) if upper(*margin) > band.escalate() && upper(*margin) <= peak
+        )
+    };
+    let got = geom_brep::analytic_rung3(&carrier, carrier.domain(), &plane(), &side, band);
+    assert!(refused(&got), "f64: {got:?}");
+    let lifted = lift(&carrier);
+    let (d0, d1) = lifted.domain();
+    let got = geom_brep::analytic_rung3(
+        &lifted,
+        (Interval::from_f64(d0), Interval::from_f64(d1)),
+        &plane(),
+        &side.map_scalar(Interval::from_f64),
+        band,
+    );
+    assert!(refused(&got), "Interval: {got:?}");
 }

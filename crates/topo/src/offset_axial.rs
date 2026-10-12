@@ -115,7 +115,7 @@
 //!    circle-profile corner stands on two.
 //!
 //! **The offsets themselves are [`geom_brep::offset_surface`]'s** — the
-//! same analytic mint the per-chart door uses. One derivation, not a
+//! same analytic mint the general door uses. One derivation, not a
 //! second copy that could drift from it.
 //!
 //! # Every edge, and where its carrier comes from
@@ -478,43 +478,9 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     join: bool,
 ) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
     // ---- Decide: the chart moves are well formed. ----
-    //
-    // The planar door's own two preconditions, for the same reason: a
-    // caller's mistake must be named here rather than surfacing
-    // downstream as a refusal about something else.
-    let mut seen: Vec<FaceKey> = Vec::new();
-    for m in moves {
-        let Some(&first) = m.faces.first() else {
-            return Err(ReplaceFaceError::EmptyGroup);
-        };
-        let key = body
-            .get_face(first)
-            .ok_or(ReplaceFaceError::StaleFace { face: first })?
-            .surface;
-        for &face in &m.faces {
-            let data = body
-                .get_face(face)
-                .ok_or(ReplaceFaceError::StaleFace { face })?;
-            if data.surface != key {
-                return Err(ReplaceFaceError::TogetherChartMixed { face, other: first });
-            }
-            if seen.contains(&face) {
-                return Err(ReplaceFaceError::TogetherFaceRepeated { face });
-            }
-            seen.push(face);
-        }
-    }
-    // The scope is the SOLIDS the moves touch, and every face of each
-    // of them must be in the set: a corner belongs to one solid, so a
-    // solid named in part has corners whose answer depends on faces
-    // the door was not told about, while a solid named not at all has
-    // no corner this call can disturb.
+    let seen = crate::offset_together::well_formed(body, moves)?;
     let scope = crate::offset_together::scope_of_moves(body, moves)?;
-    for (face, _) in body.faces() {
-        if scope.holds_face(face) && !seen.contains(&face) {
-            return Err(ReplaceFaceError::TogetherPartialSet { face });
-        }
-    }
+    crate::offset_together::covers_its_solids(body, &scope, &seen)?;
 
     // ---- Decide: the axis, and every chart against it. ----
     //
@@ -821,7 +787,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
 /// ambiguity band means this body's kinds are not DECIDED either way
 /// (D4 ¶3). Answering `false` there would turn "I cannot tell" into a
 /// silent branch choice, and the branch it silently chooses is the
-/// per-chart door — whose refusal would then name a carrier rather than
+/// general door — whose refusal would then name a carrier rather than
 /// the undecided geometry that actually stopped it. So the escalation
 /// is returned typed and the caller refuses with it. Every other
 /// verdict — a NURBS or fitted wall, a skew cylinder, a torus whose own
@@ -2579,12 +2545,14 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
 /// A mapped description re-authored in its own sketch plane from the
 /// endpoints the corner solves put it between.
 ///
-/// A LINE takes the two points. An ARC takes them, the moved carrier
-/// itself (its centre and radius), and the included angle the points
-/// subtend at that centre — the offset of a meridian arc is concentric,
-/// so the centre is the datum that does not move and the sweep is what
-/// the endpoints say it is, on the turn of the arc it replaces: the
-/// subtended angle is read nearest the old sweep, so a half turn (a
+/// A SEGMENT is written afresh, whole, between the two points: a LINE
+/// takes them, and an ARC takes them, the moved carrier itself (its
+/// centre and radius), and the included angle the points subtend at
+/// that centre — the offset of a meridian arc is concentric, so the
+/// centre is the datum that does not move and the sweep is what the
+/// endpoints say it is, on the turn of the edge it replaces: the
+/// subtended angle is read nearest the turn that edge covers (the
+/// segment's sweep times its range's span), so a half turn (a
 /// pole-to-pole meridian) keeps its side of the atan2 cut. A POINT's
 /// trajectory — extruded along a vector, or revolved about an axis —
 /// is the same trajectory of the moved point: the vector and the axis
@@ -2595,11 +2563,10 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
 /// containing the axis and turns the corner on it out of its old
 /// sketch plane, so each end's out-of-plane coordinate — a length — is
 /// decided: an end still in its plane keeps its azimuth, and an end
-/// turned out of it has the sketch plane follow it about the axis (the
-/// start) or the span absorb the turn (the end), the way a restriction
-/// of the same declaration advances its placement. A start turned onto
-/// its own azimuth and still out of the plane — a sketch plane that
-/// does not contain the axis — refuses typed. Refuses also an arc
+/// turned out of it moves its end of the sweep range by the turn over
+/// the angle, the placement staying as built. A start turned onto its
+/// own azimuth and still out of the plane — a sketch plane that does
+/// not contain the axis — refuses typed. Refuses also an arc
 /// whose moved carrier is no circle to subtend at.
 fn reauthor<T: Decide>(
     mapped: geom_brep::MappedCurve<T>,
@@ -2610,15 +2577,16 @@ fn reauthor<T: Decide>(
 ) -> Result<geom_brep::MappedCurve<T>, ReplaceFaceError<T>> {
     let refuse = |what: &'static str| ReplaceFaceError::TogetherAxialEdge { edge, what };
     let (p_start, p_end) = ends;
-    Ok(match mapped {
-        geom_brep::MappedCurve::PlacedSegment { segment, place } => {
+    let range = mapped.range;
+    Ok(match mapped.source {
+        geom_brep::MappedSource::PlacedSegment { segment, place } => {
             let inv = place.inverse();
             let flat = |p: Point3<T>| {
                 let q = inv.transform_point(p);
                 geom_core::Point2::new(q.x, q.y)
             };
             let (a, b) = (flat(p_start), flat(p_end));
-            geom_brep::MappedCurve::PlacedSegment {
+            geom_brep::MappedCurve::whole(geom_brep::MappedSource::PlacedSegment {
                 segment: match segment {
                     geom_brep::SketchSegment::Line { .. } => {
                         geom_brep::SketchSegment::Line { a, b }
@@ -2631,26 +2599,28 @@ fn reauthor<T: Decide>(
                         };
                         let centre = flat(*center);
                         let (u, v) = (a - centre, b - centre);
+                        let covered = range.span().map_or(was.sweep, |span| was.sweep * span);
                         geom_brep::SketchSegment::Arc {
                             a,
                             b,
                             arc: Arc2 {
                                 centre,
                                 radius: *radius,
-                                sweep: keep_turn(was.sweep, u.perp_dot(v).atan2(u.dot(v))),
+                                sweep: keep_turn(covered, u.perp_dot(v).atan2(u.dot(v))),
                             },
                         }
                     }
                 },
                 place,
-            }
+            })
         }
-        geom_brep::MappedCurve::ExtrudedPoint { place, vec, .. } => {
-            // Each moved end's station `s` along the extrusion, `p =
-            // place(point) + vec·s`: its height off the sketch plane
-            // over the vector's own. An end still at its rest station
-            // (`0` for the start, `1` for the end) keeps it, decided on
-            // the height it would be off by — a length.
+        geom_brep::MappedSource::ExtrudedPoint { place, vec, .. } => {
+            // Each moved end's station `u` along the whole strut, `p =
+            // place(point) + vec·u`: its height off the sketch plane
+            // over the vector's own. An end still at its station keeps
+            // it, decided on the height it would be off by — a length;
+            // a moved one shifts its end of the range by that height
+            // over the rise.
             let inv = place.inverse();
             let rise = inv.transform_vec(vec).z;
             match decide("offset_axial_reauthor_rise", Margin::of(rise), band) {
@@ -2663,56 +2633,96 @@ fn reauthor<T: Decide>(
                 }
                 Err(source) => return Err(ReplaceFaceError::Escalated { source }),
             }
-            let station = |name: &'static str, p: Point3<T>, rest: T| {
+            let shift = |name: &'static str, p: Point3<T>, station: Option<T>| {
                 let height = inv.transform_point(p).z;
-                match decide(name, Margin::of(height - rise * rest), band) {
+                let off = match station {
+                    None => height,
+                    Some(u) => height - rise * u,
+                };
+                match decide(name, Margin::of(off), band) {
                     Ok(Sign::Zero) => Ok(None),
-                    Ok(_) => Ok(Some(height / rise)),
+                    Ok(_) => Ok(Some(off / rise)),
                     Err(source) => Err(ReplaceFaceError::Escalated { source }),
                 }
             };
-            let s0 = station("offset_axial_reauthor_extrude_start", p_start, T::zero())?;
-            let s1 = station("offset_axial_reauthor_extrude_end", p_end, T::one())?;
-            // The declaration's own restriction (`MappedCurve::restrict`):
-            // the placement slides to the start, the vector spans the
-            // two stations.
-            let place = match s0 {
-                Some(s) => geom_core::Affine3::translation(vec * s) * place,
-                None => place,
-            };
-            let vec = match (s0, s1) {
-                (None, None) => vec,
-                _ => vec * (s1.unwrap_or(T::one()) - s0.unwrap_or(T::zero())),
-            };
-            let q = place.inverse().transform_point(p_start);
-            geom_brep::MappedCurve::ExtrudedPoint {
-                point: geom_core::Point2::new(q.x, q.y),
-                place,
-                vec,
+            let range = range.moved(
+                shift(
+                    "offset_axial_reauthor_extrude_start",
+                    p_start,
+                    range.start(),
+                )?,
+                shift(
+                    "offset_axial_reauthor_extrude_end",
+                    p_end,
+                    Some(range.at(T::one())),
+                )?,
+            );
+            let q = inv.transform_point(match range.start() {
+                None => p_start,
+                Some(u) => p_start - vec * u,
+            });
+            geom_brep::MappedCurve {
+                source: geom_brep::MappedSource::ExtrudedPoint {
+                    point: geom_core::Point2::new(q.x, q.y),
+                    place,
+                    vec,
+                },
+                range,
             }
         }
-        geom_brep::MappedCurve::RevolvedPoint {
+        geom_brep::MappedSource::RevolvedPoint {
             place,
             axis_origin,
             axis_dir,
             angle,
             ..
         } => {
-            let turn = |name, plane: geom_core::Affine3<T>, s: T, moved: Point3<T>| {
-                let old = mapped.eval(s);
-                azimuth_turn(name, plane, (axis_origin, axis_dir), old, moved, band)
+            // A corner read on the sketch plane turned `theta` about
+            // the axis: turned back on its offset from the axis, then
+            // through `place⁻¹` — `place` itself at a whole sweep's
+            // exact start. A moved start is read on its own plane
+            // turned by the measured turn, and its range moves by that
+            // turn over the angle.
+            let inv = place.inverse();
+            let read = |theta: Option<T>, p: Point3<T>| {
+                inv.transform_point(match theta {
+                    None => p,
+                    Some(theta) => geom_core::Affine3::rotate_point_about_axis(
+                        axis_origin,
+                        axis_dir,
+                        -theta,
+                        p,
+                    ),
+                })
             };
-            let start_turn = turn("offset_axial_reauthor_plane", place, T::zero(), p_start)?;
-            let end_plane =
-                geom_core::Affine3::rotation_about_axis(axis_origin, axis_dir, angle) * place;
-            let end_turn = turn("offset_axial_reauthor_end", end_plane, T::one(), p_end)?;
-            let place = match start_turn {
-                Some(phi) => {
-                    geom_core::Affine3::rotation_about_axis(axis_origin, axis_dir, phi) * place
-                }
-                None => place,
+            let turn = |name, theta: Option<T>, s: T, moved: Point3<T>| {
+                azimuth_turn(
+                    name,
+                    read(theta, moved).z,
+                    (axis_origin, axis_dir),
+                    mapped.eval(s),
+                    moved,
+                    band,
+                )
             };
-            let q = place.inverse().transform_point(p_start);
+            let start = range.start().map(|u| u * angle);
+            let start_turn = turn("offset_axial_reauthor_plane", start, T::zero(), p_start)?;
+            let end_turn = turn(
+                "offset_axial_reauthor_end",
+                Some(range.at(T::one()) * angle),
+                T::one(),
+                p_end,
+            )?;
+            let read_at = match (start, start_turn) {
+                (start, None) => start,
+                (None, Some(phi)) => Some(phi),
+                (Some(start), Some(phi)) => Some(start + phi),
+            };
+            let range = range.moved(
+                start_turn.map(|phi| phi / angle),
+                end_turn.map(|phi| phi / angle),
+            );
+            let q = read(read_at, p_start);
             if start_turn.is_some() {
                 match decide("offset_axial_reauthor_azimuth", Margin::of(q.z), band) {
                     Ok(Sign::Zero) => {}
@@ -2726,32 +2736,33 @@ fn reauthor<T: Decide>(
                     Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                 }
             }
-            let zero = T::zero();
-            geom_brep::MappedCurve::RevolvedPoint {
-                point: geom_core::Point2::new(q.x, q.y),
-                place,
-                axis_origin,
-                axis_dir,
-                angle: angle + end_turn.unwrap_or(zero) - start_turn.unwrap_or(zero),
+            geom_brep::MappedCurve {
+                source: geom_brep::MappedSource::RevolvedPoint {
+                    point: geom_core::Point2::new(q.x, q.y),
+                    place,
+                    axis_origin,
+                    axis_dir,
+                    angle,
+                },
+                range,
             }
         }
     })
 }
 
 /// How far about the axis a revolved point's end moved: `None` when the
-/// moved corner still stands in that end's own sketch plane `plane`
-/// (its out-of-plane coordinate, a length, decided under `name`), and
+/// moved corner still stands in that end's own sketch plane (`off`, its
+/// out-of-plane coordinate there, a length, decided under `name`), and
 /// otherwise the signed turn about `axis` from the old corner's
 /// azimuth to the moved one's.
 fn azimuth_turn<T: Decide>(
     name: &'static str,
-    plane: geom_core::Affine3<T>,
+    off: T,
     (origin, dir): (Point3<T>, Vec3<T>),
     old: Point3<T>,
     moved: Point3<T>,
     band: Band,
 ) -> Result<Option<T>, ReplaceFaceError<T>> {
-    let off = plane.inverse().transform_point(moved).z;
     match decide(name, Margin::of(off), band) {
         Ok(Sign::Zero) => Ok(None),
         Ok(_) => {
@@ -2833,7 +2844,7 @@ mod tests {
 
     /// A torn record is not a verdict: a dangling point or surface on a
     /// face in scope panics naming the record, rather than reading as a
-    /// silent `false` that would pick `shell`'s per-chart branch.
+    /// silent `false` that would pick `shell`'s general branch.
     #[test]
     fn is_axial_panics_on_a_torn_record_rather_than_answering_not_axial() {
         use crate::entity::GeomRef;
@@ -2895,5 +2906,457 @@ mod tests {
     fn is_axial_answers_false_on_a_faceless_body() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         assert!(matches!(is_axial(&Body::<f64>::new(), band), Ok(false)));
+    }
+
+    use geom_core::{Affine3, Bounds, Interval};
+
+    /// A revolve rim at `at` over a whole turn — the placed point
+    /// `at + (2, 2, 0)`, one metre off a `+z` axis through `at + (1, 2, 0)`
+    /// — at the scalar `lift` builds.
+    fn rim<T: Decide>(at: [f64; 3], lift: impl Fn(f64) -> T) -> geom_brep::MappedCurve<T> {
+        let [x, y, z] = at;
+        geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
+            point: geom_core::Point2::new(lift(2.0), lift(2.0)),
+            place: Affine3::translation(Vec3::new(lift(x), lift(y), lift(z))),
+            axis_origin: Point3::new(lift(1.0 + x), lift(2.0 + y), lift(z)),
+            axis_dir: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+            angle: lift(core::f64::consts::TAU),
+        })
+    }
+
+    /// A rim on a tilted placement: the sketch plane shifted to `at`
+    /// and then turned 0.7 rad about `(0.2, 1, −0.4)` through the
+    /// origin, so its frame is no coordinate frame; the axis runs
+    /// through the sketch point `(0.5, 1)` along the in-plane `(1, 0.4)`,
+    /// and the rim sweeps 1.9 rad about it.
+    fn tilted_rim<T: Decide>(at: [f64; 3], lift: impl Fn(f64) -> T) -> geom_brep::MappedCurve<T> {
+        let place = Affine3::rotation_about_axis(
+            Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+            Vec3::new(lift(0.2), lift(1.0), lift(-0.4)),
+            lift(0.7),
+        ) * Affine3::translation(Vec3::new(lift(at[0]), lift(at[1]), lift(at[2])));
+        geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
+            point: geom_core::Point2::new(lift(2.0), lift(2.0)),
+            place,
+            axis_origin: place.transform_point(Point3::new(lift(0.5), lift(1.0), lift(0.0))),
+            axis_dir: place.transform_vec(Vec3::new(lift(1.0), lift(0.4), lift(0.0))),
+            angle: lift(1.9),
+        })
+    }
+
+    /// An `f64` rim lifted to `Interval` scalar by scalar, so every
+    /// input is an exact point and the widths a row reads are the
+    /// arithmetic's own.
+    fn lifted(mapped: geom_brep::MappedCurve<f64>) -> geom_brep::MappedCurve<Interval> {
+        let geom_brep::MappedCurve {
+            source:
+                geom_brep::MappedSource::RevolvedPoint {
+                    point,
+                    place,
+                    axis_origin,
+                    axis_dir,
+                    angle,
+                    ..
+                },
+            ..
+        } = mapped
+        else {
+            panic!("a revolved point");
+        };
+        let iv = Interval::from_f64;
+        let p3 = |p: Point3<f64>| Point3::new(iv(p.x), iv(p.y), iv(p.z));
+        let v3 = |v: Vec3<f64>| Vec3::new(iv(v.x), iv(v.y), iv(v.z));
+        geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
+            point: geom_core::Point2::new(iv(point.x), iv(point.y)),
+            place: Affine3::from_parts(
+                geom_core::Mat3::from_cols(
+                    v3(place.linear.c0),
+                    v3(place.linear.c1),
+                    v3(place.linear.c2),
+                ),
+                v3(place.translation),
+            ),
+            axis_origin: p3(axis_origin),
+            axis_dir: v3(axis_dir),
+            angle: iv(angle),
+        })
+    }
+
+    /// The parts of a revolved point, for the rows to rebuild main's
+    /// composed reading from.
+    struct Rim<T: Real> {
+        point: geom_core::Point2<T>,
+        place: Affine3<T>,
+        axis_origin: Point3<T>,
+        axis_dir: Vec3<T>,
+        angle: T,
+    }
+
+    fn parts<T: Decide>(mapped: geom_brep::MappedCurve<T>) -> Rim<T> {
+        let geom_brep::MappedCurve {
+            source:
+                geom_brep::MappedSource::RevolvedPoint {
+                    point,
+                    place,
+                    axis_origin,
+                    axis_dir,
+                    angle,
+                    ..
+                },
+            ..
+        } = mapped
+        else {
+            panic!("a revolved point");
+        };
+        Rim {
+            point,
+            place,
+            axis_origin,
+            axis_dir,
+            angle,
+        }
+    }
+
+    /// The placed sketch point, read straight off the placement.
+    fn placed<T: Decide>(rim: &Rim<T>) -> Point3<T> {
+        rim.place
+            .transform_point(Point3::new(rim.point.x, rim.point.y, T::zero()))
+    }
+
+    /// `mapped` re-authored between `p_start` and its own unmoved end
+    /// sample.
+    fn reauthored<T: Decide>(
+        mapped: geom_brep::MappedCurve<T>,
+        p_start: Point3<T>,
+        band: Band,
+    ) -> geom_brep::MappedCurve<T> {
+        let carrier = Curve3::Line {
+            origin: Point3::new(T::zero(), T::zero(), T::zero()),
+            dir: Vec3::new(T::one(), T::zero(), T::zero()),
+        };
+        reauthor(
+            mapped,
+            &carrier,
+            (p_start, mapped.eval(T::one())),
+            EdgeKey::default(),
+            band,
+        )
+        .expect("the rim re-authors")
+    }
+
+    /// `rim`'s placed point turned `theta` about its own axis — a start
+    /// corner an offset moved round the axis.
+    fn turned<T: Decide>(rim: &Rim<T>, theta: T) -> Point3<T> {
+        Affine3::rotate_point_about_axis(rim.axis_origin, rim.axis_dir, theta, placed(rim))
+    }
+
+    /// The turn main read off a moved start: the azimuth about the axis
+    /// from the radial of its start sample — the placed point under the
+    /// rotation by `0·angle` — to the corner's.
+    fn main_turn<T: Decide>(rim: &Rim<T>, corner: Point3<T>) -> T {
+        let a = rim.axis_dir.normalize();
+        let radial = |p: Point3<T>| {
+            let v = p - rim.axis_origin;
+            v - a * v.dot(a)
+        };
+        let start =
+            Affine3::rotation_about_axis(rim.axis_origin, rim.axis_dir, T::zero() * rim.angle)
+                .transform_point(placed(rim));
+        let (from, to) = (radial(start), radial(corner));
+        a.dot(from.cross(to)).atan2(from.dot(to))
+    }
+
+    /// Main's reading of a start turned by `phi`: the turn composed into
+    /// the placement and the corner read back through that composite.
+    fn composed_reading<T: Decide>(rim: &Rim<T>, phi: T, p: Point3<T>) -> (Point3<T>, Affine3<T>) {
+        let plane = Affine3::rotation_about_axis(rim.axis_origin, rim.axis_dir, phi) * rim.place;
+        (plane.inverse().transform_point(p), plane)
+    }
+
+    fn width(e: Interval) -> f64 {
+        e.hi() - e.lo()
+    }
+
+    /// The band the f64 and exact-corner rows decide at.
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+    const NEAR: [f64; 3] = [0.0, 0.0, 3.0];
+    const FAR: [f64; 3] = [1000.0, -700.0, 300.0];
+    const FARTHER: [f64; 3] = [1.0e5, 3.0e4, -2.0e4];
+
+    /// **An unmoved start stores what its placement reads, and nothing
+    /// else.** A rim whose start corner did not move keeps its whole
+    /// range, and its sketch point is `place⁻¹` of the corner — at
+    /// `Interval` bit for bit what that one map gives, so an exact
+    /// corner on a translated placement stores width 0, near and a
+    /// thousand metres out, and a tilted placement's corner pays only
+    /// its own inverse. Turning the corner back through `I − R(−0)`
+    /// first stored an ulp of the coordinates each side (6.7e-16 near,
+    /// 2.3e-13 far), and through `R(0)·place` the rotation's diagonal
+    /// enclosure (3.1e-14 near, 1.1e-11 far).
+    #[test]
+    fn an_unmoved_revolved_point_stores_what_its_placement_reads() {
+        for at in [NEAR, FAR] {
+            for (shape, mapped) in [
+                ("translated", rim(at, Interval::from_f64)),
+                ("tilted", tilted_rim(at, Interval::from_f64)),
+            ] {
+                let rim = parts(mapped);
+                let corner = placed(&rim);
+                let geom_brep::MappedCurve {
+                    source: geom_brep::MappedSource::RevolvedPoint { point, angle, .. },
+                    range,
+                } = reauthored(mapped, corner, band())
+                else {
+                    panic!("a revolved point re-authors as one");
+                };
+                let read = rim.place.inverse().transform_point(corner);
+                let bits = |e: Interval| (e.lo().to_bits(), e.hi().to_bits());
+                assert_eq!(
+                    (bits(point.x), bits(point.y)),
+                    (bits(read.x), bits(read.y)),
+                    "{shape} at {at:?}: the unmoved start stored {point:?}, not place⁻¹ of \
+                     its corner {read:?}"
+                );
+                assert!(
+                    range.start().is_none() && range.span().is_none(),
+                    "{shape} at {at:?}: an unmoved rim's range moved: {range:?}"
+                );
+                assert_eq!(
+                    bits(angle),
+                    bits(Interval::from_f64(if shape == "tilted" {
+                        1.9
+                    } else {
+                        core::f64::consts::TAU
+                    })),
+                    "{shape} at {at:?}: an unmoved rim's angle moved"
+                );
+                if shape == "translated" {
+                    let stored = width(point.x).max(width(point.y));
+                    assert!(
+                        stored == 0.0,
+                        "at {at:?} the exact corner re-authored to a sketch point {stored:e} wide"
+                    );
+                }
+            }
+        }
+    }
+
+    /// At `f64` an unmoved rim re-authors to its own data bit for bit:
+    /// the whole range, the angle, and the point read straight off the
+    /// placement.
+    #[test]
+    fn an_unmoved_revolved_point_reauthors_bit_for_bit_at_f64() {
+        for at in [NEAR, FAR] {
+            let mapped = rim(at, |x| x);
+            let geom_brep::MappedCurve {
+                source: geom_brep::MappedSource::RevolvedPoint { point, angle, .. },
+                range,
+            } = reauthored(mapped, placed(&parts(mapped)), band())
+            else {
+                panic!("a revolved point re-authors as one");
+            };
+            assert_eq!(
+                (point.x.to_bits(), point.y.to_bits()),
+                (2.0f64.to_bits(), 2.0f64.to_bits()),
+                "at {at:?} the re-authored point moved: {point:?}"
+            );
+            assert_eq!(
+                (angle.to_bits(), range.start(), range.span()),
+                (core::f64::consts::TAU.to_bits(), None, None),
+                "at {at:?} the re-authored sweep moved: {angle:e} over {range:?}"
+            );
+        }
+    }
+
+    /// **A turned start on a tilted far placement stores its sketch
+    /// point within a few ulps of the coordinates of exact.** At `f64`,
+    /// over 200 turns in `[−3, 3]`, the stored point is carried forward
+    /// at `Interval` — placed, then turned by the `φ` re-authoring read,
+    /// from the same `f64` data — and that enclosure's far endpoint
+    /// bounds its distance from the corner, which is exact data. The
+    /// placement is rigid, so that distance is the stored point's
+    /// error. The turn is checked against the stored range's start over
+    /// the angle, to a few ulps of the turn. Measured (an upper bound,
+    /// the reference's own width included): 4.5e-13 at 1e3 and
+    /// 4.4e-11 at 1e5, four and three ulps of the coordinates, under a
+    /// five-ulp bar. A corner read back through the composite
+    /// `(R(φ)·place)⁻¹` stores a point 9 and 6 ulps off, past it at both.
+    #[test]
+    fn a_turned_start_on_a_tilted_far_placement_stores_within_ulps_of_the_exact_read_back() {
+        let iv = Interval::from_f64;
+        for at in [FAR, FARTHER] {
+            let mapped = tilted_rim(at, |x| x);
+            let rim = parts(mapped);
+            let lift = |p: Point3<f64>| Point3::new(iv(p.x), iv(p.y), iv(p.z));
+            let place = rim.place;
+            let place_iv = Affine3::from_parts(
+                place.linear.map(iv),
+                Vec3::new(
+                    iv(place.translation.x),
+                    iv(place.translation.y),
+                    iv(place.translation.z),
+                ),
+            );
+            let (q, n) = (rim.axis_origin, rim.axis_dir);
+            let (mut ours, mut composite) = (0.0f64, 0.0f64);
+            for k in 0..200 {
+                let theta = -3.0 + 6.0 * f64::from(k) / 199.0;
+                let corner = turned(&rim, theta);
+                let a = n.normalize();
+                let radial = |p: Point3<f64>| {
+                    let v = p - q;
+                    v - a * v.dot(a)
+                };
+                let (from, to) = (radial(mapped.eval(0.0)), radial(corner));
+                let phi = a.dot(from.cross(to)).atan2(from.dot(to));
+                let geom_brep::MappedCurve {
+                    source: geom_brep::MappedSource::RevolvedPoint { point, angle, .. },
+                    range,
+                } = reauthored(mapped, corner, band())
+                else {
+                    panic!("a revolved point re-authors as one");
+                };
+                let read = range.start().expect("a turned start moves its range") * angle;
+                assert!(
+                    (read - phi).abs() <= 4.0 * f64::EPSILON * phi.abs().max(1.0),
+                    "at {at:?}, turn {theta}: re-authoring read the turn {read}, not {phi}"
+                );
+                // The stored point carried forward exactly, enclosed:
+                // placed, then turned by `φ`, at `Interval` from the
+                // same `f64` data. The placement is rigid, so its
+                // distance from the corner is the stored point's error.
+                let off = |x: f64, y: f64| {
+                    let f = Affine3::rotate_point_about_axis(
+                        lift(q),
+                        Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+                        iv(phi),
+                        place_iv.transform_point(Point3::new(iv(x), iv(y), iv(0.0))),
+                    );
+                    [(corner.x, f.x), (corner.y, f.y), (corner.z, f.z)]
+                        .into_iter()
+                        .map(|(c, r)| (c - r.lo()).abs().max((r.hi() - c).abs()))
+                        .fold(0.0, f64::max)
+                };
+                ours = ours.max(off(point.x, point.y));
+                let (main, _) = composed_reading(&rim, phi, corner);
+                composite = composite.max(off(main.x, main.y));
+            }
+            let scale = at.iter().fold(0.0f64, |m, c| m.max(c.abs()));
+            let ulp = scale.next_up() - scale;
+            println!(
+                "at {at:?}: stored point within {ours:e} of exact ({:.1} ulps), composite \
+                 read-back {composite:e} ({:.1} ulps)",
+                ours / ulp,
+                composite / ulp
+            );
+            assert!(
+                ours <= 5.0 * ulp,
+                "at {at:?} a turned start stored a point {ours:e} from the exact read-back, \
+                 over five ulps of the coordinates ({ulp:e} each; the composite read-back \
+                 is {composite:e} off)"
+            );
+        }
+    }
+
+    /// **At `Interval` a turned start stores a thousand times tighter
+    /// than composing the turn into the placement.** On the tilted far
+    /// placement, at four turns, the stored sketch point is 2.3e-11 to
+    /// 3.9e-11 wide, the turn's width times the radius, where the
+    /// composite `(R(φ)·place)⁻¹` reads the same corner 3.5e-7 to
+    /// 5.2e-7 wide, the turn's width times the coordinates. The corner
+    /// is read at the ordinary band: its out-of-plane coordinate, read
+    /// on the turned offset, fits inside it, where the composite's does
+    /// not and the re-authoring escalates.
+    #[test]
+    fn a_turned_start_on_a_tilted_far_placement_stores_far_tighter_than_composing() {
+        let iv = Interval::from_f64;
+        for at in [FAR] {
+            let mapped = lifted(tilted_rim(at, |x| x));
+            let rim = parts(mapped);
+            for theta in [0.3, 1.7, -1.1, -2.9] {
+                let corner = turned(&rim, iv(theta));
+                let geom_brep::MappedCurve {
+                    source: geom_brep::MappedSource::RevolvedPoint { point, .. },
+                    ..
+                } = reauthored(mapped, corner, band())
+                else {
+                    panic!("a revolved point re-authors as one");
+                };
+                let (q, _) = composed_reading(&rim, main_turn(&rim, corner), corner);
+                let ours = width(point.x).max(width(point.y));
+                let main = width(q.x).max(width(q.y));
+                println!("at {at:?}, turn {theta}: stored width {ours:e}, composed {main:e}");
+                assert!(
+                    ours <= 1e-3 * main,
+                    "at {at:?} a start turned {theta} stored a point {ours:e} wide, over a \
+                     thousandth of the composed placement's {main:e}"
+                );
+            }
+        }
+    }
+
+    /// **A restricted arc re-authors on the turn its edge covers.** A
+    /// 1.9π sketch arc restricted to `[0.1, 0.35]` covers 0.475π; offset
+    /// concentrically, its moved ends subtend that same 0.475π at the
+    /// centre. The re-authored segment is whole and turns 0.475π, the
+    /// subtended angle read nearest the covered turn. Read nearest the
+    /// whole 1.9π instead, it would turn 2.475π — more than a full turn,
+    /// and off the moved end.
+    #[test]
+    fn a_restricted_arc_re_authors_on_its_covered_turn() {
+        use core::f64::consts::PI;
+        let on = |r: f64, theta: f64| geom_core::Point2::new(r * theta.cos(), r * theta.sin());
+        let sweep = 1.9 * PI;
+        let whole = geom_brep::MappedCurve::whole(geom_brep::MappedSource::PlacedSegment {
+            segment: geom_brep::SketchSegment::Arc {
+                a: on(1.0, 0.0),
+                b: on(1.0, sweep),
+                arc: Arc2 {
+                    centre: geom_core::Point2::new(0.0, 0.0),
+                    radius: 1.0,
+                    sweep,
+                },
+            },
+            place: Affine3::identity(),
+        });
+        let edge = whole.restrict(0.1, 0.35);
+        let (t0, t1) = (0.1 * sweep, 0.35 * sweep);
+        let lift = |p: geom_core::Point2<f64>| Point3::new(p.x, p.y, 0.0);
+        let (p_start, p_end) = (lift(on(1.5, t0)), lift(on(1.5, t1)));
+        let carrier = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.5,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let moved = reauthor(edge, &carrier, (p_start, p_end), EdgeKey::default(), band())
+            .expect("a concentric offset of a sketch arc re-authors");
+        assert!(moved.range.is_whole(), "the re-authored segment is whole");
+        let geom_brep::MappedSource::PlacedSegment {
+            segment: geom_brep::SketchSegment::Arc { arc, .. },
+            ..
+        } = moved.source
+        else {
+            panic!("a placed arc re-authors as one");
+        };
+        let covered = 0.25 * sweep;
+        assert!(
+            (arc.sweep - covered).abs() < 1e-12,
+            "the re-authored sweep is {} rad, not the covered {covered} rad",
+            arc.sweep
+        );
+        for (s, want) in [
+            (0.0, p_start),
+            (0.5, lift(on(1.5, 0.5 * (t0 + t1)))),
+            (1.0, p_end),
+        ] {
+            let got = moved.eval(s);
+            assert!(
+                got.distance(want) < 1e-12,
+                "the re-authored arc at s = {s} is {got:?}, off the moved edge's {want:?}"
+            );
+        }
     }
 }

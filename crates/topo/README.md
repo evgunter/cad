@@ -17,7 +17,7 @@ feeds a decision, every walk is bounded.
 
 | Area | Modules |
 |---|---|
-| Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/source.rs` (`GeomOrigin`: the one provenance row per geometric description — `Recipe` carrying its `GeomSource` recipe identity, or imported, kernel-direct, or cleared and not re-stamped), `src/live.rs` |
+| Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/live.rs` |
 | Euler operators | `src/euler.rs` (make), `src/euler_kill.rs` (kill duals), `src/euler_ring.rs` (rings/genus), `src/split.rs`, `src/movefac.rs`, `src/revert.rs`, `src/attach.rs` |
 | Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter `Candidates`, the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |
@@ -26,10 +26,9 @@ feeds a decision, every walk is bounded.
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `declared_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
 | Chart-boundary description | `src/chart_bound.rs` (`ChartBound`, `ChartLoop`, `ChartEdge`, `assembled`, `metred`, `MetredBound::certifies_outside`, `MetredRect`), `src/pcurves.rs` (`chart_boundary`) |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
-| Booleans | `src/boolean/mod.rs` (reduction, classification, `ContactRecords`, `BooleanDeclarations`), `reduce.rs`, `vtxfac.rs`, `sectors.rs`, `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `ops.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
-| Declared-REST zip (C7 join lane) | `src/boolean/rest.rs` |
+| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs`, `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
-| Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume` |
+| Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_general.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_surfaces_together`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume`. A move that carries a face through its neighbours inverts the body too, and refuses there on the rings it leaves outside the moved face (`RingOutsideOuter`) |
 | Queries, flush detection, read-back | `src/query.rs` (the EXACT/DECIDED atoms and `rim_of`; `crates/verbs/README.md` S1), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_walk.rs` |
 
 The census's sweeps and backstop examine only pairs whose padded boxes
@@ -50,16 +49,28 @@ operands. Three objects carry the design:
   cross-entity coincidence;
 - a **declaration** is recipe data asserting a contact class on a named
   face pair;
-- a **record** (`ContactRecords`: `VvContact`, `VeContact`,
-  `VfContact`, `EeContact`, `CurveContact`, `PatchContact`) is the
-  verified form a result body carries.
+- a **decision** (`Coincidence`, `crate::coincidence`) is a
+  coincidence an operation decided from values: which two of its
+  inputs' cells, what relation, where, and the margin read;
+- a **record** (`ContactRecords`, one list of unordered pairs of the
+  body's cells) is a touch a result body carries, citing the decisions that back it (`Cites`):
+  rows of the producing operation's own coincidences
+  (`Backing::Decided`), or a record of an input it carries in
+  (`Backing::Carried`, which cites its own). A record cannot be built
+  without one (D1 (ii)).
 
-The coincidence ladder: structural (shared key or same `GeomSource`) is
-intent by construction; declared is intent plus non-contradiction; value
-equality never glues. Certification runs both ways — a finding with no
-backing declaration is `UndeclaredContact`, a declaration with no witness
-is `StaleContactDeclaration` — and the census never blesses what it
-discovers.
+The coincidence ladder (D10): at the Boolean, a margin decided Zero
+glues, and the decision is recorded where the two faces meet, at a
+point, an edge or an area (`crate::coincidence`), for the document's
+`unproven-coincidence` lint; a margin in band refuses, with nothing to
+bridge it; structure is decided at the document's door, not here. At rest,
+certification runs both ways: a record with no witness is
+`StaleContactDeclaration`, and a touch no record backs is
+`UnrecordedContact` inside one group of the body (one op's result, one
+copy) — and between two groups (two copies, two imported instances)
+the census records it, a row of its own Zero and a record citing it,
+which its next pass confirms like any other (`record_at_rest`, D1
+(iii)).
 
 **C1 — Classification of the pair germ.** At p ∈ ∂A ∩ ∂B interior to a
 face of each, write each boundary as a graph h_X over its tangent plane
@@ -90,18 +101,22 @@ missed, not bridged.
 kinds, two surfaces agreeing on an open patch agree as loci, so every
 true conformal contact is same-carrier contact. For piecewise-rational
 carriers the guarantee is per knot-span, and a span-partial coincidence
-without structural or declared backing escalates. Conformality is thus
-decided structurally, never numerically. Identity is at the locus level:
-two descriptions of one locus may differ as charts (`u_ref`, seam) and as
-sources, which is what the declared rung is for.
+escalates. Conformality is decided by the carrier ladder's margins over
+the consumed extent — Zero is one carrier, in band escalates unless a
+declaration bridges it — never by sampled proximity. Identity is at the
+locus level: two descriptions of one locus may differ as charts
+(`u_ref`, seam), which C3's chart authorities answer for.
 
 Face-pair procedure: exclusion, structural rung, declared rung, definite
 separation/crossing by geometry, in-band ⇒ escalate. The exclusion step
 is `census::sweep_cross_solid_backstop`. A cross-solid pair with a curved
 side clears only
 
-- on a definitely-positive separation margin from certified reach boxes
-  (`face_reach`), or
+- on a definitely-positive separation margin between certified reach boxes
+  (`face_reach_in`), read along each world axis and then along the
+  directions that turn with the pair: the axis between the two faces'
+  anchors, and either face's normal where it is planar
+  (`boolean::separating::apart`), or
 - where the pair meets, by the touch analysis, which reads every curved
   face of a touch's star through that box (its corners' signed distances
   from the candidate plane): a box on its side certifies the Rest, and
@@ -120,17 +135,33 @@ from being read.
 
 Refusals are typed with `CONTACT_RECOURSE`: declare the class or move
 the geometry. There is no tolerance arm, since ε cannot supply intent.
-Invariant: no flag, mode or tolerance glues value equality.
+Invariant: no flag, mode or setting moves a glue — the Boolean glues
+what its margin decides Zero under every setting, and the lint reads
+what it glued.
 
-**C3 — Record granularities.**
+**C3 — Record granularities.** Every granularity cites its backing
+(the preamble's decision); a vertex record cites the vertex identity
+the reduction decided (`DecisionSite::VertexFusion`), and a pair a
+chain of such identities implies cites every one on each shortest
+chain.
 
-- `CurveContact { face_a, face_b, witness }` is a certified curve touch:
-  the jet schedule along the witness edge's carrier (coincidence within
-  ε, normal opposition within ε·κ_rel, κ_rel definitely positive, hull
-  bounds between samples). Its endpoints are bounded by vertex records or
-  the locus's closure; an unbacked bound is `UndeclaredContact`.
-- `PatchContact { face_a, face_b }` is a certified conformal patch:
-  carrier identity by the structural or declared rung, senses opposed
+A record's kind is its two cells' dimensions; the face-level kinds
+are edge–face and face–face pairs, and the census reads which touch a
+pair is from the two cells' carriers:
+
+- A **curve touch** is certified by the jet schedule along its locus
+  (coincidence within ε, normal opposition within ε·κ_rel, κ_rel
+  definitely positive, hull bounds between samples). For an edge–face
+  pair the locus is the edge's carrier; for a face–face pair on two
+  carriers the census derives it from the carriers, on the closed-form
+  lane the deciding operation used, and refuses typed where no such lane
+  exists. Its endpoints are bounded by vertex records or the locus's
+  closure; an unbacked bound is `UnrecordedContact`.
+- A **patch** is a face–face pair on one carrier, backed by a
+  `SameOpposite` decision (for a mate's patch, the at-rest
+  census's `CensusAtRest` row; the mate places and never checks):
+  carrier identity by the carrier ladder (a margin
+  decided Zero, or a declaration bridging one in band), senses opposed
   (aligned coincidence is contradicted), and definitely-positive trim
   overlap in a shared chart — exact on the planar trim inventory
   (`chart_region.rs`), typed elsewhere (`NonPlanarTrim`, `ArmUnbounded`,
@@ -139,7 +170,8 @@ Invariant: no flag, mode or tolerance glues value equality.
 The shared chart comes from one of three authorities, tried in fixed
 order (`declared_pair_overlap`):
 
-1. the declared shared chart (`declared_chart`);
+1. one chart (`declared_chart`: one key, or two bit-identical
+   descriptions);
 2. for a declared **planar** pair, the shared world carrier: one plane
    description taken as the representative frame. This is legitimate by
    the frame-invariance lemma at `world_carrier` (both chart maps are
@@ -159,7 +191,7 @@ equals its skeleton; a contact of order k > 1 has no record type and
 refuses. Area sampling is rejected (it can miss a trim hole).
 
 **C4 — Declared contact as data.** A declaration names two faces by
-stable name on the consuming node and asserts a `ContactClass`:
+stable name on the mate that declares it and asserts a `ContactClass`:
 
 - `Rest` — same carrier, opposed senses, gap ≡ 0;
 - `Tangent` — curve or point touch, non-crossing;
@@ -182,8 +214,12 @@ Escalated, Undeclared, NotCertifiable}`).
   Contradicted by a consumed point (a face vertex, or the whole extent)
   definitely off the other carrier, by aligned senses, or by definite
   separation on the patch. Escalated between.
-- *`Tangent`.* Must verify: first-order tangency along the witnessed
-  locus, the locus on both surfaces within ε. Contradicted by definite
+- *`Tangent`.* Must verify: the two surfaces' separation along the
+  shared normal within ε at every sample (the touch), first-order
+  tangency along the witnessed locus, and the witness within ε of each
+  surface (C7's jet readings). Definite separation and definite
+  crossing are read on the separation; a witness off a surface is a bad
+  witness, not a gap. Contradicted by definite
   normal independence, definite crossing (as far as the sampled κ_rel
   sees it, C1), or definite separation. Bridged: in-band κ_rel
   *including exact zeros at isolated points* (a G1 tube chain's neutral
@@ -194,14 +230,15 @@ interior-witness rung runs only on `Definite` (a precondition may not be
 discharged by the claim under test), and the cylinder enclosure halves
 its zero band on `Bridged`.
 
-Declarations live in `BooleanDeclarations::coincident_faces`
-(`FacePairDeclaration`) and on mate nodes
-(`crates/editor-core/ASSEMBLY.md`). Bodies carry only verified records,
+A boolean's face pairs are the glue its margins decide (`boolean::glue`),
+or, at a step of an n-ary union's fold, the verdicts that union's pairwise
+judgement decided (`BooleanInputs::given`); declarations live on mate
+nodes alone (`crates/editor-core/ASSEMBLY.md`). Bodies carry only verified records,
 in the `BooleanBody` wrapper, never persisted. Replay is scalar-generic;
 an indeterminate verification at an interval scalar aborts.
 
-Failures, all typed: `UndeclaredContact` (the census) and
-`UndeclaredCoincidence` (the boolean); `ContactContradicted` (at use and
+Failures, all typed: `UnrecordedContact` (the census);
+`ContactContradicted` (at use and
 at rest); `ContinuationContradicted` and `SeamContradicted` (at use);
 `StaleContactDeclaration`; `CensusEscalated`. Invariant: every definite
 verdict wins over every declaration.
@@ -209,44 +246,39 @@ verdict wins over every declaration.
 **Continuation.** Two faces, one from each operand, on one carrier with
 their senses ALIGNED are a *continuation*: one surface carried on,
 whether the two abut along a boundary curve or overlap on a patch. The
-kernel derives exactly which; the author declares only the coincidence.
+kernel derives exactly which.
 
-A continuation is not a contact and not a `ContactClass`. The two
-declaration seats take different types, so each states only what its
-consumer can use: a mate (and every record and census reading) takes a
-`ContactClass`; a boolean node takes a `BooleanCoincidence`, which is
-`Contact(ContactClass) | Continuation | Seam`. A continuation is
-therefore declared on a boolean node and nowhere else — a mate cannot
-state one, and at rest two flush walls carry nothing to verify.
+A continuation is not a contact and not a `ContactClass`: a mate (and every
+record and census reading) speaks `ContactClass`, and a boolean glues a
+pair as a `GlueClass`, which is `Rest | Continuation | Tangent`. A mate
+cannot state a continuation, and at rest two flush walls carry nothing
+to verify. A glued `Tangent` is the tangency of two distinct carriers
+along a locus the witness lane certifies, and says nothing of the
+materials: whether the pair is a contact (a void crescent between the
+sheets), an overlap (a crescent both materials fill), a seam or a nested
+touch is read where it is consumed, by the lump and by the wedge of the
+result's junction (C7). `ContactClass::Tangent`, the record's and the
+mate's class, keeps its material claim, and a shared crescent
+contradicts it.
 
 Verification is `Rest`'s carrier rung with the sense bit reversed:
 carrier non-contradiction through the kind ladder, senses aligned as an
 exact bit. Opposed senses contradict it, as aligned senses contradict
-`Rest` at every door. A union merges a declared continuation pair (the
-merge stage's declared rung). An undeclared continuation refuses at the
-reduction for every carrier kind, naming the face pair and the recourse
-(declare it), exactly as an undeclared opposed coincidence does.
+`Rest` at every door. A union merges a continuation its margin decides:
+the merge stage reads the same ladder (D10), keeping the
+description of the group's arena-first face that lies in no other
+member's hole. That is ordinarily operand A's, and B's where A's face
+plugs a hole of B's.
 
-**Seam.** Two faces, one from each operand, on DISTINCT carriers tangent
-along a curve with their senses ALIGNED are a *seam*: the two surfaces
-join G1 along that curve, material wedge π. It is the aligned-sense twin
-of `Tangent`, as a continuation is of `Rest`, and like a continuation it
-is not a contact: a boolean node declares it and a mate cannot.
-
-Verification is the `Tangent` witness lane along the same locus with the
-sense bit reversed; opposed senses contradict it. Wherever the two faces
-touch along the curve, each must END there and the two must leave it on
-opposite sides. Each of these contradicts the seam, with the fact named:
-a cusp; a face running on through the curve where the other touches it;
-sides that differ along the curve; a pair touching nowhere. A pair that
-meets the curve only at a point (two faces of two face sets across a
-vertex of the curve) is read at that point when both faces end there; a
-pair sharing no point at all is the pair touching nowhere.
-
-Rim routing by material wedge (C7) then decides the rim, and the zip
-mints it as the smooth seam carrying `TangentIntersection`. A G1 joint
-authored inside one profile is the structural form of the same fact and
-needs no declaration.
+**Seam.** A *seam* is a junction of the result whose material wedge is
+π: two faces on distinct carriers joining G1 along a curve. It is read
+on the result, not glued on the operands: the boolean glues the two
+faces' tangency (`Tangent`), and the op and the membership decide which
+edge the result carries on the locus. One tangent pair can leave a seam
+under one op, a knife edge under another and no edge under a third.
+Rim routing by material wedge (C7) decides the rim, and the zip mints a
+seam carrying `TangentIntersection`. A G1 joint authored inside one
+profile is the structural form of the same fact.
 
 **The crossing layer's one-sided cover.** An edge touching the other
 operand's carrier — a root at an end, its interior uncertified — is
@@ -323,37 +355,56 @@ refuse by default, with an explicit opt-in subtracting closed-form
 overlap volumes; booleans are unchanged; STEP export drops the
 declaration.
 
-Not implemented: the variant lands with its first consumer. Until then
-the backstop's containment arm decides the nested-instance class by a
+Not implemented: the variant lands with its first consumer. The
+backstop's containment arm decides the nested-instance class by a
 material test — a nested placement sharing no material clears; an
-instance with a vertex inside another's material refuses typed
-(`ValidationError::InstanceInterference`) — and no declaration admits an
-interference. Invariant: an undeclared interference is always a typed
-error; no blanket "disable interference checking" exists.
+instance with a vertex inside another's material is
+`ValidationError::InstanceInterference` — and no declaration admits an
+interference. Between two copies at rest the editor's gate reads that
+verdict, a pierce and a same-side crossing as interference evidence
+(ASSEMBLY A5 *Interference.*), quieted by a one-sided `Gap` assertion at
+the overlap, not by a declaration. Invariant: inside one body an interference is always a
+typed error, and at rest between two copies it is always a finding
+(ASSEMBLY A5 *Interference.*), loud unless an assertion at its site
+quiets it; no blanket "disable interference checking" exists.
 
 **C7 — The join lane.** At the curved coplanar-lump sites (`vtxfac.rs`,
-`recl.rs`) an undeclared tangent pair refuses `CurvedBooleanUnsupported`;
-a verified `Tangent`/`Rest` descends to second order (`sectors.rs`: the
+`recl.rs`) a tangent pair the witness lane decides (the
+glue door, `boolean/glue.rs`), whichever side its materials lie on, or a
+`Rest` its margin decides, descends to second order (`sectors.rs`: the
 sector's relative transverse curvature signed against the other face's
-outward normal, the declaration bridging an exact zero). The zip
-(`boolean/rest.rs`) removes conformal patches as interior on any carrier
-the ladder certifies and mints each seam once, so union volume is exactly
-additive at full engagement.
+outward normal, the pair's sense bit bridging an exact zero). The join
+discards each side of a conformal contact whole, on any carrier the
+ladder certifies, and its finish fuses the two solids along the seam
+once, so at full engagement union volume is the operands' sum.
 
 A rim with a determinate G1 jet carries `TangentIntersection`. Rim
-routing by material wedge is `docs/MATE-7-TANGENCY-DESIGN.md`: π ⇒
-smooth seam (declared `Seam` or structural); 0/2π ⇒ the declared cusp
-family, defined but unbuilt (`BooleanError::RimCuspArmUnbuilt`). A
-verified `Tangent` union whose ruling runs through a plane face's
-interior is #131's doubled cusp, unbuilt, and refuses
-(`BooleanError::TangentSlitArmUnbuilt`).
+routing reads the material wedge of a junction, an edge of the result
+that both tangent faces bound (`docs/MATE-7-TANGENCY-DESIGN.md`): π ⇒
+smooth seam; 0/2π ⇒ the cusp family. A wedge-0 junction along a line
+locus builds through the ON-edge lane and passes tier 3 on its jet
+(κ_rel determinate); `BooleanError::RimCuspArmUnbuilt` remains where no
+locus arm exists. Two operands whose materials overlap beside a tangent
+locus (an overlapping tangency) leave a π junction under ∖, a wedge-0
+junction under ∩, and none under ∪, where the locus is interior. Two
+operands that touch only along a tangent line leave no junction: each
+keeps its own edge on the line, the membership decides every op, ∖
+returns the operand, ∩ is empty, and ∪ is two solids (D1's pieces) whose
+touch is recorded as any pair whose interiors meet — an edge–edge record
+of the two edges on the line, citing the glue's tangency decision and
+confirmed by reconstruction from its bounding vertex records. Where the
+line runs through a face's interior the touch is a face–face curve
+touch; the reduction mints no face–face row, so that union refuses
+(`BooleanError::TangentSlitArmUnbuilt`) until it does.
 
 The same substrate is the at-rest door: `validate_pseudomanifold` with
 mate declarations landed in `ContactRecords`, no boolean, no zip.
 
 **C8 — Ratification boundary.** Refusals are typed per class and retire
 per table arm, never wholesale; `CensusUnsupported` and
-`CurvedBooleanUnsupported` name the C4 recourse vocabulary. Still open:
+`CurvedBooleanUnsupported` name the C4 recourse vocabulary. A tangent
+pair the witness lane has a locus for is glued, so it never meets
+`CurvedBooleanUnsupported`, which remains the refusal outside the lane. Still open:
 NURBS↔analytic same-locus recognition; kinematics (records are
 geometric; mate solving is not here).
 
@@ -363,18 +414,17 @@ geometric; mate solving is not here).
 event to vertex-vertex before records exist; at rest nothing refines. So
 `sweep_vertex_edge`, the asymmetric arm of `ee_bound_backed` and the
 edge-on-face bounds read two backings: the event's own `(vertex, edge)`
-record (`VeContact`, which a join writes from the v-v record whose
+record (a vertex–edge pair, which a join writes from the v-v record whose
 vertex it joined away), and `Declared::ve_face_backed`, a declared face
 pair that holds the vertex on one boundary and names a face the edge
 bounds. With neither, the event is a defect
-(`CensusContact::VertexOnEdge` as `UndeclaredContact`). Both are written
+(`CensusContact::VertexOnEdge` as `UnrecordedContact`). Both are written
 before the census runs, never read off the geometry's agreement with
 itself.
 
 **World-carrier Door 2 for declared planar pairs.** Two instances of one
-part carry `Placed { node, instance, .. }` sources that never equalize,
-and a `Rest` pair's charts mirror, so structural chart identity is
-unreachable across instances and provenance transfer cannot restore it.
+part placed apart carry descriptions whose bits differ, and a `Rest`
+pair's charts mirror, so one chart is unreachable across instances.
 Door 2 therefore answers a declared planar pair on the verified shared
 carrier (C3's planar authority) with the one-body parity walk; the claim
 is certified within ε at the pair's own extent, not exact.
@@ -385,10 +435,12 @@ cylinder arm is built (C3); sphere, cone and torus keep the typed
 divergence, with that shape recorded at the refusal site.
 
 **Attribution at the assembly layer.** Each live `Rest` mate is minted as
-a `PatchContact`. Findings attribute to mates as Declined, Unattributed
-or Refuted (`StaleContactDeclaration`); all-Declined is the `Uncertified`
-frontier, and any Unattributed is a hard `AtRest` error
-(`crates/editor-core/ASSEMBLY.md`).
+a face–face record (a patch). Findings attribute to mates as Declined
+or Refuted (`StaleContactDeclaration`), or to no mate; all-Declined is
+the `Uncertified` frontier, and any other is a hard `AtRest` error
+(`crates/editor-core/ASSEMBLY.md`). A touch between two copies that no
+mate relates is no finding there: the gather's census records it
+(`record_at_rest`).
 
 ## Crossing backability (MATE-4B-CROSSING)
 
@@ -416,31 +468,38 @@ Confinement is by carrier, not incidence: nothing requires the crossing
 edges to bound the declared faces.
 
 **Three-valued side verdict** (`CrossingSideVerdict`). `OppositeSides`
-backs. `SameSide` refuses, naming the verdict; it is the hook for
-declared interpenetration, which C6 will consume as admission evidence,
-so no bool may stand there (the verdict reaches the refusal only as
-rendered witness text, not a typed field). `Undecided` escalates
+backs. `SameSide` refuses, naming the verdict in the refusal's typed
+`side` field; it is interpenetration evidence, which the assembly layer
+reads as an interference between two copies at rest, so no bool may
+stand there. `Undecided` escalates
 `CensusEscalated`. The side is read by handing both faces' `Face::sense`
 bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
 establishes the smooth precondition; the census is otherwise
 sense-invariant.
 
 **Grandfathered rungs.** `vv_face_backed`, `vf_face_backed`,
-`ve_face_backed`, and the face-pair arms of `ee_bound_backed` and
-`ef_bound_backed` confine by structural incidence only, so they can back
-an event outside the pair's overlap region. Each migrates to the unified
-strength one at a time, measured. The edge-on-face lane cuts an edge
-at every boundary vertex on it and every place a boundary edge crosses
-it, each placed in metres along both (a crossing within the band of an
-arc's end is that end's vertex), and refuses a face whose spiric or
-spline edge it cannot clear, so no cell spans the face's boundary on a
-decided reading. `ef_bound_backed`'s migration is parked with the
-declared-pair machinery D10 retires
-(`work/contacthold/ef-bound-backed-migrates-to-region-confinement.md`).
+`ve_face_backed`, `ee_face_backed` (which stands in for a collinear
+overlap's edge–edge record), and the face-pair arms of `ee_bound_backed`
+confine by structural incidence only, so they can back an event outside
+the pair's overlap region. Each migrates to the unified strength one at a time,
+measured. `ef_bound_backed`'s face-pair arms hold the unified strength
+(`Declared::vf_face_backed_confined`): a declared pair incident to the
+bound backs it only where the pair passes Door 1 and Door 2 reaches
+`PositiveArea`. Incidence puts the bound in the closed intersection of
+the two regions, the licence the crossing rung reads; a curved pair
+answers nothing there.
+
+The edge-on-face lane cuts an edge at every boundary vertex on it and
+every place a boundary edge crosses it, each placed in metres along
+both (a crossing within the band of an arc's end is that end's vertex),
+and refuses a face whose spiric or spline edge it cannot clear, so no
+cell spans the face's boundary on a decided reading.
 
 **`EdgeFacePierce` stays categorical.** A transverse dive is
-interpenetration until a C6 vocabulary exists; the recourse is
-separating the bodies or making the crossing a boolean's working state.
+interpenetration, and no declaration backs it. Inside one body the
+recourse is separating the solids or making the crossing a boolean's
+working state; at rest between two copies it is interference evidence,
+reported as ASSEMBLY A5's interference finding.
 
 **The `interior_witness` schedule.** A flush seat's trims share a
 boundary, so the region walk refuses `TouchingBoundary`; the witness rung
@@ -449,7 +508,11 @@ interior to both trims (`contfp`, both faces' rings). Candidates are
 uncertified hints in two stages — the trims' own landmarks, then the cell
 centres of the vertical decomposition of both boundaries
 (`decomposition_witness`) — each certified at use, so the schedule
-affects only what declines, never what certifies.
+affects only what declines, never what certifies. A schedule stopped by
+one of its two caps refuses typed, one face per cap:
+`WitnessSegmentCapExceeded` (over `WITNESS_SEGMENT_CAP`, nothing probed)
+and `WitnessCellCapExceeded` (`WITNESS_CELL_CAP` probes made, cells
+left).
 
 ## Related pages
 
@@ -462,10 +525,8 @@ affects only what declines, never what certifies.
 
 ## Open
 
-- The `EdgeFacePierce` arm (issue 973) waits for the C6 interference era.
-- `ef_bound_backed`'s migration is parked
-  (`ef-bound-backed-migrates-to-region-confinement`, D10).
-- `interior_witness`'s budget-exhaustion decline is untyped (1478).
+- Inside one body the `EdgeFacePierce` arm (issue 973) refuses typed;
+  no declaration admits it (C6).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse
   `ChartDivergence`; the C9 exclusion ring for same-solid distinct-key

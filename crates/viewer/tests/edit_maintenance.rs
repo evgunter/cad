@@ -50,7 +50,10 @@ fn wall(
             test_utils::refusal::tag(node.0.digest())
         );
     };
-    let Some(Node::Profile(program)) = doc.node(*profile) else {
+    let Some(Node::Profile(program)) = doc
+        .defined_by(*profile)
+        .and_then(|(profile, _)| doc.node(profile))
+    else {
         panic!("an extrude's operand is a profile");
     };
     let piece = program
@@ -76,7 +79,7 @@ fn extruded(
     let (doc, profile) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -85,7 +88,7 @@ fn extruded(
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -109,13 +112,17 @@ fn frame_on(
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     common::inserted(
         doc,
-        Node::Datum(Datum::FaceFrame {
-            at,
-            face,
-            spin: common::ang(0.0),
-        }),
+        Node::Datum(Datum::face_frame(at, face, common::ang(0.0))),
         Tol::witness(),
     )
+}
+
+/// The selection a face frame reads its face through.
+fn face_of(doc: &Doc<ProfileProgram>, frame: RecipeNodeId) -> pncad::document::VarId {
+    match doc.node(frame) {
+        Some(Node::Datum(Datum::FaceFrame { face, .. })) => *face,
+        other => panic!("a face frame, got {other:?}"),
+    }
 }
 
 /// **The status line the frame composes from `outcome`**, as `app`
@@ -142,7 +149,7 @@ fn assert_line_words(line: &str, rows: &[Maintenance]) {
     );
 }
 
-/// **A delete that strands a payload name reports it, and the line
+/// **A delete that strands a selected name reports it, and the line
 /// says so.** A frame on the kept block names a wall of the other
 /// one; deleting the other leaves the frame holding a name whose
 /// minting node is gone. The delete is legal (a name is not an edge),
@@ -155,8 +162,9 @@ fn a_delete_that_strands_a_payload_name_reaches_the_line() {
     let named = wall(&doc, victim, 0, 0);
     let (doc, carrier) = frame_on(&doc, kept, named.clone());
 
-    let expected = vec![Maintenance::Strand {
-        node: doc.spoken(carrier),
+    let expected = vec![Maintenance::StrandedSelection {
+        var: doc.spoken_var(face_of(&doc, carrier)),
+        readers: vec![doc.spoken(carrier)],
         name: doc.spoken_name(&named),
         took: pncad::document::Took::Node,
     }];
@@ -469,8 +477,9 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
         ids,
     };
     let outcome = session.perform(op.clone());
-    let expected = vec![Maintenance::Strand {
-        node: before.spoken(carrier),
+    let expected = vec![Maintenance::StrandedSelection {
+        var: before.spoken_var(face_of(&before, carrier)),
+        readers: vec![before.spoken(carrier)],
         name: before
             .spoken_name(&right)
             .steps_respoken(session.committed_doc()),

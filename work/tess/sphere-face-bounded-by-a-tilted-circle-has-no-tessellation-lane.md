@@ -88,3 +88,9 @@ both orders, though it builds sound to its closed form:
 These are the `Tilted` and `Lumps` rows of
 `crates/sweep/tests/spheres_crossing_off_every_edge.rs`. They go green
 here when this lane lands.
+
+A third witness (JOIN's tube-on-a-ball lane, 2026-10-09): a tube whose
+rim lies on a ball, tilted so the rim is no latitude of the ball's
+chart, builds every op sound and refuses the mesh with
+`props_rim_axis_parallel` (`crates/sweep/tests/a_tube_ending_on_a_ball.rs`,
+`a_tilted_tube_builds_at_its_closed_form`, reads it without a mesh).

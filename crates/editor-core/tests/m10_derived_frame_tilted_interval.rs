@@ -130,7 +130,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
     let w = Formula::named(VarName::from_static("w"), Dimension::Length);
     let neg_w = Formula::neg(w.clone()).expect("a shallow negation");
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon_expr([
             [neg_w.clone(), len(-0.5)],
             [w.clone(), len(-0.5)],
@@ -140,13 +140,15 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube,
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        face: editor_core::Operand::select(
+            cube,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+        ),
         spin: ang(0.0),
     }));
     let boss_p = r.insert(Node::Profile(fixture::desc(
@@ -154,7 +156,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
         vec![fixture::square(0.0, 0.0, 0.25)],
     )));
     r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
@@ -235,13 +237,15 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
             vec![fixture::square(0.0, 0.0, 1.0)],
         )));
         let cube = r.insert(Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         });
         r.insert(Node::Datum(Datum::FaceFrame {
-            at: cube,
-            face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+            face: editor_core::Operand::select(
+                cube,
+                vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+            ),
             spin: ang(0.0),
         }))
     } else {
@@ -252,7 +256,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
     r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
@@ -649,13 +653,15 @@ fn stacked(r: &mut Recorder, base: RecipeNodeId, n: usize) -> RecipeNodeId {
             vec![fixture::square(0.0, 0.0, 1.0)],
         )));
         let cube = r.insert(Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         });
         on = r.insert(Node::Datum(Datum::FaceFrame {
-            at: cube,
-            face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+            face: editor_core::Operand::select(
+                cube,
+                vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::End))],
+            ),
             spin: ang(0.0),
         }));
     }
@@ -671,13 +677,15 @@ fn start_cap_frame(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
         vec![fixture::square(0.0, 0.0, 1.0)],
     )));
     let cube = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube,
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::Start)),
+        face: editor_core::Operand::select(
+            cube,
+            vec![fixture::fname(cube, RoleSeg::Cap(CapEnd::Start))],
+        ),
         spin: ang(0.0),
     }))
 }
@@ -689,15 +697,17 @@ fn revolved(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
         base,
         vec![fixture::square(1.5, 0.0, 0.5)],
     )));
-    let axis = r.insert(fixture::axis_in_plane(base, (0.0, 0.0), (0.0, 1.0)));
-    let rev = r.insert(Node::Revolve {
-        profile: p,
-        axis,
-        angle: ang(std::f64::consts::PI),
-    });
+    let rev = r.insert(fixture::revolve_about(
+        p,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(std::f64::consts::PI),
+    ));
     r.insert(Node::Datum(Datum::FaceFrame {
-        at: rev,
-        face: fixture::fname(rev, RoleSeg::RevolveCap(MeridianEnd::End)),
+        face: editor_core::Operand::select(
+            editor_core::Operand::output(rev, 0),
+            vec![fixture::fname(rev, RoleSeg::RevolveCap(MeridianEnd::End))],
+        ),
         spin: ang(0.0),
     }))
 }
@@ -708,7 +718,7 @@ fn boss_on(r: &mut Recorder, on: RecipeNodeId) {
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
     r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });

@@ -56,7 +56,8 @@ gates refused on reach answer their closed forms.
 - `nurbs-face-meeting-a-plane-in-an-interior-loop-is-unguarded-on-the-crossings-path`:
   the class's one kind pair outside the certificate's scope.
 - `cone-pairs-in-general-pose-have-no-section-arm` and the cone arms on
-  `VERBS-CONE`: cones refuse at the operand gate until admitted.
+  `VERBS-CONE`: the cone is on the operand roster since its U7; its
+  general-pose pairs are the section arm's.
 - `radial-hole-through-a-tube-has-no-section-arm`: refuses on reach.
 - `coplanar-conic-edge-skips-endpoint-treatment-in-the-sweep`: premise S
   holds for a coplanar conic only through its neighbours.

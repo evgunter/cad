@@ -10,7 +10,7 @@ Scope: D10's **Coincidence** and **Booleans** paragraphs (`docs/DESIGN.md` §D10
 
 **Rulings this spec follows.**
 
-- **D10** (#3990). Ev's words behind it are in the ruling row `work/recipe/one-way-to-say-dependency-and-intent.md`.
+- **D10** (#3990). Ev's words behind it are in the ruling row `work/intent/one-way-to-say-dependency-and-intent.md`.
   - Part 2: "i'm happy to build only (2) to begin with, and extend it to (3) later if necessary". Rung (2) is canonical-form equality and rung (3) is the symbolic tier's polynomial identity. Adding (3) is one more rung at the one door.
   - Part 3: a margin decided Zero glues whether or not it is structural, so the solid is the same under every lint setting. This retires DS2's "no knob".
   - Part 4: "the lint … checks every case where a coincidence is inferred from values to ensure that it holds symbolically".
@@ -35,7 +35,7 @@ Scope: D10's **Coincidence** and **Booleans** paragraphs (`docs/DESIGN.md` §D10
   The curved ladder is `carrier_eq.rs` (`CarrierEqError::Undeclared`, `:109`).
 - **The boolean refuses a value-only coincidence.** `BooleanError::UndeclaredCoincidence` (`boolean/mod.rs:2134`) is raised at `mod.rs:5044`, `reduce.rs:880`, `recl.rs:170`, `vtxfac.rs:767` and `flush_rows.rs:250`, and the document layer wraps it as `NodeErrorKind::UndeclaredCoincidence` (`eval/mod.rs:1783`) with a declare menu (`wire.rs:3795`).
 - **Declarations.**
-  - The node payload is `Node::Boolean.declare` (`node.rs:2383`) and `Node::Union.declare` (`:2490`), with `DeclaredPair` at `:3218`.
+  - The node payload is the `declare` field of `Node::Union`, `Node::Intersect` and `Node::Subtract` (`node.rs`), with `DeclaredPair` beside them.
   - The kernel input is `BooleanDeclarations::coincident_faces` (`boolean/mod.rs:816`).
   - When the join refuses a declared union, `ops.rs:896` opens the declared-REST zip (`boolean/rest.rs`, 2693 lines).
 - **The records.**
@@ -56,7 +56,7 @@ Scope: D10's **Coincidence** and **Booleans** paragraphs (`docs/DESIGN.md` §D10
 - **Exact constants.** `Ratio` (`editor-core/src/ratio.rs:22`) has no arithmetic; an operator over constants stays a tree node.
 - **There is no lint.** `CheckId` (`checks.rs:60`) has `Connectedness`, `Separation` and `ChartCoherence`.
 
-## 0. Ordering: nine PRs, each green, none landing half a representation
+## 0. Ordering: ten PRs, each green, none landing half a representation
 
 | PR | Unit (`work/intent/`) | Lands | Needs | Cost |
 |---|---|---|---|---|
@@ -67,8 +67,9 @@ Scope: D10's **Coincidence** and **Booleans** paragraphs (`docs/DESIGN.md` §D10
 | E | `booleans-glue-on-zero` | every undeclared-refusal site glues on Zero and records; the merge glues value-decided continuations; the kernel's evidence channels (`GeomSource` rung, `RadiusEvidence`, `CoaxialEvidence`) leave its decisions; DS2 and the topo README's ladder rewritten | A, B | H |
 | F | `declared-pairs-retire` | `declare`, `DeclaredPair`, `BooleanCoincidence`, `BooleanDeclarations`, `SetDeclare`, the flush detector's declare protocol, DM4's declaration channel, the declared Door 1/Door 2 seats on booleans, `StaleContactDeclaration`, import's `declared_contacts`, the declare menus | E | M |
 | G | `tangent-joints-are-derived` | `ProfileLoop.tangent_joints` goes: the set is derived at lowering from the constructors, and a junction decided Zero that no constructor made is recorded; `UndeclaredTangency` retires | B | M |
-| H | `placed-carriers-compare-through-their-frames` | rung 2 over frames: H replaces C's opaque placement atom with the composed frame, so a mate-placed face is structural | C; stage 3 (`intent-stage3-is-built`); stage 2 F | H |
-| I | `mates-declare-no-contact` | `ContactClass` on mates, `class_admission`, `MintedDeclaration`, `NoAtRestRecord` and `FIT_DEFERRAL` go; at rest every contact the census finds is recorded at the door, and A5's hard error on an unattributed contact becomes an `unproven-coincidence` finding | H, F | M |
+| H | `placed-carriers-compare-through-their-frames` | rung 2 over frames: H replaces C's opaque placement atom with the composed frame, so a mate-placed face is structural | C; stage 3 C (`a-mate-relates-two-poses`); stage 2 F | H |
+| I | `mates-declare-no-contact` | `ContactClass` on mates, `class_admission`, `MintedDeclaration`, `NoAtRestRecord` and `FIT_DEFERRAL` go; at rest every contact the census finds between copies, mated ones included, is recorded at the door | H, F, J | M |
+| J | `an-unattributed-contact-at-rest-is-a-finding` | A5's hard error on an unattributed contact becomes an `unproven-coincidence` finding: a contact between copies that no mate attributes is a `Coincidence { site: CensusAtRest }` row at the door, and `Attribution::Unattributed` goes | B, C; D (merged) | M |
 
 **What can start now.** A and B need nothing from stage 2 or 3. They can be dispatched today, in parallel. D, E and G need only A and B, so the whole of stage 4's kernel change lands before stage 3, and before stage 2 finishes. **Every one of the 67 rows parked on `intent-stage4-is-built` is released by A, B, C, E, F or G** (§12), so none of them waits on stage 3.
 
@@ -81,6 +82,7 @@ Why this order:
   - A carrier's canonical form reads the node's slot variables, which stage 1 made `VarId`s.
   - It also reads the frame it is built in, which stage 2 A (pose outputs of datums) and B (a profile's plane is a read) make a variable.
   - A frame read off a face is stage 2 E's `Face` variable: "a projection of a construction reduces to what it was built from".
+- **J needs B and C, not stage 3.** D10 already says a contact beyond what the mates fix is "recorded and linted, and its recourse is an assertion". J records the contacts no mate attributes, and B, C and D prove the structural ones. The contacts between differently placed copies (stage 3 B's dropped declaring mates) stay unproven until H, because C compares a placement chain as one opaque atom; that interim is loud and refuses nothing. Stage 3's placement unit (B) drops today's declaring mates, whose contacts would otherwise hit A5's hard error, so stage 3 B waits on J (orchestrator's ruling, 2026-10-09). Mated contacts are still minted as declarations until I.
 - **H and I need stage 3.** Until frames are variables and a placement is the bundle of mates, a placed carrier's frame can only be compared as an opaque chain. H makes it a composed frame. I needs H because D10 says a mate-placed face is structural ("unless it is structural (a mate-placed face is)"). Retiring `ContactClass` before the door can prove that would turn every resting mate into a finding.
 - **C and D are independent of E.** Rung 2 and rung 3 shrink the lint's findings. E only grows what is recorded. Either order is green. Landing C or D before E keeps the interim noise (§10) shorter.
 
@@ -198,8 +200,8 @@ This is the build order the zip row states (`work/intent/the-declared-rest-zip-r
 **Goldens and tests.**
 
 - The zip suites become join suites: `topo/tests/crosslap_rest.rs` and `m5_s1_rest_zip.rs`, and `sweep/tests/m9_3_zip.rs`, `rest_nested_strut.rs`, `rest_zip_admission.rs`, `curved_mergedoor.rs` and `mate7a_torus_rest.rs`.
-- **The 91 unions the zip builds today move to the join, so their body digests move.** The check is that each builds, passes tier 3′ with the same contact records, and has a volume equal to the zip's within its certified bound. Every other body digest is bit-equal.
-- The torus's `SectionLoopUndecided` at ε ≥ 3e-7 stays a refusal (a band escalation).
+- **The 91 unions the zip builds today move to the join, so their body digests move.** The check is that each builds, passes tier 3′ with the same contact records, and has a volume equal to the zip's within its certified bound. Outside them, the tangent-site unions the join already built move too: the germ that `boolean::insert::across_tangent` reads in the sector across its tangent bound is minted there, so `join2_r1_probes` and `join2_r2_probes` bodies change bits (the volume at the last ulp), with the same face, edge, vertex and shell counts, contact records and tier 3′. No pinned digest moves.
+- The torus peg-in-socket union builds through the join at every ε; main's join built it before A.
 
 **Docs.**
 
@@ -303,6 +305,24 @@ A replay that refuses or escalates proves nothing, and the row stays `Unproven`.
 
 **Goldens.** None move. The mitre rows in B's goldens become proven.
 
+## 5b. After D — `the-symbolic-door-proves-at-one-strength-at-rest` (cost M)
+
+Ev, 2026-10-11 (PR 4644):
+
+- The door proves at **one strength**, a kernel constant with no
+  setting. Synchronous callers get its verdict.
+- The **viewer runs it at rest**, off the draw path, cancelled by the
+  next edit. Its rows read *pending* until it lands.
+- An unproven row is **one finding**. Where the residual keeps an
+  opaque numerical computation, its recourse is an assertion. (The
+  orchestrator's reading, 2026-10-11: so is a row the door has no form
+  of; a form frozen on the budget is no special case.) Ev: "it's pretty fair to
+  ask the user to assert that the two things are identical rather than
+  making a special undecided case for it".
+- The box mitre's frozen feet distance is SYM's to fix
+  (`the-mitres-feet-distance-freezes-at-sym`). The per-node theorem
+  cache stays parked behind it.
+
 ## 6. PR E — `booleans-glue-on-zero` (cost H; ~120 files, 4–6k lines)
 
 **The refusal sites become glue plus a record.** Rung 4 of each ladder (Zero, with neither source nor declaration) stops refusing:
@@ -376,7 +396,7 @@ After E, nothing reads a declaration except its contradiction check.
 
 **Document layer.**
 
-- The node fields go: `Node::Boolean.declare` (`node.rs:2383`), `Node::Union.declare` (`:2490`) and `DeclaredPair` (`:3218`). So do `declare_rest`/`declare_continuation` (`:3269`, `:3279`) and `DeclaredSideFault` (`:3223`).
+- The node fields go: the `declare` field of `Node::Union`, `Node::Intersect` and `Node::Subtract` (`node.rs`), and `DeclaredPair`. So do `declare_rest`/`declare_continuation` and `DeclaredSideFault`.
 - The edit doors go: `DocEdit::SetDeclare` (`edit.rs:142`, `:5827`), `check_declared_sides` (`:5145`), and `EditError`'s `SetDeclareOnNonDeclaring`, `DeclaredSiteNotAnOperand`, `DeclaredNameNotUpstream` and `DeclareNamesMissingNode`.
 - **The payload walks shrink.** `payload_names` (`node.rs:4699`), `payload_read_sites` (`:4777`), `rebind_payload_names` (`:3760`) and `declared_pairs` (`:4825`) lose their declare arm. The callers are `doc.rs:1757`, `edit.rs:4541`/`:6305`, `resolve/mod.rs:2263`, and `refactor.rs:259`, `:2047`, `:3274`.
   - If stage 2 E has landed, those walks hold only selects and the declared pairs, so F empties them to the selects. If F lands first, E's spec text "shrinks to the declared pairs" becomes "goes".
@@ -395,7 +415,7 @@ After E, nothing reads a declaration except its contradiction check.
 
 **Surfaces.**
 
-- Python: `BooleanCoincidence`, `Doc.declare`, `declare_all`, `Node.boolean(declare=)`, `Node.union(declare=)`, `DocEdit.set_declare` and `find_flush_candidates` go. That is 28 py-rs sites, 11 in the `.pyi`, and 54 test sites (`test_document.py` 19, `test_north_star.py` 10).
+- Python: `BooleanCoincidence`, `Doc.declare`, `declare_all`, `Node.union(declare=)`, `Node.intersect(declare=)`, `Node.subtract(declare=)`, `DocEdit.set_declare` and `find_flush_candidates` go. That is 28 py-rs sites, 11 in the `.pyi`, and 54 test sites (`test_document.py` 19, `test_north_star.py` 10).
 - Viewer: `add_boolean`'s declare list (`session.rs:2798`), `SessionOp::AddBoolean.declare` (`session/op.rs:628`), the declare-and-retry refusal (`session/refuse.rs:885`) and the create pane (`pane/create.rs:2751–2909`).
 - **Tour.**
   - `find_flush_candidates`/`declare_all` sites go from booleans (4), heatsink (8), lily (4), plate (3), projectbox (2) and twopeg (5).
@@ -415,7 +435,7 @@ D1's profile-tangency paragraph is already ratified for this: "a junction decide
 - `ProfileLoop.tangent_joints` (`profile/src/lib.rs:474`), `with_tangent_joints` (`:564`, `:578`), the `from_chain` parameter (`:651`) and `structure.rs:634` go.
 - `ValidatedLoop` derives the set:
   - the constructors' joints (`.tangent()`, the fillet, the continuations, and `.cusp()` for the reverse joint), which the program lowering already knows;
-  - the junctions `seg::joint_tangency` decides Zero, each recorded as a `Coincidence { relation: Tangent, site: ProfileJunction }`.
+  - the junctions `seg::joint_tangency` decides Zero, each recorded as a `Coincidence { site: ProfileJunction }`: `relation: Tangent` between two carriers (`aligned: false` at a cusp), `SameOriented` where the two segments continue one carrier.
 - **Refusals.**
   - `UndeclaredTangency` (`validate.rs:1090`) retires.
   - `TangencyContradicted` (`:1104`) stays for a constructor-made joint the geometry contradicts ("verified, never trusted").
@@ -430,6 +450,15 @@ D1's profile-tangency paragraph is already ratified for this: "a junction decide
   - Rows that refused `UndeclaredTangency` (28 test lines, tour 1, Python 2) now build and report a finding.
 - **Docs.** `crates/profile/README.md` V6's "flags verified-never-trusted (`UndeclaredTangency`, `TangencyContradicted`)" becomes "constructed tangency verified, never trusted (`TangencyContradicted`); a value-decided junction recorded". DISCIPLINES DS-Q6.
 - **Releases** `band/declared-joint-kind-zero-margin-reads-smooth` and, with E, `tang/declared-cusps-second-order-wedge-arm`.
+
+## 8b. PR J — `an-unattributed-contact-at-rest-is-a-finding` (cost M; ~40 files)
+
+- **The cut.** Cut out of I so stage 3's placement unit does not land into a window where a contact no mate declares refuses the product (orchestrator's ruling, 2026-10-09).
+- **The census's unattributed contacts** (`assembly.rs`, `verdict`). A coincidence between copies that no mate attributes is a `Coincidence { site: CensusAtRest }` row on the product, proven at the door (rungs 1–3). It covers vertex–vertex, vertex on face or edge, curve touch and conformal patch. `ValidationError::UndeclaredContact` for those classes becomes that row.
+- **Retired:** `Attribution::Unattributed` (`assembly.rs:592`, `:1768`) and A5's "Undeclared contact between instances is a hard error, never blessed". An unproven contact no longer refuses `assemble`.
+- **Unchanged:** a pierce, and a same-side crossing, stay interference evidence (stage 5 B). A mate's contact is still minted as a declaration until I. A contact inside one op's result that no record backs stays that op's defect (D1 (iii)).
+- **Docs.** A5's hard-error sentence and *Attribution*.
+- **Goldens.** The perf12 census goldens' unattributed lines are re-blessed as rows.
 
 ## 9. PRs H and I — after stage 3
 
@@ -449,7 +478,7 @@ D1's profile-tangency paragraph is already ratified for this: "a junction decide
   - Every *coincidence* between copies it finds is a `Coincidence { site: CensusAtRest }` row on the product, proven at the door (structural iff the faces' forms are equal, which is H's mate-placed case). That covers vertex–vertex, vertex on face or edge, curve touch and conformal patch.
   - `ValidationError::UndeclaredContact` *between copies* for those classes (the `census.rs` pushes, as read at rest) becomes that row.
   - **A pierce is not a coincidence.** `EdgeFacePierce`, and an `EdgeEdgeCross` the side test reads `SameSide`, stay interference evidence as stage 5 B (`interference-at-rest-is-a-finding`) leaves them.
-  - `Attribution::Unattributed` (`assembly.rs:592`, `:1768`) goes, along with A5's "Undeclared contact between instances is a hard error, never blessed". An unproven contact no longer refuses `assemble`.
+  - J has already turned the unattributed contacts into rows, and retired `Attribution::Unattributed` and A5's hard error. I extends the recording to the contacts a mate used to attribute.
   - A contact *inside one op's result* that no record backs stays that op's defect, refused typed (D1 (iii)).
   - The `Separation` check's suppression reads `ContactRecords` (`checks.rs:1424`), and I deletes the mate-minted ones. I re-keys it to the door's `Structural` at-rest rows.
 - **Stage 5's boundary** (reconciled with `docs/INTENT-STAGE5-SPEC.md` on `intent/stage5-spec`):
@@ -498,7 +527,7 @@ D1's profile-tangency paragraph is already ratified for this: "a junction decide
 ## 11. Test plan (each row names the runtime value that breaks it)
 
 1. **(A) The join builds the zip's 91.** With `through_the_join`'s zip door deleted, each of the 91 unions builds, passes tier 3′, and has a volume within the certified bound of the zip's. *Breaks if* a ring on a constant-azimuth ray reads `Undecided` (the 41 refuse `RingHomingAmbiguous`), or a tangent chord is computed instead of read from the partner edge (the 33 refuse `SectionInvariant`).
-2. **(A) Nothing else moves.** Every body digest outside the 91 is bit-equal. *Breaks if* a moved carrier-pair door changed a verdict (a digest moves in the crosslap suite).
+2. **(A) Nothing else moves but the tangent sites.** Outside the 91, the digests that move are the tangent-site unions the join built before A, whose germ A mints in the sector across its tangent bound (`join2_r1_probes`, `join2_r2_probes`; the volume at the last ulp), each with the same counts, contact records and tier 3′; no pinned digest moves. *Breaks if* a moved carrier-pair door changed a verdict (a digest moves in the crosslap suite).
 3. **(B) A declared glue is recorded.** A flush plate pair joined under a declared `Rest`: `coincidences(node)` holds one `SameOpposite` row naming the two cap faces by their operand names, and the lint reports it `Unproven` with residual "two sources". *Breaks if* emission keys rows by arena key (the name is absent after the merge), or the declared rung is treated as structural (no finding).
 4. **(B) Same source is proven.** Two faces of one extrude glued back through a split-and-union proves `Structural(SameSource)`. *Breaks if* the door compares sources before composing placements (a transformed copy fails).
 5. **(B) The mitre leaves the battery.** A filleted box's eight corners give eight `EqualAngles` rows on the blend node, in vertex order, each `Unproven` in B. *Breaks if* `Blended` drops them (zero rows).
@@ -541,7 +570,7 @@ The 67 rows parked on `intent-stage4-is-built` (the 2026-10-08 re-homing, `work/
 | **F** (16) | `cleave/coincidence-intent-has-too-many-spellings`, `emit/a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`, `emit/union-refuses-in-some-member-orders-and-publishes-in-others`, `fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms`, `fuse/a-carried-vertex-on-face-row-at-a-pinch-is-unprobed`, `fuse/a-vertex-on-face-row-follows-its-face-not-the-part-it-rests-on`, `tang/a-flush-pair-with-no-readable-extent-has-no-typed-finding`, `tang/declared-cylinder-pair-offsets-read-off-the-reach`, `tang/flush-detector-offers-disjoint-coplanar-pairs-as-continuations`, `tang/lever-a-declared-pair-by-its-contact-patch-not-both-whole-faces`, `tang/the-rim-routings-sense-guard-has-no-finished-fixture`, `topo/boolean-coincidence-route-still-holds-join-and-self-check-decisions`, `topo/boolean-declared-doors-still-offer-the-declare-menu`, `topo/declared-pair-verdict-answers-an-unreachable-distinct`, `topo/plane-orientation-offers-no-tolerance-at-a-declared-rest-door`, `topo/recl-membership-tangent-lump-arm-is-unreachable` |
 | **G** (2) | `band/declared-joint-kind-zero-margin-reads-smooth`, `tang/declared-cusps-second-order-wedge-arm` (with E) |
 
-H and I release none of the 67, so **every parked row is released before stage 3**. The umbrella `intent-stage4-is-built` parks on all nine units, as its body says. **Recommendation:** re-point each row from the umbrella to its unit above, so that a row's trigger fires when its unit merges, not when I does. The re-pointing is the orchestrator's call (`work/intent/log.md`, the re-homing), and this PR does not make it.
+H, I and J release none of the 67, so **every parked row is released before stage 3**. The umbrella `intent-stage4-is-built` parks on all ten units, as its body says. **Recommendation:** re-point each row from the umbrella to its unit above, so that a row's trigger fires when its unit merges, not when I does. The re-pointing is the orchestrator's call (`work/intent/log.md`, the re-homing), and this PR does not make it.
 
 The in-scope `work/intent/` issues:
 
@@ -557,8 +586,8 @@ The in-scope `work/intent/` issues:
 - **A's geometry.** The three arms are hard topology (curved-chart ring homing, a full-period azimuth window). ZIP measured the 91 and their scenes, and the risk is the `mekr` cause, which is unmeasured. A may split into three PRs; only the last one deletes the zip.
 - **Rung 3's cost.** One `Sym` replay per document per lint run. D measures it on box mitres before anything depends on it. If it is slow, the per-node theorem cache is the fallback Ev allowed, and D does not build it unasked.
 - **`CarrierFlow` drift** (FORK-S4-2). A stated form that disagrees with the built carrier proves a falsehood, which is a silent wrong "proven". The witness (test 11) is the guard, and it must run in CI over the whole corpus, not only in debug.
-- **The stage-3 boundary.** H and I assume stage 3 defines a placed copy's frame from its mates. If stage 3 instead stores a solved pose as a free value, a mate-placed face can never reduce equal, and FORK-S4-5 must be answered in stage 3's representation. H waits on stage 3's C (`a-placement-is-the-bundle-of-mates`), not on `intent-stage3-is-built`. Stage 3's F waits on I, so the order is stage 3 C → H → I → stage 3 F (orchestrator's ruling on PR 4316).
-- **The stage-5 boundary** (reconciled, §9). I records at-rest coincidences and retires the class and A5's hard error. Stage 5 B makes interference a finding, and stage 5 C makes the census a check that reports I's rows and quiets them. Stage 5 C's `blocked_on` should name `mates-declare-no-contact` as stage 4's last unit it needs.
+- **The stage-3 boundary.** H and I assume stage 3 defines a placed copy's frame from its mates. If stage 3 instead stores a solved pose as a free value, a mate-placed face can never reduce equal, and FORK-S4-5 must be answered in stage 3's representation. H waits on stage 3's C (`a-mate-relates-two-poses`), not on `intent-stage3-is-built`: stage 3's placement unit B gives the bundle, and C makes its mates read poses off geometry, which is what H replays at `Sym` (FORK-S3O, fork log row 96). Stage 3's F waits on this stage's C, whose rungs prove the contacts F's refusals leave (`docs/INTENT-STAGE3-SPEC.md` §12).
+- **The stage-5 boundary** (reconciled, §9). J records the unattributed at-rest coincidences and retires A5's hard error; I records the rest and retires the class. Stage 5 B makes interference a finding, and stage 5 C makes the census a check that reports I's rows and quiets them. Stage 5 C's `blocked_on` should name `mates-declare-no-contact` as stage 4's last unit it needs.
 - **Collisions with stage 2.** B and E rewrite `wire.rs`'s boolean path while stage 2 B (`intent/s2-b-reads`) retypes its operands. F and stage 2 E both shrink `payload_names` and the ladder's declared callers. Whichever lands second merges main and restates.
 
 ## 14. Open questions
@@ -572,7 +601,7 @@ Each changes ratified text or turns on a choice D10 does not make. None is resol
 - **The problem.** D10 puts structure at one door in the document. The kernel today carries an opaque `GeomSource` stamp per description (N6, ratified), and composes it through placements. After E no kernel decision reads it: same source implies a zero margin. The door needs, for each recorded cell, the construction that built its carrier.
 - **Options:**
   - (a) **Keep `GeomSource`** as a pure identity stamp, and key a document-side table of `CarrierForm`s by it. N6 keeps its identity half and loses "stay unglued".
-  - (b) **Read it from the names.** Each row's cells are named in the deciding operands' tables. A `StableName` already traces to its minting node and role (`FromA`/`FromB`, `Merged`, `Instance`), and the role is what `CarrierFlow` is keyed by. `GeomSource`, `GeomOrigin`'s `Recipe` arm, `stamp_minted` and `compose_placed` retire. N6 becomes "a carrier's identity is its construction, read at the door", and the bit witnesses become C's witness.
+  - (b) **Read it from the names.** Each row's cells are named in the deciding operands' tables. A `StableName` already traces to its minting node and role (`From { read }`, `Merged`, `Instance`), and the role is what `CarrierFlow` is keyed by. `GeomSource`, `GeomOrigin`'s `Recipe` arm, `stamp_minted` and `compose_placed` retire. N6 becomes "a carrier's identity is its construction, read at the door", and the bit witnesses become C's witness.
   - (c) **Stamp the canonical form itself** on the body in place of `GeomSource` (the agent survey's "side table on `Body`"), computed at mint from the node's slot forms.
 - **Recommendation: (b).** It has one provenance carrier (the name table) instead of two kept in step, and naming is already exhaustive over node kinds (`names::lift`'s precedent). (c) puts document variables into the kernel, which N6's layering note forbids. (a) keeps a second identity that only restates the name. Confidence: likely. It needs a designer pair, because N6 is ratified (#74) and (b) deletes its mechanism.
 

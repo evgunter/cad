@@ -597,8 +597,7 @@ fn a_meridian_edge_through_a_pole_is_read_at_the_face_door() {
             edge,
             geom_brep::EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1: base.get_face(f).unwrap().surface,
-                    s2: plane_key,
+                    pair: geom_brep::SurfacePair::new(base.get_face(f).unwrap().surface, plane_key),
                     witness: long.eval(width * 0.5),
                 },
                 carrier: long,
@@ -709,8 +708,7 @@ fn a_boundary_circle_tilted_against_the_chart_is_read_at_the_face_door() {
                 edge,
                 geom_brep::EdgeCurveSpec {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
-                        s1: sph_key,
-                        s2: plane_key,
+                        pair: geom_brep::SurfacePair::new(sph_key, plane_key),
                         witness: tilted.eval(t1 * 0.5),
                     },
                     carrier: tilted,
@@ -797,8 +795,7 @@ fn a_full_period_azimuth_window_is_served_by_both_doors() {
 }
 
 /// **A sphere face with a straight edge refuses at both doors.** `kfmrh`'s
-/// band door re-homes the flat disc's loop as a RING of the sphere face
-/// — the one public operator that puts a ring on a curved face at all —
+/// band door re-homes the flat disc's loop as a RING of the sphere face,
 /// and that loop carries the disc's two radial LINES, which are no arcs
 /// of the sphere: the region reading has no crossing for them, and the
 /// typed remainder stands. The sphere face arrives minted, so the

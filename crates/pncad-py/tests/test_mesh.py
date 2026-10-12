@@ -19,7 +19,6 @@ import unittest
 
 import pncad
 from pncad import (
-    BooleanOp,
     Doc,
     Formula,
     Node,
@@ -258,17 +257,21 @@ class TestBoundaryPolylines(unittest.TestCase):
             self.assertNotEqual(line[0], line[-1])
 
         doc = Doc()
-        spine = doc.insert(Node.datum_axis((
+        frame = doc.insert(Node.datum_frame((
             Formula.length_in(0, m),
             Formula.length_in(0, m),
             Formula.length_in(0, m),
         ), (
+            Formula.literal(1.0),
             Formula.literal(0.0),
+            Formula.literal(0.0),
+        ), (
             Formula.literal(0.0),
             Formula.literal(1.0),
+            Formula.literal(0.0),
         )))
         ring = doc.insert(
-            Node.tube(spine, (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)), Formula.length_in(0.5, m), TubeWindow.full(), Formula.length_in(0.1, m))
+            Node.tube(frame, Formula.length_in(0.5, m), TubeWindow.full(), Formula.length_in(0.1, m))
         )
         lines = body_of(doc, ring).tessellate(20 * mm).boundaries
         closed = [line for line in lines if line[0] == line[-1]]
@@ -455,7 +458,7 @@ class TestCrossCheckOnBooleanGeometry(unittest.TestCase):
             )
         )
         tool = doc.insert(Node.extrude(tool_p, Formula.length_in(1, m)))
-        cut = doc.insert(Node.boolean(BooleanOp.Subtract, base, tool))
+        cut = doc.insert(Node.subtract(base, tool))
         body = body_of(doc, cut)
         body.validate()
 
@@ -517,15 +520,12 @@ class TestCrossCheckConverges(unittest.TestCase):
         frame = doc.sketch_frame()
         # The axis in the sketch's own coordinates: the frame's v is
         # world +y, so the world y axis IS its own +y through (0, 0).
-        axis = doc.insert(Node.datum_axis_in_plane(frame, (
-            Formula.length_in(0, m),
-            Formula.length_in(0, m),
-        ), (
-            Formula.literal(0.0),
-            Formula.literal(1.0),
-        )))
+        axis = (
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(0.0), Formula.literal(1.0)),
+        )
         ring = doc.insert(
-            Node.revolve(doc.insert(Node.profile(outline, plane=frame)), axis, Formula.angle_in(360, deg))
+            Node.revolve(doc.insert(Node.profile(outline, plane=frame)), *axis, Formula.angle_in(360, deg))
         )
         body = body_of(doc, ring)
         body.validate()

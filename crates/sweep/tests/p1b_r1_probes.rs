@@ -24,7 +24,7 @@ use sweep::ExtrudeSide;
 
 use crate::common::shell_operands::{tube, vessel};
 use geom::Surface;
-use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve, MappedSource};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::fillet_edges;
@@ -36,7 +36,7 @@ use sweep::{
     tube_along_arc_hollow,
 };
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, CurveGeom, EdgeKey, ValidationError};
+use topo::{Body, CurveGeom, EdgeKey, ValidationError};
 
 /// Every edge at rest still described through the scaffolding door.
 fn scaffold_edges(body: &Body<f64>) -> Vec<EdgeKey> {
@@ -123,7 +123,7 @@ fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
 }
 
 /// A rounded square: four lines and four quarter-circle corner arcs,
-/// tangent-declared at every arc joint.
+/// tangent at every arc joint.
 fn rounded_square(half: f64, r: f64) -> ProfileLoop<f64> {
     let b = (PI / 8.0).tan(); // quarter-turn bulge
     let v = |x, y, bulge| (Point2::new(x, y), bulge);
@@ -137,7 +137,6 @@ fn rounded_square(half: f64, r: f64) -> ProfileLoop<f64> {
         v(-half, half - r, 0.0),
         v(-half, -half + r, b),
     ])
-    .with_tangent_joints(vec![1, 2, 3, 4, 5, 6, 7, 0])
 }
 
 fn revolved(points: &[(f64, f64, f64)], rev: Revolution<f64>) -> Body<f64> {
@@ -311,7 +310,6 @@ fn loft_products_carry_no_scaffold_at_rest() {
 
 #[test]
 fn boolean_products_carry_no_scaffold_at_rest() {
-    let decls = BooleanDeclarations::none();
     // A through hole: plate minus a taller coaxial disc.
     let plate = extruded(
         vec![ProfileLoop::polygon([
@@ -345,7 +343,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
         BooleanOp::Subtract,
         &plate,
         &tall,
-        &decls,
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -368,7 +366,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
         BooleanOp::Union,
         &plate,
         &boss,
-        &decls,
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -581,13 +579,13 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
         surface,
         image,
         wrap: seam_flag,
-        declared: Some(MappedCurve::RevolvedPoint {
+        declared: Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(Vec3::new(0.4, 0.0, 0.0)),
             axis_origin: Point3::new(0.0, 0.0, 0.0),
             axis_dir: Vec3::unit_y(),
             angle: 0.5,
-        }),
+        })),
     };
     let err = body
         .set_edge_curve(seam, spec, Tol::witness())
@@ -619,11 +617,11 @@ fn edge_touches_face(body: &Body<f64>, edge: EdgeKey, face: topo::FaceKey) -> bo
 }
 
 fn dummy_declaration() -> MappedCurve<f64> {
-    MappedCurve::ExtrudedPoint {
+    MappedCurve::whole(MappedSource::ExtrudedPoint {
         point: Point2::new(0.0, 0.0),
         place: Affine3::translation(Vec3::new(123.0, -456.0, 789.0)),
         vec: Vec3::new(0.0, 0.0, 1.0),
-    }
+    })
 }
 
 // =====================================================================

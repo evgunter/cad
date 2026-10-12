@@ -90,8 +90,9 @@ pub fn seams_off_the_pinch(h: f64, phi: f64) -> (Body<f64>, Body<f64>) {
 /// **Whether two refusals of one configuration in two poses are one
 /// door** — the re-pose rows' comparison, for both scalar lanes. Their
 /// `Debug` agrees, except where a refusal carries a decided margin
-/// (the pierce curvature's, `CurvedSectorSideUnsupported`, and an
-/// undeclared coincidence's, `UndeclaredCoincidence`): each pose
+/// (the pierce curvature's, `CurvedSectorSideUnsupported`, and a
+/// coincidence a corner decided for a pair the glue door did not glue,
+/// `carrier_unglued_coincidence`): each pose
 /// reads it off its own coordinates, so the twins' margins agree to
 /// within the zero band the verdict was classified against rather than
 /// bit for bit. The arm is matched first: a verdict of the other sign,
@@ -114,7 +115,7 @@ pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
         ) => (l1 - l2).abs() <= zero && (h1 - h2).abs() <= zero,
         _ => false,
     };
-    // The arm an undeclared coincidence's margin was refused on, read
+    // The arm an unglued coincidence's margin was refused on, read
     // off the band its diag carries: decided zero, in band, or past it.
     let arm = |d: &Indeterminate| {
         let (z, e) = (d.band.zero(), d.band.escalate());
@@ -136,19 +137,16 @@ pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
             _ => false,
         },
         (
-            topo::BooleanError::UndeclaredCoincidence {
+            topo::BooleanError::Escalated {
+                decision: da,
                 diag: x,
-                pair: pa,
-                relation: ra,
             },
-            topo::BooleanError::UndeclaredCoincidence {
+            topo::BooleanError::Escalated {
+                decision: db,
                 diag: y,
-                pair: pb,
-                relation: rb,
             },
-        ) => {
-            pa == pb
-                && ra == rb
+        ) if x.predicate == Some("carrier_unglued_coincidence") => {
+            da == db
                 && x.predicate == y.predicate
                 && arm(x).is_some()
                 && arm(x) == arm(y)

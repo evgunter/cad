@@ -2,7 +2,10 @@
 id: must-carry-in-band-verdict-does-not-say-which-decision-escalated
 kind: issue
 title: geom-brep: MustCarryVerdict::InBand carries a station's escalation without saying whether the wedge or the second-order question escalated
-status: open
+status: closed
+closed: 2026-10-09
+branch: encl/sweep-must-carry-escalation
+pr: 4450
 opened: 2026-10-01
 priority: P3
 ---
@@ -62,3 +65,22 @@ second-order reading is still owed its `AnySign` ending; `sweep::extrude`
 (strut, cap rim) and `sweep::revolve::upgrade` fold both into their
 sliver errors.
 
+## Since (ENCL, PR 4450): the sweep callers map it exhaustively
+
+`topo::DihedralReading::of_must_carry` (beside `of_lever`) is the one map
+from the escalation to a reading; `sweep::blend` maps the reading to its own
+decision (`BlendDecision::of_contact`): `ContactArm` / `ContactWedge` by rung, each
+on its own lever with no tolerance, and `ContactSecondOrder` with its
+`SizedPass::AnySign` ending. `sweep::extrude` (strut, cap rim) and
+`sweep::revolve::upgrade` carry `reading: topo::DihedralReading` on their
+sliver errors (`DihedralReading::of_must_carry`) and word the second-order bend
+apart from the first-order sliver (`swept::sliver_text`).
+
+## Closed
+
+2026-10-09. PR 4450 merged at `59cdb05871` after a full review, a fix pass and a delta review; hosted CI was green.
+- **Main fix ported.** Main's editor-core `lib_g17` crossing was ported in from PR 4451.
+- **Moved texts:**
+  - The blend's contact-edge in-band refusals: the arm and the wedge each get their own subject and lever, and the second order gains the tolerance offer.
+  - The extrude/revolve second-order slivers now read "whether the faces at … curve apart there or share their curvature is undecided: …".
+- **Follow-up recorded on CARVE's row** (`sweep-dihedral-readers-drop-the-arm-rung`): the false tolerance offer at extrude/revolve's first-order must-carry stations, where `Lever(rung)` cannot tell a must-carry station from the witness.

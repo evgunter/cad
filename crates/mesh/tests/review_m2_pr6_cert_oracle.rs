@@ -149,7 +149,7 @@ fn tall_thin_bar() -> Body<f64> {
     let b = (core::f64::consts::FRAC_PI_8).tan();
     let r = 0.2;
     let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
-    let mut lp = bulge_loop(vec![
+    let lp = bulge_loop(vec![
         v(r, 0.0, 0.0),
         v(1.0 - r, 0.0, b),
         v(1.0, r, 0.0),
@@ -159,9 +159,6 @@ fn tall_thin_bar() -> Body<f64> {
         v(0.0, 0.5 - r, 0.0),
         v(0.0, r, b),
     ]);
-    // All eight joints are exact corner-arc/side tangencies (#101).
-    let n = lp.vertices().len();
-    lp = lp.with_tangent_joints((0..n).collect());
     extrude(
         &validated(vec![lp]),
         Extrusion::Distance {
@@ -213,15 +210,14 @@ fn megaphone() -> Body<f64> {
 /// Silo: cylinder wall + quarter-arc dome cap onto the axis pole.
 fn silo() -> Body<f64> {
     let b = (core::f64::consts::FRAC_PI_8).tan(); // quarter circle
-    let mut lp = bulge_loop(vec![
+    let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
         (Point2::new(1.0, 0.0), 0.0),
         (Point2::new(1.0, 1.0), b),
         (Point2::new(0.0, 2.0), 0.0),
     ]);
     // The dome cap leaves the cylinder wall tangentially at (1, 1) --
-    // intended smooth cap, declared (#101).
-    lp = lp.with_tangent_joints(vec![2]);
+    // intended smooth cap.
     revolve(
         &validated(vec![lp]),
         axis_y(),

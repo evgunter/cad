@@ -71,3 +71,14 @@ cuts behind `SLIVER_CUT_ULPS`, and it and `bezier_blocks` are candidate
 consumers of the same home. The owners differ (`props/quad.rs` is PROPS/QUAD,
 `ssi/certify.rs` SSI, `edge_nurbs.rs` ISO), which is why the row sits
 with the schedule's home rather than with any one of them.
+
+## A fourth equal-split constant (NURBS, PR 4540)
+
+`geom::curves::nurbs`'s `INTEGRAL_METER_SPLITS` (16) cuts each nonempty
+span of a curve into equal pieces for the integral speed meter's piece
+assembly, beside `RATIONAL_METER_SPLITS` (16) in the same file. It is a
+per-span split rather than a domain grid, and it places no knot: the
+pieces are read through exact dyadic restriction weights
+(`piece_weights`), so no break is ever rounded or skipped. It belongs to
+this row's census of equal-split schedules, not to its skip-guard
+question.

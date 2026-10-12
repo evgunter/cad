@@ -26,7 +26,8 @@ use crate::common;
 use common::tol;
 use geom_core::{Point2, Tol};
 use profile::{
-    ArcSweep, Center, Open, PathError, Profile, ProfileError, ProfileLoop, SketchPlane, Start,
+    ArcSweep, Center, ConstructedLoop, ConstructedProfile, Open, PathError, ProfileError,
+    SketchPlane, Start,
 };
 
 /// The fillet radius every corner here is rounded with.
@@ -54,7 +55,7 @@ const CLEAR: f64 = 32.0;
 /// The item's **line × line** bend: the incoming ray runs east from the
 /// origin, the corner sits at `(4, 0)`, the arrival leaves it at
 /// `theta`, anchored three units along.
-fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn line_line(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
     Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())?
@@ -63,7 +64,7 @@ fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_.into_loop())
+        .map(|c| c.loop_)
 }
 
 /// The centre of the **line × arc** corner's arrival circle: radius 2,
@@ -74,7 +75,7 @@ fn line_arc_centre(theta: f64) -> Point2<f64> {
 
 /// A **line × arc** corner turning by `theta`: the east ray from the
 /// origin meets that circle at `(4, 0)`, and the fillet closes along it.
-fn line_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn line_arc(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let c = line_arc_centre(theta);
     let start = c + (Point2::new(2.0 * theta.cos(), 2.0 * theta.sin()) - Point2::new(0.0, 0.0));
     Open.at(start)
@@ -89,14 +90,14 @@ fn line_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>>
             },
             tol(),
         )
-        .map(|c| c.loop_.into_loop())
+        .map(|c| c.loop_)
 }
 
 /// An **arc × arc** corner turning by `theta`: the two radius-2 circles
 /// about `(∓θ, 0)` cross at `(0, √(4 − θ²))`, where their tangents are
 /// an angle `theta` apart — the arc × arc fixtures' vesica with its
 /// corner opened out to a shallow turn.
-fn arc_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+fn arc_arc(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
             c: Point2::new(-theta, 0.0),
@@ -112,14 +113,14 @@ fn arc_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> 
         tol(),
     )?
     .line_to(Start, tol())
-    .map(|c| c.loop_.into_loop())
+    .map(|c| c.loop_)
 }
 
 /// A corner kind: its name for the messages, and the door that builds
 /// it at a given turn and radius.
 type Corner = (
     &'static str,
-    fn(f64, f64) -> Result<ProfileLoop<f64>, PathError<f64>>,
+    fn(f64, f64) -> Result<ConstructedLoop<f64>, PathError<f64>>,
 );
 
 /// Every corner kind.
@@ -185,9 +186,10 @@ fn is_typed_door_refusal(err: &PathError<f64>) -> bool {
     )
 }
 
-/// Validation's verdict on a loop, as a `Result` a row can read.
-fn validates(lp: ProfileLoop<f64>, tol: Tol) -> Result<(), ProfileError> {
-    Profile::new(SketchPlane::xy(), vec![lp])
+/// Validation's verdict on a loop the door built, as a `Result` a row
+/// can read.
+fn validates(lp: ConstructedLoop<f64>, tol: Tol) -> Result<(), ProfileError> {
+    ConstructedProfile::new(SketchPlane::xy(), vec![lp])
         .validate(tol)
         .map(|_| ())
 }
@@ -237,7 +239,7 @@ fn the_door_refuses_a_fillet_its_stored_form_cannot_carry() {
 
 /// **Every corner kind, the same contract.** At a turn inside the
 /// window the door either refuses — typed, through one of the
-/// validator's own classifications — or builds a loop whose declared
+/// validator's own classifications — or builds a loop whose constructed
 /// tangency validation accepts. What it never does is mint a
 /// declaration validation contradicts.
 ///
@@ -260,11 +262,7 @@ fn every_corner_kind_either_refuses_or_builds_a_declaration_that_holds() {
                 Ok(lp) => {
                     if let Err(e) = validates(lp, tol()) {
                         assert!(
-                            !matches!(
-                                e,
-                                ProfileError::TangencyContradicted { .. }
-                                    | ProfileError::UndeclaredTangency { .. }
-                            ),
+                            !matches!(e, ProfileError::TangencyContradicted { .. }),
                             "{name}, c = {c}, theta = {theta:e}: the door built a declaration \
                              validation contradicts: {e}"
                         );
@@ -342,10 +340,10 @@ fn the_recourse_the_refusal_names_builds_and_validates() {
         .and_then(|p| p.line_to(Start, tol()))
         .expect("the sharp corner builds")
         .loop_;
-    validates(sharp.into_loop(), tol()).expect("and the sharp corner validates");
+    validates(sharp, tol()).expect("and the sharp corner validates");
 }
 
-/// **No loop the fillet doors build carries a declared tangency
+/// **No loop the fillet doors build carries a constructed tangency
 /// validation refuses** — swept over the whole corpus of door shapes
 /// this crate can author, at whatever ε the run committed.
 ///
@@ -353,19 +351,15 @@ fn the_recourse_the_refusal_names_builds_and_validates() {
 /// can be refused for: a corpus loop whose legs or self-intersections
 /// validation objects to is objected to on those terms, and this row
 /// says nothing about them. What it does say is that
-/// `TangencyContradicted` and `UndeclaredTangency` — the two refusals
-/// that are ABOUT a declaration the door minted — never arrive.
+/// `TangencyContradicted` — the refusal that is ABOUT a joint the door
+/// constructed — never arrives.
 #[test]
-fn no_door_output_is_refused_for_its_declared_tangency() {
+fn no_door_output_is_refused_for_its_constructed_tangency() {
     for (name, lp) in corpus() {
         if let Err(e) = validates(lp, tol()) {
             assert!(
-                !matches!(
-                    e,
-                    ProfileError::TangencyContradicted { .. }
-                        | ProfileError::UndeclaredTangency { .. }
-                ),
-                "{name}: the door built a loop validation refuses for its declared tangency: {e}"
+                !matches!(e, ProfileError::TangencyContradicted { .. }),
+                "{name}: the door built a loop validation refuses for its constructed tangency: {e}"
             );
         }
     }
@@ -374,8 +368,8 @@ fn no_door_output_is_refused_for_its_declared_tangency() {
 /// Every fillet-authored loop this crate can build through a public
 /// door, named — the corpus the row above sweeps and the differential
 /// dumps.
-fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
-    let mut out: Vec<(String, ProfileLoop<f64>)> = Vec::new();
+fn corpus() -> Vec<(String, ConstructedLoop<f64>)> {
+    let mut out: Vec<(String, ConstructedLoop<f64>)> = Vec::new();
     // A door call that refuses is not silently dropped: it is read,
     // and the ONLY refusals this corpus admits are the stored-form ones
     // — the two losses and their undecided twin. A corner refusing for
@@ -383,7 +377,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
     // subject, which is exactly what a silent `keep` would hide.
     let mut refused = 0usize;
     let mut stored_form = 0usize;
-    let mut keep = |name: String, lp: Result<ProfileLoop<f64>, PathError<f64>>| match lp {
+    let mut keep = |name: String, lp: Result<ConstructedLoop<f64>, PathError<f64>>| match lp {
         Ok(lp) => out.push((name, lp)),
         Err(e) => {
             assert!(
@@ -444,7 +438,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
     // The named shapes of each fillet door, at ordinary turns — these
     // are inside no window at any epsilon CI gates, so each one MUST
     // build, and `keep` silently dropping one would hide it.
-    let mut must = |name: String, lp: Result<ProfileLoop<f64>, PathError<f64>>| {
+    let mut must = |name: String, lp: Result<ConstructedLoop<f64>, PathError<f64>>| {
         out.push((
             name.clone(),
             lp.unwrap_or_else(|e| panic!("{name}: this corpus shape must build, got {e}")),
@@ -473,7 +467,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
                 .and_then(|p| p.angle(th[3], tol()))
                 .and_then(|p| p.fillet(radius, tol()))
                 .and_then(|p| p.to(Start, tol()))
-                .map(|c| c.loop_.into_loop())
+                .map(|c| c.loop_)
         });
         must(format!("line x arc internal r={radius}"), {
             Open.at(Point2::new(0.0, 2.0))
@@ -490,7 +484,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
                         tol(),
                     )
                 })
-                .map(|c| c.loop_.into_loop())
+                .map(|c| c.loop_)
         });
         must(format!("arc x line r={radius}"), {
             Open.arc_fillet(
@@ -507,7 +501,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
             .and_then(|p| p.line_to(Point2::new(4.0, 3.0), tol()))
             .and_then(|p| p.line_to(Point2::new(-1.0, 3.0), tol()))
             .and_then(|p| p.line_to(Start, tol()))
-            .map(|c| c.loop_.into_loop())
+            .map(|c| c.loop_)
         });
         must(format!("arc x arc vesica r={radius}"), {
             Open.arc_fillet_arc(
@@ -525,7 +519,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
                 tol(),
             )
             .and_then(|p| p.line_to(Start, tol()))
-            .map(|c| c.loop_.into_loop())
+            .map(|c| c.loop_)
         });
     }
     let named = out.len() - swept;
@@ -547,18 +541,15 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
     );
     let mut carried = 0usize;
     for (i, closed) in shared.into_iter().enumerate() {
-        if closed.loop_.tangent_joints().is_empty() {
+        if closed.loop_.constructed_joints().is_empty() {
             continue;
         }
         carried += 1;
-        out.push((
-            format!("shared coverage corpus {i}"),
-            closed.loop_.into_loop(),
-        ));
+        out.push((format!("shared coverage corpus {i}"), closed.loop_));
     }
     assert!(
         carried >= 5,
-        "only {carried} of the shared corpus's loops carry a declared joint — the \
+        "only {carried} of the shared corpus's loops construct a tangent joint — the \
          differential would be reading this file's own fixtures and little else"
     );
     out
@@ -598,7 +589,7 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
                 .collect();
             format!(
                 "{name} | {verdict} | {:?} | {}",
-                lp.tangent_joints(),
+                lp.constructed_joints(),
                 verts.join(" ")
             )
         })
@@ -651,12 +642,18 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 /// (`sugar::quarter_tan_about`), moving its last bits on every
 /// arc-carrier fillet in the corpus, and an arc side's run with an
 /// authored radius stores it as `|r|` (`shared coverage corpus 13`'s
-/// 1.9999999999999998 is 2.0); no verdict or joint moved.
-const GOLDEN_DEFAULT: u64 = 0x76d3_b8c8_3dc5_745c;
+/// 1.9999999999999998 is 2.0); no verdict or joint moved. Then the
+/// stored tangent-joint list went (D1): each row prints the loop's
+/// constructed joints, sorted, and validates through
+/// `ConstructedProfile`, which verifies them rather than re-deciding
+/// the stored arcs' consistency; five rows' joint lists re-ordered, the
+/// two circle forms joined the corpus (`shared coverage corpus 14`,
+/// `15`), and no vertex, arc field or verdict moved.
+const GOLDEN_DEFAULT: u64 = 0xe1b3_65a1_364f_8e39;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`.
-const GOLDEN_1E6: u64 = 0x9b07_a34e_72f9_1772;
+const GOLDEN_1E6: u64 = 0xcfa6_9bf8_7d3c_8213;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0x7625_7377_b8a5_c0f4;
+const GOLDEN_1E12: u64 = 0x91bf_eae3_1d8f_d451;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the
@@ -680,28 +677,28 @@ fn the_transition_is_bracketed_on_both_sides_at_this_eps() {
 }
 
 /// **The reach's other edge, exhibited.** The check reads only the
-/// joints the door DECLARED, and the natural question is whether an
-/// undeclared one can come back `Tangent` and draw
-/// `UndeclaredTangency` from validation — the door minting a refusal a
-/// different way.
+/// joints the door CONSTRUCTED, and the natural question is whether an
+/// unconstructed one can come back `Tangent` at validation — a tangency
+/// decided from values that the door should have constructed.
 ///
 /// It cannot, and the shape that would do it is the one this row
 /// builds: the exact outgoing fit, where the fillet arc consumes its
 /// arrival side entirely and ends at the anchor. That is the only door
 /// path that emits a fillet arc with `declare = false`
 /// (`emit_fillet_arc(&trims, trims.fit_out == Sign::Positive)`), and
-/// the reason it declares nothing is that nothing follows it on the
+/// the reason it constructs nothing is that nothing follows it on the
 /// arrival carrier: the direction leaving that vertex is free, so there
 /// is no second carrier for the joint to be tangent TO. The row pins
-/// both halves — the door leaves the joint undeclared, and what it
-/// built validates — so a future door that started declaring there, or
-/// a validator that started calling that joint tangent, reds it.
+/// both halves — the door leaves the joint unconstructed, and what it
+/// built validates deciding nothing — so a future door that started
+/// constructing there, or a validator that started calling that joint
+/// tangent, reds it.
 ///
-/// An author who then continues tangentially owns that declaration
-/// themselves; `UndeclaredTangency` is what tells them so, and it is a
-/// claim about the declaration set rather than about the stored form.
+/// An author who then continues tangentially constructs that joint
+/// with `.tangent()`, or validation decides it from values and records
+/// it.
 #[test]
-fn an_exact_outgoing_fit_leaves_its_joint_undeclared_and_still_validates() {
+fn an_exact_outgoing_fit_leaves_its_joint_unconstructed_and_still_validates() {
     // r = 1 consumes the line × arc corner's outgoing side exactly.
     let lp = Open
         .at(Point2::new(0.0, 2.0))
@@ -722,9 +719,15 @@ fn an_exact_outgoing_fit_leaves_its_joint_undeclared_and_still_validates() {
         .loop_;
     let joints = lp.vertices().len();
     assert!(
-        lp.tangent_joints().len() < joints,
-        "the exact fit declares fewer joints than the loop has: {:?} of {joints}",
-        lp.tangent_joints()
+        lp.constructed_joints().len() < joints,
+        "the exact fit constructs fewer joints than the loop has: {:?} of {joints}",
+        lp.constructed_joints()
     );
-    validates(lp.into_loop(), tol()).expect("and the loop the door built validates");
+    let vp = ConstructedProfile::new(SketchPlane::xy(), vec![lp])
+        .validate(tol())
+        .expect("and the loop the door built validates");
+    assert!(
+        vp.loops()[0].decided_joints().is_empty(),
+        "and validation decides no joint tangent from values"
+    );
 }

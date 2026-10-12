@@ -39,10 +39,7 @@ use crate::common;
 use common::{finished, mapped_cube, prism_z};
 use geom_core::Point3;
 use geom_core::Tol;
-use topo::{
-    AtRestBody, BooleanDeclarations, BooleanError, BooleanResult, intersect_with, mass_properties,
-    subtract_with, union, union_with,
-};
+use topo::{AtRestBody, BooleanError, BooleanResult, intersect, mass_properties, subtract, union};
 
 /// The L-prism with its reflex wedge edge along z at (2, 2).
 fn l_prism() -> AtRestBody<f64> {
@@ -84,7 +81,7 @@ fn prism_reflex_kiss_takes_edge_edge_lane() {
     // The coplanar top/bottom contacts are declared so the
     // classification reaches the edge-edge lane (undeclared, it
     // refuses earlier at the coincidence door — rung (b)).
-    let bb = match topo::union_with(&a, &b, &common::flush_declarations(&a, &b, tol), tol) {
+    let bb = match topo::union(&a, &b, tol) {
         Ok(topo::BooleanResult::Body(bb)) => bb,
         other => panic!("the reflex kiss's union: {other:?}"),
     };
@@ -159,14 +156,13 @@ fn tilted_saddle_corner_builds_every_op() {
     let va = 12.0;
     assert!(common > 0.0 && common < vb, "the cube crosses the corner");
     let (a0, b0) = (format!("{a:?}"), format!("{b:?}"));
-    let d = BooleanDeclarations::default();
     for (op, got, want) in [
-        ("a ∪ b", union_with(&a, &b, &d, tol), va + vb - common),
-        ("a ∩ b", intersect_with(&a, &b, &d, tol), common),
-        ("a ∖ b", subtract_with(&a, &b, &d, tol), va - common),
-        ("b ∪ a", union_with(&b, &a, &d, tol), va + vb - common),
-        ("b ∩ a", intersect_with(&b, &a, &d, tol), common),
-        ("b ∖ a", subtract_with(&b, &a, &d, tol), vb - common),
+        ("a ∪ b", union(&a, &b, tol), va + vb - common),
+        ("a ∩ b", intersect(&a, &b, tol), common),
+        ("a ∖ b", subtract(&a, &b, tol), va - common),
+        ("b ∪ a", union(&b, &a, tol), va + vb - common),
+        ("b ∩ a", intersect(&b, &a, tol), common),
+        ("b ∖ a", subtract(&b, &a, tol), vb - common),
     ] {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");

@@ -97,11 +97,11 @@ fn description_census(body: &Body<f64>) -> Vec<(EdgeKey, String, Vec<SurfaceKey>
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             let (class, cited) = match *c.description() {
-                geom_brep::EdgeDescription::Intersection { s1, s2, .. } => {
-                    ("Intersection", vec![s1, s2])
+                geom_brep::EdgeDescription::Intersection { pair, .. } => {
+                    ("Intersection", pair.keys().to_vec())
                 }
-                geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
-                    ("TangentIntersection", vec![s1, s2])
+                geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
+                    ("TangentIntersection", pair.keys().to_vec())
                 }
                 geom_brep::EdgeDescription::Chart(ref ch) => ("Chart", vec![ch.surface]),
                 geom_brep::EdgeDescription::Scaffold(_) => ("Scaffold", vec![]),

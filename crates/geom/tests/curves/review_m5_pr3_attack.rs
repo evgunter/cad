@@ -71,12 +71,7 @@ fn sup3(a: geom_core::Vec3<f64>, b: geom_core::Vec3<f64>) -> f64 {
 
 /// Constant-lift a curve's control points to Dual64 (structure shared).
 fn lift_dual(c: &NurbsCurve3<f64>) -> NurbsCurve3<Dual64> {
-    let ctrl = c
-        .control()
-        .iter()
-        .map(|p| p.map(Dual64::constant))
-        .collect();
-    NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap()
+    c.map_scalar(Dual64::constant)
 }
 
 fn supp(a: Point3<f64>, b: Point3<f64>) -> f64 {
@@ -544,8 +539,8 @@ fn f7_construction_attacks_all_typed_never_panic() {
 }
 
 #[test]
-fn f7_find_span_fuzz_totality() {
-    let mut rng = fuzz::start("review_m5_pr3_attack::f7_find_span");
+fn f7_span_at_fuzz_locates_every_number() {
+    let mut rng = fuzz::start("review_m5_pr3_attack::f7_span_at");
     for _ in 0..fuzz::scaled(3) {
         let p = 1 + rng.below(5);
         let c = random_curve(&mut rng, p, 3, 0.5, 2.0);
@@ -560,17 +555,29 @@ fn f7_find_span_fuzz_totality() {
             1.0 + 1e-16,
             f64::MIN_POSITIVE,
         ] {
-            let s = kv.find_span(t);
+            let Some(s) = kv.span_at(t).map(|s| s.index()) else {
+                assert!(
+                    t.is_nan(),
+                    "span_at refused the number {t} — {}",
+                    fuzz::replay()
+                );
+                continue;
+            };
+            assert!(
+                !t.is_nan(),
+                "span_at(NaN) located span {s} — {}",
+                fuzz::replay()
+            );
             assert!(s >= kv.first_span() && s <= kv.last_span());
             assert!(
                 kv.span_is_nonempty(s),
-                "find_span returned an empty span for t={t} — {}",
+                "span_at returned an empty span for t={t} — {}",
                 fuzz::replay()
             );
         }
         for _ in 0..fuzz::scaled(6) {
             let t = rng.range(-2.0, 3.0);
-            let s = kv.find_span(t);
+            let s = kv.span_at(t).expect("a number locates").index();
             assert!(kv.span_is_nonempty(s));
             // Promotion adaptation (mechanical): clippy's
             // manual_range_contains form.
