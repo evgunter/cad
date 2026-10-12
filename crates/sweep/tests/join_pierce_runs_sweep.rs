@@ -2891,3 +2891,59 @@ fn an_edge_in_the_partners_face_plane_records_its_rests_where_the_result_keeps_t
         .collect();
     assert!(bad.is_empty(), "every run SOUND:\n{}", bad.join("\n"));
 }
+
+/// PROBE diagnostic (designer scratch, not for merge).
+#[test]
+#[ignore = "probe diagnostic"]
+fn probe_three_keys_and_t3p() {
+    let v = notch343().v;
+    let [p, q, _] = frame(direction(4, 3), 0.3 + 0.9);
+    let three: Vec<Frame> = (0..3)
+        .map(|t| {
+            let th = f64::from(t) * std::f64::consts::TAU / 3.0;
+            let d = [0, 1, 2].map(|c| th.cos() * p[c] + th.sin() * q[c]);
+            let [p, q, a] = frame(d, 0.0);
+            let s = (2.0f64 / 3.0).sqrt();
+            let e = |k: f64| {
+                let t = 0.2 + f64::from(t) + k * std::f64::consts::TAU / 3.0;
+                [0, 1, 2].map(|i| a[i] / 3f64.sqrt() + s * (t.cos() * p[i] + t.sin() * q[i]))
+            };
+            let (e0, e1, e2) = (e(0.0), e(1.0), e(2.0));
+            if dot(cross(e0, e1), e2) > 0.0 {
+                [e0, e1, e2]
+            } else {
+                [e1, e0, e2]
+            }
+        })
+        .collect();
+    let keys = |b: &Body<f64>| -> Vec<String> {
+        vertices_at(b, v)
+            .iter()
+            .map(|&k| format!("{k:?}@{:?}", b.get_vertex(k).unwrap().point))
+            .collect()
+    };
+    let pinch = unite_all(
+        three
+            .iter()
+            .map(|&f| cube_sized(v, f, [0.0; 3], 2.0))
+            .collect(),
+    )
+    .unwrap();
+    println!("PROBE operand at v: {:?}", keys(&pinch));
+    let pinch_pieces: Pieces = three
+        .iter()
+        .map(|&f| cube_planes_sized(v, f, [0.0; 3], 2.0))
+        .collect();
+    let (runs, _) = notch_against(&pinch, &pinch_pieces);
+    for (tag, r, want) in runs {
+        if let Ok(BooleanResult::Body(bb)) = &r {
+            println!("PROBE {tag} at v: {:?}", keys(&bb.body));
+            println!(
+                "PROBE {tag} t3p: {:?}",
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).err()
+            );
+            println!("PROBE {tag} vv records: {:?}", bb.contacts.vertex_vertex().collect::<Vec<_>>());
+        }
+        println!("PROBE {tag}: {}", outcome(r, want, tol()));
+    }
+}
