@@ -27,6 +27,16 @@
 //! is decided at the crossing, **`split_ring_path_torus_loop`**, as the
 //! boolean join's section loops are told apart.
 //!
+//! The tube's top and bottom circles (the parallels of radius `R`) are
+//! the exception: their plane touches the torus along them, so a path
+//! meets it only on the circle and never crosses it. They are read
+//! across the cylinder `ρ = R` about the axis instead, which cuts the
+//! torus transversally in exactly those two circles, told apart by their
+//! height along the axis ([`LoopArc::Crest`]). A parallel piece keeps its
+//! distance from the axis and a meridian piece crosses that cylinder at
+//! the top and the bottom of the tube, through the plane through its
+//! centre square to its radial, so each crossing is closed form too.
+//!
 //! The parity does not depend on the path because the curve is
 //! null-homotopic where the paths run. Every closed curve on a sphere
 //! is. On a cone, the paths run on the punctured nappe, an annulus, and
@@ -340,7 +350,7 @@ impl<T: Decide> Quadric<T> {
                 let start = kf + (from - kf) * (off_t / off_f);
                 // The ruling and lever are read only against a `Line` loop
                 // arc, and no loop arc on a torus is one
-                // ([`Self::torus_circle_arc`] yields conics alone).
+                // ([`Self::torus_circle_arc`] yields conics and crests).
                 let lead = Piece::Segment {
                     from,
                     to: start,
@@ -358,7 +368,7 @@ impl<T: Decide> Quadric<T> {
                 let meridian = parallel(kf, ef.cross(axis), off_t, start, turned);
                 let round = parallel(centre + axis * ht, axis, rt, turned, to);
                 paths.push(Path {
-                    pieces: vec![lead, Piece::Arc(meridian), Piece::Arc(round)],
+                    pieces: vec![lead, Piece::Meridian(meridian), Piece::Arc(round)],
                     arrival: round.tangent(round.span.1),
                 });
                 // Round the start's parallel to `to`'s meridian, then round.
@@ -366,7 +376,7 @@ impl<T: Decide> Quadric<T> {
                 let round = parallel(centre + axis * hs, axis, rs, start, turned);
                 let meridian = parallel(kt, et.cross(axis), off_t, turned, to);
                 paths.push(Path {
-                    pieces: vec![lead, Piece::Arc(round), Piece::Arc(meridian)],
+                    pieces: vec![lead, Piece::Arc(round), Piece::Meridian(meridian)],
                     arrival: meridian.tangent(meridian.span.1),
                 });
                 Ok(paths)
@@ -452,8 +462,11 @@ fn branch<T: Real>(t: T, (lo, hi): (T, T)) -> T {
 /// A piece of a [`Path`].
 #[derive(Clone, Copy)]
 enum Piece<T: Real> {
-    /// An arc of a great circle or of a cone's parallel.
+    /// An arc of a great circle, or of a parallel of a cone or a torus.
     Arc(CircleArc<T>),
+    /// An arc of a torus's meridian (a circle round the tube, in a plane
+    /// holding the axis).
+    Meridian(CircleArc<T>),
     /// A segment of the cone's ruling `ruling` (unit, from the apex),
     /// whose distance from the apex at `from` is `lever`.
     Segment {
@@ -493,6 +506,22 @@ pub(crate) enum LoopArc<T: Real> {
         origin: Point3<T>,
         dir: Vec3<T>,
         span: (T, T),
+    },
+    /// An arc of a torus's top or bottom circle, the parallel of radius
+    /// `R` (`centre + (u_ref·cos t + (axis × u_ref)·sin t)·radius`),
+    /// whose plane touches the torus along it. A path meets it only where
+    /// it crosses the cylinder `ρ = R` about the torus's axis, which cuts
+    /// the torus transversally in this circle and the one across the tube
+    /// (`own` tells them apart by the height along the axis).
+    Crest {
+        centre: Point3<T>,
+        axis: Vec3<T>,
+        u_ref: Vec3<T>,
+        radius: T,
+        span: (T, T),
+        /// The torus's centre, unit axis and major radius `R`.
+        core: (Point3<T>, Vec3<T>, T),
+        own: ArcLoop<T>,
     },
 }
 
@@ -587,6 +616,48 @@ impl<T: Real> LoopSplit<T> {
             } => (p - origin).cross(axis).norm() - radius,
         }
     }
+
+    /// **The split of a plane×torus section's two loops**, the one
+    /// reading the boolean join's frame (`boolean::join`'s
+    /// `pt_germ_frame`) and the chord (`chord_join::section_case`) both
+    /// take, so that they name one loop. The torus is `(centre, axis,
+    /// R)` and `n` the plane's normal.
+    ///
+    /// - The meridian circles and the spiric ovals: the side of the
+    ///   plane through the axis square to the cut, the first loop on the
+    ///   positive side.
+    /// - The concentric circles: the distance from the axis against `R`,
+    ///   the outer circle positive.
+    ///
+    /// `None` for a section with no two loops, or a meridian section
+    /// whose first loop is no circle.
+    pub(crate) fn plane_torus(
+        section: &geom_brep::PlaneTorusSection<T>,
+        (centre, axis, major): (Point3<T>, Vec3<T>, T),
+        n: Vec3<T>,
+    ) -> Option<Self> {
+        match section {
+            geom_brep::PlaneTorusSection::MeridianCircles {
+                c1: geom::Curve3::Circle { center, .. },
+                ..
+            } => Some(Self::Side {
+                origin: centre,
+                dir: (*center - centre).normalize(),
+            }),
+            geom_brep::PlaneTorusSection::SpiricOvals { .. } => Some(Self::Side {
+                origin: centre,
+                dir: axis.cross(n).normalize(),
+            }),
+            geom_brep::PlaneTorusSection::ConcentricCircles { .. } => Some(Self::Radius {
+                origin: centre,
+                axis: axis.normalize(),
+                radius: major,
+            }),
+            geom_brep::PlaneTorusSection::MeridianCircles { .. }
+            | geom_brep::PlaneTorusSection::TangentCircle(_)
+            | geom_brep::PlaneTorusSection::Empty => None,
+        }
+    }
 }
 
 /// **Which of its plane's two loops on a torus a loop arc's circle is**:
@@ -626,9 +697,11 @@ impl<T: Decide> Quadric<T> {
     /// (**`split_ring_torus_meridian`**: `n̂·â`, levered at the circle's
     /// radius) or along it (**`split_ring_torus_parallel`**:
     /// `‖n̂ × â‖`, levered at the radius), and a parallel's side, its
-    /// radius less `R` (**`split_ring_torus_parallel_side`**), decided
-    /// apart from the tube's top or bottom circle, which its plane
-    /// touches.
+    /// radius less `R` (**`split_ring_torus_parallel_side`**). A parallel
+    /// of radius `R` in that band is the tube's top or bottom circle,
+    /// whose plane touches the torus: its arc is a
+    /// [`LoopArc::Crest`], told apart from the other by its centre's
+    /// height (**`split_ring_torus_crest`**).
     pub(crate) fn torus_circle_arc(
         &self,
         carrier: &geom::Curve3<T>,
@@ -705,7 +778,35 @@ impl<T: Decide> Quadric<T> {
         )? {
             Sign::Positive => true,
             Sign::Negative => false,
-            Sign::Zero => return Ok(None),
+            Sign::Zero => {
+                // The tube's top or bottom circle: its side of the
+                // equator plane (**`split_ring_torus_crest`**, the
+                // centre's height, `±r` on the torus).
+                let top = match decide(
+                    "split_ring_torus_crest",
+                    Margin::of((k - centre).dot(axis)),
+                    band,
+                )? {
+                    Sign::Positive => true,
+                    Sign::Negative => false,
+                    Sign::Zero => return Ok(None),
+                };
+                return Ok(Some(LoopArc::Crest {
+                    centre: c,
+                    axis: a,
+                    u_ref,
+                    radius: ra,
+                    span,
+                    core: (centre, axis, major),
+                    own: ArcLoop {
+                        split: LoopSplit::Side {
+                            origin: centre,
+                            dir: axis,
+                        },
+                        positive: top,
+                    },
+                }));
+            }
         };
         Ok(Some(arc(ArcLoop {
             split: LoopSplit::Radius {
@@ -782,7 +883,7 @@ pub(crate) fn path_parity<T: Decide>(
             let mut readings: Vec<[Result<Sign, Indeterminate>; 5]> = Vec::with_capacity(2);
             match (*piece, *arc) {
                 (
-                    Piece::Arc(p),
+                    Piece::Arc(p) | Piece::Meridian(p),
                     LoopArc::Conic {
                         centre,
                         axis,
@@ -793,65 +894,94 @@ pub(crate) fn path_parity<T: Decide>(
                         own,
                     },
                 ) => {
-                    let (ca, cb) = (axis.dot(p.u_ref), axis.dot(p.v_ref()));
-                    let d = axis.dot(p.centre - centre);
-                    let rho = (ca.powi(2) + cb.powi(2)).sqrt();
-                    // The gap `rρ − |D|`: moving the plane by it flips the
-                    // meeting, so it is the deviation the sign rests on.
-                    match decide_m(
-                        "split_ring_path_meets_plane",
-                        Margin::of(p.radius * rho - d.abs()),
-                    )? {
-                        Sign::Negative => continue,
-                        Sign::Zero => return Ok(None),
-                        Sign::Positive => {}
-                    }
-                    let phase = cb.atan2(ca);
-                    let offset = (-d / (p.radius * rho)).max(-T::one()).min(T::one()).acos();
-                    let [r0, r1] = [phase + offset, phase - offset].map(|t| branch(t, p.span));
-                    // On the arrival arc, the root nearer the end is the
-                    // arrival; the other is read. The pick is a raw
-                    // comparison and needs no decision. The arrival lies
-                    // on the plane up to rounding δ, and a root misplaced
-                    // by δ in the plane's offset moves by δ over the
-                    // slope it crosses at (as the in-span readings below
-                    // are levered): near a graze, with half-angle ω
-                    // between the roots, the slope is `ρ·sin ω` and the
-                    // roots lie `2rω` apart along the arc, so the root
-                    // error against their separation is
-                    // `δ/(2rρ·sin ω·ω) ≈ δ/(4g)` for the gap
-                    // `g = rρ − |D| ≈ rρω²/2`. The pick holds while that
-                    // is under a half. A decided gap is `g ≥ Kε`, and the
-                    // rounding is `δ ≤ ε` wherever the coordinates
-                    // resolve the band at all, so the ratio is at most
-                    // `1/(4K)`: `2K` times inside the half (about 150×
-                    // at ε 1e-12, offset 1e3, where δ is well under ε).
-                    // No row guards the margin, because a fixture with
-                    // `δ ≥ 2g` would have coordinates that cannot resolve
-                    // the band. The bound is the guard.
-                    let nearer = (r0 - p.span.1).abs() - (r1 - p.span.1).abs();
-                    let roots = if arrival {
-                        [nearer.select_le_zero(r1, r0), r1]
-                    } else {
-                        [r0, r1]
+                    let Some(roots) = plane_roots(&p, (centre, axis), arrival, band)? else {
+                        return Ok(None);
                     };
                     let v_ref = axis.cross(u_ref);
-                    for &t in &roots[..if arrival { 1 } else { 2 }] {
+                    for (t, slope) in roots {
                         let w = p.at(t) - centre;
                         let s = branch((w.dot(v_ref) / b).atan2(w.dot(u_ref) / a), span);
-                        // A carrier moved by δ moves the root by δ over the
-                        // slope the piece crosses the plane at, `|n̂·τ̂|`:
-                        // each in-span reading is levered by it, so its
-                        // margin is the displacement that moves the root
-                        // past the span's end.
-                        let (st, ct) = t.sin_cos();
-                        let slope = (cb * ct - ca * st).abs();
                         let [p0, p1] = in_span(t, p.span, p.radius * slope);
                         let [a0, a1] = in_span(s, span, b * slope);
                         readings.push([p0, p1, a0, a1, on_own(own, p.at(t))]);
                     }
                 }
-                (Piece::Arc(p), LoopArc::Line { origin, dir, span }) => {
+                // A crest is a torus's, whose paths' arcs are parallels
+                // (`Piece::Arc`) and meridians. A parallel keeps its
+                // distance from the axis, so it meets the cylinder
+                // `ρ = R` nowhere unless it runs along it
+                // (**`split_ring_path_crest_graze`**: its radius less `R`).
+                (
+                    Piece::Arc(p),
+                    LoopArc::Crest {
+                        core: (.., major), ..
+                    },
+                ) => {
+                    if decide_m("split_ring_path_crest_graze", Margin::of(p.radius - major))?
+                        == Sign::Zero
+                    {
+                        return Ok(None);
+                    }
+                }
+                // A meridian lies in a plane holding the axis, where
+                // `ρ − R` is the offset from its centre on the core along
+                // the radial `ê`: it crosses the cylinder `ρ = R` where it
+                // crosses the plane through its centre square to `ê`, on
+                // the tube's top and bottom.
+                (
+                    Piece::Meridian(p),
+                    LoopArc::Crest {
+                        centre,
+                        axis,
+                        u_ref,
+                        radius,
+                        span,
+                        core: (c, a, _),
+                        own,
+                    },
+                ) => {
+                    let w = p.centre - c;
+                    let e = w - a * w.dot(a);
+                    let e = e / e.norm();
+                    let Some(roots) = plane_roots(&p, (p.centre, e), arrival, band)? else {
+                        return Ok(None);
+                    };
+                    let v_ref = axis.cross(u_ref);
+                    for (t, slope) in roots {
+                        let w = p.at(t) - centre;
+                        let s = branch(w.dot(v_ref).atan2(w.dot(u_ref)), span);
+                        let [p0, p1] = in_span(t, p.span, p.radius * slope);
+                        let [a0, a1] = in_span(s, span, radius * slope);
+                        readings.push([p0, p1, a0, a1, own.read(p.at(t), band)]);
+                    }
+                }
+                // The torus's one segment is the lead along a tube radius,
+                // in a meridian half-plane, where `ρ − R` is a multiple of
+                // its offset from the core point at its start, so it keeps
+                // its sign (**`split_ring_path_crest_side`**). A segment
+                // whose ends are decided across the cylinder is no lead,
+                // and says nothing.
+                (
+                    Piece::Segment { from, to, .. },
+                    LoopArc::Crest {
+                        core: (c, a, major),
+                        ..
+                    },
+                ) => {
+                    if arrival {
+                        continue;
+                    }
+                    let rho_less = |p: Point3<T>| {
+                        let w = p - c;
+                        (w - a * w.dot(a)).norm() - major
+                    };
+                    let s0 = decide_m("split_ring_path_crest_side", Margin::of(rho_less(from)))?;
+                    let s1 = decide_m("split_ring_path_crest_side", Margin::of(rho_less(to)))?;
+                    if s0 == Sign::Zero || s1 == Sign::Zero || s0 != s1 {
+                        return Ok(None);
+                    }
+                }
+                (Piece::Arc(p) | Piece::Meridian(p), LoopArc::Line { origin, dir, span }) => {
                     let across = p.axis.dot(dir);
                     if decide_m(
                         "split_ring_path_line_across",
@@ -934,6 +1064,75 @@ pub(crate) fn path_parity<T: Decide>(
         }
     }
     Ok(Some(odd))
+}
+
+/// **Where the circle piece `p` meets the plane through `o` with unit
+/// normal `n`**: the parameters to read, each with the slope `|n̂·τ̂|`
+/// the piece crosses the plane at. `A cos θ + B sin θ = −D/r` (`A`, `B`
+/// the normal's components on the piece's frame, `D` the piece's
+/// centre's offset from the plane) holds at two parameters when
+/// `r·√(A² + B²) > |D|` (**`split_ring_path_meets_plane`**, on the gap
+/// `r·√(A² + B²) − |D|` in metres: moving the plane by it flips the
+/// meeting); none when it is decided short, and `None` when it grazes in
+/// the band. On the arrival arc (`arrival`), the root nearer the piece's
+/// end is the arrival and only the other is read.
+fn plane_roots<T: Decide>(
+    p: &CircleArc<T>,
+    (o, n): (Point3<T>, Vec3<T>),
+    arrival: bool,
+    band: Band,
+) -> Result<Option<Vec<(T, T)>>, Indeterminate> {
+    let (ca, cb) = (n.dot(p.u_ref), n.dot(p.v_ref()));
+    let d = n.dot(p.centre - o);
+    let rho = (ca.powi(2) + cb.powi(2)).sqrt();
+    // The gap `rρ − |D|`: moving the plane by it flips the meeting, so
+    // it is the deviation the sign rests on.
+    match decide(
+        "split_ring_path_meets_plane",
+        Margin::of(p.radius * rho - d.abs()),
+        band,
+    )? {
+        Sign::Negative => return Ok(Some(Vec::new())),
+        Sign::Zero => return Ok(None),
+        Sign::Positive => {}
+    }
+    let phase = cb.atan2(ca);
+    let offset = (-d / (p.radius * rho)).max(-T::one()).min(T::one()).acos();
+    let [r0, r1] = [phase + offset, phase - offset].map(|t| branch(t, p.span));
+    // On the arrival arc, the root nearer the end is the arrival; the
+    // other is read. The pick is a raw comparison and needs no decision.
+    // The arrival lies on the plane up to rounding δ, and a root
+    // misplaced by δ in the plane's offset moves by δ over the slope it
+    // crosses at (as the in-span readings are levered): near a graze,
+    // with half-angle ω between the roots, the slope is `ρ·sin ω` and the
+    // roots lie `2rω` apart along the arc, so the root error against
+    // their separation is `δ/(2rρ·sin ω·ω) ≈ δ/(4g)` for the gap
+    // `g = rρ − |D| ≈ rρω²/2`. The pick holds while that is under a half.
+    // A decided gap is `g ≥ Kε`, and the rounding is `δ ≤ ε` wherever the
+    // coordinates resolve the band at all, so the ratio is at most
+    // `1/(4K)`: `2K` times inside the half (about 150× at ε 1e-12, offset
+    // 1e3, where δ is well under ε). No row guards the margin, because a
+    // fixture with `δ ≥ 2g` would have coordinates that cannot resolve
+    // the band. The bound is the guard.
+    let roots = if arrival {
+        let nearer = (r0 - p.span.1).abs() - (r1 - p.span.1).abs();
+        vec![nearer.select_le_zero(r1, r0)]
+    } else {
+        vec![r0, r1]
+    };
+    // A carrier moved by δ moves the root by δ over the slope the piece
+    // crosses the plane at, `|n̂·τ̂|`: each in-span reading is levered by
+    // it, so its margin is the displacement that moves the root past the
+    // span's end.
+    Ok(Some(
+        roots
+            .into_iter()
+            .map(|t| {
+                let (st, ct) = t.sin_cos();
+                (t, (cb * ct - ca * st).abs())
+            })
+            .collect(),
+    ))
 }
 
 #[cfg(test)]
@@ -1023,7 +1222,7 @@ mod tests {
     #[test]
     fn a_cone_paths_pieces_meet_at_their_seams() {
         let ends = |piece: &Piece<f64>| match *piece {
-            Piece::Arc(a) => (a.at(a.span.0), a.at(a.span.1)),
+            Piece::Arc(a) | Piece::Meridian(a) => (a.at(a.span.0), a.at(a.span.1)),
             Piece::Segment { from, to, .. } => (from, to),
         };
         let b = band();
@@ -1107,21 +1306,22 @@ mod tests {
     /// of the whole torus taken pairwise, every path [`Quadric::paths`]
     /// offers between them, against islands on the outer side, on the
     /// inner side, over the tube's top, between one plane's two
-    /// parallels, and wider than half a turn. The paths run round the
+    /// parallels, and wider than half a turn, and islands bounded by the
+    /// tube's top or bottom circle, read across the cylinder `ρ = R`. The paths run round the
     /// back of the tube and the far side of the axis, so they cross the
     /// islands' planes on each plane's other loop: those crossings are
     /// passed over by the arc's loop side. Nearly every pair is decided,
     /// and both parities are read.
     #[test]
     fn a_torus_path_crosses_an_island_by_the_oracle_parity() {
-        use super::torus_islands::{islands, torus};
+        use super::torus_islands::{crest_islands, islands, torus};
         let mut far = 0usize;
         for f in frames() {
             for mirror in [false, true] {
                 let surface = torus(f, mirror);
                 let quadric = Quadric::of(&surface).unwrap();
                 let points = torus_grid(f);
-                for (name, island) in islands(f) {
+                for (name, island) in islands(f).into_iter().chain(crest_islands(f)) {
                     let arcs = torus_arcs(&quadric, &island);
                     let (mut decided, mut asked, mut odd) = (0usize, 0usize, 0usize);
                     for (i, &a) in points.iter().enumerate() {
@@ -1181,6 +1381,120 @@ mod tests {
         );
     }
 
+    /// **A path from a point on the tube's top or bottom circle reads the
+    /// oracle's parity, or nothing**, against every crest island: its
+    /// lead segment runs along the cylinder `ρ = R` from its start, and
+    /// one of its parallels is that circle, so each may run along a crest
+    /// arc, which no crossing count reads. The points lie on the two
+    /// circles off every crest island's azimuths, taken with the whole
+    /// grid, in three frames, the axis either way.
+    #[test]
+    fn a_path_from_the_tubes_top_or_bottom_reads_the_oracle_or_nothing() {
+        use super::torus_islands::{crest_islands, on_torus, torus};
+        use core::f64::consts::FRAC_PI_2;
+        let (mut decided, mut asked) = (0usize, 0usize);
+        for f in frames() {
+            for mirror in [false, true] {
+                let surface = torus(f, mirror);
+                let quadric = Quadric::of(&surface).unwrap();
+                let grid = torus_grid(f);
+                let crests: Vec<_> = [FRAC_PI_2, -FRAC_PI_2]
+                    .into_iter()
+                    .flat_map(|v| [1.2, 1.6, 2.6, -2.2, -1.3].map(|u| on_torus(f, u, v)))
+                    .collect();
+                for (name, island) in crest_islands(f) {
+                    let arcs = torus_arcs(&quadric, &island);
+                    for &a in &crests {
+                        for &b in grid.iter().chain(&crests) {
+                            if (a - b).norm() == 0.0 {
+                                continue;
+                            }
+                            let want = (island.inside)(a) != (island.inside)(b);
+                            for (from, to) in [(a, b), (b, a)] {
+                                for path in quadric.paths((from, to), band()).unwrap() {
+                                    asked += 1;
+                                    if let Some(got) =
+                                        path_parity(&path, &arcs, None, band()).unwrap()
+                                    {
+                                        assert_eq!(
+                                            got, want,
+                                            "{name}, mirror {mirror}: {from:?} → {to:?}"
+                                        );
+                                        decided += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(decided * 5 > asked, "{decided} of {asked} paths decided");
+    }
+
+    /// **A piece that runs along the cylinder `ρ = R` says nothing of a
+    /// crest arc**: a parallel of radius `R` over the arc's span
+    /// (**`split_ring_path_crest_graze`**), a segment from the arc up a
+    /// tube radius, and a segment whose ends lie either side of the
+    /// cylinder (**`split_ring_path_crest_side`**), each read against the
+    /// tube's top arc of the island "up to the top" alone, in three
+    /// frames. [`Quadric::paths`] builds none of these where it would
+    /// decide a parity: the meridian or the lead its parallel at `R`
+    /// follows ends on the crest circle and is read undecided first
+    /// (`a_path_from_the_tubes_top_or_bottom_reads_the_oracle_or_nothing`
+    /// stays green with either guard dropped), so this row holds the
+    /// guards to their contract. Red against the mutants "graze verdict
+    /// ignored" and "lead-side check removed".
+    #[test]
+    fn a_piece_along_the_crest_cylinder_says_nothing_of_a_crest_arc() {
+        use super::torus_islands::{RADII, crest_islands, on_torus, torus};
+        use core::f64::consts::FRAC_PI_2;
+        for f in frames() {
+            let quadric = Quadric::of(&torus(f, false)).unwrap();
+            let (_, island) = crest_islands(f).into_iter().next().unwrap();
+            let crest: Vec<_> = torus_arcs(&quadric, &island)
+                .into_iter()
+                .filter(|arc| matches!(arc, LoopArc::Crest { .. }))
+                .collect();
+            assert_eq!(crest.len(), 1, "the island's one crest arc");
+            let round = CircleArc {
+                centre: f.at(0.0, 0.0, RADII.1),
+                axis: f.z,
+                radius: RADII.0 * f.s,
+                u_ref: f.x,
+                span: (-1.0, 1.0),
+            };
+            let top = on_torus(f, 0.0, FRAC_PI_2);
+            let segment = |from: Point3<f64>, to: Point3<f64>| Piece::Segment {
+                from,
+                to,
+                ruling: Vec3::zero(),
+                lever: 0.0,
+            };
+            for (what, piece) in [
+                ("a parallel along the crest", Piece::Arc(round)),
+                (
+                    "a segment up from the crest",
+                    segment(top, top + f.z * 0.1 * f.s),
+                ),
+                (
+                    "a segment across the cylinder",
+                    segment(on_torus(f, 0.0, 1.2), on_torus(f, 0.0, 2.0)),
+                ),
+            ] {
+                let path = Path {
+                    pieces: vec![piece],
+                    arrival: f.z,
+                };
+                assert_eq!(
+                    path_parity(&path, &crest, None, band()).unwrap(),
+                    None,
+                    "{what}: decided"
+                );
+            }
+        }
+    }
+
     /// **A torus path's pieces meet exactly**, from end to end, wherever
     /// its ends lie off the carrier within the band: the lead segment
     /// takes the start onto the tube through the end, and each turn is
@@ -1191,7 +1505,7 @@ mod tests {
     fn a_torus_paths_pieces_meet_at_their_seams() {
         use super::torus_islands::torus;
         let ends = |piece: &Piece<f64>| match *piece {
-            Piece::Arc(a) => (a.at(a.span.0), a.at(a.span.1)),
+            Piece::Arc(a) | Piece::Meridian(a) => (a.at(a.span.0), a.at(a.span.1)),
             Piece::Segment { from, to, .. } => (from, to),
         };
         let b = band();
