@@ -152,3 +152,37 @@ fn a_planar_bodys_measurement_does_not_read_its_storage_at_f64() {
 fn a_planar_bodys_measurement_does_not_read_its_storage_at_the_interval_scalar() {
     every_fixture::<Interval>(1.0e2);
 }
+
+/// The symbolic lane's rounded-once sum re-values to the plain lane's
+/// sum, at the parameter it was built at and at another: its DAG is
+/// the computation, so the re-valuation instrument reads it as such.
+#[test]
+fn a_symbolic_rounded_once_sum_revalues_to_the_plain_lanes_bits() {
+    use geom_core::sym::revalue::revalue;
+    use geom_core::sym::with_session;
+    use geom_core::{ParamSymbol, Real, Sym, SymBudget};
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    let symbol = ParamSymbol::new(7);
+    let coefficients = [1.0e8, 0.1, -1.0e8, 3.0e-9, 0.7];
+    let plain = |p: f64| f64::sum_rounded_once(&coefficients.map(|c| c * p));
+    let (revalued, _) = with_session(budget, || {
+        let x = Sym::<f64>::param(symbol, 0.3);
+        let s = Sym::sum_rounded_once(&coefficients.map(|c| Sym::from_f64(c) * x));
+        [0.3, 1.7]
+            .map(|p| revalue(s.node(), &move |q| (q == symbol).then_some(p)).map(f64::to_bits))
+    });
+    assert_eq!(
+        revalued,
+        [0.3, 1.7].map(|p| Some(plain(p).to_bits())),
+        "re-valued at the build's parameter and at another"
+    );
+    assert_ne!(
+        plain(1.7).to_bits(),
+        coefficients.iter().fold(0.0, |a, c| a + c * 1.7).to_bits(),
+        "the premise: the sequential sum rounds elsewhere, so a chain of plain additions \
+         would not re-value to it"
+    );
+}
