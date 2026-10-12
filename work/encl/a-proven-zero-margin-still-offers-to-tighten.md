@@ -2,10 +2,11 @@
 id: a-proven-zero-margin-still-offers-to-tighten
 kind: issue
 title: A margin the symbolic tier proved zero still offers 'tighten the tolerance below m/K': tightens_below ignores MarginDiag::theorem()
-status: open
+status: dispatched
 opened: 2026-10-12
 priority: P3
 cost: E
+branch: encl/proven-zero-no-tighten
 ---
 
 
