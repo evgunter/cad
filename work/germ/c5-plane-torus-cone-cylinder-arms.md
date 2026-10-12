@@ -9,8 +9,8 @@ refs: [VERBS-C5ARMS, 1048]
 priority: P1
 cost: H
 design: true
-branch: germ/plane-torus-join-dispatch
-pr: 4743
+branch: germ/plane-torus-chord-circles
+pr: 4847
 ---
 
 ## From GitHub issue 1057
@@ -148,3 +148,15 @@ sphere's and the cone's, reading meridian and parallel loop arcs. It
 refuses a spiric one until U-T4, and the tube's top and bottom circles
 (the parallels of radius `R`, whose plane touches the torus) until
 U-T3.
+
+## U-T3, the plane × torus chord for the circles (GERM, 2026-10-12)
+
+On `germ/plane-torus-chord-circles` (PR 4847). The chord layer's torus arm takes an
+arc of the meridian or concentric circle the chord's two sites lie on,
+picked by the join's own loop split; every pose whose plane holds the
+axis or stands square to it builds its true body in all six ops, on the
+donut, the one-face torus and the seamed torus, and so does TANG's tube.
+Spiric sections keep the typed refusal (U-T4's). The ring lane reads the
+tube's top and bottom circles across the cylinder `ρ = R`. The lily now
+stops past the join, at the interior-loop guard on its two tube walls
+(`work/orbit/the-lilys-stem-and-arch-walls-have-no-certificate-arm.md`).
