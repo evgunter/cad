@@ -22,16 +22,18 @@ fn curve(knots: Vec<f64>, p: usize, pts: &[(f64, f64)], w: Vec<f64>) -> NurbsCur
 }
 
 /// The least certified LOWER end of `‖C′‖`'s largest sample: an
-/// enclosure of `‖C′(t)‖` at `n + 1` parameters, the greatest lower
-/// end — at most the true sup, so a bound below it is unsound with
-/// certainty.
+/// enclosure of `‖C′(t)‖` at `n + 1` parameters in the domain, the
+/// greatest lower end — at most the true sup, so a bound below it is
+/// unsound with certainty.
 fn sampled_sup_floor(c: &NurbsCurve3<f64>, n: usize) -> f64 {
     let ci = c.map_scalar(<Interval as Real>::from_f64);
     let (lo, hi) = c.domain();
     #[allow(clippy::cast_precision_loss)]
     (0..=n)
         .map(|i| {
-            let t = lo + (hi - lo) * i as f64 / n as f64;
+            // Clamped: `lo + (hi − lo)·n/n` can round one ulp past
+            // `hi`, where the last span's speed keeps growing.
+            let t = (lo + (hi - lo) * i as f64 / n as f64).clamp(lo, hi);
             ci.deriv(Interval::from_f64(t)).norm().lo()
         })
         .fold(0.0, f64::max)
