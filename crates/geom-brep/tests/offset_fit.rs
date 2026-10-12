@@ -1159,6 +1159,9 @@ fn a_bound_found_then_lost_carries_the_bound_it_lost() {
             best: Some(best),
             ..
         }) => {
+            // Also `OFFSET_FIT_WORK`'s guard: this run fits the most
+            // samples of any measured, and a budget under them would stop
+            // it on an earlier round.
             assert_eq!((rounds, grid, best.grid), (10, (56, 29), (52, 29)));
             assert!(
                 (best.bound - 4.987e-6).abs() < 1e-9,

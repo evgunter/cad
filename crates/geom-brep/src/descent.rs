@@ -1,10 +1,14 @@
 //! **The stop rule of a certify-and-refine loop.** A loop that refines
 //! until a certified bound clears its target stops, short of that, on
 //! one of two questions: is refinement still paying, and is the work
-//! bounded? Every such loop in this crate answers both here, and keeps
-//! its own body, its own units and its own action on an idle round:
-//! the offset fit ([`crate::offset_fit`]) and limb 2's hull subdivision
-//! (`ssi::certify::subdivide`).
+//! bounded? Two loops answer both here, each keeping its own body, its
+//! own units and its own action on an idle round: the offset fit
+//! ([`crate::offset_fit`]) and limb 2's hull subdivision
+//! (`ssi::certify::subdivide`). Not every such loop in the crate does:
+//! `ssi::refine::refine_by_certificate` compares each round with the
+//! previous one and is bounded by the march's step wall, and the
+//! quadrature loops in `props::quad` stop on a round count
+//! (`QUAD_MAX_ROUNDS`, `QUAD2_MAX_ROUNDS`, `TRIM_MAX_ROUNDS`).
 //!
 //! - **Paying** is measured against the LOWEST certified bound any
 //!   round reached ([`Descent`]): a round that does not lower it is
@@ -16,9 +20,10 @@
 //!   cuts), and a cumulative budget on all rounds together
 //!   ([`Work`]), which bounds the wait where the cap bounds only the
 //!   size.
-//! - **Precedence** ([`first_stop`]): where a stall and a wall both end
-//!   one round, the stall speaks. It is the finding about the request;
-//!   a wall says only that the loop ran out before learning more.
+//! - **Precedence** ([`Descent::stop`], which every stop of both loops
+//!   goes through): where a stall and a wall both end one round, the
+//!   stall speaks. It is the finding about the request; a wall says
+//!   only that the loop ran out before learning more.
 
 /// How many idle rounds in a row stop a loop: it stops on the second,
 /// so one is let pass.
@@ -36,59 +41,73 @@ pub(crate) const PATIENCE: usize = 2;
 
 /// The lowest certified bound a loop's rounds reached, what was
 /// reached on it, and how many rounds in a row have not lowered it.
+/// It exists from the first round on, so it always has a lowest bound.
 #[derive(Debug)]
 pub(crate) struct Descent<T> {
-    lowest: Option<(f64, T)>,
+    lowest: (f64, T),
     idle: usize,
 }
 
 impl<T> Descent<T> {
-    /// A loop before its first round.
-    pub(crate) const fn new() -> Self {
-        Self {
-            lowest: None,
-            idle: 0,
+    /// The tracker after a round that reported `bound` on `at`, from
+    /// `before`, the tracker after the round before it (`None` before
+    /// the first round).
+    ///
+    /// A round lowers the lowest bound when it is strictly smaller than
+    /// a finite lowest bound, or finite where the lowest is not; it is
+    /// idle when it does not lower a finite lowest bound, so an equal
+    /// bound, a NaN or `+∞` is idle and the older `at` is kept (the
+    /// first round to reach the minimum). While the lowest bound is not
+    /// finite no round is idle, and a round that is not finite either
+    /// keeps the older `at`.
+    pub(crate) fn after(before: Option<Self>, bound: f64, at: T) -> Self {
+        let Some(mut d) = before else {
+            return Self {
+                lowest: (bound, at),
+                idle: 0,
+            };
+        };
+        let low = d.lowest.0;
+        if low.is_finite() {
+            if bound < low {
+                d.lowest = (bound, at);
+                d.idle = 0;
+            } else {
+                d.idle += 1;
+            }
+        } else if bound.is_finite() {
+            d.lowest = (bound, at);
         }
+        d
     }
 
-    /// Records one round's `bound`, with `at` what it was reached on,
-    /// and returns how many rounds in a row have now not lowered the
-    /// lowest finite bound: 0 on a round that lowered it, and on every
-    /// round while no finite bound has been reached.
-    ///
-    /// A round lowers the lowest bound when it is strictly smaller, so
-    /// an equal bound is idle and the older `at` is kept (the first
-    /// round to reach the minimum). A NaN or `+∞` bound never lowers a
-    /// finite one; a finite bound always lowers a non-finite one.
-    pub(crate) fn observe(&mut self, bound: f64, at: T) -> usize {
-        match &self.lowest {
-            Some((low, _)) if low.is_finite() => {
-                if bound < *low {
-                    self.lowest = Some((bound, at));
-                    self.idle = 0;
-                } else {
-                    self.idle += 1;
-                }
-            }
-            Some((_, _)) if !bound.is_finite() => {}
-            _ => self.lowest = Some((bound, at)),
-        }
+    /// How many rounds in a row, the last included, have not lowered
+    /// the lowest finite bound.
+    pub(crate) fn idle(&self) -> usize {
         self.idle
     }
 
-    /// Whether the last [`PATIENCE`] rounds have all been idle.
-    pub(crate) fn stalled(&self) -> bool {
-        self.idle >= PATIENCE
+    /// The stop the last round ends on, if any. `exhausted` is the
+    /// loop's own evidence that refinement cannot go on (nothing left
+    /// to refine, or nothing to steer by), which stops it as the stall
+    /// does; `wall` is a work bound the next round would pass. A stall
+    /// speaks over a wall.
+    pub(crate) fn stop<W>(&self, exhausted: bool, wall: Option<W>) -> Option<Stop<W>> {
+        if exhausted || self.idle >= PATIENCE {
+            Some(Stop::Stall)
+        } else {
+            wall.map(Stop::Wall)
+        }
     }
 
-    /// The lowest bound reached and what it was reached on: the first
-    /// round's where no round's bound was finite.
-    pub(crate) fn lowest(&self) -> Option<(f64, &T)> {
-        self.lowest.as_ref().map(|(b, at)| (*b, at))
+    /// The lowest bound reached and what it was first reached on: the
+    /// first round's where no round's bound was finite.
+    pub(crate) fn lowest(&self) -> (f64, &T) {
+        (self.lowest.0, &self.lowest.1)
     }
 
     /// [`Self::lowest`], by value.
-    pub(crate) fn into_lowest(self) -> Option<(f64, T)> {
+    pub(crate) fn into_lowest(self) -> (f64, T) {
         self.lowest
     }
 }
@@ -127,68 +146,66 @@ impl Work {
 /// Why a loop stopped short of its target.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Stop<W> {
-    /// Refinement stopped paying.
+    /// Refinement stopped paying: [`PATIENCE`] idle rounds in a row,
+    /// or the loop's own exhaustion ([`Descent::stop`]).
     Stall,
     /// A work bound, the loop's own `W` naming which.
     Wall(W),
 }
 
-/// The stop one round ends on, if any: the stall where `stalled`, over
-/// any wall that fired on the same round.
-pub(crate) fn first_stop<W>(stalled: bool, wall: Option<W>) -> Option<Stop<W>> {
-    if stalled {
-        Some(Stop::Stall)
-    } else {
-        wall.map(Stop::Wall)
-    }
-}
-
 #[cfg(test)]
+#[allow(clippy::panic)]
 mod tests {
-    use super::{Descent, PATIENCE, Stop, Work, first_stop};
+    use super::{Descent, PATIENCE, Stop, Work};
 
-    fn idles(bounds: &[f64]) -> Vec<usize> {
-        let mut d = Descent::new();
-        bounds
-            .iter()
-            .enumerate()
-            .map(|(i, &b)| d.observe(b, i))
-            .collect()
+    fn run(bounds: &[f64]) -> (Vec<usize>, Descent<usize>) {
+        let mut d = None;
+        let mut idles = Vec::new();
+        for (i, &b) in bounds.iter().enumerate() {
+            let next = Descent::after(d, b, i);
+            idles.push(next.idle());
+            d = Some(next);
+        }
+        (idles, d.unwrap_or_else(|| panic!("no round")))
     }
 
     #[test]
     fn no_round_is_idle_before_a_bound_is_finite() {
         let inf = f64::INFINITY;
-        assert_eq!(idles(&[inf, inf, f64::NAN, inf]), [0, 0, 0, 0]);
-        assert_eq!(idles(&[inf, inf, 1e-3, inf, inf]), [0, 0, 0, 1, 2]);
+        assert_eq!(run(&[inf, inf, f64::NAN, inf]).0, [0, 0, 0, 0]);
+        assert_eq!(run(&[inf, inf, f64::NAN]).1.lowest(), (inf, &0));
+        assert_eq!(run(&[inf, inf, 1e-3, inf, inf]).0, [0, 0, 0, 1, 2]);
+        assert_eq!(run(&[f64::NAN, 1e-3]).1.lowest(), (1e-3, &1));
     }
 
     #[test]
     fn idle_is_counted_against_the_lowest_bound_not_the_last() {
         // A rise, then a recovery that stays above the lowest: the
         // previous-round reading calls the recovery progress.
-        assert_eq!(idles(&[1e-3, 2e-3, 1.5e-3]), [0, 1, 2]);
-        assert_eq!(idles(&[1e-3, 2e-3, 0.9e-3, 0.9e-3]), [0, 1, 0, 1]);
+        assert_eq!(run(&[1e-3, 2e-3, 1.5e-3]).0, [0, 1, 2]);
+        assert_eq!(run(&[1e-3, 2e-3, 0.9e-3, 0.9e-3]).0, [0, 1, 0, 1]);
     }
 
     #[test]
     fn an_equal_or_nan_bound_is_idle_and_keeps_the_first_round_to_reach_the_lowest() {
-        let mut d = Descent::new();
-        for (i, b) in [1e-3, 1e-3, f64::NAN].into_iter().enumerate() {
-            d.observe(b, i);
-        }
-        assert!(
-            d.stalled(),
-            "two idle rounds stall at PATIENCE = {PATIENCE}"
+        let (idles, d) = run(&[1e-3, 1e-3, f64::NAN]);
+        assert_eq!(idles, [0, 1, 2]);
+        assert_eq!(
+            d.stop::<()>(false, None),
+            Some(Stop::Stall),
+            "PATIENCE = {PATIENCE}"
         );
-        assert_eq!(d.lowest(), Some((1e-3, &0)));
+        assert_eq!(d.into_lowest(), (1e-3, 0));
     }
 
     #[test]
     fn a_stall_speaks_over_a_wall_on_one_round() {
-        assert_eq!(first_stop(true, Some('w')), Some(Stop::Stall));
-        assert_eq!(first_stop(false, Some('w')), Some(Stop::Wall('w')));
-        assert_eq!(first_stop::<char>(false, None), None);
+        let (_, idle_once) = run(&[1.0, 1.0]);
+        assert_eq!(idle_once.stop::<char>(false, None), None);
+        assert_eq!(idle_once.stop(false, Some('w')), Some(Stop::Wall('w')));
+        assert_eq!(idle_once.stop(true, Some('w')), Some(Stop::Stall));
+        let (_, stalled) = run(&[1.0, 1.0, 1.0]);
+        assert_eq!(stalled.stop(false, Some('w')), Some(Stop::Stall));
     }
 
     #[test]

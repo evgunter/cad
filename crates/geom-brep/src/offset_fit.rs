@@ -236,7 +236,7 @@ use geom_core::{
     Band, BandError, Interval, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, Point3, Tol,
 };
 
-use crate::descent::{self, Descent, Work, first_stop};
+use crate::descent::{self, Descent, Work};
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig};
 use crate::patch_bound::{PatchBoundError, check_direction, is_rational};
 use crate::recourse::Reading;
@@ -282,23 +282,18 @@ pub const OFFSET_FIT_SAMPLE_CAP: usize = 48 * 48;
 
 /// The fit's cumulative work budget: the sample counts of every grid
 /// its rounds fit, summed, the seed's included. A round runs only if
-/// its grid fits in what is left, so the budget is never passed.
+/// its grid fits in what is left. Where [`OFFSET_FIT_SAMPLE_CAP`] bounds
+/// one fit, this bounds the wait for all of them: it is what stops a
+/// loop whose grid grows by a sample a round, which the cap alone lets
+/// run for 760 rounds (`scripted_rounds`).
 ///
-/// Each round fits its whole grid afresh, so where
-/// [`OFFSET_FIT_SAMPLE_CAP`] bounds the size of one fit this bounds the
-/// wait for all of them. Measured on 2026-10-12 over every fit
-/// `tests/offset_fit.rs`, the geom-brep probe rows that fit (`budget_faces`,
-/// `offb_r*`, `cert7_r*`, `approx_surface`) and the sweep saddle and
-/// shell rows make, at the default ε and at 1e-12: the most any run
-/// fitted was 8851 samples over 11 grids (the quarter cylinder at
-/// `d = -2e-8` and 1e-15, which then stops on the cap); every other
-/// run fitted at most 6137 (the saddle wall at 1e-12, 11 grids). The
-/// budget is read only on a next grid the cap admits, which adds at
-/// most the cap: 11 155 on the largest run. This budget is 1.85 times
-/// that run's fitted samples and 1.47 times the 11 155, so no measured
-/// run stops on it. What it stops is a loop whose bound keeps falling
-/// while its grid grows by a sample or two a round, which the cap
-/// alone lets run for a thousand rounds.
+/// No measured run reaches it. The most any fitted (2026-10-12, over
+/// the offset-fit rows of geom-brep and sweep at the default ε and
+/// 1e-12) is 8851 samples, the quarter cylinder at `d = -2e-8` and
+/// 1e-15, which stops on the cap after 10 rounds; a budget under a
+/// run's fitted samples stops it on an earlier round, so that row's
+/// pinned rounds and grid (`a_bound_found_then_lost_carries_the_bound_it_lost`)
+/// are the guard.
 ///
 /// This constant is the lever of [`OffsetFitError::WallReached`] at
 /// [`OffsetFitWall::Work`].
@@ -1103,7 +1098,7 @@ fn refine_rounds_at<S>(
 ) -> Result<(S, Report, usize), OffsetFitError> {
     // The lowest bound and the grid it was first reached on, which is
     // the grid `BestBound`'s recourse claim names.
-    let mut descent: Descent<(usize, usize)> = Descent::new();
+    let mut descent: Option<Descent<(usize, usize)>> = None;
     let mut work = Work::new(OFFSET_FIT_WORK);
     // `round` counts the refinement rounds that produced the current
     // grid — the number a certificate and every refusal below carry.
@@ -1122,18 +1117,13 @@ fn refine_rounds_at<S>(
         let achieved = report.hull_sup;
         let grid = (us.len(), vs.len());
         work.spend(grid.0 * grid.1);
-        let idle = descent.observe(achieved, grid);
-        let best = descent
-            .lowest()
+        let rounds = Descent::after(descent.take(), achieved, grid);
+        let best = Some(rounds.lowest())
             .filter(|(bound, _)| bound.is_finite())
             .map(|(bound, &grid)| BestBound { bound, grid });
         nan_residual_at(report.on_locus_max, tolerance)?;
         if achieved <= tolerance {
             return Ok((fit, report, round));
-        }
-        let stop = |stop| expiry(stop, round, grid, achieved, best, d, tolerance);
-        if descent.stalled() {
-            return Err(stop(Stop::Stall));
         }
         // Insert a sample parameter at the midpoint of every sample
         // interval a worst-carrying cell touches — the "knot
@@ -1147,8 +1137,8 @@ fn refine_rounds_at<S>(
         // then pays a linear grid for a linear need instead of a
         // quadratic one. The speed ratio is a prediction, so an idle
         // round marks BOTH directions, and a second idle round after
-        // that is the stall above.
-        let mode = if idle == 0 {
+        // that is the stall.
+        let mode = if rounds.idle() == 0 {
             Refine::Directional
         } else {
             Refine::BothDirections
@@ -1157,9 +1147,10 @@ fn refine_rounds_at<S>(
         // A directional marking can fail to grow the schedule even
         // though it marked intervals: `bisect` drops a midpoint that
         // is not strictly between its endpoints, which is what an
-        // interval narrowed to consecutive floats gives. That is the
-        // same evidence as an idle round, so it takes the same
-        // fallback rather than escaping to a wall.
+        // interval narrowed to consecutive floats gives. That takes the
+        // idle round's fallback rather than escaping to a wall, but it
+        // is not an idle round: idle is read on the bound alone, so the
+        // round after it stalls only if it is the second idle one.
         if !next.grew(&us, &vs) && mode == Refine::Directional {
             next = refine_schedule(&us, &vs, &report, speed_u, speed_v, Refine::BothDirections);
         }
@@ -1176,14 +1167,16 @@ fn refine_rounds_at<S>(
         } else {
             None
         };
-        // Bisecting every failing cell in both directions moved
-        // nothing. No later round can move it either — the intervals
-        // only narrow — so this is the stall, reached by exhaustion of
-        // the schedule rather than of the bound. A round that marks
-        // nothing ends here too.
-        if let Some(s) = first_stop(!next.grew(&us, &vs), wall) {
-            return Err(stop(s));
+        // Every stop goes through the stop rule, a stall over a wall.
+        // Bisecting every failing cell in both directions that moves
+        // nothing is the loop's exhaustion: no later round can move it
+        // either — the intervals only narrow — so it stops as the stall
+        // does, on the schedule rather than on the bound. A round that
+        // marks nothing ends there too.
+        if let Some(stop) = rounds.stop(!next.grew(&us, &vs), wall) {
+            return Err(expiry(stop, round, grid, achieved, best, d, tolerance));
         }
+        descent = Some(rounds);
         us = next.us;
         vs = next.vs;
         round += 1;
@@ -3550,7 +3543,21 @@ mod scripted_rounds {
         whole: bool,
         bound: impl Fn(usize) -> f64,
     ) -> Result<usize, OffsetFitError> {
-        let seed = (vec![0.0, 0.5, 1.0], vec![0.0, 0.5, 1.0]);
+        run_from(
+            (vec![0.0, 0.5, 1.0], vec![0.0, 0.5, 1.0]),
+            speeds,
+            whole,
+            bound,
+        )
+    }
+
+    /// [`run_over`] from the seed `seed`.
+    fn run_from(
+        seed: (Vec<f64>, Vec<f64>),
+        speeds: (f64, f64),
+        whole: bool,
+        bound: impl Fn(usize) -> f64,
+    ) -> Result<usize, OffsetFitError> {
         let mut k = 0;
         refine_rounds_at(seed, speeds, 0.1, 1.0, |us, vs| {
             let hull_sup = bound(k);
@@ -3644,10 +3651,27 @@ mod scripted_rounds {
             }) => {
                 assert_eq!((rounds, achieved, best.bound), (3, 5.5, 5.0));
                 assert_eq!(best.grid, (4, 3), "the grid round 1 reached it on");
-                assert!(grid.0 * grid.1 > 12, "round 3's grid: {grid:?}");
+                assert_eq!(grid, (5, 5), "round 3's grid, marked both ways");
             }
             other => panic!("the stall's face: {other:?}"),
         }
+    }
+
+    /// **A fallback marking is not an idle round.** `v` is the faster
+    /// direction, so the directional marking bisects the failing cell's
+    /// `v` interval, `[0, 5e-324]`, which has no midpoint strictly
+    /// inside it: round 0's marking grows nothing and falls back to both
+    /// directions. Round 1's bound rises, its first idle round, and is
+    /// answered by the both-directions step again rather than refused;
+    /// round 2 certifies. Idle is read on the bound alone, so the
+    /// fallback does not stand in for the first idle round.
+    #[test]
+    fn a_fallback_marking_is_not_an_idle_round() {
+        let seed = (vec![0.0, 0.5, 1.0], vec![0.0, 5e-324, 1.0]);
+        assert_eq!(
+            run_from(seed, (0.0, 1.0), false, script(&[5.0, 6.0, 0.5])).unwrap(),
+            2
+        );
     }
 
     /// An unbounded round after a finite one is idle: two of them
