@@ -54,7 +54,10 @@ whichever it is. FLUSH's
 face, with the plain booleans and no declaration) reads a record's face
 through the face's division rows (the join's and the welds' fragment
 logs) and lands it on the piece whose interior holds the vertex, or
-drops it where no live piece does (`boolean::ops::Descendants::holder`).
+drops it where no live piece does (then `Descendants::holder`; since
+PR 4820 the one carry's placement, `boolean::ops::place_found` over
+`records::landings`, which lands it on every piece or chord the census
+confirms).
 On that branch the line-kiss poses of
 `rest_zip_admission.rs` (`a_line_kiss_beside_a_tangent_site_records_its_contact`)
 pass tier 3′. The `Lcvx` battery (`join_pierce_r2_probes.rs`, branch

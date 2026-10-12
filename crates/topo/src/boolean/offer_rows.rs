@@ -779,16 +779,18 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
 /// least lift its bend gives it at its extent, `2·sin²(extent/2)`, is
 /// `margin`.
 fn conic_bend(margin: f64) -> Result<(), BooleanError> {
-    use super::super::sectors::{Bend, BendBounds, FaceShape, pierce_side};
+    use super::super::sectors::{FaceShape, pierce_side};
+    use geom_brep::{BendBounds, ConicBend};
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     let extent = 2.0 * (margin / 2.0).sqrt().asin();
-    let bend = Bend {
+    let bend = ConicBend {
         curvature: Vec3::new(0.0, 0.0, 1.0),
         bounds: BendBounds::Planar {
             least: 1.0,
-            most: 1.0,
             reach: core::f64::consts::FRAC_PI_2,
             rise: 1.0,
+            arc: extent,
+            lifts_to: core::f64::consts::PI,
         },
     };
     pierce_side(
@@ -2251,6 +2253,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::PointInFaceRefused
         | BooleanErrorKind::RestPieceUnread
+        | BooleanErrorKind::CarryRefused
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
         | BooleanErrorKind::UnjoinedOperand
@@ -2279,6 +2282,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::GermFrameCylinderPinch
         | BooleanErrorKind::JoinDesync
+        | BooleanErrorKind::LineageRow
         | BooleanErrorKind::EdgeUndescribed
         | BooleanErrorKind::JoinCarrierUnsupported
         | BooleanErrorKind::TornComponent
@@ -2659,14 +2663,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Nested", 1),
-    ("ops.rs", "ee_lineage", "BooleanDecision::SelfCheck", 1),
-    ("ops.rs", "ee_lineage", "BooleanDecision::VertexOnVertex", 1),
-    ("ops.rs", "ee_lineage", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "carried", "BooleanDecision::VertexOnVertex", 1),
     ("ops.rs", "piece_holds", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "piece_holds", "SelfCheck::CarriedLineage", 1),
-    ("ops.rs", "ledger", "BooleanDecision::SelfCheck", 1),
-    ("ops.rs", "ledger", "BooleanDecision::VertexOnVertex", 1),
-    ("ops.rs", "ledger", "SelfCheck::CarriedLineage", 1),
     ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
     (
