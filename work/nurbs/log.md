@@ -916,3 +916,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Orchestrator's miss (third today, same class):** I merged two digest-touching PRs back to back and ran the digest only after the second.
   - **Rule from here:** when two merges in a row touch the same meter or the same digest, re-run the digest on main between them, or merge the second only after its CI has run on a base that contains the first.
   - The fix is dispatched to build A as a small re-cut PR. — (NURBS orchestrator)
+- 2026-10-12 16:32Z — **Main is green again: PR 4879 merges (`535cb17594`).** It re-cuts only the six `Sym` `validate_geometric` frozen values, to 1542/1657, 1540/1656 and 1541/1656 at ε 1e-6, 1e-9 and 1e-12, plus a re-cut-log comment.
+  - I merged it ahead of hosted CI as a red-main data fix. The values match my own measurement on main `8fc1358437`, and the author's run on the same base and its head read green at all three ε. A PR comment records the basis.
+  - The red lasted about 20 min (16:10–16:32Z).
+- 2026-10-12 16:33Z — **PR 4866 conflicts with main** in `from-f64-sites.tsv`: 4860 deleted rows that 4866 edits.
+  - Build B is merging main in and will re-run the gates and the digest on the merged tree. Its CI on the merged head is the base-containing-the-fix check that the new back-to-back rule asks for.
+  - My first local digest attempt was void: the merge into my worktree had silently failed on this conflict, so the run tested 4866's own tip. **Lesson:** confirm `git log` shows the merge commit before trusting a merged-tree run. — (NURBS orchestrator)
