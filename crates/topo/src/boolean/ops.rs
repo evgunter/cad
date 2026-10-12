@@ -3006,9 +3006,10 @@ impl Descendants {
     /// the one whose interior holds the rest's point ([`rests`]). No
     /// stage moves a vertex: a zip's fusion and `zip::share_points` are
     /// the two that leave one at another's point, within ε, and
-    /// [`carry_rows`] skips the rows of either; so the rest is a kept vertex's
-    /// point in the result, bit for bit, which [`carry_rows`] checks.
-    /// `None` where every piece is read and none
+    /// [`carry_rows`] skips the rows of either; so the rest is a kept
+    /// vertex's point in the result, which [`carry_rows`] checks
+    /// ([`at_rest`]), reading the result's point. `None` where every
+    /// piece is read and none
     /// holds it: the part of the face it rested on left the result, or
     /// the point is on a piece's boundary. The point is placed with the
     /// census's own band: a point within it of a piece's carrier or
@@ -3098,24 +3099,30 @@ impl Descendants {
 /// ([`rests`]).
 #[derive(Debug)]
 enum Rest<T: Real> {
-    /// The vertex is in the result, at key `vertex`, and at `at` there.
+    /// The vertex is in the result, at key `vertex`, and at `at` there,
+    /// one point with its rest ([`at_rest`]).
     Kept { vertex: VertexKey, at: Point3<T> },
     /// A later stage took the vertex (the join, the merge), which rested
     /// at this point.
     Taken(Point3<T>),
 }
 
-/// Whether result vertex `vertex` is at `at`, bit for bit: every
-/// coordinate's bracket, both ends.
+/// Result vertex `vertex`'s point, where it is one point with its rest
+/// `at`: the gap between the two decided zero, as the census decides
+/// two vertices one point.
 ///
 /// # Errors
 ///
-/// [`BooleanError::JoinDesync`] where the vertex does not resolve.
-fn is_at<T: Bounds>(
+/// [`BooleanError::JoinDesync`] where the vertex does not resolve, or
+/// sits apart from its rest (a stage moved it);
+/// [`BooleanError::Escalated`] (`SelfCheck(CarriedLineage)`) where the
+/// gap is in band.
+fn at_rest<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     at: Point3<T>,
-) -> Result<bool, BooleanError> {
+    band: Band,
+) -> Result<Point3<T>, BooleanError> {
     let p = body
         .get_vertex(vertex)
         .and_then(|d| body.get_point(d.point))
@@ -3123,8 +3130,22 @@ fn is_at<T: Bounds>(
         .ok_or(BooleanError::JoinDesync {
             what: "a recorded vertex has no point",
         })?;
-    let bits = |q: Point3<T>| [q.x, q.y, q.z].map(|c| (c.lo().to_bits(), c.hi().to_bits()));
-    Ok(bits(p) == bits(at))
+    let (gap, _) = geom_core::k_stats::decide_magnitude_reported(
+        "bool_carry_vf_rest",
+        Margin::norm3(p - at),
+        band,
+    )
+    .map_err(|diag| BooleanError::Escalated {
+        decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
+        diag,
+    })?;
+    if gap == geom_core::k_stats::Magnitude::Zero {
+        Ok(p)
+    } else {
+        Err(BooleanError::JoinDesync {
+            what: "a vertex-on-face row's vertex is not at its operand point",
+        })
+    }
 }
 
 /// What [`piece_holds`] read of one piece.
@@ -3740,7 +3761,7 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// hold its interior ([`Descendants::live`]);
 /// [`BooleanError::ClassificationInvariant`] on a surviving record no
 /// decision backs.
-pub(super) fn carry<T: Decide + Bounds>(
+pub(super) fn carry<T: Decide>(
     body: &Body<T>,
     ledger: &Ledger<T>,
     views: [&KeyView<'_>; 2],
@@ -3949,7 +3970,7 @@ pub(super) fn standing<T: Real>(body: &Body<T>) -> Rests<T> {
 ///
 /// As [`carry`].
 #[cfg(test)]
-pub(super) fn carry_in_place<T: Decide + Bounds>(
+pub(super) fn carry_in_place<T: Decide>(
     body: &Body<T>,
     records: &ContactRecords,
     desc: &Descendants,
@@ -4121,7 +4142,7 @@ mod chain_rows {
 /// The door's one body, over records in two arenas (`one_arena`
 /// false, the operands') or one.
 #[allow(clippy::too_many_arguments)]
-fn carry_rows<T: Decide + Bounds>(
+fn carry_rows<T: Decide>(
     body: &Body<T>,
     discovered: &[Tagged<'_>],
     carried: [&Rows; 2],
@@ -4287,12 +4308,10 @@ fn carry_rows<T: Decide + Bounds>(
             })?;
         let rest = match x {
             // A kept vertex is at its rest ([`Descendants::holder`]).
-            Cell::Vertex(k) if is_at(body, k, at)? => Rest::Kept { vertex: k, at },
-            Cell::Vertex(_) => {
-                return Err(BooleanError::JoinDesync {
-                    what: "a vertex-on-face row's vertex is not at its operand point",
-                });
-            }
+            Cell::Vertex(k) => Rest::Kept {
+                vertex: k,
+                at: at_rest(body, k, at, band)?,
+            },
             // A vertex a later stage took (joined into an edge, pruned
             // by the merge) is read where it rested in its operand.
             Cell::Edge(_) | Cell::Face(_) => Rest::Taken(at),
@@ -6529,7 +6548,7 @@ mod tests {
     }
     /// The door over discovered records alone, each vertex resting
     /// where `body` holds it ([`super::standing`]).
-    fn found<T: geom_core::Decide + geom_core::Bounds>(
+    fn found<T: geom_core::Decide>(
         body: &crate::Body<T>,
         contacts: &crate::boolean::ReductionContacts,
         views: [&super::KeyView<'_>; 2],
@@ -6539,7 +6558,7 @@ mod tests {
     }
 
     /// [`found`] with the rests `rests`.
-    fn found_at<T: geom_core::Decide + geom_core::Bounds>(
+    fn found_at<T: geom_core::Decide>(
         body: &crate::Body<T>,
         contacts: &crate::boolean::ReductionContacts,
         views: [&super::KeyView<'_>; 2],
@@ -6562,7 +6581,7 @@ mod tests {
 
     /// The door over carried records alone, each vertex resting where
     /// `body` holds it ([`super::standing`]).
-    fn carried_in<T: geom_core::Decide + geom_core::Bounds>(
+    fn carried_in<T: geom_core::Decide>(
         body: &crate::Body<T>,
         decls: &crate::boolean::Glue,
         views: [&super::KeyView<'_>; 2],

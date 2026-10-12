@@ -65,8 +65,12 @@ the point is read from the operand instead.
 point, within ε, and `carry_rows` skips the rows of both kinds before it
 reads the face. So
 the operand point is the point the vertex has in the result.
-`carry_rows` checks that on every kept vertex, bit for bit, and refuses
-`JoinDesync` where they differ. `piece_holds` places the point with the
+`carry_rows` checks that on every kept vertex (`boolean::ops::at_rest`):
+the gap between the rest and the result point must decide zero, as the
+census decides two vertices one point. It refuses `JoinDesync` where
+the gap is nonzero and escalates as `SelfCheck(CarriedLineage)` where
+it is in band. The check is a `Decide` call, not a bit compare: a
+bracket never decides (the `Bounds` scope rule). `piece_holds` places the point with the
 census's own band: a margin within the band of a piece's carrier or
 boundary escalates as `SelfCheck(CarriedLineage)`, kept or taken alike.
 
