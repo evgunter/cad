@@ -99,3 +99,13 @@ curved_notch_pinch_one -- --ignored --nocapture`):
 
 This is not monotone in δ, as in the C-shape table above. A mesh that
 builds and then fails `check_mesh` is worse than a refusal.
+
+## 2026-10-12 — four more lens-face refusals at the curved pinch (FLUSH)
+
+FLUSH's pinch-residue lane (branch `flush/pinch-residue`) made 15
+`curved_notch_pinch` lines build that refused `JoinDesync` on main
+(the discard read a section face passing `v` twice). Four of the new
+bodies refuse `mesh::tessellate` at δ 0.05 with this row's signature,
+`Triangulation` on a planar face with no rings, with the oracle's
+volume, tier 2 and the certificate: `0 3 2 ab S`, `0 3 2 ba S`,
+`1 6 0 ba S`, `6 1 0 ba U`. Same replay as above.

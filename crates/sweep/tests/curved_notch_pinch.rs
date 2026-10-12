@@ -261,7 +261,16 @@ fn curved_notch_pinch() {
 /// closed-form volume cannot side a cylinder wall cut along an ellipse,
 /// and a ray aimed at a planar face does. One pose per population of
 /// [`curved_notch_pinch`]; when the census lane lands, its pose's pinned
-/// finding flips and the pin is re-baselined there.
+/// finding flips and the pin is re-baselined there. At `0 3 2` and
+/// `3 1 0` a section face passes `v` twice, once by the bowed wall's arc
+/// and once by a line to the same point, so the discard reads the arc's
+/// kept ends off its own copy on the section face's twin
+/// (`finish::twin_copy`); red as `JoinDesync` if it reads them off the
+/// copies' vertex pairs, which two twin edges join. Its discards still
+/// name the stretch by its two ends, and at `3 1 0 ba S` four settle on
+/// ends that more than one result edge joins
+/// (`work/refs/a-discard-names-a-bordered-stretch-by-its-two-end-vertices.md`):
+/// the count flips to 0 when the record carries the edge.
 #[test]
 fn a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet() {
     let x = curved_notch_body(bulge());
@@ -269,13 +278,15 @@ fn a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet() {
         "the far brick",
         sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
     );
-    // (pose, tag, tier 3' undecidable)
+    // (pose, tag, tier 3' undecidable, stretches on shared ends)
     let pins = [
-        ((0, 0, 0), "ab I", true),
-        ((0, 0, 0), "ab U", false),
-        ((9, 4, 4), "ab S", true),
+        ((0, 0, 0), "ab I", true, 0),
+        ((0, 0, 0), "ab U", false, 0),
+        ((9, 4, 4), "ab S", true, 0),
+        ((0, 3, 2), "ab U", false, 0),
+        ((3, 1, 0), "ba S", true, 4),
     ];
-    for (pose, tag, undecidable) in pins {
+    for (pose, tag, undecidable, shared) in pins {
         let label = format!("{pose:?} {tag}");
         let (_, res, want) = runs(&x, pose)
             .unwrap_or_else(|| panic!("{label}: the pinch refuses"))
@@ -307,6 +318,11 @@ fn a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet() {
             !findings.is_empty(),
             undecidable,
             "{label}: tier 3' undecidable: {findings:?}"
+        );
+        assert_eq!(
+            stretches_on_shared_ends(bb),
+            shared,
+            "{label}: bordered stretches whose ends several result edges join"
         );
         let reuse = topo::union(&bb.body, &far, tol())
             .unwrap_or_else(|e| panic!("{label}: the further union builds, got {e:?}"));
@@ -403,4 +419,28 @@ fn curved_notch_pinch_one() {
             mesh::tessellate(body, delta, tol()).map(|m| mesh::validate::check_mesh(&m).is_ok());
         println!("mesh at {delta}: {:?}", m.map_err(variant));
     }
+}
+
+/// How many of `bb`'s discards' bordered stretches settle on an end pair
+/// that more than one of the result's edges joins: a stretch the naming
+/// (`editor_core`'s `by_ends`) then credits to every edge on the pair.
+fn stretches_on_shared_ends(bb: &topo::BooleanBody<f64>) -> usize {
+    let body: &Body<f64> = &bb.body;
+    let fused = bb.naming.fused_into();
+    let settle = |v| fused.get(&v).copied().unwrap_or(v);
+    let mut joining: std::collections::BTreeMap<_, usize> = std::collections::BTreeMap::new();
+    for (_, e) in body.edges() {
+        let s = body.get_half_edge(e.he_plus).unwrap().start;
+        let t = body.half_edge_end(e.he_plus).unwrap();
+        *joining.entry((s.min(t), s.max(t))).or_default() += 1;
+    }
+    bb.naming
+        .discards
+        .iter()
+        .flat_map(|d| &d.bordered)
+        .filter(|&&(u, w)| {
+            let (u, w) = (settle(u), settle(w));
+            joining.get(&(u.min(w), u.max(w))).is_some_and(|&n| n > 1)
+        })
+        .count()
 }
