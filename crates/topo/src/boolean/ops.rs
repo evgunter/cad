@@ -3991,14 +3991,10 @@ pub(super) fn declared_surface_pairs<T: Real>(
 /// act is tiers 1 and 2), so the verdict rides the result and is taken
 /// on the bits the caller receives. Where the scalar runs no at-rest
 /// gate, [`structural_gate`] runs in its place. The at-rest gate's
-/// findings are typed by [`finished_body_refusal`], and a solid it
-/// passed whose only shell is certified in band
-/// ([`crate::AtRestBody::slivers`]) is refused as the in-band shell it
-/// is: the at-rest invariant exempts it, and a result may not hold
-/// it (D10, Booleans). A scalar that runs no at-rest gate
-/// ([`crate::AtRestOutcome::NotRunAtThisScalar`], a dual) reads no
-/// slivers. The structural
-/// gate's are structure alone, the kernel's.
+/// findings are typed by [`finished_body_refusal`]; the structural
+/// gate's are structure alone, the kernel's. A solid whose only shell
+/// check 7 certified in band passes: how thin a result is gets judged
+/// by its pairs alone (D10, Booleans).
 ///
 /// # Errors
 ///
@@ -4025,9 +4021,6 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
         kept.as_ref().map(|_| ()).map_err(Vec::as_slice),
     ));
     let kept = kept.map_err(finished_body_refusal)?;
-    if let Some(refusal) = escalated(kept.slivers()) {
-        return Err(refusal);
-    }
     if kept.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
         structural_gate(&kept, band)?;
     }
@@ -4046,34 +4039,34 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 /// every finding. Each finding's arm is [`finding_arm`]'s.
 fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
     let in_band: Option<Vec<InBandShell>> = errors.iter().map(finding_arm).collect();
-    in_band
-        .and_then(|shells| escalated(&shells))
-        .unwrap_or(BooleanError::ResultInvalid { errors })
-}
-
-/// The refusal for `shells`, the result's shells certified in band: on
-/// the one whose enclosure binds the offer, naming how many more there
-/// are. `None` where there are none.
-fn escalated(shells: &[InBandShell]) -> Option<BooleanError> {
-    let binding = shells.iter().copied().reduce(|a, b| {
-        if a.sliver
-            .reading()
-            .margin
-            .binds_before(b.sliver.reading().margin)
-        {
-            a
-        } else {
-            b
-        }
-    })?;
-    Some(BooleanError::Escalated {
-        decision: BooleanDecision::ShellRole {
-            solid: binding.solid,
-            shell: binding.shell,
-            others: shells.len() - 1,
+    let binding = in_band.as_deref().and_then(|shells| {
+        shells
+            .iter()
+            .copied()
+            .reduce(|a, b| {
+                if a.sliver
+                    .reading()
+                    .margin
+                    .binds_before(b.sliver.reading().margin)
+                {
+                    a
+                } else {
+                    b
+                }
+            })
+            .map(|binding| (binding, shells.len() - 1))
+    });
+    match binding {
+        Some((binding, others)) => BooleanError::Escalated {
+            decision: BooleanDecision::ShellRole {
+                solid: binding.solid,
+                shell: binding.shell,
+                others,
+            },
+            diag: *binding.sliver.reading(),
         },
-        diag: *binding.sliver.reading(),
-    })
+        None => BooleanError::ResultInvalid { errors },
+    }
 }
 
 /// **Which of Q1's arms one finding of the finished-body gate is**: the
