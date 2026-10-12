@@ -1067,3 +1067,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Imported ellipse: the file's centre form is stored exactly; the anchored form is a cache; export writes the original, bit-exact.
   - Minted section: the anchored form is primary; the centre is derived for export.
   - Waiting on Ev to confirm. Then: write the decision into the item and DESIGN-FORK-LOG row 121's second half, and merge.
+- 2026-10-12 20:43 — **Ev on PR 4895:** asked why this is a question for him. I replied:
+  - It reached him by process: the spec marked Q1 a fork before the guard's cost was measured.
+  - Measured, it is not a real choice.
+  - Proposed merging it as an ordinary spec correction.
+  - Going forward, when both designers say a 'fork' is none and only unratified text moves, I decide and log it rather than asking. Waiting on his answer.
