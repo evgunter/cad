@@ -169,6 +169,7 @@ use geom_core::spline::{
     self, KnotAlgebraError, KnotSpan, KnotVector, Knots, Span, SpanLocate, SplineError,
 };
 use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
+use std::sync::OnceLock;
 
 use crate::net;
 
@@ -345,7 +346,7 @@ macro_rules! nurbs_curve {
         /// contract, fixed association orders). Immutable after
         /// construction; every knot-algebra operation returns a new
         /// curve (D9-clean value semantics).
-        #[derive(Clone, Debug)]
+        #[derive(Clone)]
         pub struct $Curve<T: Real> {
             knots: Knots<T>,
             control: Vec<$Point<T>>,
@@ -354,6 +355,26 @@ macro_rules! nurbs_curve {
             /// construction ([`SpanLocate::point_value`]): what every
             /// structure decision on the weights reads.
             weight_channel: Vec<f64>,
+            /// [`Self::speed_lower_bound`], filled on first read. It is
+            /// a function of the four fields above, which nothing
+            /// mutates after construction, so it cannot go stale; every
+            /// door that changes them builds a new curve with an empty
+            /// memo, and a clone carries the memo of the same value.
+            speed: OnceLock<geom_core::InfSpeed<T>>,
+        }
+
+        /// The curve's value, without the speed memo: whether it has
+        /// been read yet is not part of what the curve is.
+        impl<T: Real> core::fmt::Debug for $Curve<T> {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                let Self { knots, control, weights, weight_channel, speed: _ } = self;
+                f.debug_struct(stringify!($Curve))
+                    .field("knots", knots)
+                    .field("control", control)
+                    .field("weights", weights)
+                    .field("weight_channel", weight_channel)
+                    .finish()
+            }
         }
 
         impl<T: Real> $Window<'_, T> {
@@ -501,7 +522,7 @@ macro_rules! nurbs_curve {
                 let knots = knots.into();
                 let weight_channel = net::weight_channel(&weights)?;
                 net::validate_counts(knots.structure().control_count(), control.len(), &weight_channel)?;
-                Ok(Self { knots, control, weights, weight_channel })
+                Ok(Self { knots, control, weights, weight_channel, speed: OnceLock::new() })
             }
 
             /// The same curve on another parameter domain: the knots
@@ -610,7 +631,7 @@ macro_rules! nurbs_curve {
                     weights.len(),
                     weight_channel.len()
                 );
-                Self { knots, control, weights, weight_channel }
+                Self { knots, control, weights, weight_channel, speed: OnceLock::new() }
             }
 
             /// The same curve read at another scalar: `f` applied to
@@ -1084,6 +1105,12 @@ macro_rules! nurbs_curve {
             /// geometric decision (is the bound positive?) stays with
             /// the caller's trilean.
             pub fn speed_lower_bound(&self) -> geom_core::InfSpeed<T> {
+                *self.speed.get_or_init(|| self.speed_lower_bound_uncached())
+            }
+
+            /// [`Self::speed_lower_bound`]'s computation, run once per
+            /// curve by its memo.
+            fn speed_lower_bound_uncached(&self) -> geom_core::InfSpeed<T> {
                 let poison = T::from_f64(f64::NAN);
                 // Rational ⇒ the convexity argument does not hold
                 // directly; the quotient-rule arm takes over.
@@ -1965,6 +1992,7 @@ impl<T: Real> NurbsCurve3<T> {
             control: vec![p, p],
             weights: vec![T::one(), T::one()],
             weight_channel: vec![1.0, 1.0],
+            speed: OnceLock::new(),
         }
     }
 

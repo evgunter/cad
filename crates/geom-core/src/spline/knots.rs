@@ -390,14 +390,10 @@ pub struct KnotVector {
 /// another one, it carries no borrow of its vector: a knot interior to
 /// vector A handed to vector B's raw list IS representable, so the type
 /// alone does not make the insertion guard unnecessary. What does is the type PLUS the
-/// privacy of its consumers, of which there are two, and they use it
-/// in opposite ways:
+/// privacy of its consumers:
 ///
-/// - `compose::insert_once_ring` is a private function whose only
-///   caller mints every `InteriorKnot` from the very `KnotVector` it
-///   read the raw list from, and mutates that list without touching
-///   either clamp run — so the domain the knot was minted against is
-///   the list's domain at every step. Here the type IS the guard.
+/// - [`super::algebra::insert_knot_plan`] and its siblings mint every
+///   `InteriorKnot` from the vector they plan against.
 /// - [`super::algebra::union_refinements`] reads several vectors' runs
 ///   and hands each vector the values it lacks from the OTHERS — the
 ///   one place a knot crosses vectors. It therefore returns plain
@@ -660,6 +656,20 @@ impl<'a> Span<'a> {
 }
 
 impl KnotVector {
+    /// The Bézier vector of degree `degree` on `[s0, s1]`: each end
+    /// `degree + 1` times and no interior knot — the vector a bare
+    /// Bernstein row on `[s0, s1]` is a proof about.
+    ///
+    /// # Errors
+    ///
+    /// As [`KnotVector::clamped`]: degree zero, or ends that are not
+    /// finite and ordered.
+    pub fn bezier(degree: usize, (s0, s1): (f64, f64)) -> Result<Self, SplineError> {
+        let mut knots = vec![s0; degree + 1];
+        knots.extend(core::iter::repeat_n(s1, degree + 1));
+        Self::clamped(knots, degree)
+    }
+
     /// Validates and wraps a clamped knot vector. See the type docs for
     /// the exact invariants.
     ///

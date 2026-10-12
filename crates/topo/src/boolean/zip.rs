@@ -116,7 +116,7 @@ impl Fusions {
 
     /// The vertex `v` survives as, through every fusion.
     #[must_use]
-    pub fn survivor(&self, v: VertexKey) -> VertexKey {
+    pub(crate) fn survivor(&self, v: VertexKey) -> VertexKey {
         self.rows
             .iter()
             .fold(v, |at, &(dead, kept)| if at == dead { kept } else { at })
@@ -416,7 +416,8 @@ type RunsAt = BTreeMap<VertexKey, Vec<usize>>;
 /// its new vertex on the old one's point key, moves each cone's runs but
 /// the first to a vertex of their own ([`split_side`]). The seams are
 /// then re-paired ([`repair`]) and `vmap` is rebuilt from the edges the
-/// zips join. Returns the seams to zip.
+/// zips join. Returns the seams to zip, and the proof that they were
+/// split ([`ConesSplit`]).
 ///
 /// The split writes `body` before the re-pair can refuse: `body` is the
 /// boolean's working copy, which a refusal drops whole.
@@ -432,7 +433,7 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     seams: &[(FaceKey, FaceKey)],
     vmap: &mut SeamCorrespondence,
     tol: Tol,
-) -> Result<Vec<(FaceKey, FaceKey)>, BooleanError> {
+) -> Result<(Vec<(FaceKey, FaceKey)>, ConesSplit), BooleanError> {
     let corr = |what| BooleanError::ZipCorrespondence { what };
     let outer = |body: &Body<T>, f: FaceKey| -> Result<LoopKey, BooleanError> {
         Ok(body
@@ -491,16 +492,20 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
             return Err(corr("a cone the seams meet twice fuses a vertex to itself"));
         }
     }
-    if !moved {
-        return Ok(paired);
+    if moved {
+        let mut rebuilt = SeamCorrespondence::new();
+        for (a, b) in fused {
+            rebuilt.entry(a).or_default().insert(b);
+        }
+        *vmap = rebuilt;
     }
-    let mut rebuilt = SeamCorrespondence::new();
-    for (a, b) in fused {
-        rebuilt.entry(a).or_default().insert(b);
-    }
-    *vmap = rebuilt;
-    Ok(paired)
+    Ok((paired, ConesSplit(())))
 }
+
+/// **The seams were split per cone** ([`split_cones`]): a result built
+/// past it is one whose pinches the boolean's carry reads
+/// (`ops::Zipped`). Only [`split_cones`] builds one.
+pub(super) struct ConesSplit(());
 
 /// One side's `σ`: each pair's next section corner round its vertex, as
 /// a pair index, and each vertex's runs in orbit order. `he_of` reads a

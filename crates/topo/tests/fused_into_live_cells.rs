@@ -26,11 +26,11 @@ use topo::{Body, BooleanResult, Cell, VertexKey, intersect, subtract, union};
 const ON: f64 = 1e-12;
 
 /// Each vertex's point as the output stage found it, before its merge
-/// and join (`topo::take_output_stage_points`), merged over every output
+/// and join (`topo::take_output_stage_points`, armed by the row), merged over every output
 /// stage the op ran: a key the stages disagree on panics.
 fn output_stage_points(who: &str) -> BTreeMap<VertexKey, Point3<f64>> {
     let mut at = BTreeMap::new();
-    for stage in topo::take_output_stage_points() {
+    for stage in topo::take_output_stage_points().expect("the row arms its thread") {
         for (v, [x, y, z]) in stage {
             let p = Point3::new(x.parse().unwrap(), y.parse().unwrap(), z.parse().unwrap());
             if let Some(q) = at.insert(v, p) {
@@ -110,13 +110,14 @@ fn every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell() {
     );
     let (mut bodies, mut vertices, mut edges, mut faces) = (0, 0, 0, 0);
     let (mut stretches, mut inside) = (0, 0);
+    topo::arm_output_stage_points();
     for x in spans {
         for y in spans {
             for z in spans {
                 let b = finished("b", brick::<f64>(x, y, z, tol), tol);
                 for op in ["union", "subtract", "intersect"] {
                     let who = format!("{op} with {x:?} × {y:?} × {z:?}");
-                    topo::take_output_stage_points();
+                    topo::take_output_stage_points().expect("the row arms its thread");
                     let result = match op {
                         "union" => union(&a, &b, tol),
                         "subtract" => subtract(&a, &b, tol),
@@ -129,11 +130,16 @@ fn every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell() {
                     };
                     bodies += 1;
                     let body = &out.body;
-                    let fusions = &out.naming.vertex_merges;
+                    let fusions = out.naming.vertex_merges.rows();
                     // The point a result vertex had when the output stage
-                    // began: its survivor's.
+                    // began: its survivor's, through every fusion.
+                    let survivor = |v: VertexKey| {
+                        fusions
+                            .iter()
+                            .fold(v, |at, &(dead, kept)| if at == dead { kept } else { at })
+                    };
                     let point = |v: VertexKey| {
-                        *at.get(&fusions.survivor(v))
+                        *at.get(&survivor(v))
                             .unwrap_or_else(|| panic!("{who}: no output-stage point for {v:?}"))
                     };
                     let fused = out

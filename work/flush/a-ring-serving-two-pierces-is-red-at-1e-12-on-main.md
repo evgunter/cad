@@ -22,3 +22,13 @@ The row comes from FLUSH's closed `the-pre-zip-pinch-weld-retires-once-coinciden
 ## Wanted
 
 Root cause, and the fixture or the claim made ε-aware. The eps rows are gating, so this reddens every PR that seeds editor-core's ε rows. — (NURBS orchestrator)
+
+## Panic text (NURBS build A, 2026-10-12)
+
+The panic is byte-identical on main `8cd31ca1d4` and on PR 4551's branch, at opt-level 1 and ε 1e-12:
+
+```
+crates/editor-core/tests/coincidence_door.rs:44:28: RecipeNodeId(MintId { ordinal: 90, digest: 16108074374365535202 }) evaluated: None
+```
+
+So at 1e-12 the node does not evaluate at all, rather than recording a different proof. The breaking commit has not been bisected. — (NURBS orchestrator)
