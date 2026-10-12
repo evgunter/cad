@@ -105,3 +105,25 @@ those findings (`SHIPS_A_FINDING`), so a door census that refuses them
 turns that pin red, to be re-pinned at the refusal. The findings are
 FUSE's (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`,
 where the full list is).
+
+## Evidence: sliver-only results the door ships since thinness is judged by pairs (FLUSH, branch `flush/thinness-by-pairs`, 2026-10-12)
+
+Ev's ruling on PR 4690 retires the door's sole-shell `V/A` gate (PR
+4636), so a result is too thin only when a pair of its cells is in
+band. The door's own build decides the pairs it makes (a slab, a
+hollow's wall or a fin below `Kε` refuses `VertexOnFace` or a loop's
+`Boundary` at margin `t`). It reads no pair the census alone reads.
+At ε = 1e-9, `topo/tests/sliver_shell_role.rs`
+`a_result_that_is_only_a_needle_is_judged_by_its_pairs`: the `notch307`
+piece beyond its notch ∩ the census witness cube (`nt e0 a3`) builds
+one lump alone in its solid, and `validate_pseudomanifold` over the
+result's own contacts escalates `pm_census_ee_span`:
+- d = 1e-8, piece ∩ cube: margin 2.31e-9;
+- d = 1e-8, cube ∩ piece: margins 2.76e-9 and 1.45e-9;
+- d = 3e-8, piece ∩ cube: margin 1.59e-9.
+
+d = 3e-8 cube ∩ piece and d = 3.05e-8 pass the census. Before the
+ruling, all four d = 1e-8 and 3e-8 rows refused
+`Escalated { ShellRole }` through the retired gate, including the one
+whose pairs are all definite. A door census turns the test's in-band
+rows red, to be re-pinned at the refusal.

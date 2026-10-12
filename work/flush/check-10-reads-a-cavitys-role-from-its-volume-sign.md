@@ -40,3 +40,21 @@ components check (`checks.rs`, `classify_shells`) therefore refuses a
 thin body it could count. The readers that share it are
 `props::shell_role_read` (`stands::ShellRead`), the result sort
 (`pieces.rs`), `shell.rs`'s void read, and the census's `gate_role`.
+
+## Measured (FLUSH `flush/thinness-by-pairs`, 2026-10-12)
+
+With PR 4636's sole-shell gate retired (Ev, PR 4690), this row's reader
+is the one thing that still refuses a slab whose pairs are all
+definite, at ε 1e-9 for every `t ∈ {10, 12, 15, 19}ε`:
+- `brick (−1,2)³ ∖ slab(t)` refuses `Escalated { ShellRole }` on the
+  cavity, as before.
+- `slab(t) ∪ brick (5,6)³`, in either order, refuses
+  `Escalated { ShellRole }` on the slab. The union assembles both
+  shells in one solid. The pieces sort (`pieces.rs` `pieces_of`) moves
+  a shell out only on a decided `Outer`, and the slab's role reads off
+  its in-band `V/A`. So the slab stays in the brick's solid, and check 10
+  refuses it there. `topo/tests/missed_ray_side.rs`
+  `a_thin_slab_is_a_legal_operand_against_a_brick_far_away` pins it.
+
+At 21ε all three build. A role read off a crossing ray would let both
+build.
