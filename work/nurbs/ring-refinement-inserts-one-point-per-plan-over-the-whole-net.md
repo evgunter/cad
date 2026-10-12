@@ -22,9 +22,13 @@ refined scan (`nurbs/refined-scan-cost`): a 40-control-point cubic
 (37 spans), 16 pieces per span, release, `Interval`, per call:
 `RingRefinement::equal_split` 14.3 ms (pure `f64` structure),
 `refine_homogeneous` 4.8 ms per channel, against 3.5 ms for the bound
-read off the refined net. Its remaining callers are
-`spline/net.rs` (`refine_u` / `refine_v` and the equal-split grid,
-`CertGrid`-shaped consumers) and `compose.rs`'s split points.
+read off the refined net. Its remaining callers construct and apply
+it in `geom-brep`: `props/quad.rs` (`RingRefinement::new`, `refine`,
+`refine_u` / `refine_v`), `ssi/section.rs`, `ssi/certify.rs` (over
+`cert_grid`) and `ssi/enclose.rs` (`refine_u` / `refine_v`), and in
+`geom-core`'s `spline/net.rs` equal-split grid (`equal_split`).
+`compose.rs`, `patch_bound.rs` and `offset_fit.rs` take only
+`equal_split_points`, the schedule, not the chain.
 
 ## Shape
 

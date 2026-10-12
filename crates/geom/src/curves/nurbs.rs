@@ -194,11 +194,19 @@ const INTEGRAL_METER_SPLITS: usize = 32;
 /// the two arms read the same pieces: the rational numerator is
 /// `w²·C′`, its coefficients the derivative's degree-elevated, which
 /// reads at least the integral arm's piece bound and in practice
-/// nearly the same (`tests::the_rational_piece_reading_is_the_elevated_integral_one`).
-/// Its frontier, on the six-point
-/// swaying corner with one weight raised 1.3×: degree 4 meters at
-/// `a = 2` and refuses at `a = 4`, degree 5 refuses from `a = 2`.
+/// nearly the same
+/// (`tests::the_rational_piece_reading_is_the_elevated_integral_one`).
+/// Its frontier, on the six-point swaying corner with one weight raised
+/// 1.3×: degree 4 meters at `a = 2` and refuses at `a = 4`, degree 5
+/// refuses from `a = 2`.
 const RATIONAL_PIECE_SPLITS: usize = INTEGRAL_METER_SPLITS;
+
+/// The rational piece assembly's degree ceiling: above it the assembly
+/// abstains and the rational meter refuses. This is the ceiling the
+/// tests pin (`tests::binomial_is_exact_to_47` checks every binomial
+/// and pair product it reads, to `2·24 − 1`), not the exactness limit
+/// of the multiplicative binomial, which lies well above it.
+const RATIONAL_PIECE_MAX_DEGREE: usize = 24;
 
 /// The piece count for a degree-`q` Bernstein row under the schedule
 /// `splits`: the largest power of two at most `splits` that
@@ -1187,11 +1195,9 @@ macro_rules! nurbs_curve {
             /// the plain-f64 reading is a bound up to a few relative
             /// ulps of the derivative's scale (the stall rows in
             /// `tests/curves/piece_coverage_meter.rs` hold it to
-            /// `1e-12` of that scale). This is the kernel-wide posture
-            /// shared with the rational arm; the `Interval`
-            /// instantiation is the certified lane, and the bracket
-            /// row in `tests/curves/m5_pr7_speed_meter.rs` pins
-            /// containment.
+            /// `1e-12` of that scale). The `Interval` instantiation is
+            /// the certified lane, and the bracket row in
+            /// `tests/curves/m5_pr7_speed_meter.rs` pins containment.
             ///
             /// # Poison (total, D4 ¶2)
             ///
@@ -1476,21 +1482,22 @@ macro_rules! nurbs_curve {
             /// of the piece assembly yield NaN: a non-positive knot
             /// difference, a knot vector with no nonempty span, a piece
             /// whose numerator coefficients sum to zero, and **a degree
-            /// above 24**, the ceiling past which its binomials are not
-            /// pinned exact. A rational carrier above that degree is
-            /// refused, never metered by a looser assembly. A bound is
-            /// never fabricated.
+            /// above [`RATIONAL_PIECE_MAX_DEGREE`]** (24). A rational
+            /// carrier above that degree is refused, never metered by a
+            /// looser assembly. A bound is never fabricated.
             ///
             /// # Rounding posture
             ///
             /// At `f64` the assembly runs in nearest rounding, like
-            /// every other `Real`-generic bound in the kernel, so the
-            /// `f64` reading is a bound only up to a few tens of
-            /// relative ulps (16 measured on a degree-1 carrier). **The
-            /// `Interval` instantiation is the certified lane**: every
-            /// coefficient it reads encloses the exact one, and
-            /// `tests/curves/m5_pr7_speed_meter.rs`'s bracket row pins
-            /// that the interval answer contains the `f64` one.
+            /// every other `Real`-generic bound in the kernel, and the
+            /// `f64` reading is **not** a bound: its error grows with
+            /// the weight ratio, measured at 16 relative ulps on a
+            /// degree-1 carrier and about 3e8 ulps with weights at
+            /// `1e±6`. **The `Interval` instantiation is the certified
+            /// lane**: every coefficient it reads encloses the exact
+            /// one, and `tests/curves/m5_pr7_speed_meter.rs`'s bracket
+            /// row pins that the interval answer contains the `f64`
+            /// one.
             ///
             /// # Conservatism
             ///
@@ -1549,13 +1556,12 @@ macro_rules! nurbs_curve {
             /// It needs no chord and no `sup‖C − c‖·sup|w′|` term: `N` is
             /// exact, and its coefficients converge on it as the pieces
             /// shrink. It reads [`piece_count`]'s pieces for degree `p`, and abstains
-            /// (poison) above degree 24, past which its binomials are no
-            /// longer pinned exact, and where a piece's `Nₖ` sum to zero.
+            /// (poison) above [`RATIONAL_PIECE_MAX_DEGREE`], and where a piece's `Nₖ` sum to zero.
             fn rational_piece_assembly(&self) -> T {
                 let poison = T::from_f64(f64::NAN);
                 let p = self.knots.degree();
                 let q = p - 1;
-                if p > 24 {
+                if p > RATIONAL_PIECE_MAX_DEGREE {
                     return poison;
                 }
                 // One count for both degrees' rows, so their pieces
@@ -1917,8 +1923,8 @@ fn rational_corrections<T: Real, const N: usize>(a: [T; N], w: [T; N]) -> [T; N]
 
 /// `C(k, i)` as exact `f64` structure (the multiplicative form, exact
 /// while every intermediate product is below 2⁵³ — every order a curve
-/// evaluator asks for, and every `k ≤ 17` the rational piece assembly
-/// asks for (`k ≤ 47`, degree ≤ 24), is far inside that;
+/// evaluator asks for, and every `k ≤ 2·RATIONAL_PIECE_MAX_DEGREE − 1`
+/// (47) the rational piece assembly asks for, is inside that;
 /// `tests::binomial_is_exact_to_47`).
 fn binomial(k: usize, i: usize) -> f64 {
     (0..i).fold(1.0, |acc, j| acc * (k - j) as f64 / (j + 1) as f64)
@@ -2151,7 +2157,7 @@ mod tests {
     #[test]
     fn binomial_is_exact_to_47() {
         let mut row: Vec<u64> = vec![1];
-        for n in 0..=47_usize {
+        for n in 0..=2 * super::RATIONAL_PIECE_MAX_DEGREE - 1 {
             for (k, c) in row.iter().enumerate() {
                 #[allow(clippy::cast_precision_loss)]
                 let exact = *c as f64;
@@ -2166,7 +2172,7 @@ mod tests {
         let c = |n: usize, k: usize| -> u64 {
             (0..k).fold(1, |acc, i| acc * (n - i) as u64 / (i + 1) as u64)
         };
-        for p in 1..=24_usize {
+        for p in 1..=super::RATIONAL_PIECE_MAX_DEGREE {
             for a in 0..p {
                 for b in 0..=p {
                     #[allow(clippy::cast_precision_loss)]

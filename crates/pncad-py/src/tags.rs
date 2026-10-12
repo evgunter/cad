@@ -1170,7 +1170,10 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // The escalation's payload is a MARGIN and a band, not an arm;
         // the predicate that escalated is a name the kernel mints and
         // the message carries.
-        NodeErrorKind::Escalated { .. } => None,
+        NodeErrorKind::Escalated { .. }
+        | NodeErrorKind::MeasureEscalated { .. }
+        | NodeErrorKind::PlacementAxisEscalated { .. }
+        | NodeErrorKind::PoseDirectionEscalated { .. } => None,
         NodeErrorKind::PoseRead { fault, .. } => Some(pose_read_fault_tag(fault)),
         NodeErrorKind::PoseDegenerate { construction } => Some(match construction {
             pncad::document::pose::PoseConstruction::Through => "through",
@@ -1564,6 +1567,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::UnjoinedOperand { .. } => "unjoined_operand",
         BlendError::SurgeryInvariant { .. } => "surgery_invariant",
         BlendError::RingClearance { .. } => "ring_clearance",
+        BlendError::WhollyInside { .. } => "wholly_inside",
         BlendError::Certify { .. } => "certify",
         BlendError::Op { .. } => "op",
         BlendError::Join { refusal } => join_refusal_tag(refusal),

@@ -22,7 +22,7 @@ by a median 0.1% and at worst 4.6%. Two causes, both in
   derivative degree-elevated by `p`: the same direction and a tighter
   hull, so never lower than the integral arm's pieces
   (`tests::the_rational_piece_reading_is_the_elevated_integral_one`);
-- the rational arm also runs `rational_refined_scan`, whose refined-span
+- (retired by PR 4860, which removed the scan) the rational arm also runs `rational_refined_scan`, whose refined-span
   chords the integral arm does not have.
 
 On the swaying family the two arms agree to about `1e-12`

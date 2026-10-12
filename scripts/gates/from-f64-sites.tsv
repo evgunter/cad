@@ -63,7 +63,6 @@ crates/geom-core/src/spline/knot_values.rs	1	constant	hi	Knots::on_domain: the r
 crates/geom-core/src/spline/knot_values.rs	1	constant	lo	Knots::on_domain: the re-expression's lower end, the caller's f64 parameter
 crates/geom-core/src/spline/knots.rs	1	constant	hi	knot_difference: a knot of a bare KnotVector, which holds no value in a scalar (callers: the certification ring's hull over the value channel, and Knots::on_domain's caller-given ends). KNOWN GAP: the function is pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
 crates/geom-core/src/spline/knots.rs	1	constant	lo	knot_difference: a knot of a bare KnotVector, which holds no value in a scalar (callers: the certification ring's hull over the value channel, and Knots::on_domain's caller-given ends). KNOWN GAP: the function is pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
-crates/geom-core/src/spline/projective.rs	1	constant	v	apply_homogeneous_in: a knot the refinement brings in, a point of its schedule
 crates/geom-core/src/sym.rs	1	constant	x	the Real impl's own door: Sym::from_f64 is the Lit
 crates/geom/src/convention.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/geom/src/curves/banded.rs	1	constant	l	a dropped term's structural zero, signed as its pivot
