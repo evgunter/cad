@@ -2,10 +2,13 @@
 id: the-boolean-records-no-line-touch-and-the-census-does-not-demand-one
 kind: issue
 title: No boolean result records a touch along a line (collinear edges, or a glued tangency), and the census backs a collinear overlap on its bounds alone instead of demanding the record D1 requires
-status: open
+status: review
 opened: 2026-10-11
 priority: P2
 cost: M
+branch: contacthold/ee-line-touch-record
+refs: [a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only, a-touch-along-a-glued-tangency-cites-no-tangency-decision, two-coincident-curved-edges-touching-record-no-edge-edge-row, 4723]
+pr: 4740
 ---
 
 
@@ -48,7 +51,10 @@ Two parts of the code still follow the pre-4547 reading:
 - Make `ee_collinear_lane` demand the stored row.
 - Re-baseline the planar pins' vertex–vertex-only counts.
 
-The same-side fork's build (removing the short-circuit) lands with this
-row's `ee` writer in one PR (orchestrator's sequencing call). FUSE's
+The same-side fork's build (removing the short-circuit) does not land
+with this row's `ee` writer: it waits on Ev's ruling in `[ev]` PR 4723
+(`a-same-side-tangent-touch-refuses-at-every-op`). Once the
+short-circuit goes, a same-side tangent touch reaches the writer with no
+further plumbing. FUSE's
 `a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only` is
 the edge–face slice of the same gap.
