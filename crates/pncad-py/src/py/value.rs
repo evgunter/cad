@@ -2626,7 +2626,7 @@ impl Coincidence {
     }
 
     /// What was decided between them: `same_oriented`,
-    /// `same_opposite`, `on_carrier`, `equal_angles`, `tangent`, `cusp`,
+    /// `same_opposite`, `on_carrier`, `common_foot`, `tangent`, `cusp`,
     /// `tangent_contact`, `seam`, `coaxial` or `co_ruled`. A
     /// `profile_junction` row is `tangent` or `cusp` between two carriers
     /// and `same_oriented` where its pieces continue one; a

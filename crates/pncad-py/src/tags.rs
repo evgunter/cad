@@ -2965,7 +2965,7 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::SameOriented => "same_oriented",
         R::SameOpposite => "same_opposite",
         R::OnCarrier => "on_carrier",
-        R::EqualAngles => "equal_angles",
+        R::CommonFoot => "common_foot",
         R::Tangent { aligned: true } => "tangent",
         R::Tangent { aligned: false } => "cusp",
         R::TangentContact { seam: false } => "tangent_contact",

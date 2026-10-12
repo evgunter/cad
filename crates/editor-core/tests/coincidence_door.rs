@@ -446,11 +446,11 @@ fn edge_named(ev: &Evaluation<f64>, node: RecipeNodeId, a: [f64; 3], b: [f64; 3]
 
 /// **The mitre leaves the battery** (§11 row 5). A box with both rims
 /// filleted turns at its eight corners: the fillet holds eight
-/// `EqualAngles` rows, each naming the two rim edges that turn there
+/// `CommonFoot` rows, each naming the two rim edges that turn there
 /// by the box's own names, and each is unproven: the two edges are two
-/// constructions, and replayed with every variable a symbol the turn's
-/// angle term is the zero polynomial but the distance between its two
-/// bands' feet is not reduced to it
+/// constructions, and replayed with every variable a symbol neither of
+/// the turn's readings — the gap between its two bands' feet and the
+/// overrun chord — is reduced to the zero polynomial
 /// (`work/sym/the-mitres-feet-distance-freezes-at-sym.md`).
 #[test]
 fn a_filleted_box_records_one_unproven_turn_per_corner() {
@@ -474,7 +474,7 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
     for row in &got {
         assert_eq!(
             (row.relation, row.site),
-            (Relation::EqualAngles, DecisionSite::BatteryTurn)
+            (Relation::CommonFoot, DecisionSite::BatteryTurn)
         );
         for cell in &row.cells {
             let NamedCell::Entity { input, name } = cell else {
@@ -502,74 +502,6 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
          from the variables: no special recourse"
     );
     assert_eq!(unproven(&doc, &ev).len(), 8);
-}
-
-/// **The half of the mitre the algebra closes.** Replayed with every
-/// variable a symbol, a box mitre's margin
-/// `max(|cos₁ − cos₂|·arm, |y₂ − y₁|)` reduces to `max(0, …)`: the
-/// angle term is the zero polynomial, so the isosceles fact itself is
-/// an identity of the output definitions, and the distance between the
-/// two bands' feet is what freezes
-/// (`work/sym/the-mitres-feet-distance-freezes-at-sym.md`).
-#[test]
-fn a_box_mitres_angle_term_is_the_zero_polynomial() {
-    let doc = ProfileDoc::empty_derived("coincide-mitre", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 0.0, 1.0);
-    let ev = run(&doc);
-    let (doc, fillet) = insert(
-        doc,
-        Node::fillet(
-            the_box,
-            len(0.1),
-            vec![
-                edge_named(&ev, the_box, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
-                edge_named(&ev, the_box, [2.0, 0.0, 1.0], [2.0, 1.5, 1.0]),
-            ],
-        ),
-    );
-    let form = turn_form(&doc, fillet);
-    assert!(
-        form.starts_with("1·max(0, "),
-        "the angle term is identically zero, the feet distance is what freezes: {form}"
-    );
-}
-
-/// `node`'s first row's deciding margin, replayed with every variable
-/// a symbol and rendered with the tier's rules applied per node, at
-/// the drive's budget.
-fn turn_form(doc: &ProfileDoc, node: RecipeNodeId) -> String {
-    use geom_core::sym::deferred;
-    use geom_core::{Sym, SymBudget, SymRules};
-    let opts = editor_core::EvalOptions {
-        symbols: true,
-        profile_lift: editor_core::ProfileLift::Guided,
-        ..editor_core::EvalOptions::default()
-    };
-    let budget = SymBudget {
-        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
-        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
-    };
-    deferred::with_deferred_session(
-        budget,
-        SymRules::shipped(),
-        geom_core::SymRetry::none(),
-        || {
-            let ev: Evaluation<Sym<f64>> = editor_core::evaluate(
-                doc,
-                None,
-                &editor_core::CancelToken::new(),
-                &opts,
-                Tol::witness(),
-            );
-            ev.value(node)
-                .expect("the node replays")
-                .coincidences
-                .iter()
-                .flat_map(|r| deferred::render(r.margin))
-                .collect()
-        },
-    )
-    .0
 }
 
 /// `profile` extruded one unit and split by the plane `y = at`.

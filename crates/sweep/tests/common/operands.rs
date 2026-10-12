@@ -269,49 +269,55 @@ pub fn half_round_end() -> (Body<f64>, EdgeKey) {
 /// `xz`, its left wall leaning in by `s` and every other face square;
 /// and the two top edges that turn at `(s, 0, 1)` — along `x` over the
 /// square end face `y = 0`, and along `y` over the leaning wall. The
-/// turn is isosceles only at `s = 0`, so at a definite lean both verbs
-/// refuse it (`blend::battery::TURN_NOT_ISOSCELES`).
+/// two bands' feet on the lateral edge meet only at `s = 0`, so at a
+/// definite lean both verbs overrun, which refuses
+/// (`blend::battery::TURN_OVERRUN`).
 pub fn leaning_turn(s: f64) -> (Body<f64>, [EdgeKey; 2]) {
+    leaning_turn_at(s)
+}
+
+/// [`leaning_turn`] at the scalar `T`: its corners read from `f64`.
+pub fn leaning_turn_at<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    s: f64,
+) -> (Body<T>, [EdgeKey; 2]) {
     let plane = sweep::test_support::sketch_from_axes(
-        Point3::new(0.0, 0.0, 0.0),
-        geom_core::Vec3::new(1.0, 0.0, 0.0),
-        geom_core::Vec3::new(0.0, 0.0, 1.0),
+        Point3::new(0.0, 0.0, 0.0).map(T::from_f64),
+        geom_core::Vec3::new(1.0, 0.0, 0.0).map(T::from_f64),
+        geom_core::Vec3::new(0.0, 0.0, 1.0).map(T::from_f64),
         Tol::witness(),
     );
     let body = sweep::test_support::prism_on(
         plane,
-        vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(2.0, 0.0), 0.0),
-            (Point2::new(2.0, 1.0), 0.0),
-            (Point2::new(s, 1.0), 0.0),
-        ],
-        1.5,
+        sweep::test_support::corners(&[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (s, 1.0)]),
+        T::from_f64(1.5),
         Tol::witness(),
     );
-    let point = |v| {
-        *body
+    let at = |v, w: [f64; 3]| {
+        let p: Point3<T> = *body
             .get_point(body.get_vertex(v).expect("a vertex").point)
-            .expect("a point")
+            .expect("a point");
+        [p.x, p.y, p.z]
+            .iter()
+            .zip(w)
+            .all(|(c, w)| c.lo() <= w + 1e-12 && w - 1e-12 <= c.hi())
     };
-    let between = |a: Point3<f64>, b: Point3<f64>| {
+    let between = |a: [f64; 3], b: [f64; 3]| {
         topo::query::all_edges(&body)
             .into_iter()
             .find(|&e| {
                 let he = body.get_edge(e).expect("an edge").he_plus;
                 let (p, q) = (
-                    point(body.get_half_edge(he).expect("a half").start),
-                    point(body.half_edge_end(he).expect("an end")),
+                    body.get_half_edge(he).expect("a half").start,
+                    body.half_edge_end(he).expect("an end"),
                 );
-                let at = |x: Point3<f64>, y: Point3<f64>| (x - y).norm() < 1e-12;
                 (at(p, a) && at(q, b)) || (at(p, b) && at(q, a))
             })
             .unwrap_or_else(|| panic!("an edge between {a:?} and {b:?}"))
     };
-    let corner = Point3::new(s, 0.0, 1.0);
+    let corner = [s, 0.0, 1.0];
     let edges = [
-        between(corner, Point3::new(2.0, 0.0, 1.0)),
-        between(corner, Point3::new(s, -1.5, 1.0)),
+        between(corner, [2.0, 0.0, 1.0]),
+        between(corner, [s, -1.5, 1.0]),
     ];
     (body, edges)
 }

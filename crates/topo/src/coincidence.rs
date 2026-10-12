@@ -77,9 +77,9 @@ pub enum Relation {
     SameOpposite,
     /// The first cell lies on the second's carrier.
     OnCarrier,
-    /// The two cells make equal angles with a third (an isosceles
-    /// turn, whose mitre lands on that third edge).
-    EqualAngles,
+    /// The two cells' bands end at one point of a third edge (a turn
+    /// whose mitre lands on that edge).
+    CommonFoot,
     /// The two cells meet in first-order contact: their tangent lines
     /// at the common point are one line, the second carrying on the
     /// first's heading through it (`aligned`, a smooth joint) or
@@ -119,7 +119,7 @@ impl Relation {
             Self::TangentContact { seam: true } => Some(C::Seam),
             Self::Tangent { .. }
             | Self::OnCarrier
-            | Self::EqualAngles
+            | Self::CommonFoot
             | Self::Coaxial
             | Self::CoRuled => None,
         }
@@ -149,7 +149,9 @@ pub enum DecisionSite {
     /// with two or more runs on one side, so pieces of one side touch
     /// there.
     SplitOn,
-    /// The blend battery's isosceles turn (`fillet3_turn_isosceles`).
+    /// The blend battery's turn whose two bands' feet on its third edge
+    /// are one point (`fillet3_turn_feet_gap` and
+    /// `fillet3_turn_overrun_chord`, jointly).
     BatteryTurn,
     /// The blend battery's chain junction, its two links decided
     /// tangent so one band runs through it (`fillet3_chain_g1`).

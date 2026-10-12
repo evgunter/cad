@@ -360,7 +360,9 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::CapTransverse => "cap_transverse",
         BlendDecision::CapEllipse => "cap_ellipse",
         BlendDecision::CutOffFeet => "cut_off_feet",
-        BlendDecision::TurnIsosceles => "turn_isosceles",
+        BlendDecision::TurnFeetGap => "turn_feet_gap",
+        BlendDecision::TurnOverrunChord => "turn_overrun_chord",
+        BlendDecision::TurnFeet => "turn_feet",
         BlendDecision::MitreSection => "mitre_section",
     }
 }
