@@ -5735,8 +5735,9 @@ fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (SupSpeed<T>, Sup
     // integral-lane number moves.
     let ratio = weight_ratio_factor::<T>(s.weight_channel(), s.weights());
     // ONE spelling of the derivative net for the whole file: this
-    // function's two loops were the same walk as `derivative_net`'s,
-    // down to the `denom == 0.0` skip, and a second copy of a
+    // function's two loops were the same walk as
+    // `skipping_surface_derivative_net`'s, down to the `denom == 0.0`
+    // skip, and a second copy of a
     // convexity fact is a second place for it to drift. The `inf`
     // door reads the same nets, so `chart_stretch_sup(s).0` and
     // `chart_stretch_inf(s).sup_u` are now one computation rather
@@ -5745,8 +5746,8 @@ fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (SupSpeed<T>, Sup
     // `the_two_doors_report_one_sup`.
     let sup_of = |q: &[Vec3<T>]| q.iter().fold(T::zero(), |m, v| m.max(v.norm()));
     (
-        SupSpeed::new(sup_of(&derivative_net(s, false)) * ratio),
-        SupSpeed::new(sup_of(&derivative_net(s, true)) * ratio),
+        SupSpeed::new(sup_of(&skipping_surface_derivative_net(s, false)) * ratio),
+        SupSpeed::new(sup_of(&skipping_surface_derivative_net(s, true)) * ratio),
     )
 }
 
@@ -5943,8 +5944,14 @@ fn net_inf<T: Real>(q: &[Vec3<T>], sup: T) -> T {
 /// `Qᵢⱼ = p·(Pᵢ₊₁ⱼ − Pᵢⱼ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)`, degenerate supports
 /// dropped (their basis function is identically zero, so the drop is
 /// exact on both sides rather than safe on one). Pass `along_v` to
-/// read the `v` direction through the same code.
-fn derivative_net<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec<Vec3<T>> {
+/// read the `v` direction through the same code. Unlike a curve's
+/// [`geom_core::spline::derivative_net`], which refuses a degenerate
+/// support, this net skips it: its readers fold sups and infs over the
+/// entries, where a dropped zero-basis pair is the exact answer.
+fn skipping_surface_derivative_net<T: Real>(
+    s: &geom::NurbsSurface<T>,
+    along_v: bool,
+) -> Vec<Vec3<T>> {
     let (nu, nv) = s.control_counts();
     let ctl = s.control();
     let (n_out, n_in) = if along_v { (nv, nu) } else { (nu, nv) };
@@ -5963,13 +5970,12 @@ fn derivative_net<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec<Vec3
         }
     };
     let mut out = Vec::with_capacity(n_out.saturating_sub(1) * n_in);
-    #[allow(clippy::cast_precision_loss)]
     for i in 0..n_out.saturating_sub(1) {
         let denom = k[i + p + 1] - k[i + 1];
         if denom == 0.0 {
             continue;
         }
-        let factor = T::from_f64(p as f64) / (held[i + p + 1] - held[i + 1]);
+        let factor = geom_core::spline::span_derivative_scale(p, held[i + 1], held[i + p + 1]);
         for j in 0..n_in {
             out.push((at(i + 1, j) - at(i, j)) * factor);
         }
@@ -5982,7 +5988,10 @@ fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
     let ratio = weight_ratio_factor::<T>(s.weight_channel(), s.weights());
     // The same two nets [`nurbs_stretch_bounds`] reads, from the same
     // door, so `sup_u`/`sup_v` below ARE that function's components.
-    let (q_u, q_v) = (derivative_net(s, false), derivative_net(s, true));
+    let (q_u, q_v) = (
+        skipping_surface_derivative_net(s, false),
+        skipping_surface_derivative_net(s, true),
+    );
     let sup_of = |q: &[Vec3<T>]| q.iter().fold(T::zero(), |m, v| m.max(v.norm()));
     let (poly_sup_u, poly_sup_v) = (sup_of(&q_u), sup_of(&q_v));
     let mut crosses = Vec::with_capacity(q_u.len() * q_v.len());
@@ -6018,7 +6027,6 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
         c.knot_values().values(),
     );
     let mut sup = T::zero();
-    #[allow(clippy::cast_precision_loss)]
     for i in 0..ctl.len().saturating_sub(1) {
         let denom = k[i + p + 1] - k[i + 1];
         if denom == 0.0 {
@@ -6026,7 +6034,7 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
         }
         sup = sup.max(
             (ctl[i + 1] - ctl[i]).norm()
-                * (T::from_f64(p as f64) / (held[i + p + 1] - held[i + 1])),
+                * geom_core::spline::span_derivative_scale(p, held[i + 1], held[i + p + 1]),
         );
     }
     // The rational factor (M8-3), the curve-side twin of

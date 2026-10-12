@@ -76,7 +76,9 @@ use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
-use geom_core::spline::{KnotVector, ParamRange, RingRefinement, Span, TensorNet};
+use geom_core::spline::{
+    KnotVector, ParamRange, RingRefinement, Span, TensorNet, span_derivative_scale,
+};
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
 use super::{ChartAxis, ChartSpeedRefusal, SsiError, TubeDegeneracy};
@@ -1569,8 +1571,11 @@ fn pair_scales(span: Span<'_>) -> Option<Vec<Interval>> {
     span.first_derived_window()
         .map(|i| {
             let (&lo, &hi) = t.get(i + 1).zip(t.get(i + p + 1))?;
-            let deg = Interval::point(p as f64);
-            Some(deg / (Interval::point(hi) - Interval::point(lo)))
+            Some(span_derivative_scale(
+                p,
+                Interval::point(lo),
+                Interval::point(hi),
+            ))
         })
         .collect()
 }
@@ -1578,8 +1583,7 @@ fn pair_scales(span: Span<'_>) -> Option<Vec<Interval>> {
 /// The derivative scale of a Bézier block over `[a, b]`: `degree / (b − a)`
 /// for every pair.
 fn bezier_scales(degree: usize, (a, b): (f64, f64)) -> Vec<Interval> {
-    let deg = Interval::point(degree as f64);
-    vec![deg / (Interval::point(b) - Interval::point(a)); degree]
+    vec![span_derivative_scale(degree, Interval::point(a), Interval::point(b)); degree]
 }
 
 /// The part of `span`'s knot interval inside `w`, when it is a
