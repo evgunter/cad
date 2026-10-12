@@ -276,10 +276,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    a pole or apex), **prefer-intrinsic enforcement** (D2) and the
    **positive-volume orientation invariant** (exact-B-rep signed volume
    definitely-negative ⇒ invalid; margin V/A_total, a length; zero and
-   escalated exempt — at rest an orientation probe, not a thinness
-   gate, so ε-tightening never flips valid→invalid; a boolean's door
-   reads a solid's only shell certified in band as the in-band shell
-   it is, D10's Booleans clause). Laminae live here, not at
+   escalated exempt — an orientation probe, not a thinness gate, at
+   every door, so ε-tightening never flips valid→invalid). Laminae live here, not at
    tier 2: two faces glued along their whole shared boundary is a
    two-hemisphere ball's incidence structure, so a zero-volume lamina
    is a geometric defect, not a topological one. Global
@@ -1495,7 +1493,11 @@ against it, never written by hand.
 otherwise it refuses. It glues what its verdicts decide Zero where an
 arm exists for the carrier pair (D1's frontier), keeping one fixed
 operand's description for a merged face, and refuses what falls in the
-sliver band. Its result holds no in-band pair or shell: the door's
+sliver band. Its result holds no in-band pair, a pair of result cells
+whose one census number lies in band, and no in-band shell, a shell of
+a solid of several shells whose role is certified in band; a solid's
+only shell is its outer shell and poses no role question, and how thin
+a result is gets judged by its pairs alone. The door's
 finished-body gate decides this on the result alone and refuses it as
 the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
 the geometry), never silently; a definite finding there is a kernel
