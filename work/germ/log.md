@@ -1040,3 +1040,19 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **CONCURRENT pair** r4886a and r4886b, local Opus. Brief template sha256 `a24c3c21874d`, with `@@LANEID@@` placeholders so no substitution defect this time. Coding byte 146 (even → A = r4886a).
 - 2026-10-12 18:50 — Lens fork: designer A has written three probe files (latest 18:44); B has no files yet but was dispatched at the same time.
 - 2026-10-12 — Lens fork: designer B's first report is in (saved scratchpad/fork-lens/report-B.md). Recommendation: no new mechanism and no refusal. The chord's existing arc rule owns the lens, and U-T4 implements it for the spiric oval, with row 3 as the regression row. Confidence: likely, near sure. Rejects part of the framing: 'only vertex contacts' names no class after the reduction, and the bar runs across the hole, not along the axis. Measured on main: corner lenses on sphere, oblique rod and cone build true bodies (84 six-op runs). A certificate refusal would refuse up to 634 six-op runs / 93 tests that build today. Proposes changing no ratified text. Off-question findings, unfiled: a donut box pose refuses `CurvedPierceUnsupported`; a two-face donut `RingHomingAmbiguous`; undecided `point_in_solid` on rod poses. Waiting on A.
+- 2026-10-12 19:40 — Lens fork: **designer A's first report is in** (saved to scratchpad/fork-lens/report-A.md; its report.md write was refused).
+  - **A's recommendation:** not a fork, and no new mechanism in any layer. The join already pairs B5's corners on one loop; U-T4's spiric arc goes through `arc_leaving`/`oriented_arc`, and row 3 is the pin. Confidence: sure (likely on the unbuilt arm).
+  - **Measured:** sphere and cylinder corner lenses build true bodies. Whether a lens is "vertex-only" depends on where a seam falls.
+  - **Disclosed a leak:** a heading grep showed two fragments of the forbidden option text.
+- 2026-10-12 19:40 — **The two designers agree** on the final state (trace via the existing arc rule; no guard). No reconciliation round.
+- 2026-10-12 19:40 — **`[ev]` PR 4895 opened:**
+  - title: "[ev] torus spec Q1: trace the fat corner bar's lens through the chord's arc rule, with no guard";
+  - spec §1.4, the §2 lens row, U-T4 row 3 and Q1 rewritten as the answer;
+  - the c5 item has `needs_ev: true` and a "question for Ev" section;
+  - DESIGN-FORK-LOG row 122 recommendation half (A/B only);
+  - subscribed.
+- 2026-10-12 19:40 — **Off-question findings to triage (unfiled):**
+  - B: a two-face donut `RingHomingAmbiguous` with the torus first. Check against `a-pierce-ring-on-a-one-face-torus-face-reads-undecided` before filing.
+  - B: a donut box refuses `CurvedPierceUnsupported`. A says this is correct, a tangent neighbour edge.
+  - A: a seam-turned cylinder `point_in_solid` `WallOutlineUnsupported` (INSIDE's ringed-wall family).
+  - A and B: test-only rows pinning the sphere/cylinder/cone corner lens and B5's segment listing. These are folded into U-T4's row 3 text.
