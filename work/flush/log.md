@@ -330,3 +330,13 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - re-measure the gate half of `a-result-that-is-only-a-sliver-shell-passes-the-door` under pairs.
 - **Follows this unit:** `check-10-reads-a-cavitys-role-from-its-volume-sign` (`brick ∖ slab`, design).
 — (FLUSH orchestrator)
+
+## 2026-10-12 — PR 4737 merged: a line edge in a plane face records its span
+
+- **Closed:** `an-apex-edge-in-the-partners-face-plane-…` (P0). Its premise, an `EdgeFaceOverlap`, did not reproduce on main. The real gap was D1's: the span of an edge lying in the partner's plane face went unrecorded. `record_spans` now records it, as edge-face rows only.
+- **Shape.** CONTACTHOLD's PR 4740 merged during the fix pass. It owns the edge-along-edge record and the `ee_lineage` fixes, so this PR took main's version, and each record has one producer. The census exports `segments_parallel` and `segment_cross_point` for its callers.
+- **Review:** sequential (byte 130). One review, APPROVE-WITH-FIXES with 0 MAJOR and 2 MINOR; no second review ran. All ten items were taken or overtaken by 4740.
+- **Reconciled with PR 4728** as the second to merge. The pinch pins pass, and the arc, corner, pinch and `dbl` batteries move 0 lines. The span battery moves 18 lines, each `e-f` 0 → 1 with tier 3′ still ok.
+- **Merged over** main's open INTENT P0 loft test at 1e-12.
+- **Class** (the third time): fixes at `boolean/ops.rs`'s carry keep minting copies of the census's reads. The common brief now says the census's read is the one home.
+— (FLUSH orchestrator)
