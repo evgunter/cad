@@ -566,10 +566,10 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<Vec<EdgeJoin>, BooleanError> {
     let joined = body.join_edges(band, tol)?;
     for j in &joined {
-        desc.substitute(Cell::Vertex(j.vertex), Cell::Edge(j.kept));
-        desc.substitute(Cell::Edge(j.gone), Cell::Edge(j.kept));
+        desc.substitute((Cell::Vertex(j.vertex), Cell::Edge(j.kept)))?;
+        desc.substitute((Cell::Edge(j.gone), Cell::Edge(j.kept)))?;
         if let Some(v) = j.conventional {
-            desc.substitute(Cell::Vertex(v), Cell::Edge(j.kept));
+            desc.substitute((Cell::Vertex(v), Cell::Edge(j.kept)))?;
         }
     }
     Ok(joined)

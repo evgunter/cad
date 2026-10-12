@@ -2,10 +2,11 @@
 id: a-vertex-on-face-record-whose-vertex-the-join-took-reads-its-face-by-key
 kind: issue
 title: A vertex-on-face record whose vertex the join took reads a divided face by its key, not the piece the point rests on
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P2
 cost: M
+branch: fuse/records-read-the-piece
 ---
 
 
