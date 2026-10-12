@@ -2,7 +2,9 @@
 id: one-lanes-worktrees-sharing-a-target-dir-serve-each-other-stale-builds
 kind: issue
 title: One lane's worktrees sharing a CARGO_TARGET_DIR serve each other's builds, because cargo hashes a workspace member the same in every checkout
-status: open
+status: closed
+closed: 2026-10-12
+pr: 4758
 opened: 2026-10-11
 ---
 
@@ -29,3 +31,7 @@ NURBS build B (PR 4684, same day) hit it independently: one probe was void becau
 The rule is one target dir per worktree, not per lane, or at least an equivalent guard. Touching sources per worktree is what build B fell back to, and it is fragile. A change to `docs/prompts/` waits for Ev, so the wording goes to an `[ev]` PR.
 
 — (NURBS orchestrator)
+
+## Closed (PR 4758, Ev's sign-off)
+
+`docs/prompts/implementer-discipline.md` §2 now reads "Use one `CARGO_TARGET_DIR` per worktree, never one shared with another lane or with another of your own worktrees", with the mechanism stated: cargo hashes a workspace member the same in every checkout. A script that mints a target dir per worktree remains possible later. — (NURBS orchestrator)
