@@ -1019,10 +1019,10 @@ impl SplitHalf {
     }
 }
 
-/// **A crossing's sense** (N2): whether the crossed edge, as the body
-/// that holds it stores it, enters or leaves at the crossing the closed
-/// body the crossing face belongs to. A side of the crossing with no
-/// portion of the edge counts as outside that body.
+/// **A crossing's sense** (N2): where the crossed edge's two sides at
+/// the crossing lie against the closed body the crossing face belongs
+/// to, the edge read as the body that holds it stores it. A side lying
+/// on the face counts as inside.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -1031,6 +1031,12 @@ pub enum Sense {
     Enters,
     /// The edge runs from inside the body out of it.
     Leaves,
+    /// The edge lies outside the body on both sides: a touch from
+    /// outside.
+    Outside,
+    /// The edge lies in the closed body on both sides: a touch from
+    /// inside.
+    Inside,
 }
 
 impl Sense {
@@ -1040,7 +1046,15 @@ impl Sense {
         match self {
             Self::Enters => Self::Leaves,
             Self::Leaves => Self::Enters,
+            touch @ (Self::Outside | Self::Inside) => touch,
         }
+    }
+
+    /// Whether the edge passes through the body's boundary there, so
+    /// the sense reads the edge's orientation.
+    #[must_use]
+    pub fn crosses(self) -> bool {
+        matches!(self, Self::Enters | Self::Leaves)
     }
 }
 
@@ -1257,10 +1271,9 @@ pub enum RoleSeg {
     /// A zip-minted seam entity: the crossing of an A-operand entity
     /// and a B-operand entity, by their operand names. An edge is
     /// face × face. A vertex is face × face (every incident seam line
-    /// agreeing on one face pair), or edge × vertex / vertex × edge (the
-    /// partner read from the reduction's contact records); an edge
-    /// crossing a face is a [`RoleSeg::Crossing`], and two edges
-    /// crossing an [`RoleSeg::EdgeCrossing`]. Several pieces of one seam
+    /// agreeing on one face pair); an edge meeting a face is a
+    /// [`RoleSeg::Crossing`], and two edges meeting an
+    /// [`RoleSeg::EdgeCrossing`]. Several pieces of one seam
     /// edge carry a `Fragment(Ends)` after it. A seam JUNCTION — the
     /// vertex where k ≥ 2 seam lines meet and no operand edge does — is
     /// named by the sorted run of those lines' face × face `Seam`
@@ -1280,7 +1293,7 @@ pub enum RoleSeg {
         b: NameRef,
     },
     /// A vertex where an edge of one side of a boolean or union meets a
-    /// face of the other, crossing it or ending in it, by the edge, the
+    /// face of the other, crossing or touching it, by the edge, the
     /// face and the edge's [`Sense`] against the closed body the face
     /// belongs to (N2). Crossings of one edge by one face with one sense
     /// carry a `Fragment(OrderAlong)` after it when there are several.
@@ -1292,7 +1305,7 @@ pub enum RoleSeg {
         /// The edge's sense at the vertex.
         sense: Sense,
     },
-    /// A vertex where an edge of each side of a boolean or union cross,
+    /// A vertex where an edge of each side of a boolean or union meet,
     /// by the two edges, each with its [`Sense`] against the closed body
     /// of the other side (N2). In a pair boolean's table `a` is the A
     /// side; in a union's the two are in name order, each sense with its

@@ -120,11 +120,13 @@
 //! decides under predicate 2's name, **`fillet3_face_clearance`**, as
 //! that screen's closed form ([`strip_clearance`]); two cut-offs' feet
 //! on one rim under **`fillet3_cut_off_feet`**
-//! ([`super::open::end_face::shared_rims_clear`]). A ring edge must
-//! be a line or circle, and one of another carrier refuses typed. An
-//! outer-boundary edge is read exactly when it is a line or circle and
-//! through a certified bound ([`boxed_reach`]) when it is an ellipse,
-//! spiric or NURBS curve, and the refusal says which. An edge requested
+//! ([`super::open::end_face::shared_rims_clear`]). A ring edge read
+//! against a trimline must be a line or circle, and one of another
+//! carrier refuses typed. An outer-boundary edge, and an edge of a ring
+//! that carries a planar band's requested edge, is read exactly when it
+//! is a line or circle and through a certified bound ([`boxed_reach`])
+//! when it is an ellipse, spiric or NURBS curve, and the refusal says
+//! which. An edge requested
 //! in the same call is read at its own trim, and each cycle refuses at
 //! its least margin. Positive
 //! carries the ring or edge through; zero/negative refuses typed
@@ -224,12 +226,13 @@ use super::battery::{
 };
 use super::build::{Blended, face_cycle, face_cycle_edges, fan_at};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
-use super::open::end_face::{CapSliver, EndCut, foot_param, shared_rims_clear};
+use super::open::end_face::{CapSliver, CycleReading, EndCut, foot_param, shared_rims_clear};
 use super::open::planar::{
     BlankPlan, Corner, CutOffPlan, JointPlan, TurnPlan, blank_phase, corner_plan, cut_off_plan,
     joint_plan, turn_plan,
 };
 use super::open::ruled::{RuledPlan, ruled_phase};
+use super::reach::Unclear;
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, CornerConfig, classify};
 use geom_core::Tol;
 
@@ -747,12 +750,13 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         .flat_map(|p| p.slivers().map(|s| (s, p.link().convexity())))
         .chain(cut_offs.iter().map(|c| (&c.end.sliver, c.link.convexity())))
         .collect();
-    ring_clearance_pass(source, &opens, &rims, &slivers, &supports, band)?;
+    let unclear = ring_clearance_pass(source, &opens, &rims, &slivers, &supports, band)?;
     // ---- Predicate 2's reach: every band against every face of the
     // body that is not a support of its chain, in any shell. After the
     // exact meters above, which judge a support's own rings and edges
-    // where both would refuse.
-    super::reach::band_reach(source, &verdict.chains, radius, kind, band)?;
+    // where both would refuse; the end-face meter's three-way readings
+    // and the reach's make one verdict (`reach::Unclear`).
+    super::reach::band_reach(source, &verdict.chains, radius, kind, band, unclear)?;
 
     // ---- Mutation, on a clone. From here on every step is an Euler
     // operator or a certified setter; refusals map to Op/Certify. ----
@@ -2642,11 +2646,16 @@ pub fn ring_clearance_for_tests<T: Decide + Bounds>(
 
 /// The pre-mutation honesty pass (module docs): every ring of every
 /// touched support face must clear every blend trimline by a definite
-/// margin, in closed form; every other outer-boundary edge of a closed
-/// rim's supports must clear that support's trim; every edge a cut-off
-/// leaves on its end face must clear the sliver it removes; and
-/// every outer-boundary edge a planar band's local carve leaves on a
-/// support must clear the strip it removes.
+/// margin, in closed form, but a ring carrying a plane–plane link's
+/// requested edge, which is metered against that link's strip rather
+/// than its trimline; every other outer-boundary edge of a closed rim's
+/// supports must clear that support's trim; every edge a cut-off
+/// leaves on its end face must clear the sliver it removes; and every
+/// edge a planar band's local carve leaves on a support's outer cycle,
+/// or on a ring carrying a requested edge, must clear the strip it
+/// removes. An end-face cycle that is not clear but neither crosses the
+/// sliver is not refused here: its reading opens the request's
+/// three-way verdict, which predicate 2's reach completes.
 fn ring_clearance_pass<T: Decide + Bounds>(
     body: &Body<T>,
     opens: &[AdmittedOpen<'_, T>],
@@ -2654,11 +2663,19 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     slivers: &[(&CapSliver<T>, Convexity)],
     supports: &[RequestedBoundary<T>],
     band: Band,
-) -> Result<(), BlendError> {
+) -> Result<Unclear<T>, BlendError> {
     // (a) Open links: every ring of each support face against the
     // link's straight trimline on that face. A ring that is itself a
     // requested rim is read at its trim circle, through
-    // `ring_pieces`' co-requested read.
+    // `ring_pieces`' co-requested read. Against a plane–plane link's
+    // trimline, a ring carrying a planar band's requested edge is arm
+    // (d)'s instead: its own edge sits on the trimline, so the unbounded
+    // read would refuse it whatever the strip. A ruled link's trimline
+    // still meters it, since arm (d) meters planar strips alone.
+    let carried: Vec<LoopKey> = supports
+        .iter()
+        .flat_map(|s| s.rings().iter().copied())
+        .collect();
     for o in opens {
         let l = o.link();
         let mid = edge_midpoint(body, l.edge).ok_or_else(|| {
@@ -2687,7 +2704,8 @@ fn ring_clearance_pass<T: Decide + Bounds>(
             let fd = body
                 .get_face(face)
                 .ok_or_else(|| not_intact(EntityId::Face(face), "a link's support face"))?;
-            for &ring in &fd.rings {
+            let metered = |r: &&LoopKey| !l.arm.is_plane_plane() || !carried.contains(r);
+            for &ring in fd.rings.iter().filter(metered) {
                 let margins = ring_pieces(body, ring, face, opens, rims)?
                     .into_iter()
                     .map(|(edge, carrier, window)| {
@@ -2719,11 +2737,25 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     // of another cycle is neither crossed nor carried off with the
     // sliver. An edge whose carrier has no closed form here, one with no
     // certified geometry, or a lone-vertex cycle refuses rather than
-    // being skipped: no sampled screen meters an end face.
+    // being skipped: no sampled screen certifies an end-face edge clear.
+    //
+    // A cycle not clear of that region is read against the sliver `S`
+    // itself, three ways. A cycle with a witness certainly inside `S` and
+    // one certainly outside it crosses `S`'s boundary and refuses
+    // `RingClearance` at once, its margin the inside witness's depth; the
+    // cut cycle always has points outside, its rims running on past the
+    // feet. Another cycle wholly inside `S`, in closed form, is read
+    // inside; anything else is a bound, the enclosing region telling
+    // neither. Those two readings are not refused here but join the
+    // request's three-way verdict (`Unclear`), which the reach completes:
+    // the witnesses are samples, so a cycle that crosses with no witness
+    // on one side reads as a bound, never as inside.
+    let mut unclear = Unclear::new();
     for &(s, convexity) in slivers {
         let fd = body
             .get_face(s.cap)
             .ok_or_else(|| not_intact(EntityId::Face(s.cap), "a cut-off's end face"))?;
+        let decision = BlendDecision::RingClearance;
         for lp in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
             let lone = body
                 .get_loop(lp)
@@ -2737,6 +2769,9 @@ fn ring_clearance_pass<T: Decide + Bounds>(
             }
             let walk = loop_walk(body, lp)
                 .ok_or_else(|| not_intact(EntityId::Loop(lp), "a cut-off end face's cycle"))?;
+            let cut = walk.iter().any(|(_, _, edge)| s.rims.contains(edge));
+            let mut pieces = Vec::with_capacity(walk.len());
+            let mut least: Option<(T, Sign)> = None;
             for (_, _, edge) in walk {
                 if s.rims.contains(&edge) {
                     continue;
@@ -2755,22 +2790,65 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                          an ellipse, which the sliver meter needs",
                     )
                 })?;
-                ring_clearance(s.cap, convexity, margin, false, band)?;
+                pieces.push((carrier, window));
+                let sign = classify(BlendSite::Chain, decision, Margin::of(margin), band)?;
+                if sign == Sign::Positive {
+                    continue;
+                }
+                if least.is_none_or(|(l, _)| margin.hi() < l.hi()) {
+                    least = Some((margin, sign));
+                }
+            }
+            let Some((margin, sign)) = least else {
+                continue;
+            };
+            match s.read_cycle(&pieces, cut, band) {
+                CycleReading::Crossing(deep) => {
+                    let sign = classify(BlendSite::Chain, decision, Margin::of(deep), band)?;
+                    return Err(BlendError::RingClearance {
+                        face: s.cap,
+                        chain: convexity,
+                        margin: super::battery::classified(decision, deep, band, sign),
+                        bounded: false,
+                    });
+                }
+                CycleReading::Inside(deep) => {
+                    let sign = classify(BlendSite::Chain, decision, Margin::of(deep), band)?;
+                    unclear.inside(
+                        deep,
+                        BlendError::WhollyInside {
+                            at: EntityId::Loop(lp),
+                            chain: convexity,
+                            margin: super::battery::classified(decision, deep, band, sign),
+                        },
+                    );
+                }
+                CycleReading::Bound => unclear.bound(
+                    margin,
+                    BlendError::RingClearance {
+                        face: s.cap,
+                        chain: convexity,
+                        margin: super::battery::classified(decision, margin, band, sign),
+                        bounded: true,
+                    },
+                ),
             }
         }
     }
     // (d) Planar strips: the local carve moves each requested edge's
     // strip off its support and leaves every other edge of the support
-    // where it was, so each outer-boundary edge the carve neither
-    // replaces nor shortens must be clear of the strip.
+    // where it was, so each edge of the outer cycle, and of a ring
+    // carrying a requested edge, that the carve neither replaces nor
+    // shortens must be clear of the strip.
     for support in supports {
         strip_clearance(body, support, opens, band)?;
     }
-    Ok(())
+    Ok(unclear)
 }
 
-/// **A planar support's outer boundary against the strips its local
-/// carve removes** — arm (d) of [`ring_clearance_pass`].
+/// **A planar support's outer cycle, and each ring carrying one of its
+/// requested edges, against the strips its local carve removes** — arm
+/// (d) of [`ring_clearance_pass`].
 ///
 /// One requested edge's strip on the support is the quadrilateral of
 /// the edge's two stations and the band's feet there, lying between the
@@ -2806,19 +2884,22 @@ fn ring_clearance_pass<T: Decide + Bounds>(
 /// strip between two stations; one region serving both would be the
 /// looser of the two on each.
 ///
-/// **Only the outer cycle is walked.** Every support here is an open
-/// link's, and arm (a) has already metered each of its rings, piece by
-/// piece, against the link's unbounded trimline, which encloses the
-/// strip. A requested ring edge never reaches this arm: arm (a) reads
-/// it at its own trimline ([`co_requested_trim`]), where its margin is
-/// zero, so its ring refuses there first
-/// (`band_planar_cut_off_meters::a_requested_ring_edge_refuses_at_the_ring_meter`).
+/// **The outer cycle and every ring carrying a requested edge are
+/// walked** ([`RequestedBoundary::rings`]). Every other ring is arm (a)'s, metered
+/// piece by piece against each link's unbounded trimline, which
+/// encloses the strip. A ring carrying a requested edge cannot be: its
+/// own edge, read at its trimline ([`co_requested_trim`]), sits at
+/// margin zero, so that read refuses however clear the strip
+/// (`band_planar_cut_off_meters::a_requested_ring_edge_builds_at_its_strip`).
 ///
 /// Not metered: requested edges, which their own strips replace and
-/// predicate 2 meters pairwise, and the edges at the two stations — on
-/// the support, the rim a cut-off splits at its foot or the requested
-/// edge a corner turns onto, each of which bounds the strip rather than
-/// crossing it. A line or circle edge is read exactly ([`piece_along`]);
+/// predicate 2 meters pairwise, and the edges at the two stations. A
+/// station's edge that is not requested is the one the carve splits at
+/// the station's foot — a cut-off's rim, on the end face's plane, or a
+/// turn's third edge, between two planar supports — so it is a line
+/// through the station and its foot: the line of the strip's side
+/// there, which meets the strip on that side alone, on whichever cycle
+/// carries it. A line or circle edge is read exactly ([`piece_along`]);
 /// any other carrier through [`boxed_reach`], a certified bound.
 fn strip_clearance<T: Decide + Bounds>(
     body: &Body<T>,
@@ -2827,12 +2908,16 @@ fn strip_clearance<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BlendError> {
     let face = support.face();
-    let outer = face_cycle(body, face).ok_or_else(|| {
-        not_intact(
-            EntityId::Face(face),
-            "a planar support has no outer cycle that walks",
-        )
-    })?;
+    let outer = body
+        .get_face(face)
+        .ok_or_else(|| not_intact(EntityId::Face(face), "a planar support"))?
+        .outer;
+    let mut boundary = Vec::new();
+    for lp in core::iter::once(outer).chain(support.rings().iter().copied()) {
+        let walk = loop_walk(body, lp)
+            .ok_or_else(|| not_intact(EntityId::Loop(lp), "a planar support's cycle"))?;
+        boundary.extend(walk.into_iter().map(|(_, _, edge)| edge));
+    }
     for chord in support.chords() {
         let o = point_of(body, chord.from)
             .ok_or_else(|| not_intact(EntityId::Vertex(chord.from), "a station's point"))?;
@@ -2851,11 +2936,7 @@ fn strip_clearance<T: Decide + Bounds>(
         };
         let (low_d, high_d) = (along(d), -along(-d));
         let across = -along(-m);
-        for &he in &outer {
-            let edge = body
-                .get_half_edge(he)
-                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a planar support's boundary"))?
-                .edge;
+        for &edge in &boundary {
             if opens.iter().any(|op| op.edge() == edge)
                 || edge_touches(body, edge, chord.from)
                 || edge_touches(body, edge, chord.to)
@@ -2865,7 +2946,8 @@ fn strip_clearance<T: Decide + Bounds>(
             let Some((carrier, window)) = stored_piece(body, edge)? else {
                 return Err(unbuilt_geometry(
                     EntityId::Edge(edge),
-                    "an outer-boundary edge of a planar support carries no certified carrier",
+                    "a boundary edge of a planar support beside a requested edge's strip carries \
+                     no certified carrier",
                 ));
             };
             let reach = |u: Vec3<T>| match carrier {
@@ -2878,7 +2960,8 @@ fn strip_clearance<T: Decide + Bounds>(
             let unread = || {
                 unbuilt_geometry(
                     EntityId::Edge(edge),
-                    "an outer-boundary edge of a planar support has no finite certified box",
+                    "a boundary edge of a planar support beside a requested edge's strip has no \
+                     finite certified box",
                 )
             };
             let (lo_m, hi_m) = reach(m).ok_or_else(unread)?;

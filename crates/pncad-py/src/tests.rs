@@ -4811,6 +4811,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_corner",
             "unsupported_geometry",
             "unsupported_run_out",
+            "wholly_inside",
         ],
         delegates: &["join_refusal_tag"],
     },

@@ -3,12 +3,19 @@
 //!
 //! A convex band removes the material between its supports and its
 //! blend surface, a concave one adds it: call that region the band's
-//! REACH. A face the chain does not blend that meets it would be cut
-//! through or buried, so the request refuses before any mutation:
-//! [`BlendError::FaceClearance`] with `bounded: false` when a point of
-//! the face's own boundary lies inside a region that is exactly the
-//! band's material, `bounded: true` when the face could not be
-//! certified clear.
+//! REACH. Each face the chain does not blend is read three ways, before
+//! any mutation: clear of it; crossing a region that is exactly a
+//! band's material, a point of the face's own boundary inside it and
+//! another outside ([`BlendError::FaceClearance`], `bounded: false`),
+//! which would need the band trimmed by the face; or wholly inside such
+//! a region, every cell of the face's box that may hold a point of its
+//! surface inside it ([`BlendError::WhollyInside`]), where the face goes
+//! with the material and that carve is not built. A face certified none
+//! of the three refuses [`BlendError::FaceClearance`] with
+//! `bounded: true`. The readings make one verdict for the request with
+//! a cut-off's end-face meter's ([`Unclear`]): a crossing anywhere wins,
+//! then a bound, so the request reads wholly inside only when every face
+//! and end-face cycle not clear does.
 //!
 //! # The region
 //!
@@ -60,7 +67,10 @@
 //! diagonal falls within the band's `escalate`, or the face's
 //! [`CELL_BUDGET`] is spent. The face's margin is the least cell bound:
 //! a cell of the surface may lie outside the face's trim, so a clear
-//! face can be refused uncertified, never the reverse.
+//! face can be refused uncertified, never the reverse. The inside
+//! reading is the same walk from the other side ([`inside_bound`]), over
+//! the face's whole box: a face whose surface leaves the material
+//! outside its trim is read uncertified, never inside.
 
 use std::collections::VecDeque;
 
@@ -69,7 +79,9 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, SurfaceKey, VertexKey};
 
 use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
-use super::battery::{Chain, Convexity, Link, carrier_of, classified, outward};
+use super::battery::{
+    Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
+};
 use super::surgery::not_intact;
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
@@ -81,9 +93,19 @@ use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 /// decide how far a clear one is chased before it is refused.
 const CELL_BUDGET: usize = 4096;
 
-/// How many places along each boundary edge of a refused face are read
-/// for a point inside the band's material.
-const EDGE_SAMPLES: u32 = 9;
+/// How many places along an edge, ends included, a three-way reading
+/// reads for a witness: a point of a face's boundary inside the band's
+/// material or out of it, or of an end-face edge inside the sliver or
+/// out of it. Each witness is decided where it is read, so the count
+/// decides only how readily a crossing is told from a bound.
+pub(in crate::blend) const EDGE_SAMPLES: u32 = 9;
+
+/// Whether a reading is certainly positive, by `escalate`: what makes a
+/// point a witness of a three-way reading. A reading that is never
+/// reported is not classified.
+pub(in crate::blend) fn sure<T: Bounds>(x: T, band: Band) -> bool {
+    x.lo() >= band.escalate()
+}
 
 /// A rectangle of a meridian sheet: `[ρ_lo, ρ_hi, z_lo, z_hi]`.
 type Rect<T> = [T; 4];
@@ -407,6 +429,16 @@ impl<T: Real> Bound<T> {
         }
     }
 
+    /// [`Self::high`] read as a statement about the band's own material,
+    /// as [`Self::at_strict`] reads `g`: the whole cell lies in the
+    /// material when it is negative.
+    fn high_strict(&self, cell: &Cell<T>) -> T {
+        match self {
+            Self::Sheet { slack, .. } => self.high(cell) + *slack + *slack,
+            _ => self.high(cell),
+        }
+    }
+
     /// [`Self::high`] over a rectangle of a sheet, for a sheet bound read
     /// in its own sheet ([`Self::frame`]); `None` for any other.
     fn high_in_sheet(&self, rect: Rect<T>) -> Option<T> {
@@ -679,11 +711,15 @@ struct Reach<T: Real> {
     /// the torus, the strip, the corner ball, the patch plane).
     surface: Surface<T>,
     /// Per support, the region whose points of that support the band
-    /// replaces: for a link, within the chord from the edge to the
-    /// support's trimline of the edge itself, over the edge's own extent —
-    /// that is the support's strip, since the battery's support screen
-    /// refuses any other boundary feature of the face within the
-    /// setbacks; for a corner patch, its bounds but the supports' sides.
+    /// replaces: for a straight link, within the chord from the edge to
+    /// the support's trimline of the edge itself, over the edge's own
+    /// extent, and on the trimline's side of it where the face comes back
+    /// across — that is the support's strip where [`screened`] reads
+    /// no other vertex of the face there, a reading of vertices and not
+    /// edges (`work/band/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`); for a
+    /// circular link, the disk of that chord about the edge in the
+    /// meridian sheet; for a corner patch, its bounds but the supports'
+    /// sides.
     replaces: Vec<(FaceKey, Vec<Bound<T>>)>,
     /// The bounds that confine `surface` to the patch the band mints,
     /// where they are not simply the reach's own but the band's
@@ -803,22 +839,42 @@ fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -
     }
 }
 
-/// **The premise [`Reach::replaces`] stands on**: the battery's support
-/// screen refuses any boundary feature of a support within the band's
-/// setbacks, so the strip of `face` a link's band replaces holds no
-/// vertex of `face` but the request's own (`ends`). A vertex strictly
-/// inside it is that screen's broken promise, and nothing could be
-/// excused there.
+/// **The premise [`Reach::replaces`] stands on, metered**: the strip
+/// of `face` a link's band replaces holds no vertex of `face` but the
+/// request's own (`ends`). `region` over-covers the strip on both sides
+/// of the edge; `across`, where the link has one, is the side of the
+/// edge's line the strip lies on, set back by a sliver. A vertex
+/// definitely inside both is a boundary feature of the support within
+/// the band's setback, and refuses as predicate 2 does
+/// ([`face_clearance_margin`]): its margin the vertex's depth inside
+/// them, its gap `gap(p)`, its distance from the edge's line. Most such
+/// features refuse before this: the battery's support screen reads one
+/// within the setbacks of a sample, on either side of the edge, and the
+/// surgery's closed-form strip meter one of a plane–plane link's planar
+/// support between the screen's samples. A ruled link's planar support
+/// has no strip meter, so a vertex there between the samples refuses
+/// here. A feature across the edge's line, which the band never
+/// reaches, is clear.
+///
+/// Returns whether `region` alone is vacant: no vertex of `face` but
+/// the request's possibly inside it. That is a reading of the face's
+/// vertices, not its edges: a curved edge can cross `region` with both
+/// its ends outside
+/// (`work/band/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`).
+#[must_use = "the vacancy decides whether a straight strip keeps both sides"]
 fn screened<T: Decide + Bounds>(
     body: &Body<T>,
     ends: &[VertexKey],
     face: FaceKey,
-    strip: &[Bound<T>],
+    region: &[Bound<T>],
+    across: Option<&Bound<T>>,
+    gap: impl Fn(Point3<T>) -> T,
     band: Band,
-) -> Result<(), BlendError> {
+) -> Result<bool, BlendError> {
     let f = body
         .get_face(face)
         .ok_or_else(|| not_intact(EntityId::Face(face), "a support the band replaces"))?;
+    let mut vacant = true;
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let vertices: Vec<VertexKey> = match body.get_loop(lp).map(|l| l.boundary) {
             Some(topo::LoopBoundary::Cycle { first }) => body
@@ -835,17 +891,17 @@ fn screened<T: Decide + Bounds>(
                 continue;
             }
             let p = point_of(body, v)?;
-            let inside = strip.iter().map(|b| b.at(p)).reduce(|m, g| m.max(g));
-            if inside.is_some_and(|g| g.hi() < -band.escalate()) {
-                return Err(BlendError::SurgeryInvariant {
-                    at: EntityId::Vertex(v),
-                    detail: "a support's vertex inside the strip its band replaces, which the \
-                             support screen refuses",
-                });
+            let Some(depth) = region.iter().map(|b| b.at(p)).reduce(|m, g| m.max(g)) else {
+                continue;
+            };
+            vacant &= depth.lo() >= 0.0;
+            let depth = across.map_or(depth, |b| depth.max(b.at(p)));
+            if depth.hi() < -band.escalate() {
+                face_clearance_margin(face, depth, gap(p), false, band)?;
             }
         }
     }
-    Ok(())
+    Ok(vacant)
 }
 
 /// The geometry of one link at its middle station: the edge point, the
@@ -907,6 +963,7 @@ fn straight_reach<T: Decide + Bounds>(
     link: &Link<T>,
     st: &Station<T>,
     corners: &[(VertexKey, Vec<Point3<T>>)],
+    request: &[VertexKey],
     chain: usize,
     band: Band,
 ) -> Result<Reach<T>, BlendError> {
@@ -1048,6 +1105,42 @@ fn straight_reach<T: Decide + Bounds>(
     let mut bounds = cross;
     bounds.extend(caps);
     bounds.extend(window(w_lo, w_hi));
+    // Per support, the strip over the edge's own extent: past an end
+    // the face may go on (beyond a reflex end) where no band replaces
+    // it. The slab of twice the boxes' pad past each end takes no more
+    // of the face than a sliver below the meter's reach, and holds a
+    // cell straddling an end only where the edge runs along an axis.
+    // Across the edge's line the face may come back (a peninsula of
+    // its own cycle) where no band replaces it either: where `screened`
+    // finds a vertex there, the strip is the trimline's side of the line
+    // alone, set back by the same slab; where it finds none, the strip
+    // keeps both sides, which hold a cell straddling the line at any
+    // orientation. That reads vertices alone (`screened`).
+    let mut replaces = Vec::new();
+    for (f, foot) in [(link.face_a, st.fa), (link.face_b, st.fb)] {
+        let chord = (foot - st.p).norm();
+        let slab = T::from_f64(2.0 * FaceBoxes::pad(band));
+        let (lo, hi) = (ends[0].0.min(ends[1].0), ends[0].0.max(ends[1].0));
+        let tube = Bound::Tube {
+            o: st.p,
+            a: tau,
+            r: chord,
+            inside: true,
+        };
+        let mut b: Vec<Bound<T>> = window(lo - slab, hi + slab)
+            .into_iter()
+            .map(|(_, b)| b)
+            .collect();
+        b.push(tube.clone());
+        let off = foot - st.p;
+        let n = (off - tau * off.dot(tau)).normalize();
+        let across = half_space(st.p - n * slab, n, foot);
+        let gap = |p: Point3<T>| tube.at(p) + chord;
+        if !screened(body, request, f, &b, Some(&across), gap, band)? {
+            b.push(across);
+        }
+        replaces.push((f, b));
+    }
     // The box: the spine's window, widened by the cross-section's reach
     // from its spine point (the edge point's for a chamfer).
     let axis_pt = st.c.map_or(st.p, |(c, _)| c);
@@ -1070,30 +1163,7 @@ fn straight_reach<T: Decide + Bounds>(
         sheet: None,
         sides,
         surface: link.blend.surface.clone(),
-        replaces: [(link.face_a, st.fa), (link.face_b, st.fb)]
-            .into_iter()
-            .map(|(f, foot)| {
-                // Over the edge's own extent: past an end the face may go
-                // on (beyond a reflex end) where no band replaces it. The
-                // slab of twice the boxes' pad past each end holds the
-                // cells of the face's box that straddle its end and no
-                // more of the face than a sliver below the meter's reach.
-                let chord = (foot - st.p).norm();
-                let slab = T::from_f64(2.0 * FaceBoxes::pad(band));
-                let (lo, hi) = (ends[0].0.min(ends[1].0), ends[0].0.max(ends[1].0));
-                let mut b: Vec<Bound<T>> = window(lo - slab, hi + slab)
-                    .into_iter()
-                    .map(|(_, b)| b)
-                    .collect();
-                b.push(Bound::Tube {
-                    o: st.p,
-                    a: tau,
-                    r: chord,
-                    inside: true,
-                });
-                (f, b)
-            })
-            .collect(),
+        replaces,
         confine: None,
         chains: vec![chain],
         skip,
@@ -1107,7 +1177,9 @@ fn circular_reach<T: Decide + Bounds>(
     body: &Body<T>,
     link: &Link<T>,
     st: &Station<T>,
+    request: &[VertexKey],
     chain: usize,
+    band: Band,
 ) -> Result<Reach<T>, BlendError> {
     let Surface::Torus {
         center,
@@ -1178,6 +1250,35 @@ fn circular_reach<T: Decide + Bounds>(
         };
         bounds.push((role, in_sheet(circle, T::zero())));
     }
+    // Per support, the disk of the chord about the rim in the meridian
+    // sheet: a closed rim bounds its planar support, so the face lies on
+    // one side of the rim alone.
+    let mut replaces = Vec::new();
+    for (f, foot) in [(link.face_a, st.fa), (link.face_b, st.fb)] {
+        let chord = (foot - st.p).norm();
+        let ring = in_sheet(
+            SheetFn::Circle {
+                p: ps.0,
+                q: ps.1,
+                r: chord,
+                sigma: T::one(),
+            },
+            T::zero(),
+        );
+        let gap = |p: Point3<T>| ring.at(p) + chord;
+        // The disk has no one-sided form to narrow to: `screened`
+        // refuses a vertex in it, and its vacancy changes nothing here.
+        let _vacant = screened(
+            body,
+            request,
+            f,
+            core::slice::from_ref(&ring),
+            None,
+            gap,
+            band,
+        )?;
+        replaces.push((f, vec![ring]));
+    }
     // Over line traces (a plane, a cylinder) a whole closed rim's bounds
     // are its band's own cross-section revolved, and `at_strict` takes
     // the slack the other way; a cone is read on both nappes and a
@@ -1195,18 +1296,7 @@ fn circular_reach<T: Decide + Bounds>(
         sheet: Some((o, a)),
         sides,
         surface: link.blend.surface.clone(),
-        replaces: [(link.face_a, st.fa), (link.face_b, st.fb)]
-            .into_iter()
-            .map(|(f, foot)| {
-                let ring = SheetFn::Circle {
-                    p: ps.0,
-                    q: ps.1,
-                    r: (foot - st.p).norm(),
-                    sigma: T::one(),
-                };
-                (f, vec![in_sheet(ring, T::zero())])
-            })
-            .collect(),
+        replaces,
         confine: None,
         chains: vec![chain],
         skip: Vec::new(),
@@ -1457,18 +1547,63 @@ fn face_bound<T: Decide + Bounds>(
             (a, b) => a.or(b),
         };
         if least.read(inner, off, small, band) {
-            let k = (0..3)
-                .max_by(|&i, &j| (hi[i] - lo[i]).total_cmp(&(hi[j] - lo[j])))
-                .unwrap_or(0);
-            let mid = 0.5 * (lo[k] + hi[k]);
-            let (mut h1, mut l2) = (hi, lo);
-            h1[k] = mid;
-            l2[k] = mid;
-            queue.push_back((lo, h1));
-            queue.push_back((l2, hi));
+            queue.extend(halves(lo, hi));
         }
     }
     least.done(band)
+}
+
+/// A box's two halves across its longest side.
+fn halves(lo: [f64; 3], hi: [f64; 3]) -> [([f64; 3], [f64; 3]); 2] {
+    let k = (0..3)
+        .max_by(|&i, &j| (hi[i] - lo[i]).total_cmp(&(hi[j] - lo[j])))
+        .unwrap_or(0);
+    let mid = 0.5 * (lo[k] + hi[k]);
+    let (mut h1, mut l2) = (hi, lo);
+    h1[k] = mid;
+    l2[k] = mid;
+    [(lo, h1), (l2, hi)]
+}
+
+/// **How surely a whole face lies inside a band's own material**: the
+/// most of the core's strict upper bounds over the cells of the face's
+/// box that may hold a point of its surface, `Some` only when each of
+/// those lies in the material by `escalate` — which puts every point of
+/// the face there, the box holding the face. `None` when a cell is
+/// neither off the surface nor inside before it can usefully be halved
+/// or the face's [`CELL_BUDGET`] is spent, or for a poison box.
+fn inside_bound<T: Bounds>(
+    core: &[Bound<T>],
+    surface: &Surface<T>,
+    (lo, hi): ([f64; 3], [f64; 3]),
+    band: Band,
+) -> Option<T> {
+    if lo.iter().chain(&hi).any(|x| x.is_nan()) {
+        return None;
+    }
+    let mut queue = VecDeque::from([(lo, hi)]);
+    let mut most: Option<T> = None;
+    let mut spent = 0;
+    while let Some((lo, hi)) = queue.pop_front() {
+        let cell = Cell::<T>::new(lo, hi);
+        if off_surface(surface, &cell).is_some_and(|off| sure(off, band)) {
+            continue;
+        }
+        let inner = core
+            .iter()
+            .map(|b| b.high_strict(&cell))
+            .reduce(|m, g| m.max(g))?;
+        if sure(T::zero() - inner, band) {
+            most = Some(most.map_or(inner, |m| m.max(inner)));
+            continue;
+        }
+        spent += 1;
+        if spent >= CELL_BUDGET || cell.lever.hi() <= band.escalate() {
+            return None;
+        }
+        queue.extend(halves(lo, hi));
+    }
+    most
 }
 
 /// A coaxial face's image in the sheet, along its own trace: an axial
@@ -1798,25 +1933,31 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
     Some(least.done(band))
 }
 
-/// The point of a face's boundary deepest in a reach's core: the most
-/// negative strict bound ([`Bound::at_strict`]) over [`EDGE_SAMPLES`]
-/// places along each boundary edge, ends included.
-fn deepest_boundary_point<T: Decide>(
+/// **A face's boundary read against a reach's core**, at
+/// [`EDGE_SAMPLES`] places along each boundary edge, ends included:
+/// the least strict bound ([`Bound::at_strict`]) of a place — negative,
+/// it is in the band's material — and the most plain one
+/// ([`Bound::at`]) — positive, it is out of it. `None` for a face with
+/// no boundary place.
+fn boundary_reading<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     core: &[Bound<T>],
-) -> Result<Option<T>, BlendError> {
+) -> Result<Option<(T, T)>, BlendError> {
     let f = body
         .get_face(face)
         .ok_or_else(|| not_intact(EntityId::Face(face), "a face the band reach reads"))?;
-    let strict = |x: Point3<T>| {
+    let most = |x: Point3<T>, g: fn(&Bound<T>, Point3<T>) -> T| {
         core.iter()
-            .map(|b| b.at_strict(x))
+            .map(|b| g(b, x))
             .reduce(|m, g| m.max(g))
             .unwrap_or_else(T::zero)
     };
-    let mut least: Option<T> = None;
-    let mut fold = |g: T| least = Some(least.map_or(g, |l: T| l.min(g)));
+    let mut reading: Option<(T, T)> = None;
+    let mut fold = |x: Point3<T>| {
+        let (inner, outer) = (most(x, Bound::at_strict), most(x, Bound::at));
+        reading = Some(reading.map_or((inner, outer), |(i, o)| (i.min(inner), o.max(outer))));
+    };
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let l = body
             .get_loop(lp)
@@ -1824,7 +1965,7 @@ fn deepest_boundary_point<T: Decide>(
         let first = match l.boundary {
             topo::LoopBoundary::Cycle { first } => first,
             topo::LoopBoundary::Empty { vertex } => {
-                fold(strict(point_of(body, vertex)?));
+                fold(point_of(body, vertex)?);
                 continue;
             }
         };
@@ -1840,25 +1981,82 @@ fn deepest_boundary_point<T: Decide>(
                 continue;
             };
             for i in 0..EDGE_SAMPLES {
-                fold(strict(c.eval(geom_brep::schedule_param(
-                    t0,
-                    t1,
-                    i,
-                    EDGE_SAMPLES,
-                ))));
+                fold(c.eval(geom_brep::schedule_param(t0, t1, i, EDGE_SAMPLES)));
             }
         }
     }
-    Ok(least)
+    Ok(reading)
+}
+
+/// **The request's three-way verdict**, over every face and end-face
+/// cycle that predicate 2's reach and a cut-off's end-face meter read
+/// not clear. A crossing refuses at once, nothing outranking it; a bound
+/// outranks an inside reading; so the request reads wholly inside only
+/// when every reading that is not clear does, whatever order the faces
+/// and cycles are read in. Of several bounds it names the least margin,
+/// and of several inside readings the shallowest, which bounds the depth
+/// of every one.
+pub(crate) struct Unclear<T> {
+    bound: Option<(T, BlendError)>,
+    inside: Option<(T, BlendError)>,
+}
+
+impl<T: Bounds> Unclear<T> {
+    /// Nothing read yet.
+    pub(crate) const fn new() -> Self {
+        Self {
+            bound: None,
+            inside: None,
+        }
+    }
+
+    /// A reading certified neither clear, nor inside, nor crossing, its
+    /// margin `margin`.
+    pub(crate) fn bound(&mut self, margin: T, refusal: BlendError) {
+        if self
+            .bound
+            .as_ref()
+            .is_none_or(|(m, _)| margin.hi() < m.hi())
+        {
+            self.bound = Some((margin, refusal));
+        }
+    }
+
+    /// A reading certified wholly inside, `margin` its (negative) depth.
+    pub(crate) fn inside(&mut self, margin: T, refusal: BlendError) {
+        if self
+            .inside
+            .as_ref()
+            .is_none_or(|(m, _)| margin.hi() > m.hi())
+        {
+            self.inside = Some((margin, refusal));
+        }
+    }
+
+    /// The request's refusal: a bound if any, else wholly inside if any.
+    ///
+    /// # Errors
+    ///
+    /// That refusal.
+    pub(crate) fn verdict(self) -> Result<(), BlendError> {
+        match self.bound.or(self.inside) {
+            Some((_, refusal)) => Err(refusal),
+            None => Ok(()),
+        }
+    }
 }
 
 /// **Meter every chain's reach against every face of the body it does
-/// not exclude** (module docs), before any mutation.
+/// not exclude** (module docs), before any mutation, completing the
+/// request's three-way verdict `unclear` (the end-face meter's readings
+/// so far).
 ///
 /// # Errors
 ///
-/// [`BlendError::FaceClearance`] for a face in a reach, or not certified
-/// clear of one; [`BlendError::Escalated`] for an in-band margin;
+/// [`BlendError::FaceClearance`] for a face crossing a reach, or not
+/// certified clear of one; [`BlendError::WhollyInside`] when every face
+/// and cycle read not clear lies wholly inside ([`Unclear`]);
+/// [`BlendError::Escalated`] for an in-band margin;
 /// [`BlendError::BodyNotIntact`] for a body the meter cannot read.
 pub(crate) fn band_reach<T: Decide + Bounds>(
     body: &Body<T>,
@@ -1866,6 +2064,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
     size: T,
     kind: BlendKind,
     band: Band,
+    mut unclear: Unclear<T>,
 ) -> Result<(), BlendError> {
     let all: Vec<(usize, &Link<T>)> = chains
         .iter()
@@ -1911,16 +2110,13 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
     for (ci, link) in &all {
         let st = station(body, link)?;
         let mut r = if link.arm.is_coaxial_torus() {
-            circular_reach(body, link, &st, *ci)?
+            circular_reach(body, link, &st, &ends_all, *ci, band)?
         } else {
-            straight_reach(body, link, &st, &corners, *ci, band)?
+            straight_reach(body, link, &st, &corners, &ends_all, *ci, band)?
         };
         r.skip.extend(&supports[*ci]);
         r.skip.sort_unstable();
         r.skip.dedup();
-        for (f, strip) in &r.replaces {
-            screened(body, &ends_all, *f, strip, band)?;
-        }
         reaches.push(r);
     }
     let boxes = FaceBoxes::of(body, band)
@@ -2006,22 +2202,29 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             if sign == Sign::Positive {
                 continue;
             }
-            // Refused: a measurement where a point of the face's own
-            // boundary lies definitely inside the material of a band
-            // whose bounds are its own exactly, and the face is no
-            // chain's support (whose boundary the request may itself be
-            // carving away); a bound otherwise.
+            // Not clear: read against each reach whose bounds are its band's
+            // material exactly, unless the face is a chain's support (whose
+            // boundary the request may itself be carving away) or one that
+            // reach skips. CROSSING, a measurement, where a point of the
+            // face's boundary is certainly in that material and another
+            // certainly out of it; WHOLLY INSIDE where every point of the
+            // face is certainly in it; otherwise a bound.
             let supports_a_band = reaches
                 .iter()
                 .any(|r| r.replaces.iter().any(|(f, _)| *f == face));
-            for exact in reaches.iter().filter(|r| !r.core.is_empty()) {
-                if supports_a_band || exact.skip.binary_search(&face).is_ok() {
-                    continue;
-                }
-                let Some(depth) = deepest_boundary_point(body, face, &exact.core)? else {
+            let exacts: Vec<&Reach<T>> = if supports_a_band {
+                Vec::new()
+            } else {
+                reaches
+                    .iter()
+                    .filter(|r| !r.core.is_empty() && r.skip.binary_search(&face).is_err())
+                    .collect()
+            };
+            for exact in &exacts {
+                let Some((depth, out)) = boundary_reading(body, face, &exact.core)? else {
                     continue;
                 };
-                if classify_bound(depth)? == Sign::Negative {
+                if classify_bound(depth)? == Sign::Negative && sure(out, band) {
                     return Err(BlendError::FaceClearance {
                         at: EntityId::Face(face),
                         chain: chains[exact.chain].first().convexity,
@@ -2030,12 +2233,30 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                     });
                 }
             }
-            return Err(BlendError::FaceClearance {
-                at: EntityId::Face(face),
-                chain: chains[reach.chain].first().convexity,
-                margin: classified(decision, bound, band, sign),
-                bounded: true,
+            let inside = exacts.iter().find_map(|exact| {
+                inside_bound(&exact.core, &surface, fbox, band).map(|deep| (exact, deep))
             });
+            if let Some((exact, deep)) = inside {
+                let sign = classify_bound(deep)?;
+                unclear.inside(
+                    deep,
+                    BlendError::WhollyInside {
+                        at: EntityId::Face(face),
+                        chain: chains[exact.chain].first().convexity,
+                        margin: classified(decision, deep, band, sign),
+                    },
+                );
+                continue;
+            }
+            unclear.bound(
+                bound,
+                BlendError::FaceClearance {
+                    at: EntityId::Face(face),
+                    chain: chains[reach.chain].first().convexity,
+                    margin: classified(decision, bound, band, sign),
+                    bounded: true,
+                },
+            );
         }
         // The bands of the request's other chains: each mints its blend
         // surface over its own reach, a face this reach must clear too —
@@ -2099,16 +2320,19 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             let sign = classify_bound(bound)?;
             if sign != Sign::Positive {
                 // The other band has no face yet: name its chain.
-                return Err(BlendError::FaceClearance {
-                    at: EntityId::Edge(chains[other.chain].first().edge),
-                    chain: chains[reach.chain].first().convexity,
-                    margin: classified(decision, bound, band, sign),
-                    bounded: true,
-                });
+                unclear.bound(
+                    bound,
+                    BlendError::FaceClearance {
+                        at: EntityId::Edge(chains[other.chain].first().edge),
+                        chain: chains[reach.chain].first().convexity,
+                        margin: classified(decision, bound, band, sign),
+                        bounded: true,
+                    },
+                );
             }
         }
     }
-    Ok(())
+    unclear.verdict()
 }
 
 /// Whether two reaches are read in one and the same meridian sheet, so
@@ -2194,7 +2418,14 @@ pub fn band_reach_for_tests<T: Decide + Bounds>(
     }
     let (chains, _) =
         super::battery::broken_at_turns(req.body, super::battery::walk_chains(links), band)?;
-    band_reach(req.body, &chains, req.size, BlendKind::Fillet, band)
+    band_reach(
+        req.body,
+        &chains,
+        req.size,
+        BlendKind::Fillet,
+        band,
+        Unclear::new(),
+    )
 }
 
 #[cfg(test)]
@@ -2203,7 +2434,9 @@ mod tests {
     use geom_core::sym::with_session;
     use geom_core::{ParamSymbol, Sym, SymBudget};
 
-    use super::Cell;
+    use geom_core::{Point3, Vec3};
+
+    use super::{Bound, Cell, SheetFn};
 
     /// **A cell's corners are computed values**: box arithmetic over the
     /// faces' certified boxes produced them in `f64`, so at `Sym` each
@@ -2224,6 +2457,38 @@ mod tests {
         assert_eq!(
             revalued, [None; 4],
             "a corner, the centre and the lever are unknowns, not the constants the box read"
+        );
+    }
+
+    /// **A sheet bound read as the band's own material takes its slack
+    /// the other way**: `ρ − 1` about the `z` axis with slack `0.1`
+    /// encloses the material `ρ ≤ 0.9` by `ρ ≤ 1.1`. A point at `ρ =
+    /// 0.95`, and the cell `ρ ∈ [0.92, 0.95]`, lie in the enclosure but
+    /// not certainly in the material: the plain readings are negative,
+    /// the strict ones positive.
+    #[test]
+    fn a_sheet_bounds_strict_reading_takes_its_slack_the_other_way() {
+        let sheet = Bound::Sheet {
+            o: Point3::new(0.0, 0.0, 0.0),
+            a: Vec3::new(0.0, 0.0, 1.0),
+            f: SheetFn::Line {
+                alpha: 1.0,
+                beta: 0.0,
+                gamma: -1.0,
+            },
+            slack: 0.1,
+        };
+        let x = Point3::new(0.95, 0.0, 0.0);
+        let cell = Cell::<f64>::new([0.92, -0.01, -0.01], [0.95, 0.0, 0.01]);
+        let (at, strict) = (sheet.at(x), sheet.at_strict(x));
+        let (high, high_strict) = (sheet.high(&cell), sheet.high_strict(&cell));
+        assert!(
+            (at + 0.15).abs() < 1e-12 && (strict - 0.05).abs() < 1e-12,
+            "at ρ = 0.95: plain {at}, strict {strict}"
+        );
+        assert!(
+            high < 0.0 && high_strict > 0.0,
+            "over the cell: plain {high}, strict {high_strict}"
         );
     }
 }

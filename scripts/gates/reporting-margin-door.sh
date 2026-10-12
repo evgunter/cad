@@ -112,7 +112,7 @@ MINT_RE='MarginDiag>?::(value|enclosure)([^A-Za-z0-9_]|$)'
 # definition home that asks the margin for a sized recourse sentence, or
 # for either of the import door's.
 SIZED_ALLOWLIST=(
-  'crates/geom-brep/src/recourse.rs 5 the sized-decision table: a sized decision ends its Zero and Undecided arms in the sentence at a build or at rest and in the import door one, and a residual ends every arm in the one door miss sentence, each returned whole'
+  'crates/geom-brep/src/recourse.rs 3 the sized-decision table: a sized decision ends its Zero and Undecided arms in one sentence at a build or at rest and in the import door one, and a residual ends every arm in the one door miss sentence, each returned whole'
 )
 SIZED_RE='(sized_recourse|sized_recourse_in_file|miss_recourse_in_file)([^A-Za-z0-9_]|$)'
 

@@ -49,3 +49,19 @@ A union-level canonical name for a vertex the collapse sees minted at
 different fold steps. For example, the junction of every seam line
 through it in the finished body, whichever step minted it. Pin it with a
 row over every member order.
+
+## Since the touch ruling's build (EMIT, 2026-10-12, branch `emit/touch-crossing`)
+
+A union vertex where three or more member edges meet is named as the
+junction of the seam lines through it in the finished body
+(`emit_union::Flush::junction`). Measured over every member order:
+- three and four wedges with the plate: 7 and 15 names on main, 1 each
+  now;
+- three and four wedges alone: 3 and 10 names on main, 1 each now.
+
+`the_junction_where_the_wedges_meet_has_one_name_in_every_member_order`
+now runs every order of three wedges with the plate, three wedges and
+four wedges. What is left is two wedges with the plate (3 names, as on
+main): two members' edges meeting on a third member's face. It is
+filed with the touch ruling's residue as
+`work/emit/a-meeting-of-three-members-at-one-point-has-no-order-free-sense.md`.
