@@ -687,8 +687,19 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             );
             let reach = declared.reach_of(piercing, s.face, pierced_op, contact.face)?;
             let lump = super::sectors::tangent_lump(
-                &s_sector, &s_pierced, reach, n_pierced, s.normal, p, op, piercing, s.face, s.arm,
-                read, band,
+                &s_sector,
+                &s_pierced,
+                reach,
+                n_pierced,
+                s.normal,
+                p,
+                op,
+                piercing,
+                s.face,
+                s.reached_bounds(),
+                s.arm,
+                read,
+                band,
             )?;
             entries[k].class = lump;
             entries[(k + 1) % n].class = lump;

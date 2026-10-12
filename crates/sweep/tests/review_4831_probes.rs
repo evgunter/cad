@@ -287,27 +287,37 @@ fn p2_a_bore_inside_a_bigger_bore() {
     all_answer("p2", &got);
 }
 
+/// How far off tangency [`p3_a_nested_touch_just_off_tangent`] moves
+/// the thin disc: just outside the band at every ε.
+fn off_tangent() -> f64 {
+    1e4 * tol().get().eps
+}
+
 /// Near-tangent just outside the band: the nested aligned touch with the
-/// thin disc moved `d` inward (clear, every op at its closed form) and
+/// thin disc moved `d` ([`off_tangent`]) inward (clear, every op at its closed form) and
 /// outward (crossing in a thin lens, every body tier-3 clean and the four
-/// volumes consistent with the operands').
+/// volumes consistent with the operands'; at ε 1e-12 every outward op
+/// refuses `CurvedPierceUnsupported`).
 #[test]
 fn p3_a_nested_touch_just_off_tangent() {
     let pi = std::f64::consts::PI;
-    let d = 1e-5;
+    let d = off_tangent();
     let a = ext("fat", vec![circle(0.0, 0.0, 2.0)], 0.0, 1.0);
     let b = ext("thin", vec![circle(1.0 - d, 0.0, 1.0)], 0.0, 1.0);
     let got = four(
-        "p3 nested off by 1e-5",
+        "p3 nested off inward",
         &a,
         &b,
         |q| margin(disc(q, 0.0, 0.0, 2.0).max(slab(q, 0.0, 1.0))),
-        |q| margin(disc(q, 1.0 - 1e-5, 0.0, 1.0).max(slab(q, 0.0, 1.0))),
+        |q| margin(disc(q, 1.0 - off_tangent(), 0.0, 1.0).max(slab(q, 0.0, 1.0))),
         [Some(4.0 * pi), Some(3.0 * pi), None, Some(pi)],
         &grid(),
     );
     all_answer("p3 inward", &got);
     let b = ext("thin", vec![circle(1.0 + d, 0.0, 1.0)], 0.0, 1.0);
+    // At ε 1e-12 every op refuses typed: the thin disc's edges cross
+    // the fat disc's wall where no closed form reads the pierce.
+    let fine = tol().get().eps == 1e-12;
     let volume = |name: &str, got: Result<topo::BooleanResult<f64>, topo::BooleanError>| match got {
         Ok(topo::BooleanResult::Body(r)) => {
             assert_eq!(
@@ -315,7 +325,11 @@ fn p3_a_nested_touch_just_off_tangent() {
                 Ok(()),
                 "p3 outward {name}: tier 3"
             );
-            topo::mass_properties(&r.body, tol()).unwrap().volume
+            Some(topo::mass_properties(&r.body, tol()).unwrap().volume)
+        }
+        Err(e) if fine && e.kind() == topo::BooleanErrorKind::CurvedPierceUnsupported => {
+            eprintln!("p3 outward {name}: refused {e}");
+            None
         }
         other => panic!("p3 outward {name}: {other:?}"),
     };
@@ -323,6 +337,16 @@ fn p3_a_nested_touch_just_off_tangent() {
     let a_b = volume("A ∖ B", topo::subtract(&a, &b, tol()));
     let b_a = volume("B ∖ A", topo::subtract(&b, &a, tol()));
     let meet = volume("∩", topo::intersect(&a, &b, tol()));
+    if fine {
+        assert!(
+            [union, a_b, b_a, meet].iter().all(Option::is_none),
+            "p3 outward at ε 1e-12: every op refuses, {union:?} {a_b:?} {b_a:?} {meet:?}"
+        );
+        return;
+    }
+    let (Some(union), Some(a_b), Some(b_a), Some(meet)) = (union, a_b, b_a, meet) else {
+        unreachable!("an op refused, and only at ε 1e-12 does one")
+    };
     for (what, got, want) in [
         ("∪ + ∩ = A + B", union + meet, 5.0 * pi),
         ("A ∖ B + ∩ = A", a_b + meet, 4.0 * pi),
@@ -483,86 +507,32 @@ fn p9_a_rod_seated_in_a_plates_bore() {
     all_answer("p9", &got);
 }
 
-/// A sliver-thin fat disc (r 2, z ∈ [0, 1e-5]) with the thin disc (r 1
-/// about (1, 0)) run past it both ways. At ε 1e-9 every op refuses with
-/// the kernel-bug kind `ClassificationInvariant`. OPEN DEFECT, not the
-/// intended answer: the second order along the fat disc's 1e-5 seam
-/// edge reads in the zero band, and the vertex pair's tangent descent
-/// leaves an `On` that no edge event resolves, tracked by
-/// `work/contacthold/a-sliver-thin-glued-tangency-leaves-an-on-code-past-srecledges.md`.
-/// At any other ε an op refuses or answers at its closed form, tier 3
-/// clean.
+/// The sliver family: a fat disc (r 2, z ∈ [0, h]) nested on a long
+/// thin one (r 1 about (1, 0), z ∈ [−1, 1 + 2h]), internally tangent
+/// along the ruling through (2, 0), across thicknesses `h` down to where
+/// the fat disc's ruling edge is too short for its height off the
+/// tangent plane to show. Every op answers at its closed form, tier 3
+/// clean, or refuses typed where [`sliver_refusal`] pins it, both
+/// operand orders; never `ClassificationInvariant`.
 #[test]
-fn p10_a_sliver_thin_disc_nested_on_a_long_one() {
+fn p10_the_sliver_family() {
     let pi = std::f64::consts::PI;
-    let h = 1e-5;
-    let a = ext("sliver fat", vec![circle(0.0, 0.0, 2.0)], 0.0, h);
-    let b = ext(
-        "thin long",
-        vec![circle(1.0, 0.0, 1.0)],
-        -1.0,
-        1.0 + 2.0 * h,
-    );
-    let (va, vb, meet) = (4.0 * pi * h, pi * (1.0 + 2.0 * h), pi * h);
-    let at_default = tol().get().eps == 1e-9;
-    for (name, got, want) in [
-        ("A ∪ B", topo::union(&a, &b, tol()), va + vb - meet),
-        ("A ∖ B", topo::subtract(&a, &b, tol()), va - meet),
-        ("B ∖ A", topo::subtract(&b, &a, tol()), vb - meet),
-        ("A ∩ B", topo::intersect(&a, &b, tol()), meet),
-    ] {
-        match got {
-            Err(topo::BooleanError::ClassificationInvariant {
-                what: "surviving record with an On code after srecledges",
-            }) if at_default => {}
-            _ if at_default => panic!(
-                "p10 {name}: the sliver row's open defect moved: {:?}",
-                got.map(|_| ())
-            ),
-            Ok(topo::BooleanResult::Body(r)) => {
-                assert_eq!(
-                    topo::validate_geometric(&r.body, tol()),
-                    Ok(()),
-                    "p10 {name}: tier 3"
-                );
-                let v = topo::mass_properties(&r.body, tol()).unwrap().volume;
-                assert!((v - want).abs() < 1e-9, "p10 {name}: volume {v} vs {want}");
-            }
-            Ok(topo::BooleanResult::Empty) => panic!("p10 {name}: empty"),
-            Err(e) => eprintln!("p10 {name}: refused {:?}", e.kind()),
-        }
-    }
-}
-
-// ---------------------------------------------------------------------
-// Delta review probes (fix pass bed312e377). Print-only where a refusal
-// is acceptable; a body is still checked against its oracle.
-// ---------------------------------------------------------------------
-
-fn print_four(pose: &str, got: &[String]) {
-    for g in got {
-        eprintln!(
-            "DELTA4831\t{pose}\t{}",
-            g.chars().take(200).collect::<String>()
-        );
-    }
-}
-
-/// The p10 sliver family across thicknesses: where does the kernel-bug
-/// refusal live?
-#[test]
-fn q1_the_sliver_family() {
-    let pi = std::f64::consts::PI;
+    let eps = tol().get().eps;
     for h in [1e-2, 1e-3, 1e-4, 3e-5, 1e-5, 3e-6, 1e-6] {
-        let a = ext("sliver fat", vec![circle(0.0, 0.0, 2.0)], 0.0, h);
-        let b = ext(
-            "thin long",
-            vec![circle(1.0, 0.0, 1.0)],
-            -1.0,
-            1.0 + 2.0 * h,
+        let pinned = sliver_refusal(eps, h);
+        let built = (
+            try_ext(vec![circle(0.0, 0.0, 2.0)], 0.0, h),
+            try_ext(vec![circle(1.0, 0.0, 1.0)], -1.0, 1.0 + 2.0 * h),
         );
+        let (Ok(a), Ok(b)) = built else {
+            assert_eq!(
+                pinned,
+                Some(Sliver::Unbuilt),
+                "p10 h={h:e} eps {eps:e}: the extrusion refused {built:?}"
+            );
+            continue;
+        };
         let (va, vb, meet) = (4.0 * pi * h, pi * (1.0 + 2.0 * h), pi * h);
-        let eps = tol().get().eps;
         for (name, got, want) in [
             ("A ∪ B", topo::union(&a, &b, tol()), va + vb - meet),
             ("A ∖ B", topo::subtract(&a, &b, tol()), va - meet),
@@ -571,31 +541,94 @@ fn q1_the_sliver_family() {
             ("B ∪ A", topo::union(&b, &a, tol()), va + vb - meet),
             ("B ∩ A", topo::intersect(&b, &a, tol()), meet),
         ] {
-            let r = match got {
+            let row = format!("p10 h={h:e} {name} eps {eps:e}");
+            match got {
                 Ok(topo::BooleanResult::Body(r)) => {
                     let v = topo::mass_properties(&r.body, tol()).unwrap().volume;
-                    let t3 = topo::validate_geometric(&r.body, tol()).is_ok();
                     assert!(
-                        (v - want).abs() < 1e-9 * want.max(1.0) && t3,
-                        "WRONG BODY q1 h={h} {name} eps {eps}: {v} vs {want}, t3 {t3}"
+                        (v - want).abs() < 1e-9 * want.max(1.0),
+                        "WRONG BODY {row}: volume {v} vs {want}"
                     );
-                    format!("OK {v:.12}")
+                    assert_eq!(
+                        topo::validate_geometric(&r.body, tol()),
+                        Ok(()),
+                        "{row}: tier 3"
+                    );
+                    assert!(
+                        pinned.is_none() || pinned == Some(Sliver::Free),
+                        "{row}: answered where {pinned:?} is pinned"
+                    );
                 }
-                Ok(other) => format!("{other:?}"),
-                Err(e) => format!(
-                    "REFUSED {:?} {}",
-                    e.kind(),
-                    e.to_string().chars().take(90).collect::<String>()
-                ),
-            };
-            eprintln!("DELTA4831\teps={eps:e}\tq1 h={h:e}\t{name}\t{r}");
+                Ok(topo::BooleanResult::Empty) => panic!("WRONG BODY {row}: empty"),
+                Err(e) => {
+                    let kind = e.kind();
+                    eprintln!("{row}: refused {kind:?}: {e}");
+                    assert_ne!(
+                        kind,
+                        topo::BooleanErrorKind::ClassificationInvariant,
+                        "{row}: {e}"
+                    );
+                    assert!(
+                        matches!(pinned, Some(Sliver::Refuses(k)) if k == kind)
+                            || pinned == Some(Sliver::Free),
+                        "{row}: refused {kind:?} where {pinned:?} is pinned"
+                    );
+                }
+            }
         }
     }
 }
 
+/// What a sliver-family row does at a sampled ε other than answering.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Sliver {
+    /// The fat disc's extrusion refuses: `h` lies in the band.
+    Unbuilt,
+    /// Every op refuses with this kind.
+    Refuses(topo::BooleanErrorKind),
+    /// An ε the table does not sample: an op answers or refuses typed.
+    Free,
+}
+
+/// The pinned non-answers of [`p10_the_sliver_family`]. At ε 1e-6 the
+/// escalation is a vertex `h` from a face read in band; at 1e-9 and
+/// 1e-12, a bisector bound levered at its sector's arm `h` reads its
+/// second-order departure in band:
+/// `work/contacthold/a-glued-tangencys-bisector-reads-its-curving-at-its-sectors-short-arm.md`.
+fn sliver_refusal(eps: f64, h: f64) -> Option<Sliver> {
+    use topo::BooleanErrorKind::Escalated;
+    if ![1e-6, 1e-9, 1e-12].contains(&eps) {
+        return Some(Sliver::Free);
+    }
+    match (eps, h) {
+        (1e-6, 1e-5) | (1e-9, 1e-4) | (1e-12, 3e-6) => Some(Sliver::Refuses(Escalated)),
+        (1e-6, _) if h < 1e-5 => Some(Sliver::Unbuilt),
+        _ => None,
+    }
+}
+
+/// [`ext`] that hands back the extrusion's refusal.
+fn try_ext(
+    loops: Vec<ProfileLoop<f64>>,
+    z0: f64,
+    h: f64,
+) -> Result<AtRestBody<f64>, sweep::ExtrudeError> {
+    let profile = Profile::new(sketch_at(z0), loops).validate(tol()).unwrap();
+    let body: Body<f64> = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )?
+    .body;
+    Ok(finished("sliver", body, tol()))
+}
+
 /// Operand order swapped for p4, p8, p9 (the four ops in B, A order).
 #[test]
-fn q2_the_new_rows_in_the_other_order() {
+fn p11_the_new_rows_in_the_other_order() {
     let pi = std::f64::consts::PI;
     let hole = ext(
         "holed plate",
@@ -608,9 +641,8 @@ fn q2_the_new_rows_in_the_other_order() {
         brick::<f64>((1.0, 4.0), (-4.0, 4.0), (0.5, 2.0), tol()),
         tol(),
     );
-    let eps = tol().get().eps;
     let got = four(
-        &format!("q2 p4 swapped eps={eps:e}"),
+        "p11 p4 swapped",
         &cut,
         &hole,
         |q| margin(boxd(q, (1.0, 4.0), (-4.0, 4.0), (0.5, 2.0))),
@@ -618,11 +650,11 @@ fn q2_the_new_rows_in_the_other_order() {
         [Some(66.0 - pi), Some(30.0), Some(30.0 - pi), Some(6.0)],
         &grid(),
     );
-    print_four("q2 p4 swapped", &got);
+    all_answer("p11 p4 swapped", &got);
     let fat = ext("fat", vec![circle(0.0, 0.0, 2.0)], 0.0, 1.0);
     let thin = ext("thin long", vec![circle(1.0, 0.0, 1.0)], -1.0, 3.0);
     let got = four(
-        "q2 p8 swapped",
+        "p11 p8 swapped",
         &thin,
         &fat,
         |q| margin(disc(q, 1.0, 0.0, 1.0).max(slab(q, -1.0, 2.0))),
@@ -630,7 +662,7 @@ fn q2_the_new_rows_in_the_other_order() {
         [Some(6.0 * pi), Some(2.0 * pi), Some(3.0 * pi), Some(pi)],
         &grid(),
     );
-    print_four("q2 p8 swapped", &got);
+    all_answer("p11 p8 swapped", &got);
     let plate = ext(
         "bored plate",
         vec![rect(-3.0, -3.0, 3.0, 3.0), circle(0.0, 0.0, 2.0)],
@@ -639,7 +671,7 @@ fn q2_the_new_rows_in_the_other_order() {
     );
     let rod = ext("rod", vec![circle(1.0, 0.0, 1.0)], -1.0, 3.0);
     let got = four(
-        "q2 p9 swapped",
+        "p11 p9 swapped",
         &rod,
         &plate,
         |q| margin(disc(q, 1.0, 0.0, 1.0).max(slab(q, -1.0, 2.0))),
@@ -647,13 +679,13 @@ fn q2_the_new_rows_in_the_other_order() {
         [Some(36.0 - pi), Some(3.0 * pi), Some(36.0 - 4.0 * pi), None],
         &grid(),
     );
-    print_four("q2 p9 swapped", &got);
+    all_answer("p11 p9 swapped", &got);
 }
 
 /// A cutter face covering only the middle of the hole's ruling
 /// (z ∈ [0.25, 0.75]): two edge–sector sites on one ruling.
 #[test]
-fn q3_a_plane_tangent_to_the_middle_of_a_hole() {
+fn p12_a_plane_tangent_to_the_middle_of_a_hole() {
     let pi = std::f64::consts::PI;
     let a = ext(
         "holed plate",
@@ -668,7 +700,7 @@ fn q3_a_plane_tangent_to_the_middle_of_a_hole() {
     );
     // cutter 3·8·0.5 = 12; meet 2·6·0.5 = 6
     let got = four(
-        "q3 middle of a hole",
+        "p12 middle of a hole",
         &a,
         &b,
         |q| margin(boxd(q, (-3.0, 3.0), (-3.0, 3.0), (0.0, 1.0)).max(-disc(q, 0.0, 0.0, 1.0))),
@@ -676,18 +708,18 @@ fn q3_a_plane_tangent_to_the_middle_of_a_hole() {
         [Some(42.0 - pi), Some(30.0 - pi), Some(6.0), Some(6.0)],
         &grid(),
     );
-    print_four("q3", &got);
+    all_answer("p12", &got);
 }
 
 /// Opposite senses, void crescent, cylinder × cylinder outside each
 /// other, one run long: ∪ two solids, ∩ empty, ∖ the operand.
 #[test]
-fn q4_two_discs_touching_outside_one_long() {
+fn p13_two_discs_touching_outside_one_long() {
     let pi = std::f64::consts::PI;
     let a = ext("disc", vec![circle(0.0, 0.0, 1.0)], 0.0, 1.0);
     let b = ext("long disc", vec![circle(2.0, 0.0, 1.0)], -1.0, 3.0);
     let got = four(
-        "q4 outside touch, long",
+        "p13 outside touch, long",
         &a,
         &b,
         |q| margin(disc(q, 0.0, 0.0, 1.0).max(slab(q, 0.0, 1.0))),
@@ -695,14 +727,14 @@ fn q4_two_discs_touching_outside_one_long() {
         [Some(4.0 * pi), Some(pi), Some(3.0 * pi), None],
         &grid(),
     );
-    print_four("q4", &got);
+    all_answer("p13", &got);
 }
 
 /// Opposite senses, void crescent, plane × cylinder with a staggered
 /// edge: a block's face x = 1 over z ∈ [0.5, 2] against a unit disc
-/// over z ∈ [0, 1]. ∖ and ∩ must answer or refuse; ∪ may refuse the slit.
+/// over z ∈ [0, 1]. ∖ and ∩ answer; ∪ refuses the slit it does not build.
 #[test]
-fn q5_a_block_resting_on_a_disc_wall_staggered() {
+fn p14_a_block_resting_on_a_disc_wall_staggered() {
     let pi = std::f64::consts::PI;
     let a = ext("disc", vec![circle(0.0, 0.0, 1.0)], 0.0, 1.0);
     let b = finished(
@@ -711,7 +743,7 @@ fn q5_a_block_resting_on_a_disc_wall_staggered() {
         tol(),
     );
     let got = four(
-        "q5 block on a disc wall, staggered",
+        "p14 block on a disc wall, staggered",
         &a,
         &b,
         |q| margin(disc(q, 0.0, 0.0, 1.0).max(slab(q, 0.0, 1.0))),
@@ -719,13 +751,17 @@ fn q5_a_block_resting_on_a_disc_wall_staggered() {
         [Some(pi + 12.0), Some(pi), Some(12.0), None],
         &grid(),
     );
-    print_four("q5", &got);
+    assert!(
+        got[0].starts_with("REFUSED TangentSlitArmUnbuilt"),
+        "p14 ∪: {got:#?}"
+    );
+    all_answer("p14 ∖ and ∩", &got[1..]);
 }
 
 /// Opposite senses, SHARED crescent, staggered: a bore (r 1 about (1, 0))
 /// in a plate over z ∈ [0.5, 1.5] against a solid disc r 2 over [0, 1].
 #[test]
-fn q6_a_bore_inside_a_disc_staggered() {
+fn p15_a_bore_inside_a_disc_staggered() {
     let pi = std::f64::consts::PI;
     let a = ext("disc r2", vec![circle(0.0, 0.0, 2.0)], 0.0, 1.0);
     let b = ext(
@@ -736,7 +772,7 @@ fn q6_a_bore_inside_a_disc_staggered() {
     );
     // A 4π; B 36 − π; A∩B over z∈[0.5,1]: 0.5·(4π − π) = 1.5π
     let got = four(
-        "q6 bore in disc, staggered",
+        "p15 bore in disc, staggered",
         &a,
         &b,
         |q| margin(disc(q, 0.0, 0.0, 2.0).max(slab(q, 0.0, 1.0))),
@@ -749,5 +785,5 @@ fn q6_a_bore_inside_a_disc_staggered() {
         ],
         &grid(),
     );
-    print_four("q6", &got);
+    all_answer("p15", &got);
 }

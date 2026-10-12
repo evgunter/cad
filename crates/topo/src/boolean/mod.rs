@@ -3725,7 +3725,8 @@ impl core::fmt::Display for BooleanError {
                 declaration, fact, ..
             } if declaration.class == crate::contact::ContactClass::Tangent => write!(
                 f,
-                "the Boolean read two of the operands' faces tangent along a line or rim,                  and a later reading of the same faces contradicts that: {}. {}",
+                "the Boolean read two of the operands' faces tangent along a line or rim, \
+                 and a later reading of the same faces contradicts that: {}. {}",
                 fact.map_or(crate::contact::CONTRADICTION_REASON, Contradiction::fact),
                 KERNEL_DEFECT_ENDING,
             ),
@@ -6869,6 +6870,15 @@ mod tests {
                 steer: None,
                 fact: None,
             },
+            BooleanError::ContactContradicted {
+                declaration: crate::contact::DeclaredContact {
+                    class: ContactClass::Tangent,
+                    ..declaration
+                },
+                margin: diag,
+                steer: None,
+                fact: None,
+            },
             BooleanError::ContinuationContradicted {
                 a: face,
                 b: face,
@@ -7152,6 +7162,16 @@ mod tests {
                 variant_of(&err),
                 "kind() projects each arm to its own kind, and label names it"
             );
+        }
+    }
+
+    /// A message string broken across source lines keeps its line
+    /// continuation: no sample renders a run of spaces.
+    #[test]
+    fn no_sample_message_renders_a_run_of_spaces() {
+        for err in sample_errors() {
+            let message = err.to_string();
+            assert!(!message.contains("  "), "{message:?}");
         }
     }
 }
