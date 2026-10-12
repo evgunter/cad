@@ -595,52 +595,25 @@ impl<T: SpanLocate> NurbsSurface<T> {
 impl<T: Real> NurbsSurface<T> {
     /// Certified **upper** bounds on `‖S_u‖` and `‖S_v‖` over the whole
     /// domain, in m/param: the pair-term bound of
-    /// [`geom_core::spline::rational_cell_stretch_sup`], per direction,
+    /// [`geom_core::spline::rational_stretch_sup`], per direction,
     /// the max over the nonempty cells. At unit weights it is the
     /// polynomial control-difference bound. At `Interval` certified, at
-    /// `f64` the same expression in round-to-nearest; poison (NaN) on a
-    /// weight that is not strictly positive and finite, never a refusal.
+    /// `f64` the same expression in round-to-nearest; never a refusal.
     /// Memoised outside a symbolic session only, as
     /// [`crate::curves::NurbsCurve3::speed_upper_bound`] is.
     pub fn stretch_sup(&self) -> (geom_core::SupSpeed<T>, geom_core::SupSpeed<T>) {
-        if geom_core::sym::session_installed() {
-            return self.stretch_sup_uncached();
-        }
-        *self.stretch.get_or_init(|| self.stretch_sup_uncached())
-    }
-
-    fn stretch_sup_uncached(&self) -> (geom_core::SupSpeed<T>, geom_core::SupSpeed<T>) {
-        let poison = || geom_core::SupSpeed::new(T::from_f64(f64::NAN));
-        if self
-            .weight_channel
-            .iter()
-            .any(|w| !(*w > 0.0 && w.is_finite()))
-        {
-            return (poison(), poison());
-        }
-        let (ku, kv) = (self.knots_u.structure(), self.knots_v.structure());
-        let nv = kv.control_count();
-        let points: Vec<[T; 3]> = self.control.iter().map(|p| [p.x, p.y, p.z]).collect();
-        let side = |along_u: bool| {
-            let mut sup: Option<T> = None;
-            for iu in ku.first_span()..=ku.last_span() {
-                let Some(su) = ku.span(iu) else { continue };
-                for iv in kv.first_span()..=kv.last_span() {
-                    let Some(sv) = kv.span(iv) else { continue };
-                    let b = geom_core::spline::rational_cell_stretch_sup(
-                        (su, sv),
-                        (self.knots_u.values(), self.knots_v.values()),
-                        &points,
-                        &self.weights,
-                        nv,
-                        along_u,
-                    );
-                    sup = Some(sup.map_or(b, |m| m.max(b)));
-                }
-            }
-            geom_core::SupSpeed::new(sup.unwrap_or_else(|| T::from_f64(f64::NAN)))
-        };
-        (side(true), side(false))
+        crate::curves::nurbs::session_memo(&self.stretch, || {
+            let points: Vec<[T; 3]> = self.control.iter().map(|p| [p.x, p.y, p.z]).collect();
+            let side = |along_u| {
+                geom_core::SupSpeed::new(geom_core::spline::rational_stretch_sup(
+                    (&self.knots_u, &self.knots_v),
+                    &points,
+                    &self.weights,
+                    along_u,
+                ))
+            };
+            (side(true), side(false))
+        })
     }
 
     /// The "no description yet" placeholder payload for

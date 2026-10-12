@@ -13,7 +13,7 @@ cost: M
 
 The rational **speed** bound now has one statement: the pair-term
 bound in `crates/geom-core/src/spline/derivative.rs`
-(`rational_span_speed_sup`, `rational_cell_stretch_sup`, the shared
+(`rational_speed_sup`, `rational_stretch_sup`, the shared
 `RationalPairTerm`), read by `NurbsCurve::speed_upper_bound` and
 `NurbsSurface::stretch_sup`. Two rational bound sites still use the
 older homogeneous hull-quotient recipe (recipe A in

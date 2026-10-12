@@ -1,6 +1,6 @@
 //! **The rational stretch bound** (`NurbsSurface::stretch_sup`, the
 //! tensor-cell pair-term bound of
-//! `geom_core::spline::rational_cell_stretch_sup`) dominates the true
+//! `geom_core::spline::rational_stretch_sup`) dominates the true
 //! `‖S_u‖` and `‖S_v‖`, never reads above the homogeneous recipe it
 //! replaced (`step-import`'s whole-patch `derivative_sup`), and is the
 //! polynomial control-difference bound at unit weights.

@@ -209,6 +209,20 @@ const RATIONAL_PIECE_SPLITS: usize = INTEGRAL_METER_SPLITS;
 /// of the multiplicative binomial, which lies well above it.
 const RATIONAL_PIECE_MAX_DEGREE: usize = 24;
 
+/// A spline's memoised meter: `compute` afresh inside a symbolic
+/// session, `cell`'s value outside one (filled on first read). A
+/// session's table holds the nodes it saw built, and a node minted
+/// anywhere else freezes in it to an unknown of its own
+/// (`geom_core::sym`, "No session, no tier"), so a memo served across
+/// that boundary would change what the session decides; inside one
+/// nothing the meter mints is kept.
+pub(crate) fn session_memo<V: Copy>(cell: &OnceLock<V>, compute: impl FnOnce() -> V) -> V {
+    if geom_core::sym::session_installed() {
+        return compute();
+    }
+    *cell.get_or_init(compute)
+}
+
 /// The piece count for a degree-`q` Bernstein row under the schedule
 /// `splits`: the largest power of two at most `splits` that
 /// [`pieces_exact`] admits. Never zero: one piece (the span's own row)
@@ -1215,67 +1229,34 @@ macro_rules! nurbs_curve {
             /// the caller's trilean.
             ///
             /// **Memoised outside a symbolic session only.** A session's
-            /// table holds the nodes it saw built, and a node minted
-            /// anywhere else freezes in it to an unknown of its own
-            /// (`geom_core::sym`, "No session, no tier"), so a memo
-            /// served across that boundary would change what the
-            /// session decides. Inside one the meter is computed afresh,
-            /// and nothing it mints is kept.
+            /// table holds the nodes it saw built, and a memo served
+            /// across that boundary would change what it decides; inside
+            /// one the meter is computed afresh and nothing it mints is
+            /// kept.
             pub fn speed_lower_bound(&self) -> geom_core::InfSpeed<T> {
-                if geom_core::sym::session_installed() {
-                    return self.speed_lower_bound_uncached();
-                }
-                *self.speed.get_or_init(|| self.speed_lower_bound_uncached())
+                session_memo(&self.speed, || self.speed_lower_bound_uncached())
             }
 
             /// A certified **upper** bound on `‖C′(t)‖` over the whole
             /// domain, in m/param: the pair-term bound of
-            /// [`geom_core::spline::rational_span_speed_sup`] (its module
-            /// docs hold the derivation), the max over the nonempty
-            /// spans. At unit weights it is the polynomial control
-            /// difference bound exactly. At `Interval` it is certified;
-            /// at `f64` it is the same expression in round-to-nearest.
-            /// It poisons (NaN) on a weight that is not strictly positive
-            /// and finite, and never refuses.
+            /// [`geom_core::spline::rational_speed_sup`] (the
+            /// `geom_core::spline::derivative` module docs hold the
+            /// derivation), the max over the nonempty spans. At unit
+            /// weights it is the polynomial control difference bound
+            /// exactly. At `Interval` it is certified; at `f64` it is the
+            /// same expression in round-to-nearest. It never refuses.
             ///
-            /// Memoised on the same terms as [`Self::speed_lower_bound`]:
-            /// outside a symbolic session only.
+            /// Memoised on the same terms as [`Self::speed_lower_bound`].
             pub fn speed_upper_bound(&self) -> geom_core::SupSpeed<T> {
-                if geom_core::sym::session_installed() {
-                    return self.speed_upper_bound_over(self.knots().first_span()..=self.knots().last_span());
-                }
-                *self.speed_sup.get_or_init(|| {
-                    self.speed_upper_bound_over(self.knots().first_span()..=self.knots().last_span())
+                session_memo(&self.speed_sup, || {
+                    let points: Vec<[T; $dim]> = self.control.iter().map(|p| [$(p.$c),+]).collect();
+                    geom_core::SupSpeed::new(geom_core::spline::rational_speed_sup(
+                        &self.knots,
+                        &points,
+                        &self.weights,
+                        self.knots().first_span()..=self.knots().last_span(),
+                    ))
                 })
-            }
-
-            /// [`Self::speed_upper_bound`] over the parameter window
-            /// `[t0, t1]`: the max over the spans the window meets
-            /// (located as [`KnotVector::span_at`] locates them, so an
-            /// end outside the domain clamps), poison at a NaN end.
-            pub fn speed_upper_bound_on(&self, t0: f64, t1: f64) -> geom_core::SupSpeed<T> {
-                let kv = self.knots();
-                match (kv.span_at(t0.min(t1)), kv.span_at(t0.max(t1))) {
-                    (Some(a), Some(b)) => self.speed_upper_bound_over(a.index()..=b.index()),
-                    _ => geom_core::SupSpeed::new(T::from_f64(f64::NAN)),
-                }
-            }
-
-            /// The pair-term bound over the span indices `spans`.
-            fn speed_upper_bound_over(
-                &self,
-                spans: core::ops::RangeInclusive<usize>,
-            ) -> geom_core::SupSpeed<T> {
-                if self.weight_channel.iter().any(|w| !(*w > 0.0 && w.is_finite())) {
-                    return geom_core::SupSpeed::new(T::from_f64(f64::NAN));
-                }
-                let points: Vec<[T; $dim]> = self.control.iter().map(|p| [$(p.$c),+]).collect();
-                geom_core::SupSpeed::new(geom_core::spline::rational_speed_sup(
-                    &self.knots,
-                    &points,
-                    &self.weights,
-                    spans,
-                ))
             }
 
             /// [`Self::speed_lower_bound`]'s computation: once per curve

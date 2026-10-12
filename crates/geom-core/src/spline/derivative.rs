@@ -8,7 +8,7 @@
 //!
 //! # The rational speed bound
 //!
-//! [`rational_span_speed_sup`] is the one statement of an upper bound
+//! [`rational_speed_sup`] is the one statement of an upper bound
 //! on a rational spline's derivative, the **pair-term bound**. On a
 //! nonempty span of degree `p`, with `kᵢ = p/(u_{i+p+1} − u_{i+1})`,
 //!
@@ -33,7 +33,7 @@
 //!
 //! A tensor patch's `S_u` is, on a nonempty cell, the same sum over the
 //! `u` pairs of each of the cell's active columns, with `S` in the hull
-//! of the cell's active points: [`rational_cell_stretch_sup`] is the
+//! of the cell's active points: [`rational_stretch_sup`] is the
 //! same bound per direction, per cell. Both read one
 //! [`RationalPairTerm`].
 //!
@@ -153,11 +153,11 @@ fn pair_sup<T: Real, const D: usize>(
 /// The pair-term bound on `sup ‖C′‖` over one nonempty `span` (module
 /// docs: the derivation and why no knot difference is checked), for the
 /// rational spline with control `points` and `weights` over the `held`
-/// knot values of the vector `span` indexes. The weights are the
-/// caller's to have checked strictly positive and finite; the answer is
-/// poison (NaN) on an index past an array, never a refusal.
-#[must_use]
-pub fn rational_span_speed_sup<T: Real, const D: usize>(
+/// knot values of the vector `span` indexes; poison (NaN) on an index
+/// past an array, never a refusal. Private: `span` and `held` must
+/// index one vector, which [`rational_speed_sup`] pairs from one
+/// [`Knots`].
+fn rational_span_speed_sup<T: Real, const D: usize>(
     span: Span<'_>,
     held: &[T],
     points: &[[T; D]],
@@ -187,7 +187,7 @@ pub fn rational_span_speed_sup<T: Real, const D: usize>(
 
 /// The pair-term bound on one direction's derivative of a rational
 /// tensor patch over one nonempty cell `(su, sv)`: the surface twin of
-/// [`rational_span_speed_sup`]. `points` and `weights` are row-major,
+/// `rational_span_speed_sup`. `points` and `weights` are row-major,
 /// `nv` per `u` row (`[iu·nv + iv]`), over the `held_u` / `held_v`
 /// knot values of the vectors the spans index. Along `u` the pairs run
 /// along `u` in each of the cell's active columns, and `S_u` is their
@@ -195,8 +195,9 @@ pub fn rational_span_speed_sup<T: Real, const D: usize>(
 /// (`S` lies in their hull): the max over pairs and over every active
 /// point of the cell, over the cell's least active weight. Along `v`
 /// the same with the roles swapped. Poison on an index past an array.
-#[must_use]
-pub fn rational_cell_stretch_sup<T: Real, const D: usize>(
+/// Private for the reason [`rational_span_speed_sup`] is:
+/// [`rational_stretch_sup`] pairs each span with its values.
+fn rational_cell_stretch_sup<T: Real, const D: usize>(
     (su, sv): (Span<'_>, Span<'_>),
     (held_u, held_v): (&[T], &[T]),
     points: &[[T; D]],
@@ -249,9 +250,12 @@ pub fn rational_cell_stretch_sup<T: Real, const D: usize>(
     pair_sup(terms.into_iter(), &active, least)
 }
 
-/// [`rational_span_speed_sup`] over the nonempty spans `spans` of
-/// `knots` (indices into its vector, empty ones skipped): their max,
-/// or poison when none is nonempty.
+/// The pair-term bound on `sup ‖C′‖` (module docs) over the nonempty
+/// spans `spans` of `knots` (indices into its vector, empty ones
+/// skipped): their max, or poison when none is nonempty. The weights
+/// are positive by construction; a refinement that rounds one to zero
+/// divides by a zero least weight, which reads `+∞` or NaN, never a
+/// low finite number.
 #[must_use]
 pub fn rational_speed_sup<T: SpanLocate, const D: usize>(
     knots: &Knots<T>,
@@ -265,6 +269,37 @@ pub fn rational_speed_sup<T: SpanLocate, const D: usize>(
         .map(|span| rational_span_speed_sup(span, knots.values(), points, weights))
         .reduce(T::max)
         .unwrap_or_else(|| T::from_f64(f64::NAN))
+}
+
+/// The pair-term bound on `sup ‖S_u‖` (`along_u`) or `sup ‖S_v‖` of
+/// the rational tensor patch over `knots_u` × `knots_v` (module docs),
+/// with row-major `points` and `weights` (`[iu·nv + iv]`): the max over
+/// the nonempty cells, or poison when none is nonempty. A zero weight
+/// reads as it does in [`rational_speed_sup`].
+#[must_use]
+pub fn rational_stretch_sup<T: Real, const D: usize>(
+    (knots_u, knots_v): (&Knots<T>, &Knots<T>),
+    points: &[[T; D]],
+    weights: &[T],
+    along_u: bool,
+) -> T {
+    let (ku, kv) = (knots_u.structure(), knots_v.structure());
+    let nv = kv.control_count();
+    let mut sup: Option<T> = None;
+    for su in (ku.first_span()..=ku.last_span()).filter_map(|i| ku.span(i)) {
+        for sv in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
+            let b = rational_cell_stretch_sup(
+                (su, sv),
+                (knots_u.values(), knots_v.values()),
+                points,
+                weights,
+                nv,
+                along_u,
+            );
+            sup = Some(sup.map_or(b, |m| m.max(b)));
+        }
+    }
+    sup.unwrap_or_else(|| T::from_f64(f64::NAN))
 }
 
 #[cfg(test)]

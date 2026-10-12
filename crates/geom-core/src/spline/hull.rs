@@ -99,7 +99,7 @@
 //!   knot-difference formula in [`SplineCoeffs::derivative_coeffs`] is
 //!   the nonrational one, and a door here that ignored the weights
 //!   would be wrong. The rational derivative's bound is stated once in
-//!   [`super::derivative`] ([`super::derivative::rational_span_speed_sup`],
+//!   [`super::derivative`] ([`super::derivative::rational_speed_sup`],
 //!   the pair-term bound), over a span of held values at any `Real`:
 //!   this module's pair holds its weights as `f64` structure and cannot
 //!   carry a weight that moves with a parameter.

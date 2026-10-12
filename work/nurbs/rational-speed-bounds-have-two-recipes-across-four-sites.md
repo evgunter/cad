@@ -68,12 +68,11 @@ hull of the active points, so each norm is largest at one of them. It
 is never above recipe A, and at unit weights it is the polynomial
 control-difference bound. It is stated once, in
 `crates/geom-core/src/spline/derivative.rs` (`RationalPairTerm`,
-`rational_span_speed_sup`, `rational_speed_sup`, and the tensor-cell
-twin `rational_cell_stretch_sup`). It surfaces as
+`rational_speed_sup`, and the tensor-cell twin `rational_stretch_sup`). It surfaces as
 `NurbsCurve::speed_upper_bound` and `NurbsSurface::stretch_sup`
 (`SupSpeed`, memoised outside a symbolic session; certified at
-`Interval`, round-to-nearest at `f64`; NaN on a weight that is not
-finite and positive).
+`Interval`, round-to-nearest at `f64`; a weight a refinement rounds
+to zero divides to `+∞` or NaN).
 
 All four sites read it:
 - `shell.rs` `spline_speed` is deleted;
@@ -88,6 +87,12 @@ All four sites read it:
 `work/nurbs/chart-stretch-inf-rational-floor-is-unproven.md`. The
 second-order rational bounds are
 `work/nurbs/rational-second-derivative-bounds-have-two-recipes.md`.
+
+`geom-brep/src/offset_fit.rs` `m_tilde_sup` and `cell_terms`, raised
+in review, are not a rational speed bound and were not routed.
+`M̃ = w(A_u×A_v) − w_v(A_u×A) − w_u(A×A_v)` is the homogeneous normal
+numerator, a polynomial product spline whose sup is its coefficient
+hull, with no quotient and no `w_min`.
 
 **The zero check is not one predicate; it is gone.** The bound walks
 the nonempty spans (`KnotVector::span` answers `None` for an empty
