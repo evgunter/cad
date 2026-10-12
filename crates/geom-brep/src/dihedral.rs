@@ -874,6 +874,28 @@ pub enum MustCarryRefusal {
     Refuted,
 }
 
+impl MustCarryRefusal {
+    /// The refusal routed to its caller's three typed arms: an in-band
+    /// first-order station (the dihedral, with the deciding rung's
+    /// diagnostic), an in-band second-order station (the sagitta), or a
+    /// refuted smooth premise. One spelling of the split every caller
+    /// that names the three apart makes.
+    pub fn route<E>(
+        self,
+        first_order: impl FnOnce(Indeterminate) -> E,
+        second_order: impl FnOnce(Indeterminate) -> E,
+        refuted: impl FnOnce() -> E,
+    ) -> E {
+        match self {
+            Self::InBand(MustCarryEscalation::FirstOrder(escalation)) => {
+                first_order(escalation.diag())
+            }
+            Self::InBand(MustCarryEscalation::SecondOrder(diag)) => second_order(diag),
+            Self::Refuted => refuted(),
+        }
+    }
+}
+
 impl MustCarryVerdict {
     /// The one mapping from the verdict to what the join stores:
     /// jet-determinate ⇒ the intrinsic `TangentIntersection { pair,

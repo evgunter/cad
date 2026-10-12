@@ -60,13 +60,16 @@ executed on its branch. Item 3 is now where the boolean's wedge-end
 door has to go: since PR 3362, tier 3 passes a jet-determinate cusp
 nobody declared, so the refusal has to be the op's.
 
-- **Declared kisses still reach the pierce frontier.** Two unit
-  cylinders kissing externally (`(0,0)` and `(2,0)`), unioned with
-  each side-face pair declared `Tangent`, return
-  `CurvedPierceUnsupported` for every pair. A cylinder kissing a box
-  face along a ruling, declared `Tangent` on the right pair, gives the
-  same result. The declaration verifies and the crossing layer then
-  refuses.
+- **An external kiss is not this arm's.** Two unit cylinders kissing
+  externally (`(0,0)` and `(2,0)`) leave no junction under any op: C7
+  (`crates/topo/README.md`) reads them as two solids touching along the
+  ruling, and every op answers since PR 4781
+  (`wedge_end_doors::two_discs_kissing_externally_touch_at_every_op`,
+  `verbs_cylcyl_r1_review_probes::externally_tangent_walls_touch_at_every_op`).
+  A box whose edge lies on a cylinder's ruling, the two edges coincident
+  end to end, answers the same; staggered, it refuses
+  `CurvedBooleanUnsupported`
+  (`work/contacthold/a-same-side-slab-past-the-round-stops-at-curved-boolean-unsupported.md`).
 - **An internal kiss has no declaration.** A subtract of an internally
   tangent cylinder (`(0,1) r 1` out of `(0,2) r 2`) would leave the
   profile's lune as a solid. Declared `Tangent` on each of the four
@@ -75,11 +78,12 @@ nobody declared, so the refusal has to be the op's.
   only. When item 3 lands, the boolean form of a crescent has no
   declaration to route through. The profile's `.cusp()` is its only
   author.
-- The undeclared rows are pinned in
+- The rows that would build a wedge end are pinned in
   `crates/sweep/tests/wedge_end_doors.rs`
-  (`a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op`).
-  That row names the frontier's refusal kinds, so it will go red when
-  this item lands and has to move to the undeclared-tangency refusal.
+  (`a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op`):
+  the internal kiss's subtract and a plane cutter tangent to a hole
+  wall. That row names the frontier's refusal kinds, so it goes red
+  when this item lands.
 
 ## Note from CLEAVE (2026-10-03): the interior-locus case is this arm's, and is live
 
