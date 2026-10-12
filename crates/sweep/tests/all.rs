@@ -783,6 +783,8 @@ mod germ_interior_saddle;
 mod germ_plane_torus_chord;
 #[path = "germ_plane_torus_frame.rs"]
 mod germ_plane_torus_frame;
+#[path = "germ_plane_torus_spiric.rs"]
+mod germ_plane_torus_spiric;
 #[path = "germ_radial_hole.rs"]
 mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]

@@ -1665,7 +1665,10 @@ fn arc_leaving<T: Decide>(
     let tangent = conic.tangent(conic.param(p1));
     let along = leave.dir.dot(tangent) / tangent.norm();
     let (name, margin) = match leave.datum {
-        Datum::Germ => ("chord_arc_leave_germ", Margin::levered(along, conic.lever())),
+        Datum::Germ => (
+            "chord_arc_leave_germ",
+            Margin::levered(along, conic.lever()),
+        ),
         Datum::Section => (
             "chord_arc_leave_section",
             Margin::levered(along, geom_brep::curvature_lever_arm(wall, p1)),
@@ -5535,8 +5538,7 @@ mod section_case_pair_tests {
     fn the_pair_is_order_free() {
         let f = FaceKey::default();
         for (a, b) in [(plane(), cylinder()), (cylinder(), plane())] {
-            let got = section_case(f, band(), &a, &b, reach())
-                .expect("the rim arm is wired");
+            let got = section_case(f, band(), &a, &b, reach()).expect("the rim arm is wired");
             let SectionCase::Conic(c) = got else {
                 panic!("a square cut names a rim circle");
             };
@@ -5560,13 +5562,7 @@ mod section_case_pair_tests {
                 Ok(_) => panic!("a curved pair must refuse typed, never classify"),
             }
         }
-        match section_case(
-            f,
-            band(),
-            &plane(),
-            &plane(),
-            reach(),
-        ) {
+        match section_case(f, band(), &plane(), &plane(), reach()) {
             Err(SplitJoinError::SectionInvariant { .. }) => {}
             Err(e) => panic!("a planar pair must refuse SectionInvariant, got {e:?}"),
             Ok(_) => panic!("a planar pair must refuse typed here, never classify"),

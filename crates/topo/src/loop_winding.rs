@@ -161,7 +161,7 @@ const GAUSS16: [(f64, f64); 8] = [
 ];
 
 /// The pieces [`spiric_segment_term`]'s rule splits a span into.
-const SPIRIC_PIECES: u32 = 64;
+const SPIRIC_PIECES: u32 = 512;
 
 /// **A spiric arc's term** — [`conic_segment_term`]'s for a
 /// `Curve3::Spiric`, with a third member: a bound on the bulge's error.
@@ -180,16 +180,18 @@ const SPIRIC_PIECES: u32 = 64;
 /// `J` is an elliptic integral, taken by the 16-point Gauss–Legendre
 /// rule over [`SPIRIC_PIECES`] equal pieces. Its remainder is bounded
 /// from the integrand's analytic strip: off the real axis by `|Im t| ≤
-/// δ = min(1, f_min²/(16·r·(R + r)))`, `f_min² = (R − r)² − d²`, the
-/// radicand moves by at most `r·η·(2(R + r) + r·η) ≤ 6δ·r·(R + r) ≤
-/// f_min²/2` (`η = cosh δ − 1 + sinh δ ≤ 2δ`), so `f` is analytic there
-/// and `|f·cos t| ≤ M = 2(R + r)`. A piece of width `h` maps that strip
+/// δ = min(1, f_min²/(10·r·(R + r)))`, `f_min² = (R − r)² − d²`, the
+/// radicand moves by at most `r·η·(2(R + r) + r·η) ≤ 5δ·r·(R + r) ≤
+/// f_min²/2` (`η = cosh δ − 1 + sinh δ ≤ 1.72δ`, and `r < R`), so `f` is
+/// analytic there and `|f·cos t| ≤ M = 2(R + r)` (`|w| ≤ 1.5(R + r)²`,
+/// `cosh 1 < 1.55`). A piece of width `h` maps that strip
 /// to one of half-width `s = 2δ/h` about `[−1, 1]`, which holds the
 /// Bernstein ellipse `ϱ = s + √(s² + 1)`, and the rule's error on the
 /// piece is at most `(64/15)·M·ϱ^{−32}/(ϱ² − 1)·h/2` (Trefethen, ATAP
 /// Thm 19.3). The bulge's error is `2r` times the pieces' sum. A strip
-/// thin against the pieces leaves a bound the size of the bulge, which
-/// the winding reads as undecided, never wrong.
+/// thin against the pieces (an oval whose plane nears the inner
+/// equator) leaves a bound the size of the bulge, and the sum then has
+/// no winding to report rather than a wrong one.
 ///
 /// The length is `|Δ|` times the speed's supremum over a period,
 /// `r·√(1 + d²/f_min²)` ([`geom::spiric_rate_bounds`]): an upper bound,
@@ -230,10 +232,10 @@ pub(crate) fn spiric_segment_term<T: Real>(
     }
     let (pa, pb) = (at(ta), at(tb));
     let ends = f(tb) * tb.sin() - f(ta) * ta.sin();
-    let bulge = (center + u_ref * d - pa).cross(pb - pa)
-        + u_ref * (r * (T::from_f64(2.0) * j - ends));
+    let bulge =
+        (center + u_ref * d - pa).cross(pb - pa) + u_ref * (r * (T::from_f64(2.0) * j - ends));
     let f_min2 = (big_r - r).powi(2) - d.powi(2);
-    let delta = T::one().min(f_min2 / (T::from_f64(16.0) * r * (big_r + r)));
+    let delta = T::one().min(f_min2 / (T::from_f64(10.0) * r * (big_r + r)));
     let s = T::from_f64(2.0) * delta / h.abs();
     let rho = s + (s.powi(2) + T::one()).sqrt();
     let per_piece = T::from_f64(64.0 / 15.0) * T::from_f64(2.0) * (big_r + r)
@@ -632,10 +634,20 @@ impl<T: Decide> Body<T> {
         }
         let mut area = normal.dot(newell);
         // A spiric rule's error moves the area toward zero by as much as
-        // it could be off, and no further: a bound the size of the area
-        // leaves it undecided.
+        // it could be off. Where the area does not definitely clear it
+        // (**`bool_ring_run_winding_spiric_rule`**, the clearance over
+        // the perimeter, as the winding itself), the sum has no winding
+        // to report.
         if any_spiric {
             let error = error * normal.norm();
+            let clear = crate::validate::decide(
+                "bool_ring_run_winding_spiric_rule",
+                Margin::over_lever(area.abs() - error, perimeter),
+                band,
+            );
+            if !matches!(clear, Ok(Sign::Positive)) {
+                return None;
+            }
             area = area - area.max(-error).min(error);
         }
         Some(crate::validate::decide_reported(
@@ -645,3 +657,7 @@ impl<T: Decide> Body<T> {
         ))
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spiric_rows;

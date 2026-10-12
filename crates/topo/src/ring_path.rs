@@ -986,12 +986,11 @@ impl<T: Decide> Quadric<T> {
 ///   arrival arc, the root nearer the piece's end is the arrival.
 /// - A segment meets a conic's or an oval's plane where its ends'
 ///   offsets from it (**`split_ring_path_segment_side`**) differ in
-///   sign. An end on the plane is a meeting there alone, and a segment
-///   whose length is in the band (**`split_ring_path_lead_point`**: a
-///   lead from a point already on its tube) is its start; either is
-///   passed over where it is decided off the arc (on the plane's other
-///   loop, or out of the arc's span), and leaves the path undecided
-///   otherwise. A segment of decided length in the plane says nothing.
+///   sign. A segment whose length is in the band
+///   (**`split_ring_path_lead_point`**: a lead from a point already on
+///   its tube) lying on the plane is its start, passed over where that
+///   is decided off the arc (on the plane's other loop, or out of the
+///   arc's span). Any other end on the plane says nothing.
 /// - A ruling meets a circle piece's plane once (it is decided across
 ///   it, **`split_ring_path_line_across`**: the cosine between the
 ///   plane's normal and the ruling, levered at the piece's radius), and
@@ -1158,7 +1157,10 @@ pub(crate) fn path_parity<T: Decide>(
                     let [a0, a1] = in_span(s, span, slope);
                     readings.push([p0, p1, a0, a1, inside]);
                 }
-                (Piece::Segment { from, to, .. }, LoopArc::Conic { .. } | LoopArc::Spiric { .. }) => {
+                (
+                    Piece::Segment { from, to, .. },
+                    LoopArc::Conic { .. } | LoopArc::Spiric { .. },
+                ) => {
                     if arrival {
                         continue;
                     }
@@ -1167,40 +1169,33 @@ pub(crate) fn path_parity<T: Decide>(
                     let (d0, d1) = (n.dot(from - o), n.dot(to - o));
                     let s0 = decide_m("split_ring_path_segment_side", Margin::of(d0))?;
                     let s1 = decide_m("split_ring_path_segment_side", Margin::of(d1))?;
-                    let length = (to - from).norm();
                     // A segment whose length is in the band is the point
                     // it starts at: the lead from a point already on the
-                    // tube it moves onto.
-                    let point = s0 == Sign::Zero
-                        && s1 == Sign::Zero
-                        && decide_m("split_ring_path_lead_point", Margin::of(length))?
-                            == Sign::Zero;
-                    match (s0, s1) {
-                        (Sign::Zero, Sign::Zero) if !point => return Ok(None),
-                        // A segment off the plane meets it at its end there
-                        // alone, and a point at itself, which is no meeting
-                        // with the arc where it is decided off it: on the
-                        // plane's other loop, or out of the arc's span (a
-                        // point's at the arc's least speed). Otherwise the
-                        // path starts or ends on the arc, and says nothing.
-                        (Sign::Zero, _) | (_, Sign::Zero) => {
-                            let end = if s0 == Sign::Zero { from } else { to };
-                            let slope = if point {
-                                T::one()
-                            } else {
-                                ((d0 - d1) / length).abs()
-                            };
-                            let [a0, a1] = in_span(param(arc, end), sec.span, sec.speed * slope);
-                            let reading = [a0, a1, on_own(sec.own, end)];
-                            if reading.contains(&Ok(Sign::Negative)) {
-                                continue;
-                            }
-                            if let Some(&Err(diag)) = reading.iter().find(|r| r.is_err()) {
-                                return Err(diag);
-                            }
+                    // tube it moves onto. On the plane, it meets the arc
+                    // nowhere where that point is decided off it: on the
+                    // plane's other loop, or out of the arc's span, read
+                    // at the arc's least speed. Any other segment with an
+                    // end on the plane, and a point on the arc, says
+                    // nothing.
+                    if s0 == Sign::Zero || s1 == Sign::Zero {
+                        let point = s0 == Sign::Zero
+                            && s1 == Sign::Zero
+                            && decide_m(
+                                "split_ring_path_lead_point",
+                                Margin::of((to - from).norm()),
+                            )? == Sign::Zero;
+                        if !point {
                             return Ok(None);
                         }
-                        _ => {}
+                        let [a0, a1] = in_span(param(arc, from), sec.span, sec.speed);
+                        let reading = [a0, a1, on_own(sec.own, from)];
+                        if reading.contains(&Ok(Sign::Negative)) {
+                            continue;
+                        }
+                        if let Some(&Err(diag)) = reading.iter().find(|r| r.is_err()) {
+                            return Err(diag);
+                        }
+                        return Ok(None);
                     }
                     if s0 == s1 {
                         continue;
@@ -1454,9 +1449,13 @@ mod tests {
             .iter()
             .map(|e| {
                 quadric
-                    .torus_circle_arc(&e.carrier, e.params, band())
-                    .unwrap()
-                    .expect("a meridian or a parallel")
+                    .torus_spiric_arc(&e.carrier, e.params)
+                    .or_else(|| {
+                        quadric
+                            .torus_circle_arc(&e.carrier, e.params, band())
+                            .unwrap()
+                    })
+                    .expect("a meridian, a parallel or an oval")
             })
             .collect()
     }
@@ -1482,22 +1481,28 @@ mod tests {
     /// of the whole torus taken pairwise, every path [`Quadric::paths`]
     /// offers between them, against islands on the outer side, on the
     /// inner side, over the tube's top, between one plane's two
-    /// parallels, and wider than half a turn, and islands bounded by the
-    /// tube's top or bottom circle, read across the cylinder `ρ = R`. The paths run round the
+    /// parallels, and wider than half a turn, islands bounded by the
+    /// tube's top or bottom circle, read across the cylinder `ρ = R`, and
+    /// islands bounded by spiric ovals on either side of the axis's trace.
+    /// The paths run round the
     /// back of the tube and the far side of the axis, so they cross the
     /// islands' planes on each plane's other loop: those crossings are
     /// passed over by the arc's loop side. Nearly every pair is decided,
     /// and both parities are read.
     #[test]
     fn a_torus_path_crosses_an_island_by_the_oracle_parity() {
-        use super::torus_islands::{crest_islands, islands, torus};
+        use super::torus_islands::{crest_islands, islands, spiric_islands, torus};
         let mut far = 0usize;
         for f in frames() {
             for mirror in [false, true] {
                 let surface = torus(f, mirror);
                 let quadric = Quadric::of(&surface).unwrap();
                 let points = torus_grid(f);
-                for (name, island) in islands(f).into_iter().chain(crest_islands(f)) {
+                for (name, island) in islands(f)
+                    .into_iter()
+                    .chain(crest_islands(f))
+                    .chain(spiric_islands(f))
+                {
                     let arcs = torus_arcs(&quadric, &island);
                     let (mut decided, mut asked, mut odd) = (0usize, 0usize, 0usize);
                     for (i, &a) in points.iter().enumerate() {
