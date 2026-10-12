@@ -1,7 +1,7 @@
 //! Review probes for the ring-cycle ruled cut-off (PR 3243).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Sign, Tol};
+use geom_core::{Point2, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, Convexity, fillet_edges};
@@ -157,17 +157,17 @@ fn bore(x: f64, y: f64, a: f64) -> ProfileLoop<f64> {
 }
 
 /// **A bore in the sliver a keyhole crease's cut-off removes refuses
-/// `WhollyInside`**, where the cut-off runs in the cap's keyhole RING
-/// and the bore is a second ring of the same cap: it would go with the
-/// sliver, and that carve is not built. At r = 0.1 the upper junction's
-/// ball centre is `c = (√0.27, 0.3)` and its old vertex
+/// as a bound at its wall**, where the cut-off runs in the cap's keyhole
+/// RING and the bore is a second ring of the same cap. At r = 0.1 the
+/// upper junction's ball centre is `c = (√0.27, 0.3)` and its old vertex
 /// `V = (√0.21, 0.2)`, so the sliver lies within
 /// `0.1 ≤ ‖p − c‖ ≤ ‖V − c‖ ≈ 0.1173`; the bore at `(0.4623, 0.204)`
 /// spans `‖p − c‖ ∈ [0.1108, 0.1128]`, wholly in the material the band
-/// removes. The reading is its least clearance, from the slot wall
-/// `y = 0.2`: `0.204 − 0.001 − 0.2`.
+/// removes. Its rings read inside at the caps, but the ruled crease's
+/// reach has no exact core and reads the bore's wall as a bound, which
+/// outranks them.
 #[test]
-fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_wholly_inside() {
+fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_as_a_bound_at_its_wall() {
     let body = keyhole_block_with(vec![bore(0.4623, 0.204, 0.001)]);
     validate_geometric(&body, tol()).expect("the bored keyhole block is tier-3 valid");
     let creases = rod_creases(&body);
@@ -180,27 +180,25 @@ fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_wholly_inside() {
     )
     .map(|_| ())
     .map_err(|e| e.error);
-    let Err(BlendError::WhollyInside { at, chain, margin }) = got else {
-        panic!("expected WhollyInside at the cap, got {got:?}")
+    let Err(BlendError::FaceClearance {
+        at: topo::EntityId::Face(wall),
+        chain: Convexity::Convex,
+        bounded: true,
+        ..
+    }) = got
+    else {
+        panic!("expected a bound at the bore's wall, got {got:?}")
     };
-    assert_eq!(chain, Convexity::Convex, "the convex ring crease's sliver");
-    assert_eq!(margin.sign, Sign::Negative, "definite, got {margin}");
-    let read = margin
-        .reading
-        .diagnostic_f64_for_error_text()
-        .value()
-        .expect("a value at f64");
+    let radius = body
+        .get_face(wall)
+        .and_then(|f| body.get_surface(f.surface))
+        .and_then(|s| match s {
+            geom::Surface::Cylinder { radius, .. } => Some(*radius),
+            _ => None,
+        });
     assert!(
-        (read + 0.003).abs() < 1e-12,
-        "the depth is the bore's clearance from the slot wall, read {read}"
-    );
-    let topo::EntityId::Loop(ring) = at else {
-        panic!("names the bore's cycle, got {at:?}")
-    };
-    assert!(
-        body.faces()
-            .any(|(_, f)| f.rings.len() == 2 && f.rings.contains(&ring)),
-        "the cycle named is a ring of a cap carrying the keyhole and the bore"
+        radius.is_some_and(|r| (r - 0.001).abs() < 1e-12),
+        "the face named is the bore's wall: {radius:?}"
     );
 }
 

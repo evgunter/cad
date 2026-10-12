@@ -12,7 +12,10 @@
 //! surface inside it ([`BlendError::WhollyInside`]), where the face goes
 //! with the material and that carve is not built. A face certified none
 //! of the three refuses [`BlendError::FaceClearance`] with
-//! `bounded: true`.
+//! `bounded: true`. The readings make one verdict for the request with
+//! a cut-off's end-face meter's ([`Unclear`]): a crossing anywhere wins,
+//! then a bound, so the request reads wholly inside only when every face
+//! and end-face cycle not clear does.
 //!
 //! # The region
 //!
@@ -88,9 +91,19 @@ use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 /// decide how far a clear one is chased before it is refused.
 const CELL_BUDGET: usize = 4096;
 
-/// How many places along each boundary edge of a refused face are read
-/// for a point inside the band's material.
-const EDGE_SAMPLES: u32 = 9;
+/// How many places along an edge, ends included, a three-way reading
+/// reads for a witness: a point of a face's boundary inside the band's
+/// material or out of it, or of an end-face edge inside the sliver or
+/// out of it. Each witness is decided where it is read, so the count
+/// decides only how readily a crossing is told from a bound.
+pub(in crate::blend) const EDGE_SAMPLES: u32 = 9;
+
+/// Whether a reading is certainly positive, by `escalate`: what makes a
+/// point a witness of a three-way reading. A reading that is never
+/// reported is not classified.
+pub(in crate::blend) fn sure<T: Bounds>(x: T, band: Band) -> bool {
+    x.lo() >= band.escalate()
+}
 
 /// A rectangle of a meridian sheet: `[ρ_lo, ρ_hi, z_lo, z_hi]`.
 type Rect<T> = [T; 4];
@@ -1513,14 +1526,14 @@ fn inside_bound<T: Bounds>(
     let mut spent = 0;
     while let Some((lo, hi)) = queue.pop_front() {
         let cell = Cell::<T>::new(lo, hi);
-        if off_surface(surface, &cell).is_some_and(|off| off.lo() >= band.escalate()) {
+        if off_surface(surface, &cell).is_some_and(|off| sure(off, band)) {
             continue;
         }
         let inner = core
             .iter()
             .map(|b| b.high_strict(&cell))
             .reduce(|m, g| m.max(g))?;
-        if inner.hi() <= -band.escalate() {
+        if sure(T::zero() - inner, band) {
             most = Some(most.map_or(inner, |m| m.max(inner)));
             continue;
         }
@@ -1915,13 +1928,75 @@ fn boundary_reading<T: Decide>(
     Ok(reading)
 }
 
+/// **The request's three-way verdict**, over every face and end-face
+/// cycle that predicate 2's reach and a cut-off's end-face meter read
+/// not clear. A crossing refuses at once, nothing outranking it; a bound
+/// outranks an inside reading; so the request reads wholly inside only
+/// when every reading that is not clear does, whatever order the faces
+/// and cycles are read in. Of several bounds it names the least margin,
+/// and of several inside readings the shallowest, which bounds the depth
+/// of every one.
+pub(crate) struct Unclear<T> {
+    bound: Option<(T, BlendError)>,
+    inside: Option<(T, BlendError)>,
+}
+
+impl<T: Bounds> Unclear<T> {
+    /// Nothing read yet.
+    pub(crate) const fn new() -> Self {
+        Self {
+            bound: None,
+            inside: None,
+        }
+    }
+
+    /// A reading certified neither clear, nor inside, nor crossing, its
+    /// margin `margin`.
+    pub(crate) fn bound(&mut self, margin: T, refusal: BlendError) {
+        if self
+            .bound
+            .as_ref()
+            .is_none_or(|(m, _)| margin.hi() < m.hi())
+        {
+            self.bound = Some((margin, refusal));
+        }
+    }
+
+    /// A reading certified wholly inside, `margin` its (negative) depth.
+    pub(crate) fn inside(&mut self, margin: T, refusal: BlendError) {
+        if self
+            .inside
+            .as_ref()
+            .is_none_or(|(m, _)| margin.hi() > m.hi())
+        {
+            self.inside = Some((margin, refusal));
+        }
+    }
+
+    /// The request's refusal: a bound if any, else wholly inside if any.
+    ///
+    /// # Errors
+    ///
+    /// That refusal.
+    pub(crate) fn verdict(self) -> Result<(), BlendError> {
+        match self.bound.or(self.inside) {
+            Some((_, refusal)) => Err(refusal),
+            None => Ok(()),
+        }
+    }
+}
+
 /// **Meter every chain's reach against every face of the body it does
-/// not exclude** (module docs), before any mutation.
+/// not exclude** (module docs), before any mutation, completing the
+/// request's three-way verdict `unclear` (the end-face meter's readings
+/// so far).
 ///
 /// # Errors
 ///
-/// [`BlendError::FaceClearance`] for a face in a reach, or not certified
-/// clear of one; [`BlendError::Escalated`] for an in-band margin;
+/// [`BlendError::FaceClearance`] for a face crossing a reach, or not
+/// certified clear of one; [`BlendError::WhollyInside`] when every face
+/// and cycle read not clear lies wholly inside ([`Unclear`]);
+/// [`BlendError::Escalated`] for an in-band margin;
 /// [`BlendError::BodyNotIntact`] for a body the meter cannot read.
 pub(crate) fn band_reach<T: Decide + Bounds>(
     body: &Body<T>,
@@ -1929,6 +2004,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
     size: T,
     kind: BlendKind,
     band: Band,
+    mut unclear: Unclear<T>,
 ) -> Result<(), BlendError> {
     let all: Vec<(usize, &Link<T>)> = chains
         .iter()
@@ -2079,17 +2155,19 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             let supports_a_band = reaches
                 .iter()
                 .any(|r| r.replaces.iter().any(|(f, _)| *f == face));
-            let exacts: Vec<&Reach<T>> = reaches
-                .iter()
-                .filter(|r| {
-                    !r.core.is_empty() && !supports_a_band && r.skip.binary_search(&face).is_err()
-                })
-                .collect();
+            let exacts: Vec<&Reach<T>> = if supports_a_band {
+                Vec::new()
+            } else {
+                reaches
+                    .iter()
+                    .filter(|r| !r.core.is_empty() && r.skip.binary_search(&face).is_err())
+                    .collect()
+            };
             for exact in &exacts {
                 let Some((depth, out)) = boundary_reading(body, face, &exact.core)? else {
                     continue;
                 };
-                if classify_bound(depth)? == Sign::Negative && out.lo() >= band.escalate() {
+                if classify_bound(depth)? == Sign::Negative && sure(out, band) {
                     return Err(BlendError::FaceClearance {
                         at: EntityId::Face(face),
                         chain: chains[exact.chain].first().convexity,
@@ -2098,22 +2176,30 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                     });
                 }
             }
-            for exact in &exacts {
-                if let Some(deep) = inside_bound(&exact.core, &surface, fbox, band) {
-                    let sign = classify_bound(deep)?;
-                    return Err(BlendError::WhollyInside {
+            let inside = exacts.iter().find_map(|exact| {
+                inside_bound(&exact.core, &surface, fbox, band).map(|deep| (exact, deep))
+            });
+            if let Some((exact, deep)) = inside {
+                let sign = classify_bound(deep)?;
+                unclear.inside(
+                    deep,
+                    BlendError::WhollyInside {
                         at: EntityId::Face(face),
                         chain: chains[exact.chain].first().convexity,
                         margin: classified(decision, deep, band, sign),
-                    });
-                }
+                    },
+                );
+                continue;
             }
-            return Err(BlendError::FaceClearance {
-                at: EntityId::Face(face),
-                chain: chains[reach.chain].first().convexity,
-                margin: classified(decision, bound, band, sign),
-                bounded: true,
-            });
+            unclear.bound(
+                bound,
+                BlendError::FaceClearance {
+                    at: EntityId::Face(face),
+                    chain: chains[reach.chain].first().convexity,
+                    margin: classified(decision, bound, band, sign),
+                    bounded: true,
+                },
+            );
         }
         // The bands of the request's other chains: each mints its blend
         // surface over its own reach, a face this reach must clear too —
@@ -2177,16 +2263,19 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             let sign = classify_bound(bound)?;
             if sign != Sign::Positive {
                 // The other band has no face yet: name its chain.
-                return Err(BlendError::FaceClearance {
-                    at: EntityId::Edge(chains[other.chain].first().edge),
-                    chain: chains[reach.chain].first().convexity,
-                    margin: classified(decision, bound, band, sign),
-                    bounded: true,
-                });
+                unclear.bound(
+                    bound,
+                    BlendError::FaceClearance {
+                        at: EntityId::Edge(chains[other.chain].first().edge),
+                        chain: chains[reach.chain].first().convexity,
+                        margin: classified(decision, bound, band, sign),
+                        bounded: true,
+                    },
+                );
             }
         }
     }
-    Ok(())
+    unclear.verdict()
 }
 
 /// Whether two reaches are read in one and the same meridian sheet, so
@@ -2272,7 +2361,14 @@ pub fn band_reach_for_tests<T: Decide + Bounds>(
     }
     let (chains, _) =
         super::battery::broken_at_turns(req.body, super::battery::walk_chains(links), band)?;
-    band_reach(req.body, &chains, req.size, BlendKind::Fillet, band)
+    band_reach(
+        req.body,
+        &chains,
+        req.size,
+        BlendKind::Fillet,
+        band,
+        Unclear::new(),
+    )
 }
 
 #[cfg(test)]
@@ -2281,7 +2377,9 @@ mod tests {
     use geom_core::sym::with_session;
     use geom_core::{ParamSymbol, Sym, SymBudget};
 
-    use super::Cell;
+    use geom_core::{Point3, Vec3};
+
+    use super::{Bound, Cell, SheetFn};
 
     /// **A cell's corners are computed values**: box arithmetic over the
     /// faces' certified boxes produced them in `f64`, so at `Sym` each
@@ -2302,6 +2400,38 @@ mod tests {
         assert_eq!(
             revalued, [None; 4],
             "a corner, the centre and the lever are unknowns, not the constants the box read"
+        );
+    }
+
+    /// **A sheet bound read as the band's own material takes its slack
+    /// the other way**: `ρ − 1` about the `z` axis with slack `0.1`
+    /// encloses the material `ρ ≤ 0.9` by `ρ ≤ 1.1`. A point at `ρ =
+    /// 0.95`, and the cell `ρ ∈ [0.92, 0.95]`, lie in the enclosure but
+    /// not certainly in the material: the plain readings are negative,
+    /// the strict ones positive.
+    #[test]
+    fn a_sheet_bounds_strict_reading_takes_its_slack_the_other_way() {
+        let sheet = Bound::Sheet {
+            o: Point3::new(0.0, 0.0, 0.0),
+            a: Vec3::new(0.0, 0.0, 1.0),
+            f: SheetFn::Line {
+                alpha: 1.0,
+                beta: 0.0,
+                gamma: -1.0,
+            },
+            slack: 0.1,
+        };
+        let x = Point3::new(0.95, 0.0, 0.0);
+        let cell = Cell::<f64>::new([0.92, -0.01, -0.01], [0.95, 0.0, 0.01]);
+        let (at, strict) = (sheet.at(x), sheet.at_strict(x));
+        let (high, high_strict) = (sheet.high(&cell), sheet.high_strict(&cell));
+        assert!(
+            (at + 0.15).abs() < 1e-12 && (strict - 0.05).abs() < 1e-12,
+            "at ρ = 0.95: plain {at}, strict {strict}"
+        );
+        assert!(
+            high < 0.0 && high_strict > 0.0,
+            "over the cell: plain {high}, strict {high_strict}"
         );
     }
 }

@@ -1707,9 +1707,10 @@ pub enum BlendError {
     /// the two rims it shortens) has an edge not definitely clear of a
     /// region enclosing the sliver the cut removes, and is not wholly
     /// inside the sliver ([`BlendError::WhollyInside`]): the cut would
-    /// cross it. Exact closed form over the stored carriers and
-    /// windows; at a cap, a measurement is a point of the cycle
-    /// certainly inside the sliver and another certainly outside.
+    /// cross it. Clearance is read in exact closed form over the stored
+    /// carriers and windows; at a cap, telling a crossing from a bound
+    /// rests on sampled witnesses, a point of the cycle certainly inside
+    /// the sliver and another certainly outside, each decided exactly.
     ///
     /// The ring or edge lies in the part of the face the blend
     /// replaces, and what happens to that part is the chain's
@@ -1729,7 +1730,8 @@ pub enum BlendError {
         /// classified it — of the ring from the trimline on a support,
         /// of the edge from the region enclosing the sliver on a cap:
         /// definitely negative, or decided Zero — which is the ring or
-        /// edge touching it, unless `bounded` says otherwise.
+        /// edge touching it, unless `bounded` says otherwise. A crossing
+        /// at a cap reports its inside witness's depth in the sliver.
         margin: ClassifiedMargin,
         /// Whether `margin` is a BOUND rather than a measurement: on a
         /// support, the edge is an ellipse, a spiric oval or a NURBS
@@ -1744,14 +1746,18 @@ pub enum BlendError {
     /// Predicate 2 reads each face three ways — clear of the band's
     /// material, wholly inside it, or crossing it — and a cut-off's end
     /// face meter reads each of its cycles the same three ways against
-    /// the sliver the cut removes. This is the second reading, certified
-    /// on a region that is the band's material (or the sliver) exactly:
-    /// the feature goes with that material, as a feature wholly inside
-    /// a Boolean's tool goes with the tool (C8). That carve is not built,
-    /// so the request refuses.
+    /// the sliver the cut removes. This is the request's verdict when
+    /// every face and cycle not clear is certified wholly inside, on a
+    /// region that is the band's material (or the sliver) exactly: a
+    /// crossing anywhere refuses as a crossing, and a face or cycle
+    /// certified none of the three refuses as a bound. The feature goes
+    /// with that material, as a feature wholly inside a Boolean's tool
+    /// goes with the tool (C8). That carve is not built, so the request
+    /// refuses.
     WhollyInside {
-        /// The face wholly inside a band's reach; or, on a cut-off's end
-        /// face, the cycle of it (a ring) wholly inside the sliver.
+        /// The face wholly inside a band's reach, or the cycle of a
+        /// cut-off's end face (a ring) wholly inside the sliver, that is
+        /// the shallowest of those read.
         at: EntityId,
         /// The convexity of the chain whose band holds it: whether the
         /// band removes that material or fills it.
@@ -1759,7 +1765,8 @@ pub enum BlendError {
         /// How deep inside, as `fillet3_face_clearance` (a face in a
         /// reach) or `fillet3_ring_clearance` (a ring in a sliver)
         /// classified it: definitely negative, its size a lower bound on
-        /// the feature's distance from the region's boundary.
+        /// the depth of every face and cycle read inside, each from its
+        /// own region's boundary.
         margin: ClassifiedMargin,
     },
     /// **The result's pcurve caches could not be re-minted** after the

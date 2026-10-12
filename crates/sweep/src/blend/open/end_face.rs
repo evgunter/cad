@@ -46,6 +46,7 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, MefSite, 
 
 use crate::blend::battery::{EndSection, cap_incidence};
 use crate::blend::naming::BlendNaming;
+use crate::blend::reach::{EDGE_SAMPLES, sure};
 use crate::blend::surgery::{
     ContactCarrier, Piece, SourceFaces, SplitFragments, chord_site, face_of_half, halves_of,
     not_intact, op, piece_along, piece_distance, point_of, retire_fragment, split_fragment,
@@ -296,6 +297,19 @@ pub(in crate::blend) struct CapSliver<T: Real> {
     boundary: Option<SliverBoundary<T>>,
 }
 
+/// **How a cycle of an end face not clear of `Ω` reads against `S`**
+/// ([`CapSliver::read_cycle`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::blend) enum CycleReading<T> {
+    /// A witness certainly inside `S` and another certainly outside: the
+    /// inside one's depth, negative.
+    Crossing(T),
+    /// Wholly inside `S`, in closed form: the cycle's depth, negative.
+    Inside(T),
+    /// Neither certified.
+    Bound,
+}
+
 /// **The sliver's own boundary on a round end**: the end curve's two
 /// feet, the axis the arc runs forward about from `face_a`'s foot to
 /// `face_b`'s (under half a turn), and the two rim pieces from the feet
@@ -306,13 +320,6 @@ struct SliverBoundary<T: Real> {
     axis: Vec3<T>,
     rims: [(Curve3<T>, (T, T)); 2],
 }
-
-/// How many places along an end-face edge, ends included, the reading
-/// against `S` looks for a point certainly inside it or certainly
-/// outside it. Each is a witness, decided exactly where it is read; how
-/// many there are decides only how readily a crossing is told from a
-/// bound.
-const WITNESS_SAMPLES: u32 = 9;
 
 /// A round section's frame in the end plane: `p − center` is inside
 /// it when `(d·u/major)² + (d·w/minor)² < 1`.
@@ -431,13 +438,23 @@ impl<T: Bounds> CapSliver<T> {
         Some(clear)
     }
 
+    /// **`G` at `q = p − center`**: the largest of `‖q‖ − reach`,
+    /// `minor − ‖q‖` on a round end, and each `floorₖ − q·dₖ`. Each term
+    /// bounds from below `p`'s distance from a set containing `Ω` (the
+    /// disc to `reach`, the outside of the disc of the minor semi-axis, a
+    /// half-plane), so `G > 0` puts `p` outside `Ω`.
+    fn beyond(&self, q: Vec3<T>) -> T {
+        let rho = q.norm();
+        let v = self
+            .inside
+            .map_or(rho - self.reach, |s| (rho - self.reach).max(s.minor - rho));
+        self.floors
+            .iter()
+            .fold(v, |v, &(d, floor)| v.max(floor - q.dot(d)))
+    }
+
     /// **How clear a straight edge is of `Ω`, point by point**: the
-    /// least over the segment of `G(p)`, the largest of `‖q‖ − reach`,
-    /// `minor − ‖q‖` on a round end, and each `floorₖ − q·dₖ`, with
-    /// `q = p − center`. Each term bounds from below `p`'s distance
-    /// from a set containing `Ω` (the disc to `reach`, the outside of
-    /// the disc of the minor semi-axis, a half-plane), so `G > 0`
-    /// puts `p` outside `Ω`.
+    /// least over the segment of `G` ([`Self::beyond`]).
     ///
     /// In arc length `s` each term is affine, convex (`‖q‖ − reach`) or
     /// concave (`minor − ‖q‖`), so `G`'s least is at an end, at the
@@ -470,12 +487,7 @@ impl<T: Bounds> CapSliver<T> {
                 .iter()
                 .map(move |&(d, floor)| (floor - q0.dot(d), zero - e.dot(d)))
         };
-        let g = |s: T| {
-            let s = s.max(zero).min(len);
-            let rho = (q0 + e * s).norm();
-            let v = minor.map_or(rho - self.reach, |m| (rho - self.reach).max(m - rho));
-            affine().fold(v, |v, (a, k)| v.max(a + k * s))
-        };
+        let g = |s: T| self.beyond(q0 + e * s.max(zero).min(len));
         // A quotient whose divisor's bracket meets zero is skipped: at
         // `f64` that is a divisor that vanishes (below), and at `Interval`
         // the candidate would spread over the segment and read `G` over
@@ -610,31 +622,61 @@ impl<T: Decide + Bounds> CapSliver<T> {
     }
 
     /// **How surely the point `p` of the end plane lies outside `S`**:
-    /// positive when it certainly does — outside `Ω` (each term bounds
-    /// from below `p`'s distance from a set containing `Ω`, as in
-    /// [`Self::line_clearance`]), or inside the section, which `S` lies
-    /// outside of (`minor·(1 − ρ)`, as [`SectionFrame::depth`] reads it).
+    /// positive when it certainly does — outside `Ω` ([`Self::beyond`]),
+    /// or inside the section, which `S` lies outside of
+    /// (`minor·(1 − ρ)`, as [`SectionFrame::depth`] reads it).
     fn outside_point(&self, p: Point3<T>) -> T {
         let q = p - self.center;
-        let mut most = q.norm() - self.reach;
-        if let Some(section) = self.inside {
-            most = most.max(section.minor * (T::one() - section.scaled(q)));
-        }
-        self.floors
-            .iter()
-            .fold(most, |m, &(d, floor)| m.max(floor - q.dot(d)))
+        let beyond = self.beyond(q);
+        self.inside.map_or(beyond, |section| {
+            beyond.max(section.minor * (T::one() - section.scaled(q)))
+        })
     }
 
-    /// [`WITNESS_SAMPLES`] places along the `carrier` over `window`,
-    /// ends included.
+    /// [`EDGE_SAMPLES`] places along the `carrier` over `window`, ends
+    /// included: the witnesses the reading against `S` decides, exactly
+    /// where each is read, so how many there are decides only how
+    /// readily a crossing is told from a bound.
     fn places(carrier: &Curve3<T>, (ta, tb): (T, T)) -> impl Iterator<Item = Point3<T>> + '_ {
-        (0..WITNESS_SAMPLES)
-            .map(move |i| carrier.eval(geom_brep::schedule_param(ta, tb, i, WITNESS_SAMPLES)))
+        (0..EDGE_SAMPLES)
+            .map(move |i| carrier.eval(geom_brep::schedule_param(ta, tb, i, EDGE_SAMPLES)))
+    }
+
+    /// **A cycle of the end face read against `S` itself**, three ways
+    /// ([`CycleReading`]): `pieces` is every edge of the cycle but the
+    /// two rims the cut shortens, and `cut` whether the cycle carries
+    /// them. A crossing needs a witness on each side; the cut cycle always
+    /// has points outside, its rims running on past the feet, and is
+    /// never read inside. The witnesses are samples, so a cycle that
+    /// crosses with none on one side reads as a bound, never as inside.
+    pub(in crate::blend) fn read_cycle(
+        &self,
+        pieces: &[Piece<'_, T>],
+        cut: bool,
+        band: Band,
+    ) -> CycleReading<T> {
+        if !cut && let Some(depth) = self.ring_inside(pieces).filter(|d| sure(*d, band)) {
+            return CycleReading::Inside(T::zero() - depth);
+        }
+        let deepest = pieces
+            .iter()
+            .filter_map(|&(carrier, window)| self.reaches_in(carrier, window))
+            .filter(|x| sure(*x, band))
+            .reduce(|m, x| m.max(x));
+        let reaches_out = cut
+            || pieces.iter().any(|&(carrier, window)| {
+                self.reaches_out(carrier, window)
+                    .is_some_and(|x| sure(x, band))
+            });
+        match deepest.filter(|_| reaches_out) {
+            Some(depth) => CycleReading::Crossing(T::zero() - depth),
+            None => CycleReading::Bound,
+        }
     }
 
     /// **How surely some point of an end-face edge lies inside `S`**:
     /// positive when one of its witnesses does ([`Self::inside_point`]).
-    pub(in crate::blend) fn reaches_in(&self, carrier: &Curve3<T>, window: (T, T)) -> Option<T> {
+    fn reaches_in(&self, carrier: &Curve3<T>, window: (T, T)) -> Option<T> {
         Self::places(carrier, window).try_fold(None, |most: Option<T>, p| {
             let x = self.inside_point(p)?;
             Some(Some(most.map_or(x, |m| m.max(x))))
@@ -643,10 +685,10 @@ impl<T: Decide + Bounds> CapSliver<T> {
 
     /// **How surely some point of an end-face edge lies outside `S`**:
     /// positive when one of its witnesses does ([`Self::outside_point`]).
-    pub(in crate::blend) fn reaches_out(&self, carrier: &Curve3<T>, window: (T, T)) -> T {
+    fn reaches_out(&self, carrier: &Curve3<T>, window: (T, T)) -> Option<T> {
         Self::places(carrier, window)
             .map(|p| self.outside_point(p))
-            .fold(self.outside_point(carrier.eval(window.0)), |m, x| m.max(x))
+            .reduce(|m, x| m.max(x))
     }
 
     /// **How surely a whole cycle of the end face lies inside `S`**:
@@ -657,10 +699,12 @@ impl<T: Decide + Bounds> CapSliver<T> {
     /// A connected curve that misses `∂S` lies wholly inside `S` or
     /// wholly outside it, so it is inside when it misses the arc, misses
     /// both rim pieces and has one point inside. Each piece misses the
-    /// arc by lying outside the section ([`SectionFrame::outside`]),
-    /// misses a rim piece by [`apart`], and the cycle's first point is
-    /// read by [`Self::inside_point`].
-    pub(in crate::blend) fn ring_inside(&self, pieces: &[Piece<'_, T>]) -> Option<T> {
+    /// arc by lying outside the section ([`SectionFrame::outside`]), and
+    /// the cycle's first point is read by [`Self::inside_point`]. A cycle
+    /// that carries no rim misses the rim pieces already, a face's cycles
+    /// being disjoint; their clearance ([`apart`]) is read for the depth,
+    /// which it bounds where the cycle is nearest a rim.
+    fn ring_inside(&self, pieces: &[Piece<'_, T>]) -> Option<T> {
         let (b, section) = (self.boundary.as_ref()?, self.inside?);
         let (first, (t0, _)) = *pieces.first()?;
         let mut least = self.inside_point(first.eval(t0))?;
@@ -1148,9 +1192,9 @@ mod line_meter_fuzz;
 
 #[cfg(test)]
 mod tests {
-    use super::{CapSliver, SectionFrame};
+    use super::{CapSliver, CycleReading, SectionFrame, SliverBoundary};
     use geom::Curve3;
-    use geom_core::{Bounds, Interval, Point3, Real, Vec3};
+    use geom_core::{Band, Bounds, Interval, Point3, Real, Tol, Vec3};
     use topo::{EdgeKey, FaceKey};
 
     /// A sliver enclosure about the origin in the `z = 0` plane, spelled
@@ -1384,6 +1428,117 @@ mod tests {
         assert!(
             iv.lo() <= -0.15 && iv.lo() > -0.15 - 1e-10,
             "Interval reads {iv:?}, not −0.15"
+        );
+    }
+
+    /// **The quarter sliver**: a right dihedral's supports `y = −1` and
+    /// `x = −1` in the end plane `z = 0`, the unit section about the
+    /// origin, so `S` is the square `[−1, 0]²` less the unit disc. The
+    /// arc runs a quarter turn about `−z` from the foot `(0, −1)` to
+    /// `(−1, 0)`, and the rims from the feet to `V = (−1, −1)`. No
+    /// floors: `Ω` is the annulus out to `‖V‖`, which contains `S`.
+    fn quarter() -> CapSliver<f64> {
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let v = |x: f64, y: f64| Vec3::new(x, y, 0.0);
+        let rim = |o: Point3<f64>, d: Vec3<f64>| (Curve3::Line { origin: o, dir: d }, (0.0, 1.0));
+        CapSliver {
+            cap: FaceKey::default(),
+            rims: [EdgeKey::default(); 2],
+            center: p(0.0, 0.0),
+            inside: Some(SectionFrame {
+                u: v(1.0, 0.0),
+                w: v(0.0, 1.0),
+                major: 1.0,
+                minor: 1.0,
+            }),
+            reach: 2f64.sqrt(),
+            floors: Vec::new(),
+            boundary: Some(SliverBoundary {
+                feet: [p(0.0, -1.0), p(-1.0, 0.0)],
+                axis: Vec3::new(0.0, 0.0, -1.0),
+                rims: [
+                    rim(p(0.0, -1.0), v(-1.0, 0.0)),
+                    rim(p(-1.0, 0.0), v(0.0, -1.0)),
+                ],
+            }),
+        }
+    }
+
+    /// A whole circle of radius `r` about `(x, y)` in the end plane.
+    fn ring(x: f64, y: f64, r: f64) -> Curve3<f64> {
+        Curve3::Circle {
+            center: Point3::new(x, y, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            radius: r,
+        }
+    }
+
+    #[allow(clippy::expect_used)]
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness band")
+    }
+
+    /// **A point is read inside `S` only inside the wedge between the
+    /// feet**: `(−0.9, −0.9)` is inside, `0.1` from both rims (the
+    /// segment from the centre clears each by that much); `(0.5, −0.95)`
+    /// lies past the foot `(0, −1)`, outside the section and clear of
+    /// both rims along its segment from the centre, and only the wedge's
+    /// line through that foot reads it out (at `−0.5`, its `x`).
+    #[test]
+    fn a_point_past_a_foot_is_read_out_by_the_wedge_alone() {
+        let s = quarter();
+        let inside = s.inside_point(Point3::new(-0.9, -0.9, 0.0));
+        assert!(
+            inside.is_some_and(|x| (x - 0.1).abs() < 1e-12),
+            "(−0.9, −0.9) reads 0.1 inside: {inside:?}"
+        );
+        let past = s.inside_point(Point3::new(0.5, -0.95, 0.0));
+        assert!(
+            past.is_some_and(|x| (x + 0.5).abs() < 1e-12),
+            "(0.5, −0.95) reads out at −0.5, the wedge's: {past:?}"
+        );
+    }
+
+    /// **The sliver's three readings of a cycle, with their depths.**
+    /// - A ring of radius `0.05` about `(−0.85, −0.85)` is wholly inside,
+    ///   `0.1` from both rims: that, not its first point's `0.15` from
+    ///   the flat nor its `0.152` from the arc, is its depth.
+    /// - A ring of radius `0.3` about `(−0.6, −0.6)` crosses the arc,
+    ///   with witnesses on both sides.
+    /// - A ring of radius `0.05` touching the arc from outside the
+    ///   section has witnesses inside `S` and none certainly outside it:
+    ///   a bound, not a crossing.
+    /// - The cut cycle has points outside by construction: one inside
+    ///   witness makes it a crossing, and it is never read inside.
+    #[test]
+    fn a_cycle_reads_inside_crossing_or_bound_with_its_depth() {
+        let s = quarter();
+        let whole = (0.0, std::f64::consts::TAU);
+        let inside = ring(-0.85, -0.85, 0.05);
+        let got = s.read_cycle(&[(&inside, whole)], false, band());
+        assert!(
+            matches!(got, CycleReading::Inside(d) if (d + 0.1).abs() < 1e-12),
+            "a ring 0.1 from the rims is inside at −0.1: {got:?}"
+        );
+        let across = ring(-0.6, -0.6, 0.3);
+        let got = s.read_cycle(&[(&across, whole)], false, band());
+        assert!(
+            matches!(got, CycleReading::Crossing(d) if d < 0.0),
+            "a ring across the arc crosses: {got:?}"
+        );
+        let k = 1.05 / 2f64.sqrt();
+        let touching = ring(-k, -k, 0.05);
+        let got = s.read_cycle(&[(&touching, whole)], false, band());
+        assert_eq!(
+            got,
+            CycleReading::Bound,
+            "a ring touching the arc from inside S has no outside witness"
+        );
+        let got = s.read_cycle(&[(&inside, whole)], true, band());
+        assert!(
+            matches!(got, CycleReading::Crossing(d) if d < -0.1),
+            "the cut cycle crosses on one inside witness: {got:?}"
         );
     }
 }

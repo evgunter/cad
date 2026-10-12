@@ -4,7 +4,10 @@
 //! goes with the tool; that carve is not built, so today the reading
 //! refuses as `WhollyInside`, typed apart from the crossing
 //! (`FaceClearance`, a measurement) and from a face that cannot be
-//! certified either way (`FaceClearance`, a bound).
+//! certified either way (`FaceClearance`, a bound). The request's verdict
+//! is one reading over all of them, whatever order they are read in: a
+//! crossing anywhere refuses as a crossing, then a bound, and only a
+//! request whose every face not clear reads inside refuses `WhollyInside`.
 //!
 //! The convex witness is the block `[0, 4]³` with a sealed box void
 //! running along its edge `y = z = 0`, whose band (radius or setback
@@ -20,12 +23,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Bounds, Decide, ErrorTextReading, Interval, Point3, Sign, Tol};
+use geom_core::{Band, Bounds, Decide, ErrorTextReading, Interval, Point3, Sign, Tol, Vec3};
 use sweep::blend::{
     BlendError, BlendRequest, ClassifiedMargin, Convexity, chamfer_edges, fillet_edges,
 };
 use sweep::test_support::band_reach;
-use topo::{AtRestBody, AtRestPolicy, Body, EdgeKey, EntityId, mass_properties, query};
+use topo::{AtRestBody, AtRestPolicy, Body, EdgeKey, EntityId, mass_properties};
 
 use crate::common::cavity::{brick, cut, edges_with_corners};
 use crate::common::interval::iv;
@@ -41,19 +44,15 @@ fn band() -> Band {
 /// The convex band's radius and setback.
 const R: f64 = 0.5;
 
-/// The block `[0, 4]³` less the box void `[1.9, 2.1] × [lo, hi]²`.
-fn voided<T: Decide + Bounds + AtRestPolicy>(lo: f64, hi: f64) -> AtRestBody<T> {
+/// The block `[0, 4]³` less `void`.
+fn less<T: Decide + Bounds + AtRestPolicy>(void: Body<T>) -> AtRestBody<T> {
     let t = tol();
     let block = sweep::test_support::finished(
         "block",
         sweep::test_support::brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 4.0), t),
         t,
     );
-    let void = sweep::test_support::finished(
-        "void",
-        sweep::test_support::brick::<T>((1.9, 2.1), (lo, hi), (lo, hi), t),
-        t,
-    );
+    let void = sweep::test_support::finished("void", void, t);
     topo::subtract(&block, &void, t)
         .expect("the cut succeeds")
         .body()
@@ -62,27 +61,22 @@ fn voided<T: Decide + Bounds + AtRestPolicy>(lo: f64, hi: f64) -> AtRestBody<T> 
         .clone()
 }
 
+/// The block less the box void `[1.9, 2.1] × y × z`.
+fn voided_box<T: Decide + Bounds + AtRestPolicy>(y: (f64, f64), z: (f64, f64)) -> AtRestBody<T> {
+    less(sweep::test_support::brick::<T>((1.9, 2.1), y, z, tol()))
+}
+
+/// The block less the box void `[1.9, 2.1] × [lo, hi]²`.
+fn voided<T: Decide + Bounds + AtRestPolicy>(lo: f64, hi: f64) -> AtRestBody<T> {
+    voided_box((lo, hi), (lo, hi))
+}
+
 /// The block's edge `y = z = 0`, found by position at any scalar.
 fn the_edge<T: Bounds>(body: &Body<T>) -> EdgeKey {
-    let near = |p: &Point3<T>, q: [f64; 3]| {
-        [p.x, p.y, p.z]
-            .iter()
-            .zip(q)
-            .all(|(c, w)| c.lo() <= w + 1e-12 && w - 1e-12 <= c.hi())
-    };
-    let (a, b) = ([0.0, 0.0, 0.0], [4.0, 0.0, 0.0]);
-    query::all_edges(body)
-        .into_iter()
-        .find(|&e| {
-            let he = body.get_edge(e).unwrap().he_plus;
-            let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-            let (s, t) = (
-                p(body.get_half_edge(he).unwrap().start),
-                p(body.half_edge_end(he).unwrap()),
-            );
-            (near(&s, a) && near(&t, b)) || (near(&s, b) && near(&t, a))
-        })
-        .expect("the block's edge y = z = 0")
+    let at = |x: T, w: f64| x.lo() <= w + 1e-12 && w - 1e-12 <= x.hi();
+    let edges = edges_with_corners(body, |q| at(q.y, 0.0) && at(q.z, 0.0));
+    assert_eq!(edges.len(), 1, "the block's edge y = z = 0");
+    edges[0]
 }
 
 /// The two verbs at one size.
@@ -277,10 +271,11 @@ fn the_three_way_reading_replays_at_interval() {
     let (_, chain, mi) = wholly_inside("Interval", i);
     assert_eq!(chain, Convexity::Convex);
     let (lo, hi) = bracket(&mi);
+    let (f, _) = bracket(&mf);
     assert!(lo <= hi && hi < 0.0, "an enclosure below zero: {mi}");
     assert!(
-        lo <= bracket(&mf).0 + 1e-9,
-        "the enclosure reaches f64's reading: {mi} vs {mf}"
+        lo - 1e-9 <= f && f <= hi + 1e-9,
+        "the enclosure brackets f64's reading: {mi} vs {mf}"
     );
     let (f, i) = verdict(0.1, 0.3);
     for (what, e) in [("f64", f), ("Interval", i)] {
@@ -337,6 +332,249 @@ fn an_island_wholly_inside_a_concave_bands_fill_refuses_wholly_inside_under_both
         assert!(
             text.contains("the material its band adds"),
             "{what}: {text}"
+        );
+    }
+}
+
+/// Whether a refusal reads as a crossing: a measured `FaceClearance` or
+/// `RingClearance`.
+fn crosses<B>(e: &Result<B, BlendError>) -> bool {
+    matches!(
+        e,
+        Err(BlendError::FaceClearance { bounded: false, .. }
+            | BlendError::RingClearance { bounded: false, .. })
+    )
+}
+
+/// **A feature crossing the band refuses as a crossing, whatever order
+/// its faces are read in**, though some of its faces lie wholly inside.
+/// An L-shaped void: a lobe `y, z ∈ [0.03, 0.08]` wholly inside the
+/// fillet's removed material, joined to an upright lobe rising to
+/// `z = 0.4`, through the arc into the kept material. It stands at seven
+/// stations along the edge, the upright lobe at either end of the
+/// other, and the two lobes are fused in either order, so the face-box
+/// tree hands the faces over in different orders.
+#[test]
+fn an_l_void_crossing_the_arc_crosses_in_every_order_and_pose() {
+    let t = tol();
+    for x0 in [0.5, 1.0, 1.3, 1.9, 2.4, 2.9, 3.3] {
+        for flip in [false, true] {
+            let up = if flip {
+                (x0, x0 + 0.1)
+            } else {
+                (x0 + 0.1, x0 + 0.2)
+            };
+            let along = sweep::test_support::finished(
+                "along",
+                sweep::test_support::brick::<f64>((x0, x0 + 0.2), (0.03, 0.08), (0.03, 0.08), t),
+                t,
+            );
+            let upright = sweep::test_support::finished(
+                "upright",
+                sweep::test_support::brick::<f64>(up, (0.03, 0.08), (0.08, 0.4), t),
+                t,
+            );
+            let l = if flip {
+                topo::union(&upright, &along, t)
+            } else {
+                topo::union(&along, &upright, t)
+            }
+            .expect("the union")
+            .body()
+            .expect("material")
+            .body
+            .clone();
+            let body = less((*l).clone());
+            let e = Verb::Fillet.run(&body, &[the_edge(&body)], R);
+            assert!(
+                crosses(&e),
+                "the L at x = {x0}, flipped {flip}: a crossing, got {e:?}"
+            );
+        }
+    }
+}
+
+/// **A crossing void whose first face read is wholly inside** refuses as
+/// a crossing: `[0.12, 0.14] × [0.12, 0.2]` in `(y, z)`, whose corner
+/// `(0.12, 0.2)` is `0.484 < R` from the ball's axis (kept) while its
+/// face `z = 0.12` lies wholly in the removed material (`(0.14, 0.12)`
+/// is `0.523` from it).
+#[test]
+fn a_crossing_void_whose_first_face_read_is_inside_refuses_as_a_crossing() {
+    let body = voided_box::<f64>((0.12, 0.14), (0.12, 0.2));
+    let e = Verb::Fillet.run(&body, &[the_edge(&body)], R);
+    assert!(crosses(&e), "a crossing, got {e:?}");
+}
+
+/// **A through-slot that enters a cap wholly inside its sliver and
+/// climbs through the arc crosses**: the slot `y, z ∈ [0.03, 0.08]`,
+/// tilted about `y` so it leaves the cap `x = 4` at `z ≈ 0.33..0.38`, in
+/// the kept material. The cap `x = 0` reads its entry ring inside, and
+/// the reach reads its walls crossing, which wins.
+#[test]
+fn a_tilted_through_slot_crossing_the_band_refuses_as_a_crossing() {
+    let t = tol();
+    let slot = sweep::test_support::brick::<f64>((-1.0, 5.0), (0.03, 0.08), (0.03, 0.08), t);
+    let slot = topo::transform_rigid(
+        &slot,
+        &geom_core::Affine3::rotation_about_axis(
+            Point3::new(0.0, 0.0, 0.055),
+            Vec3::new(0.0, 1.0, 0.0),
+            -(0.3f64 / 4.0).atan(),
+        ),
+        t,
+    )
+    .expect("the rigid motion");
+    let body = less(slot);
+    let e = Verb::Fillet.run(&body, &[the_edge(&body)], R);
+    assert!(crosses(&e), "a crossing, got {e:?}");
+}
+
+/// **A whole rim over a plane and a cylinder reads three ways on its
+/// exact core.** The tube `ρ ∈ [0.3, 1]`, `y ∈ [0, 1]` about `y`, its
+/// outer top rim one closed edge, filleted at `0.3`: the removed ring is
+/// `ρ ∈ [0.7, 1]`, `y ∈ [0.7, 1]` outside the circle of radius `0.3`
+/// about `(0.7, 0.7)` in the meridian. A ball void of radius `0.01` at
+/// `(0.97, 0.97, 0)` is `0.02` inside both supports and `0.37` from that
+/// circle's centre, wholly inside; one at `(0.88, 0.88, 0)` is in the kept
+/// material and builds; one centred on the arc crosses it.
+#[test]
+fn a_whole_rims_band_reads_a_void_three_ways() {
+    use sweep::Revolution;
+    use sweep::test_support::{ball_poled_y, corners, one_edge_rim_at, revolved_about_y};
+    let t = tol();
+    let tube = sweep::test_support::finished(
+        "tube",
+        revolved_about_y(
+            corners(&[(0.3, 0.0), (1.0, 0.0), (1.0, 1.0), (0.3, 1.0)]),
+            Revolution::Full,
+            t,
+        ),
+        t,
+    );
+    let read = |c: f64| {
+        let ball = sweep::test_support::finished(
+            "ball",
+            ball_poled_y::<f64>(0.01, Vec3::new(c, c, 0.0), t),
+            t,
+        );
+        let body = topo::subtract(&tube, &ball, t)
+            .expect("the cut")
+            .body()
+            .expect("material")
+            .body
+            .clone();
+        let rim = one_edge_rim_at(&body, 1.0, 1.0);
+        Verb::Fillet.run(&body, &[rim], 0.3)
+    };
+    let (_, chain, margin) = wholly_inside("inside", read(0.97));
+    assert_eq!(chain, Convexity::Convex, "inside: the convex rim");
+    let (lo, hi) = bracket(&margin);
+    assert!(
+        -0.02 - 1e-12 <= lo && hi < 0.0,
+        "inside: a depth within the ball's 0.02 from the supports, {margin}"
+    );
+    let kept = read(0.88);
+    assert!(kept.is_ok(), "kept: builds, got {kept:?}");
+    let across = read(0.7 + 0.3 / std::f64::consts::SQRT_2);
+    assert!(crosses(&across), "on the arc: a crossing, got {across:?}");
+}
+
+/// How far `(y, z)` lies inside the material the convex band of size
+/// [`R`] removes from the right dihedral `y, z ≥ 0`: positive inside,
+/// read off the region's own definition.
+fn removed(verb: Verb, y: f64, z: f64) -> f64 {
+    match verb {
+        Verb::Fillet => {
+            let d = (y - R).hypot(z - R) - R;
+            d.min(R - y).min(R - z).min(y).min(z)
+        }
+        Verb::Chamfer => ((R - y - z) / std::f64::consts::SQRT_2).min(y).min(z),
+    }
+}
+
+/// **Every box void of an enumeration in the band's corner reads true,
+/// under either verb**: the least and most of [`removed`] over a
+/// `200²` grid of the void's section is the truth, and a void within
+/// `0.005` of the boundary is passed over. `WhollyInside` must be a void
+/// wholly inside, a crossing one that crosses, and a build one wholly in
+/// kept material; a bound is always allowed. The enumeration reaches
+/// each of the other three.
+#[test]
+fn box_voids_in_the_bands_corner_read_true() {
+    let starts = [0.01, 0.05, 0.12, 0.2, 0.3];
+    let sizes = [0.02, 0.08, 0.25];
+    let mut wrong = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for verb in [Verb::Fillet, Verb::Chamfer] {
+        for &y0 in &starts {
+            for &z0 in &starts {
+                for k in 0..sizes.len() {
+                    let (y1, z1) = (y0 + sizes[k], z0 + sizes[(k + 1) % sizes.len()]);
+                    let n = 200;
+                    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+                    for i in 0..=n {
+                        for j in 0..=n {
+                            let y = y0 + (y1 - y0) * f64::from(i) / f64::from(n);
+                            let z = z0 + (z1 - z0) * f64::from(j) / f64::from(n);
+                            let m = removed(verb, y, z);
+                            (lo, hi) = (lo.min(m), hi.max(m));
+                        }
+                    }
+                    if lo.abs() < 0.005 || hi.abs() < 0.005 {
+                        continue;
+                    }
+                    let body = voided_box::<f64>((y0, y1), (z0, z1));
+                    let got = verb.run(&body, &[the_edge(&body)], R);
+                    let (kind, true_) = match &got {
+                        Err(BlendError::WhollyInside { .. }) => ("inside", lo > 0.0),
+                        e if crosses(e) => ("crossing", lo < 0.0 && hi > 0.0),
+                        Ok(_) => ("built", hi < 0.0),
+                        Err(
+                            BlendError::FaceClearance { bounded: true, .. }
+                            | BlendError::RingClearance { bounded: true, .. },
+                        ) => ("bound", true),
+                        Err(_) => ("other", false),
+                    };
+                    seen.insert(kind);
+                    if !true_ {
+                        wrong.push(format!(
+                            "{verb:?} y [{y0}, {y1}] z [{z0}, {z1}], truth ({lo:.4}, {hi:.4}): \
+                             {got:?}"
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "verdicts against the truth:\n{}",
+        wrong.join("\n")
+    );
+    for kind in ["inside", "crossing", "built"] {
+        assert!(
+            seen.contains(kind),
+            "the enumeration reaches {kind}: {seen:?}"
+        );
+    }
+}
+
+/// **A void whose corner sits on the boundary is never read inside nor
+/// built**: under the fillet its corner on the arc (`R − R/√2`), under
+/// the chamfer on the chord (`R/2`). It touches, so it is a bound, or a
+/// crossing where rounding puts a boundary point past it.
+#[test]
+fn a_void_touching_the_bands_boundary_is_never_inside_nor_built() {
+    for (verb, on) in [
+        (Verb::Fillet, R - R / std::f64::consts::SQRT_2),
+        (Verb::Chamfer, R / 2.0),
+    ] {
+        let body = voided::<f64>(0.03, on);
+        let got = verb.run(&body, &[the_edge(&body)], R);
+        assert!(
+            crosses(&got) || matches!(got, Err(BlendError::FaceClearance { bounded: true, .. })),
+            "{verb:?}: a corner on the boundary is a bound or a crossing, got {got:?}"
         );
     }
 }

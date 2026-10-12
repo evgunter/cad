@@ -460,14 +460,15 @@ fn drilled(s: f64, t: f64, h: f64, rad: f64) -> Body<f64> {
 /// the band keeps. On the 45° wall (`s = 1`, major semi-axis `r·√2`
 /// along the wall, minor `r` down it, about `(r·√2, r)` in wall
 /// coordinates), a hole wholly in the sliver — mid-sliver, or in the
-/// cusp at the major vertex — refuses `WhollyInside`, read against the
-/// sliver itself through the elliptic arc; the hole in the cusp at the
-/// top foot reaches past the arc (its top `(0.1, 0.0045)` is inside the
+/// cusp at the major vertex — refuses as a bound at its wall: its rings
+/// read inside the sliver, through the elliptic arc, but its wall meets
+/// the window's end plane, so the reach cannot certify it inside, and a
+/// bound outranks an inside reading. The hole in the cusp at the top
+/// foot reaches past the arc (its top `(0.1, 0.0045)` is inside the
 /// ellipse, whose arc is at `0.0995` there) and refuses `RingClearance`
-/// as a measurement; a hole inside the ellipse but outside the disc of
-/// its minor
-/// semi-axis, or near its major vertex, builds, as it does on the
-/// square wall and at a 0.3 lean.
+/// as a measurement. A hole inside the ellipse but outside the disc of
+/// its minor semi-axis, or near its major vertex, builds, as it does on
+/// the square wall and at a 0.3 lean.
 #[test]
 fn a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall() {
     let front = |body: &Body<f64>| edge(body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
@@ -477,13 +478,14 @@ fn a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall() 
     ] {
         let body = drilled(1.0, t, h, rad);
         match Verb::Fillet.run(&body, &[front(&body)]) {
-            Err(BlendError::WhollyInside {
-                at: topo::EntityId::Loop(_),
+            Err(BlendError::FaceClearance {
+                at: topo::EntityId::Face(_),
                 margin,
+                bounded: true,
                 ..
             }) => assert_eq!(margin.sign, Sign::Negative, "{what}: definite, {margin}"),
             other => panic!(
-                "a hole at {what} is wholly in the sliver: WhollyInside, got {:?}",
+                "a hole at {what} is wholly in the sliver: a bound at its wall, got {:?}",
                 other.map(|_| ())
             ),
         }
@@ -519,35 +521,27 @@ fn a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall() 
     }
 }
 
-/// **The square wall's mid-sliver hole under both verbs**: the fillet's
-/// round end reads it against the sliver itself, wholly inside
-/// (`WhollyInside`); the chamfer's chord end has only the enclosing
-/// region, which cannot tell inside from crossing, so it refuses
-/// `RingClearance` as a bound.
+/// **The square wall's mid-sliver hole is a bound under both verbs,
+/// never inside nor a crossing**: the fillet's round end reads its ring
+/// inside the sliver, and the chamfer's chord end, which has only the
+/// enclosing region, reads it as a bound; under either verb the reach
+/// reads the hole's wall, which meets the window's end plane, as a
+/// bound, and a bound outranks an inside reading.
 #[test]
-fn a_hole_in_a_square_walls_sliver_is_wholly_inside_under_the_fillet_and_a_bound_under_the_chamfer()
-{
+fn a_hole_in_a_square_walls_sliver_refuses_as_a_bound_under_both_verbs() {
     let body = drilled(0.0, 0.04, 0.015, 0.004);
     let front = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-    let fillet = Verb::Fillet.run(&body, &[front]).map(|_| ());
-    assert!(
-        matches!(
-            fillet,
-            Err(BlendError::WhollyInside {
-                at: topo::EntityId::Loop(_),
-                ..
-            })
-        ),
-        "the fillet: WhollyInside, got {fillet:?}"
-    );
-    let chamfer = Verb::Chamfer.run(&body, &[front]).map(|_| ());
-    assert!(
-        matches!(
-            chamfer,
-            Err(BlendError::RingClearance { bounded: true, .. })
-        ),
-        "the chamfer: a bounded RingClearance, got {chamfer:?}"
-    );
+    for verb in [Verb::Fillet, Verb::Chamfer] {
+        let got = verb.run(&body, &[front]).map(|_| ());
+        assert!(
+            matches!(
+                got,
+                Err(BlendError::FaceClearance { bounded: true, .. }
+                    | BlendError::RingClearance { bounded: true, .. })
+            ),
+            "{verb:?}: a bound, got {got:?}"
+        );
+    }
 }
 
 /// **A steep wall's own edges stay clear of its sliver**: at `s = 20`

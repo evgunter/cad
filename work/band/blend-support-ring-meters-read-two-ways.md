@@ -4,6 +4,8 @@ kind: issue
 title: blend: the support ring meters (ring_clearance_pass arms a, b, d) read a ring wholly inside the strip a band replaces as a RingClearance crossing, two ways where C8 reads three
 status: open
 opened: 2026-10-12
+priority: P3
+cost: M
 ---
 
 
@@ -42,3 +44,19 @@ the two apart; until then the refusal is correct, only two-valued.
 Whether a support ring wholly inside the strip is reachable before
 the battery's support screen (`FaceClearanceUncertified`,
 `crates/sweep/src/blend/battery.rs`) refuses it is not measured here.
+
+## First-hit (the class behind PR 4797's fix pass)
+
+Predicate 2's reach and arm (c) now make one verdict for the request
+(`reach::Unclear`). A crossing anywhere refuses as a crossing, then a
+bound, and `WhollyInside` comes only when every reading that is not
+clear is inside, whatever order the faces and cycles are read in.
+Arms (a), (b) and (d), and the battery's support screen, still return
+at the first ring or edge they cannot clear. They cannot mint
+`WhollyInside` today, so the inside verdict stays sound. But the first
+of them to refuse names the request's refusal: a bound from one of
+them (an ellipse ring in arm (a), arm (d)'s `FaceClearanceUncertified`)
+pre-empts a crossing the reach would have measured later. When these
+meters learn to read "wholly inside", they have to feed the same
+verdict rather than return, or a ring inside the strip would be refused
+`WhollyInside` ahead of a crossing elsewhere in the request.
