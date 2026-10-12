@@ -387,9 +387,9 @@ use std::borrow::Cow;
 
 use crate::body::Body;
 use crate::chart_bound::{ChartBound, ChartEdge, ChartLoop};
-use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, LoopKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdge, HalfEdgeKey, LoopKey};
 use crate::joint::{Deck, JointElement, Winding};
-use crate::live::{dangling_link, linked, proven};
+use crate::live::{linked, proven};
 use crate::props::AtRestPolicy;
 
 /// Typed refusal of the pcurve minting pass (D4 ¶3).
@@ -1031,41 +1031,6 @@ fn half_edge_carrier<T: Decide>(
     Ok((curve.carrier().clone(), t0, t1))
 }
 
-/// The **mate operand** a fitted (rung-3) pcurve's certificate needs:
-/// the other surface of the pair whose intersection minted the carrier
-/// (`geom_brep::PcurveCache::certify_fitted` — the uniqueness tube is a
-/// statement about the PAIR, so one surface cannot produce one).
-///
-/// It is read from the edge's **intensional description**, not from the
-/// topology, and that is the D2 answer rather than a convenience: the
-/// description is what is authoritative about which two surfaces the
-/// locus belongs to (`EdgeDescription::Intersection { pair, .. }` names them
-/// by key), while "the face across the edge" is a derived fact that a
-/// mid-construction body, a spur edge or a seam can perfectly well have
-/// wrong. Re-read from the body at rest, never stored with the cache,
-/// so it cannot drift from the body's own geometry.
-///
-/// `None` when the edge is not an intersection edge (null scaffolding
-/// has no description at all), or when the face's own surface is
-/// neither of the pair — both of which the fitted lane then refuses
-/// typed rather than inventing a second operand.
-#[track_caller]
-fn mate_surface<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Option<Surface<T>> {
-    let curve = half_edge_curve(body, half_edge).ok()?;
-    let geom_brep::EdgeDescription::Intersection { pair, .. } = *curve.description() else {
-        return None;
-    };
-    let other = pair.other(half_edge_face(body, half_edge).1.surface)?;
-    let surface = body.get_surface(other).unwrap_or_else(|| {
-        dangling_link(
-            EntityId::Edge(edge_record(body, half_edge).0),
-            "curve's description",
-            GeomRef::Surface(other),
-        )
-    });
-    Some(surface.clone())
-}
-
 /// The surface of the face `half_edge` bounds.
 #[track_caller]
 fn half_edge_surface<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Surface<T> {
@@ -1249,6 +1214,77 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
              iso of this face's chart",
         )
     };
+    // The ARC-RIM class: a circle on one of the chart's boundary rows,
+    // its image the row on the chart's own rational-quadratic parameter
+    // (`Pcurve::IsoArc`). An IsoUnsupported refusal says this carrier
+    // is not such a rim.
+    let arc_rim = || -> Result<Pcurve<T>, PcurveMintError> {
+        let Some(payload) = surface.spline_chart() else {
+            return Err(refuse("an arc cap rim on a non-spline chart"));
+        };
+        let ku = payload.knots_u();
+        let (d0, d1) = ku.domain();
+        let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
+        let breaks = uniform_breaks(spans)
+            .ok_or_else(|| refuse("an arc rim whose chart has no usable sub-arc structure"))?;
+        let v = side_pick(&|cand| surface.eval(cu0, cand), &[cv0, cv1])?.ok_or_else(no_boundary)?;
+        // **The u-DIRECTION pick (#327).** M8-3's arm assumed the
+        // rim's increasing carrier parameter runs with the chart's
+        // increasing `u` — true by construction for a wall the
+        // kernel BUILT, and false in general for one it IMPORTED:
+        // a promoted rim circle's `axis` is derived from the
+        // file's own NURBS winding, and a cylinder wall's two rims
+        // routinely wind oppositely in the file, so exactly one of
+        // them runs against the chart. Assuming `+u` there does not
+        // refuse — it mints a chart image that traverses the wall
+        // BACKWARDS, and the loop walk reports it as a chart
+        // discontinuity or a double-period closure, naming a
+        // symptom two steps from the cause.
+        //
+        // The pick is the `side_pick` idiom on the other axis: the
+        // two candidate images (`u: 0 → 1` and `u: 1 → 0`),
+        // evaluated at a fixed interior probe of the arc and
+        // metered against the carrier there. The start point
+        // cannot decide it — on a FULL-PERIOD rim the chart's two
+        // u-boundaries are the same 3-D point — so the probe sits
+        // at a quarter of the arc, where the two candidates are a
+        // half-period apart. A selection, checked: the full
+        // arc-rim certification still follows.
+        let probe_t = t0 + span * T::from_f64(0.25);
+        let probe = carrier.eval(probe_t);
+        let image = |p0x: T, sign: T| Pcurve::IsoArc {
+            p0: Point2::new(p0x, v),
+            pd: Vec2::new(sign, T::zero()),
+            t0,
+            angle: span,
+            breaks: breaks.clone(),
+        };
+        // Escalations are DEFERRED per candidate (the loop walk's
+        // posture): an indeterminate first candidate must not rob
+        // the second of its turn.
+        let mut deferred: Option<Indeterminate> = None;
+        for (p0x, sign) in [(cu0, cu1 - cu0), (cu1, cu0 - cu1)] {
+            let cand = image(p0x, sign);
+            let uv = cand.eval(probe_t);
+            let gap = probe.distance(surface.eval(uv.x, uv.y));
+            match decide("pcurve_iso_arc_direction", Margin::of(gap), band) {
+                Ok(Sign::Zero) => return Ok(cand),
+                Ok(Sign::Positive | Sign::Negative) => {}
+                Err(cause) => {
+                    if deferred.is_none() {
+                        deferred = Some(cause);
+                    }
+                }
+            }
+        }
+        match deferred {
+            Some(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
+            None => Err(refuse(
+                "an arc rim whose chart image runs in neither u direction — the \
+                 rim does not lie on this chart's boundary column",
+            )),
+        }
+    };
     let own = half_edge_surface_key(body, half_edge);
     match half_edge_description(body, half_edge)? {
         // **This face's OWN chart image is the answer.** Since the
@@ -1325,72 +1361,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
             if matches!(carrier, geom::Curve3::Circle { .. }) =>
         {
-            let Some(payload) = surface.spline_chart() else {
-                return Err(refuse("an arc cap rim on a non-spline chart"));
-            };
-            let ku = payload.knots_u();
-            let (d0, d1) = ku.domain();
-            let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
-            let breaks = uniform_breaks(spans)
-                .ok_or_else(|| refuse("an arc rim whose chart has no usable sub-arc structure"))?;
-            let v =
-                side_pick(&|cand| surface.eval(cu0, cand), &[cv0, cv1])?.ok_or_else(no_boundary)?;
-            // **The u-DIRECTION pick (#327).** M8-3's arm assumed the
-            // rim's increasing carrier parameter runs with the chart's
-            // increasing `u` — true by construction for a wall the
-            // kernel BUILT, and false in general for one it IMPORTED:
-            // a promoted rim circle's `axis` is derived from the
-            // file's own NURBS winding, and a cylinder wall's two rims
-            // routinely wind oppositely in the file, so exactly one of
-            // them runs against the chart. Assuming `+u` there does not
-            // refuse — it mints a chart image that traverses the wall
-            // BACKWARDS, and the loop walk reports it as a chart
-            // discontinuity or a double-period closure, naming a
-            // symptom two steps from the cause.
-            //
-            // The pick is the `side_pick` idiom on the other axis: the
-            // two candidate images (`u: 0 → 1` and `u: 1 → 0`),
-            // evaluated at a fixed interior probe of the arc and
-            // metered against the carrier there. The start point
-            // cannot decide it — on a FULL-PERIOD rim the chart's two
-            // u-boundaries are the same 3-D point — so the probe sits
-            // at a quarter of the arc, where the two candidates are a
-            // half-period apart. A selection, checked: the full
-            // arc-rim certification still follows.
-            let probe_t = t0 + span * T::from_f64(0.25);
-            let probe = carrier.eval(probe_t);
-            let image = |p0x: T, sign: T| Pcurve::IsoArc {
-                p0: Point2::new(p0x, v),
-                pd: Vec2::new(sign, T::zero()),
-                t0,
-                angle: span,
-                breaks: breaks.clone(),
-            };
-            // Escalations are DEFERRED per candidate (the loop walk's
-            // posture): an indeterminate first candidate must not rob
-            // the second of its turn.
-            let mut deferred: Option<Indeterminate> = None;
-            for (p0x, sign) in [(cu0, cu1 - cu0), (cu1, cu0 - cu1)] {
-                let cand = image(p0x, sign);
-                let uv = cand.eval(probe_t);
-                let gap = probe.distance(surface.eval(uv.x, uv.y));
-                match decide("pcurve_iso_arc_direction", Margin::of(gap), band) {
-                    Ok(Sign::Zero) => return Ok(cand),
-                    Ok(Sign::Positive | Sign::Negative) => {}
-                    Err(cause) => {
-                        if deferred.is_none() {
-                            deferred = Some(cause);
-                        }
-                    }
-                }
-            }
-            match deferred {
-                Some(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
-                None => Err(refuse(
-                    "an arc rim whose chart image runs in neither u direction — the \
-                     rim does not lie on this chart's boundary column",
-                )),
-            }
+            arc_rim()
         }
         geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
             if matches!(carrier, geom::Curve3::Line { .. }) =>
@@ -1471,17 +1442,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // forward image that fits the class by construction and states
         // the wrong traversal.
         //
-        // An `Intersection` whose carrier traverses NEITHER boundary
-        // column under the chart's own parameterization refuses typed
-        // and permanently (C5).
+        // A carrier the exact candidates do not claim stores its
+        // `General` image.
         geom_brep::EdgeDescription::Intersection { .. } => {
-            let geom::Curve3::Nurbs(spline) = &carrier else {
-                return Err(refuse(
-                    "an Intersection carrier that is not a spline — the certified \
-                     boundary-column class compares the carrier against the chart's own \
-                     boundary ROW, which is a spline",
-                ));
-            };
             let Some(wall) = surface.spline_chart() else {
                 unreachable!(
                     "nurbs_iso_derive: both callers route only a chart with a spline payload \
@@ -1493,7 +1456,12 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             // Escalations are DEFERRED per candidate: an indeterminate
             // first candidate must not rob the rest of their turn.
             let mut deferred: Option<Indeterminate> = None;
-            let columns = [cu0, cu1].into_iter().flat_map(|x| {
+            // The iso candidates are offered to the carriers the iso
+            // class certifies: a spline and a line. A circle's exact
+            // class is the arc rim, tried below; an ellipse or a spiric
+            // has none on a spline chart.
+            let iso = matches!(carrier, geom::Curve3::Nurbs(_) | geom::Curve3::Line { .. });
+            let columns = [cu0, cu1].into_iter().filter(|_| iso).flat_map(|x| {
                 [(cv0, cv1), (cv1, cv0)].map(|(v_at_t0, v_at_t1)| {
                     let slope = (v_at_t1 - v_at_t0) / span;
                     Pcurve::IsoLine {
@@ -1503,10 +1471,21 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 })
             });
             // A cap–wall rim stated intrinsically traverses a boundary
-            // ROW, `u` moving — offered only in a direction whose
-            // carrier is in the row's own spline space (`RowSpace`:
-            // the row class compares control nets over it).
-            let row_space = RowSpace::of(spline.knots(), wall.knots_u());
+            // ROW, `u` moving — offered to a spline only in a direction
+            // whose carrier is in the row's own spline space
+            // (`RowSpace`: the row class compares control nets over it),
+            // and to a line in both, whose class reads no net.
+            let row_space = match &carrier {
+                geom::Curve3::Nurbs(spline) => RowSpace::of(spline.knots(), wall.knots_u()),
+                geom::Curve3::Line { .. } => RowSpace {
+                    forward: true,
+                    backward: true,
+                },
+                _ => RowSpace {
+                    forward: false,
+                    backward: false,
+                },
+            };
             let directions: Vec<(T, T)> = [(true, (cu0, cu1)), (false, (cu1, cu0))]
                 .into_iter()
                 .filter_map(|(rising, ends)| row_space.admits(rising).then_some(ends))
@@ -1582,7 +1561,18 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                     Err(cause) => return Err(PcurveMintError::Escalated { half_edge, cause }),
                 }
             }
-            let image = match derive_general_image(spline, wall, half_edge) {
+            // A circle on a boundary row is the arc rim's; any other
+            // circle, an IsoUnsupported answer, is not.
+            if deferred.is_none() && matches!(carrier, geom::Curve3::Circle { .. }) {
+                match arc_rim() {
+                    Err(PcurveMintError::Certify {
+                        error: PcurveCertifyError::IsoUnsupported { .. },
+                        ..
+                    }) => {}
+                    found => return found,
+                }
+            }
+            let image = match derive_general_image(&carrier, (t0, t1), wall, half_edge) {
                 Ok(image) => image,
                 // An escalated candidate still outranks a derivation
                 // refusal: a row that escalates today keeps escalating,
@@ -1628,8 +1618,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     }
 }
 
-/// The **general curve-in-UV image** of a spline carrier on this face's
-/// own spline chart — U2's `General` arm, at the honest Fitted grade.
+/// The **general curve-in-UV image** of a carrier on this face's own
+/// spline chart over the edge's interval `params` — U2's `General`
+/// arm, at the honest Fitted grade.
 ///
 /// The producer is `geom_brep`'s one derivation of this object
 /// ([`geom_brep::FittedLane::general_image`], whose body is the same
@@ -1637,7 +1628,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
 /// at adopt time). Nothing is certified here: this returns EVIDENCE,
 /// and the mint's next move is `PcurveCache::certify_general`, which
 /// bounds `sup_t |S(P(t)) − C(t)|` over the whole span against the
-/// operand pair the edge's own description names.
+/// chart.
 ///
 /// # Errors
 ///
@@ -1646,7 +1637,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
 /// certified lane (a dual body may not certify — D1), or the
 /// derivation's own typed refusal.
 fn derive_general_image<T: AtRestPolicy>(
-    spline: &geom::NurbsCurve3<T>,
+    carrier: &geom::Curve3<T>,
+    params: (T, T),
     wall: &geom::NurbsSurface<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<geom::NurbsCurve2<T>, PcurveMintError> {
@@ -1656,7 +1648,7 @@ fn derive_general_image<T: AtRestPolicy>(
             scalar: T::NAME,
         }));
     };
-    lane.general_image(spline, wall).map_err(certify)
+    lane.general_image(carrier, params, wall).map_err(certify)
 }
 
 /// The **certified chart foot** of one model-space point on this face's
@@ -2514,22 +2506,12 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
         });
         let surface = half_edge_surface(body, half_edge);
         let image = cache.pcurve().clone();
-        let mate = mate_surface(body, half_edge);
         let refused = |error| SplitRowError {
             half_edge,
             refusal: SplitRefusal::Certify(error),
         };
         let certify = |a: T, b: T, image: Pcurve<T>| {
-            restate(
-                &image,
-                (a, b),
-                &carrier,
-                &surface,
-                mate.as_ref(),
-                band,
-                T::fitted_lane(),
-            )
-            .map_err(refused)
+            restate(&image, (a, b), &carrier, &surface, band, T::fitted_lane()).map_err(refused)
         };
         let Some(chart) = DescribedChart::of(&surface) else {
             unreachable!(
@@ -2746,13 +2728,11 @@ fn carry_rows<T: AtRestPolicy>(
         // refuses here, not later at tier 3.
         row_interval(body, he, row, &carrier, band)?;
         let (t0, t1) = row.params();
-        let mate = mate_surface(body, he);
         let restated = restate(
             row.pcurve(),
             (t0, t1),
             &carrier,
             surface,
-            mate.as_ref(),
             band,
             T::fitted_lane(),
         )
@@ -2768,13 +2748,12 @@ fn carry_rows<T: AtRestPolicy>(
 /// A stored chart image re-certified over `[t0, t1]` through its own
 /// door: the closed-form door for every image it covers, the fitted
 /// door (`fitted`, the scalar's [`crate::AtRestPolicy::fitted_lane`])
-/// for a `Fitted` or `General` one, which also reads the mate surface.
+/// for a `Fitted`, `General` or `Projected` one.
 fn restate<T: Decide>(
     image: &Pcurve<T>,
     (t0, t1): (T, T),
     carrier: &geom::Curve3<T>,
     surface: &Surface<T>,
-    mate: Option<&Surface<T>>,
     band: Band,
     fitted: Option<geom_brep::FittedLane<T>>,
 ) -> Result<PcurveCache<T>, PcurveCertifyError> {
@@ -2786,7 +2765,6 @@ fn restate<T: Decide>(
                 t1,
                 carrier,
                 surface,
-                mate,
                 band,
                 lane,
             ),
@@ -2798,7 +2776,6 @@ fn restate<T: Decide>(
             t1,
             carrier,
             surface,
-            mate,
             band,
             fitted,
         ),
@@ -2879,65 +2856,20 @@ fn derive_face<T: AtRestPolicy>(
             broken.push(lp);
         }
     }
-    // U2's `General` arm certifies at the FITTED grade: the same four
-    // checks in the same order, but check 4 is the full C2 certificate
-    // against the operand PAIR, so it needs the mate the edge's own
-    // description names (D2 — read from the description, never from the
-    // topology, and re-read from the body rather than stored). The
-    // certificate is the fitted door's, read off the scalar's policy,
-    // and the image is not always one this pass derived: the own-chart
-    // arm of `nurbs_iso_derive` hands a construction's STATED `General`
-    // image here at every scalar, a dual included. So the door goes in
-    // as the policy answers it, `None` and all, and an absent one
-    // refuses at check 4 — an image that fails checks 1–3 draws those
-    // checks' verdict at every scalar.
-    //
-    // No derivation in this pass yields a `Fitted` image (an analytic
-    // chart's image of a carrier with no closed form is the projected
-    // one); one reaches here only as a stated row, and certifies at the
-    // scalar's door or refuses naming the scalar that lacks it.
-    let fitted = |w: &Walked<T>| match &w.pcurve {
-        Pcurve::General(image) => PcurveCache::certify_general(
-            std::sync::Arc::clone(image),
-            w.t0,
-            w.t1,
-            &w.carrier,
-            surface,
-            mate_surface(body, w.key).as_ref(),
-            band,
-            T::fitted_lane(),
-        ),
-        Pcurve::Fitted(image) => {
-            let lane = T::fitted_lane()
-                .ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
-            PcurveCache::certify_fitted(
-                std::sync::Arc::clone(image),
-                w.t0,
-                w.t1,
-                &w.carrier,
-                surface,
-                mate_surface(body, w.key).as_ref(),
-                band,
-                lane,
-            )
-        }
-        // A spline carrier's projected row reads its hull terms through
-        // the door; a circle's reads nothing from it. At a scalar with
-        // no door a net's row refuses at check 4, which `not_owed`
-        // excuses there.
-        Pcurve::Projected(image) => PcurveCache::certify_projected(
-            (**image).clone(),
-            w.t0,
-            w.t1,
+    // The fitted door goes in as the scalar's policy answers it, `None`
+    // and all: the own-chart arm of `nurbs_iso_derive` hands a
+    // construction's STATED `General` image here at every scalar, a dual
+    // included, and an absent door refuses at check 4, so an image that
+    // fails checks 1–3 draws those checks' verdict at every scalar.
+    let fitted = |w: &Walked<T>| {
+        restate(
+            &w.pcurve,
+            (w.t0, w.t1),
             &w.carrier,
             surface,
             band,
             T::fitted_lane(),
-        ),
-        closed => unreachable!(
-            "certify_walked hands the fitted door only Fitted, General and Projected images: \
-             {closed:?}"
-        ),
+        )
     };
     if !refused.is_empty() {
         // A walk stops at the first refusal of its loop, so an edge
@@ -4983,8 +4915,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                 if let Err(e) = row_interval(body, he, cache, &carrier, band) {
                     findings.push(e);
                 }
-                let mate = mate_surface(body, he);
-                if let Err(error) = cache.recertify(&carrier, surface, mate.as_ref(), band, lane) {
+                if let Err(error) = cache.recertify(&carrier, surface, band, lane) {
                     findings.push(PcurveMintError::Certify {
                         half_edge: he,
                         error,
@@ -6227,7 +6158,10 @@ mod derive_without_a_door {
         )
         .unwrap()
         .map_scalar(lift);
-        let err = derive_general_image(&carrier, &chart, HalfEdgeKey::default()).unwrap_err();
+        let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(carrier));
+        let params = (Dual64::from_f64(0.0), Dual64::from_f64(1.0));
+        let err =
+            derive_general_image(&carrier, params, &chart, HalfEdgeKey::default()).unwrap_err();
         let PcurveMintError::Certify {
             error: PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
             ..

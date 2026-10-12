@@ -1929,8 +1929,8 @@ pub(crate) fn every_euler_op_error_once()
             half_edge: he,
             error: geom_brep::PcurveCertifyError::UnsupportedCarrier {
                 chart: geom::SurfaceKind::Torus,
-                carrier: geom::CurveKind::Nurbs,
-                class: geom_brep::UncoveredClass::NoFittedClass,
+                carrier: geom::CurveKind::Spiric,
+                class: geom_brep::UncoveredClass::MirrorTorusSpiric,
             },
         },
         EulerOpError::PcurveMint {

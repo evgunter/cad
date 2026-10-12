@@ -584,8 +584,8 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         },
         PcurveCertifyError::UnsupportedCarrier {
             chart: geom::SurfaceKind::Torus,
-            carrier: geom::CurveKind::Nurbs,
-            class: geom_brep::UncoveredClass::NoFittedClass,
+            carrier: geom::CurveKind::Spiric,
+            class: geom_brep::UncoveredClass::MirrorTorusSpiric,
         },
         PcurveCertifyError::CarrierGrazesChart {
             chart: geom::SurfaceKind::Torus,
@@ -602,7 +602,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             why: "a fitted-grade image at the closed-form door",
         },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
-        PcurveCertifyError::FittedMateMissing,
         PcurveCertifyError::SectorRefused {
             piece: 0,
             channel: geom_brep::SectorChannel::Azimuth,

@@ -53,6 +53,7 @@
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
+mod carrier_net;
 pub mod certify;
 pub mod conic_bend;
 pub(crate) mod descent;

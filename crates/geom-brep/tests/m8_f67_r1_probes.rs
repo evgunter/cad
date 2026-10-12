@@ -290,8 +290,8 @@ fn iso_lane_backwards_span_stays_interval_not_forward() {
 }
 
 /// CLAIM 2, fitted lane: the poison meter refuses at the meter through
-/// `PcurveCache::certify_fitted` (check 1 is passed with a mate so
-/// check 2's gate is the deciding site).
+/// `PcurveCache::certify_fitted` (check 1 passes on the spline chart,
+/// so check 2's gate is the deciding site).
 #[test]
 fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
     let ik = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("image knots");
@@ -303,7 +303,6 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
         )
         .expect("the image builds"),
     );
-    let (px, _) = axis_planes_f64();
     let wall = quarter_cylinder_wall();
     let got = PcurveCache::certify_fitted(
         image,
@@ -311,7 +310,6 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
         1.0,
         &degenerate_net(),
         &wall,
-        Some(&px),
         band(),
         FittedLane::certified(),
     );

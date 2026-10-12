@@ -8,7 +8,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::FRAC_1_SQRT_2;
 use std::sync::Arc;
 
 use crate::shared::fixture;
@@ -17,7 +16,7 @@ use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_brep::{FittedLane, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::spline::KnotVector;
-use geom_core::{Point2, Point3};
+use geom_core::{Point2, Point3, Vec3};
 
 /// A rational quarter-cylinder wall of radius 1 about the z axis: the
 /// `u = 0` boundary column is the ruling `x = 1, y = 0`.
@@ -50,38 +49,26 @@ fn image(u: f64) -> Arc<NurbsCurve2<f64>> {
     )
 }
 
-/// The mate operand: a plane containing the ruling and meeting the
-/// wall at 45°, so the pair's uniqueness tube has room to be
-/// definitely transverse (a plane tangent along the ruling would be
-/// the sliver the tube exists to refuse).
-fn mate() -> Surface<f64> {
-    let r = FRAC_1_SQRT_2;
-    Surface::Plane {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        normal: geom_core::Vec3::new(r, r, 0.0),
-        u_ref: geom_core::Vec3::new(0.0, 0.0, 1.0),
-    }
-}
-
-/// **ε-row, outcome ESCALATE**: a general image with no mate operand.
-/// The uniqueness tube is a statement about the surface PAIR whose
-/// intersection minted the carrier, so one surface cannot produce one
-/// — the lane says so rather than certifying half a statement.
+/// **ε-row, outcome CERTIFY**: the ruling's own column as a general
+/// image, certified against its chart alone — the row reads no mate
+/// surface, since an intersection carrier's uniqueness tube is the
+/// edge's certificate.
 #[test]
-fn general_without_a_mate_escalates_at_the_pair() {
+fn a_general_image_certifies_against_its_chart_alone() {
     let got = PcurveCache::certify_general(
         image(0.0),
         0.0,
         1.0,
         &ruling(),
         &quarter_cylinder_wall(),
-        None,
         band(),
         Some(FittedLane::certified()),
-    );
+    )
+    .expect("the ruling's column certifies with no mate in hand");
     assert!(
-        matches!(got, Err(PcurveCertifyError::FittedMateMissing)),
-        "a general image owes the same pair statement as a fitted one: {got:?}"
+        got.certificate().envelope <= band().zero(),
+        "the hull bound is within ε: {:?}",
+        got.certificate()
     );
 }
 
@@ -91,14 +78,12 @@ fn general_without_a_mate_escalates_at_the_pair() {
 /// failure, never an escalation.
 #[test]
 fn a_general_image_of_the_wrong_column_refuses_definitely() {
-    let m = mate();
     let got = PcurveCache::certify_general(
         image(1.0),
         0.0,
         1.0,
         &ruling(),
         &quarter_cylinder_wall(),
-        Some(&m),
         band(),
         Some(FittedLane::certified()),
     );
@@ -140,8 +125,8 @@ fn the_closed_form_door_refuses_a_general_image() {
 
 /// **An analytic chart holds no fitted-grade image.** Its image of a
 /// carrier with no closed form is the projected one, so the general
-/// door refuses a spline carrier's spline image on a cylinder chart by
-/// kind, and a circle carrier on a sphere has no fitted class at all.
+/// door refuses a spline image on a cylinder or a sphere chart by kind,
+/// whatever the carrier.
 #[test]
 fn an_analytic_chart_refuses_a_fitted_grade_image() {
     let cylinder = surf::cylinder::<f64>(1.0);
@@ -151,7 +136,6 @@ fn an_analytic_chart_refuses_a_fitted_grade_image() {
         1.0,
         &ruling(),
         &cylinder,
-        Some(&mate()),
         band(),
         Some(FittedLane::certified()),
     );
@@ -177,19 +161,18 @@ fn an_analytic_chart_refuses_a_fitted_grade_image() {
         1.0,
         &circle,
         &surf::sphere::<f64>(1.0),
-        None,
         band(),
         Some(FittedLane::certified()),
     );
     assert!(
         matches!(
             got,
-            Err(PcurveCertifyError::UnsupportedCarrier {
-                class: geom_brep::UncoveredClass::NoFittedClass,
+            Err(PcurveCertifyError::ImageMismatch {
+                image: geom_brep::PcurveKind::Fitted,
                 ..
             })
         ),
-        "a circle has no fitted class: {got:?}"
+        "the chart decides, the circle carrier nothing: {got:?}"
     );
 }
 
@@ -200,14 +183,12 @@ fn an_analytic_chart_refuses_a_fitted_grade_image() {
 /// measured.
 #[test]
 fn the_general_and_fitted_doors_certify_alike() {
-    let m = mate();
     let general = PcurveCache::certify_general(
         image(0.0),
         0.0,
         1.0,
         &ruling(),
         &quarter_cylinder_wall(),
-        Some(&m),
         band(),
         Some(FittedLane::certified()),
     )
@@ -222,7 +203,6 @@ fn the_general_and_fitted_doors_certify_alike() {
         1.0,
         &ruling(),
         &quarter_cylinder_wall(),
-        Some(&m),
         band(),
         FittedLane::certified(),
     )
@@ -231,5 +211,163 @@ fn the_general_and_fitted_doors_certify_alike() {
         format!("{:?}", general.certificate()),
         format!("{:?}", fitted.certificate()),
         "the two doors run one check sequence"
+    );
+}
+
+/// The image of `carrier` over `[t0, t1]` a construction would state:
+/// the carrier's certified chart feet at 65 stations, interpolated at
+/// degree 5 on its own parameter.
+fn stated_image(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Arc<NurbsCurve2<f64>> {
+    let wall = fixture::quarter_cylinder_wall();
+    let lane = FittedLane::<f64>::certified();
+    let n = 64;
+    let fracs: Vec<f64> = (0..=n).map(|i| f64::from(i) / f64::from(n)).collect();
+    let feet: Vec<Point2<f64>> = fracs
+        .iter()
+        .map(|f| {
+            lane.chart_foot(carrier.eval(t0 + (t1 - t0) * f), &wall)
+                .expect("a foot")
+        })
+        .collect();
+    let fit = NurbsCurve2::<f64>::interpolate_with_params(&feet, 5, &fracs).expect("the fit");
+    Arc::new(fit.on_domain(t0, t1).expect("on the carrier's interval"))
+}
+
+/// A height-`z` circle on the quarter-cylinder wall, `t` its angle.
+fn circle(z: f64) -> Curve3<f64> {
+    Curve3::Circle {
+        center: Point3::new(0.0, 0.0, z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// The wall's section by the plane `z = 0.4 + 0.3·x`:
+/// `(cos t, sin t, 0.4 + 0.3·cos t)`.
+fn ellipse() -> Curve3<f64> {
+    let k = 0.3_f64;
+    let s = (1.0 + k * k).sqrt();
+    Curve3::Ellipse {
+        center: Point3::new(0.0, 0.0, 0.4),
+        axis: Vec3::new(-k / s, 0.0, 1.0 / s),
+        major: s,
+        minor: 1.0,
+        u_ref: Vec3::new(1.0 / s, 0.0, k / s),
+    }
+}
+
+/// **A circle and an ellipse on a spline chart certify at the fitted
+/// grade**, each carrier enclosed span by span in certification
+/// arithmetic; the same image offered for a carrier a millimetre off
+/// the wall refuses at the hull.
+#[test]
+fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
+    let wall = quarter_cylinder_wall();
+    let span = (0.1, 1.4);
+    for (name, carrier, off) in [
+        ("circle", circle(0.5), circle(0.501)),
+        ("ellipse", ellipse(), {
+            let Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } = ellipse()
+            else {
+                unreachable!()
+            };
+            Curve3::Ellipse {
+                center: center + Vec3::new(0.0, 0.0, 1e-3),
+                axis,
+                major,
+                minor,
+                u_ref,
+            }
+        }),
+    ] {
+        let image = stated_image(&carrier, span);
+        let got = PcurveCache::certify_general(
+            Arc::clone(&image),
+            span.0,
+            span.1,
+            &carrier,
+            &wall,
+            band(),
+            Some(FittedLane::certified()),
+        )
+        .unwrap_or_else(|e| panic!("{name}: certifies on the spline chart: {e}"));
+        assert!(
+            got.certificate().envelope <= band().zero(),
+            "{name}: the hull bound is within ε: {:?}",
+            got.certificate()
+        );
+        let refused = PcurveCache::certify_general(
+            image,
+            span.0,
+            span.1,
+            &off,
+            &wall,
+            band(),
+            Some(FittedLane::certified()),
+        );
+        assert!(
+            matches!(
+                refused,
+                Err(PcurveCertifyError::ResidualExceeded { .. }
+                    | PcurveCertifyError::FittedCertificate { .. })
+            ),
+            "{name}: a millimetre off the wall refuses definitely: {refused:?}"
+        );
+    }
+}
+
+/// **A stated image wrong only between samples refuses at the hull.**
+/// The ruling's column, bent a millimetre off the wall's `u = 0` edge
+/// midway between each pair of the certificate's samples and exact at
+/// every sample: check 3 passes and check 4's hull refuses.
+#[test]
+fn a_general_image_wrong_between_samples_refuses_at_the_hull() {
+    let n = geom_brep::CERT_SAMPLES;
+    let mut points = Vec::new();
+    for i in 0..n {
+        let t = f64::from(i) / f64::from(n - 1);
+        points.push(Point2::new(0.0, t));
+        if i + 1 < n {
+            let mid = (f64::from(i) + 0.5) / f64::from(n - 1);
+            points.push(Point2::new(1e-3, mid));
+        }
+    }
+    let mut knots = vec![0.0, 0.0];
+    let count = points.len();
+    knots.extend((1..count - 1).map(|k| points[k].y));
+    knots.extend([1.0, 1.0]);
+    let bent = NurbsCurve2::new(
+        KnotVector::clamped(knots, 1).expect("knots"),
+        points,
+        vec![1.0; count],
+    )
+    .expect("the bent image builds");
+    let got = PcurveCache::certify_general(
+        Arc::new(bent),
+        0.0,
+        1.0,
+        &ruling(),
+        &quarter_cylinder_wall(),
+        band(),
+        Some(FittedLane::certified()),
+    );
+    let Err(PcurveCertifyError::FittedCertificate { limb, .. }) = got else {
+        panic!("the bend between samples refuses at the hull: {got:?}");
+    };
+    // The bend sits on a break of the composite, so the hull reads its
+    // value there past the band, or its bound over a span holding it.
+    assert!(
+        matches!(
+            limb,
+            Some(geom_brep::SsiLimb::HullSup | geom_brep::SsiLimb::HullValueChart)
+        ),
+        "check 4's hull is what refuses: {limb:?}"
     );
 }

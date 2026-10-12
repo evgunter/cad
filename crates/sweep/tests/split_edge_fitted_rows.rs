@@ -231,18 +231,17 @@ fn split_carries<T: AtRestPolicy>(
         (variant, format!("{:?}", p.pcurve()))
     };
     let image = row(parent);
-    // Check 4 reads the whole carrier against the pair, and a split
-    // keeps every input it reads, so each child's certificate is the
+    // Check 4 reads the whole image against the chart, and a split
+    // keeps every input it reads, so each child's bound is the
     // parent's: at the band the parent was certified at, a child is
-    // refused there only if its parent is. The parent's own check 4
-    // stands, so the equality below compares two certificates, not two
-    // absences.
-    assert!(
-        parent.certificate().ssi().is_some(),
-        "{kind} @ {}: the parent's row holds a check-4 certificate",
+    // refused there only if its parent is.
+    assert_eq!(
+        parent.certificate().statement,
+        geom_brep::EnvelopeStatement::MapResidualComposite,
+        "{kind} @ {}: the parent's row holds a check-4 hull bound",
         T::NAME
     );
-    let parent_ssi = format!("{:?}", parent.certificate().ssi());
+    let parent_hull = format!("{:?}", parent.certificate().envelope);
     let (t0, t1) = parent.params();
     let t = (t0 + t1) * T::from_f64(0.5);
     let created = body
@@ -265,8 +264,8 @@ fn split_carries<T: AtRestPolicy>(
                 T::NAME
             );
             assert_eq!(
-                format!("{:?}", cache.certificate().ssi()),
-                parent_ssi,
+                format!("{:?}", cache.certificate().envelope),
+                parent_hull,
                 "{kind} @ {}: {h:?}'s check 4 is the parent's, bit for bit",
                 T::NAME
             );
@@ -308,25 +307,12 @@ fn fitted_row<T: AtRestPolicy>() {
         panic!("the mint stores the interior column's General image")
     };
     let (carrier, t0, t1) = seam_carrier(&body, edge);
-    let Some(topo::CurveGeom::Certified(c)) =
-        body.get_curve_geom(body.get_edge(edge).unwrap().curve)
-    else {
-        panic!("the seam's carrier is certified")
-    };
-    let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
-        panic!("the seam is described as an intersection")
-    };
-    let mate = pair
-        .other(chart)
-        .and_then(|k| body.get_surface(k).cloned())
-        .expect("the seam names its plane mate");
     let fitted = PcurveCache::certify_fitted(
         image,
         t0,
         t1,
         &carrier,
         body.get_surface(chart).unwrap(),
-        Some(&mate),
         band(),
         T::fitted_lane().expect("the scalar holds the fitted door"),
     )

@@ -73,7 +73,7 @@
 //! a bound says that without an impl to write.
 
 use core::num::NonZeroUsize;
-use geom::{NurbsCurve2, NurbsCurve3};
+use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
 use geom_core::spline::{KnotVector, SpanLocate, SplineError};
@@ -1285,6 +1285,57 @@ impl core::fmt::Display for AnalyticRung3Refusal {
 pub(crate) fn chart_image<T, F>(
     carrier: &NurbsCurve3<T>,
     wall: &NurbsSurface<T>,
+    per_sample: F,
+) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+    F: FnMut(u32, Point2<f64>) -> Result<(), PlaneNurbsRefusal>,
+{
+    image_on_schedule(
+        |t| carrier.eval(t),
+        carrier.domain(),
+        carrier.knot_values().domain(),
+        wall,
+        per_sample,
+    )
+}
+
+/// [`chart_image`] for any carrier: a spline's over its own domain, any
+/// other kind's over `params`' outer ends (its bracket's, so the image
+/// covers the interval at every scalar), its ends held there.
+///
+/// # Errors
+///
+/// As [`chart_image`].
+pub(crate) fn curve_chart_image<T>(
+    carrier: &Curve3<T>,
+    (t0, t1): (T, T),
+    wall: &NurbsSurface<T>,
+) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+{
+    if let Curve3::Nurbs(net) = carrier {
+        return chart_image(net, wall, |_, _| Ok(()));
+    }
+    let (lo, hi) = (t0.lo().min(t1.lo()), t0.hi().max(t1.hi()));
+    image_on_schedule(
+        |t| carrier.eval(t),
+        (lo, hi),
+        (T::from_f64(lo), T::from_f64(hi)),
+        wall,
+        |_, _| Ok(()),
+    )
+}
+
+/// The schedule both doors above share: `eval` read at the
+/// [`PXN_FIT_SAMPLES`] stations of `(t0, t1)`, its ends held at
+/// `held`, each projected onto `wall` and the feet interpolated.
+fn image_on_schedule<T, F>(
+    eval: impl Fn(T) -> geom_core::Point3<T>,
+    (t0, t1): (f64, f64),
+    (h0, h1): (T, T),
+    wall: &NurbsSurface<T>,
     mut per_sample: F,
 ) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>
 where
@@ -1301,7 +1352,6 @@ where
             what: geom::PLACEHOLDER_SURFACE,
         });
     }
-    let (t0, t1) = carrier.domain();
     let domain_refusal = |e| PlaneNurbsRefusal::CarrierDomain(CarrierDomainRefusal::of(t0, t1, &e));
     // The domain door, asked first on a vector with no interior knots
     // (so only the interval itself can refuse): a domain whose width
@@ -1320,12 +1370,11 @@ where
     // The fit's parameters are the schedule's `f64` fractions (the
     // image's knots are the fit's); the carrier is read at the same
     // station, its ends held (`held_station`).
-    let (h0, h1) = carrier.knot_values().domain();
     let mut uv = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     let mut params = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     for i in 0..PXN_FIT_SAMPLES {
         let frac = schedule_fraction(i, PXN_FIT_SAMPLES);
-        let p = carrier.eval(crate::certify::held_station(
+        let p = eval(crate::certify::held_station(
             (t0, t1),
             (h0, h1),
             i,
