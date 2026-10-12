@@ -166,9 +166,19 @@ pub fn build<T>() -> Built<T>
 where
     T: topo::AtRestPolicy + geom_core::Bounds,
 {
-    let mut built = assemble(&restrict(branch(), (0.0, 0.25)));
+    let mut built =
+        try_assemble(&restrict(branch(), (0.0, 0.25))).expect("the rung-3 edge certifies at rest");
     topo::mint_pcurves(&mut built.body, Tol::witness()).expect("the cylinder face mints");
     built
+}
+
+/// The fixture's edge at `T`, before any row is minted: the mev's own
+/// refusal where `T`'s policy holds no NURBS lane.
+pub fn try_build<T>() -> Result<Built<T>, topo::EulerOpError>
+where
+    T: topo::AtRestPolicy + geom_core::Bounds,
+{
+    try_assemble(&restrict(branch(), (0.0, 0.25)))
 }
 
 /// The planted corruption for the at-rest row: a row the mint derived
@@ -178,7 +188,8 @@ where
 /// certificate": every stored number in it is true, and true about the
 /// wrong carrier.
 pub fn foreign_cache(built: &Built<f64>) -> PcurveCache<f64> {
-    let mut other = assemble::<f64>(&restrict(branch(), (0.5, 0.75)));
+    let mut other =
+        try_assemble::<f64>(&restrict(branch(), (0.5, 0.75))).expect("the other arc certifies");
     topo::mint_pcurves(&mut other.body, Tol::witness()).expect("the other arc mints");
     let _ = built;
     other
@@ -192,7 +203,7 @@ pub fn foreign_cache(built: &Built<f64>) -> PcurveCache<f64> {
 /// the well-conditioned one — azimuth about the axis, height along it),
 /// the sphere is the mate the edge's own DESCRIPTION names. No row is
 /// stored yet.
-fn assemble<T>(arc: &NurbsCurve3<f64>) -> Built<T>
+fn try_assemble<T>(arc: &NurbsCurve3<f64>) -> Result<Built<T>, topo::EulerOpError>
 where
     T: topo::AtRestPolicy + geom_core::Bounds,
 {
@@ -223,33 +234,31 @@ where
         )
         .unwrap();
     let mid = T::from_f64(0.5 * (f0 + f1));
-    let made = body
-        .mev(
-            topo::MevSite::Lone {
-                r#loop: seed.r#loop,
+    let made = body.mev(
+        topo::MevSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        p1,
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(cyl_key, sph_key),
+                witness: carrier.eval(mid),
             },
-            p1,
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
-                    pair: SurfacePair::new(cyl_key, sph_key),
-                    witness: carrier.eval(mid),
-                },
-                carrier: Curve3::Nurbs(Arc::clone(&carrier)),
-                param_start: t0,
-                param_end: t1,
-            },
-            Tol::witness(),
-        )
-        .expect("the rung-3 edge certifies at rest");
+            carrier: Curve3::Nurbs(Arc::clone(&carrier)),
+            param_start: t0,
+            param_end: t1,
+        },
+        Tol::witness(),
+    )?;
 
     let edge = body.get_edge(made.edge).expect("the edge resolves");
     let (he_plus, he_minus) = (edge.he_plus, edge.he_minus);
-    Built {
+    Ok(Built {
         body,
         he_plus,
         he_minus,
         carrier,
         cylinder: cylinder::<T>(),
         sphere: sphere::<T>(),
-    }
+    })
 }
