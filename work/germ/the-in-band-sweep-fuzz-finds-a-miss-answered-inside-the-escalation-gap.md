@@ -56,3 +56,19 @@ CAD_FUZZ_SEED=0x9433bbf2eb0a13c0 CAD_FUZZ_EFFORT=1 \
 A clearance of 9.679ε, further inside the `< 10ε` gap than the first
 seed's 9.991ε, so frame rounding at the gap's edge is a less likely
 explanation for this one.
+
+## Another seed (NURBS, 2026-10-12)
+
+Seed `0xe8586f5f5e218549` reddens `topo` `conic_quadric::in_band_sweep` in one default run.
+
+NURBS build A replayed it on two trees, each on its own isolated target dir:
+- on PR 4551's branch: red;
+- on main at `5160aff448`: red.
+
+It is not PR 4551's change, and it is a witness for this row. Replay:
+
+```
+CAD_FUZZ_SEED=0xe8586f5f5e218549 cargo nextest run -p topo -E 'test(in_band_sweep)'
+```
+
+The clearance was not taken. — (NURBS orchestrator)
