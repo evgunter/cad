@@ -6,6 +6,9 @@ status: open
 opened: 2026-10-01
 priority: P2
 cost: M
+design: true
+branch: germ/conic-past-band
+refs: [focal-section-vertex-azimuth-is-read-off-a-cancelling-sum, focal-section-envelope-bounds-the-whole-ellipse-not-the-span, focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor]
 ---
 
 Found by the plane × cone split lane (`plane-cone-elliptic-section-split-refusal`),
@@ -111,3 +114,42 @@ margins 1.0e-11 to 1.16e-10 (80 runs; 6 more refuse `EndpointEnd`, 5
 neighbours of this door, where the miss is the input's rather than the
 carrier's rounding, are filed as CLEAVE's
 `a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join`.
+
+## The lever is a fork (GERM measurement, 2026-10-12)
+
+Measured by `sweep/examples/conic_past_band_probe.rs`: the split of a
+frustum (five half-angles, three scales) and of a cylinder (three
+scales) by planes tilted toward the degenerate limit, at all three ε,
+axis-aligned and in a generic pose, with the arm's carrier residual
+(double-double), the chart image's map residual over the consumed
+arcs and the whole turn, and its certificate. The tables and the
+options are the draft PR's body. In short:
+
+- **The cylinder** refuses downstream only at the Euler gate's
+  endpoint residual, and that door is read by `u·A` (`u` the rounding
+  unit, `A` the semi-major) alone: at ε = 1e-9 the unit and 100-unit
+  cylinders certify to `u·A/ε ≈ 0.22` and refuse from 0.40 (the
+  0.01-unit one refuses first at the sector door,
+  `Reduce(SliverSector)`); at 1e-12 the crossover is 0.71–1.26. The extent plays no part, and the carrier and its image
+  stay at rounding throughout.
+- **The cone** refuses mostly at the image (`Pcurves(Certify)`,
+  envelope or map residual), at `u·A/ε` anywhere from 1.4e-5 to 0.34:
+  the image's whole-turn miss grows like `u·A/k²` at a generic pose
+  (`k² = 1 − tan²α·tan²φ`), with a further `~1/cos²α` on flat cones
+  (α = 1.55 refuses at half the parabolic tilt at 1e-12). No single
+  quantity among `u·A`, `A/extent`, `u·A/k`, `u·A/(k·cos²α)`
+  separates certifying from refusing poses: each overlaps by at least
+  3× in the sweep.
+- **Most of the cone's image error is avoidable one layer down**:
+  `chart_pcurve` reads the vertex azimuth off a sum that cancels near
+  the parabola, and reading it off the major axis cuts the whole-turn
+  miss 10–1000× (filed on PCERT, with the envelope's whole-ellipse
+  reading and the flat-cone factor: `refs`).
+
+So several levers are viable and they trade off (what they refuse,
+which layer owns the conditioning): an arm criterion on the carrier
+alone, one that also bounds the image, the image fixed first and
+then the carrier criterion, or the late refusal re-worded. The
+frustum counterexample above (`A ≈ 3.4` against an extent of 2.0,
+tilt `0.9·(π/2 − α)`) certifies at every ε, and no criterion that
+reads `A` against the extent survives the sweep.
