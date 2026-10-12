@@ -195,7 +195,7 @@ pub(crate) fn graft_solid<T: crate::props::AtRestPolicy>(
         Targets::Existing(&[dst_solid]),
         src,
         Bridge::Recertify { tol },
-        T::nurbs_lane(),
+        if std::env::var("MUT_GRAFT_FREE").is_ok() { None } else { T::nurbs_lane() },
     )
     .map(|(map, _)| map)
 }
@@ -1062,5 +1062,27 @@ mod recertify_lane_tests {
             grafted += 1;
         }
         assert_eq!(grafted, 1, "the one rung-3 edge was grafted");
+    }
+
+    /// R2 probe (PR 4791): the PRODUCTION re-certifying door,
+    /// `graft_solid`, grafts the analytic rung-3 edge (kills a graft
+    /// that went back to lane-free) and the M7-8 cube (claim 3's side
+    /// effect: a plane x NURBS edge now certifies at the graft).
+    #[test]
+    fn r2_probe_graft_solid_certifies_both_lane_classes() {
+        use super::graft_solid;
+        let tol = Tol::witness();
+        let (cube, _, _) = crate::cert_m3r1_probes::m7_8_cube();
+        let mut dst = cube.clone();
+        let solid = dst.solids().next().unwrap().0;
+        let got = graft_solid(&mut dst, solid, &cube, tol).map(|_| ());
+        assert!(got.is_ok(), "M7-8 via graft_solid: {got:?}");
+        let mut dst = cube.clone();
+        let free = graft_staged(&mut dst, Targets::Minted, &cube, Bridge::Recertify { tol }, None)
+            .map(|_| ());
+        assert!(
+            matches!(free, Err(BooleanError::GraftRecertify(CertifyError::NurbsLaneNotSupplied))),
+            "M7-8 lane-free graft: {free:?}"
+        );
     }
 }

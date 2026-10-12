@@ -1426,7 +1426,10 @@ impl<T: Decide> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Certificate<T>, CertifyError> {
-        run_checks(&self.spec(), start, end, &surfaces, None, band).map(|(cert, _)| cert)
+        IN_RECERT.with(|c| c.set(true));
+        let r = run_checks(&self.spec(), start, end, &surfaces, None, band).map(|(cert, _)| cert);
+        IN_RECERT.with(|c| c.set(false));
+        r
     }
 
     /// The shared re-certification body, with the plane × NURBS lane
@@ -1448,9 +1451,13 @@ impl<T: Decide> EdgeCurve<T> {
         band: Band,
         nurbs_lane: Option<NurbsLane<T>>,
     ) -> Result<Certificate<T>, CertifyError> {
-        run_checks(&self.spec(), start, end, &surfaces, nurbs_lane, band).map(|(cert, _)| cert)
+        IN_RECERT.with(|c| c.set(true));
+        let r = run_checks(&self.spec(), start, end, &surfaces, nurbs_lane, band).map(|(cert, _)| cert);
+        IN_RECERT.with(|c| c.set(false));
+        r
     }
 }
+thread_local! { static IN_RECERT: core::cell::Cell<bool> = const { core::cell::Cell::new(false) }; }
 
 /// **The plane × NURBS lane** — the one certification duty this
 /// module cannot discharge from `T: Decide` alone, as a value.
@@ -2533,7 +2540,13 @@ fn run_checks<T: Decide>(
                 // before any other check of the edge, as the NURBS
                 // pairs do.
                 if matches!(spec.carrier, Curve3::Nurbs(_)) {
-                    analytic_rung3_lane = Some(lane.ok_or(CertifyError::NurbsLaneNotSupplied)?);
+                    if std::env::var("MUT_DROP").is_ok()
+                        || (std::env::var("MUT_CERT_ONLY").is_ok() && IN_RECERT.with(|c| c.get()))
+                    {
+                        analytic_rung3_lane = lane;
+                    } else {
+                        analytic_rung3_lane = Some(lane.ok_or(CertifyError::NurbsLaneNotSupplied)?);
+                    }
                 }
                 Resolved::Intersection { surfs, witness }
             }
