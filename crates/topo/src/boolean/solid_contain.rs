@@ -6377,3 +6377,7 @@ mod escalated_ending_rows {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "shell_role_ray_probes.rs"]
+mod shell_role_ray_probes;
