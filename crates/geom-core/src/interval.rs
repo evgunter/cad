@@ -888,6 +888,10 @@ impl crate::spline::SpanLocate for Interval {
         (lo == hi && !lo.is_nan()).then_some(lo)
     }
 
+    fn plain_constant(self) -> Option<f64> {
+        self.point_value()
+    }
+
     fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
         arm.enclosure()
     }

@@ -2134,3 +2134,43 @@ On three or more members meeting at one point, Ev leans to A's reading
 but is unsure, so the build tries it and keeps it only if the pinch rows
 stay order-free.
 
+## 2026-10-12 — PR 4794: a split piece's lineage is chased through killed stretches
+
+A union over a curved rim cut into pieces refused `SharedRim::Several`.
+Review traced the cause to the lineage chase: a killed stretch deleted
+the parent link, so the piece fell to the derived-chord path. That has
+a P0 precedent fixed in the same place (PR 3114). The chase now reads
+the discard rows' boundary chains, and every one of the 8084 newly
+resolved edges lies within the operand edge it is named for.
+
+The curved `rim_holding` reading stays, with unit witnesses. Only
+`crossing_slots` renames. Two union refusal rows rightly lost their
+refusal, and their witnesses moved.
+
+Filed: `a-lone-cut-piece-of-an-operand-edge-keeps-its-bare-name`, which
+main already has, and `a-point-on-a-curved-edge-is-placed-by-its-chord`.
+
+## 2026-10-12 — PR 4816: the touch / edge-crossing ruling built
+
+This builds Ev's ruling on #4284:
+- a corner keeps its own name;
+- the sense has four values;
+- every edge meeting is a `Crossing` or an `EdgeCrossing`;
+- a union reads edge x edge vertices from the finished body.
+
+On the merged tree, `KNOWN_ABSENT` for cross went from 308 to 140, and
+r5poke and r5pokehi went to 0. Pinned emission refusals now build, each
+with one table.
+
+The residue was not built as Ev's leaned reading, because carrying three
+or more edges needs a design change. It keeps the junction spelling, read
+from the finished body.
+
+Review found three things:
+- several result vertices at one corner now tie (filed, design);
+- the README's flush text is false for two wedges + plate (owned by the
+  residue row);
+- silent fallbacks, now documented and pinned.
+
+Both design rows go to a designer pair next.
+
