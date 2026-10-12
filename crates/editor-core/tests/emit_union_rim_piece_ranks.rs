@@ -979,9 +979,9 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
 /// x = 1 wall, which `b` (x 0.5..1.5) covers.
 const H: Bx = ((1.0, 1.1), (-1.0, 2.0), (0.5, 3.0));
 
-/// Every order of `blocks`: the order, and `"fuse"` or the refusal's
-/// variant.
-fn outcomes(blocks: &[Bx], creation: &[usize]) -> Vec<(Vec<usize>, String)> {
+/// Every order of `blocks`: the order, and its table ([`signature`])
+/// where it fuses, or the refusal's variant.
+fn outcomes(blocks: &[Bx], creation: &[usize]) -> Vec<(Vec<usize>, Result<Signatures, String>)> {
     let (doc, ids) = document(blocks, creation);
     permutations(&(0..blocks.len()).collect::<Vec<_>>())
         .into_iter()
@@ -996,89 +996,50 @@ fn outcomes(blocks: &[Bx], creation: &[usize]) -> Vec<(Vec<usize>, String)> {
                     .unwrap_or("")
                     .to_string()
             };
-            let shown = match failure(&ev, union) {
-                None => "fuse".to_string(),
-                Some(editor_core::NodeErrorKind::Naming(e)) => variant(format!("{e:?}")),
-                Some(e) => variant(format!("{e:?}")),
+            let got = match failure(&ev, union) {
+                None => Ok(signature(&ev, union)),
+                Some(editor_core::NodeErrorKind::Naming(e)) => Err(variant(format!("{e:?}"))),
+                Some(e) => Err(variant(format!("{e:?}"))),
             };
-            (order, shown)
+            (order, got)
         })
         .collect()
 }
 
-/// The orders of `outcomes` whose result is `what`.
-fn orders_that(outcomes: &[(Vec<usize>, String)], what: &str) -> Vec<Vec<usize>> {
-    outcomes
-        .iter()
-        .filter(|(_, r)| r == what)
-        .map(|(o, _)| o.clone())
-        .collect()
-}
-
-/// **A covered contact decides alike in every creation order**
-/// (DM4's contact rule). `row` is `a`, `b`, `g`, `h`; `b` covers the
-/// `(a, h)` contact, which the margins decide one carrier. Each of the
-/// 24 member orders has the same outcome whichever order the members
-/// were created in (`rowids`): the orders below fuse, and the eight
-/// that fold `a` and `h` before `b` refuse `Emission`
-/// (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`).
-#[test]
-fn a_covered_contact_decides_alike_in_every_order() {
-    let g = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
-    let fused = [
-        vec![0, 1, 2, 3],
-        vec![0, 1, 3, 2],
-        vec![0, 2, 1, 3],
-        vec![1, 0, 2, 3],
-        vec![1, 0, 3, 2],
-        vec![1, 2, 0, 3],
-        vec![1, 2, 3, 0],
-        vec![1, 3, 0, 2],
-        vec![1, 3, 2, 0],
-        vec![2, 0, 1, 3],
-        vec![2, 1, 0, 3],
-        vec![2, 1, 3, 0],
-        vec![2, 3, 1, 0],
-        vec![3, 1, 0, 2],
-        vec![3, 1, 2, 0],
-        vec![3, 2, 1, 0],
-    ];
-    for (label, creation) in [("row", [0, 1, 2, 3]), ("rowids", [3, 2, 1, 0])] {
-        let got = outcomes(&[A, B, g, H], &creation);
-        assert_eq!(orders_that(&got, "fuse"), fused, "{label}");
-        assert_eq!(
-            orders_that(&got, "Emission"),
-            [
-                vec![0, 2, 3, 1],
-                vec![0, 3, 1, 2],
-                vec![0, 3, 2, 1],
-                vec![2, 0, 3, 1],
-                vec![2, 3, 0, 1],
-                vec![3, 0, 1, 2],
-                vec![3, 0, 2, 1],
-                vec![3, 2, 0, 1],
-            ],
-            "{label}"
-        );
+/// **Every order of `blocks` fuses, and publishes one table**: each
+/// order's names, and what each denotes ([`signature`]), are the first
+/// order's.
+fn every_order_publishes_one_table(label: &str, blocks: &[Bx], creation: &[usize]) {
+    let got = outcomes(blocks, creation);
+    let (first_at, first) = match &got[0] {
+        (at, Ok(table)) => (at, table),
+        (at, Err(e)) => panic!("{label} {at:?}: {e}"),
+    };
+    for (at, table) in &got[1..] {
+        match table {
+            Ok(table) => assert_eq!(table, first, "{label}: {at:?} against {first_at:?}"),
+            Err(e) => panic!("{label} {at:?}: {e}"),
+        }
     }
 }
 
-/// **The covered-contact row itself: `{a, b, h}`.** `[a, b, h]`,
-/// `[b, a, h]`, `[b, h, a]` and `[h, b, a]` fuse; `Emission` where `a`
-/// and `h` meet first.
+/// **A covered contact decides alike in every creation order, and
+/// every member order publishes one table** (DM4's contact rule). `row`
+/// is `a`, `b`, `g`, `h`; `b` covers the `(a, h)` contact, which the
+/// margins decide one carrier. The orders that fold `a` and `h` before
+/// `b` meet `a`'s corner resting on `h`'s wall, which is that corner
+/// (N2).
+#[test]
+fn a_covered_contact_decides_alike_in_every_order() {
+    let g = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
+    for (label, creation) in [("row", [0, 1, 2, 3]), ("rowids", [3, 2, 1, 0])] {
+        every_order_publishes_one_table(label, &[A, B, g, H], &creation);
+    }
+}
+
+/// **The covered-contact row itself: `{a, b, h}`**, one table in every
+/// order, `a` and `h` meeting first among them.
 #[test]
 fn a_contact_b_covers_decides_in_every_order() {
-    let got = outcomes(&[A, B, H], &[0, 1, 2]);
-    assert_eq!(
-        got,
-        [
-            (vec![0, 1, 2], "fuse"),
-            (vec![0, 2, 1], "Emission"),
-            (vec![1, 0, 2], "fuse"),
-            (vec![1, 2, 0], "fuse"),
-            (vec![2, 0, 1], "Emission"),
-            (vec![2, 1, 0], "fuse"),
-        ]
-        .map(|(o, r)| (o, r.to_string()))
-    );
+    every_order_publishes_one_table("{a, b, h}", &[A, B, H], &[0, 1, 2]);
 }

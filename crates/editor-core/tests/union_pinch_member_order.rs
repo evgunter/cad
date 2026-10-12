@@ -887,55 +887,73 @@ fn names_at(ev: &Evaluation<f64>, id: RecipeNodeId, p: Point) -> Vec<String> {
     out
 }
 
-/// **Where three wedges' axes cross, at the plate's top, the vertex
-/// has one junction name in every member order that folds the wedges
-/// before the plate**: the seam lines through it, in canonical order.
-/// Orders that fold the plate earlier mint the vertex at another step,
-/// under another name
-/// (`work/wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it.md`).
+/// **Where three or more wedges' legs meet, the vertex has one junction
+/// name in every member order**, with the plate and without it: the
+/// seam lines through it in the finished body, in canonical order,
+/// whichever fold step minted it (`emit_union::Flush::junction`). With
+/// the plate those are its top's lines with each wedge's two walls; the
+/// three wedges alone meet along their walls' lines pairwise, the four
+/// along the two lines their opposite walls share.
 #[test]
 fn the_junction_where_the_wedges_meet_has_one_name_in_every_member_order() {
-    let mut first: Option<Vec<String>> = None;
-    for order in orders(4).into_iter().filter(|o| o[3] == 0) {
-        let (doc, m) = tilted_holes(
-            ProfileDoc::empty_derived("union_pinch", Tol::witness()),
-            &three_wedges(),
-        );
-        let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
-        let (doc, u) = crate::fixture::union_over(doc, &members);
-        let ev = run(&doc);
-        if let Some(e) = failure(&ev, u) {
-            panic!("member order {order:?}: refused: {e:?}");
-        }
-        let names = names_at(&ev, u, top());
-        assert_eq!(
-            names.len(),
-            1,
-            "member order {order:?}: the meeting point's names"
-        );
-        assert_eq!(
-            names[0].matches("Seam {").count(),
-            6,
-            "member order {order:?}: the junction is named by its six seam lines"
-        );
-        match &first {
-            None => first = Some(names),
-            Some(f) => assert_eq!(
-                &names, f,
-                "member order {order:?}: the meeting point's name"
-            ),
+    type Row = (&'static str, fn() -> Vec<Hole>, bool, usize);
+    let rows: [Row; 3] = [
+        ("three wedges and the plate", three_wedges, true, 6),
+        ("three wedges", three_wedges, false, 6),
+        ("four wedges", four_wedges, false, 4),
+    ];
+    for (label, holes, plate, lines) in rows {
+        let mut first: Option<Vec<String>> = None;
+        let n = holes().len() + 1;
+        for order in orders(n) {
+            if !plate && order[n - 1] != 0 {
+                continue;
+            }
+            let (doc, m) = tilted_holes(
+                ProfileDoc::empty_derived("union_pinch", Tol::witness()),
+                &holes(),
+            );
+            let members: Vec<RecipeNodeId> = order
+                .iter()
+                .filter(|&&i| plate || i != 0)
+                .map(|&i| m[i])
+                .collect();
+            let (doc, u) = crate::fixture::union_over(doc, &members);
+            let ev = run(&doc);
+            if let Some(e) = failure(&ev, u) {
+                panic!("{label}, member order {order:?}: refused: {e:?}");
+            }
+            let names = names_at(&ev, u, top());
+            assert_eq!(
+                names.len(),
+                1,
+                "{label}, member order {order:?}: the meeting point's names"
+            );
+            assert_eq!(
+                names[0].matches("Seam {").count(),
+                lines,
+                "{label}, member order {order:?}: the junction is named by its seam lines: {}",
+                names[0]
+            );
+            match &first {
+                None => first = Some(names),
+                Some(f) => assert_eq!(
+                    &names, f,
+                    "{label}, member order {order:?}: the meeting point's name"
+                ),
+            }
         }
     }
 }
 
 /// **Where two leaning wedges' legs meet at the plate's top, their union
-/// names the vertex a seam of the two legs, in either member order**:
-/// each leg lies outside the other wedge on both sides of the vertex,
-/// so neither enters or leaves the other and the vertex is no crossing.
-/// The fold reaches one wedge's copy of the vertex only through two
-/// fusions (`names::emit_topo::fused_partners`).
+/// names the vertex the edge crossing of the two legs, each touching the
+/// other wedge from outside, in either member order**: each leg lies
+/// outside the other wedge on both sides of the vertex. The fold reaches
+/// one wedge's copy of the vertex only through two fusions
+/// (`names::emit_topo::fused_partners`).
 #[test]
-fn two_wedges_name_their_meeting_point_a_seam_of_their_legs_in_either_order() {
+fn two_wedges_name_their_meeting_point_the_touch_of_their_legs_in_either_order() {
     let mut first: Option<Vec<String>> = None;
     for order in [[1, 2], [2, 1]] {
         let (doc, m) = tilted_holes(
@@ -955,13 +973,15 @@ fn two_wedges_name_their_meeting_point_a_seam_of_their_legs_in_either_order() {
         );
         let n = &names[0];
         assert!(
-            n.contains("path: [Seam {") && !n.contains("Crossing"),
-            "member order {order:?}: the meeting point is a seam, no crossing: {n}"
+            n.contains("path: [EdgeCrossing {")
+                && n.contains("a_sense: Outside")
+                && n.contains("b_sense: Outside"),
+            "member order {order:?}: the meeting point is the legs' touch from outside: {n}"
         );
         assert_eq!(
             n.matches("role: Leg").count(),
             2,
-            "member order {order:?}: the seam is of the two legs: {n}"
+            "member order {order:?}: the crossing is of the two legs: {n}"
         );
         match &first {
             None => first = Some(names),
@@ -1094,3 +1114,4 @@ fn solids_touching_along_one_line_build_one_body_in_every_member_order() {
         false,
     );
 }
+

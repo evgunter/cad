@@ -747,7 +747,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let (member, edge) = match (lines.next(), lines.next(), lines.next()) {
             (Some(one), None, _) => one,
             (Some(a), Some(b), None) => return self.edge_crossing(v, fold, [a, b]),
-            _ => return Ok(None),
+            (Some(_), Some(_), Some(_)) => return self.junction(v),
+            (None, ..) => return Ok(None),
         };
         let mut sides = BTreeSet::new();
         for (n, name) in &along {
@@ -846,6 +847,51 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 b,
                 b_sense,
             }],
+        }))
+    }
+
+    /// **Finished vertex `v` where three or more member edges meet**,
+    /// named as the junction of the seam lines through it in the
+    /// finished body: each finished edge at `v` that lies along no
+    /// member edge and between faces of different members is one line,
+    /// `Seam` of its two faces' names in name order, and the run is
+    /// sorted. `None` where fewer than two such lines pass.
+    fn junction(&self, v: topo::VertexKey) -> Result<Option<StableName>, NamingError> {
+        let members = |f: &topo::FaceKey| -> BTreeSet<VarId> {
+            self.faces
+                .get(f)
+                .into_iter()
+                .flatten()
+                .map(|(n, _)| *n)
+                .collect()
+        };
+        let mut lines = BTreeSet::new();
+        for k in self.inc.vertex_edges.get(&v).into_iter().flatten() {
+            if self.edges.contains_key(k) || self.spans.contains_key(k) {
+                continue;
+            }
+            let Some([f0, f1]) = self.inc.edge_faces.get(k).map(Vec::as_slice) else {
+                continue;
+            };
+            if !members(f0).is_disjoint(&members(f1)) {
+                continue;
+            }
+            let (Some(n0), Some(n1)) = (self.face_names.get(f0), self.face_names.get(f1)) else {
+                return Ok(None);
+            };
+            let (a, b) = if n0 <= n1 { (n0, n1) } else { (n1, n0) };
+            lines.insert(RoleSeg::Seam {
+                a: NameRef::new(a.clone()),
+                b: NameRef::new(b.clone()),
+            });
+        }
+        if lines.len() < 2 {
+            return Ok(None);
+        }
+        Ok(Some(StableName {
+            kind: EntityKind::Vertex,
+            node: self.union,
+            path: lines.into_iter().collect(),
         }))
     }
 
@@ -958,13 +1004,12 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 found.insert(if same { *sense } else { sense.flipped() });
             }
         }
-        let mut found = found.into_iter();
-        match (found.next(), found.next()) {
-            (sense, None) => Ok(sense),
-            (Some(_), Some(_)) => Err(NamingError::Emission {
+        if found.len() > 1 {
+            return Err(NamingError::Emission {
                 what: "a union's crossing reads two senses along its edge",
-            }),
+            });
         }
+        Ok(found.pop_first())
     }
 
     /// Whether member edge `of` runs the same way as member edge `like`:

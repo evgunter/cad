@@ -1912,16 +1912,19 @@ fn name_boolean_vertices<T: Decide>(
     // vertices).
     let mut senses = CrossingSenses::new();
     let mut groups: BTreeMap<RoleSeg, (bool, Vec<(VertexKey, Along)>)> = BTreeMap::new();
+    // Operand vertices → the result vertices that are each of them:
+    // several where the boolean leaves several at one corner (null
+    // copies), a tie, as nothing tells them apart.
+    let mut corners: BTreeMap<StableName, (bool, Parent, Vec<super::table::EntityRef>)> = BTreeMap::new();
     for (v, _) in body.vertices() {
         // A vertex that is one of an operand's own vertices is that
         // vertex (N2), read at every operand key the boolean leaves at
-        // the point. The kept key's identity wins, then its dead fusion
-        // partners' nearest first (`fused_partners`) — so where both
-        // operands fused here A's does, the kept key being A's exactly
-        // because `zip_seam` keeps the outer cycle's vertex — then the
-        // rest A's first (`operand_vertex_keys`), and failing all of
-        // them the vertex the reduction's contact rows pair one of them
-        // with (`contact_identity`).
+        // the point: the kept key, then its fusion partners nearest
+        // first (`fused_partners`; A's where both operands fused here,
+        // as `zip_seam` keeps the outer cycle's vertex), then the rest
+        // A's first (`operand_vertex_keys`), then the vertex the
+        // reduction's contact rows pair one of them with
+        // (`contact_identity`).
         let keys = operand_vertex_keys(naming, inv_vertices, &fused, v)?;
         let mut identity = None;
         let kept = core::iter::once(&v).chain(fused.partners.get(&v).into_iter().flatten());
@@ -1942,23 +1945,10 @@ fn name_boolean_vertices<T: Decide>(
         {
             identity = Some(identity_of(side, u));
         }
-        if identity.is_none() && std::env::var_os("TOUCH_PROBE_VF").is_some() {
-            let p = vertex_point(body, v)?;
-            for (side, rows) in [(topo::Operand::A, &naming.reduction_contacts.a_on_b), (topo::Operand::B, &naming.reduction_contacts.b_on_a)] {
-                for r in rows {
-                    let op = match side { topo::Operand::A => a, topo::Operand::B => b };
-                    if let Ok(q) = vertex_point(op.body, r.vertex) {
-                        if format!("{:?}", (q - p).norm()).parse::<f64>().is_ok_and(|d| d < 1e-7) {
-                            eprintln!("TOUCHPROBEVF side={side:?} inkeys={} named={}", keys.contains(&(side, r.vertex)), named_in(OpSide::on(side, r.vertex))?.is_some());
-                        }
-                    }
-                }
-            }
-        }
         if let Some((name, from_tie, parent)) = identity {
-            // A vertex carried through whole: a group of one.
-            rec.record(&name, vec![ent(0, EntityKey::Vertex(v))], parent);
-            put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
+            let at = corners.entry(name).or_insert((from_tie, parent, Vec::new()));
+            at.0 |= from_tie;
+            at.2.push(ent(0, EntityKey::Vertex(v)));
             continue;
         }
         // What the boolean classified here: the senses a crossing is
@@ -2087,14 +2077,13 @@ fn name_boolean_vertices<T: Decide>(
             // Written to a witness: an ordinary declared union reached
             // exactly this shape — one operand-descended edge on the A
             // side, none on the B side, and, everything above having
-            // already run, no single B face and no contact-record partner
-            // to supply the other parent. The vertex is half-decided, the
+            // already run, no single B face to supply the other parent. The vertex is half-decided, the
             // body is sound and the recipe is legal, so what is missing is
             // a rule. Maximal edges join that witness's vertex away, and
             // no document reaches the arm now
             // (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`).
             //
-            // **Its mirror (`([], [_], None, _)`) is not here, and the
+            // **Its mirror (`([], [_])`) is not here, and the
             // reason is the finish's asymmetry, scoped to ZIPPED
             // vertices.** The witness is a vertex whose B structure a
             // shared plane consumed: Eq. 15.3 lumps every B on-sector to
@@ -2103,8 +2092,8 @@ fn name_boolean_vertices<T: Decide>(
             // keeps A's vertex where the two meet. The mirror needs B's
             // lone edge surviving where A's structure was consumed, which
             // that lumping does not produce. A vertex nothing zipped
-            // (a touch) is not covered by this argument; its parent comes
-            // from the contact-record partner on either side, and on a
+            // (a touch) is not covered by this argument; the vertex its
+            // contact rows pair it with names it, on either side, and on a
             // straight edge the output stage joins it away. Two kinds of
             // row hold the sides: `swapping_the_operands_swaps_the_sides_of_every_name`
             // (in `emit_boolean_vertex_keys`) holds the two sides
@@ -2172,6 +2161,10 @@ fn name_boolean_vertices<T: Decide>(
         let slot = groups.entry(seg).or_insert((false, Vec::new()));
         slot.0 |= from_tie;
         slot.1.push((v, along));
+    }
+    for (name, (from_tie, parent, ents)) in corners {
+        rec.record(&name, ents.clone(), parent);
+        mint_candidates(t, tie, from_tie, name, ents)?;
     }
     for (seg, (from_tie, verts)) in groups {
         let base = name1(EntityKind::Vertex, node, seg);
