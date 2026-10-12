@@ -999,3 +999,15 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - un-`pub` the unpaired `rational_span_speed_sup`.
   - **Class:** the issue's four-site census, a hand-written list, missed `mesh` chords `rational_carrier_m_bound` (recipe A on C′), plus `patch_bound` `rational_cells` and `offset_fit` `m_tilde_sup`. Part 2 takes them or files a row for each, with a hit list in its body.
   - **Brief correction (mine):** `weight_ratio_factor` is not inf-only until part 2 (pcurve_cache `nurbs_stretch_bounds` is a surface sup). — (NURBS orchestrator)
+
+- **2026-10-12 20:08Z — 4892 fix pass read (head `48801e68342514cb2ee8e16f307c0366b3f30589`).** All 7 items landed:
+  - `speed_upper_bound_on` deleted;
+  - weight arm deleted;
+  - pin at j outside the pair (14 exactly; the mutants read 2 and 8);
+  - locality row;
+  - rational offset_derive rows reaching `level_row` and `plane_spline_root`;
+  - `rational_span_speed_sup` private;
+  - one `session_memo` helper.
+  - "Lift once" is declined (perf only, needs a caller-side cache).
+  - `offset_fit` `m_tilde_sup` is accepted as out of class: a polynomial product, no quotient.
+  - **Build C corrected the reviewer:** the weight arm was not unreachable. Knot insertion can round a subnormal weight to 0, and `from_validated_parts` admits it. The bound reads non-finite there (pinned), so deleting the arm stays sound. The admission itself is a latent invariant breach. Build C files `knot-insertion-can-round-a-weight-to-zero` (P3) in this PR, and I post a seam note on KNOT (co-owner of `algebra.rs`). — (NURBS orchestrator)
