@@ -1606,7 +1606,8 @@ pub struct NullEdgePairRecord {
 /// A pierced-face ring insertion record: the lone ring vertex minted
 /// inside the pierced face at the pierce point (the `vtxfacclassify`
 /// delta 3 — see `vtxfac` module docs for the designed Euler sequence).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// One ring serves every pierce of its face at its point.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PierceRingRecord {
     /// Which operand's clone holds the pierced face.
     pub operand: Operand,
@@ -1614,22 +1615,55 @@ pub struct PierceRingRecord {
     pub face: FaceKey,
     /// The ring vertex at the pierce point.
     pub ring_vertex: VertexKey,
+    /// The piercing vertices the ring serves, in the other operand's
+    /// clone keys.
+    pub pierces: Vec<VertexKey>,
+    /// Whether two of those pierces' germs lie along one direction (two
+    /// cones touching along a ray in the face), an order the ring broke
+    /// by their chords (`vtxfac::germ_order`): a corner of no angle.
+    pub tied: bool,
+}
+
+/// **Two pierces of one face decided one point** (`vtxfac::ring_groups`):
+/// the other operand's vertices `a` and `b`, which one ring serves. Where
+/// they sit on two point keys the ledger records the decision, its
+/// margin kept, beside a vertex-vertex record of that operand's
+/// (`ops::ledger`).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RingTie {
+    /// The piercing operand.
+    pub operand: Operand,
+    pub a: VertexKey,
+    pub b: VertexKey,
+    /// The margin `bool_contact_vertex` decided Zero.
+    pub margin: geom_core::MarginDiag,
+}
+
+impl<T: Real> BooleanReduction<T> {
+    /// The ring serving `vertex`'s pierce of the `pierced` operand's
+    /// face, as an index into [`Self::pierce_rings`].
+    fn ring_of(&self, pierced: Operand, vertex: VertexKey) -> Option<usize> {
+        self.pierce_rings
+            .iter()
+            .position(|r| r.operand == pierced && r.pierces.contains(&vertex))
+    }
+
+    /// Whether two pierce sites are served by one ring
+    /// ([`PierceRingRecord::pierces`]).
+    pub(crate) fn one_ring(&self, a: PairSite, b: PairSite) -> bool {
+        let ring = |site| match site {
+            PairSite::VertexAOnFaceB(c) => self.ring_of(Operand::B, c.vertex),
+            PairSite::VertexBOnFaceA(c) => self.ring_of(Operand::A, c.vertex),
+            _ => None,
+        };
+        ring(a).is_some_and(|r| ring(b) == Some(r))
+    }
 }
 
 /// **Whether two points are one vertex** (`bool_contact_vertex`, the
-/// distance between them): `true` decided zero, `false` decided apart,
-/// the escalation when the band cannot say. A distance has no negative
-/// side: a magnitude.
-pub(crate) fn one_vertex<T: Decide>(
-    p: Point3<T>,
-    q: Point3<T>,
-    band: Band,
-) -> Result<bool, Indeterminate> {
-    one_vertex_at(p, q, band).map(|at| at.is_some())
-}
-
-/// [`one_vertex`], answering the margin that decided the two points one
-/// (`None` apart).
+/// distance between them): the margin that decided them one, `None`
+/// decided apart, the escalation when the band cannot say. A distance
+/// has no negative side: a magnitude.
 pub(crate) fn one_vertex_at<T: Decide>(
     p: Point3<T>,
     q: Point3<T>,
@@ -1699,6 +1733,9 @@ pub struct BooleanReduction<T: Real> {
     /// an index here), emitted into the result's coincidences only
     /// where a record citing them survives ([`reduce::PendingRow`]).
     pub(crate) pending: Vec<reduce::PendingRow>,
+    /// Each pair of pierces one ring serves, decided one point
+    /// ([`RingTie`]).
+    pub(crate) ring_ties: Vec<RingTie>,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -2342,6 +2379,16 @@ pub enum BooleanError {
         /// it crosses into more. Keys of the other operand's working
         /// copy, as `vertex` is.
         partners: [VertexKey; 2],
+    },
+    /// Cones of one operand that touch along a ray lying in the other's
+    /// face: the pierces of that face at one point read germs along one
+    /// direction in a way the ring cannot order (`vtxfac::germ_order`):
+    /// three or more of them, or a ray the join cannot wind round.
+    PinchRaysInAFace {
+        /// The operand whose cones touch.
+        operand: Operand,
+        /// The pierced face, a key of the other operand's working copy.
+        face: FaceKey,
     },
     /// A pinch the result would hold with its cones on separate point
     /// keys: an operand's own pinch, which an earlier op left on several
@@ -3034,6 +3081,8 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PinchConesOnSeparateKeys`].
     PinchConesOnSeparateKeys,
+    /// [`BooleanError::PinchRaysInAFace`].
+    PinchRaysInAFace,
     /// [`BooleanError::VertexReadTwice`].
     VertexReadTwice,
     /// [`BooleanError::NonManifoldResult`].
@@ -3271,6 +3320,7 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PinchConesOnSeparateKeys { .. } => BooleanErrorKind::PinchConesOnSeparateKeys,
+            Self::PinchRaysInAFace { .. } => BooleanErrorKind::PinchRaysInAFace,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
@@ -3785,6 +3835,13 @@ impl core::fmt::Display for BooleanError {
                  several corners that only touch each other, and \
                  cuts into more than one of them in a way the Boolean cannot yet join. \
                  There is no way through this in the kernel yet",
+                operand_word(*operand)
+            ),
+            Self::PinchRaysInAFace { operand, .. } => write!(
+                f,
+                "the {} solid has corners that touch along a line lying in a face of \
+                 the other solid, in a way the Boolean cannot yet join. There is no \
+                 way through this in the kernel yet",
                 operand_word(*operand)
             ),
             Self::PinchConesOnSeparateKeys { operand, .. } => write!(
@@ -4486,6 +4543,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut null_edges = Vec::new();
     let mut null_pairs = Vec::new();
     let mut pierce_rings = Vec::new();
+    let mut ring_ties = Vec::new();
     let mut covered = Vec::new();
     let mut held = Vec::new();
     let mut edge_classes = Vec::new();
@@ -4497,11 +4555,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut touches = std::collections::BTreeMap::new();
     let mut paired: std::collections::BTreeMap<_, Vec<vtxfac::PairRead<T>>> =
         std::collections::BTreeMap::new();
-    // Vertex-on-face classification (sonva then sonvb, as 15.5).
+    // Vertex-on-face classification (sonva then sonvb, as 15.5). Each
+    // pierce inserts its piercing side's null edges as it is read; the
+    // rings follow, one per face and point (`vtxfac::mint_ring`).
     for (operand, pierced) in [
         (Operand::A, &contacts.a_on_b),
         (Operand::B, &contacts.b_on_a),
     ] {
+        let mut minted = Vec::with_capacity(pierced.len());
         for c in pierced.iter().map(|c| c.record) {
             let reread = rereads.get(&(operand, c.vertex)).copied();
             let (piercing_body, pierced_body) = match operand {
@@ -4518,7 +4579,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &contacts,
                 reread,
                 band,
-                tol,
             )?;
             // `classify_vertex_on_face` refuses a re-read vertex that
             // would write, so a re-read one touched: its orbit, and the
@@ -4527,9 +4587,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 reread.is_none() || (out.edges.is_empty() && out.ring.is_none()),
                 "a re-read pierce wrote"
             );
-            null_edges.extend(out.edges);
-            null_pairs.extend(out.pairs);
-            pierce_rings.extend(out.ring);
+            minted.push((out.edges, out.ring));
             covered.extend(out.covered);
             if reread.is_some() {
                 touches.insert(
@@ -4549,6 +4607,40 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     &out.classes,
                     &edge_splits,
                 )?);
+            }
+        }
+        // Each ring is minted, and its records read, where its first
+        // pierce was: a face pierced at one point alone mints as it
+        // would beside its piercing side.
+        let plans: Vec<(usize, &vtxfac::RingPlan<T>)> = minted
+            .iter()
+            .enumerate()
+            .filter_map(|(i, (_, plan))| plan.as_ref().map(|plan| (i, plan)))
+            .collect();
+        let only: Vec<_> = plans.iter().map(|&(_, plan)| plan).collect();
+        let pierced_body = match operand {
+            Operand::A => &mut b,
+            Operand::B => &mut a,
+        };
+        let mut rings = std::collections::BTreeMap::new();
+        let (groups, ties) = vtxfac::ring_groups(&only, band)?;
+        ring_ties.extend(ties.into_iter().map(|(i, j, margin)| RingTie {
+            operand,
+            a: only[i].contact.vertex,
+            b: only[j].contact.vertex,
+            margin,
+        }));
+        for group in groups {
+            let members: Vec<_> = group.iter().map(|&k| plans[k].1).collect();
+            let ring = vtxfac::mint_ring(pierced_body, &members, band, tol)?;
+            rings.insert(plans[group[0]].0, ring);
+        }
+        for (i, (edges, _)) in minted.into_iter().enumerate() {
+            null_edges.extend(edges);
+            if let Some(ring) = rings.remove(&i) {
+                null_edges.extend(ring.edges);
+                null_pairs.extend(ring.pairs);
+                pierce_rings.push(ring.ring);
             }
         }
     }
@@ -4767,6 +4859,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         null_edges,
         null_pairs,
         pierce_rings,
+        ring_ties,
         covered: covered
             .into_iter()
             .collect::<std::collections::BTreeSet<_>>()
@@ -6939,6 +7032,10 @@ mod tests {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
             },
+            BooleanError::PinchRaysInAFace {
+                operand: Operand::A,
+                face,
+            },
             BooleanError::VertexReadTwice {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
@@ -7142,6 +7239,7 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PinchConesOnSeparateKeys => "PinchConesOnSeparateKeys",
+                BooleanErrorKind::PinchRaysInAFace => "PinchRaysInAFace",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
