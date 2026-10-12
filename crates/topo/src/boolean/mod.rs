@@ -2815,6 +2815,20 @@ pub enum BooleanError {
         /// Which lockstep invariant broke.
         what: &'static str,
     },
+    /// A lineage list refused a row where a stage added it: a vertex
+    /// fusion, a substitution or a face division that maps a cell to
+    /// itself, names a cell an earlier row retired, or mints a cell an
+    /// earlier row already names. Each list checks its rows there, so
+    /// none of its readers meets a corrupt one; reaching this is a
+    /// kernel defect.
+    LineageRow {
+        /// The list that refused the row.
+        rows: crate::lineage::LineageRows,
+        /// What is wrong with the row.
+        defect: crate::lineage::RowDefect,
+        /// The cell the defect is about.
+        key: Cell,
+    },
     /// An edge the Boolean minted, or a boundary edge of a face its
     /// merge left in place, could not be described against the two
     /// faces it lies between: its halves did not walk, or the
@@ -3130,6 +3144,8 @@ pub enum BooleanErrorKind {
     RestPieceUnread,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
+    /// [`BooleanError::LineageRow`].
+    LineageRow,
     /// [`BooleanError::EdgeUndescribed`].
     EdgeUndescribed,
     /// [`BooleanError::TornComponent`].
@@ -3351,6 +3367,7 @@ impl BooleanError {
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
             Self::RestPieceUnread { .. } => BooleanErrorKind::RestPieceUnread,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
+            Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
             Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
@@ -3933,6 +3950,13 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "A/B lockstep invariant violated: {what} (kernel bug or corrupt \
                  reduction)"
+            ),
+            Self::LineageRow { rows, defect, key } => write!(
+                f,
+                "the Boolean's record of what replaced what ({}) gained a row that {} \
+                 ({key:?}), so no body is returned. {KERNEL_DEFECT_ENDING}",
+                rows.word(),
+                defect.word()
             ),
             Self::EdgeUndescribed {
                 failure,
@@ -7123,6 +7147,11 @@ mod tests {
                 source: crate::pcurves::PcurveMintError::Unminted { face },
             },
             BooleanError::JoinDesync { what: "a lockstep" },
+            BooleanError::LineageRow {
+                rows: crate::lineage::LineageRows::Substitutions,
+                defect: crate::lineage::RowDefect::NamesRetired,
+                key: Cell::Face(face),
+            },
             BooleanError::EdgeUndescribed {
                 edge: EdgeKey::default(),
                 failure: crate::merge_faces::EdgeDescribeFailure::NotWalkable,
@@ -7260,6 +7289,7 @@ mod tests {
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
                 BooleanErrorKind::RestPieceUnread => "RestPieceUnread",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
+                BooleanErrorKind::LineageRow => "LineageRow",
                 BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
@@ -7291,6 +7321,16 @@ mod tests {
                 variant_of(&err),
                 "kind() projects each arm to its own kind, and label names it"
             );
+        }
+    }
+}
+
+impl From<crate::lineage::RowRefusal> for BooleanError {
+    fn from(refusal: crate::lineage::RowRefusal) -> Self {
+        Self::LineageRow {
+            rows: refusal.rows,
+            defect: refusal.defect,
+            key: refusal.cell,
         }
     }
 }

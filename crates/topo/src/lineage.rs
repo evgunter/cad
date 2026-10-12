@@ -80,8 +80,31 @@ impl Divisions {
     }
 }
 
+/// Which lineage list refused a row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LineageRows {
+    /// A vertex fusion list ([`crate::Fusions`]).
+    Fusions,
+    /// A substitution list ([`Substitutions`]).
+    Substitutions,
+    /// A face division list ([`FaceDivisions`]).
+    FaceDivisions,
+}
+
+impl LineageRows {
+    /// The list, as a sentence names it.
+    #[must_use]
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Fusions => "vertex fusions",
+            Self::Substitutions => "substitutions",
+            Self::FaceDivisions => "face divisions",
+        }
+    }
+}
+
 /// What is wrong with a lineage row a list refused at append
-/// ([`Substitutions::push`], [`FaceDivisions::push`]).
+/// ([`Substitutions::push`], [`FaceDivisions::push`], `Fusions::push`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RowDefect {
     /// The row maps a cell to itself.
@@ -93,14 +116,41 @@ pub enum RowDefect {
     NotFresh,
 }
 
-/// A lineage row refused at append: its defect and the cell it is
-/// about. The list is left as it was.
+impl RowDefect {
+    /// What the row does wrong, as a sentence says it.
+    #[must_use]
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::SelfRow => "maps a cell to itself",
+            Self::NamesRetired => "names a cell an earlier row retired",
+            Self::NotFresh => "mints a cell an earlier row already names",
+        }
+    }
+}
+
+/// A lineage row refused at append: the list, the row's defect and the
+/// cell it is about. The list is left as it was. Every lane maps this
+/// one value into its own refusal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RowRefusal {
+    /// The list that refused the row.
+    pub rows: LineageRows,
     /// What is wrong with the row.
     pub defect: RowDefect,
     /// The cell the defect is about.
     pub cell: Cell,
+}
+
+impl core::fmt::Display for RowRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "a row of its {} {} ({:?})",
+            self.rows.word(),
+            self.defect.word(),
+            self.cell
+        )
+    }
 }
 
 /// **A substitution list**: rows `(dead, by)`, each saying `by` holds
@@ -123,7 +173,13 @@ impl Substitutions {
     /// [`RowDefect::NamesRetired`] where an earlier row retired either;
     /// the list is left as it was.
     pub fn push(&mut self, (dead, by): (Cell, Cell)) -> Result<(), RowRefusal> {
-        let refuse = |defect, cell| Err(RowRefusal { defect, cell });
+        let refuse = |defect, cell| {
+            Err(RowRefusal {
+                rows: LineageRows::Substitutions,
+                defect,
+                cell,
+            })
+        };
         if dead == by {
             return refuse(RowDefect::SelfRow, dead);
         }
@@ -168,10 +224,20 @@ impl Substitutions {
 
 /// **A face division list**: rows `(new face, divided-from face)` in
 /// the order the faces were minted. [`Self::push`] refuses a row whose
-/// two faces are one, or whose new face an earlier row names: a minted
-/// face is new to the list. So no chase from a face to the face it was
-/// divided from can cycle: a cycle would need each of its rows to come
-/// before the row that names its new face as divided-from.
+/// two faces are one, or whose new face an earlier row names.
+///
+/// **The invariant: a minted face is new to the list.** A division
+/// mints its new face (`mef`, `mfkrh`), and an arena never hands out a
+/// key it handed out before: a slot it reuses carries a new version,
+/// so the new key equals no key an earlier row holds. That is what
+/// makes the check hold where the rows are written, and it is all the
+/// list needs to be acyclic: in a cycle each row's divided-from face is
+/// the next row's new face, which no row before that one may name, so
+/// each row would have to come before the one ahead of it all the way
+/// round. A reader's chase to the face a face descends from
+/// ([`Self::root`]) therefore ends. An arena that reused a bare key
+/// would break the invariant, and [`Self::push`] would refuse the row
+/// ([`RowDefect::NotFresh`]) rather than let the list cycle.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FaceDivisions {
     rows: Vec<(FaceKey, FaceKey)>,
@@ -189,6 +255,7 @@ impl FaceDivisions {
     pub fn push(&mut self, (new, from): (FaceKey, FaceKey)) -> Result<(), RowRefusal> {
         let refuse = |defect| {
             Err(RowRefusal {
+                rows: LineageRows::FaceDivisions,
                 defect,
                 cell: Cell::Face(new),
             })

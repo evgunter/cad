@@ -4851,6 +4851,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_carrier_unsupported",
             "join_desync",
             "join_undecided",
+            "lineage_row",
             "merge",
             "non_finite_sector_chord",
             "non_manifold_result",

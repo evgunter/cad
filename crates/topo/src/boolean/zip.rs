@@ -85,23 +85,29 @@ impl Fusions {
     ///
     /// # Errors
     ///
-    /// [`BooleanError::JoinDesync`] on a row that fuses a key into
+    /// [`BooleanError::LineageRow`] on a row that fuses a key into
     /// itself, or names a key an earlier row killed; the list is left
     /// as it was.
     pub(crate) fn push(
         &mut self,
         (dead, kept): (VertexKey, VertexKey),
     ) -> Result<(), BooleanError> {
-        let what = if dead == kept {
-            "a fusion row fuses a key into itself"
-        } else if self.dead.contains(&dead) || self.dead.contains(&kept) {
-            "a fusion row names a key an earlier row killed"
+        use crate::lineage::{LineageRows, RowDefect, RowRefusal};
+        let (defect, key) = if dead == kept {
+            (RowDefect::SelfRow, dead)
+        } else if let Some(key) = [dead, kept].into_iter().find(|k| self.dead.contains(k)) {
+            (RowDefect::NamesRetired, key)
         } else {
             self.dead.insert(dead);
             self.rows.push((dead, kept));
             return Ok(());
         };
-        Err(BooleanError::JoinDesync { what })
+        Err(RowRefusal {
+            rows: LineageRows::Fusions,
+            defect,
+            cell: super::Cell::Vertex(key),
+        }
+        .into())
     }
 
     /// Appends `later`'s rows, which ran after these, in order.
@@ -1256,7 +1262,7 @@ mod tests {
     /// **A fusion list refuses every row that would fold a key onto a
     /// dead one, and folds a well-ordered chain through every hop.** A
     /// row that keeps a key an earlier row killed, kills one twice, or
-    /// fuses a key into itself refuses `JoinDesync` as it is pushed or
+    /// fuses a key into itself refuses `LineageRow` as it is pushed or
     /// extended, in every build, and leaves the list as it was. Red if
     /// the check moves to a reader or behind a `debug_assert!`: the
     /// corrupt rows would push, and `survivor` would answer the dead
@@ -1265,11 +1271,16 @@ mod tests {
     fn a_fusion_list_refuses_a_row_naming_a_killed_key() {
         let mut arena: SlotMap<VertexKey, ()> = SlotMap::with_key();
         let [a, b, c, d] = [(); 4].map(|()| arena.insert(()));
+        use crate::lineage::{LineageRows, RowDefect};
         let refusal = |r: Result<(), BooleanError>| match r {
-            Err(BooleanError::JoinDesync { what }) => what,
-            other => panic!("a corrupt row must refuse JoinDesync, got {other:?}"),
+            Err(BooleanError::LineageRow {
+                rows: LineageRows::Fusions,
+                defect,
+                key,
+            }) => (defect, key),
+            other => panic!("a corrupt row must refuse LineageRow, got {other:?}"),
         };
-        let killed = "a fusion row names a key an earlier row killed";
+        let killed = |v| (RowDefect::NamesRetired, super::super::Cell::Vertex(v));
 
         let mut chain = Fusions::default();
         chain.push((a, b)).unwrap();
@@ -1283,11 +1294,11 @@ mod tests {
         let mut fusions = Fusions::default();
         fusions.push((a, b)).unwrap();
         for (row, what, case) in [
-            ((c, a), killed, "keeps a killed key"),
-            ((a, c), killed, "kills a key twice"),
+            ((c, a), killed(a), "keeps a killed key"),
+            ((a, c), killed(a), "kills a key twice"),
             (
                 (d, d),
-                "a fusion row fuses a key into itself",
+                (RowDefect::SelfRow, super::super::Cell::Vertex(d)),
                 "fuses a key into itself",
             ),
         ] {
@@ -1319,8 +1330,10 @@ mod tests {
         assert!(
             matches!(
                 fusions.extend(&later),
-                Err(BooleanError::JoinDesync {
-                    what: "a fusion row names a key an earlier row killed"
+                Err(BooleanError::LineageRow {
+                    rows: crate::lineage::LineageRows::Fusions,
+                    defect: crate::lineage::RowDefect::NamesRetired,
+                    ..
                 })
             ),
             "the second row keeps the killed a"

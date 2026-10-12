@@ -481,19 +481,10 @@ pub(super) fn holds<T: Real>(body: &Body<T>, cell: Cell) -> bool {
     }
 }
 
-/// A lineage list's refusal at append, as the boolean's refusal.
+/// A lineage list's refusal at append, as the boolean's refusal
+/// ([`BooleanError::LineageRow`]).
 pub(super) fn of_row(refusal: crate::lineage::RowRefusal) -> BooleanError {
-    BooleanError::JoinDesync {
-        what: match refusal.defect {
-            crate::lineage::RowDefect::SelfRow => "a lineage row maps a cell to itself",
-            crate::lineage::RowDefect::NamesRetired => {
-                "a lineage row names a cell an earlier row retired"
-            }
-            crate::lineage::RowDefect::NotFresh => {
-                "a division row's new cell is named by an earlier row"
-            }
-        },
-    }
+    refusal.into()
 }
 
 /// The rows a chase walked revisit a cell.
@@ -6474,7 +6465,7 @@ mod tests {
         use super::{BooleanNaming, Descendants, KeyView, SettleError};
         use crate::boolean::{Cell, EdgeJoin};
         use crate::entity::{EdgeKey, FaceKey, VertexKey};
-        use crate::lineage::{RowDefect, RowRefusal, Substitutions};
+        use crate::lineage::{LineageRows, RowDefect, RowRefusal, Substitutions};
         let key = |n: u64| slotmap::KeyData::from_ffi((1u64 << 32) | n);
         let (u, w): (VertexKey, VertexKey) = (key(1).into(), key(2).into());
         let (a, b): (FaceKey, FaceKey) = (key(3).into(), key(4).into());
@@ -6485,7 +6476,7 @@ mod tests {
         desc.substitute((Cell::Face(a), Cell::Face(b))).unwrap();
         assert!(matches!(
             desc.substitute((Cell::Face(b), Cell::Face(a))),
-            Err(BooleanError::JoinDesync { .. })
+            Err(BooleanError::LineageRow { .. })
         ));
         assert!(matches!(
             desc.chained(&body, &KeyView::Direct, Cell::Face(a)),
@@ -6497,6 +6488,7 @@ mod tests {
         assert_eq!(
             merged.push((Cell::Vertex(u), Cell::Edge(e))),
             Err(RowRefusal {
+                rows: LineageRows::Substitutions,
                 defect: RowDefect::NamesRetired,
                 cell: Cell::Edge(e),
             }),
@@ -7394,8 +7386,10 @@ mod tests {
         assert!(
             matches!(
                 corrupt.absorb_fusions(&later),
-                Err(BooleanError::JoinDesync {
-                    what: "a fusion row names a key an earlier row killed"
+                Err(BooleanError::LineageRow {
+                    rows: crate::lineage::LineageRows::Fusions,
+                    defect: crate::lineage::RowDefect::NamesRetired,
+                    ..
                 })
             ),
             "absorbing a row that keeps the killed a refuses"
@@ -7452,9 +7446,11 @@ mod tests {
                     crate::boolean::Cell::Face(d1),
                     crate::boolean::Cell::Face(d0)
                 )),
-                Err(BooleanError::JoinDesync {
-                    what: "a lineage row names a cell an earlier row retired"
-                })
+                Err(BooleanError::LineageRow {
+                    rows: crate::lineage::LineageRows::Substitutions,
+                    defect: crate::lineage::RowDefect::NamesRetired,
+                    key: crate::boolean::Cell::Face(k),
+                }) if k == d0
             ),
             "the row back onto a retired face refuses"
         );
