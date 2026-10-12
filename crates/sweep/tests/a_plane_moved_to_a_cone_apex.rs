@@ -375,9 +375,16 @@ fn a_cap_moved_into_the_band_of_a_wedge_apex_escalates() {
 /// radius `r = y·tan α` at the angle `asin(d/r)` past the cap's
 /// generator, so a point of the planned wall edge at that height
 /// stands `|x − x'|` off the section point `x'` there, which this row
-/// reads over the edge's span. Tier 3 refuses the moved body's volume
-/// (`work/germ/a-moved-cap-on-a-frustum-wedge-reaches-props-du-consistent.md`),
-/// so the row does not read it.
+/// reads over the edge's span.
+///
+/// The moved body is right: its volume is `V + d·A` (`A` the cap's
+/// area) within `ε·A/4`, it passes tier 3, and `point_in_solid` agrees
+/// with the wedge's membership on a grid over its upper span.
+/// With the cap moved out, containment cannot read the wall's chart
+/// window, whose two rims now span different azimuths, and refuses
+/// `PartialConeFace` at up to 50 of the 216 grid points at the default
+/// ε and 60 at `1e-6`
+/// (`work/inside/a-cone-wall-whose-rims-span-different-azimuths-refuses-containment.md`).
 #[test]
 fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
     let tol = Tol::witness();
@@ -386,6 +393,19 @@ fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
     let body = frustum_wedge_body(y0, y1, t);
     let cone = cone_of(&body);
     let caps = axial_caps(&body);
+    let v = PI * t * t * (y1.powi(3) - y0.powi(3)) / 12.0;
+    let cap_area = t * (y1 * y1 - y0 * y0) / 2.0;
+    // The moved cap stands `0.9·ε` off the wedge's, well inside the
+    // truth's margin, so the wedge's own membership is the truth.
+    let truth = Solid::Revolved {
+        y0,
+        y1,
+        r0: y0 * t,
+        k: t,
+        window: Some(FRAC_PI_2),
+    };
+    let named = [p(0.0, 0.2, 0.5), p(0.5, 0.2, 0.0)];
+    let points = solid_truth::grid(p(-0.002, 0.17, -0.008), p(0.008, 0.41, 0.002), 6);
     assert_eq!(caps.len(), 2, "the wedge has two caps");
     for face in caps {
         let Surface::Plane { origin, normal, .. } = surface_of(&body, face) else {
@@ -447,6 +467,15 @@ fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
             let mut offset = body.clone();
             topo::replace_face_offset(&mut offset, face, d, tol)
                 .unwrap_or_else(|e| panic!("{label}: the offset refused {e:?}"));
+            solid_truth::assert_body_is(
+                &label,
+                &offset,
+                (v + d * cap_area, 1e-12 * v + 0.25 * eps * cap_area),
+                &|q| truth.depth(q),
+                &named,
+                &points,
+                60,
+            );
         }
     }
 }

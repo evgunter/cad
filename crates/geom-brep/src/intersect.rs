@@ -2447,6 +2447,12 @@ pub fn plane_cone_section<T: Decide>(
 ///    `3u`: so `u·((3·cos α + 4·sin α + 6s·sin α)/σ + 5·sin α/s +
 ///    12·sin α + 3)` per unit of the farthest consumed point's distance
 ///    from the apex, `max(|lo|, |hi|)/cos α` over the window.
+/// 6. *The window's own rounding* is not charged. Each `(x − apex)·a`
+///    is plain arithmetic, as is a caller's `below`/`above`, and is off
+///    by about `3u·|x − apex|`. That moves `ρ`, and `start` through it,
+///    by about `3u·|x − apex|/cos α`, which is `3u·ρ/cos²α` for a point
+///    on the cone. Step 5's term is at least `(12·sin α + 3)·u·ρ/cos α`,
+///    and it covers that up to `α ≈ 78°`.
 ///
 /// `ρ` is the least `|(x − apex)·a|` over the reach's window along the
 /// axis ([`Reach::range_along`]) over `cos α`, zero where the window
