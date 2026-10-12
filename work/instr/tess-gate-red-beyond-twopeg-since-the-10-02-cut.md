@@ -5,7 +5,7 @@ title: The nightly tess-lint gate has 22 findings beyond twopeg: bracket, nonuni
 status: open
 opened: 2026-10-12
 priority: P3
-cost: D
+cost: M
 ---
 
 
