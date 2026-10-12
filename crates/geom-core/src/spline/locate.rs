@@ -204,6 +204,25 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// bracket, because a wide one names no knot structure, and a
     /// midpoint would invent one.
     fn point_value(self) -> Option<f64>;
+
+    /// [`SpanLocate::point_value`], or NaN where there is none: the
+    /// `f64` a structure decision reads, so that a value with no point
+    /// (poison, an enclosure wider than a point) takes every
+    /// NaN-catching refusal arm.
+    fn value_channel(self) -> f64 {
+        self.point_value().unwrap_or(f64::NAN)
+    }
+
+    /// **Which side of the projective partition this scalar is on**,
+    /// answered by running one of `arm`'s two halves: its
+    /// [`projective`](super::ProjectiveSplit::projective) half, which
+    /// may call the projective knot algebra, at `f64`, `Probe`, and
+    /// `Dual` and `Sym` over them; its
+    /// [`enclosure`](super::ProjectiveSplit::enclosure) half at
+    /// `Interval` and the wrappers over it. A wrapper answers by its
+    /// base, so the dispatch is the type's and no value is read.
+    /// Declared, never defaulted: a new scalar says which half it runs.
+    fn split_projective<A: super::ProjectiveSplit<Self>>(arm: A) -> A::Out;
 }
 
 impl SpanLocate for f64 {
@@ -235,6 +254,10 @@ impl SpanLocate for f64 {
 
     fn point_value(self) -> Option<f64> {
         (!self.is_nan()).then_some(self)
+    }
+
+    fn split_projective<A: super::ProjectiveSplit<Self>>(arm: A) -> A::Out {
+        arm.projective()
     }
 }
 

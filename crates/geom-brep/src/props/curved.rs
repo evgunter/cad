@@ -860,7 +860,7 @@ struct Rim<T: Real> {
     /// both discrete at origin (a definite `classify` outcome and a
     /// bool), so every consumer of it compares exact ±1s rather than
     /// scalars — [`unanimous_rim_side`]'s agreement and
-    /// [`du_of_rims`]' group key alike. The direction has ONE representation here: a
+    /// [`unanimous_rim_dir`]'s alike. The direction has ONE representation here: a
     /// `T` copy beside it fed a `Margin` over two values that are ±1
     /// by construction, which is a discrete comparison wearing a
     /// tolerance's costume.
@@ -936,13 +936,8 @@ impl<T: Real> RimArms<T> {
     }
 }
 
-/// **The one spelling of "this rim level is one of these levels."**
-///
-/// Both consumers decide exactly this — [`du_of_rims`] against a
-/// group's key, [`require_rims_at_extremes`] against the face's two
-/// extremes — so they share the rule rather than each carrying one.
-/// They carried two, and the two disagreed on all three of the axes
-/// this fn now fixes:
+/// **Whether a rim level is one of the face's two extremes**, for
+/// [`require_rims_at_extremes`], on three axes:
 ///
 /// * **the metric.** A `Unit` pair's deviation is the CHORD
 ///   `√(Δs² + Δc²)` between the two directions, at `arms.level`.
@@ -966,37 +961,21 @@ impl<T: Real> RimArms<T> {
 ///   the level margin borrowing it.
 /// * **the fail direction.** A mixed representation is structurally
 ///   impossible (one surface builds every rim of a face AND both its
-///   ends), and it REFUSES here — [`mixed_levels`]. Answering
-///   `Ok(false)` would let a caller that only groups carry on.
+///   ends), and it REFUSES here — [`mixed_levels`].
 ///
-/// There are exactly two shapes and the signature says so: `other` is
-/// a group key, or the face's `lo` extreme with `or` carrying `hi`.
-/// The NEARER is what is decided, so a rim sitting exactly on one
-/// extreme is not made to escalate by the other.
-///
-/// `name` is the funnel's recording channel, not a second rule — the
-/// two call sites keep their own predicate names (`props_rim_level`,
-/// `props_rim_level_group`) because their margin populations are
-/// separately audited (`docs/predicate-dimension-audit.md`,
-/// `docs/K-REPORT.md`), and one rule reported on two channels is not
-/// two rules.
+/// The NEARER extreme is what is decided (`props_rim_level`), so a rim
+/// sitting exactly on one extreme is not made to escalate by the other.
 fn level_coincides<T: Decide>(
-    name: &'static str,
     level: RimLevel<T>,
-    other: RimLevel<T>,
-    or: Option<RimLevel<T>>,
+    (lo, hi): (RimLevel<T>, RimLevel<T>),
     arms: RimArms<T>,
     band: Band,
 ) -> Result<bool, PropsError> {
-    let Some(mut gap) = level_gap(level, other) else {
+    let name = "props_rim_level";
+    let (Some(a), Some(b)) = (level_gap(level, lo), level_gap(level, hi)) else {
         return Err(mixed_levels(name));
     };
-    if let Some(second) = or {
-        let Some(d) = level_gap(level, second) else {
-            return Err(mixed_levels(name));
-        };
-        gap = gap.min(d);
-    }
+    let gap = a.min(b);
     let margin = match level {
         RimLevel::Length(_) => Margin::of(gap),
         RimLevel::Unit(..) => Margin::levered(gap, arms.level),
@@ -1061,9 +1040,7 @@ fn mixed_levels(name: &'static str) -> PropsError {
 /// change ONLY at a level carrying a rim. If every rim sits at `lo` or
 /// at `hi`, then `w` is constant on the whole open interval
 /// `(lo, hi)`: `w ≡ Δu`, which is what the closed forms assume ABOUT
-/// `w`. (`du_of_rims` supplies the `Δu` value and, once this holds,
-/// its span-sum agreement is a genuine rectangle test rather than a
-/// proxy for one.)
+/// `w`.
 ///
 /// **What this does NOT establish.** The rule gives `w ≡ Δu` on
 /// `(lo, hi)` and nothing more. `area = r·Δu·(hi − lo)` needs a
@@ -1115,97 +1092,13 @@ fn require_rims_at_extremes<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     for rim in rims {
-        if !level_coincides(
-            "props_rim_level",
-            rim.level,
-            ends.0,
-            Some(ends.1),
-            arms,
-            band,
-        )? {
+        if !level_coincides(rim.level, ends, arms, band)? {
             return Err(PropsError::NotIsoRectangle {
                 what: "props_rim_level",
             });
         }
     }
     Ok(())
-}
-
-/// Check all rims agree on `Δu`; returns the face's `Δu`.
-///
-/// Two margins are metered here and they do not share a lever
-/// ([`RimArms`]): the rim LEVEL difference that keys the grouping
-/// turns about `arms.level`, the `Δu` angle difference about
-/// `arms.azimuth`. On the torus those are `minor` and `major`. The
-/// third half of the group key — the traversal direction — is
-/// [`Rim::d_u_sign`], a discrete definite sign compared AS a sign. Both
-/// sides are `±1` by construction, so the band around their difference
-/// could only ever decide `Zero` on a difference of `0` or of `±2` —
-/// and `==` agrees with it on the first. On the second it does not:
-/// the old margin was `±2·arms.azimuth`, which lands inside the zero
-/// band whenever `2·azimuth < K·ε`, so a gasket-scale torus merged
-/// OPPOSITELY traversed rims into one group and `==` never does. The
-/// sign compare is therefore strictly stricter, which is the direction
-/// a premise may move in without re-deciding what it admits.
-///
-/// **This is the Δu VALUE, not the shape test.** Every caller runs
-/// [`require_rims_at_extremes`] first, which is what makes the domain
-/// a rectangle; with all rims at the two extreme levels the span-sum
-/// agreement checked here says the two ends carry the same total
-/// `u`-measure, i.e. it pins the value the rectangle's `w ≡ Δu`
-/// already guarantees is constant. Standing alone — as it did before
-/// S58 — it guaranteed only `w(v) ∈ {k·Δu}`, which is #649.
-///
-/// **`props_du_consistent`'s reachability is `unsure`** (recorded, not
-/// settled — #714's review). With every rim pinned to an extreme and
-/// every non-rim boundary edge a meridian, no loop has been
-/// constructed whose extreme-level groups disagree on their span
-/// sums, and nothing in the workspace asserts that refusal by name.
-/// If it is in fact unreachable then this `require_zero` is a value
-/// computation wearing a typed-refusal costume and should be an
-/// `unreachable`-class site (D2 addendum row 4/5) instead. It is left
-/// as a refusal because the argument for unreachability rests on the
-/// predicate above being complete, and #723 was a live demonstration
-/// that a premise about these domains can be one clause short.
-fn du_of_rims<T: Decide>(rims: &[Rim<T>], arms: RimArms<T>, band: Band) -> Result<T, PropsError> {
-    if rims.is_empty() {
-        return Err(PropsError::NotIsoRectangle {
-            what: "curved face without a rim (non-sphere)",
-        });
-    }
-    // Group arcs by (rim LEVEL, traversal direction) first (M5 PR 9):
-    // a re-merged or boolean-cut wall's rim legitimately arrives as
-    // SEVERAL arcs per level (a rim run of two arcs after a strut
-    // kev), so the face's Δu is the per-group SUM of spans, required
-    // consistent ACROSS groups — the pre-PR-9 first-arc rule silently
-    // undercounted multi-arc rims. Direction joins the key so the
-    // degenerate zero-extent patch (both rims one level, opposite
-    // traversal) keeps its M2 verdict downstream.
-    let mut groups: Vec<(RimLevel<T>, Sign, T)> = Vec::new(); // (level, direction, dt sum)
-    for rim in rims {
-        let mut placed = false;
-        for g in &mut groups {
-            let same = level_coincides("props_rim_level_group", rim.level, g.0, None, arms, band)?;
-            if same && rim.d_u_sign == g.1 {
-                g.2 = g.2 + rim.dt;
-                placed = true;
-                break;
-            }
-        }
-        if !placed {
-            groups.push((rim.level, rim.d_u_sign, rim.dt));
-        }
-    }
-    let total = groups[0].2;
-    for g in &groups[1..] {
-        require_zero(
-            "props_du_consistent",
-            Margin::levered(g.2 - total, arms.azimuth),
-            band,
-            Premise::Inventory,
-        )?;
-    }
-    Ok(total)
 }
 
 /// A linearly-leveled face's boundary, parsed once — **and the
@@ -1505,7 +1398,16 @@ pub(super) fn require_holes_wound_against<T: Decide>(
     holes: &[(T, T)],
     band: Band,
 ) -> Result<(), PropsError> {
-    let whole = mean_width_side(whole_name, whole, band)?;
+    require_holes_against(mean_width_side(whole_name, whole, band)?, holes, band)
+}
+
+/// [`require_holes_wound_against`] for a whole whose side is already
+/// decided.
+fn require_holes_against<T: Decide>(
+    whole: Sign,
+    holes: &[(T, T)],
+    band: Band,
+) -> Result<(), PropsError> {
     for &hole in holes {
         let side = mean_width_side("props_ring_winding", hole, band)?;
         if side == Sign::Zero || whole == Sign::Zero {
@@ -1730,8 +1632,8 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 // ---------------------------------------------------------------------
 
 /// **A cone face's flux and area, in closed form** — no quadrature, and
-/// the one home of both for every cone face, iso-bounded or trimmed by a
-/// plane section, with or without rings.
+/// the one home of both for every cone face on one nappe, whatever its
+/// boundary's shape, with or without rings.
 ///
 /// Every point of a cone lies on a generator through the apex, and the
 /// generator lies in the tangent plane, so `(p − apex)·n = 0` on the
@@ -1739,32 +1641,51 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 /// with `A⃗` the boundary's vector area (Stokes; [`loop_vector_area`]),
 /// summed over every loop. The normal makes the constant angle
 /// `n·axis = ∓sin α` with the axis on each nappe, so the area is
-/// `|axis·A⃗| / sin α` — for a face on ONE nappe. The traversal's winding
-/// orients `A⃗`, so no sense bit is read.
+/// `|axis·A⃗| / sin α`. The traversal's winding orients `A⃗`, so no sense
+/// bit is read.
 ///
-/// What admits the outer loop, and decides its nappe, is per class:
+/// Both read `A⃗` and nothing else, so the form is exact for any region
+/// on one nappe — a notched or stepped wall as much as a rectangle, and
+/// a region whose closure holds the apex, where `n` is undefined on a
+/// set of no area. What it needs, each decided by name:
 ///
-/// - **Rims and generators** take the shared iso parse
-///   ([`cone_boundary`], the apex folded in): a positive extent, the
-///   rims at its extremes, one azimuth span, and the nappe read off the
-///   extent's two ends.
-/// - **A boundary with a plane-section ellipse** has no iso reading. Its
-///   nappe is read off the edges' endpoints, which bound each edge for
-///   the carriers such a face carries: a generator runs between its
-///   ends, a rim holds one height, and a plane section that is an
-///   ellipse lies on one nappe whole. A spline or spiric edge could
-///   cross the apex between its ends, so it refuses.
+/// - **edges on the cone** — generators through the apex, rims of the
+///   cone's own radius (the incidence premises, in [`cone_loops`]);
+/// - **one nappe** — the boundary does not cross the apex
+///   (`props_cone_nappe`, in [`cone_loops`]);
+/// - **closed loops** that bound the region **once**: every joint
+///   closes (`props_loop_closed`, in [`cone_loops`]); the outer loop
+///   goes round the axis at most once (`props_cone_loop_winding`, or
+///   `props_cone_apex_loop_sweep` for a loop through the apex —
+///   [`cone_loop_winding`] argues both bounds); no loop meets itself at
+///   a vertex ([`require_cone_loop_vertices_distinct`]); and every
+///   ring is a hole — contractible on the nappe
+///   ([`require_cone_ring_contractible`]), wound against the outer loop
+///   (`props_ring_winding`) and, together, inside it
+///   ([`require_cone_holes`]);
+/// - **a side** — the area `A⃗` encodes is not zero
+///   (`props_cone_area_side`, in [`cone_loops`]), the side tier 3's
+///   check 6 compares with `Face::sense`.
 ///
-/// A ring's nappe is read off its endpoints the second way, and the
-/// face's loops must close and its rings be holes in it
-/// ([`require_cone_rings_are_holes`]).
+/// **Not decided: a loop that crosses itself between vertices.** Two
+/// edges of one loop that cross at interior points bound lobes of
+/// opposite sign, and the vector area is their difference. No closed
+/// form here decides edge-edge crossing — the sphere's Gauss–Bonnet
+/// shares the residual — so it is the body validity's; nor is a ring
+/// decided to lie inside the outer loop, beyond the sum of the holes.
 ///
 /// # Errors
 ///
-/// The iso parse's refusals; [`PropsError::Unimplemented`] for a spline
-/// or spiric edge; [`PropsError::NappeSpanning`] for a face on both
-/// nappes; [`PropsError::NotIsoRectangle`] for a ring that is not a
-/// hole; [`PropsError::Escalated`] for an in-band decision.
+/// [`PropsError::Unimplemented`] for a spline or spiric edge;
+/// [`PropsError::OffSurface`] for an edge off the cone;
+/// [`PropsError::NappeSpanning`] for a face on both nappes;
+/// [`PropsError::DegenerateFace`] for a face of no area;
+/// [`PropsError::ConeLoop`] naming the decide for a loop that does not
+/// close, goes round the axis twice, meets itself at a vertex, or a
+/// ring that winds the axis or reaches the apex;
+/// [`PropsError::RingWoundWithFace`] for a ring wound with the face;
+/// [`PropsError::HolesExceedFace`] for holes that cover more than the
+/// outer loop; [`PropsError::Escalated`] for an in-band decision.
 pub fn cone_face_closed_form<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -1772,114 +1693,252 @@ pub fn cone_face_closed_form<T: Decide>(
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let Some((&edges, rings)) = loops.split_first() else {
+    let read = cone_face_read(apex, axis, half_angle, loops, band)?;
+    Ok(FaceContribution {
+        flux: (apex - Point3::origin()).dot(read.va),
+        area: (axis.dot(read.va) / half_angle.sin()).abs(),
+    })
+}
+
+/// **A cone face's loops, read and decided to bound its region once** —
+/// the one reading the flux arm ([`cone_face_closed_form`]) and the
+/// material sign ([`cone_material_sign`]) share, so the side the gate
+/// answers is one the flux lane would measure: [`cone_loops`], then the
+/// outer loop's once-round bound, every loop's vertices apart, every
+/// ring a hole, and the holes inside the outer loop in sum.
+fn cone_face_read<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    half_angle: T,
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<ConeLoops<T>, PropsError> {
+    let Some((&outer, rings)) = loops.split_first() else {
         return Err(PropsError::NotIsoRectangle {
             what: "curved face with an empty boundary",
         });
     };
-    let (sin_a, cos_a) = half_angle.sin_cos();
-    let slant = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
-    let mut ends = Vec::new();
-    let endpoint_read = |edges: &[LoopEdge<T>], ends: &mut Vec<T>| {
-        for e in edges {
-            match e.carrier {
-                Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => {}
-                Curve3::Nurbs(_) | Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
-            }
-            ends.push(slant(e.carrier.eval(e.t0)));
-            ends.push(slant(e.carrier.eval(e.t1)));
-        }
-        Ok(())
-    };
-    if edges
-        .iter()
-        .any(|e| matches!(e.carrier, Curve3::Ellipse { .. }))
-    {
-        endpoint_read(edges, &mut ends)?;
+    let read = cone_loops(apex, axis, half_angle, loops, band)?;
+    let w = cone_loop_winding(apex, axis, outer, AtApex::AlongGenerator, band)?;
+    let once = if w.through_apex {
+        // The slit cap sweeps exactly a turn: Zero admits it.
+        classify(
+            "props_cone_apex_loop_sweep",
+            Margin::levered(T::tau() - w.total.abs(), w.arm),
+            band,
+            PropsCheck::Inventory,
+        )? != Sign::Negative
     } else {
-        // A generator-free cone boundary of rims alone carries no extent
-        // of its own: every level it touches is a rim's slant, and where
-        // those coincide the face's missing extreme is the APEX
-        // ([`cone_apex_level`], folded inside the shared parse — with its
-        // closure guard — so every door reads the same extent).
-        let b = cone_boundary(apex, axis, sin_a, cos_a, edges, band)?;
-        let (lo, hi) = min_max(&b.levels)?;
-        require_extent(Margin::of(hi - lo), band)?;
-        // The iso-rectangle premise (S58/#649), and one azimuth span.
-        require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)?;
-        du_of_rims(&b.rims, b.arms, band)?;
-        ends.extend([lo, hi]);
+        classify(
+            "props_cone_loop_winding",
+            Margin::levered(T::from_f64(3.0) * T::pi() - w.total.abs(), w.arm),
+            band,
+            PropsCheck::Inventory,
+        )? == Sign::Positive
+    };
+    if !once {
+        return Err(PropsError::ConeLoop {
+            what: if w.through_apex {
+                "props_cone_apex_loop_sweep"
+            } else {
+                "props_cone_loop_winding"
+            },
+        });
     }
-    for ring in rings {
-        endpoint_read(ring, &mut ends)?;
+    require_cone_loop_vertices_distinct(apex, axis, &w, band)?;
+    for &ring in rings {
+        let wr = cone_loop_winding(apex, axis, ring, AtApex::Refuse, band)?;
+        require_cone_ring_contractible(&wr, band)?;
+        require_cone_loop_vertices_distinct(apex, axis, &wr, band)?;
     }
-    let (lo, hi) = min_max(&ends)?;
-    // Single-nappe check: a definitely-negative low AND a
-    // definitely-positive high straddle the apex through both nappes.
-    let s_lo = classify("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?;
-    let s_hi = classify("props_cone_nappe", Margin::of(hi), band, PropsCheck::Exact)?;
-    if s_lo == Sign::Negative && s_hi == Sign::Positive {
-        return Err(PropsError::NappeSpanning);
-    }
-    let mut per_loop = Vec::with_capacity(loops.len());
-    let mut va = Vec3::zero();
-    for &edges in loops {
-        require_cone_circle_spans(edges, band)?;
-        let loop_va = loop_vector_area(edges, apex)?;
-        per_loop.push(axis.dot(loop_va));
-        va = va + loop_va;
-    }
-    if !rings.is_empty() {
-        require_cone_rings_are_holes(apex, axis, sin_a, loops, &per_loop, band)?;
-    }
-    Ok(FaceContribution {
-        flux: (apex - Point3::origin()).dot(va),
-        area: (axis.dot(va) / sin_a).abs(),
-    })
+    require_cone_holes(&read, band)?;
+    Ok(read)
 }
 
-/// **A ringed cone face's rings are holes in it.** The vector area sums
-/// to the face's only when its boundary bounds it, so:
+/// A cone face's loops, read once for its flux and its side.
+struct ConeLoops<T: Real> {
+    /// The vector area of every loop, summed.
+    va: Vec3<T>,
+    /// The side the loops encode, definite.
+    side: Sign,
+    /// Each loop's signed area and an upper bound on its length, the
+    /// area signed as `side` reads the whole's: the outer loop first.
+    per_loop: Vec<(T, T)>,
+}
+
+/// **The material side a cone face's loops encode**, and the vector
+/// area its flux reads ([`cone_face_closed_form`]): the sign of its
+/// area against the chart normal, off the axial vector area.
 ///
-/// - every loop closes (`props_loop_closed`);
-/// - every ring is contractible on the nappe
-///   ([`require_cone_ring_contractible`]);
-/// - every ring is wound against the face
-///   ([`require_holes_wound_against`]), its area `|axis·A⃗|/sin α`
-///   signed by its axial vector area and metered over an upper bound
-///   on its perimeter, the whole's under `props_cone_area_side`. Tier
-///   3 reads a cone face's side off its outer loop alone
-///   ([`boundary_material_sign_loops`]), so this is the one check of a
-///   cone ring's orientation a body at rest gets.
-fn require_cone_rings_are_holes<T: Decide>(
+/// Every edge must lie on the cone, decided as incidence
+/// ([`PropsError::OffSurface`]): a line is a generator — at the
+/// generator angle to the axis (`props_meridian_generator`) and through
+/// the apex (`props_meridian_apex`) — and a circle is a rim, coaxial
+/// (`props_circle_axis_class`, `props_rim_axis_parallel`,
+/// `props_rim_center_on_axis`) at the cone's radius for its height
+/// (`props_rim_fit`). An ellipse is read as the plane section it is
+/// stated to be, its incidence undecided here.
+///
+/// The chart normal makes `n·axis = −sin α` on the `v > 0` nappe and
+/// `+sin α` on the other, so a face whose traversal places it left of
+/// its loops under the chart normal has `axis·A⃗ = ∓sin α·Area`. The
+/// encoded side is therefore the sign of `−ν·axis·A⃗ / sin α`, with `ν`
+/// the nappe's sign, metered as the mean width over an upper bound on
+/// the boundary length (`props_cone_area_side`); a face of no width
+/// encodes none and is degenerate.
+///
+/// The nappe is read off the edges' endpoint slants
+/// (`props_cone_nappe`), which bound each edge for the carriers a cone
+/// face carries: a generator runs between its ends, a rim holds one
+/// height, and a plane section that is an ellipse lies on one nappe
+/// whole. A spline or spiric edge could cross the apex between its
+/// ends, so it refuses. A boundary with ends on both nappes crosses the
+/// apex; one whose ends are all on it bounds nothing.
+///
+/// A vector area is the region's only for a closed loop, so every loop
+/// must close (`props_loop_closed`).
+fn cone_loops<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
-    sin_a: T,
+    half_angle: T,
     loops: &[&[LoopEdge<T>]],
-    per_loop: &[T],
     band: Band,
-) -> Result<(), PropsError> {
-    let mut sides = Vec::with_capacity(loops.len());
-    for (&edges, &s) in loops.iter().zip(per_loop) {
-        let mut length = T::zero();
+) -> Result<ConeLoops<T>, PropsError> {
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    let slant = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
+    for &edges in loops {
+        for e in edges {
+            require_on_cone(apex, axis, sin_a, cos_a, e, band)?;
+        }
+        require_cone_circle_spans(edges, band)?;
+    }
+    let (mut ends, mut length, mut axial, mut va) =
+        (Vec::new(), T::zero(), T::zero(), Vec3::zero());
+    let mut per_loop = Vec::with_capacity(loops.len());
+    for &edges in loops {
+        let mut loop_length = T::zero();
         for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
             require_zero(
                 "props_loop_closed",
                 Margin::of((e.traversal_ends().1 - next.traversal_ends().0).norm()),
                 band,
                 Premise::Inventory,
-            )?;
-            length = length + cone_edge_length(e)?;
+            )
+            .map_err(cone_loop_refusal)?;
+            let l = cone_edge_length(e)?;
+            length = length + l;
+            loop_length = loop_length + l;
+            ends.push(slant(e.p0()));
+            ends.push(slant(e.p1()));
         }
-        sides.push((s / sin_a, length));
+        let loop_va = loop_vector_area(edges, apex)?;
+        let loop_axial = axis.dot(loop_va);
+        axial = axial + loop_axial;
+        va = va + loop_va;
+        per_loop.push((loop_axial, loop_length));
     }
-    for &ring in &loops[1..] {
-        require_cone_ring_contractible(apex, axis, ring, band)?;
+    let (lo, hi) = min_max(&ends)?;
+    let nappe = match (
+        classify("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?,
+        classify("props_cone_nappe", Margin::of(hi), band, PropsCheck::Exact)?,
+    ) {
+        (Sign::Negative, Sign::Positive) => return Err(PropsError::NappeSpanning),
+        (_, Sign::Positive) => T::one(),
+        (Sign::Negative, _) => -T::one(),
+        _ => return Err(PropsError::DegenerateFace),
+    };
+    let side = match mean_width_side(
+        "props_cone_area_side",
+        (-(nappe * axial) / sin_a, length),
+        band,
+    )? {
+        Sign::Zero => return Err(PropsError::DegenerateFace),
+        side => side,
+    };
+    Ok(ConeLoops {
+        va,
+        side,
+        per_loop: per_loop
+            .iter()
+            .map(|&(a, l)| (-(nappe * a) / sin_a, l))
+            .collect(),
+    })
+}
+
+/// A cone loop premise's inventory refusal, as the cone's own
+/// ([`PropsError::ConeLoop`]).
+fn cone_loop_refusal(e: PropsError) -> PropsError {
+    match e {
+        PropsError::NotIsoRectangle { what } => PropsError::ConeLoop { what },
+        other => other,
     }
-    let total = sides
-        .iter()
-        .fold((T::zero(), T::zero()), |(a, l), &(s, p)| (a + s, l + p));
-    require_holes_wound_against("props_cone_area_side", total, &sides[1..], band)
+}
+
+/// **An edge lies on the cone** — the incidence premises the iso parse
+/// ([`cone_boundary`]) decides, under the same names: a line at the
+/// generator angle through the apex, a circle coaxial at the cone's
+/// radius for its height. An ellipse passes undecided ([`cone_loops`]).
+///
+/// Each meters a point's distance from the cone: a line's angle off the
+/// generator, `sin(β − α) = |dir × axis|·cos α − |dir·axis|·sin α`, over
+/// its span, and a rim's distance in its meridian plane,
+/// `r·cos α − |h|·sin α` with `h` the centre's axial height — neither
+/// divides by `sin α` or `cos α`, so neither is levered toward a needle
+/// or a near-flat cone.
+fn require_on_cone<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    sin_a: T,
+    cos_a: T,
+    e: &LoopEdge<T>,
+    band: Band,
+) -> Result<(), PropsError> {
+    match e.carrier {
+        Curve3::Line { dir, .. } => {
+            require_zero(
+                "props_meridian_generator",
+                Margin::levered(
+                    dir.cross(axis).norm() * cos_a - dir.dot(axis).abs() * sin_a,
+                    e.t1 - e.t0,
+                ),
+                band,
+                Premise::OnSurface,
+            )?;
+            require_zero(
+                "props_meridian_apex",
+                Margin::norm3((apex - e.p0()).cross(dir)),
+                band,
+                Premise::OnSurface,
+            )
+        }
+        Curve3::Circle {
+            center,
+            axis: n_c,
+            radius: r_c,
+            ..
+        } => {
+            if classify(
+                "props_circle_axis_class",
+                Margin::levered(n_c.dot(axis), r_c),
+                band,
+                PropsCheck::Inventory,
+            )? == Sign::Zero
+            {
+                return Err(PropsError::OffSurface {
+                    what: "props_circle_axis_class",
+                });
+            }
+            require_zero(
+                "props_rim_fit",
+                Margin::of(r_c * cos_a - (center - apex).dot(axis).abs() * sin_a),
+                band,
+                Premise::OnSurface,
+            )?;
+            require_rim_incidence(center - apex, n_c, r_c, axis, band, Premise::OnSurface)
+        }
+        Curve3::Ellipse { .. } => Ok(()),
+        Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
+    }
 }
 
 /// **Every circle span the cone reads, decided** ([`require_rim_span`]).
@@ -1912,22 +1971,10 @@ fn cone_edge_length<T: Decide>(e: &LoopEdge<T>) -> Result<T, PropsError> {
     }
 }
 
-/// **The material side a cone face's loops encode**: the sign of its
-/// area against the chart normal, read off the axial vector area its
-/// flux integrates ([`cone_face_closed_form`]).
-///
-/// The chart normal makes `n·axis = −sin α` on the `v > 0` nappe and
-/// `+sin α` on the other, so a face whose traversal places it left of
-/// its loops under the chart normal has `axis·A⃗ = ∓sin α·Area`. The
-/// encoded side is therefore the sign of `−ν·axis·A⃗ / sin α`, with `ν`
-/// the nappe's sign, read off the edges' endpoint slants as the flux
-/// reads a trimmed face's (`props_cone_nappe`), and metered as the mean
-/// width over an upper bound on the boundary length
-/// (`props_cone_area_side`, the meter [`require_cone_rings_are_holes`]
-/// reads a ring's side by). A vector area is the region's only for a
-/// closed loop, so every loop must close (`props_loop_closed`). No iso
-/// premise: a notched or trimmed face encodes its side as a rectangle
-/// does.
+/// The material side a cone face's loops encode, read by the flux
+/// lane's own decides ([`cone_face_read`]), so the side it answers is
+/// one the flux lane measures. No iso premise: a notched or trimmed face encodes its side as a
+/// rectangle does.
 fn cone_material_sign<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -1935,41 +1982,38 @@ fn cone_material_sign<T: Decide>(
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
-    let (sin_a, cos_a) = half_angle.sin_cos();
-    let slant = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
-    let (mut ends, mut length, mut axial) = (Vec::new(), T::zero(), T::zero());
-    for &edges in loops {
-        require_cone_circle_spans(edges, band)?;
-        for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
-            require_zero(
-                "props_loop_closed",
-                Margin::of((e.traversal_ends().1 - next.traversal_ends().0).norm()),
-                band,
-                Premise::Inventory,
-            )?;
-            length = length + cone_edge_length(e)?;
-            ends.push(slant(e.p0()));
-            ends.push(slant(e.p1()));
-        }
-        axial = axial + axis.dot(loop_vector_area(edges, apex)?);
-    }
-    let (lo, hi) = min_max(&ends)?;
-    let nappe = match (
-        classify("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?,
-        classify("props_cone_nappe", Margin::of(hi), band, PropsCheck::Exact)?,
-    ) {
-        (Sign::Negative, Sign::Positive) => return Err(PropsError::NappeSpanning),
-        (_, Sign::Positive) => T::one(),
-        (Sign::Negative, _) => -T::one(),
-        _ => return Err(PropsError::DegenerateFace),
+    Ok(MaterialSign::Encoded(
+        cone_face_read(apex, axis, half_angle, loops, band)?.side,
+    ))
+}
+
+/// **A ringed cone face's rings are holes inside it.** Each ring is
+/// wound against the outer loop (`props_ring_winding` against the
+/// outer loop's side, `props_cone_outer_side`), and the face's side
+/// (`props_cone_area_side`) is the outer loop's: holes that cover more
+/// than the outer loop — overlapping one another or leaving it — turn
+/// the whole's sign, and that is [`PropsError::HolesExceedFace`], not a
+/// ring wound with the face.
+///
+/// Tier 3 reads a cone face's side off its outer loop alone
+/// ([`boundary_material_sign_loops`]), so this is the one check of a
+/// cone ring's orientation a body at rest gets.
+fn require_cone_holes<T: Decide>(read: &ConeLoops<T>, band: Band) -> Result<(), PropsError> {
+    let Some((&outer, holes)) = read.per_loop.split_first() else {
+        return Ok(());
     };
-    match mean_width_side(
-        "props_cone_area_side",
-        (-(nappe * axial) / sin_a, length),
-        band,
-    )? {
-        Sign::Zero => Err(PropsError::DegenerateFace),
-        side => Ok(MaterialSign::Encoded(side)),
+    if holes.is_empty() {
+        return Ok(());
+    }
+    let outer = match mean_width_side("props_cone_outer_side", outer, band)? {
+        Sign::Zero => return Err(PropsError::DegenerateFace),
+        side => side,
+    };
+    require_holes_against(outer, holes, band)?;
+    if read.side == outer {
+        Ok(())
+    } else {
+        Err(PropsError::HolesExceedFace)
     }
 }
 
@@ -1985,40 +2029,154 @@ fn cone_material_sign<T: Decide>(
 /// no winding ring. It stays because this lane is entered by any
 /// caller of [`curved_face_loops`], validated or not.
 ///
-/// The winding is the ring's azimuth about the axis summed piece by
-/// piece over the cycle of its edges' ends in traversal order, each
-/// edge and each joint between two edges a step. A step turns through
-/// the principal angle between its ends' radial directions, or, on an
-/// arc running against that angle, that angle plus a whole turn:
-///
-/// - a segment on the cone is a generator, turning through nothing;
-/// - a joint closes within the band (`props_loop_closed`) between ends
-///   decided off the axis (`props_cone_ring_off_apex`), so it turns
-///   through less than a quarter turn;
-/// - a circle or ellipse on a cone is a plane section that meets every
-///   generator of its nappe once, so its azimuth is monotone along it,
-///   in the sense its plane normal makes with the axis
-///   (`props_cone_ring_arc_sense`), and an arc turns through the
-///   principal angle between its ends taken the long way round when
-///   that angle runs against its sense (`props_cone_ring_arc_turn`).
-///
-/// **Why a half-turn threshold is sound.** Every step is congruent,
-/// mod a whole turn, to the azimuth change between its ends, and the
-/// ends close up, so in exact arithmetic the sum is a whole number of
-/// turns: the ring's winding. What is computed differs from it only by
-/// the rounding of a few angles (a sum, or its enclosure at
-/// `Interval`), far below half a turn, so the ring is contractible
-/// exactly when `|winding| < π`. That is decided with the margin
+/// The winding is [`cone_loop_winding`]'s, with every end decided off
+/// the apex (`props_cone_ring_off_apex`). It is a whole number of turns
+/// up to rounding far below half a turn, so the ring is contractible
+/// exactly when `|winding| < π`, decided with the margin
 /// `(π − |winding|)·arm`, the half turn the sum is clear of levered by
 /// the ring's widest radius, and not as a zero test, whose enclosure is
 /// the rounding itself.
 fn require_cone_ring_contractible<T: Decide>(
-    apex: Point3<T>,
-    axis: Vec3<T>,
-    ring: &[LoopEdge<T>],
+    w: &ConeWinding<T>,
     band: Band,
 ) -> Result<(), PropsError> {
-    let refuse = |what| Err(PropsError::NotIsoRectangle { what });
+    match classify(
+        "props_cone_ring_contractible",
+        Margin::levered(T::pi() - w.total.abs(), w.arm),
+        band,
+        PropsCheck::Inventory,
+    )? {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => Err(PropsError::ConeLoop {
+            what: "props_cone_ring_contractible",
+        }),
+    }
+}
+
+/// **A cone loop meets itself at no vertex**
+/// (`props_cone_loop_vertex`). A loop that passes a vertex twice — a
+/// pinched figure-eight, whose vector area is the difference of its
+/// lobes, or a loop stated twice, whose is double — bounds no region
+/// once. Every two non-adjacent vertices (each edge's traversal start)
+/// are decided apart in space; two that coincide are the same vertex
+/// unless the loop has gone round the axis between them, which is a
+/// seam's two copies of one vertex, a period apart on the chart
+/// (`props_cone_loop_vertex_sheet`: the azimuth the loop turns between
+/// them, a whole number of turns, against half a turn, levered by the
+/// vertex's radius). A vertex on the apex has no azimuth, and a loop
+/// that passes the apex twice is pinched there.
+fn require_cone_loop_vertices_distinct<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    w: &ConeWinding<T>,
+    band: Band,
+) -> Result<(), PropsError> {
+    let refuse = || PropsError::ConeLoop {
+        what: "props_cone_loop_vertex",
+    };
+    let n = w.vertices.len();
+    for i in 0..n {
+        for j in i + 2..n {
+            if i == 0 && j == n - 1 {
+                continue;
+            }
+            let ((p, a), (q, b)) = (w.vertices[i], w.vertices[j]);
+            if classify(
+                "props_cone_loop_vertex",
+                Margin::of((p - q).norm()),
+                band,
+                PropsCheck::Inventory,
+            )? == Sign::Positive
+            {
+                continue;
+            }
+            let (Some(a), Some(b)) = (a, b) else {
+                return Err(refuse());
+            };
+            let r = p - apex;
+            let rho = (r - axis * r.dot(axis)).norm();
+            if classify(
+                "props_cone_loop_vertex_sheet",
+                Margin::levered((a - b).abs() - T::pi(), rho),
+                band,
+                PropsCheck::Inventory,
+            )? != Sign::Positive
+            {
+                return Err(refuse());
+            }
+        }
+    }
+    Ok(())
+}
+
+/// What [`cone_loop_winding`] does with an edge end on the apex, where
+/// the azimuth is undefined.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AtApex {
+    /// Refuse (`props_cone_ring_off_apex`): a ring is read off the apex.
+    Refuse,
+    /// Read a generator's azimuth at its apex end off its other end
+    /// (`props_cone_loop_off_apex`): an outer loop may reach the apex.
+    AlongGenerator,
+}
+
+/// A cone loop's turn about the axis ([`cone_loop_winding`]).
+struct ConeWinding<T: Real> {
+    /// The azimuth the loop turns through, summed.
+    total: T,
+    /// Its widest radius.
+    arm: T,
+    /// Whether an edge end lies on the apex.
+    through_apex: bool,
+    /// Each edge's traversal start, with the azimuth the loop has
+    /// turned from its first vertex to it — `None` on the apex.
+    vertices: Vec<(Point3<T>, Option<T>)>,
+}
+
+/// **The azimuth a cone loop turns through about the axis**: the sum,
+/// piece by piece over the cycle of its edges' ends in traversal order,
+/// of each edge's turn and each joint's:
+///
+/// - a segment on the cone is a generator, turning through nothing;
+/// - a joint closes within the band (`props_loop_closed`) between ends
+///   off the axis, so it turns through less than a quarter turn — the
+///   principal angle between its ends' radial directions; a joint at
+///   the apex, where the azimuth is undefined, is skipped;
+/// - a circle on a cone is a rim, whose parameter IS the azimuth, in
+///   the sense its axis makes with the cone's (`props_cone_arc_sense`):
+///   it turns through its stored span, exactly, a whole turn or more
+///   included;
+/// - an ellipse on a cone is a plane section that meets every generator
+///   of its nappe once, so its azimuth is monotone along it, in that
+///   sense too — but its parameter is not the azimuth. It is read in
+///   thirds of its parameter span, so a whole turn closed by one edge is
+///   no principal angle of zero; each third turns through the principal
+///   angle between its ends, taken the long way round when that angle
+///   runs against its sense (`props_cone_arc_turn`). The long way is
+///   reachable: a third of a tilted section's parameter near the vertex
+///   the axis pierces closest to subtends more than half a turn.
+///
+/// Every step is congruent, mod a whole turn, to the azimuth change
+/// between its ends, and the ends close up, so the sum over a loop off
+/// the apex is a whole number of turns up to the rounding of a few
+/// angles, far below half a turn: its winding. A loop that goes round
+/// once winds at most one turn, and one stated twice two, so its caller
+/// decides it against three half turns (`props_cone_loop_winding`).
+///
+/// A loop through the apex has no winding — the apex joint is skipped —
+/// and sums the azimuth its edges sweep: a sector's angle, a whole turn
+/// for the slit cap that goes round to its own generator, and more only
+/// for a loop that covers part of the nappe twice. Its caller decides
+/// that sweep against a whole turn, admitting the turn itself
+/// (`props_cone_apex_loop_sweep`).
+fn cone_loop_winding<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    edges: &[LoopEdge<T>],
+    at_apex: AtApex,
+    band: Band,
+) -> Result<ConeWinding<T>, PropsError> {
+    let refuse = |what| Err(PropsError::ConeLoop { what });
     let radial = |p: Point3<T>| {
         let w = p - apex;
         w - axis * w.dot(axis)
@@ -2026,78 +2184,111 @@ fn require_cone_ring_contractible<T: Decide>(
     // The principal angle about `axis` from `a`'s radial direction to
     // `b`'s.
     let turn = |a: Vec3<T>, b: Vec3<T>| axis.dot(a.cross(b)).atan2(a.dot(b));
-    let mut winding = T::zero();
+    let off = |name, rho: T| {
+        classify(name, Margin::of(rho), band, PropsCheck::Inventory).map(|s| s == Sign::Positive)
+    };
     let mut arm = T::zero();
-    for (e, next) in ring.iter().zip(ring.iter().cycle().skip(1)) {
-        let (a, b) = (radial(e.p0()), radial(e.p1()));
+    let mut through_apex = false;
+    // Each edge's step, and its radial directions (and whether on the
+    // apex) at its traversal start and end.
+    let mut steps = Vec::with_capacity(edges.len());
+    for e in edges {
+        let (mut a, mut b) = (radial(e.p0()), radial(e.p1()));
+        let (mut a_apex, mut b_apex) = (false, false);
         let rho = a.norm().min(b.norm());
-        if classify(
-            "props_cone_ring_off_apex",
-            Margin::of(rho),
-            band,
-            PropsCheck::Inventory,
-        )? != Sign::Positive
-        {
-            return refuse("props_cone_ring_off_apex");
-        }
-        arm = arm.max(a.norm()).max(b.norm());
-        let principal = turn(a, b);
-        let step = match e.carrier {
-            Curve3::Circle { axis: n, .. } | Curve3::Ellipse { axis: n, .. } => {
-                let sense = match classify(
-                    "props_cone_ring_arc_sense",
-                    Margin::levered(n.dot(axis), rho),
-                    band,
-                    PropsCheck::Inventory,
-                )? {
-                    Sign::Positive => T::one(),
-                    Sign::Negative => -T::one(),
-                    Sign::Zero => return refuse("props_cone_ring_arc_sense"),
-                };
-                match classify(
-                    "props_cone_ring_arc_turn",
-                    Margin::levered(principal * sense, rho),
-                    band,
-                    PropsCheck::Inventory,
-                )? {
-                    Sign::Positive => principal,
-                    Sign::Negative => principal + sense * T::tau(),
-                    Sign::Zero => return refuse("props_cone_ring_arc_turn"),
+        match at_apex {
+            AtApex::Refuse => {
+                if !off("props_cone_ring_off_apex", rho)? {
+                    return refuse("props_cone_ring_off_apex");
                 }
             }
-            _ => principal,
+            AtApex::AlongGenerator => {
+                let line = matches!(e.carrier, Curve3::Line { .. });
+                match (
+                    off("props_cone_loop_off_apex", a.norm())?,
+                    off("props_cone_loop_off_apex", b.norm())?,
+                ) {
+                    (true, true) => {}
+                    (false, true) if line => (a, a_apex) = (b, true),
+                    (true, false) if line => (b, b_apex) = (a, true),
+                    _ => return refuse("props_cone_loop_off_apex"),
+                }
+            }
+        }
+        through_apex = through_apex || a_apex || b_apex;
+        arm = arm.max(a.norm()).max(b.norm());
+        let sense = |n: Vec3<T>, rho: T| match classify(
+            "props_cone_arc_sense",
+            Margin::levered(n.dot(axis), rho),
+            band,
+            PropsCheck::Inventory,
+        )? {
+            Sign::Positive => Ok(T::one()),
+            Sign::Negative => Ok(-T::one()),
+            Sign::Zero => Err(PropsError::ConeLoop {
+                what: "props_cone_arc_sense",
+            }),
         };
-        let step = if e.forward { step } else { -step };
-        let joint = turn(
-            radial(e.traversal_ends().1),
-            radial(next.traversal_ends().0),
-        );
-        winding = winding + step + joint;
+        let step = match e.carrier {
+            Curve3::Circle { axis: n, .. } => sense(n, rho)? * (e.t1 - e.t0),
+            Curve3::Ellipse { axis: n, .. } => {
+                let third = (e.t1 - e.t0) / T::from_f64(3.0);
+                let m1 = radial(e.carrier.eval(e.t0 + third));
+                let m2 = radial(e.carrier.eval(e.t1 - third));
+                let rho = rho.min(m1.norm()).min(m2.norm());
+                let sense = sense(n, rho)?;
+                let mut thirds = T::zero();
+                for (x, y) in [(a, m1), (m1, m2), (m2, b)] {
+                    let principal = turn(x, y);
+                    thirds = thirds
+                        + match classify(
+                            "props_cone_arc_turn",
+                            Margin::levered(principal * sense, rho),
+                            band,
+                            PropsCheck::Inventory,
+                        )? {
+                            Sign::Positive => principal,
+                            Sign::Negative => principal + sense * T::tau(),
+                            Sign::Zero => return refuse("props_cone_arc_turn"),
+                        };
+                }
+                thirds
+            }
+            _ => turn(a, b),
+        };
+        let ends = ((a, a_apex), (b, b_apex));
+        steps.push(if e.forward {
+            (step, ends)
+        } else {
+            (-step, (ends.1, ends.0))
+        });
     }
-    match classify(
-        "props_cone_ring_contractible",
-        Margin::levered(T::pi() - winding.abs(), arm),
-        band,
-        PropsCheck::Inventory,
-    )? {
-        Sign::Positive => Ok(()),
-        Sign::Zero | Sign::Negative => refuse("props_cone_ring_contractible"),
+    let mut total = T::zero();
+    let mut vertices = Vec::with_capacity(edges.len());
+    for (k, e) in edges.iter().enumerate() {
+        let (step, ((_, start_apex), (end, end_apex))) = steps[k];
+        vertices.push((
+            e.traversal_ends().0,
+            if start_apex { None } else { Some(total) },
+        ));
+        total = total + step;
+        let ((start, next_apex), _) = steps[(k + 1) % steps.len()].1;
+        if !end_apex && !next_apex {
+            total = total + turn(end, start);
+        }
     }
+    Ok(ConeWinding {
+        total,
+        arm,
+        through_apex,
+        vertices,
+    })
 }
 
 /// Classify a cone face's boundary into (rims, signed slant levels) —
-/// the shared parse consumed by [`cone_face_closed_form`],
-/// [`boundary_material_sign`] and [`require_iso_rectangle`] — **with
-/// the apex folded in where the boundary needs it**
-/// ([`cone_apex_level`]).
-///
-/// The fold lives here because the cone's missing extreme needs no
-/// sense bit, so all three doors can and must read the SAME extent: the
-/// gate's `Encoded` side for an apex cap is
-/// what catches the inverted traversal at tier 3's check 6, and it can
-/// only be read against an extent the parse supplies. The sphere's
-/// pole fold is the other shape — it reads `Face::sense`, so it sits
-/// in `sphere` and the gate arm declines to answer at all.
+/// the iso parse [`require_iso_rectangle`] reads — **with the apex
+/// folded in where the boundary needs it** ([`cone_apex_level`]): an
+/// apex cap is the rectangle `[0, v] × [0, 2π)`.
 ///
 /// **A folded extent carries its guard with it**, so there is no flag
 /// to return and no caller that can forget one: the fold refuses a rim
@@ -2120,7 +2311,10 @@ fn cone_boundary<T: Decide>(
                 generators = true;
                 require_zero(
                     "props_meridian_generator",
-                    Margin::levered(dir.dot(axis).abs() - cos_a, e.t1 - e.t0),
+                    Margin::levered(
+                        dir.cross(axis).norm() * cos_a - dir.dot(axis).abs() * sin_a,
+                        e.t1 - e.t0,
+                    ),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -2157,7 +2351,7 @@ fn cone_boundary<T: Decide>(
                 let v = (center - apex).dot(axis) / cos_a;
                 require_zero(
                     "props_rim_fit",
-                    Margin::of(r_c - v.abs() * sin_a),
+                    Margin::of(r_c * cos_a - (center - apex).dot(axis).abs() * sin_a),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -2176,8 +2370,8 @@ fn cone_boundary<T: Decide>(
                 return Err(PropsError::NotIsoRectangle {
                     what: "cone boundary carries an ellipse arc (a tilted-section cut) — \
                            not a rim or a generator, so this iso parse has no reading of \
-                           it (`cone_face_closed_form` admits such a face by its \
-                           edge endpoints instead)",
+                           it (`cone_face_closed_form` measures such a face by its \
+                           vector area)",
                 });
             }
             // A spiric lies on no cylinder or cone: refused beside the
@@ -2186,8 +2380,7 @@ fn cone_boundary<T: Decide>(
         }
     }
     // Cone levels are the signed SLANT arc length — `Length`, bare —
-    // and the arm is the first rim's own radius ([`cone_arm`]), which
-    // meters only the dimensionless margins in `du_of_rims`.
+    // and the arm is the first rim's own radius ([`cone_arm`]).
     let arms = RimArms::uniform(cone_arm(&rims, sin_a));
     let mut b = LinearBoundary {
         rims,
@@ -2247,9 +2440,8 @@ fn cone_apex_level<T: Decide>(
 /// **The apex is interior to a rim only if the rim CLOSES around it**
 /// (`props_rim_only_closed`), decided on the `Δu` the rim spans sum to
 /// — [`cone_apex_level`]'s fold reads a traversal DIRECTION, which
-/// says nothing about how far the rim goes, and [`du_of_rims`] SUMS
-/// the spans of one group without comparing the sum to a whole turn.
-/// Without it a lone half rim answered half the cap's area, and the
+/// says nothing about how far the rim goes. Without it a lone half rim
+/// answered half the cap's area, and the
 /// same full rim stated twice double.
 ///
 /// **A SUM is not a COVER.** The comparand is `(Δu − τ)` at the rim
@@ -2266,11 +2458,9 @@ fn cone_apex_level<T: Decide>(
 /// The joins are asked cyclically, so the verdict does not move under
 /// a re-anchoring of the loop.
 ///
-/// It is the only guard the public door has on the cone: the cone's
-/// other traversal bounds the rest of the nappe, which runs to
-/// infinity and is no finite face, and the flux takes no sense bit to
-/// tell them apart with. What catches that face is tier 3's check 6,
-/// against the side [`cone_material_sign`] reads.
+/// The cone's other traversal of the rim bounds the rest of the nappe,
+/// which runs to infinity and is no finite face; what catches that face
+/// is tier 3's check 6, against the side [`cone_material_sign`] reads.
 ///
 /// **Its precondition is the fold's own**: every edge of `edges` is a
 /// rim of the one group, in loop order.
@@ -2312,9 +2502,8 @@ fn unanimous_rim_dir<T: Real>(rims: &[Rim<T>]) -> Option<Sign> {
 }
 
 /// The `Δu` a one-group rim set spans — the plain sum of the stored
-/// spans, which is [`du_of_rims`]' answer wherever there is one group
-/// and is only asked where a fold has already established that (one
-/// level, one direction). It decides nothing and records nothing; the
+/// spans, asked only where a fold has already established one group
+/// (one level, one direction). It decides nothing and records nothing; the
 /// deciding is [`require_rim_only_closed`]'s.
 fn span_sum<T: Real>(rims: &[Rim<T>]) -> T {
     rims.iter().fold(T::zero(), |acc, r| acc + r.dt)
@@ -2322,18 +2511,13 @@ fn span_sum<T: Real>(rims: &[Rim<T>]) -> T {
 
 /// The cone's azimuthal lever arm: the first rim's own radius
 /// `|v|·sin α` (cone rims are `Length`-leveled, so the arm meters only
-/// the dimensionless direction/Δu margins in `du_of_rims`).
+/// the `Δu` margin of [`require_rim_only_closed`]).
 ///
 /// **The `T::one()` fallback is never metered against.** It is
-/// reachable — both callers compute the arm before they know whether
-/// there is a rim — but every route from here to a margin refuses on
-/// the empty rim list first, and they are different routes: the flux
-/// lane's is `du_of_rims`' opening `is_empty` refusal (nothing else
-/// upstream of it consumes the arm, `require_rims_at_extremes` being
-/// vacuous on no rims), the shape door's is [`unanimous_rim_side`],
-/// which reads no arm on an empty rim list. Stating one of them would
-/// be true at one call site and false at the other; the invariant is
-/// what both establish.
+/// reachable — [`cone_boundary`] computes the arm before it knows
+/// whether there is a rim — but the fold that reads it runs only on a
+/// non-empty rim list, and [`unanimous_rim_side`] reads no arm on an
+/// empty one.
 fn cone_arm<T: Real>(rims: &[Rim<T>], sin_a: T) -> T {
     match rims.first() {
         Some(Rim {
@@ -4260,11 +4444,10 @@ mod rim_level_review_probe {
     #[test]
     fn mixed_kind_levels_refuse_typed() {
         let band = Band::linear(Tol::witness()).expect("band");
+        let unit = RimLevel::Unit(0.5, 0.5);
         let got = level_coincides(
-            "props_rim_level_group",
             RimLevel::Length(1.0_f64),
-            RimLevel::Unit(0.5, 0.5),
-            None,
+            (unit, unit),
             RimArms::uniform(1.0),
             band,
         );
@@ -4308,62 +4491,46 @@ mod rim_level_review_probe {
         assert!(got.is_err(), "mixed ends/rim must not measure: {got:?}");
     }
 
-    /// **The metric is the chord, and the two call sites share it**
-    /// (S81). A `Unit` pair whose two components are each inside the
-    /// coincidence band but whose CHORD is not must not be grouped —
-    /// the grouping site decided the components separately and answered
-    /// "same level" where the predicate answered "not at an extreme".
+    /// **The metric is the chord** (S81). A `Unit` rim level whose two
+    /// components are each inside the coincidence band of an extreme but
+    /// whose CHORD is not is not at that extreme.
     ///
     /// **The chord can only ever be `√2` × a component**, and the
     /// escalation multiplier K is larger than that on any sane run, so
     /// the honest outcome here is a **refusal, not a definite
     /// disagreement**: the pair lands in the ambiguity band and
-    /// `classify` escalates. Both are `!Ok(true)`, and that — *the
-    /// component rule's answer is not this rule's answer* — is what the
-    /// row asserts, so it holds at every ε and every K rather than at
-    /// the one it was first written against.
+    /// `classify` escalates. Both are errors, and that — *the component
+    /// rule's answer is not this rule's answer* — is what the row
+    /// asserts, so it holds at every ε and every K rather than at the
+    /// one it was first written against.
     ///
     /// The offsets come from the run's own band, never from a literal.
     /// A literal here passed at ε = 1e-9 for the wrong reason (both
     /// components were outside the band too) and failed at ε = 1e-6.
     #[test]
-    fn a_pair_the_component_rule_calls_one_level_is_not_grouped() {
+    fn a_pair_the_component_rule_calls_one_level_is_not_one_level() {
         let band = Band::linear(Tol::witness()).expect("band");
-        let arms = RimArms::uniform(1.0_f64);
         // Each component 0.8·zero (inside), chord 1.13·zero (outside).
         let d = band.zero() * 0.8;
-        let a = RimLevel::Unit(0.0, 0.0);
-        let got = level_coincides(
-            "props_rim_level_group",
-            a,
-            RimLevel::Unit(d, d),
-            None,
-            arms,
-            band,
-        );
-        assert!(
-            !matches!(got, Ok(true)),
-            "components inside the band but the chord outside it is not one level: {got:?}"
-        );
         let rim = Rim {
             d_u_sign: Sign::Positive,
             dt: 1.0,
             level: RimLevel::Unit(d, d),
         };
+        let got = require_rims_at_extremes(
+            std::slice::from_ref(&rim),
+            (RimLevel::Unit(0.0, 0.0), RimLevel::Unit(1.0, 0.0)),
+            RimArms::uniform(1.0_f64),
+            band,
+        );
         assert!(
-            require_rims_at_extremes(
-                std::slice::from_ref(&rim),
-                (a, RimLevel::Unit(1.0, 0.0)),
-                arms,
-                band
-            )
-            .is_err(),
-            "and the predicate must agree with the grouping, not differ from it"
+            got.is_err(),
+            "components inside the band but the chord outside it is not one level: {got:?}"
         );
     }
 
     /// The floor for the row above: a pair whose CHORD is inside the
-    /// band **is** one level, so "share the chord rule" is not "refuse
+    /// band **is** one level, so "the chord rule" is not "refuse
     /// everything". `0.1·zero` per component puts the chord at
     /// `0.14·zero`, inside at every ε and every K.
     #[test]
@@ -4372,10 +4539,8 @@ mod rim_level_review_probe {
         let d = band.zero() * 0.1;
         assert!(
             level_coincides(
-                "props_rim_level_group",
                 RimLevel::Unit(0.0, 0.0),
-                RimLevel::Unit(d, d),
-                None,
+                (RimLevel::Unit(d, d), RimLevel::Unit(d, d)),
                 RimArms::uniform(1.0_f64),
                 band,
             )

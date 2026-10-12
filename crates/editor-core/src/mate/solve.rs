@@ -62,8 +62,7 @@ use crate::placement::{Frame, Motion};
 /// scalar through [`Decide`] (a dual on its value channel, so a seed
 /// never decides one; an interval definitely or by escalating).
 ///
-/// What a scalar answers here beyond deciding is per scalar, like
-/// `eval`'s `SectionScalar`. No pose value is derived from
+/// What a scalar answers here beyond deciding is per scalar. No pose value is derived from
 /// [`Self::quoted`] or [`Self::upper`]. `quoted` feeds payloads only.
 /// `upper` forms the arm ([`Arm::of`]), so it feeds the lever's own
 /// refusal branches — `LeverRefusal::OutOfRange` where the arm is

@@ -229,3 +229,22 @@ The rest moved by `git mv`, ids and bodies unchanged:
   - The review (APPROVE-WITH-FIXES, 0/3/1) found two cone readers still reading a 3π span raw, and two torus levers no row pinned. All are fixed and pinned by mutants.
   - On the way, main stopped compiling `sweep` (PRs 4591 and 4662 crossed). FLUX fixed it in PR 4700. The digest re-cut that follows is flagged to NURBS' PR 4684.
   - Main itself has since moved that digest's sym columns again (`sz` 48 → 28/24). — (FLUX orchestrator)
+- 2026-10-11 — **Wave 2, cone faces: PR 4696 merges.** Every one-nappe cone face is now measured by its vector area over all of its loops. The S58 iso premise and the `du_of_rims` family are retired.
+  - **Review.** Dual, holdout arm (byte 120), on `5df2f692`.
+    - R2's demonstrated MAJOR is the tallied finding: the rewrite had dropped the on-surface premises, and straight chords measured as a cone wall. R1 raised no MAJOR, so this is an **M-tier miss**, and a short readout to Ev follows.
+    - Bilateral: apex loops sweeping past 2π, and loops meeting themselves at a vertex.
+  - **First fix pass:**
+    - incidence restored;
+    - apex loops bounded at 2π;
+    - a vertex decide with a seam exemption;
+    - typed `ConeLoop` and `HolesExceedFace` refusals.
+  - **Verifier 1** found a regression the restoration introduced: the rim-fit lever was off by 1/cos α, so 316 legal near-flat faces escalated. **The second fix pass** levers it at true distance, gives the material sign lane parity with the flux lane, and adds incidence rows.
+  - **Verifier 2** confirmed: the sweep's failures are identical to `5df2`'s. Its two fail-closed MINORs are filed (`cone-incidence-decides-over-lever-toward-the-needle-and-the-flat`).
+  - **Main-side reds** met on the way and filed by others: `near_tangent_pierce_poses` at 1e-6 (FUSE), and two compile breaks (4700, 876d537). — (FLUX orchestrator)
+- 2026-10-11 — **Seam note from NURBS: a design row on FLUX's slate.** PR 4684 filed `the-whole-body-property-fold-depends-on-face-order` (`design: true`).
+  - `topo::props`' `fold_runs` sums face terms in arena order, which is the D9 addendum's idiom 2. So one solid stored in two face orders measures a volume a few ulp apart. The per-face terms are bit-identical, as step-import's arc-loft row now asserts.
+  - An order-independent fold would change ratified text (the D9 addendum), so it is Ev's call, routed through FLUX as the owner of `props`.
+  - ENCL's PR 4682 bound (`faces − 1` ulp) is the body-level claim until then.
+  - The same mechanism explains NURBS' `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`, so routing `de_boor` through the blossom waits on, or is checked against, this row. — (NURBS orchestrator)
+- 2026-10-11 — Seam note from ENCL (PR 4687, merged at `aaf011d01b`): `geom_core::interval::certified_hi` (the upper end if certified, else NaN) replaces quad's `hi_or_refuse`, and `geom_core::interval::{cross, dot}` replace quad's `rv_cross`/`rv_dot` (also read by `props/spiric.rs`). Same component and association order, so the results are bit-identical. (ENCL orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4745, merged at `512ef4b6c7`): `props.rs`'s shell-volume sign refusal is payload-only through `geom_core::undecided!`; its text is unchanged apart from the shared joint. (ENCL orchestrator)

@@ -2864,12 +2864,12 @@ impl Descendants {
     ) -> Result<Option<Cell>, BooleanError> {
         let desync = |what| BooleanError::JoinDesync { what };
         let lineage =
-            super::fragments::Lineage::of(face, &self.fragments[usize::from(side == Operand::B)]);
-        if lineage.faces().nth(1).is_none() {
+            crate::lineage::Lineage::of(face, &self.fragments[usize::from(side == Operand::B)]);
+        if lineage.cells().nth(1).is_none() {
             return self.live(body, side, view, Cell::Face(face));
         }
         let mut pieces = Vec::new();
-        for f in lineage.faces() {
+        for f in lineage.cells() {
             if let Some(Cell::Face(p)) = self.live(body, side, view, Cell::Face(f))?
                 && !pieces.contains(&p)
             {
@@ -3027,8 +3027,8 @@ fn piece_holds<T: Decide>(
 /// vertex-vertex row with the split vertex when its vertex is at it,
 /// stays on the parent when its vertex lies on the parent's span, and
 /// moves to the child otherwise. Each is asked as the census asks it
-/// ([`crate::census::on_segment_interior`]), as [`ee_lineage`] asks
-/// its own, so what lands is what the census confirms. Every edge-edge
+/// ([`crate::census::on_segment_interior`]), so what lands is what the
+/// census confirms. Every edge-edge
 /// row is placed by [`ee_lineage`]. Nothing searches the result for an
 /// edge the vertex lies on.
 ///
@@ -3128,6 +3128,7 @@ pub(super) fn ledger<T: Decide>(
                 clone,
                 side,
                 &red.edge_splits,
+                &red.null_edges,
                 row,
                 carried,
                 &mut pending,
@@ -3228,21 +3229,26 @@ fn pieces<T: Real>(
 /// split minted on the contact is recorded against the other edge's
 /// piece it rests on (or the vertex it meets). An edge-edge record
 /// names no vertex, so where the contact lies is decided against the
-/// pieces themselves, by the census's own segment questions
-/// ([`crate::census`]), so what lands is what the census confirms. Only
-/// the record's own lineage is read: its two edges' pieces, never
-/// another cell of the body. A bound the record already had is a vertex
-/// record of its own, carried by its own lineage, and is not restated.
+/// pieces themselves, on the census's own span and segment predicates
+/// ([`crate::census`]): the span first, since a short piece's line
+/// extrapolated along a long one reads a gap the piece does not have,
+/// then the segment question on either piece's line, the first decided
+/// answer. Only the record's own lineage is read: its two edges'
+/// pieces, never another cell of the body. A bound the record already
+/// had is a vertex record of its own, carried by its own lineage, and is
+/// not restated.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] (`VertexOnVertex`) where a segment
 /// question is in band; [`BooleanError::JoinDesync`] where a logged key
 /// does not resolve in its clone.
+#[allow(clippy::too_many_arguments)]
 fn ee_lineage<T: Decide>(
     clone: &Body<T>,
     side: Operand,
     splits: &[super::EdgeSplit],
+    null_edges: &[super::BoolNullEdgeRecord<T>],
     row: Cited<EeContact>,
     carried: &mut Rows,
     pending: &mut Vec<PendingRow>,
@@ -3275,7 +3281,15 @@ fn ee_lineage<T: Decide>(
     for pa in &a {
         for pb in &b {
             let (sa, sb) = (segment(pa)?, segment(pb)?);
-            if crate::census::segment_interiors_meet(sa, sb, band).map_err(lineage)? {
+            let meet = || {
+                crate::census::segment_interiors_meet(sa, sb, band)
+                    .or_else(|_| crate::census::segment_interiors_meet(sb, sa, band))
+                    .map_err(lineage)
+            };
+            if !crate::census::segments_apart(sa, sb, band)
+                && !crate::census::segments_apart(sb, sa, band)
+                && meet()?
+            {
                 push_cited(
                     &mut carried.ee,
                     Cited::new(EeContact { a: pa.0, b: pb.0 }, row.cites.clone()),
@@ -3288,7 +3302,13 @@ fn ee_lineage<T: Decide>(
             {
                 for v in [mine.1, mine.2].into_iter().filter(|v| minted.contains(v)) {
                     let q = point(v)?;
-                    if crate::census::on_segment_interior(q, their_seg, band).map_err(lineage)? {
+                    // Past the other piece's span the vertex is on no
+                    // part of it, and its line's reading there is the
+                    // carrier's, not the piece's.
+                    if !crate::census::past_segment(q, their_seg, band)
+                        && crate::census::on_segment_interior(q, their_seg, band)
+                            .map_err(lineage)?
+                    {
                         push_cited(
                             &mut carried.ve,
                             Cited::new(
@@ -3316,11 +3336,12 @@ fn ee_lineage<T: Decide>(
                         if apart == geom_core::k_stats::Magnitude::Zero {
                             // The minted vertex decided one with the other
                             // piece's end: this op's decision, cited
-                            // beside the carried record.
+                            // beside the carried record, naming the
+                            // vertex the end is a null-edge copy of.
                             let fresh = decide_one(
                                 pending,
                                 (side, Cell::Vertex(v)),
-                                (side, Cell::Vertex(w)),
+                                (side, Cell::Vertex(uncopied(null_edges, side, w)?)),
                                 margin,
                             );
                             push_cited(
@@ -3335,6 +3356,36 @@ fn ee_lineage<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// The vertex `v` of operand `side`'s clone is a copy of: where a null
+/// edge minted `v` at another vertex, that vertex, read back through
+/// every null edge that hangs at a copy; `v` itself where none did. A
+/// decision's cells name the op's input, which holds no copy.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where the copies' null edges close a
+/// cycle, so no vertex is the original.
+fn uncopied<T: Real>(
+    null_edges: &[super::BoolNullEdgeRecord<T>],
+    side: Operand,
+    mut v: VertexKey,
+) -> Result<VertexKey, BooleanError> {
+    for _ in 0..=null_edges.len() {
+        let minted = null_edges.iter().find(|r| {
+            r.operand == side
+                && r.at_vertex != v
+                && (r.attr.below_end == v || r.attr.above_end == v)
+        });
+        match minted {
+            Some(r) => v = r.at_vertex,
+            None => return Ok(v),
+        }
+    }
+    Err(BooleanError::JoinDesync {
+        what: "a vertex's null-edge copies close a cycle with no original",
+    })
 }
 
 /// One operand's own records re-entering an op, in its keys: the cell
@@ -3875,8 +3926,9 @@ fn carry_rows<T: Decide>(
             record(body, &mut out, (vs, x), (fs, y), cites.clone());
         }
     }
-    // Records of two edges or faces: the joins' (no reduction mints
-    // one) and each operand's carried ones, both cells chased.
+    // Records of two edges or faces: the reduction's touches along a
+    // line, the joins' and each operand's carried ones, both cells
+    // chased.
     for ([(xs, xc), (ys, yc)], cites) in cell_rows {
         if let (Some(x), Some(y)) = (
             desc.live(body, xs, view(xs), xc)?,
@@ -4118,6 +4170,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
         | V::LoopRoleInverted { .. }
         | V::CurvedSenseInverted { .. }
         | V::NegativeVolume { .. }
+        | V::SliverInsideOut { .. }
         | V::RingMeetsOuter { .. }
         | V::RingOutsideOuter { .. }
         | V::RingMeetsRing { .. }
@@ -6615,6 +6668,7 @@ mod tests {
                 crate::Cites::decided(0),
             )],
             b_on_a: vec![],
+            ee: vec![],
         };
         // Without the descendant row: the record drops (pre-D5 loss).
         let out = found(
@@ -6649,6 +6703,7 @@ mod tests {
             )],
             a_on_b: vec![],
             b_on_a: vec![],
+            ee: vec![],
         };
         let mut desc = Descendants::default();
         desc.vertices.push((dead_vertex, live_vertex)).unwrap();
@@ -7096,6 +7151,7 @@ mod tests {
                 VfContact { vertex: v, face },
                 crate::Cites::decided(0),
             )],
+            ee: vec![],
         };
         let remap = |c: &ReductionContacts| {
             found(&body, c, [&KeyView::Direct; 2], &desc)

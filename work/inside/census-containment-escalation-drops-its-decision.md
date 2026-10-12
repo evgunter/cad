@@ -30,12 +30,10 @@ or ignore them.
   - or routing the escalation to `CensusUnsupported`'s `Containment` cause. That moves the `Escalated`/`Unsupported` split `editor_core::attribute` classifies.
 
   Neither was contained in CONTACT-10.
-- **`chord_join::SplitJoinError::RingHoming`**
-  (`crates/topo/src/chord_join.rs`, `render`, ~:418). It carries the
-  walk's `PointInLoopError::Escalated` whole, since CONTACT-10 made
-  `ring_side` keep it. It still renders "which piece a hole loop falls in
-  is too close to call (…). Recourse: {JOIN_RECOURSE}", the split's or
-  the Boolean's generic lever, not the decision's.
+- **`chord_join::SplitJoinError::RingHoming`**: done in PR 4745. It
+  renders the walk's `PointInLoopError::Escalated` whole, so its
+  subject and ending are `LoopDecision::subject` and
+  `LoopDecision::ending`.
 - **`boolean::rim_wedge`'s `lift`** (`crates/topo/src/boolean/rim_wedge.rs`,
   ~:503) folds `ContainError::Escalated { diag, .. }` to its bare `diag`.
 - **`boolean::sphere_region`** (`crates/topo/src/boolean/sphere_region.rs`,

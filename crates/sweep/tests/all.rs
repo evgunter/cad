@@ -61,6 +61,8 @@ mod a_curved_keel_in_the_plane;
 mod a_flank_touch_at_a_shared_corner;
 #[path = "a_flipped_shallow_dimple.rs"]
 mod a_flipped_shallow_dimple;
+#[path = "a_loft_computes_its_walls_in_t.rs"]
+mod a_loft_computes_its_walls_in_t;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
 #[path = "a_plane_across_a_one_face_wall.rs"]
@@ -93,6 +95,8 @@ mod a_tube_ending_on_a_ball;
 mod an_annular_tube_through_a_plate;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
 mod an_arc_tangent_at_a_boolean_vertex;
+#[path = "an_inside_out_thin_tube_operand.rs"]
+mod an_inside_out_thin_tube_operand;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
@@ -382,8 +386,8 @@ mod ladder_split_key;
 mod lamina_annulus;
 #[path = "lib_u3_sections.rs"]
 mod lib_u3_sections;
-#[path = "loft_lifts_its_placements_as_computed.rs"]
-mod loft_lifts_its_placements_as_computed;
+#[path = "loft_profiles_door.rs"]
+mod loft_profiles_door;
 #[path = "loft_v_is_the_section_set.rs"]
 mod loft_v_is_the_section_set;
 #[path = "m3_pr5_extrude_booleans.rs"]

@@ -381,24 +381,16 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
     );
     // `T` is read by no placement — the pattern's copies are the world —
     // so the mate is no statement about the product, live or not: the
-    // gate asks it nothing, and the seat it would have declared is an
-    // unattributed contact.
-    assert_unattributed(&doc, &ev);
+    // gate asks it nothing, and the seat it would have declared is rows
+    // of the two copies.
+    assert_unmated(&doc, &ev);
 }
 
-/// The gate refuses at rest, every finding unattributed: no mate speaks
-/// for the product.
-fn assert_unattributed(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) {
-    match gate(doc, ev) {
-        Err(AssemblyError::AtRest { findings }) => assert!(
-            !findings.is_empty()
-                && findings
-                    .iter()
-                    .all(|f| matches!(f.attribution, editor_core::Attribution::Unattributed)),
-            "{findings:?}"
-        ),
-        other => panic!("expected unattributed contacts at rest, got {other:?}"),
-    }
+/// No mate speaks for the product: the gate passes, and the seat is
+/// rows of the two copies, none of them a mate's.
+fn assert_unmated(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) {
+    assert!(gate(doc, ev).is_ok(), "{:?}", gate(doc, ev));
+    crate::fixture::assert_copies_rows_alone(doc, ev);
 }
 
 // ---- ties: the product decides its own ----
@@ -451,7 +443,7 @@ fn a_tied_face_refuses_at_the_side_wherever_it_is_read() {
         "a tie is never broken by picking: {:?}",
         ev.node_error(mate)
     );
-    assert_unattributed(&doc, &ev);
+    assert_unmated(&doc, &ev);
     let _ = width;
 
     let b = crate::fixture::head_at(s.pattern, in_copy(s.pattern, 0, tied));

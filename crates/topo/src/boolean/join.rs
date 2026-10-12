@@ -1326,10 +1326,24 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     // probing happens only after every polygon has been cut. ----
     let mut resolved = Vec::with_capacity(completed.len());
     for c in completed {
-        let (a_in_loop, a_out_loop) =
-            resolve_roles_geometric(&red.a, b_pristine, c.a_face, c.a_outer, c.a_ring, band, tol)?;
-        let (b_in_loop, b_out_loop) =
-            resolve_roles_geometric(&red.b, a_pristine, c.b_face, c.b_outer, c.b_ring, band, tol)?;
+        let (a_in_loop, a_out_loop) = resolve_roles_geometric(
+            &red.a,
+            (b_pristine, Operand::B),
+            c.a_face,
+            c.a_outer,
+            c.a_ring,
+            band,
+            tol,
+        )?;
+        let (b_in_loop, b_out_loop) = resolve_roles_geometric(
+            &red.b,
+            (a_pristine, Operand::A),
+            c.b_face,
+            c.b_outer,
+            c.b_ring,
+            band,
+            tol,
+        )?;
         red.a.set_null_face_pair(
             c.a_face,
             NullFacePair::Boolean {
@@ -3888,7 +3902,7 @@ fn cut_pair<T: Decide>(
 /// loops' regions flank the seam, so their sides are opposite.
 fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
-    other_pristine: &Body<T>,
+    other_pristine: (&Body<T>, Operand),
     face: FaceKey,
     outer: LoopKey,
     ring: LoopKey,

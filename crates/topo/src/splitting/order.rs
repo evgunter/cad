@@ -186,7 +186,11 @@ pub(super) fn in_plane_frame<T: Decide>(
 
 /// The frame gate's row: a schedule member's in-plane fraction, levered
 /// by the points' spread.
-const FRAME_ARM: &str = "split_join_frame_arm";
+pub(crate) const FRAME_ARM: &str = "split_join_frame_arm";
+
+/// The axis-plane test's row: a component of the plane's normal,
+/// levered by the points' spread ([`axis_plane`]).
+pub(crate) const FRAME_AXIS: &str = "split_join_frame_axis";
 
 /// Whether the unit normal `n` is a coordinate axis: two of its
 /// components exactly zero (**`split_join_frame_axis`**, at the exact
@@ -205,7 +209,7 @@ fn axis_plane<T: Decide>(n: Vec3<T>, arm: T, exact: Band) -> Result<bool, Indete
     let (mut zero, mut nonzero) = (0, 0);
     let mut undecided = None;
     for c in [n.x, n.y, n.z] {
-        match decide("split_join_frame_axis", Margin::levered(c, arm), exact) {
+        match decide(FRAME_AXIS, Margin::levered(c, arm), exact) {
             Ok(Sign::Zero) => zero += 1,
             Ok(_) => nonzero += 1,
             Err(diag) => {
@@ -471,11 +475,7 @@ mod tests {
                 let Err(diag) = got else {
                     panic!("{label}, {spread}: expected a refusal, got {got:?}");
                 };
-                assert_eq!(
-                    diag.predicate,
-                    Some("split_join_frame_arm"),
-                    "{label}, {spread}"
-                );
+                assert_eq!(diag.predicate, Some(FRAME_ARM), "{label}, {spread}");
                 assert_eq!(
                     diag.margin.rejected_sign(),
                     Some(Sign::Zero),
@@ -494,7 +494,7 @@ mod tests {
                 assert!(
                     said.starts_with("which direction in the section plane to order points along")
                         && said
-                            .ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
+                            .ends_with(&format!("{}. Recourse: move the geometry", diag.payload())),
                     "{label}, {spread}: {said}"
                 );
             }
@@ -591,11 +591,16 @@ mod tests {
             tol,
         );
         let err = in_plane_frame(&plane, iv(1.0), band, exact).unwrap_err();
-        assert_eq!(err.predicate, Some("split_join_frame_axis"));
+        assert_eq!(err.predicate, Some(FRAME_AXIS));
         let said = crate::chord_join::SplitJoinError::OrderEscalated { diag: err }.to_string();
-        assert!(
-            said.starts_with("whether the section plane's normal lies along a coordinate axis"),
-            "{said}"
+        assert_eq!(
+            said,
+            format!(
+                "whether the section plane's normal lies along a coordinate axis is undecided: \
+                 {}. Recourse: move the geometry",
+                err.payload()
+            ),
+            "the frame's axis test ends in the join's lever alone"
         );
     }
 
