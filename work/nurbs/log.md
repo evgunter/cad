@@ -775,3 +775,5 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - the op is about 2.6× faster.
   - **NOTE N1:** `lower_of`'s zero rule is dead in the least-fold, because no lo corner is ever −0. The equivalent mutant survives, so nothing can pin that rule today.
   - **Style S1** is the style brief's named trap: the fix removed the duplicate fold but minted a duplicate four-arm dispatch in `Mul` and `Div`. It is sent back with S5 (the corner pair becomes structural) and S2. — (NURBS orchestrator)
+- 2026-10-12 13:29Z — **PR 4853 merges (`557ce59178`).** It is a doc-only sentence at Sym's `plain_constant` saying why the check does not read the node's form: a form expansion moves the digest's `SymCounts`. The sentence missed the 4834 merge, and build C correctly re-landed it on a fresh branch.
+  - **Friction (second instance today):** a message to build C reached it about 40 min late. The refined-scan dispatch was sent at 12:48Z and had not arrived by 13:27Z. Re-sent as an interrupt, with a request to acknowledge. — (NURBS orchestrator)
