@@ -2,10 +2,12 @@
 id: the-thread-count-digests-re-cut-log-is-a-changelog
 kind: issue
 title: The thread-count digest's re-cut log is a changelog in a doc comment
-status: open
+status: closed
 opened: 2026-10-12
 priority: P4
 cost: E
+branch: nurbs/digest-log-trim
+closed: 2026-10-12
 ---
 
 
@@ -28,3 +30,12 @@ Fix: trim the comment to what the current golden is and what licenses a
 re-cut, plus one pointer, `git log -p --
 crates/sweep/tests/thread-count-digest/`, for the history. Each PR body
 already carries its own re-cut's numbers and cause.
+
+## Closed (2026-10-12)
+
+`expected()`'s doc now says what a golden holds (both blocks' columns),
+keeps the licence paragraph unchanged, and points at `git log -p --
+crates/sweep/tests/thread-count-digest/` for the history. The 29 dated
+entries are gone. Each one is still in its PR body and in the eps
+files' history. No golden moved.
+
