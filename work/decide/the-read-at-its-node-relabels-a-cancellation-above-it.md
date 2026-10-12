@@ -7,7 +7,6 @@ opened: 2026-10-02
 priority: P2
 refs: [DECIDE-9, the-decision-read-answers-theorems-the-must-carry-stations-would-prove]
 cost: M
-needs_ev: true
 ---
 
 
@@ -66,7 +65,7 @@ measured on this shape):
 Each must leave alone every decision the read answers where no form
 settles, and its `numeric` count.
 
-## Question
+## Question, and Ev's answer
 
 Should a label say what the tier's own proof relied on, or the least
 that any proof would need?
@@ -111,3 +110,44 @@ round:
     `MarginDiag::jointly` is a union. On main, `jointly` reports
     `sign_gated ⊔ registered` as `registered`, which drops the read.
 - The spec's invariant asked for (b), so it is retired.
+
+**Ev's answer (2026-10-12): the kind is deleted.** Ev first accepted
+(a), with a condition: "only if it can be made certain that the
+decision type cannot determine anything important". Ev said keeping
+it as debugging information or deleting it were both acceptable. Both
+designers were asked how to make that certain, and Ev chose full
+deletion ("full deletion sounds good!"):
+- **No decision carries how a zero was proved.** `Theorem`'s kinds
+  go; `Zero::Proven` carries nothing. `MarginDiag`'s theorem is a
+  "proven" bit. `jointly` is proven if both are. `deferred::discharged`
+  answers proven or not. `topo::Discharge` is `{Numeric, Proven}`, and
+  the coincidence records' `Rung::MarginIdentity` carries nothing.
+  This is certain by type: no reader can branch on a kind no type
+  holds.
+- **The read's `gated` flag on forms goes, with its bit in
+  `Form::digest`**, since it existed only to compute the kind:
+  - S8 is fixed by that: an atom is keyed by its argument's
+    polynomial.
+  - `zero_factors_gate` retires. It is DECIDE-9's zero-product rule,
+    which only ever chose a label, and it retires by this ruling.
+  - The door's refusal of a gated zero goes (S12 is answered).
+  - `door_zero` sees the read's zeros.
+- **The receipt and the K vocabulary lose the split.**
+  - `SymCounts` keeps `symbolic`, `numeric`, `frozen`, `retried`, and
+    the two registry soundness columns.
+  - The K tokens `sign_gated` and `registered` retire.
+  - Per-kind pins re-baseline to totals.
+- **What the read, or the registry, buys a document is the
+  differential** against the tier with that dial off
+  (`SymRules::without_the_reads`, `registered: false`), asserted in
+  decisions and verdicts.
+- **Rule C (`signed_root`)** rests on a sign of the box, not on a
+  branch the construction took, so a zero it reaches is not E12's
+  claim. It stays off in every shipped rule set and in the coincidence
+  replay. Retiring it is DECIDE's to schedule.
+- **What stays:**
+  - S13, a freeze keyed by its node, stays a filed reach item. It is
+    fixed by keying a freeze by its content, or by a measured retry
+    mask.
+  - DECIDE-10's shut walk never ships.
+
