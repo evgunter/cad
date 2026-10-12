@@ -17,7 +17,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane};
 use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError};
+use topo::{Body, BooleanError, BooleanErrorKind};
 
 fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
@@ -108,12 +108,6 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
             parallel_shared((0.0, 1.5, (0.0, 4.0)), (2.9, 1.5, (1.0, 5.0))),
         ),
         (
-            "externally tangent walls",
-            cyl(0.0, 0.0, 1.0, 0.0, 2.0),
-            cyl(2.0, 0.0, 1.0, 0.0, 2.0),
-            parallel_shared((0.0, 1.0, (0.0, 2.0)), (2.0, 1.0, (0.0, 2.0))),
-        ),
-        (
             "tall thin through short fat",
             cyl(0.0, 0.0, 0.2, -8.0, 8.0),
             moved(
@@ -150,7 +144,18 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                 continue;
             }
             match out {
-                Err(_) => {} // a typed refusal is an honest outcome
+                // The germ frame's and the fallback extent's frontier
+                // refusals are honest outcomes; an invariant is not.
+                Err(e) => assert!(
+                    matches!(
+                        e.kind(),
+                        BooleanErrorKind::GermFrameCylinderPinch
+                            | BooleanErrorKind::GermFrameUnsupported
+                            | BooleanErrorKind::FallbackExtentUnsupported
+                    ),
+                    "{name}/{op_name}: refused {:?}, not a frontier refusal: {e}",
+                    e.kind()
+                ),
                 Ok(topo::BooleanResult::Body(body)) => {
                     let v = topo::mass_properties(&body.body, tol).unwrap().volume;
                     // The one FORBIDDEN outcome: the interpenetrating
@@ -171,6 +176,22 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
             }
         }
     }
+}
+
+/// **Externally tangent walls touch at every op**: two upright unit
+/// cylinders a diameter apart share the ruling `x = 1, y = 0` and no
+/// volume, so ∪ is the two solids with the edge–edge record of their
+/// edges on the ruling, ∖ returns each, and ∩ is empty.
+#[test]
+fn externally_tangent_walls_touch_at_every_op() {
+    let tol = Tol::witness();
+    crate::common::touch_union::assert_touch_at_every_op(
+        "externally tangent walls",
+        &finished("the left cylinder", cyl(0.0, 0.0, 1.0, 0.0, 2.0), tol),
+        &finished("the right cylinder", cyl(2.0, 0.0, 1.0, 0.0, 2.0), tol),
+        [Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 2.0)],
+        [Point3::new(0.0, 0.0, 1.0), Point3::new(2.0, 0.0, 1.0)],
+    );
 }
 
 /// A pose: its name, its two operands, and the volume they share where
@@ -365,7 +386,11 @@ fn revolve_minted_walls_meet_the_same_gate() {
     );
     let b = finished("B", b, tol);
     match topo::union(&a, &b, tol) {
-        Err(_) => {} // typed refusal: honest
+        Err(e) => assert_eq!(
+            e.kind(),
+            BooleanErrorKind::GermFrameCylinderPinch,
+            "the germ frame's pinch refusal: {e}"
+        ),
         Ok(topo::BooleanResult::Body(body)) => {
             let va = topo::mass_properties(&a, tol).unwrap().volume;
             let vb = topo::mass_properties(&b, tol).unwrap().volume;

@@ -634,16 +634,11 @@ fn a_cut_turned_about_the_ruling_refuses_before_the_chord() {
 // ---------------------------------------------------------------------
 
 /// **Each kiss the curved boolean could turn into a wedge end refuses
-/// typed at the op** — internal (the crescent a subtract would leave),
-/// external (the doubled slit a union would leave), and a plane cutter
-/// tangent to a hole wall. None of these is a wedge-specific door yet:
-/// the internal kiss stops at the crossing layer's frontier, the plane
-/// cutter at the join; the declared route is
-/// `work/tang/declared-cusps-second-order-wedge-arm.md` item 3. The
-/// external kiss's coplanar caps glue and its walls' tangency is
-/// verified, and it then refuses `ClassificationInvariant` — an odd count of surviving
-/// crossing records at a vertex pair, the classification's own
-/// invariant, which is a kernel defect rather than a frontier.
+/// typed at the op** — internal (the crescent a subtract would leave)
+/// and a plane cutter tangent to a hole wall. Neither is a
+/// wedge-specific door yet: the internal kiss stops at the crossing
+/// layer's frontier, the plane cutter at the join; the declared route
+/// is `work/tang/declared-cusps-second-order-wedge-arm.md` item 3.
 #[test]
 fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
     let disc = |what: &str, c: ProfileLoop<f64>, z0: f64, z1: f64| {
@@ -651,8 +646,6 @@ fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
     };
     let big = disc("the big disc", circle(0.0, 2.0, 2.0), 0.0, 1.0);
     let small = disc("the small disc", circle(0.0, 1.0, 1.0), -1.0, 3.0);
-    let left = disc("the left disc", circle(0.0, 0.0, 1.0), 0.0, 1.0);
-    let right = disc("the right disc", circle(2.0, 0.0, 1.0), 0.0, 1.0);
     let cutter = finished(
         "the cutter",
         brick::<f64>((1.0, 4.0), (-4.0, 4.0), (-1.0, 2.0), tol()),
@@ -663,11 +656,6 @@ fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
             "internal kiss, subtract",
             topo::subtract(&big, &small, tol()),
             BooleanErrorKind::CurvedPierceUnsupported,
-        ),
-        (
-            "external kiss, union",
-            topo::union(&left, &right, tol()),
-            BooleanErrorKind::ClassificationInvariant,
         ),
         (
             "plane tangent to a hole, subtract",
@@ -685,6 +673,30 @@ fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
             Ok(r) => panic!("{name}: expected {want:?}, got a result {r:?}"),
         }
     }
+}
+
+/// **Two discs kissing externally touch at every op**: unit discs about
+/// `(0, 0)` and `(2, 0)`, extruded over `z ∈ [0, 1]`, meet along the
+/// ruling `x = 1, y = 0` only. No edge of the result has a wedge end:
+/// each disc keeps its own edge on the ruling, ∪ is the two solids with
+/// the edge–edge record of those two edges, ∖ returns each disc, and ∩
+/// is empty.
+#[test]
+fn two_discs_kissing_externally_touch_at_every_op() {
+    let disc = |what: &str, cx: f64| {
+        finished(
+            what,
+            extruded(vec![circle(cx, 0.0, 1.0)], 0.0, 1.0).body,
+            tol(),
+        )
+    };
+    crate::common::touch_union::assert_touch_at_every_op(
+        "the external kiss",
+        &disc("the left disc", 0.0),
+        &disc("the right disc", 2.0),
+        [Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)],
+        [Point3::new(0.0, 0.0, 0.5), Point3::new(2.0, 0.0, 0.5)],
+    );
 }
 
 // ---------------------------------------------------------------------
