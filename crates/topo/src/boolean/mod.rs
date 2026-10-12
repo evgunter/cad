@@ -4612,8 +4612,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // every pair is read (`vtxfac::touch_classes`), and each vertex in
     // pairs alone, likewise (`vtxfac::pair_classes`).
     let mut touches = std::collections::BTreeMap::new();
-    let mut paired: std::collections::BTreeMap<_, Vec<vtxfac::PairRead<T>>> =
-        std::collections::BTreeMap::new();
+    // Each vertex's own sectors, with its pairs.
+    let mut paired = std::collections::BTreeMap::new();
     // Vertex-on-face classification (sonva then sonvb, as 15.5). Each
     // pierce inserts its piercing side's null edges as it is read; the
     // rings follow, one per face and point (`vtxfac::mint_ring`).
@@ -4740,7 +4740,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     pair.side = Some(side);
                     touch.pairs.push(pair);
                 }
-                None => paired.entry((operand, vertex)).or_default().push(pair),
+                None => paired
+                    .entry((operand, vertex))
+                    .or_insert_with(|| (own.clone(), Vec::new()))
+                    .1
+                    .push(pair),
             }
         }
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
@@ -4796,8 +4800,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             )?;
         read.push(((operand, vertex), classes));
     }
-    for (&key, pairs) in &paired {
-        read.push((key, vtxfac::pair_classes(key.0, key.1, pairs, band)?));
+    for (&key, (own, pairs)) in &paired {
+        read.push((key, vtxfac::pair_classes(key.0, key.1, own, pairs, band)?));
     }
     for ((operand, vertex), classes) in read {
         let body = match operand {

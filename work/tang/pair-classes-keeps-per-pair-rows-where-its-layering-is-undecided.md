@@ -2,8 +2,10 @@
 id: pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided
 kind: issue
 title: A vertex in pairs alone whose layering leaves an edge undecided, or whose outermost cones disagree, keeps each pair's rows, silently
-status: open
+status: closed
+closed: 2026-10-12
 opened: 2026-10-08
+branch: tang/pair-classes-undecided-layering
 priority: P2
 cost: M
 refs: [pair-classes-falls-back-to-per-pair-rows-beside-a-partner-that-reads-none]
@@ -85,3 +87,26 @@ agree. Outermost cones that disagree are a met and a joined cone side
 by side, whose material between them a reading of both would decide.
 Refuse typed for what no reading decides, as beside a partner that
 reads nothing, and report any cell main built that would then refuse.
+
+## Closed (2026-10-12)
+
+- **Outermost cones that disagree are now decided.** Every instance
+  measured was a met cone in a joined partner's void that touches the
+  void's boundary along a ray. The strict containment test missed
+  that, so both cones read as outermost. A cone now lies inside
+  another where the other holds one of its edges and every edge it
+  does not hold lies on its boundary.
+- **An edge on two or more partners' boundaries** reads
+  `vtxfac::along_partners`. It is `On` where a half-plane one partner
+  alone leaves the edge in is decidedly apart from every other's.
+  Otherwise it refuses `Escalated` with
+  `BooleanDecision::PartnerFaces` (flush or in band).
+- **Disagreement after that, no outermost cone, or an edge some
+  partner's rows miss** are `ClassificationInvariant`s. Every pair
+  reads the vertex's one orbit, and cones whose boundaries never cross
+  nest.
+
+The flush refusal is filed as
+`pair-classes-refuses-partners-flush-along-an-edge`. The sweep filed
+`a-touching-vertex-refuses-an-edge-on-two-partners-boundaries` and
+`a-lone-unread-partner-leaves-its-vertex-edges-unclassed`.

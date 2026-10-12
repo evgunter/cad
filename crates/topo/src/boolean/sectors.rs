@@ -1091,16 +1091,63 @@ pub(super) fn within<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
-    let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
-    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, read, diag);
-    let t1 = decide("bool_sector_within", c1, band).map_err(escalate)?;
-    let t2 = decide("bool_sector_within", c2, band).map_err(escalate)?;
+    let (t1, t2) = within_signs(s, dir, read, band)?;
     Ok(if strict {
         t1 == Sign::Positive && t2 == Sign::Positive
     } else {
         t1 != Sign::Negative && t2 != Sign::Negative
     })
+}
+
+/// [`within`]'s two readings of `dir` against `s`'s bounds: which side
+/// of `start`, then of `end`, it lies on, `Positive` toward the other.
+fn within_signs<T: Decide>(
+    s: &BoolSector<T>,
+    dir: Vec3<T>,
+    read: DeclarationRead,
+    band: Band,
+) -> Result<(Sign, Sign), BooleanError> {
+    let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
+    let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
+    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, read, diag);
+    Ok((
+        decide("bool_sector_within", c1, band).map_err(escalate)?,
+        decide("bool_sector_within", c2, band).map_err(escalate)?,
+    ))
+}
+
+/// **The half-planes `other`'s faces leave `dir` in**, where `dir` lies
+/// on the boundary of `other`'s corner: for each sector whose face's
+/// plane holds `dir` and whose closure holds it, the unit direction
+/// square to `dir` into the face, on each side of `dir` the sector lies
+/// — one side where `dir` runs along a bound, both where it runs inside.
+/// Around `dir`, the corner's material changes side at exactly these.
+pub(super) fn half_planes<T: Decide>(
+    dir: Vec3<T>,
+    reach: Reach<T>,
+    other: &[BoolSector<T>],
+    band: Band,
+) -> Result<Vec<Vec3<T>>, BooleanError> {
+    let mut out = Vec::new();
+    for s in other {
+        if plane_side_code(dir, reach, s.normal, band)? != SideCode::On {
+            continue;
+        }
+        // CCW about the normal from `start` to `end` (module docs), so
+        // the face lies ahead of `start` and behind `end`.
+        let ahead = s.normal.vec().cross(dir).normalize();
+        match within_signs(s, dir, DeclarationRead::Moot, band)? {
+            (Sign::Positive, Sign::Positive) => out.extend([ahead, -ahead]),
+            (Sign::Zero, Sign::Positive) if direction_sense(s.start, dir, s.arm, band)? => {
+                out.push(ahead);
+            }
+            (Sign::Positive, Sign::Zero) if direction_sense(s.end, dir, s.arm, band)? => {
+                out.push(-ahead);
+            }
+            _ => {}
+        }
+    }
+    Ok(out)
 }
 
 /// The sector's bounds that are edges of its face, with their unit

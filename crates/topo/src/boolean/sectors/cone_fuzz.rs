@@ -754,10 +754,7 @@ fn partner_in_void(
 /// by [`pair_classes`] for each probe edge against the exact reading of
 /// their union. Where a partner reads nothing beside the other it must
 /// refuse; elsewhere, a row is wrong as in [`check_cone`], and a probe
-/// with no row is wrong. A layering that leaves the probe undecided and
-/// keeps each pair's rows is counted, and its wrong rows with it, not
-/// asserted
-/// (`work/tang/pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided.md`).
+/// with no row, or more than one, is wrong.
 fn check_pair(
     what: &str,
     cone: &[Sector],
@@ -801,7 +798,13 @@ fn check_pair(
             continue;
         }
         let unread = pairs.iter().any(|p| p.read.is_none());
-        let rows = match crate::boolean::vtxfac::pair_classes(Operand::A, vertex, &pairs, band) {
+        let rows = match crate::boolean::vtxfac::pair_classes(
+            Operand::A,
+            vertex,
+            std::slice::from_ref(&probe),
+            &pairs,
+            band,
+        ) {
             Err(BooleanError::VertexReadTwice { .. }) if unread => {
                 counts.unread += 1;
                 continue;
@@ -822,11 +825,11 @@ fn check_pair(
         let truth = union.class(far, rng);
         let flip = least_flip(cone, far).min(least_flip(&partner, far));
         let in_band = truth == SideCode::On || flip <= band.zero();
-        let kept = rows.len() > 1;
         counts.rows += rows.len();
-        counts.kept += usize::from(kept);
-        if rows.is_empty() {
-            wrong.push(format!("{what}, pair probe {k} {far:?}: no row"));
+        if rows.len() != 1 {
+            wrong.push(format!(
+                "{what}, pair probe {k} {far:?}: rows {rows:?}, not one"
+            ));
         }
         for &(_, got) in &rows {
             let defect = match got {
@@ -834,13 +837,11 @@ fn check_pair(
                 _ if got != truth => Some("the oracle contradicts it"),
                 _ => in_band.then_some("decided in band"),
             };
-            match defect {
-                Some(_) if kept => counts.kept_wrong += 1,
-                Some(defect) => wrong.push(format!(
+            if let Some(defect) = defect {
+                wrong.push(format!(
                     "{what}, pair probe {k} {far:?}: pair_classes reads {got:?}, exactly \
                      {truth:?}, flipped by a {flip:.3e} m deviation: {defect}"
-                )),
-                None => {}
+                ));
             }
         }
     }
@@ -848,17 +849,14 @@ fn check_pair(
 }
 
 /// What the pair oracle read at one ε: partners placed, rows read,
-/// probes refused beside a partner that reads nothing, other refusals,
-/// and probes whose layering kept each pair's rows, with their wrong
-/// rows.
+/// probes refused beside a partner that reads nothing, and other
+/// refusals.
 #[derive(Default)]
 struct PairCounts {
     placed: usize,
     rows: usize,
     unread: usize,
     refused: usize,
-    kept: usize,
-    kept_wrong: usize,
 }
 
 /// What one reader read at one ε, and what it read nothing of or
@@ -952,16 +950,12 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
         }
         println!(
             "[fuzz] sectors_cone_fuzz pairs at ε {eps:e}: {} wrong; {} partners placed, {} rows, \
-             {} probes refused beside a partner that reads nothing, {} refused otherwise, {} \
-             kept per pair ({} of their rows wrong; \
-             pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided)",
+             {} probes refused beside a partner that reads nothing, {} refused otherwise",
             wrong.len() - before,
             counts.placed,
             counts.rows,
             counts.unread,
-            counts.refused,
-            counts.kept,
-            counts.kept_wrong
+            counts.refused
         );
     }
     assert!(

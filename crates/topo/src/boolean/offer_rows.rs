@@ -316,6 +316,8 @@ cases! {
         super::super::sectors::direction_sense(
             Vec3::new(1.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 0.0), D, band()
         ).map(|_| ());
+    partners_parting_by_the_band: "PartnerFaces", D, CORNER_SITE, Valued =>
+        partners_along_x(D);
     direction_just_outside_a_sector: "Coincidence(Sectors)", -D, CORNER_SITE, Valued =>
         within_a_quarter(Vec3::new(1.0, -D, 0.0));
     tangent_side_curving_away: "Coincidence(TangentSide)", D, TANGENT_SITE, Valued =>
@@ -1274,6 +1276,55 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
         arm: 1.0,
     };
     super::super::sectors::within(&s, dir, false, DeclarationRead::Moot, band()).map(|_| ())
+}
+
+/// An edge along x on the boundaries of two corners of one solid, each
+/// with one face leaving it: one in the plane z = 0, the other's turned
+/// `tilt` about x, so their half-planes part by `tilt` at the unit
+/// reach.
+fn partners_along_x(tilt: f64) -> Result<(), BooleanError> {
+    use super::super::sectors::BoolSector;
+    use super::super::vtxfac::PairRead;
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let x = Vec3::new(1.0, 0.0, 0.0);
+    let sector = |end: Vec3<f64>| BoolSector {
+        he: crate::entity::HalfEdgeKey::default(),
+        start: x,
+        end,
+        start_reach: Reach::Chord {
+            base: o,
+            far: o + x,
+        },
+        end_reach: Reach::Chord {
+            base: o,
+            far: o + end,
+        },
+        face: crate::entity::FaceKey::default(),
+        normal: OutwardNormal::from_chart(x.cross(end), true),
+        arm: 1.0,
+    };
+    let partner = |end| PairRead {
+        partner: VertexKey::default(),
+        side: None,
+        read: None,
+        sectors: vec![sector(end)],
+    };
+    let flat = partner(Vec3::new(0.0, 1.0, 0.0));
+    let turned = partner(Vec3::new(0.0, tilt.cos(), tilt.sin()));
+    let edge = BoolSector {
+        start: Vec3::new(0.0, -1.0, 0.0),
+        start_reach: Reach::Chord {
+            base: o,
+            far: o + Vec3::new(0.0, -1.0, 0.0),
+        },
+        end: x,
+        end_reach: Reach::Chord {
+            base: o,
+            far: o + x,
+        },
+        ..sector(Vec3::new(0.0, -1.0, 0.0))
+    };
+    super::super::vtxfac::along_partners(&edge, &[&flat, &turned], band()).map(|_| ())
 }
 
 /// A declared-`Tangent` cylinder resting on a floor along a ruling from
@@ -2806,11 +2857,17 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "LeverArm::SectorCurving",
         1,
     ),
-    ("sectors.rs", "within", "Coincide::Sectors", 1),
+    ("sectors.rs", "within_signs", "Coincide::Sectors", 1),
     (
         "sphere_region.rs",
         "-",
         "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
+    (
+        "vtxfac.rs",
+        "along_partners",
+        "BooleanDecision::PartnerFaces",
         1,
     ),
     (
