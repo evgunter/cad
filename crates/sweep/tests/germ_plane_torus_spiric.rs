@@ -211,14 +211,16 @@ pub(crate) fn stops_past_the_join(e: &BooleanError) -> bool {
 /// one letter per op in [`SIX`]'s order: `B` a body, held to the truth
 /// (its volume and tier 3, and `point_in_solid` wherever it answers:
 /// [`volume_and_points`]), `s` the sort's stop and `v` the volume's
-/// ([`Stop`]). `meet` is first held to the Monte Carlo. Each op's body,
-/// and the sampled points `point_in_solid` read over them all.
+/// ([`Stop`]); where `tie`, any op may instead escalate the matcher's
+/// ranking (`bool_join_nearest`, [`tie_in_band`]). `meet` is first held
+/// to the Monte Carlo. Each op's body, and the sampled points
+/// `point_in_solid` read over them all.
 fn answers(
     pose: &str,
     (t, p): (&Solid, &Solid),
     meet: f64,
     within: (Point3<f64>, Point3<f64>),
-    want: &str,
+    (want, tie): (&str, bool),
 ) -> (Vec<Option<AtRestBody<f64>>>, usize) {
     meet_is_the_monte_carlo(pose, t, p, meet, within);
     let want: Vec<char> = want.chars().collect();
@@ -228,6 +230,11 @@ fn answers(
     {
         let what = format!("{pose}, {label}");
         match (w, r) {
+            (_, Err(BooleanError::Escalated { diag, .. }))
+                if tie && diag.predicate == Some("bool_join_nearest") =>
+            {
+                bodies.push(None);
+            }
             ('B', Ok(r)) => {
                 let b = r
                     .body()
@@ -262,7 +269,7 @@ fn answers(
 /// sections' ends tie for nearest at a coarse run's band
 /// (`germ_plane_torus_frame`'s
 /// `a_nearest_tie_in_band_on_a_bar_across_the_hole_escalates_by_name`),
-/// taken where they do not.
+/// held where they do not ([`tie_in_band`]).
 fn donut_poses() -> Vec<(&'static str, Solid, f64)> {
     let d = (2.0, 0.5);
     let mut out = vec![(
@@ -284,6 +291,14 @@ fn donut_poses() -> Vec<(&'static str, Solid, f64)> {
     out
 }
 
+/// Whether the run's band holds the tie bar's tie, `3.2e-6 m` in the
+/// ranking's measure (`germ_plane_torus_frame`'s
+/// `a_nearest_tie_in_band_on_a_bar_across_the_hole_escalates_by_name`).
+fn tie_in_band() -> bool {
+    let band = geom_core::Band::linear(geom_core::Tol::witness()).expect("the run's band");
+    band.zero() < 3.2e-6 && 3.2e-6 < band.escalate()
+}
+
 /// [`donut_poses`] on `t`, each pose answering as `want` names it.
 fn donut_poses_answer(name: &str, t: AtRestBody<f64>, want: &[(&str, &str)]) {
     let t = ring(t, (2.0, 0.5));
@@ -292,7 +307,14 @@ fn donut_poses_answer(name: &str, t: AtRestBody<f64>, want: &[(&str, &str)]) {
     for ((pose, p, meet), &(named, answer)) in poses.iter().zip(want) {
         assert_eq!(*pose, named, "{name}: the poses in order");
         let what = format!("{name}, {pose}");
-        let (_, read) = answers(&what, (&t, p), *meet, about_the_tube(2.0, 0.5), answer);
+        let tie = *pose == "the tie bar" && tie_in_band();
+        let (_, read) = answers(
+            &what,
+            (&t, p),
+            *meet,
+            about_the_tube(2.0, 0.5),
+            (answer, tie),
+        );
         if read == 0 && answer.contains('B') {
             test_utils::vacuity::stood_down(
                 &what,
@@ -444,9 +466,10 @@ fn lens_points(big_r: f64, r: f64, w: f64) -> Vec<Point3<f64>> {
 /// wall. The lens is the volume the bar shares with the torus, held to
 /// a Monte Carlo of the two: `7.08e-5 m³` on B5, `9.40e-3 m³` on B5′.
 /// Against the largest volume tolerance the rows read at this run's ε
-/// (the union's): five times it and more on B5′ at every ε row, and on
-/// B5 at the default ε and finer; at a coarser ε the lens's points carry
-/// the rows ([`lens_points`]).
+/// (the union's): five times it and more on B5′ at ε `1e-7` and finer,
+/// and on B5 at the default ε and finer. At a coarser ε the volume does
+/// not see the lens, and the lens's arcs on every built body carry the
+/// rows ([`oval_arcs`]).
 #[test]
 fn the_corner_bars_lens_is_well_above_the_rows_tolerance() {
     let (big_r, r) = (1.0, 0.6);
@@ -457,10 +480,17 @@ fn the_corner_bars_lens_is_well_above_the_rows_tolerance() {
         meet_is_the_monte_carlo(pose, &t, &bar, meet, around);
         assert!((meet - lens).abs() < 1e-3 * lens, "{pose}: the lens {meet}");
         let tol = volume_tol(bar.volume + t.volume);
-        if pose == "B5′" || geom_core::Tol::witness().eps() <= 1e-9 {
+        let reads = if pose == "B5′" { 1e-7 } else { 1e-9 };
+        if geom_core::Tol::witness().eps() <= reads {
             assert!(
                 meet > 5.0 * tol,
                 "{pose}: the lens {meet} against the tolerance {tol}"
+            );
+        } else {
+            test_utils::vacuity::stood_down(
+                pose,
+                "the lens against the volume tolerance: it is under five tolerances at this ε, \
+                 and the lens's arcs carry the rows",
             );
         }
         let inside = lens_points(big_r, r, w)
@@ -500,7 +530,13 @@ fn the_fat_corner_bars_lens_is_the_true_body_or_a_typed_refusal() {
         for (pose, w) in [("B5", 0.1), ("B5′", 0.3)] {
             let (bar, meet) = corner(big_r, r, w);
             let what = format!("{name}, {pose}");
-            let (bodies, _) = answers(&what, (&t, &bar), meet, about_the_tube(big_r, r), want);
+            let (bodies, _) = answers(
+                &what,
+                (&t, &bar),
+                meet,
+                about_the_tube(big_r, r),
+                (want, false),
+            );
             let mut read = 0usize;
             for (b, &(label, op, swap)) in bodies.iter().zip(&SIX) {
                 let Some(b) = b else { continue };
