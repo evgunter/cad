@@ -9,6 +9,7 @@
 use geom_core::{Affine3, Band, Decide, Point3, Sign, UnitVec3, Vec3};
 
 use super::{PATTERN_DIRECTION_ROLE, escalated, turns_off, unit};
+use crate::decision::Decision;
 use crate::eval::{NodeErrorKind, StepTurns};
 use crate::formula::Formula;
 
@@ -71,7 +72,7 @@ impl<T: Decide> SteppedOperands<T> {
             geom_core::Margin::of(spacing),
             band,
         )
-        .map_err(escalated(PATTERN_SPACING))?;
+        .map_err(escalated(Decision::PatternSpacing))?;
         match decided.sign {
             Sign::Positive => Ok(Self(Rule::Linear {
                 direction: unit_dir,
@@ -100,13 +101,13 @@ impl<T: Decide> SteppedOperands<T> {
         band: Band,
     ) -> Result<Self, NodeErrorKind> {
         let seen = geom_core::k_stats::decide_flagged_reported(PATTERN_STEP, step, band, "F14")
-            .map_err(escalated(PATTERN_STEP))?;
+            .map_err(escalated(Decision::PatternStep))?;
         let positive = match seen.sign {
             Sign::Zero => return Err(NodeErrorKind::DegenerateStep),
             Sign::Positive => true,
             Sign::Negative => false,
         };
-        let turns = match turns_off(PATTERN_STEP_TURN, step, T::tau(), band)? {
+        let turns = match turns_off(Decision::PatternStepTurn, step, T::tau(), band)? {
             Sign::Negative => return Ok(Self(Rule::Circular { origin, dir, step })),
             Sign::Zero => StepTurns::Whole,
             Sign::Positive => match turns_held(step, band)? {
@@ -139,7 +140,7 @@ enum Held {
 fn turns_held<T: Decide>(step: T, band: Band) -> Result<Held, NodeErrorKind> {
     let off = |k: u64| {
         let whole = T::tau() * T::from_f64(k as f64);
-        turns_off(PATTERN_STEP_TURN, step, whole, band)
+        turns_off(Decision::PatternStepTurn, step, whole, band)
     };
     let (mut below, mut above) = (1, 2);
     loop {

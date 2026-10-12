@@ -18,7 +18,6 @@ lanes in flight are expected to close more, so the track is not split.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P2 | `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses` | M | a thin-walled hollow ships while a slab as thin refuses: retire PR 4636's sole-shell gate; thinness is judged by pairs alone (Ev, PR 4690) |
 | P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys |
 
 Parked, and not counted:
@@ -26,6 +25,7 @@ Parked, and not counted:
 | pri | item | cost | waits on |
 |---|---|---|---|
 | P0 | `a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded` | M | `boolean-door-runs-the-census-over-its-result` (REACHHOLD) |
+| P0 | `a-result-that-is-only-a-sliver-shell-passes-the-door` | M | `boolean-door-runs-the-census-over-its-result` (REACHHOLD): under pairs only (PR 4690), its residue is the door census; 11 needles at ε 1e-9 and 34 `rc_wide` lines at 1e-6 ship (PR 4783) |
 
 ## Order
 
@@ -33,7 +33,8 @@ Parked, and not counted:
    sibling and the L-prism closed with PR 4650: a record follows its
    divided face to the piece that holds it. The sliver-only result
    closed with PR 4636; Ev ruled on its gate in PR 4690 (thinness is
-   judged by pairs alone). The P0 residue,
+   judged by pairs alone), and PR 4783 retired the gate. Its residue is
+   parked on REACHHOLD's door census. The P0 residue,
    `an-apex-edge-in-the-partners-face-plane-…`, closed with PR 4737:
    a line edge in a plane face records its span.
 2. **Reader's closes** (done, PR 4635: all three closed with pins
