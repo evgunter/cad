@@ -29,7 +29,7 @@
 //!   row's own closed-form inputs and read beside its oracle.
 
 use geom::{Curve3, Surface};
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve};
+use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane, Pcurve};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::{corners, revolved_about_y};
@@ -353,8 +353,8 @@ pub fn door_cavity(body: &Body<f64>, t: f64) -> Body<f64> {
 /// Every edge of `body` re-certified exactly as the void door's graft
 /// does (`combine.rs`'s recertify arm: the description with its image
 /// verbatim, carrier and interval verbatim, endpoints from `he_plus`,
-/// surfaces from the body itself), and the refusals. A `Scaffold`
-/// edge is skipped, as the graft skips it.
+/// surfaces from the body itself, `f64`'s NURBS lane), and the
+/// refusals. A `Scaffold` edge is skipped, as the graft skips it.
 ///
 /// A MIRROR of that arm, and it can drift from it: if the graft's
 /// meter changes, this reads a different meter. The rows that also
@@ -371,12 +371,13 @@ pub fn graft_recertify_failures(body: &Body<f64>) -> Vec<(EdgeKey, CertifyError)
             }
             let start_v = body.get_half_edge(e.he_plus)?.start;
             let end_v = body.half_edge_end(e.he_plus)?;
-            EdgeCurve::certify(
+            EdgeCurve::certify_via(
                 curve.restated_spec(),
                 vertex_point(body, start_v).expect("a live vertex"),
                 vertex_point(body, end_v).expect("a live vertex"),
                 |sk| body.get_surface(sk).cloned(),
                 band,
+                Some(NurbsLane::certified()),
             )
             .err()
             .map(|err| (ek, err))

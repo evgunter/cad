@@ -31,8 +31,8 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
-    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FittedLane, Pcurve, PcurveCache,
-    PcurveCertifyError, PcurveCheck, SurfacePair,
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FittedLane, NurbsLane, Pcurve,
+    PcurveCache, PcurveCertifyError, PcurveCheck, SurfacePair,
 };
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
@@ -204,7 +204,14 @@ fn certify_axis(carrier: Curve3<f64>, t0: f64, t1: f64) -> Result<EdgeCurve<f64>
         param_start: t0,
         param_end: t1,
     };
-    EdgeCurve::certify(spec, start, end, |k| arena.get(k).cloned(), band())
+    EdgeCurve::certify_via(
+        spec,
+        start,
+        end,
+        |k| arena.get(k).cloned(),
+        band(),
+        Some(NurbsLane::certified()),
+    )
 }
 
 /// CLAIM 2, certify gate: a poison meter escalates `Invalid` naming

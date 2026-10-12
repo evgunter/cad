@@ -44,7 +44,9 @@ use crate::shared::tol::band;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::keys::SurfaceKey;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+use geom_brep::{
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane, SurfacePair,
+};
 use geom_core::Sign;
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
@@ -85,10 +87,12 @@ fn axis_segment(length: f64, domain: f64) -> Curve3<Probe> {
     Curve3::Nurbs(std::sync::Arc::new(n))
 }
 
-/// Certifies the segment against the axis planes and returns the
-/// `nurbs_span_meter` sample (outcome and margin) alongside the
-/// certification's own verdict. Exactly one such sample fires per
-/// certification — the row asserts that too.
+/// Certifies the segment against the axis planes through `Probe`'s
+/// certified NURBS lane (the door a spline carrier between two
+/// analytic surfaces needs) and returns the `nurbs_span_meter` sample
+/// (outcome and margin) alongside the certification's own verdict.
+/// Exactly one such sample fires per certification — the row asserts
+/// that too.
 fn span_meter_sample(
     length: f64,
     domain: f64,
@@ -110,7 +114,14 @@ fn span_meter_sample(
         param_end: Probe(domain),
     };
     k_stats::start_recording();
-    let got = EdgeCurve::certify(spec, start, end, |k| arena.get(k).cloned(), band());
+    let got = EdgeCurve::certify_via(
+        spec,
+        start,
+        end,
+        |k| arena.get(k).cloned(),
+        band(),
+        Some(NurbsLane::certified()),
+    );
     let samples = k_stats::take_samples();
     let mut hits: Vec<(SampleOutcome, f64)> = samples
         .iter()
