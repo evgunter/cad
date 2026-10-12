@@ -107,9 +107,8 @@ fn stacked() -> (Body<f64>, ContactRecords) {
     let a = cube_at(0.0, 0.0, 0.0);
     let b = cube_at(0.0, 0.0, 1.0);
     let body = assembly(&a, &b);
-    // Declare the interface at its census granularity: the four
-    // coincident corner pairs (the planar C2 tables' currency —
-    // exactly what an ASM mate's declaration resolves to).
+    // The interface's records: the four coincident corner pairs and
+    // the four rim-edge pairs between them.
     let mut records = ContactRecords::default();
     let mut at = |x: f64, y: f64| {
         let mut hits = Vec::new();
@@ -130,7 +129,44 @@ fn stacked() -> (Body<f64>, ContactRecords) {
     at(1.0, 0.0);
     at(1.0, 1.0);
     at(0.0, 1.0);
+    records.extend(rim_records(&body));
     (body, records)
+}
+
+/// The edge-edge records of two unit cubes stacked at z = 1, each in
+/// `body`'s arena: along each side of the interface the two cubes' rim
+/// edges lie on one another, a pair whose interiors meet (D1), which
+/// the corner records at its two ends confirm.
+pub(crate) fn rim_records(body: &Body<f64>) -> Vec<topo::Cited<topo::Contact>> {
+    let at = |v: topo::VertexKey| {
+        let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        (p.x, p.y, p.z)
+    };
+    let on = |c: (f64, f64), (x, y, z): (f64, f64, f64)| {
+        (x - c.0).abs() < 1e-12 && (y - c.1).abs() < 1e-12 && (z - 1.0).abs() < 1e-12
+    };
+    let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+    (0..4)
+        .map(|i| {
+            let (p, q) = (corners[i], corners[(i + 1) % 4]);
+            let rims: Vec<topo::EdgeKey> = body
+                .edges()
+                .filter(|(_, e)| {
+                    let [s, t] =
+                        [e.he_plus, e.he_minus].map(|h| at(body.get_half_edge(h).unwrap().start));
+                    (on(p, s) && on(q, t)) || (on(q, s) && on(p, t))
+                })
+                .map(|(k, _)| k)
+                .collect();
+            let [a, b] = rims[..] else {
+                panic!("exactly two rim edges from {p:?} to {q:?}: {rims:?}");
+            };
+            topo::Cited::new(
+                topo::Contact::new(body, topo::Cell::Edge(a), topo::Cell::Edge(b)).unwrap(),
+                topo::Cites::decided(0),
+            )
+        })
+        .collect()
 }
 
 #[test]

@@ -33,10 +33,10 @@ decidedly cross refuses as `MixedTouch`. Two kinds of meeting are still
 taken on the records' word:
 
 - a declared touch the analysis cannot read, such as a curved corner;
-- the vertex events a declared face pair backs by structural
-  incidence (`Declared::vv_face_backed`, `vf_face_backed`,
-  `ve_face_backed`, `ee_bound_backed`'s face-pair arms), and the
-  edge-on-face bounds `ef_bound_backed`'s face-pair arms back where the
+- the vertex events and collinear edge overlaps a declared face pair
+  backs by structural incidence (`Declared::vv_face_backed`,
+  `vf_face_backed`, `ve_face_backed`, `ee_face_backed`,
+  `ee_bound_backed`'s face-pair arms), and the edge-on-face bounds `ef_bound_backed`'s face-pair arms back where the
   pair verifies (`Declared::vf_face_backed_confined`, PR 4559): confined
   to where the pair verifies (the closed intersection of its regions),
   but still on its word.

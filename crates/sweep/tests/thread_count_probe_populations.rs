@@ -33,8 +33,11 @@ use topo::Body;
 fn probe_arc_loft() -> Body<Probe> {
     let eps = Tol::witness().get().eps;
     loft_body::<Probe>(
-        &[arc_section(1.0e9 * eps), arc_section(1.0e9 * eps)],
-        &stacked(&[0.0, 1.0], 1.0e9 * eps),
+        &sweep::test_support::lift_sections::<Probe>(&[
+            arc_section(1.0e9 * eps),
+            arc_section(1.0e9 * eps),
+        ]),
+        &sweep::test_support::lift_places::<Probe>(&stacked(&[0.0, 1.0], 1.0e9 * eps)),
         1,
         Tol::witness(),
     )
