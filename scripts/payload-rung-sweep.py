@@ -159,6 +159,12 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # decision types. The row also holds the two types nested one rung
     # further down (`SectorRung`, `CrossingDecision`), which this sweep
     # does not reach.
+    # `RevolveError::SliverAxisClearance`'s and `TubeError::Escalated`'s
+    # closed decision types (PR 4766).
+    "ClearanceDecision": ("filed", "work/lib/clearance-and-tube-decisions-are-rungs-under-"
+                          "revolve-and-tube-errors.md"),
+    "TubeDecision": ("filed", "work/lib/clearance-and-tube-decisions-are-rungs-under-"
+                     "revolve-and-tube-errors.md"),
     "BooleanDecision": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                         "boolean-error.md"),
     "Contradiction": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
