@@ -753,3 +753,21 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Ruled (orchestrator, not a fork), (A):** one typed `BooleanError::LineageRow { rows, defect, key }`, which `Fusions` moves onto as well. The split lane maps the same lane-neutral defect.
   - **Ruled (orchestrator, not a fork), (B):** the split lane's `face_fragments` is in scope, so editor-core's `FragmentLineage` retires whole.
   - **What stays open:** `join-desync-is-the-catch-all-for-cyclic-lineage-records`, for its two edge `SplitLineageCycle` sites.
+- 2026-10-12 — PR 4868 lands, and `face-lineage-rows-are-checked-by-their-readers-not-where-they-are-added` closes.
+  - **What it builds:**
+    - One checked core, `lineage::Substitutions<K>`, with `Fusions` as its vertex instance. It carries Descendants' cells and absorbed faces, and `BooleanNaming::substitutions` (merge rows, then join rows).
+    - `FaceDivisions`, with fresh keys and acyclic by construction, for both lanes' face fragments.
+    - One refusal, `BooleanError::LineageRow`, with `of_join` lifting the split lane's refusal into it.
+  - **What it retires:** the readers' cycle refusals, `SettleError::{Cyclic, DuplicateRow}`, `chase_live`, `lineage_root`, and editor-core `FragmentLineage`.
+  - **Review:**
+    - Lane A (Opus) found no blockers. Its ten minors included the Fusions/Substitutions rule written twice, a join-only cycle through the unchecked `edge_joins`, and the `merge_groups` bullet left open. All were fixed: the join rows are now checked, and `Cyclic` is deleted.
+    - Lane B (Fable): soundness probes found no cycle. Mutant M2 (`from_rows` unvalidated) survived, and a row now kills it.
+    - An Opus delta check passed all 7 items.
+  - **CI:** green, except FLUSH's 1e-12 ring row on main.
+  - **Filed:**
+    - `divisions-faces-is-a-second-unchecked-spelling-of-face-divisions`;
+    - `null-edge-copy-rows-are-checked-for-a-cycle-by-their-reader`;
+    - `boolean-naming-carries-the-join-rows-twice` (design);
+    - `of-join-sites-are-held-by-grep-alone`.
+  - `join-desync-is-the-catch-all-for-cyclic-lineage-records` stays open for the edge split-lineage sites and the naming tables they mix in.
+- 2026-10-12 — Three rows of one class are dispatched together on `fuse/records-read-the-piece`: a carried record reads a divided face by key, not by the piece its contact lies on (edge-face and face-face P1; vertex whose vertex the join or merge took P2; the older pit-and-spike vertex-on-face P1). The lane measures first. Carrying a killed vertex's point in its lineage row is a fork if it turns out to be needed.
