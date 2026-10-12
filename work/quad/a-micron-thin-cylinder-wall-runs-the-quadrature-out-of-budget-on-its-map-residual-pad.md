@@ -29,7 +29,8 @@ reach on main: the cylinder ∩ slab that makes it did not build at
 1e-12 there (the fixture stood it down), and it builds once the
 quadrature reads the cut.
 
-The row pins the refusal by type at that pose and ε (`Pin::Budget`).
+The row pins the refusal by type at that pose and ε
+(`runs_out_of_budget`, asserted by `assert_runs_out_of_budget`).
 
 ## The shape of a fix
 

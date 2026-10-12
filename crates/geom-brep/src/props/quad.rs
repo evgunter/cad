@@ -24,10 +24,12 @@
 //! images sit in different branches of the chart alike; `u dv` reads
 //! neither. The loops' own traversal signs carry `s_f`, a ring's
 //! opposite to its face's, so no separate orientation classification
-//! is needed; what is decided is that the stored loops say so (each
-//! loop winds a whole number of turns and the face's loops none
-//! together, which makes the form independent of the anchor level
-//! `v_a`; every ring that does not wind is wound against its face).
+//! is needed; what is decided is that the stored loops say so (every
+//! junction closes, a whole number of turns apart in the azimuth; each
+//! loop winds at most once and the face's loops none together, which
+//! makes the form independent of the anchor level `v_a`; every loop
+//! that does not wind, other than a non-band face's own, is wound
+//! against its face).
 //! The boundary is the face's **pcurves** (PR 6 caches; C4's first hot
 //! consumer): per edge the contribution is
 //! `σ·∫ (v_a − v(t))·u'(t) dt` over the stored carrier interval.
@@ -945,7 +947,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
         window.first
     );
     let winds = loop_windings::<T>(loops, radius, band)?;
-    let anchor = level_anchor(loops);
+    let anchor = level_anchor(loops)?;
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
     let schedule = Schedule::to(QUAD_MAX_ROUNDS);
     let first = schedule.first(window);
@@ -1050,7 +1052,7 @@ fn end_slack(e: &TrimEdgeQ, end: bool, radius: Interval) -> f64 {
     } else {
         0.0
     };
-    (1.5 * e.env.hi() + speed * bracket.width() * 0.5) * (1.0 + 1e-12)
+    (1.5 * certified_hi(e.env) + speed * bracket.width() * 0.5) * (1.0 + 1e-12)
 }
 
 /// How far `gap` exceeds what `slack` allows: `0` within it, so a
@@ -1143,16 +1145,27 @@ fn loop_windings<T: Decide>(
 /// loops wind zero times together ([`loop_windings`]); one inside the
 /// face keeps a short face far along the axis at the conditioning of
 /// its own height rather than of its distance from the chart origin.
-fn level_anchor(loops: &[&[TrimEdgeQ]]) -> f64 {
+///
+/// Read after [`loop_windings`], which has decided every edge's start
+/// point (a refused one escalates there), so every level here is
+/// finite. A face with no edge has none, and no extent.
+///
+/// # Errors
+///
+/// [`PropsError::DegenerateFace`] for a face whose loops hold no edge.
+fn level_anchor(loops: &[&[TrimEdgeQ]]) -> Result<f64, PropsError> {
     let (lo, hi) = loops
         .iter()
         .flat_map(|edges| edges.iter())
         .map(|e| mid(chart_end(e, false).1))
-        .filter(|v| v.is_finite())
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
             (lo.min(v), hi.max(v))
         });
-    if lo <= hi { lo + (hi - lo) * 0.5 } else { 0.0 }
+    if lo <= hi {
+        Ok(lo + (hi - lo) * 0.5)
+    } else {
+        Err(PropsError::DegenerateFace)
+    }
 }
 
 /// **Every ring that does not wind the cylinder winds against its
@@ -5814,7 +5827,7 @@ mod tests {
         let eps = Tol::witness().get().eps;
         let out = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[&edges], eps, band)
             .expect("the band face converges");
-        let exact = 2.0 * tau; // ∮ u dv = 4π
+        let exact = 2.0 * tau; // −∮ v du = 4π
         assert!(
             out.flux.lo() <= exact && exact <= out.flux.hi(),
             "flux {:?} must bracket {exact}",

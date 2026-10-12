@@ -326,8 +326,6 @@ the spiric lane's) go through the one helper. The two escalation pins
 `flux/cylinder-band-quad` had added are gone with it, and
 `tcost_k1_budget_exit`'s last-round escalation row stands as it was.
 
-Left as they were, because they tolerate the escalation and do not
-require it, so they could now be tightened by their owners:
-`band_annulus_host_boundary` (the `y = 3` cut it steers around),
-`a_split_through_a_wrap_edges_vertex`, `reach_split_gate_azimuth`,
-`review_cleave_wrongarc`.
+Four rows tolerate the escalation and do not require it, so they were
+left as they were; tightening them is its own row,
+`work/quad/the-escalation-tolerating-rows-can-assert-their-answers-now.md`.

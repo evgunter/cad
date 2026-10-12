@@ -1034,7 +1034,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 16, "an arm was added without a row here");
+        assert_eq!(arms.len(), 17, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             assert_eq!(
