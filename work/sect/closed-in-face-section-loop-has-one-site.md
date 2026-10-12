@@ -111,3 +111,19 @@ in-face circle edge sits at its own site, so it keeps the refusal. The declared-
 join refuses, reads `section_segments` alone and does not see the arm's
 segments: a declared op whose join refuses for another reason with a
 one-site loop on it falls back to that join refusal, as before.
+
+## Also seen by GERM's U-T3 (`germ/plane-torus-chord-circles`, 2026-10-12)
+
+With the plane × torus chord in, a torus whose equator `y = 0` is an
+edge reaches this refusal against the half-space `y ≥ 0`: the one-face
+torus of `germ_plane_torus_frame::one_face_torus` with its vertex on an
+equator (profile phase 0 or π, so its wrap parallel is that equator),
+and the torus seamed on `y = 0` (`seamed_torus`, both equators edges).
+Every op in both orders refuses `SingleSiteSectionLoop` (`count: 1` on
+the one-face torus, `count: 2` on the seamed one). The same poses at
+`y ≥ 0.2`, `y ≥ −0.3` and the one-face torus with its vertex off the
+equator build to their closed forms. Pinned by
+`crates/sweep/tests/germ_plane_torus_chord.rs`
+`a_section_circle_along_an_equator_edge_refuses_typed`. This is the
+in-face circle class F4d names, on a torus: the equator edge lies in
+the partner's face and sits at its own site.

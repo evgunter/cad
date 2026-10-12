@@ -1,0 +1,39 @@
+---
+id: point-in-solid-refuses-an-l-shaped-torus-face
+kind: issue
+title: point_in_solid refuses a body whose torus wall is L-shaped in the chart, which the plane x torus boolean now mints
+status: open
+opened: 2026-10-12
+priority: P2
+cost: M
+---
+
+
+Found by GERM's U-T3 (`germ/plane-torus-chord-circles`, the plane × torus
+chord for the meridian and concentric circles), 2026-10-12.
+
+## Measured
+
+`crates/sweep/tests/contact11_torus_chart_l.rs`
+`a_notched_half_donut_answers_its_volume`: the half donut (`R = 2`,
+`r = 1/2`, half a turn about `y`) less the bar `[0, 3] × [0, 1] × [−3, 3]`
+now builds. Its volume is `3π²/8` and it is valid at tier 3, but both its
+torus walls are L-shaped in the chart (a parallel cut by the bar's floor,
+a meridian by its side). `topo::point_in_solid` on the result refuses
+`PartialTorusFace { face }` at every point tried: the notch
+`(√2, 0.25, −√2)`, under it `(√2, −0.25, −√2)`, the other quarter's top
+and a point past the half turn.
+
+The refusal is raised by `boolean/solid_contain.rs`
+`torus_chart_trim` (about :2206), whose two classes are the full-revolve
+band and the partial-revolve rectangle; the chart-box guard CONTACT-11
+added (`chart_polygon_box`) keeps an L face from being trimmed by its
+hull, which is right. The row pins the refusal.
+
+## What the taker owes
+
+A containment reading of an L-shaped (or any chart-polygon) torus face,
+or a narrower refusal that leaves the rest of the body answerable. Then
+`contact11_torus_chart_l` asserts `Out` in the notch and `In` under it,
+which `work/contacthold/notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands.md`
+is parked on.
