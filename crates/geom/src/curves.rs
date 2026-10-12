@@ -496,9 +496,9 @@ pub enum CurveDatum {
     MinorRadius,
     /// A spiric's plane stand-off `offset`.
     Offset,
-    /// A `Nurbs` carrier's control net — the one datum a spline stores
-    /// that is a number at the curve's scalar (its knots and weights are
-    /// `f64` structure, validated finite at construction).
+    /// A `Nurbs` carrier's control net — the datum this read checks
+    /// (its knots and weights are held at the scalar too, and refused
+    /// non-finite on their value channel at construction).
     Control,
 }
 
@@ -2461,9 +2461,9 @@ mod tests {
             "knots must be carried verbatim"
         );
         assert_eq!(
-            lifted.weights(),
-            source.weights(),
-            "weights must be carried verbatim"
+            lifted.weight_channel(),
+            source.weight_channel(),
+            "the weights\' value channel must be carried verbatim"
         );
         for t in knot_and_span_params(&c) {
             let p = cd.eval(Dual::variable(t));
@@ -2499,7 +2499,7 @@ mod tests {
             panic!("fixture is a NURBS");
         };
         for t in knot_and_span_params(&c) {
-            let span = n.span_at(t);
+            let span = n.span_at(t).expect("a numeric parameter");
             let (p, d) = span.ders1_in_span(t);
             let q = span.eval_in_span(t);
             let e = span.deriv_in_span(t);
@@ -2600,7 +2600,7 @@ mod tests {
             panic!("fixture is a NURBS");
         };
         for t in knot_and_span_params(&c) {
-            let span = n.span_at(t);
+            let span = n.span_at(t).expect("a numeric parameter");
             let (p, d) = span.ders1_in_span(t);
             let (q, e, _) = span.ders_in_span(t);
             for (name, a, b) in [
@@ -2812,9 +2812,9 @@ mod tests {
                 "knots must be carried verbatim"
             );
             assert_eq!(
-                lifted.weights(),
-                source.weights(),
-                "weights must be carried verbatim"
+                lifted.weight_channel(),
+                source.weight_channel(),
+                "the weights\' value channel must be carried verbatim"
             );
             for t in super::knot_and_span_params(&c) {
                 let p = ci.eval(Interval::from_f64(t));

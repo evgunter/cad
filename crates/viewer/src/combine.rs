@@ -23,26 +23,57 @@
 
 use pncad::document::AuthoredNode;
 use pncad::document::{
-    BooleanOp, Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, PartSelect, PatternKind,
+    Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, Operand, PartSelect, PatternKind,
     ProfileProgram, RecipeNodeId, Said, Speaker, SpokenNode, held_by,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::select::SplitHalf;
+use pncad::topo::BooleanOp;
 
-use crate::seats::{Seat, SeatError, SeatEvent, Seats};
+use crate::seats::{Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line};
 use crate::session::refuse::one_body;
-use crate::session::{PartSelectSpec, PatternRuleSpec, SessionOp};
+use crate::session::{BooleanSpec, PartSelectSpec, PatternRuleSpec, SessionOp};
 use crate::vocab::vocabulary;
 
-/// **The boolean tool**: two sequential body picks and one operation
-/// choice, committing one [`SessionOp::AddBoolean`].
+/// **The boolean tool**: one operation choice and the body picks it
+/// takes — any number for union and intersect, two seats for subtract —
+/// committing one [`SessionOp::AddBoolean`].
 ///
-/// The operand order is DATA, not a convenience: `Subtract` keeps the
-/// first pick and removes the second, so the panel says which held pick
-/// is which and the seats are named for it.
+/// **The operation is the tool's own state, not a form draft**, because
+/// it decides what a pick DOES: a union or an intersect appends every
+/// pick to its member list (a node picked twice is listed twice, which
+/// glues), while a subtraction fills two role-typed seats on the
+/// [`crate::seats`] rule — the body KEPT, then the body REMOVED, a
+/// further pick replacing the removed one. The operand order is DATA
+/// for subtract only, so only subtract names its picks by role.
+///
+/// **Changing the operation re-seats what is held**, in pick order: a
+/// member list becomes the subtraction's two seats from its first two
+/// members (any further members are let go, and the panel line shows
+/// the result), and two seats become a member list of what they hold.
+/// Nothing is re-read from the document, so a pick keeps the label it
+/// was spoken with until the next respeak.
+///
+/// **A member drop closes up the list** (a member's place in a union is
+/// its fold order, and the members after it keep theirs relative to
+/// each other), where a seat drop empties its seat without promoting
+/// the survivor ([`crate::seats`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BooleanTool {
-    seats: Seats,
+    op: BooleanOp,
+    held: BooleanPicks,
+}
+
+/// What the boolean tool holds, by the shape its operation takes. The
+/// tool keeps the two in step: [`BooleanPicks::Pair`] exactly when its
+/// operation is [`BooleanOp::Subtract`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum BooleanPicks {
+    /// A union's or an intersect's members, in pick order, each with
+    /// the port it reads.
+    Members(Vec<(SpokenNode, Port)>),
+    /// A subtraction's two seats.
+    Pair(Seats),
 }
 
 impl Default for BooleanTool {
@@ -52,66 +83,208 @@ impl Default for BooleanTool {
 }
 
 impl BooleanTool {
-    /// A tool holding nothing.
+    /// A union tool holding nothing.
     pub const fn new() -> Self {
         Self {
-            seats: Seats::new([Seat::OperandA, Seat::OperandB]),
+            op: BooleanOp::Union,
+            held: BooleanPicks::Members(Vec::new()),
         }
     }
 
-    /// The seats, roles and picks together — what the panel's line is
-    /// composed from ([`crate::seats::seat_line`]).
-    pub fn seats(&self) -> &Seats {
-        &self.seats
+    /// The operation the tool commits.
+    pub fn operation(&self) -> BooleanOp {
+        self.op
     }
 
-    /// The held first operand — the body a subtraction KEEPS.
-    pub fn a(&self) -> Option<RecipeNodeId> {
-        self.seats.held(0)
+    /// **Choose the operation**, re-seating what is held (type docs).
+    pub fn set_operation(&mut self, op: BooleanOp) {
+        let held = core::mem::replace(&mut self.held, BooleanPicks::Members(Vec::new()));
+        self.held = match (held, op) {
+            (BooleanPicks::Members(members), BooleanOp::Subtract) => {
+                let mut first = members.into_iter();
+                // A seat holds what a member held, port and all.
+                BooleanPicks::Pair(Seats::holding(
+                    // The subtraction's seats, kept then removed.
+                    [Seat::SubtractFrom, Seat::SubtractTool],
+                    [first.next(), first.next()],
+                ))
+            }
+            (BooleanPicks::Pair(seats), BooleanOp::Union | BooleanOp::Intersect) => {
+                BooleanPicks::Members(seats.spoken())
+            }
+            (held, _) => held,
+        };
+        self.op = op;
     }
 
-    /// The held second operand — the body a subtraction REMOVES.
-    pub fn b(&self) -> Option<RecipeNodeId> {
-        self.seats.held(1)
+    /// The held picks' nodes, in the node's operand order: the members,
+    /// or the subtraction's filled seats (kept, then removed).
+    pub fn picks(&self) -> Vec<RecipeNodeId> {
+        match &self.held {
+            BooleanPicks::Members(members) => members.iter().map(|(node, _)| node.id()).collect(),
+            BooleanPicks::Pair(seats) => (0..2).filter_map(|i| seats.held(i)).collect(),
+        }
     }
 
-    /// Feed one node pick; `doc` routes it, and does not judge it.
+    /// Whether anything is held.
+    pub fn is_empty(&self) -> bool {
+        match &self.held {
+            BooleanPicks::Members(members) => members.is_empty(),
+            BooleanPicks::Pair(seats) => seats.is_empty(),
+        }
+    }
+
+    /// **The panel's held-picks line**: a subtraction's two seats by
+    /// role ([`crate::seats::seat_line`]), a member list as `member 1`,
+    /// `member 2`, … in pick order — the same composition
+    /// ([`crate::seats::picks_line`]), each pick as `doc` speaks it.
+    pub fn line(&self, doc: &Doc<ProfileProgram>) -> String {
+        match &self.held {
+            BooleanPicks::Members(members) => {
+                picks_line(members.iter().enumerate().map(|(i, (node, port))| {
+                    (
+                        format!("{} {}", Seat::Member.name(), i + 1),
+                        Some(pick_said(doc, node.id(), *port)),
+                    )
+                }))
+            }
+            BooleanPicks::Pair(seats) => seat_line(seats, doc),
+        }
+    }
+
+    /// Feed one node pick; `doc` routes it, and does not judge it. A
+    /// pick on a copy seats the body it places.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
-        self.seats.pick(doc, node);
+        self.pick_at(doc, node, None);
     }
 
-    /// Empty both seats.
+    /// [`Self::pick`] of the output `body` a viewport pick hit: a
+    /// split's half is read by its port, and a split picked in the tree
+    /// waits for its half ([`Self::choose_half`]).
+    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        match &mut self.held {
+            // A pick on a copy is a pick of the body it places
+            // ([`crate::world::seat_read`]), as in the two seats.
+            BooleanPicks::Members(members) => {
+                let (node, port) = crate::world::seat_read(doc, node, body);
+                let port = Port::of_pick(doc, node, port, Seat::Member.wants());
+                members.push((doc.spoken(node), port));
+            }
+            BooleanPicks::Pair(seats) => seats.pick_at(doc, node, body),
+        }
+    }
+
+    /// **The half pick `i` reads**, when it holds a split picked alone:
+    /// member `i` of a union or an intersect, seat `i` of a subtraction.
+    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
+        match &mut self.held {
+            BooleanPicks::Members(members) => {
+                if let Some((_, port)) = members.get_mut(i) {
+                    *port = port.chosen(half);
+                }
+            }
+            BooleanPicks::Pair(seats) => seats.choose_half(i, half),
+        }
+    }
+
+    /// The indices of the picks still waiting for a half, in pick
+    /// order.
+    pub fn awaiting_half(&self) -> Vec<usize> {
+        match &self.held {
+            BooleanPicks::Members(members) => members
+                .iter()
+                .enumerate()
+                .filter(|(_, (_, port))| *port == Port::HalfPending)
+                .map(|(i, _)| i)
+                .collect(),
+            BooleanPicks::Pair(seats) => (0..2).filter(|&i| seats.awaits_half(i)).collect(),
+        }
+    }
+
+    /// Drop every pick, keeping the operation.
     pub fn clear(&mut self) {
-        self.seats.clear();
+        match &mut self.held {
+            BooleanPicks::Members(members) => members.clear(),
+            BooleanPicks::Pair(seats) => seats.clear(),
+        }
     }
 
-    /// The survival step ([`crate::seats`]).
+    /// The survival step ([`crate::seats`]): a member whose node left
+    /// the document leaves the list, a seat's pick empties its seat.
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
-        self.seats.reconcile(doc)
+        match &mut self.held {
+            BooleanPicks::Members(members) => {
+                let (kept, lost): (Vec<_>, Vec<_>) = core::mem::take(members)
+                    .into_iter()
+                    .partition(|(node, _)| doc.node(node.id()).is_some());
+                *members = kept;
+                lost.into_iter()
+                    .map(|(node, _)| SeatEvent::PickLost {
+                        seat: Seat::Member,
+                        node,
+                    })
+                    .collect()
+            }
+            BooleanPicks::Pair(seats) => seats.reconcile(doc),
+        }
     }
 
     /// The held picks spoken again from `doc` ([`Seats::respeak`]).
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        self.seats.respeak(doc);
+        match &mut self.held {
+            BooleanPicks::Members(members) => {
+                for (node, _) in members.iter_mut() {
+                    *node = node.respoken(doc);
+                }
+            }
+            BooleanPicks::Pair(seats) => seats.respeak(doc),
+        }
     }
 
-    /// **The one committed edit**: the session op that inserts the
-    /// boolean node through the ordinary commit door, declaring no
-    /// contact. A contact the door refuses is declared through the
-    /// offer its refusal makes ([`crate::session::DeclareOffer`]).
+    /// **What the tool would commit**: the operation over the held
+    /// picks, in their order.
     ///
     /// # Errors
     ///
-    /// [`SeatError::Empty`] until both operands are picked. Node kinds,
-    /// and the two-operands-are-one-node case, refuse at the session
-    /// door.
-    pub fn op(&self, op: BooleanOp) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::AddBoolean {
-            op,
-            a: self.seats.require(0)?,
-            b: self.seats.require(1)?,
-            declare: Vec::new(),
-        })
+    /// [`SeatError::Empty`] naming [`Seat::Member`] while a union or an
+    /// intersect holds no member, and naming the first empty seat while
+    /// a subtraction lacks one; [`SeatError::HalfUnchosen`] while a
+    /// pick holds a split whose half is not chosen. Node kinds refuse
+    /// at the session door.
+    pub fn spec(&self) -> Result<BooleanSpec, SeatError> {
+        match &self.held {
+            BooleanPicks::Members(members) if members.is_empty() => {
+                Err(SeatError::Empty { seat: Seat::Member })
+            }
+            BooleanPicks::Members(members) => {
+                if members.iter().any(|(_, port)| *port == Port::HalfPending) {
+                    return Err(SeatError::HalfUnchosen { seat: Seat::Member });
+                }
+                let members = members
+                    .iter()
+                    .map(|(node, port)| port.read(node.id()))
+                    .collect();
+                Ok(if self.op == BooleanOp::Intersect {
+                    BooleanSpec::Intersect(members)
+                } else {
+                    BooleanSpec::Union(members)
+                })
+            }
+            BooleanPicks::Pair(seats) => Ok(BooleanSpec::Subtract {
+                from: seats.require_read(0)?,
+                tool: seats.require_read(1)?,
+            }),
+        }
+    }
+
+    /// **The one committed edit**: the session op that inserts the
+    /// boolean node through the ordinary commit door.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanTool::spec`]'s.
+    pub fn op(&self) -> Result<SessionOp, SeatError> {
+        Ok(SessionOp::AddBoolean { spec: self.spec()? })
     }
 }
 
@@ -157,9 +330,21 @@ impl SplitTool {
         self.seats.held(1)
     }
 
-    /// Feed one node pick; `doc` routes it, and does not judge it.
+    /// Feed one node pick; `doc` routes it, and does not judge it. A
+    /// pick on a copy seats the body it places.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
+    }
+
+    /// [`Self::pick`] of the output `body` a viewport pick hit.
+    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        self.seats.pick_at(doc, node, body);
+    }
+
+    /// The half seat `i` reads, when it holds a split picked alone
+    /// ([`Seats::choose_half`]).
+    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
+        self.seats.choose_half(i, half);
     }
 
     /// Empty both seats.
@@ -184,7 +369,7 @@ impl SplitTool {
     /// [`SeatError::Empty`] until both seats are filled.
     pub fn op(&self) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddSplit {
-            target: self.seats.require(0)?,
+            target: self.seats.require_read(0)?,
             tool: self.seats.require(1)?,
         })
     }
@@ -228,6 +413,17 @@ impl TransformTool {
         self.seats.pick(doc, node);
     }
 
+    /// [`Self::pick`] of the output `body` a viewport pick hit.
+    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        self.seats.pick_at(doc, node, body);
+    }
+
+    /// The half seat `i` reads, when it holds a split picked alone
+    /// ([`Seats::choose_half`]).
+    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
+        self.seats.choose_half(i, half);
+    }
+
     /// Empty the seat.
     pub fn clear(&mut self) {
         self.seats.clear();
@@ -255,7 +451,7 @@ impl TransformTool {
         rotation_angle: Formula,
     ) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddTransform {
-            input: self.seats.require(0)?,
+            input: self.seats.require_read(0)?,
             translation,
             rotation_axis,
             rotation_angle,
@@ -351,9 +547,21 @@ impl PatternTool {
         self.seats.held(1)
     }
 
-    /// Feed one node pick; `doc` routes it, and does not judge it.
+    /// Feed one node pick; `doc` routes it, and does not judge it. A
+    /// pick on a copy seats the body it places.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
+    }
+
+    /// [`Self::pick`] of the output `body` a viewport pick hit.
+    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        self.seats.pick_at(doc, node, body);
+    }
+
+    /// The half seat `i` reads, when it holds a split picked alone
+    /// ([`Seats::choose_half`]).
+    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
+        self.seats.choose_half(i, half);
     }
 
     /// Empty both seats.
@@ -388,7 +596,7 @@ impl PatternTool {
     ) -> Result<SessionOp, SeatError> {
         Ok(pattern_op(
             output,
-            self.seats.require(0)?,
+            self.seats.require_read(0)?,
             count,
             PatternRuleSpec::Linear { direction, spacing },
         ))
@@ -408,7 +616,7 @@ impl PatternTool {
     ) -> Result<SessionOp, SeatError> {
         // The BODY seat first, so an empty form names the pick a user
         // makes first rather than the one this rule adds.
-        let input = self.seats.require(0)?;
+        let input = self.seats.require_read(0)?;
         let rule = PatternRuleSpec::Circular {
             axis: self.seats.require(1)?,
             step,
@@ -422,7 +630,7 @@ impl PatternTool {
 /// about it.
 fn pattern_op(
     output: PatternOutputChoice,
-    input: RecipeNodeId,
+    input: Operand,
     count: i64,
     rule: PatternRuleSpec,
 ) -> SessionOp {
@@ -448,7 +656,7 @@ fn pattern_op(
 /// slot it lands in is the edit door's question
 /// (`EditError::SlotDimensionMismatch`), asked of authored and
 /// hand-written documents alike.
-pub fn pattern_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
+pub fn pattern_node(input: Operand, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
     Node::Pattern {
         input,
         count: Formula::count(count),
@@ -471,7 +679,7 @@ pub fn pattern_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> A
 /// edit door's question. Whether the placements are DISJOINT is not
 /// asked here either — that certificate is evaluation's, reported on
 /// the node's own badge.
-pub fn placed_union_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
+pub fn placed_union_node(input: Operand, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
     Node::PlacedUnion {
         input,
         count: Some(Formula::count(count)),
@@ -486,23 +694,16 @@ fn rule_kind(rule: PatternRuleSpec) -> PatternKind<Formula> {
         PatternRuleSpec::Linear { direction, spacing } => {
             PatternKind::Linear { direction, spacing }
         }
-        PatternRuleSpec::Circular { axis, step } => PatternKind::Circular { axis, step },
+        PatternRuleSpec::Circular { axis, step } => PatternKind::Circular {
+            axis: axis.into(),
+            step,
+        },
     }
 }
 
-/// **The part tool**: one pick of a multi-body value, committing one
-/// [`SessionOp::AddPart`].
-///
-/// **Two seats for one pick**, which is the seat vocabulary's routing
-/// rule doing the work rather than a second gate: a half is read out
-/// of a `Node::Split` and an index out of a `Node::Pattern`, so the
-/// two selections want different KINDS. A user clicks the thing they
-/// mean and [`Seats::pick`] puts it in the seat only it can fill; the
-/// form's selector then picks the commit door, exactly as the pattern
-/// form's rule choice does. The alternative — one seat admitting
-/// either, and the half-against-a-pattern pairing checked somewhere
-/// below — would be a second authority on a question the seat already
-/// answers.
+/// **The part tool**: one pick of a pattern, committing one
+/// [`SessionOp::AddPart`] of one of its copies. A split's halves need
+/// no tool: each is an output of the split, which a body seat reads.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartTool {
     seats: Seats,
@@ -518,7 +719,7 @@ impl PartTool {
     /// A tool holding nothing.
     pub const fn new() -> Self {
         Self {
-            seats: Seats::new([Seat::PartSplit, Seat::PartInstance]),
+            seats: Seats::one(Seat::PartInstance),
         }
     }
 
@@ -528,22 +729,23 @@ impl PartTool {
         &self.seats
     }
 
-    /// The held split, if one was picked.
-    pub fn split(&self) -> Option<RecipeNodeId> {
+    /// The held pattern, if one was picked.
+    pub fn pattern(&self) -> Option<RecipeNodeId> {
         self.seats.held(0)
     }
 
-    /// The held pattern, if one was picked.
-    pub fn pattern(&self) -> Option<RecipeNodeId> {
-        self.seats.held(1)
-    }
-
-    /// Feed one node pick; `doc` routes it, and does not judge it.
+    /// Feed one node pick; `doc` routes it, and does not judge it. A
+    /// pick on a copy seats the body it places.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }
 
-    /// Empty both seats.
+    /// [`Self::pick`] of the output `body` a viewport pick hit.
+    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        self.seats.pick_at(doc, node, body);
+    }
+
+    /// Empty the seat.
     pub fn clear(&mut self) {
         self.seats.clear();
     }
@@ -556,18 +758,6 @@ impl PartTool {
     /// The held picks spoken again from `doc` ([`Seats::respeak`]).
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
         self.seats.respeak(doc);
-    }
-
-    /// **The one committed edit**, selecting a split's named half.
-    ///
-    /// # Errors
-    ///
-    /// [`SeatError::Empty`] until a split is picked.
-    pub fn half_op(&self, half: SplitHalf) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::AddPart {
-            of: self.seats.require(0)?,
-            select: PartSelectSpec::SplitHalf(half),
-        })
     }
 
     /// **The one committed edit**, selecting one instance of a
@@ -583,7 +773,7 @@ impl PartTool {
     /// a non-positive pattern count already takes.
     pub fn instance_op(&self, index: i64) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddPart {
-            of: self.seats.require(1)?,
+            of: self.seats.require(0)?,
             select: PartSelectSpec::Instance(index),
         })
     }
@@ -596,10 +786,9 @@ impl PartTool {
 /// copy away, so a form asking where the copy should go first would be
 /// the pattern form again under another name. Where the copy lands is
 /// [`duplicate_step`]'s rule — along [`STEP_DIRECTION`], clear of the
-/// original by at least [`DUPLICATE_GAP`] of its own width — and both
-/// numbers
-/// land in ordinary slots of the pattern node the gesture authors,
-/// editable in the property panel the moment the edit lands.
+/// original by at least [`DUPLICATE_GAP`] of its own width — and the
+/// step lands in the translation slots of the transform the gesture
+/// authors, editable in the property panel the moment the edit lands.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicateTool {
     seats: Seats,
@@ -637,6 +826,17 @@ impl DuplicateTool {
         self.seats.pick(doc, node);
     }
 
+    /// [`Self::pick`] of the output `body` a viewport pick hit.
+    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        self.seats.pick_at(doc, node, body);
+    }
+
+    /// The half seat `i` reads, when it holds a split picked alone
+    /// ([`Seats::choose_half`]).
+    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
+        self.seats.choose_half(i, half);
+    }
+
     /// Empty the seat.
     pub fn clear(&mut self) {
         self.seats.clear();
@@ -659,7 +859,7 @@ impl DuplicateTool {
     /// [`SeatError::Empty`] until a body is picked.
     pub fn op(&self) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::Duplicate {
-            input: self.seats.require(0)?,
+            input: self.seats.require_read(0)?,
         })
     }
 }
@@ -731,18 +931,24 @@ pub enum DuplicateFault {
         /// ([`held_by`]).
         held: HeldNodes,
     },
-    /// The input's VALUE is several bodies. A pattern of two over it
-    /// would index the flat list of those bodies, so its two
-    /// projections would select two of the ORIGINAL bodies in place and
-    /// the gesture would add nothing to the picture.
+    /// The input's VALUE is several bodies, and a duplicate copies one:
+    /// a transform of them would be several bodies again, which no
+    /// world placement reads.
     ///
-    /// Reachable only past the body seat's own gate, which classifies
-    /// by node kind and admits a transform of a pattern
-    /// (`work/forms/body-seat-reads-through-the-placer-chain`); this
-    /// door asks the value, which is the evaluator's own question.
+    /// The body seat refuses a read of several bodies by its kind, so
+    /// this is the value's own answer behind it: the door asks the
+    /// value, which is the evaluator's own question.
     NotOneBody {
         /// The node picked, as the landed document held it.
         input: SpokenNode,
+    },
+    /// The input reads a split's half that holds no material: the
+    /// split's plane misses the body on that side.
+    EmptyHalf {
+        /// The split, as the landed document held it.
+        input: SpokenNode,
+        /// The half read.
+        half: SplitHalf,
     },
     /// The measuring tessellation refused.
     Unmeasured {
@@ -778,6 +984,11 @@ impl core::fmt::Display for DuplicateFault {
                 f,
                 "{input}'s value is several bodies; a duplicate copies ONE — project the one \
                  you mean first"
+            ),
+            Self::EmptyHalf { input, half } => write!(
+                f,
+                "{input}'s {} half holds no material: its plane misses the body on that side",
+                half.name()
             ),
             Self::Unmeasured { input, error } => write!(
                 f,
@@ -832,17 +1043,36 @@ impl core::error::Error for DuplicateFault {}
 pub fn duplicate_step(
     doc: &Doc<ProfileProgram>,
     eval: &Evaluation<f64>,
-    input: RecipeNodeId,
+    input: &Operand,
     tol: Tol,
 ) -> Result<f64, DuplicateFault> {
-    let value = eval.usable(input).map_err(|standing| {
+    // The session door's kind gate ran first and refused a read naming
+    // no output.
+    let (node, port) = crate::world::read_output(doc, input)
+        .unwrap_or_else(|| unreachable!("a body read the session admitted names an output"));
+    let value = eval.usable(node).map_err(|standing| {
         let standing = crate::tree::standing_as_drawn(standing, eval);
         let held = held_by(&standing, doc);
         DuplicateFault::NoValue { standing, held }
     })?;
-    let spoken = || doc.spoken(input);
-    let body =
-        one_body(&value.payload).ok_or_else(|| DuplicateFault::NotOneBody { input: spoken() })?;
+    let spoken = || doc.spoken(node);
+    let body = match port {
+        Some(port) => match value.payload.output_body(u32::from(port)) {
+            Ok(body) => Some(body),
+            // A port the value holds no body at is a split's empty half.
+            Err(_) => match (&value.payload, SplitHalf::of_output_body(u32::from(port))) {
+                (pncad::document::ValuePayload::Split { .. }, Some(half)) => {
+                    return Err(DuplicateFault::EmptyHalf {
+                        input: spoken(),
+                        half,
+                    });
+                }
+                _ => None,
+            },
+        },
+        None => one_body(&value.payload),
+    }
+    .ok_or_else(|| DuplicateFault::NotOneBody { input: spoken() })?;
     let measured = |chord: f64| {
         pncad::mesh::tessellate(body, chord, tol).map_err(|error| DuplicateFault::Unmeasured {
             input: spoken(),
@@ -882,6 +1112,10 @@ impl DuplicateFault {
             },
             Self::NotOneBody { input } => Self::NotOneBody {
                 input: again(input),
+            },
+            Self::EmptyHalf { input, half } => Self::EmptyHalf {
+                input: again(input),
+                half,
             },
             Self::Unmeasured { input, error } => Self::Unmeasured {
                 input: again(input),
@@ -931,12 +1165,8 @@ pub fn duplicate_rule(step: f64) -> Result<PatternRuleSpec, pncad::document::Dim
     })
 }
 
-/// **How many bodies a duplicate leaves**: the original and one copy.
-///
-/// The pattern's count, and the range the same action's projections
-/// are generated over (`0..DUPLICATE_COUNT` at the session door) — one
-/// number, so a pattern and its projections cannot disagree about how
-/// many bodies there are.
+/// **How many bodies a duplicate's pattern holds**: the original and
+/// one copy.
 pub const DUPLICATE_COUNT: i64 = 2;
 
 /// Lower one part spec to its node, minting the STRUCTURAL index.
@@ -950,83 +1180,44 @@ pub const DUPLICATE_COUNT: i64 = 2;
 /// the value it reads is evaluation's question, asked of authored and
 /// hand-written documents alike.
 pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> AuthoredNode {
+    let PartSelectSpec::Instance(index) = select;
     Node::Part {
-        of,
-        select: match select {
-            PartSelectSpec::SplitHalf(half) => PartSelect::SplitHalf(half),
-            PartSelectSpec::Instance(index) => PartSelect::Instance(Formula::count(index)),
-        },
+        of: of.into(),
+        select: PartSelect::Instance(Formula::count(index)),
     }
 }
 
-/// **Whether a node's value is a single body** — the question every
-/// body seat asks, answered off the node vocabulary alone.
+/// **Whether a node, named alone, reads as a single body** — the
+/// question every body seat asks, answered by the edit door's own
+/// rule: the read [`Doc::read_of_node`] takes is one a body seat admits
+/// (`SlotKind::admits`, the door's kind check).
 ///
-/// The rule this tracks is the evaluator's single-body OPERAND door
-/// (`eval::wire::body_operand`): a `Body` payload, or a boolean's
-/// non-empty result. A split's two sides and a pattern's instances are
-/// the cases that matter — each is SEVERAL bodies, so a seat filled
-/// with one refuses at the door rather than after the edit lands. The
-/// recipe's way of saying which of them is meant is [`Node::Part`]
-/// (`crates/editor-core/REFERENCES.md` DM3): a projection of one half
-/// or one
-/// instance, which evaluates to ONE `Body` value and is admitted here
-/// for exactly that reason. "Union the upper half of that split" is
-/// therefore a Part of the split at a boolean seat; the door that
-/// authors one is CHROME's.
+/// A node named alone reads its one output (spec Q5): a split's two
+/// sides, or a revolve's body beside its axis, are several, so the read
+/// refuses and the seat names a port; a pattern's instances are a list of bodies,
+/// and a transform of one is too, read off its operand at minting. A
+/// seat filled with one refuses at the door rather than after the edit
+/// lands. The recipe's way of saying which of several is meant is
+/// a read of one of its outputs (`crates/editor-core/REFERENCES.md`
+/// DM3: a split's half by its port), or [`Node::Part`] of one copy of a
+/// pattern; either is ONE `Body`.
 ///
-/// **Tracks, and is not equal to, in two named directions.** A node
-/// this admits may still refuse downstream — an empty boolean result is
-/// a typed success that is not a body — and `Sweep` is admitted here
-/// while `wire_sweep` refuses every recipe-expressible sweep today: it
-/// is the curved-solid frontier, and a seat that refused it would
-/// answer "that is not a body" to a node that is one in every sense but
-/// the one the kernel has not reached. Its own frontier refusal is the
-/// honest diagnosis, and it arrives by poison propagation. Neither
-/// direction is left to prose: `combine_ops::
-/// the_body_seat_tracks_the_evaluators_operand_door` drives each
-/// admitted kind into the real door and asserts the exception by name.
+/// A node this admits may still refuse downstream — an empty boolean
+/// result is a typed success that is not a body, and `wire_sweep`
+/// refuses every recipe-expressible sweep today (the curved-solid
+/// frontier) — and that refusal is the node's own, arriving by poison
+/// propagation. `combine_ops::the_body_seat_is_the_operand_doors_body_slot`
+/// offers each kind to the real door and asserts the two agree.
 ///
 /// **Not `product`'s "body-denoting"**, which is a WIDER set: the
 /// product gather counts a pattern's instances and a split's sides
 /// among the bodies it collects, because collecting several is what it
 /// does. This answers the narrower question a single-body operand seat
 /// asks.
-pub fn denotes_body<P, S: pncad::document::Slot>(node: &Node<P, S>) -> bool {
-    match node {
-        Node::Extrude { .. }
-        | Node::Revolve { .. }
-        // Both tube kinds denote ONE body, hollow or not: the hollow
-        // one's cavity is a void inside a single solid, not a second
-        // body, so the seat admits them for the same reason it admits
-        // a revolve.
-        | Node::Tube { .. }
-        | Node::HollowTube { .. }
-        | Node::Loft { .. }
-        | Node::Sweep { .. }
-        | Node::Fillet { .. }
-        | Node::Chamfer { .. }
-        // A thin solid is ONE body: the cavity is a void inside it,
-        // exactly as the hollow tube's is.
-        | Node::Shell { .. }
-        | Node::Boolean { .. }
-        // ONE body out, exactly as the pair union it generalizes: the
-        // members are folded, not collected.
-        | Node::Union { .. }
-        | Node::Transform { .. }
-        // ONE body out of a split's or a pattern's value — the
-        // projection is what makes one of several bodies a body.
-        | Node::Part { .. }
-        | Node::PlacedUnion { .. }
-        | Node::InstantiatePart { .. } => true,
-        Node::Datum(_)
-        | Node::Profile(_)
-        | Node::Split { .. }
-        | Node::Pattern { .. }
-        | Node::Mate { .. }
-        // A frame other placements stand on; no body.
-        | Node::Gauge { .. }
-        | Node::Measure { .. }
-        | Node::Assertion { .. } => false,
-    }
+pub fn denotes_body(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
+    doc.read_of_node(node)
+        .and_then(|read| doc.var(read))
+        .is_some_and(|var| {
+            pncad::document::SlotKind::Is(pncad::document::VarKind::Body).admits(var)
+        })
 }

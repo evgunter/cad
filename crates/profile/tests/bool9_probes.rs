@@ -3,19 +3,19 @@
 //! The census rows in `raw_door_census.rs` say what a shipped build
 //! cannot mint. These say what the two things that replaced the door
 //! actually produce: the materialization door's table, and the lift's
-//! program for a loop whose every joint is declared.
+//! program for a loop whose every joint is tangent.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Real, Tol};
 use profile::{
-    Fidelity, LiftOutcome, Open, ProfileLoop, RawLoop, Start, Step, Target, lift_checked,
-    test_support::bulge_loop,
+    ConstructedLoop, Fidelity, LiftOutcome, Open, ProfileLoop, RawLoop, Start, Step, Target,
+    lift_checked, test_support::bulge_loop,
 };
 
 /// The stadium: two straight sides and two semicircular ends, every
-/// joint declared tangent, authored through the lattice.
-fn stadium() -> ProfileLoop<f64> {
+/// joint constructed tangent, authored through the lattice.
+fn stadium_constructed() -> ConstructedLoop<f64> {
     let t = Tol::witness();
     Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
@@ -32,7 +32,11 @@ fn stadium() -> ProfileLoop<f64> {
         .tangent_arc_to(Start.arrives_tangent(), t)
         .expect("the stadium closes")
         .loop_
-        .into_loop()
+}
+
+/// [`stadium_constructed`]'s table.
+fn stadium() -> ProfileLoop<f64> {
+    stadium_constructed().into_loop()
 }
 
 // ------------------------------------------------------------------
@@ -51,9 +55,8 @@ fn stadium() -> ProfileLoop<f64> {
 ///
 /// The door crosses every coordinate through `T::from_f64`. At `f64`
 /// that is the identity function, so this row measures the WALK — the
-/// index order, the bulge carried with its own vertex, the declared
-/// joints travelling unchanged — rather than the arithmetic. A walk
-/// that dropped a joint or shifted a bulge by one index would still
+/// index order, the bulge carried with its own vertex — rather than
+/// the arithmetic. A walk that shifted a bulge by one index would still
 /// produce a plausible loop, and this is what says it does not.
 #[test]
 fn the_materialization_door_reproduces_the_table_bit_for_bit() {
@@ -75,11 +78,6 @@ fn the_materialization_door_reproduces_the_table_bit_for_bit() {
             "segment {i}"
         );
     }
-    assert_eq!(
-        crossed.tangent_joints(),
-        source.tangent_joints(),
-        "the declarations travel"
-    );
 }
 
 /// The door carries a HAND-BUILT table too, including one the lattice
@@ -87,38 +85,40 @@ fn the_materialization_door_reproduces_the_table_bit_for_bit() {
 /// hold, and crossing scalars is not the place to re-adjudicate it.
 #[test]
 fn the_materialization_door_does_not_re_adjudicate_the_table() {
+    // A doubled vertex: a zero-length segment validation refuses.
     let odd: ProfileLoop<f64> = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
         (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
         (Point2::new(1.0, 1.0), 0.0),
-    ])
-    .with_tangent_joints(vec![7]);
+    ]);
     let crossed: ProfileLoop<f64> = odd.map_scalar(<f64 as Real>::from_f64);
-    assert_eq!(crossed.tangent_joints(), [7]);
-    assert_eq!(crossed.vertices().len(), 3);
+    assert_eq!(crossed.vertices().len(), 4);
+    assert_eq!(crossed.vertices()[2].x.to_bits(), 1.0f64.to_bits());
 }
 
 // ------------------------------------------------------------------
-// The seam the entry cannot declare
+// The seam the entry cannot construct
 // ------------------------------------------------------------------
 
-/// **Every joint declared, and the loop lifts.** `.at(p)` declares
+/// **Every joint tangent, and the loop lifts.** `.at(p)` constructs
 /// nothing, so the lift used to have no seam for this loop at all; the
-/// closing TARGET declares joint 0 instead, and the arrival is where
-/// the declaration rides.
+/// closing TARGET constructs joint 0 instead, and the arrival is where
+/// the tangency rides.
 /// **`BitIdentical` here is SEAM-SELECTED, and that is the honest
 /// reading of it** (R1 n4). This loop is bit-identical at seams 0 and
 /// 1, where the lift's derived `line(len)` legs re-run the very
 /// computation that authored the vertices; rotate the same loop to seam
 /// 2 or 3 and the leg is derived off an arc arrival instead and lands
 /// `ValueEqual` — F10's class, not a defect and not a regression.
-/// `bool9r1_probes::r1_the_all_declared_loop_lifts_at_every_seam` walks
+/// `bool9r1_probes::r1_the_all_tangent_loop_lifts_at_every_seam` walks
 /// all four and prints each. So this row's `BitIdentical` is a claim
 /// about THIS SEAM of this loop, never about the widening.
 #[test]
-fn the_all_tangent_stadium_lifts_at_the_declared_seam() {
-    let loop_ = stadium();
-    assert_eq!(loop_.tangent_joints().len(), loop_.vertices().len());
+fn the_all_tangent_stadium_lifts_at_the_constructed_seam() {
+    let built = stadium_constructed();
+    assert_eq!(built.constructed_joints().len(), built.vertices().len());
+    let loop_ = built.into_loop();
 
     match lift_checked(&loop_, Tol::witness()) {
         LiftOutcome::Lifted {
@@ -128,7 +128,7 @@ fn the_all_tangent_stadium_lifts_at_the_declared_seam() {
             worst_ulps,
             ..
         } => {
-            assert_eq!(rotation, 0, "no rotation can move a declared seam");
+            assert_eq!(rotation, 0, "no rotation can move a tangent seam");
             assert_eq!(fidelity, Fidelity::BitIdentical);
             assert_eq!(worst_ulps, 0);
             assert!(
@@ -143,13 +143,13 @@ fn the_all_tangent_stadium_lifts_at_the_declared_seam() {
     }
 }
 
-/// **A declared joint whose leaving segment closes the loop straight.**
+/// **A tangent joint whose leaving segment closes the loop straight.**
 /// After `.tangent()` the only straight verb is `.line(len)`, which
 /// never closes — so this was a wall. It is not a wall: the straight
-/// leg off a declared joint IS `continue_to`, which declares its own
+/// leg off a tangent joint IS `continue_to`, which constructs its own
 /// joint and does close.
 #[test]
-fn a_declared_joint_closing_straight_lifts_as_the_continuation() {
+fn a_tangent_joint_closing_straight_lifts_as_the_continuation() {
     let source = stadium();
     let n = source.vertices().len();
     // The same stadium re-seamed one vertex on, so the CLOSING leg is a
@@ -158,8 +158,7 @@ fn a_declared_joint_closing_straight_lifts_as_the_continuation() {
     let reseamed: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::new((0..n).map(|k| {
         let j = (k + 1) % n;
         (source.vertices()[j], source.segments()[j])
-    }))
-    .with_tangent_joints((0..n).collect());
+    }));
 
     match lift_checked(&reseamed, Tol::witness()) {
         LiftOutcome::Lifted {
@@ -168,7 +167,7 @@ fn a_declared_joint_closing_straight_lifts_as_the_continuation() {
             worst_abs,
             ..
         } => {
-            // The entry declares nothing, so the arc leaving it is
+            // The entry constructs nothing, so the arc leaving it is
             // written about its stored centre (`arc_to(Center)`), whose
             // replay re-derives the sweep from the endpoint angles:
             // value-equal, in the last bits.
@@ -187,23 +186,21 @@ fn a_declared_joint_closing_straight_lifts_as_the_continuation() {
 }
 
 /// The same wall with a SHARP seam still in the loop, so the
-/// all-declared arm is not what answers: the last joint is declared and
+/// all-tangent arm is not what answers: the last joint is tangent and
 /// its leaving segment is the straight one that closes.
 ///
-/// A triangle with one side subdivided at a genuinely collinear
-/// vertex — the declaration is true, so the driver has nothing to
-/// refuse. `.tangent()` then had nowhere to go (`.line(len)` never
-/// closes); `continue_to(Start)` closes it, and the seam itself stays
-/// undeclared, so the target is the plain `Start`.
+/// A triangle with one side subdivided at a genuinely collinear vertex,
+/// a tangent joint by its carriers. `.tangent()` then had nowhere to go
+/// (`.line(len)` never closes); `continue_to(Start)` closes it, and the
+/// seam itself is sharp, so the target is the plain `Start`.
 #[test]
-fn a_declared_joint_closing_straight_lifts_beside_a_sharp_seam() {
+fn a_tangent_joint_closing_straight_lifts_beside_a_sharp_seam() {
     let loop_: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(2.0, 0.0),
         Point2::new(1.0, 1.0),
         Point2::new(0.5, 0.5),
-    ])
-    .with_tangent_joints(vec![3]);
+    ]);
 
     match lift_checked(&loop_, Tol::witness()) {
         LiftOutcome::Lifted {
@@ -223,41 +220,11 @@ fn a_declared_joint_closing_straight_lifts_beside_a_sharp_seam() {
     }
 }
 
-/// **What the retired structural wall becomes when the declaration is
-/// FALSE**: the driver's refusal, in the driver's words.
-///
-/// This is the fixture the lift census used to pin
-/// `DeclaredJointBeforeClosingLine` on — and its joint 2 is a right
-/// angle, so "declared tangent" is untrue of it. The lift's contract is
-/// that geometric walls belong to the binders: it spells the natural
-/// program and `continue_to` measures the target against the departing
-/// ray, naming the miss. A structural refusal could only ever have said
-/// "no spelling"; this says what is wrong with the loop.
-#[test]
-fn a_false_declaration_at_the_closing_joint_is_the_drivers_refusal() {
-    let loop_: ProfileLoop<f64> = bulge_loop(vec![
-        (Point2::new(0.0, 0.0), 0.3),
-        (Point2::new(1.0, 1.0), 0.0),
-        (Point2::new(0.0, 1.0), 0.0),
-    ])
-    .with_tangent_joints(vec![2]);
-
-    match lift_checked(&loop_, Tol::witness()) {
-        LiftOutcome::ReplayRefused { error, .. } => {
-            assert!(
-                format!("{error}").contains("ray"),
-                "the target is off the departing ray: {error}"
-            );
-        }
-        other => panic!("expected the driver's wall: {other:?}"),
-    }
-}
-
-/// The undeclared seam is untouched: a loop with a sharp joint still
+/// The sharp seam is untouched: a loop with a sharp joint still
 /// rotates onto it and closes with the PLAIN `Start`, so the new
-/// spelling is reached by the declaration and never by default.
+/// spelling is reached by a tangent joint and never by default.
 #[test]
-fn an_undeclared_seam_still_closes_plain() {
+fn a_sharp_seam_still_closes_plain() {
     let square: ProfileLoop<f64> = RawLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(1.0, 0.0),

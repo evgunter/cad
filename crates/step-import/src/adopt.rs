@@ -43,7 +43,7 @@
 
 use geom::Curve3;
 use geom::{Surface, SurfaceData};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource, SurfacePair};
 use geom_core::spline::SplineError;
 use geom_core::{Affine3, FileCoincidence, Point2, Point3};
 use topo::{Body, FaceKey, FaceSurface, LoopKey};
@@ -432,16 +432,14 @@ fn adopt_edges(
             candidates.push((
                 AdoptionCandidate::Intersection,
                 EdgeDescriptionSpec::Intersection {
-                    s1: fs_plus,
-                    s2: fs_minus,
+                    pair: SurfacePair::new(fs_plus, fs_minus),
                     witness,
                 },
             ));
             candidates.push((
                 AdoptionCandidate::TangentIntersection,
                 EdgeDescriptionSpec::TangentIntersection {
-                    s1: fs_plus,
-                    s2: fs_minus,
+                    pair: SurfacePair::new(fs_plus, fs_minus),
                     witness,
                 },
             ));
@@ -746,9 +744,8 @@ fn iso_curve_candidates(
                 continue;
             }
             // Not a rung condition: `boundary_iso_u` is a control-net
-            // copy whose refusals — a net that disagrees with its own
-            // knot vector, or a bad weight on the column — are what
-            // `geom::NurbsSurface::new` already refuses. Carried out to
+            // copy whose one refusal — a bad weight on the column — is
+            // what `geom::NurbsSurface::new` already refuses. Carried out to
             // the ladder rather than read as "not this shape".
             let iso = geom_brep::boundary_iso_u(wp.as_ref(), end)?;
             // The column's `u` is the payload's own KNOT domain end
@@ -925,27 +922,29 @@ fn mapped_self_description(
     nurbs_rim: bool,
 ) -> Option<MappedCurve<f64>> {
     match carrier {
-        Curve3::Line { origin, dir } if nurbs_rim => {
-            line_frame(*origin, *dir).map(|place| MappedCurve::PlacedSegment {
+        Curve3::Line { origin, dir } if nurbs_rim => line_frame(*origin, *dir).map(|place| {
+            MappedCurve::whole(MappedSource::PlacedSegment {
                 segment: geom_brep::SketchSegment::Line {
                     a: Point2::new(t0, 0.0),
                     b: Point2::new(t1, 0.0),
                 },
                 place,
             })
-        }
-        Curve3::Line { .. } => Some(MappedCurve::ExtrudedPoint {
+        }),
+        Curve3::Line { .. } => Some(MappedCurve::whole(MappedSource::ExtrudedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
             vec: p_end - p_start,
-        }),
-        Curve3::Circle { center, axis, .. } => Some(MappedCurve::RevolvedPoint {
-            point: Point2::new(0.0, 0.0),
-            place: Affine3::translation(p_start - Point3::origin()),
-            axis_origin: *center,
-            axis_dir: *axis,
-            angle: t1 - t0,
-        }),
+        })),
+        Curve3::Circle { center, axis, .. } => {
+            Some(MappedCurve::whole(MappedSource::RevolvedPoint {
+                point: Point2::new(0.0, 0.0),
+                place: Affine3::translation(p_start - Point3::origin()),
+                axis_origin: *center,
+                axis_dir: *axis,
+                angle: t1 - t0,
+            }))
+        }
         Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }

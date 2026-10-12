@@ -2,7 +2,8 @@
 id: mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion
 kind: issue
 title: A non-root member's offset is verified against the solve (OffsetDisagrees/OffsetUnchecked): a constraint that falls back to an assertion
-status: open
+status: parked
+blocked_on: [a-mate-on-a-pinned-copy-refuses]
 opened: 2026-10-03
 priority: P0
 cost: M

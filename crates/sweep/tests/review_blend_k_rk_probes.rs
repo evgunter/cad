@@ -144,7 +144,7 @@ fn assert_smooth_built_and_refused_at_rest(text: &str, label: &str) {
         );
     }
     assert_eq!(
-        text.matches("material_wedge_side").count(),
+        text.matches("check: MaterialPairing").count(),
         4,
         "{label}:\n{text}"
     );

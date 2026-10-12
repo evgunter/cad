@@ -41,11 +41,12 @@
 //!   evidence that the per-solid pass runs on real corpus geometry.
 //!
 //! **Scope** (R1 MINOR-1, RESOLVED in M9-2): the aggregate gate is
-//! now the tier-3′ form over the import-side declaration channel
-//! (D7 step 4 executed) — an imported assembly whose parts touch
-//! with vertex/line/planar boundary evidence refuses UNDECLARED and
-//! certifies WITH the declaration (`kiss_assembly`'s row below and
-//! `review_r1_tier_gate_probes.rs` pin both directions); cross-solid
+//! now the tier-3′ form, recording what it finds between solids
+//! (D7 step 4, `topo::record_at_rest`) — an imported assembly whose
+//! parts touch with vertex/line/planar boundary evidence certifies
+//! with its touches recorded (`kiss_assembly`'s row below and
+//! `review_r1_tier_gate_probes.rs`), and one whose parts overlap
+//! refuses; cross-solid
 //! curved proximity and nested instance extents refuse UNDECIDABLE
 //! (the census's conservative backstop); the full class-by-class
 //! reach is the census module docs' envelope statement.
@@ -756,7 +757,7 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         // Refuses in EVERY ambient-ε cell, but the refusal SITE and
-        // sub-reason shift with ε (edge #170 Surface2Residual at
+        // sub-reason shift with ε (edge #170 SurfaceResidual at
         // default/1e-12; edge #177 tangent-planes at 1e-6). This row's
         // fragment is the shared adoption-ladder preamble, so the shift
         // is invisible here BY DESIGN: pinning it would cost 9 more
@@ -851,13 +852,12 @@ const CORPUS: [(&str, Disposition); 75] = [
         Pass(1, 1, 26, 48, 24),
     ),
     (
-        // The touching two-solid assembly: since M9-2 the shared gate
-        // is the tier-3′ form, so the UNDECLARED corner kiss refuses
-        // typed here — and certifies WITH the import-side declaration
-        // (the WITH/WITHOUT pair is pinned in
-        // review_r1_tier_gate_probes.rs, the retired R1 finding).
+        // The touching two-solid assembly: the shared gate is the
+        // tier-3′ form, recording the corner kiss between its two
+        // solids as a contact (`topo::record_at_rest`; the record is
+        // pinned in review_r1_tier_gate_probes.rs).
         "../step-export/tests/fixtures/kiss_assembly.step",
-        Refused("undeclared contact"),
+        Pass(2, 2, 22, 48, 32),
     ),
     (
         "../step-export/tests/fixtures/lily_lantern.step",

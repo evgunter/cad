@@ -127,7 +127,7 @@ class TestCup(unittest.TestCase):
         self.assertEqual(len(rim), 1, "one designated chart, one rim")
         inner = ev.select(hollow, Selector.of(faces.seg(SegPat.tag(SegTag.Inner))))
         self.assertEqual(len(inner), 5, "the cavity floor and its four walls")
-        outer = ev.select(hollow, Selector.of(faces.seg(SegPat.tag(SegTag.FromTarget))))
+        outer = ev.select(hollow, Selector.of(faces.seg(SegPat.tag(SegTag.From))))
         self.assertEqual(len(outer), 5, "the bottom and the four sides carried through")
         # The shell's three roles group as the shell's; the survivors
         # speak as the carried-through shape.
@@ -228,14 +228,14 @@ class TestRefusals(unittest.TestCase):
         self.assertEqual(len(gone), 1, "one wall the box lacks")
         (ghost,) = gone
         node = doc.insert(Node.shell(box, Formula.length_in(T, m), [ghost]))
-        self.assertEqual(self.refusal(doc, node).kind, "shell_open_resolve")
+        self.assertEqual(self.refusal(doc, node).kind, "select_resolve")
 
     def test_an_edge_in_the_open_list_refuses_typed(self):
         doc = Doc()
         box = blank(doc, L, H)
         edge = evaluate(doc).all_edges(box)[0]
         node = doc.insert(Node.shell(box, Formula.length_in(T, m), [edge]))
-        self.assertEqual(self.refusal(doc, node).kind, "shell_open_kind")
+        self.assertEqual(self.refusal(doc, node).kind, "select_kind")
 
     def test_a_non_positive_wall_is_the_kernels_refusal(self):
         doc = Doc()

@@ -40,11 +40,10 @@
 //! — an annular solid is a torus with shape, and hollowing it gives
 //! two shells of genus 1 apiece.
 //!
-//! Every joint is deliberately NON-tangent. The first draft of this
-//! meridian met the waist's arc tangentially where it leaves the rim
-//! cylinder, and `Profile::validate` refused it `UndeclaredTangency`
-//! naming the joint and its three recourses — the coincidence ladder
-//! doing its job on a shape a modeller draws by accident.
+//! Every joint is deliberately NON-tangent, so the scene's walls meet
+//! at creases: a joint met tangentially by accident would be decided
+//! tangent from its carriers and recorded for the
+//! `unproven-coincidence` lint, and the walls there would meet smooth.
 //!
 //! # Stations
 //!

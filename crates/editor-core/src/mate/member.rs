@@ -1,9 +1,8 @@
-//! **The member vocabulary** — what a mate reference resolves to, and
-//! the static offset the resolution derives (A11's member rule, A12's
-//! reading edges).
+//! **The member vocabulary** — what a mate side resolves to, and the
+//! static offset the resolution derives (A11's member rule).
 //!
-//! One walk answers both questions. It runs from a reference's OPERAND
-//! down the consuming edges to its name's head, through the nodes that
+//! One walk answers both questions. It runs from the body a side's
+//! selection reads down the reads to its name's head, through the nodes that
 //! place a body without renaming it and the unions whose member the
 //! name says, and it yields the MEMBER (the
 //! identity the solve keys pairs by) together with the CHAIN of
@@ -33,7 +32,7 @@ use crate::node::{Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
 /// renaming it — any number of `Transform`s and `Part` instance
 /// selections, any number of `Pattern` levels, each of which the name
 /// qualifies `Instance(i)`, and any number of `Union`s, each of which
-/// the name qualifies `FromMember`.
+/// the name qualifies `From`, keyed by the member's read.
 ///
 /// A member is its instance and the PLACEMENT the walk passed on the
 /// way down: two references that reach one instance through different
@@ -179,17 +178,17 @@ impl From<Placer> for Placing {
 /// about which copy the reference names; and `placed` is the name the
 /// same descent reached, one qualifier off per pattern in `chain`.
 #[derive(Debug, Clone)]
-pub(super) struct Walk<'r> {
+pub(super) struct Walk {
     pub(super) member: Member,
     chain: Vec<Placer>,
-    /// The reference's own name, as the mate holds it.
-    pub(super) head: &'r crate::FaceName,
+    /// The reference's own name, as the side's selection holds it.
+    pub(super) head: crate::FaceName,
     /// The name inside every `Instance(i)` qualifier the walk took
     /// off, headed at the member's instance: a copy's MASTER's name.
-    placed: &'r crate::names::StableName,
+    placed: crate::names::StableName,
 }
 
-impl Walk<'_> {
+impl Walk {
     /// **The face of the member's PART the reference names** — the
     /// one `InPart` the member's instance puts round its part's names,
     /// taken off the name the walk reached there
@@ -203,7 +202,7 @@ impl Walk<'_> {
     /// a face: a name an instance mints always is, so only a document
     /// written some other way answers `None`.
     pub(super) fn part_face(&self) -> Option<crate::FaceName> {
-        crate::FaceName::part_local(self.placed, self.member.instance)
+        crate::FaceName::part_local(&self.placed, self.member.instance)
     }
 }
 
@@ -221,12 +220,9 @@ impl Walk<'_> {
 /// stand a member on. That is the node a refusal names, and it is not
 /// in general the reference's own head — a stranded operand stops the
 /// walk before the head is ever reached.
-pub(super) fn walk<'r, P>(
-    doc: &Doc<P>,
-    r: &'r crate::node::SitedFace,
-) -> Result<Walk<'r>, RecipeNodeId> {
+pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, RecipeNodeId> {
     let mut at = r.at;
-    let mut name: &'r crate::names::StableName = &r.name;
+    let mut name: &crate::names::StableName = &r.name;
     let mut chain: Vec<Placer> = Vec::new();
     // The `Part` the walk last passed with nothing pose-bearing since
     // — the one standing DIRECTLY above whatever node comes next, and
@@ -242,8 +238,7 @@ pub(super) fn walk<'r, P>(
             // contributes no `RolePath` segment; a `Part` selecting an
             // instance moves nothing at all and carries every name
             // VERBATIM. Anything else — a boolean, a split's intact
-            // pass-through, a `Part` naming a split HALF — is a
-            // different body, not this one placed. (A union is the
+            // pass-through — is a different body, not this one placed. (A union is the
             // head of every name it carries, so the walk meets it
             // below, at the head.)
             match doc.node(at).and_then(crate::names::verbatim_edge) {
@@ -253,7 +248,7 @@ pub(super) fn walk<'r, P>(
                 // and is carried down to the pattern it checks against.
                 Some(VerbatimEdge::Whole { input }) => {
                     chain.push(Placer::Transform(at));
-                    at = input;
+                    at = doc.operation_of(input).ok_or(at)?;
                 }
                 Some(VerbatimEdge::Selected {
                     of,
@@ -266,16 +261,9 @@ pub(super) fn walk<'r, P>(
                     // copy; this node is checked against it per
                     // reference ([`check_reference`]).
                     part = Some(at);
-                    at = of;
+                    at = doc.operation_of(of).ok_or(at)?;
                 }
-                Some(
-                    VerbatimEdge::Selected {
-                        select: PartSelect::SplitHalf(_),
-                        ..
-                    }
-                    | VerbatimEdge::Intact,
-                )
-                | None => return Err(at),
+                Some(VerbatimEdge::Intact) | None => return Err(at),
             }
             continue;
         }
@@ -287,8 +275,8 @@ pub(super) fn walk<'r, P>(
                         chain: chain.iter().copied().map(Placing::from).collect(),
                     },
                     chain,
-                    head: &r.name,
-                    placed: name,
+                    head: r.name.clone(),
+                    placed: name.clone(),
                 });
             }
             // A pattern's copy: the name must SAY which copy, and the
@@ -305,7 +293,7 @@ pub(super) fn walk<'r, P>(
                     part: part.take(),
                 });
                 name = of;
-                at = *input;
+                at = doc.operation_of(*input).ok_or(at)?;
             }
             // A union's member: the name must SAY which member, and the
             // walk continues at that member under the name inside the
@@ -313,36 +301,39 @@ pub(super) fn walk<'r, P>(
             // reference read here and one read at the member it names
             // stand on one member.
             Some(Node::Union { members, .. }) => {
-                let [RoleSeg::FromMember { member, of }] = name.path.as_slice() else {
+                let [RoleSeg::From { read, of }] = name.path.as_slice() else {
                     return Err(at);
                 };
-                if !members.contains(member) {
+                if !members.reads().any(|m| m.read == *read) {
                     return Err(at);
                 }
                 part = None;
                 name = of;
-                at = *member;
+                at = doc.operation_of(*read).ok_or(at)?;
             }
             _ => return Err(at),
         }
     }
 }
 
-/// **The member a reference resolves to**, or `None` for a reference
-/// outside A11's member vocabulary.
+/// **The member a mate side's head resolves to**, or `None` for a head
+/// outside A11's member vocabulary. A side the document holds is read
+/// to its head by [`head_of`]; an authoring door asks of the head it is
+/// about to write.
 ///
 /// This is the vocabulary's one home — the admission rule the solve
 /// reads and any authoring door must gate on, so a door cannot admit
 /// a reference the solve will refuse (or refuse one it would place).
 ///
-/// The rule is a WALK, from the operand `r.at` down the consuming
-/// edges to `r.name`'s head, which must be a live `InstantiatePart`.
+/// The rule is a WALK, from the operation defining the selection's
+/// body down its reads to the selected name's head, which must be a
+/// live `InstantiatePart`.
 /// Between them it admits exactly the nodes that place a body without
 /// renaming it: any number of `Transform`s, any number of `Part`
 /// nodes selecting an `Instance`, any number of `Pattern` levels,
 /// each of which must carry its `Instance(i)` qualifier in the name,
-/// and any number of `Union`s, each of which must carry the
-/// `FromMember` qualifier naming one of its members. A nested copy is
+/// and any number of `Union`s, each of which must carry a `From`
+/// qualifier keyed by one of its member reads. A nested copy is
 /// a member like any other; its identity carries the whole chain of
 /// placings ([`Member::chain`]).
 ///
@@ -353,42 +344,43 @@ pub(super) fn walk<'r, P>(
 ///
 /// Outside the vocabulary: a non-instance head; a pattern whose name
 /// carries no `Instance(i)` qualifier; a union whose name carries no
-/// `FromMember` qualifier naming one of its members; anything the walk
+/// `From` qualifier keyed by one of its member reads; anything the walk
 /// meets that places no body of its own — a boolean, a split, a `Part`
 /// naming a split HALF (which is a different body, not this one
-/// placed), a head the walk never reaches at all.
+/// placed), a head the walk never reaches at all; and a side that is no
+/// live one-face selection ([`head_of`]).
 ///
 /// [`crate::refactor::split`]'s interface-crossing collector is one of
 /// those gates: a collector admitting a reference the group graph
 /// does not weld would mint a record for a mate that never solved,
 /// which is what AQ8 option (b) SKIP refuses (`ASSEMBLY.md`'s AQ8
 /// clause).
-pub fn member_of<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Option<Member> {
-    member_reading(doc, r).map(|(member, _)| member)
+pub fn member_of<P>(doc: &Doc<P>, head: &crate::node::SitedFace) -> Option<Member> {
+    walk(doc, head).ok().map(|w| w.member)
 }
 
-/// **The member a reference resolves to, and the reference's name as
-/// that member's instance names it** — [`member_of`]'s walk, with the
-/// name it reached at the instance: inside one `Instance(i)` qualifier
-/// per pattern level the walk consumed ([`Member::copy`]) and one
-/// `FromMember` per union, so a copy answers its MASTER's name. That name is a row of the instance's own
-/// product table.
+/// **The member a side resolves to, and the side's name as that
+/// member's instance names it** — [`member_of`]'s walk, with the name
+/// it reached at the instance: inside one `Instance(i)` qualifier per
+/// pattern level the walk consumed ([`Member::copy`]) and one `From`
+/// per union, so a copy answers its MASTER's name. That name is a row
+/// of the instance's own product table.
 ///
 /// `None` exactly where [`member_of`] answers `None`.
-pub fn member_reading<'r, P>(
+pub fn member_reading<P>(
     doc: &Doc<P>,
-    r: &'r crate::node::SitedFace,
-) -> Option<(Member, &'r crate::names::StableName)> {
-    walk(doc, r).ok().map(|w| (w.member, w.placed))
+    head: &crate::node::SitedFace,
+) -> Option<(Member, crate::names::StableName)> {
+    walk(doc, head).ok().map(|w| (w.member, w.placed))
 }
 
-/// **The face of the member's PART a head names** — the head walked
+/// **The face of the member's PART a side names** — the side walked
 /// to its member, then the instance's `InPart` taken off the name the
 /// walk reached there ([`crate::FaceName::part_local`]). What a
 /// face-based side ([`super::FrameBase::Face`]) reads its frame off, in the
 /// part's own coordinates; a copy reads its MASTER's face.
 ///
-/// `None` when the head is outside A11's member vocabulary
+/// `None` when the side is outside A11's member vocabulary
 /// ([`member_of`] answers `None`), or when the name at the member's
 /// instance is not one `InPart` round a face, which a name an
 /// instance mints always is.
@@ -396,29 +388,85 @@ pub fn head_face<P>(doc: &Doc<P>, head: &crate::node::SitedFace) -> Option<crate
     walk(doc, head).ok()?.part_face()
 }
 
-/// **[`member_of`] for a MATE's reference**: the walk, with the mate
-/// and side that attribute its refusal (N5).
+/// **[`member_of`] of a mate side the document holds**: the side's head
+/// ([`head_of`]) walked to its member.
+pub(crate) fn member_of_side<P>(doc: &Doc<P>, side: crate::VarId) -> Option<Member> {
+    member_of(doc, &head_of(doc, side)?)
+}
+
+/// **A mate side's head, read off its selection** (D10): the node whose
+/// output the selection's body read is, and the one face name the
+/// selection holds — where the member walk starts.
 ///
-/// The one door the solve reads a reference through — the member for
-/// the pair keying and the partitions, the chain for the offset. A
-/// second door answering only the member would be a second name for
-/// one walk, and the caller that wanted both would take whichever it
+/// `None` when `side` is no live selection of one face name in a body
+/// a live operation defines: the selection, or the body it is read
+/// in, was deleted, or it holds a name of another kind. Each is the
+/// mate's evaluation's refusal in its own words (the read's
+/// `UnresolvedRead`, the selection's `SelectKind`).
+pub fn head_of<P>(doc: &Doc<P>, side: crate::VarId) -> Option<crate::node::SitedFace> {
+    let select = doc.selection(side)?;
+    let [name] = select.names.as_slice() else {
+        return None;
+    };
+    let name = crate::FaceName::new(name.clone()).ok()?;
+    Some(crate::node::SitedFace::new(
+        doc.operation_of(select.body)?,
+        name,
+    ))
+}
+
+/// **[`member_of`] for a side as an author writes it** — before the edit
+/// door has lowered it: a selection authored at the side, read in the
+/// body its operand names, or an existing selection read by id or by
+/// name. `None` where [`member_of`] would answer `None` of the lowered
+/// side, and for a spelling that is no selection at all, which the
+/// door refuses on its own.
+pub(crate) fn member_authored<P>(doc: &Doc<P>, side: &crate::Operand) -> Option<Member> {
+    use crate::Operand as O;
+    let operation = |body: &O| match body {
+        O::Node(node) | O::Output { node, .. } => Some(*node),
+        O::Var(var) => doc.operation_of(*var),
+        O::Name(name) => doc.operation_of(doc.var_named(name.as_str())?),
+        O::Select { .. } | O::Pose(_) => None,
+    };
+    let head = match side {
+        O::Select { body, names } => {
+            let [name] = names.as_slice() else {
+                return None;
+            };
+            crate::node::SitedFace::new(operation(body)?, crate::FaceName::new(name.clone()).ok()?)
+        }
+        O::Var(var) => head_of(doc, *var)?,
+        O::Name(name) => head_of(doc, doc.var_named(name.as_str())?)?,
+        O::Node(_) | O::Output { .. } | O::Pose(_) => return None,
+    };
+    member_of(doc, &head)
+}
+
+/// **[`member_of`] for a MATE's side**: the walk, with the mate and
+/// side that attribute its refusal (N5).
+///
+/// The one door the solve reads a side through — the member for the
+/// pair keying and the partitions, the chain for the offset. A second
+/// door answering only the member would be a second name for one
+/// walk, and the caller that wanted both would take whichever it
 /// remembered.
 ///
 /// # Errors
 ///
-/// [`MateFault::DanglingHead`] naming the node the WALK STOPPED AT,
-/// which is where the reference stopped resolving: a stranded
-/// operand, or the first node the chain met that no member stands on.
-/// Naming the reference's own head instead would attribute the
+/// [`MateFault::SideUnresolved`] where the side reads no head
+/// ([`head_of`]); [`MateFault::DanglingHead`] naming the node the WALK
+/// STOPPED AT, the first node below the side's body that no member
+/// stands on. Naming the side's own head instead would attribute the
 /// refusal to a node that is often perfectly live and perfectly fine.
-pub(super) fn walk_of<'r, P>(
+pub(super) fn walk_of<P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
     side: MateSide,
-    r: &'r crate::node::SitedFace,
-) -> Result<Walk<'r>, MateFault> {
-    walk(doc, r).map_err(|head| MateFault::DanglingHead { mate, side, head })
+    read: crate::VarId,
+) -> Result<Walk, MateFault> {
+    let head = head_of(doc, read).ok_or(MateFault::SideUnresolved { mate, side, read })?;
+    walk(doc, &head).map_err(|head| MateFault::DanglingHead { mate, side, head })
 }
 
 /// **The per-reference checks that need a number** — run once per
@@ -484,7 +532,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
     env: &VarEnv<S>,
     mate: RecipeNodeId,
     side: MateSide,
-    w: &Walk<'_>,
+    w: &Walk,
 ) -> Result<(), MateFault> {
     // One pattern level of the chain, outermost first: the copy the
     // name says, its evaluated count, and the `Part` above it if any.
@@ -607,10 +655,23 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
         // evaluation judges it: an index outside it selects no copy, and
         // the `Part` fails on it in its own right.
         if !(0..i64::from(bodies)).contains(&selected) {
+            // The read the index is judged against: a `Part` whose
+            // source no live operation defines refuses that, as the
+            // evaluation refuses it, rather than naming itself.
+            let Some(input) = doc.operation_of(*of) else {
+                return Err(refused(
+                    part,
+                    NodeErrorKind::UnresolvedRead {
+                        slot: crate::OperandSlot::Of,
+                        var: *of,
+                    },
+                    PlacerRow::Silent,
+                ));
+            };
             return Err(refused(
                 part,
                 NodeErrorKind::InstanceOutOfRange {
-                    input: *of,
+                    input,
                     index: selected,
                     count: bodies as usize,
                 },
@@ -694,7 +755,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
 /// **One length decision, two funnel names, ratified.** A circular
 /// rule's direction is a DATUM's axis direction, and this derivation
 /// re-derives it from the recipe expressions rather than reading the
-/// evaluated `DatumValue` whose `UnitVec3` normalized the same
+/// evaluated `PoseValue` whose `UnitVec3` normalized the same
 /// triple. So one datum direction is decided under two predicate
 /// names depending on which road reaches it — same body, same
 /// refusal shape, different name in the K census. That split is
@@ -712,7 +773,7 @@ pub(super) fn derived_offset<P: crate::ProfilePayload, T: Decide>(
     env: &VarEnv<T>,
     mate: RecipeNodeId,
     side: MateSide,
-    w: &Walk<'_>,
+    w: &Walk,
     band: Band,
 ) -> Result<Option<Affine3<T>>, Box<MateFault>> {
     let mut composed: Option<Affine3<T>> = None;
@@ -811,8 +872,9 @@ fn pattern_map<P: crate::ProfilePayload, T: Decide>(
             // The operand-KIND question is the pattern's wiring, and
             // its refusal is seated where `axis_datum` says; everything
             // read out of the datum below is the datum's.
-            let datum = axis_datum(doc, node, *axis)?;
-            let at_datum = |kind| Box::new((*axis, kind));
+            let axis = crate::eval::read_at(doc, crate::OperandSlot::Axis, *axis).map_err(here)?;
+            let datum = axis_datum(doc, node, axis)?;
+            let at_datum = |kind| Box::new((axis, kind));
             let dvals = node_slots(datum, env).map_err(at_datum)?;
             SteppedOperands::circular(
                 Point3::origin() + need_vec3(&dvals, SlotId::Origin).map_err(at_datum)?,
@@ -932,10 +994,10 @@ fn axis_datum<P>(
 /// compared. The body is authored through `apply` so the evaluation's
 /// own reading of the pattern is not masked by an input it refuses;
 /// the datums, the transforms and the pattern are written straight
-/// into the map and the order, because the state some rows need — a
-/// transform whose input is no live node — is one the doors refuse
-/// (`DeleteWouldDangle` at `apply`, liveness at `load`), and a
-/// hand-built document is what the spec sanctions for it.
+/// into the map, because the states some rows need — a read of the
+/// wrong kind — are ones the doors refuse (`SlotVarKind` at `apply`
+/// and at `load`), and a hand-built document is what the spec
+/// sanctions for it.
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -950,19 +1012,26 @@ mod tests {
     use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
-    /// The hand-pushed ids are chosen, not minted; the dangling one
-    /// names no node. Their ordinals follow the 60 log entries `build`
-    /// mints before them (its three inserts, every slot's variable and
-    /// each insert's output).
+    /// The hand-pushed ids are chosen, not minted; the dangling read
+    /// names no live output. Their ordinals follow the 60 log entries
+    /// `build` mints before them (its three inserts, every slot's
+    /// variable and each insert's output): the nodes, then their
+    /// outputs.
     const AXIS: RecipeNodeId = RecipeNodeId::new(61, 10);
     const FRAME2: RecipeNodeId = RecipeNodeId::new(62, 11);
     const T1: RecipeNodeId = RecipeNodeId::new(63, 12);
     const T2: RecipeNodeId = RecipeNodeId::new(64, 13);
     const PATTERN: RecipeNodeId = RecipeNodeId::new(65, 14);
-    const DANGLING: RecipeNodeId = RecipeNodeId::new(66, 40);
-    const MATE: RecipeNodeId = RecipeNodeId::new(67, 50);
+    const MATE: RecipeNodeId = RecipeNodeId::new(66, 50);
+    const AXIS_OUT: crate::VarId = crate::VarId::new(67, 20);
+    const FRAME2_OUT: crate::VarId = crate::VarId::new(68, 21);
+    const T1_OUT: crate::VarId = crate::VarId::new(69, 22);
+    const T2_OUT: crate::VarId = crate::VarId::new(70, 23);
+    const PATTERN_OUT: crate::VarId = crate::VarId::new(71, 24);
+    /// Minted and gone: the output of an operation since deleted.
+    const DANGLING: crate::VarId = crate::VarId::new(72, 40);
 
-    fn xf(input: RecipeNodeId) -> crate::AuthoredNode {
+    fn xf(input: crate::VarId) -> crate::AuthoredNode {
         Node::transform(
             input,
             crate::Step::Rigid {
@@ -1013,7 +1082,7 @@ mod tests {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![
                     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap(),
                 ],
@@ -1023,17 +1092,18 @@ mod tests {
         let (mut doc, body) = ins(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: crate::ExtrudeSide::Along,
             },
         );
+        let body_out = doc.output(body, 0).expect("the body's output");
         let id = |s: Src| match s {
-            Src::Body => body,
-            Src::Axis => AXIS,
-            Src::Frame => FRAME2,
-            Src::T1 => T1,
-            Src::T2 => T2,
+            Src::Body => body_out,
+            Src::Axis => AXIS_OUT,
+            Src::Frame => FRAME2_OUT,
+            Src::T1 => T1_OUT,
+            Src::T2 => T2_OUT,
             Src::Dangling => DANGLING,
         };
         // Stored first, so the variables their slots mint are logged
@@ -1042,34 +1112,60 @@ mod tests {
             (AXIS, axis_datum_node()),
             (FRAME2, xy_frame()),
             (T1, xf(id(t1_in))),
-            (T2, xf(T1)),
+            (T2, xf(T1_OUT)),
             (
                 PATTERN,
                 Node::Pattern {
-                    input: body,
+                    input: body_out.into(),
                     count: crate::Formula::count(4),
                     kind: PatternKind::Circular {
-                        axis: id(axis_operand),
+                        axis: id(axis_operand).into(),
                         step: ang(0.5),
                     },
                 },
             ),
         ]
         .into_iter()
-        .map(|(id, node)| (id, crate::test_support::stored(&mut doc, &node)))
+        .map(|(id, node)| {
+            // Each read is stored as chosen, a dangling one included:
+            // the state no door writes is the one these rows need.
+            let stored = node.try_map_slots(
+                |p, f, r| crate::ProfilePayload::lower(p, f, r),
+                &mut |e| crate::edit::lower_slot_into(&mut doc, e),
+                &mut |_, read| match read {
+                    crate::Operand::Var(var) => Ok(*var),
+                    other => unreachable!("every row reads a variable by id, not {other:?}"),
+                },
+            );
+            (id, stored.expect("a node the document can answer lowers"))
+        })
         .collect();
         doc.nodes.extend(stored);
-        doc.mint = doc
-            .mint
-            .clone()
-            .logged([AXIS, FRAME2, T1, T2, PATTERN, DANGLING, MATE].map(crate::Minted::Node));
+        doc.mint = doc.mint.clone().logged(
+            [AXIS, FRAME2, T1, T2, PATTERN, MATE]
+                .map(crate::Minted::Node)
+                .into_iter()
+                .chain(
+                    [AXIS_OUT, FRAME2_OUT, T1_OUT, T2_OUT, PATTERN_OUT, DANGLING]
+                        .map(crate::Minted::Var),
+                ),
+        );
+        for (out, kind, node) in [
+            (AXIS_OUT, crate::VarKind::Axis, AXIS),
+            (FRAME2_OUT, crate::VarKind::Frame, FRAME2),
+            (T1_OUT, crate::VarKind::Body, T1),
+            (T2_OUT, crate::VarKind::Body, T2),
+            (PATTERN_OUT, crate::VarKind::Bodies, PATTERN),
+        ] {
+            doc.vars.insert(out, crate::Var::output(kind, node, 0));
+        }
         (doc, body)
     }
 
     /// The walk a reference to copy 1 of the pattern records, `head`
     /// standing for both its name and the name it reached at the
     /// instance (the offset reads neither).
-    fn copy_one(instance: RecipeNodeId, head: &crate::FaceName) -> Walk<'_> {
+    fn copy_one(instance: RecipeNodeId, head: &crate::FaceName) -> Walk {
         Walk {
             member: Member {
                 instance,
@@ -1083,8 +1179,8 @@ mod tests {
                 i: 1,
                 part: None,
             }],
-            head,
-            placed: head,
+            head: head.clone(),
+            placed: (**head).clone(),
         }
     }
 
@@ -1152,6 +1248,10 @@ mod tests {
                 NodeErrorKind::MissingInput { input: x },
                 NodeErrorKind::MissingInput { input: y },
             ) => x == y,
+            (
+                NodeErrorKind::UnresolvedRead { slot: xs, var: xv },
+                NodeErrorKind::UnresolvedRead { slot: ys, var: yv },
+            ) => xs == ys && xv == yv,
             (
                 NodeErrorKind::WrongOperand {
                     input: xi,
@@ -1227,8 +1327,8 @@ mod tests {
         ev
     }
 
-    fn missing(input: RecipeNodeId) -> impl Fn(&NodeErrorKind) -> bool {
-        move |k| matches!(k, NodeErrorKind::MissingInput { input: i } if *i == input)
+    fn unresolved(slot: crate::OperandSlot, var: crate::VarId) -> impl Fn(&NodeErrorKind) -> bool {
+        move |k| matches!(k, NodeErrorKind::UnresolvedRead { slot: s, var: v } if *s == slot && *v == var)
     }
 
     fn wrong(
@@ -1255,7 +1355,7 @@ mod tests {
             Src::Dangling,
             Src::T1,
             T1,
-            missing(DANGLING),
+            unresolved(crate::OperandSlot::Input, DANGLING),
         );
         poisoned_through(&ev, PATTERN, T1);
     }
@@ -1270,7 +1370,7 @@ mod tests {
             Src::Dangling,
             Src::T2,
             T1,
-            missing(DANGLING),
+            unresolved(crate::OperandSlot::Input, DANGLING),
         );
         poisoned_through(&ev, T2, T1);
         poisoned_through(&ev, PATTERN, T1);
@@ -1285,7 +1385,7 @@ mod tests {
             Src::Body,
             Src::Dangling,
             PATTERN,
-            missing(DANGLING),
+            unresolved(crate::OperandSlot::Axis, DANGLING),
         );
     }
 
@@ -1364,11 +1464,11 @@ mod tests {
     /// **A transform over a DATUM as the axis is the TRANSFORM's own
     /// refusal on both roads** — a datum is not placeable, so the
     /// transform fails with `WrongOperand` in the placer's own words
-    /// and the pattern is poisoned through it. This shape is
-    /// admitted by `apply`, so it is the one seat a document author
-    /// can reach; the derivation seats it where the evaluation does
-    /// by inheriting the classifier's seat rather than reading the
-    /// operand's family for itself.
+    /// and the pattern is poisoned through it. The doors refuse this
+    /// shape by kind (`SlotVarKind`), so the rows build it by hand;
+    /// the derivation seats it where the evaluation does by inheriting
+    /// the classifier's seat rather than reading the operand's family
+    /// for itself.
     #[test]
     fn a_transform_over_a_datum_as_the_axis_seats_at_the_transform_on_both_roads() {
         for (label, src, datum) in [

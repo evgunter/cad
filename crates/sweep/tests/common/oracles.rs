@@ -311,7 +311,7 @@ fn disc_in_rect(rho: f64, (cx, cy): (f64, f64), (x0, x1): (f64, f64), (y0, y1): 
 }
 
 /// Adaptive Simpson on `[a, b]`.
-fn simpson(f: &dyn Fn(f64) -> f64, a: f64, b: f64) -> f64 {
+pub fn simpson(f: &dyn Fn(f64) -> f64, a: f64, b: f64) -> f64 {
     /// One panel `(a, b)`, its end and middle values, and its estimate.
     fn step(
         f: &dyn Fn(f64) -> f64,
@@ -357,4 +357,13 @@ pub fn ball_in_box(r: f64, c: (f64, f64, f64), b: [(f64, f64); 3]) -> f64 {
 /// The volume of a ball of radius `r`.
 pub fn ball_volume(r: f64) -> f64 {
     4.0 / 3.0 * PI * r.powi(3)
+}
+
+/// **How far a body's integrated volume may stand from its closed
+/// form**: the quadrature's certified pad, the run's ε over the body's
+/// surface (every edge and vertex the kernel places stands within ε of
+/// its carriers, so the boundary between them moves by no more), and the
+/// rounding of the sums.
+pub fn volume_slack(m: &topo::MassProperties<f64>, want: f64) -> f64 {
+    m.volume_pad + m.surface_area * geom_core::Tol::witness().eps() + 1e-12 * want.abs().max(1.0)
 }

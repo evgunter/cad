@@ -51,7 +51,7 @@ use crate::tags::{check_evidence_tag, checks_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
-use super::doc::{Doc, NodeId};
+use super::doc::{Doc, NodeId, Var};
 use super::value::{Body, Evaluation};
 
 /// Which check a finding came from — the registry's closed set.
@@ -333,7 +333,12 @@ impl ChecksConfig {
 /// every accessor here silently answers `None` about.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct CheckEvidence(pub(crate) d::CheckEvidence);
+pub(crate) struct CheckEvidence(
+    pub(crate) d::CheckEvidence,
+    /// The document the checks ran over, which names a coincidence's
+    /// cells.
+    Arc<d::ProfileDoc>,
+);
 
 #[pymethods]
 impl CheckEvidence {
@@ -460,15 +465,22 @@ impl CheckEvidence {
 
     /// What an unproven coincidence decided between its two cells, on
     /// `unproven_coincidence` alone: `same_oriented`, `same_opposite`,
-    /// `on_carrier` or `equal_angles`.
+    /// `on_carrier`, `equal_angles`, `tangent`, `cusp`,
+    /// `tangent_contact`, `seam`, `coaxial` or `co_ruled`. A
+    /// `profile_junction` row is `tangent` or `cusp` between two carriers
+    /// and `same_oriented` where its pieces continue one; a
+    /// `tangent_witness` row is `tangent_contact` (outward sides opposed)
+    /// or `seam` (one face carried on into the other).
     #[getter]
     fn relation(&self) -> Option<&'static str> {
         self.payload().relation
     }
 
     /// Where that coincidence was decided, on `unproven_coincidence`
-    /// alone: `plane_ladder`, `carrier_ladder`, `split_on` or
-    /// `battery_turn`.
+    /// alone: `plane_ladder`, `carrier_ladder`, `tangent_witness`,
+    /// `coaxial_sphere`, `split_on`, `battery_turn`, `battery_joint`,
+    /// `battery_support_axis`, `profile_junction`, `vertex_fusion` or
+    /// `census_at_rest`.
     #[getter]
     fn site(&self) -> Option<&'static str> {
         self.payload().site
@@ -490,6 +502,7 @@ impl CheckEvidence {
                     residual: (**residual).clone(),
                     recourse: *recourse,
                 },
+                &self.1,
             )
             .map(Some),
             _ => Ok(None),
@@ -518,9 +531,9 @@ impl CheckEvidence {
     }
 }
 
-/// One finding of one check on one subject: a body-denoting root
-/// output, attributed as `(root, output_ix)`, or a node of the document
-/// (`node`), root or not — the node that decided an unproven
+/// One finding of one check on one subject: a copy a placement defines,
+/// attributed as `(root, output_ix)` with `root` the placement, or a
+/// node of the document (`node`) — the node that decided an unproven
 /// coincidence. Whichever it is not answers `None`.
 ///
 /// A finding is a REPORT about geometry, not a verdict on the program:
@@ -536,8 +549,8 @@ impl CheckEvidence {
 #[derive(Clone)]
 pub(crate) struct CheckFinding {
     finding: d::CheckFinding,
-    /// The document the checks ran over, the one its roots are spoken
-    /// from.
+    /// The document the checks ran over, the one its placements are
+    /// spoken from.
     doc: Arc<d::ProfileDoc>,
 }
 
@@ -550,39 +563,53 @@ impl CheckFinding {
     }
 
     /// The root whose value carries the subject body; `None` for a
-    /// finding about a node.
+    /// finding about a node or two copies.
     #[getter]
     fn root(&self) -> Option<NodeId> {
         match self.finding.subject {
             d::FindingSubject::Output { root, .. } => Some(NodeId(root)),
-            d::FindingSubject::Node(_) => None,
+            d::FindingSubject::Node(_) | d::FindingSubject::Copies { .. } => None,
         }
     }
 
     /// Which output body of that root — 0 for a single-body root;
-    /// `None` for a finding about a node.
+    /// `None` for a finding about a node or two copies.
     #[getter]
     fn output_ix(&self) -> Option<u32> {
         match self.finding.subject {
             d::FindingSubject::Output { output_ix, .. } => Some(output_ix),
-            d::FindingSubject::Node(_) => None,
+            d::FindingSubject::Node(_) | d::FindingSubject::Copies { .. } => None,
         }
     }
 
     /// The node the finding is about, root or not; `None` for a finding
-    /// about a root output.
+    /// about a root output or two copies.
     #[getter]
     fn node(&self) -> Option<NodeId> {
         match self.finding.subject {
             d::FindingSubject::Node(node) => Some(NodeId(node)),
-            d::FindingSubject::Output { .. } => None,
+            d::FindingSubject::Output { .. } | d::FindingSubject::Copies { .. } => None,
+        }
+    }
+
+    /// The two copies the finding is about, earlier in gather order
+    /// first, each as its placement's output and its member there, as
+    /// `InterferenceFinding.a` spells one; `None` for any other subject.
+    #[getter]
+    fn copies(&self) -> Option<((Var, u32), (Var, u32))> {
+        match self.finding.subject {
+            d::FindingSubject::Copies { a, b } => {
+                let copy = |c: d::CopyRef| (Var::of(&self.doc, c.var), c.member);
+                Some((copy(a), copy(b)))
+            }
+            d::FindingSubject::Output { .. } | d::FindingSubject::Node(_) => None,
         }
     }
 
     /// What was found.
     #[getter]
     fn evidence(&self) -> CheckEvidence {
-        CheckEvidence(self.finding.evidence.clone())
+        CheckEvidence(self.finding.evidence.clone(), Arc::clone(&self.doc))
     }
 
     /// The finding as the library renders one: its subject, then the
@@ -605,6 +632,13 @@ impl CheckFinding {
                 format!("root {}, output {output_ix}", root.full())
             }
             d::FindingSubject::Node(node) => format!("node {}", node.full()),
+            d::FindingSubject::Copies { a, b } => {
+                let copy = |c: d::CopyRef| match c.member {
+                    0 => format!("{}", c.var),
+                    member => format!("{} member {member}", c.var),
+                };
+                format!("copies {} and {}", copy(a), copy(b))
+            }
         };
         format!(
             "CheckFinding({}, {subject}, {:?})",
@@ -651,7 +685,7 @@ impl ChecksReport {
 #[pymethods]
 impl ChecksReport {
     /// The findings, in the registry's deterministic order: each
-    /// resident's own pass by root-list position then output index,
+    /// resident's own pass by placement order then output index,
     /// residents in registry order. NOT one global sort.
     #[getter]
     fn findings(&self) -> Vec<CheckFinding> {
@@ -742,10 +776,10 @@ fn checks_err_saying(py: Python<'_>, err: &d::ChecksError, message: String) -> P
 /// action on it is the caller's move (`enforce_checks`).
 ///
 /// `evaluation` must be an evaluation OF `doc`, and one that ran to
-/// completion: subjects are the body-denoting outputs of the
-/// document's roots, so a root that failed, was poisoned, or was cut
-/// short refuses `root_without_value` rather than reporting over a
-/// partial evaluation.
+/// completion: subjects are the copies the document's placements
+/// define, so a placement that failed, was poisoned, or was cut short
+/// refuses `root_without_value` rather than reporting over a partial
+/// evaluation.
 ///
 /// The residents:
 ///
@@ -756,12 +790,12 @@ fn checks_err_saying(py: Python<'_>, err: &d::ChecksError, message: String) -> P
 ///   orientation read cannot decide surfaces as its own `escalated` /
 ///   `unsupported` finding, never as a silent skip.
 /// * `Separation` — every pair of gathered solids the product took
-///   from DIFFERENT roots, held to the kernel's box-level disjointness
+///   from DIFFERENT placements, held to the kernel's box-level disjointness
 ///   certificate. What a finding denies is the CERTIFICATE, never
 ///   "these two overlap": a pair that merely touches lands here too.
 ///
 /// Expectations are TWO-DIRECTIONAL: an `expected_components` entry no
-/// subject consumed — a vanished body, a dead root, a mistyped key —
+/// subject consumed — a vanished body, a dead placement, a mistyped key —
 /// comes back as its own `stale_expectation` finding. A stale
 /// acknowledgment must not read as "checked and fine".
 ///
@@ -873,7 +907,7 @@ pub(crate) fn enforce_checks(
 #[pyfunction]
 pub(crate) fn subject_body(evaluation: &Evaluation, root: &NodeId, output_ix: u32) -> Option<Body> {
     d::subject_body(&evaluation.inner, root.0, output_ix)
-        .map(|(body, contacts)| Body::declared(body, contacts))
+        .map(|(body, contacts)| Body::recorded(body, contacts))
 }
 
 /// Register the advisory-check registry on the module.

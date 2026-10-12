@@ -29,8 +29,8 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
     select_where,
 };
 use geom_core::sym::report::ShapeOutcome;
@@ -45,9 +45,7 @@ const CHORD_HALF: f64 = 2.0e-3;
 /// The bore's nominal radius.
 const BORE_R: f64 = 0.3e-3;
 /// The authored bulge of the segment's arc — a MAJOR arc, so both
-/// junctions with the chord are corners rather than tangencies (the
-/// kernel refuses an undeclared tangency, which is how the first cut
-/// of this fixture died).
+/// junctions with the chord are corners rather than tangencies.
 const BULGE: f64 = 2.0;
 
 fn plen(n: &'static str) -> Formula {
@@ -116,19 +114,19 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         }),
     ]);
     let seg_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![seg_loop],
         ids: Vec::new(),
     }));
     let thickness = Formula::div(plen("chord_half"), scl(4.0)).expect("Length / Scalar");
     let seg = r.insert(Node::Extrude {
-        profile: seg_profile,
+        profile: seg_profile.into(),
         distance: thickness.clone(),
         side: ExtrudeSide::Along,
     });
     let bore_centre_y = Formula::mul(plen("chord_half"), scl(0.2)).expect("Length * Scalar");
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), bore_centre_y],
             radius: plen("bore_r"),
@@ -136,7 +134,7 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
-        profile: bore_profile,
+        profile: bore_profile.into(),
         distance: thickness,
         side: ExtrudeSide::Along,
     });
@@ -168,12 +166,13 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         };
         vec![wall(seg), wall(bore)]
     };
-    let web = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
+    let web = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let measured = r.measure(&[web], &refs);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure,
+        value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(0.25e-3),
-        dir: editor_core::AssertionDir::AtLeast,
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     (r.doc, measure, assertion)
 }
@@ -218,7 +217,14 @@ fn r1_the_segment_bosss_real_study_end_to_end() {
                     v.decisions()
                 );
                 let stack = editor_core::stackup::stackup(
-                    &doc, measure, &analyzed, &v, None, false, None, tol,
+                    &doc,
+                    crate::fixture::output(&doc, measure),
+                    &analyzed,
+                    &v,
+                    None,
+                    false,
+                    None,
+                    tol,
                 );
                 match &stack {
                     Ok(rep) => println!(

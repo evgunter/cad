@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use editor_core::eval::WitnessSlot;
 use editor_core::{
-    Axis3, BooleanOp, CancelToken, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
+    Axis3, CancelToken, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
     EvalOutcome, Evaluation, NameTable, NamingKey, Node, ProfileDoc, Qualifier, RecipeEditRef,
     RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName, UpstreamCause,
     evaluate, resolve_with_prior,
@@ -50,7 +50,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -77,7 +77,7 @@ fn slide(doc: ProfileDoc, node: RecipeNodeId, axis: Axis3, to: f64) -> ProfileDo
         DocEdit::SetParam {
             node,
             slot: SlotId::Translation(axis),
-            expr: len(to),
+            value: len(to).into(),
             fresh: Vec::new(),
         },
     )
@@ -93,11 +93,9 @@ fn slot(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, tr) = placed(doc, b0);
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b: tr,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: tr.into(),
         },
     );
     (doc, tr, cut)
@@ -168,6 +166,9 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     let Some(Node::Transform { input: bar1, .. }) = doc.node(tr1) else {
         panic!("slot() places the bar behind a transform");
     };
+    let bar1 = &doc
+        .operation_of(*bar1)
+        .expect("the transform reads a live bar");
     let wall = |segment| StableName {
         kind: EntityKind::Face,
         node: *bar1,
@@ -175,12 +176,21 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
             crate::fixture::piece(&doc, *bar1, 0, segment).into(),
         )],
     };
+    let Some(Node::Subtract {
+        tool: tool_read, ..
+    }) = doc.node(cut1)
+    else {
+        panic!("slot() cuts the plate with a subtract");
+    };
     let mut vanished = 0;
     for name in &names {
         // The plate's fragments; the bar's edges are lone pieces whose
         // ends the slide moves.
         if ev2.value(cut1).unwrap().name_table.lookup(name).is_some()
-            || matches!(name.path.first(), Some(RoleSeg::FromB(_)))
+            || matches!(
+                name.path.first(),
+                Some(RoleSeg::From { read, .. }) if *read == tool_read.read
+            )
         {
             continue;
         }
@@ -230,30 +240,28 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
     let (doc, tr) = placed(doc, b2);
     let (doc, cutter) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: b1,
-            b: tr,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![b1.into(), tr.into()]),
         },
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b: cutter,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: cutter.into(),
         },
     );
     let ev1 = run(&doc, None);
     let doc2 = slide(doc.clone(), tr, Axis3::Y, 5.0);
     let ev2 = run(&doc2, Some(&ev1));
+    let from_read = crate::fixture::out(&doc, a);
     let pieces: Vec<StableName> = fragments(&ev1, cut)
         .into_iter()
         .filter(|n| {
-            matches!(n.path.first(), Some(RoleSeg::FromA(_)))
-                && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
+            matches!(
+                n.path.first(),
+                Some(RoleSeg::From { read, .. }) if *read == from_read
+            ) && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
                 && ev2.value(cut).unwrap().name_table.lookup(n).is_none()
         })
         .collect();
@@ -284,7 +292,7 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
         predicate: "bool_point_in_solid_plane",
         sign,
     };
-    let (before, after, name) = collapsing_group(cut);
+    let (before, after, name) = collapsing_group(&doc, cut);
     let prior = two_node_eval(&doc, (cutter, vec![verdict(Sign::Negative)]), (cut, before));
     let now = two_node_eval(&doc2, (cutter, vec![verdict(Sign::Positive)]), (cut, after));
     assert!(!editor_core::derivation_nodes(&name).contains(&cutter));
@@ -303,7 +311,14 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
 }
 
 fn set_members(doc: ProfileDoc, node: RecipeNodeId, members: Vec<RecipeNodeId>) -> ProfileDoc {
-    step(doc, DocEdit::SetMembers { node, members }).0
+    step(
+        doc,
+        DocEdit::SetMembers {
+            node,
+            members: editor_core::Bodies::Spelled(members.into_iter().map(Into::into).collect()),
+        },
+    )
+    .0
 }
 
 /// The strict ancestors of `node` in ONE document — the test's own
@@ -311,10 +326,10 @@ fn set_members(doc: ProfileDoc, node: RecipeNodeId, members: Vec<RecipeNodeId>) 
 /// walk under test.
 fn ancestors_in(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
     let mut seen = BTreeSet::new();
-    let mut stack = doc.node(node).map(|n| n.inputs()).unwrap_or_default();
+    let mut stack = doc.upstream(node);
     while let Some(n) = stack.pop() {
         if seen.insert(n) {
-            stack.extend(doc.node(n).map(|x| x.inputs()).unwrap_or_default());
+            stack.extend(doc.upstream(n));
         }
     }
     seen
@@ -356,24 +371,20 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     let (doc, p) = insert(
         doc,
         Node::Union {
-            members: vec![c1, c2],
-            declare: Vec::new(),
+            members: editor_core::Bodies::Spelled(vec![c1.into(), c2.into()]),
         },
     );
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: vec![tr, p],
-            declare: Vec::new(),
+            members: editor_core::Bodies::Spelled(vec![tr.into(), p.into()]),
         },
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b: x,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: x.into(),
         },
     );
     let doc2 = set_members(set_members(doc.clone(), x, vec![tr, c3]), p, vec![c1, r]);
@@ -393,7 +404,7 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
         predicate: "bool_point_in_solid_plane",
         sign,
     };
-    let (before, after, name) = collapsing_group(cut);
+    let (before, after, name) = collapsing_group(&doc, cut);
     let prior = hand_eval(
         &doc,
         vec![
@@ -437,14 +448,13 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: vec![b1, b2],
-            declare: Vec::new(),
+            members: editor_core::Bodies::Spelled(vec![b1.into(), b2.into()]),
         },
     );
     let (doc, n) = placed(doc, x);
     let doc2 = set_members(doc.clone(), x, vec![b1, w]);
     assert!(!ancestors_in(&doc, n).contains(&w) && ancestors_in(&doc2, n).contains(&w));
-    let (before, after, name) = collapsing_group(n);
+    let (before, after, name) = collapsing_group(&doc, n);
     let verdict = |sign| Verdict {
         predicate: "bool_point_in_solid_plane",
         sign,
@@ -480,18 +490,15 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: vec![bar, f1],
-            declare: Vec::new(),
+            members: editor_core::Bodies::Spelled(vec![bar.into(), f1.into()]),
         },
     );
     let (doc, tr) = placed(doc, u);
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b: tr,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: tr.into(),
         },
     );
     let doc2 = slide(
@@ -504,7 +511,7 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
     // mentions no partner, so the union is off its path. (A piece of
     // the rim is named by its ends, which cite the union's faces, so
     // there the union is on the path.)
-    let (before, after, name) = collapsing_group(cut);
+    let (before, after, name) = collapsing_group(&doc, cut);
     let prior = hand_eval(&doc, vec![], (cut, before));
     let now = hand_eval(&doc2, vec![], (cut, after));
     assert!(!editor_core::derivation_nodes(&name).contains(&u));
@@ -533,7 +540,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: bar,
+            input: bar.into(),
             count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -544,17 +551,15 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of: pat,
+            of: pat.into(),
             select: editor_core::PartSelect::Instance(editor_core::Formula::count(0)),
         },
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b: part,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: part.into(),
         },
     );
     let ev1 = run(&doc, None);
@@ -602,11 +607,17 @@ fn the_border_delta_outranks_an_upstream_flip() {
     let f = fixture::minted(EntityKind::Body, n, RoleSeg::OutputBody);
     let p = fixture::minted(EntityKind::Body, m, RoleSeg::OutputBody);
     let q = fixture::minted(EntityKind::Body, u, RoleSeg::OutputBody);
+    // Carried through `n`'s own read, so the carry puts nothing but `n`
+    // on the name's path.
+    let n_read = fixture::out(&doc, n);
     let frag_of = |ws: &[&StableName]| StableName {
         kind: EntityKind::Body,
         node: n,
         path: vec![
-            RoleSeg::FromA(f.clone().into()),
+            RoleSeg::From {
+                read: n_read,
+                of: f.clone().into(),
+            },
             RoleSeg::Fragment(Qualifier::Borders(ws.iter().map(|&w| w.clone()).collect())),
         ],
     };
@@ -670,6 +681,7 @@ fn hand_eval(
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
             coincidences: Arc::new([]),
+            cited_inputs: Arc::new([]),
             parts: 1,
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),
@@ -701,15 +713,16 @@ fn hand_eval(
         reused: 0,
         part_evaluations: 0,
         appearance: editor_core::AppearanceResolution::default(),
+        env: Default::default(),
     }
 }
 
 /// Hand-built tables at `cut` for a fragment group that stops being
 /// divided: before, two ranked fragments of the cut's output body —
 /// names that mention no partner, so nothing but `cut` is on their
-/// derivation path — and after, the undivided base. Returns the
-/// tables and the first fragment.
-fn collapsing_group(cut: RecipeNodeId) -> (NameTable, NameTable, StableName) {
+/// derivation path (the carry is through `cut`'s own read) — and after,
+/// the undivided base. Returns the tables and the first fragment.
+fn collapsing_group(doc: &ProfileDoc, cut: RecipeNodeId) -> (NameTable, NameTable, StableName) {
     let body = |i: u32| editor_core::EntityRef {
         body: i,
         key: editor_core::EntityKey::Body,
@@ -718,7 +731,10 @@ fn collapsing_group(cut: RecipeNodeId) -> (NameTable, NameTable, StableName) {
     let base = StableName {
         kind: EntityKind::Body,
         node: cut,
-        path: vec![RoleSeg::FromA(f.clone().into())],
+        path: vec![RoleSeg::From {
+            read: fixture::out(doc, cut),
+            of: f.clone().into(),
+        }],
     };
     let ranked = |rank| {
         let mut name = base.clone();

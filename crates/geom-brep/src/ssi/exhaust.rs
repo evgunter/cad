@@ -77,7 +77,8 @@ use geom_core::interval::max_bound;
 use geom_core::{Interval, Point3, SizedPass, SupSpeed, Vec3};
 
 use super::SsiError;
-use super::enclose::{Box3, NurbsBoxes, implicit_enclosure};
+use super::enclose::{Box3, NurbsBoxes, UvWindow, implicit_enclosure, refused_box};
+use super::four::{Box4, PairBoxes};
 use crate::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite, defect_ending};
 
 /// The refinement floor, as a multiple of ε: a cell narrower than this
@@ -457,7 +458,7 @@ impl FloorRefusal {
             (FloorFault::BelowResolution { .. }, ExhaustLane::R3) => R3_SCALE,
             (FloorFault::BelowResolution { .. }, ExhaustLane::Chart { .. }) => CHART_SCALE,
         };
-        decision.recourse(RefusedArm::SignCertain, reading)
+        decision.recourse(RefusedArm::SignCertain(None), reading)
     }
 }
 
@@ -997,6 +998,19 @@ pub(crate) struct UvRect {
 }
 
 impl UvRect {
+    /// The rectangle as a [`UvWindow`], or `None` when a side has a NaN
+    /// end or is inverted: such a rectangle names no region, and no
+    /// reading is taken over it.
+    pub(crate) fn window(self) -> Option<UvWindow> {
+        UvWindow::new(self.u.0, self.u.1, self.v.0, self.v.1)
+    }
+
+    /// Whether the chart point `(u, v)` lies in the rectangle, sides
+    /// included.
+    pub(crate) fn holds(self, (u, v): (f64, f64)) -> bool {
+        u >= self.u.0 && u <= self.u.1 && v >= self.v.0 && v <= self.v.1
+    }
+
     /// The wider side; `NaN` when either side is, so a NaN side fails
     /// the floor test rather than dropping out of it.
     fn width(self) -> f64 {
@@ -1197,7 +1211,9 @@ fn sweep_chart_plane(
 ) -> Result<(SweepTally, Vec<(f64, f64)>), SsiError> {
     let boxes = NurbsBoxes::new(surface);
     sweep(floor, duty, |cell| {
-        let b = boxes.rect_box(cell.u.0, cell.u.1, cell.v.0, cell.v.1);
+        let b = cell
+            .window()
+            .map_or_else(refused_box, |w| boxes.rect_box(w));
         let phi = Interval::point(plane_normal.x) * (b.x - Interval::point(plane_origin.x))
             + Interval::point(plane_normal.y) * (b.y - Interval::point(plane_origin.y))
             + Interval::point(plane_normal.z) * (b.z - Interval::point(plane_origin.z));
@@ -1214,6 +1230,132 @@ fn sweep_chart_plane(
             });
         }
         Ok(excludes_zero(phi))
+    })
+}
+
+/// A box in the NURBS × NURBS lane's ℝ⁴ state space — the pair lane's
+/// cell — with each coordinate's chart speed over the faster of the
+/// four, `scale`, so its width reads every side in one unit: chart units
+/// at the fastest speed, which the lane's floor is stated in.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PairCell {
+    /// The box.
+    pub(crate) b: Box4,
+    /// Each coordinate's chart speed over the fastest, in `(0, 1]`.
+    pub(crate) scale: [f64; 4],
+}
+
+impl SweepCell for PairCell {
+    type Seed = [f64; 4];
+
+    fn width(self) -> f64 {
+        (0..4).fold(0.0, |w, k| {
+            max_bound(w, (self.b.0[k].1 - self.b.0[k].0) * self.scale[k])
+        })
+    }
+    fn seed(self) -> [f64; 4] {
+        self.b.0.map(|(a, b)| 0.5 * (a + b))
+    }
+    fn split(self) -> (Self, Self) {
+        let k = super::four::heaviest(&super::four::ALL_AXES, |k| {
+            (self.b.0[k].1 - self.b.0[k].0) * self.scale[k]
+        });
+        let (lo, hi) = self.b.0[k];
+        let m = 0.5 * (lo + hi);
+        let (mut a, mut b) = (self, self);
+        a.b.0[k] = (lo, m);
+        b.b.0[k] = (m, hi);
+        (a, b)
+    }
+    fn contained_in(self, o: Self) -> bool {
+        self.b.contained_in(o.b)
+    }
+    fn reach(self) -> f64 {
+        self.b
+            .0
+            .iter()
+            .fold(0.0, |m, &(a, b)| max_bound(m, max_bound(a.abs(), b.abs())))
+    }
+    fn finest_at(reach: f64) -> Self {
+        Self {
+            b: Box4([(reach.next_down(), reach); 4]),
+            scale: [1.0; 4],
+        }
+    }
+}
+
+impl SweepFloor<PairCell> {
+    /// The pair lane's floor over `root`: `meters` divided into chart
+    /// units by `speed`, the fastest of the two charts' four speeds.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::FloorUnresolvable`] as [`SweepFloor::mint`].
+    pub(crate) fn pair(
+        root: PairCell,
+        meters: f64,
+        speed: SupSpeed<f64>,
+        floor: FloorKind,
+    ) -> Result<Self, SsiError> {
+        let lane = ExhaustLane::Chart { speed };
+        Self::mint(root, lane, floor, meters, speed.to_param(meters))
+    }
+}
+
+/// **Seed generation**, pair lane: the centres of the cells whose two
+/// charts' boxes are not certified apart.
+///
+/// # Errors
+///
+/// As [`account_pair`], minus the floor refusal.
+pub(crate) fn seed_pair(
+    pair: &PairBoxes<'_, f64>,
+    floor: SweepFloor<PairCell>,
+) -> Result<Vec<[f64; 4]>, SsiError> {
+    let (_, seeds) = sweep_pair(pair, floor, SweepDuty::Seed)?;
+    Ok(seeds)
+}
+
+/// **The accounting proof**, pair lane: every leaf of the product of the
+/// two knot rectangles is excluded — the two charts' boxes over it
+/// certified apart — or lies inside one of `tubes`; a cell that is
+/// neither, at the floor, is the typed refusal, `tubes` empty included.
+///
+/// # Errors
+///
+/// As [`account_r3`].
+pub(crate) fn account_pair(
+    pair: &PairBoxes<'_, f64>,
+    tubes: &[PairCell],
+    floor: SweepFloor<PairCell>,
+) -> Result<Exhaustiveness, SsiError> {
+    let duty = SweepDuty::Account {
+        tubes,
+        regions: &[],
+        clear: &[],
+    };
+    let (tally, _) = sweep_pair(pair, floor, duty)?;
+    Ok(tally.receipt(floor.lane, floor.width()))
+}
+
+/// The pair lane's exclusion rule, over the one shared [`sweep`]: a cell
+/// is solution-free when a component of `S₁ − S₂`, enclosed by the two
+/// charts' first-order boxes over it, excludes zero.
+fn sweep_pair(
+    pair: &PairBoxes<'_, f64>,
+    floor: SweepFloor<PairCell>,
+    duty: SweepDuty<'_, PairCell>,
+) -> Result<(SweepTally, Vec<[f64; 4]>), SsiError> {
+    sweep(floor, duty, |cell| {
+        let f = pair.residual(cell.b);
+        if f.iter().any(|c| !c.is_certified()) {
+            return Err(SsiError::UnsupportedCertificate {
+                what: "the NURBS control-net enclosure refused over a cell — \
+                       a weight so small that the rational's own denominator \
+                       underflows to zero",
+            });
+        }
+        Ok(f.into_iter().any(excludes_zero))
     })
 }
 

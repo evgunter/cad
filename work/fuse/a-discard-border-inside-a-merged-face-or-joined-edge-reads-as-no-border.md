@@ -28,6 +28,5 @@ question for the naming layer and not a kernel fix.
 
 Measured on the lattice-brick corpus
 (`crates/topo/tests/fused_into_live_cells.rs`, which pins the count: 1000
-bricks against `[0, 2]³` under all three operations, every coplanar
-pair declared): 2448 of 27,000 bordered stretches have an end, fused or
+bricks against `[0, 2]³` under all three operations): 2448 of 27,000 bordered stretches have an end, fused or
 not, that settles inside an edge or a face.

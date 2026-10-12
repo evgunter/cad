@@ -29,7 +29,7 @@
 //! - a flat cutter with a thin half-rod on the axis leaves role
 //!   resolution only the rim's CHORD midpoint to probe, which is on
 //!   neither flanking region, and the join refuses `SectionLoopMixed`
-//!   (`work/join/role-resolution-interior-tiers-certify-only-planar-region-faces`);
+//!   (`role-resolution-interior-tiers-certify-only-planar-region-faces`, JOIN, closed at JOIN's opening on what main carried);
 //! - a blind D pocket in a block builds from either face: from the
 //!   bottom its floor's chord has the D's arc between its ends; from the
 //!   top the D's arc side closes the ring-lane run the flat side's
@@ -391,7 +391,7 @@ fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
         text.starts_with(
             "whether the curve is a circle or an ellipse is undecided for the section through \
              a curved face: "
-        ) && text.ends_with(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE)),
+        ) && text.ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
         "{text}"
     );
     assert!(

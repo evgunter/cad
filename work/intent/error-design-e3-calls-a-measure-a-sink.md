@@ -2,11 +2,12 @@
 id: error-design-e3-calls-a-measure-a-sink
 kind: issue
 title: ERROR-DESIGN E3 describes a Measure as a recipe sink that poisons no one, a consuming-model holdover
-status: open
+status: closed
 opened: 2026-10-07
 priority: P2
 cost: E
 refs: [d10-one-way-to-say-intent-is-unbuilt, a-measured-part-is-not-a-product-root]
+closed: 2026-10-08
 ---
 
 `docs/ERROR-DESIGN.md` E3 (heading at `:143`) calls a measurement "ONE dimension-generic recipe **sink** node", one that poisons no descendant, "F2 verbatim; sinks have none" (`:156`). It also accepts "DAG pollution — dozens of measurement sinks". That describes the consuming model D10 retired ("nothing consumes anything"). Two things are wrong with it:

@@ -836,7 +836,6 @@ fn the_cut_cylinders_ellipse_face_takes_nothing_away() {
 fn the_cut_cylinder_reads_its_truth() {
     let band = Band::linear(tol()).expect("the witness band");
     let mut wrong = Vec::new();
-    let (mut answered, mut at_infinity) = (0usize, 0usize);
     for above in [true, false] {
         let half = tilted_cut_cylinder(above);
         for (pose, map) in poses() {
@@ -859,17 +858,8 @@ fn the_cut_cylinder_reads_its_truth() {
                             SolidContainment::Out
                         };
                         match point_in_solid(&posed, map.transform_point(p), band, tol()) {
-                            Ok(got) => {
-                                answered += 1;
-                                if got != want {
-                                    wrong
-                                        .push(format!("above = {above} | {pose} | {p:?}: {got:?}"));
-                                }
-                            }
-                            Err(PointInSolidError::VolumeUncertified) => at_infinity += 1,
-                            Err(e) => {
-                                wrong.push(format!("above = {above} | {pose} | {p:?}: {e:?}"))
-                            }
+                            Ok(got) if got == want => {}
+                            got => wrong.push(format!("above = {above} | {pose} | {p:?}: {got:?}")),
                         }
                     }
                 }
@@ -877,14 +867,6 @@ fn the_cut_cylinder_reads_its_truth() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
-    // The only refusal is the at-infinity side (a ray that crosses
-    // nothing, whose side the props lane cannot give for this wall), and
-    // it cannot be most of the grid: a wall read would have to be
-    // refused for that.
-    assert!(
-        answered > at_infinity,
-        "answered {answered}, at-infinity refusals {at_infinity}"
-    );
 }
 
 /// **A point ON the wall but below the section is not on the upper
@@ -1290,7 +1272,7 @@ fn every_tilted_cut_wall_reads_its_truth() {
     let band = Band::linear(tol()).expect("the witness band");
     let mut problems = Vec::new();
     for case in tilted_cut_cases() {
-        let (mut answered, mut wrong, mut at_infinity, mut escalated) = (0, 0, 0, 0);
+        let (mut answered, mut wrong, mut escalated) = (0, 0, 0);
         for (pose, map) in poses() {
             let posed = transform_rigid(&case.body, &map, tol()).unwrap();
             for i in 0..5 {
@@ -1316,7 +1298,6 @@ fn every_tilted_cut_wall_reads_its_truth() {
                                         .push(format!("{} | {pose} | {p:?}: {got:?}", case.name));
                                 }
                             }
-                            Err(PointInSolidError::VolumeUncertified) => at_infinity += 1,
                             Err(PointInSolidError::Escalated { diag, .. })
                             | Err(PointInSolidError::Loop(topo::PointInLoopError::Escalated {
                                 diag,
@@ -1333,8 +1314,7 @@ fn every_tilted_cut_wall_reads_its_truth() {
             }
         }
         eprintln!(
-            "MEASURE {}: answered {answered}, wrong {wrong}, at-infinity {at_infinity}, \
-             escalated {escalated}",
+            "MEASURE {}: answered {answered}, wrong {wrong}, escalated {escalated}",
             case.name
         );
         let (floor, cap) = answered_floor_and_escalation_cap(case.name);
@@ -1401,23 +1381,23 @@ fn a_ray_exiting_through_the_section_edge_is_set_aside() {
     }
 }
 
-/// **A ray that meets nothing blocks only where no ray settles, and it
-/// says so.** From this point beside the cut cylinder, just above the
+/// **A ray that meets nothing is sided where the volume cannot be
+/// measured.** From this point beside the cut cylinder, just above the
 /// floor's plane, some rays meet nothing and others meet the boundary
-/// only within the band: at the witness band no ray settles, and the
-/// refusal is the volume's — one of its rays met nothing, and no other
-/// settled it. A tighter band decides those rays and answers. Both are
-/// pinned: the refusal is not a claim that no ray met the boundary.
+/// only within the band. The closed-form volume cannot read the
+/// at-infinity side of a wall the tilted cut trims along an ellipse; a
+/// ray aimed from far out along a missed ray at a planar face reads it,
+/// at the witness band and at a tighter one alike.
 #[test]
-fn a_ray_meeting_nothing_refuses_only_where_no_ray_settles() {
+fn a_ray_meeting_nothing_is_sided_by_a_ray_aimed_at_a_planar_face() {
     let body = cut_by(&[Cut::tilted(1.25, 0.3)]);
     let q = Point3::new(-1.7, 0.4, 3e-9);
-    let coarse = point_in_solid(&body, q, Band::new(1e-9, 1e-8).unwrap(), tol());
-    assert_eq!(coarse, Err(PointInSolidError::VolumeUncertified));
-    let msg = coarse.unwrap_err().to_string();
-    assert!(msg.contains("no other test ray settled it"), "{msg}");
-    assert_eq!(
-        point_in_solid(&body, q, Band::new(1e-11, 1e-10).unwrap(), tol()),
-        Ok(SolidContainment::Out)
-    );
+    for band in [Band::new(1e-9, 1e-8), Band::new(1e-11, 1e-10)] {
+        let band = band.unwrap();
+        assert_eq!(
+            point_in_solid(&body, q, band, tol()),
+            Ok(SolidContainment::Out),
+            "{band:?}"
+        );
+    }
 }

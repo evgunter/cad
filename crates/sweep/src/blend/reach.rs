@@ -293,8 +293,13 @@ struct Cell<T: Real> {
 }
 
 impl<T: Real> Cell<T> {
+    /// `lo` and `hi` are box arithmetic's output, so each corner
+    /// coordinate enters as one computed value ([`Real::from_computed`]).
     fn new(lo: [f64; 3], hi: [f64; 3]) -> Self {
-        let p = |v: [f64; 3]| Point3::new(T::from_f64(v[0]), T::from_f64(v[1]), T::from_f64(v[2]));
+        let p = |v: [f64; 3]| {
+            let [x, y, z] = v.map(T::from_computed);
+            Point3::new(x, y, z)
+        };
         let (lo, hi) = (p(lo), p(hi));
         let half = (hi - lo) / T::from_f64(2.0);
         Self {
@@ -1919,7 +1924,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         reaches.push(r);
     }
     let boxes = FaceBoxes::of(body, band)
-        .map_err(|(face, _)| not_intact(EntityId::Face(face), "a face's certified box"))?;
+        .map_err(|e| not_intact(EntityId::Face(e.0), "a face's certified box"))?;
     // Two chains that share a vertex meet there in a corner or a turn,
     // which the corner predicate and the surgery judge: their bands
     // touch by construction.
@@ -2187,7 +2192,38 @@ pub fn band_reach_for_tests<T: Decide + Bounds>(
             BlendKind::Fillet,
         )?);
     }
-    let chains =
+    let (chains, _) =
         super::battery::broken_at_turns(req.body, super::battery::walk_chains(links), band)?;
     band_reach(req.body, &chains, req.size, BlendKind::Fillet, band)
+}
+
+#[cfg(test)]
+mod tests {
+    use geom_core::sym::revalue::revalue;
+    use geom_core::sym::with_session;
+    use geom_core::{ParamSymbol, Sym, SymBudget};
+
+    use super::Cell;
+
+    /// **A cell's corners are computed values**: box arithmetic over the
+    /// faces' certified boxes produced them in `f64`, so at `Sym` each
+    /// is an unknown, and what the cell derives from them (its centre,
+    /// its lever) re-values to nothing rather than to the build's own
+    /// numbers.
+    #[test]
+    fn a_cells_corners_enter_as_computed_values() {
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let none = |_: ParamSymbol| None::<f64>;
+        let (revalued, _) = with_session(budget, || {
+            let cell = Cell::<Sym<f64>>::new([0.0, -1.0, 0.5], [1.0, 2.0, 3.5]);
+            [cell.lo.x, cell.hi.z, cell.c.y, cell.lever].map(|v| revalue(v.node(), &none))
+        });
+        assert_eq!(
+            revalued, [None; 4],
+            "a corner, the centre and the lever are unknowns, not the constants the box read"
+        );
+    }
 }

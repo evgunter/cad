@@ -69,11 +69,11 @@
 #     derived `Debug` every payload carries — and parsing the text back
 #     is a door it cannot see, as obviously wrong as it is long;
 #   * a sentence asked through a public wrapper is invisible: a caller
-#     searching `geom_brep::certify::recourse_in_file`'s,
-#     `SizedDecision::recourse_in_file`'s or
-#     `topo::EulerOpError::render_in_file`'s text with `.contains(..)`
-#     reads the margin's side as surely as one asking the sentence here,
-#     under a name the list does not count;
+#     searching the import door's text (`geom_brep::certify::recourse`,
+#     `SizedDecision::recourse` or `topo::EulerOpError::render` read at
+#     `ReadAt::File`) with `.contains(..)` reads the margin's side as
+#     surely as one asking the sentence here, under a name the list does
+#     not count;
 #   * EQUALITY AGAINST A COMPARAND IT DID NOT MINT is invisible: a site
 #     holding two readings the classifier minted — `sign_within(..)?`'s
 #     or `decide_reported(..)`'s `.margin`, an escalation's — can ask
@@ -101,7 +101,7 @@ DOOR_RE='diagnostic_f64_for_error_text'
 MINT_ALLOWLIST=(
   'crates/geom-core/src/interval.rs 1 the interval classifier reports the enclosure it classified'
   'crates/sweep/src/blend/battery.rs 2 the blend payload reports its companion quantities as its own scalar reads them (the M5 PR 12 seam)'
-  'crates/topo/src/boolean/sectors.rs 1 a bisector read On between definite bounds reports what is known of it, the zero band'
+  'crates/topo/src/boolean/recl.rs 1 a grazing bisector between definite keys rides a record code that keeps no margin, so its On reports the zero band (residue on hand-minted-indeterminate-ratchet-gate)'
   'crates/topo/src/chart_region.rs 1 a definite deduction that cannot certify its outcome echoes the value it classified'
 )
 # `MarginDiag>?::` so the qualified-path form `<…MarginDiag>::value`

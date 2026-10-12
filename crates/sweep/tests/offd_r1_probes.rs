@@ -352,7 +352,7 @@ fn every_err_path_leaves_the_body_bit_untouched() {
             "d = {d} ({e}): the body must be bit-untouched on Err"
         );
     }
-    // The fitted boundary, both signs — the refusal the PR says fires
+    // The fitted wall's seam with a held wall, both signs: it refuses
     // AFTER the fit door ran but BEFORE any mutation.
     for d in [5e-10_f64, -5e-10] {
         let mut body = prism();
@@ -369,10 +369,7 @@ fn every_err_path_leaves_the_body_bit_untouched() {
         let before = dump(&body);
         let e = topo::replace_face_offset(&mut body, wall, d, Tol::witness())
             .expect_err("the fitted boundary refuses");
-        assert!(
-            matches!(e, ReplaceFaceError::FittedBoundaryUnsupported { .. }),
-            "got {e}"
-        );
+        common::approx::assert_seam_verdict("planar prism", false, d, &e);
         assert_eq!(
             dump(&body),
             before,
@@ -427,27 +424,15 @@ fn a_side_wall_replacement_re_anchors_the_rim_arcs() {
     }
 }
 
-/// **Which leg of the fitted obstruction fires, and on a CURVED fit
-/// too.** The spec's acceptance named "an Approx replacement on a
-/// curved fit"; the suite's prism walls are PLANAR splines. The
-/// twisted loft's saddle walls are genuinely curved, so this row runs
-/// the door there: the fit door must still run (a fit refusal would
-/// surface as `Fit`, not `FittedBoundaryUnsupported`) and the refusal
-/// must still be the structural one. Both rows also pin WHICH leg the
-/// loop walk hits, which the suite left as bookkeeping.
-///
-/// **Re-expressed at PCURVE P-1b, and the leg list retired with it.**
-/// Two of the five legs this row enumerated no longer exist: U2
-/// collapsed `IsoCurve`/`Seam`/`MappedCurve` into one conventional
-/// form, so "an iso-curve of a neighbour's chart" and "a periodic
-/// seam" merged into "a chart image of a neighbour's chart", and the
-/// "a mapped rim (a v-row is not an `IsoCurve`)" refusal was retired
-/// outright — a rim is a chart image like any other, and a u-const one
-/// takes the exact-row lane whatever minted it (P-1b item 4). Rather
-/// than swap five strings for four, the row now pins the leg EXACTLY,
-/// per fixture: membership in a list of five could never distinguish
-/// a door that fired for the wrong reason from one that fired for the
-/// right one, which is the whole thing this row exists to check.
+/// **Where the fitted obstruction fires, and on a CURVED fit too.**
+/// The prism's walls are PLANAR splines; the twisted loft's saddle
+/// walls are genuinely curved, so this row runs the door on both: the
+/// fit door must still run (a fit refusal would surface as `Fit`) and
+/// the refusal must be an edge's own refused section of the moved fit:
+/// a seam with the next, unmoved spline wall, whose section the
+/// NURBS × NURBS arm refuses (`common::approx::assert_seam_verdict`), or
+/// on the loft the top rim, which leaves the fit's window and is
+/// reported first where the seams' refusals are deferred alike.
 ///
 /// **The curved fixture's outcome depends on ε, and on every ε row CI
 /// gates it is the structural arm.** The offset door's fit target is
@@ -476,23 +461,11 @@ const CURVED_FIT_REACH: f64 = 1e-13;
 
 #[test]
 fn the_fitted_obstruction_holds_on_a_curved_fit() {
-    // Both fixtures' spline walls are bounded by rims described in a
-    // NEIGHBOUR's chart (the cap plane they lie in), so both land on
-    // the same leg — and the row says so by name rather than by
-    // membership.
-    for (name, mut body, leg, curved) in [
-        (
-            "planar prism",
-            prism(),
-            "a curve drawn on a neighbour's surface",
-            false,
-        ),
-        (
-            "twisted loft",
-            twisted_loft(0.3),
-            "a curve drawn on a neighbour's surface",
-            true,
-        ),
+    // One rim is planned before the seam; what each rim does is the
+    // next row's.
+    for (name, mut body, curved) in [
+        ("planar prism", prism(), false),
+        ("twisted loft", twisted_loft(0.3), true),
     ] {
         let wall = body
             .faces()
@@ -507,9 +480,13 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
         let e = topo::replace_face_offset(&mut body, wall, 5e-10, Tol::witness())
             .expect_err("the fitted boundary refuses");
         match e {
-            ReplaceFaceError::FittedBoundaryUnsupported { what, .. } => {
-                assert_eq!(what, leg, "{name}: the wrong leg of the fitted door");
-            }
+            ref e if !curved => common::approx::assert_seam_verdict(name, false, 5e-10, e),
+            ReplaceFaceError::EdgeSection {
+                kind: geom::SurfaceKind::Approx,
+                other_kind: geom::SurfaceKind::Plane,
+                ref verdict,
+                ..
+            } => assert_refused_rim_verdict(name, verdict),
             // The fit could not reach this run's ε, so the structural
             // door was never reached. Legitimate only where the base is
             // genuinely curved AND the run's ε is tighter than what the
@@ -530,8 +507,69 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
                     Tol::witness().eps()
                 );
             }
-            other => panic!("{name}: expected the structural refusal or the fit's, got {other}"),
+            other => panic!("{name}: expected a refused section or the fit's refusal, got {other}"),
         }
+    }
+}
+
+/// **Moved together outward, every edge leaves the fits' windows.** The
+/// general simultaneous door moves every chart of the solid by `100·ε` —
+/// a move the door reads as one at every ε row (`5e-10` is decided zero
+/// at 1e-9), and small enough for the twisted wall's fit to certify
+/// wherever it does at `5e-10`. A wall's seam with the next wall is then
+/// the section of their two moved fits, which the NURBS × NURBS arm
+/// takes. Each moved cap plane misses its walls' fits outward, their
+/// windows the bases' own, and a rim's `NoBranch` is the refusal
+/// reported; the seams' own verdicts are not read here.
+#[test]
+fn moved_together_outward_every_edge_leaves_the_fits_windows() {
+    for (name, body, curved) in [
+        ("planar prism", prism(), false),
+        ("twisted loft", twisted_loft(0.3), true),
+    ] {
+        let moves: Vec<topo::ChartMove<f64>> = body
+            .faces()
+            .map(|(k, _)| topo::ChartMove {
+                faces: vec![k],
+                distance: 100.0 * Tol::witness().eps(),
+            })
+            .collect();
+        let mut moved = body.clone();
+        let e = topo::offset_surfaces_together(
+            &mut moved,
+            &moves,
+            common::approx::band(),
+            Tol::witness(),
+        )
+        .expect_err("a moved cap leaves the fits' windows");
+        if curved && Tol::witness().eps() < CURVED_FIT_REACH {
+            // The twisted wall's fit stops short of ε, and every surface
+            // is minted before any edge is planned.
+            assert!(
+                matches!(e, ReplaceFaceError::Fit { .. }),
+                "{name}: expected the fit to refuse short of ε, got {e}"
+            );
+            continue;
+        }
+        let ReplaceFaceError::EdgeSection {
+            edge,
+            verdict: topo::SectionVerdict::NoBranch,
+            ..
+        } = e
+        else {
+            panic!("{name}: expected a rim to leave the fits' window, got {e}");
+        };
+        let data = body.get_edge(edge).expect("the rim resolves");
+        let kinds: Vec<geom::SurfaceKind> = [data.he_plus, data.he_minus]
+            .into_iter()
+            .filter_map(|he| body.face_of_half_edge(he))
+            .filter_map(|f| body.get_face(f).and_then(|f| body.get_surface(f.surface)))
+            .map(geom::Surface::kind)
+            .collect();
+        assert!(
+            kinds.contains(&geom::SurfaceKind::Plane) && kinds.contains(&geom::SurfaceKind::Nurbs),
+            "{name}: {edge:?} is a rim between a cap and a wall, got {kinds:?}"
+        );
     }
 }
 
@@ -681,4 +719,114 @@ fn a_hex_prisms_side_moves_with_its_corners_on_its_oblique_neighbours() {
             "a corner at {p:?} lies on its oblique neighbour and its cap"
         );
     }
+}
+
+/// **Each fitted wall edge's own verdict, read at its plan.** The door
+/// reports one edge's refusal, so the row above cannot see every edge.
+/// Read per edge
+/// (`topo::offset_edge_plans_for_tests`), moving one wall by the row
+/// above's `d = 5e-10`:
+/// - both rims of the prism's wall derive as the cap planes' sections
+///   of the fit;
+/// - the loft's top rim's section is refused, deferred to the corners:
+///   the offset fit's window, the base's own, stops short of the top cap
+///   plane on this twisted wall, so the plane has no branch through it
+///   (`NoBranch`); its bottom rim derives at every ε ≥ 1e-9 and refuses
+///   alike at 1e-12, where the fit's rows are not level within ε and the
+///   march reads the section through the old rim's middle outside the
+///   fit's window;
+/// - both seams are the NURBS × NURBS section of the fit and the held
+///   wall beside it, and both refuse at that section, each verdict as
+///   `common::approx::assert_seam_verdict` pins it per ε.
+#[test]
+fn a_fitted_walls_rims_answer_for_themselves_behind_its_seams() {
+    let eps = Tol::witness().eps();
+    for (name, body, curved) in [
+        ("planar prism", prism(), false),
+        ("twisted loft", twisted_loft(0.3), true),
+    ] {
+        let wall = body
+            .faces()
+            .find(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface),
+                    Some(geom::Surface::Nurbs(n)) if !n.is_placeholder()
+                )
+            })
+            .map(|(k, _)| k)
+            .unwrap_or_else(|| panic!("{name}: no spline wall"));
+        if curved && eps < CURVED_FIT_REACH {
+            // The fit stops short of ε (the row above's `Fit` arm), and
+            // no edge is planned.
+            continue;
+        }
+        let (mut rims, mut seams) = (Vec::new(), Vec::new());
+        for (edge, verdict) in topo::offset_edge_plans_for_tests(&body, wall, 5e-10, Tol::witness())
+        {
+            let c = body
+                .get_curve_geom(body.get_edge(edge).unwrap().curve)
+                .and_then(topo::CurveGeom::certified)
+                .unwrap();
+            let (t0, t1) = c.params();
+            let (z0, z1) = (c.carrier().eval(t0).z, c.carrier().eval(t1).z);
+            if (z1 - z0).abs() < 1e-9 {
+                rims.push((z0, verdict));
+            } else {
+                seams.push(verdict);
+            }
+        }
+        rims.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let [(_, bottom), (_, top)] = rims.as_slice() else {
+            panic!("{name}: the wall has two rims, got {}", rims.len());
+        };
+        if curved && eps < 1e-9 {
+            let Ok(Some(ReplaceFaceError::EdgeSection { verdict, .. })) = bottom else {
+                panic!("{name}: the bottom rim's section is refused, deferred; got {bottom:?}");
+            };
+            assert_refused_rim_verdict(name, verdict);
+        } else {
+            assert!(
+                matches!(bottom, Ok(None)),
+                "{name}: the bottom rim derives, got {bottom:?}"
+            );
+        }
+        if curved {
+            let Ok(Some(ReplaceFaceError::EdgeSection {
+                kind: geom::SurfaceKind::Approx,
+                other_kind: geom::SurfaceKind::Plane,
+                verdict,
+                ..
+            })) = top
+            else {
+                panic!("{name}: the top rim's section is refused, deferred; got {top:?}");
+            };
+            assert_refused_rim_verdict(name, verdict);
+        } else {
+            assert!(
+                matches!(top, Ok(None)),
+                "{name}: the top rim derives, got {top:?}"
+            );
+        }
+        let [a, b] = seams.as_slice() else {
+            panic!("{name}: the wall has two seams, got {}", seams.len());
+        };
+        for seam in [a, b] {
+            let Ok(Some(e)) = seam else {
+                panic!("{name}: both seams refuse at their section; got {seam:?}");
+            };
+            common::approx::assert_seam_verdict(name, curved, 5e-10, e);
+        }
+    }
+}
+
+/// A loft rim's refused verdict with one wall moved by `5e-10`: the fit's
+/// window, the base's own, stops short of the cap plane on this twisted
+/// wall, so the plane has no branch through the old rim's middle
+/// (`NoBranch`). The top rim's at every ε, the bottom rim's at 1e-12.
+fn assert_refused_rim_verdict(name: &str, verdict: &topo::SectionVerdict) {
+    let eps = Tol::witness().eps();
+    assert!(
+        matches!(verdict, topo::SectionVerdict::NoBranch),
+        "{name}: a refused rim's verdict moved at {eps:e}: {verdict:?}"
+    );
 }

@@ -7,10 +7,7 @@
 //!
 //! The corpus is a lattice of bricks: `[0, 2]³` against every brick
 //! whose span on each axis is one of ten, flush, overlapping or clear of
-//! it, under all three operations, every coplanar face pair declared
-//! (rest where the normals oppose, continuation where they agree). The
-//! zips' fusions live on those declared paths; undeclared, a flush pair
-//! refuses `UndeclaredCoincidence` before any is made.
+//! it, under all three operations.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -18,45 +15,7 @@ use crate::common;
 
 use common::{brick, finished};
 use geom_core::Tol;
-use topo::{
-    Body, BooleanDeclarations, BooleanResult, Cell, FaceKey, FacePairDeclaration, intersect_with,
-    subtract_with, union_with,
-};
-
-/// Each face of a brick with its outward plane, `(normal, offset)`.
-fn planes(b: &Body<f64>) -> Vec<(FaceKey, [f64; 3], f64)> {
-    b.faces()
-        .map(|(k, f)| {
-            let Some(geom::Surface::Plane { origin, normal, .. }) = b.get_surface(f.surface) else {
-                panic!("a brick is planar")
-            };
-            let s = if f.sense { 1.0 } else { -1.0 };
-            let n = [normal.x * s, normal.y * s, normal.z * s];
-            (k, n, n[0] * origin.x + n[1] * origin.y + n[2] * origin.z)
-        })
-        .collect()
-}
-
-/// Every coplanar face pair of `a` and `b`, declared. The lattice's
-/// planes are exact, so equality is the coincidence.
-fn declarations(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::default();
-    for (fa, na, da) in planes(a) {
-        for (fb, nb, db) in planes(b) {
-            let dot = na[0] * nb[0] + na[1] * nb[1] + na[2] * nb[2];
-            if dot == 1.0 && da == db {
-                decls
-                    .coincident_faces
-                    .push(FacePairDeclaration::continuation(fa, fb));
-            } else if dot == -1.0 && da == -db {
-                decls
-                    .coincident_faces
-                    .push(FacePairDeclaration::rest(fa, fb));
-            }
-        }
-    }
-    decls
-}
+use topo::{BooleanResult, Cell, intersect, subtract, union};
 
 /// The corpus, counted: every result builds, every fused vertex settles
 /// on a live cell, and so does each end of every stretch a discard
@@ -92,11 +51,10 @@ fn every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell() {
         for y in spans {
             for z in spans {
                 let b = finished("b", brick::<f64>(x, y, z, tol), tol);
-                let d = declarations(&a, &b);
                 for (op, result) in [
-                    ("union", union_with(&a, &b, &d, tol)),
-                    ("subtract", subtract_with(&a, &b, &d, tol)),
-                    ("intersect", intersect_with(&a, &b, &d, tol)),
+                    ("union", union(&a, &b, tol)),
+                    ("subtract", subtract(&a, &b, tol)),
+                    ("intersect", intersect(&a, &b, tol)),
                 ] {
                     let who = format!("{op} with {x:?} × {y:?} × {z:?}");
                     let result = result.unwrap_or_else(|e| panic!("{who}: {e}"));

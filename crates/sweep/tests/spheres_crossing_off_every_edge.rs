@@ -27,7 +27,7 @@
 
 use geom_core::{Affine3, Band, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled_y, brick, finished};
-use topo::{AtRestBody, BooleanDeclarations, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 use crate::common::differential::outcome;
 use crate::common::oracles::{ball_lens as lens, ball_volume, cap_volume};
@@ -174,22 +174,14 @@ fn assert_six(
     (va, vb, shared): (f64, f64, f64),
     wants: [Want; 6],
 ) {
-    let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
+    let tol = Tol::witness();
     let ops = [
-        (
-            "a ∪ b",
-            va + vb - shared,
-            topo::union_with(a, b, &none, tol),
-        ),
-        (
-            "b ∪ a",
-            va + vb - shared,
-            topo::union_with(b, a, &none, tol),
-        ),
-        ("a ∖ b", va - shared, topo::subtract_with(a, b, &none, tol)),
-        ("b ∖ a", vb - shared, topo::subtract_with(b, a, &none, tol)),
-        ("a ∩ b", shared, topo::intersect_with(a, b, &none, tol)),
-        ("b ∩ a", shared, topo::intersect_with(b, a, &none, tol)),
+        ("a ∪ b", va + vb - shared, topo::union(a, b, tol)),
+        ("b ∪ a", va + vb - shared, topo::union(b, a, tol)),
+        ("a ∖ b", va - shared, topo::subtract(a, b, tol)),
+        ("b ∖ a", vb - shared, topo::subtract(b, a, tol)),
+        ("a ∩ b", shared, topo::intersect(a, b, tol)),
+        ("b ∩ a", shared, topo::intersect(b, a, tol)),
     ];
     for ((op, volume, out), want) in ops.into_iter().zip(wants) {
         check(&format!("{pose}, {op}"), out, (volume, va + vb), want);
@@ -416,13 +408,15 @@ fn two_trimmed_spheres_build() {
 
 /// The trimmed unit ball's face is cut along its meridian through a
 /// circle passing `δ` from its pole, the meridian's boundary hit there
-/// ordered against the circle's crossing by the arc between them. At
-/// `δ = 10⁻⁷` the arc's pcurve beside the pole refuses certification by
-/// name. The distances are band-relative (at `ε = 10⁻⁶` the `10⁻⁵`
-/// circle's crossings read the meridian's half in the escalation gap),
-/// so the other ε rows stand down.
+/// ordered against the circle's crossing by the arc between them. Every
+/// `δ` builds, `10⁻⁷` included: the arc's pcurve beside the pole is the
+/// projected image (C4), whose sector pieces refine toward the pole and
+/// certify while the arc stays clear of it, and every op's volume holds.
+/// The distances are band-relative (at `ε = 10⁻⁶` the `10⁻⁵` circle's
+/// crossings read the meridian's half in the escalation gap), so the
+/// other ε rows stand down.
 #[test]
-fn a_trimmed_face_cut_beside_its_pole_builds_or_refuses_by_name() {
+fn a_trimmed_face_cut_beside_its_pole_builds() {
     if Tol::witness().get().eps != 1e-9 {
         test_utils::vacuity::stood_down(
             "non-default eps",
@@ -438,23 +432,7 @@ fn a_trimmed_face_cut_beside_its_pole_builds_or_refuses_by_name() {
     ));
     let r = 0.01f64;
     let theta = (1.0 - r * r / 2.0).acos();
-    let near_pole = |e: &BooleanError| {
-        let certify = |s: &topo::PcurveMintError| {
-            matches!(
-                s,
-                topo::PcurveMintError::Certify {
-                    error: geom_brep::PcurveCertifyError::ArcNearPole,
-                    ..
-                }
-            )
-        };
-        match e {
-            BooleanError::Pcurves { source } => certify(source),
-            BooleanError::Merge(topo::MergeCoplanarError::Pcurve { source }) => certify(source),
-            _ => false,
-        }
-    };
-    for (delta, want) in [(1e-3, Tilted), (1e-5, Tilted), (1e-7, Refuses(near_pole))] {
+    for delta in [1e-3, 1e-5, 1e-7] {
         let a = theta + delta;
         let small = toward(r, 1.0, Vec3::new(0.0, a.cos(), a.sin()), 0.0);
         assert_six(
@@ -466,7 +444,7 @@ fn a_trimmed_face_cut_beside_its_pole_builds_or_refuses_by_name() {
                 ball_volume(r),
                 lens(1.0, r, 1.0),
             ),
-            [want; 6],
+            [Tilted; 6],
         );
     }
 }
@@ -583,11 +561,15 @@ fn a_ball_escaping_through_a_plane_and_a_sphere() {
 
 /// The unit ball against `ball(50)` `2·10⁻⁶` inside external tangency,
 /// a band-relative pose read at the default band only. The union
-/// refuses at the result gate: the rim of the unit ball's kept face
-/// reads its level in band. The two lens-shaped differences build. The
-/// intersection builds a sliver `2·10⁻⁶` thick whose at-infinity side
-/// the next op cannot decide (`operand=false`), filed on the result
-/// gate as `a-built-sliver-is-not-a-legal-operand`.
+/// builds and meshes at its closed form: the sphere arm reads the unit
+/// ball's kept face by Gauss–Bonnet and asks no rim level, where the
+/// iso arm read that level in band and refused it at the result gate.
+/// The two lens-shaped differences build. The
+/// intersection builds a sliver `2·10⁻⁶` thick, sound: its two caps
+/// are small regions the sphere arm reads by the fan form, so its
+/// volume lands within about `1e-9` of the lens in either order (it
+/// read `−54%` and `−86%` before) and its at-infinity side decides, so
+/// it is a legal operand (`work/cleave/a-built-sliver-is-not-a-legal-operand.md`).
 #[test]
 fn a_large_ball_near_external_tangency_is_pinned() {
     if Tol::witness().get().eps != 1e-9 {
@@ -598,51 +580,73 @@ fn a_large_ball_near_external_tangency_is_pinned() {
         return;
     }
     let tol = Tol::witness();
-    let none = BooleanDeclarations::none();
     let d = 51.0 - 2e-6;
     let (a, b) = (unit(), ball(50.0, Vec3::new(0.0, 0.0, d)));
     let (va, vb, shared) = (ball_volume(1.0), ball_volume(50.0), lens(1.0, 50.0, d));
-    let rim_in_band = |e: &BooleanError| {
-        matches!(
-            e,
-            BooleanError::ResultInvalid { errors }
-                if matches!(
-                    errors.as_slice(),
-                    [topo::ValidationError::VolumeUncomputable { .. }]
-                )
-        )
-    };
     for (op, out) in [
-        ("a ∪ b", topo::union_with(&a, &b, &none, tol)),
-        ("b ∪ a", topo::union_with(&b, &a, &none, tol)),
+        ("a ∪ b", topo::union(&a, &b, tol)),
+        ("b ∪ a", topo::union(&b, &a, tol)),
     ] {
         check(
             &format!("r 50, {op}"),
             out,
             (va + vb - shared, va + vb),
-            Refuses(rim_in_band),
+            Draws,
         );
     }
     check(
         "r 50, a ∖ b",
-        topo::subtract_with(&a, &b, &none, tol),
+        topo::subtract(&a, &b, tol),
         (va - shared, va + vb),
         Draws,
     );
     check(
         "r 50, b ∖ a",
-        topo::subtract_with(&b, &a, &none, tol),
+        topo::subtract(&b, &a, tol),
         (vb - shared, va + vb),
         Draws,
     );
     for (op, out) in [
-        ("a ∩ b", topo::intersect_with(&a, &b, &none, tol)),
-        ("b ∩ a", topo::intersect_with(&b, &a, &none, tol)),
+        ("a ∩ b", topo::intersect(&a, &b, tol)),
+        ("b ∩ a", topo::intersect(&b, &a, tol)),
     ] {
         let line = outcome(out, shared, tol);
         assert!(
-            line.starts_with("OK BAD t2=true t3p=true cert=true operand=false"),
+            line.starts_with("OK SOUND t2=true t3p=true cert=true operand=true"),
             "r 50, {op}: the sliver, {line}"
         );
+    }
+    // `outcome`'s volume test is absolute (`1e-7`), which a lens of
+    // `1.2e-11` passes whatever it reads, so the sliver's volume is held
+    // here RELATIVE to the exact lens, per order and per gap. Measured at
+    // most `2.9e-9`. The `b ∩ a` sliver at a `1e-5` gap reads `2.5e-3`
+    // off: that is the flux's own `R·Area` against `c·A⃗` cancellation,
+    // FLUXTAIL's `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`
+    // (`work/cleave/a-built-sliver-is-not-a-legal-operand.md` has the
+    // table), held at its measured size so it cannot grow unseen.
+    for gap in [2e-6, 3e-6, 5e-6, 1e-5] {
+        let d = 51.0 - gap;
+        let (a, b) = (unit(), ball(50.0, Vec3::new(0.0, 0.0, d)));
+        let want = lens(1.0, 50.0, d);
+        for (op, out) in [
+            ("a ∩ b", topo::intersect(&a, &b, tol)),
+            ("b ∩ a", topo::intersect(&b, &a, tol)),
+        ] {
+            let body = out
+                .ok()
+                .and_then(|r| r.body().map(|b| b.body.clone()))
+                .unwrap_or_else(|| panic!("gap {gap:e}, {op}: the sliver builds"));
+            let v = topo::mass_properties(&body, tol).unwrap().volume;
+            let rel = (v - want).abs() / want;
+            let bound = if gap == 1e-5 && op == "b ∩ a" {
+                3e-3
+            } else {
+                4e-9
+            };
+            assert!(
+                rel <= bound,
+                "gap {gap:e}, {op}: volume {v:e} against the lens {want:e}, {rel:e} relative"
+            );
+        }
     }
 }

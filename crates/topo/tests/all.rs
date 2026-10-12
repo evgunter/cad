@@ -63,10 +63,10 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "analytic_rung3_at_rest.rs"]
+mod analytic_rung3_at_rest;
 #[path = "at_rest_pcurve_rows.rs"]
 mod at_rest_pcurve_rows;
-#[path = "axis_source_rows.rs"]
-mod axis_source_rows;
 #[path = "bool4_material_containment.rs"]
 mod bool4_material_containment;
 #[path = "bool4r1_probes.rs"]
@@ -83,8 +83,14 @@ mod boolean_discards;
 mod boolean_pinch_copies;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
+#[path = "carried_citations_past_index_zero.rs"]
+mod carried_citations_past_index_zero;
+#[path = "cell_pair_records.rs"]
+mod cell_pair_records;
 #[path = "census_g2_carrier.rs"]
 mod census_g2_carrier;
+#[path = "census_records_what_it_decides.rs"]
+mod census_records_what_it_decides;
 #[path = "cone_apex_cap_body.rs"]
 mod cone_apex_cap_body;
 #[path = "cone_apex_sector_joints.rs"]
@@ -117,8 +123,6 @@ mod display_contract;
 mod euler_site_pcurve_rows;
 #[path = "fused_into_live_cells.rs"]
 mod fused_into_live_cells;
-#[path = "geom_origin_rows.rs"]
-mod geom_origin_rows;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]
@@ -197,6 +201,8 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "missed_ray_side.rs"]
+mod missed_ray_side;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
 #[path = "offset_doors_read_charts_not_material.rs"]
@@ -223,6 +229,8 @@ mod r1_mate8_probes;
 mod r2_probes;
 #[path = "readback_sense_kind.rs"]
 mod readback_sense_kind;
+#[path = "records_cite_their_decision.rs"]
+mod records_cite_their_decision;
 #[path = "result_gate_sites.rs"]
 mod result_gate_sites;
 #[path = "review_cleave_farplane.rs"]
@@ -289,8 +297,6 @@ mod rigid_map_near_eps_plane_nurbs;
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
-#[path = "seat3_flush_detector.rs"]
-mod seat3_flush_detector;
 #[path = "shell_operand_gate.rs"]
 mod shell_operand_gate;
 #[path = "shell_roles.rs"]
@@ -301,6 +307,8 @@ mod shell_tolerance_chain;
 mod shell_winding;
 #[path = "site_mint_scaling.rs"]
 mod site_mint_scaling;
+#[path = "sliver_shell_role.rs"]
+mod sliver_shell_role;
 #[path = "solid_separation.rs"]
 mod solid_separation;
 #[path = "sphere_twin_rows_interval.rs"]
@@ -313,6 +321,8 @@ mod split_gate_per_face;
 mod split_operand_gate;
 #[path = "stated_general_image_mint.rs"]
 mod stated_general_image_mint;
+#[path = "surgery_carries_records.rs"]
+mod surgery_carries_records;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
 #[path = "union_flush_onto_edge_contact.rs"]
@@ -321,6 +331,10 @@ mod union_flush_onto_edge_contact;
 mod vertex_on_edge_records;
 #[path = "void_door.rs"]
 mod void_door;
+#[path = "wedge_flush_on_a_block_top.rs"]
+mod wedge_flush_on_a_block_top;
+#[path = "wedge_flush_review_probes.rs"]
+mod wedge_flush_review_probes;
 
 test_utils::every_suite_file_is_aggregated!();
 #[path = "f7d_delta_probes.rs"]
@@ -356,6 +370,10 @@ mod lane2_r2_probes;
 #[path = "replace_face_band_probes.rs"]
 mod replace_face_band_probes;
 
+#[path = "a_corner_flat_at_its_short_bounds.rs"]
+mod a_corner_flat_at_its_short_bounds;
+#[path = "a_meridian_witness_contradicts_only_off_its_locus.rs"]
+mod a_meridian_witness_contradicts_only_off_its_locus;
 #[path = "a_vertex_read_again_classes_every_edge.rs"]
 mod a_vertex_read_again_classes_every_edge;
 #[path = "a_vertex_read_by_two_sector_passes.rs"]
@@ -366,17 +384,27 @@ mod a_whole_villarceau_circle_bounds_a_torus_face;
 mod certified_enclosure_impl_census;
 #[path = "cleave_mint_doors.rs"]
 mod cleave_mint_doors;
-#[path = "door_backstop_settled_residue.rs"]
-mod door_backstop_settled_residue;
+#[path = "divided_cell_carry.rs"]
+mod divided_cell_carry;
 #[path = "holes_meeting_at_a_vertex.rs"]
 mod holes_meeting_at_a_vertex;
 #[path = "pierce_strut_at_a_pinch.rs"]
 mod pierce_strut_at_a_pinch;
+#[path = "review_4694_carry_probes.rs"]
+mod review_4694_carry_probes;
+#[path = "review_4730_divided_carry_probes.rs"]
+mod review_4730_divided_carry_probes;
+#[path = "review_4740_r1_probes.rs"]
+mod review_4740_r1_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
 #[path = "spline_reanchor_rows.rs"]
 mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;
+#[path = "split_through_an_apex.rs"]
+mod split_through_an_apex;
+#[path = "tangent_touch_charges_both_sags.rs"]
+mod tangent_touch_charges_both_sags;
 #[path = "three_solids_on_one_line.rs"]
 mod three_solids_on_one_line;

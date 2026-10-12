@@ -31,12 +31,11 @@ on lily wall 7's carve (`demos/tour/src/lily.rs`,
 cites `require_iso_rectangle` and refuses (`mesh/src/curved.rs`,
 `require_iso_rectangle_face`); the trimmed lane
 (`mesh/src/trimmed.rs`) has no sphere arm ("conic trims on
-cone/sphere/torus charts refuse typed naming that frontier"). The
-closed-form chart door has no image for a tilted circle on a sphere
-(`UncoveredClass::SphereGeneralCircle` in `geom_brep::pcurve_cache`);
-the pcurve mint routes it through the fitted lane, and a fitted image
-"still refuses typed on every chart" in the trimmed lane (its doc), for
-want of a certified UV chord-step bound.
+cone/sphere/torus charts refuse typed naming that frontier"). A tilted
+circle on a sphere stores its projected image (`Pcurve::Projected`,
+`pcert/projected-image`), which the trimmed lane's chord pass reads
+exactly. The face still refuses, at the trimmed lane's chart roster,
+which has no sphere arm.
 
 ## What a fix owes
 
@@ -89,3 +88,9 @@ both orders, though it builds sound to its closed form:
 These are the `Tilted` and `Lumps` rows of
 `crates/sweep/tests/spheres_crossing_off_every_edge.rs`. They go green
 here when this lane lands.
+
+A third witness (JOIN's tube-on-a-ball lane, 2026-10-09): a tube whose
+rim lies on a ball, tilted so the rim is no latitude of the ball's
+chart, builds every op sound and refuses the mesh with
+`props_rim_axis_parallel` (`crates/sweep/tests/a_tube_ending_on_a_ball.rs`,
+`a_tilted_tube_builds_at_its_closed_form`, reads it without a mesh).
