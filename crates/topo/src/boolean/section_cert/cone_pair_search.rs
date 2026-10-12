@@ -69,6 +69,25 @@ use test_utils::fuzz::{self, Rng};
 /// `10⁴ L`.
 const EDGE: f64 = 1e-4;
 
+/// A section traced on a ruling chart whose columns stand `shift` off
+/// `θ = 0`.
+struct Ruled {
+    traced: Traced,
+    shift: f64,
+}
+
+impl Ruled {
+    /// The components crossing the cells about chart point `(θ, ψ)`.
+    fn near(&self, theta: f64, psi: f64) -> Vec<usize> {
+        self.traced.near(theta - self.shift, psi)
+    }
+}
+
+/// The share of a column's width the columns stand off `θ = 0`: `2/φ³`,
+/// no short dyadic share, so a doubled grid shares no column with the
+/// last, and a pose symmetric about a dyadic angle puts no root on one.
+const SHIFT: f64 = 0.472_135_954_999_579_4;
+
 /// The section traced on the ruling chart `line(θ) = (B, v)`, the
 /// distance along `v` compactified as `scale·tan ψ`, on the coarsest grid
 /// from `720 × 721` cells up that [`resolves`] the section, each refusal
@@ -78,18 +97,19 @@ fn ruled(
     line: &dyn Fn(f64) -> (Point3<f64>, Vec3<f64>),
     scale: f64,
     partner: &Surface<f64>,
-) -> Option<Traced> {
+) -> Option<Ruled> {
     let window = (-FRAC_PI_2 + EDGE, FRAC_PI_2 - EDGE);
     let (mut nu, mut nv) = (720, 721);
     while nu * nv <= GRID_BUDGET {
         let grid = (nu, nv, window);
+        let shift = SHIFT * TAU / nu as f64;
         // The column lines alone first; the grid is traced only on a
         // size they accept.
         let short = match resolves(grid, None, line, scale, partner) {
             Ok(()) => {
                 let traced = trace(
                     &|u, psi| {
-                        let (b, v) = line(u);
+                        let (b, v) = line(u + shift);
                         b + v * (scale * psi.tan())
                     },
                     &|q| geom_brep::implicit_residual(partner, q),
@@ -98,7 +118,7 @@ fn ruled(
                     nv,
                 );
                 match resolves(grid, Some(&traced), line, scale, partner) {
-                    Ok(()) => return Some(traced),
+                    Ok(()) => return Some(Ruled { traced, shift }),
                     Err(short) => short,
                 }
             }
@@ -250,6 +270,8 @@ fn strip_roots(samples: &[f64], noise: f64) -> Option<Vec<u8>> {
 /// line, which a line meets at most twice: its discriminant `E` and
 /// leading coefficient `Q₂` are trigonometric polynomials of degree at
 /// most 2 round the turn (one of `B`, `v` is constant on a ruling chart).
+/// Against a twin, where `Q₂` vanishes on every line, `Q₁` takes `Q₂`'s
+/// place and no strip holds a fold.
 ///
 /// - **Round the turn**: every strip between columns holds at most one
 ///   root of `E` and of `Q₂` ([`strip_roots`]), so no loop, pinch or
@@ -275,7 +297,7 @@ fn resolves(
     }
     let (coefficients, terms): (Vec<[f64; 3]>, Vec<[f64; 3]>) = (0..n)
         .map(|i| {
-            let (b, v) = line(TAU * i as f64 / n as f64);
+            let (b, v) = line(TAU * (i as f64 + SHIFT) / n as f64);
             along(partner, b, v)
         })
         .unzip();
@@ -298,17 +320,26 @@ fn resolves(
         .fold(0.0, f64::max);
     let lead: Vec<f64> = coefficients.iter().map(|c| c[0]).collect();
     let lead_noise = terms.iter().map(|t| rounding(t[0])).fold(0.0, f64::max);
-    let (Some(folds), Some(asymptotes)) =
+    // Against a twin (`Q₂` vanishing on every line) each line meets the
+    // partner once, at `−Q₀/Q₁`, and that root leaves along an asymptote
+    // where `Q₁` vanishes.
+    let twin = lead.iter().all(|a| a.abs() <= lead_noise);
+    let (folds, asymptotes) = if twin {
+        let middle: Vec<f64> = coefficients.iter().map(|c| c[1]).collect();
+        let middle_noise = terms.iter().map(|t| rounding(t[1])).fold(0.0, f64::max);
+        (Some(vec![0; n]), strip_roots(&middle, middle_noise))
+    } else {
         (strip_roots(&e, e_noise), strip_roots(&lead, lead_noise))
-    else {
+    };
+    let (Some(folds), Some(asymptotes)) = (folds, asymptotes) else {
         return Err(Short::Turn);
     };
     // The cell of a root `t` along a column, if it is in the window.
     let cell = |t: f64| {
         let x = ((t / scale).atan() - v0) / (v1 - v0);
-        (0.0..1.0).contains(&x).then(|| (x * nv as f64) as usize)
+        (0.0..1.0).contains(&x).then_some((x * nv as f64) as usize)
     };
-    let positive = |i: usize| e[i] > 0.0;
+    let positive = |i: usize| twin || e[i] > 0.0;
     let full_turn = (0..n).all(positive);
     // Runs of positive columns, each as its first column and length.
     let starts: Vec<usize> = if full_turn {
@@ -323,9 +354,14 @@ fn resolves(
         if !positive(i) {
             continue;
         }
-        let root = e[i].sqrt();
-        let q = -0.5 * (b + if b < 0.0 { -root } else { root });
-        let mut cells: Vec<usize> = [q / a, c / q].into_iter().filter_map(cell).collect();
+        let roots = if twin {
+            vec![-c / b]
+        } else {
+            let root = e[i].sqrt();
+            let q = -0.5 * (b + if b < 0.0 { -root } else { root });
+            vec![q / a, c / q]
+        };
+        let mut cells: Vec<usize> = roots.into_iter().filter_map(cell).collect();
         cells.sort_unstable();
         column_cells[i] = cells;
     }
@@ -848,7 +884,7 @@ fn against_the_trace(
     )?;
     let theirs = ruled(&*partner.line, k.scale, &cone)?;
     for (side, traced, flag) in [("cone", &mine, true), ("partner", &theirs, false)] {
-        let mut want = traced.classes.clone();
+        let mut want = traced.traced.classes.clone();
         want.sort();
         let mut got: Vec<Class> = parts
             .iter()
@@ -876,7 +912,7 @@ fn against_the_trace(
             let on: Vec<usize> = traced
                 .near(u, psi)
                 .into_iter()
-                .filter(|&i| traced.classes[i] == want && !seen.contains(&i))
+                .filter(|&i| traced.traced.classes[i] == want && !seen.contains(&i))
                 .collect();
             match on.first() {
                 Some(&i) => seen.push(i),
@@ -886,8 +922,8 @@ fn against_the_trace(
             }
         }
     }
-    if single && mine.classes.len() != 1 {
-        bad.push(format!("single, traced {:?}", mine.classes));
+    if single && mine.traced.classes.len() != 1 {
+        bad.push(format!("single, traced {:?}", mine.traced.classes));
     }
     Some(bad)
 }
