@@ -5501,6 +5501,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seam_vertex_partners",
             "split_lineage_cycle",
             "unnamed",
+            "unsettled_vertex",
         ],
         delegates: &["band_error_tag", "rim_share_tag"],
     },

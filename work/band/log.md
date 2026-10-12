@@ -791,6 +791,17 @@ unit row stays open, re-titled to that question: may a blend delete an
 authored feature wholly inside the material it removes? It goes to Ev
 after the designer protocol (both designers recommend building it).
 
+## 2026-10-08 — the rocker's crease carves at the blend radius (PR #4287)
+
+`demos/tour/src/rocker.rs`: `R_CREASE` rises from `R_EYE` (1/4) to
+`R_BLEND` (1/2), as sided headroom (PR 4092) allows. Tier 3 holds, ΔV matches
+`−2·crease_cut(r)·depth` to 1e-12, and the census stays 38/57/21 at genus 2.
+The sweep still asserts the old radius at its closed form. The kernel and
+FreeCAD frames are re-rendered: only the keyhole's two creases are rounder.
+`TestRocker`'s mirror and the README row follow. Filed on CIW (P1):
+`ciw/render-gui-sorts-ordinal-digest-node-ids-as-ints`; the GUI render
+lane crashes on PR 4244's `ordinal:digest` ids, so the viewer cells are
+unrendered until it lands.
 ## 2026-10-07 — the bore-in-the-sliver question to Ev
 
 PR 4271 left the unit's claim 1 open as a design fork: may a blend delete an

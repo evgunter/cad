@@ -125,6 +125,7 @@ use geom_core::{
 
 use crate::certify::CertCheck;
 use crate::certify::{CERT_SAMPLES, sample_param};
+use crate::descent::{Descent, Work};
 use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
@@ -842,12 +843,18 @@ impl Halved {
 /// on the first hull, 15 refused on a break's value there): every call
 /// that decided by subdividing spent at most 826 spans. The adversarial
 /// wall of `m` C0 spans under each composite span (`ssi_limb3_one_arc`)
-/// clears at 826 (1964 at its steepest P/N) for m = 64, 3511 (8058) for
-/// m = 256 and 14 188 (32 684) for m = 1024. This budget is twice the
-/// m = 64 rows' and five times the corpus's. A carrier whose first
-/// composite has more spans than this is read on that hull alone; the
-/// one such carrier measured, a dome arc at ε 1e-14 over 4242 to 14 814
-/// spans, reads its lowest bound there.
+/// clears at 268 (414 at its steepest P/N) for m = 64, 1273 (2018) for
+/// m = 256 and 5908 (11 374) for m = 1024 at the default ε, where the
+/// pcurve's values at the breaks fall on the wall's knots but for a few,
+/// and at 628 (1314), 2740 (5538) and 11 188 (22 434) at ε 1e-6, where
+/// the foot points' offset carries every one of them off its knot. These
+/// figures were measured on 2026-10-12 with an uncommitted probe under an
+/// unbounded budget; from outside, only that file's m = 64, m = 1024 and
+/// m = 2048 rows guard them. This budget is three times the m = 64 rows'
+/// steepest figure (1314) and five times the corpus's (826). A carrier
+/// whose first composite has more spans than this is read on that hull
+/// alone; the one such carrier measured, a dome arc at ε 1e-14 over
+/// 4242 to 14 814 spans, reads its lowest bound there.
 ///
 /// The analytic rung-3 limb counts every part of its lane's composite,
 /// which covers the carrier's whole net whatever the edge's interval
@@ -856,22 +863,18 @@ impl Halved {
 /// on 2026-10-11, with a temporary probe in `net_offset_sup` over the
 /// same four ci profiles: 94 calls, all deciding on their first hull (89
 /// cleared, 5 on a break's value), the largest costing 4080 parts.
-pub(crate) const SSI_HULL_WORK: usize = 4096;
+pub const SSI_HULL_WORK: usize = 4096;
 
 /// The most breaks limb 2's rounds add to its composite in all. A
 /// round that would pass it halves its worst spans up to it. Under the
 /// unbounded budget of [`SSI_HULL_WORK`]'s measurement the corpus's
 /// calls that decided by subdividing took at most 348 cuts, and the
-/// adversarial wall clears at 348 (600) cuts for m = 64, 1498 (2520)
-/// for m = 256 and 6056 (10 200) for m = 1024: this cap clears every
-/// m = 64 row and spends itself on m ≥ 256, where the work budget alone
-/// would let a few more rounds run.
-pub(crate) const SSI_HULL_CUTS: usize = 1024;
-
-/// The subdivision stops on the round that makes this many rounds in a
-/// row that do not lower the lowest bound over the whole carrier: at 2
-/// it stops on the second such round, and one is all it lets pass.
-const SSI_HULL_IDLE_ROUNDS: usize = 2;
+/// adversarial wall clears at 38 (42) cuts for m = 64, 254 (324) for
+/// m = 256 and 1432 (2444) for m = 1024 at the default ε, and at 218
+/// (342), 986 (1494) and 4058 (6102) at ε 1e-6 (the same probe as
+/// [`SSI_HULL_WORK`]'s figures): this cap clears every m = 64 row and
+/// spends itself on m = 1024, and on the steepest m = 256 rows at 1e-6.
+pub const SSI_HULL_CUTS: usize = 1024;
 
 /// Where a hull limb's subdivision stopped.
 pub(crate) enum Subdivided<P = ()> {
@@ -896,15 +899,15 @@ pub(crate) enum Subdivided<P = ()> {
 /// round's hull with its argument's breaks added. The composite's
 /// uncleared spans are halved, worst bound first, round by round, until
 /// its bound clears the band's zero, or a break's certified value lies
-/// past it, or it stops: the next round would pass [`SSI_HULL_WORK`],
-/// or no span is left to halve under [`SSI_HULL_CUTS`], or the bound
-/// over the whole carrier is refused, or [`SSI_HULL_IDLE_ROUNDS`] rounds
-/// in a row leave its lowest value where it was. Every round's bound is
-/// certified, so the limb is read on the lowest. That is a bound which
-/// stopped falling, not a floor: near the arithmetic's floor the
-/// rounding in a rebuilt composite moves it either way, so one round
-/// that does not lower it says nothing, and a later one may. Every round's
-/// hull is the composite's own, cut from each Bézier segment's row
+/// past it, or it stops on the crate's stop rule ([`crate::descent`]):
+/// its rounds stall against the lowest bound over the whole carrier, or
+/// the next round would pass [`SSI_HULL_WORK`] (the cumulative budget),
+/// or no span is left to halve under [`SSI_HULL_CUTS`] (the cap); or
+/// the bound over the whole carrier is refused. An idle round takes no
+/// action of its own here: the next round halves the worst spans as any
+/// round does. Every round's bound is certified, so the limb is read on
+/// the lowest. That is a bound which stopped falling, not a floor.
+/// Every round's hull is the composite's own, cut from each Bézier segment's row
 /// ([`CurveCertData::with_breaks`], the surface residual's extra
 /// breaks), so each piece's coefficients enclose that piece and no cut
 /// compounds another's width.
@@ -927,14 +930,22 @@ pub(crate) enum Subdivided<P = ()> {
 ///   bound and does not escalate (only a NaN first hull reaches the
 ///   caller as NaN);
 /// - a round whose bound equals the lowest counts as idle, and the
-///   older hull is kept.
+///   older hull is kept;
+/// - a `+∞` bound is not idle while no round's bound is finite. It is
+///   reachable where the composite's arithmetic overflows: interval
+///   enclosures may be unbounded, and `mag_in_meters` and `sup_bound`
+///   then answer `+∞`. A run of such hulls halves every span each round
+///   until a work bound stops it: from one span, 12 hulls and 3072 spans
+///   recomputed, ended by [`SSI_HULL_CUTS`]. That is what the rows
+///   spending this budget cost, 0.34 to 1.22 s each in release
+///   (`ssi_limb3_one_arc`'s grid at `m = 2048`, 2026-10-12).
 pub(crate) fn subdivide<P, E>(
     hull: impl Fn(&[f64]) -> Result<Hull<P>, E>,
     band: Band,
 ) -> Result<Subdivided<P>, E> {
     let mut cuts: Vec<f64> = Vec::new();
-    let mut lowest: Option<Hull<P>> = None;
-    let (mut idle, mut work) = (0, 0);
+    let mut descent: Option<Descent<Hull<P>>> = None;
+    let mut work = Work::new(SSI_HULL_WORK);
     loop {
         let h = hull(&cuts)?;
         if clears(h.sup, band) {
@@ -949,32 +960,26 @@ pub(crate) fn subdivide<P, E>(
             return Ok(Subdivided::Value { hull: h, at, floor });
         }
         let mut next = h.to_halve(band);
+        // Nothing left to halve, or a refused (NaN) bound, which steers
+        // nothing: the loop's own exhaustion. A NaN never lowers the
+        // lowest bound, so a later round's NaN stops on the earlier
+        // certified hull.
+        let exhausted = next.is_empty() || h.sup.is_nan();
         next.truncate(SSI_HULL_CUTS - cuts.len());
-        // On the first hull `work` is 0, so a composite over the budget
-        // stops here unsubdivided.
+        // On the first hull nothing is spent, so a composite over the
+        // budget stops here unsubdivided.
         let cost = h.work + next.len();
-        let refused = h.sup.is_nan();
-        // A NaN bound compares as not lower, so a later round's NaN keeps
-        // the earlier certified hull and stops on it (`refused` below);
-        // an equal bound is idle too and keeps the older hull.
-        let low = match lowest.take() {
-            Some(low) if h.sup.partial_cmp(&low.sup) != Some(core::cmp::Ordering::Less) => {
-                idle += 1;
-                low
-            }
-            _ => {
-                idle = 0;
-                h
-            }
-        };
-        if refused || idle == SSI_HULL_IDLE_ROUNDS || next.is_empty() || work + cost > SSI_HULL_WORK
-        {
-            return Ok(Subdivided::Bound(low));
+        let wall = (next.is_empty() || !work.admits(cost)).then_some(());
+        let rounds = Descent::after(descent.take(), h.sup, h);
+        // Every stop reads the limb on the lowest hull, so which stop
+        // spoke is not read here.
+        if rounds.stop(exhausted, wall).is_some() {
+            return Ok(Subdivided::Bound(rounds.into_lowest().1));
         }
-        lowest = Some(low);
+        descent = Some(rounds);
         cuts.extend(next.iter().map(|s| s.mid()));
         cuts.sort_by(f64::total_cmp);
-        work += cost;
+        work.spend(cost);
     }
 }
 
@@ -2022,6 +2027,67 @@ fn tube_transversality<T: Decide>(
 
 #[cfg(test)]
 mod tests {
+    /// A synthetic limb-2 hull over `[0, 1]` with its `cuts` added, every
+    /// span bounded by `sup` and no break value certified.
+    fn flat_hull(cuts: &[f64], sup: f64) -> super::Hull {
+        let breaks: Vec<f64> = core::iter::once(0.0)
+            .chain(cuts.iter().copied())
+            .chain(core::iter::once(1.0))
+            .collect();
+        let spans = vec![sup; breaks.len() - 1];
+        super::Hull {
+            sup,
+            floors: vec![0.0; breaks.len()],
+            work: spans.len(),
+            breaks,
+            spans,
+            data: (),
+        }
+    }
+
+    /// Runs [`super::subdivide`] with round `k`'s hull bounded by
+    /// `bound(k)`, returning the bound it stopped on and how many hulls
+    /// it built.
+    #[allow(clippy::panic)]
+    fn subdivided(bound: impl Fn(usize) -> f64) -> (f64, usize) {
+        use super::{Subdivided, subdivide};
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("{e}"));
+        let calls = core::cell::Cell::new(0);
+        let hull = |cuts: &[f64]| {
+            let k = calls.get();
+            calls.set(k + 1);
+            Ok::<_, ()>(flat_hull(cuts, bound(k)))
+        };
+        match subdivide(hull, band) {
+            Ok(Subdivided::Bound(h)) => (h.sup, calls.get()),
+            Ok(Subdivided::Value { .. }) => panic!("no break value is certified"),
+            Err(()) => panic!("the synthetic hull does not refuse"),
+        }
+    }
+
+    /// **The subdivision stalls on the second round that does not lower
+    /// the lowest bound,** and reads the limb on that lowest bound:
+    /// round 1 rises, round 2 recovers part of the way, and round 3,
+    /// which would clear, is never built.
+    #[test]
+    fn the_subdivision_stalls_on_two_idle_rounds_against_the_lowest_bound() {
+        assert_eq!(subdivided(|k| [1.0, 2.0, 1.5, 1e-12][k]), (1.0, 3));
+        // One idle round is let pass.
+        assert_eq!(subdivided(|k| [1.0, 2.0, 0.5, 1e-12][k]), (1e-12, 4));
+    }
+
+    /// **Unbounded hulls are not idle,** so a run of them halves on
+    /// until a work bound stops it, and reads the first hull's `+∞`.
+    /// Every span is halved each round, so round `k` recomputes `2^k`
+    /// spans: rounds 0 to 10 add 1023 cuts, round 10 is held to the one
+    /// cut [`super::SSI_HULL_CUTS`] has left, and round 11 has none, so
+    /// the run builds 12 hulls and recomputes 3072 spans, under
+    /// [`super::SSI_HULL_WORK`].
+    #[test]
+    fn a_run_of_unbounded_hulls_halves_to_the_cut_cap() {
+        assert_eq!(subdivided(|_| f64::INFINITY), (f64::INFINITY, 12));
+    }
+
     /// **Limb 3's construction site carries the verdict and the margin
     /// it classified.** A clearance inside the zero band refuses `Zero`
     /// with the reporting margin the classifier saw — the levered
@@ -2641,6 +2707,111 @@ mod tests {
         assert!(net[0].iter().all(|x| x.is_certified()));
     }
 
+    /// **The tube's box chain encloses the described carrier, at `f64`
+    /// and at `Interval`.** The rational cubic of
+    /// `refined_net_encloses_the_exact_refined_net`: each box of
+    /// [`super::box_chain`] contains the exact refined control points of
+    /// its span (Boehm's insertion in exact rationals), so by the convex
+    /// hull property it contains the carrier's own arc over the span.
+    /// A chain read off the `f64` insertion plan (`refine_knots`) misses
+    /// some extremal point by its rounding.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn the_box_chain_encloses_the_exact_refined_net_at_every_scalar() {
+        use geom::NurbsCurve3;
+        use geom_core::spline::KnotVector;
+        use geom_core::{Bounds, Interval, Point3};
+
+        use crate::exact_q::{Q, refine_u};
+        use crate::ssi::enclose::Box3;
+
+        let knots = vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.7, 1.0, 1.0, 1.0, 1.0];
+        let kv = KnotVector::clamped(knots.clone(), 3).unwrap();
+        let ctl = [
+            [0.1, 0.2, 0.3],
+            [0.9, 1.3, -0.3],
+            [1.7, -0.6, 0.4],
+            [2.3, 0.7, 1.3],
+            [3.1, 0.1, 0.7],
+            [3.7, 0.9, -0.1],
+        ];
+        let weights = vec![1.0, 0.3, 2.7, 0.6, 1.1, 0.9];
+        let curve = NurbsCurve3::new(
+            geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+            ctl.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
+            weights.clone(),
+        )
+        .unwrap();
+        let exact: Vec<[Q; 4]> = ctl
+            .iter()
+            .zip(&weights)
+            .map(|(p, &w)| {
+                let w = Q::of(w);
+                let [x, y, z] = p.map(|c| w.mul(&Q::of(c)));
+                [x, y, z, w]
+            })
+            .collect();
+        let breaks = super::cert_grid(&kv);
+        let (exact, fine) = refine_u(&exact, (ctl.len(), 1), (&knots, 3), &breaks);
+        let spans: Vec<usize> = (3..fine.len() - 4)
+            .filter(|&i| fine[i] < fine[i + 1])
+            .collect();
+        let misses = |chain: &[Box3]| -> Vec<String> {
+            assert_eq!(chain.len(), spans.len(), "one box per non-empty span");
+            let mut out = Vec::new();
+            for (bx, &i) in chain.iter().zip(&spans) {
+                for (k, h) in exact.iter().enumerate().take(i + 1).skip(i - 3) {
+                    for (c, iv) in [bx.x, bx.y, bx.z].into_iter().enumerate() {
+                        if !h[c].div(&h[3]).within(iv.lo(), iv.hi()) {
+                            out.push(format!("span {i} point {k}.{c}"));
+                        }
+                    }
+                }
+            }
+            out
+        };
+        let at_f64: Vec<Box3> = super::box_chain(&curve)
+            .into_iter()
+            .map(|(b, _)| b)
+            .collect();
+        let at_f64 = misses(&at_f64);
+        assert!(at_f64.is_empty(), "f64 chain missed {at_f64:?}");
+        let at_interval: Vec<Box3> =
+            super::box_chain(&curve.map_scalar(<Interval as geom_core::Real>::from_f64))
+                .into_iter()
+                .map(|(b, _)| b)
+                .collect();
+        let at_interval = misses(&at_interval);
+        assert!(
+            at_interval.is_empty(),
+            "Interval chain missed {at_interval:?}"
+        );
+        // Contrast: hulls of the f64-planned refinement, lifted thin.
+        let planned = curve.refine_knots(&breaks).unwrap();
+        let hull = |xs: &[Point3<f64>], c: usize| {
+            let v = xs.iter().map(|p| [p.x, p.y, p.z][c]);
+            let lo = v.clone().fold(f64::INFINITY, f64::min);
+            let hi = v.fold(f64::NEG_INFINITY, f64::max);
+            Interval::from_bounds(lo, hi)
+        };
+        let planned: Vec<Box3> = spans
+            .iter()
+            .map(|&i| {
+                let net = &planned.control()[i - 3..=i];
+                Box3 {
+                    x: hull(net, 0),
+                    y: hull(net, 1),
+                    z: hull(net, 2),
+                }
+            })
+            .collect();
+        assert!(
+            !misses(&planned).is_empty(),
+            "the f64-planned chain must miss the exact net somewhere, or this row cannot tell \
+             the two apart"
+        );
+    }
+
     /// `cert_grid`'s cut-off: a carrier with `SSI_CERT_SPANS + degree`
     /// control points takes no breaks, one with a control point fewer
     /// still takes the whole grid. The interior knots are odd 128ths,
@@ -3036,5 +3207,67 @@ mod tests {
             refused.error
         );
         assert!(refused.at.is_none(), "limb 3 was located: {:?}", refused.at);
+    }
+
+    /// **Limb 2's bound escalates at `Interval` with its margin as an
+    /// enclosure** (4553's second review, MINOR-B): in band, the
+    /// escalation names the arm's bound predicate and carries the bound
+    /// as an `Interval`, both ends the bound's own bits, and the error
+    /// text renders an enclosure. Red if the margin is flattened to one
+    /// `f64` (`Margin::of(hull.sup)`), which reads and renders as a
+    /// value. Driven at `hull_limb` itself: on the analytic pair the
+    /// SSI door reaches, limb 2 reads under limb 1 under the monotone
+    /// step (`review_ssiflat_r2_probes`' probe 5), so no band there
+    /// lets limb 2 escalate first.
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    fn the_hull_bound_escalates_with_an_enclosure_at_interval() {
+        use super::{ANALYTIC_HULL, CHART_HULL, Hull, SsiError, Subdivided, hull_limb};
+        use geom_core::{Band, ErrorTextReading, Interval, MarginDiag};
+        let band = Band::new(4.0e-15, 6.0e-15).unwrap();
+        let sup = 5.0e-15;
+        for arm in [&ANALYTIC_HULL, &CHART_HULL] {
+            let hull = Hull {
+                sup,
+                breaks: vec![0.0, 1.0],
+                spans: vec![sup],
+                floors: vec![0.0; 2],
+                work: 1,
+                data: (),
+            };
+            let mut at = super::Refused::default();
+            let err = hull_limb::<Interval>(arm, Subdivided::Bound(hull), band, &mut at)
+                .expect_err("a bound in the band escalates");
+            let SsiError::CertificateEscalated { ref cause, .. } = err else {
+                panic!("{}: not the escalation: {err:?}", arm.sup);
+            };
+            assert_eq!(cause.predicate, Some(arm.sup));
+            let ErrorTextReading::Enclosure { lo, hi } =
+                MarginDiag::diagnostic_f64_for_error_text(cause.margin)
+            else {
+                panic!(
+                    "{}: limb 2's margin at Interval must read as an enclosure: {:?}",
+                    arm.sup, cause.margin
+                );
+            };
+            assert_eq!(
+                (lo.to_bits(), hi.to_bits()),
+                (sup.to_bits(), sup.to_bits()),
+                "{}: the escalation must carry the bound's own ends",
+                arm.sup
+            );
+            let shown = err.to_string();
+            assert!(
+                shown.contains("enclosure [") && !shown.contains("NaN"),
+                "{}: the text must render the enclosure: {shown}",
+                arm.sup
+            );
+            assert_eq!(
+                at.spans.len(),
+                1,
+                "{}: the uncleared span is located",
+                arm.sup
+            );
+        }
     }
 }

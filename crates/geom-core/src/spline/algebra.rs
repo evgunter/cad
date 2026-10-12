@@ -43,8 +43,8 @@
 //! guessed number of ulps would be asserting a bound nobody derived;
 //! re-deriving the ratios in certification arithmetic makes the insertion widen like
 //! every other step of an enclosure. Interval arithmetic applier takes HOMOGENEOUS
-//! coefficients, where the combination is the plain convex one and no
-//! `λ` is needed.
+//! coefficients, where the combination is the plain two-point one
+//! ([`Certification::between`]) and no `λ` is needed.
 
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use super::projective::{ProjectivePoint, ProjectiveScalar};
@@ -157,8 +157,7 @@ enum Src {
 
 /// The knots one Boehm insertion's ratios are made of: `lo = U[j]` and
 /// `hi = U[j + p]` of the knot vector the step was planned against, and
-/// the value inserted. They give `α = (inserted − lo)/(hi − lo)` and
-/// its complement `β = (hi − inserted)/(hi − lo)`.
+/// the value inserted. They give `α = (inserted − lo)/(hi − lo)`.
 ///
 /// Carried as INGREDIENTS and not as values, because the two appliers
 /// need them at two precisions: `f64`, folded into the projective `λ`
@@ -426,56 +425,25 @@ impl CurvePlan {
     /// outward rounded, and every coefficient the caller handed in is
     /// widened by them rather than re-rounded to `f64`.
     ///
-    /// # The convex form, and why `β` comes from the knots
-    ///
-    /// **This section is the ONE home of that argument in this crate.**
-    /// `compose`'s `insert_once_ring` combines the same way and cites
-    /// this method rather than restating it — a change whose subject is
-    /// duplicated width has no business shipping a duplicated argument.
+    /// # The step: [`Certification::between`] at a ratio from the knots
     ///
     /// With `Δ = U_{j+p} − U_j`, positive by the insertion precondition
-    /// (`insert_once`'s band comment, so the quotients never refuse on a
-    /// valid plan):
+    /// (`insert_once`'s band comment, so the quotient never refuses on a
+    /// valid plan), each combination is
+    /// `Certification::between(C_{j−1}, C_j, (u − U_j)/Δ)`: the ratio is
+    /// a ring quotient of the knots it is made of, rounded outward, and
+    /// the true ratio is in `[0, 1]` because `U_j ≤ u ≤ U_{j+p}` — the
+    /// door's precondition. The door's docs are the one home of why the
+    /// monotone form is the step and why it is met with its sources'
+    /// hull; what is local here is only that the ratio is re-derived
+    /// from the knots, never taken from the projective `λ`.
     ///
-    /// ```text
-    /// α = (u − U_j)/Δ        β = (U_{j+p} − u)/Δ
-    /// ```
-    ///
-    /// **`β` is derived from the knots, NOT as `1 − α`, and the two are
-    /// not required to sum to exactly one.** Each encloses its own true
-    /// ratio by outward rounding, which is the whole of what the
-    /// enclosure needs: with `λ` the exact real ratio, `α ∋ λ` and
-    /// `β ∋ 1 − λ`, and interval `*` and `+` are inclusion-monotone, so
-    /// the combination contains `(1 − λ)·x + λ·y` for every `x`, `y` in
-    /// the input enclosures. `1 − α` would inherit `α`'s rounding and
-    /// add its own, and route the argument through a subtraction rather
-    /// than through the knots.
-    ///
-    /// **The convex form reads each coefficient ONCE, and that is
-    /// WIDTH.** `x + (y − x)·α` reads `x` TWICE, so an interval `x`
-    /// enters the width with coefficient `1 + α` and a fold of
-    /// insertions multiplies its dust up step by step. Read once each,
-    /// the width grows only by the ratios' own rounding — measured at 16
-    /// ulps of the coefficient scale over 30 insertions against 355 for
-    /// the lerp form on this applier, and at 4.7 against 473.7 over 80
-    /// insertions on `insert_once_ring`'s fold
-    /// (`compose`'s `the_convex_form_does_not_inflate_the_fold`).
-    ///
-    /// **The step is met with the hull of its two sources**, so a
-    /// constant column stays its point; why that meet is sound is
-    /// `convex_step`'s docs (private, so a name and not a link).
-    ///
-    /// **Two width allowances, one claim.** This module's
-    /// `the_ring_applier_stays_in_step_with_the_point_applier`
-    /// allows `8.0·(plans.len() + 1)` ulps where `compose`'s row allows
-    /// `2 + 0.5·insertions` — a 16x difference in slope over the same
-    /// quantity. Neither is a derived bound; both are ceilings set so
-    /// that a form which multiplies its width per step cannot meet them
-    /// while the convex form can, and they were set against different
-    /// fixtures (equal-split plan chains here, full-multiplicity
-    /// decomposition there). The looser one is this module's, and it is
-    /// the one to tighten first if either is ever asked to catch a
-    /// small regression.
+    /// **One width allowance per fixture.** This module's
+    /// `the_ring_applier_stays_in_step_with_the_point_applier` allows
+    /// `8.0·(plans.len() + 1)` ulps over equal-split plan chains; neither
+    /// it nor the exact-rational rows in `compose`'s tests is a derived
+    /// bound. They are ceilings a form that multiplies its width per
+    /// step cannot meet.
     ///
     /// **Total, and NaI is the refusal** (D4): a plan step with no
     /// insertion ratio — degree elevation, knot removal — refuses its
@@ -484,7 +452,7 @@ impl CurvePlan {
     /// reads.
     pub fn apply_certified(&self, old: &[Interval]) -> Vec<Interval> {
         self.apply_ratios(old, Interval::refused(), |x, y, r, _| {
-            Some(convex_step(x, y, r.lo, r.hi, r.inserted))
+            Some(boehm_step(x, y, r.lo, r.hi, r.inserted))
         })
     }
 
@@ -535,43 +503,19 @@ impl CurvePlan {
     }
 }
 
-/// One Boehm combination in the certification ring, shared by
-/// [`CurvePlan::apply_certified`] and `compose`'s `insert_once_ring`:
-/// `β·x + α·y` with `Δ = hi − lo`, `α = (u − lo)/Δ` and
-/// `β = (hi − u)/Δ`, BOTH ring quotients of the knots (fixed
-/// association, D9), met with the hull of `x` and `y`. Why the convex
-/// form and why `β` comes from the knots is
-/// [`CurvePlan::apply_certified`]'s docs.
+/// One Boehm combination in the certification ring:
+/// [`Certification::between`] at the ratio `(u − lo)/(hi − lo)`, a ring
+/// quotient of the knots.
 ///
 /// **Precondition: `lo`, `u` and `hi` are exact `f64` knots with
 /// `lo ≤ u ≤ hi` and `lo < hi`.** The insertions place `u` strictly
 /// inside the span `[U_j, U_{j+p}]` of the vector they plan against
-/// (`insert_once`'s band, `insert_once_ring`'s window); `compose`'s
-/// `sub_segment` runs de Casteljau steps at a cut `u ∈ [lo, hi]` of a
-/// Bézier segment `[lo, hi]`. So `Δ > 0` and neither quotient refuses.
-///
-/// **Why the hull meet is sound.** `α` and `β` round outward
-/// INDEPENDENTLY, so `α_hi + β_hi > 1` and `β·x + α·y` alone reaches a
-/// little past both sources: a constant column, whose source hull is a
-/// point, would come out as a bracket around it. But the knots are
-/// exact, so the true ratio `λ = (u − lo)/(hi − lo)` is a real number
-/// in `[0, 1]` by the precondition, and `(1 − λ)·x + λ·y` lies between
-/// `x` and `y` for every `x ∈ X`, `y ∈ Y`. The hull of `X` and `Y` is
-/// therefore a second enclosure of the same value, by an argument that
-/// never reads `α` or `β`, and two sound enclosures of one value meet
-/// ([`Certification::meet`]). The result is variation-diminishing in
-/// the sense the reals give: a constant column stays its point, so an
-/// exactly-represented weight channel (a polynomial curve's `w ≡ 1`)
-/// stays exact through any fold. `the_convex_form_holds_a_constant_column_exactly`
-/// pins that; `compose`'s `the_ring_fold_encloses_the_exact_refined_net`
-/// pins containment against exact rationals (both `#[cfg(test)]`).
-pub(super) fn convex_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
-    let (lo, hi) = (Interval::point(lo), Interval::point(hi));
-    let u = Interval::point(u);
-    let span = hi - lo;
-    let alpha = (u - lo) / span;
-    let beta = (hi - u) / span;
-    (x * beta + y * alpha).meet(Interval::hull(x, y))
+/// (`insert_once`'s band), so the quotient never refuses and the true
+/// ratio is in `[0, 1]`, which is the door's precondition.
+pub(super) fn boehm_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
+    let lo_i = Interval::point(lo);
+    let ratio = (Interval::point(u) - lo_i) / (Interval::point(hi) - lo_i);
+    Interval::between(x, y, ratio)
 }
 
 /// Validates weights against a knot vector: count, positivity,
@@ -649,23 +593,6 @@ pub fn insert_knot_plan(
 /// validated). `u` was minted against the chain's first vector; an
 /// insertion leaves both clamp runs alone, so it is interior to every
 /// vector of the chain.
-///
-/// **The Boehm structure is shared with [`super::compose`]'s
-/// `insert_once_ring`, and the two are now a FILED duplication rather
-/// than an argued one.** That function's own docs still argue the split
-/// on the ground that it "folds `Interval` coefficients with an
-/// outward-rounding quotient and has no weights to form `λ` from" —
-/// which is a description of [`CurvePlan::apply_certified`], so the argument
-/// no longer separates them, and neither does the coefficient
-/// arithmetic any more: both combine in the convex form with `α` and
-/// `β` re-derived from their knots, and
-/// [`CurvePlan::apply_certified`]'s docs are the one home of that
-/// argument. What still separates them is the SHAPE of the schedule
-/// each needs: that one inserts to full interior multiplicity over a
-/// raw knot list, deliberately never rebuilding a [`KnotVector`] per
-/// step, where a plan chain rebuilds one per insertion. Filed on PROPS'
-/// `f64-refinement-inside-an-enclosure-has-five-more-sites`; not done
-/// here.
 fn insert_once(kv: &KnotVector, weights: &[f64], knot: InteriorKnot) -> CurvePlan {
     let p = kv.degree();
     let knots = kv.knots();
@@ -1705,11 +1632,11 @@ mod tests {
 
     /// **A constant column stays its point.** A refined coefficient is a
     /// convex combination of two described ones, so in ℝ it lies between
-    /// them, and with EQUAL adjacent coefficients it equals them. `α` and
-    /// `β` round outward independently, so `β·c + α·c` alone is a
-    /// bracket straddling `c`; the step's meet with its sources' hull is
-    /// what brings it back to `c`, and a constant column is the one
-    /// input where any width at all is visible as an excursion.
+    /// them, and with EQUAL adjacent coefficients it equals them. A form
+    /// that rounds the ratio into the value (`β·c + α·c` with `α`, `β`
+    /// rounded outward independently) brackets `c` instead; a constant
+    /// column is the one input where any width at all is visible as an
+    /// excursion.
     ///
     /// That exactness is load-bearing downstream: a polynomial curve's
     /// weight channel is `w ≡ 1`, and the tensor composite's residual
@@ -1722,7 +1649,7 @@ mod tests {
     /// shallow fold at three coefficient magnitudes, including a
     /// negative, where a sign error in either ratio would show instead.
     #[test]
-    fn the_convex_form_holds_a_constant_column_exactly() {
+    fn the_step_holds_a_constant_column_exactly() {
         // (degree, interior knots, splits, coefficient)
         let cases: &[(usize, &[f64], usize, f64)] = &[
             (1, &[], 16, 0.5),

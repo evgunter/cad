@@ -1,10 +1,9 @@
 //! Point projection acceptance (M5 PR 4 spec §b, C2.1): closed-form
 //! foot points on known loci, the D9 determinism pin, the typed
-//! refusal, and the REQUIRED planted fixtures — a mis-seeded Newton
-//! that converges to the wrong branch of a closed curve, and a
-//! domain-end clamp — both showing the carried residuals FAILING the
-//! consumer's band, which is exactly how a bad projection cannot
-//! launder a bad cache.
+//! refusal, and the REQUIRED planted fixture — a mis-seeded Newton
+//! that converges to the wrong branch of a closed curve, its carried
+//! distance FAILING the consumer's band, which is exactly how a bad
+//! projection cannot launder a bad cache.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -83,10 +82,14 @@ fn projection_onto_a_circle_matches_the_closed_form() {
         );
         let foot_expect = Point3::new(c.x + ux * RADIUS, c.y + uy * RADIUS, c.z);
         assert!(proj.foot.distance(foot_expect) < 1e-8);
-        // The carried orthogonality residual is tiny for an interior
-        // foot (the acceptance is the cosine condition).
-        let speed = curve.deriv(proj.t).norm();
-        assert!(proj.orthogonality <= 1e-11 * speed * proj.distance.max(1e-30));
+        // An interior foot converged on the cosine condition.
+        let (_, d1, _) = curve.ders(proj.t);
+        let orthogonality = d1.dot(proj.foot - p).abs();
+        assert!(
+            orthogonality <= 1e-11 * d1.norm() * proj.distance.max(1e-30),
+            "orthogonality {orthogonality} at t = {}",
+            proj.t
+        );
     }
 }
 
@@ -99,7 +102,6 @@ fn projection_onto_a_line_is_exact_and_2d_rides_the_same_machinery() {
     let proj = curve.project(Point2::new(1.5, 3.0)).unwrap();
     assert!((proj.distance - 2.0).abs() < 1e-12);
     assert!((proj.foot.x - 1.5).abs() < 1e-12 && (proj.foot.y - 1.0).abs() < 1e-12);
-    assert!(proj.orthogonality < 1e-12);
 }
 
 #[test]
@@ -110,7 +112,6 @@ fn projection_is_deterministic_bit_for_bit() {
     let b = curve.project(p).unwrap();
     assert_eq!(a.t.to_bits(), b.t.to_bits());
     assert_eq!(a.distance.to_bits(), b.distance.to_bits());
-    assert_eq!(a.orthogonality.to_bits(), b.orthogonality.to_bits());
     assert_eq!(a.iterations, b.iterations);
 }
 
@@ -119,9 +120,9 @@ fn projection_is_deterministic_bit_for_bit() {
 /// the ANTIPODAL stationary point — orthogonality is satisfied there
 /// (it is a genuine stationary point of the distance), so the value
 /// that fails the consumer's band is the carried DISTANCE. The honest
-/// default seeding finds the near branch; the projection result alone,
-/// stripped of its residuals, could not tell the two apart — carrying
-/// them is C2.1's whole point.
+/// default seeding finds the near branch; the foot parameter alone,
+/// stripped of its distance, could not tell the two apart — carrying
+/// it is C2.1's whole point.
 #[test]
 fn planted_wrong_branch_fixture_fails_the_band_through_the_carried_distance() {
     let curve = nurbs_circle();
@@ -147,32 +148,6 @@ fn planted_wrong_branch_fixture_fails_the_band_through_the_carried_distance() {
     let band = 1e-3;
     assert!((honest.distance - 0.5).abs() <= band);
     assert!((wrong.distance - 0.5).abs() > band);
-}
-
-/// The open-curve companion fixture: a point past the arc's end
-/// projects to the clamped domain end, and the projection carries the
-/// honest, LARGE orthogonality residual of that boundary foot — the
-/// band on orthogonality refuses it (a foot-point consumer that needs
-/// interior orthogonality sees the violation immediately).
-#[test]
-fn domain_end_clamp_carries_an_honest_failing_orthogonality_residual() {
-    let arc = quarter_arc();
-    let c = center();
-    // Past the θ = π/2 end, outside, at a bearing the arc cannot
-    // reach — chosen so its antipode (the far-side stationary point)
-    // is ALSO outside the arc: bearing 135°, antipode 315°, both
-    // outside [0°, 90°], so no interior zero of g exists and the
-    // clamp is the only place Newton can stop.
-    let p = Point3::new(c.x - 3.0, c.y + 3.0, c.z);
-    let proj = arc.project(p).unwrap();
-    // Clamped at a domain end.
-    let (lo, hi) = arc.domain();
-    assert!(proj.t == lo || proj.t == hi, "t = {}", proj.t);
-    // The orthogonality residual is honest and large: normalized as a
-    // cosine it is O(1), nowhere near the acceptance threshold.
-    let speed = arc.deriv(proj.t).norm();
-    let cosine = proj.orthogonality / (speed * proj.distance);
-    assert!(cosine > 0.1, "boundary foot cosine {cosine}");
 }
 
 #[test]
@@ -247,7 +222,7 @@ fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
 
 /// The foot is a function of the query point only through the selected
 /// parameter, which a numerical search produced: at `Sym<f64>`, with
-/// the query point's `x` a parameter, the foot and both residuals carry
+/// the query point's `x` a parameter, the foot and its distance carry
 /// that parameter as an unknown and so re-value to no claim at all,
 /// never to the foot of the stale parameter. The interior query takes
 /// the cosine exit and the one past the end the stagnation exit.
@@ -286,7 +261,6 @@ fn a_selected_parameter_enters_the_foot_as_an_unknown() {
                 (
                     revalue(proj.foot.x.node(), &at),
                     revalue(proj.distance.node(), &at),
-                    revalue(proj.orthogonality.node(), &at),
                 ),
             )
         });
@@ -296,8 +270,8 @@ fn a_selected_parameter_enters_the_foot_as_an_unknown() {
         );
         assert_eq!(
             revalued,
-            (None, None, None),
-            "{label}: the foot and its residuals re-value through an unknown, not a constant parameter"
+            (None, None),
+            "{label}: the foot and its distance re-value through an unknown, not a constant parameter"
         );
     }
 }

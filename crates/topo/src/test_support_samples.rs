@@ -38,7 +38,7 @@
 
 use geom_brep::certify::{CertCheck, CertifyError};
 use geom_brep::edge_nurbs::PlaneNurbsRefusal;
-use geom_brep::offset_fit::{OffsetFitError, OffsetLimb};
+use geom_brep::offset_fit::{OFFSET_FIT_SAMPLE_CAP, OFFSET_FIT_WORK, OffsetFitError, OffsetLimb};
 use geom_brep::pcurve_cache::{FittedMagnitude, PcurveCertifyError, PcurveCheck};
 use geom_brep::props::PropsError;
 use geom_brep::recourse::{Classified, Refused};
@@ -794,45 +794,61 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
         },
         OffsetFitError::NonFiniteSample { uv: (0.5, 0.25) },
         OffsetFitError::SeedOverCap {
-            cap: 4096,
-            grid: (65, 64),
+            cap: OFFSET_FIT_SAMPLE_CAP,
+            grid: (49, 48),
         },
-        OffsetFitError::SampleCapReached {
-            cap: 4096,
+        OffsetFitError::WallReached {
+            wall: geom_brep::OffsetFitWall::SampleCap {
+                cap: OFFSET_FIT_SAMPLE_CAP,
+            },
             rounds: 6,
-            grid: (64, 64),
+            grid: (48, 48),
             achieved: 3e-6,
             tolerance: 1e-6,
             best: geom_brep::BestBound {
                 bound: 2e-6,
-                grid: (48, 64),
+                grid: (36, 48),
+            },
+        },
+        OffsetFitError::WallReached {
+            wall: geom_brep::OffsetFitWall::Work {
+                budget: OFFSET_FIT_WORK,
+                spent: OFFSET_FIT_WORK - 1000,
+            },
+            rounds: 9,
+            grid: (40, 32),
+            achieved: 3e-6,
+            tolerance: 1e-6,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (36, 32),
             },
         },
         OffsetFitError::BoundNotFinite {
             rounds: 6,
-            grid: (64, 64),
+            grid: (48, 48),
             d: 0.1,
             tolerance: 1e-6,
             best: Some(geom_brep::BestBound {
                 bound: 3e-6,
-                grid: (48, 64),
+                grid: (36, 48),
             }),
         },
         OffsetFitError::BoundNotFinite {
             rounds: 6,
-            grid: (64, 64),
+            grid: (48, 48),
             d: 1e-8,
             tolerance: 1e-6,
             best: None,
         },
         OffsetFitError::RefinementStalled {
             rounds: 6,
-            grid: (64, 64),
+            grid: (48, 48),
             achieved: 3e-6,
             tolerance: 1e-6,
             best: geom_brep::BestBound {
                 bound: 2e-6,
-                grid: (48, 64),
+                grid: (36, 48),
             },
         },
         OffsetFitError::WindowUnsupported {

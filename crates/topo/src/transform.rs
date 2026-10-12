@@ -167,9 +167,10 @@ pub enum TransformError {
         /// The scalar the map ran at ([`geom_core::Real::NAME`]).
         scalar: &'static str,
     },
-    /// An edge of the plane × described-NURBS class (M7-8) cannot be
-    /// re-certified at this scalar: its certificate is re-derived on
-    /// the moved pair through the plane × NURBS lane, and the scalar's
+    /// An edge whose certificate needs the NURBS lane (the classes are
+    /// listed on [`geom_brep::CertifyError::NurbsLaneNotSupplied`])
+    /// cannot be re-certified at this scalar: its certificate is
+    /// re-derived on the moved pair through that lane, and the scalar's
     /// policy holds none ([`crate::AtRestPolicy::nurbs_lane`] answers
     /// `None` — a dual, DL1). It is a fact about the scalar and not
     /// about the body.
@@ -240,10 +241,10 @@ impl core::fmt::Display for TransformError {
             ),
             Self::NurbsLaneUnsupported { scalar, .. } => write!(
                 f,
-                "an edge between a plane and a spline face cannot be moved at the {scalar} \
-                 scalar: its certificate is re-derived on the moved pair through the plane x \
-                 NURBS lane, and only a scalar with certification rights holds that lane. \
-                 Recourse: move the body at a certifying scalar"
+                "an edge whose certificate needs the NURBS lane cannot be moved at the \
+                 {scalar} scalar: its certificate is re-derived on the moved pair through that \
+                 lane, and only a scalar with certification rights holds it. Recourse: move \
+                 the body at a certifying scalar"
             ),
             Self::ApproxRecertify { source } => write!(
                 f,

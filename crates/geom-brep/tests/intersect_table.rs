@@ -5,6 +5,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::surf::at_apex;
 use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::{Surface, SurfaceKind};
@@ -513,7 +514,7 @@ fn plane_cone_apex_trio() {
         normal: Vec3::unit_x(),
         u_ref: Vec3::unit_y(),
     };
-    let s = plane_cone_section(&plane, &cone, 1.0, band()).unwrap();
+    let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
     let PlaneConeSection::ApexLinePair { l1, l2 } = s else {
         panic!("expected the apex line pair, got {s:?}");
     };
@@ -543,7 +544,7 @@ fn plane_cone_apex_trio() {
         ),
         u_ref: Vec3::unit_y(),
     };
-    let s = plane_cone_section(&plane, &cone, 1.0, band()).unwrap();
+    let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
     let PlaneConeSection::ApexTangentLine(l) = s else {
         panic!("expected the tangent generator, got {s:?}");
     };
@@ -568,7 +569,7 @@ fn plane_cone_apex_trio() {
         normal: Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
         u_ref: Vec3::unit_y(),
     };
-    let s = plane_cone_section(&plane, &cone, 1.0, band()).unwrap();
+    let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
     let PlaneConeSection::ApexPoint(p) = s else {
         panic!("expected the apex point, got {s:?}");
     };
@@ -579,7 +580,7 @@ fn plane_cone_apex_trio() {
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
-    let err = plane_cone_section(&plane, &cone, 1.0, band()).unwrap_err();
+    let err = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
 }
 
@@ -591,7 +592,7 @@ fn plane_cone_axis_normal_circle() {
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
-    let s = plane_cone_section(&plane, &cone, 1.0, band()).unwrap();
+    let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
     let PlaneConeSection::AxisNormalCircle(c) = s else {
         panic!("expected the circle, got {s:?}");
     };
@@ -633,7 +634,7 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
     let q = Point3::new(0.0, 0.0, 4.0);
     for phi in [0.02f64, 0.2, 0.5, 0.9, 1.0] {
         let plane = tilted_plane(phi, q);
-        let s = plane_cone_section(&plane, &cone, 1.0, band()).unwrap();
+        let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
         let PlaneConeSection::TiltedEllipse(e) = s else {
             panic!("phi {phi}: expected the ellipse, got {s:?}");
         };
@@ -684,7 +685,8 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
     // every ε row resolves.
     let rim = 3.0 * alpha.tan();
     for phi in [0.04f64, 0.02, 0.01] {
-        let s = plane_cone_section(&tilted_plane(phi, q), &cone, 1.0, band()).unwrap();
+        let s =
+            plane_cone_section(&tilted_plane(phi, q), &cone, &at_apex(&cone, 1.0), band()).unwrap();
         let PlaneConeSection::TiltedEllipse(Curve3::Ellipse { major, minor, .. }) = s else {
             panic!("phi {phi}: expected the ellipse, got {s:?}");
         };
@@ -706,7 +708,8 @@ fn plane_cone_parabola_and_hyperbola_refuse_naming_the_conic() {
     let q = Point3::new(0.0, 0.0, 4.0);
     let parabola = core::f64::consts::FRAC_PI_2 - alpha;
     for (phi, conic) in [(parabola, "PARABOLA"), (1.2, "HYPERBOLA")] {
-        let err = plane_cone_section(&tilted_plane(phi, q), &cone, 1.0, band()).unwrap_err();
+        let err = plane_cone_section(&tilted_plane(phi, q), &cone, &at_apex(&cone, 1.0), band())
+            .unwrap_err();
         let SectionError::RoutesToGeneralRung { pair, why } = err else {
             panic!("phi {phi}: expected the R1 refusal, got {err:?}");
         };
@@ -716,7 +719,7 @@ fn plane_cone_parabola_and_hyperbola_refuse_naming_the_conic() {
         assert!(why.contains("R1"), "phi {phi}: {why}");
     }
     let near = tilted_plane(parabola - 3.0 * eps(), q);
-    let err = plane_cone_section(&near, &cone, 1.0, band()).unwrap_err();
+    let err = plane_cone_section(&near, &cone, &at_apex(&cone, 1.0), band()).unwrap_err();
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
     };
@@ -745,7 +748,7 @@ fn a_plane_along_the_axis_is_a_hyperbola_wherever_its_origin_sits() {
             normal: -Vec3::unit_x(),
             u_ref: Vec3::unit_y(),
         };
-        let got = plane_cone_section(&plane, &cone, 1.0, band());
+        let got = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band());
         let Err(SectionError::RoutesToGeneralRung { why, .. }) = got else {
             panic!("origin {origin:?}: expected the hyperbola's refusal, got {got:?}");
         };
@@ -773,7 +776,7 @@ fn a_needle_cones_plane_along_the_axis_just_off_the_apex_is_a_hyperbola() {
                 normal: Vec3::unit_x(),
                 u_ref: Vec3::unit_y(),
             };
-            match plane_cone_section(&plane, &cone, 1.0, band()) {
+            match plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()) {
                 Err(SectionError::RoutesToGeneralRung { why, .. }) if why.contains("HYPERBOLA") => {
                     None
                 }
@@ -1642,7 +1645,7 @@ fn pn_apex_section_in_band_escalates() {
         normal: Vec3::new(psi.sin(), 0.0, psi.cos()),
         u_ref: Vec3::unit_y(),
     };
-    let err = plane_cone_section(&plane, &cone, 1.0, band()).unwrap_err();
+    let err = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap_err();
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
     };
@@ -1663,7 +1666,7 @@ fn pn_axis_normal_in_band_escalates() {
         normal: Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
         u_ref: Vec3::unit_y(),
     };
-    let err = plane_cone_section(&plane, &cone, 1.0, band()).unwrap_err();
+    let err = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap_err();
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
     };
