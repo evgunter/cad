@@ -2,13 +2,12 @@
 id: a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector
 kind: issue
 title: A quarter round dipping into a slab (an overlapping tangency) refuses every op: the glue door has no class for a tangency that claims no material sides, so C8 refuses the undeclared curved sector
-status: parked
+status: open
 opened: 2026-10-10
 priority: P2
 cost: M
 refs: [boolean-conic-side-code-zero-is-first-order, an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band]
 design: true
-blocked_on: [4723]
 ---
 
 
@@ -96,3 +95,15 @@ glue door as a new class (A) or read off the witness locus in `vtxfac`
 tangency paragraph, which `[ev]` PR 4723 is rewriting for the external
 touch, so it waits on that ruling and then goes to a designer pair with
 the re-measure above as its evidence.
+
+## Weighed (2026-10-12)
+
+A designer pair (fork log row 118) converged in one round: the glue
+door's tangency verdict claims no material sides (`GlueClass` becomes
+`Rest | Continuation | Tangent`; `Contact(Tangent)` and `Seam` collapse
+into `Tangent`), and every consumer derives the side it needs. That
+changes C4's seam text, so it went to Ev as an `[ev]` PR. The build then
+meets this row's original `sectors::along` refusal, the remainder.
+Build note: the fixture carries a second wedge-0 edge at (x = 3, z = 0)
+lying in the slab's bottom face; a slab spanning z ∈ [−1, 1] isolates
+the rim.
