@@ -13,7 +13,7 @@ use super::*;
 use crate::MevSite;
 use crate::ring_path::cone_islands::{Frame, band, frames, plane, scales};
 use crate::ring_path::torus_islands::{
-    Island, IslandEdge, islands, meridian, on_torus, parallel, torus,
+    Island, IslandEdge, crest_islands, islands, meridian, on_torus, parallel, torus,
 };
 
 fn tol() -> Tol {
@@ -256,6 +256,11 @@ fn scaled_frames() -> Vec<Frame> {
 /// reading missed would show on the paths that cross it.
 #[test]
 fn a_torus_ring_run_winds_its_island_as_the_oracle_does() {
+    winds_as_the_oracle(islands);
+}
+
+/// The winding rows over the islands `islands` names in each frame.
+fn winds_as_the_oracle(islands: fn(Frame) -> Vec<(&'static str, Island)>) {
     let mut seen = [0usize; 2];
     let mut paths = 0usize;
     for f in scaled_frames() {
@@ -338,6 +343,11 @@ fn bystanders(f: Frame, island: &Island) -> (Point3<f64>, Point3<f64>) {
 /// refuses.
 #[test]
 fn a_ring_on_a_torus_face_is_re_homed_by_a_path() {
+    re_homes_as_the_oracle(islands);
+}
+
+/// The re-homing rows over the islands `islands` names in each frame.
+fn re_homes_as_the_oracle(islands: fn(Frame) -> Vec<(&'static str, Island)>) {
     for f in scaled_frames() {
         for mirror in [false, true] {
             let surface = torus(f, mirror);
@@ -419,37 +429,19 @@ fn a_spiric_closing_chord_is_a_ring_the_lane_does_not_read() {
     );
 }
 
-/// **A run bounded by the tube's top or bottom circle is a ring the lane
-/// does not read yet**, typed: that parallel, of radius `R`, lies in a
-/// plane that touches the torus along it, so no path crosses the plane
-/// there and its side is no loop split. An island reaching it from
-/// below or above, from every corner: the circle in the run or as the
-/// closing chord.
+/// **A run on the tube's top or bottom circle winds its island and
+/// re-homes its rings as the oracle says**: that parallel, of radius
+/// `R`, lies in a plane that touches the torus along it, so it is read
+/// across the cylinder `ρ = R`, which cuts the torus in it transversally
+/// ([`crate::ring_path::LoopArc::Crest`]). Islands up to the top, down
+/// to the bottom, from the top inward, and between the two (a donut's
+/// outer face), from every corner, so with the circle in the run and as
+/// the closing chord, in both directions, at both senses, with the
+/// torus's axis either way, in three frames at two scales; every decided
+/// path agrees, and a bystander ring moves into the island exactly when
+/// it lies inside.
 #[test]
-fn a_run_on_the_tubes_top_or_bottom_circle_is_a_ring_the_lane_does_not_read() {
-    use crate::ring_path::torus_islands::rectangle;
-    use core::f64::consts::FRAC_PI_2;
-    let f = frames()[0];
-    let surface = torus(f, false);
-    for (name, island) in [
-        ("top", rectangle(f, (-0.5, 0.6), (0.2, FRAC_PI_2))),
-        ("bottom", rectangle(f, (-0.5, 0.6), (-FRAC_PI_2, -0.2))),
-    ] {
-        for r in 0..island.edges.len() {
-            let (mut body, face, key) = sheet(f, surface.clone(), true);
-            let (run, closing) = run_from(&mut body, (face, key), &island, r);
-            let spec = edge_spec(&mut body, key, &closing);
-            let got = path_island_winding(&body, face, run, Some(&spec), band());
-            assert!(
-                matches!(
-                    got,
-                    Err(SplitJoinError::RingIslandUnread {
-                        kind: geom::SurfaceKind::Torus,
-                        ..
-                    })
-                ),
-                "{name}, from {r}: {got:?}"
-            );
-        }
-    }
+fn a_run_on_the_tubes_top_or_bottom_circle_winds_its_island_as_the_oracle_does() {
+    winds_as_the_oracle(crest_islands);
+    re_homes_as_the_oracle(crest_islands);
 }

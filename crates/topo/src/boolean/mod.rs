@@ -1859,6 +1859,36 @@ pub enum SpiricLoops {
     Null,
 }
 
+/// **Whose record a [`BooleanError::CarryRefused`] refused**, which says
+/// what the refusal's record index counts.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — and the refusal's sentence names whose record it was,
+/// and the refusal it carries ([`super::CarryRefusal`]) says what went
+/// wrong the same way for each. Carrying it
+/// would add the CUR3 property row and a Python word with no reader that
+/// acts on the difference.
+///
+/// **The falsifier is a caller that repairs its own records** — one that
+/// drops or re-derives an operand's record the carry refused before
+/// retrying: it must tell an operand's record from the op's own, and the
+/// index from which list. Then carry it and delete this paragraph and the
+/// disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RefusedRow {
+    /// One of the operand's carried records: the index is that
+    /// operand's record list's.
+    Carried(Operand),
+    /// A ring tie the reduction decided on the operand, carried as its
+    /// records are: the index counts the ties carried on that operand.
+    RingTie(Operand),
+    /// A record the reduction found: the index is its working set's.
+    Found,
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -2800,16 +2830,27 @@ pub enum BooleanError {
         closed: bool,
     },
     /// **A rest the op carries could not be placed on the pieces of the
-    /// face it divided.** A vertex-on-face record's face was divided by
-    /// the section, and the record lands on the piece whose interior
-    /// holds its vertex (`ops::Descendants::holder`); no piece read
-    /// `In`, and this piece's read failed, so the rest may be on it.
+    /// face it divided.** A record's span along a line edge is placed in
+    /// a face by its midpoint (`ops::span_held`), and this piece's read
+    /// failed, so the span may be on it.
     RestPieceUnread {
         /// The piece, in result keys.
         face: FaceKey,
         /// The containment door's refusal; `None` where the curved
         /// chart trim gives no verdict for this face.
         refusal: Option<ContainError>,
+    },
+    /// **A record the op carries, or found, could not be placed on the
+    /// result** (D1): the one carry refused it
+    /// (`ops::carried`, `records::landings`): a pair of its cells'
+    /// images the census cannot read, or a record that lands on no pair
+    /// with nothing removed to consume it.
+    CarryRefused {
+        /// Whose record it is, which says what the refusal's record
+        /// index counts.
+        row: RefusedRow,
+        /// The carry's refusal.
+        refusal: super::CarryRefusal,
     },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
@@ -3144,6 +3185,8 @@ pub enum BooleanErrorKind {
     JoinCarrierUnsupported,
     /// [`BooleanError::RestPieceUnread`].
     RestPieceUnread,
+    /// [`BooleanError::CarryRefused`].
+    CarryRefused,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
     /// [`BooleanError::LineageRow`].
@@ -3368,6 +3411,7 @@ impl BooleanError {
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
             Self::RestPieceUnread { .. } => BooleanErrorKind::RestPieceUnread,
+            Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
             Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
@@ -3440,16 +3484,17 @@ pub(crate) fn kind_word(kind: geom::SurfaceKind) -> &'static str {
 /// **This is the one statement of the pairs the Boolean can join**: the
 /// germ-pair join (`join::bool_connect`, and the chord layer it mints
 /// sections through) joins a plane face against a plane, cylinder,
-/// sphere or cone face, mirrors included,
-/// and two spheres or two parallel cylinders along their radical plane.
+/// sphere or cone face, mirrors included, and against a torus face where
+/// the plane holds the torus's axis or stands square to it, and two
+/// spheres or two parallel cylinders along their radical plane.
 /// The rustdoc that needs the set points here. The operand gate's box
 /// test is conservative (a box overlap is a MAY),
 /// so moving the face clear of the other solid is a real recourse even
 /// where the faces never touch in exact geometry.
 pub(crate) fn meeting_recourse(kind: &str) -> String {
     format!(
-        "Recourse: reshape the parts so they meet only where a plane face meets \
-         a plane, cylinder, sphere or cone face, or move them so the {kind} face stays \
+        "Recourse: reshape the parts so every meeting is a plane against a plane, cylinder, \
+         sphere, cone, or torus whose axis it holds or is square to, or move the {kind} face \
          clear of the other solid"
     )
 }
@@ -3949,6 +3994,21 @@ impl core::fmt::Display for BooleanError {
                     "through the other edge's far end"
                 }
             ),
+            Self::CarryRefused { row, refusal } => {
+                let whose = match row {
+                    RefusedRow::Carried(operand) => {
+                        format!("a contact record of the {} operand", operand_word(*operand))
+                    }
+                    RefusedRow::RingTie(operand) => {
+                        format!("a ring tie on the {} operand", operand_word(*operand))
+                    }
+                    RefusedRow::Found => "a contact record the Boolean found".to_owned(),
+                };
+                write!(
+                    f,
+                    "the Boolean could not carry {whose} onto its result: {refusal}"
+                )
+            }
             Self::JoinDesync { what } => write!(
                 f,
                 "A/B lockstep invariant violated: {what} (kernel bug or corrupt \
@@ -6306,14 +6366,8 @@ fn validate_declarations<T: Decide>(
                 return Err(bad(operand, "carried e-e pair names one edge twice"));
             }
             for e in [touch.a, touch.b] {
-                let Some(d) = body.get_edge(e) else {
+                if body.get_edge(e).is_none() {
                     return Err(bad(operand, "carried e-e edge key does not resolve"));
-                };
-                // Edge-split lineage reads each edge as the segment
-                // between its ends (`ops::ee_lineage`), which only a
-                // line edge is.
-                if edge_join::certified_line(body, e, d).is_none() {
-                    return Err(bad(operand, "carried e-e edge is not a certified line"));
                 }
             }
         }
@@ -7318,6 +7372,7 @@ mod tests {
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
                 BooleanErrorKind::RestPieceUnread => "RestPieceUnread",
+                BooleanErrorKind::CarryRefused => "CarryRefused",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::LineageRow => "LineageRow",
                 BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",

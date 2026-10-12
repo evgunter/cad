@@ -161,6 +161,9 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # argued beside the declaration.
     "SpiricLoops": ("argued", "non-carriage with its falsifier, beside the declaration "
                     "in crates/topo/src/boolean/mod.rs"),
+    # `BooleanError::CarryRefused`'s `row`: whose record the carry refused.
+    "RefusedRow": ("argued", "non-carriage with its falsifier, beside the declaration "
+                   "in crates/topo/src/boolean/mod.rs"),
     # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed
     # decision types. The row also holds the two types nested one rung
     # further down (`SectorRung`, `CrossingDecision`), which this sweep

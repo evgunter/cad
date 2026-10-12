@@ -46,11 +46,13 @@ certificate.
 
 ## Fix shape
 
-As at `split_edge` (`Body::tangent_piece`, `crates/topo/src/split.rs`):
+Through `geom_brep::must_carry_description`, as `split_edge`'s
+tangent children are (`Body::tangent_piece`, `crates/topo/src/split.rs`):
 the moved edge's description is the rule's over the moved interval,
-`must_carry_over_edge(s1, s2, carrier, t0, t1, extent, band)
-.description(pair, witness)`, `Conventional` stored as a chart image
-in an adjacent chart, the in-band and refuted verdicts refused typed
-at the offset door. The pair's surfaces are the ones the re-attach
-certifies against (unmoved here, since the edge does not lie on the
-replaced face's boundary).
+`must_carry_description(SmoothJoin { surfaces, carrier, interval,
+chord, witness }, band, chart, …)`, with `Conventional` resting in the
+adjacent chart the door names through `chart`, and the in-band (first-
+and second-order), refuted and foreign-chart outcomes refused typed at
+the offset door through the constructors it passes. The pair's surfaces are the
+ones the re-attach certifies against (unmoved here, since the edge
+does not lie on the replaced face's boundary).

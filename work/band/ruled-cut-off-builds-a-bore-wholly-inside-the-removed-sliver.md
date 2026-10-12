@@ -185,3 +185,54 @@ membership test (4).
 - **The cap's inside path cannot decide an end-to-end verdict today**
   (every cap ring's wall reads a bound first). It is pinned by unit rows
   only, and step 3's non-strict cap-plane reading may reshape it.
+
+## Findings (step 2: the verdict log) — stopped at a fork
+
+- **The verdict is already logged.** Predicate 2's readings, the three-way
+  ones included, are `k_stats` decisions under `fillet3_face_clearance`
+  (`blend::classify` → `k_stats::decide`), and the cap's under
+  `fillet3_ring_clearance`. They land in the blend node's verdict log
+  (`NodeValue::verdicts`), which is what N5's `PredicateFlip` is computed
+  from (`resolve/vdiff.rs`). A face the blend carries through is named
+  `From { read, of }` at the blend node (`names/emit_blend.rs`), so the
+  blend is on its derivation path. Once step 3 builds a consuming carve, a
+  name that resolved last run and is consumed now resolves `Vanished {
+  PredicateFlip { fillet3_face_clearance, Positive → Negative } }` with no
+  new code. That is the Boolean's path: a feature inside its tool vanishes
+  on its classification's flip, as a split piece does (N1, "N5 diagnoses
+  `PredicateFlip` from the split's recorded classification").
+- **What the brief asked for beyond that is a design choice.** A cause
+  naming the feature, the band and the depth needs a new `Diagnosis` arm.
+  N5's list of arms is ratified (#74, `crates/editor-core/src/names/README.md`),
+  and the ruling doesn't make that change. It also needs a record (on
+  `Blended`, per face or per feature) whose difference from "a `Consumed`
+  record in the blend's naming" the ruling doesn't draw.
+- **There is no per-refusal N5 mapping to fill.** A refused blend leaves
+  its names `Indeterminate` (`resolve`, step 4, the minting node's
+  standing), whatever the `BlendError` variant. `WhollyInside` is carried
+  through `NodeErrorKind::Blend` like every other refusal. Nothing
+  `ReadGone`-shaped exists, and no test-support seam injects a verdict.
+- **The canonical face on a tie** (NOTE 1 above) bears only on
+  `WhollyInside { at }` under the verdict-log reading, since
+  `PredicateFlip` names no face. It is still open, and small
+  (`reach::Unclear`: break an equal-`hi` tie by `EntityId` order).
+- **What the verdict-log reading cannot say:** with no prior run (a
+  reference written after the feature was already consumed) the ladder has
+  no flip to cite and falls to `cause_not_in_evidence`. The population
+  diff's blind spot (a consumed face and a face freed in one edit cancel)
+  applies here as it does to the Boolean's.
+- **Adjudicated (orchestrator, 2026-10-12): reading (A), no new record.**
+  The ruling says "the verdict is logged so a later reader of a consumed
+  name resolves `Vanished` with the blend's verdict as the cause", and "no
+  `Consumed` record … at least until something needs it". The blend
+  node's verdict log is that log, and `Vanished { PredicateFlip }` is
+  that resolution, the same path a feature inside a Boolean's tool takes.
+  So step 2 adds no `Diagnosis` arm and no record on `Blended`; a cause
+  naming the feature, band and depth waits until something needs it (the
+  INTENT consumption lint is the likely first reader). What remains of
+  step 2 rides step 3, where a consumed name first exists: (i) a row that
+  a name resolved before the carve resolves `Vanished { PredicateFlip {
+  fillet3_face_clearance, … } }` after it; (ii) `reach::Unclear` breaks an
+  equal-`hi` tie by `EntityId` so `WhollyInside { at }` names one face
+  whatever the edge order. The no-prior-run blind spot is the Boolean's
+  too, and is recorded, not built.

@@ -6155,6 +6155,33 @@ mod recourse_tests {
             }
         }
     }
+
+    /// A fitted-lane limb-3 escalation, rendered through the mint's
+    /// `Certify` arm, ends in the tube's own labelled recourse at a
+    /// build: the transversality lever and its tighten offer.
+    #[test]
+    fn a_fitted_tube_escalation_renders_its_own_recourse_through_the_mint() {
+        let finding = PcurveMintError::Certify {
+            half_edge: HalfEdgeKey::default(),
+            error: PcurveCertifyError::FittedEscalated {
+                decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::Tube),
+                cause: Indeterminate {
+                    margin: MarginDiag::value(5e-9),
+                    band: Band::new(1e-9, 1e-8).unwrap(),
+                    predicate: Some("ssi_tube_transversality"),
+                    terminal_sliver: false,
+                },
+            },
+        };
+        assert_eq!(
+            finding.to_string(),
+            "the pcurve of half-edge HalfEdgeKey(null) failed certification: pcurve \
+             certification: the fitted lane's certificate escalated — whether the fitted carrier \
+             passes limb 3 (uniqueness tube) is undecided: margin 5e-9 lies inside the ambiguity \
+             band (1e-9, 1e-8). Recourse: move the geometry so the surfaces cross at a clearer \
+             angle, or, if this angle is intended, tighten the tolerance below 5e-10 m"
+        );
+    }
 }
 
 /// **The fitted refusal raised before any check.** The mint's
