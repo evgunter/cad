@@ -4860,11 +4860,12 @@ fn rounds_at_the_wall(
     )
 }
 
-/// **A loop past the step budget refuses typed at the wall.** At ε 1e-14
-/// the dome's level loop takes about 18 300 marched samples, inside the
-/// branch's 20 000 steps, and limb 2 reads it in band at about 2.4e-14 m;
-/// refinement's first round asks about 23 400 steps, so the wall refuses
-/// before it, naming the one refused round. A branch never grows past the
+/// **A loop past the step budget refuses typed at the wall.** At ε 8e-15
+/// the dome's level loop takes about 19 350 marched samples, inside the
+/// branch's 20 000 steps, and limb 2 reads it in band at about 8.8e-15 m;
+/// refinement's first round would overrun the steps, so the wall refuses
+/// before it, naming the one refused round. At 9e-15 the loop certifies
+/// on its marched samples, so 8e-15 is where this row's subject is. A branch never grows past the
 /// wall, and the refusal is the resource limit, not a verdict on the
 /// carrier. One round shows no refused residual falling or stopping, so
 /// the ending is the curvature-held march's: the domain, then the
@@ -4878,14 +4879,14 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
         normal: Vec3::new(0.0, 1.0, 0.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    if !at_the_compiled_default("the level loop at 1e-14") {
+    if !at_the_compiled_default("the level loop at 8e-15") {
         return;
     }
-    let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(1e-14));
-    let (samples, rounds, shown, trend) = rounds_at_the_wall("the level loop at 1e-14", &r);
+    let r = ssi::plane_nurbs_ssi(&level, &dome_wall(d), dom, band_at(8e-15));
+    let (samples, rounds, shown, trend) = rounds_at_the_wall("the level loop at 8e-15", &r);
     assert_eq!(trend, ResidualTrend::Falling, "one round shows no stall");
     assert!(
-        (18_000..18_600).contains(&samples),
+        (19_100..19_600).contains(&samples),
         "the march's samples: {samples}"
     );
     assert_eq!(rounds.len(), 1, "one refused round: {rounds:?}");
@@ -4898,11 +4899,12 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
 }
 
 /// **Refinement past the arithmetic's floor meets the wall typed, with
-/// the floor in its history.** At ε 1e-14 limb 2 reads the dome's `z =
-/// 0.2` arc in band at about 1.3e-14 m whatever its samples: the enclosure's
+/// the floor in its history.** At ε 8e-15 limb 2 reads the dome's `z =
+/// 0.2` arc in band at 9.0–9.4e-15 m whatever its samples: the enclosure's
 /// width, not a between-sample error, so halving every refused gap
-/// doubles the samples and leaves the margin where it was. The rounds
-/// run from about 4 250 samples until the next would overrun the
+/// doubles the samples and leaves the margin where it was. At 9e-15 the
+/// arc certifies, so the floor sits between the two. The rounds
+/// run from about 4 490 samples until the next would overrun the
 /// branch's step budget, every one in band on limb 2 at the same width,
 /// and the refusal is the wall's, its ending naming the floor.
 ///
@@ -4910,7 +4912,7 @@ fn a_loop_past_the_step_budget_refuses_typed_at_the_wall() {
 /// between-sample error falls at least as fast as the gaps, so over a
 /// sample growth `G ≥ 3` its spread `hi/lo` is at least `G`. The row
 /// puts the line at `√G`, the geometric midpoint between flat (`1`) and
-/// that (`G`); measured `hi/lo` is about 1.19 against `√G ≥ 1.73`.
+/// that (`G`); measured `hi/lo` is about 1.04 against `√G ≥ 1.73`.
 #[test]
 fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
     let d = 1.0;
@@ -4920,11 +4922,11 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
         normal: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    if !at_the_compiled_default("the zcut at 1e-14") {
+    if !at_the_compiled_default("the zcut at 8e-15") {
         return;
     }
-    let r = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, band_at(1e-14));
-    let (_, rounds, shown, trend) = rounds_at_the_wall("the zcut at 1e-14", &r);
+    let r = ssi::plane_nurbs_ssi(&zcut, &dome_wall(d), dom, band_at(8e-15));
+    let (_, rounds, shown, trend) = rounds_at_the_wall("the zcut at 8e-15", &r);
     assert_eq!(
         trend,
         ResidualTrend::Stalled,
@@ -4960,7 +4962,7 @@ fn refinement_past_the_arithmetics_floor_meets_the_wall_typed() {
         (lo.min(*m), hi.max(*m))
     });
     assert!(
-        (1.2e-14..1.7e-14).contains(&lo) && hi / lo < growth.sqrt(),
+        (8.5e-15..1e-14).contains(&lo) && hi / lo < growth.sqrt(),
         "the margin flat at the enclosure's width while the samples grew: {rounds:?}"
     );
 }
