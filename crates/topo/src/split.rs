@@ -34,7 +34,7 @@ use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
-use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::geometry::{CurveKey, PointKey};
 use crate::live::{Arg, dangling_link, link, lookup};
 use crate::provenance::Provenance;
 
@@ -158,7 +158,10 @@ impl<T: Decide> Body<T> {
     /// `edge` resolves ([`crate::BadArgument::Stale`]); its curve entry
     /// is certified ([`EulerOpError::NullScaffoldCurve`] — null
     /// scaffolding has nothing to split); the interiority trilean
-    /// (above); both child specs certify
+    /// (above); a tangent child's description by the must-carry rule
+    /// over the child ([`EulerOpError::SplitTangentEscalated`],
+    /// [`EulerOpError::SplitTangentBendEscalated`],
+    /// [`EulerOpError::SplitTangentRefuted`]); both child specs certify
     /// ([`EulerOpError::Certification`] — endpoints
     /// `start(hp) → carrier(t)` and `carrier(t) → end(hp)`, he_plus
     /// forward order on each child; the plane × NURBS lane is the
@@ -211,8 +214,9 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// The first failing precondition above; the body is untouched on
-    /// `Err`.
+    /// The first failing precondition above, a tangent child the
+    /// must-carry rule leaves in band or reads at a corner among them;
+    /// the body is untouched on `Err`.
     pub fn split_edge(
         &mut self,
         edge: EdgeKey,
@@ -249,16 +253,20 @@ impl<T: Decide> Body<T> {
     /// demands ([`geom_brep::must_carry_over_edge`]): the rule meters
     /// the sagitta over the edge's own extent, so a short child can be
     /// under-determined, or in band, where its parent was
-    /// jet-determinate. Under-determined stores an image in `chart`,
-    /// the chart of the face the parent's `he_plus` bounds, which the
-    /// door derives from the carrier.
+    /// jet-determinate.
     ///
-    /// A pair key that does not resolve leaves the restriction for the
-    /// certificate to refuse.
+    /// Under-determined stores an image the door derives from the
+    /// carrier, in the chart of the face `he_plus` bounds. The locus
+    /// lies exactly in both adjacent charts, so either certifies; the
+    /// edge's own orientation names one, as it does for a blend's
+    /// contact edge, and both children's plus halves lie in that face.
+    ///
+    /// The pair's keys are links of the parent's certified description,
+    /// so a key that does not resolve is a torn body, not a refusal.
     fn tangent_piece(
         &self,
         edge: EdgeKey,
-        chart: SurfaceKey,
+        he_plus: HalfEdgeKey,
         spec: EdgeCurveSpec<T>,
         [p0, p1]: [Point3<T>; 2],
         band: Band,
@@ -268,11 +276,17 @@ impl<T: Decide> Body<T> {
         else {
             return Ok(spec);
         };
-        let [ka, kb] = pair.keys();
-        let (Some(a), Some(b)) = (self.get_surface(ka), self.get_surface(kb)) else {
-            return Ok(spec);
+        let surface = |k| {
+            self.get_surface(k).unwrap_or_else(|| {
+                dangling_link(
+                    EntityId::Edge(edge),
+                    "curve's description",
+                    GeomRef::Surface(k),
+                )
+            })
         };
-        let (pair, [sa, sb]) = geom_brep::SurfacePair::sorted(ka, a, kb, b);
+        let [ka, kb] = pair.keys();
+        let (pair, [sa, sb]) = geom_brep::SurfacePair::sorted(ka, surface(ka), kb, surface(kb));
         let (s0, s1) = (spec.param_start, spec.param_end);
         let extent = geom_brep::edge_extent(&spec.carrier, s0, s1, p0.distance(p1));
         let description =
@@ -287,7 +301,9 @@ impl<T: Decide> Body<T> {
                 })? {
                 geom_brep::MustCarryDescription::Intrinsic(description) => description,
                 geom_brep::MustCarryDescription::Conventional => {
-                    geom_brep::EdgeDescriptionSpec::chart(chart)
+                    geom_brep::EdgeDescriptionSpec::chart(
+                        crate::pcurves::half_edge_face(self, he_plus).1.surface,
+                    )
                 }
             };
         Ok(EdgeCurveSpec {
@@ -393,9 +409,8 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): both children must
         // certify against their own endpoints.
         let (spec1, spec2) = curve.split_specs(t);
-        let chart = crate::pcurves::half_edge_face(self, hp.key()).1.surface;
-        let spec1 = self.tangent_piece(edge, chart, spec1, [p_u, p_new], band)?;
-        let spec2 = self.tangent_piece(edge, chart, spec2, [p_new, p_v], band)?;
+        let spec1 = self.tangent_piece(edge, hp.key(), spec1, [p_u, p_new], band)?;
+        let spec2 = self.tangent_piece(edge, hp.key(), spec2, [p_new, p_v], band)?;
         let cert1 = self.certify_edge_spec(Some(edge), spec1, p_u, p_new, tol)?;
         let cert2 = self.certify_edge_spec(Some(edge), spec2, p_new, p_v, tol)?;
         // ---- Pcurve gate (still no mutation): each parent half-edge's

@@ -1236,6 +1236,12 @@ pub enum EulerOpError {
     /// tangent along its own span is in band, at a station of the
     /// must-carry rule over the child
     /// ([`geom_brep::MustCarryEscalation::FirstOrder`]).
+    ///
+    /// Unreached: the dihedral escalates on its arm only over a child
+    /// whose extent lies inside the band, and the interiority gate
+    /// refuses such a child first; along a ruling, the tangent edge the
+    /// kernel's doors mint, both normals are constant, so a child
+    /// station reads the dihedral the parent's certificate read.
     SplitTangentEscalated {
         /// The edge being split.
         edge: EdgeKey,
@@ -1259,6 +1265,10 @@ pub enum EulerOpError {
     /// must-carry rule over a child reads the two faces at a corner
     /// ([`geom_brep::MustCarryRefusal::Refuted`]), against the tangency
     /// the parent's certificate holds along the whole edge.
+    ///
+    /// Unreached, for the reason [`Self::SplitTangentEscalated`] is: a
+    /// child's arm is no longer than its parent's, so a station the
+    /// certified parent holds smooth cannot read definitely transverse.
     SplitTangentRefuted {
         /// The edge being split.
         edge: EdgeKey,

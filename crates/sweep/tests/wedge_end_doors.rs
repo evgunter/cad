@@ -421,9 +421,9 @@ fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
 /// over which the rule meters the sagitta `d²/2`:
 ///
 /// - `d²/2 ≤ ε` — under-determined: the short piece stores an image in
-///   an adjacent chart, derived (no declaration), and lying on the
-///   ruling to within ε; both pieces are tier-3 valid with their
-///   closed-form volumes;
+///   the chart of the face its `he_plus` bounds, derived (no
+///   declaration), and lying on the ruling to within ε; both pieces are
+///   tier-3 valid with their closed-form volumes;
 /// - in band — the split refuses with the rule's own typed sagitta;
 /// - beyond `K·ε` — both pieces keep the intrinsic tangency.
 ///
@@ -551,9 +551,9 @@ fn a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule() {
                             height < 0.5 && c * c <= 1.0,
                             "{label}: the {height:e} piece stores {chart:?}"
                         );
-                        assert!(
-                            faces.contains(&chart.surface),
-                            "{label}: the image rests in an adjacent chart"
+                        assert_eq!(
+                            chart.surface, faces[0],
+                            "{label}: the image rests in the chart of the face `he_plus` bounds"
                         );
                         assert!(
                             matches!(curve.authority(), geom_brep::EdgeAuthority::Derived),
