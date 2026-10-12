@@ -994,3 +994,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - the winding row is blind to a dropped run arc.
   - Report saved at `scratchpad/dr4743/R1.md`.
   - Fix pass: cloud session `session_017m4PJne2QkExBYnqDhaFTr`. Then the row (sequential, M, tallied 0, major false) and merge.
+- 2026-10-12 06:56 — **PR 4646 (apex reach P1) merged.**
+  - Verified on the merged tree: geom-brep, topo and sweep `--profile ci` all green; touched rows at three ε (geom-brep 101, topo 78, sweep 6); gates, clippy and fmt.
+  - A second main merge conflicted in `chord_join.rs` (both sides appended a test module at the end of the file). I kept both and re-verified: topo 2871, sweep 2499, chord_join rows 60 at three ε.
+  - The row is `PR-4646.md`: sequential, M, tallied 0, major true. The item is closed.
+  - **The conic-past-band P2 is dispatched, measure first.** The row names the lever as a design question, so the lane stops at a draft PR if it finds a fork.
+    - Arm byte 169, mod 3 = 1: **SEQUENTIAL**.
+    - Cloud session `session_01X4Xg9GKw7z9LuZF8GHceko`, branch `germ/conic-past-band`.
+  - The U-T2 fix pass is running.
