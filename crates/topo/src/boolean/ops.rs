@@ -3059,6 +3059,27 @@ pub(super) struct Incidence {
 }
 
 impl Incidence {
+    /// The cells the division of one face into `fragments` minted in
+    /// its interior: each edge between two of them (a chord), and each
+    /// vertex no face but them bounds (where chords meet inside it).
+    fn chords<'a>(&'a self, fragments: &'a [FaceKey]) -> impl Iterator<Item = Cell> + 'a {
+        let inside = move |fs: &[FaceKey]| {
+            fs.len() >= 2
+                && fs.iter().all(|f| fragments.contains(f))
+                && fs.iter().any(|f| f != &fs[0])
+        };
+        self.edge
+            .iter()
+            .filter(move |(_, fs)| inside(fs))
+            .map(|(&e, _)| Cell::Edge(e))
+            .chain(
+                self.vertex
+                    .iter()
+                    .filter(move |(_, fs)| inside(fs))
+                    .map(|(&v, _)| Cell::Vertex(v)),
+            )
+    }
+
     fn of<T: Real>(clone: &Body<T>, scaffold: &BTreeSet<FaceKey>) -> Self {
         let real = |fs: Vec<FaceKey>| -> Vec<FaceKey> {
             fs.into_iter().filter(|f| !scaffold.contains(f)).collect()
@@ -3267,7 +3288,7 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// substitution rows ([`Descendants::live`]);
 /// [`BooleanError::ClassificationInvariant`] on a surviving record no
 /// decision backs.
-pub(super) fn carry<T: Decide + Bounds + AtRestPolicy>(
+pub(super) fn carry<T: Decide + AtRestPolicy>(
     body: &Body<T>,
     ledger: &Ledger,
     views: [&KeyView<'_>; 2],
@@ -3283,7 +3304,7 @@ pub(super) fn carry<T: Decide + Bounds + AtRestPolicy>(
         &tagged(&ledger.discovered),
         [&a, &b],
         views,
-        desc,
+        (desc, &ledger.incidence),
         false,
         band,
     )?;
@@ -3313,7 +3334,7 @@ pub(super) fn carry<T: Decide + Bounds + AtRestPolicy>(
 /// row stating its removal, or a minted meeting this door has no
 /// decision for; [`BooleanError::Escalated`] (`VertexOnVertex`) where a
 /// minted meeting's margin is in band.
-fn carried<T: Decide + Bounds + AtRestPolicy>(
+fn carried<T: Decide + AtRestPolicy>(
     body: &Body<T>,
     ledger: &Ledger,
     views: [&KeyView<'_>; 2],
@@ -3471,14 +3492,7 @@ fn operand_fate<T: Real>(
         }
         Cell::Face(f) => {
             let fragments: Vec<FaceKey> = Descent::of(f, &desc.fragments[s]).cells().collect();
-            let chords = incidence
-                .edge
-                .iter()
-                .filter(|(_, fs)| {
-                    matches!(fs[..], [f0, f1] if f0 != f1 && fragments.contains(&f0) && fragments.contains(&f1))
-                })
-                .map(|(&e, _)| Cell::Edge(e))
-                .collect();
+            let chords = incidence.chords(&fragments).collect();
             let divided = fragments.len() > 1;
             (
                 fragments.into_iter().map(Cell::Face).collect(),
@@ -3712,12 +3726,16 @@ pub(super) fn carry_in_place<T: Decide + AtRestPolicy>(
             ([(Operand::A, x), (Operand::A, y)], &c.cites)
         })
         .collect();
+    let incidence = [
+        Incidence::of(body, &BTreeSet::new()),
+        Incidence::of(body, &BTreeSet::new()),
+    ];
     carry_rows(
         body,
         &rows,
         [&none, &none],
         [&KeyView::Direct, &KeyView::Direct],
-        desc,
+        (desc, &incidence),
         true,
         band,
     )
@@ -3871,7 +3889,7 @@ fn carry_rows<T: Decide + AtRestPolicy>(
     discovered: &[Tagged<'_>],
     carried: [&Rows; 2],
     views: [&KeyView<'_>; 2],
-    desc: &Descendants,
+    (desc, incidence): (&Descendants, &[Incidence; 2]),
     one_arena: bool,
     band: Band,
 ) -> Result<ContactRecords, BooleanError> {
@@ -4025,7 +4043,7 @@ fn carry_rows<T: Decide + AtRestPolicy>(
         }
         for (x, y) in place_found(
             body,
-            desc,
+            (desc, incidence),
             views,
             [(vs, vc), (fs, fc)],
             found,
@@ -4041,7 +4059,7 @@ fn carry_rows<T: Decide + AtRestPolicy>(
     for (([(xs, xc), (ys, yc)], cites), found) in cell_rows {
         for (x, y) in place_found(
             body,
-            desc,
+            (desc, incidence),
             views,
             [(xs, xc), (ys, yc)],
             found,
@@ -4070,7 +4088,7 @@ fn carry_rows<T: Decide + AtRestPolicy>(
 /// piece of its face; as [`Descendants::live`].
 fn place_found<'b, T: Decide + AtRestPolicy>(
     body: &'b Body<T>,
-    desc: &Descendants,
+    (desc, incidence): (&Descendants, &[Incidence; 2]),
     views: [&KeyView<'_>; 2],
     ends: [End; 2],
     found: Option<usize>,
@@ -4095,21 +4113,16 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
             continue;
         }
         divided = true;
-        let mut pieces: Vec<Cell> = Vec::new();
-        for g in fragments {
-            match desc.live(body, side, view, Cell::Face(g))? {
-                Some(p) if !pieces.contains(&p) => pieces.push(p),
+        let chords: Vec<Cell> = incidence[usize::from(side == Operand::B)]
+            .chords(&fragments)
+            .collect();
+        for c in fragments.iter().map(|&g| Cell::Face(g)).chain(chords) {
+            match desc.live(body, side, view, c)? {
+                Some(p) if !images[i].contains(&p) => images[i].push(p),
                 Some(_) => {}
                 None => gone = true,
             }
         }
-        let chords = body.edges().filter_map(|(e, _)| {
-            let (f0, f1) = crate::readback::edge_sides(body, e).ok()?.faces();
-            (f0 != f1 && pieces.contains(&Cell::Face(f0)) && pieces.contains(&Cell::Face(f1)))
-                .then_some(Cell::Edge(e))
-        });
-        let chords: Vec<Cell> = chords.collect();
-        images[i] = pieces.into_iter().chain(chords).collect();
     }
     let pairs = images[0]
         .iter()
@@ -6121,8 +6134,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let body = carve_kept(&red.a, &a_keep)?;
             finish_fallback(
                 op,
-                body,
-                &a_keep,
+                (body, &a_keep),
                 red,
                 decls,
                 BooleanResultKind::OperandA,
@@ -6134,8 +6146,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let body = carve_kept(&red.b, &b_keep)?;
             finish_fallback(
                 op,
-                body,
-                &b_keep,
+                (body, &b_keep),
                 red,
                 decls,
                 BooleanResultKind::OperandB,
@@ -6258,8 +6269,7 @@ fn faces_outside<T: Real>(clone: &Body<T>, keep: &[ShellKey]) -> BTreeSet<FaceKe
 /// the contract is uniform), applying ∖'s B-side revert when needed.
 fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     op: BooleanOp,
-    body: Body<T>,
-    keep: &[ShellKey],
+    (body, keep): (Body<T>, &[ShellKey]),
     red: &BooleanReduction<T>,
     decls: &Glue,
     kind: BooleanResultKind,
@@ -6419,7 +6429,15 @@ mod tests {
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::BooleanError> {
         let none = super::Rows::default();
         let rows = super::tagged(contacts);
-        super::carry_rows(body, &rows, [&none, &none], views, desc, false, band())
+        super::carry_rows(
+            body,
+            &rows,
+            [&none, &none],
+            views,
+            (desc, &Default::default()),
+            false,
+            band(),
+        )
     }
 
     /// The door over carried records alone.
@@ -6437,7 +6455,7 @@ mod tests {
                 &super::Rows::of(&decls.records_b, crate::boolean::Operand::B),
             ],
             views,
-            desc,
+            (desc, &Default::default()),
             false,
             band(),
         )

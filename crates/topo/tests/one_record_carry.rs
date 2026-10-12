@@ -281,3 +281,97 @@ fn a_minted_pair_an_op_cannot_back_refuses() {
         "{refused:?}"
     );
 }
+
+/// `op` of `a` and `b`, carrying `a`'s records in.
+fn carried_op(
+    op: topo::BooleanOp,
+    a: &BooleanBody<f64>,
+    b: &AtRestBody<f64>,
+) -> Result<BooleanResult<f64>, topo::BooleanError> {
+    let inputs = topo::BooleanInputs {
+        records_a: a.contacts.carried(),
+        ..topo::BooleanInputs::default()
+    };
+    topo::boolean_op_with(
+        op,
+        &a.body,
+        b,
+        &inputs,
+        topo::SweepStrategy::Realized,
+        tol(),
+    )
+}
+
+/// A unit cube turned off every axis, balanced on its corner at
+/// `(2, 2, 1)` on a slab's top: one vertex–face record.
+fn corner_on_slab() -> BooleanBody<f64> {
+    let (e1, e2, e3) = (
+        Vec3::new(0.9, 0.1, 0.3),
+        Vec3::new(-0.2, 0.8, 0.45),
+        Vec3::new(-0.3, -0.4, 0.85),
+    );
+    let tilted = common::finished(
+        "the tilted cube",
+        common::mapped_cube(
+            |x, y, z| {
+                Point3::new(
+                    2.0 + x * e1.x + y * e2.x + z * e3.x,
+                    2.0 + x * e1.y + y * e2.y + z * e3.y,
+                    1.0 + x * e1.z + y * e2.z + z * e3.z,
+                )
+            },
+            tol(),
+        ),
+        tol(),
+    );
+    let slab = box_of((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), "slab");
+    let base = union_of(&slab, &tilted);
+    assert_eq!(base.contacts.len(), 1, "{:?}", base.contacts);
+    assert_eq!(
+        base.contacts.vertex_face().count(),
+        1,
+        "{:?}",
+        base.contacts
+    );
+    base
+}
+
+/// **A carried record no pair of the boolean's result confirms, and on
+/// no cell it removed, refuses** (D1): never dropped because no witness
+/// turned up. The corner-on-slab body carries its rest and a second
+/// record (bookkeeping: the cube's corner against the slab's bottom, no
+/// touch) into a union with a box far from both. Red on the boolean's
+/// carry that keeps a record unread.
+#[test]
+fn a_carried_record_the_boolean_confirms_nowhere_refuses_stale() {
+    let mut base = corner_on_slab();
+    let [corner, _] = base.contacts.rows()[0].cells();
+    let bottom = base
+        .body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                base.body.get_surface(f.surface),
+                Some(topo::Surface::Plane { origin, normal, .. })
+                    if normal.z.abs() == 1.0 && origin.z == 0.0
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the slab's bottom");
+    base.contacts.extend([topo::Cited::new(
+        topo::Contact::new(&base.body, corner, Cell::Face(bottom)).unwrap(),
+        topo::Cites::decided(0),
+    )]);
+    let far = box_of((10.0, 11.0), (10.0, 11.0), (0.0, 1.0), "far");
+    let got = carried_op(topo::BooleanOp::Union, &base, &far).map(|_| ());
+    assert!(
+        matches!(
+            got,
+            Err(topo::BooleanError::CarryRefused {
+                operand: topo::Operand::A,
+                refusal: topo::CarryRefusal::Stale { record: 1 },
+            })
+        ),
+        "{got:?}"
+    );
+}
