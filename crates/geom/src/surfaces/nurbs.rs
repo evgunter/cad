@@ -45,6 +45,7 @@ use geom_core::spline::{
     SplineError,
 };
 use geom_core::{Point3, Real, Vec3};
+use std::sync::OnceLock;
 
 use crate::net;
 
@@ -523,7 +524,7 @@ pub enum NetState {
 
 /// after construction — every knot-algebra operation returns a new
 /// surface).
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct NurbsSurface<T: Real> {
     knots_u: Knots<T>,
     knots_v: Knots<T>,
@@ -532,6 +533,31 @@ pub struct NurbsSurface<T: Real> {
     /// The weights' value channel, read off `weights` at construction
     /// (the curve's field of the same name says what reads it).
     weight_channel: Vec<f64>,
+    /// [`NurbsSurface::stretch_sup`], filled on first read outside a
+    /// symbolic session; on the same terms as the curve's speed memos
+    /// (nothing mutates the fields above after construction).
+    stretch: OnceLock<(geom_core::SupSpeed<T>, geom_core::SupSpeed<T>)>,
+}
+
+/// The surface's value, without the stretch memo.
+impl<T: Real> core::fmt::Debug for NurbsSurface<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            knots_u,
+            knots_v,
+            control,
+            weights,
+            weight_channel,
+            stretch: _,
+        } = self;
+        f.debug_struct("NurbsSurface")
+            .field("knots_u", knots_u)
+            .field("knots_v", knots_v)
+            .field("control", control)
+            .field("weights", weights)
+            .field("weight_channel", weight_channel)
+            .finish()
+    }
 }
 
 impl<T: SpanLocate> NurbsSurface<T> {
@@ -561,11 +587,35 @@ impl<T: SpanLocate> NurbsSurface<T> {
             control,
             weights,
             weight_channel,
+            stretch: OnceLock::new(),
         })
     }
 }
 
 impl<T: Real> NurbsSurface<T> {
+    /// Certified **upper** bounds on `‖S_u‖` and `‖S_v‖` over the whole
+    /// domain, in m/param: the pair-term bound of
+    /// [`geom_core::spline::rational_stretch_sup`], per direction,
+    /// the max over the nonempty cells. At unit weights it is the
+    /// polynomial control-difference bound. At `Interval` certified, at
+    /// `f64` the same expression in round-to-nearest; never a refusal.
+    /// Memoised outside a symbolic session only, as
+    /// [`crate::curves::NurbsCurve3::speed_upper_bound`] is.
+    pub fn stretch_sup(&self) -> (geom_core::SupSpeed<T>, geom_core::SupSpeed<T>) {
+        crate::curves::nurbs::session_memo(&self.stretch, || {
+            let points: Vec<[T; 3]> = self.control.iter().map(|p| [p.x, p.y, p.z]).collect();
+            let side = |along_u| {
+                geom_core::SupSpeed::new(geom_core::spline::rational_stretch_sup(
+                    (&self.knots_u, &self.knots_v),
+                    &points,
+                    &self.weights,
+                    along_u,
+                ))
+            };
+            (side(true), side(false))
+        })
+    }
+
     /// The "no description yet" placeholder payload for
     /// [`crate::surfaces::Surface::Nurbs`]: structurally valid (bilinear on
     /// `[0,1]²`, unit weights) with all-poison control points, so
@@ -581,6 +631,7 @@ impl<T: Real> NurbsSurface<T> {
             control: vec![p; 4],
             weights: vec![T::one(); 4],
             weight_channel: vec![1.0; 4],
+            stretch: OnceLock::new(),
         }
     }
 
@@ -698,6 +749,7 @@ impl<T: Real> NurbsSurface<T> {
             control,
             weights,
             weight_channel,
+            stretch: OnceLock::new(),
         }
     }
 

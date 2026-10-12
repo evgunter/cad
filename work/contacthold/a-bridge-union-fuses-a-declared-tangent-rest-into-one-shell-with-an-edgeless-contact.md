@@ -98,6 +98,6 @@ Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author
 
 ## Weighed (2026-10-12)
 
-A designer pair (fork log row 127) converged: such a solid is valid, one solid, and the touch is a face–face record with no topology on the line — the same object as PR 4723's two-solid touch. The routes measured above are gone (declarations retired; `CarriedVf` deleted). What remains is the build: the reduction's face–face row at the tangency decision, the carried face–face kind, the census's curve-touch lane along an edge's carrier, and C9's same-solid discovery. `[ev]` PR for the D1/C7 wording; the build is dispatched in parallel since it is what C7 already anticipates.
+A designer pair (fork log row 129) converged: such a solid is valid, one solid, and the touch is a face–face record with no topology on the line — the same object as PR 4723's two-solid touch. The routes measured above are gone (declarations retired; `CarriedVf` deleted). What remains is the build: the reduction's face–face row at the tangency decision, the carried face–face kind, the census's curve-touch lane along an edge's carrier, and C9's same-solid discovery. `[ev]` PR for the D1/C7 wording; the build is dispatched in parallel since it is what C7 already anticipates.
 
 Ev took the record form on `[ev]` PR 4914 ("sounds good!", 2026-10-12); the build is `contacthold/face-face-touch-row`.

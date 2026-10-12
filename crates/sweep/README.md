@@ -95,7 +95,7 @@ the other chain is metered by what survives that chain's band, the other
 band's new surface is metered as a face (but a concave band's surface
 against a convex band's reach, whose removed material the concave region
 overlapped), and two chains that meet at a vertex are left to the corner
-predicate, or at a turn to the isosceles verdict and the mitre, where the
+predicate, or at a turn to the turn's verdict and the mitre, where the
 bands meet by construction.
 
 Consumers: an island standing in a filleted cavity, on one shell and as
@@ -357,8 +357,8 @@ A turn adds two roles, keyed by the vertex the bands end at — a
 trivalent vertex has at most one turn, and the request fixes its edges:
 `Mitre { vertex }` for the edge where the bands meet, and
 `TurnFoot { vertex }` for the point where L ends, one name whether the
-trihedron is isosceles or not. In the non-isosceles case the extra
-curve is that band's `EndArc` and its end `FootVertex`; both resolve
+feet coincide or not. Where they stand apart the extra curve is that
+band's `EndArc` and its end `FootVertex`; both resolve
 `Vanished` when the feet coincide, and an edit that carries the corner
 across a coincidence moves them to the other band. Where the feet
 coincide the turn foot has four edges, so blending L in a later call
