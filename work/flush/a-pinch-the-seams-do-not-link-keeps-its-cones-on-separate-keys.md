@@ -2,12 +2,12 @@
 id: a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys
 kind: issue
 title: A pinch whose keys no seam ties keeps its cones on separate point keys
-status: open
+status: dispatched
 priority: P2
 cost: M
 refs: [4207]
 opened: 2026-10-07
-branch: flush/pinch-cluster
+branch: flush/pinch-residue
 ---
 
 Found by PR 4207's review (the FULL lane, M2). PR 4207 puts a pinch's

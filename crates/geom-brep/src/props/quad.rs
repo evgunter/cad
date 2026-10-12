@@ -158,8 +158,8 @@ use geom_core::spline::algebra;
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
-    CoeffWindow, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, last_at_or_below, restrict_bernstein,
+    CoeffWindow, Derived, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs,
+    SplineCoeffsBuf, TensorChannels, last_at_or_below, restrict_bernstein,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
@@ -1116,9 +1116,9 @@ enum Level {
 impl Level {
     /// The derivative of `pair`, as a level.
     fn of(pair: SplineCoeffs<'_, Interval>) -> Self {
-        match pair.derivative() {
-            Some(buf) => Self::Spline(buf),
-            None => Self::Loose(Loose::below(pair.knots()), pair.derivative_coeffs()),
+        match Loose::from_derived(pair.derived()) {
+            Ok(buf) => Self::Spline(buf),
+            Err(loose) => Self::Loose(loose, pair.derivative_coeffs()),
         }
     }
 
@@ -1440,10 +1440,25 @@ enum Loose {
 }
 
 impl Loose {
-    /// The structure of a derivative of degree `degree` on the raw knot
-    /// list `knots`, where no clamped vector spells it: [`Loose::Raw`]
-    /// at degree ≥ 1, [`Loose::Const`] at 0. The one place that is
-    /// decided.
+    /// A [`Derived`]'s clamped payload, or the structure no clamped
+    /// vector spells.
+    fn from_derived<V>(derived: Derived<'_, V>) -> Result<V, Self> {
+        match derived {
+            Derived::Vector(v) => Ok(v),
+            Derived::SpanConstant(breaks) => Err(Self::Const {
+                knots: breaks.to_vec(),
+            }),
+            Derived::Discontinuous { knots, degree } => Err(Self::Raw {
+                knots: knots.to_vec(),
+                degree,
+            }),
+        }
+    }
+
+    /// The structure of a [`Loose::Raw`] level's derivative, of degree
+    /// `degree` on the raw knot list `knots`: [`Loose::Raw`] at degree
+    /// ≥ 1, [`Loose::Const`] at 0. A [`KnotVector`]'s own derivative is
+    /// [`KnotVector::derived`]'s.
     ///
     /// `knots` is a clamped vector's knot list with an outer pair dropped
     /// per derivative (`derivative_knot_slice`), so it is nondecreasing:
@@ -1454,12 +1469,6 @@ impl Loose {
         } else {
             Self::Const { knots }
         }
-    }
-
-    /// The derivative structure of `kv` where [`KnotVector::derivative`]
-    /// has none.
-    fn below(kv: &KnotVector) -> Self {
-        Self::of(kv.derivative_knot_slice().to_vec(), kv.degree() - 1)
     }
 
     /// The structure one derivative down and the line step onto it, or
@@ -1677,9 +1686,7 @@ impl PatchGrid {
     fn step(dir: &Dir) -> Option<(Dir, DerivTake)> {
         match dir {
             Dir::Kv(kv) => {
-                let below = kv
-                    .derivative()
-                    .map_or_else(|| Dir::Loose(Loose::below(kv)), Dir::Kv);
+                let below = Loose::from_derived(kv.derived()).map_or_else(Dir::Loose, Dir::Kv);
                 let kv = kv.clone();
                 // The one knot-vector step (`TensorCoeffs`'s too).
                 Some((

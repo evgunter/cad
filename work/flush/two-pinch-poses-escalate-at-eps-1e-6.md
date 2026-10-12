@@ -2,10 +2,11 @@
 id: two-pinch-poses-escalate-at-eps-1e-6
 kind: issue
 title: Two of pinch_faces_tessellate's poses escalate at eps 1e-6 (the join's partner order, a pierce sector's curvature side)
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P3
 cost: M
+branch: flush/two-pinch-pose-proof
 ---
 
 Found by CLEAVE's ray-walk PR 4083. Its diff seeds `topo`, so it ran

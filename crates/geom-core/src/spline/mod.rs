@@ -59,7 +59,9 @@ pub use blossom::{BlossomError, SpanRow, restrict_bernstein, restrict_segment};
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
-pub use hull::{CoeffWindow, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf};
+pub use hull::{
+    C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,
+};
 pub use knot_values::{KnotSpan, Knots};
 pub use knots::{
     KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
