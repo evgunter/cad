@@ -2149,10 +2149,13 @@ impl Composite {
         fit: &NurbsSurface<f64>,
         d: f64,
     ) -> Result<Self, OffsetFitError> {
-        let (base, fit) = (unit_scaled_weights(base)?, unit_scaled_weights(fit)?);
+        // The arms are the DESCRIBED nets' ([`is_rational`]); the
+        // arithmetic reads them at unit weight scale.
+        let (base_form, fit_form) = (NetForm::of(base), NetForm::of(fit));
+        let rational = base_form == NetForm::Homogeneous;
+        let (base, fit) = (unit_scaled_weights(base), unit_scaled_weights(fit));
         let (base, fit) = (&*base, &*fit);
         let (ku, kv) = (base.knots_u(), base.knots_v());
-        let rational = is_rational(base);
         // One break list per direction, carrying every operand's
         // interior knots — the alignment substrate (patch docs).
         let mut extra_u: Vec<f64> = ku.interior_knots().map(|(t, _)| t).collect();
@@ -2166,13 +2169,12 @@ impl Composite {
         // product would widen the enclosure for nothing.
         // The one recentring origin every net below is built against.
         let ctr = recentre_origin(base);
-        let fit_form = NetForm::of(fit);
         let fc = |c: usize| channel(fit, c, fit_form, &ctr);
         let f: [PatchSpans; 3] = [dec(&fc(0)), dec(&fc(1)), dec(&fc(2))];
         let wf = (fit_form == NetForm::Homogeneous).then(|| dec(&weight_net(fit)));
         // The base's homogeneous nets and their first derivatives.
         let a_grid: [TensorCoeffs<'_>; 3] =
-            core::array::from_fn(|c| channel(base, c, NetForm::of(base), &ctr));
+            core::array::from_fn(|c| channel(base, c, base_form, &ctr));
         // `check_direction` admits a degree-1 direction only as one
         // span, so its partial is one constant: span 0's difference,
         // decomposed on the direction's own vector as its degree-1 form.
@@ -3225,41 +3227,93 @@ mod tests {
         }
     }
 
-    /// **One power of two on every weight moves no cell bound, and the
-    /// fit certifies as the unit face does.** At `2⁻³⁰⁰` the base's
-    /// `w³` and `w⁴` underflow to zero, so `cell_terms`' weight and
-    /// sign-witness guards would refuse every cell and the loop would
-    /// end `BoundNotFinite` with no bound behind it; at `2³⁰⁰` they
-    /// overflow; `2⁻¹⁰⁰⁰` sits at the bottom of the normal range. Each
-    /// scale, on the base or on the fit, describes the same surface,
-    /// so each cell bound is the unit pair's to the bit.
+    /// The bits of every cell bound of the `(base, fit)` composite at
+    /// `d`, on the meters' floor for `base`.
+    fn cell_bound_bits(
+        base: &geom::NurbsSurface<f64>,
+        fit: &geom::NurbsSurface<f64>,
+        d: f64,
+    ) -> Vec<u64> {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (reg, _) = crate::offset_meters::meter_patch(base, d, band).unwrap();
+        let comp = Composite::build(base, fit, d).unwrap();
+        let (nu, nv) = comp.x.cell_counts();
+        (0..nu)
+            .flat_map(|su| (0..nv).map(move |sv| (su, sv)))
+            .map(|(su, sv)| comp.cell_bound(su, sv, reg.floor, d).to_bits())
+            .collect()
+    }
+
+    /// `n` with its control net scaled by `k` about the `z` axis.
+    fn radially_scaled(n: &geom::NurbsSurface<f64>, k: f64) -> geom::NurbsSurface<f64> {
+        n.map_points(|p| Point3::new(k * p.x, k * p.y, p.z))
+    }
+
+    /// **One power of two on every weight moves no cell bound.** The
+    /// quarter cylinder against its exact offset (the cylinder of
+    /// radius `1 + d`, same weights): at `2⁻³⁰⁰` the base's `w³` and
+    /// `w⁴` underflow to zero, so `cell_terms`' weight and sign-witness
+    /// guards would refuse every cell; at `2³⁰⁰` they overflow;
+    /// `2⁻¹⁰⁰⁰` sits at the bottom of the normal range. Each scale, on
+    /// the base or on the fit, describes the same surface, so each cell
+    /// bound is the unit pair's to the bit.
+    ///
+    /// **The arm is the described net's.** The same control net with
+    /// every weight `2` is a polynomial surface described rationally,
+    /// and it is read by the rational arm at every scale — `2⁻¹`,
+    /// `2⁻³⁰⁰` and `2³⁰⁰` as at `2¹` — with the sup bound pinned at the
+    /// value that arm gives.
     #[test]
     fn a_uniform_weight_scale_moves_no_cell_bound() {
         use crate::patch_bound::tests::weights_times_pow2;
-        let (d, tol) = (0.3, 1e-3);
-        let band = Band::linear(Tol::witness()).unwrap();
-        let unit = quarter_cylinder();
-        let (fit, cert) = super::fit_offset_at(&unit, d, tol, band).unwrap();
-        let bounds = |base: &geom::NurbsSurface<f64>, fit: &geom::NurbsSurface<f64>| {
-            let comp = Composite::build(base, fit, d).unwrap();
-            let (nu, nv) = comp.x.cell_counts();
-            (0..nu)
-                .flat_map(|su| (0..nv).map(move |sv| (su, sv)))
-                .map(|(su, sv)| comp.cell_bound(su, sv, cert.normal_floor, d).to_bits())
-                .collect::<Vec<_>>()
-        };
-        let want = bounds(&unit, &fit);
+        let d = 0.3;
+        let cylinder = quarter_cylinder();
+        let offset = radially_scaled(&cylinder, 1.0 + d);
+        let want = cell_bound_bits(&cylinder, &offset, d);
         assert!(
             want.iter().all(|b| f64::from_bits(*b).is_finite()),
             "the unit pair left a cell unbounded"
         );
         for (kb, kf) in [(-300, 0), (300, 0), (-1000, 0), (0, -300), (-300, 600)] {
-            let got = bounds(
-                &weights_times_pow2(&unit, kb),
-                &weights_times_pow2(&fit, kf),
+            let got = cell_bound_bits(
+                &weights_times_pow2(&cylinder, kb),
+                &weights_times_pow2(&offset, kf),
+                d,
             );
             assert_eq!(got, want, "base 2^{kb}, fit 2^{kf}: a cell bound moved");
         }
+
+        let twos = geom::NurbsSurface::new(
+            cylinder.knots_u().clone(),
+            cylinder.knots_v().clone(),
+            cylinder.control().to_vec(),
+            vec![2.0; 6],
+        )
+        .unwrap();
+        let fit = radially_scaled(&twos, 1.0 + d);
+        let want = cell_bound_bits(&twos, &fit, d);
+        let sup = want.iter().map(|b| f64::from_bits(*b)).fold(0.0, f64::max);
+        assert_eq!(
+            sup.to_bits(),
+            1.071_361_935_342_633_3e-1_f64.to_bits(),
+            "the weights-2 net's sup bound is {sup:e}, not the rational arm's"
+        );
+        for k in [-2, -301, 299] {
+            let got = cell_bound_bits(&weights_times_pow2(&twos, k), &fit, d);
+            assert_eq!(got, want, "weights 2^{}: a cell bound moved", k + 1);
+        }
+    }
+
+    /// **The fit certifies a uniformly scaled face as it does the unit
+    /// face.** At `2⁻³⁰⁰` the loop's every round would otherwise end
+    /// unbounded, and the fit `BoundNotFinite` with no bound behind it.
+    #[test]
+    fn a_uniformly_scaled_face_certifies_as_the_unit_face() {
+        use crate::patch_bound::tests::weights_times_pow2;
+        let (d, tol) = (0.3, 1e-3);
+        let band = Band::linear(Tol::witness()).unwrap();
+        let unit = quarter_cylinder();
+        let (_, cert) = super::fit_offset_at(&unit, d, tol, band).unwrap();
         let (_, scaled) = super::fit_offset_at(&weights_times_pow2(&unit, -300), d, tol, band)
             .unwrap_or_else(|e| panic!("the 2^-300 face refused: {e}"));
         assert_eq!(scaled.rounds, 3, "the 2^-300 face's rounds");

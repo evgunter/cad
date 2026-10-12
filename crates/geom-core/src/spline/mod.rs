@@ -53,6 +53,7 @@ pub mod locate;
 pub mod net;
 pub mod projective;
 pub mod range;
+pub mod weight_scale;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep, RingRefinement};
 pub use blossom::{BlossomError, SpanRow, diagonal_in_span, restrict_bernstein, restrict_segment};

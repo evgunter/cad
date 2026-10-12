@@ -102,6 +102,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, max_bound, norm_sup};
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::net::{TensorChannels, TensorCoeffs, TensorNet};
+use geom_core::spline::weight_scale::unit_scale_exact;
 use geom_core::spline::{C1Break, Derived, KnotVector};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
@@ -302,54 +303,28 @@ pub fn is_rational(n: &NurbsSurface<f64>) -> bool {
     n.weights().iter().any(|w| *w != 1.0)
 }
 
-/// `n` with every weight scaled by the one power of two that carries
-/// the largest into `[1, 2)`, or `n` itself where that scaling would
-/// not be exact on every weight. A rational surface is invariant under
-/// scaling all its weights by one constant, and a power of two scales
-/// an `f64` exactly unless the result leaves bits below the subnormal
-/// range, so the rescaled net describes the same surface. What it buys
-/// is range: the enclosures form powers of the weights (`w²` here, up
-/// to `w⁴` in [`crate::offset_fit`]'s composite), and on a face whose
-/// weights all sit near one end of the `f64` range those powers
-/// underflow to zero or overflow to `∞` and refuse a sound surface.
-///
-/// # Errors
-///
-/// [`PatchBoundError::NonPositiveWeight`] when the surface door
-/// refuses the rescaled weights, which it refuses only for a weight
-/// that is not strictly positive and finite.
-pub(crate) fn unit_scaled_weights(
-    n: &NurbsSurface<f64>,
-) -> Result<Cow<'_, NurbsSurface<f64>>, PatchBoundError> {
-    let top = n.weights().iter().copied().fold(0.0, f64::max);
-    #[allow(clippy::cast_possible_truncation)]
-    let k = if top > 0.0 && top.is_finite() {
-        -(top.log2().floor() as i32)
-    } else {
-        0
+/// `n` with its weights at unit scale
+/// ([`geom_core::spline::weight_scale::unit_scale_exact`]), or `n`
+/// itself where that rescale is a no-op or would drop a bit. The
+/// rescaled net describes the same surface; what it buys is range for
+/// the weight powers the enclosures form (`w²` here, up to `w⁴` in
+/// [`crate::offset_fit`]'s composite). Which arm reads a net is decided
+/// on the DESCRIBED weights ([`is_rational`]), before this runs.
+pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface<f64>> {
+    let Some((_, scaled)) = unit_scale_exact(n.weights()) else {
+        return Cow::Borrowed(n);
     };
-    // Two halves, so a subnormal's exponent does not overflow the
-    // power it is scaled by.
-    let (up, down) = (
-        [2f64.powi(k / 2), 2f64.powi(k - k / 2)],
-        [2f64.powi(-(k / 2)), 2f64.powi(-(k - k / 2))],
-    );
-    let scaled: Vec<f64> = n.weights().iter().map(|w| w * up[0] * up[1]).collect();
-    let exact = scaled
-        .iter()
-        .zip(n.weights())
-        .all(|(s, w)| s * down[1] * down[0] == *w);
-    if k == 0 || !exact {
-        return Ok(Cow::Borrowed(n));
-    }
-    NurbsSurface::new(
+    match NurbsSurface::new(
         n.knots_u().clone(),
         n.knots_v().clone(),
         n.control().to_vec(),
         scaled,
-    )
-    .map(Cow::Owned)
-    .map_err(|_| PatchBoundError::NonPositiveWeight)
+    ) {
+        Ok(rescaled) => Cow::Owned(rescaled),
+        Err(e) => unreachable!(
+            "the door refused an exact power-of-two rescale of weights it admitted: {e}"
+        ),
+    }
 }
 
 /// **The per-cell certified bounds** on a described NURBS patch's
@@ -875,7 +850,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     if n.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
         return Err(PatchBoundError::NonPositiveWeight);
     }
-    let scaled = unit_scaled_weights(n)?;
+    let scaled = unit_scaled_weights(n);
     let n = &*scaled;
     // THE REFINEMENT IS PART OF THE ENCLOSURE. The homogeneous nets `w`
     // and `w·P` are refined IN INTERVAL ARITHMETIC from point intervals of the
@@ -1078,6 +1053,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
 #[allow(clippy::expect_used, clippy::panic)]
 pub(crate) mod tests {
     use super::*;
+    use geom_core::spline::weight_scale::pow2_scaled;
 
     /// **`RefinedWeightLostPositivity` is not reached from a door-valid
     /// face, even at the minimum subnormal.** The arm's prose claims the
@@ -1121,15 +1097,13 @@ pub(crate) mod tests {
         }
     }
 
-    /// `n` with every weight multiplied by `2^k`, in two halves so a
-    /// `k` past the exponent range still scales exactly.
+    /// `n` with every weight multiplied by `2^k`.
     pub(crate) fn weights_times_pow2(n: &NurbsSurface<f64>, k: i32) -> NurbsSurface<f64> {
-        let (a, b) = (2f64.powi(k / 2), 2f64.powi(k - k / 2));
         NurbsSurface::new(
             n.knots_u().clone(),
             n.knots_v().clone(),
             n.control().to_vec(),
-            n.weights().iter().map(|w| w * a * b).collect(),
+            n.weights().iter().map(|&w| pow2_scaled(w, k)).collect(),
         )
         .expect("an exact power-of-two scale of door-valid weights")
     }
@@ -1180,60 +1154,6 @@ pub(crate) mod tests {
                 assert_eq!(format!("{got:?}"), want, "{name} at 2^{k}: the cells moved");
             }
         }
-    }
-
-    /// **The rescale is taken exactly when it is exact.** Weights below
-    /// one are carried up into `[1, 2)` whatever their spread, since
-    /// scaling up never drops a bit; a spread wider than the subnormal
-    /// range cannot be carried down without dropping the smallest, so
-    /// that net is read as described.
-    #[test]
-    fn the_weight_rescale_is_taken_only_where_it_is_exact() {
-        let unit = quarter_cylinder();
-        let with = |ws: [f64; 6]| {
-            NurbsSurface::new(
-                unit.knots_u().clone(),
-                unit.knots_v().clone(),
-                unit.control().to_vec(),
-                ws.to_vec(),
-            )
-            .expect("door")
-        };
-        let tiny = f64::from_bits(1);
-        let low = with([tiny, tiny, 1.0e-300, 1.0e-300, tiny, tiny]);
-        let up = unit_scaled_weights(&low).expect("a door-valid net");
-        assert!(
-            matches!(up, Cow::Owned(_)),
-            "a net below one was not scaled up"
-        );
-        let top = up.weights().iter().copied().fold(0.0, f64::max);
-        assert!(
-            (1.0..2.0).contains(&top),
-            "the largest weight landed at {top:e}"
-        );
-        let factor = top / 1.0e-300;
-        assert_eq!(
-            factor.log2().fract(),
-            0.0,
-            "the scale {factor:e} is no power of two"
-        );
-        for (s, w) in up.weights().iter().zip(low.weights()) {
-            assert_eq!(
-                s / w,
-                factor,
-                "weight {w:e} was not scaled by the one factor"
-            );
-        }
-        let wide = with([tiny, tiny, 1.0e2, 1.0e2, tiny, tiny]);
-        let kept = unit_scaled_weights(&wide).expect("a door-valid net");
-        assert!(
-            matches!(kept, Cow::Borrowed(_)),
-            "a spread wider than the range was scaled, dropping its smallest weight"
-        );
-        assert!(
-            matches!(unit_scaled_weights(&unit).expect("door"), Cow::Borrowed(_)),
-            "a net already in [1, 2) was copied"
-        );
     }
 
     /// Every patch-bound refusal names what the caller changes in the

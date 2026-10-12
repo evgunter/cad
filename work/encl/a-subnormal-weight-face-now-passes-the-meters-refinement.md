@@ -69,16 +69,31 @@ which is the chart's own degeneracy at that spread.
 
 ## Resolution
 
-The fit rescales the weights itself, exactly:
-`patch_bound::unit_scaled_weights` multiplies every weight by the one
-power of two that carries the largest into `[1, 2)`, and reads the net
-as described when that would drop a bit. `rational_cells` and
-`Composite::build` (base and fit) read the rescaled net. Every row of
-the table then certifies in 3 rounds, with cells and cell bounds equal
-to the unit face's to the bit. Pinned by
-`patch_bound::tests::a_uniform_weight_scale_moves_no_cell`,
-`patch_bound::tests::the_weight_rescale_is_taken_only_where_it_is_exact`
-and `offset_fit::tests::a_uniform_weight_scale_moves_no_cell_bound`.
+The kernel rescales the weights itself, exactly.
+`geom_core::spline::weight_scale::unit_scale_exact` scales a weight
+slice by the one power of two that carries the largest into `[1, 2)`.
+It answers `None` when that would drop a bit, and the net is then read
+as described. Three places read their weights through it:
+`patch_bound::rational_cells` (the meters), `offset_fit`'s
+`Composite::build` (base and fit), and `ssi::section`'s
+`Pieces::enclosed`. The last of these rescaled before, but with no
+exactness check.
 
-Residue on QUAD:
-`a-uniformly-scaled-rational-patch-refuses-the-quadrature-as-a-straddling-weight`.
+Which arm reads a net is decided on the described weights, before the
+rescale. A net of weights all `2` stays on the rational arm, and its
+cell bounds are main's to the bit. In the normal range a power of two
+commutes with every rounding, so the change is bit-neutral there.
+
+Every row of the table certifies in 3 rounds, with cells and cell
+bounds equal to the unit face's to the bit. Pins:
+- `weight_scale`'s own tests;
+- `patch_bound::tests::a_uniform_weight_scale_moves_no_cell`;
+- `ssi::section::tests::a_lossy_weight_spread_is_not_rescaled`;
+- `offset_fit::tests::a_uniform_weight_scale_moves_no_cell_bound`
+  (fast);
+- `offset_fit::tests::a_uniformly_scaled_face_certifies_as_the_unit_face`
+  (slow set).
+
+Residue:
+- QUAD: `a-uniformly-scaled-rational-patch-refuses-the-quadrature-as-a-straddling-weight`.
+- ENCL: `the-polynomial-arm-of-the-offset-composite-bounds-looser-than-the-rational-arm`.

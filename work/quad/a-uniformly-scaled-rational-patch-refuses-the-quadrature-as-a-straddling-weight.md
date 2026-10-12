@@ -30,9 +30,13 @@ finite. The `w³`/`w⁴` the rational integrand divides by
 (`n_dd / w.powi(3) − …/w.powi(4)`, and the per-column `w³`) underflow
 or overflow at those scales.
 
-The ENCL fix is `patch_bound::unit_scaled_weights`: scale every weight
-by the one power of two that carries the largest into `[1, 2)`, when
-that is exact on every weight. That is the same described surface, so
-it is a fix rather than a recourse; `ssi::section`'s `Pieces::enclosed`
-does the same for a curve's weights. The quadrature lane reads a bare
-weight slice, so the helper would need a slice form.
+The remedy is `geom_core::spline::weight_scale::unit_scale_exact`:
+apply it to the weight slice before the lane forms its enclosures.
+It returns the weights scaled by the one power of two that carries the
+largest into `[1, 2)`, or `None` when that would drop a bit (read the
+weights as described). The scaled net is the same described surface,
+so this is a fix rather than a recourse. `patch_bound::rational_cells`,
+`offset_fit`'s `Composite::build` and `ssi::section`'s
+`Pieces::enclosed` already read their weights through it. Decide which
+arm reads the net on the described weights, before the rescale: a net
+of weights all one power of two becomes all ones.

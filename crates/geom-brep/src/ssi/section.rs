@@ -40,6 +40,7 @@ use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::k_stats::decide;
+use geom_core::spline::weight_scale::unit_scale_exact;
 use geom_core::spline::{RingRefinement, restrict_segment};
 use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
 
@@ -168,23 +169,11 @@ impl Pieces {
         (o, n): ([Interval; 3], [Interval; 3]),
     ) -> Option<Self> {
         let p = kv.degree();
-        // The weights scaled by a power of two near their largest, which
-        // is exact and moves neither the curve, `φ = h/W` nor `h`'s sign,
-        // so a net of tiny weights does not underflow `h`.
-        let top = weights.iter().copied().fold(0.0, f64::max);
-        #[allow(clippy::cast_possible_truncation)]
-        let k = if top > 0.0 && top.is_finite() {
-            -(top.log2().floor() as i32)
-        } else {
-            0
-        };
-        // Two halves, so a subnormal's exponent does not overflow the
-        // power it is scaled by.
-        let (k1, k2) = (k / 2, k - k / 2);
-        let weights: Vec<f64> = weights
-            .iter()
-            .map(|w| w * 2.0f64.powi(k1) * 2.0f64.powi(k2))
-            .collect();
+        // The weights at unit scale where that is exact, which moves
+        // neither the curve, `φ = h/W` nor `h`'s sign, so a net of tiny
+        // weights does not underflow `h`.
+        let weights: Vec<f64> =
+            unit_scale_exact(weights).map_or_else(|| weights.to_vec(), |(_, scaled)| scaled);
         let h: Vec<Interval> = control
             .iter()
             .zip(&weights)
@@ -713,6 +702,7 @@ const SECTION_SETTLE_ITERS: usize = 128;
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
     use geom::NurbsCurve3;
+    use geom_core::Bounds as _;
     use geom_core::interval::certification::Certification as _;
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Interval, Point3, SupSpeed, Vec3};
@@ -907,5 +897,28 @@ mod tests {
             "{:?}",
             read(m as usize - 1)
         );
+    }
+
+    /// **A weight spread that a rescale would lose bits of is read as
+    /// described.** Carrying `4` to one scales the smallest subnormal
+    /// beside it to zero, which would make `W` vanish at the curve's
+    /// end; the net's own weights reach the pieces instead.
+    #[test]
+    fn a_lossy_weight_spread_is_not_rescaled() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control =
+            [[0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [2.0, 0.0, 0.0]].map(|c| c.map(Interval::point));
+        let tiny = f64::from_bits(1);
+        let origin = [0.0, -1.0, 0.0].map(Interval::point);
+        let normal = [0.0, 1.0, 0.0].map(Interval::point);
+        let pieces =
+            super::Pieces::enclosed(&kv, &control, &[tiny, 4.0, tiny], (origin, normal)).unwrap();
+        let w = &pieces.pieces[0].2;
+        for end in [w[0], w[2]] {
+            assert!(
+                end.lo() == tiny && end.hi() == tiny,
+                "an end weight reads {end:?}, not the described {tiny:e}"
+            );
+        }
     }
 }
