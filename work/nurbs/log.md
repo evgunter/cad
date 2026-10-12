@@ -651,3 +651,19 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Tier: single FULL** (a soundness bound). The digest obligation is written into the brief.
   - Build B is standing by.
   - The P4 degree-elevation row stays unbuilt: its own fix says to act only when a consumer needs better than about `1e-12/g`, and none is known. — (NURBS orchestrator)
+- 2026-10-12 09:45Z — **Build C measured before building, and the arm choice is ruled.**
+  - **Reach** (f64 meter over the enclosure ceiling):
+    - Integral arm at 32 pieces matches the rational arm exactly on polynomial carriers, since with w′ = 0 the numerator collapses to `w²·C′`.
+    - Degree 3, a = 4: 0.128 at 16 pieces against 0.552 at 32.
+    - 254 random nets: p10 0.741 at 16 pieces against 0.946 at 32.
+  - **Cost** (Interval loft, PR 4803's harness):
+    - integral32: about 1.5×.
+    - Joining every weighted carrier through the rational piece assembly: 7–9×.
+    - Joining with the refined scan as well: 15–24×.
+  - **Ruled:**
+    - Rows 1 and 3 land as PR 1 on `nurbs/one-speed-meter-arm`, with `INTEGRAL_METER_SPLITS = 32` and the arm choice kept on the value channel.
+    - Row 2 (Dual/Sym) is not closed by integral32. It lands as PR 2 on `nurbs/held-constant-weights`, through option (b): a held-constant query, so the integral arm runs only on weights that are all the same plain constant.
+    - Option (a), joining for all, is rejected on cost. Option (c), routing value-equal weights other than 1 to the rational arm, is rejected as half a fix.
+    - This is the orchestrator's call: one option dominates, and it is reversible. The lane greps for an existing constant-scalar spelling first.
+  - (b) touches `geom-core/src/sym.rs` (DECIDE, SYM) and `spline/locate.rs` (KNOT, NURBS). That is shared ground, announced on their logs.
+  - Also to be filed: the rational arm's refined scan costs about 190 ms per rational loft on main (P3). — (NURBS orchestrator)
