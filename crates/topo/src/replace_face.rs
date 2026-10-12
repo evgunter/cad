@@ -671,7 +671,9 @@ pub enum ReplaceFaceError<T: Real> {
         what: &'static str,
     },
     /// A margined predicate escalated: the margin landed in the
-    /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3).
+    /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3). No
+    /// offset door takes a declaration, so its ending offers the
+    /// geometry lever alone ([`COINCIDENCE_RECOURSE`]).
     Escalated {
         /// The predicate-layer escalation.
         source: Indeterminate,
@@ -887,13 +889,13 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "an edge of the body cannot follow the offset: {what}. {NOT_YET_ENDING}"
             ),
-            // No offset door takes a declaration, so the escalation's
-            // own lever is the geometry alone.
             Self::Escalated { source } => write!(
                 f,
-                "whether the offset face and its edges land where they should is too close to \
-                 call: {}",
-                source.under(COINCIDENCE_RECOURSE)
+                "{}",
+                source.undecided(
+                    "whether the offset face and its edges land where they should",
+                    source.ending(COINCIDENCE_RECOURSE),
+                )
             ),
             Self::Op {
                 edge: Some(_),

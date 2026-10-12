@@ -741,14 +741,17 @@ fn span_roots<T: Decide>(
 /// the honest lane the raw book formula lacks). New vertices are ON by
 /// the decision that placed them: a crossing root lies on the plane, and
 /// a graze root within ε of it by `split_conic_belly_graze`'s Zero.
-/// Their verdicts are cached without re-measuring.
+/// Their verdicts are cached without re-measuring. Returns each piece
+/// a split minted with the edge it was split from, `(new edge,
+/// divided-from edge)` in mint order.
 pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     plane: &SplitPlane<T>,
     sides: &mut SecondaryMap<VertexKey, PlaneSide>,
     on_vertices: &mut Vec<VertexKey>,
     tol: Tol,
-) -> Result<(), SplitReduceError> {
+) -> Result<Vec<(EdgeKey, EdgeKey)>, SplitReduceError> {
+    let mut pieces = Vec::new();
     let band = geom_core::Band::linear(tol)?;
     // Snapshot: splitting adds edges; only operand edges can cross (a
     // split child's remaining crossing is handled through the parent's
@@ -841,10 +844,11 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             })?;
             sides.insert(created.vertex, PlaneSide::On);
             on_vertices.push(created.vertex);
+            pieces.push((created.new_edge, target));
             target = created.new_edge;
         }
     }
-    Ok(())
+    Ok(pieces)
 }
 
 #[cfg(test)]

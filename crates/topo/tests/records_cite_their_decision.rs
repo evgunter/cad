@@ -284,8 +284,11 @@ fn a_block_apart_in_an_l_notch_records_no_row() {
 /// the result `A`'s kissing vertex and `C`'s corner are one cell. The
 /// pair of `B`'s kissing vertex and that cell is one hop from `C`'s
 /// corner, so it cites that one decision; the decision joining `A`'s
-/// vertex to `C`'s lies only on a longer chain. Red if a result cell is
-/// read once per side and the pair's citations are their union.
+/// vertex to `C`'s lies only on a longer chain. `B` and `C` also touch
+/// along `B`'s edge over x ∈ (1, 2), whose row cites the decision at
+/// each of its two ends. Red if a result cell is read once per side
+/// and the pair's citations are their union, or if the touch along the
+/// edge goes unrecorded.
 #[test]
 fn a_cell_reached_from_both_sides_cites_its_shortest_chain() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
@@ -294,14 +297,35 @@ fn a_cell_reached_from_both_sides_cites_its_shortest_chain() {
     let c = box_of((1.0, 2.0), (0.0, 1.0), (0.0, 1.0), "c");
     let r = united(&kiss.body, &c, &BooleanInputs::default());
     let cited = cited_rows(&r);
-    assert_eq!(cited.len(), 2, "two records: {:?}", r.contacts);
-    for rows in &cited {
+    assert_eq!(
+        (cited.len(), r.contacts.edge_edge().count()),
+        (3, 1),
+        "the two vertex records and the edge-edge row: {:?}",
+        r.contacts
+    );
+    let kinds: Vec<topo::ContactKind> = r.contacts.kinds().collect();
+    let mut ends = Vec::new();
+    for (rows, kind) in cited.iter().zip(&kinds) {
+        if matches!(kind, topo::ContactKind::EdgeEdge(..)) {
+            continue;
+        }
         assert_eq!(
             rows.len(),
             1,
-            "each record cites its one-hop decision: {rows:?}"
+            "each vertex record cites its one-hop decision: {rows:?}"
         );
+        ends.extend(rows.iter().copied());
     }
+    let edge = cited
+        .iter()
+        .zip(&kinds)
+        .find(|(_, k)| matches!(k, topo::ContactKind::EdgeEdge(..)))
+        .map(|(rows, _)| rows)
+        .expect("an edge-edge row");
+    assert!(
+        edge.len() == ends.len() && ends.iter().all(|e| edge.contains(e)),
+        "the edge-edge row cites the decisions at its two ends: {edge:?}, ends {ends:?}"
+    );
     let fusions = r
         .coincidences
         .iter()
@@ -371,4 +395,72 @@ fn a_carried_vertex_on_face_record_cites_its_operands_record() {
         "the carried vertex-on-face record cites the kiss's record {k}: {:?}",
         r.contacts
     );
+}
+
+/// **A carried edge-edge record split at a pierce decides only cells its
+/// input holds.** Two blocks touching along a line, cut out of a slab,
+/// leave the slab holding the contact as two coincident edges and their
+/// edge-edge record. A plate's top pierces both edges at one point, so
+/// the record's lineage decides each edge's split vertex one with the
+/// other's. The insertion moves each child piece's start onto a null
+/// edge's copy; the lineage reads the piece from the split vertex the
+/// copy was minted at, and every row it emits names a cell of the slab
+/// (an edge, through its split). Red if a piece's end is read off the
+/// clone after the insertion: the rows name the copies.
+#[test]
+fn a_carried_edge_edge_record_split_at_a_pierce_names_its_inputs_cells() {
+    let slab = box_of((-1.0, 4.0), (-1.0, 3.0), (0.5, 2.5), "the slab");
+    let p1 = box_of((1.0, 1.5), (-2.0, 1.0), (0.3, 2.0), "p1");
+    let p2 = box_of((1.5, 2.0), (1.0, 4.0), (0.27, 1.73), "p2");
+    let plate = box_of((0.0, 3.0), (0.0, 2.0), (0.0, 1.0), "the plate");
+    let subtract = |a: &AtRestBody<f64>, b: &BooleanBody<f64>| {
+        let inputs = BooleanInputs {
+            records_b: b.contacts.carried(),
+            ..BooleanInputs::default()
+        };
+        match topo::boolean_op_with(
+            topo::BooleanOp::Subtract,
+            a,
+            &b.body,
+            &inputs,
+            topo::SweepStrategy::Realized,
+            tol(),
+        ) {
+            Ok(BooleanResult::Body(r)) => r,
+            other => panic!("the cut builds: {other:?}"),
+        }
+    };
+    let blocks = united(&p1, &p2, &BooleanInputs::default());
+    let x = subtract(&slab, &blocks);
+    assert_eq!(
+        x.contacts.edge_edge().count(),
+        1,
+        "the slab holds the contact's edges' record: {:?}",
+        x.contacts
+    );
+    let r = subtract(&plate, &x);
+    let holds = |cell: &RowCell| match *cell {
+        RowCell::Input { input, cell } => {
+            let body: &topo::Body<f64> = match input {
+                Operand::A => &plate,
+                Operand::B => &x.body,
+            };
+            match cell {
+                Cell::Vertex(v) => body.get_vertex(v).is_some(),
+                Cell::Edge(e) => body.get_edge(e).is_some(),
+                Cell::Face(f) => body.get_face(f).is_some(),
+            }
+        }
+        _ => false,
+    };
+    assert!(
+        !r.coincidences.is_empty(),
+        "the pierce's decision is emitted"
+    );
+    for row in &r.coincidences {
+        assert!(
+            row.cells.iter().all(holds),
+            "a row names a cell its input holds: {row:?}"
+        );
+    }
 }

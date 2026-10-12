@@ -1169,8 +1169,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         sb.joiner
             .place_pending(&mut red.b, (eb, rb))
             .map_err(BooleanError::Join)?;
-        let a_lane = choose_roles(&red.a, (ea, ra), &a_loose, seg_a, a_closure, band)?;
-        let b_lane = choose_roles(&red.b, (eb, rb), &b_loose, seg_b, b_closure, band)?;
+        let a_lane = choose_roles(&red.a, (ea, ra), &a_loose, seg_a, a_closure, band)
+            .map_err(|e| pinch_ray_refusal(e, red, Operand::A, (ea, ra)))?;
+        let b_lane = choose_roles(&red.b, (eb, rb), &b_loose, seg_b, b_closure, band)
+            .map_err(|e| pinch_ray_refusal(e, red, Operand::B, (eb, rb)))?;
         let (a_halves, b_halves) = (a_lane.curve_order((ea, ra)), b_lane.curve_order((eb, rb)));
         // The section's direction at each site, toward the other: the
         // germ the matched half faces, per operand.
@@ -1289,8 +1291,12 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             }
         };
         // The ring lane's order, wound with the curve.
-        let a_roles = a_lane.resolve(&red.a, (ea, ra), &a_loose, &curve_a, band)?;
-        let b_roles = b_lane.resolve(&red.b, (eb, rb), &b_loose, &curve_b, band)?;
+        let a_roles = a_lane
+            .resolve(&red.a, (ea, ra), &a_loose, &curve_a, band)
+            .map_err(|e| pinch_ray_refusal(e, red, Operand::A, (ea, ra)))?;
+        let b_roles = b_lane
+            .resolve(&red.b, (eb, rb), &b_loose, &curve_b, band)
+            .map_err(|e| pinch_ray_refusal(e, red, Operand::B, (eb, rb)))?;
         sa.join(&mut red.a, a_roles, &plan_a, &curve_a, seg_a, tol)?;
         sb.join(&mut red.b, b_roles, &plan_b, &curve_b, seg_b, tol)?;
         for (r, slot) in seg.ends {
@@ -1340,10 +1346,24 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     // probing happens only after every polygon has been cut. ----
     let mut resolved = Vec::with_capacity(completed.len());
     for c in completed {
-        let (a_in_loop, a_out_loop) =
-            resolve_roles_geometric(&red.a, b_pristine, c.a_face, c.a_outer, c.a_ring, band, tol)?;
-        let (b_in_loop, b_out_loop) =
-            resolve_roles_geometric(&red.b, a_pristine, c.b_face, c.b_outer, c.b_ring, band, tol)?;
+        let (a_in_loop, a_out_loop) = resolve_roles_geometric(
+            &red.a,
+            (b_pristine, Operand::B),
+            c.a_face,
+            c.a_outer,
+            c.a_ring,
+            band,
+            tol,
+        )?;
+        let (b_in_loop, b_out_loop) = resolve_roles_geometric(
+            &red.b,
+            (a_pristine, Operand::A),
+            c.b_face,
+            c.b_outer,
+            c.b_ring,
+            band,
+            tol,
+        )?;
         red.a.set_null_face_pair(
             c.a_face,
             NullFacePair::Boolean {
@@ -3755,6 +3775,55 @@ fn ring_run_ccw<T: Decide>(
     ring_winding_order(wound.map(|decided| decided.sign))
 }
 
+/// A degenerate ring-run winding ([`DEGENERATE_RING_WINDING`]) at a run
+/// of `side`'s from `h1` through `h2` that passes the point of a ring
+/// whose cones touch along a ray in its face
+/// ([`super::PierceRingRecord::tied`]): the corner of no angle the tie
+/// leaves, the unbuilt shape, refused [`BooleanError::PinchRaysInAFace`]
+/// naming that ring's face. Every other error, and a degenerate run
+/// that passes no tied ring, is returned as it is.
+fn pinch_ray_refusal<T: geom_core::Real>(
+    e: BooleanError,
+    red: &BooleanReduction<T>,
+    side: Operand,
+    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+) -> BooleanError {
+    if !matches!(e, BooleanError::JoinDesync { what } if what == DEGENERATE_RING_WINDING) {
+        return e;
+    }
+    let body = match side {
+        Operand::A => &red.a,
+        Operand::B => &red.b,
+    };
+    let point = |v: VertexKey| body.get_vertex(v).map(|d| d.point);
+    // The run's vertices, `h1` through `h2` in `next` order, and `h2`'s
+    // end.
+    let mut on_run = std::collections::BTreeSet::new();
+    let mut h = h1;
+    for _ in 0..body.half_edges.len() {
+        let Some(half) = body.get_half_edge(h) else {
+            break;
+        };
+        on_run.extend(point(half.start));
+        if h == h2 {
+            on_run.extend(body.half_edge_end(h).and_then(point));
+            break;
+        }
+        h = half.next;
+    }
+    red.pierce_rings
+        .iter()
+        .filter(|r| r.tied && r.operand == side)
+        .find(|r| point(r.ring_vertex).is_some_and(|k| on_run.contains(&k)))
+        .map_or(e, |r| BooleanError::PinchRaysInAFace {
+            operand: side.other(),
+            face: r.face,
+        })
+}
+
+/// The ring lane's refusal of a run that encloses no area.
+const DEGENERATE_RING_WINDING: &str = "ring-run winding is degenerate (zero enclosed area)";
+
 /// The ring lane's role order from the decided winding: CCW keeps the
 /// order. A zero area is a degenerate run, so its in-band twin is the
 /// kernel's too.
@@ -3767,9 +3836,7 @@ fn ring_winding_order(wound: Result<Sign, geom_core::Indeterminate>) -> Result<b
     match sign {
         Sign::Positive => Ok(true),
         Sign::Negative => Ok(false),
-        Sign::Zero => Err(desync(
-            "ring-run winding is degenerate (zero enclosed area)",
-        )),
+        Sign::Zero => Err(desync(DEGENERATE_RING_WINDING)),
     }
 }
 
@@ -3954,7 +4021,7 @@ fn cut_pair<T: Decide>(
 /// loops' regions flank the seam, so their sides are opposite.
 fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
-    other_pristine: &Body<T>,
+    other_pristine: (&Body<T>, Operand),
     face: FaceKey,
     outer: LoopKey,
     ring: LoopKey,

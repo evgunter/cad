@@ -342,8 +342,8 @@ fn probe3_cell_windows_cover_the_net_at_multiplicity_p_minus_one() {
         let d10 = base.diff_u();
         let d01 = base.diff_v();
         let d11 = base.diff_uv();
-        let d20 = base.derivative_u().unwrap().diff_u();
-        let d02 = base.derivative_v().unwrap().diff_v();
+        let d20 = base.derived_u().vector().unwrap().diff_u();
+        let d02 = base.derived_v().vector().unwrap().diff_v();
         // Union-of-window hull per net, over nonempty span pairs.
         let mut hulls: [Option<Interval>; 5] = [None; 5];
         for su in kv_u.first_span()..=kv_u.last_span() {

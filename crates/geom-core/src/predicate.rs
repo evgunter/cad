@@ -2136,7 +2136,7 @@ impl<S: fmt::Display, E: fmt::Display> fmt::Display for UndecidedRefusal<'_, S, 
         } = self;
         write!(
             f,
-            concat!("{}", crate::undecided!(), ": {}. {}"),
+            concat!(crate::undecided!("{}", payload), ". {}"),
             subject,
             cause.payload(),
             ending
@@ -2146,10 +2146,12 @@ impl<S: fmt::Display, E: fmt::Display> fmt::Display for UndecidedRefusal<'_, S, 
 
 /// **The verdict of a decision no reading settled, as a clause**:
 /// `undecided!("whether …")` is `"whether … is undecided"`, and
-/// `undecided!()` the verdict alone. The one spelling of that word, for
-/// a sentence that carries no payload (an at-rest finding, a clause
-/// inside a longer reason) and for [`Indeterminate::undecided`]'s,
-/// which does.
+/// `undecided!()` the verdict alone, and `undecided!("whether …",
+/// payload)` the clause with its payload's joint, `"whether … is
+/// undecided: {}"`. The one spelling of that word and that joint, for a
+/// sentence that carries no payload (an at-rest finding, a clause inside
+/// a longer reason), for one whose ending is someone else's, and for
+/// [`Indeterminate::undecided`]'s.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! undecided {
@@ -2158,6 +2160,9 @@ macro_rules! undecided {
     };
     ($subject:expr) => {
         concat!($subject, $crate::undecided!())
+    };
+    ($subject:expr, payload) => {
+        concat!($crate::undecided!($subject), ": {}")
     };
 }
 

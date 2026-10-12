@@ -77,14 +77,14 @@
 //!   by at most `(chart length)·e/min(R − r, r)` of area, which costs
 //!   at most `r(R + r)²` of flux and `r(R + r)` of area per unit.
 
-use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::{Interval, cross, dot};
 use geom_core::{Band, Bounds, Decide, Margin, Sign};
 
 use super::quad::{
     AbsEnclosure, FaceCutBounds, QUAD_INIT_PIECES, QUAD_MAX_ROUNDS, QUAD_TARGET_LEN_FACTOR, RVec3,
     RoundOutcome, RoundWindow, classify_len, lo_or_refuse, mean_boundary_displacement, mid, pt,
-    rotate, round_exit, rv_cross, rv_dot, spread_cos, spread_sin, trig_at,
+    rotate, round_exit, spread_cos, spread_sin, trig_at,
 };
 use super::{PropsCheck, PropsError};
 use crate::offset_meters::mig;
@@ -409,11 +409,11 @@ pub fn spiric_vector_area(e: &SpiricEdgeQ, pieces: usize) -> RVec3 {
         (f, s)
     };
     let ((f0, s0), (f1, s1)) = (end(e.t0), end(e.t1));
-    let m = rv_cross(e.axis, e.normal);
+    let m = cross(&e.axis, &e.normal);
     let base = [0, 1, 2].map(|k| e.centre[k] + e.normal[k] * d);
     let chord = [0, 1, 2].map(|k| m[k] * (f1 - f0) + e.axis[k] * (r * (s1 - s0)));
     let sector = r * (pt(2.0) * j - (f1 * s1 - f0 * s0));
-    let cross = rv_cross(base, chord);
+    let cross = cross(&base, &chord);
     let half = pt(0.5);
     let va = [0, 1, 2].map(|k| (cross[k] + e.normal[k] * sector) * half);
     if e.forward { va } else { va.map(|x| -x) }
@@ -531,7 +531,7 @@ fn face_bounds(
         let t = spiric_vector_area(e, pieces);
         va = [0, 1, 2].map(|k| va[k] + t[k]);
     }
-    let position = rv_dot(face.lever, va);
+    let position = dot(&face.lever, &va);
     Ok(match &face.wall {
         None => (
             FaceCutBounds {

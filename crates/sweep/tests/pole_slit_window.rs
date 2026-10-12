@@ -17,9 +17,9 @@
 //! asks points of the dome at both scalars; the slit face's rims wrap
 //! the axis, so the door reads its latitude window and not the azimuth
 //! one, and a pick that refused the straddle instead would turn every
-//! verdict into a partial-sphere refusal. A point outside the dome is
-//! answered off the at-infinity volume, which the slit's cusp leaves
-//! uncertified.
+//! verdict into a partial-sphere refusal. A point outside the dome whose
+//! rays meet nothing is answered off a ray aimed at its base: the slit's
+//! cusp leaves the at-infinity volume uncertified.
 //!
 //! A third row hands the slit to the Boolean, which serves finished
 //! bodies only: a slit operand — the dome against a brick, and a slit
@@ -120,18 +120,12 @@ fn verdicts<T: Decide + topo::AtRestPolicy + Bounds>(lane: &str) {
     for (i, slit) in slits::<T>().iter().enumerate() {
         for ((x, y, z), want) in TABLE {
             let got = point_in_solid(slit, Point3::new(f(x), f(y), f(z)), band, Tol::witness());
-            // A point outside is read off the at-infinity volume, and the
+            // A point outside is read off a ray aimed at the base: the
             // slit's strut tip is a cusp of the sphere face's loop, which
-            // the sphere arm refuses (`props_sphere_loop_cusp`): the slit
-            // is construction state, not a body the volume measures.
-            let answered = match want {
-                SolidContainment::Out => {
-                    matches!(got, Err(topo::PointInSolidError::VolumeUncertified))
-                }
-                _ => matches!(got, Ok(v) if v == want),
-            };
+            // the sphere arm of the volume refuses
+            // (`props_sphere_loop_cusp`), so the volume reads no side.
             assert!(
-                answered,
+                matches!(got, Ok(v) if v == want),
                 "[{lane}] slit {i}: point ({x}, {y}, {z}) against the slit dome: \
                  {got:?}, want {want:?}"
             );
