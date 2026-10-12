@@ -530,7 +530,7 @@ const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 75] = [
+const CORPUS: [(&str, Disposition); 76] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 4, 2)),
@@ -687,6 +687,15 @@ const CORPUS: [(&str, Disposition); 75] = [
     (
         "tests/fixtures/rim-only-cap/rimonly2.step",
         Pass(1, 1, 2, 1, 1),
+    ),
+    // -- tests/fixtures/seam-region/ ---------------------------------
+    // A ball with the cap x > 8 cut away and its sphere split at the
+    // equator into two faces of one surface, each holding a chart pole
+    // off its loop: tier 3 reads no side for their seam region
+    // (`poles_inside_a_seam_region.rs`).
+    (
+        "tests/fixtures/seam-region/side_cut_equator_split.step",
+        Pass(1, 1, 3, 3, 2),
     ),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as
