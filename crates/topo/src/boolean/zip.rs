@@ -798,7 +798,15 @@ pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
     // `ob[j - 1]`'s (`align`), so it lies on `ob[j - 1]`'s segment.
     let n = ob.len();
     let edges: Vec<_> = (0..n).map(|j| (ob[j], rs[(j + 1) % n])).collect();
-    glue(body, &edges, fusion_order(n), tol)
+    if std::env::var("GLUE_PERTURB").as_deref() == Ok("plain") {
+        return glue(body, &edges, (0..n).collect::<Vec<_>>().into_iter(), tol);
+    }
+    glue(
+        body,
+        &edges,
+        fusion_order(n).collect::<Vec<_>>().into_iter(),
+        tol,
+    )
 }
 
 /// Zips a split seam ([`repair`]): its faces become loops of its first A
@@ -817,8 +825,42 @@ pub(super) fn zip_split<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<ZipReport, BooleanError> {
     #[cfg(feature = "sweep-testing")]
     if SWAP_ROLES.with(core::cell::Cell::get) {
+        if std::env::var("PROBE_SPLIT").is_ok() {
+            eprintln!("ZIP_SPLIT_SWAPPED_BY_PIN");
+        }
         let swapped: Vec<_> = edges.iter().map(|&(ob, r)| (r, ob)).collect();
         return zip_split_as_given(body, (b_faces, a_faces), &swapped, tol);
+    }
+    // REVIEW PROBE (r2 delta): GLUE_SWAP swaps roles; GLUE_HOST=k rotates the
+    // leading side's faces; GLUE_ORDER=rev reverses the pairs.
+    let swap = std::env::var("GLUE_SWAP").is_ok();
+    let (mut lead, other, mut es): (Vec<FaceKey>, Vec<FaceKey>, Vec<_>) = if swap {
+        (
+            b_faces.to_vec(),
+            a_faces.to_vec(),
+            edges.iter().map(|&(ob, r)| (r, ob)).collect(),
+        )
+    } else {
+        (a_faces.to_vec(), b_faces.to_vec(), edges.to_vec())
+    };
+    if let Ok(k) = std::env::var("GLUE_HOST") {
+        let k: usize = k.parse().unwrap_or(0) % lead.len();
+        lead.rotate_left(k);
+    }
+    if std::env::var("GLUE_ORDER").as_deref() == Ok("rev") {
+        es.reverse();
+    }
+    if std::env::var("PROBE_SPLIT").is_ok() {
+        eprintln!("ZIP_SPLIT lead={} other={}", lead.len(), other.len());
+    }
+    if let Ok(k) = std::env::var("GLUE_HOSTALL") {
+        let mut all = [lead.clone(), other.clone()].concat();
+        let k: usize = k.parse().unwrap_or(0) % all.len();
+        all.rotate_left(k);
+        return zip_split_as_given(body, (&all, &[]), &es, tol);
+    }
+    if swap || std::env::var("GLUE_HOST").is_ok() || std::env::var("GLUE_ORDER").is_ok() {
+        return zip_split_as_given(body, (&lead, &other), &es, tol);
     }
     zip_split_as_given(body, (a_faces, b_faces), edges, tol)
 }
@@ -915,6 +957,10 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
             Pair::Shared
         })
     };
+    let lead_vs: BTreeSet<VertexKey> = edges
+        .iter()
+        .flat_map(|&(ob, _)| [he(body, ob).start, body.proven_half_edge_end(ob)])
+        .collect();
     let mut killed = vec![false; n];
     let starts = order.map(|k| (k, true));
     for (k, start) in starts.chain((0..n).map(|k| (k, false))).collect::<Vec<_>>() {
@@ -958,7 +1004,7 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
             }
             // `mekr` absorbs a ring into the other loop; the joint reads
             // the same either way round.
-            if face(body, he2)?.1 == l2 {
+            if face(body, he2)?.1 == l2 && std::env::var("GLUE_NOFIX").is_err() {
                 Joint::Loops {
                     target: he2,
                     ring: he1,
@@ -970,12 +1016,23 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
         };
-        let keep = he(body, he1).start;
+        let keep = if std::env::var("GLUE_PERTURB").as_deref() == Ok("keep") {
+            he(body, he2).start
+        } else {
+            he(body, he1).start
+        };
         let p = body
             .get_vertex(keep)
             .and_then(|vd| body.get_point(vd.point).copied())
             .ok_or_else(|| corr("seam vertex has no point"))?;
         let merge = fuse_by_joint(body, joint, (p, keep), corr, tol)?;
+        if std::env::var("GLUE_KEPTCHK").is_ok() {
+            eprintln!(
+                "GLUE_KEPT keep_lead={} dead_lead={}",
+                lead_vs.contains(&merge.1),
+                lead_vs.contains(&merge.0)
+            );
+        }
         report.vertex_merges.push(merge)?;
         // The pairs this joint can have closed: `o`'s, then those of the
         // two half-edges it handed new successors.

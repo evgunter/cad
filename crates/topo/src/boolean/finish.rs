@@ -784,6 +784,30 @@ mod twin_copy_rows {
         }
     }
 
+    /// REVIEW PROBE (r2 delta): the old flattened read (all loops as one
+    /// cycle) on the ring fixture; prints how many half-edges it misreads.
+    #[test]
+    fn review_flattened_read_on_a_ring() {
+        for (t0, t1) in [(0, 0), (2, 1), (5, 3)] {
+            let p = pair(&[&[0, 1, 2, 3, 4, 5], &[6, 7, 8, 9]], &[t0, t1]);
+            let (f, t) = (vec![p.face.concat()], vec![p.twin.concat()]);
+            let wrong = p
+                .face
+                .iter()
+                .flatten()
+                .filter(|&&he| {
+                    twin_copy(
+                        (&f, &t),
+                        he,
+                        |h| p.start[&h],
+                        |x, y| p.copies.contains(&(x, y)),
+                    ) != Some(p.copy_of[&he])
+                })
+                .count();
+            println!("REVIEW_FLAT turns {t0} {t1}: {wrong} of 10 misread");
+        }
+    }
+
     /// No single mirror: a loop `a b a b` aligns two ways, and a loop
     /// whose twin loops are all of other lengths aligns none.
     #[test]
