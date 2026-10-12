@@ -159,7 +159,7 @@ use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
     CoeffWindow, Derived, KnotVector, Param, ParamRange, RingRefinement, SplineCoeffs,
-    SplineCoeffsBuf, TensorChannels, last_at_or_below, restrict_bernstein,
+    SplineCoeffsBuf, TensorChannels, diagonal_in_span, last_at_or_below, restrict_bernstein,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
@@ -1027,20 +1027,12 @@ fn require_holes_wound_against(
 /// Interval de Boor on one span: the span's polynomial evaluated at an
 /// enclosed parameter from its `p + 1` active ring-bracketed
 /// coefficients — the thin `f(m)` the composite rule needs on spline
-/// channels. Pure certification arithmetic (knots are `f64` structure;
-/// every knot difference is formed in the ring so its rounding is
-/// outward, matching `deriv_coeff`). Sound for any `t`; outside the
-/// span's closure it is the polynomial extension.
+/// channels. Sound for any `t`; outside the span's closure it is the
+/// polynomial extension, which the composite rule reads where a vertex
+/// pad puts a node past the domain.
 ///
-/// **Not routed through the blossom primitive, on purpose.** Each step
-/// is the affine `(1 − α)·x + α·y`, not [`Certification::between`]:
-/// routed through [`CoeffWindow::blossom`] inside the span (the
-/// extension past it has no blossom), step-import's
-/// `arc_loft_natively_computes_its_rational_volume` reads the imported
-/// arc loft's volume one ulp off the native one, where the affine form
-/// reproduces it bit for bit. That ulp is the whole-body fold's face
-/// order, not this step (`work/nurbs/quad-de-boor-through-the-blossom-breaks-the-import-bit-identity.md`),
-/// so routing it is open there.
+/// A `t` inside the span's closure is the piece's blossom on the
+/// diagonal; any other `t` is the extension ([`de_boor_on`]).
 fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     let span = win.span();
     let kv = span.knots();
@@ -1053,13 +1045,24 @@ fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     )
 }
 
-/// The recurrence [`de_boor`] and the [`Loose::Raw`] evaluators share:
+/// The evaluation [`de_boor`] and the [`Loose::Raw`] evaluators share:
 /// `active` the `p + 1` coefficients of the span whose first control is
 /// `first`, over the knot list `u` they are a span of — a
 /// [`CoeffWindow`]'s, or a raw direction's line windowed by
 /// [`raw_span`]. Both callers form `active` from the span that `first`
 /// names, so every index here is in range.
+///
+/// A `t` lying whole in the span's closure is the piece's blossom on
+/// the diagonal ([`diagonal_in_span`], every level
+/// [`Certification::between`]). Any other `t` — a vertex pad's node past
+/// the domain, or one straddling a span end — is the polynomial
+/// extension: de Boor's recurrence with the affine step
+/// `(1 − α)·x + α·y`, sound for any `α`, since a ratio past `[0, 1]` is
+/// no combination between its sources.
 fn de_boor_on(u: &[f64], p: usize, first: usize, active: &[Interval], t: Interval) -> Interval {
+    if let Some(value) = diagonal_in_span(u, p, first, active, t) {
+        return value;
+    }
     let mut d = active.to_vec();
     for r in 1..=p {
         for j in (r..=p).rev() {
@@ -1462,7 +1465,8 @@ impl Loose {
     ///
     /// `knots` is a clamped vector's knot list with an outer pair dropped
     /// per derivative (`derivative_knot_slice`), so it is nondecreasing:
-    /// that is what [`raw_span`] searches by.
+    /// that is what [`raw_span`] searches by and what puts
+    /// [`de_boor_on`]'s ratios in `[0, 1]` at a parameter inside the span.
     fn of(knots: Vec<f64>, degree: usize) -> Self {
         if degree >= 1 {
             Self::Raw { knots, degree }
@@ -5387,6 +5391,28 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
 mod tests {
     use super::*;
     use geom_core::Tol;
+
+    /// **A node straddling its span's end, whose true value lies past
+    /// it, is enclosed by the extension.** On `t − 1` over `[0, 1]` (the
+    /// degree-1 piece with coefficients `−1, 0`), the node
+    /// `[1⁻, 1⁺]` may be `1 + 2⁻⁵²`, where the piece reads `2⁻⁵²`. A node
+    /// not whole in the span's closure takes the affine extension, which
+    /// encloses it; the blossom would meet it with the sources' hull
+    /// `[−1, 0]` and lose it. Red when the closure test is loosened to
+    /// an overlap.
+    #[test]
+    fn a_node_straddling_its_span_end_is_enclosed_by_the_extension() {
+        let past = 1.0f64.next_up();
+        let t = Interval::from_bounds(1.0f64.next_down(), past);
+        let got = de_boor_on(&[0.0, 0.0, 1.0, 1.0], 1, 0, &[pt(-1.0), pt(0.0)], t);
+        assert!(
+            got.contains(past - 1.0),
+            "{got:?} misses the extension's value {:e} at {past}",
+            past - 1.0
+        );
+        let inside = de_boor_on(&[0.0, 0.0, 1.0, 1.0], 1, 0, &[pt(-1.0), pt(0.0)], pt(0.5));
+        assert!(inside.contains(-0.5), "{inside:?}");
+    }
 
     /// The corpus's declared ambient uncertainty — the ε the fixed
     /// quadrature schedule (D9) is dimensioned for, and the boundary
