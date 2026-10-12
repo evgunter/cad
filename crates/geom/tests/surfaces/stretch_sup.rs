@@ -40,9 +40,11 @@ fn sampled_sup_floor(s: &NurbsSurface<f64>, n: usize) -> (f64, f64) {
     for i in 0..=n {
         for j in 0..=n {
             #[allow(clippy::cast_precision_loss)]
+            // Clamped: `lo + (hi − lo)·n/n` can round one ulp past
+            // `hi`, where the last span's stretch keeps growing.
             let (u, v) = (
-                u0 + (u1 - u0) * i as f64 / n as f64,
-                v0 + (v1 - v0) * j as f64 / n as f64,
+                (u0 + (u1 - u0) * i as f64 / n as f64).clamp(u0, u1),
+                (v0 + (v1 - v0) * j as f64 / n as f64).clamp(v0, v1),
             );
             let jet = si.ders(Interval::from_f64(u), Interval::from_f64(v));
             fu = fu.max(jet.du.norm().lo());
