@@ -28,7 +28,9 @@
 use crate::common::germ_pair::cyl;
 use crate::common::operands::{bar, framed_bar};
 use crate::conic_edge_curved_face::ball;
+use crate::germ_plane_torus_chord::{cap, volume_tol};
 use crate::revolve_common;
+use core::f64::consts::PI;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{RawLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
@@ -203,8 +205,9 @@ pub(crate) enum TorusDoor {
     WallSection,
     /// Past every door: the op returned a result.
     Built,
-    /// A decision in the run's escalation band, past the chord: a body
-    /// too thin for the run's band to read.
+    /// Past the chord, the result shell's role escalates on its volume
+    /// (`positive_volume_exact`): a body too thin for the run's band to
+    /// read.
     Escalated,
 }
 
@@ -244,7 +247,10 @@ pub(crate) fn torus_door(
 ) -> Result<TorusDoor, String> {
     match run(op, x, y) {
         Ok(_) => return Ok(TorusDoor::Built),
-        Err(BooleanError::Escalated { .. }) => return Ok(TorusDoor::Escalated),
+        Err(BooleanError::Escalated {
+            decision: topo::BooleanDecision::ShellRole { .. },
+            diag,
+        }) if diag.predicate == Some("positive_volume_exact") => return Ok(TorusDoor::Escalated),
         Err(e) if names_the_torus(&e) => {}
         Err(BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
             divided: geom::SurfaceKind::Plane,
@@ -625,7 +631,7 @@ pub(crate) fn two_loop_poses() -> Vec<(&'static str, AtRestBody<f64>)> {
 #[test]
 fn two_one_site_loops_on_one_face_pair_pass_the_dispatch() {
     let mut runs = Vec::new();
-    for phase in [0.0, 1.0, core::f64::consts::PI] {
+    for phase in [0.0, 1.0, PI] {
         let t = one_face_torus(2.0, 0.5, phase);
         for (pose, p) in two_loop_poses() {
             runs.push((
@@ -661,7 +667,8 @@ fn two_one_site_loops_on_one_face_pair_pass_the_dispatch() {
 /// band reads them one tangent circle. The
 /// one-face torus and the torus seamed on `y = 0` carry both circles on
 /// one face pair, each crossing a wrap edge once; the donut carries
-/// them on its outer and inner faces.
+/// them on its outer and inner faces. Every body built is held to its
+/// closed-form volume and to tier 3.
 #[test]
 fn a_band_pose_under_the_tubes_top_reaches_the_donuts_door() {
     let (d, one, seamed) = (
@@ -672,10 +679,46 @@ fn a_band_pose_under_the_tubes_top_reaches_the_donuts_door() {
     for delta in [5e-7, 1e-6, 1e-5, 1e-3] {
         let p = bar((-3.0, 3.0), (0.5 - delta, 1.0), (-3.0, 3.0));
         let want = doors(&d, &p);
-        for (name, t) in [("one-face", &one), ("seamed", &seamed)] {
+        for (name, t) in [
+            ("the donut", &d),
+            ("the one-face torus", &one),
+            ("the seamed torus", &seamed),
+        ] {
             for ((op, door, _), (_, want, _)) in doors(t, &p).into_iter().zip(&want) {
                 assert!(want.is_ok(), "δ = {delta}, the donut, {op}: {want:?}");
-                assert_eq!(&door, want, "δ = {delta}, the {name} torus, {op}");
+                assert_eq!(&door, want, "δ = {delta}, {name}, {op}");
+            }
+            for ((op, got), &(_, kind, swap)) in six(t, &p).into_iter().zip(&SIX) {
+                let Ok(got) = got else { continue };
+                let (big_r, r, h) = (2.0, 0.5, 0.5 - delta);
+                let (torus_v, bar_v) = (2.0 * PI * PI * big_r * r * r, 36.0 * (0.5 + delta));
+                let meet = cap(big_r, r, h);
+                let (first, second) = if swap {
+                    (bar_v, torus_v)
+                } else {
+                    (torus_v, bar_v)
+                };
+                let truth = match kind {
+                    BooleanOp::Union => first + second - meet,
+                    BooleanOp::Intersect => meet,
+                    BooleanOp::Subtract => first - meet,
+                };
+                let b = &got
+                    .body()
+                    .unwrap_or_else(|| panic!("δ = {delta}, {name}, {op}: empty"))
+                    .body;
+                assert_eq!(
+                    topo::validate_geometric(b, Tol::witness()),
+                    Ok(()),
+                    "δ = {delta}, {name}, {op}: tier 3"
+                );
+                let v = topo::mass_properties(b, Tol::witness())
+                    .unwrap_or_else(|e| panic!("δ = {delta}, {name}, {op}: the volume: {e:?}"))
+                    .volume;
+                assert!(
+                    (v - truth).abs() <= volume_tol(truth),
+                    "δ = {delta}, {name}, {op}: volume {v} against the truth {truth}"
+                );
             }
         }
     }

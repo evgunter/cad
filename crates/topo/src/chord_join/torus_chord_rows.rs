@@ -168,39 +168,78 @@ fn off_both(c: &SectionConic<f64>, cut: &geom::Surface<f64>, (big_r, r): (f64, f
 /// band, at the thinnest face reach among the rows.** That reach is
 /// `0.112 m`, the lily's weld cap read from a site on the arch's rim
 /// (measured over the `germ_plane_torus_chord` and lily rows). A
-/// meridian circle is minted on the torus and turned off the cut by the
-/// axis tilt, so it stands off the cut by up to `r × tilt`; a tilt the
-/// table decides Zero at the lever `L` is under `ε/L`. So the arm levers
-/// at the tube radius where the reach is shorter: a plane whose tilt sits
-/// just inside the band at that lever is served circles within the band
-/// of both surfaces, and one whose tilt is in band only at the shorter
-/// reach is not served circles at all. The lily's arch (`R = 1.1`,
-/// `r = 0.052`, shorter than the reach) and the donut (`r = 0.5`, longer
-/// than it). The concentric circles' tilt is levered at `R + r`, so
-/// both stand within the band of the cut too. Red against the mutants
-/// "lever at the reach alone", whose meridian circles stand `4ε` off the
-/// cut on the donut, and "the concentric tilt levered at `R`", whose
-/// outer circle stands `1.1ε` off it.
+/// meridian circle is minted on the torus about a centre `d` off the
+/// cut, and the axis tilt leans its points off the cut by up to `r`
+/// times the tilt more, so the table decides the two as one sum, at any
+/// lever: a tilt just inside the band at the tube radius (or the reach,
+/// where it is longer) is served
+/// circles within the band of both surfaces, and so is a pose whose
+/// stand-off and lean are each `0.4` of the band; one whose stand-off
+/// and lean are each `0.9` of it is not served circles (decided
+/// separately, they stood `1.8ε` off the cut on the donut, `1.32ε` on
+/// the arch). The lily's arch
+/// (`R = 1.1`, `r = 0.052`, shorter than the reach) and the donut
+/// (`r = 0.5`, longer than it). The concentric circles' tilt is levered
+/// at `R + r`, so both stand within the band of the cut too. Red against
+/// the mutants "the stand-off and the lean decided separately" and "the
+/// concentric tilt levered at `R`", whose outer circle stands `1.1ε` off
+/// the cut.
 #[test]
 fn the_minted_circles_stand_within_the_band_at_the_thinnest_reach() {
     let b = band();
     let reach = 0.112;
+    let within_band = |two: &[SectionConic<f64>; 2],
+                       cut: &geom::Surface<f64>,
+                       (big_r, r): (f64, f64),
+                       what: &str| {
+        for c in two {
+            let (plane_off, torus_off) = off_both(c, cut, (big_r, r));
+            assert!(
+                plane_off <= b.zero() && torus_off <= b.zero(),
+                "R = {big_r}, r = {r}, {what}: a circle of radius {} stands {plane_off:e} off \
+                 the cut and {torus_off:e} off the torus, against the band's {:e}",
+                c.sa,
+                b.zero()
+            );
+        }
+    };
+    let case = |cut: &geom::Surface<f64>, wall: &geom::Surface<f64>| {
+        section_case(
+            (FaceKey::default(), geom::SurfaceKind::Plane),
+            b,
+            cut,
+            wall,
+            SectionReach::Torus(reach),
+        )
+    };
     for (big_r, r) in [(1.1, 0.052), (2.0, 0.5)] {
         let wall = torus(big_r, r);
-        let lever = reach.max(r);
-        let cut = |tilt: f64| plane(Point3::origin(), Vec3::new(tilt.cos(), tilt.sin(), 0.0));
-        for tilt in [0.0, 0.9 * b.zero() / lever] {
-            let (two, _) = loops(&cut(tilt), &wall, reach);
-            for c in &two {
-                let (plane_off, torus_off) = off_both(c, &cut(tilt), (big_r, r));
-                assert!(
-                    plane_off <= b.zero() && torus_off <= b.zero(),
-                    "R = {big_r}, r = {r}, tilt {tilt:e}: a minted circle stands {plane_off:e} \
-                     off the cut and {torus_off:e} off the torus, against the band's {:e}",
-                    b.zero()
-                );
-            }
+        // The lean is read at the tube radius or the reach, whichever is
+        // longer, so the tilt is decided Zero at the reach.
+        let lever = r.max(reach);
+        // The meridian plane `d` off the axis along its normal, the
+        // normal turned toward the axis by `tilt`.
+        let cut = |d: f64, tilt: f64| {
+            let n = Vec3::new(tilt.cos(), tilt.sin(), 0.0);
+            plane(Point3::origin() + n * d, n)
+        };
+        for (d, lean) in [(0.0, 0.0), (0.0, 0.9), (0.4, 0.4)] {
+            let cut = cut(d * b.zero(), lean * b.zero() / lever);
+            let (two, _) = loops(&cut, &wall, reach);
+            within_band(&two, &cut, (big_r, r), &format!("d {d}, lean {lean} bands"));
         }
+        let split = cut(0.9 * b.zero(), 0.9 * b.zero() / lever);
+        let got = case(&split, &wall);
+        if let Ok(SectionCase::Loops { loops: two, .. }) = &got {
+            within_band(two, &split, (big_r, r), "d 0.9, lean 0.9 bands");
+        }
+        assert!(
+            matches!(
+                got,
+                Err(SplitJoinError::Section { .. } | SplitJoinError::Escalated { .. })
+            ),
+            "R = {big_r}, r = {r}: a stand-off and a lean of 0.9 bands each are served"
+        );
         // The concentric circles: the table levers their axis tilt at
         // `R + r`, the largest radius either can have, which each
         // stands off the cut by its radius times. One tilt just inside
@@ -214,46 +253,17 @@ fn the_minted_circles_stand_within_the_band_at_the_thinnest_reach() {
         };
         for tilt in [0.0, 0.9 * b.zero() / (big_r + r)] {
             let (two, _) = loops(&square(tilt), &wall, reach);
-            for c in &two {
-                let (plane_off, torus_off) = off_both(c, &square(tilt), (big_r, r));
-                assert!(
-                    plane_off <= b.zero() && torus_off <= b.zero(),
-                    "R = {big_r}, r = {r}, tilt {tilt:e} off square: a concentric circle of \
-                     radius {} stands {plane_off:e} off the cut and {torus_off:e} off the torus",
-                    c.sa
-                );
-            }
+            within_band(
+                &two,
+                &square(tilt),
+                (big_r, r),
+                &format!("tilt {tilt:e} off square"),
+            );
         }
         let tilt = 0.99 * b.zero() / big_r;
         assert!(
-            !matches!(
-                section_case(
-                    (FaceKey::default(), geom::SurfaceKind::Plane),
-                    b,
-                    &square(tilt),
-                    &wall,
-                    SectionReach::Torus(reach),
-                ),
-                Ok(SectionCase::Loops { .. })
-            ),
+            !matches!(case(&square(tilt), &wall), Ok(SectionCase::Loops { .. })),
             "R = {big_r}, r = {r}: a tilt {tilt:e} off square, in band only at R, is served circles"
         );
-        if lever > reach {
-            let tilt = 0.9 * b.zero() / reach;
-            let got = section_case(
-                (FaceKey::default(), geom::SurfaceKind::Plane),
-                b,
-                &cut(tilt),
-                &wall,
-                SectionReach::Torus(reach),
-            );
-            assert!(
-                matches!(
-                    got,
-                    Err(SplitJoinError::Section { .. } | SplitJoinError::Escalated { .. })
-                ),
-                "R = {big_r}, r = {r}: a tilt {tilt:e} in band at the reach alone is served"
-            );
-        }
     }
 }

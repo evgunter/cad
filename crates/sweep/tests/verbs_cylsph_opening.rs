@@ -459,8 +459,8 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     // face where the plane holds its axis or stands square to it — so
     // the sentence does not claim the wider SECTION-FRAME dispatch's
     // pairs as join arms.
-    let wired = "faces meet only where a plane meets a plane, cylinder, sphere, cone, or a torus \
-                 through or square to its axis";
+    let wired = "faces meet only where a plane meets a plane, cylinder, sphere or cone, or a \
+                 plane holding a torus's axis or square to it meets the torus";
     assert!(
         msg.contains(wired),
         "the refusal does not state what that dispatch wires: {msg}"

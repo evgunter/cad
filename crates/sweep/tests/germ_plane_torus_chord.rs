@@ -19,7 +19,8 @@ use crate::germ_plane_torus_frame::{
     SIX, above, degrees, half_space, one_face_torus, seamed_torus, six, tang, torus,
 };
 use core::f64::consts::{FRAC_1_SQRT_2, PI};
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
+use profile::RawLoop;
 use topo::{AtRestBody, BooleanOp};
 
 /// An operand's analytic membership at a point: `None` within `MARGIN`
@@ -109,7 +110,7 @@ fn segment(r: f64, h: f64) -> f64 {
 
 /// The volume of the ring torus `(R, r)` above the height `h` (Pappus:
 /// the disc's segment above `h`, centred on the core, swept round it).
-fn cap(big_r: f64, r: f64, h: f64) -> f64 {
+pub(crate) fn cap(big_r: f64, r: f64, h: f64) -> f64 {
     2.0 * PI * big_r * segment(r, h)
 }
 
@@ -120,7 +121,7 @@ fn eps() -> f64 {
 
 /// A tolerance on a volume of size `v`: rounding at the default ε, and
 /// the band's reach of a boundary at a coarse one.
-fn volume_tol(v: f64) -> f64 {
+pub(crate) fn volume_tol(v: f64) -> f64 {
     v.abs().max(1.0) * 1e-9_f64.max(1e3 * eps())
 }
 
@@ -381,4 +382,79 @@ fn tangs_tube_on_a_latitude_builds_its_true_body() {
         meet,
         (Point3::new(-3.2, -1.2, -3.2), Point3::new(3.2, 1.9, 3.2)),
     );
+}
+
+/// The slab on a plane through the donut's axis at `(0, h, 0)`, its
+/// normal turned off `y` toward `x` by `theta`, extruded 2 m along it:
+/// in the plane, `u` turned off `x` by `theta` runs `−3..2s + 3` and `z`
+/// runs `−3..3`, so its cap's stored origin, the profile's centroid,
+/// stands `s` off the axis.
+fn tilted_slab(h: f64, theta: f64, s: f64) -> Solid {
+    let d = Vec3::new(theta.sin(), theta.cos(), 0.0);
+    let u = Vec3::new(theta.cos(), -theta.sin(), 0.0);
+    let v = d.cross(u);
+    let at = Point3::new(0.0, h, 0.0);
+    let (u_span, v_span) = ((-3.0, 2.0 * s + 3.0), (-3.0, 3.0));
+    let lp = profile::ProfileLoop::polygon([
+        Point2::new(u_span.0, v_span.0),
+        Point2::new(u_span.1, v_span.0),
+        Point2::new(u_span.1, v_span.1),
+        Point2::new(u_span.0, v_span.1),
+    ]);
+    let plane = profile::SketchPlane::new(Affine3::from_parts(
+        Mat3::from_cols(u, v, d),
+        at - Point3::origin(),
+    ));
+    let vp = profile::Profile::new(plane, vec![lp])
+        .validate(Tol::witness())
+        .expect("the slab's profile validates");
+    let body = sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: 2.0,
+            side: sweep::ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the slab extrudes")
+    .body;
+    Solid {
+        body: sweep::test_support::finished("the slab", body, Tol::witness()),
+        volume: (u_span.1 - u_span.0) * (v_span.1 - v_span.0) * 2.0,
+        inside: Box::new(move |p| {
+            let w = p - at;
+            all(&[
+                within(w.dot(d), (0.0, 2.0)),
+                within(w.dot(u), u_span),
+                within(w.dot(v), v_span),
+            ])
+        }),
+    }
+}
+
+/// **A cap tilted inside the band builds its true body wherever its
+/// plane's origin is stored**: the slab on `y = 0.2` against the donut,
+/// its normal off the axis by `0.9` of the band over `R + r` (decided
+/// square to the axis), its cap's origin stored on the axis and 5 m,
+/// 50 m and 500 m off it. The concentric circles are read where the
+/// plane crosses the axis; read at the stored origin they stood off the
+/// cut by that distance times the tilt, and every op refused at
+/// certification. The tilt moves the meeting's volume at second order
+/// only (the donut is symmetric across the tilt's axis).
+#[test]
+fn a_tilted_cap_builds_its_true_body_wherever_its_origin_is_stored() {
+    let (big_r, r, h) = (2.0, 0.5, 0.2);
+    let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
+    let theta = 0.9 * band.zero() / (big_r + r);
+    for s in [0.0, 5.0, 50.0, 500.0] {
+        let t = ring(torus(big_r, r), (big_r, r));
+        let p = tilted_slab(h, theta, s);
+        holds_to_the_truth(
+            &format!("the cap's origin {s} m off the axis"),
+            &t,
+            &p,
+            cap(big_r, r, h),
+            about_the_tube(big_r, r),
+        );
+    }
 }

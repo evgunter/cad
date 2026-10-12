@@ -350,7 +350,7 @@ impl<T: Decide> Quadric<T> {
                 let start = kf + (from - kf) * (off_t / off_f);
                 // The ruling and lever are read only against a `Line` loop
                 // arc, and no loop arc on a torus is one
-                // ([`Self::torus_circle_arc`] yields conics alone).
+                // ([`Self::torus_circle_arc`] yields conics and crests).
                 let lead = Piece::Segment {
                     from,
                     to: start,
@@ -614,6 +614,48 @@ impl<T: Real> LoopSplit<T> {
                 axis,
                 radius,
             } => (p - origin).cross(axis).norm() - radius,
+        }
+    }
+
+    /// **The split of a plane×torus section's two loops**, the one
+    /// reading the boolean join's frame (`boolean::join`'s
+    /// `pt_germ_frame`) and the chord (`chord_join::section_case`) both
+    /// take, so that they name one loop. The torus is `(centre, axis,
+    /// R)` and `n` the plane's normal.
+    ///
+    /// - The meridian circles and the spiric ovals: the side of the
+    ///   plane through the axis square to the cut, the first loop on the
+    ///   positive side.
+    /// - The concentric circles: the distance from the axis against `R`,
+    ///   the outer circle positive.
+    ///
+    /// `None` for a section with no two loops, or a meridian section
+    /// whose first loop is no circle.
+    pub(crate) fn plane_torus(
+        section: &geom_brep::PlaneTorusSection<T>,
+        (centre, axis, major): (Point3<T>, Vec3<T>, T),
+        n: Vec3<T>,
+    ) -> Option<Self> {
+        match section {
+            geom_brep::PlaneTorusSection::MeridianCircles {
+                c1: geom::Curve3::Circle { center, .. },
+                ..
+            } => Some(Self::Side {
+                origin: centre,
+                dir: (*center - centre).normalize(),
+            }),
+            geom_brep::PlaneTorusSection::SpiricOvals { .. } => Some(Self::Side {
+                origin: centre,
+                dir: axis.cross(n).normalize(),
+            }),
+            geom_brep::PlaneTorusSection::ConcentricCircles { .. } => Some(Self::Radius {
+                origin: centre,
+                axis: axis.normalize(),
+                radius: major,
+            }),
+            geom_brep::PlaneTorusSection::MeridianCircles { .. }
+            | geom_brep::PlaneTorusSection::TangentCircle(_)
+            | geom_brep::PlaneTorusSection::Empty => None,
         }
     }
 }
@@ -1337,6 +1379,120 @@ mod tests {
             far > 1000,
             "the rows cross the islands' planes on their other loops: {far} paths would miscount"
         );
+    }
+
+    /// **A path from a point on the tube's top or bottom circle reads the
+    /// oracle's parity, or nothing**, against every crest island: its
+    /// lead segment runs along the cylinder `ρ = R` from its start, and
+    /// one of its parallels is that circle, so each may run along a crest
+    /// arc, which no crossing count reads. The points lie on the two
+    /// circles off every crest island's azimuths, taken with the whole
+    /// grid, in three frames, the axis either way.
+    #[test]
+    fn a_path_from_the_tubes_top_or_bottom_reads_the_oracle_or_nothing() {
+        use super::torus_islands::{crest_islands, on_torus, torus};
+        use core::f64::consts::FRAC_PI_2;
+        let (mut decided, mut asked) = (0usize, 0usize);
+        for f in frames() {
+            for mirror in [false, true] {
+                let surface = torus(f, mirror);
+                let quadric = Quadric::of(&surface).unwrap();
+                let grid = torus_grid(f);
+                let crests: Vec<_> = [FRAC_PI_2, -FRAC_PI_2]
+                    .into_iter()
+                    .flat_map(|v| [1.2, 1.6, 2.6, -2.2, -1.3].map(|u| on_torus(f, u, v)))
+                    .collect();
+                for (name, island) in crest_islands(f) {
+                    let arcs = torus_arcs(&quadric, &island);
+                    for &a in &crests {
+                        for &b in grid.iter().chain(&crests) {
+                            if (a - b).norm() == 0.0 {
+                                continue;
+                            }
+                            let want = (island.inside)(a) != (island.inside)(b);
+                            for (from, to) in [(a, b), (b, a)] {
+                                for path in quadric.paths((from, to), band()).unwrap() {
+                                    asked += 1;
+                                    if let Some(got) =
+                                        path_parity(&path, &arcs, None, band()).unwrap()
+                                    {
+                                        assert_eq!(
+                                            got, want,
+                                            "{name}, mirror {mirror}: {from:?} → {to:?}"
+                                        );
+                                        decided += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(decided * 5 > asked, "{decided} of {asked} paths decided");
+    }
+
+    /// **A piece that runs along the cylinder `ρ = R` says nothing of a
+    /// crest arc**: a parallel of radius `R` over the arc's span
+    /// (**`split_ring_path_crest_graze`**), a segment from the arc up a
+    /// tube radius, and a segment whose ends lie either side of the
+    /// cylinder (**`split_ring_path_crest_side`**), each read against the
+    /// tube's top arc of the island "up to the top" alone, in three
+    /// frames. [`Quadric::paths`] builds none of these where it would
+    /// decide a parity: the meridian or the lead its parallel at `R`
+    /// follows ends on the crest circle and is read undecided first
+    /// (`a_path_from_the_tubes_top_or_bottom_reads_the_oracle_or_nothing`
+    /// stays green with either guard dropped), so this row holds the
+    /// guards to their contract. Red against the mutants "graze verdict
+    /// ignored" and "lead-side check removed".
+    #[test]
+    fn a_piece_along_the_crest_cylinder_says_nothing_of_a_crest_arc() {
+        use super::torus_islands::{RADII, crest_islands, on_torus, torus};
+        use core::f64::consts::FRAC_PI_2;
+        for f in frames() {
+            let quadric = Quadric::of(&torus(f, false)).unwrap();
+            let (_, island) = crest_islands(f).into_iter().next().unwrap();
+            let crest: Vec<_> = torus_arcs(&quadric, &island)
+                .into_iter()
+                .filter(|arc| matches!(arc, LoopArc::Crest { .. }))
+                .collect();
+            assert_eq!(crest.len(), 1, "the island's one crest arc");
+            let round = CircleArc {
+                centre: f.at(0.0, 0.0, RADII.1),
+                axis: f.z,
+                radius: RADII.0 * f.s,
+                u_ref: f.x,
+                span: (-1.0, 1.0),
+            };
+            let top = on_torus(f, 0.0, FRAC_PI_2);
+            let segment = |from: Point3<f64>, to: Point3<f64>| Piece::Segment {
+                from,
+                to,
+                ruling: Vec3::zero(),
+                lever: 0.0,
+            };
+            for (what, piece) in [
+                ("a parallel along the crest", Piece::Arc(round)),
+                (
+                    "a segment up from the crest",
+                    segment(top, top + f.z * 0.1 * f.s),
+                ),
+                (
+                    "a segment across the cylinder",
+                    segment(on_torus(f, 0.0, 1.2), on_torus(f, 0.0, 2.0)),
+                ),
+            ] {
+                let path = Path {
+                    pieces: vec![piece],
+                    arrival: f.z,
+                };
+                assert_eq!(
+                    path_parity(&path, &crest, None, band()).unwrap(),
+                    None,
+                    "{what}: decided"
+                );
+            }
+        }
     }
 
     /// **A torus path's pieces meet exactly**, from end to end, wherever

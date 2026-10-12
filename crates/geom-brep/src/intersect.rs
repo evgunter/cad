@@ -2604,8 +2604,10 @@ pub enum PlaneTorusSection<T: Real> {
 ///    the plane, metered at the operand extent): Zero ⇒ the axis
 ///    DIRECTION lies in the plane; then `pt_axis_plane_gap` — margin
 ///    the stand-off `d = n·q − n·c` (meters, the plane's constant less
-///    the centre's): Zero ⇒ the plane CONTAINS the axis ⇒
-///    [`PlaneTorusSection::MeridianCircles`]; definite ⇒ the
+///    the centre's), read with the meridian circles' lean `r·(a·n)`
+///    beside it ([`decide_across`]): Zero ⇒ the plane CONTAINS the
+///    axis ⇒ [`PlaneTorusSection::MeridianCircles`], each standing at
+///    most that sum off the plane; definite (`pt_axis_plane_gap_floor`) ⇒ the
 ///    axis-parallel plane OFF the axis, and then `pt_spiric_two_ovals`
 ///    — margin `(R − r) − |d|` (meters, `d` that same gap), read across
 ///    the extent with that tilt displacement beside it
@@ -2619,8 +2621,11 @@ pub enum PlaneTorusSection<T: Real> {
 ///    have, which it stands off the plane by that sine times): Zero ⇒
 ///    the plane is
 ///    perpendicular to the axis; then `pt_cap_gap` — margin `r − |h|`
-///    (meters, `h = (q − c)·a` the station's depth into the tube), read
-///    with that tilt displacement beside it ([`decide_across`]):
+///    (meters, `h = d/(a·n)` the depth of the plane's crossing of the
+///    axis, `d` the stand-off, so independent of where the plane's
+///    origin is stored), read with that tilt displacement beside it
+///    ([`decide_across`]); each circle is minted at that crossing and
+///    stands at most the levered tilt off the plane:
 ///    Positive ⇒ [`PlaneTorusSection::ConcentricCircles`], Zero ⇒
 ///    [`PlaneTorusSection::TangentCircle`] (classification data),
 ///    Negative ⇒ [`PlaneTorusSection::Empty`].
@@ -2680,30 +2685,28 @@ pub fn plane_torus_section<T: Decide>(
         Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
     }
 
-    // Lever CONDITION, measured (fix-pass R2): just inside the Zero
-    // band the raw sine can be as large as ε/extent, so the meridian
-    // circles minted below can sit off their own PLANE by up to
-    // r·ε/extent — 27ε measured at extent = 0.01 (the TORUS residual
-    // stays machine-zero: the circles are on the torus, tilted off
-    // the plane). This cannot bite with a real operand: the extent is
-    // the operand extent, ≥ R + r for any plane that reaches the
-    // torus, so r/extent < 1 and the planarity error stays under ε.
-    // The predicate-dimension-audit row carries the same caveat.
+    // The axis tilt is levered at the extent for the fork alone. Each
+    // served row below decides the displacement it puts on its minted
+    // curves beside its own position datum, so no served circle leans on
+    // the extent being long.
     let tilt = Margin::levered(a.dot(n), extent);
     match decide("pt_axis_in_plane", tilt, band).map_err(SectionError::Escalated)? {
         Sign::Zero => {
             // The axis direction lies in the plane: containing vs
-            // offset, by the stand-off `d` — the one spelling this arm
-            // decides on and mints from. The meridian circles are
-            // minted parallel to the plane, `d` off it at every point,
-            // and the tilt turns them about their own centres' radial
-            // line, along the torus rather than off it: only `d` is
-            // read here. An oval is minted in a plane that the tilt does
-            // move off the real one, so the two-oval row reads the tilt
-            // beside its gap.
+            // offset, by the stand-off `d`. A meridian circle is minted
+            // on the torus about its centre, which stands `d` off the
+            // plane, and its points lean off the plane by up to
+            // `r·|a·n|` more, so the two are decided as one sum. An oval
+            // is minted in a plane that the tilt moves off the real one
+            // by up to the levered tilt, read beside its own gap.
             let d = n.dot(q - Point3::origin()) - n.dot(c - Point3::origin());
-            match decide("pt_axis_plane_gap", Margin::of(d), band)
-                .map_err(SectionError::Escalated)?
+            match decide_across(
+                ["pt_axis_plane_gap", "pt_axis_plane_gap_floor"],
+                d,
+                r * a.dot(n),
+                band,
+            )
+            .map_err(SectionError::Escalated)?
             {
                 Sign::Zero => {
                     // The plane contains the axis: the two meridian
@@ -2767,11 +2770,15 @@ pub fn plane_torus_section<T: Decide>(
             match decide("pt_axis_normal", tilt, band).map_err(SectionError::Escalated)? {
                 Sign::Zero => {
                     // The plane is perpendicular to the axis: the
-                    // concentric-circle lane, by the station's depth
-                    // into the tube. The tilt moves the plane's depth by
-                    // at most its displacement at the circles, so a
-                    // circle minted at `h` stands at most the sum off.
-                    let h = (q - c).dot(a);
+                    // concentric-circle lane, by the depth `h` of the
+                    // plane's crossing of the axis, wherever its origin
+                    // is stored. The circles are minted there, so a
+                    // circle of radius `ρ ≤ R + r` stands at most
+                    // `ρ·‖a×n‖`, under the levered tilt, off the plane,
+                    // and the plane's depth into the tube moves by at
+                    // most as much across them: the cap gap is decided
+                    // beside it.
+                    let h = (n.dot(q - Point3::origin()) - n.dot(c - Point3::origin())) / a.dot(n);
                     let center = c + a * h;
                     match decide_across(
                         ["pt_cap_gap", "pt_cap_gap_floor"],

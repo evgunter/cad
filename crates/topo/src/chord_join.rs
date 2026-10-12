@@ -1005,12 +1005,15 @@ pub(crate) enum SectionCase<T: Real> {
 
 /// **The loop of a two-loop section a chord's sites lie on**
 /// (**`chord_section_loop`**: the split's margin at each site, in
-/// metres). On the meridian circles that margin is `√(ρ² − d²) ≥ R − r`
-/// at every point of the section, and on the concentric circles
-/// `√(r² − h²)`, which the table decided positive, so a site whose margin
-/// falls in the band is on neither loop, an invariant; an undecided one
-/// escalates. Sites on two loops are an invariant too: the boolean join
-/// pairs germs only on one loop.
+/// metres). It reads which side of the split a site is on, not whether
+/// the site lies on that side's loop: the sites are germ sites the join
+/// placed on the section, and certification holds the arc minted between
+/// them to both surfaces. On the meridian circles the margin is
+/// `√(ρ² − d²) ≥ R − r` at every point of the section, and on the
+/// concentric circles `√(r² − h²)`, which the table decided positive, so
+/// a site whose margin falls in the band is no site of the section, an
+/// invariant; an undecided one escalates. Sites on two sides are an
+/// invariant too: the boolean join pairs germs only on one loop.
 fn section_loop<T: Decide>(
     face: FaceKey,
     [positive, negative]: [SectionConic<T>; 2],
@@ -1046,8 +1049,7 @@ pub(crate) enum SectionReach<T: Real> {
     Cylinder(WallReach<T>),
     /// A torus wall's face, or a plane face against a torus: the
     /// divided face's farthest distance from the chord's site, which the
-    /// plane×torus arm levers its axis tilt by (no shorter than the tube
-    /// radius).
+    /// plane×torus arm levers its axis tilt by.
     Torus(T),
     /// Any other wall: the sphere lane reads no reach.
     Unmeasured,
@@ -1237,21 +1239,16 @@ fn section_case<T: Decide>(
         };
     // The torus (C5's plane×torus arm): the meridian and the concentric
     // circles are two loops, a chord an arc of the one its sites lie on,
-    // told apart by the boolean join's own split for the section. The
-    // lever is the divided face's reach (a torus face, or the plane face
-    // against it), which bounds where that side's chord is consumed, but
-    // never shorter than the tube radius: a meridian circle is minted on
-    // the torus and stands off the cut by `r` times the axis tilt, which
-    // a definite verdict bounds by the band over the lever. The lever
-    // enters only the axis tilt's decision, and a longer one decides
-    // fewer tilts Zero, each of which then routes to the general rung's
-    // refusal; so the two sides' readings can part a served section only
-    // from a refusal.
+    // told apart by the boolean join's own split for the section
+    // ([`LoopSplit::plane_torus`]). The lever is the divided face's reach
+    // (a torus face, or the plane face against it), which bounds where
+    // that side's chord is consumed. It enters only the axis tilt's fork:
+    // each served row decides its circles' own displacement off the cut
+    // beside its position datum, at any lever.
     if let geom::Surface::Torus {
         center,
         axis,
         major_radius,
-        minor_radius,
         ..
     } = *wall
     {
@@ -1261,44 +1258,27 @@ fn section_case<T: Decide>(
                  divided face",
             ));
         };
-        let loops = |c1, c2, split| {
-            let carried =
-                || invariant("a plane×torus classification carried a carrier that is not a circle");
+        let &geom::Surface::Plane { normal, .. } = plane_s else {
+            return Err(invariant("the pair normalization put no plane first"));
+        };
+        let section = geom_brep::plane_torus_section(plane_s, wall, reach, band).map_err(table)?;
+        let carried =
+            || invariant("a plane×torus classification carried a carrier that is not a circle");
+        let loops = |c1, c2| {
             Ok(SectionCase::Loops {
                 loops: [
                     section_conic(c1).ok_or_else(carried)?,
                     section_conic(c2).ok_or_else(carried)?,
                 ],
-                split,
+                split: LoopSplit::plane_torus(&section, (center, axis, major_radius), normal)
+                    .ok_or_else(carried)?,
             })
         };
-        let lever = reach.max(minor_radius);
-        return match geom_brep::plane_torus_section(plane_s, wall, lever, band).map_err(table)? {
-            geom_brep::PlaneTorusSection::MeridianCircles { c1, c2 } => {
-                let &geom::Curve3::Circle { center: k, .. } = &c1 else {
-                    return Err(invariant(
-                        "a plane×torus classification carried a carrier that is not a circle",
-                    ));
-                };
-                let dir = (k - center).normalize();
-                loops(
-                    c1,
-                    c2,
-                    LoopSplit::Side {
-                        origin: center,
-                        dir,
-                    },
-                )
+        return match &section {
+            geom_brep::PlaneTorusSection::MeridianCircles { c1, c2 }
+            | geom_brep::PlaneTorusSection::ConcentricCircles { c1, c2 } => {
+                loops(c1.clone(), c2.clone())
             }
-            geom_brep::PlaneTorusSection::ConcentricCircles { c1, c2 } => loops(
-                c1,
-                c2,
-                LoopSplit::Radius {
-                    origin: center,
-                    axis: axis.normalize(),
-                    radius: major_radius,
-                },
-            ),
             geom_brep::PlaneTorusSection::SpiricOvals { .. } => {
                 Err(SplitJoinError::SectionUnarmed {
                     face,

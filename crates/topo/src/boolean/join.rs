@@ -3030,12 +3030,18 @@ fn pt_germ_frame<T: Decide>(
         }),
         _ => Err(carried()),
     };
-    let two = |loops, split| Ok(Some(SectionLoops::Two { loops, split }));
-    match geom_brep::plane_torus_section(plane, torus, lever, band) {
+    let section = geom_brep::plane_torus_section(plane, torus, lever, band);
+    let split = section
+        .as_ref()
+        .ok()
+        .and_then(|s| LoopSplit::plane_torus(s, (c, a, big_r), n));
+    let two = |loops| match split {
+        Some(split) => Ok(Some(SectionLoops::Two { loops, split })),
+        None => Err(carried()),
+    };
+    match section {
         Ok(geom_brep::PlaneTorusSection::MeridianCircles { c1, c2 }) => {
-            let loops = [circle(c1)?, circle(c2)?];
-            let dir = (loops[0].center - c).normalize();
-            two(loops, LoopSplit::Side { origin: c, dir })
+            two([circle(c1)?, circle(c2)?])
         }
         Ok(geom_brep::PlaneTorusSection::SpiricOvals { s1, s2 }) => {
             let oval = |curve: geom::Curve3<T>| match curve {
@@ -3068,17 +3074,11 @@ fn pt_germ_frame<T: Decide>(
                 }
                 _ => Err(carried()),
             };
-            let dir = a.cross(n).normalize();
-            two([oval(s1)?, oval(s2)?], LoopSplit::Side { origin: c, dir })
+            two([oval(s1)?, oval(s2)?])
         }
-        Ok(geom_brep::PlaneTorusSection::ConcentricCircles { c1, c2 }) => two(
-            [circle(c1)?, circle(c2)?],
-            LoopSplit::Radius {
-                origin: c,
-                axis: a.normalize(),
-                radius: big_r,
-            },
-        ),
+        Ok(geom_brep::PlaneTorusSection::ConcentricCircles { c1, c2 }) => {
+            two([circle(c1)?, circle(c2)?])
+        }
         Ok(
             geom_brep::PlaneTorusSection::TangentCircle(_) | geom_brep::PlaneTorusSection::Empty,
         ) => Err(FrameError::Desync(

@@ -158,10 +158,17 @@ every pose:
   in-face circle class of SECT's
   `closed-in-face-section-loop-has-one-site`, where the evidence is
   added.
-- **The result door's volume for a ring on a torus face** is not
-  reached: no public pose's ring lane reads a torus face (measured by
-  instrumenting `path_island_winding` and `path_ring_side` over every
-  row above; the in-crate rows read 1536 torus islands).
+- **A ring on a torus face** is reached through the public ops: the box
+  `x ≥ 0 ∧ y ≥ h`, `h < 0`, against the one-face torus with its vertex
+  on the inner equator puts a pierce ring on the torus face, and
+  `path_ring_side` reads it undecided, so every op refuses
+  `RingHomingAmbiguous` (filed on GERM,
+  `a-pierce-ring-on-a-one-face-torus-face-reads-undecided`). The rows
+  above read no torus face's ring; the in-crate rows read 1536 torus
+  islands.
+- **A slab across the one-face torus** refuses `JoinDesync` in
+  `choose_roles` at some vertex phases (filed on GERM,
+  `a-slab-against-a-one-face-torus-desyncs-its-chord-roles`).
 - **Containment on a body the notch mints** refuses `PartialTorusFace`:
   its torus walls are L-shaped in the chart (filed on INSIDE,
   `point-in-solid-refuses-an-l-shaped-torus-face`).
@@ -275,18 +282,31 @@ distance from the reading point (`face_reach_from`), handed to the table
 as its `extent`. It is the cone arm's measure (U-S3), and `frame_extent`
 gains the torus arm beside `cone_reach`. A definite verdict at that
 lever holds over the whole face, and so over the section the join
-consumes there. Any other extent is a desync. The table's comment caps
-a minted circle's distance off its plane at `r·ε/extent`, and assumes
-the extent is at least `R + r`. That bound is about the minted circle,
-which the frame never reads: the frame reads only centres, which lie
-within `|d| ≤ band` of the plane, and the axis `n̂` or `â`. The chord
-reads the circle, and U-T3 measured the assumption false there: a
-divided face's reach can be shorter than `r` (the lily's weld cap reads
-`0.112 m`), and at that lever a meridian circle stands `4ε` off its
-plane on the donut. So the chord levers at the reach or the tube
-radius, whichever is longer. The concentric circles' tilt is levered at
-`R + r`, the largest circle radius, not `R`: at `R` the outer circle
-stood `1.1ε` off its plane (`chord_join::torus_chord_rows`).
+consumes there. Any other extent is a desync. The extent levers only the
+axis tilt's fork; no served circle leans on it being long:
+
+- **A meridian circle** is minted on the torus about a centre `d` off
+  the plane, and the tilt leans its points off the plane by up to
+  `r·|â·n̂|` more. The table decides the sum (`pt_axis_plane_gap`
+  beside its floor), so a served circle stands under the band off its
+  plane at any lever. Decided one at a time, `d = 0.9ε` beside a lean
+  of `0.9ε` stood `1.8ε` off on the donut and on `(1, 0.95)`, and
+  `1.32ε` on the arch `(1.1, 0.052)`.
+- **The concentric circles** are read at the plane's crossing of the
+  axis, depth `h = d/(â·n̂)`, wherever the plane's origin is stored. A
+  circle of radius `ρ ≤ R + r` stands at most `ρ‖â × n̂‖` off the plane,
+  under the tilt levered at `R + r`, and the plane's depth moves by at
+  most as much across the circles, which `pt_cap_gap` reads beside its
+  gap. Read at the stored origin, a circle stood off the cut by the
+  origin's distance from the axis times the tilt (19 bands at 50 m, 181
+  at 500 m), and a plane 41 bands over the tube's crest was served
+  circles. At `R` rather than `R + r` the outer circle stood `1.1ε`
+  off its plane (`chord_join::torus_chord_rows`).
+
+The frame reads only the circles' centres and axes. The chord reads
+the circles, at the divided face's reach, which can be shorter than `r`
+(the lily's weld cap reads `0.112 m`); the sum above bounds them there
+too.
 
 ### 1.2 The general pose: a typed refusal named for its configuration
 
@@ -548,9 +568,9 @@ Rows run in-crate, against `pair_section_frame_at` and
    `torus_ring_rows`' `a_run_on_the_tubes_top_or_bottom_circle_is_a_ring_the_lane_does_not_read`
    goes red, and is rewritten as the reading
    (`a_run_on_the_tubes_top_or_bottom_circle_winds_its_island_as_the_oracle_does`).
-6. **The minted circles' planarity** at the face reach (the table's
-   `r·ε/extent` comment, §1.1): measured on the thinnest face reach
-   among the rows.
+6. **The minted circles' planarity** (§1.1): at the thinnest face
+   reach among the rows, with the meridian plane's stand-off and lean
+   in band together, and with the plane's origin stored off the axis.
 
 ### U-T4 — plane-torus-chord-spiric
 
