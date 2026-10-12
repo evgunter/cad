@@ -3017,7 +3017,7 @@ impl Descendants {
         band: Band,
     ) -> Result<Option<Cell>, BooleanError> {
         let desync = |what| BooleanError::JoinDesync { what };
-        let lineage = crate::lineage::Lineage::of(
+        let lineage = crate::lineage::Descent::of(
             face,
             self.fragments[usize::from(side == Operand::B)].rows(),
         );
