@@ -5,8 +5,10 @@
 //! A face the result holds as several pieces lost the rest of its
 //! region to the boolean. An OBSTACLE is a connected part of that lost
 //! region: one discarded fragment, or several joined where they border
-//! one edge of the result or where a later step discarded the region
-//! across an earlier step's seam. Each piece edge is chased to the
+//! one edge of the result, where a later step discarded the region
+//! across an earlier step's seam, or, for a parent of several faces,
+//! where two of its faces were discarded on both sides of an edge that
+//! died with them. Each piece edge is chased to the
 //! stretch a discard recorded along it, through the edge's split
 //! lineage and the lineage the discards themselves carry for edges that
 //! died with them, and so to its obstacle. A face discarded where a
@@ -17,6 +19,10 @@
 //! each cited by its parent's name. Nothing beyond a piece's own
 //! boundary is read, so a boss standing on one piece, or a notch in it,
 //! is an obstacle that borders one piece and is never cited.
+//!
+//! An operand corner the result holds as several vertices is read the
+//! same way ([`Obstacles::split_corner`]): its parent is the corner's
+//! faces, and each copy's boundary is those faces' pieces' edges at it.
 //!
 //! One record serves the pair boolean, which records one step, and the
 //! union, which records each fold step and asks after the finished body

@@ -1860,7 +1860,8 @@ struct EdgeGroup {
     lone: Lone,
 }
 
-/// Boolean vertices: operand pass-downs (`From`), and seam
+/// Boolean vertices: operand pass-downs (`From`, + `Fragment(Borders)`
+/// at each of several vertices one corner is held as), and seam
 /// (crossing/fused) vertices named by the operand entities whose
 /// crossing minted them — derived from the already-named incident edges
 /// (combinatorial wiring facts) — and, where an edge crosses, by its
