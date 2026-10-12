@@ -343,9 +343,9 @@ pub enum BooleanDecision {
     /// is read.
     EdgeOnFaces,
     /// Whether a shell of the result bounds material or a cavity, at the
-    /// finished-body gate: its volume over its area, the mean thickness
-    /// it stands for (`chk_shell_volume_sign`), either definite sign a
-    /// role. Raised only where the shell's certified reading lies wholly
+    /// finished-body gate (check 10, a shell of a solid of several): its
+    /// volume over its area (`chk_shell_volume_sign`), either definite
+    /// sign a role. Raised only where the shell's certified reading lies wholly
     /// in band: a shell in band of having no volume, which definite cuts
     /// can compose, so the operands are ill-conditioned at this ε. It
     /// names the shell whose reading binds the offer, and how many more
@@ -885,8 +885,8 @@ const SEAM_WEDGE: SizedDecision = SizedDecision {
 };
 
 /// Whether a shell of the result bounds material or a cavity
-/// ([`BooleanDecision::ShellRole`]): the margin is `V/A`, the shell's
-/// mean thickness, a length, and either definite sign is a role.
+/// ([`BooleanDecision::ShellRole`]): the margin is `V/A`, a length,
+/// and either definite sign is a role.
 const RESULT_SHELL: SizedDecision = SizedDecision {
     lever: "move the parts so the pieces and cavities they leave are clearly thick",
     size: "thickness",

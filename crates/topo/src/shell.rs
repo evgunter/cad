@@ -4443,8 +4443,7 @@ fn spline_speed<T: Real>(spline: &geom::NurbsCurve3<T>) -> T {
         if knots[i + p + 1] - knots[i + 1] == 0.0 {
             continue;
         }
-        #[allow(clippy::cast_precision_loss)]
-        let k = T::from_f64(p as f64) / (values[i + p + 1] - values[i + 1]);
+        let k = geom_core::spline::span_derivative_scale(p, values[i + 1], values[i + p + 1]);
         let step = (control[i + 1] - c) * weights[i + 1] - (control[i] - c) * weights[i];
         point_rate = point_rate.max(step.norm() * k);
         weight_rate = weight_rate.max((weights[i + 1] - weights[i]).abs() * k);

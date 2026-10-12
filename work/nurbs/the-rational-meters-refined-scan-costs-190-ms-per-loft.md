@@ -2,10 +2,12 @@
 id: the-rational-meters-refined-scan-costs-190-ms-per-loft
 kind: issue
 title: The rational speed meter's refined-span scan costs about 190 ms per Interval loft, against a piece assembly that reaches as far
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: M
+branch: nurbs/refined-scan-cost
+closed: 2026-10-12
 ---
 
 ## What
@@ -37,3 +39,22 @@ does not (the frontier and adversarial rows in
 drop it, make it cheaper (its refinement goes through
 `RingRefinement::equal_split` and `refine_homogeneous` at `Interval`),
 or keep it and say what it buys.
+
+## Closed (2026-10-12)
+
+Dropped (the orchestrator's ruling (A) on the measurement). The
+rational arm is now `rational_piece_assembly` alone behind its weight
+licence; `rational_refined_scan`, `rational_span_scan`,
+`rational_span_bound` and `RATIONAL_METER_SPLITS` are gone, and with
+them `SpanLocate::refine_homogeneous` / `refine_weights`, which nothing
+else called. What the scan still decided: on every
+`m5_pr7_speed_meter.rs` fixture the pieces read at least as high; on
+12 000 random rational nets it read higher on 125, never turning a
+refusal into a positive answer, and every win above 1% was degree 2
+(about 1% of degree-2 nets, worst 2.07×, pinned as
+`a_degree_two_net_the_refined_scan_read_higher_still_meters`). Above
+degree 24 the meter now refuses
+(`a_rational_carrier_past_degree_24_refuses`). The tables and the
+before/after loft cost are in the PR body. `RingRefinement`'s quadratic
+chain, which the scan paid most of its cost in, stays for its other
+callers: `ring-refinement-inserts-one-point-per-plan-over-the-whole-net`.

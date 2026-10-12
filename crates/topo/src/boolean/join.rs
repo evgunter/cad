@@ -370,7 +370,7 @@ impl SolidJoin {
     ) -> Result<JoinPlan, BooleanError> {
         self.joiner
             .plan(body, halves, SegmentEdge::Locus(segment))
-            .map_err(BooleanError::Join)
+            .map_err(BooleanError::of_join)
     }
 
     /// The segment's curve in `lane`, from the site of the plan's first
@@ -387,7 +387,7 @@ impl SolidJoin {
         let curve = self
             .joiner
             .segment_curve(body, plan, lane, leave)
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
         curve.ok_or(BooleanError::Join(SplitJoinError::SectionInvariant {
             face: plan.face(),
             what: "both chords of a matched segment are its own edge (a loop holding both \
@@ -473,7 +473,7 @@ impl SolidJoin {
         let minted = self
             .joiner
             .join(body, plan, curve, tol)
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
         if let Some(edge) = segment {
             self.along
                 .extend(minted.into_iter().map(|chord| (edge, chord)));
@@ -893,12 +893,12 @@ pub(super) fn segment_sites(
 /// arena, B rows in the B-clone arena pre-graft).
 pub(super) struct Connected {
     pub completed: Vec<CompletedPolygonPair>,
-    pub a_fragments: Vec<(FaceKey, FaceKey)>,
-    pub b_fragments: Vec<(FaceKey, FaceKey)>,
+    pub a_fragments: crate::lineage::FaceDivisions,
+    pub b_fragments: crate::lineage::FaceDivisions,
     /// Each operand's faces the join killed, `(killed face, face holding
     /// its region)` in that operand's clone keys, A's then B's
     /// (`ChordJoiner::take_absorbed`).
-    pub absorbed: [Vec<(FaceKey, FaceKey)>; 2],
+    pub absorbed: [crate::lineage::Substitutions<FaceKey>; 2],
     /// Each operand's chords along its own edges, `(edge, chord)` in
     /// that operand's clone keys, A's then B's: every chord a segment
     /// whose locus on that operand is an edge minted runs along that
@@ -1036,7 +1036,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             };
             let face = match crate::chord_join::he_face(body, he) {
                 Ok(face) => face,
-                Err(e) => return BooleanError::Join(e),
+                Err(e) => return BooleanError::of_join(e),
             };
             match body
                 .get_face(face)
@@ -1171,10 +1171,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         );
         sa.joiner
             .place_pending(&mut red.a, (ea, ra))
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
         sb.joiner
             .place_pending(&mut red.b, (eb, rb))
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
         let a_lane = choose_roles(&red.a, (ea, ra), &a_loose, seg_a, a_closure, band)
             .map_err(|e| pinch_ray_refusal(e, red, Operand::A, (ea, ra)))?;
         let b_lane = choose_roles(&red.b, (eb, rb), &b_loose, seg_b, b_closure, band)
@@ -1406,8 +1406,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     }
     // A pierce ring deferred at a pinch is placed by the join that
     // reaches it; one still pending after every join has run never was.
-    sa.joiner.finish(&red.a).map_err(BooleanError::Join)?;
-    sb.joiner.finish(&red.b).map_err(BooleanError::Join)?;
+    sa.joiner.finish(&red.a).map_err(BooleanError::of_join)?;
+    sb.joiner.finish(&red.b).map_err(BooleanError::of_join)?;
     Ok(Connected {
         completed,
         a_fragments: sa.joiner.take_fragments(),
@@ -3139,12 +3139,18 @@ fn pt_germ_frame<T: Decide>(
         }),
         _ => Err(carried()),
     };
-    let two = |loops, split| Ok(Some(SectionLoops::Two { loops, split }));
-    match geom_brep::plane_torus_section(plane, torus, lever, band) {
+    let section = geom_brep::plane_torus_section(plane, torus, lever, band);
+    let split = section
+        .as_ref()
+        .ok()
+        .and_then(|s| LoopSplit::plane_torus(s, (c, a, big_r), n));
+    let two = |loops| match split {
+        Some(split) => Ok(Some(SectionLoops::Two { loops, split })),
+        None => Err(carried()),
+    };
+    match section {
         Ok(geom_brep::PlaneTorusSection::MeridianCircles { c1, c2 }) => {
-            let loops = [circle(c1)?, circle(c2)?];
-            let dir = (loops[0].center - c).normalize();
-            two(loops, LoopSplit::Side { origin: c, dir })
+            two([circle(c1)?, circle(c2)?])
         }
         Ok(geom_brep::PlaneTorusSection::SpiricOvals { s1, s2 }) => {
             let oval = |curve: geom::Curve3<T>| match curve {
@@ -3177,17 +3183,11 @@ fn pt_germ_frame<T: Decide>(
                 }
                 _ => Err(carried()),
             };
-            let dir = a.cross(n).normalize();
-            two([oval(s1)?, oval(s2)?], LoopSplit::Side { origin: c, dir })
+            two([oval(s1)?, oval(s2)?])
         }
-        Ok(geom_brep::PlaneTorusSection::ConcentricCircles { c1, c2 }) => two(
-            [circle(c1)?, circle(c2)?],
-            LoopSplit::Radius {
-                origin: c,
-                axis: a.normalize(),
-                radius: big_r,
-            },
-        ),
+        Ok(geom_brep::PlaneTorusSection::ConcentricCircles { c1, c2 }) => {
+            two([circle(c1)?, circle(c2)?])
+        }
         Ok(
             geom_brep::PlaneTorusSection::TangentCircle(_) | geom_brep::PlaneTorusSection::Empty,
         ) => Err(FrameError::Desync(
@@ -3679,7 +3679,7 @@ fn choose_roles<T: Decide>(
         let sites = |order| {
             JoinPlan::of(body, order, SegmentEdge::Locus(segment), band)
                 .map(|plan| plan.sites())
-                .map_err(BooleanError::Join)
+                .map_err(BooleanError::of_join)
         };
         let across = match (sites((x, y))?, sites((y, x))?) {
             ((Some(a), None), (None, Some(b))) if a == b => true,
@@ -3822,11 +3822,11 @@ fn ring_run_ccw<T: Decide>(
         IslandClosing::Wall(section) => {
             let wound =
                 crate::chord_join::chart_island_winding(body, face, (h1, h2), section, band)
-                    .map_err(BooleanError::Join)?;
+                    .map_err(BooleanError::of_join)?;
             return ring_winding_order(wound);
         }
         IslandClosing::Quadric(curve) => {
-            let closing = curve.run_closing(h1, face).map_err(BooleanError::Join)?;
+            let closing = curve.run_closing(h1, face).map_err(BooleanError::of_join)?;
             let wound = crate::chord_join::path_island_winding(
                 body,
                 face,
@@ -3834,12 +3834,12 @@ fn ring_run_ccw<T: Decide>(
                 closing.as_ref(),
                 band,
             )
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
             return ring_winding_order(wound);
         }
         IslandClosing::Planar(normal, curve) => (normal, curve),
     };
-    let closing = curve.run_closing(h1, face).map_err(BooleanError::Join)?;
+    let closing = curve.run_closing(h1, face).map_err(BooleanError::of_join)?;
     let wound = body
         .planar_run_winding_decided((h1, h2), RunClosing::of(closing.as_ref()), normal, band)
         .map_err(|RunMissesEnd| desync("ring-run arc did not close"))?
@@ -4040,11 +4040,11 @@ fn cut_pair<T: Decide>(
     let a_out = sa
         .joiner
         .cut_core(&mut red.a, a_edge, tol)
-        .map_err(BooleanError::Join)?;
+        .map_err(BooleanError::of_join)?;
     let b_out = sb
         .joiner
         .cut_core(&mut red.b, b_edge, tol)
-        .map_err(BooleanError::Join)?;
+        .map_err(BooleanError::of_join)?;
     match (a_out, b_out) {
         (CutOutcome::Merged, CutOutcome::Merged) => Ok(()),
         (
@@ -5062,6 +5062,7 @@ mod frame_dispatch_tests {
             let head = match wall_section(&body, b, through, unit_normal, face, corner) {
                 Ok(Some(WallSection { case, .. })) => match case {
                     SectionCase::Conic(_) => "conic",
+                    SectionCase::Loops { .. } => "loops",
                     SectionCase::Straight(_) => "lines",
                     SectionCase::Tangent(_) => "tangent",
                 },
