@@ -341,10 +341,12 @@ pub enum CertifyError {
     /// with none in hand gets [`CertifyError::NurbsLaneNotSupplied`].
     /// NURBS × NURBS has no certificate in this build.
     Unimplemented,
-    /// An `Intersection` of a PLANE and a described NURBS wall (M7-8)
-    /// reached a door that supplied **no plane × NURBS lane**
-    /// ([`EdgeCurve::certify`], [`EdgeCurve::recertify`], or a `_via`
-    /// door handed `None`). That is all this crate knows at the raising
+    /// An edge whose certificate the [`NurbsLane`] states — an
+    /// `Intersection` of a PLANE and a described NURBS wall (M7-8), or
+    /// a `Nurbs` carrier between two analytic surfaces (C2's limbs,
+    /// [`crate::analytic_rung3`]) — reached a door that supplied **no
+    /// lane** ([`EdgeCurve::certify`], [`EdgeCurve::recertify`], or a
+    /// `_via` door handed `None`). That is all this crate knows at the raising
     /// site: whether the caller could have supplied one is the caller's
     /// fact, which a caller that reads a scalar's policy states in its
     /// own refusal. It is raised before any other check of the edge
@@ -534,9 +536,9 @@ impl core::fmt::Display for CertifyError {
             ),
             Self::NurbsLaneNotSupplied => write!(
                 f,
-                "an Intersection of a plane and a described NURBS wall certifies only through \
-                 the plane x NURBS lane, and the door this check ran through supplied none, so \
-                 nothing about the edge was checked"
+                "an Intersection of a plane and a described NURBS wall, or a spline carrier \
+                 between two analytic surfaces, certifies only through the NURBS lane, and the \
+                 door this check ran through supplied none, so nothing about the edge was checked"
             ),
             Self::IntersectionSameSurface { key } => write!(
                 f,
@@ -1270,14 +1272,18 @@ impl<T: Decide> EdgeCurve<T> {
     ///
     /// 1. Implementedness: described surfaces resolve and are not
     ///    `Nurbs`, except the described NURBS wall of a plane × NURBS
-    ///    `Intersection` (M7-8, through the [`NurbsLane`] —
-    ///    [`CertifyError::NurbsLaneNotSupplied`] with none in hand) and
+    ///    `Intersection` (M7-8, through the [`NurbsLane`]) and
     ///    the chart of an image the construction states; a `Nurbs`
     ///    carrier certifies only under an
     ///    `Intersection` description (the rung-3 class, M5 PR 9 —
     ///    its span is metered through `speed_lower_bound`, gated
     ///    definitely-positive by `nurbs_span_meter`); `Intersection`'s
-    ///    two surfaces are distinct; `Seam`'s surface is periodic.
+    ///    two surfaces are distinct; `Seam`'s surface is periodic. Both
+    ///    lane classes — the plane × NURBS pair, and a `Nurbs` carrier
+    ///    between two analytic surfaces — refuse
+    ///    [`CertifyError::NurbsLaneNotSupplied`] here with no lane in
+    ///    hand, before any other check of the edge, so this door and
+    ///    [`EdgeCurve::recertify`] certify neither.
     /// 2. Interval span (M2 PR 3 fix pass): the stored interval is
     ///    **forward** — its arc length `(t₁ − t₀)` (`·r` for circle
     ///    carriers, metering radians into meters) is definitely
@@ -1318,14 +1324,9 @@ impl<T: Decide> EdgeCurve<T> {
     ///    traverses the witness's arc, not that the witness sits on
     ///    the component the modeler intended.
     /// 6. `Intersection` of two analytic surfaces over a `Nurbs`
-    ///    carrier, with a [`NurbsLane`] in hand
+    ///    carrier, through the [`NurbsLane`]
     ///    ([`EdgeCurve::certify_via`], [`EdgeCurve::recertify_via`]):
-    ///    C2's limbs over `[t₀, t₁]` ([`crate::analytic_rung3`]). This
-    ///    door holds no lane and does not state them; nor do
-    ///    [`EdgeCurve::recertify`], a scalar with no certification
-    ///    rights, the `_structural` at-rest doors, or the graft's
-    ///    `Bridge::Recertify` (`topo`), which calls this door
-    ///    (`work/pcert/lane-free-doors-skip-the-analytic-rung3-limbs.md`).
+    ///    C2's limbs over `[t₀, t₁]` ([`crate::analytic_rung3`]).
     ///
     /// # Errors
     ///
@@ -1342,8 +1343,9 @@ impl<T: Decide> EdgeCurve<T> {
 
     /// The shared certification body, with the plane × NURBS lane
     /// ([`NurbsLane`]) as its argument: `None` mints exactly what
-    /// [`EdgeCurve::certify`] does and `Some` also certifies the plane ×
-    /// NURBS class through the lane. A pass generic over its scalar
+    /// [`EdgeCurve::certify`] does and `Some` also certifies the two
+    /// lane classes (the plane × NURBS pair, and a `Nurbs` carrier
+    /// between two analytic surfaces) through the lane. A pass generic over its scalar
     /// fills the argument from that scalar's policy
     /// (`topo::AtRestPolicy::nurbs_lane`).
     ///
@@ -1351,7 +1353,7 @@ impl<T: Decide> EdgeCurve<T> {
     ///
     /// As [`EdgeCurve::certify`], plus the lane's own refusals when
     /// one is injected; [`CertifyError::NurbsLaneNotSupplied`] for an
-    /// edge of the M7-8 class with `None` in hand.
+    /// edge of either lane class with `None` in hand.
     pub fn certify_via(
         spec: EdgeCurveSpec<T>,
         start: Point3<T>,
@@ -1391,14 +1393,14 @@ impl<T: Decide> EdgeCurve<T> {
 
     /// The shared re-certification body, with the plane × NURBS lane
     /// ([`NurbsLane`]) as its argument: `None` re-derives exactly what
-    /// [`EdgeCurve::recertify`] does and `Some` re-derives the plane ×
-    /// NURBS class through the lane.
+    /// [`EdgeCurve::recertify`] does and `Some` re-derives the two lane
+    /// classes through the lane.
     ///
     /// # Errors
     ///
     /// As [`EdgeCurve::recertify`], plus the lane's own refusals when
     /// one is injected; [`CertifyError::NurbsLaneNotSupplied`] for an
-    /// edge of the M7-8 class with `None` in hand, raised before any
+    /// edge of either lane class with `None` in hand, raised before any
     /// other check of that edge runs.
     pub fn recertify_via(
         &self,
@@ -1424,8 +1426,9 @@ impl<T: Decide> EdgeCurve<T> {
 /// `Option<NurbsLane>` as an argument; `topo`'s operations fill it from
 /// the scalar's policy (`topo::AtRestPolicy::nurbs_lane`). A body
 /// holding `None` meets an `Intersection` of a plane and a described
-/// NURBS wall with [`CertifyError::NurbsLaneNotSupplied`]: no door
-/// accepts the description without the certificate.
+/// NURBS wall, or a `Nurbs` carrier between two analytic surfaces,
+/// with [`CertifyError::NurbsLaneNotSupplied`]: no door accepts either
+/// description without the certificate the lane states.
 ///
 /// The same bracket read is what a NURBS carrier's foot point needs, so
 /// the lane also carries [`NurbsLane::carrier_foot`]: a door that moves
@@ -2309,6 +2312,9 @@ fn run_checks<T: Decide>(
             lane: NurbsLane<T>,
         },
     }
+    // The lane an analytic rung-3 `Intersection` states C2's limbs
+    // through, taken at resolution like the plane × NURBS pair's.
+    let mut analytic_rung3_lane = None;
     let resolved = match spec.description {
         EdgeDescriptionSpec::Intersection { s1, s2, witness } => {
             if s1 == s2 {
@@ -2331,9 +2337,18 @@ fn run_checks<T: Decide>(
                     lane,
                 }
             } else {
+                let (surf1, surf2) = (resolve(s1)?, resolve(s2)?);
+                // A spline carrier between two analytic surfaces: C2's
+                // limbs are this certificate's own and only the lane
+                // states them, so a door holding none refuses here,
+                // before any other check of the edge, as the plane ×
+                // NURBS pair does.
+                if matches!(spec.carrier, Curve3::Nurbs(_)) {
+                    analytic_rung3_lane = Some(lane.ok_or(CertifyError::NurbsLaneNotSupplied)?);
+                }
                 Resolved::Intersection {
-                    surf1: resolve(s1)?,
-                    surf2: resolve(s2)?,
+                    surf1,
+                    surf2,
                     witness,
                 }
             }
@@ -2998,15 +3013,11 @@ fn run_checks<T: Decide>(
     // ---- Intersection of two analytic surfaces over a rung-3 carrier:
     // C2's limbs, through the lane, which holds certification
     // arithmetic — the carrier's distance from each operand over the
-    // edge's interval, and the uniqueness tube over it. A door holding
-    // no lane does not state them
-    // (`work/pcert/lane-free-doors-skip-the-analytic-rung3-limbs.md`). A
-    // spline operand's pair is the plane × NURBS lane's above, whose
-    // limbs are its own. ----
+    // edge's interval, and the uniqueness tube over it. A spline
+    // operand's pair is the plane × NURBS lane's above, whose limbs are
+    // its own. ----
     if let (Resolved::Intersection { surf1, surf2, .. }, Curve3::Nurbs(carrier), Some(lane)) =
-        (&resolved, &spec.carrier, lane)
-        && crate::edge_nurbs::is_analytic(surf1)
-        && crate::edge_nurbs::is_analytic(surf2)
+        (&resolved, &spec.carrier, analytic_rung3_lane)
     {
         lane.analytic_rung3(carrier, (t0, t1), surf1, surf2, band)
             .map_err(CertifyError::AnalyticRung3)?;

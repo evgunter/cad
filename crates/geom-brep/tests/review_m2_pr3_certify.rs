@@ -565,7 +565,15 @@ fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
             param_end: 1.0,
         };
         let (start, end) = (carrier.eval(0.0), carrier.eval(1.0));
-        EdgeCurve::certify(spec, start, end, |k| arena.get(k).cloned(), band()).unwrap_err()
+        EdgeCurve::certify_via(
+            spec,
+            start,
+            end,
+            |k| arena.get(k).cloned(),
+            band(),
+            Some(geom_brep::NurbsLane::certified()),
+        )
+        .unwrap_err()
     };
     for (name, control, zero) in [
         ("stalls", [0.0, 1.0, 1.0], true),

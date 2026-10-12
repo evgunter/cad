@@ -181,14 +181,23 @@ impl crate::provenance::ForwardKeys for Forward<'_> {
 
 /// Transplants `src`'s single solid into `dst_solid` of `dst`
 /// (module docs). `src` is only read: its arenas are walked in slot
-/// order, and nothing of it is shared with `dst`.
-pub(crate) fn graft_solid<T: geom_core::Decide>(
+/// order, and nothing of it is shared with `dst`. Its
+/// [`Bridge::Recertify`] holds `T`'s lane
+/// ([`crate::props::AtRestPolicy::nurbs_lane`]).
+pub(crate) fn graft_solid<T: crate::props::AtRestPolicy>(
     dst: &mut Body<T>,
     dst_solid: SolidKey,
     src: &Body<T>,
     tol: Tol,
 ) -> Result<GraftMap, BooleanError> {
-    graft_solids_with(dst, &[dst_solid], src, Bridge::Recertify { tol })
+    graft_staged(
+        dst,
+        Targets::Existing(&[dst_solid]),
+        src,
+        Bridge::Recertify { tol },
+        T::nurbs_lane(),
+    )
+    .map(|(map, _)| map)
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -213,9 +222,10 @@ pub(crate) fn take_bridges() -> Vec<Bridge> {
 /// must name the transplanted surfaces. Two ways to write that, and
 /// the difference is which claim the graft makes about the result:
 ///
-/// - [`Bridge::Recertify`] re-runs the certification schedule against
-///   the destination's surfaces — what the seam-zip lanes want, whose
-///   operands have been through surgery.
+/// - [`Bridge::Recertify`] re-runs the certification against the
+///   destination's surfaces, through the lane the graft is handed
+///   ([`geom_brep::EdgeCurve::certify_via`]) — what the seam-zip lanes
+///   want, whose operands have been through surgery.
 /// - [`Bridge::RemapKeys`] carries the source's certificate verbatim
 ///   with only the handles rewritten
 ///   ([`geom_brep::EdgeCurve::with_remapped_surfaces`]) — what a
@@ -241,8 +251,9 @@ pub(crate) enum Bridge {
     RemapKeys,
 }
 
-/// [`graft_solid`] for a source holding N solids, with the description
-/// bridge chosen explicitly: `dst_solids`
+/// [`graft_solid`] for a source holding N solids, bridged by
+/// [`Bridge::RemapKeys`] (the disjoint graft; the re-certifying bridge
+/// is [`graft_solid`]'s alone, which holds the lane): `dst_solids`
 /// names one destination solid per source solid, **positionally in the
 /// source's solid order** (slot order, D9), and the arity must match
 /// exactly — a source solid with no destination, or a destination with
@@ -256,9 +267,15 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     dst: &mut Body<T>,
     dst_solids: &[SolidKey],
     src: &Body<T>,
-    bridge: Bridge,
 ) -> Result<GraftMap, BooleanError> {
-    graft_staged(dst, Targets::Existing(dst_solids), src, bridge).map(|(map, _)| map)
+    graft_staged(
+        dst,
+        Targets::Existing(dst_solids),
+        src,
+        Bridge::RemapKeys,
+        None,
+    )
+    .map(|(map, _)| map)
 }
 
 /// [`graft_solids_with`] onto destination solids minted here, one per
@@ -268,9 +285,8 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
 pub(crate) fn graft_solids_minted<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
-    bridge: Bridge,
 ) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
-    graft_staged(dst, Targets::Minted, src, bridge)
+    graft_staged(dst, Targets::Minted, src, Bridge::RemapKeys, None)
 }
 
 /// **Every graft is staged: a refusal, or a panic on a torn source,
@@ -284,18 +300,20 @@ pub(crate) fn graft_solids_minted<T: geom_core::Decide>(
 /// cannot refuse; it mints in the stage's slot order, which is the
 /// source's, so `dst` ends key for key as a transplant straight into
 /// it would leave it. The cost is a second transplant of the source,
-/// never a copy of `dst`.
+/// never a copy of `dst`. `nurbs_lane` is the lane a
+/// [`Bridge::Recertify`] certifies through.
 fn graft_staged<T: geom_core::Decide>(
     dst: &mut Body<T>,
     targets: Targets<'_>,
     src: &Body<T>,
     bridge: Bridge,
+    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
 ) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
     #[cfg(any(test, feature = "test-support"))]
     BRIDGES.with(|b| b.borrow_mut().push(bridge));
     let mut stage = Body::new();
     let (staged, _) = match targets {
-        Targets::Minted => graft_solids_impl(&mut stage, Targets::Minted, src, bridge)?,
+        Targets::Minted => graft_solids_impl(&mut stage, Targets::Minted, src, bridge, nurbs_lane)?,
         Targets::Existing(dst_solids) => {
             if let Some(dead) = dst_solids.iter().find(|&&k| dst.get_solid(k).is_none()) {
                 unreachable!(
@@ -313,10 +331,17 @@ fn graft_staged<T: geom_core::Decide>(
                         .insert(crate::entity::Solid { shells: Vec::new() })
                 })
                 .collect();
-            graft_solids_impl(&mut stage, Targets::Existing(&stand_ins), src, bridge)?
+            graft_solids_impl(
+                &mut stage,
+                Targets::Existing(&stand_ins),
+                src,
+                bridge,
+                nurbs_lane,
+            )?
         }
     };
-    let (committed, solids) = match graft_solids_impl(dst, targets, &stage, Bridge::RemapKeys) {
+    let (committed, solids) = match graft_solids_impl(dst, targets, &stage, Bridge::RemapKeys, None)
+    {
         Ok(done) => done,
         Err(e) => unreachable!(
             "graft commit refused ({e:?}): the stage is a body this call built from a \
@@ -340,7 +365,7 @@ pub(crate) fn graft_unstaged<T: geom_core::Decide>(
     } else {
         Targets::Existing(dst_solids)
     };
-    graft_solids_impl(dst, targets, src, Bridge::RemapKeys)
+    graft_solids_impl(dst, targets, src, Bridge::RemapKeys, None)
 }
 
 impl GraftMap {
@@ -401,6 +426,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
     targets: Targets<'_>,
     src: &Body<T>,
     bridge: Bridge,
+    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
 ) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
     // Arity is this door's precondition, distinct from corruption: the
     // caller states which destination each source solid lands in, so a
@@ -861,12 +887,13 @@ fn graft_solids_impl<T: geom_core::Decide>(
             param_end: curve.params().1,
         };
         let band = geom_core::Band::linear(tol)?;
-        let recert = geom_brep::EdgeCurve::certify(
+        let recert = geom_brep::EdgeCurve::certify_via(
             spec,
             point(start_v),
             point(end_v),
             |sk| dst.surfaces.get(sk).cloned(),
             band,
+            nurbs_lane,
         )
         .map_err(BooleanError::GraftRecertify)?;
         let Some(slot) = dst.curves.get_mut(dk) else {

@@ -20,8 +20,9 @@ use crate::props::AtRestPolicy;
 /// Why a certification through the scalar's policy did not certify.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum ByPolicy {
-    /// The edge is of the plane × NURBS class and `scalar`'s policy
-    /// holds no lane (a dual, DL1).
+    /// The edge is of a lane class (plane × NURBS, or a spline carrier
+    /// between two analytic surfaces) and `scalar`'s policy holds no
+    /// lane (a dual, DL1).
     NoLane {
         /// [`Real::NAME`] of the scalar the door ran at.
         scalar: &'static str,

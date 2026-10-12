@@ -7,7 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
+use std::f64::consts::FRAC_PI_2;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
@@ -172,11 +172,104 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
     certify(&flat, plane(), cylinder_z(), true).expect("f64: the flat quarter certifies");
     certify(&lift(&flat), plane(), cylinder_z(), true)
         .expect("Interval: the flat quarter certifies");
-    // With the lane withheld the limbs are not stated, and the bulge
-    // passes the schedule (`work/pcert/lane-free-doors-skip-the-
-    // analytic-rung3-limbs.md` holds the policy open).
-    certify(&carrier, plane(), cylinder_z(), false)
-        .expect("no lane: the schedule alone, which the bulge passes");
+    // With the lane withheld the door refuses before it reads the
+    // carrier, the bulged and the flat quarter alike.
+    for (what, c) in [("bulged", &carrier), ("flat", &flat)] {
+        let free = certify(c, plane(), cylinder_z(), false).map(|_| ());
+        assert_eq!(
+            free,
+            Err(CertifyError::NurbsLaneNotSupplied),
+            "no lane, {what}"
+        );
+    }
+}
+
+/// **Every lane-free door refuses an analytic rung-3 edge, typed.** C2's
+/// limbs are the edge certificate's own, so a door that cannot state
+/// them certifies nothing about the edge: [`EdgeCurve::certify`],
+/// [`EdgeCurve::recertify`], either `_via` door handed `None`, and a
+/// scalar that holds no lane (the dual) each answer
+/// `NurbsLaneNotSupplied` on a carrier the lane certifies clean.
+#[test]
+fn lane_free_doors_refuse_an_analytic_rung3_edge() {
+    let carrier = bulged(16, 0.0);
+    let c = Curve3::Nurbs(Arc::new(carrier.clone()));
+    let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
+    let (k1, k2) = (arena.insert(plane()), arena.insert(cylinder_z()));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            s1: k1,
+            s2: k2,
+            witness: c.eval(0.5),
+        },
+        carrier: c.clone(),
+        param_start: 0.0,
+        param_end: 1.0,
+    };
+    let (start, end) = (c.eval(0.0), c.eval(1.0));
+    let surfaces = |k| arena.get(k).cloned();
+    let refused = Err(CertifyError::NurbsLaneNotSupplied);
+    let certified = EdgeCurve::certify_via(
+        spec.clone(),
+        start,
+        end,
+        surfaces,
+        band(),
+        Some(NurbsLane::certified()),
+    )
+    .expect("the lane certifies the flat quarter");
+    assert_eq!(
+        EdgeCurve::certify(spec, start, end, surfaces, band()).map(|_| ()),
+        refused,
+        "EdgeCurve::certify"
+    );
+    assert_eq!(
+        certified
+            .recertify(start, end, surfaces, band())
+            .map(|_| ()),
+        refused,
+        "EdgeCurve::recertify"
+    );
+    assert_eq!(
+        certified
+            .recertify_via(start, end, surfaces, band(), None)
+            .map(|_| ()),
+        refused,
+        "recertify_via(None)"
+    );
+    certified
+        .recertify_via(start, end, surfaces, band(), Some(NurbsLane::certified()))
+        .expect("recertify_via with the lane re-derives the certificate");
+
+    // The dual: a scalar with no lane to hand.
+    use geom_core::Dual64;
+    let dual = carrier.map_scalar(Dual64::from_f64);
+    let dc = Curve3::Nurbs(Arc::new(dual));
+    let mut dual_arena: SlotMap<SurfaceKey, Surface<Dual64>> = SlotMap::with_key();
+    let (d1, d2) = (dual_arena.insert(plane()), dual_arena.insert(cylinder_z()));
+    let half = Dual64::from_f64(0.5);
+    let dual_spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            s1: d1,
+            s2: d2,
+            witness: dc.eval(half),
+        },
+        carrier: dc.clone(),
+        param_start: Dual64::from_f64(0.0),
+        param_end: Dual64::from_f64(1.0),
+    };
+    assert_eq!(
+        EdgeCurve::certify(
+            dual_spec,
+            dc.eval(Dual64::from_f64(0.0)),
+            dc.eval(Dual64::from_f64(1.0)),
+            |k| dual_arena.get(k).cloned(),
+            band(),
+        )
+        .map(|_| ()),
+        refused,
+        "Dual64"
+    );
 }
 
 /// One branch of the Steinmetz pair `x² + z² = 1`, `y² + z² = 1`: the
@@ -213,10 +306,9 @@ fn cylinder_about(axis: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {
 /// A carrier along one Steinmetz branch through the point where the
 /// other branch crosses it: on both cylinders exactly, transverse at
 /// every schedule sample, and two arcs of the pair's crossing inside
-/// any tube around it. Withheld the lane, the edge certifies at the
-/// schedule; with it, `certify_via` refuses on the tube, and so does
-/// `recertify_via` of the lane-free certificate — the call tier 3
-/// makes on a body at rest.
+/// any tube around it. With the lane `certify_via` refuses on the tube;
+/// withheld it, the door refuses for want of the lane, so no door mints
+/// the edge.
 #[test]
 fn a_carrier_through_a_crossing_of_two_branches_refuses_on_the_tube() {
     let carrier = steinmetz_arc(0.4, 0.3);
@@ -238,29 +330,13 @@ fn a_carrier_through_a_crossing_of_two_branches_refuses_on_the_tube() {
             )
         )
     };
-    let free = certify(&carrier, s1.clone(), s2.clone(), false)
-        .expect("no lane: the schedule alone, where the pair crosses transversely");
-    let at_construction = certify(&carrier, s1.clone(), s2.clone(), true).map(|_| ());
+    let free = certify(&carrier, s1.clone(), s2.clone(), false).map(|_| ());
+    assert_eq!(free, Err(CertifyError::NurbsLaneNotSupplied), "no lane");
+    let at_construction = certify(&carrier, s1, s2, true).map(|_| ());
     assert!(
         at_construction.as_ref().is_err_and(tube),
         "{at_construction:?}"
     );
-    let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
-    let (k1, k2) = (arena.insert(s1.clone()), arena.insert(s2.clone()));
-    let _ = k2;
-    let resolve = |k: SurfaceKey| Some(if k == k1 { s1.clone() } else { s2.clone() });
-    let c = Curve3::Nurbs(Arc::new(carrier.clone()));
-    let at_rest = free
-        .recertify_via(
-            c.eval(0.0),
-            c.eval(1.0),
-            resolve,
-            band(),
-            Some(NurbsLane::certified()),
-        )
-        .map(|_| ());
-    assert!(at_rest.as_ref().is_err_and(tube), "{at_rest:?}");
-    let _ = FRAC_PI_4;
 }
 
 /// **The refusal speaks of the analytic pair.** Its words name the

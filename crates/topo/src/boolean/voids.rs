@@ -80,7 +80,7 @@
 
 use geom_core::{Decide, Sign};
 
-use super::combine::{Bridge, GraftMap, graft_solids_with};
+use super::combine::{GraftMap, graft_solids_with};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::entity::{ShellKey, SolidKey};
@@ -418,14 +418,13 @@ pub(crate) fn insert_hollow_voids<T: Decide>(
         (dst.arena_counts(), transplant)
     };
     let reversed = cavity.revert();
-    let graft =
-        graft_solids_with(dst, dst_solids, &reversed, Bridge::RemapKeys).unwrap_or_else(|e| {
-            unreachable!(
-                "the void graft refused ({e:?}): its every argument refusal was checked above \
+    let graft = graft_solids_with(dst, dst_solids, &reversed).unwrap_or_else(|e| {
+        unreachable!(
+            "the void graft refused ({e:?}): its every argument refusal was checked above \
                  (destinations live and one per cavity solid), and a handle-remapping graft \
                  re-certifies nothing"
-            )
-        });
+        )
+    });
     #[cfg(debug_assertions)]
     dst.assert_euler_postcondition(before, transplant, "insert_voids");
     Ok(VoidInserted { graft })
