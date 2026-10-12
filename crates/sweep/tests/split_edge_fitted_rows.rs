@@ -102,7 +102,7 @@ fn seam_keys() -> (EdgeKey, FaceKey, FaceKey, HalfEdgeKey) {
     panic!("the offset square prism has a flat-wall/bowed-wall seam")
 }
 
-fn seam_carrier<T: Real>(body: &Body<T>, edge: EdgeKey) -> (Curve3<T>, T, T) {
+pub(crate) fn seam_carrier<T: Real>(body: &Body<T>, edge: EdgeKey) -> (Curve3<T>, T, T) {
     let Some(topo::CurveGeom::Certified(c)) =
         body.get_curve_geom(body.get_edge(edge).unwrap().curve)
     else {
@@ -355,4 +355,99 @@ fn a_split_carries_the_general_row_to_each_child_at_the_interval_scalar() {
 #[test]
 fn a_split_carries_an_attached_fitted_row_to_each_child_at_the_interval_scalar() {
     fitted_row::<geom_core::Interval>();
+}
+
+// ---- R2 probes (review/4410-r2 only) ----
+
+fn r2_split_mid<T: AtRestPolicy>(body: &mut Body<T>, he: HalfEdgeKey, edge: EdgeKey) -> EdgeKey {
+    let (t0, t1) = body.pcurve(he).unwrap().params();
+    body.split_edge(edge, (t0 + t1) * T::from_f64(0.5), Tol::witness())
+        .unwrap()
+        .new_edge
+}
+
+#[test]
+fn r2_props_before_and_after_split() {
+    let (mut body, he, edge, _chart) = general_seam_at_rest::<f64>();
+    let before = topo::mass_properties(&body, Tol::witness());
+    println!("R2 props before split: {:?}", before.as_ref().map(|p| (p.volume, p.volume_pad)));
+    let image = body.pcurve(he).unwrap().pcurve().clone();
+    if let Pcurve::General(g) = &image {
+        println!("R2 image domain {:?}, row params {:?}", g.domain(), body.pcurve(he).unwrap().params());
+    }
+    r2_split_mid(&mut body, he, edge);
+    let after = topo::mass_properties(&body, Tol::witness());
+    println!("R2 props after split: {:?}", after.as_ref().map(|p| (p.volume, p.volume_pad)));
+    // What a closing mint writes on the split body, against the carried rows.
+    let carried: Vec<String> = body
+        .faces()
+        .flat_map(|(_, _)| std::iter::empty::<String>())
+        .collect();
+    drop(carried);
+    let mut rows_before: Vec<(HalfEdgeKey, String)> = body
+        .edges()
+        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+        .filter_map(|h| body.pcurve(h).map(|c| (h, format!("{:?}|{:?}|{:?}", c.pcurve(), c.params(), c.certificate()))))
+        .collect();
+    rows_before.sort_by_key(|r| format!("{:?}", r.0));
+    let mut reminted = body.clone();
+    let mint = topo::mint_pcurves(&mut reminted, Tol::witness());
+    println!("R2 re-mint on the split body: {mint:?}");
+    if mint.is_ok() {
+        let mut rows_after: Vec<(HalfEdgeKey, String)> = reminted
+            .edges()
+            .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+            .filter_map(|h| reminted.pcurve(h).map(|c| (h, format!("{:?}|{:?}|{:?}", c.pcurve(), c.params(), c.certificate()))))
+            .collect();
+        rows_after.sort_by_key(|r| format!("{:?}", r.0));
+        let differ: Vec<_> = rows_before
+            .iter()
+            .zip(&rows_after)
+            .filter(|(a, b)| a != b)
+            .map(|(a, _)| a.0)
+            .collect();
+        println!(
+            "R2 carried rows {} vs reminted rows {}; differing halves: {:?}",
+            rows_before.len(),
+            rows_after.len(),
+            differ
+        );
+        println!("R2 props after re-mint: {:?}", topo::mass_properties(&reminted, Tol::witness()).map(|p| (p.volume, p.volume_pad)));
+    }
+}
+
+/// A split of a split: the carried row restricted twice, off-centre.
+#[test]
+fn r2_split_twice_off_centre() {
+    for scalar in ["f64", "interval"] {
+        let r = match scalar {
+            "f64" => r2_twice::<f64>(),
+            _ => r2_twice::<geom_core::Interval>(),
+        };
+        println!("R2 twice @ {scalar}: {r:?}");
+        r.unwrap();
+    }
+}
+
+fn r2_twice<T: AtRestPolicy>() -> Result<(), String> {
+    let (mut body, he, edge, _chart) = general_seam_at_rest::<T>();
+    let (t0, t1) = body.pcurve(he).unwrap().params();
+    let t = t0 + (t1 - t0) * T::from_f64(0.03125);
+    let made = body
+        .split_edge(edge, t, Tol::witness())
+        .map_err(|e| format!("first split: {e:?}"))?;
+    let (_, _, tn1) = seam_carrier(&body, made.new_edge);
+    let t2 = t + (tn1 - t) * T::from_f64(0.75);
+    body.split_edge(made.new_edge, t2, Tol::witness())
+        .map_err(|e| format!("second split: {e:?}"))?;
+    let findings = topo::pcurves::validate_pcurves(&body, band());
+    if findings.is_empty() { Ok(()) } else { Err(format!("{findings:?}")) }
+}
+
+#[test]
+fn r2_full_tier3_before_and_after_split() {
+    let (mut body, he, edge, _chart) = general_seam_at_rest::<f64>();
+    println!("R2 validate_geometric before split: {:?}", topo::validate_geometric(&body, Tol::witness()));
+    r2_split_mid(&mut body, he, edge);
+    println!("R2 validate_geometric after split: {:?}", topo::validate_geometric(&body, Tol::witness()));
 }

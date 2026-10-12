@@ -2500,6 +2500,11 @@ pub(crate) fn split_cache<T: Decide>(
             refusal: SplitRefusal::Certify(error),
         };
         let certify = |a: T, b: T, image: Pcurve<T>| {
+            let fitted = if std::env::var("R2_MUTANT").as_deref() == Ok("no_lane") {
+                None
+            } else {
+                fitted
+            };
             restate(
                 &image,
                 (a, b),
@@ -2532,14 +2537,30 @@ pub(crate) fn split_cache<T: Decide>(
         // Every image is a function of the carrier's parameter, and the
         // children keep the parent's carrier, so each child's image is
         // the parent's restricted to its sub-interval.
+        let mutant = std::env::var("R2_MUTANT").unwrap_or_default();
+        let fitted_grade = matches!(image, Pcurve::Fitted(_) | Pcurve::General(_));
+        if fitted_grade && mutant == "continue" {
+            continue;
+        }
         let (first, second) = (image.clone(), image);
         // The children meet at the first's point at `t`, so the joint is
         // decided there as every joint is, which reads whether the split
         // point is on the chart's singular set.
-        let joint = pin(&second, t, first.eval(t))?;
+        let joint = if fitted_grade && mutant == "skip_joint" {
+            crate::JointElement::IDENTITY
+        } else {
+            pin(&second, t, first.eval(t))?
+        };
+        let (s1, s2) = if fitted_grade && mutant == "parent_span" {
+            ((t0, t1), (t0, t1))
+        } else if fitted_grade && mutant == "swap" {
+            ((t, t1), (t0, t))
+        } else {
+            ((t0, t), (t, t1))
+        };
         rows[slot] = Some(CarriedRows {
-            parent_half: certify(t0, t, first)?,
-            new_half: certify(t, t1, second)?,
+            parent_half: certify(s1.0, s1.1, first)?,
+            new_half: certify(s2.0, s2.1, second)?,
             joint,
         });
     }
