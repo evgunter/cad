@@ -941,11 +941,12 @@ fn tagged(o: Operand, f: FaceKey) -> OperandFace {
 }
 
 /// **Which tangencies along a curve certify a GLOBAL side** — the one
-/// table C4's strut and seam sources share. C4's cover records an
+/// table C4's strut and rim sources share. C4's cover records an
 /// edge's endpoints "only when the edge's parent carrier is certified to
 /// lie in one closed side of that carrier". A structural tangency (an
-/// edge described `TangentIntersection`) and a verified seam each
-/// certify that two carriers are tangent along a CURVE — a local fact.
+/// edge described `TangentIntersection`) and a glued tangency along a
+/// rim each certify that two carriers are tangent along a CURVE — a
+/// local fact.
 /// The cover needs the global one: `parent`'s carrier in one closed side
 /// of `partner`'s everywhere. Tangency along a curve fixes the geometry
 /// enough that local implies global exactly for these pairs, both ways
@@ -2243,33 +2244,28 @@ pub enum BooleanError {
         /// The margin that decided, and its predicate.
         margin: Indeterminate,
     },
-    /// A declaration names a coincidence in a configuration this op's
-    /// classification cannot act on: a `Tangent` or seam pair with no
-    /// witness locus (neither the DEV-1 closed-form lane — plane×cylinder
-    /// along a ruling, parallel cylinders — nor, for a seam, a shared
-    /// rim circle), so no verification can run and no arm can consume
-    /// the claim. Refused
-    /// at the door rather than carried into stages that would ignore
-    /// it — the vocabulary is wider than this op's envelope, and the
-    /// gap is typed, not silent.
+    /// A glued pair names a coincidence in a configuration this op's
+    /// classification cannot act on: a `Tangent` pair with no witness
+    /// locus (neither the DEV-1 closed-form lane — plane×cylinder along a
+    /// ruling, parallel cylinders — nor a shared rim circle), or a rim
+    /// whose junction the routing cannot place, so no arm can consume
+    /// it. Refused at the door rather than carried into stages that would
+    /// ignore it — the vocabulary is wider than this op's envelope, and
+    /// the gap is typed, not silent.
     UnsupportedDeclarationClass {
-        /// The coincidence that was declared: `TANGENT` or `Seam`, the
-        /// two classes verified along a witness locus. `Rest` and a
-        /// continuation are verified on the carrier ladder, which always
-        /// runs, so they never lack a witness. The field keeps the seat's
-        /// own type so the refusal names the declaration exactly as it
-        /// was written; a two-variant type would only spell the same two
-        /// values a second way.
+        /// The coincidence glued: `Tangent`, the class verified along a
+        /// witness locus. `Rest` and a continuation are verified on the
+        /// carrier ladder, which always runs, so they never lack a
+        /// witness.
         class: GlueClass,
     },
-    /// **A declared shared rim whose carrier pair has no tangent-locus
+    /// **A glued shared rim whose carrier pair has no tangent-locus
     /// arm.**
     ///
     /// The rim routing reads the two faces' outward normals opposed
-    /// across the rim (wedge 0 or 2π). Verifying the declaration there
-    /// needs the tangent locus of the pair's two surface kinds, and this
-    /// is raised only where [`geom_brep::tangent_locus`] answers
-    /// `Unsupported`.
+    /// across the rim (wedge 0 or 2π). Building that junction needs the
+    /// tangent locus of the pair's two surface kinds, and this is raised
+    /// only where [`geom_brep::tangent_locus`] answers `Unsupported`.
     RimCuspArmUnbuilt {
         /// The declaration whose face pair carries the rim.
         declaration: crate::contact::DeclaredContact,
@@ -2281,11 +2277,13 @@ pub enum BooleanError {
     /// **A verified `Tangent` union whose locus runs through a face's
     /// interior** (`crates/topo/README.md` C7).
     ///
-    /// The witness lane derived the line and the C4 table verified it,
-    /// and the line crosses the interior of a plane face of one operand.
-    /// Along that line the union keeps a face–face curve touch, and the
-    /// reduction mints no face–face row to record it, so a union refuses
-    /// on that declaration, whatever else the operands do: where they
+    /// The witness lane derived the line and the tangency table verified
+    /// it, the two materials touching from outside (opposed outward
+    /// normals, the crescent between the sheets void), and the line
+    /// crosses the interior of a plane face of one operand. Along that
+    /// line the union keeps a face–face curve touch, and the reduction
+    /// mints no face–face row to record it, so a union refuses on that
+    /// pair, whatever else the operands do: where they
     /// touch only there the result would be two solids, and where they
     /// also overlap elsewhere one solid pinched along the line. Subtract
     /// and intersect owe no record of the touch and are not refused here.
@@ -3739,20 +3737,20 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::UnsupportedDeclarationClass { class } => write!(
                 f,
-                "a declared {} lies outside the envelope this op's classification acts \
+                "a glued {} pair lies outside the envelope this op's classification acts \
                  on (Rest on the plane/sphere/cylinder carrier inventory; Tangent where \
                  the closed-form witness lane reaches — plane×cylinder along a ruling, \
-                 parallel cylinders; Seam there or along a rim circle the two faces \
-                 share) — the declaration is refused at the door rather than ignored \
+                 parallel cylinders — or along a rim circle the two faces share, as a \
+                 smooth seam) — the pair is refused at the door rather than ignored \
                  inside",
                 class.name()
             ),
             Self::RimCuspArmUnbuilt { declaration, .. } => write!(
                 f,
-                "the declared faces meet along a rim circle with their outward normals \
-                 opposed, and the Boolean cannot yet verify a {} declaration there: it has \
-                 no tangent locus for these two surfaces. The declaration is the right \
-                 one; there is no way through this in the kernel yet",
+                "the faces glued {} meet along a rim circle with their outward normals \
+                 opposed, and the Boolean cannot yet build that junction: it has no \
+                 tangent locus for these two surfaces. There is no way through this in \
+                 the kernel yet",
                 declaration.class.name()
             ),
             Self::TangentSlitArmUnbuilt {
@@ -5090,31 +5088,16 @@ fn border_held<T: Real>(
     Ok(out)
 }
 
-/// Fail-loud validation of a [`Glue`] payload against
-/// the operands (M4 PR 5): every referenced key must resolve in its
-/// operand, and declared faces must sit on carriers in the certified
-/// inventory (plane, sphere, cylinder, torus). A dangling declaration is a
-/// caller bug refused before any classification runs — never a
-/// silent drop (F5's no-silent-drop contract).
-/// **C4's verify-at-use, at the door**: EVERY declared pair is checked
+/// **C4's verify-at-use, at the door**: EVERY glued pair is checked
 /// against the geometry before the op runs — not only the pairs the
-/// classification happens to walk past — per class: `Rest` down the
-/// carrier ladder, `Tangent` down the DEV-1 witness lane
-/// ([`verify_tangent_declaration`]).
-///
-/// This closes the gap C4 names by name: "a declaration that never
-/// meets geometry is a silent no-op at the op". A pair naming two
-/// faces that never come near each other is exactly that shape, and
-/// without this pass a lie is loud when the classifier trips over it
-/// and silent when it does not — which is the same lie either way.
-/// The review that found this also found the reason it had gone
-/// unnoticed for a milestone: the only other verify-at-use site ran on
-/// Union only, and only when the seam produced null pairs, so a
-/// Subtract with a false declaration was never verified at all.
+/// classification happens to walk past — per class: `Rest` and a
+/// continuation down the carrier ladder, a tangency down the witness
+/// lane ([`verify_tangency`], routed along a rim by [`route_rim`]). Each
+/// records the decision's row.
 ///
 /// The sense is part of each one-carrier claim, as an exact bit:
 /// `Rest` demands opposed senses and a continuation aligned ones, and
-/// each is contradicted by the other's.
+/// each is contradicted by the other's. A tangency claims no sense.
 fn verify_declared_contacts<T: Decide>(
     a: &Body<T>,
     b: &Body<T>,
@@ -5735,17 +5718,19 @@ fn verify_tangency<T: Decide>(
     // the orientation BIT are two facts about the same `&Face`, read off
     // this one lookup: a key that does not resolve refuses typed HERE,
     // so no later stage answers from a sense it invented.
-    let face_of =
-        |body: &Body<T>, f: FaceKey, operand| -> Result<(geom::Surface<T>, bool), TangencyFailure> {
-            let invalid = |what| Refused(BooleanError::InvalidInput { operand, what });
-            let face = body
-                .get_face(f)
-                .ok_or_else(|| invalid("declared face key does not resolve"))?;
-            let surface = body
-                .get_surface(face.surface)
-                .ok_or_else(|| invalid("declared face lost its surface"))?;
-            Ok((surface.clone(), face.sense))
-        };
+    let face_of = |body: &Body<T>,
+                   f: FaceKey,
+                   operand|
+     -> Result<(geom::Surface<T>, bool), TangencyFailure> {
+        let invalid = |what| Refused(BooleanError::InvalidInput { operand, what });
+        let face = body
+            .get_face(f)
+            .ok_or_else(|| invalid("declared face key does not resolve"))?;
+        let surface = body
+            .get_surface(face.surface)
+            .ok_or_else(|| invalid("declared face lost its surface"))?;
+        Ok((surface.clone(), face.sense))
+    };
     let (sa, sense_a) = face_of(a, fa, Operand::A)?;
     let (sb, sense_b) = face_of(b, fb, Operand::B)?;
     let kinds = (sa.kind(), sb.kind());
@@ -5859,7 +5844,7 @@ fn verify_tangency<T: Decide>(
 /// ([`BooleanError::UnsupportedDeclarationClass`]). The reading is the
 /// operands', the same under every op: the junction the result carries
 /// per op needs the membership, which this stage does not hold (filed:
-/// `work/contacthold/a-rim-tangency-is-routed-on-the-operands-not-per-op.md`).
+/// `work/contacthold/a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp.md`).
 /// The rim's diameter is the extent every angular margin here is metered
 /// at.
 fn route_rim<T: Decide>(

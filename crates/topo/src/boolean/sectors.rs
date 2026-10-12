@@ -6421,8 +6421,14 @@ mod tests {
             Operand::A,
             super::super::plane_eq::PlaneRelation::SameOpposite,
         );
-        assert_ne!(aligned, opposed, "the fixture's op tells the two senses apart");
-        assert_eq!(at_zero, aligned, "an aligned exact zero lumps by its senses");
+        assert_ne!(
+            aligned, opposed,
+            "the fixture's op tells the two senses apart"
+        );
+        assert_eq!(
+            at_zero, aligned,
+            "an aligned exact zero lumps by its senses"
+        );
     }
 
     /// Three-outcome honesty on the metered row: the SAME external

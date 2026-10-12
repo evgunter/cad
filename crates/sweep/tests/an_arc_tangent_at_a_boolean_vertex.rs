@@ -293,12 +293,14 @@ fn the_flush_and_corner_slabs_answer() {
 }
 
 /// **The untilted dip, printed.** Its wall is tangent to the slab's top
-/// along the rim with the lens between them in both materials, which
-/// the glue door decides neither a `Tangent` contact nor a seam, so
-/// every op refuses `CurvedBooleanUnsupported` on the wall's
-/// undeclared on-carrier sector
-/// (`work/contacthold/a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector.md`).
-/// It asserts nothing. Run:
+/// along the rim with the lens between them in both materials; the glue
+/// door glues the pair `Tangent`. The differences and the intersection
+/// refuse at the run boundary on the round's lumped sectors at the rim
+/// vertex
+/// (`work/contacthold/a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector.md`),
+/// and the union at the round's own wedge-0 corner, which lies in the
+/// slab's bottom face (`the_dip_on_a_deep_slab_unions_into_one_solid`
+/// moves it inside). It asserts nothing. Run:
 /// `cargo test -p sweep --test all the_untilted_dip -- --ignored --nocapture`
 #[test]
 #[ignore = "measurement: prints each op's outcome; run with --ignored --nocapture"]
@@ -335,53 +337,50 @@ fn the_untilted_dip() {
 /// **The dip on a slab deep enough to hold its whole lens**
 /// (z ∈ [−1, 1]): the round's own wedge-0 corner at (x = 3, z = 0) lies
 /// inside the slab, so the only junction the ops meet is the rim, where
-/// the wall leaves the slab's top tangent and bends into it. The pair is
-/// glued `Tangent` with no claim about the materials, and the lump reads
-/// the wall `In`: ∪ is one solid, ∖ leaves a smooth π junction, the
-/// round ∖ slab is the box above z = 1, and ∩ is the lens, a knife edge
-/// along the rim.
+/// the wall leaves the slab's top tangent and bends into it. The glue
+/// door glues the pair `Tangent`, claiming nothing of the materials, and
+/// the lump reads the wall `In`: the union is one solid with the rim
+/// interior. The differences and the intersection reach the reduction's
+/// run boundary on the round's lumped sectors at the rim vertex, which
+/// takes no germ there yet (filed:
+/// `work/contacthold/a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector.md`).
 #[test]
-fn the_dip_on_a_deep_slab_answers_every_op() {
+fn the_dip_on_a_deep_slab_unions_into_one_solid() {
     let dip = dipping_round();
     let deep = slab_deep(0.0, 5.0, -1.0, 6.0, -1.0);
     let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
-    let (vd, vs) = (vol(&dip), vol(&deep));
     let lens = 4.0 - core::f64::consts::PI;
-    let rows: [(&str, Result<BooleanResult<f64>, topo::BooleanError>, f64); 4] = [
-        (
-            "slab ∪ round",
-            topo::union(&deep, &dip, Tol::witness()),
-            vs + vd - lens,
-        ),
-        (
-            "slab ∖ round",
-            topo::subtract(&deep, &dip, Tol::witness()),
-            vs - lens,
-        ),
-        (
-            "round ∖ slab",
-            topo::subtract(&dip, &deep, Tol::witness()),
-            vd - lens,
-        ),
-        (
-            "slab ∩ round",
-            topo::intersect(&deep, &dip, Tol::witness()),
-            lens,
-        ),
-    ];
-    let mut failed = Vec::new();
-    for (what, got, want) in rows {
-        match got {
-            Ok(BooleanResult::Body(b)) => {
-                let v = vol(&b.body);
-                if (v - want).abs() >= 1e-6 {
-                    failed.push(format!("{what}: volume {v}, want {want}"));
-                }
-            }
-            other => failed.push(format!("{what}: want volume {want}, got {other:?}")),
-        }
+    let want = vol(&deep) + vol(&dip) - lens;
+    let body = match topo::union(&deep, &dip, Tol::witness()) {
+        Ok(BooleanResult::Body(b)) => b.body,
+        other => panic!("the deep dip, slab ∪ round: want one solid, got {other:?}"),
+    };
+    let v = vol(&body);
+    assert!(
+        (v - want).abs() < 1e-9,
+        "slab ∪ round: volume {v}, want {want}"
+    );
+    assert_eq!(body.solids().count(), 1, "slab ∪ round: one solid");
+    assert_eq!(
+        topo::validate_geometric(&body, Tol::witness()),
+        Ok(()),
+        "slab ∪ round: tier 3"
+    );
+    for (what, got) in [
+        ("slab ∖ round", topo::subtract(&deep, &dip, Tol::witness())),
+        ("round ∖ slab", topo::subtract(&dip, &deep, Tol::witness())),
+        ("slab ∩ round", topo::intersect(&deep, &dip, Tol::witness())),
+    ] {
+        assert!(
+            matches!(
+                got,
+                Err(topo::BooleanError::ClassificationInvariant {
+                    what: "a germ sector with both edge bounds on the partner face"
+                })
+            ),
+            "the deep dip, {what}: the run boundary on the lumped sector, got {got:?}"
+        );
     }
-    assert!(failed.is_empty(), "the deep dip:\n{}", failed.join("\n"));
 }
 
 /// A slab `x ∈ [x0, x1]`, `z ∈ [0, 1]`, `y ∈ [y0, y0 + depth]`.

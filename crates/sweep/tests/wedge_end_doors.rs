@@ -496,10 +496,26 @@ fn a_plane_tangent_to_a_hole_answers_every_op() {
     );
     let pi = std::f64::consts::PI;
     for (name, got, want) in [
-        ("plate ∖ cutter", topo::subtract(&plate, &cutter, tol()), 24.0 - pi),
-        ("cutter ∖ plate", topo::subtract(&cutter, &plate, tol()), 60.0),
-        ("plate ∪ cutter", topo::union(&plate, &cutter, tol()), 96.0 - pi),
-        ("plate ∩ cutter", topo::intersect(&plate, &cutter, tol()), 12.0),
+        (
+            "plate ∖ cutter",
+            topo::subtract(&plate, &cutter, tol()),
+            24.0 - pi,
+        ),
+        (
+            "cutter ∖ plate",
+            topo::subtract(&cutter, &plate, tol()),
+            60.0,
+        ),
+        (
+            "plate ∪ cutter",
+            topo::union(&plate, &cutter, tol()),
+            96.0 - pi,
+        ),
+        (
+            "plate ∩ cutter",
+            topo::intersect(&plate, &cutter, tol()),
+            12.0,
+        ),
     ] {
         let body = match got {
             Ok(topo::BooleanResult::Body(b)) => b.body,
@@ -603,3 +619,45 @@ fn shell_refuses_a_cusp_or_slit_body_typed() {
     }
 }
 
+/// **A nested aligned touch answers every op**: a unit disc about
+/// `(1, 0)` inside a radius-2 disc about the origin, both over
+/// `z ∈ [0, 1]`, their walls tangent along the ruling `x = 2, y = 0`
+/// with their outward normals agreeing there. The glue door glues the
+/// walls `Tangent`, claiming nothing of the materials, the lump reads
+/// the thin wall `In`, and each op is tier-3 valid at its closed form.
+#[test]
+fn a_nested_aligned_touch_answers_every_op() {
+    let disc =
+        |what: &str, c: ProfileLoop<f64>| finished(what, extruded(vec![c], 0.0, 1.0).body, tol());
+    let fat = disc("the fat disc", circle(0.0, 0.0, 2.0));
+    let thin = disc("the thin disc", circle(1.0, 0.0, 1.0));
+    let pi = std::f64::consts::PI;
+    for (name, got, want) in [
+        (
+            "fat ∪ thin",
+            topo::union(&fat, &thin, tol()),
+            Some(4.0 * pi),
+        ),
+        (
+            "fat ∖ thin",
+            topo::subtract(&fat, &thin, tol()),
+            Some(3.0 * pi),
+        ),
+        ("thin ∖ fat", topo::subtract(&thin, &fat, tol()), None),
+        ("fat ∩ thin", topo::intersect(&fat, &thin, tol()), Some(pi)),
+    ] {
+        match (got, want) {
+            (Ok(topo::BooleanResult::Body(b)), Some(want)) => {
+                let v = topo::mass_properties(&b.body, tol()).unwrap().volume;
+                assert!((v - want).abs() < 1e-9, "{name}: volume {v}, want {want}");
+                assert_eq!(
+                    topo::validate_geometric(&b.body, tol()),
+                    Ok(()),
+                    "{name}: tier 3"
+                );
+            }
+            (Ok(topo::BooleanResult::Empty), None) => {}
+            (other, want) => panic!("{name}: want {want:?}, got {other:?}"),
+        }
+    }
+}

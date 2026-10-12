@@ -27,8 +27,8 @@ use geom_core::{Band, Bounds, Decide};
 
 use super::rim_wedge::Locus;
 use super::{
-    BooleanError, CarrierRelation, DeclarationRead, Glue, GluedPair, Operand, PairUnread,
-    Tangency, boxes, carrier_pair_relation, verify_tangency,
+    BooleanError, CarrierRelation, DeclarationRead, Glue, GluedPair, Operand, PairUnread, Tangency,
+    boxes, carrier_pair_relation, verify_tangency,
 };
 use crate::body::Body;
 use crate::contact::GlueClass;

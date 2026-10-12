@@ -656,11 +656,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 }),
             };
         }
-        // Declared-`Tangent` (distinct carriers touching): the lump
-        // verdict is the second-order sector trilean — which side the
-        // sector's carrier CURVES to relative to the pierced face's
-        // material ([`super::sectors::tangent_lump`]), read for the WHOLE
-        // sector. Per bound, the bound riding the locus reads `On`, which
+        // A glued tangency (distinct carriers touching, whichever side
+        // the materials lie on): the lump verdict is the second-order
+        // sector trilean — which side the sector's carrier CURVES to
+        // relative to the pierced face's material
+        // ([`super::sectors::tangent_lump`]), read for the WHOLE sector. Per bound, the bound riding the locus reads `On`, which
         // the on-entry resolution below settles from its neighbours; but
         // an arc tangent at this vertex is split at the band's edge, and
         // the sliver's arm puts the arc's second-order margin in the zero
@@ -710,12 +710,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 kind,
             });
         };
-        // C8: a CURVED on-carrier sector is opened by a VERIFIED
-        // declaration and by nothing else — undeclared touching keeps
-        // this typed frontier refusal. The recourse is a declared
-        // coincidence (C4: a `Rest` or `Tangent` contact, or a
-        // continuation), under which classification descends to the
-        // carrier ladder or the C7 sector trilean instead of refusing.
+        // C8: a CURVED on-carrier sector is opened by the glue door's
+        // verdict and by nothing else. A tangency the witness lane has a
+        // locus for is glued and took the second-order lump above, so
+        // what reaches here unglued lies outside the lane (a torus, a
+        // cone, a spline) and keeps this typed frontier refusal.
         if !declared_one_carrier
             && !matches!(sector_carrier, super::carrier_eq::CarrierDesc::Plane { .. })
         {
