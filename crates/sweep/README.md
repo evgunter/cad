@@ -290,10 +290,9 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   per verb and both signed by which foot is further: the gap between
   the feet on L, and the overrun's chord from the mitre's end to the far
   foot, which is the one new short edge. Neither alone suffices for a
-  chamfer: near a coincidence its chord is not proportional to the gap,
-  their ratio moving with the corner and growing without bound as the
-  turn flattens toward a T, and at a box corner the gap closes
-  quadratically in the skew while the chord closes linearly. Both Zero
+  chamfer: its chord is the gap times a ratio the corner fixes, at least
+  sin φ of the near band's face angle but unbounded as the turn flattens
+  toward a T, where a gap in band can carry a definite chord. Both Zero
   builds the mitre on L; both definite builds the overrun on the side
   the sign picks; anything else escalates, with a recourse that makes
   the feet meet (equal, or for a chamfer supplementary, face angles),
