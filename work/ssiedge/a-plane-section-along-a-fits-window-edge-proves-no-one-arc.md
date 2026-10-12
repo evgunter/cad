@@ -38,3 +38,11 @@ row is exact structure, `interior_iso_u`'s boundary case), or a refusal
 that names the window edge rather than an undecided margin. Either makes
 the box with a fitted cap that is its whole fit the first fitted face to
 move and re-certify, and the row above re-baselines.
+
+## 2026-10-12 — also red at 1e-6 on main
+
+`r1_lane0_e2e::the_f64_seam_answers_every_public_door` fails at
+`CAD_TOLERANCE_EPS=1e-6` on clean main (`8cd31ca1d4`, again on
+`852d68bb1d`) with the same refusal shape (`RechartFalsifies` …
+`TubeNotOneArc`, `Undecided`), seen by the PR 4286 and PR 4797 lanes
+while re-running their eps rows on main. At 1e-9 it passed there.

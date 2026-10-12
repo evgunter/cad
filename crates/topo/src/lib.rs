@@ -133,6 +133,7 @@
 pub mod attach;
 pub mod body;
 pub mod boolean;
+pub(crate) mod carrier_speed;
 pub(crate) mod census;
 pub mod chart;
 pub mod chart_bound;
