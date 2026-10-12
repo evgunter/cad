@@ -54,6 +54,7 @@
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
 pub mod certify;
+pub(crate) mod descent;
 pub mod description;
 pub mod dihedral;
 pub mod edge_nurbs;
@@ -146,7 +147,7 @@ pub use offset::{
     ConeOffset, Nappe, OffsetDistanceError, OffsetError, offset_distance, offset_surface,
 };
 pub use offset_fit::{
-    BestBound, OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface,
+    BestBound, OffsetCertificate, OffsetFitError, OffsetFitWall, OffsetLimb, approx_offset_surface,
     approx_offset_surface_at, certify_offset, certify_offset_at, certify_offset_over,
     certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
