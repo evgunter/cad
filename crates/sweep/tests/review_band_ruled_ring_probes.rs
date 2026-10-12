@@ -1,7 +1,7 @@
 //! Review probes for the ring-cycle ruled cut-off (PR 3243).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Sign, Tol};
+use geom_core::{Point2, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::{BlendError, Convexity, fillet_edges};
@@ -156,64 +156,50 @@ fn bore(x: f64, y: f64, a: f64) -> ProfileLoop<f64> {
     ])
 }
 
-/// **A bore in the sliver a keyhole crease's cut-off removes refuses**,
-/// where the cut-off runs in the cap's keyhole RING and the bore is a
-/// second ring of the same cap. At r = 0.1 the upper junction's ball
-/// centre is `c = (√0.27, 0.3)` and its old vertex `V = (√0.21, 0.2)`,
-/// so the sliver lies within `0.1 ≤ ‖p − c‖ ≤ ‖V − c‖ ≈ 0.1173`; the
-/// bore at `(0.4623, 0.204)` spans `‖p − c‖ ∈ [0.1108, 0.1128]`, wholly
-/// in the material the band removes.
+/// **A bore in the sliver a keyhole crease's cut-off removes refuses
+/// as a bound at its wall**, where the cut-off runs in the cap's keyhole
+/// RING and the bore is a second ring of the same cap. At r = 0.1 the
+/// upper junction's ball centre is `c = (√0.27, 0.3)` and its old vertex
+/// `V = (√0.21, 0.2)`, so the sliver lies within
+/// `0.1 ≤ ‖p − c‖ ≤ ‖V − c‖ ≈ 0.1173`; the bore at `(0.4623, 0.204)`
+/// spans `‖p − c‖ ∈ [0.1108, 0.1128]`, wholly in the material the band
+/// removes. Its rings read inside at the caps, but the ruled crease's
+/// reach has no exact core and reads the bore's wall as a bound, which
+/// outranks them.
 #[test]
-fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_ring_clearance() {
+fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_as_a_bound_at_its_wall() {
     let body = keyhole_block_with(vec![bore(0.4623, 0.204, 0.001)]);
     validate_geometric(&body, tol()).expect("the bored keyhole block is tier-3 valid");
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the two disc/slot junctions");
-    match fillet_edges(
+    let got = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
         &creases,
         0.1,
         tol(),
     )
-    .map_err(|e| {
-        let text = e.error.to_string();
-        (e.error, text)
-    }) {
-        Err((
-            BlendError::RingClearance {
-                face,
-                chain,
-                margin,
-                bounded: false,
-            },
-            text,
-        )) => {
-            assert_eq!(
-                chain,
-                Convexity::Convex,
-                "a cap meter refuses only beside a convex crease"
-            );
-            assert!(
-                text.contains(
-                    "lies in the part of a face the blend cuts away with the material it removes"
-                ),
-                "the sentence says the edge is cut away with the sliver: {text}"
-            );
-            assert_eq!(margin.sign, Sign::Negative, "definite, got {margin}");
-            let f = body
-                .get_face(face)
-                .expect("the refusal names a source face");
-            assert_eq!(
-                f.rings.len(),
-                2,
-                "the face named is a cap: keyhole and bore"
-            );
-        }
-        Err((other, _)) => panic!("expected RingClearance at the cap, got {other:?}"),
-        Ok(_) => {
-            panic!("the carve returned a body keeping the bore on a cap that no longer covers it")
-        }
-    }
+    .map(|_| ())
+    .map_err(|e| e.error);
+    let Err(BlendError::FaceClearance {
+        at: topo::EntityId::Face(wall),
+        chain: Convexity::Convex,
+        bounded: true,
+        ..
+    }) = got
+    else {
+        panic!("expected a bound at the bore's wall, got {got:?}")
+    };
+    let radius = body
+        .get_face(wall)
+        .and_then(|f| body.get_surface(f.surface))
+        .and_then(|s| match s {
+            geom::Surface::Cylinder { radius, .. } => Some(*radius),
+            _ => None,
+        });
+    assert!(
+        radius.is_some_and(|r| (r - 0.001).abs() < 1e-12),
+        "the face named is the bore's wall: {radius:?}"
+    );
 }
 
 /// **A bore clear of both slivers carves at the keyhole's closed form**,

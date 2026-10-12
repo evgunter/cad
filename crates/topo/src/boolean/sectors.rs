@@ -46,7 +46,9 @@
 
 #[cfg(test)]
 use geom_brep::enters_material;
-use geom_brep::{EntersMaterial, OutwardNormal, enters_material_reported};
+use geom_brep::{
+    ConicBend, ConicDeparture, EntersMaterial, OutwardNormal, enters_material_reported,
+};
 use geom_core::k_stats::{Magnitude, NonzeroSign};
 use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
 
@@ -78,101 +80,18 @@ pub(super) enum Reach<T: geom_core::Real> {
     Extent(T),
     /// A conic edge: its departure tangent at the base vertex, levered
     /// at the edge's own extent, and how it bends off that tangent
-    /// ([`Bend`]), which [`pierce_side`] reads where the tangent lies in
+    /// ([`ConicBend`]), which [`pierce_side`] reads where the tangent lies in
     /// a plane face.
     Conic {
         /// The edge's extent ([`geom_brep::edge_extent`]): no longer
         /// than its arc, so a point at that arc length lies on the edge.
         extent: T,
         /// The edge's bend at the base vertex.
-        bend: Bend<T>,
+        bend: ConicBend<T>,
     },
     /// A subdivision bisector: a direction with no point behind it,
     /// levered at its sector's arm.
     Bisector(T),
-}
-
-/// **How a conic edge bends off its departure tangent** at the sector's
-/// base vertex: what [`pierce_side`] reads one order down where the
-/// tangent lies in a plane face ([`conic_side`]).
-#[derive(Clone, Copy, Debug)]
-pub(super) struct Bend<T: geom_core::Real> {
-    /// The carrier's curvature vector at the base vertex: its second
-    /// derivative's part normal to the tangent, per arc length squared.
-    pub curvature: Vec3<T>,
-    /// What the carrier's curvature is bounded by along the edge.
-    pub bounds: BendBounds<T>,
-}
-
-/// The bounds a conic's curvature keeps everywhere on its carrier.
-#[derive(Clone, Copy, Debug)]
-pub(super) enum BendBounds<T: geom_core::Real> {
-    /// A circle or an ellipse: a plane curve whose curvature lies in
-    /// `[least, most]`, both positive, and whose points all lie within
-    /// `reach` of the base vertex and within `rise` of its tangent line
-    /// there.
-    Planar {
-        /// The least curvature anywhere on the carrier.
-        least: T,
-        /// The greatest.
-        most: T,
-        /// A bound on every point's distance from the base vertex.
-        reach: T,
-        /// A bound on every point's distance from the tangent line at
-        /// the base vertex, toward the principal normal.
-        rise: T,
-    },
-    /// A spiric section: no curvature bound is certified here, so its
-    /// tie with a face's plane reads no side.
-    Unbounded,
-}
-
-impl<T: Decide> Bend<T> {
-    /// The bend of the conic `carrier` where the walk leaves it: `deriv`
-    /// and `deriv2` the carrier's first and second derivatives there,
-    /// `span` its parameter span (`t₁ − t₀`).
-    pub(super) fn of(carrier: &geom::Curve3<T>, deriv: Vec3<T>, deriv2: Vec3<T>, span: T) -> Self {
-        let speed_sq = deriv.norm_squared();
-        let t = deriv.normalize();
-        let curvature = (deriv2 - t * deriv2.dot(t)) / speed_sq;
-        let bounds = match *carrier {
-            // The parameter is the angle, so the arc is `radius·span`
-            // long, no point lies further than the diameter, and the arc
-            // rises `radius·(1 − cos θ) = 2·radius·sin²(θ/2)` off its
-            // tangent at angle `θ`, most at `θ = min(span, π)` (the sine
-            // form, since `1 − cos θ` cancels to nothing at a small `θ`).
-            geom::Curve3::Circle { radius, .. } => BendBounds::Planar {
-                least: T::one() / radius,
-                most: T::one() / radius,
-                reach: (radius * span).min(radius * T::from_f64(2.0)),
-                rise: radius
-                    * T::from_f64(2.0)
-                    * (span.min(T::pi()) * T::from_f64(0.5)).sin().powi(2),
-            },
-            // Semi-axes `a ≥ b`: the curvature runs from `b/a²` at the
-            // ends of the minor axis to `a/b²` at the ends of the major,
-            // and no point lies further than the major diameter. Off its
-            // tangent the arc rises `y' = sin φ ≤ φ ≤ most·s`, so at most
-            // `most·S²/2` over its length `S ≤ a·span` (the speed is at
-            // most `a`), and never past the major diameter.
-            geom::Curve3::Ellipse { major, minor, .. } => {
-                let (a, b) = (major.abs().max(minor.abs()), major.abs().min(minor.abs()));
-                let most = a / b.powi(2);
-                BendBounds::Planar {
-                    least: b / a.powi(2),
-                    most,
-                    reach: a * T::from_f64(2.0),
-                    rise: (most * (a * span).powi(2) * T::from_f64(0.5)).min(a * T::from_f64(2.0)),
-                }
-            }
-            geom::Curve3::Spiric { .. } => BendBounds::Unbounded,
-            geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => unreachable!(
-                "`Bend::of` reads a conic carrier, not a {:?}",
-                carrier.kind()
-            ),
-        };
-        Self { curvature, bounds }
-    }
 }
 
 impl<T: geom_core::Real> Reach<T> {
@@ -443,18 +362,9 @@ pub(super) fn orbit_corners<T: Decide>(
             geom::Curve3::Circle { .. }
             | geom::Curve3::Ellipse { .. }
             | geom::Curve3::Spiric { .. } => {
-                let (t0, t1) = curve.params();
-                let walk = he == edge.he_plus;
-                let (tangent, _) = curve.walk_tangents(walk);
-                let extent =
-                    geom_brep::edge_extent(curve.carrier(), t0, t1, p_end.distance(p_base));
-                let bend = Bend::of(
-                    curve.carrier(),
-                    tangent,
-                    curve.walk_departure_deriv2(walk),
-                    t1 - t0,
-                );
-                (tangent.normalize() * extent, Reach::Conic { extent, bend })
+                let ConicDeparture { dir, extent, bend } =
+                    ConicDeparture::of(curve, he == edge.he_plus, p_end.distance(p_base));
+                (dir, Reach::Conic { extent, bend })
             }
         }
     };
@@ -830,92 +740,31 @@ fn read_side<T: Decide>(
 
 /// **A conic bound's side of a plane face one order down**, where its
 /// departure tangent read `Zero` against the plane ([`pierce_side`]):
-/// which side the arc BENDS to.
-///
-/// Put the arc in its own plane, in the frame of its unit tangent `t̂`
-/// and principal normal `N̂` at the base vertex: a point at arc length
-/// `s` sits at `x·t̂ + y·N̂`, so its height over the face's plane is
-/// `x·(t̂·n̂) + y·(N̂·n̂)` exactly. The first term is the first-order
-/// residue the Zero left (`|x| ≤ s`), the second the bend.
-///
-/// **The bend's lower bound.** The tangent turns at the curvature
-/// `κ(s) ∈ [least, most]`, so its angle `φ(s)` lies between
-/// `least·s` and `most·s`. While `most·s ≤ π/2`, `sin φ ≥ sin(least·s)`,
-/// and integrating, `y(s) ≥ (1 − cos(least·s))/least
-/// = 2·sin²(least·s/2)/least`. So at `l = min(extent, π/(2·most))` the
-/// arc stands at least
-///
-/// `|N̂·n̂|·2·sin²(least·l/2)/least − |t̂·n̂|·l`
-///
-/// off the plane on the side `N̂·n̂` names, and a margin that clears the
-/// band is the verdict: bending against the outward normal is `In`,
-/// along it `Out`. `l` is capped at the extent, so the witness point
-/// lies on the edge.
-///
-/// **On.** Every point of the arc lies in its own plane, within `reach`
-/// of the vertex and within `rise` of the tangent line there toward
-/// `N̂` ([`BendBounds::Planar`]), so its height is at most
-/// `|t̂·n̂|·reach + |N̂·n̂|·rise`; where that reads `Zero` the whole edge
-/// lies in the plane to the band, and the bound is `On` as a line
-/// edge's is.
-///
-/// Anything else refuses, typed ([`BooleanDecision::ConicBend`]): a
-/// bend the band does not separate from the residue, and every spiric
-/// section, whose curvature carries no bound here.
+/// [`geom_brep::conic_bend_side`] against the face's outward normal:
+/// bending into the material is `In`, out of it `Out`, and a whole edge
+/// within the band of the plane is `On` as a line edge's is. Anything
+/// else refuses, typed ([`BooleanDecision::ConicBend`]).
 fn conic_side<T: Decide>(
     dir: Vec3<T>,
     extent: T,
-    bend: Bend<T>,
+    bend: ConicBend<T>,
     face_normal: OutwardNormal<T>,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
-    let n = face_normal.vec();
-    let refused = |diag| BooleanError::Escalated {
-        decision: BooleanDecision::ConicBend,
-        diag,
-    };
-    let normal_part = bend.curvature.dot(n) / bend.curvature.norm();
-    // The bend's lower bound, signed as `N̂·n̂` is. A spiric section has
-    // no bend this reading certifies: it lifts nothing, and the margin
-    // below cannot clear.
-    let (lift, l) = match bend.bounds {
-        BendBounds::Planar {
-            least,
-            most,
-            reach,
-            rise: height,
-        } => {
-            if let Ok(Sign::Zero) = decide(
-                "bool_conic_flat",
-                Margin::of(rise(dir, n, reach).abs() + normal_part.abs() * height),
-                band,
-            ) {
-                return Ok(SideCode::On);
-            }
-            let l = extent.min(T::pi() * T::from_f64(0.5) / most);
-            let half_turn = (least * l * T::from_f64(0.5)).sin();
-            (
-                normal_part * half_turn.powi(2) * T::from_f64(2.0) / least,
-                l,
-            )
-        }
-        BendBounds::Unbounded => (T::zero(), extent),
-    };
-    crate::validate::decide_positive(
-        "bool_conic_bend",
-        Margin::of(lift.abs() - rise(dir, n, l).abs()),
+    match geom_brep::conic_bend_side(
+        dir,
+        extent,
+        bend,
+        geom_brep::ReferenceNormal::of_face_outward(face_normal),
         band,
-    )
-    .map_err(refused)?;
-    // The signed lift is the one that just cleared, so its sign is
-    // decided wherever the margin was; the arm refuses rather than
-    // trusting that.
-    match crate::validate::decide_nonzero("bool_conic_bend_side", Margin::of(lift), band) {
-        // Same mapping as `enters_material`: into the material is
-        // against the outward normal.
-        Ok(NonzeroSign::Negative) => Ok(SideCode::In),
-        Ok(NonzeroSign::Positive) => Ok(SideCode::Out),
-        Err(diag) => Err(refused(diag)),
+    ) {
+        Ok(EntersMaterial::Enters) => Ok(SideCode::In),
+        Ok(EntersMaterial::Exits) => Ok(SideCode::Out),
+        Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
+        Err(diag) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::ConicBend,
+            diag,
+        }),
     }
 }
 
@@ -5622,21 +5471,16 @@ mod tests {
     /// the plane `z = 0` and bending toward `bend` (unit, normal to
     /// `+x`): its tangent, and its reach as `orbit_corners` mints it.
     fn quarter_arc(bend: Vec3<f64>) -> (Vec3<f64>, Reach<f64>) {
+        let span = core::f64::consts::FRAC_PI_2;
         let carrier = geom::Curve3::Circle {
             center: geom_core::Point3::origin() + bend,
             axis: Vec3::new(1.0, 0.0, 0.0).cross(bend),
             radius: 1.0,
             u_ref: -bend,
         };
-        let extent =
-            geom_brep::edge_extent(&carrier, 0.0, core::f64::consts::FRAC_PI_2, 2f64.sqrt());
+        let extent = geom_brep::edge_extent(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
         let tangent = carrier.deriv(0.0);
-        let bend = Bend::of(
-            &carrier,
-            tangent,
-            carrier.deriv2(0.0),
-            core::f64::consts::FRAC_PI_2,
-        );
+        let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
         (tangent.normalize() * extent, Reach::Conic { extent, bend })
     }
 
@@ -5691,8 +5535,8 @@ mod tests {
     /// ends of an ellipse's axes: an `In` must put a point of the edge
     /// past the escalation band below the plane, an `Out` above it, and
     /// an `On` keep every point within the escalation band. `In` and
-    /// `Out` are checked at the witness the derivation names, the point
-    /// at arc length `min(extent, π/(2·κ_max))`, found here by sampling.
+    /// `Out` are checked at the witness the derivation names
+    /// ([`geom_brep::conic_bend_side`]), found here by sampling.
     #[test]
     fn a_conic_tie_verdict_is_true_of_the_sampled_arc() {
         let b = band();
@@ -5757,8 +5601,11 @@ mod tests {
                         let extent = geom_brep::edge_extent(&flat, 0.0, span, chord);
                         // The witness the derivation names, found
                         // independently: the sample at arc length
-                        // `l = min(extent, π/(2·κ_max))`, with `κ_max`
-                        // sampled over the whole carrier.
+                        // `l = min(max(extent, b·span), cap)`, `b` the
+                        // lesser semi-axis (the least speed) and `cap`
+                        // a half turn on a circle, `π/(2·κ_max)` on an
+                        // ellipse, with `κ_max` sampled over the whole
+                        // carrier.
                         let kmax = (0..=samples)
                             .map(|i| {
                                 let t = core::f64::consts::TAU * i as f64 / samples as f64;
@@ -5766,7 +5613,12 @@ mod tests {
                                 d1.cross(d2).norm() / d1.norm().powi(3)
                             })
                             .fold(0.0f64, f64::max);
-                        let l = extent.min(core::f64::consts::FRAC_PI_2 / kmax);
+                        let cap = if along_n == along_t {
+                            core::f64::consts::PI * along_n
+                        } else {
+                            core::f64::consts::FRAC_PI_2 / kmax
+                        };
+                        let l = extent.max(along_n.min(along_t) * span).min(cap);
                         // The arc length `l` is found to a step of
                         // `span / samples²`: coarse steps up to the one it
                         // falls in, fine ones within it, so the witness
@@ -5801,7 +5653,7 @@ mod tests {
                         let cg = sense * (q * b.zero() / depth).min(1.0);
                         let (carrier, _) = mk(beta, cg);
                         let tangent = carrier.deriv(0.0);
-                        let bend = Bend::of(&carrier, tangent, carrier.deriv2(0.0), span);
+                        let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
                         let dir = tangent.normalize() * extent;
                         let reach = Reach::Conic { extent, bend };
                         if enters_material(dir, n, extent, b) != Ok(EntersMaterial::Tangent) {
@@ -5886,7 +5738,7 @@ mod tests {
             "the arc is long beside the band (chord {chord:e}) and its far end in it ({far:e})"
         );
         let extent = geom_brep::edge_extent(&carrier, 0.0, span, chord);
-        let bend = Bend::of(&carrier, carrier.deriv(0.0), carrier.deriv2(0.0), span);
+        let bend = ConicBend::of(&carrier, carrier.deriv(0.0), carrier.deriv2(0.0), span);
         let dir = carrier.deriv(0.0).normalize() * extent;
         assert_eq!(
             pierce_side(
@@ -5933,13 +5785,35 @@ mod tests {
         let Reach::Conic { extent, bend } = reach else {
             unreachable!("`quarter_arc` mints a conic reach")
         };
-        // Lifts `2·sin²(extent/2) ≈ extent²/2`: a third of the zero band.
+        // The arc's length and extent bounded loosely, but soundly, by
+        // a length whose lift `2·sin²(short/2) ≈ short²/2` is a third
+        // of the zero band.
         let short = (2.0 * b.zero() / 3.0).sqrt();
+        let geom_brep::BendBounds::Planar {
+            least,
+            reach,
+            rise,
+            lifts_to,
+            ..
+        } = bend.bounds
+        else {
+            unreachable!("a circle's bend is planar")
+        };
+        let loose = ConicBend {
+            bounds: geom_brep::BendBounds::Planar {
+                least,
+                reach,
+                rise,
+                arc: short,
+                lifts_to,
+            },
+            ..bend
+        };
         let got = pierce_side(
             dir,
             Reach::Conic {
                 extent: short,
-                bend,
+                bend: loose,
             },
             n,
             FaceShape::Plane,
@@ -5949,8 +5823,8 @@ mod tests {
         assert!(conic_bend(&got), "a lift inside the band: {got:?}");
         let spiric = Reach::Conic {
             extent,
-            bend: Bend {
-                bounds: BendBounds::Unbounded,
+            bend: ConicBend {
+                bounds: geom_brep::BendBounds::Unbounded,
                 ..bend
             },
         };

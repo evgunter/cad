@@ -514,8 +514,8 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             vec![
                 "the end cap",
                 "node 000000000007",
-                "the query cannot decide whether",
-                "is in or out",
+                "whether the face (",
+                "is in or out of the selection is undecided",
                 "ambiguity band",
             ],
         ),
@@ -2776,10 +2776,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     terminal_sliver: false,
                 },
             },
-            vec![
-                "the order of two crossings along an edge",
-                "too close to call",
-            ],
+            vec!["the order of two crossings along an edge, which a name rests on, is undecided"],
         ),
     ];
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);
