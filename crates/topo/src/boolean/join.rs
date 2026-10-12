@@ -678,17 +678,6 @@ fn matched_records<T: Decide>(
             lane,
         });
     }
-    if std::env::var_os("CAD_PROBE_DUMP").is_some() {
-        let mut set: Vec<_> = segments
-            .iter()
-            .map(|s| {
-                let [a, b] = s.ends;
-                (a.min(b), a.max(b))
-            })
-            .collect();
-        set.sort();
-        eprintln!("PROBE matching {set:?}");
-    }
     Ok((segments, open))
 }
 
@@ -1941,9 +1930,6 @@ fn first_pair<T: Decide>(
     let mut best: Option<(Reach<T>, (Slot, Slot))> = None;
     for (_, reach, m) in met {
         best = keep_nearer(best, (reach, m), |c, b| order(c, b, band))?;
-    }
-    if log && inband.get() > 0 {
-        eprintln!("PROBE first_pair mutual={mutual} inband={} pick={:?}", inband.get(), best.map(|(_, m)| m));
     }
     Ok(best.map(|(_, m)| m))
 }
