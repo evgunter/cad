@@ -344,3 +344,51 @@ fn the_roster_records_the_props_lanes_own_verdicts() {
          reaches the quadrature lane, so the golden above pins a walk that does nothing"
     );
 }
+
+/// **Wall time of `mass_properties`** over this roster and the curved
+/// fixtures, `CAD_PROPS_RUNS` timed runs per body (default 7) after one
+/// untimed, the bodies whose names hold one of `CAD_PROPS_ONLY`'s
+/// comma-separated parts (default: every one). A measurement, not a gate: it asserts nothing, and is run
+/// by hand, in release, on each side of a change to compare:
+/// `cargo nextest run --release -p sweep --run-ignored only -E
+/// 'test(mass_properties_wall_time)' --no-capture`.
+#[test]
+#[ignore = "a measurement, not a gate"]
+fn mass_properties_wall_time() {
+    use sweep::test_support::{domed_cavity, lantern, swept_elbow, waisted};
+    let tol = Tol::witness();
+    let runs: usize = std::env::var("CAD_PROPS_RUNS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(7);
+    let mut bodies = roster();
+    bodies.extend([
+        ("waisted".to_string(), waisted(tol)),
+        ("lantern".to_string(), lantern(tol)),
+        ("domed_cavity".to_string(), domed_cavity(tol)),
+        ("swept_elbow".to_string(), swept_elbow(tol)),
+    ]);
+    let only = std::env::var("CAD_PROPS_ONLY").unwrap_or_default();
+    for (name, body) in bodies
+        .iter()
+        .filter(|(name, _)| only.split(',').any(|o| name.contains(o)))
+    {
+        let _ = topo::mass_properties(body, tol);
+        let mut times: Vec<f64> = (0..runs)
+            .map(|_| {
+                let start = std::time::Instant::now();
+                let _ =
+                    std::hint::black_box(topo::mass_properties(std::hint::black_box(body), tol));
+                start.elapsed().as_secs_f64() * 1e3
+            })
+            .collect();
+        times.sort_by(f64::total_cmp);
+        println!(
+            "WALL {name}: faces {} median {:.3} ms, min {:.3}, max {:.3} over {runs}",
+            body.faces().count(),
+            times[runs / 2],
+            times[0],
+            times[runs - 1]
+        );
+    }
+}

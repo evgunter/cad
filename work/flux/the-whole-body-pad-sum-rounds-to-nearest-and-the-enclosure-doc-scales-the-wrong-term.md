@@ -2,8 +2,9 @@
 id: the-whole-body-pad-sum-rounds-to-nearest-and-the-enclosure-doc-scales-the-wrong-term
 kind: issue
 title: fold_runs sums flux_pad/area_pad round-to-nearest (not outward), and MassProperties::enclosure's error argument scales with |volume| where the fold's error scales with the sum of |face terms|
-status: open
+status: closed
 opened: 2026-10-12
+closed: 2026-10-12
 priority: P3
 cost: E
 refs: [4830, the-whole-body-property-fold-depends-on-face-order]
@@ -36,3 +37,10 @@ and restate the enclosure doc's bound in terms of Σ|terms|. If Ev picks
 (S) on PR 4830, both follow from the rounded-once sum and this row
 closes with that work.
 
+## Closed by the storage-invariance spike (`flux/exact-sum-spike`)
+
+`fold_runs` sums the pads exactly and rounds up
+(`geom_core::exact::sum_rounded`, `Rounding::Up`), and the volume pad's
+division by three rounds up; the face terms are summed rounded once, so
+the fold's own rounding is half an ulp of the volume and the enclosure
+doc's `|volume|·2⁻⁵²` is now the right term.

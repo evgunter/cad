@@ -5,6 +5,8 @@
 //! anchor moved along its cycle, each face's ring list reversed, the
 //! faces walked in another order), and the bits compared.
 
+#![allow(clippy::panic)]
+
 use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Tol, Vec3};
 use sweep::test_support::{ball_poled_z_at, domed_cavity, lantern, swept_elbow, waisted_at};
 use topo::test_support::{mass_properties_in_face_order, relabeled};

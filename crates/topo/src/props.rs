@@ -1975,8 +1975,8 @@ type ResumedFace<T> = (Option<Result<FaceRun<T>, MassPropsError>>, Detached);
 /// slot per item in the caller's order, results written positionally
 /// and never combined arithmetically, so the schedule cannot reach the
 /// bits — then [`splice_in_arena_order`], which is idiom 2's
-/// sequential half for the recordings as [`fold_runs`] is for the
-/// fluxes.
+/// sequential half for the recordings; [`fold_runs`] sums the fluxes
+/// rounded once, which reads no order at all.
 ///
 /// *Not portable* ([`geom_core::sym::decisions_are_thread_portable`]): this IS the
 /// serial walk. Faces are decided on the caller's thread in arena
@@ -2372,15 +2372,15 @@ mod continuation_refusal_order_tests {
 
 /// The shared face walk at the REPORTING level: every face's lane run
 /// to its convergence or its typed refusal, one slot per face in arena
-/// order, the accumulation order fixed (D9).
+/// order (D9).
 ///
 /// **Idiom 1 then idiom 2** (D9's parallelism addendum): the per-face
 /// lanes are an indexed parallel map into arena-order slots
-/// ([`decide_faces`]) and every combination after it is sequential in
-/// that order — the recordings spliced by [`splice_in_arena_order`],
-/// the fluxes summed by [`fold_runs`]. Nothing is combined
-/// arithmetically across slots in parallel, so the schedule reaches
-/// neither the bits nor the logs.
+/// ([`decide_faces`]); the recordings are spliced sequentially in that
+/// order by [`splice_in_arena_order`], and the fluxes are summed
+/// rounded once by [`fold_runs`], whose bits read no order. Nothing is
+/// combined arithmetically across slots in parallel, so the schedule
+/// reaches neither the bits nor the logs.
 fn mass_properties_impl<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
