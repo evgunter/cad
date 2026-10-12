@@ -5634,7 +5634,7 @@ mod track_cover {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod touch_reread_rows {
-    use super::{NamingError, OperandCtx, name_boolean};
+    use super::{OperandCtx, name_boolean};
     use crate::names::emit::{ent, name1};
     use crate::names::role::{CapEnd, EntityKind, RoleSeg};
     use crate::names::table::{EntityKey, NameTable};
@@ -5698,37 +5698,6 @@ mod touch_reread_rows {
         t
     }
 
-    /// The cells the emitter has no rule for, each named, as on main:
-    /// - `y ∩ x` where the pyramid crosses into a void in an arch, a
-    ///   seam vertex no rule parents in that order
-    ///   (`work/emit/an-intersection-into-a-void-at-a-vertex-has-no-seam-vertex-rule-in-one-order.md`);
-    /// - a union in either order over a quadrilateral void in a
-    ///   quadrilateral arch, a seam vertex whose parentage its incident
-    ///   edges leave underdetermined
-    ///   (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`).
-    fn no_rule(label: &str, what: &str, e: &NamingError) -> bool {
-        const SEAM: [&str; 5] = [
-            "over a void in the bare arch",
-            "over the void in the arch",
-            "over the void, the island in it",
-            "over a quad void in a quad arch",
-            "over a quad void in a bare quad arch",
-        ];
-        const QUADS: [&str; 2] = [
-            "over a quad void in a quad arch",
-            "over a quad void in a bare quad arch",
-        ];
-        match e {
-            NamingError::SeamVertexParentage { .. } => what == "y ∩ x" && SEAM.contains(&label),
-            NamingError::Emission { what: why } => {
-                (what == "x ∪ y" || what == "y ∪ x")
-                    && QUADS.contains(&label)
-                    && why.starts_with("seam vertex parentage underdetermined")
-            }
-            _ => false,
-        }
-    }
-
     /// Names every op on `(x, y)` in both orders; returns how many built.
     fn names(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) -> usize {
         let (xn, yn) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
@@ -5759,7 +5728,6 @@ mod touch_reread_rows {
             };
             match name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t()) {
                 Ok(_) => named += 1,
-                Err(e) if no_rule(label, what, &e) => {}
                 Err(e) => panic!("{label}, {}, {what}: names, got {e:?}", pose.label),
             }
         }
