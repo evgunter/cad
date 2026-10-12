@@ -242,7 +242,9 @@ pub(crate) enum Departure {
 /// `entity`'s convention), so at a locus point the direction a face
 /// leaves along is `n × t`, with `t` its boundary's direction there.
 /// For two faces whose outward normals are ALIGNED along the locus,
-/// which is what both callers have already verified, those departures
+/// which the caller has verified (the rim routing, [`super::route_rim`];
+/// a line is read only by the unit rows here, since a line tangency
+/// routes no junction), those departures
 /// are opposite exactly when the two boundaries run the locus in
 /// opposite directions: the sign of each riding half-edge's direction
 /// against the locus's own tangent (`axis × (p − centre)` on a rim,

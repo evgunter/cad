@@ -620,9 +620,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             // residue against a planar pierced face (a curved one refuses
             // below whatever is glued), and the door admits the one the
             // pair's senses make it, or none where it cannot read them. A
-            // tangency is never offered: the glue door has already read
-            // the pair, and leaves it unglued only where it is no
-            // tangency (D10).
+            // tangency is never offered: no declaration reaches the glue
+            // door (D10). The door leaves a pair unglued where the witness
+            // lane refutes the tangency, and also where its reading refuses
+            // or escalates, which it swallows (filed:
+            // `work/contacthold/the-glue-doors-tangency-swallows-its-escalations.md`).
             let admitted: Vec<GlueClass> = plane
                 .is_some()
                 .then(|| {
@@ -711,10 +713,12 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             });
         };
         // C8: a CURVED on-carrier sector is opened by the glue door's
-        // verdict and by nothing else. A tangency the witness lane has a
-        // locus for is glued and took the second-order lump above, so
-        // what reaches here unglued lies outside the lane (a torus, a
-        // cone, a spline) and keeps this typed frontier refusal.
+        // verdict and by nothing else. A tangency the witness lane
+        // verifies is glued and took the second-order lump above, so what
+        // reaches here unglued lies outside the lane (a torus, a cone, a
+        // spline), or is a pair whose reading the door swallowed: an
+        // in-band tangency surfaces here, not as its escalation (filed:
+        // `work/contacthold/the-glue-doors-tangency-swallows-its-escalations.md`).
         if !declared_one_carrier
             && !matches!(sector_carrier, super::carrier_eq::CarrierDesc::Plane { .. })
         {

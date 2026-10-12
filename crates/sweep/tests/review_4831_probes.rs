@@ -328,7 +328,10 @@ fn p3_a_nested_touch_just_off_tangent() {
         ("A ∖ B + ∩ = A", a_b + meet, 4.0 * pi),
         ("B ∖ A + ∩ = B", b_a + meet, pi),
     ] {
-        assert!((got - want).abs() < 1e-9, "p3 outward {what}: {got} vs {want}");
+        assert!(
+            (got - want).abs() < 1e-9,
+            "p3 outward {what}: {got} vs {want}"
+        );
     }
     assert!(b_a > 0.0, "p3 outward: the lens is kept");
 }
@@ -437,7 +440,6 @@ fn p7_a_disc_against_a_slab_face() {
     all_answer("p7 ∖ and ∩", &got[1..]);
 }
 
-
 /// The nested aligned touch with the thin disc run past the fat one both
 /// ways (z ∈ [−1, 2]): every op answers.
 #[test]
@@ -479,4 +481,34 @@ fn p9_a_rod_seated_in_a_plates_bore() {
         &grid(),
     );
     all_answer("p9", &got);
+}
+
+/// A sliver-thin fat disc (r 2, z ∈ [0, 1e-5]) with the thin disc (r 1
+/// about (1, 0)) run past it both ways: every op refuses with the
+/// kernel-bug kind `ClassificationInvariant`. OPEN DEFECT, not the
+/// intended answer: the second order along the fat disc's 1e-5 seam
+/// edge reads in the zero band, the vertex pair's tangent descent leaves
+/// an `On` that no edge event resolves, tracked by
+/// `work/contacthold/a-sliver-thin-glued-tangency-leaves-an-on-code-past-srecledges.md`.
+#[test]
+fn p10_a_sliver_thin_disc_nested_on_a_long_one() {
+    let a = ext("sliver fat", vec![circle(0.0, 0.0, 2.0)], 0.0, 1e-5);
+    let b = ext("thin long", vec![circle(1.0, 0.0, 1.0)], -1.0, 1.0 + 2e-5);
+    for (name, got) in [
+        ("A ∪ B", topo::union(&a, &b, tol())),
+        ("A ∖ B", topo::subtract(&a, &b, tol())),
+        ("B ∖ A", topo::subtract(&b, &a, tol())),
+        ("A ∩ B", topo::intersect(&a, &b, tol())),
+    ] {
+        assert!(
+            matches!(
+                got,
+                Err(topo::BooleanError::ClassificationInvariant {
+                    what: "surviving record with an On code after srecledges"
+                })
+            ),
+            "p10 {name}: the sliver row's open defect moved: {:?}",
+            got.map(|_| ())
+        );
+    }
 }

@@ -19,6 +19,10 @@ Found by a designer of the overlapping-tangency fork (fork log row 118), read fr
 
 ## Answered (PR 4831)
 
-`vtxfac` offers no `Tangent` class: the glue door has already read every
-pair the witness lane has a locus for, and leaves one unglued only where
-it is no tangency.
+`vtxfac` offers no `Tangent` class: no declaration reaches the glue door
+under D10. The door reads every pair the witness lane has a locus for,
+and leaves one unglued where the lane refutes the tangency, and also
+where its reading refuses or escalates: it swallows those, so an in-band
+tangency reaches `vtxfac` unglued and refuses `CurvedBooleanUnsupported`
+at the C8 guard (filed:
+`the-glue-doors-tangency-swallows-its-escalations`).

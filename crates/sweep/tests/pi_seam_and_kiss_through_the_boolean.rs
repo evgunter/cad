@@ -949,7 +949,11 @@ fn the_stadium_answers_every_op() {
         let Ok(BooleanResult::Body(r)) = got else {
             panic!("{what}: {got:?}")
         };
-        assert_eq!(topo::validate_geometric(&r.body, tol), Ok(()), "{what}: tier 3");
+        assert_eq!(
+            topo::validate_geometric(&r.body, tol),
+            Ok(()),
+            "{what}: tier 3"
+        );
         let v = topo::mass_properties(&r.body, tol).unwrap().volume;
         assert!((v - want).abs() < 1e-9, "{what}: volume {v} vs {want}");
     }

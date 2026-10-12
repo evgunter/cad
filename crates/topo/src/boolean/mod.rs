@@ -2273,8 +2273,9 @@ pub enum BooleanError {
     /// tangent locus of the pair's two surface kinds, and this is raised
     /// only where [`geom_brep::tangent_locus`] answers `Unsupported`.
     RimCuspArmUnbuilt {
-        /// The declaration whose face pair carries the rim.
-        declaration: crate::contact::DeclaredContact,
+        /// The glued face pair that carries the rim, as a `Tangent`
+        /// contact.
+        pair: crate::contact::DeclaredContact,
         /// Which end of the wedge range the two faces' material
         /// subtends at the rim — the routing's own verdict, taken on the
         /// geometry.
@@ -2298,8 +2299,9 @@ pub enum BooleanError {
     /// is raised where no locus derives and the faces share a rim; here
     /// the locus derived and runs through a face.
     TangentSlitArmUnbuilt {
-        /// The declaration whose verified locus runs through a face.
-        declaration: crate::contact::DeclaredContact,
+        /// The glued face pair whose verified locus runs through a
+        /// face, as a `Tangent` contact.
+        pair: crate::contact::DeclaredContact,
         /// The operand whose declared face the locus runs through.
         interior: Operand,
     },
@@ -3712,6 +3714,18 @@ impl core::fmt::Display for BooleanError {
                  the faces describe no shape to compare. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
+            // A glued tangency is the Boolean's own reading (the glue
+            // door's, or a union step's given verdict), never the user's,
+            // so a later reading that contradicts it is the kernel
+            // disagreeing with itself.
+            Self::ContactContradicted {
+                declaration, fact, ..
+            } if declaration.class == crate::contact::ContactClass::Tangent => write!(
+                f,
+                "the Boolean read two of the operands' faces tangent along a line or rim,                  and a later reading of the same faces contradicts that: {}. {}",
+                fact.map_or(crate::contact::CONTRADICTION_REASON, Contradiction::fact),
+                KERNEL_DEFECT_ENDING,
+            ),
             // The fact, where the carrier ladder found one; otherwise
             // the one reason true at every site. Never the margin
             // payload. The faces are the first and second operands'
@@ -3757,25 +3771,22 @@ impl core::fmt::Display for BooleanError {
                  inside",
                 class.name()
             ),
-            Self::RimCuspArmUnbuilt { declaration, .. } => write!(
+            Self::RimCuspArmUnbuilt { pair, .. } => write!(
                 f,
                 "the faces glued {} meet along a rim circle with their outward normals \
                  opposed, and the Boolean cannot yet build that junction: it has no \
                  tangent locus for these two surfaces. There is no way through this in \
                  the kernel yet",
-                declaration.class.name()
+                pair.class.name()
             ),
-            Self::TangentSlitArmUnbuilt {
-                declaration,
-                interior,
-            } => write!(
+            Self::TangentSlitArmUnbuilt { pair, interior } => write!(
                 f,
-                "the declared faces touch along a line that runs through the interior of \
-                 the {} operand's face, and the Boolean cannot yet record a {} touch \
-                 along a face's interior in a union's contact records. The declaration \
-                 is the right one; there is no way through this in the kernel yet",
+                "two of the operands' faces touch from outside along a line that runs \
+                 through the interior of the {} operand's face, and the Boolean cannot yet \
+                 record a {} touch along a face's interior in a union's contact records. \
+                 There is no way through this in the kernel yet",
                 operand_word(*interior),
-                declaration.class.name()
+                pair.class.name()
             ),
             Self::InvalidInput { operand, what } => write!(
                 f,
@@ -4452,11 +4463,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .coincidences
         .extend(glue::coaxial_rows(a_operand, b_operand, decls, band)?);
     if let (BooleanOp::Union, Some(through)) = (op, verified.through_a_face.take()) {
-        let (declaration, interior) = through?;
-        return Err(BooleanError::TangentSlitArmUnbuilt {
-            declaration,
-            interior,
-        });
+        let (pair, interior) = through?;
+        return Err(BooleanError::TangentSlitArmUnbuilt { pair, interior });
     }
     let declared = GluedPairs::build(decls, verified, a_operand, b_operand, band)?;
     reduce::gate_operand_pairs(
@@ -5125,12 +5133,10 @@ fn verify_declared_contacts<T: Decide>(
     {
         match class {
             GlueClass::Tangent => {
+                // Every refusal is the op's: the door glued this pair on
+                // the same reading.
                 let spent = DeclarationRead::Spent(GlueClass::Tangent);
-                let tangency = verify_tangency(a, fa, b, fb, spent, band)
-                    .map_err(|failure| failure.refusal(fa, fb, spent))?;
-                if let rim_wedge::Locus::Rim(rim) = tangency.locus {
-                    route_rim(a, fa, b, fb, rim, band)?;
-                }
+                let tangency = glued_tangency(a, fa, b, fb, spent, band)?;
                 verified
                     .coincidences
                     .push(tangent_row(fa, fb, tangency.margin));
@@ -5262,7 +5268,12 @@ pub(super) fn sense_contradiction(
 ) -> BooleanError {
     let predicate = match class {
         GlueClass::Continuation => "continuation_senses_aligned",
-        GlueClass::Rest | GlueClass::Tangent => "contact_rest_senses_opposed",
+        GlueClass::Rest => "contact_rest_senses_opposed",
+        GlueClass::Tangent => {
+            return BooleanError::ClassificationInvariant {
+                what: "a tangency's senses were read as contradicting it, and it claims none",
+            };
+        }
     };
     let margin = Indeterminate {
         margin: MarginDiag::INVALID,
@@ -5478,7 +5489,7 @@ pub(crate) struct TangentCert {
 /// **The closed-form tangent line of two faces' carriers** (DEV-1,
 /// [`geom_brep::tangent_locus`]: plane × cylinder along a ruling,
 /// parallel cylinders) and both faces' extents along it: the one witness
-/// a `Tangent` declaration ([`verify_tangency_declaration`]) and a
+/// a glued tangency ([`verify_tangency`]) and a
 /// face–face record on two carriers at rest ([`tangent_pair_at_rest`])
 /// are verified along.
 pub(crate) struct TangentLine<T: Real> {
@@ -5628,8 +5639,28 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
     })
 }
 
-/// The tangency check alone, as a glued pair's refusal, for the unit rows
-/// that drive it.
+/// **The glue door's tangency, as a glued pair's refusal**: the check
+/// ([`verify_tangency`]), and along a rim the routing ([`route_rim`]),
+/// each failure refused under `read`. The door
+/// ([`glue::decided_declarations`]) reads any refusal as no tangency; the
+/// op ([`verify_declared_contacts`]) propagates it.
+pub(crate) fn glued_tangency<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    read: DeclarationRead,
+    band: Band,
+) -> Result<Tangency<T>, BooleanError> {
+    let tangency =
+        verify_tangency(a, fa, b, fb, read, band).map_err(|f| f.refusal(fa, fb, read))?;
+    if let rim_wedge::Locus::Rim(rim) = tangency.locus {
+        route_rim(a, fa, b, fb, rim, read, band)?;
+    }
+    Ok(tangency)
+}
+
+/// [`glued_tangency`] as the op reads it, for the unit rows that drive it.
 #[cfg(test)]
 pub(crate) fn verify_tangent_declaration<T: Decide>(
     a: &Body<T>,
@@ -5638,13 +5669,33 @@ pub(crate) fn verify_tangent_declaration<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let spent = DeclarationRead::Spent(GlueClass::Tangent);
-    let tangency =
-        verify_tangency(a, fa, b, fb, spent, band).map_err(|f| f.refusal(fa, fb, spent))?;
-    if let rim_wedge::Locus::Rim(rim) = tangency.locus {
-        route_rim(a, fa, b, fb, rim, band)?;
-    }
-    Ok(())
+    glued_tangency(
+        a,
+        fa,
+        b,
+        fb,
+        DeclarationRead::Spent(GlueClass::Tangent),
+        band,
+    )
+    .map(|_| ())
+}
+
+/// A glued face's carrier and orientation bit, read off one lookup: a
+/// key that does not resolve refuses typed here, so no later stage
+/// answers from a sense it invented.
+fn glued_face<T: Real>(
+    body: &Body<T>,
+    f: FaceKey,
+    operand: Operand,
+) -> Result<(geom::Surface<T>, bool), BooleanError> {
+    let invalid = |what| BooleanError::InvalidInput { operand, what };
+    let face = body
+        .get_face(f)
+        .ok_or_else(|| invalid("a glued face's key does not resolve"))?;
+    let surface = body
+        .get_surface(face.surface)
+        .ok_or_else(|| invalid("a glued face lost its surface"))?;
+    Ok((surface.clone(), face.sense))
 }
 
 /// **The glue door's tangency check** (C4's `Tangent`, claiming nothing
@@ -5726,25 +5777,8 @@ fn verify_tangency<T: Decide>(
             return Err(Refused(unreadable_extent(face)));
         }
     }
-    // **One resolution per face, carrying both halves.** The carrier and
-    // the orientation BIT are two facts about the same `&Face`, read off
-    // this one lookup: a key that does not resolve refuses typed HERE,
-    // so no later stage answers from a sense it invented.
-    let face_of = |body: &Body<T>,
-                   f: FaceKey,
-                   operand|
-     -> Result<(geom::Surface<T>, bool), TangencyFailure> {
-        let invalid = |what| Refused(BooleanError::InvalidInput { operand, what });
-        let face = body
-            .get_face(f)
-            .ok_or_else(|| invalid("declared face key does not resolve"))?;
-        let surface = body
-            .get_surface(face.surface)
-            .ok_or_else(|| invalid("declared face lost its surface"))?;
-        Ok((surface.clone(), face.sense))
-    };
-    let (sa, sense_a) = face_of(a, fa, Operand::A)?;
-    let (sb, sense_b) = face_of(b, fb, Operand::B)?;
+    let (sa, sense_a) = glued_face(a, fa, Operand::A).map_err(Refused)?;
+    let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
     let kinds = (sa.kind(), sb.kind());
     // 2. The witness locus.
     let mut overlap = None;
@@ -5829,12 +5863,19 @@ fn verify_tangency<T: Decide>(
     // face's interior keep a face–face touch a union cannot yet record;
     // the read's own refusal is the inner one, consumed only by a union.
     let through = match overlap {
-        Some(both) if posture.void => locus_through_plane_face(
+        Some(both) if !posture.aligned => locus_through_plane_face(
             [(a, fa, Operand::A), (b, fb, Operand::B)],
             &carrier,
             both,
             band,
-        ),
+        )
+        .and_then(|face| match face {
+            Some(operand) => match posture.void(band) {
+                Ok(void) => Ok(void.then_some(operand)),
+                Err(diag) => Err(BooleanError::coincidence(Coincide::Contact, read, diag)),
+            },
+            None => Ok(None),
+        }),
         _ => Ok(None),
     };
     Ok(Tangency {
@@ -5865,25 +5906,19 @@ fn route_rim<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
     rim: rim_wedge::Rim<T>,
+    read: DeclarationRead,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let read = DeclarationRead::Spent(GlueClass::Tangent);
     let unplaced = BooleanError::UnsupportedDeclarationClass {
         class: GlueClass::Tangent,
     };
-    let face_of = |body: &Body<T>, f: FaceKey, operand| {
-        body.get_face(f)
-            .and_then(|face| Some((body.get_surface(face.surface)?.clone(), face.sense)))
-            .ok_or(BooleanError::InvalidInput {
-                operand,
-                what: "glued face lost its surface",
-            })
-    };
-    let (sa, sense_a) = face_of(a, fa, Operand::A)?;
-    let (sb, sense_b) = face_of(b, fb, Operand::B)?;
+    let (sa, sense_a) = glued_face(a, fa, Operand::A)?;
+    let (sb, sense_b) = glued_face(b, fb, Operand::B)?;
     let extent = rim.radius + rim.radius;
-    match rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, extent, band) {
-        Ok(rim_wedge::RimRouting::Seam) => {
+    let routing = rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, extent, band)
+        .map_err(|diag| BooleanError::coincidence(Coincide::Rim, read, diag))?;
+    match routing {
+        rim_wedge::RimRouting::Seam => {
             match rim_wedge::departures(a, fa, b, fb, rim_wedge::Locus::Rim(rim), band)
                 .map_err(|diag| BooleanError::coincidence(Coincide::Rim, read, diag))?
             {
@@ -5895,8 +5930,8 @@ fn route_rim<T: Decide>(
                 | rim_wedge::Departure::EdgeKindUnread => Err(unplaced),
             }
         }
-        Ok(rim_wedge::RimRouting::Cusp(wedge)) => Err(BooleanError::RimCuspArmUnbuilt {
-            declaration: crate::contact::DeclaredContact {
+        rim_wedge::RimRouting::Cusp(wedge) => Err(BooleanError::RimCuspArmUnbuilt {
+            pair: crate::contact::DeclaredContact {
                 a: fa,
                 b: fb,
                 class: ContactClass::Tangent,
@@ -5906,12 +5941,11 @@ fn route_rim<T: Decide>(
         // The table verified the pair tangent with a definite
         // second-order margin, so neither a crossing nor an osculating
         // lamina remains for the routing to find.
-        Ok(rim_wedge::RimRouting::Transverse | rim_wedge::RimRouting::Lamina) => {
+        rim_wedge::RimRouting::Transverse | rim_wedge::RimRouting::Lamina => {
             Err(BooleanError::ClassificationInvariant {
                 what: "rim routing: a verified tangency read as a crossing or a lamina",
             })
         }
-        Err(_) => Err(unplaced),
     }
 }
 
@@ -6696,7 +6730,7 @@ mod tests {
                 err,
                 BooleanError::InvalidInput {
                     operand: Operand::A,
-                    what: "declared face key does not resolve",
+                    what: "a glued face's key does not resolve",
                 }
             ),
             "a missing declared face is a caller bug, not a classification, and the \

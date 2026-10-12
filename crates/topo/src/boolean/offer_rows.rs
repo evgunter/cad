@@ -2613,8 +2613,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
-    ("mod.rs", "route_rim", "Coincide::Rim", 1),
-    ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
+    ("mod.rs", "route_rim", "Coincide::Rim", 2),
+    ("mod.rs", "verify_tangency", "Coincide::Contact", 2),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
     (

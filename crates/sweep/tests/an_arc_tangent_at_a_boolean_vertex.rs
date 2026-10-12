@@ -340,10 +340,13 @@ fn the_untilted_dip() {
 /// the wall leaves the slab's top tangent and bends into it. The glue
 /// door glues the pair `Tangent`, claiming nothing of the materials, and
 /// the lump reads the wall `In`: the union is one solid with the rim
-/// interior. The differences and the intersection reach the reduction's
-/// run boundary on the round's lumped sectors at the rim vertex, which
-/// takes no germ there yet (filed:
-/// `work/contacthold/a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector.md`).
+/// interior.
+///
+/// The differences and the intersection are WRONG today: each should
+/// answer at its closed form, and each refuses with the kernel-bug kind
+/// `ClassificationInvariant` instead, an open defect. The rows below
+/// pin that defect so a change to it is seen; they are not the intended
+/// answer.
 #[test]
 fn the_dip_on_a_deep_slab_unions_into_one_solid() {
     let dip = dipping_round();
@@ -371,6 +374,10 @@ fn the_dip_on_a_deep_slab_unions_into_one_solid() {
         ("round ∖ slab", topo::subtract(&dip, &deep, Tol::witness())),
         ("slab ∩ round", topo::intersect(&deep, &dip, Tol::witness())),
     ] {
+        // OPEN DEFECT, not the intended answer: the run boundary on the
+        // round's lumped sectors at the rim vertex takes no germ, tracked by
+        // `work/contacthold/a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector.md`.
+        // When that row lands, this becomes the closed-form assertion.
         assert!(
             matches!(
                 got,
@@ -378,7 +385,7 @@ fn the_dip_on_a_deep_slab_unions_into_one_solid() {
                     what: "a germ sector with both edge bounds on the partner face"
                 })
             ),
-            "the deep dip, {what}: the run boundary on the lumped sector, got {got:?}"
+            "the deep dip, {what}: the dip row's open defect moved, got {got:?}"
         );
     }
 }

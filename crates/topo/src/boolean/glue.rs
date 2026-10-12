@@ -25,10 +25,9 @@ use std::borrow::Cow;
 
 use geom_core::{Band, Bounds, Decide};
 
-use super::rim_wedge::Locus;
 use super::{
-    BooleanError, CarrierRelation, DeclarationRead, Glue, GluedPair, Operand, PairUnread, Tangency,
-    boxes, carrier_pair_relation, verify_tangency,
+    BooleanError, CarrierRelation, DeclarationRead, Glue, GluedPair, Operand, PairUnread, boxes,
+    carrier_pair_relation, glued_tangency,
 };
 use crate::body::Body;
 use crate::contact::GlueClass;
@@ -77,12 +76,11 @@ pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
 }
 
 /// **Whether the witness lane verifies `fa` and `fb` tangent** along a
-/// locus ([`verify_tangency`]), asked only of a pair it has a locus for:
+/// locus ([`glued_tangency`]), asked only of a pair it has a locus for:
 /// a plane and a cylinder, two cylinders, or two faces ending on one
 /// circle. Along a rim the routing must also read the junction the two
-/// faces make as one the zip builds, the smooth seam
-/// ([`super::route_rim`]). Any refusal of either is no tangency, an
-/// escalation included (filed:
+/// faces make as one the zip builds, the smooth seam. Any refusal is no
+/// tangency, an escalation included (filed:
 /// `work/contacthold/the-glue-doors-tangency-swallows-its-escalations.md`).
 fn tangency<T: Decide>(
     a: &Body<T>,
@@ -107,16 +105,7 @@ fn tangency<T: Decide>(
     {
         return Ok(false);
     }
-    Ok(
-        match verify_tangency(a, fa, b, fb, DeclarationRead::Moot, band) {
-            Ok(Tangency {
-                locus: Locus::Rim(rim),
-                ..
-            }) => super::route_rim(a, fa, b, fb, rim, band).is_ok(),
-            Ok(_) => true,
-            Err(_) => false,
-        },
-    )
+    Ok(glued_tangency(a, fa, b, fb, DeclarationRead::Moot, band).is_ok())
 }
 
 /// Whether two carriers' kinds are the witness lane's line pairs: a

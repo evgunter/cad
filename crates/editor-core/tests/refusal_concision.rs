@@ -597,14 +597,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "RimCuspArmUnbuilt",
             BooleanError::RimCuspArmUnbuilt {
-                declaration,
+                pair: declaration,
                 wedge: MaterialWedge::Slit,
             },
         ),
         (
             "TangentSlitArmUnbuilt",
             BooleanError::TangentSlitArmUnbuilt {
-                declaration,
+                pair: declaration,
                 interior: Operand::A,
             },
         ),

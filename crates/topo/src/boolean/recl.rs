@@ -82,8 +82,9 @@ fn carrier_of<T: Decide>(
 /// coincidence decided Zero is one the door did not glue and refuses
 /// ([`super::unglued_coincidence`]).
 ///
-/// C8: a CURVED sector pair descends the ladder only as a glued pair —
-/// an unglued on-carrier curved pair keeps the typed frontier refusal.
+/// C8: a CURVED sector pair descends the ladder only as a glued
+/// one-carrier pair; an unglued on-carrier curved pair keeps the typed
+/// frontier refusal.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn require_same<T: Decide>(
     body1: &Body<T>,
@@ -97,20 +98,12 @@ pub(super) fn require_same<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<PlaneRelation, BooleanError> {
-    // A declared-`Tangent` ON pair has no carrier-identity answer
-    // (the carriers are DISTINCT by the verified declaration); the
-    // lanes that can consume its second-order verdict dispatch to
-    // [`super::sectors::tangent_lump`] before reaching here, so a
-    // remaining reach is a lane without that arm — refused typed.
+    // A glued tangency has no carrier-identity answer (its carriers are
+    // distinct); every lane that meets one lumps it by its curving
+    // ([`super::sectors::tangent_lump`]) before reaching here.
     if declared.declares_tangent(o1, s1.face, o2, s2.face) {
-        let kind = body1
-            .get_face(s1.face)
-            .and_then(|f| body1.get_surface(f.surface))
-            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
-        return Err(BooleanError::CurvedBooleanUnsupported {
-            operand: o1,
-            face: s1.face,
-            kind,
+        return Err(BooleanError::ClassificationInvariant {
+            what: "a glued tangency reached the carrier-identity check",
         });
     }
     let c1 = carrier_of(body1, o1, s1)?;
