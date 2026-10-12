@@ -831,25 +831,18 @@ impl RingRefinement {
         &self.knots
     }
 
-    /// The source vector's control count: the length a channel must
-    /// have.
-    #[must_use]
-    pub fn source_count(&self) -> usize {
-        self.source
-    }
-
-    /// The insertion chain, one plan per inserted point: for an applier
-    /// at another scalar (`SpanLocate::refine_homogeneous`).
-    #[must_use]
-    pub fn plans(&self) -> &[CurvePlan] {
+    /// The insertion chain, one plan per inserted point: what the
+    /// refinement tests replay plan by plan.
+    #[cfg(test)]
+    pub(crate) fn plans(&self) -> &[CurvePlan] {
         &self.plans
     }
 
     /// `channel` through every plan in order, each by
     /// [`CurvePlan::apply_certified`], so the result encloses the refined
-    /// channel of the described net. A channel that is not
-    /// [`RingRefinement::source_count`] long refuses: every entry of the
-    /// refined length is refused.
+    /// channel of the described net. A channel that is not one entry per
+    /// source control point refuses: every entry of the refined length is
+    /// refused.
     #[must_use]
     pub fn refine(&self, channel: &[Interval]) -> Vec<Interval> {
         if channel.len() != self.source {
