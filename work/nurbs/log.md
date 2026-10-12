@@ -971,3 +971,15 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - `the-thread-count-digests-re-cut-log-is-a-changelog` (P4, E);
     - `disp-zero-can-be-satisfied-by-freezes` (P4, M; a SYM/DECIDE seam when built).
   - Build A is dispatched on the changelog trim (`nurbs/digest-log-trim`). Tier: orchestrator's read. It lands before build C's rational-bound re-cut, to keep their conflict small. — (NURBS orchestrator)
+
+- **2026-10-12 18:40Z — PR 4892 (rational speed bound, part 1) FULL reviewer dispatched.**
+  - Session: session_01L9BiRwMrCxHYyp24sk3b5t, at `d7484a0edcd8d7358a44fd88270c05c1e649dc0e`. The full SHA came from `git rev-parse`, and the session is confirmed connected.
+  - Tier: single FULL.
+  - Claims to falsify:
+    - door soundness at f64 and Interval, swept against a sampled sup;
+    - the window variant;
+    - the NaN poison and the Sym memo rule;
+    - the routed sites (shell, offset_derive, pcurve_cache) keep their guarantees;
+    - the tests go red under three mutants;
+    - the digest is unchanged;
+    - deletion completeness. — (NURBS orchestrator)
