@@ -236,3 +236,72 @@ membership test (4).
   equal-`hi` tie by `EntityId` so `WhollyInside { at }` names one face
   whatever the edge order. The no-prior-run blind spot is the Boolean's
   too, and is recorded, not built.
+
+## Findings (step 3: the deletion, from the ruled cap)
+
+- **Built.** A feature wholly inside the material a convex ruled band's
+  cut-off removes goes with it: the carve takes its faces, edges and
+  vertices, and its cycles leave the caps. The two witness rows build at
+  their closed forms, `ΔV = −2·A·L + π·a²·L`, at tiers 3 and 3′, with
+  naming totality and the bore's walls in `BlendNaming::dead`:
+  `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_the_closed_form`
+  (and `…_at_interval`, and the two inside bores of
+  `…_a_hair_across_the_slivers_boundary_crosses_and_one_inside_it_goes_with_it`),
+  and
+  `review_band_ruled_ring_probes::a_bore_in_a_keyhole_creases_removed_sliver_goes_with_it_at_the_closed_form`.
+  Every crossing row still refuses as a crossing.
+- **Prerequisite 1, the wall at the cap plane.** The ruled crease's reach
+  has no exact core, and no cell walk certifies a face that touches the
+  window's end plane. So the reach reads a convex ruled band's faces
+  through its caps instead (`reach::prism_inside`). The band's material
+  is the prism over its cross-section along the spine, between the cap
+  planes. A face on a surface ruled along `a` (a cylinder's axis, or a
+  plane's direction nearest the spine `τ`), whose every edge is an edge
+  of a cap cycle read inside or a line between two of their vertices,
+  has each point on an `a`-line between two boundary points. So it
+  projects into the cross-section when the cycles' least depth, times
+  `|n_cap·τ|`, exceeds the lines' `|w − u|·|d × τ|` plus the face box's
+  diagonal times `|a × τ|`. It lies between the cap planes as a convex
+  combination of boundary points that do. That is the cap plane read
+  non-strictly, in closed form rather than cells.
+- **Prerequisite 2, `S` and the core's slice.** The prism's slice in a
+  cap's plane is exactly `CapSliver`'s `S`: the end curve is the band's
+  surface in that plane, and the rim pieces are the supports'. The
+  reach's inside reading is computed from the cap meter's inside depths,
+  so the two agree on what dies by construction; there is no second
+  region to tie.
+- **Prerequisite 3, the feature.** The faces read inside are grouped by
+  the edges they share (`consume::plan`). A feature the carve takes is a
+  through-feature between the band's two caps: every edge of its faces
+  joins another face of it, or a cap cycle read inside, and it is
+  bounded by exactly one such cycle on each of two caps. Anything else
+  refuses `WhollyInside` before any mutation. Grouping is sound because
+  the verdict is inside only when every reading not clear is inside, so
+  an inside face shares no edge with a clear one. Only inside readings
+  from a convex ruled cap (`reach::CapRing`) or the prism reading are
+  consumable. Any other (an exact core's cells, a planar cut-off's cap,
+  a concave ruled cap) keeps the request refusing `WhollyInside`.
+- **The carve** (`blend/consume.rs`), on the clone before the band:
+  `mfkrh` promotes one cap's cycle to a plug (ending the hole); the plug
+  and the feature's faces `kef` into one; its spurs `kev` leaf first;
+  that face `kef`s into the other cap, whose cycle's edges `kev` down to
+  a lone vertex; a strut `mekr`s it to the cap's outer cycle and `kev`
+  retires both. The face-destroying door `SourceFaces::kef_minted` now
+  admits the consumed faces, and `Retired` gains a `faces` channel. The
+  surgery postcondition, `assert_naming_totality`, and editor-core's
+  emitter guard all read it.
+- **Step 2's remainder.** `reach::Unclear` breaks an equal-`hi` tie by
+  the entity named (kind, then key), for bounds and inside readings
+  alike (`reach::tests::a_margin_tie_names_the_least_entity_in_either_order`).
+  The document row:
+  `edit_ruled_carve::a_bore_a_radius_edit_puts_inside_the_sliver_vanishes_on_the_blends_verdict`.
+  On the bored D-rod, a fillet of radius `0.01` carries the bore's wall
+  through. The edit to `ROD_FILLET` puts the bore wholly inside the
+  sliver, and the wall's name resolves `Vanished { PredicateFlip {
+  fillet3_face_clearance, Positive → Negative } }`.
+- **Still open, for step 4:** the planar band (its exact core reads the
+  wall at the cap as a bound), the concave fill, the chamfer, and
+  inside-the-union-of-bands at mitres and corners. The prism reading
+  takes the least depth over all of a crease's inside cycles, not just
+  the face's own. That is conservative, and a tight face beside a
+  shallow ring of another bore reads a bound.

@@ -47,9 +47,12 @@ a support of the chain, in any shell, and reads each face as clear of
 it, wholly inside it, or crossing it. A feature wholly inside the reach
 goes with that material, as a feature wholly inside a Boolean's tool goes
 with the tool: the carve that consumes it takes its faces, edges and
-rings and logs the verdict, so that a later reader of one of its names
-resolves `Vanished` with the blend's verdict as the cause. Neither that
-carve nor the log is built yet, so today such a request refuses
+rings, and the verdict is logged in the blend node's verdict log (under
+`fillet3_face_clearance` and `fillet3_ring_clearance`), so that a later
+reader of one of its names resolves `Vanished` with the blend's verdict
+as the cause (`PredicateFlip`). The carve is built at a convex ruled
+band's cut-off (below); a request that reads inside anywhere else — the
+planar band, a concave fill, the chamfer — refuses
 `BlendError::WhollyInside`. A face crossing the
 reach would need the band trimmed by it, which the surgery has no step
 for, and refuses. The supports' own
@@ -67,9 +70,28 @@ whatever order they are read: a crossing anywhere refuses as a crossing,
 then a bound refuses `BlendError::FaceClearance` (or the end-face
 meter's `RingClearance`) with `bounded: true`, and only a request whose
 every face and end-face cycle not clear is read wholly inside refuses
-`WhollyInside`. A face that touches the region's boundary is never
-read inside, so a through-feature's wall, which meets the window's end
-plane, reads as a bound today, whatever its rings read at the cap.
+`WhollyInside` (a tie on the margin names the least entity, so the
+refusal is the same in every read order). The cell walk never reads
+inside a face that touches the region's boundary, so on an exact core a
+through-feature's wall, which meets the window's end plane, reads as a
+bound whatever its rings read at the cap. A convex ruled band's reach
+reads such a wall through its caps instead: a face on a surface ruled
+near the spine (a cylinder's axis, a plane's direction nearest it),
+every edge of which is an edge of a cap cycle read inside the sliver or
+a line between two of their vertices, lies inside the prism the band
+removes when the cycles' least depth, projected along the spine,
+exceeds how far the face's rulings and lines stray from the spine over
+its extent (`reach::prism_inside`). The prism's slice in a cap's plane
+is the sliver the cap meter reads, so the two readings agree on what
+dies by construction. A request whose verdict is then inside groups the
+faces read inside into features, joined by the edges they share, and
+the carve takes each whole — a through-feature between the band's two
+caps, bounded only by one cycle read inside on each — or refuses
+`WhollyInside` (`blend/consume.rs`): the plug `mfkrh`, the faces' `kef`
+into one, the spurs' `kev`, its `kef` into the other cap and that
+cycle's `kev`s down to a lone vertex, retired by a strut's `mekr` and
+`kev`. The faces, edges and vertices it takes are recorded as retired
+(`BlendNaming::dead`).
 
 Each reach is an intersection of 1-Lipschitz bounds: per link, the
 cross-section between the supports, the sector the ball's arc subtends
@@ -385,10 +407,9 @@ the band's tangent contact with a curved support, the arcs as its
 transverse intersection with the cap, on either material side. On
 either side the cap loses the sliver between the arc and the old
 vertex, cut away on the convex side and covered by the fill on the
-concave side; a feature of the cap wholly inside the sliver goes with
-it, as predicate 2 reads any feature wholly inside a band's reach (a
-carve not built yet: today it refuses, above), and
-every other edge of the cap stays where it
+concave side; on the convex side a feature wholly inside the sliver
+goes with it, its cycles leaving the cap and its faces the body
+(predicate 2, above), and every other edge of the cap stays where it
 was — the edges of its other cycles (a bore's ring, or the outer cycle
 where the cut runs in a ring) and those of the cut cycle other than
 the two rims it shortens (a notch in the outline). Each is metered
@@ -418,7 +439,14 @@ outside, its rims running on past the feet). A cycle other than the cut
 one that misses the arc and has a point inside lies wholly inside, as
 predicate 2's verdict reads it; anything else, and every chord end, is
 a bound, `RingClearance` with `bounded: true`
-(`crates/sweep/tests/band_ruled_cap_ring.rs`). A
+(`crates/sweep/tests/band_ruled_cap_ring.rs`). A bore wholly inside the
+D-rod's sliver, or a keyhole crease's, goes with it at
+`ΔV = −2·A·L + π·a²·L`
+(`band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_the_closed_form`,
+`review_band_ruled_ring_probes::a_bore_in_a_keyhole_creases_removed_sliver_goes_with_it_at_the_closed_form`),
+and its wall's name, carried by the fillet before a radius edit that
+puts it inside, resolves `Vanished` on the face-clearance flip after
+(`editor-core` `edit_ruled_carve`). A
 curved end face refuses typed.
 Consumer: the rod with a flat milled along it (`cylinder ∖ box`), both
 creases in one call, at the prism closed form `ΔV = A_section · L`

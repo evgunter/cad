@@ -140,6 +140,7 @@ mod admit;
 pub mod arms;
 pub mod battery;
 pub mod build;
+mod consume;
 pub mod naming;
 mod open;
 pub(crate) mod reach;
@@ -1752,8 +1753,9 @@ pub enum BlendError {
     /// crossing anywhere refuses as a crossing, and a face or cycle
     /// certified none of the three refuses as a bound. The feature goes
     /// with that material, as a feature wholly inside a Boolean's tool
-    /// goes with the tool (C8). That carve is not built, so the request
-    /// refuses.
+    /// goes with the tool (C8). The carve takes a through-feature
+    /// between a convex ruled band's two caps (`blend::consume`); a
+    /// request whose inside readings are anything else refuses.
     WhollyInside {
         /// The face wholly inside a band's reach, or the cycle of a
         /// cut-off's end face (a ring) wholly inside the sliver, that is
