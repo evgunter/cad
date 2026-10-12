@@ -2222,8 +2222,9 @@ pub(crate) fn boundary_edges<T: Real>(
 }
 
 /// The boolean's refusal for an edge its describer could not describe.
-/// An exact carrier read in band of one of its faces is the input's (D9
-/// row 1); every other failure is the kernel's.
+/// Its line chord read in band of one of its faces is the input's (D9
+/// row 1, [`crate::merge_faces::edge_on_faces_reading`]); every other
+/// failure is the kernel's.
 pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
     match refusal {
         DescribeRefusal::Failed {
@@ -2246,29 +2247,20 @@ pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
 }
 
 /// The describer's refusal for `edge` when the attachment gate refuses
-/// its description on `carrier`. The carrier's own residual against one
-/// of its faces' surfaces read in band is [`DescribeRefusal::OffFace`]
-/// where the carrier is exact: its ends are vertices placed on those
-/// faces, so its miss is theirs. On a fitted carrier the miss may be the
-/// fit's, and it fails the edge as every other refusal does, carrying
-/// the gate's.
-fn of_attachment<T: Real>(
+/// its description on a carrier of kind `carrier`: the edge's own
+/// reading on its faces where
+/// [`crate::merge_faces::edge_on_faces_reading`] finds one, and
+/// otherwise a failed edge carrying the gate's refusal, ending as a
+/// fitted carrier's or the kernel's.
+fn of_attachment(
     edge: crate::entity::EdgeKey,
     failure: EdgeDescribeFailure,
-    carrier: &geom::Curve3<T>,
+    carrier: geom::CurveKind,
     cause: crate::euler::EulerOpError,
 ) -> DescribeRefusal {
-    let fitted = matches!(carrier, geom::Curve3::Nurbs(_));
-    match cause {
-        crate::euler::EulerOpError::Certification {
-            error:
-                geom_brep::CertifyError::Escalated {
-                    check: geom_brep::CertCheck::SurfaceResidual { .. },
-                    cause: diag,
-                    ..
-                },
-        } if !fitted => DescribeRefusal::off_face(edge, diag),
-        cause => DescribeRefusal::refused(edge, failure, cause, fitted),
+    match crate::merge_faces::edge_on_faces_reading(carrier, &cause) {
+        Some(diag) => DescribeRefusal::off_face(edge, diag),
+        None => DescribeRefusal::refused(edge, failure, cause, carrier == geom::CurveKind::Nurbs),
     }
 }
 
@@ -2349,9 +2341,9 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         {
             geom_brep::DihedralClass::Transverse => {
                 let spec = draft.into_spec(geom_brep::SurfacePair::new(s1, s2));
-                let carrier = spec.carrier.clone();
+                let carrier = spec.carrier.kind();
                 body.set_edge_curve(edge, spec, tol).map_err(|e| {
-                    of_attachment(edge, EdgeDescribeFailure::Intersection, &carrier, e)
+                    of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, e)
                 })?;
             }
             geom_brep::DihedralClass::Smooth => {
@@ -2416,7 +2408,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         param_end: t1,
                     };
                     body.set_edge_curve(edge, spec, tol).map_err(|e| {
-                        of_attachment(edge, EdgeDescribeFailure::Tangency, c.carrier(), e)
+                        of_attachment(edge, EdgeDescribeFailure::Tangency, c.carrier().kind(), e)
                     })?;
                 } else if stale {
                     if curved {
@@ -2443,14 +2435,14 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         };
                         body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
                             .map_err(|e| {
-                                of_attachment(edge, EdgeDescribeFailure::Arc, c.carrier(), e)
+                                of_attachment(edge, EdgeDescribeFailure::Arc, c.carrier().kind(), e)
                             })?;
                     } else {
                         let spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                        let carrier = spec.carrier.clone();
+                        let carrier = spec.carrier.kind();
                         body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
                             .map_err(|e| {
-                                of_attachment(edge, EdgeDescribeFailure::Line, &carrier, e)
+                                of_attachment(edge, EdgeDescribeFailure::Line, carrier, e)
                             })?;
                     }
                 }
@@ -7897,13 +7889,14 @@ mod tests {
     }
 
     /// **An attachment refusal at the describe pass tells its own
-    /// story, the same at both doors.** An exact carrier's residual
-    /// against one of its faces read in band (the near-tangent census's
-    /// 12 witnesses, `sweep`'s `near_tangent_pierce_poses`) is the
-    /// input's, ending in the lever. The witness's residual, a definite
-    /// miss and any other refusal are the kernel's, ending in the defect
-    /// ending with the check, the sample and the miss and no arena key;
-    /// a fitted carrier's ends as the certification's table gives it.
+    /// story, the same at both doors.** A line chord's residual against
+    /// one of its faces read in band (the near-tangent census's 12
+    /// witnesses, `sweep`'s `near_tangent_pierce_poses`) is the input's,
+    /// ending in the lever. The witness's residual, a definite miss, a
+    /// circle's residual in band and any other refusal are the kernel's,
+    /// ending in the defect ending with the check, the sample and the miss
+    /// and no arena key; a fitted carrier's ends as the certification's
+    /// table gives it.
     #[test]
     fn a_describe_refusal_carries_its_certification() {
         use crate::euler::EulerOpError;
@@ -7919,6 +7912,12 @@ mod tests {
         let line = geom::Curve3::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
             dir: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let circle = geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let fitted = geom::Curve3::Nurbs(std::sync::Arc::new(
             geom::NurbsCurve3::new(
@@ -7949,8 +7948,12 @@ mod tests {
         });
         // Each door's text, the merge door's first.
         let said = |carrier: &geom::Curve3<f64>, cause| {
-            let refusal =
-                super::of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, cause);
+            let refusal = super::of_attachment(
+                edge,
+                EdgeDescribeFailure::Intersection,
+                carrier.kind(),
+                cause,
+            );
             let merged = MergeCoplanarError::of_kept_boundary(&[(face, edge)], refusal.clone());
             let own = super::of_describe(refusal);
             assert_eq!(
@@ -7961,7 +7964,8 @@ mod tests {
             (merged.to_string(), own)
         };
         let lever = "Recourse: move the geometry so each edge and vertex that meets a face lies \
-                     clearly on that face or clearly off it";
+                     clearly on it or clearly off it, and an edge that ends on it leaves it at a \
+                     clear angle";
 
         let (merged, err) = said(&line, escalated(CertCheck::SurfaceResidual { surface }));
         assert!(
@@ -7972,7 +7976,7 @@ mod tests {
                     diag,
                 } if diag == in_band
             ),
-            "an exact carrier read in band of its face is the edge's reading: {err:?}"
+            "a line chord read in band of its face is the edge's reading: {err:?}"
         );
         assert_eq!(
             err.to_string(),
@@ -8033,6 +8037,13 @@ mod tests {
                 &line,
                 definite,
                 miss_payload,
+                KERNEL_DEFECT_ENDING,
+            ),
+            (
+                "a circle read in band, a construction whose own error the band may hold",
+                &circle,
+                escalated(CertCheck::SurfaceResidual { surface }),
+                surface_payload.as_str(),
                 KERNEL_DEFECT_ENDING,
             ),
             (
