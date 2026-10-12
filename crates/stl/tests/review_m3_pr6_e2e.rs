@@ -16,7 +16,7 @@
 use crate::common::finished;
 use mesh::validate::{check_mesh, signed_volume};
 use topo::{
-    AtRestBody, BooleanResult, ContactRecords, ValidationError, mass_properties, subtract, union,
+    AtRestBody, BooleanResult, ContactRecords, mass_properties, subtract, union,
     validate_pseudomanifold,
 };
 
@@ -54,7 +54,9 @@ fn r6_pocketed_dice_kiss_e2e() {
     let BooleanResult::Body(assembly) = union(&d1, &d2, Tol::witness()).unwrap() else {
         panic!("kiss union is a body");
     };
-    // 3′ gate: green with carried contacts, red without.
+    // 3′ gate: green with carried contacts, and without them too: the
+    // union put the kissing corners on one point key, which the census
+    // reads as structure.
     assert_eq!(
         assembly.contacts.vertex_vertex().count(),
         1,
@@ -64,14 +66,13 @@ fn r6_pocketed_dice_kiss_e2e() {
         validate_pseudomanifold(&assembly.body, &assembly.contacts, Tol::witness()),
         Ok(())
     );
-    let withheld =
-        validate_pseudomanifold(&assembly.body, &ContactRecords::default(), Tol::witness())
-            .unwrap_err();
-    assert!(
-        withheld
-            .iter()
-            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
-        "{withheld:?}"
+    for (x, y) in assembly.contacts.vertex_vertex() {
+        let key = |v| assembly.body.get_vertex(v).unwrap().point;
+        assert_eq!(key(x), key(y), "the kissing corners share one key");
+    }
+    assert_eq!(
+        validate_pseudomanifold(&assembly.body, &ContactRecords::default(), Tol::witness()),
+        Ok(())
     );
     // Structure + exact oracles (the parts=2 discipline: shell count
     // is asserted HERE, not inferred from admesh part count).
