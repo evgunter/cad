@@ -787,3 +787,119 @@ fn p15_a_bore_inside_a_disc_staggered() {
     );
     all_answer("p15", &got);
 }
+
+// ---------------------------------------------------------------------
+// Delta-2 review probes: tangencies mid-arc (no vertex on the ruling),
+// so the sectors at the cap edges have long arc bounds that turn.
+// ---------------------------------------------------------------------
+
+/// A circle as two arcs with vertices at angle `a0` and `a0 + π`.
+fn circle_at(cx: f64, cy: f64, r: f64, a0: f64) -> ProfileLoop<f64> {
+    let (s, c) = a0.sin_cos();
+    bulge_loop(vec![
+        (Point2::new(cx + r * c, cy + r * s), 1.0),
+        (Point2::new(cx - r * c, cy - r * s), 1.0),
+    ])
+}
+
+fn delta2_print(pose: &str, got: &[String]) {
+    for g in got {
+        eprintln!(
+            "DELTA2\t{pose}\t{}",
+            g.chars().take(200).collect::<String>()
+        );
+    }
+}
+
+#[test]
+fn r1_a_plane_tangent_mid_arc_to_a_hole_staggered() {
+    let pi = std::f64::consts::PI;
+    for a0 in [0.785, 1.3, 2.9] {
+        let a = ext(
+            "holed plate",
+            vec![rect(-3.0, -3.0, 3.0, 3.0), circle_at(0.0, 0.0, 1.0, a0)],
+            0.0,
+            1.0,
+        );
+        let b = finished(
+            "cutter",
+            brick::<f64>((1.0, 4.0), (-4.0, 4.0), (0.5, 2.0), tol()),
+            tol(),
+        );
+        let got = four(
+            &format!("r1 mid-arc hole a0={a0}"),
+            &a,
+            &b,
+            |q| margin(boxd(q, (-3.0, 3.0), (-3.0, 3.0), (0.0, 1.0)).max(-disc(q, 0.0, 0.0, 1.0))),
+            |q| margin(boxd(q, (1.0, 4.0), (-4.0, 4.0), (0.5, 2.0))),
+            [Some(66.0 - pi), Some(30.0 - pi), Some(30.0), Some(6.0)],
+            &grid(),
+        );
+        delta2_print(&format!("r1 a0={a0}"), &got);
+        let got = four(
+            &format!("r1 swapped a0={a0}"),
+            &b,
+            &a,
+            |q| margin(boxd(q, (1.0, 4.0), (-4.0, 4.0), (0.5, 2.0))),
+            |q| margin(boxd(q, (-3.0, 3.0), (-3.0, 3.0), (0.0, 1.0)).max(-disc(q, 0.0, 0.0, 1.0))),
+            [Some(66.0 - pi), Some(30.0), Some(30.0 - pi), Some(6.0)],
+            &grid(),
+        );
+        delta2_print(&format!("r1 swapped a0={a0}"), &got);
+    }
+}
+
+#[test]
+fn r2_a_nested_touch_mid_arc_run_long() {
+    let pi = std::f64::consts::PI;
+    for a0 in [0.785, 1.3, 2.9] {
+        let a = ext("fat", vec![circle_at(0.0, 0.0, 2.0, a0)], 0.0, 1.0);
+        let b = ext("thin long", vec![circle_at(1.0, 0.0, 1.0, -a0)], -1.0, 3.0);
+        let got = four(
+            &format!("r2 nested mid-arc a0={a0}"),
+            &a,
+            &b,
+            |q| margin(disc(q, 0.0, 0.0, 2.0).max(slab(q, 0.0, 1.0))),
+            |q| margin(disc(q, 1.0, 0.0, 1.0).max(slab(q, -1.0, 2.0))),
+            [Some(6.0 * pi), Some(3.0 * pi), Some(2.0 * pi), Some(pi)],
+            &grid(),
+        );
+        delta2_print(&format!("r2 a0={a0}"), &got);
+    }
+}
+
+#[test]
+fn r3_a_rod_in_a_bore_mid_arc_and_outside_touch() {
+    let pi = std::f64::consts::PI;
+    for a0 in [0.785, 2.9] {
+        let plate = ext(
+            "bored plate",
+            vec![rect(-3.0, -3.0, 3.0, 3.0), circle_at(0.0, 0.0, 2.0, a0)],
+            0.0,
+            1.0,
+        );
+        let rod = ext("rod", vec![circle_at(1.0, 0.0, 1.0, -a0)], -1.0, 3.0);
+        let got = four(
+            &format!("r3 rod in bore a0={a0}"),
+            &rod,
+            &plate,
+            |q| margin(disc(q, 1.0, 0.0, 1.0).max(slab(q, -1.0, 2.0))),
+            |q| margin(boxd(q, (-3.0, 3.0), (-3.0, 3.0), (0.0, 1.0)).max(-disc(q, 0.0, 0.0, 2.0))),
+            [Some(36.0 - pi), Some(3.0 * pi), Some(36.0 - 4.0 * pi), None],
+            &grid(),
+        );
+        delta2_print(&format!("r3 bore a0={a0}"), &got);
+        let a = ext("disc", vec![circle_at(0.0, 0.0, 1.0, a0)], 0.0, 1.0);
+        let b = ext("long disc", vec![circle_at(2.0, 0.0, 1.0, -a0)], -1.0, 3.0);
+        let got = four(
+            &format!("r3 outside touch a0={a0}"),
+            &a,
+            &b,
+            |q| margin(disc(q, 0.0, 0.0, 1.0).max(slab(q, 0.0, 1.0))),
+            |q| margin(disc(q, 2.0, 0.0, 1.0).max(slab(q, -1.0, 2.0))),
+            [Some(4.0 * pi), Some(pi), Some(3.0 * pi), None],
+            &grid(),
+        );
+        delta2_print(&format!("r3 outside a0={a0}"), &got);
+    }
+}
