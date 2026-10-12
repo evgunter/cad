@@ -2,11 +2,12 @@
 id: a-curved-notch-at-a-corner-pinch-refuses-join-desync-on-a-section-vertexs-null-edge-copies
 kind: issue
 title: A curved notch at a corner pinch refuses JoinDesync: a section vertex's null-edge copies have not exactly one kept end (15 lines, 5 poses)
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P2
 cost: M
 refs: [4249]
+branch: flush/pinch-residue
 ---
 
 
@@ -44,3 +45,17 @@ curved_notch_pinch_one -- --ignored --nocapture`.
 Not root-caused. Whether the twin edge joins no pair of the vertex's
 copies, or more than one, was not read. The planar batteries'
 pinches do not reach this arm; the curved wall at `v` does.
+
+## Not the pinch weld's ground (2026-10-11, branch `flush/pinch-cluster`)
+
+The pinch cluster priced this row against its fix and left it. That
+fix mints the pierces of one face at one point as one ring
+(`vtxfac::mint_ring`) and retires `finish::weld_pinches`. The
+`curved_notch_pinch` probe is byte-identical across it (1 513 lines,
+release; the base side is the branch built with a switch that restores
+the per-pierce rings and the weld), and so are its 15 `JoinDesync`
+lines. This probe's pinch is
+the two cubes' vertex-vertex pinch at the notch's corner. It has no
+coincident pierces, and `discarded`'s several-copies arm reads the
+null-edge copies the vertex-vertex insertion leaves, which the ring
+does not reach.

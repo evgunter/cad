@@ -340,9 +340,9 @@ impl MintedDeclaration {
 /// `relation` is `"refuted"` (the kernel says the faces do not meet as
 /// declared — a finding against the document), `"declined"` (the
 /// census has no certifier lane for a face the declaration names, so
-/// nothing was decided either way), or `"unattributed"` (no
-/// declaration answers for the finding — an UNDECLARED contact, which
-/// is by definition the hard error).
+/// nothing was decided either way). A finding no declaration answers
+/// for has no attribution at all (`AtRestFinding.attribution` is
+/// `None`).
 ///
 /// A declaration a document BELOW this one authored answers under
 /// `"carried_refuted"` and `"carried_declined"`: the same two
@@ -381,23 +381,22 @@ fn route_fields(py: Python<'_>, route: &d::Route) -> (Py<PyAny>, Py<PyAny>) {
 #[pymethods]
 impl Attribution {
     /// The stable tag: `refuted`, `declined`, `carried_refuted`,
-    /// `carried_declined`, `unattributed`.
+    /// `carried_declined`.
     #[getter]
     fn relation(&self) -> &'static str {
         attribution_tag(&self.0)
     }
 
-    /// The declaration named, `None` for `unattributed`. Under a
-    /// `carried_*` relation its `mate` is a node of `of`, not of the
-    /// document that was gathered.
+    /// The declaration named. Under a `carried_*` relation its `mate`
+    /// is a node of `of`, not of the document that was gathered.
     #[getter]
-    fn declaration(&self) -> Option<MintedDeclaration> {
-        self.0.declaration().cloned().map(MintedDeclaration)
+    fn declaration(&self) -> MintedDeclaration {
+        MintedDeclaration(self.0.declaration().clone())
     }
 
     /// The document whose mate authored the declaration, as opaque
     /// id text. `None` where the declaration is the gathered
-    /// document's own, and `None` for `unattributed`.
+    /// document's own.
     #[getter]
     fn of(&self, py: Python<'_>) -> Option<Py<PyAny>> {
         self.0.route().map(|r| route_fields(py, r).0)
@@ -427,10 +426,14 @@ pub(crate) struct AtRestFinding(d::AtRestFinding, SpokenFrom);
 
 #[pymethods]
 impl AtRestFinding {
-    /// Which declaration the finding names, and in what relation.
+    /// Which declaration the finding names, and in what relation;
+    /// `None` where it names none.
     #[getter]
-    fn attribution(&self) -> Attribution {
-        Attribution(self.0.attribution.clone(), self.1.clone())
+    fn attribution(&self) -> Option<Attribution> {
+        self.0
+            .attribution
+            .clone()
+            .map(|a| Attribution(a, self.1.clone()))
     }
 
     /// The finding composed the way the library renders one: the
@@ -442,7 +445,10 @@ impl AtRestFinding {
     }
 
     fn __repr__(&self) -> String {
-        format!("AtRestFinding({:?})", attribution_tag(&self.0.attribution))
+        format!(
+            "AtRestFinding({:?})",
+            self.0.attribution.as_ref().map(attribution_tag)
+        )
     }
 }
 
@@ -1024,7 +1030,7 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         // `Assembly` at all means tier 3′ ALREADY passed over exactly
         // this pair, so `Assembly.body.validate_pseudomanifold()` is
         // the same verdict re-taken, un-attributed.
-        body: Body::declared(Arc::new(assembly.body), Arc::new(assembly.contacts)),
+        body: Body::recorded(Arc::new(assembly.body), Arc::new(assembly.contacts)),
         names,
         minted: assembly.minted.into_iter().map(MintedDeclaration).collect(),
         carried: assembly

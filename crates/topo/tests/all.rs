@@ -89,6 +89,8 @@ mod carried_citations_past_index_zero;
 mod cell_pair_records;
 #[path = "census_g2_carrier.rs"]
 mod census_g2_carrier;
+#[path = "census_records_what_it_decides.rs"]
+mod census_records_what_it_decides;
 #[path = "cone_apex_cap_body.rs"]
 mod cone_apex_cap_body;
 #[path = "cone_apex_sector_joints.rs"]
@@ -197,6 +199,8 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "missed_ray_side.rs"]
+mod missed_ray_side;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
 #[path = "offset_doors_read_charts_not_material.rs"]
@@ -378,12 +382,18 @@ mod a_whole_villarceau_circle_bounds_a_torus_face;
 mod certified_enclosure_impl_census;
 #[path = "cleave_mint_doors.rs"]
 mod cleave_mint_doors;
+#[path = "divided_cell_carry.rs"]
+mod divided_cell_carry;
 #[path = "holes_meeting_at_a_vertex.rs"]
 mod holes_meeting_at_a_vertex;
 #[path = "pierce_strut_at_a_pinch.rs"]
 mod pierce_strut_at_a_pinch;
 #[path = "review_4694_carry_probes.rs"]
 mod review_4694_carry_probes;
+#[path = "review_4730_divided_carry_probes.rs"]
+mod review_4730_divided_carry_probes;
+#[path = "review_4740_r1_probes.rs"]
+mod review_4740_r1_probes;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
 #[path = "spline_reanchor_rows.rs"]

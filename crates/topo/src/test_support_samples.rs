@@ -240,6 +240,7 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
             kind: geom::SurfaceKind::Nurbs,
         },
         S::VolumeUncertified,
+        S::InsideOut,
         S::PartialSphereFace { face },
         S::PartialConeFace { face },
         S::PartialTorusFace { face },
@@ -537,6 +538,11 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             limb: geom_brep::Rung3Limb::HullSup,
             margin: MarginDiag::value(7.5e-5),
         },
+        A::Limb {
+            operand: geom::SurfaceKind::Plane,
+            limb: geom_brep::Rung3Limb::HullValue,
+            margin: MarginDiag::value(7.5e-5),
+        },
         A::Escalated {
             operand: Some(geom::SurfaceKind::Cylinder),
             limb: geom_brep::Rung3Limb::HullSup,
@@ -688,6 +694,10 @@ fn props_errors() -> Vec<PropsError> {
         PropsError::SphereLoop {
             what: "props_loop_closed",
         },
+        PropsError::ConeLoop {
+            what: "props_loop_closed",
+        },
+        PropsError::HolesExceedFace,
         PropsError::SenseContradicted,
         PropsError::SenseInverted,
         PropsError::RingWoundWithFace,
@@ -783,27 +793,9 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             tolerance: 0.0,
         },
         OffsetFitError::NonFiniteSample { uv: (0.5, 0.25) },
-        OffsetFitError::BudgetExhausted {
-            budget: 4096,
-            grid: (64, 64),
-            achieved: 3e-6,
-            tolerance: 1e-6,
-            last_round: geom_brep::LastRound::Improved,
-            best: geom_brep::BestBound {
-                bound: 2e-6,
-                grid: (48, 64),
-            },
-        },
-        OffsetFitError::BudgetExhausted {
-            budget: 4096,
-            grid: (64, 64),
-            achieved: 3e-6,
-            tolerance: 1e-6,
-            last_round: geom_brep::LastRound::DidNotImprove,
-            best: geom_brep::BestBound {
-                bound: 2e-6,
-                grid: (48, 64),
-            },
+        OffsetFitError::SeedOverCap {
+            cap: 4096,
+            grid: (65, 64),
         },
         OffsetFitError::SampleCapReached {
             cap: 4096,
@@ -1224,6 +1216,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         },
         ValidationError::CurvedSenseInverted { face },
         ValidationError::NegativeVolume { solid },
+        ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {
             face,
             ring: loop_,
@@ -1463,8 +1456,12 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             _ => "(0.4375, 0.5, 0.25)".to_owned(),
         };
         s.push((
-            label("UndeclaredContact", &contact),
-            ValidationError::UndeclaredContact { contact, witness },
+            label("UnrecordedContact", &contact),
+            ValidationError::UnrecordedContact {
+                contact,
+                witness,
+                margin: Some(geom_core::MarginDiag::value(0.0)),
+            },
         ));
     }
     for declaration in stale_declarations() {

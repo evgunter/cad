@@ -269,7 +269,7 @@ class ValidationFinding:
     A frozen value with no constructor: findings come off a refusal.
     Two that say the same thing compare equal and hash equal.
 
-    `variant` is which validator arm refused (`undeclared_contact`,
+    `variant` is which validator arm refused (`unrecorded_contact`,
     `census_undecidable`, `negative_volume`, …). The other five are
     that arm's payload and are `None` on an arm that carries none, so
     reading one never raises `AttributeError`:
@@ -589,7 +589,6 @@ class StepImportError(PncadError):
     `dangling_reference`, `wrong_entity_type`, `malformed_record`,
     `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
-    `declaration_unresolved`,
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
@@ -677,7 +676,7 @@ class AssemblyError(PncadError):
 
     The two verdict arms are NOT interchangeable. `at_rest` is a
     finding AGAINST the document — a refuted declaration or an
-    undeclared contact. `uncertified` is the declared direction's
+    unrecorded contact. `uncertified` is the declared direction's
     FRONTIER: nothing refuted, nothing undeclared, the census simply
     declined to certify, so nothing was decided about the geometry
     either way. A gather refusal arrives under the GATHER's own tag
@@ -4748,7 +4747,7 @@ class Body:
         contract rather than a wrinkle: `assemble`'s at-rest body
         carries its mates' minted records and passes over its seats,
         while `product`, which gathers the same solids and declares
-        nothing, reports every seat as an undeclared contact. With no
+        nothing, reports every seat as an unrecorded contact. With no
         declarations at all this is simply the strictest rung — the
         census still runs, and on a body with no coincidences it finds
         nothing.
@@ -6348,9 +6347,7 @@ class Attribution:
         """`refuted` (the faces do not meet as declared — a finding
         against the document), `declined` (the census has no certifier
         lane for a face the declaration names, so nothing was decided
-        either way), or `unattributed` (no declaration of ANY document
-        in the tree answers — an UNDECLARED contact, the hard error by
-        definition).
+        either way).
 
         A declaration a document BELOW this one authored answers under
         `carried_refuted` and `carried_declined`: the same two
@@ -6359,9 +6356,9 @@ class Attribution:
         `via` are what say which document and by what path."""
 
     @property
-    def declaration(self) -> Optional[MintedDeclaration]:
-        """The declaration named, `None` for `unattributed`. Under a
-        `carried_*` relation its `mate` is a node of `of`."""
+    def declaration(self) -> MintedDeclaration:
+        """The declaration named. Under a `carried_*` relation its
+        `mate` is a node of `of`."""
 
     @property
     def of(self) -> Optional[str]:
@@ -6394,7 +6391,9 @@ class AtRestFinding:
     own story, which carries its own recourse."""
 
     @property
-    def attribution(self) -> Attribution: ...
+    def attribution(self) -> Optional[Attribution]:
+        """Which declaration the finding names, and in what relation;
+        `None` where it names none."""
 
 class MintRefusal:
     """One mate whose declaration the gather could not mint — a row of
@@ -6983,7 +6982,7 @@ class Coincidence:
     `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
     `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
     `battery_joint`, `battery_support_axis`, `profile_junction`,
-    `vertex_fusion`, `census_at_rest` or `import_anchor`. A
+    `vertex_fusion` or `census_at_rest`. A
     `profile_junction` row is `tangent` or `cusp` between two carriers
     and `same_oriented` where its two pieces continue one carrier; a
     `tangent_witness` row is `tangent_contact` (the outward sides
@@ -7007,8 +7006,10 @@ class Coincidence:
 class CheckFinding:
     """One finding of one check on one subject: a copy a placement
     defines, attributed as `(root, output_ix)` with `root` the placement,
-    or a node of the document (`node`) — the node that decided an
-    unproven coincidence. Whichever it is not answers `None`.
+    a node of the document (`node`) — the node that decided an unproven
+    coincidence — or two copies the at-rest census found touching with
+    no mate between them (`copies`). Whichever it is not answers
+    `None`.
 
     A REPORT about geometry, not a verdict on the program: holding one
     changes nothing. `subject_body` resolves the attribution back to
@@ -7024,15 +7025,21 @@ class CheckFinding:
     @property
     def root(self) -> NodeId | None:
         """The root whose value carries the subject body; `None` for a
-        finding about a node."""
+        finding about a node or two copies."""
     @property
     def output_ix(self) -> int | None:
         """Which output body of that root; `None` for a finding about a
-        node."""
+        node or two copies."""
     @property
     def node(self) -> NodeId | None:
         """The node the finding is about, root or not; `None` for a
-        finding about a root output."""
+        finding about a root output or two copies."""
+    @property
+    def copies(self) -> tuple[tuple[Var, int], tuple[Var, int]] | None:
+        """The two copies the finding is about, earlier in gather order
+        first, each as its placement's output and its member there (as
+        `InterferenceFinding.a` spells one); `None` for any other
+        subject."""
     @property
     def evidence(self) -> CheckEvidence: ...
     def __eq__(self, other: object) -> bool: ...
@@ -7117,7 +7124,7 @@ def subject_body(
     same ones `Value.body` captures — so a subject reached through an
     attribution has the SAME tier-3′ verdict as the same body reached
     through its value, and a declared boolean's own certified seam is
-    not reported here as an undeclared contact."""
+    not reported here as an unrecorded contact."""
 
 def import_step(text: str, *, eps_in: Optional[Length] = None) -> ImportReport:
     """Parse a STEP text with the kernel's importer and adopt its

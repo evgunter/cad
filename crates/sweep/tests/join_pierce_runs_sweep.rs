@@ -1884,7 +1884,7 @@ fn a_run_turned_at_a_shared_vertex_holds_two_siblings() {
 /// order splits a face whose two chord arcs are one clean and one
 /// ring-held, and the clean one builds SOUND. Red when the outer lane
 /// takes a ring-held arc where a clean one exists: the other split
-/// leaves a vertex on a face tier 3 reads as an undeclared contact.
+/// leaves a vertex on a face tier 3 reads as an unrecorded contact.
 #[test]
 fn the_outer_lane_prefers_a_clean_arc_at_an_exact_tie() {
     let runs = corner_pair_runs(&wedge(343.0), &wedge(330.0), frame(direction(0, 1), 0.0));
@@ -2127,7 +2127,13 @@ struct Dbl {
     common: f64,
 }
 
-fn dbl((a, b): (&Corner, &Corner), seed: u64, fib: u32) -> Dbl {
+fn dbl(corners: (&Corner, &Corner), seed: u64, fib: u32) -> Dbl {
+    dbl_pose(corners, seed, fib).unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// [`dbl`], or why the pose is not one: the corners' union refused or
+/// does not pinch at `v`, or the cube holds none of the operand.
+fn dbl_pose((a, b): (&Corner, &Corner), seed: u64, fib: u32) -> Result<Dbl, String> {
     let pose = format!("seed={seed} fib{fib}");
     let v = a.v;
     let x1 = finished(
@@ -2135,14 +2141,12 @@ fn dbl((a, b): (&Corner, &Corner), seed: u64, fib: u32) -> Dbl {
         fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
     );
     let (x2, posed_pieces) = posed(b, seeded_rotation(seed * 31 + 5), v);
-    let pinched = topo::union(&x1, &x2, tol())
-        .unwrap_or_else(|e| panic!("{pose}: the corners' union: {e:?}"));
+    let pinched =
+        topo::union(&x1, &x2, tol()).map_err(|e| format!("{pose}: the corners' union: {e:?}"))?;
     let pinched = pinched.body().expect("the union is not empty").body.clone();
-    assert_eq!(
-        vertices_at(&pinched, v).len(),
-        2,
-        "{pose}: the operand's pinch"
-    );
+    if vertices_at(&pinched, v).len() != 2 {
+        return Err(format!("{pose}: the operand does not pinch at v"));
+    }
     let mut pieces: Pieces = a.pieces.iter().map(|p| polygon_prism(p)).collect();
     pieces.extend(posed_pieces);
     let f = frame(fibonacci(fib, 600), 0.4);
@@ -2154,18 +2158,92 @@ fn dbl((a, b): (&Corner, &Corner), seed: u64, fib: u32) -> Dbl {
         .iter()
         .map(|p| convex_volume(&[p.clone(), planes.clone()].concat()))
         .sum();
-    assert!(
-        common > 1e-3,
-        "{pose}: the cube holds some of the operand: {common}"
-    );
-    Dbl {
+    if common <= 1e-3 {
+        return Err(format!(
+            "{pose}: the cube holds none of the operand: {common}"
+        ));
+    }
+    Ok(Dbl {
         pinched,
         pieces,
         cube,
         planes,
         volume,
         common,
+    })
+}
+
+/// **The `dbl` battery**: [`dbl`]'s pinched operand against its cube
+/// for two corner pairs, six seeds and every tenth of the 600
+/// Fibonacci directions, every op in both orders. One [`outcome`] line
+/// per run with its cone and mesh finding (as
+/// [`a_pinched_operands_pierces_of_one_point_mint_one_ring`] reads
+/// them), for a diff between two trees.
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn dbl_battery() {
+    for (names, (a, b)) in [
+        ("asym asym", (asym(), asym())),
+        ("Ltop asym", (ltop(), asym())),
+    ] {
+        for seed in [15, 225, 268, 426, 2296, 2959] {
+            for fib in (0..600).step_by(10) {
+                let Ok(d) = dbl_pose((&a, &b), seed, fib) else {
+                    continue;
+                };
+                let cube_pieces = vec![d.planes.clone()];
+                let runs = every_op(
+                    ["xy", "yx"],
+                    (&d.pinched, d.volume),
+                    (&d.cube, SIDE.powi(3)),
+                    d.common,
+                );
+                for (tag, r, want) in runs {
+                    let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+                        let cones = tag_cones(&tag, "xy", (&d.pieces, &cube_pieces));
+                        cone_finding(&bb.body, a.v, cones).or_else(|| {
+                            match mesh::tessellate(&bb.body, 0.05, tol())
+                                .map(|m| mesh::validate::check_mesh(&m))
+                            {
+                                Ok(Ok(())) => None,
+                                other => Some(format!("no mesh: {other:?}")),
+                            }
+                        })
+                    });
+                    println!(
+                        "{names} seed={seed} fib{fib} {tag}: {} | {finding:?}",
+                        outcome(r, want, tol())
+                    );
+                }
+            }
+        }
     }
+}
+
+/// **One [`dbl_battery`] line, replayed**: `DBL_POSE="asym 268 100 yx S"`
+/// (the first corner, `asym` or `Ltop`; the seed; the direction; the
+/// line's tag) prints its [`outcome`].
+#[test]
+#[ignore = "replay of one dbl_battery line; set DBL_POSE"]
+fn dbl_one() {
+    let spec = std::env::var("DBL_POSE").expect("DBL_POSE, e.g. \"asym 268 100 yx S\"");
+    let [first, seed, fib, order, op] = spec.split_whitespace().collect::<Vec<_>>()[..] else {
+        panic!("DBL_POSE: {spec:?}");
+    };
+    let a = if first == "Ltop" { ltop() } else { asym() };
+    let d = dbl_pose((&a, &asym()), seed.parse().unwrap(), fib.parse().unwrap())
+        .unwrap_or_else(|e| panic!("{e}"));
+    let tag = format!("{order} {op}");
+    let (_, r, want) = every_op(
+        ["xy", "yx"],
+        (&d.pinched, d.volume),
+        (&d.cube, SIDE.powi(3)),
+        d.common,
+    )
+    .into_iter()
+    .find(|(t, ..)| *t == tag)
+    .unwrap_or_else(|| panic!("no op {tag:?}"));
+    println!("{spec}: {}", outcome(r, want, tol()));
 }
 
 /// **The output stage's join leaves a pinch's cones their vertices**
@@ -2176,7 +2254,7 @@ fn dbl((a, b): (&Corner, &Corner), seed: u64, fib: u32) -> Dbl {
 /// join leaves it: the union builds `SOUND` at the clipped volume, with
 /// two vertices at `v` and no joinable vertex. Red if the join kills it:
 /// the joined edge runs through the other vertex, and tier 3′ refuses
-/// `UndeclaredContact { VertexOnEdge }` at `v`.
+/// `UnrecordedContact { VertexOnEdge }` at `v`.
 #[test]
 fn the_join_stage_leaves_a_pinchs_cones_their_vertices() {
     let v = asym().v;
@@ -2219,25 +2297,21 @@ fn the_join_stage_leaves_a_pinchs_cones_their_vertices() {
     );
 }
 
-/// **A pinched operand's pierces weld only where their corners nest.**
-/// The operand is two [`asym`] corners touching only at `v = (1, 1, 1)`,
-/// one turned by a seeded rotation (their union, two vertices at `v`);
-/// the cube's near face holds `v`, the cube along Fibonacci direction
-/// `fib` of 600 and turned 0.4 about it (PR 4139's review r1, set
-/// `dbl`). One corner crosses the face in two sectors and the other in
-/// one between them. The face then holds a copy of the first corner's
-/// pierce vertex per sector pair, and the second's pierce, on one point,
-/// each with a corner of the face; the second's edges leave `v` inside
-/// one copy's corner only (`finish::corners_nest`). Every op in both
-/// orders builds at the pieces' clipped volume, holds one vertex per
-/// cone at `v`, and meshes: the unions and cube ∖
-/// operand `SOUND`; the rest fail tier 3′ only, on the vertices the cones
-/// leave at `v`, a contact no record names. Red if the weld
-/// joins the second pierce to the other copy: its fan then reads two
-/// cones where cube ∖ operand has one, and the split's loops wind
-/// inside out (`LoopRoleInverted`).
+/// **A pinched operand's pierces of one face at one point mint one
+/// ring.** The operand is two [`asym`] corners touching only at
+/// `v = (1, 1, 1)`, one turned by a seeded rotation (their union, two
+/// vertices at `v`); the cube's near face holds `v`, the cube along
+/// Fibonacci direction `fib` of 600 and turned 0.4 about it (PR 4139's
+/// review r1, set `dbl`). One corner crosses the face in two sectors
+/// and the other in one between them, so the face's ring at `v` holds a
+/// strut per run of both, nested by their germs together
+/// (`vtxfac::mint_ring`), all on one point key. Every op in both orders
+/// builds `SOUND` at the pieces' clipped volume, holds one vertex per
+/// cone at `v`, and meshes. Red if each pierce mints its own ring: the
+/// face then holds two vertices at `v` whose corners cross, and the
+/// union fails tier 3′ there.
 #[test]
-fn a_pinched_operands_pierces_weld_where_their_corners_nest() {
+fn a_pinched_operands_pierces_of_one_point_mint_one_ring() {
     for (seed, fib) in [(268, 11), (15, 11), (426, 6)] {
         let pose = format!("seed={seed} fib{fib}");
         let v = asym().v;
@@ -2269,14 +2343,7 @@ fn a_pinched_operands_pierces_weld_where_their_corners_nest() {
                 })
             });
             let line = outcome(r, want, tol());
-            if ["xy U", "yx U", "yx S"].contains(&tag.as_str()) {
-                assert!(line.starts_with("OK SOUND"), "{pose} {tag}: {line}");
-            } else {
-                assert!(
-                    line.starts_with("OK BAD t2=true t3p=false cert=true operand=true"),
-                    "{pose} {tag}: {line}"
-                );
-            }
+            assert!(line.starts_with("OK SOUND"), "{pose} {tag}: {line}");
             assert_eq!(finding, Some(None), "{pose} {tag}");
         }
     }
@@ -2291,7 +2358,7 @@ fn a_pinched_operands_pierces_weld_where_their_corners_nest() {
 /// the zips the two cones' vertices move onto one key.
 /// Both unions build `SOUND` at the clipped volume, with one vertex per
 /// cone at `v`, on one key, and mesh. Red without the move: tier 3′
-/// refuses `UndeclaredContact { VertexVertex }` at `v`, and the output
+/// refuses `UnrecordedContact { VertexVertex }` at `v`, and the output
 /// stage's join, which reads the pinch from its keys, kills a cone's
 /// vertex (one vertex for two cones; the mesher refuses or panics).
 /// The unions rebind at least one class (a union whose zips already
@@ -2346,9 +2413,7 @@ fn a_pinchs_cones_share_one_point_key() {
 /// vertex, in both operand orders. The ring's corners are one cyclic
 /// order whichever region roots it, and every root builds `SOUND` at the
 /// clipped volume. On the four `Ltop asym` poses the leaf region inside
-/// run 1's chord mints run 1's strut first, and a pierce the weld
-/// already joined then meets another copy of the same pierce, whose
-/// corners no corner of the joined vertex holds: the pair stays apart.
+/// run 1's chord mints run 1's strut first.
 #[test]
 fn a_pinchs_unions_from_every_root_of_the_ring() {
     for (names, (a, b), seed, fib) in [

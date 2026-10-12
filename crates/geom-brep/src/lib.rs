@@ -146,7 +146,7 @@ pub use offset::{
     ConeOffset, Nappe, OffsetDistanceError, OffsetError, offset_distance, offset_surface,
 };
 pub use offset_fit::{
-    BestBound, LastRound, OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface,
+    BestBound, OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface,
     approx_offset_surface_at, certify_offset, certify_offset_at, certify_offset_over,
     certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
@@ -156,11 +156,11 @@ pub use pcurve::{
 };
 pub use pcurve_cache::{
     BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage,
-    FramedCarrier, Grazer, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS, NoChartSup, Pcurve,
-    PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, ProjectedChart,
-    ProjectedImage, SectorChannel, SpiricImage, UncoveredClass, chart_iso_family, chart_pcurve,
-    chart_pcurve_over, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
-    whole_period_count, whole_periods,
+    FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS,
+    NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
+    PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, UncoveredClass,
+    chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
+    chart_stretch_sup_v, whole_period_count, whole_periods,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

@@ -219,10 +219,12 @@ pub enum CertCheck {
     /// the band it shows that bound cannot clear, and like it it is a
     /// bound on the miss, never the miss.
     PlaneNurbsHullValue,
-    /// Intersection, limb 2 against an analytic operand: the operand's
-    /// implicit form at the carrier, linearized to metres, at a break of
-    /// limb 2's composite — limb 1's own residual, measured where the
-    /// composite's bound did not clear.
+    /// Intersection, limb 2 against an analytic operand: the carrier's
+    /// residual against it at a break of limb 2's composite — limb 1's
+    /// own residual, measured where the composite's bound did not clear:
+    /// the implicit form linearized to metres at the search, and a
+    /// certified lower bound on the carrier's distance from the surface
+    /// at the edge certificate (`crate::analytic_rung3`).
     AnalyticBreakResidual,
     /// Intersection, analytic rung 3: the carrier's certified distance
     /// bound from an analytic operand over the edge's whole interval
@@ -1326,7 +1328,11 @@ impl<T: Decide> EdgeCurve<T> {
     /// 3. Endpoint pinning: `|carrier(t₀) − start| ≤ ε`,
     ///    `|carrier(t₁) − end| ≤ ε`.
     /// 4. Per-sample description residuals, samples i = 0…8 in order
-    ///    (per-sample check order as listed in [`CertCheck`]):
+    ///    (per-sample check order as listed in [`CertCheck`]). Every
+    ///    sample is a carrier point, the two ends included: the
+    ///    certificate bounds the carrier (D4 ¶2), and a vertex on the
+    ///    surfaces does not put the carrier's end, up to ε from it by
+    ///    check 3, on them.
     ///    - `Intersection`: implicit residual vs `s1`, then `s2`; at
     ///      interior samples (i = 1…7) the transversality margin
     ///      (definitely transverse required), metered through the

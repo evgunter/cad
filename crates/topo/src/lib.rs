@@ -174,6 +174,7 @@ pub(crate) mod invalid_margin;
 #[cfg(test)]
 pub(crate) mod iso;
 pub mod joint;
+pub(crate) mod lineage;
 pub(crate) mod live;
 // The one statement of a stored planar loop's signed winding, shared by
 // the merge's role assigner and tier 3's check 6. Non-doc comment for
@@ -299,6 +300,7 @@ pub mod test_support {
     // purpose — a guard that reached for the constant the builder uses
     // would be comparing that constant against itself.
     pub use crate::null::with_ring_root;
+    pub use crate::props::{FaceTerm, mass_properties_with_face_terms};
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
         StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_both_rules, brick,
@@ -853,6 +855,7 @@ pub use boolean::{
     point_in_solid_faces, point_in_solid_of, subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
+pub use lineage::Divisions;
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
@@ -866,7 +869,10 @@ pub use chord_join::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
-pub use census::{CensusStrategy, CensusTrace, SweepPairs, census_rest_decision};
+pub use census::{
+    CensusStrategy, CensusTrace, RecordedAtRest, SweepPairs, census_contact_row,
+    census_rest_decision, record_at_rest,
+};
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{

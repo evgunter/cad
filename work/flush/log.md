@@ -265,3 +265,54 @@ the new census. The track's load is 31/32, back under budget.
 - **Alternative ruled out:** a standing union that keeps the block's description would hold no in-band pair. The clauses above rule it out.
 - **INTENT's sibling family:** INTENT's in-band glue-verdict row now carries it. Every k = 0.5 pose refuses `Coincidence(Carriers)` on a residue margin of 1e-16 to 1e-26, so neither "exact Zero" nor "the smaller offer" picks a useful offer there.
 — (FLUSH orchestrator)
+
+## 2026-10-11 — six glue rows arrive from INTENT's split
+
+INTENT split into successors (Ev approved the division in chat, 2026-10-11). Six topo boolean glue rows moved here by `git mv`, keeping ids and bodies, because FLUSH's charter is declared contact at the join:
+- `a-face-pair-row-only-where-its-decision-shaped-the-result`
+- `a-covered-arc-lying-on-a-carrier-places-its-ends-with-no-margin`
+- `an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence` (the in-band sibling family above)
+- `boolean-given-pairs-glue-unmeasured-for-any-rust-caller`
+- `the-glue-door-re-witnesses-a-declared-tangent-pair`
+- `kept-boundary-undecided-has-no-live-fixture`
+
+None waits on an INTENT stage. A row that turns out to need one moves back. — (INTENT orchestrator)
+
+## 2026-10-11 — the E tail merges (PR 4714)
+
+- **Review:** single FULL. The PR claims refactors with no behaviour change, adds a new closed-form oracle, and moves about 3000 battery lines. Verdict APPROVE-WITH-FIXES, with three MINORs.
+- **The MINORs, all taken:**
+  - The shared judge's volume test got easier as the certificate degraded. Now the closed form must lie within 1e-7 of the certified enclosure, and the pad itself is held to a budget.
+  - The D-shape poses had a closed form; they are now judged (3592 UNJUDGED lines → SOUND).
+  - A sixth inline spelling of the join escalation was left behind; it now goes through `join_escalate`.
+- **`Turn::facing`** is the one decision now, with no re-decide.
+- **Closed:** five rows.
+- **Re-priced:** `two-pinch-poses-…` is now an M proof task, not a design fork. Pose 1 asks whether a cross-germ tie between pairs that share no germ can change the greedy matching.
+- **Merged over:** main's `mass_props` red (NURBS's row).
+- **An ε 1e-6 `near_tangent` red** the lane saw on main is CLEAVE's pin. Main fixed it in `5753a24` after the lane's base.
+— (FLUSH orchestrator)
+
+## 2026-10-12 — the pre-zip weld retires (PR 4728)
+
+- **The dual review.** H, concurrent pair, blinding byte 186; row `docs/dual-review-log/rows/PR-4728.md`. Both reviewers raised one MAJOR: the ring's shared point key came from a value decision that nothing recorded, and the census read it as structural. Because both raised it, the tally is 0.
+- **The lane stopped with three final states.** I ruled B:
+  - **A (not taken):** distinct keys plus a record. It would revise PR 4057.
+  - **B (taken):** one key per pinch (PR 4057), with the value decision recorded at the door as a `VertexFusion` row and reported by the lint. This is what D10's coincidence paragraph asks for.
+  - **C (not taken):** structural grouping only. It contradicts "glues it all the same" and refuses about 2120 lines.
+
+  No ratified text changes, so this was not an `[ev]` fork.
+- **Confirmation round.** Both reviewers confirmed the fix pass, with nits; the nits were taken.
+- **Rows.** Closed: the pre-zip weld, and the hole weld (dissolved with `Joint::Hole`). The seams row is reopened: its vertex-vertex pinches have no pierce. New P2: the 36 `ZipCorrespondence` lines.
+- **Filed on INTENT** (no fix here): a value glue into one vertex records no row (761 of 791 ties). That rule predates this PR.
+- **Class.** The carry fixes in `boolean/ops.rs` keep minting copies of the census's own reads:
+  - PR 4650: a second lineage walker and a third containment ask;
+  - PR 4737: third copies of the edge-edge parallel, crossing and span-end reads.
+
+  Each fix pass removed its copies. A carry lane is now briefed: the census's read is the one home; call it.
+— (FLUSH orchestrator)
+
+## 2026-10-12 — wave 5 dispatched
+
+- **The pinch residue** (`flush/pinch-residue`) has three P2 rows on one ground: the 36 cube-less `ZipCorrespondence` lines, the curved-notch `JoinDesync`, and the vertex-vertex pinches whose cones stay on separate keys. The two refusals are to be root-caused before anything changes. The seams row is weighed against ruling B (PR 4728). If it needs a choice that D10, PR 4057 and ruling B leave open, the lane stops and reports. Three M rows together are reviewed as H: a concurrent dual pair.
+- **The two-pinch pose 1 proof** (`flush/two-pinch-pose-proof`) asks one question: can a cross-germ tie in `join::find_match` change the greedy matching? If it cannot, the escalation is spurious and the pose builds. If it can, a pose that shows it makes the escalation honest.
+— (FLUSH orchestrator)

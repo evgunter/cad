@@ -411,7 +411,7 @@ impl MassProperties {
 /// kernel's own contract is that 3′ ≡ tier 3 plus the census actually
 /// run, which is the STRICTEST rung of the ladder — so a door that
 /// mints a body without records can only make this gate refuse
-/// (`UndeclaredContact`), never falsely pass.
+/// (`UnrecordedContact`), never falsely pass.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Body {
@@ -420,8 +420,8 @@ pub(crate) struct Body {
 }
 
 impl Body {
-    /// A body with no declared contacts — every door but the two that
-    /// have records to carry (an evaluated value, and `assemble`).
+    /// A body with no contact records — every door but those that have
+    /// records to carry (an evaluated value, `assemble`, an import).
     pub(crate) fn plain(inner: Arc<topo::Body<f64>>) -> Self {
         Self {
             inner,
@@ -429,8 +429,9 @@ impl Body {
         }
     }
 
-    /// A body with the declarations its producer minted for it.
-    pub(crate) fn declared(
+    /// A body with the contact records its producer carries, each citing
+    /// the decision that backs it.
+    pub(crate) fn recorded(
         inner: Arc<topo::Body<f64>>,
         contacts: Arc<topo::ContactRecords>,
     ) -> Self {
@@ -563,7 +564,7 @@ impl Body {
     /// certified against THIS body's own declared contacts.
     ///
     /// The census is a diff in both directions. Every coincidence it
-    /// finds must be backed by a declaration (`UndeclaredContact`
+    /// finds must be backed by a declaration (`UnrecordedContact`
     /// otherwise — no scan-to-bless) and every declaration must be
     /// geometrically confirmed (`StaleContactDeclaration` otherwise).
     /// There is no contacts argument because a body already carries
@@ -925,7 +926,7 @@ pub(crate) struct Value {
     /// The value's OWN contact-record channel (ASM-R2b D-1): what
     /// `instantiate` carried in from a part. A boolean's records ride
     /// its payload instead, and the two homes reconcile at
-    /// [`Value::declared_body`] — deliberately the same reconciliation
+    /// [`Value::recorded_body`] — deliberately the same reconciliation
     /// `editor_core::product::sources_of` makes, because a Python
     /// caller reading a body off a value and the gather reading the
     /// same body must not disagree about the contacts it carries.
@@ -934,20 +935,20 @@ pub(crate) struct Value {
 }
 
 impl Value {
-    /// One of this value's bodies with the declarations that body
+    /// One of this value's bodies with the contact records that body
     /// carries — `sources_of`'s rule, restated at the boundary.
     ///
     /// Multi-output payloads carry no records (the `OpOut` invariant:
     /// "output body 0" names nothing there), so `Instances` and
     /// `Split` halves are plain — no home to read from, and none is
     /// invented.
-    fn declared_body(&self, body: &Arc<topo::Body<f64>>) -> Body {
+    fn recorded_body(&self, body: &Arc<topo::Body<f64>>) -> Body {
         match &self.payload {
             d::ValuePayload::Body(_) => {
-                Body::declared(Arc::clone(body), Arc::clone(&self.contacts))
+                Body::recorded(Arc::clone(body), Arc::clone(&self.contacts))
             }
             d::ValuePayload::Boolean(d::BooleanValue::Body { contacts, .. }) => {
-                Body::declared(Arc::clone(body), Arc::clone(contacts))
+                Body::recorded(Arc::clone(body), Arc::clone(contacts))
             }
             _ => Body::plain(Arc::clone(body)),
         }
@@ -970,9 +971,9 @@ impl Value {
     /// other kind, and for an empty Boolean.
     fn body(&self, py: Python<'_>) -> PyResult<Body> {
         match &self.payload {
-            d::ValuePayload::Body(body) => Ok(self.declared_body(body)),
+            d::ValuePayload::Body(body) => Ok(self.recorded_body(body)),
             d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => {
-                Ok(self.declared_body(body))
+                Ok(self.recorded_body(body))
             }
             d::ValuePayload::Boolean(d::BooleanValue::Empty) => Err(eval_err(
                 py,
@@ -992,7 +993,7 @@ impl Value {
     /// Every body this value denotes: one for `Body`/`Boolean`, the
     /// whole list for `Instances`, both sides for a `Split`.
     fn bodies(&self) -> Vec<Body> {
-        let wrap = |body: &Arc<topo::Body<f64>>| self.declared_body(body);
+        let wrap = |body: &Arc<topo::Body<f64>>| self.recorded_body(body);
         let side = |s: &d::SplitSide<f64>| match s {
             d::SplitSide::Body(body) => Some(wrap(body)),
             d::SplitSide::Empty => None,
@@ -2242,9 +2243,7 @@ impl ImportReport {
 /// a check restated here.
 ///
 /// Its options are a literal naming every field, held to
-/// `ImportOptions` by the surface census's options roster — which is
-/// also where `declared_contacts`, the field this door does not take,
-/// carries its reason.
+/// `ImportOptions` by the surface census's options roster.
 #[pyfunction]
 #[pyo3(signature = (text, *, eps_in = None))]
 pub(crate) fn import_step(
@@ -2256,7 +2255,6 @@ pub(crate) fn import_step(
     let defaults = pncad::step_import::ImportOptions::default();
     let options = pncad::step_import::ImportOptions {
         eps_in: eps_in.map(|e| e.0.meters()).or(defaults.eps_in),
-        declared_contacts: defaults.declared_contacts,
         // This door asks for no chart-coherence examination, because
         // `ImportReport` has no field to report one on: asking would
         // measure the body and drop the measurement. Written as the
@@ -2279,10 +2277,13 @@ pub(crate) fn import_step(
             // examination, and `None` means NOT ASKED — which is the
             // one thing an empty report would not say.
             coherence: _,
-            // Empty by construction: the options declare no anchor.
+            contacts,
+            // The rows `contacts` cite: the body carries its records,
+            // and the rows are the import's own decisions, which no
+            // document reads through this door.
             coincidences: _,
         }) => Ok(ImportReport {
-            body: Body::plain(Arc::new(body)),
+            body: Body::recorded(Arc::new(body), Arc::new(contacts)),
             enclosure: enclosure.map(MassProperties::from),
             eps_in,
             normalizations: normalizations
@@ -2639,7 +2640,7 @@ impl Coincidence {
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
     /// `tangent_witness`, `coaxial_sphere`, `split_on`, `battery_turn`,
     /// `battery_joint`, `battery_support_axis`, `profile_junction`,
-    /// `vertex_fusion`, `census_at_rest` or `import_anchor`.
+    /// `vertex_fusion` or `census_at_rest`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

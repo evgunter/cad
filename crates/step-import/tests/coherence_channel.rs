@@ -60,7 +60,7 @@ fn examining() -> ImportOptions {
 /// examination asked for.
 fn own_examined(name: &str) -> (Body<f64>, CoherenceReport) {
     let text = fixture(name, "step");
-    match import_step(&text, &own_import_options(name, true), Tol::witness()) {
+    match import_step(&text, &own_import_options(true), Tol::witness()) {
         Ok(StepImport::Solid {
             body, coherence, ..
         }) => (
@@ -360,7 +360,7 @@ fn the_import_corpora_are_quiet_and_the_only_lane_boundary_is_the_trimmed_face()
         let text = fixture(name, "step");
         visit(
             format!("own/{name}"),
-            import_step(&text, &own_import_options(name, true), tol),
+            import_step(&text, &own_import_options(true), tol),
         );
     }
     for name in FREECAD_FIXTURES {
@@ -538,8 +538,7 @@ fn asking_for_the_examination_changes_nothing_about_acceptance() {
     let tol = Tol::witness();
     for name in ["cube", "cut_cylinder"] {
         let text = fixture(name, "step");
-        let one = |examine: bool| match import_step(&text, &own_import_options(name, examine), tol)
-        {
+        let one = |examine: bool| match import_step(&text, &own_import_options(examine), tol) {
             Ok(StepImport::Solid {
                 body, enclosure, ..
             }) => {

@@ -107,7 +107,7 @@ fn subject_entity(subject: &CensusSubject) -> Option<&EntityId> {
 /// [`census_subject`]'s reading, at the other payload.
 fn census_contact(err: &ValidationError) -> Option<&CensusContact> {
     match err {
-        ValidationError::UndeclaredContact { contact, .. } => Some(contact),
+        ValidationError::UnrecordedContact { contact, .. } => Some(contact),
         _ => None,
     }
 }

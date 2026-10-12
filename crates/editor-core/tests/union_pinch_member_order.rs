@@ -28,7 +28,7 @@
 //!   pierces stay in two faces and so stay two vertices;
 //! - the plate against a slab the two blocks were cut from, in all six
 //!   ops: the pierces survive on two fragments of the plate's top, or on
-//!   one, and are welded only in the second case.
+//!   one, and are one vertex only in the second case.
 //!
 //! Each row also reads the result's contact record, its tier-3′ verdict
 //! and `check_mesh` on its tessellation: every result passes 3′, every
@@ -261,7 +261,7 @@ struct Outcome {
     shape: Shape,
     record: Record,
     /// The tier-3′ verdict over the body and its record, each error by
-    /// its kind and, for an undeclared contact, its census kind and
+    /// its kind and, for an unrecorded contact, its census kind and
     /// witness point.
     verdict: Result<(), Vec<(String, Option<Point>)>>,
     /// `mesh::validate::check_mesh` on the tessellation, by error kind.
@@ -313,8 +313,10 @@ fn checked(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str, volume: f64) -> O
         let mut es: Vec<(String, Option<Point>)> = es
             .iter()
             .map(|e| match e {
-                topo::ValidationError::UndeclaredContact { contact, witness } => (
-                    format!("UndeclaredContact {}", kind(&format!("{contact:?}"))),
+                topo::ValidationError::UnrecordedContact {
+                    contact, witness, ..
+                } => (
+                    format!("UnrecordedContact {}", kind(&format!("{contact:?}"))),
                     witness_point(witness),
                 ),
                 other => (kind(&format!("{other:?}")).to_owned(), None),
@@ -345,31 +347,90 @@ fn top() -> Point {
     micron(MEET[0], MEET[1], MEET[2])
 }
 
-/// Where a pair boolean clips a carried contact at the pinch and keeps
-/// the pierce as two vertices, recording nothing for it.
-const PIERCE_UNRECORDED: &str = "work/wire/a-boolean-clipping-a-carried-contact-at-a-pinch-records-no-contact-for-the-pierce.md";
+/// Asserts `o`, node `id`'s result, records its two vertices at the
+/// pinch as a pair, and that the node recorded a `VertexFusion`: the
+/// ring that served both blocks' pierces of the plate's top grouped
+/// them by value (`topo` `vtxfac::ring_groups`).
+fn ring_fusion_recorded(ev: &Evaluation<f64>, id: RecipeNodeId, o: &Outcome, what: &str) {
+    assert!(
+        o.record.vv.contains(&[top(), top()]),
+        "{what}: a record of the two vertices at the pinch: {:?}",
+        o.record.vv
+    );
+    let value = ev.value(id).expect("the node evaluated");
+    assert!(
+        value
+            .coincidences
+            .iter()
+            .any(|c| c.site == topo::DecisionSite::VertexFusion),
+        "{what}: the ring's grouping recorded: {:?}",
+        value.coincidences
+    );
+}
 
-/// Asserts `o` is refused at 3′ by exactly an edge-edge overlap and a
-/// vertex-vertex contact at the pinch, the pair [`PIERCE_UNRECORDED`]
-/// leaves unrecorded.
-fn pierce_unrecorded(o: &Outcome, what: &str) {
-    let Err(es) = &o.verdict else {
-        panic!("{what}: passes 3′ — {PIERCE_UNRECORDED} may be fixed; assert Ok instead")
+/// Asserts node `id`'s result holds one overlap of two edges along the
+/// blocks' contact line x = 1.5, y = 1, and that its end away from the
+/// pinch is backed: the two edges end at one vertex there, or one ends
+/// on the other's interior and a vertex-on-edge record names that vertex
+/// and edge. The end at the pinch is the pair [`ring_fusion_recorded`]
+/// reads.
+fn far_end_backed(ev: &Evaluation<f64>, id: RecipeNodeId, what: &str) {
+    let body = body_of(ev, id);
+    let none = ContactRecords::default();
+    let contacts = match &ev.value(id).expect("the node evaluated").payload {
+        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => &**contacts,
+        _ => &none,
     };
-    let kinds: Vec<&str> = es.iter().map(|(k, _)| k.as_str()).collect();
-    assert_eq!(
-        kinds,
-        [
-            "UndeclaredContact EdgeEdgeOverlap",
-            "UndeclaredContact VertexVertex"
-        ],
-        "{what}: refused at 3′ by other than the unrecorded pierce ({PIERCE_UNRECORDED}): {es:?}"
-    );
-    assert_eq!(
-        es[1].1,
-        Some(top()),
-        "{what}: the vertex pair lies at the pinch"
-    );
+    let z = |v: topo::VertexKey| {
+        body.vertex_points()
+            .find(|&(k, _)| k == v)
+            .map(|(_, p)| p)
+            .expect("a vertex of the body")
+    };
+    let on_line = |v| {
+        let p = z(v);
+        (p.x - 1.5).abs() < 1e-9 && (p.y - 1.0).abs() < 1e-9
+    };
+    let line: Vec<(topo::EdgeKey, [topo::VertexKey; 2])> = body
+        .edges()
+        .filter_map(|(e, d)| {
+            let ends = [
+                body.get_half_edge(d.he_plus)?.start,
+                body.get_half_edge(d.he_minus)?.start,
+            ];
+            (ends[0] != ends[1] && ends.iter().all(|&v| on_line(v))).then_some((e, ends))
+        })
+        .collect();
+    let span = |ends: [topo::VertexKey; 2]| {
+        let (a, b) = (z(ends[0]).z, z(ends[1]).z);
+        (a.min(b), a.max(b))
+    };
+    let mut overlaps = Vec::new();
+    for (i, &(e1, ends1)) in line.iter().enumerate() {
+        for &(e2, ends2) in &line[i + 1..] {
+            let ((lo1, hi1), (lo2, hi2)) = (span(ends1), span(ends2));
+            if hi1.min(hi2) - lo1.max(lo2) > 1e-9 {
+                overlaps.push(((e1, ends1), (e2, ends2), lo1.max(lo2), hi1.min(hi2)));
+            }
+        }
+    }
+    let [((e1, ends1), (e2, ends2), lo, hi)] = overlaps[..] else {
+        panic!("{what}: one overlap along the contact line: {overlaps:?}")
+    };
+    let far = if (hi - 1.0).abs() < 1e-9 { lo } else { hi };
+    let at = |ends: [topo::VertexKey; 2]| ends.into_iter().find(|&v| (z(v).z - far).abs() < 1e-9);
+    match (at(ends1), at(ends2)) {
+        (Some(v), Some(w)) => assert_eq!(v, w, "{what}: the overlap's far end is one vertex"),
+        (Some(v), None) => assert!(
+            contacts.vertex_edge().any(|r| r == (v, e2)),
+            "{what}: a vertex-on-edge record backs the overlap's far end"
+        ),
+        (None, Some(w)) => assert!(
+            contacts.vertex_edge().any(|r| r == (w, e1)),
+            "{what}: a vertex-on-edge record backs the overlap's far end"
+        ),
+        (None, None) => panic!("{what}: neither edge ends at the overlap's far end"),
+    }
 }
 
 /// Every order of `0..n`.
@@ -519,7 +580,7 @@ fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
 /// builds the member-order body, a subtraction keeps the pinched top
 /// in two faces, and an intersection keeps the two footprints apart.**
 #[test]
-fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
+fn the_plate_against_the_joined_blocks_builds_in_every_op() {
     let (doc, m) = pinch(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
     let [plate, p1, p2] = m[..] else {
         panic!("the pinch fixture is three members")
@@ -572,7 +633,9 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     assert_eq!(tops, 2, "plate ∖ blocks: faces on the top");
 
     let o = checked(&ev, footprints, "plate ∩ blocks", NOTCHES);
-    pierce_unrecorded(&o, "plate ∩ blocks");
+    assert_eq!(o.verdict, Ok(()), "plate ∩ blocks: 3′");
+    ring_fusion_recorded(&ev, footprints, &o, "plate ∩ blocks");
+    far_end_backed(&ev, footprints, "plate ∩ blocks");
     assert_eq!(o.manifold, Ok(()), "plate ∩ blocks: check_mesh");
     let s = o.shape;
     assert_eq!(
@@ -590,10 +653,10 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
 ///   pierces stay two vertices, the body the contact builds.
 /// - `X` minus the plate, and either intersection, keep the piece the
 ///   slab covers, which is one fragment running through both pierces:
-///   they are welded into one vertex. In the intersection the contact
+///   they are one vertex. In the intersection the contact
 ///   then runs between one vertex at each end, as two coincident edges.
 #[test]
-fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
+fn a_slab_holding_the_contact_is_one_vertex_only_on_one_fragment() {
     let doc = ProfileDoc::empty_derived("union_pinch", Tol::witness());
     let (doc, slab) = block(doc, (-1.0, 4.0), (-1.0, 3.0), 0.5, 2.5);
     let (doc, p1) = block(doc, (1.0, 1.5), (-2.0, 1.0), 0.3, 2.0);
@@ -674,12 +737,13 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
     let mut outcomes = Vec::new();
     for (&(what, op, _, _, volume, counts, pinch), &id) in rows.iter().zip(&ids) {
         let o = checked(&ev, id, what, volume);
-        // X's own contact record carries into each result; where the op
-        // keeps the pierce as two vertices it records nothing for them.
+        // X's own contact record carries into each result. Where the op
+        // keeps the pierce as two vertices, a record of the pair cites the
+        // fusion the ring serving both pierces decided.
+        assert_eq!(o.verdict, Ok(()), "{what}: 3′");
         if pinch == 2 {
-            pierce_unrecorded(&o, what);
-        } else {
-            assert_eq!(o.verdict, Ok(()), "{what}: 3′");
+            ring_fusion_recorded(&ev, id, &o, what);
+            far_end_backed(&ev, id, what);
         }
         if op == BooleanOp::Intersect {
             // Two L-prisms touching along the contact line, which runs

@@ -277,6 +277,8 @@ pub enum Placed {
     Transform(RecipeNodeId),
     /// A pattern's (or a placed union's) instance `i`.
     Instance(RecipeNodeId, u32),
+    /// A world placement's copy.
+    World(RecipeNodeId),
 }
 
 /// **What separates an unproven row's two constructions**: each cell's
@@ -383,8 +385,7 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
             "a blend's two supports read as sharing the axis its band is minted on"
         }
         topo::DecisionSite::VertexFusion => "a vertex its margin read on another operand's cell",
-        topo::DecisionSite::CensusAtRest => "two placed faces the at-rest census read as one",
-        topo::DecisionSite::ImportAnchor => "two imported vertices an anchor read as one",
+        topo::DecisionSite::CensusAtRest => "two cells at rest the census read as one",
         topo::DecisionSite::ProfileJunction => "a profile junction no constructor made",
     }
 }
@@ -557,7 +558,7 @@ fn operation<P>(
 
 /// **The read a carried segment at `at` names its entity in**, by the
 /// segment and the node together: a `From`'s own read; a placing
-/// segment (`Instance`) adds its placement.
+/// segment (`Instance`, `Placed`) adds its placement.
 ///
 /// # Errors
 ///
@@ -579,6 +580,10 @@ fn carried_read<P>(
             Ok(*input)
         }
         (RoleSeg::Instance { .. }, _) => Err(misplaced),
+        (RoleSeg::Placed { .. }, Node::PlaceInWorld { body, .. }) => {
+            placed.push(Placed::World(at));
+            Ok(body.read)
+        }
         // Every other carried segment is a split's, carried from its
         // target.
         (_, Node::Split { target, .. }) => Ok(target.read),

@@ -53,7 +53,7 @@
 //! reach is stated exactly (the census module docs carry the full
 //! class-by-class envelope): an overlap or touch that leaves
 //! vertex/line/planar boundary evidence surfaces as the
-//! undeclared-contact hard error naming the guilty pair (a proper
+//! unrecorded-contact hard error naming the guilty pair (a proper
 //! pierce is categorically undeclarable) and certifies where
 //! declared; cross-solid proximity with a curved side (against a
 //! curved OR planar partner, F5) REFUSES as `CensusUndecidable` — the

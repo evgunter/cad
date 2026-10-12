@@ -2,13 +2,14 @@
 id: a-flush-quarter-round-refuses-an-odd-crossing-count-at-its-rim-vertex
 kind: issue
 title: A quarter round resting flush with a slab's edge or corner refuses its differences and intersection with an odd count of surviving crossing records at the rim vertex pair
-status: review
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: M
 refs: [boolean-conic-side-code-zero-is-first-order, a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide, two-discs-kissing-externally-refuse-classification-invariant]
 branch: contacthold/flush-quarter-round
 pr: 4704
+closed: 2026-10-11
 ---
 
 
@@ -92,3 +93,7 @@ The same-side tangent pairs the short-circuit still serves refuse at
 every op where they only touch along the line. Whether to remove the
 short-circuit waits on what a tangent touch's union should produce:
 `a-same-side-tangent-touch-refuses-at-every-op`.
+
+## Closed 2026-10-11 (PR 4704)
+
+Merged after a holdout dual review (DR row file `PR-4704`). The same-side residue is `a-same-side-tangent-touch-refuses-at-every-op`, now with Ev in PR 4723.
