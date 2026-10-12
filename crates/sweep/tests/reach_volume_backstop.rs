@@ -609,3 +609,40 @@ fn an_open_sign_beyond_the_band_at_the_last_round_refuses() {
         .expect_err("undecided");
     assert!(err.to_string().contains("vol(A ∖ B) ≤ vol(A)"), "{err}");
 }
+
+/// VERIFIER PROBE (PR 4839): bisect where `planted(A ∖ B = A)` on the
+/// scaled pair flips Validated → Undecided, in s/ε, and sweep the δ
+/// fattening at scale 1.
+#[test]
+fn probe_verify_last_round_open() {
+    let eps = tol().eps();
+    let right = |m: f64| {
+        let s = m * eps;
+        let (a, b) = (scaled_oblique_rod(s, 0.5), scaled_cutter(s));
+        planted(BooleanOp::Subtract, &a, &b, &a)
+    };
+    for m in [2e12, 2.5e12, 3e12, 3.5e12, 4e12, 5e12] {
+        eprintln!("PROBE-LRO eps={eps:e} s={m:e}eps right={:?}", right(m));
+    }
+    let (mut lo, mut hi) = (2e12f64, 5e12f64);
+    if right(lo) == Ok(AtRestOutcome::Validated) && right(hi) != Ok(AtRestOutcome::Validated) {
+        for _ in 0..7 {
+            let m = (lo * hi).sqrt();
+            if right(m) == Ok(AtRestOutcome::Validated) { lo = m } else { hi = m }
+        }
+        let k = tol().k();
+        eprintln!(
+            "PROBE-LRO eps={eps:e} flip in [{lo:e}, {hi:e}]·ε → last_round_open/s in [{:e}, {:e}]",
+            k / hi, k / lo
+        );
+    } else {
+        eprintln!("PROBE-LRO eps={eps:e} bracket not monotone at ends: {:?} {:?}", right(lo), right(hi));
+    }
+    let a = oblique_rod(0.0, 0.5);
+    let b = oblique_cutter(0.0);
+    for dm in [0.01, 0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0, 50.0, 100.0] {
+        let d = dm * eps;
+        let v = planted(BooleanOp::Subtract, &a, &b, &oblique_rod(0.0, 0.5 * (1.0 + d)));
+        eprintln!("PROBE-FAT eps={eps:e} delta={dm}eps: {v:?}");
+    }
+}

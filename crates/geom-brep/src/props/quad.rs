@@ -1117,6 +1117,22 @@ fn loop_windings<T: Decide>(
             let slack = end_slack(e, true, radius)
                 + end_slack(next, false, radius)
                 + VERTEX_SLACK * band.zero();
+            if let Some(path) = std::env::var_os("PROBE_JUNCTION_LOG") {
+                use std::io::Write as _;
+                let ends = end_slack(e, true, radius) + end_slack(next, false, radius);
+                let eps = band.zero();
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                    let _ = writeln!(
+                        f,
+                        "J eps={eps:e} lo_over_ends_eps={:.6} hi_over_ends_eps={:.6} gapw_eps={:.6} ends_eps={:.6} m={m} vmag={:e}",
+                        (gap.lo() - ends) / eps,
+                        (gap.hi() - ends) / eps,
+                        gap.width() / eps,
+                        ends / eps,
+                        mid(v1).abs().max(mid(u1).abs()),
+                    );
+                }
+            }
             if classify_len::<T>(
                 "props_quad_junction_closed",
                 Margin::of(excess(lo_or_refuse(gap), slack)),
@@ -8556,3 +8572,14 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "quad_verify_probes.rs"]
+mod verify_probes;
+
+#[cfg(test)]
+#[path = "quad_r1_probes.rs"]
+mod r1_probes;
+#[cfg(test)]
+#[path = "quad_review_probes.rs"]
+mod r2_probes;
