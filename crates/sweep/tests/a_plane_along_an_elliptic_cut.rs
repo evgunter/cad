@@ -19,8 +19,14 @@ const DEPTH: f64 = 6.0;
 /// semi-axis is five times its minor.
 const COS_TILT: f64 = 0.2;
 
+/// The relative slack a volume carries: the mass properties of a
+/// curved piece are read to the run's ε, not to rounding.
+fn within(tol: Tol) -> f64 {
+    1e-9_f64.max(100.0 * tol.eps())
+}
+
 /// The piece below the oblique cut through the cylinder's middle, its
-/// volume, and the cap ellipse's major end on the `+x` ruling.
+/// measured volume, and the cap ellipse's major end on the `+x` ruling.
 fn lower_piece(tol: Tol) -> (AtRestBody<f64>, f64, Point3<f64>) {
     let lp = bulge_loop(vec![
         (Point2::new(-RADIUS, 0.0), 1.0),
@@ -52,7 +58,12 @@ fn lower_piece(tol: Tol) -> (AtRestBody<f64>, f64, Point3<f64>) {
         .body()
         .expect("material below the cut")
         .clone();
-    let volume = core::f64::consts::PI * RADIUS * RADIUS * DEPTH / 2.0;
+    let volume = mass_properties(&lower, tol).unwrap().volume;
+    let want = core::f64::consts::PI * RADIUS * RADIUS * DEPTH / 2.0;
+    assert!(
+        (volume - want).abs() <= within(tol) * want,
+        "the lower piece holds half the cylinder: {volume}, want {want}"
+    );
     let apex = Point3::new(RADIUS, 0.0, DEPTH / 2.0 + RADIUS * theta.tan());
     (
         topo::test_support::finished("the lower piece", lower, tol),
@@ -85,7 +96,7 @@ fn lands_whole_below(
     assert_eq!(validate_closed(below), Ok(()), "{label}: Below is closed");
     let got = mass_properties(below, tol).unwrap().volume;
     assert!(
-        (got - volume).abs() <= 1e-9 * volume,
+        (got - volume).abs() <= within(tol) * volume,
         "{label}: Below holds the whole piece: {got}, want {volume}"
     );
     verdicts
