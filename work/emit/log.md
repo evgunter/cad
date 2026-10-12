@@ -2174,3 +2174,12 @@ Review found three things:
 
 Both design rows go to a designer pair next.
 
+
+## 2026-10-12 — PR 4816 merged; the partner-arms row closed
+
+PR 4816 merged with `gate ok` red on one row only. That row is
+`coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`
+at ε 1e-12, the base's red, which FLUSH has filed and which was reported on the PR.
+That merge deleted the seam-vertex partner arms, so
+`the-seam-vertex-contact-partner-arms-have-no-planar-witness-under-maximal-edges`
+is closed as moot.
