@@ -883,10 +883,10 @@ fn the_material_sign_refuses_what_the_flux_lane_refuses() {
 }
 
 /// **A rim off the axis, or tilted against it, is off the cone**, by the
-/// rim incidence's own names: the rim at slant 2 of [`unit_wall`] moved
-/// 0.05 m off the axis (`props_rim_center_on_axis`), and tipped 0.05 rad
-/// off it (`props_rim_axis_parallel`), each at the cone's radius for its
-/// height.
+/// circle incidence's own names: the rim at slant 2 of [`unit_wall`]
+/// moved 0.05 m off the axis (`props_cone_circle_off_axis`), and tipped
+/// 0.05 rad off it (`props_cone_circle_tilt`), each at the cone's radius
+/// for its height.
 #[test]
 fn a_rim_off_or_tilted_against_the_axis_refuses_as_incidence() {
     let (s, c) = ALPHA.sin_cos();
@@ -911,7 +911,7 @@ fn a_rim_off_or_tilted_against_the_axis_refuses_as_incidence() {
         "a rim off the axis",
         &[off],
         &PropsError::OffSurface {
-            what: "props_rim_center_on_axis",
+            what: "props_cone_circle_off_axis",
         },
     );
     let mut tilted = unit_wall();
@@ -920,7 +920,7 @@ fn a_rim_off_or_tilted_against_the_axis_refuses_as_incidence() {
         "a rim tilted against the axis",
         &[tilted],
         &PropsError::OffSurface {
-            what: "props_rim_axis_parallel",
+            what: "props_cone_circle_tilt",
         },
     );
 }
