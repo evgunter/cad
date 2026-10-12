@@ -875,3 +875,13 @@ first, so a crossing feature could be refused `WhollyInside` by order.
 Tally 0. A union fix pass fixed it, and a confirming full review on
 `0f5d13362d` approved, with notes for steps 2–4 recorded on the unit.
 `blend-support-ring-meters-read-two-ways` triaged P3/M.
+
+## 2026-10-12 — Ev ratified the non-isosceles turn's overrun (PR 4245)
+
+Ev's conditions (2026-10-08) were checked numerically on the PR, with
+figures in `crates/sweep/doc/turn-overrun/`. PR 4844's dual review then
+showed the box-corner limit was stated wrong: the chamfer's chord is the
+gap times a corner-fixed ratio, so both readings are quadratic there. The
+README sentence and a comment were corrected before Ev answered "this
+design sounds good!". Fork-log row 121 (renumbered from 85 at merge) gets
+its second half. The build goes in three steps; step 1 is PR 4844.
