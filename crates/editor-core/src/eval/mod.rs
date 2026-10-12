@@ -29,10 +29,8 @@ pub use parts::PartFault;
 pub(crate) mod schedule;
 pub(crate) mod slots;
 mod wire;
-#[cfg(test)]
-pub(crate) use wire::DECISION_WORDS;
 pub(crate) use wire::{
-    EVAL_DIRECTION_NORM, PATTERN_SPACING, PATTERN_STEP, PATTERN_STEP_TURN, decision_words,
+    DECISION_WORDS, EVAL_DIRECTION_NORM, PATTERN_SPACING, PATTERN_STEP, PATTERN_STEP_TURN,
 };
 
 pub(crate) use wire::{

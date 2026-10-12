@@ -49,10 +49,8 @@ pub(crate) mod words;
 
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;
-#[cfg(test)]
-pub(crate) use discriminate::DECISION_WORDS;
 pub(crate) use discriminate::{
-    CHORD_ON_RIM, FAMILY, ON_MEMBER_EDGE, ON_SEAM_LINE, ORDER_ALONG, decision_words,
+    CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE, ON_SEAM_LINE, ORDER_ALONG,
 };
 pub use emit::{NamingError, RimShare};
 pub(crate) use emit::{

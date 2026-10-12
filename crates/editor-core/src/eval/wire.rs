@@ -886,12 +886,6 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
     ),
 ];
 
-/// [`DECISION_WORDS`]' words for `predicate`; `None` for a predicate
-/// this layer does not own.
-pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
-    crate::decision::lookup(DECISION_WORDS, predicate)
-}
-
 /// Normalizes a direction-valued vector; a non-finite length refuses,
 /// an underflowed one refuses, a decided-zero length refuses, in-band
 /// indeterminacy escalates.

@@ -23,7 +23,7 @@ pub(crate) fn band(tol: Tol) -> Result<Band, NamingError> {
 pub(crate) const FAMILY: &str = "name_frag_";
 
 /// The order-along predicate's name, written once: the ranker records
-/// it and [`decision_words`] states what it decides.
+/// it and [`DECISION_WORDS`] states what it decides.
 pub(crate) const ORDER_ALONG: &str = "name_frag_order_along";
 
 /// The on-member-edge predicate's name (`emit_union`'s `Flush`): whether
@@ -69,12 +69,6 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
     (ON_SEAM_LINE, "whether a point lies on a seam's line"),
     (CHORD_ON_RIM, "whether a chord lies on its rim"),
 ];
-
-/// [`DECISION_WORDS`]' words for `predicate`; `None` for a predicate
-/// this layer does not own.
-pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
-    crate::decision::lookup(DECISION_WORDS, predicate)
-}
 
 /// One candidate's extent along an oriented carrier: the certified
 /// min/max of its probe parameters (values stay HERE — only the

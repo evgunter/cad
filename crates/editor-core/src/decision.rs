@@ -7,8 +7,8 @@
 //! what was being decided instead, and reads the words here.
 //!
 //! The words live with each predicate's owner, beside the decision
-//! they describe: the naming layer's (`names::decision_words`), this
-//! crate's evaluation's (`eval::decision_words`), the boolean's
+//! they describe: the naming layer's (`names::DECISION_WORDS`), this
+//! crate's evaluation's (`eval::DECISION_WORDS`), the boolean's
 //! (`topo::decision_words`) and the sketch validator's
 //! (`profile::decision_subject`). This function only consults them, so
 //! a predicate is given words in one place, where it is decided.
@@ -20,8 +20,8 @@ use geom_core::{COINCIDENCE_RECOURSE, Indeterminate};
 /// when no owner has words for it (the caller then states
 /// `geom_core::UNNAMED_DECISION`).
 pub(crate) fn words(predicate: &str) -> Option<&'static str> {
-    crate::names::decision_words(predicate)
-        .or_else(|| crate::eval::decision_words(predicate))
+    lookup(crate::names::DECISION_WORDS, predicate)
+        .or_else(|| lookup(crate::eval::DECISION_WORDS, predicate))
         .or_else(|| topo::decision_words(predicate))
         .or_else(|| profile::decision_subject(predicate))
 }
@@ -79,26 +79,34 @@ pub(crate) fn ending(predicate: &str, source: &Indeterminate) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod census {
     use std::collections::BTreeSet;
+
+    use test_utils::source;
 
     use super::{ENDINGS, words};
 
     /// The names `eval/measure.rs` hands its `parallel` trilean, read
     /// off its source: the measure door's escalations reach
-    /// `NodeErrorKind::Escalated` under them, worded by `topo`.
-    fn measure_names() -> BTreeSet<&'static str> {
-        let src = include_str!("eval/measure.rs");
+    /// `NodeErrorKind::Escalated` under them, worded by `topo`. Every
+    /// call names its decision by a plain literal.
+    fn measure_names() -> BTreeSet<String> {
+        const WHAT: &str = "eval/measure.rs";
+        let text = include_str!("eval/measure.rs");
+        let (code, literals) = (source::code_only(text), source::code_and_literals(text));
         let mut names = BTreeSet::new();
-        for (at, _) in src.match_indices("parallel(") {
-            let before = src[..at].chars().next_back();
-            if before.is_some_and(|c| c.is_alphanumeric() || c == '_') {
+        for at in source::required_matches(&code, WHAT, "parallel(") {
+            if !source::boundary_before(&code, at) {
                 continue;
             }
-            let rest = src[at + "parallel(".len()..].trim_start();
-            if let Some((name, _)) = rest.strip_prefix('"').and_then(|q| q.split_once('"')) {
-                names.insert(name);
-            }
+            let open = at + "parallel".len();
+            let close = source::balanced_end(&code, open).expect("a call closes");
+            let first = source::top_level_split(&code[open + 1..close], ',')[0].clone();
+            let arg = &literals[open + 1 + first.start..open + 1 + first.end];
+            let name = source::plain_string_literal(arg)
+                .unwrap_or_else(|| panic!("{WHAT}: `parallel({arg}` names no plain literal"));
+            names.insert(name.to_owned());
         }
         names
     }
@@ -121,7 +129,7 @@ mod census {
             .iter()
             .chain(crate::eval::DECISION_WORDS)
             .map(|(n, _)| *n)
-            .chain(measured)
+            .chain(measured.iter().map(String::as_str))
             .collect();
         assert_eq!(
             listed, fed,
