@@ -95,4 +95,4 @@ unit rows on a hand-divided face (`boolean::ops::holder_rows`,
 `a_dead_vertexs_*`): a taken vertex lands on the piece holding its
 rest, a rest on the chord drops, an in-band rest escalates, and a
 missing rest refuses. Reading a taken vertex's face by key turns the
-first two red.
+first three red.
