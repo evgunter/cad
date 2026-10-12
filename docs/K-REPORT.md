@@ -3028,3 +3028,29 @@ what gates. The ceiling stays as the re-cut trigger that
 `docs/k-report-data/README.md` names, and nothing mechanical fires
 it any more: a fresh sweep past it shows up only as a larger tally in
 the printed output.
+
+## The rigidity rows move to the decided door (SYM-17, 2026-10-12)
+
+`topo::transform_rigid` takes a `geom_core::RigidMotion` and decides
+nothing about rigidity. The ten `transform_rigid_*` names (seven
+margins under ledger row F10, three `transform_rigid_trans_finite_*`
+probes) keep their spellings and are now minted at one site,
+`RigidMotion::check_rigid` (`crates/geom-core/src/linalg/rigid_motion.rs`,
+the same table-of-names loop, so a grep for a literal at the decide
+site still misses them). They are asked of a raw map only: a literal
+placement frame, a STEP placement, a pose the mate solve composed, a
+library caller's matrix. A `Transform` step, a stepped pattern and a
+revolve's turn mint their motion by construction and ask none of them.
+So the population shrinks by ten samples per such map, and no rule
+can fire on a population that only shrinks.
+
+One name is added: **`revolve_placed_axis`** (`sweep`'s
+`revolve/axis.rs`), the placed revolve axis decided into a witness
+before the revolve turns about it, through `UnitVec3::new`'s
+`Margin::norm3`. Its margin is the length of a placed unit direction,
+about one, against the linear band. It is a third name for the
+revolve axis's length, beside `revolve_axis_direction` (the sketch
+pair) and `datum_unit_norm` (the evaluation layer's lift), on the
+"one length, two funnel names, split by road" shape above: the
+placement is a general map, so the placed axis is a length of its
+own until the sketch plane is a frame.

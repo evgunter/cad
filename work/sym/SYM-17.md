@@ -2,7 +2,7 @@
 id: SYM-17
 kind: unit
 title: "a widened rotation angle refuses on the plain interval lane: read the column norm, then carry the rotation or say it is the tier's"
-status: dispatched
+status: review
 opened: 2026-10-06
 priority: P1
 cost: M

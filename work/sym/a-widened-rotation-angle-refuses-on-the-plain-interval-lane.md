@@ -292,3 +292,29 @@ question. The mates' re-measurement is retired by INTENT stage 3
 ("a mate places and never checks"). The type should land before
 stage 3 rewrites `coset.rs`.
 
+
+## What Phase 2 built (SYM-17)
+
+Ev's answer, built on `sym/17-rotation-readout` (PR #4197):
+`geom_core::RigidMotion` replaces `OrthoFrame`, with mints by
+construction, the decided door `RigidMotion::check_rigid`, and the
+action on directions and on itself; `topo::transform_rigid` takes the
+witness. A `Transform` step, a stepped pattern and a revolve's turn
+mint their motion; a literal frame, a STEP placement and a pose the
+mate solve composed are decided at the door.
+
+Measured on the chain's one-leaf plain-lane row (default ε, release),
+before on `main` `0fdbf00755`, after on the branch:
+
+| links | before: certifies up to σ | after: certifies up to σ | after: refuses at σ = 0.01 on |
+|---|---|---|---|
+| 1 | 1.666e-10 (then `col01_orth`) | 6.49e-9 (then `pcurve_envelope`) | `carrier_endpoint_start`, `[0, 9.0e-5]` |
+| 4 | 1.666e-10 (then `col01_orth`) | 6.73e-10 (then `pcurve_envelope`) | `carrier_endpoint_start`, `[0, 9.0e-5]` |
+
+The next wall is SHELF's
+`transform-rigid-recertifies-images-enclosed-apart`, as Phase 1
+predicted. Its refusal ends "this is a kernel defect; report it", which
+is `work/issues/an-undecided-margin-over-an-interval-box-ends-as-a-kernel-defect.md`.
+The mate solve's representatives and inverses are INTENT's
+`the-mate-solve-s-representatives-and-inverses-mint-the-rigid-motion`
+(the stop rule applied: stage 3 B is rewriting `mate/`).
