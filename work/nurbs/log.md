@@ -756,3 +756,13 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - NOTE-2: the issue body is corrected.
   - CI is green. The digest is unchanged at all three ε. Row 2 is closed, and with it all three rows of the speed meter's arm decision.
 - 2026-10-12 12:48Z — **Build C dispatched** on `the-rational-meters-refined-scan-costs-190-ms-per-loft` (P3, M), branch `nurbs/refined-scan-cost`. It measures what the refined scan decides that the piece assembly doesn't, then drops it, cheapens it, or keeps it with a stated reason. A cost-versus-reach trade on a nameable class stops for a ruling. **Tier: single FULL.** — (NURBS orchestrator)
+- 2026-10-12 12:52Z — **Build A dispatched** on `the-speed-meter-memo-is-visible-to-a-sym-session` (P3, E, filed by CLEAVE), branch `nurbs/memo-sym-invisible`.
+  - PR 4803's memo caches the meter before any Sym session exists, so the cached value freezes in every later session. That is the cause of the `Sym` frozen move that PR 4814 re-cut, and it makes the memo's invisibility claim false at Sym.
+  - **My lean:** keep the contract and don't serve a pre-session value inside a session, rather than documenting the exception. The lane weighs both on cost and stops if neither is clearly right.
+  - **Tier: single FULL**, because Sym semantics and the digest are involved.
+  - With this, all three builds are busy: A on the memo, B on the Div point paths, C on the refined scan.
+  - **Remaining P4 slate:**
+    - the six-place derivative scale;
+    - non-monotone refinement;
+    - the integral arm reading below the rational arm;
+    - degree elevation, which is conditional on a consumer. — (NURBS orchestrator)
