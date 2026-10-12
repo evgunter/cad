@@ -927,8 +927,8 @@ impl Affine {
 /// is above the maximum read so far; a skipped pair's real norm is at
 /// most that maximum. A read divides its terms by `floor` before the
 /// norm squares them. The screens are of the undivided terms carried by
-/// the power of two that brings a floor below one into `[1, 2)`, so a
-/// net of subnormal weights is screened at unit scale, and each screen
+/// the power of two that brings `floor` into `[1, 2)`, so a net of
+/// subnormal or huge weights is screened at unit scale, and each screen
 /// is held against the maximum times the carried floor, rounded down.
 /// Every input is asked for its refusal first. When no term reads the
 /// offset (every `g` an exact zero) only the first offset is read.
@@ -959,19 +959,18 @@ pub(crate) fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine], 
             })
             .collect()
     };
-    // `2^shift` carries a floor below one into `[1, 2)`, exactly; the
-    // terms carried with it are larger, so the carry is exact too.
-    let (shift, carried) = match unit_scale_exact(&[floor]) {
-        Some((shift, f)) if shift > 0 => (shift, f[0]),
-        _ => (0, floor),
-    };
+    // `2^shift` carries `floor` into `[1, 2)` exactly. A carried part is
+    // exact unless it overflows, which reads `+∞` and screens nothing
+    // out, or lands below the normal range, which moves it by under
+    // `2^-1073`: the smallest normal added to the radius covers that.
+    let (shift, carried) = unit_scale_exact(&[floor]).map_or((0, floor), |(k, f)| (k, f[0]));
     let carry = |c: Centred| {
         if shift == 0 {
             c
         } else {
             Centred {
                 mid: c.mid.map(|m| pow2_scaled(m, shift)),
-                rad: pow2_scaled(c.rad, shift),
+                rad: (pow2_scaled(c.rad, shift) + f64::MIN_POSITIVE).next_up(),
             }
         }
     };
@@ -1857,23 +1856,26 @@ pub(crate) mod tests {
                 g: iv(rng, if tie { 1e-3 } else { 2.0 }, wide),
             };
             let (nx, ny, nq) = (1 + rng.below(12), 1 + rng.below(12), 1 + rng.below(16));
-            // A subnormal or huge floor comes with terms at its own scale,
-            // as a net's weights bring them, so the quotients stay near one.
+            // A subnormal or huge floor comes with most terms at its own
+            // scale, as a net's weights bring them, so the quotients stay
+            // near one; the rest stay at unit scale, so carrying the floor
+            // to one overflows them or drops them below the normal range.
             let (floor, extreme) = match case % 5 {
                 0 => (1.0, false),
                 1 | 2 => (rng.range(0.1, 4.0), false),
                 3 => (f64::MIN_POSITIVE * rng.range(1e-12, 0.5), true),
                 _ => (rng.range(1e300, 1e306), true),
             };
-            let at_scale = |a: Affine| {
-                if extreme {
+            let term = |rng: &mut fuzz::Rng| {
+                let a = affine(rng);
+                if extreme && rng.below(4) != 0 {
                     a.times(Interval::point(floor))
                 } else {
                     a
                 }
             };
-            let xs: Vec<Affine> = (0..nx).map(|_| at_scale(affine(&mut rng))).collect();
-            let ys: Vec<Affine> = (0..ny).map(|_| at_scale(affine(&mut rng))).collect();
+            let xs: Vec<Affine> = (0..nx).map(|_| term(&mut rng)).collect();
+            let ys: Vec<Affine> = (0..ny).map(|_| term(&mut rng)).collect();
             let qs: Vec<[Interval; 3]> = (0..nq)
                 .map(|_| core::array::from_fn(|_| iv(&mut rng, 0.5, wide)))
                 .collect();
