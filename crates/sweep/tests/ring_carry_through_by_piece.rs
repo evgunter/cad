@@ -386,7 +386,8 @@ fn an_elliptical_ring_beside_a_hole_rim_refuses_unmetered() {
 /// the wall, which the subtract places as an ON event: in either order
 /// it builds at its closed form (the cube less the bore and the pocket's
 /// `0.02 × 0.2`), valid at tiers 3 and 3′, the pocket's floor vertex
-/// recorded touching the ruling and its edge recorded along it. Its top face's boundary then passes
+/// recorded touching the ruling and its edge recorded lying along it.
+/// Its top face's boundary then passes
 /// through the rim vertex twice, so the rim's ring carries the pocket's
 /// edges, and a fillet of the rim alone refuses on that chain.
 #[test]

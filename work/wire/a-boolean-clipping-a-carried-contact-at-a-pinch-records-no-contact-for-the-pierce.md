@@ -2,10 +2,11 @@
 id: a-boolean-clipping-a-carried-contact-at-a-pinch-records-no-contact-for-the-pierce
 kind: issue
 title: A boolean that clips an operand's carried contact at a pinch, keeping the pierce as two vertices, records nothing for the pierce point, and 3′ refuses the result
-status: open
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
+closed: 2026-10-11
 ---
 
 
@@ -44,20 +45,14 @@ overlap. That comes from the carried record's lineage through the clip,
 not from geometry (the substitution door, `boolean::ops::carry`). When
 it does, the four pins turn green.
 
-## 2026-10-11 — the four witnesses pass 3′ (FLUSH, `flush/apex-edge-in-face-plane`)
+## Closed (2026-10-11)
 
-FLUSH's `an-apex-edge-…` made the carry record a line edge's span
-between two of its recorded bounds (`boolean::ops::record_spans`). So a
-body holding the contact as two coincident edges now carries their
-edge-edge record, not just its vertex bounds. The pair boolean's lineage
-of that record (`boolean::ops::ee_lineage`) splits it at the pierce and
-records the two kept vertices and the edges' overlap past the pinch,
-which is this row's owed record "from the carried record's lineage
-through the clip". Two lineage defects that the newly carried record
-reached are fixed in the same PR: a piece's end read off a null edge's
-copy, and two levered segment reads.
-
-`union_pinch_member_order`'s four pins (`plate ∩ blocks`, `plate ∖ X`,
-`X ∪ plate`, `plate ∪ X`) now assert `Ok` at 3′, and the helper that
-pinned the refusal is gone. Nothing of this row is left open by that
-measurement; its closing is WIRE's call.
+Closed by CONTACTHOLD's `the-boolean-records-no-line-touch-and-the-census-does-not-demand-one`
+(branch `contacthold/ee-line-touch-record`). The joined blocks, and X,
+now record an edge-edge row for their contact. Carried into the clipping
+op, that row's split lineage (`boolean::ops::ee_lineage`) records the
+pierce's two kept vertices as a v-v row and the overlap's pieces as
+edge-edge rows. Making that path reachable showed that the lineage wrote
+a null-edge copy into a decision's cells, which the naming layer refused.
+It now names the copy's original (`ops::uncopied`). The four pins in
+`crates/editor-core/tests/union_pinch_member_order.rs` assert 3′ passing.

@@ -18,8 +18,8 @@ fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody
 /// `c`'s corner (0.5, 0, 0) rests on `a`'s rim x ∈ (0, 1); the plane
 /// x = 0.5 − 1e-4 divides that rim, leaving the key on the piece below
 /// and the corner 1e-4 inside the piece above. At the default band the
-/// record lands on the piece above, with the two edges' record along
-/// their overlap, and both sides pass at rest. At a
+/// record lands on the piece above, beside the far end's record and the
+/// touch's edge–edge record, and both sides pass at rest. At a
 /// band where 1e-4 is inside the escalation zone the confirm cannot
 /// read the pair, and the carry refuses `Unread` (the only row that
 /// reaches that refusal). At a band where 1e-4 is Zero the corner reads

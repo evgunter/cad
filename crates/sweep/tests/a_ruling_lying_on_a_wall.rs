@@ -137,10 +137,10 @@ type Want = Option<(Census, [usize; 6])>;
 /// the wall along the edge: its two shells are recorded touching at
 /// the edge's ends, v-f against the wall face off a seam ruling and,
 /// on one, v-e against the ruling the join made whole again, with the
-/// edge's span along that ruling an e-e record. Across the rim, the
-/// prism's part above `z = H` is `b ∖ t`, and `t ∖ b` is a notch whose
-/// edge runs down the wall from the rim, its lower end recorded the
-/// same way and, on a seam ruling, its span along it.
+/// edge-edge record of the prism's edge lying along that ruling. Across the rim, the prism's
+/// part above `z = H` is `b ∖ t`, and `t ∖ b` is a notch whose edge
+/// runs down the wall from the rim, its lower end recorded the same
+/// way and, on a seam ruling, the edge along it.
 #[test]
 fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
     let tol = Tol::witness();

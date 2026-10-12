@@ -649,9 +649,9 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
     let mut outcomes = Vec::new();
     for (&(what, op, _, _, volume, counts, pinch), &id) in rows.iter().zip(&ids) {
         let o = checked(&ev, id, what, volume);
-        // X's own contact record carries into each result, and where
-        // the op keeps the pierce as two vertices, its lineage records
-        // them and the edges' overlap.
+        // X's own contact records carry into each result; where the op
+        // keeps the pierce as two vertices, the carried edge-edge row's
+        // split lineage records them.
         assert_eq!(o.verdict, Ok(()), "{what}: 3′");
         if op == BooleanOp::Intersect {
             // Two L-prisms touching along the contact line, which runs

@@ -3028,8 +3028,8 @@ fn piece_holds<T: Decide>(
 /// vertex-vertex row with the split vertex when its vertex is at it,
 /// stays on the parent when its vertex lies on the parent's span, and
 /// moves to the child otherwise. Each is asked as the census asks it
-/// ([`crate::census::on_segment_interior`]), as [`ee_lineage`] asks
-/// its own, so what lands is what the census confirms. Every edge-edge
+/// ([`crate::census::on_segment_interior`]), so what lands is what the
+/// census confirms. Every edge-edge
 /// row is placed by [`ee_lineage`]. Nothing searches the result for an
 /// edge the vertex lies on.
 ///
@@ -3125,7 +3125,16 @@ pub(super) fn ledger<T: Decide>(
             }
         }
         for row in core::mem::take(&mut carried.ee) {
-            ee_lineage(red, side, row, carried, &mut pending, band)?;
+            ee_lineage(
+                clone,
+                side,
+                &red.edge_splits,
+                &red.null_edges,
+                row,
+                carried,
+                &mut pending,
+                band,
+            )?;
         }
     }
     Ok(Ledger {
@@ -3183,74 +3192,36 @@ type Piece = (EdgeKey, VertexKey, VertexKey);
 /// with every vertex a split minted on it: a split keeps the parent's
 /// leading span, so its child is the piece right after the parent.
 fn pieces<T: Real>(
-    red: &BooleanReduction<T>,
+    clone: &Body<T>,
     side: Operand,
+    splits: &[super::EdgeSplit],
     edge: EdgeKey,
 ) -> Result<(Vec<Piece>, Vec<VertexKey>), BooleanError> {
-    let clone = match side {
-        Operand::A => &red.a,
-        Operand::B => &red.b,
-    };
     let mut keys = vec![edge];
     let mut minted = Vec::new();
-    for split in red.edge_splits.iter().filter(|s| s.operand == side) {
+    for split in splits.iter().filter(|s| s.operand == side) {
         if let Some(i) = keys.iter().position(|&k| k == split.parent) {
             keys.insert(i + 1, split.child);
             minted.push(split.vertex);
         }
     }
-    // A null edge's insertion moves a piece's end onto the copy it
-    // minted; the piece ends at the vertex the copy was minted at.
-    let minted_at = |mut v: VertexKey| {
-        let mut seen = vec![v];
-        while let Some(r) = red.null_edges.iter().find(|r| {
-            r.operand == side
-                && r.at_vertex != v
-                && (r.attr.below_end == v || r.attr.above_end == v)
-        }) {
-            v = r.at_vertex;
-            if seen.contains(&v) {
-                return Err(BooleanError::JoinDesync {
-                    what: "null edges' copies lead back to a vertex they left",
-                });
-            }
-            seen.push(v);
-        }
-        Ok(v)
+    let ends = |e: EdgeKey| {
+        let edge = clone.get_edge(e)?;
+        Some((
+            e,
+            clone.get_half_edge(edge.he_plus)?.start,
+            clone.get_half_edge(edge.he_minus)?.start,
+        ))
     };
-    let desync = || BooleanError::JoinDesync {
-        what: "a split piece does not resolve in its clone",
-    };
-    keys.into_iter()
+    let pieces = keys
+        .into_iter()
         .map(|e| {
-            let (v0, v1) = line_ends(clone, e).ok_or_else(desync)?;
-            Ok((e, minted_at(v0)?, minted_at(v1)?))
+            ends(e).ok_or(BooleanError::JoinDesync {
+                what: "a split piece does not resolve in its clone",
+            })
         })
-        .collect::<Result<_, _>>()
-        .map(|pieces| (pieces, minted))
-}
-
-/// A vertex's point.
-fn vertex_point<T: Real>(body: &Body<T>, v: VertexKey) -> Option<Point3<T>> {
-    body.get_vertex(v)
-        .and_then(|d| body.get_point(d.point))
-        .copied()
-}
-
-/// An edge's start and end vertices.
-fn line_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> Option<(VertexKey, VertexKey)> {
-    let he = body.get_edge(e)?.he_plus;
-    Some((body.get_half_edge(he)?.start, body.half_edge_end(he)?))
-}
-
-/// Whether the census's span reading ([`crate::census::segment_past`])
-/// puts every point of `qs` past one end of `s`, so that no question of
-/// `s`'s interior need be asked of them: a short piece's line, read far
-/// along it, levers the piece's own tilt. A reading in band routes to
-/// the interior question itself, which decides it or escalates.
-fn decided_past<T: Decide>(s: (Point3<T>, Point3<T>), qs: &[Point3<T>], band: Band) -> bool {
-    // In band: not decided past, so the interior question is asked.
-    matches!(crate::census::segment_past(s, qs, band), Ok(true))
+        .collect::<Result<_, _>>()?;
+    Ok((pieces, minted))
 }
 
 /// **Edge-split lineage of an edge-edge record**: where the reduction
@@ -3259,34 +3230,33 @@ fn decided_past<T: Decide>(s: (Point3<T>, Point3<T>), qs: &[Point3<T>], band: Ba
 /// split minted on the contact is recorded against the other edge's
 /// piece it rests on (or the vertex it meets). An edge-edge record
 /// names no vertex, so where the contact lies is decided against the
-/// pieces themselves, by the census's own questions of an edge-edge or
-/// vertex-on-edge record's confirm pass ([`crate::census`]). A point or
-/// piece decided past the other piece's ends is not asked
-/// ([`decided_past`]). Only the record's own lineage is read: its two
-/// edges' pieces, never another cell of the body. A bound the record
-/// already had is a vertex record of its own, carried by its own
-/// lineage, and is not restated.
+/// pieces themselves, on the census's own span and segment predicates
+/// ([`crate::census`]): the span first, since a short piece's line
+/// extrapolated along a long one reads a gap the piece does not have,
+/// then the segment question on either piece's line, the first decided
+/// answer. Only the record's own lineage is read: its two edges'
+/// pieces, never another cell of the body. A bound the record already
+/// had is a vertex record of its own, carried by its own lineage, and is
+/// not restated.
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`]: `SelfCheck(CarriedLineage)` where a
-/// segment question is in band, `VertexOnVertex` where a split vertex's
-/// coincidence is; [`BooleanError::JoinDesync`] where a logged key does
-/// not resolve in its clone, or null edges' copies cycle.
+/// [`BooleanError::Escalated`] (`VertexOnVertex`) where a segment
+/// question is in band; [`BooleanError::JoinDesync`] where a logged key
+/// does not resolve in its clone.
+#[allow(clippy::too_many_arguments)]
 fn ee_lineage<T: Decide>(
-    red: &BooleanReduction<T>,
+    clone: &Body<T>,
     side: Operand,
+    splits: &[super::EdgeSplit],
+    null_edges: &[super::BoolNullEdgeRecord<T>],
     row: Cited<EeContact>,
     carried: &mut Rows,
     pending: &mut Vec<PendingRow>,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let clone = match side {
-        Operand::A => &red.a,
-        Operand::B => &red.b,
-    };
-    let (a, a_minted) = pieces(red, side, row.a)?;
-    let (b, b_minted) = pieces(red, side, row.b)?;
+    let (a, a_minted) = pieces(clone, side, splits, row.a)?;
+    let (b, b_minted) = pieces(clone, side, splits, row.b)?;
     if a.len() == 1 && b.len() == 1 {
         carried.ee.push(row);
         return Ok(());
@@ -3300,16 +3270,26 @@ fn ee_lineage<T: Decide>(
         diag,
     };
     let point = |v: VertexKey| {
-        vertex_point(clone, v).ok_or(BooleanError::JoinDesync {
-            what: "a split piece's vertex does not resolve in its clone",
-        })
+        clone
+            .get_vertex(v)
+            .and_then(|d| clone.get_point(d.point))
+            .copied()
+            .ok_or(BooleanError::JoinDesync {
+                what: "a split piece's vertex does not resolve in its clone",
+            })
     };
     let segment = |&(_, v0, v1): &Piece| Ok::<_, BooleanError>((point(v0)?, point(v1)?));
     for pa in &a {
         for pb in &b {
             let (sa, sb) = (segment(pa)?, segment(pb)?);
-            if !decided_past(sa, &[sb.0, sb.1], band)
-                && crate::census::segment_interiors_meet(sa, sb, band).map_err(lineage)?
+            let meet = || {
+                crate::census::segment_interiors_meet(sa, sb, band)
+                    .or_else(|_| crate::census::segment_interiors_meet(sb, sa, band))
+                    .map_err(lineage)
+            };
+            if !crate::census::segments_apart(sa, sb, band)
+                && !crate::census::segments_apart(sb, sa, band)
+                && meet()?
             {
                 push_cited(
                     &mut carried.ee,
@@ -3323,7 +3303,10 @@ fn ee_lineage<T: Decide>(
             {
                 for v in [mine.1, mine.2].into_iter().filter(|v| minted.contains(v)) {
                     let q = point(v)?;
-                    if !decided_past(their_seg, &[q], band)
+                    // Past the other piece's span the vertex is on no
+                    // part of it, and its line's reading there is the
+                    // carrier's, not the piece's.
+                    if !crate::census::past_segment(q, their_seg, band)
                         && crate::census::on_segment_interior(q, their_seg, band)
                             .map_err(lineage)?
                     {
@@ -3354,11 +3337,12 @@ fn ee_lineage<T: Decide>(
                         if apart == geom_core::k_stats::Magnitude::Zero {
                             // The minted vertex decided one with the other
                             // piece's end: this op's decision, cited
-                            // beside the carried record.
+                            // beside the carried record, naming the
+                            // vertex the end is a null-edge copy of.
                             let fresh = decide_one(
                                 pending,
                                 (side, Cell::Vertex(v)),
-                                (side, Cell::Vertex(w)),
+                                (side, Cell::Vertex(uncopied(null_edges, side, w)?)),
                                 margin,
                             );
                             push_cited(
@@ -3373,6 +3357,36 @@ fn ee_lineage<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// The vertex `v` of operand `side`'s clone is a copy of: where a null
+/// edge minted `v` at another vertex, that vertex, read back through
+/// every null edge that hangs at a copy; `v` itself where none did. A
+/// decision's cells name the op's input, which holds no copy.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where the copies' null edges close a
+/// cycle, so no vertex is the original.
+fn uncopied<T: Real>(
+    null_edges: &[super::BoolNullEdgeRecord<T>],
+    side: Operand,
+    mut v: VertexKey,
+) -> Result<VertexKey, BooleanError> {
+    for _ in 0..=null_edges.len() {
+        let minted = null_edges.iter().find(|r| {
+            r.operand == side
+                && r.at_vertex != v
+                && (r.attr.below_end == v || r.attr.above_end == v)
+        });
+        match minted {
+            Some(r) => v = r.at_vertex,
+            None => return Ok(v),
+        }
+    }
+    Err(BooleanError::JoinDesync {
+        what: "a vertex's null-edge copies close a cycle with no original",
+    })
 }
 
 /// One operand's own records re-entering an op, in its keys: the cell
@@ -3914,8 +3928,9 @@ fn carry_rows<T: Decide>(
             record(body, &mut out, (vs, x), (fs, y), cites.clone());
         }
     }
-    // Records of two edges or faces: the joins' (no reduction mints
-    // one) and each operand's carried ones, both cells chased.
+    // Records of two edges or faces: the reduction's touches along a
+    // line, the joins' and each operand's carried ones, both cells
+    // chased.
     for ([(xs, xc), (ys, yc)], cites) in cell_rows {
         if let (Some(x), Some(y)) = (
             desc.live(body, xs, view(xs), xc)?,
@@ -3959,7 +3974,7 @@ fn record_spans<T: Decide>(
                 ) else {
                     continue;
                 };
-                if span_held(body, e, (lo.point, hi.point), c, band)? {
+                if span_held(body, (lo.point, hi.point), c, band)? {
                     spans.push(Cited::new(contact, cites));
                 }
             }
@@ -4155,12 +4170,12 @@ fn bound_reading<T: Decide>(
     })
 }
 
-/// Whether cell `c` holds the span `(lo, hi)` of line edge `e`: a plane
+/// Whether cell `c` holds a line edge's span `(lo, hi)`: a plane
 /// face whose interior holds its midpoint (two points of the plane hold
-/// the line between them), placed by [`piece_holds`]; a line edge whose
-/// interior the span's meets, as an edge-edge record's confirm pass
-/// reads it ([`crate::census::segment_interiors_meet`]). A curved face
-/// is not read: a line between two of its points need not lie in it.
+/// the line between them), placed by [`piece_holds`]. A curved face is
+/// not read: a line between two of its points need not lie in it. An
+/// edge along `e` is the reduction's own touch record
+/// ([`super::touch_rows`]), not a span's.
 ///
 /// # Errors
 ///
@@ -4169,7 +4184,6 @@ fn bound_reading<T: Decide>(
 /// place the midpoint.
 fn span_held<T: Decide>(
     body: &Body<T>,
-    e: EdgeKey,
     (lo, hi): (Point3<T>, Point3<T>),
     c: Cell,
     band: Band,
@@ -4188,14 +4202,6 @@ fn span_held<T: Decide>(
                     Err(BooleanError::RestPieceUnread { face: f, refusal })
                 }
             }
-        }
-        Cell::Edge(g) if g != e && crate::census::edge_is_line(body, g) => {
-            let Some(s) = line_ends(body, g)
-                .and_then(|(w0, w1)| Some((vertex_point(body, w0)?, vertex_point(body, w1)?)))
-            else {
-                return Ok(false);
-            };
-            crate::census::segment_interiors_meet((lo, hi), s, band).map_err(span_in_band)
         }
         _ => Ok(false),
     }
@@ -4217,6 +4223,19 @@ fn vertex_star<T: Real>(body: &Body<T>, w: VertexKey) -> Option<Vec<Cell>> {
             .chain(faces.into_iter().map(Cell::Face))
             .collect(),
     )
+}
+
+/// A vertex's point.
+fn vertex_point<T: Real>(body: &Body<T>, v: VertexKey) -> Option<Point3<T>> {
+    body.get_vertex(v)
+        .and_then(|d| body.get_point(d.point))
+        .copied()
+}
+
+/// An edge's start and end vertices.
+fn line_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> Option<(VertexKey, VertexKey)> {
+    let he = body.get_edge(e)?.he_plus;
+    Some((body.get_half_edge(he)?.start, body.half_edge_end(he)?))
 }
 
 /// Records the cell pair `x`, `y` (result keys), once, backed by
@@ -6946,6 +6965,7 @@ mod tests {
                 crate::Cites::decided(0),
             )],
             b_on_a: vec![],
+            ee: vec![],
         };
         // Without the descendant row: the record drops (pre-D5 loss).
         let out = found(
@@ -6980,6 +7000,7 @@ mod tests {
             )],
             a_on_b: vec![],
             b_on_a: vec![],
+            ee: vec![],
         };
         let mut desc = Descendants::default();
         desc.vertices.push((dead_vertex, live_vertex)).unwrap();
@@ -7427,6 +7448,7 @@ mod tests {
                 VfContact { vertex: v, face },
                 crate::Cites::decided(0),
             )],
+            ee: vec![],
         };
         let remap = |c: &ReductionContacts| {
             found(&body, c, [&KeyView::Direct; 2], &desc)

@@ -79,45 +79,37 @@ reconstructs the span from its bounds.
 
 ## Fix
 
-`boolean::ops::record_spans`, run by `carry` after every record is in
-result keys: for each line edge a record reaches, the records naming a
-point of it (a vertex on it, a line edge crossing it, one of its ends
-touching a cell) are its bounds, and so are its own ends by
-structure. Between consecutive bounds the span is recorded against
-every cell both bounds touch whose interior holds its midpoint: a plane
-face, placed by `piece_holds` (the census's own containment read), or a
-line edge, by `census::on_segment_interior`. Each record cites the two
-bounds' records. A curved face is skipped (the FUSE twin's case, now
-pointed at this function).
+The op owed two records, and they now come from two producers.
 
-The batteries do not move (3675 arc lines and 16380 corner lines, base
-against head). Three record-count pins each gain one edge-edge record
-D1 owed, a span along a collinear edge between bounds that were already
-recorded: `records_cite_their_decision`'s block beside the kiss,
-`a_ruling_lying_on_a_wall`'s void and notch on a seam ruling, and
-`ring_carry_through_by_piece`'s pocket edge down the bore's seam ruling.
-The three lines stay red on RESTREAD's arm 1.
+- **Along an edge** (`quarter`'s apex edge on the partner's corner
+  edge, and the collinear pins): CONTACTHOLD's PR 4740 (merged
+  2026-10-12) has the reduction write the touch's edge-edge record
+  (`boolean::touch_rows`), and the census asks for it. Its carried
+  lineage (`ops::uncopied`, `census::past_segment` /
+  `segments_apart`) also fixes what this branch had first fixed in
+  `ee_lineage` (null-edge copies, the levered segment reads). PR 4737
+  merged main and took 4740's version of all of it.
+- **In a face** (`half`, `shallow`, `tri`):
+  `boolean::ops::record_spans`, run by `carry` once every record is in
+  result keys.
+  - For each line edge a record reaches, the bounds are the records
+    naming a point of it (a vertex on it, a line edge crossing it, one
+    of its ends touching a cell) and its own ends, by structure.
+  - Between consecutive bounds, the span is recorded against each plane
+    face both bounds touch whose interior holds its midpoint
+    (`piece_holds`, the census's own containment read), citing the
+    readings that put each bound on that face.
+  - It reads the census's parallel test and crossing point
+    (`census::segments_parallel`, `segment_cross_point`; `rim_wedge`
+    calls the latter too).
+  - A curved face is skipped (the FUSE twin's case, now pointed at this
+    function).
 
-A body now carries a coincident edge pair's edge-edge record into its
-next boolean, and `ee_lineage` places that record through the splits.
-Three defects in that lineage were reached for the first time, and
-are fixed here:
-- `pieces` read a piece's ends off the clone after the insertion, where
-  a null edge had moved them onto its copy, so a decision named a vertex
-  no input holds. It now reads each end back to the vertex the copy was
-  minted at.
-- A minted vertex was read against every piece's extended line, however
-  far past its ends.
-- Two pieces were read along the first one's line, however short.
-
-Both levered readings put a pair within the zero into the band
-(`three_solids_on_one_line`, the 0.1ε row). The census's own
-collinear test has the same asymmetry:
-`restread/census-collinear-overlap-reads-along-the-first-edges-line`.
-With the lineage reaching its pieces, WIRE's
-`a-boolean-clipping-a-carried-contact-at-a-pinch-records-no-contact-for-the-pierce`
-witnesses pass 3′, and `union_pinch_member_order`'s four pins assert
-`Ok`.
+The arc, corner and pinch batteries do not move against main, nor the
+review's span battery against the pre-fix head. The three lines stay
+red on RESTREAD's arm 1. A carried edge-face span is still dropped by
+`ContactRecords::carried` (WIRE's
+`a-boolean-drops-its-operands-curve-and-patch-records`, evidence there).
 
 Residue filed: `a-line-edges-span-bounded-by-a-conic-crossing-is-not-recorded`
 (FLUSH, P4).

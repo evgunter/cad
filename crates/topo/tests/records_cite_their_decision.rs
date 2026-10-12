@@ -284,10 +284,11 @@ fn a_block_apart_in_an_l_notch_records_no_row() {
 /// the result `A`'s kissing vertex and `C`'s corner are one cell. The
 /// pair of `B`'s kissing vertex and that cell is one hop from `C`'s
 /// corner, so it cites that one decision; the decision joining `A`'s
-/// vertex to `C`'s lies only on a longer chain. Red if a result cell is
-/// read once per side and the pair's citations are their union. `B`'s
-/// bottom edge runs along `C`'s top edge between the two vertex records,
-/// and that edge-edge record cites both of them.
+/// vertex to `C`'s lies only on a longer chain. `B` and `C` also touch
+/// along `B`'s edge over x ∈ (1, 2), whose row cites the decision at
+/// each of its two ends. Red if a result cell is read once per side
+/// and the pair's citations are their union, or if the touch along the
+/// edge goes unrecorded.
 #[test]
 fn a_cell_reached_from_both_sides_cites_its_shortest_chain() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
@@ -296,20 +297,35 @@ fn a_cell_reached_from_both_sides_cites_its_shortest_chain() {
     let c = box_of((1.0, 2.0), (0.0, 1.0), (0.0, 1.0), "c");
     let r = united(&kiss.body, &c, &BooleanInputs::default());
     let cited = cited_rows(&r);
-    assert_eq!(cited.len(), 3, "three records: {:?}", r.contacts);
-    for (kind, rows) in r.contacts.kinds().zip(&cited) {
-        let want = if matches!(kind, topo::ContactKind::EdgeEdge(..)) {
-            2
-        } else {
-            1
-        };
+    assert_eq!(
+        (cited.len(), r.contacts.edge_edge().count()),
+        (3, 1),
+        "the two vertex records and the edge-edge row: {:?}",
+        r.contacts
+    );
+    let kinds: Vec<topo::ContactKind> = r.contacts.kinds().collect();
+    let mut ends = Vec::new();
+    for (rows, kind) in cited.iter().zip(&kinds) {
+        if matches!(kind, topo::ContactKind::EdgeEdge(..)) {
+            continue;
+        }
         assert_eq!(
             rows.len(),
-            want,
-            "{kind:?}: a vertex record cites its one-hop decision, the span its two bounds': \
-             {rows:?}"
+            1,
+            "each vertex record cites its one-hop decision: {rows:?}"
         );
+        ends.extend(rows.iter().copied());
     }
+    let edge = cited
+        .iter()
+        .zip(&kinds)
+        .find(|(_, k)| matches!(k, topo::ContactKind::EdgeEdge(..)))
+        .map(|(rows, _)| rows)
+        .expect("an edge-edge row");
+    assert!(
+        edge.len() == ends.len() && ends.iter().all(|e| edge.contains(e)),
+        "the edge-edge row cites the decisions at its two ends: {edge:?}, ends {ends:?}"
+    );
     let fusions = r
         .coincidences
         .iter()

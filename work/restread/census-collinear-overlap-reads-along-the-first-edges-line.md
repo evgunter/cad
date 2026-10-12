@@ -43,20 +43,16 @@ distance of each edge's ends from the other's segment. Measure a pair
 first: a long edge and a short piece of a within-zero tilted edge
 recorded together, confirmed at rest in both cell orders.
 
-## 2026-10-11 — the confirm pass reads along the longer edge (FLUSH, PR 4737)
+## 2026-10-12 — the lineage routes around it; the census reads as before (FLUSH, PR 4737)
 
-PR 4737's fix pass puts the reading order in the census, where the op
-and the confirm pass share it: `census::interiors_meet` (an edge-edge
-record's confirm, and `segment_interiors_meet` for the boolean's
-lineage and span records) hands `collinear_overlap` the longer edge
-first (`longer_first`, a plain comparison of the lengths' value
-channels, ties and pointless values keeping the given order). So a
-record's confirm no longer depends on its canonical cell order.
+CONTACTHOLD's PR 4740 (merged) gave the boolean's carried edge-edge
+lineage a span-first read (`census::past_segment`,
+`census::segments_apart`) and lets it take either piece's line, so the
+op no longer meets this lever. PR 4737 took that design and left the
+census's own reading order alone. Still open here:
+- the confirm pass (`interiors_meet` → `collinear_overlap`) and pass 5's
+  collinear lane, which read a pair in cell or sweep order;
+- `on_edge_interior`'s line gap, read before the span.
 
-Still open here:
-- pass 5's own collinear lane (`ee_collinear_lane`), which reads a
-  found pair in sweep order;
-- `on_edge_interior`'s line gap, read before the span, so a point far
-  past a short edge's end is read off its extended line (the boolean's
-  lineage routes around it by `census::segment_past`; the census's
-  sweeps do not).
+A record of a short tilted piece and a long one can still escalate at
+rest where the op that made it did not.
