@@ -384,12 +384,19 @@ ladder certifies, and its finish fuses the two solids along the seam
 once, so at full engagement union volume is the operands' sum.
 
 A rim with a determinate G1 jet carries `TangentIntersection`. Rim
-routing by material wedge is `docs/MATE-7-TANGENCY-DESIGN.md`: π ⇒
-smooth seam (a glued `Seam` pair or structural); 0/2π ⇒ the declared cusp
-family, defined but unbuilt (`BooleanError::RimCuspArmUnbuilt`). A
-verified `Tangent` union whose ruling runs through a plane face's
-interior is #131's doubled cusp, unbuilt, and refuses
-(`BooleanError::TangentSlitArmUnbuilt`).
+routing reads the material wedge of a junction, an edge of the result
+that both tangent faces bound (`docs/MATE-7-TANGENCY-DESIGN.md`): π ⇒
+smooth seam (a glued `Seam` pair or structural); 0/2π ⇒ the cusp
+family, defined but unbuilt (`BooleanError::RimCuspArmUnbuilt`). Two
+operands that touch only along a tangent line leave no junction: each
+keeps its own edge on the line, the membership decides every op, ∖
+returns the operand, ∩ is empty, and ∪ is two solids (D1's pieces) whose
+touch is recorded as any pair whose interiors meet — an edge–edge record
+of the two edges on the line, citing the glue's tangency decision and
+confirmed by reconstruction from its bounding vertex records. Where the
+line runs through a face's interior the touch is a face–face curve
+touch; the reduction mints no face–face row, so that union refuses
+(`BooleanError::TangentSlitArmUnbuilt`) until it does.
 
 The same substrate is the at-rest door: `validate_pseudomanifold` with
 mate declarations landed in `ContactRecords`, no boolean, no zip.
