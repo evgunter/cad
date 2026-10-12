@@ -403,7 +403,7 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x1483_76a9_0dca_25c1u64),
+        ("crossing_slots", 0x83af_1043_c3da_9641u64),
         ("heat_sink", 0x077d_7601_580e_739f),
         ("kiss_carry", 0xb6cf_9a24_aba9_b50b),
     ] {

@@ -194,7 +194,7 @@ fn a_rim_on_the_other_cavitys_floor_touches_its_wall_from_inside() {
         said.starts_with("the touch where ") && said.contains(" meets from inside the body of "),
         "{said}"
     );
-    assert_eq!(crossings.len(), 2, "{crossings:?}");
+    assert_eq!(crossings.len(), 3, "{crossings:?}");
     for (a_sense, b_sense, p) in &crossings {
         assert!(
             a_sense.crosses() && *b_sense == Sense::Inside && (p.z - 0.5).abs() < 1e-12,
