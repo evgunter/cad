@@ -2015,8 +2015,10 @@ pub enum EnvelopeStatement {
     ///
     /// On a PLANE chart the map is affine, so `S ∘ P` has the
     /// coefficients the image maps to, and the bound is the norms of
-    /// their differences from the carrier's: `‖Δc‖ + ‖Δa‖ + ‖Δb‖ +
-    /// ‖Δl‖·T`, with `T = max(|t₀|, |t₁|)`.
+    /// their differences from the carrier's: `‖Δc‖ + σ(Δa, Δb) +
+    /// ‖Δl‖·T`, with `T = max(|t₀|, |t₁|)` and `σ(x, y) = sup_t ‖x·cos t
+    /// + y·sin t‖ = √(m + √(q² + (x·y)²))`, `m = (‖x‖² + ‖y‖²)/2`, `q =
+    /// (‖x‖² − ‖y‖²)/2` — `√(x² + y²)` for scalars.
     ///
     /// # On a periodic chart: incidence plus fidelity
     ///
@@ -2055,7 +2057,7 @@ pub enum EnvelopeStatement {
     /// e·(x·e)`, `w = c − (the chart's origin, apex or centre)`, `h =
     /// w·e`, and `T` as above, the lemma per arm — `S(P_d(t)) − C(t)`
     /// written out, then bounded by one triangle inequality per
-    /// coefficient:
+    /// coefficient, a `cos t`/`sin t` pair read together by its `σ`:
     ///
     /// - **Cylinder, moving** (`β = ±1`): `−w_r + g·cos t + β·e×g·sin
     ///   t + (β·e×a_r − b_r)·sin t − l_r·t` with `g = R·â_r − a_r`;
@@ -2066,12 +2068,12 @@ pub enum EnvelopeStatement {
     /// - **Cylinder, meridian** (radial motion decided Zero — or
     ///   undecided, the D9 tie-break): `(R·ŵ_r − w_r) − a_r·cos t −
     ///   b_r·sin t − l_r·t` ⇒ **radius** `|R − ‖w_r‖|` + **drift**
-    ///   `‖a_r‖ + ‖b_r‖` + **line** `‖l_r‖·T`.
+    ///   `σ(a_r, b_r)` + **line** `‖l_r‖·T`.
     /// - **Cone, rim** (slant `ρ = |h|·tan α`; `rad(u)·v` flips with the
     ///   nappe, so the image's radial is `ρ·â_r` on either): `−w_r +
     ///   (g − e·(a·e))·cos t + (β·e×g + β·e×a_r − b_r − e·(b·e))·sin t
     ///   − l·t`, `g = ρ·â_r − a_r` ⇒ **centre** `‖w_r‖` + **radius** `|ρ
-    ///   − ‖a_r‖|` + **orientation** + **tilt** `|a·e| + |b·e|` +
+    ///   − ‖a_r‖|` + **orientation** + **tilt** `σ(a·e, b·e)` +
     ///   **line** `‖l‖·T`.
     /// - **Cone, ruling** (a line; `(h_ref, r_ref)` the height and
     ///   radial of whichever datum the nappe was read off — the anchor
@@ -2115,8 +2117,8 @@ pub enum EnvelopeStatement {
     /// A winding decided Zero on a moving class (a carrier whose radial
     /// part does not turn — no carrier of the chart) takes the image's
     /// constant radial `ρ·rad(α)` at its full length: **radius** `ρ`
-    /// (the torus's `R + r` plus the tube) and **drift** the radial
-    /// coefficients, so even that class is bounded rather than refused
+    /// (the torus's `R + r` plus the tube) and **drift** `σ(a_r, b_r)`,
+    /// so even that class is bounded rather than refused
     /// unmeasured.
     ///
     /// **The frame.** Every arm above is a lemma about an orthonormal
@@ -4037,7 +4039,7 @@ fn run_harmonic_checks<T: Decide>(
             let d_a = image_form.a - carrier_form.a;
             let d_b = image_form.b - carrier_form.b;
             let d_l = image_form.l - carrier_form.l;
-            d_c.norm() + d_a.norm() + d_b.norm() + d_l.norm() * reach
+            d_c.norm() + harmonic_sup(d_a, d_b) + d_l.norm() * reach
         }
     };
     // Not folded into `max_residual`: that field is the sampled max,
@@ -4356,6 +4358,42 @@ fn norm_gap<T: Real>(p: T, p_sq: T, q: Vec3<T>) -> T {
     (p_sq - q.dot(q)).abs() / (p + q.norm())
 }
 
+/// `sup_t ‖a·cos t + b·sin t‖`, exactly: the largest singular value of
+/// `[a b]`, `√(m + √(q² + (a·b)²))` with `m = (‖a‖² + ‖b‖²)/2` and
+/// `q = (‖a‖² − ‖b‖²)/2`. Every step is one of the scalar's own
+/// operations, so at `Interval` the result encloses the sup; the squares
+/// go through `norm_squared` and `powi(2)`, whose enclosures stay
+/// non-negative.
+fn harmonic_sup<T: Real>(a: Vec3<T>, b: Vec3<T>) -> T {
+    #[cfg(test)]
+    if harmonic_sum_mutant("vector") {
+        return a.norm() + b.norm();
+    }
+    let two = T::one() + T::one();
+    let (aa, bb) = (a.norm_squared(), b.norm_squared());
+    let (m, q) = ((aa + bb) / two, (aa - bb) / two);
+    (m + (q.powi(2) + a.dot(b).powi(2)).sqrt()).sqrt()
+}
+
+/// `sup_t |a·cos t + b·sin t| = √(a² + b²)`, exactly; an enclosure at
+/// `Interval` for [`harmonic_sup`]'s reason.
+fn harmonic_sup_scalar<T: Real>(a: T, b: T) -> T {
+    #[cfg(test)]
+    if harmonic_sum_mutant("scalar") {
+        return a.abs() + b.abs();
+    }
+    (a.powi(2) + b.powi(2)).sqrt()
+}
+
+/// The coefficient sum the two `harmonic_sup` forms replace, restored
+/// at test builds when `PCERT_HARMONIC_SUM_MUTANT` names the form at
+/// compile time (`vector` or `scalar`); the rows that refuse it are in
+/// `harmonic_sup_rows`.
+#[cfg(test)]
+fn harmonic_sum_mutant(form: &str) -> bool {
+    option_env!("PCERT_HARMONIC_SUM_MUTANT") == Some(form)
+}
+
 /// Check 4's **incidence** terms: a bound on `sup |S(P_d(t)) − C(t)|`
 /// for the image `P_d` that [`derive_harmonic`] builds from `form`
 /// under `derivation`, in the carrier's own coefficients and the
@@ -4396,11 +4434,11 @@ fn incidence<T: Decide>(
                 } => {
                     terms.add(Centre, w_r.norm());
                     terms.add(Radius, radius);
-                    terms.add(Drift, a_r.norm() + b_r.norm());
+                    terms.add(Drift, harmonic_sup(a_r, b_r));
                 }
                 _ => {
                     terms.add(Radius, norm_gap(radius, radius.powi(2), w_r));
-                    terms.add(Drift, a_r.norm() + b_r.norm());
+                    terms.add(Drift, harmonic_sup(a_r, b_r));
                 }
             }
         }
@@ -4444,7 +4482,7 @@ fn incidence<T: Decide>(
                     let rho = h * nappe.value() * slope;
                     let (a_r, b_r) = (radial(a), radial(b));
                     terms.add(Centre, w_r.norm());
-                    terms.add(Tilt, a.dot(axis).abs() + b.dot(axis).abs());
+                    terms.add(Tilt, harmonic_sup_scalar(a.dot(axis), b.dot(axis)));
                     terms.add(Line, l.norm() * reach);
                     match beta {
                         Winding::Pos | Winding::Neg => {
@@ -4453,7 +4491,7 @@ fn incidence<T: Decide>(
                         }
                         Winding::Zero => {
                             terms.add(Radius, rho);
-                            terms.add(Drift, a_r.norm() + b_r.norm());
+                            terms.add(Drift, harmonic_sup(a_r, b_r));
                         }
                     }
                 }
@@ -4480,7 +4518,7 @@ fn incidence<T: Decide>(
                     let rho_sq = radius.powi(2) - h.powi(2);
                     let rho = rho_sq.sqrt();
                     terms.add(Centre, w_r.norm());
-                    terms.add(Tilt, aa.abs() + bb.abs());
+                    terms.add(Tilt, harmonic_sup_scalar(aa, bb));
                     match beta {
                         Winding::Pos | Winding::Neg => {
                             terms.add(Radius, norm_gap(rho, rho_sq, a_r));
@@ -4488,7 +4526,7 @@ fn incidence<T: Decide>(
                         }
                         Winding::Zero => {
                             terms.add(Radius, rho);
-                            terms.add(Drift, a_r.norm() + b_r.norm());
+                            terms.add(Drift, harmonic_sup(a_r, b_r));
                         }
                     }
                 }
@@ -4535,7 +4573,7 @@ fn incidence<T: Decide>(
                     let m_sq = h.powi(2) + core.powi(2);
                     let tube = (minor_sq - m_sq).abs() / (minor_radius + m_sq.sqrt());
                     terms.add(Centre, w_r.norm());
-                    terms.add(Tilt, aa.abs() + b.dot(axis).abs());
+                    terms.add(Tilt, harmonic_sup_scalar(aa, b.dot(axis)));
                     match beta {
                         Winding::Pos | Winding::Neg => {
                             terms.add(Radius, tube);
@@ -4543,7 +4581,7 @@ fn incidence<T: Decide>(
                         }
                         Winding::Zero => {
                             terms.add(Radius, tube + major_radius + minor_radius);
-                            terms.add(Drift, a_r.norm() + b_r.norm());
+                            terms.add(Drift, harmonic_sup(a_r, b_r));
                         }
                     }
                 }
@@ -4803,12 +4841,10 @@ fn fidelity<T: Decide>(
         Some(T::zero())
     };
     let du = less_branch(p0.x - q0.x, k_u)
-        + (pa.x - qa.x).abs()
-        + (pb.x - qb.x).abs()
+        + harmonic_sup_scalar(pa.x - qa.x, pb.x - qb.x)
         + (pl.x - ql.x).abs() * reach;
     let dv = less_branch(p0.y - q0.y, k_v)
-        + (pa.y - qa.y).abs()
-        + (pb.y - qb.y).abs()
+        + harmonic_sup_scalar(pa.y - qa.y, pb.y - qb.y)
         + (pl.y - ql.y).abs() * reach;
     terms.add(EnvelopeTerm::FidelityU, arm_u.to_meters(du));
     terms.add(EnvelopeTerm::FidelityV, arm_v.to_meters(dv));
@@ -5038,24 +5074,26 @@ fn run_focal_section_checks<T: Decide>(
 ///     `H = apex + n̂·cos α·v(t) + sin α·v0·((cos E − e)·d0 + q·sin E·d1)`,
 ///     and `v(t) − v0·(1 − e·cos E) = (va + e·v0·cos t0)·cos t +
 ///     (vb + e·v0·sin t0)·sin t + vl·t`, so the **remainder** is
-///     `sin α·(|va + e·v0·cos t0| + |vb + e·v0·sin t0| + |vl|·reach)`.
+///     `sin α·(√((va + e·v0·cos t0)² + (vb + e·v0·sin t0)²) + |vl|·reach)`.
 ///   - *Torus*, `Ŝ(u, v) = O + (R + r·cos v)·ρ̂(u) + r·sin v·n̂`,
 ///     `A = R`, with `v_r = v0 + vl·t0` the tube angle at the vertex.
 ///     **Meridional drift**: `v(t) = v_r + vl·E + va·cos t + vb·sin t`,
 ///     and reading `v* = v_r + s·E` (`s` the sign of `vl`) instead
-///     moves the point by `r·(|va| + |vb| + ||vl| − 1|·E_max)`
+///     moves the point by `r·(√(va² + vb²) + ||vl| − 1|·E_max)`
 ///     (`|∂Ŝ/∂v| = r`). Then `R + r·cos v* = R·(1 − e·cos E) +
 ///     (r·cos v_r + R·e)·cos E − s·r·sin v_r·sin E` and
 ///     `r·sin v* = r·sin v_r·cos E + s·r·cos v_r·sin E`, so
 ///     `Ŝ(P*(t)) = H(t) + (…)·ρ̂(u(t))` with
 ///     `H = O + R·((cos E − e)·d0 + q·sin E·d1) + r·(sin v_r·cos E + s·cos v_r·sin E)·n̂`,
 ///     whose `s` is read as `vl` at `r·||vl| − 1|` more, and the
-///     **meridional-phase remainder** `|r·cos v_r + R·e| + r·|sin v_r|`
+///     **meridional-phase remainder** `√((r·cos v_r + R·e)² + r²·sin² v_r)`
 ///     — zero in ℝ exactly when the vertex is on the outer equator and
 ///     `e = −r/R`, the Villarceau circle's.
 /// - **Coefficients.** `H` is `h_c + h_a·cos t + h_b·sin t + h_l·t`
 ///   (rotating `cos E`, `sin E` by `t0`), so
-///   `sup |H − C| ≤ |h_c − c| + |h_a − a| + |h_b − b| + |h_l − l|·reach`.
+///   `sup |H − C| ≤ |h_c − c| + σ(h_a − a, h_b − b) + |h_l − l|·reach`,
+///   `σ` the exact sup of a `cos t`/`sin t` pair
+///   ([`EnvelopeStatement::MapResidualClosedForm`]).
 ///
 /// Every term is rounding-scale on a minted image, so the envelope is
 /// the exact image's distance from the carrier plus the drift every
@@ -5102,7 +5140,7 @@ fn focal_section_envelope<T: Real>(
             let (sin_a, cos_a) = half_angle.sin_cos();
             let lever = sin_a * v0;
             let remainder = sin_a
-                * ((va + ecc * v0 * ct).abs() + (vb + ecc * v0 * st).abs() + vl.abs() * reach);
+                * (harmonic_sup_scalar(va + ecc * v0 * ct, vb + ecc * v0 * st) + vl.abs() * reach);
             (
                 apex + axis * (cos_a * v0) - d0 * (lever * ecc),
                 d0 * lever,
@@ -5122,8 +5160,8 @@ fn focal_section_envelope<T: Real>(
             let v_r = v0 + vl * t0;
             let (sv, cv_r) = v_r.sin_cos();
             let tube_drift = (vl.abs() - one).abs();
-            let meridional = r * (va.abs() + vb.abs() + tube_drift * (e_max + one));
-            let phase = (r * cv_r + big * ecc).abs() + r * sv.abs();
+            let meridional = r * (harmonic_sup_scalar(va, vb) + tube_drift * (e_max + one));
+            let phase = harmonic_sup_scalar(r * cv_r + big * ecc, r * sv);
             let zero = Vec3::new(T::zero(), T::zero(), T::zero());
             (
                 center - d0 * (big * ecc),
@@ -5141,8 +5179,7 @@ fn focal_section_envelope<T: Real>(
     let h_a = a + x * ct - y * st;
     let h_b = b + x * st + y * ct;
     (k - carrier.c).norm()
-        + (h_a - carrier.a).norm()
-        + (h_b - carrier.b).norm()
+        + harmonic_sup(h_a - carrier.a, h_b - carrier.b)
         + (l - carrier.l).norm() * reach
         + outside
         + frame_defect(surface, v_sup)
@@ -7571,7 +7608,7 @@ fn derive_class<T: Decide>(
                     let w_r = radial(center - apex);
                     let rim = match decide(
                         "pcurve_cone_chart_axial",
-                        Margin::of(aa.abs() + ba.abs()),
+                        Margin::of(harmonic_sup_scalar(aa, ba)),
                         band,
                     )
                     .map_err(esc)?
@@ -7784,7 +7821,7 @@ fn derive_class<T: Decide>(
             // axis' direction? (Metered in meters at the chart radius.)
             match decide(
                 "pcurve_sphere_chart_axial",
-                Margin::of(aa.abs() + ba.abs()),
+                Margin::of(harmonic_sup_scalar(aa, ba)),
                 band,
             )
             .map_err(esc)?
@@ -7942,7 +7979,7 @@ fn derive_class<T: Decide>(
             // axial parts of a and b are displacements.)
             match decide(
                 "pcurve_torus_chart_axial",
-                Margin::of(aa.abs() + ba.abs()),
+                Margin::of(harmonic_sup_scalar(aa, ba)),
                 band,
             )
             .map_err(esc)?
@@ -8591,6 +8628,10 @@ pub use projected::{FramedCarrier, ProjectedChart, ProjectedImage, SectorChannel
 
 #[cfg(test)]
 mod envelope_lemma_fuzz;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod harmonic_sup_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
