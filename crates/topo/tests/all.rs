@@ -121,6 +121,8 @@ mod cube_doors_agree;
 mod display_contract;
 #[path = "euler_site_pcurve_rows.rs"]
 mod euler_site_pcurve_rows;
+#[path = "fused_into_live_cells.rs"]
+mod fused_into_live_cells;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]
@@ -207,6 +209,8 @@ mod neighbours_across_a_closed_edge;
 mod offset_doors_read_charts_not_material;
 #[path = "on_verdict.rs"]
 mod on_verdict;
+#[path = "one_record_carry.rs"]
+mod one_record_carry;
 #[path = "pcurve_door_refusals.rs"]
 mod pcurve_door_refusals;
 #[path = "props_sphere_cap_door.rs"]

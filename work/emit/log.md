@@ -2134,3 +2134,76 @@ On three or more members meeting at one point, Ev leans to A's reading
 but is unsure, so the build tries it and keeps it only if the pinch rows
 stay order-free.
 
+## 2026-10-12 — PR 4794: a split piece's lineage is chased through killed stretches
+
+A union over a curved rim cut into pieces refused `SharedRim::Several`.
+Review traced the cause to the lineage chase: a killed stretch deleted
+the parent link, so the piece fell to the derived-chord path. That has
+a P0 precedent fixed in the same place (PR 3114). The chase now reads
+the discard rows' boundary chains, and every one of the 8084 newly
+resolved edges lies within the operand edge it is named for.
+
+The curved `rim_holding` reading stays, with unit witnesses. Only
+`crossing_slots` renames. Two union refusal rows rightly lost their
+refusal, and their witnesses moved.
+
+Filed: `a-lone-cut-piece-of-an-operand-edge-keeps-its-bare-name`, which
+main already has, and `a-point-on-a-curved-edge-is-placed-by-its-chord`.
+
+## 2026-10-12 — PR 4816: the touch / edge-crossing ruling built
+
+This builds Ev's ruling on #4284:
+- a corner keeps its own name;
+- the sense has four values;
+- every edge meeting is a `Crossing` or an `EdgeCrossing`;
+- a union reads edge x edge vertices from the finished body.
+
+On the merged tree, `KNOWN_ABSENT` for cross went from 308 to 140, and
+r5poke and r5pokehi went to 0. Pinned emission refusals now build, each
+with one table.
+
+The residue was not built as Ev's leaned reading, because carrying three
+or more edges needs a design change. It keeps the junction spelling, read
+from the finished body.
+
+Review found three things:
+- several result vertices at one corner now tie (filed, design);
+- the README's flush text is false for two wedges + plate (owned by the
+  residue row);
+- silent fallbacks, now documented and pinned.
+
+Both design rows go to a designer pair next.
+
+
+## 2026-10-12 — PR 4816 merged; the partner-arms row closed
+
+PR 4816 merged with `gate ok` red on one row only. That row is
+`coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`
+at ε 1e-12, the base's red, which FLUSH has filed and which was reported on the PR.
+That merge deleted the seam-vertex partner arms, so
+`the-seam-vertex-contact-partner-arms-have-no-planar-witness-under-maximal-edges`
+is closed as moot.
+- 2026-10-12 — Seam note from ENCL (PR 4811, merged at `abff76bb25`): editor-core's undecided sentences render through `Indeterminate::undecided`. Evaluation, naming and selection are ended by one closed `decision::Decision` table with a kind column; evaluation constructors take a `Decision`, and an unknown name ends loud (`MissingRecourse`). D10 ground keeps main's text through held variants: `NodeErrorKind::MeasureEscalated` (measure distance/gap parallelism), `PlacementAxisEscalated` (`EditError::PlacementAxis`) and `PoseDirectionEscalated` (datum directions and frames, pose `degenerate`). All three classify as Escalated, and pncad-py `tags.rs` and viewer `tree.rs` gained arms. Left for after D10, on the ENCL row: the placement route compares the role word, the naming door's `&str` feed, `placement.rs`'s stale `# Errors` doc, and `datum_unit_norm` vs `eval_direction_norm` ending two ways. (ENCL orchestrator)
+
+## 2026-10-12 — the junction / corner-tie fork goes to Ev
+
+One designer pair weighed both design rows: the PR 4284 residue (three or
+more members at one point) and the corner the result holds as several
+vertices. It took three reconciliation rounds; the pair crossed twice on
+whether a face through the point belongs in the name. They converged:
+- a non-corner vertex is the run of lines through it;
+- each sense is read against what the name cites;
+- a corner's copies are `Fragment(Borders)` fragments of it.
+
+Fork-log row 124; the `[ev]` PR states it in N2.
+
+## 2026-10-12 — PR 4881 ruled
+
+Ev approved the converged recommendation. Ev asked two follow-up questions:
+- whether senses are inconsistent today (no: only a seam line's sense would be new);
+- whether that sense is meaningful.
+
+Then Ev ruled to leave the seam sense out while ranking is the easier route. Two vertices
+with one seam run rank along a straight seam they share. The two rows are
+now build rows, with `design` and `needs_ev` cleared; the fork-log row was renumbered to 124
+at merge.

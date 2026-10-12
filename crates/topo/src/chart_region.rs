@@ -562,6 +562,18 @@ impl<T: Decide + CertifiedBounds> RegionLane<T> {
             declared_overlap: declared_pair_overlap::<T>,
         }
     }
+
+    /// Whether both doors are the certified ones ([`Self::certified`]).
+    #[cfg(test)]
+    pub(crate) fn is_certified(&self) -> bool {
+        std::ptr::fn_addr_eq(
+            self.chart_overlap,
+            chart_region_overlap::<T> as fn(_, _, _, _, _) -> _,
+        ) && std::ptr::fn_addr_eq(
+            self.declared_overlap,
+            declared_pair_overlap::<T> as fn(_, _, _, _, _, _) -> _,
+        )
+    }
 }
 
 impl<T: Decide> RegionLane<T> {

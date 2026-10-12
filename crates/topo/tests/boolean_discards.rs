@@ -11,18 +11,18 @@ use crate::common;
 
 use common::{brick, finished};
 use geom_core::Tol;
-use topo::{Body, BooleanBody, BooleanResult, EdgeKey, FaceKey, VertexKey, subtract};
+use topo::{Body, BooleanBody, BooleanResult, Cell, EdgeKey, FaceKey, VertexKey, subtract};
 
 /// A settled stretch: the result edge and the faces on its two sides.
 pub(crate) type Stretch = Option<(EdgeKey, [FaceKey; 2])>;
 
 /// The result edge each discard's bordered stretch settles onto, and the
 /// kept faces on either side of it; `None` for a stretch whose ends
-/// fused or that no live edge joins.
+/// fused, or lie inside a merged face, or that no live edge joins.
 pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
     let body: &Body<f64> = &out.body;
-    let fused = out.naming.fused_into();
-    let settle = |v: VertexKey| fused.get(&v).copied().unwrap_or(v);
+    let settler = out.naming.settler(body);
+    let settle = |v: VertexKey| settler.settle(v).expect("every end settles on a live cell");
     let face_of = |he| body.face_of_half_edge(he).unwrap();
     let mut by_ends: BTreeMap<(VertexKey, VertexKey), (EdgeKey, [FaceKey; 2])> = BTreeMap::new();
     for (k, e) in body.edges() {
@@ -41,7 +41,13 @@ pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
                 .iter()
                 .map(|&(u, w)| {
                     let (u, w) = (settle(u), settle(w));
-                    by_ends.get(&(u.min(w), u.max(w))).copied().or_else(|| {
+                    let between = match (u, w) {
+                        (Cell::Vertex(u), Cell::Vertex(w)) => by_ends.get(&(u.min(w), u.max(w))),
+                        // An end inside a joined edge or a merged face ends
+                        // no edge.
+                        _ => None,
+                    };
+                    between.copied().or_else(|| {
                         let e = out.naming.stretch_through_joins(body, (u, w))?;
                         let d = body.get_edge(e)?;
                         Some((e, [face_of(d.he_plus), face_of(d.he_minus)]))
@@ -71,13 +77,7 @@ fn a_through_slot_records_the_strip_it_discards_between_two_kept_pieces() {
     let BooleanResult::Body(out) = subtract(&plate, &slot, tol).expect("the slot subtracts") else {
         panic!("a slotted plate is not empty");
     };
-    let rows: BTreeMap<FaceKey, FaceKey> = out.naming.face_fragments_a.iter().copied().collect();
-    let root = |mut f: FaceKey| {
-        while let Some(&p) = rows.get(&f).filter(|p| **p != f) {
-            f = p;
-        }
-        f
-    };
+    let root = |f: FaceKey| out.naming.face_fragments_a.root(f);
     // Operand face → the result faces descending from it (A keys are
     // the result's on this path).
     let mut pieces: BTreeMap<FaceKey, BTreeSet<FaceKey>> = BTreeMap::new();

@@ -54,6 +54,8 @@
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
 pub mod certify;
+pub mod conic_bend;
+pub(crate) mod descent;
 pub mod description;
 pub mod dihedral;
 pub mod edge_nurbs;
@@ -90,15 +92,17 @@ pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
     IntersectionDraft, NurbsLane, edge_extent, folded_parallelism, sample_param, schedule_param,
 };
+pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE,
-    MaterialPairing, MaterialWedge, MustCarryDescription, MustCarryEscalation, MustCarryRefusal,
-    MustCarryVerdict, SecondOrder, SecondOrderWalk, Station, StationHook, classify_dihedral,
-    classify_material_pairing, classify_material_pairing_as, folded_lever_arm, interior_stations,
-    material_kappa_rel, must_carry_over_edge, second_order_walk, tangent_second_order,
+    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, DihedralReading, MATERIAL_PAIRING,
+    MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MustCarryDescription,
+    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder, SecondOrderWalk,
+    SmoothJoin, Station, StationHook, classify_dihedral, classify_material_pairing,
+    classify_material_pairing_as, folded_lever_arm, interior_stations, material_kappa_rel,
+    must_carry_description, must_carry_over_edge, second_order_walk, tangent_second_order,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
@@ -146,7 +150,7 @@ pub use offset::{
     ConeOffset, Nappe, OffsetDistanceError, OffsetError, offset_distance, offset_surface,
 };
 pub use offset_fit::{
-    BestBound, OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface,
+    BestBound, OffsetCertificate, OffsetFitError, OffsetFitWall, OffsetLimb, approx_offset_surface,
     approx_offset_surface_at, certify_offset, certify_offset_at, certify_offset_over,
     certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
@@ -171,10 +175,10 @@ pub use ssi::{
     ChartSide, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
     ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, PlaneSection, ReachBound,
     SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionReading, SectionRoot,
-    SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb,
-    SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision, TubeDegeneracy,
-    boundary_section, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
-    trace_plane_nurbs_uncertified,
+    SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
+    SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision,
+    TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3,
+    plane_nurbs_ssi, trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

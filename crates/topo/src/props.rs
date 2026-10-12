@@ -2773,6 +2773,17 @@ pub fn loop_edges<T: Decide>(
     let Some(cycle) = body.loop_cycle(first) else {
         return Err(corrupt("broken half-edge cycle"));
     };
+    Ok((run_edges(body, &cycle)?, cycle))
+}
+
+/// [`loop_edges`]' flattening over any closed run of half-edges, in
+/// the order given: a loop's cycle, or a chain of half-edges from
+/// several faces that closes on itself.
+pub(crate) fn run_edges<T: Decide>(
+    body: &Body<T>,
+    cycle: &[crate::entity::HalfEdgeKey],
+) -> Result<Vec<LoopEdge<T>>, LoopEdgesError> {
+    let corrupt = |what| LoopEdgesError::Corrupt { what };
     let mut tags: Vec<VertexKey> = Vec::new();
     let mut tag_of = |v: VertexKey| -> u32 {
         if let Some(i) = tags.iter().position(|&t| t == v) {
@@ -2783,9 +2794,7 @@ pub fn loop_edges<T: Decide>(
         }
     };
     let mut edges = Vec::with_capacity(cycle.len());
-    let mut hes = Vec::with_capacity(cycle.len());
-    for &he_key in &cycle {
-        hes.push(he_key);
+    for &he_key in cycle {
         let Some(he) = body.half_edges.get(he_key) else {
             return Err(corrupt("half-edge key does not resolve"));
         };
@@ -2820,7 +2829,7 @@ pub fn loop_edges<T: Decide>(
             end: tag_of(end),
         });
     }
-    Ok((edges, hes))
+    Ok(edges)
 }
 
 /// The derived outer/void designation of one shell. The shell list
@@ -3638,6 +3647,35 @@ mod wiring_rows {
         Ok(())
     }
 
+    /// Each certifying scalar's region lane is the certified doors
+    /// ([`crate::RegionLane::certified`]); a dual's is absent
+    /// (`dual_gate_is_absent_not_a_verdict`).
+    #[test]
+    fn every_certifying_scalar_is_wired_to_the_certified_region_lane() {
+        assert!(
+            <f64 as AtRestPolicy>::region_lane().is_some_and(|l| l.is_certified()),
+            "f64"
+        );
+        assert!(
+            <geom_core::Sym<f64> as AtRestPolicy>::region_lane().is_some_and(|l| l.is_certified()),
+            "Sym<f64>"
+        );
+        assert!(
+            <geom_core::interval::Interval as AtRestPolicy>::region_lane()
+                .is_some_and(|l| l.is_certified()),
+            "Interval"
+        );
+    }
+
+    #[cfg(feature = "probe")]
+    #[test]
+    fn probe_is_wired_to_the_certified_region_lane() {
+        assert!(
+            <geom_core::Probe as AtRestPolicy>::region_lane().is_some_and(|l| l.is_certified()),
+            "Probe"
+        );
+    }
+
     #[test]
     fn f64_is_wired_to_the_certified_quadrature() {
         assert_eq!(
@@ -3884,6 +3922,14 @@ pub trait AtRestPolicy: Decide {
     /// only.
     fn quad_lane() -> Option<QuadLane<Self>>;
 
+    /// **This scalar's chart-region doors, or `None` where they may not
+    /// certify** — what an op that confirms a record outside the
+    /// census's own doors reads a face–face pair through
+    /// ([`crate::census`]'s record confirm, run by the boolean's carry),
+    /// as `validate_pseudomanifold` hands the census at a certifying
+    /// scalar. `None` leaves a face–face pair unread.
+    fn region_lane() -> Option<crate::RegionLane<Self>>;
+
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
     /// which).
@@ -3989,6 +4035,10 @@ impl AtRestPolicy for f64 {
         Some(QuadLane::certified())
     }
 
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -4061,6 +4111,10 @@ impl AtRestPolicy for geom_core::Probe {
         Some(QuadLane::certified())
     }
 
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -4127,6 +4181,10 @@ impl AtRestPolicy for geom_core::interval::Interval {
 
     fn quad_lane() -> Option<QuadLane<Self>> {
         Some(QuadLane::certified())
+    }
+
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -4208,6 +4266,10 @@ where
 
     fn quad_lane() -> Option<QuadLane<Self>> {
         Some(QuadLane::certified())
+    }
+
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -4296,6 +4358,10 @@ where
     }
 
     fn quad_lane() -> Option<QuadLane<Self>> {
+        None
+    }
+
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
         None
     }
 
@@ -4558,6 +4624,10 @@ mod at_rest_policy_tests {
         assert!(
             <geom_core::Dual64 as AtRestPolicy>::nurbs_lane().is_none(),
             "a dual may not certify, so it holds no plane x NURBS lane"
+        );
+        assert!(
+            <geom_core::Dual64 as AtRestPolicy>::region_lane().is_none(),
+            "a dual may not certify, so it holds no region lane"
         );
     }
 }

@@ -809,11 +809,24 @@ fn head<'n, 's>(
     items
 }
 
-/// A crossing's sense as the verb its edge takes.
+/// A crossing's sense as the verb its edge takes before the body it is
+/// read against.
 fn sense_verb(sense: super::role::Sense) -> &'static str {
     match sense {
         super::role::Sense::Enters => "enters",
         super::role::Sense::Leaves => "leaves",
+        super::role::Sense::Outside => "meets from outside",
+        super::role::Sense::Inside => "meets from inside",
+    }
+}
+
+/// What a vertex where edges meet a body is called: a crossing where
+/// any of its edges passes through, a touch where none does.
+fn meeting(senses: &[super::role::Sense]) -> &'static str {
+    if senses.iter().any(|s| s.crosses()) {
+        "the crossing where "
+    } else {
+        "the touch where "
     }
 }
 
@@ -872,7 +885,7 @@ fn role<'n, 's>(
             cites.one(b),
         ],
         RoleSeg::Crossing { edge, face, sense } => vec![
-            text("the crossing where "),
+            text(meeting(&[*sense])),
             cites.one(edge),
             text(format!(" {} the body of ", sense_verb(*sense))),
             cites.one(face),
@@ -883,7 +896,7 @@ fn role<'n, 's>(
             b,
             b_sense,
         } => vec![
-            text("the crossing where "),
+            text(meeting(&[*a_sense, *b_sense])),
             cites.one(a),
             text(format!(" {} the other body and ", sense_verb(*a_sense))),
             cites.one(b),
@@ -1060,6 +1073,74 @@ mod tests {
 
     fn open(at: &[&[u16]]) -> Detail {
         Detail::Open(at.iter().map(|pos| pos.to_vec()).collect())
+    }
+
+    /// **A crossing says its sense, and a meeting no edge passes
+    /// through is a touch**: an edge meeting a face from outside or from
+    /// inside, two edges touching each other's body from outside, and
+    /// one edge crossing where the other touches.
+    #[test]
+    fn a_touch_says_which_side_it_meets_from() {
+        use crate::names::role::Sense;
+        let crossing = |sense| {
+            name(
+                EntityKind::Vertex,
+                OP,
+                vec![RoleSeg::Crossing {
+                    edge: NameRef::new(rim(1)),
+                    face: NameRef::new(wall(2)),
+                    sense,
+                }],
+            )
+        };
+        let edges = |a_sense, b_sense| {
+            name(
+                EntityKind::Vertex,
+                OP,
+                vec![RoleSeg::EdgeCrossing {
+                    a: NameRef::new(rim(1)),
+                    a_sense,
+                    b: NameRef::new(rim(2)),
+                    b_sense,
+                }],
+            )
+        };
+        for (sense, head, verb) in [
+            (Sense::Enters, "the crossing where ", " enters the body of "),
+            (Sense::Leaves, "the crossing where ", " leaves the body of "),
+            (
+                Sense::Outside,
+                "the touch where ",
+                " meets from outside the body of ",
+            ),
+            (
+                Sense::Inside,
+                "the touch where ",
+                " meets from inside the body of ",
+            ),
+        ] {
+            let s = said(&crossing(sense));
+            assert!(s.starts_with(head) && s.contains(verb), "{sense:?}: {s}");
+        }
+        let touch = said(&edges(Sense::Outside, Sense::Outside));
+        assert!(
+            touch.starts_with("the touch where ")
+                && touch.contains(" meets from outside the other body and ")
+                && touch.contains(" meets from outside the first"),
+            "{touch}"
+        );
+        let mixed = said(&edges(Sense::Enters, Sense::Inside));
+        assert!(
+            mixed.starts_with("the crossing where ")
+                && mixed.contains(" enters the other body and ")
+                && mixed.contains(" meets from inside the first"),
+            "{mixed}"
+        );
+        assert_ne!(
+            said(&crossing(Sense::Outside)),
+            said(&crossing(Sense::Inside)),
+            "the two touches read apart"
+        );
     }
 
     /// By tag every carry says the read it came through, after the

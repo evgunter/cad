@@ -212,31 +212,42 @@ fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
     }
 }
 
-/// **E2E row 2 — the refused pose.** The same brick raised into the
+/// **E2E row 2 — the pose in the band.** The same brick raised into the
 /// torus band (y ∈ [1.05, 1.45] against the band's y ∈ [1.25 ± R_arc]
 /// ≈ [0.97, 1.53]). The torus is on the union's KIND roster, so the
 /// gate admits the pair; the crossing layer records the brick's plane
-/// against the torus band, and the union passes the JOIN's germ frame
-/// and stops at its germ-pair dispatch, which has no torus arm. That is the join-side door the torus gate admission was
-/// told to expect, measured.
+/// against the torus band, and the union passes the JOIN's germ frame,
+/// its germ-pair dispatch and the chord, which takes the concentric
+/// circles of the brick's planes `y = 1.05` and `1.45`. The band lies
+/// within the brick's sides, so the union is the vase and the brick
+/// less the band's slice between those planes, in closed form.
 #[test]
-fn the_same_union_posed_into_the_torus_band_stops_at_the_germ_dispatch() {
+fn the_same_union_posed_into_the_torus_band_builds() {
     let a = finished("the vase", vase(), Tol::witness());
     let b = finished(
         "the brick",
         brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
-    let err =
-        topo::union(&a, &b, Tol::witness()).expect_err("a torus × plane germ has no join arm");
-    let BooleanError::CurvedBooleanUnsupported {
-        operand: topo::Operand::A,
-        kind: geom::SurfaceKind::Torus,
-        ..
-    } = err
-    else {
-        panic!("expected the germ-pair dispatch's torus refusal, got {err:?}");
+    let out = topo::union(&a, &b, Tol::witness()).expect("the union builds");
+    let body = &out.body().expect("a non-empty union").body;
+    assert_eq!(topo::validate_geometric(body, Tol::witness()), Ok(()));
+    let (cx, r_arc, a_h) = bulge_arc();
+    // `π∫(cx + √(R² − t²))² dt` over `|t| ≤ h`: the band's volume within
+    // `h` of its middle.
+    let band = |h: f64| {
+        let iq = 2.0
+            * (h / 2.0 * (r_arc * r_arc - h * h).sqrt() + r_arc * r_arc / 2.0 * (h / r_arc).asin());
+        PI * (cx * cx * 2.0 * h + 2.0 * cx * iq + (r_arc * r_arc * 2.0 * h - 2.0 * h * h * h / 3.0))
     };
+    let caps = 2.0 * (2.0 / 3.0) * PI * 0.125;
+    let vase_vol = caps + 2.0 * PI * 0.25 * 0.5 + band(a_h);
+    let want = vase_vol + 2.0 * 2.0 * 0.4 - band(0.2);
+    let got = vol(body);
+    assert!(
+        (got - want).abs() <= want * 1e-9_f64.max(1e3 * Tol::witness().eps()),
+        "the union's volume {got} against the analytic {want}"
+    );
 }
 
 /// **Row 3 — what the ruling's own blind spot answered, and what it

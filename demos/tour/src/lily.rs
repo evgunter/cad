@@ -151,7 +151,6 @@ use core::f64::consts::PI;
 use pncad::document::ExtrudeSide;
 
 use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Vec2, Vec3};
-use pncad::prelude::SurfaceKind;
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::BlendError;
@@ -2238,24 +2237,24 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    other tube's carrier only outside that face's window, which
     //    the roots certify. So the glue reaches the join, whose germ
     //    pair of the stem's weld cap against the arch's wall (plane ×
-    //    torus, the arch's rim lying in the cap) reads its frame off
-    //    that rim and has no join arm: the join refuses on the arch's
-    //    wall.
+    //    torus, the arch's rim lying in the cap) takes the plane × wall
+    //    arm and its chord, an arc of the arch's meridian circle. Past
+    //    the join, the section certificate's interior-loop guard refuses
+    //    the stem's tube wall against the arch's: two tori with parallel
+    //    axes apart, which it has no arm for.
     wall(
         1,
         "glue the two stem arcs into one stem (coincident-planar mate)",
         crate::booleans::try_union(stem, arch, tol),
         |e| {
             matches!(
-                *e,
-                BooleanError::CurvedBooleanUnsupported {
-                    operand: Operand::B,
-                    face,
-                    kind: SurfaceKind::Torus,
-                } if matches!(
-                    arch.get_face(face).and_then(|f| arch.get_surface(f.surface)),
-                    Some(pncad::geom::Surface::Torus { .. })
-                )
+                e,
+                BooleanError::CurvedPairUnsupported {
+                    site: pncad::topo::PairRefusalSite::InteriorLoopGuard,
+                    kind: pncad::geom::SurfaceKind::Torus,
+                    other_kind: pncad::geom::SurfaceKind::Torus,
+                    ..
+                }
             )
         },
         "make the stem a single body — and close #968, whose whole content this is",
@@ -2616,6 +2615,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 #[cfg(test)]
 mod review_probes {
     use super::*;
+    use pncad::prelude::SurfaceKind;
     use pncad::topo::Surface;
 
     fn pieces() -> Vec<Piece<f64>> {
@@ -4114,29 +4114,25 @@ mod verbs_gate_r1_probes {
         let glued = crate::booleans::try_union(stem, arch, tol)
             .expect_err("the stem's two arcs still cannot be glued");
         println!("lily wall 1: {glued:?}");
-        // **Wall 1 is past the gate and the crossing layer.** The
-        // circle × torus root lane certifies each seam's crossing of the
-        // other tube's carrier as lying outside that face's window, so
-        // the glue reaches the join, whose germ pair of the stem's weld
-        // cap against the arch's wall (plane × torus) reads its frame
-        // off the arch's rim lying in the cap and has no join arm: it
-        // refuses on the arch's wall. Unconditional: an `if let` here
-        // would go quiet exactly when the refusal's shape changes.
-        let BooleanError::CurvedBooleanUnsupported {
-            operand: Operand::B,
-            face,
-            kind: SurfaceKind::Torus,
-        } = glued
-        else {
-            panic!("wall 1 stops at the join's plane × torus arm: {glued:?}");
-        };
+        // **Wall 1 is past the gate, the crossing layer and the
+        // join.** The circle × torus root lane certifies each seam's
+        // crossing of the other tube's carrier as lying outside that
+        // face's window, so the glue reaches the join, whose germ pair
+        // of the stem's weld cap against the arch's wall (plane × torus)
+        // takes the plane × wall arm and its chord. Past the join, the
+        // interior-loop guard refuses the stem's tube wall against the
+        // arch's, two tori with parallel axes apart.
         assert!(
             matches!(
-                arch.get_face(face)
-                    .and_then(|f| arch.get_surface(f.surface)),
-                Some(Surface::Torus { .. })
+                glued,
+                BooleanError::CurvedPairUnsupported {
+                    site: pncad::topo::PairRefusalSite::InteriorLoopGuard,
+                    kind: pncad::geom::SurfaceKind::Torus,
+                    other_kind: pncad::geom::SurfaceKind::Torus,
+                    ..
+                }
             ),
-            "the arch's face is its tube wall: {glued:?}"
+            "wall 1 stops at the interior-loop guard on its two tube walls: {glued:?}"
         );
         // **The weld itself has no torus contact**, measured
         // off the two loci: the stem tube's end circle has radius
