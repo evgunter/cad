@@ -793,3 +793,13 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - This is the orchestrator's call: an internal meter trade with a dominant measurement, touching no ratified text.
   - Build C builds it with pin rows for degree 2 and degree 25, and re-cuts any golden that moves. Any other caller of the refinement plumbing gets its own cost row.
   - **Tier: single FULL.** — (NURBS orchestrator)
+- 2026-10-12 14:10Z — **PR 4851 merges (`46c91a67cb`).**
+  - **The change:** Div's point paths now share one dispatch and fold with `Mul`. `corner_bounds::<Op: CornerOp>` takes `Product` or `Quotient`, so a caller cannot swap the lo/hi pair (S1, S5). The trait form measured faster than an fn-pointer struct: 31.3 against 38.7 s on the digest row.
+  - **Cost:** the digest row is about 11% faster than main.
+  - **Checked since the reviewed head `ce1223dc`:** only `arith.rs`, with the dispatch moved into the helper. The rows still compare against the literal `four_corners` oracle.
+  - **CI:** the only red is editor-core's 1e-12 base row; the interval oracle job passed.
+- 2026-10-12 14:11Z — **Build B dispatched** on `the-span-derivative-scale-is-spelled-in-six-places` (P4, M), branch `nurbs/one-derivative-scale`.
+  - The scale and the net get one `T`-generic home in geom-core `spline`, and the zero-difference policy comes from the caller.
+  - The claim is bit-identical. A moved golden stops the lane rather than being re-cut.
+  - The sites span TOPO, geom-brep and geom-core ground, and the lane announces the seams.
+  - **Tier: single FULL.** — (NURBS orchestrator)
