@@ -2,7 +2,7 @@
 id: crossing-equal-cylinders-take-the-parallel-radical-plane-and-desync
 kind: issue
 title: A germ between two equal-radius cylinders on crossing axes takes the parallel pair's radical plane and refuses JoinDesync
-status: dispatched
+status: review
 opened: 2026-10-12
 priority: P2
 cost: M
