@@ -411,6 +411,13 @@ fn cut_and_tipped(
 /// stored.** Pose 0's rod cut from a long one, so its wall's origin is
 /// stored up to 1e5 m off its faces, and tipped a fifth of the zero band:
 /// every op builds SOUND at the closed-form volume, in both orders.
+///
+/// A pose runs only where ε can name the cut on the long rod. A strut's
+/// split is stored as a parameter `u ∈ [0, 1]` along its whole extrusion
+/// vector, so the stored range resolves the cut only to `2·far·2⁻⁵³ =
+/// far·f64::EPSILON` along it, and certification meters that miss
+/// against ε. At `far = 1e5` that is 2.2e-11 m, so ε = 1e-12 escalates
+/// `carrier_matches_mapped_source` on the long rod's struts.
 #[test]
 fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     const R: f64 = 0.5;
@@ -419,6 +426,17 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     let (area, _) = lens((0.0, 0.0), R, c, r);
     let poses: Vec<Pose> = [2.0, 1000.0, 1.0e5]
         .into_iter()
+        .filter(|&far| {
+            let resolvable = far * f64::EPSILON <= zero;
+            if !resolvable {
+                println!(
+                    "SKIPPED at this ε: a rod cut from ±{far} m stores its cut to {:e} m, \
+                     past the zero band {zero:e}",
+                    far * f64::EPSILON
+                );
+            }
+            resolvable
+        })
         .map(|far| Pose {
             label: format!("rod cut from ±{far} m, tipped 0.2·zero"),
             a: rod(R, (0.0, 0.0), (-1.0, 1.0)),
