@@ -781,7 +781,8 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut desc = Descendants::default()
         .with_copies(copies)
         .with_along(along)
-        .with_fragments(fragments.clone());
+        .with_fragments(fragments.clone())
+        .with_absorbed(connected.absorbed.clone());
     // A vertex several seams meet is fused by the first: each later zip
     // reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
@@ -2858,6 +2859,10 @@ pub(super) struct Descendants {
     /// naming the face is read through all of its pieces
     /// ([`operand_fate`], [`place_found`]).
     fragments: [Vec<(FaceKey, FaceKey)>; 2],
+    /// Each operand's faces the join killed, `(killed face, face
+    /// holding its region)` in its clone keys: a division's fragment the
+    /// join merged back (`join::Connected::absorbed`).
+    absorbed: [Vec<(FaceKey, FaceKey)>; 2],
     /// Every other substitution, dead cell → the cell that holds its
     /// interior now, result keys: a zipped ring edge → its seam edge, a
     /// cell the merge swallowed → the kept face, a joined vertex or
@@ -2893,6 +2898,28 @@ impl Descendants {
     /// ([`Self::fragments`]).
     pub(super) fn with_fragments(self, fragments: [Vec<(FaceKey, FaceKey)>; 2]) -> Self {
         Self { fragments, ..self }
+    }
+
+    /// The map that also reads the faces the join killed
+    /// ([`Self::absorbed`]).
+    pub(super) fn with_absorbed(self, absorbed: [Vec<(FaceKey, FaceKey)>; 2]) -> Self {
+        Self { absorbed, ..self }
+    }
+
+    /// The clone face holding `f`'s region: `f`, or the face the join
+    /// merged it into, followed while that one was merged too.
+    fn holding(&self, side: Operand, f: FaceKey) -> Result<FaceKey, BooleanError> {
+        let rows = &self.absorbed[usize::from(side == Operand::B)];
+        let mut at = f;
+        for _ in 0..=rows.len() {
+            match rows.iter().find(|&&(killed, _)| killed == at) {
+                Some(&(_, into)) => at = into,
+                None => return Ok(at),
+            }
+        }
+        Err(BooleanError::JoinDesync {
+            what: "the join's absorbed faces cycle",
+        })
     }
 
     /// `v` and every vertex null edges join it to, transitively, in
@@ -3270,6 +3297,9 @@ pub(super) struct Ledger {
 pub(super) struct Incidence {
     vertex: BTreeMap<VertexKey, Vec<FaceKey>>,
     edge: BTreeMap<EdgeKey, Vec<FaceKey>>,
+    /// The join's null faces: a division's fragment that became one
+    /// holds none of the divided face's region.
+    scaffold: BTreeSet<FaceKey>,
 }
 
 impl Incidence {
@@ -3311,6 +3341,7 @@ impl Incidence {
                 .map(|(v, fs)| (v, real(fs)))
                 .collect(),
             edge,
+            scaffold: scaffold.clone(),
         }
     }
 }
@@ -3518,7 +3549,7 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
         &tagged(&ledger.discovered),
         [&a, &b],
         views,
-        (desc, &ledger.incidence),
+        (desc, &ledger.incidence, discarded),
         false,
         band,
     )?;
@@ -3591,9 +3622,25 @@ fn carried<T: Decide + AtRestPolicy>(
             band,
             T::region_lane(),
         )
-        .map_err(|refusal| BooleanError::CarryRefused {
-            operand: side,
-            refusal,
+        .map_err(|refusal| {
+            // A carried record cites the operand's record it is; a ring
+            // tie, listed after them, cites the reduction's decision.
+            let k = refusal.record() as usize;
+            let ties = rows
+                .iter()
+                .take(k)
+                .filter(|(_, cites)| operand_record(cites).is_none())
+                .count();
+            match rows.get(k).and_then(|(_, cites)| operand_record(cites)) {
+                Some(record) => BooleanError::CarryRefused {
+                    row: super::RefusedRow::Carried(side),
+                    refusal: refusal.renumbered(record),
+                },
+                None => BooleanError::CarryRefused {
+                    row: super::RefusedRow::RingTie(side),
+                    refusal: refusal.renumbered(super::reduce::index(ties)),
+                },
+            }
         })?;
         for l in landed {
             let (cells, cites) = &rows[l.row];
@@ -3649,6 +3696,14 @@ fn carried<T: Decide + AtRestPolicy>(
     Ok(out)
 }
 
+/// The operand's record a carried row is: the one it cites.
+fn operand_record(cites: &Cites) -> Option<u32> {
+    match cites.iter().collect::<Vec<_>>()[..] {
+        [Backing::Carried { record, .. }] => Some(record),
+        _ => None,
+    }
+}
+
 /// One image of a carried record's input cell: the result cell, and the
 /// operand clone's cell it is the live image of.
 struct Back {
@@ -3683,17 +3738,7 @@ fn operand_fate<T: Real>(
     x: Cell,
     back: &mut Vec<Back>,
 ) -> Result<crate::Fate, BooleanError> {
-    use crate::lineage::{Descent, Division, Remainder};
-    let s = usize::from(side == Operand::B);
-    let incidence = &ledger.incidence[s];
-    let all_discarded = |fs: Option<&Vec<FaceKey>>| {
-        fs.is_some_and(|fs| !fs.is_empty() && fs.iter().all(|f| discarded.contains(f)))
-    };
-    let removed = |c: Cell| match c {
-        Cell::Face(f) => discarded.contains(&f),
-        Cell::Edge(e) => all_discarded(incidence.edge.get(&e)),
-        Cell::Vertex(v) => all_discarded(incidence.vertex.get(&v)),
-    };
+    let incidence = &ledger.incidence[usize::from(side == Operand::B)];
     let copies = |v: VertexKey| desc.copies_of(side, v).into_iter().map(Cell::Vertex);
     let (pieces, minted, divided): (Vec<Cell>, Vec<Cell>, bool) = match x {
         Cell::Vertex(v) => (copies(v).collect(), Vec::new(), false),
@@ -3706,51 +3751,39 @@ fn operand_fate<T: Real>(
                 divided,
             )
         }
-        Cell::Face(f) => {
-            let fragments: Vec<FaceKey> = Descent::of(f, &desc.fragments[s]).cells().collect();
-            let chords = incidence.chords(&fragments).collect();
-            let divided = fragments.len() > 1;
-            (
-                fragments.into_iter().map(Cell::Face).collect(),
-                chords,
-                divided,
-            )
-        }
+        Cell::Face(f) => face_pieces(desc, incidence, side, f)?,
     };
+    let removed = |c: Cell| stated_removed(incidence, discarded, c);
     let mut gone = false;
-    let mut images = |cells: Vec<Cell>, back: &mut Vec<Back>| -> Result<Vec<Cell>, BooleanError> {
-        let mut out: Vec<Cell> = Vec::new();
-        for c in cells {
-            match desc.live(body, side, view, c)? {
-                Some(r) => {
-                    back.push(Back {
-                        input: x,
-                        result: r,
-                        clone: c,
-                    });
-                    if !out.contains(&r) {
-                        out.push(r);
-                    }
-                }
-                None if removed(c) => gone = true,
-                None => {
-                    return Err(BooleanError::JoinDesync {
-                        what: "a carried record's cell left the result with no row stating its \
-                               removal",
-                    });
-                }
-            }
-        }
-        Ok(out)
-    };
-    let pieces = images(pieces, back)?;
-    let minted = images(minted, back)?;
-    let remainder = if gone {
-        Remainder::Removed
-    } else {
-        Remainder::Exhaustive
-    };
-    Ok(match pieces.split_first() {
+    let pieces = imaged(
+        body,
+        desc,
+        (side, view),
+        &removed,
+        x,
+        pieces,
+        &mut gone,
+        back,
+    )?;
+    let minted = imaged(
+        body,
+        desc,
+        (side, view),
+        &removed,
+        x,
+        minted,
+        &mut gone,
+        back,
+    )?;
+    Ok(fate_of(pieces, minted, divided, gone))
+}
+
+/// A cell's fate from its live pieces and minted cells: removed where
+/// none is left, kept where it is neither divided nor lost any part, and
+/// otherwise divided, its remainder removed where it lost part.
+fn fate_of(pieces: Vec<Cell>, minted: Vec<Cell>, divided: bool, gone: bool) -> crate::Fate {
+    use crate::lineage::{Division, Remainder};
+    match pieces.split_first() {
         None if minted.is_empty() => crate::Fate::Removed,
         Some((&at, copies)) if !divided && !gone => crate::Fate::Kept {
             at,
@@ -3759,9 +3792,100 @@ fn operand_fate<T: Real>(
         _ => crate::Fate::Divided(Division {
             pieces,
             minted,
-            remainder,
+            remainder: if gone {
+                Remainder::Removed
+            } else {
+                Remainder::Exhaustive
+            },
         }),
-    })
+    }
+}
+
+/// Face `f`'s pieces in `side`'s clone keys: the fragments the join's
+/// divisions left of it, each read through the faces the join merged
+/// back ([`Descendants::holding`]), the join's null faces left out, with
+/// the chords between them ([`Incidence::chords`]), and whether it is
+/// divided.
+fn face_pieces(
+    desc: &Descendants,
+    incidence: &Incidence,
+    side: Operand,
+    f: FaceKey,
+) -> Result<(Vec<Cell>, Vec<Cell>, bool), BooleanError> {
+    let mut fragments: Vec<FaceKey> = Vec::new();
+    for g in
+        crate::lineage::Descent::of(f, &desc.fragments[usize::from(side == Operand::B)]).cells()
+    {
+        let g = desc.holding(side, g)?;
+        if !incidence.scaffold.contains(&g) && !fragments.contains(&g) {
+            fragments.push(g);
+        }
+    }
+    let chords = incidence.chords(&fragments).collect();
+    let divided = fragments.len() > 1;
+    Ok((
+        fragments.into_iter().map(Cell::Face).collect(),
+        chords,
+        divided,
+    ))
+}
+
+/// Whether the op stated the removal of `c`, a clone cell: a face it
+/// discarded, or an edge or vertex every real face around which it
+/// discarded ([`Incidence`]).
+fn stated_removed(incidence: &Incidence, discarded: &BTreeSet<FaceKey>, c: Cell) -> bool {
+    let all_discarded = |fs: Option<&Vec<FaceKey>>| {
+        fs.is_some_and(|fs| !fs.is_empty() && fs.iter().all(|f| discarded.contains(f)))
+    };
+    match c {
+        Cell::Face(f) => discarded.contains(&f),
+        Cell::Edge(e) => all_discarded(incidence.edge.get(&e)),
+        Cell::Vertex(v) => all_discarded(incidence.vertex.get(&v)),
+    }
+}
+
+/// The live images of `cells`, clone cells of input cell `x`, each
+/// logged in `back`; one the result does not hold sets `gone` where its
+/// removal is stated.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] for a cell the result does not hold
+/// whose removal is not stated; as [`Descendants::live`].
+#[allow(clippy::too_many_arguments)]
+fn imaged<T: Real>(
+    body: &Body<T>,
+    desc: &Descendants,
+    (side, view): (Operand, &KeyView<'_>),
+    removed: &dyn Fn(Cell) -> bool,
+    x: Cell,
+    cells: Vec<Cell>,
+    gone: &mut bool,
+    back: &mut Vec<Back>,
+) -> Result<Vec<Cell>, BooleanError> {
+    let mut out: Vec<Cell> = Vec::new();
+    for c in cells {
+        match desc.live(body, side, view, c)? {
+            Some(r) => {
+                back.push(Back {
+                    input: x,
+                    result: r,
+                    clone: c,
+                });
+                if !out.contains(&r) {
+                    out.push(r);
+                }
+            }
+            None if removed(c) => *gone = true,
+            None => {
+                return Err(BooleanError::JoinDesync {
+                    what: "a carried record's cell left the result with no row stating its \
+                           removal",
+                });
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// **A result the seams were zipped into**, with its two operands: the
@@ -3947,12 +4071,13 @@ pub(super) fn carry_in_place<T: Decide + AtRestPolicy>(
         Incidence::of(body, &BTreeSet::new()),
         Incidence::of(body, &BTreeSet::new()),
     ];
+    let none_discarded = BTreeSet::new();
     carry_rows(
         body,
         &rows,
         [&none, &none],
         [&KeyView::Direct, &KeyView::Direct],
-        (desc, &incidence),
+        (desc, &incidence, [&none_discarded, &none_discarded]),
         true,
         band,
     )
@@ -4106,7 +4231,7 @@ fn carry_rows<T: Decide + AtRestPolicy>(
     discovered: &[Tagged<'_>],
     carried: [&Rows; 2],
     views: [&KeyView<'_>; 2],
-    (desc, incidence): (&Descendants, &[Incidence; 2]),
+    (desc, incidence, discarded): (&Descendants, &[Incidence; 2], [&BTreeSet<FaceKey>; 2]),
     one_arena: bool,
     band: Band,
 ) -> Result<ContactRecords, BooleanError> {
@@ -4248,7 +4373,7 @@ fn carry_rows<T: Decide + AtRestPolicy>(
         }
     }
     // Vertex-on-face records: the vertex's own key, the face chased.
-    let mut confirm = None;
+    let mut confirms = super::records::Confirms::new(1);
     for (([(vs, vc), (fs, fc)], cites), found) in vf_rows {
         // A vertex a zip fused sits on the seam, on the boundary of the
         // face it rested on: the substituted pair is an incidence.
@@ -4260,11 +4385,11 @@ fn carry_rows<T: Decide + AtRestPolicy>(
         }
         for (x, y) in place_found(
             body,
-            (desc, incidence),
+            (desc, incidence, discarded),
             views,
             [(vs, vc), (fs, fc)],
             found,
-            &mut confirm,
+            &mut confirms,
             band,
         )? {
             record(body, &mut out, (vs, x), (fs, y), cites.clone());
@@ -4276,11 +4401,11 @@ fn carry_rows<T: Decide + AtRestPolicy>(
     for (([(xs, xc), (ys, yc)], cites), found) in cell_rows {
         for (x, y) in place_found(
             body,
-            (desc, incidence),
+            (desc, incidence, discarded),
             views,
             [(xs, xc), (ys, yc)],
             found,
-            &mut confirm,
+            &mut confirms,
             band,
         )? {
             record(body, &mut out, (xs, x), (ys, y), cites.clone());
@@ -4290,92 +4415,123 @@ fn carry_rows<T: Decide + AtRestPolicy>(
 }
 
 /// **A record's cells in result keys**: each chased through
-/// [`Descendants::live`]; for a row of the reduction's own (`found`, its
-/// index in the working set), a face the join divided after the row was
-/// written reads as its live pieces and the chords between them, and the
-/// row lands on every pair of those images whose interiors meet, by the
-/// census's own record confirm, as the one carry places a carried record
-/// (D1). None where a cell left the result, or where every pair is
-/// structure.
+/// [`Descendants::live`]. A row of the reduction's own (`found`, its
+/// index in the working set) on a face the join divided after the row
+/// was written goes through the one carry ([`super::records::landings`]):
+/// the face is divided into its live pieces and the chords between them
+/// ([`face_pieces`]), its remainder removed where the op stated a piece's
+/// removal ([`stated_removed`]), and the row lands on every pair of
+/// images the census's record confirm reads as meeting; a row whose
+/// every pair is structure is consumed, as structural sharing needs no
+/// record (D1, [`crate::Lineage::glued`]). None where the other cell
+/// left the result: a row of the reduction's own leaves with its cell.
 ///
 /// # Errors
 ///
-/// [`BooleanError::CarryRefused`] where a pair cannot be read, or where
-/// the row lands on no pair, every pair read, and the op discarded no
-/// piece of its face; as [`Descendants::live`].
+/// [`BooleanError::CarryRefused`] ([`super::RefusedRow::Found`]) for a
+/// row the carry refuses; [`BooleanError::JoinDesync`] for a piece the
+/// result does not hold whose removal is not stated; as
+/// [`Descendants::live`].
 fn place_found<'b, T: Decide + AtRestPolicy>(
     body: &'b Body<T>,
-    (desc, incidence): (&Descendants, &[Incidence; 2]),
+    (desc, incidence, discarded): (&Descendants, &[Incidence; 2], [&BTreeSet<FaceKey>; 2]),
     views: [&KeyView<'_>; 2],
     ends: [End; 2],
     found: Option<usize>,
-    confirm: &mut Option<crate::census::RecordConfirm<'b, T>>,
+    confirms: &mut super::records::Confirms<'b, T>,
     band: Band,
 ) -> Result<Vec<(Cell, Cell)>, BooleanError> {
-    let mut divided = false;
-    let mut gone = false;
-    let mut images: [Vec<Cell>; 2] = [Vec::new(), Vec::new()];
-    for (i, &(side, cell)) in ends.iter().enumerate() {
-        let view = views[usize::from(side == Operand::B)];
-        let fragments: Vec<FaceKey> = match (cell, found) {
-            (Cell::Face(f), Some(_)) => {
-                crate::lineage::Descent::of(f, &desc.fragments[usize::from(side == Operand::B)])
-                    .cells()
-                    .collect()
+    let at = |side: Operand| usize::from(side == Operand::B);
+    let mut divided: Option<(usize, crate::Fate)> = None;
+    if found.is_some() {
+        for (i, &(side, cell)) in ends.iter().enumerate() {
+            let Cell::Face(f) = cell else { continue };
+            let (pieces, chords, true) = face_pieces(desc, &incidence[at(side)], side, f)? else {
+                continue;
+            };
+            if divided.is_some() {
+                return Err(BooleanError::JoinDesync {
+                    what: "a row the reduction found names two faces the join divided",
+                });
             }
-            _ => Vec::new(),
-        };
-        if fragments.len() < 2 {
-            images[i].extend(desc.live(body, side, view, cell)?);
-            continue;
+            let removed = |c: Cell| stated_removed(&incidence[at(side)], discarded[at(side)], c);
+            let (view, mut gone, mut back) = (views[at(side)], false, Vec::new());
+            let pieces = imaged(
+                body,
+                desc,
+                (side, view),
+                &removed,
+                cell,
+                pieces,
+                &mut gone,
+                &mut back,
+            )?;
+            let chords = imaged(
+                body,
+                desc,
+                (side, view),
+                &removed,
+                cell,
+                chords,
+                &mut gone,
+                &mut back,
+            )?;
+            divided = Some((i, fate_of(pieces, chords, true, gone)));
         }
-        divided = true;
-        let chords: Vec<Cell> = incidence[usize::from(side == Operand::B)]
-            .chords(&fragments)
-            .collect();
-        for c in fragments.iter().map(|&g| Cell::Face(g)).chain(chords) {
-            match desc.live(body, side, view, c)? {
-                Some(p) if !images[i].contains(&p) => images[i].push(p),
-                Some(_) => {}
-                None => gone = true,
+    }
+    let live = |i: usize| {
+        let (side, cell) = ends[i];
+        desc.live(body, side, views[at(side)], cell)
+    };
+    let (Some((i, fate)), Some(row)) = (divided, found) else {
+        let (Some(x), Some(y)) = (live(0)?, live(1)?) else {
+            return Ok(Vec::new());
+        };
+        return Ok(vec![(x, y)]);
+    };
+    let Some(other) = live(1 - i)? else {
+        return Ok(Vec::new());
+    };
+    let cells = ends.map(|(_, c)| c);
+    let lineage = crate::Lineage::new()
+        .glued()
+        .with(cells[i], fate)
+        .and_then(|l| {
+            l.with(
+                cells[1 - i],
+                crate::Fate::Kept {
+                    at: other,
+                    copies: Vec::new(),
+                },
+            )
+        })
+        .map_err(|_| BooleanError::JoinDesync {
+            what: "a row the reduction found names one cell twice",
+        })?;
+    let refused = |refusal: super::CarryRefusal| BooleanError::CarryRefused {
+        row: super::RefusedRow::Found,
+        refusal: refusal.renumbered(super::reduce::index(row)),
+    };
+    let landed = super::records::landings(
+        &[cells],
+        &lineage,
+        &[body],
+        confirms,
+        band,
+        T::region_lane(),
+    )
+    .map_err(refused)?;
+    landed
+        .into_iter()
+        .map(|l| {
+            if l.minted {
+                return Err(BooleanError::JoinDesync {
+                    what: "a row the reduction found lands on two cells the join minted",
+                });
             }
-        }
-    }
-    let pairs = images[0]
-        .iter()
-        .flat_map(|&x| images[1].iter().map(move |&y| (x, y)));
-    let (Some(row), true) = (found, divided) else {
-        return Ok(pairs.collect());
-    };
-    let side = ends[1].0;
-    let refused = |refusal| BooleanError::CarryRefused {
-        operand: side,
-        refusal,
-    };
-    let record = super::reduce::index(row);
-    let mut out = Vec::new();
-    let mut read = false;
-    for (x, y) in pairs {
-        let cell = |c| super::records::conventional_edge(body, c);
-        let Ok(pair) = Contact::new(body, cell(x), cell(y)) else {
-            continue;
-        };
-        read = true;
-        let confirm = confirm
-            .get_or_insert_with(|| crate::census::RecordConfirm::of(body, band, T::region_lane()));
-        if confirm.meets(pair).map_err(|_| {
-            refused(super::CarryRefusal::Unread {
-                record,
-                cells: pair.cells(),
-            })
-        })? {
-            out.push((x, y));
-        }
-    }
-    if out.is_empty() && read && !gone {
-        return Err(refused(super::CarryRefusal::Stale { record }));
-    }
-    Ok(out)
+            Ok((l.at[0], l.at[1]))
+        })
+        .collect()
 }
 
 /// **The spans a line edge's records bound** (D1: every pair whose
@@ -6654,7 +6810,11 @@ mod tests {
             &rows,
             [&none, &none],
             views,
-            (desc, &Default::default()),
+            (
+                desc,
+                &Default::default(),
+                [&Default::default(), &Default::default()],
+            ),
             false,
             band(),
         )
@@ -6675,7 +6835,11 @@ mod tests {
                 &super::Rows::of(&decls.records_b, crate::boolean::Operand::B),
             ],
             views,
-            (desc, &Default::default()),
+            (
+                desc,
+                &Default::default(),
+                [&Default::default(), &Default::default()],
+            ),
             false,
             band(),
         )

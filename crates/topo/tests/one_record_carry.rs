@@ -368,7 +368,7 @@ fn a_carried_record_the_boolean_confirms_nowhere_refuses_stale() {
         matches!(
             got,
             Err(topo::BooleanError::CarryRefused {
-                operand: topo::Operand::A,
+                row: topo::RefusedRow::Carried(topo::Operand::A),
                 refusal: topo::CarryRefusal::Stale { record: 1 },
             })
         ),
@@ -414,5 +414,181 @@ fn a_lineage_gap_beside_a_removal_refuses_unmapped() {
         ),
         Err(topo::CarryRefusal::Unmapped { record: 0, cell: y }),
         "the uncovered cell refuses"
+    );
+}
+
+/// **A pit dug under a carried rest consumes it.** The corner-on-slab
+/// body minus the pit [1.9, 2.1]² × [0.5, 1] under the corner: the
+/// slab's top is divided, the fragment under the corner removed with the
+/// pit, so the rest lands on no pair and is consumed, and the result
+/// passes at rest with no record. Red where a route that removes a face
+/// does not state it: the carry then cannot tell the removed fragment
+/// from one the lineage lost, and refuses `JoinDesync`.
+#[test]
+fn a_pit_under_a_carried_rest_consumes_it() {
+    let base = corner_on_slab();
+    let pit = box_of((1.9, 2.1), (1.9, 2.1), (0.5, 1.0), "pit");
+    let out = match carried_op(topo::BooleanOp::Subtract, &base, &pit) {
+        Ok(BooleanResult::Body(out)) => out,
+        other => panic!("the pit builds: {other:?}"),
+    };
+    assert!(
+        out.contacts.is_empty(),
+        "the rest is consumed: {:?}",
+        out.contacts
+    );
+    assert_eq!(
+        validate_pseudomanifold(&out.body, &out.contacts, tol()),
+        Ok(()),
+        "the corner hangs over the pit"
+    );
+}
+
+/// Two unit cubes kissing along the vertical edge x = y = 1: two
+/// vertex–vertex records and the edge–edge record, whose index is
+/// returned.
+fn edge_kiss() -> (BooleanBody<f64>, u32) {
+    let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
+    let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
+    let base = union_of(&a, &b);
+    let ee = record_of(&base.contacts, |k| matches!(k, ContactKind::EdgeEdge(..)));
+    (base, ee)
+}
+
+/// The records of `out` on two vertices at `p`, each as its citations.
+fn vertex_pairs_at(out: &BooleanBody<f64>, p: Point3<f64>) -> Vec<Vec<Backing>> {
+    let at = |v: topo::VertexKey| {
+        let q = out
+            .body
+            .get_point(out.body.get_vertex(v).unwrap().point)
+            .copied()
+            .unwrap();
+        (q - p).norm() < 1e-9
+    };
+    out.contacts
+        .rows()
+        .iter()
+        .filter(|r| matches!(r.cells(), [Cell::Vertex(x), Cell::Vertex(y)] if at(x) && at(y)))
+        .map(|r| r.cites.iter().collect())
+        .collect()
+}
+
+/// **Two tool faces cutting a recorded touch's two edges at one height
+/// meet by the boolean's own decision** (Ev's ruling on `[ev]` PR 4749,
+/// his example). The edge kiss minus a tool of two boxes, kissing along
+/// the same line: one takes `a` below z = 1/2, the other `b` below
+/// z = 1/2. Each box's top cuts one kissing edge there, minting a vertex
+/// on each; they meet only because the two heights agree. The minted pair
+/// cites the edge–edge record and the door's decision that the two
+/// minted vertices are one point, which names two cells of the carried
+/// body; the reduction's own decisions name a tool corner on each edge,
+/// and say nothing of the heights agreeing. Red when the door's decision
+/// is skipped (`bool_carried_minted_meeting`): the pair then cites the
+/// record and the two corner decisions alone.
+#[test]
+fn two_cutters_meeting_on_a_recorded_touch_cite_the_doors_decision() {
+    let (base, ee) = edge_kiss();
+    let t1 = box_of((-1.0, 1.0), (-1.0, 1.0), (-1.0, 0.5), "t1");
+    let t2 = box_of((1.0, 3.0), (1.0, 3.0), (-1.0, 0.5), "t2");
+    let tool = union_of(&t1, &t2);
+    let out = match carried_op(topo::BooleanOp::Subtract, &base, &tool.body) {
+        Ok(BooleanResult::Body(out)) => out,
+        other => panic!("the difference builds: {other:?}"),
+    };
+    let minted = vertex_pairs_at(&out, Point3::new(1.0, 1.0, 0.5));
+    assert_eq!(minted.len(), 1, "one minted pair: {:?}", out.contacts);
+    assert!(
+        minted[0].contains(&Backing::Carried {
+            input: 0,
+            record: ee
+        }),
+        "the pair cites the edge-edge record: {minted:?}"
+    );
+    let on_the_carried_body = |k: u32| {
+        out.coincidences[k as usize].cells.iter().all(|c| {
+            matches!(
+                c,
+                topo::RowCell::Input {
+                    input: topo::Operand::A,
+                    ..
+                }
+            )
+        })
+    };
+    assert!(
+        minted[0]
+            .iter()
+            .any(|b| matches!(*b, Backing::Decided(k) if on_the_carried_body(k))),
+        "the pair cites the door's decision on the two minted vertices: {minted:?} {:?}",
+        out.coincidences
+    );
+    assert_eq!(
+        validate_pseudomanifold(&out.body, &out.contacts, tol()),
+        Ok(()),
+        "the difference passes at rest"
+    );
+}
+
+/// **One tool face cutting both edges of a recorded touch**: the edge
+/// kiss minus a box above z = 1/2 mints a vertex on each kissing edge at
+/// (1, 1, 1/2). The minted pair cites the edge–edge record and a
+/// decision; here the door's decision is the reduction's own row on the
+/// same two cells (`reduce::pend` keeps one), which already decides the
+/// meeting. The difference passes at rest.
+#[test]
+fn one_cutter_on_a_recorded_touch_cites_the_record_and_a_decision() {
+    let (base, ee) = edge_kiss();
+    let tool = box_of((-1.0, 3.0), (-1.0, 3.0), (0.5, 2.0), "tool");
+    let out = match carried_op(topo::BooleanOp::Subtract, &base, &tool) {
+        Ok(BooleanResult::Body(out)) => out,
+        other => panic!("the difference builds: {other:?}"),
+    };
+    let minted = vertex_pairs_at(&out, Point3::new(1.0, 1.0, 0.5));
+    assert_eq!(minted.len(), 1, "one minted pair: {:?}", out.contacts);
+    assert!(
+        minted[0].contains(&Backing::Carried {
+            input: 0,
+            record: ee
+        }) && minted[0].iter().any(|b| matches!(b, Backing::Decided(_))),
+        "the pair cites the record and a decision: {minted:?}"
+    );
+    assert_eq!(
+        validate_pseudomanifold(&out.body, &out.contacts, tol()),
+        Ok(()),
+        "the difference passes at rest"
+    );
+}
+
+/// **A notch that removes the whole overlap of a recorded line touch
+/// consumes the record.** `a` (z ∈ [0, 2]) and `b` (z ∈ [1, 3]) kiss
+/// along x = y = 1 over z ∈ [1, 2]; a notch [0.5, 1.5]² × [0.9, 2.1]
+/// takes that whole span from both. Each kissing edge is divided, its
+/// remainder removed, so the edge–edge record lands on no pair and is
+/// consumed, and the result passes at rest. Red where the boolean's
+/// division is read as exhaustive: the record then refuses stale.
+#[test]
+fn a_notch_that_removes_a_recorded_overlap_consumes_it() {
+    let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 2.0), "a");
+    let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 3.0), "b");
+    let base = union_of(&a, &b);
+    let ee = record_of(&base.contacts, |k| matches!(k, ContactKind::EdgeEdge(..)));
+    let notch = box_of((0.5, 1.5), (0.5, 1.5), (0.9, 2.1), "notch");
+    let out = match carried_op(topo::BooleanOp::Subtract, &base, &notch) {
+        Ok(BooleanResult::Body(out)) => out,
+        other => panic!("the notch builds: {other:?}"),
+    };
+    assert!(
+        out.contacts.cites().all(|c| !c.iter().any(|b| b
+            == Backing::Carried {
+                input: 0,
+                record: ee
+            })),
+        "the edge-edge record is consumed: {:?}",
+        out.contacts
+    );
+    assert_eq!(
+        validate_pseudomanifold(&out.body, &out.contacts, tol()),
+        Ok(()),
+        "nothing of the touch is left"
     );
 }

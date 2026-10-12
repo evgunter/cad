@@ -3647,6 +3647,35 @@ mod wiring_rows {
         Ok(())
     }
 
+    /// Each certifying scalar's region lane is the certified doors
+    /// ([`crate::RegionLane::certified`]); a dual's is absent
+    /// (`dual_gate_is_absent_not_a_verdict`).
+    #[test]
+    fn every_certifying_scalar_is_wired_to_the_certified_region_lane() {
+        assert!(
+            <f64 as AtRestPolicy>::region_lane().is_some_and(|l| l.is_certified()),
+            "f64"
+        );
+        assert!(
+            <geom_core::Sym<f64> as AtRestPolicy>::region_lane().is_some_and(|l| l.is_certified()),
+            "Sym<f64>"
+        );
+        assert!(
+            <geom_core::interval::Interval as AtRestPolicy>::region_lane()
+                .is_some_and(|l| l.is_certified()),
+            "Interval"
+        );
+    }
+
+    #[cfg(feature = "probe")]
+    #[test]
+    fn probe_is_wired_to_the_certified_region_lane() {
+        assert!(
+            <geom_core::Probe as AtRestPolicy>::region_lane().is_some_and(|l| l.is_certified()),
+            "Probe"
+        );
+    }
+
     #[test]
     fn f64_is_wired_to_the_certified_quadrature() {
         assert_eq!(
@@ -4595,6 +4624,10 @@ mod at_rest_policy_tests {
         assert!(
             <geom_core::Dual64 as AtRestPolicy>::nurbs_lane().is_none(),
             "a dual may not certify, so it holds no plane x NURBS lane"
+        );
+        assert!(
+            <geom_core::Dual64 as AtRestPolicy>::region_lane().is_none(),
+            "a dual may not certify, so it holds no region lane"
         );
     }
 }

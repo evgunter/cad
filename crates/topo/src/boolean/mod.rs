@@ -1859,6 +1859,36 @@ pub enum SpiricLoops {
     Null,
 }
 
+/// **Whose record a [`BooleanError::CarryRefused`] refused**, which says
+/// what the refusal's record index counts.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — and the refusal's sentence names whose record it was,
+/// and the refusal it carries ([`super::CarryRefusal`]) says what went
+/// wrong the same way for each. Carrying it
+/// would add the CUR3 property row and a Python word with no reader that
+/// acts on the difference.
+///
+/// **The falsifier is a caller that repairs its own records** — one that
+/// drops or re-derives an operand's record the carry refused before
+/// retrying: it must tell an operand's record from the op's own, and the
+/// index from which list. Then carry it and delete this paragraph and the
+/// disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RefusedRow {
+    /// One of the operand's carried records: the index is that
+    /// operand's record list's.
+    Carried(Operand),
+    /// A ring tie the reduction decided on the operand, carried as its
+    /// records are: the index counts the ties carried on that operand.
+    RingTie(Operand),
+    /// A record the reduction found: the index is its working set's.
+    Found,
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -2816,11 +2846,10 @@ pub enum BooleanError {
     /// images the census cannot read, or a record that lands on no pair
     /// with nothing removed to consume it.
     CarryRefused {
-        /// The operand whose record it is.
-        operand: Operand,
-        /// The carry's refusal; its record index is the operand's
-        /// carried list's, or, for a record the reduction found, its
-        /// working set's.
+        /// Whose record it is, which says what the refusal's record
+        /// index counts.
+        row: RefusedRow,
+        /// The carry's refusal.
         refusal: super::CarryRefusal,
     },
     /// The A/B lockstep invariant failed during joining, finishing, or
@@ -3947,12 +3976,21 @@ impl core::fmt::Display for BooleanError {
                     "through the other edge's far end"
                 }
             ),
-            Self::CarryRefused { operand, refusal } => write!(
-                f,
-                "the Boolean could not carry a contact record of the {} operand onto its \
-                 result: {refusal}",
-                operand_word(*operand)
-            ),
+            Self::CarryRefused { row, refusal } => {
+                let whose = match row {
+                    RefusedRow::Carried(operand) => {
+                        format!("a contact record of the {} operand", operand_word(*operand))
+                    }
+                    RefusedRow::RingTie(operand) => {
+                        format!("a ring tie on the {} operand", operand_word(*operand))
+                    }
+                    RefusedRow::Found => "a contact record the Boolean found".to_owned(),
+                };
+                write!(
+                    f,
+                    "the Boolean could not carry {whose} onto its result: {refusal}"
+                )
+            }
             Self::JoinDesync { what } => write!(
                 f,
                 "A/B lockstep invariant violated: {what} (kernel bug or corrupt \

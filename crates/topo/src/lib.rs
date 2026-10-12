@@ -846,7 +846,7 @@ pub use boolean::{
     GivenPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
     LeverArm, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite,
     PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
-    PlaneRung, PointInSolidError, ReductionContacts, SectorRead, SectorRung, SelfCheck,
+    PlaneRung, PointInSolidError, ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck,
     SettleError, Settler, Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces,
     SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact,
     VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,

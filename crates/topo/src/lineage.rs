@@ -203,8 +203,10 @@ impl Lineage {
     /// The lineage of an op that glues a record's cells into one cell,
     /// or into a cell and its boundary (the boolean's zip fusions and
     /// joins): a record whose every pair of images is one cell or
-    /// incident is structure now, which needs no record (D1), and is
-    /// consumed.
+    /// incident is consumed, a third way beside a removal and two
+    /// vertices made one. D1: "Structural sharing (same surface or point
+    /// key) needs no record"; a glued pair shares its cell, or bounds
+    /// it, and so is structure.
     #[must_use]
     pub(crate) fn glued(mut self) -> Self {
         self.glues = true;
@@ -218,13 +220,10 @@ impl Lineage {
     /// `cell`'s fate: its row, else kept under its key.
     #[must_use]
     pub fn fate(&self, cell: Cell) -> Fate {
-        self.rows
-            .get(&cell)
-            .cloned()
-            .unwrap_or_else(|| Fate::Kept {
-                at: cell,
-                copies: Vec::new(),
-            })
+        self.rows.get(&cell).cloned().unwrap_or_else(|| Fate::Kept {
+            at: cell,
+            copies: Vec::new(),
+        })
     }
 
     /// Every cell of the result `cell`'s fate names, read through the

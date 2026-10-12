@@ -30,57 +30,84 @@ fn a_cylinder_flush_inside_a_block_unions_to_the_block() {
     assert_eq!(topo::validate_geometric(&union.body, tol), Ok(()));
 }
 
-/// **A carried edge-edge row on arcs the union swallows is consumed**
-/// (D1): the door admits a curved row, since the one carry asks the
-/// census, not a segment question; the union discards the cylinder's cap
-/// arcs, which lie in the block's boundary under its kept faces, so the
-/// row (bookkeeping, two arcs of one cap) lands on no pair and the
-/// removal consumes it. Red when the door refuses a curved row, or the
-/// carry keeps the row on a cell the union removed.
+/// **A carried edge-edge row on a wall the union discards is consumed by
+/// the removal** (D1): the door admits a curved row, since the one carry
+/// asks the census, not a segment question. The row names a top-cap arc
+/// and the wall seam that does not meet it (bookkeeping: the two never
+/// touch). Unioned with a block it lies flush inside, the cylinder's
+/// walls are discarded and its caps merged into the block's faces, so
+/// the seam is removed, the row lands on no pair, and the removal
+/// consumes it. Unioned with a block far away, nothing is removed, and
+/// the same row refuses stale: what consumes it is the removal, not the
+/// carry's reading of an untouched pair. Red when the door refuses a
+/// curved row, when the carry keeps the row on a cell the union removed,
+/// or when it consumes a row with nothing removed.
 #[test]
-fn a_carried_edge_edge_row_on_swallowed_arcs_is_consumed() {
+fn a_carried_edge_edge_row_on_a_discarded_wall_is_consumed() {
     let tol = Tol::witness();
-    let block = topo::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol);
-    let block = finished("the block", block, tol);
     let cylinder = finished("the cylinder", disc_of_arcs(3, 0.5, 1.0, tol), tol);
-    let arcs: Vec<topo::EdgeKey> = cylinder
+    let ends = |k: topo::EdgeKey| {
+        let e = cylinder.get_edge(k).unwrap();
+        [e.he_plus, e.he_minus].map(|h| cylinder.half_edge_start_point(h).unwrap())
+    };
+    let arc = |k: topo::EdgeKey| {
+        topo::readback::edge_carrier_kind(&cylinder, k).is_ok_and(|c| c == geom::CurveKind::Circle)
+    };
+    let top = cylinder
         .edges()
-        .filter(|&(k, _)| {
-            topo::readback::edge_carrier_kind(&cylinder, k)
-                .is_ok_and(|c| c == geom::CurveKind::Circle)
-        })
         .map(|(k, _)| k)
-        .collect();
-    assert!(arcs.len() >= 2, "the caps are rings of arcs");
+        .find(|&k| arc(k) && ends(k)[0].z > 0.5)
+        .expect("a top-cap arc");
+    let seam = cylinder
+        .edges()
+        .map(|(k, _)| k)
+        .find(|&k| {
+            !arc(k)
+                && !ends(k)
+                    .iter()
+                    .any(|p| ends(top).iter().any(|q| (*p - *q).norm() < 1e-9))
+        })
+        .expect("the seam the arc does not meet");
     let inputs = topo::BooleanInputs {
         records_a: topo::OperandRecords {
             ee: vec![topo::CarriedRecord {
-                contact: topo::EeContact {
-                    a: arcs[0],
-                    b: arcs[1],
-                },
+                contact: topo::EeContact { a: top, b: seam },
                 record: 0,
             }],
             ..Default::default()
         },
         ..Default::default()
     };
-    let got = topo::boolean_op_with(
-        topo::BooleanOp::Union,
-        &cylinder,
-        &block,
-        &inputs,
-        topo::SweepStrategy::Realized,
-        tol,
-    );
+    let with = |block: (f64, f64)| {
+        let block = topo::test_support::brick(block, (-1.0, 1.0), (0.0, 1.0), tol);
+        let block = finished("the block", block, tol);
+        topo::boolean_op_with(
+            topo::BooleanOp::Union,
+            &cylinder,
+            &block,
+            &inputs,
+            topo::SweepStrategy::Realized,
+            tol,
+        )
+    };
+    let got = with((-1.0, 1.0));
     let Ok(BooleanResult::Body(out)) = got else {
         panic!("the union builds: {got:?}");
     };
     assert!(
-        out.contacts.cites().all(|c| c
-            .iter()
-            .all(|b| !matches!(b, topo::Backing::Carried { .. }))),
+        out.contacts.is_empty(),
         "the row is consumed: {:?}",
         out.contacts
+    );
+    let far = with((5.0, 7.0));
+    assert!(
+        matches!(
+            far,
+            Err(topo::BooleanError::CarryRefused {
+                row: topo::RefusedRow::Carried(topo::Operand::A),
+                refusal: topo::CarryRefusal::Stale { record: 0 },
+            })
+        ),
+        "with nothing removed, the row refuses stale: {far:?}"
     );
 }

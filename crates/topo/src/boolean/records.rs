@@ -97,6 +97,33 @@ pub enum CarryRefusal {
     },
 }
 
+impl CarryRefusal {
+    /// The refused record's index.
+    pub(crate) fn record(self) -> u32 {
+        match self {
+            Self::Unmapped { record, .. }
+            | Self::Pair { record, .. }
+            | Self::Parted { record }
+            | Self::Unread { record, .. }
+            | Self::Stale { record }
+            | Self::MintedMeeting { record, .. } => record,
+        }
+    }
+
+    /// The refusal with its record index `index`.
+    pub(crate) fn renumbered(mut self, index: u32) -> Self {
+        match &mut self {
+            Self::Unmapped { record, .. }
+            | Self::Pair { record, .. }
+            | Self::Parted { record }
+            | Self::Unread { record, .. }
+            | Self::Stale { record }
+            | Self::MintedMeeting { record, .. } => *record = index,
+        }
+        self
+    }
+}
+
 impl core::fmt::Display for CarryRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -760,6 +787,8 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
         if let Some(error) = structure {
             let fused = matches!(error, ContactPairError::OneCell(Cell::Vertex(_)))
                 && matches!(cells, [Cell::Vertex(_), Cell::Vertex(_)]);
+            // Structure needs no record (D1): two vertices made one, or
+            // cells an op glued ([`crate::Lineage::glued`]).
             if fused || lineage.glues() {
                 continue;
             }

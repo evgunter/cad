@@ -785,6 +785,14 @@ pub(crate) struct ChordJoiner {
     /// knowledge, recorded so the naming layer never reconstructs
     /// parentage by inspection (NAMING-DESIGN N4: no post-hoc scans).
     fragments: Vec<(FaceKey, FaceKey)>,
+    /// Every face the join killed, paired with the face that holds its
+    /// region now, at call-time keys: a sliver [`Self::cut_core`]'s kef
+    /// merged into its neighbour, and the hole [`Self::join_lone_ring`]
+    /// made a ring of the face it was divided from. With
+    /// [`Self::fragments`] it states every face the join made and
+    /// unmade, so a reader never takes a killed fragment for one the
+    /// op lost.
+    absorbed: Vec<(FaceKey, FaceKey)>,
     /// The run band (ring re-homing containment).
     band: Band,
     /// Pierce rings a division left unplaced: every vertex on the run,
@@ -803,6 +811,7 @@ impl ChordJoiner {
         Self {
             slivers: SecondaryMap::new(),
             fragments: Vec::new(),
+            absorbed: Vec::new(),
             band,
             pending: SecondaryMap::new(),
             completed: SecondaryMap::new(),
@@ -872,6 +881,12 @@ impl ChordJoiner {
     /// (naming emission; see the field docs).
     pub(crate) fn take_fragments(&mut self) -> FragmentRows {
         core::mem::take(&mut self.fragments)
+    }
+
+    /// Consumes the recorded `(killed face, face holding its region)`
+    /// rows (see the field docs).
+    pub(crate) fn take_absorbed(&mut self) -> FragmentRows {
+        core::mem::take(&mut self.absorbed)
     }
 }
 
@@ -3718,6 +3733,7 @@ impl ChordJoiner {
         };
         let cut = body.kfmrh(oldf, hole)?.ring;
         self.slivers.remove(hole);
+        self.absorbed.push((hole, oldf));
         self.rehome_rings(body, oldf, disc, cut)?;
         Ok(minted)
     }
@@ -3847,15 +3863,16 @@ impl ChordJoiner {
                 "{} would kef a completed null face",
                 EntityId::Edge(edge)
             );
-            let victim = if self.slivers.contains_key(f_plus) {
-                edge_data.he_plus
+            let (victim, survivor) = if self.slivers.contains_key(f_plus) {
+                (edge_data.he_plus, f_minus)
             } else if self.slivers.contains_key(f_minus) {
-                edge_data.he_minus
+                (edge_data.he_minus, f_plus)
             } else {
                 return Err(SplitJoinError::CutInvariant { edge });
             };
             let killed = body.kef_minting(victim, tol)?;
             self.slivers.remove(killed.killed_face);
+            self.absorbed.push((killed.killed_face, survivor));
             Ok(CutOutcome::Merged)
         }
     }
