@@ -139,12 +139,33 @@ is 1.0 Kε from its leg along a quarter turn, which is inside
 
 **Moved.**
 - The sym11 past-the-ceiling receipts for the bracket and the pad now
-  replay past validation.
+  replay past validation: bracket `[1390,58,1008,1865]`, pad
+  `[1248,69,1159,2914]` on the merged head. The SYM drift row
+  attributes the values main's merges moved in the stages past
+  validation (#4304, #4189, #4640).
 - `fillet_stored_tangency`'s 1e-6 golden: `arc x arc c=0.3 r=0.05` now
-  validates.
-- `review_m2_pr5`'s near-tangent join now refuses at the joint pass
-  (`UndeclaredTangency`, a 3ε turn) instead of at simplicity.
+  validates, and nothing else in the dump moves.
+- `review_m2_pr5`'s near-tangent join now validates: its joint is
+  derived tangent and recorded (D10 stage 4 PR G), and the pair pass
+  settles the shallow crossing on the ends. The revolve then refuses
+  at the arc's ring-torus clearance (`SliverAxisClearance`,
+  `axis_arc_clearance`, the carrier ~6ε across the axis), before the
+  dihedral. The row admits that typed refusal alongside the two it had.
 - At 1e-12, one shallow-arc grid cell now refuses at the extrude's
   attachment gate instead of at validation. This closes
 `the-past-the-ceiling-row-replays-only-validation-on-the-bracket-and-pad`
-(SYM). D10's hold did not bind.
+(SYM).
+
+**After merging `main` (`8192224a78`).** Main's D10 stage 4 PR G
+(`5484404bc2`, `ed553c418f`: tangent joints derived, not stored)
+reworked the joint pass and left the pair pass's `candidates`
+untouched, so the change re-applies as it was. On main alone the
+witness still escalates (`arc_span`, segments 0 and 2, at 1e-6; the
+door refuses it at 1e-9 and 1e-12). The sweep at ten turns a decade
+reads 19 escalations of 116 built corners at 1e-6 (15 leg pairs, 4
+adjacent), and none at 1e-9 (116 built) or 1e-12 (4 built); at thirty
+a decade, 51 of 340 (45 leg pairs, 6 adjacent). On the merged head
+the leg pairs read 0 and the adjacent ones stand (4 and 6). The
+earlier count of 331 built corners is not reproduced on this grid.
+D10's hold did not bind: no tangent joint's derivation, recording or
+verification changed.

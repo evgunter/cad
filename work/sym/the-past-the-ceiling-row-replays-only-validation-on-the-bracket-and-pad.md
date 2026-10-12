@@ -56,16 +56,19 @@ moving the row's scale. The validation refusals that stopped both
 replays were span readings in band at a candidate whose segment's
 nearer end reads on the other carrier. Validation now settles
 those by the segments' ends, so at the unchanged `refuses_at` the
-replays reach every stage again. Measured in release at ε = 1e-6, 1e-9
-and 1e-12, identical at all three:
+replays reach every stage again. Measured at ε = 1e-6, 1e-9 and
+1e-12 after merging `main` `8192224a78`, identical at all three:
 
 | document | past the ceiling, now | where it stops |
 | --- | --- | --- |
-| r2_filleted_bracket | `[1380, 48, 990, 1811]` | nowhere: it replays whole |
-| r2_rounded_pad | `[1196, 59, 1067, 2805]` | the extrude's `pcurve_envelope` |
+| r2_filleted_bracket | `[1390, 58, 1008, 1865]` | nowhere: it replays whole |
+| r2_rounded_pad | `[1248, 69, 1159, 2914]` | the extrude's `pcurve_envelope` |
 
 The evidence probe `m10_9_ceilings_with_and_without_the_door`
-re-measures both ceilings unchanged. The bracket's is 7.622e2..7.624e2·ε,
+re-measured both ceilings unchanged before the merge (it was not
+re-taken on the merged head). The bracket's is 7.622e2..7.624e2·ε,
 over-band `arc_span`. The pad's is 2.778e3·ε, over-band `line_span`
 and `pcurve_envelope`. The row costs about 20 s in release, so it moved
-to the slow set.
+to the slow set. Main's merges since the branch first measured them
+moved both values; `ignored-sym-receipt-rows-drifted-red-on-main-unattributed`
+attributes each.

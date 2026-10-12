@@ -685,3 +685,6 @@ Signed: (CARVE orchestrator)
   - A candidate read in band now settles on the segments' ends when the in-band segment's nearer end (`nearer_end`, new) lies on the other carrier. Otherwise it still escalates.
   - Side effect: the sym11 past-the-ceiling row reaches the extrude on the bracket and the pad again, which closes SYM's `the-past-the-ceiling-row-replays-only-validation-on-the-bracket-and-pad`. The row moves to the slow set.
   - D10's hold did not bind.
+- 2026-10-12 — `claude/clever-bardeen-4itqb3` (the shallow arc×arc corner P0) merged `main` `8192224a78`. Main's D10 stage 4 PR G (tangent joints derived) left the pair pass untouched, and the change re-applies as it was. On main alone the witness still escalates; on the merged head the leg-pair escalations read 0.
+  - Re-derived on the merged tree: the sym11 bracket and pad receipts (main's #4304, #4189 and #4640 moved the stages past validation, attributed on SYM's drift row) and `fillet_stored_tangency`'s 1e-6 golden (one verdict).
+  - `review_m2_pr5`'s near-tangent join now validates and the revolve refuses at `axis_arc_clearance` (`SliverAxisClearance`); `UndeclaredTangency` retired on main.
