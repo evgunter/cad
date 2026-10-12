@@ -153,6 +153,7 @@
 
 use geom_core::Bounds;
 use geom_core::exact::{Rounding, sum_rounded};
+
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::spline::algebra;
@@ -361,6 +362,11 @@ impl TrimEdgeQ {
 // ---------------------------------------------------------------------
 // Transcendental-free trig enclosures (module docs)
 // ---------------------------------------------------------------------
+
+/// The rounded-once sum of `f64` terms, to nearest.
+fn sum_nearest(terms: &[f64]) -> f64 {
+    sum_rounded(terms, Rounding::Nearest)
+}
 
 /// Shorthand: a point bracket.
 pub(super) fn pt(x: f64) -> Interval {
@@ -870,10 +876,10 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
                     .iter()
                     .map(|e| harmonic_edge_integral(e, pieces, radius))
                     .collect();
-                geom_core::Real::sum_rounded_once(&terms)
+                geom_core::interval::sum_enclosures(&terms)
             })
             .collect();
-        let a_s = geom_core::Real::sum_rounded_once(&per_loop);
+        let a_s = geom_core::interval::sum_enclosures(&per_loop);
         let area = (radius * a_s).abs_enclosure();
         let flux = radius.sqr() * a_s + o_dot_va;
         // Convergence: mean-boundary-displacement metering (module
@@ -892,7 +898,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
             // must be definitely positive, metered as the face's mean
             // width area/perimeter — a length (the closed-form lanes'
             // `props_face_extent` lever, quadrature-shaped).
-            let perim = geom_core::Real::sum_rounded_once(
+            let perim = sum_nearest(
                 &loops
                     .iter()
                     .flat_map(|edges| edges.iter())
@@ -1005,7 +1011,7 @@ fn require_holes_wound_against(
         return Ok(());
     }
     let length = |edges: &[TrimEdgeQ]| {
-        pt(geom_core::Real::sum_rounded_once(
+        pt(sum_nearest(
             &edges
                 .iter()
                 .map(|e| edge_metric_length(e, radius))
@@ -1014,7 +1020,7 @@ fn require_holes_wound_against(
     };
     let whole = (
         radius * a_s,
-        geom_core::Real::sum_rounded_once(
+        geom_core::interval::sum_enclosures(
             &loops.iter().map(|edges| length(edges)).collect::<Vec<_>>(),
         ),
     );
@@ -4905,7 +4911,7 @@ fn chord_polygon_flux(
         total.push(if ub > ua { -chord } else { chord });
     }
     (
-        geom_core::Real::sum_rounded_once(&total),
+        geom_core::interval::sum_enclosures(&total),
         sum_rounded(&sliver, Rounding::Up),
     )
 }
@@ -5048,7 +5054,7 @@ fn chord_polygon_area(
         }
         total.push(if ub > ua { -chord } else { chord });
     }
-    geom_core::Real::sum_rounded_once(&total)
+    geom_core::interval::sum_enclosures(&total)
 }
 
 /// The chart box every global hull below is taken over: the hull of
@@ -5086,7 +5092,7 @@ fn trim_box(chords: &[TrimChord]) -> (Interval, Interval) {
 /// is `|w|`-weighted and the flux is `w`-weighted, so Green's own
 /// signed answer IS the flux and the area takes this sign.
 fn polygon_winding(cells: &[TrimCell]) -> f64 {
-    geom_core::Real::sum_rounded_once(
+    sum_nearest(
         &cells
             .iter()
             .map(|c| c.a.0 * c.b.1 - c.b.0 * c.a.1)

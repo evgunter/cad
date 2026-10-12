@@ -371,6 +371,15 @@ pub fn div_down(num: f64, den: f64) -> f64 {
     if q.is_certified() { q.lo() } else { num / den }
 }
 
+/// The rounded-once sum of enclosures ([`Real::sum_rounded_once`] at
+/// the interval scalar: the lower ends summed exactly and rounded down,
+/// the upper ends up), for the certification files that may not name
+/// `Real`.
+#[must_use]
+pub fn sum_enclosures(terms: &[Interval]) -> Interval {
+    <Interval as Real>::sum_rounded_once(terms)
+}
+
 /// The larger of two `f64` bounds, `NaN` if either is: [`Real::max`] at
 /// `f64`, for the certification files that may not name `Real`.
 /// `f64::max` would drop a refused bound.

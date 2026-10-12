@@ -7,27 +7,47 @@
 //! `f64` and at the interval scalar. The suite runs at whatever ε the
 //! run commits, so the CI rows take it at each ε they run.
 
-use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Point3, Tol};
+use geom_core::{Bounds, Interval, Point3, Tol};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary};
 use crate::props::{AtRestPolicy, MassProperties, mass_properties_in_face_order, relabeled};
 use crate::test_support::{holed_block, plant_disc_face, prism_z};
 
-/// A scalar whose measurement this suite compares by its bits.
-trait Bits: Decide + CertifiedBounds + AtRestPolicy {
+/// A scalar this suite measures at and compares by its bits — one impl
+/// per scalar, so no generic bound asks for a bracket.
+trait Bits: AtRestPolicy {
     fn bits(x: Self) -> [u64; 2];
+    fn measure(
+        body: &Body<Self>,
+        faces: &[FaceKey],
+        tol: Tol,
+    ) -> Result<MassProperties<Self>, crate::props::MassPropsError>;
 }
 
 impl Bits for f64 {
     fn bits(x: Self) -> [u64; 2] {
         [x.to_bits(), x.to_bits()]
     }
+    fn measure(
+        body: &Body<Self>,
+        faces: &[FaceKey],
+        tol: Tol,
+    ) -> Result<MassProperties<Self>, crate::props::MassPropsError> {
+        mass_properties_in_face_order(body, faces, tol)
+    }
 }
 
 impl Bits for Interval {
     fn bits(x: Self) -> [u64; 2] {
         [x.lo().to_bits(), x.hi().to_bits()]
+    }
+    fn measure(
+        body: &Body<Self>,
+        faces: &[FaceKey],
+        tol: Tol,
+    ) -> Result<MassProperties<Self>, crate::props::MassPropsError> {
+        mass_properties_in_face_order(body, faces, tol)
     }
 }
 
@@ -42,7 +62,7 @@ fn bits<T: Bits>(m: &MassProperties<T>) -> [u64; 6] {
 /// face order (arena, reversed, rotated by one, by two).
 fn assert_storage_invariant<T: Bits>(name: &str, body: &Body<T>, tol: Tol) {
     let arena: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
-    let base = mass_properties_in_face_order(body, &arena, tol)
+    let base = T::measure(body, &arena, tol)
         .unwrap_or_else(|e| panic!("{name} at the {} scalar: {e}", T::NAME));
     let want = bits(&base);
     let longest = body
@@ -72,7 +92,7 @@ fn assert_storage_invariant<T: Bits>(name: &str, body: &Body<T>, tol: Tol) {
         for reverse_rings in [false, true] {
             let moved = relabeled(body, steps, reverse_rings);
             for (order, faces) in &orders {
-                let got = mass_properties_in_face_order(&moved, faces, tol)
+                let got = T::measure(&moved, faces, tol)
                     .unwrap_or_else(|e| panic!("{name} relabeled at the {} scalar: {e}", T::NAME));
                 assert_eq!(
                     bits(&got),

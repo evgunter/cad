@@ -2538,9 +2538,7 @@ fn fold_runs<T: Decide>(runs: &[FaceRun<T>]) -> (MassProperties<T>, Option<(Face
         MassProperties {
             volume: read(|c| c.flux) / T::from_f64(3.0),
             surface_area: read(|c| c.area),
-            volume_pad: geom_core::Bounds::hi(
-                Interval::from_f64(pad(|c| c.flux_pad)) / Interval::from_f64(3.0),
-            ),
+            volume_pad: geom_core::interval::div_up(pad(|c| c.flux_pad), 3.0),
             area_pad: pad(|c| c.area_pad),
         },
         refused,

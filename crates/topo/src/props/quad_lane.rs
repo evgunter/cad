@@ -1742,7 +1742,7 @@ mod tests {
                     },
                 );
             }
-            let sum = |terms: &[Interval]| geom_core::Real::sum_rounded_once(terms);
+            let sum = geom_core::interval::sum_enclosures;
             let (flux, area, polygon) = (sum(&flux), sum(&area), sum(&polygon));
             let bits = |x: Interval| (x.is_certified(), x.lo().to_bits(), x.hi().to_bits());
             assert_ne!(

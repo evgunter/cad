@@ -503,8 +503,8 @@ fn wall_chart(
         terms[3].push(mer.dv);
         defect.push(pt(mer.dv.mag()) * mer.env);
     }
-    let mut acc = terms.map(|t| geom_core::Real::sum_rounded_once(&t));
-    let defect = geom_core::Real::sum_rounded_once(&defect);
+    let mut acc = terms.map(|t| geom_core::interval::sum_enclosures(&t));
+    let defect = geom_core::interval::sum_enclosures(&defect);
     // The chart's smallest metric scale, `min(R − r, r)`, from below — a
     // refused radius has ordinary endpoints, so it is asked by name.
     let floor = (big - r).lo().min(r.lo());
@@ -532,7 +532,7 @@ fn face_bounds(
         .chain(face.spirics.iter().map(|e| spiric_vector_area(e, pieces)))
         .collect();
     let va = [0, 1, 2].map(|k| {
-        geom_core::Real::sum_rounded_once(&parts.iter().map(|t| t[k]).collect::<Vec<_>>())
+        geom_core::interval::sum_enclosures(&parts.iter().map(|t| t[k]).collect::<Vec<_>>())
     });
     let position = dot(&face.lever, &va);
     Ok(match &face.wall {
