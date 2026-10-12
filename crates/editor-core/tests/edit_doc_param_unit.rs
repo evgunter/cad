@@ -158,6 +158,7 @@ fn rebuilding_a_parameter_to_re_spell_its_unit_drops_the_distribution() {
         &DocEdit::DefineVar {
             var: p("wall").into(),
             def: editor_core::VarDecl::Free(rebuilt),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -171,14 +172,14 @@ fn rebuilding_a_parameter_to_re_spell_its_unit_drops_the_distribution() {
     );
     // The older twin's strength (`m10_1_r2_probes.rs` section 6): the
     // deletion is not a field going `None`, it is the analysis now
-    // reading a varying parameter as FIXED.
+    // reading a varying parameter as FIXED: no axis at all, a
+    // constant of the analysis (VR8).
     let axis = analyzed_box(&after, &AnalysisPolicy::default())
         .get(v(&after, "wall"))
-        .copied()
-        .expect("the parameter has an axis");
+        .copied();
     assert!(
-        axis.offsets.is_fixed(),
-        "a notation rebuild turned a varying parameter into a fixed one: {axis:?}"
+        axis.is_none(),
+        "a notation rebuild turned a varying parameter into a constant: {axis:?}"
     );
 }
 
@@ -601,13 +602,13 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
         match load(&bent, Tol::witness()).expect_err("load refuses") {
             PersistError::EditReplay { index, error } => {
                 assert_eq!(index, 0, "the refusing edit is named by index");
-                assert_eq!(error, want, "load's refusal is the same typed error");
+                assert_eq!(*error, want, "load's refusal is the same typed error");
             }
             other => panic!("load refused with {other:?}, not EditReplay"),
         }
         // Door 4: and `save` of the same log refuses identically.
         match save(&doc, &[direct], Tol::witness()).expect_err("save refuses") {
-            PersistError::EditReplay { error, .. } => assert_eq!(error, want, "save's refusal"),
+            PersistError::EditReplay { error, .. } => assert_eq!(*error, want, "save's refusal"),
             other => panic!("save refused with {other:?}"),
         }
     }
@@ -696,6 +697,7 @@ fn annotating_through_define_var_reverts_the_notation() {
                 value,
                 Distribution::Normal { sigma: 2e-5 },
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -759,7 +761,8 @@ fn the_create_or_replace_door_refuses_a_mismatched_pairing() {
             &doc,
             &DocEdit::DefineVar {
                 var: p("wall").into(),
-                def: editor_core::VarDecl::Free(crooked)
+                def: editor_core::VarDecl::Free(crooked),
+                fresh: Vec::new()
             },
             Tol::witness(),
             &editor_core::RefusingReach,

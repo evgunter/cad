@@ -247,7 +247,7 @@
 use core::fmt;
 
 use geom::Surface;
-use geom_brep::recourse::Reading;
+use geom_brep::recourse::{ReadAt, Reading};
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 
 use crate::policy_lane::ByPolicy;
@@ -304,9 +304,10 @@ pub enum FaceSurface<T: Real> {
 /// existing half-edges, or a chord it mints, on a face wearing another
 /// key than the one they lay on, and the lever its refusal names is
 /// its own: a minting door picks the chart it mints the face on, a
-/// moving door the face it moves the loop onto, the describing door
-/// the re-descriptions it is handed. Every door but the describing one
-/// is keys-only, and only the keys-only doors strand.
+/// moving door the face it moves the loop onto, a kill its describing
+/// twin, a describing door the re-descriptions it is handed. Every door
+/// but the describing ones is keys-only, and only the keys-only doors
+/// strand.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RechartDoor {
     /// [`Body::set_face_surface`]: re-charts a face in place.
@@ -318,8 +319,9 @@ pub enum RechartDoor {
     /// ring.
     Mfkrh,
     /// [`Body::mfkrh_plug`]: mints a face from a ring on a fresh
-    /// placeholder chart. Its caller picks no chart, so its lever is
-    /// the door: [`Body::mfkrh`], which takes one.
+    /// placeholder chart, which asks only the strand. Its caller picks
+    /// no chart, so its lever is the door: [`Body::mfkrh`], which takes
+    /// one.
     MfkrhPlug,
     /// [`Body::ring_move`] and [`Body::ring_move_minting`]: moves a
     /// ring onto another face.
@@ -330,6 +332,21 @@ pub enum RechartDoor {
     /// [`EulerOpError::RechartUnvouched`]: onto a curved chart, where
     /// no residual is read.
     SetFaceSurfacesDescribing,
+    /// [`Body::kef`]: moves the dying face's remnant onto the surviving
+    /// face.
+    Kef,
+    /// [`Body::kef_describing`]: [`RechartDoor::Kef`]'s move with the
+    /// re-descriptions it is handed, under a band. Like
+    /// [`RechartDoor::SetFaceSurfacesDescribing`], it raises only
+    /// [`EulerOpError::RechartUnvouched`] of the two keys-only refusals.
+    KefDescribing,
+    /// [`Body::kfmrh`]: moves the killed face's outer loop onto the
+    /// surviving face as a ring.
+    Kfmrh,
+    /// [`Body::kfmrh_describing`]: [`RechartDoor::Kfmrh`]'s move with
+    /// the re-descriptions it is handed, under a band; as
+    /// [`RechartDoor::KefDescribing`].
+    KfmrhDescribing,
 }
 
 impl RechartDoor {
@@ -342,6 +359,20 @@ impl RechartDoor {
             Self::MfkrhPlug => "mfkrh_plug",
             Self::RingMove => "ring_move",
             Self::SetFaceSurfacesDescribing => "set_face_surfaces_describing",
+            Self::Kef => "kef",
+            Self::KefDescribing => "kef_describing",
+            Self::Kfmrh => "kfmrh",
+            Self::KfmrhDescribing => "kfmrh_describing",
+        }
+    }
+
+    /// The restater that states a describing door's stored descriptions
+    /// on the moved charts, as its refusals name it.
+    fn carried(self) -> &'static str {
+        match self {
+            Self::Kef | Self::KefDescribing => "kef_carried_redescriptions",
+            Self::Kfmrh | Self::KfmrhDescribing => "kfmrh_carried_redescriptions",
+            _ => "carried_redescriptions",
         }
     }
 
@@ -371,11 +402,27 @@ impl RechartDoor {
                 "the move",
                 "move the loop onto a face on the chart its edges name",
             ),
-            Self::SetFaceSurfacesDescribing => unreachable!(
-                "RechartStrandsDescriptions is raised only by the keys-only doors \
-                 (`Body::vouch_move`); set_face_surfaces_describing refuses a stranded edge \
-                 as RechartUndescribed"
+            Self::Kef => (
+                "the kill",
+                "kill the edge with kef_describing, which takes their re-descriptions on the \
+                 surviving face's chart under a band (kef_carried_redescriptions states the \
+                 stored ones there)",
             ),
+            Self::Kfmrh => (
+                "the kill",
+                "kill the face with kfmrh_describing, which takes their re-descriptions on \
+                 the surviving face's chart under a band (kfmrh_carried_redescriptions states \
+                 the stored ones there)",
+            ),
+            Self::SetFaceSurfacesDescribing | Self::KefDescribing | Self::KfmrhDescribing => {
+                return format!(
+                    "{name}: the move would leave edges {edges:?} described against a surface \
+                     their faces no longer wear. Recourse: list a re-description of each on the \
+                     chart it moves onto ({} states the stored ones there), which the door \
+                     certifies under its band",
+                    self.carried()
+                );
+            }
         };
         format!(
             "{name}: {what} would leave edges {edges:?} described against a surface their \
@@ -410,9 +457,8 @@ impl RechartDoor {
             ),
             Self::MfkrhPlug => format!(
                 "{name}: the face it would mint from face {face:?} lies on a fresh placeholder \
-                 chart that {named} not name, so nothing vouches that its boundary lies on \
-                 that chart; this door promotes scaffold rings. Recourse: promote the ring \
-                 with mfkrh onto a chart its certified edges name"
+                 chart that {named} not name. Recourse: promote the ring with mfkrh onto a \
+                 chart its certified edges name"
             ),
             Self::RingMove => format!(
                 "{name}: the loop would move onto face {face:?}, on a chart that {named} not \
@@ -425,6 +471,18 @@ impl RechartDoor {
                  boundary lies on that chart. Recourse: list a re-description of each on the \
                  new chart, which the door certifies against it, or move the face onto a \
                  chart they name"
+            ),
+            Self::KefDescribing | Self::KfmrhDescribing => format!(
+                "{name}: the kill would move a boundary onto face {face:?}, on a curved chart \
+                 that {named} not name, and a curved chart's residuals are not read, so \
+                 nothing vouches that it lies on that chart. Recourse: list a re-description \
+                 of each on that chart, which the door certifies against it"
+            ),
+            Self::Kef | Self::Kfmrh => format!(
+                "{name}: the kill would move a boundary onto face {face:?}, on a chart that \
+                 {named} not name, so nothing vouches that they lie on that chart. Recourse: \
+                 kill with {name}_describing, which certifies each re-description it is \
+                 handed against that chart and reads a plane's residuals"
             ),
         }
     }
@@ -804,9 +862,9 @@ pub enum EulerOpError {
         /// The typed re-certification failure.
         error: CertifyError,
     },
-    /// The spec is an `Intersection` of a plane and a described NURBS
-    /// wall (M7-8), whose certificate only the plane × NURBS lane
-    /// derives, and this scalar's policy holds no lane
+    /// The spec's certificate needs the NURBS lane (the classes are
+    /// listed on [`CertifyError::NurbsLaneNotSupplied`]), and this
+    /// scalar's policy holds no lane
     /// ([`crate::AtRestPolicy::nurbs_lane`] answers `None`: a dual,
     /// DL1). Every Euler door takes its lane from that policy, so a lane
     /// missing there is the scalar's. The body is untouched.
@@ -935,48 +993,67 @@ pub enum EulerOpError {
         /// no key before the mutation phase.
         chord: bool,
     },
-    /// [`Body::set_face_surfaces_describing`] was handed no
-    /// re-description for these edges, and the move would strand them
-    /// as [`EulerOpError::RechartStrandsDescriptions`] names: the door
-    /// re-describes nothing by default. Every one is named, in
-    /// edge-arena order. Raised in the plan phase, so the body is
+    /// A describing door ([`Body::set_face_surfaces_describing`],
+    /// [`Body::kef_describing`], [`Body::kfmrh_describing`]) was handed
+    /// no re-description for these edges, and the move would strand
+    /// them as [`EulerOpError::RechartStrandsDescriptions`] names: the
+    /// door re-describes nothing by default. Every one is named, in
+    /// edge-arena order at the re-chart door and in the order the kill
+    /// moves them at a kill. Raised in the plan phase, so the body is
     /// untouched.
     RechartUndescribed {
-        /// The stranded edges no re-description was listed for, in
-        /// edge-arena order.
+        /// The door that refuses.
+        door: RechartDoor,
+        /// The stranded edges no re-description was listed for.
         edges: Vec<EdgeKey>,
     },
-    /// [`Body::set_face_surfaces_describing`]: a listed re-description
-    /// does not certify against the charts the move gives its edge.
-    /// Raised in the plan phase, so the body is untouched.
+    /// A describing door: a listed re-description does not certify
+    /// against the charts the move gives its edge. Raised in the plan
+    /// phase, so the body is untouched.
     RechartFalsifies {
+        /// The door that refuses.
+        door: RechartDoor,
         /// The edge that does not certify.
         edge: EdgeKey,
         /// The typed certification failure.
         error: CertifyError,
     },
-    /// [`Body::set_face_surfaces_describing`]: a face moved onto a plane
-    /// has a certified edge no key vouches for there with an end, or an
-    /// interior certification sample, definitely off that plane — tier
-    /// 3's `PlanarFaceResidual` / `PlanarBoundaryResidual`, asked before
-    /// the move. Raised in the plan phase, so the body is untouched.
+    /// A describing door: a boundary moved onto a plane has a certified
+    /// edge no key vouches for there with an end, or an interior
+    /// certification sample, definitely off that plane — tier 3's
+    /// `PlanarFaceResidual` / `PlanarBoundaryResidual`, asked before the
+    /// move. Raised in the plan phase, so the body is untouched.
     RechartOffBoundary {
-        /// The moved face.
+        /// The door that refuses.
+        door: RechartDoor,
+        /// The face the boundary moves onto.
         face: FaceKey,
         /// The vertex, or the edge whose sample, lies off the plane.
         on: EntityId,
     },
-    /// [`Body::set_face_surfaces_describing`]: a moved face's residual
-    /// against its new plane escalated (in the sliver band, or
-    /// poisoned) — the escalation counterpart of
-    /// [`EulerOpError::RechartOffBoundary`].
+    /// A describing door: a moved boundary's residual against its new
+    /// plane escalated (in the sliver band, or poisoned) — the
+    /// escalation counterpart of [`EulerOpError::RechartOffBoundary`].
     RechartBoundaryEscalated {
-        /// The moved face.
+        /// The door that refuses.
+        door: RechartDoor,
+        /// The face the boundary moves onto.
         face: FaceKey,
         /// The vertex, or the edge whose sample, escalated.
         on: EntityId,
         /// The in-band/poisoned margin diagnostics.
         diag: geom_core::Indeterminate,
+    },
+    /// A describing kill ([`Body::kef_describing`],
+    /// [`Body::kfmrh_describing`]) was handed a re-description for an
+    /// edge the kill does not move: none of its halves is in the moved
+    /// remnant or ring. Raised in the plan phase, so the body is
+    /// untouched.
+    NotMovedEdge {
+        /// The door that refuses.
+        door: RechartDoor,
+        /// The listed edge.
+        edge: EdgeKey,
     },
     /// [`Body::set_face_surfaces_describing`] was handed one face
     /// twice. Named at the second entry.
@@ -1155,13 +1232,57 @@ pub enum EulerOpError {
         /// The in-band/poisoned margin diagnostics.
         diag: geom_core::Indeterminate,
     },
+    /// [`Body::split_edge`] of a tangent edge: whether a child stays
+    /// tangent along its own span is in band, at a station of the
+    /// must-carry rule over the child
+    /// ([`geom_brep::MustCarryEscalation::FirstOrder`]).
+    ///
+    /// Unreached: the dihedral escalates on its arm only over a child
+    /// whose extent lies inside the band, and the interiority gate
+    /// refuses such a child first; along a ruling, the tangent edge the
+    /// kernel's doors mint, both normals are constant, so a child
+    /// station reads the dihedral the parent's certificate read.
+    SplitTangentEscalated {
+        /// The edge being split.
+        edge: EdgeKey,
+        /// The deciding station's diagnostic.
+        diag: geom_core::Indeterminate,
+    },
+    /// [`Body::split_edge`] of a tangent edge: whether the two faces
+    /// curve apart along a child or share their curvature there is in
+    /// band (`"tangent_second_order"`,
+    /// [`geom_brep::MustCarryEscalation::SecondOrder`]). The rule meters
+    /// the sagitta over the child's own extent, so a short child can be
+    /// in band where its parent was jet-determinate: the child is
+    /// certifiable as neither the tangency nor a chart image (D4 ¶3).
+    SplitTangentBendEscalated {
+        /// The edge being split.
+        edge: EdgeKey,
+        /// The sagitta's diagnostic.
+        diag: geom_core::Indeterminate,
+    },
+    /// [`Body::split_edge`] of a tangent edge: a station of the
+    /// must-carry rule over a child reads the two faces at a corner
+    /// ([`geom_brep::MustCarryRefusal::Refuted`]), against the tangency
+    /// the parent's certificate holds along the whole edge.
+    ///
+    /// Unreached, for the reason [`Self::SplitTangentEscalated`] is: a
+    /// child's arm is no longer than its parent's, so a station the
+    /// certified parent holds smooth cannot read definitely transverse.
+    SplitTangentRefuted {
+        /// The edge being split.
+        edge: EdgeKey,
+    },
     /// [`Body::split_edge`] could not carry a parent half-edge's stored
     /// **pcurve row** across the split: the parent's chart image,
     /// restricted to a child's sub-interval, failed the certification
     /// the whole image passed. Raised before any mutation, so the body
-    /// is untouched — a covered chart lane that refuses here is a
-    /// defect, never a licence to leave the face half-minted
-    /// (`crate::pcurves::split_cache`).
+    /// is untouched, never a licence to leave the face half-minted
+    /// (`crate::pcurves::split_cache`). At the band the parent's row
+    /// was certified at, a covered chart lane that refuses here is a
+    /// defect. At a tighter band it need not be: a fitted-grade row's
+    /// check 4 reads the whole carrier, so it can refuse a child
+    /// typed.
     PcurveSplit {
         /// The edge being split.
         edge: EdgeKey,
@@ -1170,16 +1291,38 @@ pub enum EulerOpError {
         /// The typed certification failure, nested whole.
         error: geom_brep::PcurveCertifyError,
     },
-    /// [`Body::kev_describing`]: whether a killed half's image closes on
-    /// itself — the turn a general unsplice crosses it whole by — is
-    /// undecided at the door's band, so the joint the kill bridges
-    /// across it has no element to write. Raised in the plan phase, so
-    /// the body is untouched.
-    KillTurnEscalated {
-        /// The killed half-edge whose turn escalated.
+    /// [`Body::split_edge`]: the one joint decision
+    /// (`crate::pcurves::decide_joint`) decided no element for the joint
+    /// between the two children of a half-edge's row. The gap there is
+    /// exactly zero, so what refused is the split point's lever: a mark
+    /// at it escalated (`diag` is `Some`), or the lever is so short that
+    /// the zero gap reads on a mark (`None`), as on a narrow cone near
+    /// its apex. The split writes no element nothing decided. Raised
+    /// before any mutation, so the body is untouched.
+    SplitJointUndecided {
+        /// The edge being split.
+        edge: EdgeKey,
+        /// The parent half-edge whose joint was not decided.
         half_edge: HalfEdgeKey,
-        /// The in-band/poisoned margin diagnostics.
-        diag: geom_core::Indeterminate,
+        /// The escalated mark's in-band/poisoned margin diagnostics,
+        /// where one escalated.
+        diag: Option<geom_core::Indeterminate>,
+    },
+    /// [`Body::kev_describing`]: the turn a general unsplice crosses a
+    /// killed half whole by is not decided at the door's band, so the
+    /// joint the kill bridges across it has no element to write. Either
+    /// whether the half's ends meet escalated, or they meet and the
+    /// joint decision there missed: a mark at the vertex escalated, or
+    /// its lever is so short that the gap reads on a mark, or the
+    /// periods lie past the branch reach. Raised in the plan phase, so
+    /// the body is untouched.
+    KillTurnUndecided {
+        /// The killed half-edge whose turn was not decided.
+        half_edge: HalfEdgeKey,
+        /// The escalated margin's in-band/poisoned diagnostics, where
+        /// one escalated; `None` where the joint decision decided a
+        /// miss.
+        diag: Option<geom_core::Indeterminate>,
     },
     /// [`Body::mev`], [`Body::mef`] or [`Body::mekr`] would add a
     /// half-edge to a face the site mint re-mints — one whose **pcurve
@@ -1255,25 +1398,26 @@ pub enum EulerOpError {
 }
 
 impl EulerOpError {
-    /// This refusal's text, a certification refusal's ending read at
-    /// `reading` ([`CertifyError::ending`]): the door that reports the
-    /// refusal decides where it is read. `Display` reads it at
-    /// [`Reading::Build`], the operation that built the edge.
+    /// This refusal's text, a certification refusal's ending read at `at`
+    /// ([`CertifyError::render`]): the door that reports the refusal
+    /// decides where it is read, the STEP import door at rest with the
+    /// file's ε_in words. Every other arm ignores `at`. `Display`
+    /// reads it at [`Reading::Build`], the operation that built the edge.
     #[must_use]
-    pub fn render(&self, reading: Reading) -> String {
+    pub fn render(&self, at: impl Into<ReadAt>) -> String {
+        let at = at.into();
         match self {
             Self::Certification { error } => {
-                format!("geometry attachment gate: {}", error.render(reading))
+                format!("geometry attachment gate: {}", error.render(at))
             }
             Self::RebasedCarrier { edge, error } => format!(
                 "re-based edge {edge:?} would keep a carrier its endpoint left: {}",
-                error.render(reading)
+                error.render(at)
             ),
             Self::NurbsLaneUnsupported { edge, scalar } => format!(
-                "{} lies between a plane and a spline face, and its certificate is derived \
-                 through the plane x NURBS lane, which only a scalar with certification \
-                 rights holds; the {scalar} scalar does not. Recourse: run the operation at \
-                 a certifying scalar",
+                "{}'s certificate needs the NURBS lane, which only a scalar with \
+                 certification rights holds; the {scalar} scalar does not. Recourse: run the \
+                 operation at a certifying scalar",
                 edge.map_or_else(|| "the new edge".to_owned(), |e| format!("edge {e:?}"))
             ),
             Self::RebasedNullEdge { edge } => format!(
@@ -1314,25 +1458,39 @@ impl EulerOpError {
                 edges,
                 chord,
             } => door.unvouched(*face, edges, *chord),
-            Self::RechartUndescribed { edges } => format!(
-                "set_face_surfaces_describing: the move would leave edges {edges:?} described \
-                 against a surface their faces no longer wear, and no re-description is listed \
-                 for them (carried_redescriptions states their stored descriptions on the \
-                 moved charts)"
+            Self::RechartUndescribed { door, edges } => format!(
+                "{}: the move would leave edges {edges:?} described against a surface their \
+                 faces no longer wear, and no re-description is listed for them ({} states \
+                 their stored descriptions on the moved charts)",
+                door.name(),
+                door.carried()
             ),
-            Self::RechartFalsifies { edge, error } => format!(
-                "set_face_surfaces_describing: edge {edge:?}'s re-description does not certify \
-                 on the charts the move gives it: {}",
-                error.render(reading)
+            Self::RechartFalsifies { door, edge, error } => format!(
+                "{}: edge {edge:?}'s re-description does not certify on the charts the move \
+                 gives it: {}",
+                door.name(),
+                error.render(at)
             ),
-            Self::RechartOffBoundary { face, on } => format!(
-                "set_face_surfaces_describing: face {face:?}'s boundary does not lie on the \
-                 plane it moves onto ({on} is off it)"
+            Self::RechartOffBoundary { door, face, on } => format!(
+                "{}: face {face:?}'s boundary does not lie on the plane it moves onto ({on} is \
+                 off it)",
+                door.name()
             ),
-            Self::RechartBoundaryEscalated { face, on, diag } => format!(
-                "set_face_surfaces_describing: whether face {face:?}'s boundary lies on the \
-                 plane it moves onto is undecided at {on}: {}",
+            Self::RechartBoundaryEscalated {
+                door,
+                face,
+                on,
+                diag,
+            } => format!(
+                "{}: whether face {face:?}'s boundary lies on the plane it moves onto is \
+                 undecided at {on}: {}",
+                door.name(),
                 diag.payload()
+            ),
+            Self::NotMovedEdge { door, edge } => format!(
+                "{}: edge {edge:?} is listed for re-description, and the kill moves none of \
+                 its halves. Recourse: list only edges with a half in the moved boundary",
+                door.name()
             ),
             Self::FaceMovedTwice { face } => {
                 format!("set_face_surfaces_describing: face {face:?} is moved twice")
@@ -1418,11 +1576,32 @@ impl EulerOpError {
                 },
                 crate::split::split_param_ending(verdict.arm())
             ),
-            Self::SplitParamEscalated { diag, .. } => format!(
-                "{} is undecided: {}. {}",
-                crate::split::CROSSING_INTERIOR,
-                diag.payload(),
-                crate::split::split_param_ending(geom_brep::recourse::RefusedArm::Undecided(diag))
+            Self::SplitParamEscalated { diag, .. } => diag
+                .undecided(
+                    crate::split::CROSSING_INTERIOR,
+                    crate::split::split_param_ending(geom_brep::recourse::RefusedArm::Undecided(
+                        diag,
+                    )),
+                )
+                .to_string(),
+            Self::SplitTangentEscalated { diag, .. } => diag
+                .undecided(
+                    "whether a piece of a split tangent edge stays tangent along its span",
+                    diag.ending(crate::split::TANGENT_PIECE_LEVER),
+                )
+                .to_string(),
+            Self::SplitTangentBendEscalated { diag, .. } => diag
+                .undecided(
+                    "whether the faces of a piece of a split tangent edge curve apart along it \
+                     or share their curvature there",
+                    diag.ending(crate::split::TANGENT_PIECE_LEVER),
+                )
+                .to_string(),
+            Self::SplitTangentRefuted { .. } => format!(
+                "a piece of a split tangent edge reads a corner at a station along it, against \
+                 the tangency the edge certified, so what that piece is cannot be said. \
+                 Recourse: {}",
+                crate::split::TANGENT_PIECE_LEVER
             ),
             Self::PcurveSplit {
                 edge,
@@ -1432,11 +1611,30 @@ impl EulerOpError {
                 "split_edge: on edge {edge:?}, half-edge {half_edge:?}'s stored pcurve \
                  row does not re-certify over a child's sub-interval: {error}"
             ),
-            Self::KillTurnEscalated { half_edge, diag } => format!(
-                "kev_describing: whether killed half-edge {half_edge:?}'s pcurve image meets \
-                 itself across its closed carrier is undecided: {}. Recourse: kill the edge at \
-                 a tolerance that decides its ends, or move the geometry",
-                diag.payload()
+            Self::SplitJointUndecided {
+                edge,
+                half_edge,
+                diag,
+            } => format!(
+                "split_edge: on edge {edge:?}, the joint between half-edge {half_edge:?}'s two \
+                 children is not decided at the split point: {}. Recourse: split at a \
+                 parameter farther from the chart's axis, or move the geometry",
+                diag.as_ref().map_or_else(
+                    || "the point's lever is too short to tell one azimuth period from the next"
+                        .to_owned(),
+                    |d| d.payload().to_string()
+                )
+            ),
+            Self::KillTurnUndecided { half_edge, diag } => format!(
+                "kev_describing: the turn of killed half-edge {half_edge:?} across its carrier \
+                 is not decided: {}. Recourse: kill the edge at a tolerance that decides its \
+                 ends, or move the geometry",
+                diag.as_ref().map_or_else(
+                    || "its ends meet, but at a lever too short to tell one azimuth period from \
+                        the next, or past the branch reach"
+                        .to_owned(),
+                    |d| d.payload().to_string()
+                )
             ),
             Self::PcurveMint { face, refusal } => format!(
                 "the operator would add a half-edge to face {face:?}, whose pcurve rows are \
@@ -1603,6 +1801,7 @@ pub(crate) fn every_euler_op_error_once()
             edges: vec![ek],
         },
         EulerOpError::RechartFalsifies {
+            door: RechartDoor::KefDescribing,
             edge: ek,
             error: CertifyError::Unimplemented,
         },
@@ -1612,12 +1811,17 @@ pub(crate) fn every_euler_op_error_once()
             edges: vec![ek],
             chord: false,
         },
-        EulerOpError::RechartUndescribed { edges: vec![ek] },
+        EulerOpError::RechartUndescribed {
+            door: RechartDoor::SetFaceSurfacesDescribing,
+            edges: vec![ek],
+        },
         EulerOpError::RechartOffBoundary {
+            door: RechartDoor::SetFaceSurfacesDescribing,
             face: fc,
             on: EntityId::Edge(ek),
         },
         EulerOpError::RechartBoundaryEscalated {
+            door: RechartDoor::KefDescribing,
             face: fc,
             on: EntityId::Edge(ek),
             diag: geom_core::Indeterminate {
@@ -1626,6 +1830,10 @@ pub(crate) fn every_euler_op_error_once()
                 predicate: Some("rechart_boundary_residual"),
                 terminal_sliver: false,
             },
+        },
+        EulerOpError::NotMovedEdge {
+            door: RechartDoor::KfmrhDescribing,
+            edge: ek,
         },
         EulerOpError::FaceMovedTwice { face: fc },
         EulerOpError::Argument(BadArgument::Stale {
@@ -1678,22 +1886,51 @@ pub(crate) fn every_euler_op_error_once()
                 terminal_sliver: false,
             },
         },
-        EulerOpError::KillTurnEscalated {
-            half_edge: HalfEdgeKey::default(),
+        EulerOpError::SplitTangentEscalated {
+            edge: ek,
             diag: geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("pcurve_loop_continuity"),
+                predicate: Some("dihedral_arm"),
                 terminal_sliver: false,
             },
+        },
+        EulerOpError::SplitTangentBendEscalated {
+            edge: ek,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("tangent_second_order"),
+                terminal_sliver: false,
+            },
+        },
+        EulerOpError::SplitTangentRefuted { edge: ek },
+        EulerOpError::SplitJointUndecided {
+            edge: ek,
+            half_edge: he,
+            diag: Some(geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pcurve_loop_branch"),
+                terminal_sliver: false,
+            }),
+        },
+        EulerOpError::KillTurnUndecided {
+            half_edge: HalfEdgeKey::default(),
+            diag: Some(geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pcurve_turn_closes"),
+                terminal_sliver: false,
+            }),
         },
         EulerOpError::PcurveSplit {
             edge: ek,
             half_edge: he,
             error: geom_brep::PcurveCertifyError::UnsupportedCarrier {
                 chart: geom::SurfaceKind::Torus,
-                carrier: geom::CurveKind::Circle,
-                class: geom_brep::UncoveredClass::TorusGeneralCircle,
+                carrier: geom::CurveKind::Nurbs,
+                class: geom_brep::UncoveredClass::NoFittedClass,
             },
         },
         EulerOpError::PcurveMint {
@@ -2887,7 +3124,7 @@ impl<T: Decide> Body<T> {
         self.vouch_move(
             RechartDoor::Mef,
             face_key,
-            (inherit_surface, after),
+            self.landing_of_spec(inherit_surface, &surface),
             self.run_edges(&run),
             |he, _, _| run.contains(&he),
             carried,
@@ -3059,7 +3296,7 @@ impl<T: Decide> Body<T> {
         self.vouch_move(
             RechartDoor::Mef,
             face_key,
-            (inherit_surface, after),
+            self.landing_of_spec(inherit_surface, &surface),
             [],
             |_, _, _| false,
             carried,
@@ -4033,7 +4270,7 @@ impl<T: Decide> Body<T> {
         touched: &[LoopKey],
         faces: impl FnOnce(
             &Self,
-            &[(FaceKey, crate::pcurves::SiteFrom<T>)],
+            &[(FaceKey, crate::pcurves::SiteFrom)],
         ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
         curves: crate::pcurves::SiteCarriers<'_, T>,
         tol: Tol,
@@ -4079,12 +4316,12 @@ impl<T: Decide> Body<T> {
         read: impl IntoIterator<Item = FaceKey>,
         faces: impl FnOnce(
             &Self,
-            &[(FaceKey, crate::pcurves::SiteFrom<T>)],
+            &[(FaceKey, crate::pcurves::SiteFrom)],
         ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
         curves: crate::pcurves::SiteCarriers<'_, T>,
         tol: Option<Tol>,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom<T>)> = Vec::new();
+        let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom)> = Vec::new();
         let mut seen: Vec<FaceKey> = Vec::new();
         for face in read {
             if seen.contains(&face) {
@@ -4960,6 +5197,7 @@ mod tests {
                     error: geom_brep::CertifyError::ResidualExceeded {
                         check: geom_brep::CertCheck::EndpointStart,
                         sample: 0,
+                        ..
                     },
                 } if edge == b.edge
             ),
@@ -5100,8 +5338,7 @@ mod tests {
             Point3::new(1.0, 0.0, 0.0),
         );
         spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: s_seed,
-            s2: s_plus,
+            pair: geom_brep::SurfacePair::new(s_seed, s_plus),
             witness: Point3::new(0.5, 0.0, 0.0),
         };
         body.set_edge_curve(split.edge, spec, tol).unwrap();
@@ -5556,8 +5793,7 @@ mod tests {
         .unwrap();
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
-                s1: s_seed,
-                s2: s_plus,
+                pair: geom_brep::SurfacePair::new(s_seed, s_plus),
                 witness: Point3::new(0.5, 0.0, 0.0),
             },
             carrier: geom::Curve3::Nurbs(std::sync::Arc::new(chord)),
@@ -5671,19 +5907,35 @@ mod tests {
                 )
             })
             .unwrap();
-        // Both checks run before the pcurve pass (check 8), whose
-        // reading of the pillow's rowless spline face comes last.
+        // Both checks run before the pcurve pass (check 8). The pillow
+        // reads its rowless spline face as unminted, an image derivable
+        // for every edge; the split's circle has none on the spline
+        // chart, so the pass's reading of that face is the circle's
+        // refusal instead.
         let at = expected
             .iter()
             .position(|e| matches!(e, crate::ValidationError::Pcurve { .. }))
             .unwrap_or(expected.len());
+        let spline_half = [created.he_plus, created.he_minus]
+            .into_iter()
+            .find(|he| body.face_of_half_edge(*he) != Some(plane_face))
+            .unwrap();
         expected.splice(
-            at..at,
+            at..,
             [
                 crate::ValidationError::ScaffoldAtRest { edge: created.edge },
                 crate::ValidationError::PlanarBoundaryResidual {
                     face: plane_face,
                     edge: created.edge,
+                },
+                crate::ValidationError::Pcurve {
+                    finding: crate::PcurveMintError::Certify {
+                        half_edge: spline_half,
+                        error: geom_brep::PcurveCertifyError::IsoUnsupported {
+                            what: "the carrier's start point lies on neither chart boundary — \
+                                   not a boundary iso of this face's chart",
+                        },
+                    },
                 },
             ],
         );

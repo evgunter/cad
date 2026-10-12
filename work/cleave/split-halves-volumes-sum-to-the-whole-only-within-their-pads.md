@@ -68,3 +68,19 @@ there.
 
 The drum at a = 0 misses with equal pads. That residue is not
 explained by the asymmetry and is the first thing to look at.
+
+## 2026-10-07 — the revolve-seam split rows at ε = 1e-6 (cleave/revseam-1e6)
+
+These cases are more evidence for the unequal-pad explanation, from
+the full revolves of `split_across_a_revolve_seam`:
+
+- **Tube across its axis (tilt 0.0997, azimuth π).** The halves' pads
+  are equal (1.198e-3). Each half misses 3π/8 by ±1.35e-5, but the sum
+  meets 0.75π within 1e-15.
+- **Counterbore at y = 0.3, tilt 0.1.** The pads are 1.57e-4 and
+  1.05e-3, and the sum misses by −8.8e-6.
+- **Rim-touching cut at azimuth 0.** The pads are 3.4e-4 and 2.7e-3,
+  and the sum misses by up to −3.0e-5.
+- **Rim-touching cut at azimuth π.** On the side whose pads are equal,
+  the sum meets to 0.
+

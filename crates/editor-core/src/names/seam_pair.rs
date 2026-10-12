@@ -23,7 +23,9 @@ use super::role::{RoleSeg, StableName, name_free_seg};
 /// compile error here until someone says whether it passes an entity
 /// through.
 enum Head<'a> {
-    /// A seam: the pair itself.
+    /// A seam: the pair itself. A crossing vertex is read as one too:
+    /// its edge and the face or edge it meets, which is the pair a rank
+    /// along its edge is measured against.
     Seam(&'a StableName, &'a StableName),
     /// The same entity carried through one op, or a piece of it: the
     /// argument is its name one level down.
@@ -36,30 +38,33 @@ enum Head<'a> {
 
 fn head(seg: &RoleSeg) -> Head<'_> {
     match seg {
-        RoleSeg::Seam { a, b } => Head::Seam(a, b),
-        // A boolean's survivor, a blend's or shell's survivor, a split's
-        // fragment, a pattern's or part's instance: the same entity (or
-        // a piece of it) under one more op.
-        RoleSeg::FromA(n)
-        | RoleSeg::FromB(n)
-        | RoleSeg::FromTarget(n)
+        RoleSeg::Seam { a, b }
+        | RoleSeg::Crossing {
+            edge: a, face: b, ..
+        }
+        | RoleSeg::EdgeCrossing { a, b, .. } => Head::Seam(a, b),
+        // An entity carried in from an input, a split's fragment, a
+        // pattern's or part's instance: the same entity (or a piece of
+        // it) under one more op. A member's seam keeps the orientation
+        // its own table read, so a rewrite that reorders the member's
+        // pair re-reads a rank along it as it would below.
+        RoleSeg::From { of: n, .. }
         | RoleSeg::SplitFragment { parent: n, .. }
         | RoleSeg::Instance { of: n, .. }
-        | RoleSeg::InPart { of: n } => Head::Through(n),
+        | RoleSeg::InPart { of: n }
+        | RoleSeg::Placed { of: n } => Head::Through(n),
         RoleSeg::Merged(set) => Head::Merged(set),
-        // A union member's entity is NOT seen through: its seam belongs
-        // to the member, whose pair order no union reorders, and is read
-        // in the member's own table.
-        RoleSeg::FromMember { .. }
         // New entities an op minted FROM a source — a blend face, a
         // shell's cavity twin (an offset line, not the source's), a
         // trimline, a crossing vertex — lie on no seam line of their
         // source.
-        | RoleSeg::BlendFace(_)
+        RoleSeg::BlendFace(_)
         | RoleSeg::CornerFace(_)
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -73,7 +78,10 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::CrossingVertex { .. }
         | RoleSeg::OnToolVertex { .. }
         | RoleSeg::Fragment(
-            Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_) | Qualifier::OrderAlong { .. },
+            Qualifier::Borders(_)
+            | Qualifier::Keeps(_)
+            | Qualifier::Ends(_)
+            | Qualifier::OrderAlong { .. },
         )
         | name_free_seg!() => Head::Stop,
     }
@@ -98,7 +106,8 @@ pub(super) fn seam_edge_sides(name: &StableName) -> Option<(&StableName, &Stable
 }
 
 /// The two parents `(a, b)` of a seam VERTEX name, if it is one: a
-/// vertex minted as `Seam { a, b }`, or a pass-through of one, found
+/// vertex minted as `Seam { a, b }`, `EdgeCrossing { a, b, .. }` or
+/// `Crossing { edge: a, face: b, .. }`, or a pass-through of one, found
 /// the way [`seam_line_pair`] finds an edge's pair. A junction (a run
 /// of lines) answers its first line; it carries no rank.
 pub(super) fn seam_vertex_parents(name: &StableName) -> Option<(&StableName, &StableName)> {
@@ -124,11 +133,18 @@ fn seam_through(name: &StableName, kind: EntityKind) -> Option<(&StableName, &St
 /// Whether face name `n` denotes face `x`, or a face descended from it:
 /// `x` itself or `x` followed by discriminators, through any number of
 /// the wrappers [`head`] passes through, or a merged face with such a
-/// constituent.
+/// constituent. Where `x` is itself a merged face, read through its
+/// wrappers, a face descended from one of its constituents descends from
+/// it too: a merge over `x` lists those, never `x` (N3).
 pub(crate) fn face_descends_from(n: &StableName, x: &StableName) -> bool {
+    let parts = super::merged::constituents_through_wrappers(x);
+    let xs: Vec<&StableName> = core::iter::once(x).chain(parts.iter().flatten()).collect();
     let mut names = vec![n];
     while let Some(n) = names.pop() {
-        if n.kind == x.kind && n.node == x.node && n.path.starts_with(&x.path) {
+        if xs
+            .iter()
+            .any(|x| n.kind == x.kind && n.node == x.node && n.path.starts_with(&x.path))
+        {
             return true;
         }
         match n.path.first().map(head) {
@@ -167,13 +183,28 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
+
+    fn from_a(of: crate::names::NameRef) -> RoleSeg {
+        RoleSeg::From {
+            read: crate::names::FOLD_A,
+            of,
+        }
+    }
+
+    fn from_b(of: crate::names::NameRef) -> RoleSeg {
+        RoleSeg::From {
+            read: crate::names::FOLD_B,
+            of,
+        }
+    }
+
     use crate::names::role::CapEnd;
     use crate::node::RecipeNodeId;
 
     fn cap(node: u64, end: CapEnd) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Cap(end)],
         }
     }
@@ -181,7 +212,7 @@ mod tests {
     fn wrap(seg: fn(crate::names::role::NameRef) -> RoleSeg, inner: StableName) -> StableName {
         StableName {
             kind: inner.kind,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![seg(inner.into())],
         }
     }
@@ -189,7 +220,7 @@ mod tests {
     fn merged(cs: Vec<StableName>) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![RoleSeg::Merged(cs)],
         }
     }
@@ -197,10 +228,7 @@ mod tests {
     #[test]
     fn the_sides_are_read_off_the_faces_descent() {
         let (a, b) = (cap(1, CapEnd::End), cap(2, CapEnd::Start));
-        let (fa, fb) = (
-            wrap(RoleSeg::FromA, a.clone()),
-            wrap(RoleSeg::FromB, b.clone()),
-        );
+        let (fa, fb) = (wrap(from_a, a.clone()), wrap(from_b, b.clone()));
         assert_eq!(a_side_is_first(&fa, &fb, &a, &b), Some(true));
         assert_eq!(a_side_is_first(&fb, &fa, &a, &b), Some(false));
     }
@@ -208,29 +236,23 @@ mod tests {
     #[test]
     fn a_face_descending_from_neither_side_decides_nothing() {
         let (a, b) = (cap(1, CapEnd::End), cap(2, CapEnd::Start));
-        let other = wrap(RoleSeg::FromA, cap(3, CapEnd::End));
-        let fb = wrap(RoleSeg::FromB, b.clone());
+        let other = wrap(from_a, cap(3, CapEnd::End));
+        let fb = wrap(from_b, b.clone());
         assert_eq!(a_side_is_first(&other, &fb, &a, &b), None);
     }
 
     #[test]
     fn two_faces_each_merged_across_both_sides_decide_nothing() {
         let (a, b) = (cap(1, CapEnd::End), cap(2, CapEnd::Start));
-        let both = merged(vec![
-            wrap(RoleSeg::FromA, a.clone()),
-            wrap(RoleSeg::FromB, b.clone()),
-        ]);
+        let both = merged(vec![wrap(from_a, a.clone()), wrap(from_b, b.clone())]);
         assert_eq!(a_side_is_first(&both, &both, &a, &b), None);
     }
 
     #[test]
     fn a_face_merged_across_both_sides_is_resolved_by_the_other_face() {
         let (a, b) = (cap(1, CapEnd::End), cap(2, CapEnd::Start));
-        let both = merged(vec![
-            wrap(RoleSeg::FromA, a.clone()),
-            wrap(RoleSeg::FromB, b.clone()),
-        ]);
-        let fb = wrap(RoleSeg::FromB, b.clone());
+        let both = merged(vec![wrap(from_a, a.clone()), wrap(from_b, b.clone())]);
+        let fb = wrap(from_b, b.clone());
         assert_eq!(a_side_is_first(&both, &fb, &a, &b), Some(true));
         assert_eq!(a_side_is_first(&fb, &both, &a, &b), Some(false));
     }
@@ -240,13 +262,13 @@ mod tests {
         let (a, b) = (cap(1, CapEnd::End), cap(2, CapEnd::Start));
         let frag = StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(11),
+            node: RecipeNodeId::new(0, 11),
             path: vec![RoleSeg::SplitFragment {
                 side: crate::names::role::SplitHalf::Below,
-                parent: wrap(RoleSeg::FromA, a.clone()).into(),
+                parent: wrap(from_a, a.clone()).into(),
             }],
         };
-        let fb = wrap(RoleSeg::FromB, b.clone());
+        let fb = wrap(from_b, b.clone());
         assert_eq!(a_side_is_first(&frag, &fb, &a, &b), Some(true));
     }
 
@@ -255,7 +277,7 @@ mod tests {
         let x = cap(1, CapEnd::End);
         let edge = |a: &StableName, b: &StableName| StableName {
             kind: EntityKind::Edge,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![RoleSeg::Seam {
                 a: a.clone().into(),
                 b: b.clone().into(),
@@ -264,17 +286,18 @@ mod tests {
         assert!(seam_line_pair(&edge(&x, &x)).is_none());
         let y = cap(2, CapEnd::End);
         assert!(seam_line_pair(&edge(&x, &y)).is_some());
-        // Through a boolean survivor, and not through a union member.
+        // Through an entity carried in, a fold side's and a member's
+        // read alike.
         let seam = edge(&x, &y);
-        assert!(seam_line_pair(&wrap(RoleSeg::FromA, seam.clone())).is_some());
+        assert!(seam_line_pair(&wrap(from_a, seam.clone())).is_some());
         let member = StableName {
             kind: EntityKind::Edge,
-            node: RecipeNodeId(9),
-            path: vec![RoleSeg::FromMember {
-                member: RecipeNodeId(4),
+            node: RecipeNodeId::new(0, 9),
+            path: vec![RoleSeg::From {
+                read: crate::VarId::new(1, 4),
                 of: seam.into(),
             }],
         };
-        assert!(seam_line_pair(&member).is_none());
+        assert!(seam_line_pair(&member).is_some());
     }
 }

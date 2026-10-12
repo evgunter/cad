@@ -27,7 +27,7 @@ use sweep::test_support::tube_frame;
 use sweep::{TubeWindow, tube_along_arc};
 use topo::{Body, BooleanError, EdgeKey, FaceKey, SweepStrategy, sweep_traces};
 
-use crate::mate7a_r1_probes::{arch, stem, weld_declarations};
+use crate::mate7a_r1_probes::{arch, stem};
 
 const B_MAJOR: f64 = 1.0;
 const B_MINOR: f64 = 0.2;
@@ -141,34 +141,28 @@ fn accepted_against_torus(
 /// 22° window (the certified negative: the root is placed `Out` in the
 /// stem face's own chart, both ends are definitely off the carrier, so
 /// the arc meets that face nowhere). Both pairs now answer, and the op
-/// stops at the join, where the germ pair of the stem's weld cap
-/// (plane) against the arch's wall (torus) has no section frame arm:
-/// a typed refusal downstream, and no body to measure.
+/// reaches the join, where the germ pair of the stem's weld cap (plane)
+/// against the arch's wall (torus) takes the plane × wall arm and its
+/// chord, an arc of the arch's meridian circle. Past the join the
+/// section certificate's interior-loop guard refuses the stem's tube
+/// wall against the arch's, two tori with parallel axes apart, which it
+/// has no arm for; no body to measure.
 #[test]
 fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
     let (s, a) = (stem(), arch());
-    let (decls, _) = weld_declarations(&s, &a);
-    let err = topo::union_with(&s, &a, &decls, Tol::witness())
-        .expect_err("the stem glue still refuses, at the join");
-    let BooleanError::GermFrameUnsupported {
-        a_face,
-        a_kind: geom::SurfaceKind::Plane,
-        b_face,
-        b_kind: geom::SurfaceKind::Torus,
-    } = err
-    else {
-        panic!("the lily's next door is the plane × torus germ frame: {err:?}");
-    };
+    let err = topo::union(&s, &a, Tol::witness())
+        .expect_err("the stem glue still refuses, past the join");
     assert!(
         matches!(
-            s.get_face(a_face).and_then(|f| s.get_surface(f.surface)),
-            Some(geom::Surface::Plane { .. })
+            err,
+            BooleanError::CurvedPairUnsupported {
+                site: topo::PairRefusalSite::InteriorLoopGuard,
+                kind: geom::SurfaceKind::Torus,
+                other_kind: geom::SurfaceKind::Torus,
+                ..
+            }
         ),
-        "the stem's face is its weld cap: {a_face:?}"
-    );
-    assert!(
-        torus_faces(&a).contains(&b_face),
-        "the arch's face is its tube wall"
+        "the lily's next door is the interior-loop guard on its two tube walls: {err:?}"
     );
 }
 
@@ -487,13 +481,15 @@ fn a_small_tilted_seam_crosses_the_wall_on_the_quartic_arm() {
 /// `B`'s carrier. (Its tube crosses `B`'s transversally, so no tangency
 /// elsewhere refuses first.) The seam's clearance is zero, the door
 /// answers `Coaxial`, and `wall_crossing` answers `LiesOn`. Its parents
-/// are decided distinct from `B`'s carrier, so the undeclared
-/// `(Zero, Zero)` arm asks `lying_on`. Certificate (a) declines, because
+/// are decided distinct from `B`'s carrier, so the `(Zero, Zero)` arm
+/// asks `lying_on`. Certificate (a) declines, because
 /// `B`'s far end meridian meets the seam's CIRCLE beyond the arc's end,
 /// and no chain of `B`'s arcs runs along it; the interior question
 /// certifies that the ARC meets `B`'s boundary nowhere strictly inside
-/// its span, so its ends place it and the sweep answers. The op itself
-/// stops later, on the two tubes' coplanar start caps.
+/// its span, so its ends place it and the sweep answers. The two tubes'
+/// coplanar start caps are one plane by margin and glue, so the op
+/// itself stops later, at the join's germ frame: past the plane × torus
+/// germ pairs, at a torus × torus pair, which has no arm.
 #[test]
 fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
     let tol = Tol::witness();
@@ -529,19 +525,41 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
         sweep::test_support::finished("A", a, tol),
         sweep::test_support::finished("B", b, tol),
     );
-    let none = topo::BooleanDeclarations::none();
     for (op, x, y) in [("A ∪ B", &a, &b), ("B ∪ A", &b, &a)] {
-        let r = topo::union_with(x, y, &none, tol);
-        let Err(BooleanError::UndeclaredCoincidence { pair, .. }) = r else {
-            panic!("{op}: the coplanar start caps: {r:?}");
-        };
-        for (operand, face) in pair {
-            let body = if operand == topo::Operand::A { x } else { y };
-            let kind = body
-                .get_face(face)
-                .and_then(|f| body.get_surface(f.surface))
-                .map(geom::Surface::kind);
-            assert_eq!(kind, Some(geom::SurfaceKind::Plane), "{op}: a start cap");
-        }
+        let r = topo::union(x, y, tol);
+        assert!(
+            matches!(
+                r,
+                Err(BooleanError::GermFrameUnsupported {
+                    a_kind: geom::SurfaceKind::Torus,
+                    b_kind: geom::SurfaceKind::Torus,
+                    ..
+                })
+            ),
+            "{op}: the join's torus × torus germ frame: {r:?}"
+        );
+    }
+}
+
+/// **A planar face holding the other solid's rim is no edge-plane
+/// holder.** The arch's rim circle lies in the stem's weld cap, a
+/// plane, and the edge's plane is that face's own plane, which cuts it
+/// in no curve. The germ pair is a plane against a torus wall, which
+/// has a kind arm, so the join takes it as a plane × wall pair and never
+/// asks the edge-plane lane, which would refuse a holder that is the
+/// cap's own plane: the join completes in both member orders, its chord
+/// an arc of the arch's meridian circle. Read as the join's own outcome
+/// (`boolean_join_refusal`).
+#[test]
+fn a_planar_face_holding_the_arch_rim_is_no_edge_plane_holder() {
+    let (s, a) = (stem(), arch());
+    let t = Tol::witness();
+    for (label, x, y) in [("stem ∪ arch", &s, &a), ("arch ∪ stem", &a, &s)] {
+        let refusal = topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, x, y, t)
+            .unwrap_or_else(|e| panic!("{label}: the reduction refused {e:?}"));
+        assert!(
+            refusal.is_none(),
+            "{label}: the join completes: {refusal:?}"
+        );
     }
 }

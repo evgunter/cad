@@ -98,6 +98,7 @@ use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
 
+use crate::booleans::finished;
 use crate::{SceneBody, Stop, View};
 
 /// The bore's radius: the bud is ANNULAR, which is what makes the full
@@ -261,7 +262,7 @@ fn band_torus(body: &Body<f64>, face: pncad::topo::FaceKey) -> (f64, f64) {
 pub fn stops(tol: Tol) -> Vec<Stop> {
     // The unfilleted twin, kept alive: every claim below is against
     // THIS body rather than against a remembered number.
-    let sharp = bud(tol);
+    let sharp = finished("sharp", bud(tol), tol);
     assert_eq!(
         (
             sharp.vertices().count(),
@@ -320,22 +321,24 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // door wearing a convenience.
     let first = fillet_edges(&sharp, &[mouth], ROLL, tol)
         .unwrap_or_else(|e| panic!("the bud's sphere-cone mouth rim rolls, got {e:?}"));
+    let first_bands = first.band_faces.len();
+    let first = finished("first.body", first.body, tol);
     let lip2 = rim_between(
-        &first.body,
+        &first,
         SurfaceKind::Cone,
         SurfaceKind::Plane,
         "the lip, re-selected",
     );
-    let bore2 = rims_between(&first.body, SurfaceKind::Cylinder, SurfaceKind::Plane);
+    let bore2 = rims_between(&first, SurfaceKind::Cylinder, SurfaceKind::Plane);
     let base2 = *bore2
         .iter()
         .min_by(|a, b| {
-            rim_station(&first.body, **a)
-                .partial_cmp(&rim_station(&first.body, **b))
+            rim_station(&first, **a)
+                .partial_cmp(&rim_station(&first, **b))
                 .expect("finite stations")
         })
         .expect("two bore rims");
-    let sequential = fillet_edges(&first.body, &[lip2, base2], ROLL, tol).unwrap_or_else(|e| {
+    let sequential = fillet_edges(&first, &[lip2, base2], ROLL, tol).unwrap_or_else(|e| {
         panic!(
             "the lip and the bore's base share no support face, so they roll \
                  TOGETHER on the mouth's result; got {e:?}"
@@ -378,7 +381,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // requested tube radius. A silhouette that did not move cannot say
     // this; three new revolution walls can only be there or not.
     assert_eq!(rolled.band_faces.len(), 3, "one band per rim, one call");
-    assert_eq!(first.band_faces.len(), 1, "the cross-check's mouth band");
+    assert_eq!(first_bands, 1, "the cross-check's mouth band");
     assert_eq!(
         sequential.band_faces.len(),
         2,

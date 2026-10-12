@@ -16,12 +16,13 @@
 
 use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
-use topo::{
-    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary,
-    mass_properties,
-};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, mass_properties};
 
 use crate::common::differential::outcome;
+use crate::common::pinch_cones::{
+    Op as Cones, Pieces, Plane, cone_finding, cones_at, faces_through_two_vertices_at,
+    point_key_finding, shared_point_finding, shared_point_spread_finding, vertices_at,
+};
 
 const PROFILE: [(f64, f64); 6] = [
     (0.0, 0.0),
@@ -32,14 +33,14 @@ const PROFILE: [(f64, f64); 6] = [
     (0.0, 2.0),
 ];
 const V: [f64; 3] = [1.0, 1.0, 1.0];
-const SIDE: f64 = 4.0;
+pub(crate) const SIDE: f64 = 4.0;
 /// The prism as two boxes with disjoint interiors, `(lo, hi)`.
 const BOXES: [([f64; 3], [f64; 3]); 2] = [
     ([0.0, 0.0, 0.0], [2.0, 1.0, 1.0]),
     ([0.0, 1.0, 0.0], [1.0, 2.0, 1.0]),
 ];
 
-fn tol() -> Tol {
+pub(crate) fn tol() -> Tol {
     Tol::witness()
 }
 
@@ -62,7 +63,7 @@ fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
 
 /// The right-handed frame `(u, w, m)` with `m` the unit of `m` and `u`
 /// turned by `psi` about it.
-fn frame(m: [f64; 3], psi: f64) -> [[f64; 3]; 3] {
+pub(crate) fn frame(m: [f64; 3], psi: f64) -> [[f64; 3]; 3] {
     let m = unit(m);
     let seed = if m[2].abs() < 0.9 {
         [0.0, 0.0, 1.0]
@@ -80,7 +81,7 @@ fn frame(m: [f64; 3], psi: f64) -> [[f64; 3]; 3] {
 /// The cube `v + a·u + b·w + c·m`, `(a, b, c)` over `lo + [0, SIDE]³`:
 /// `lo = (−2, −2, 0)` puts `v` inside the near face, `(0, −2, 0)` on
 /// its edge along `w`, `(0, 0, 0)` at its corner.
-fn cube_at(v: [f64; 3], f: [[f64; 3]; 3], lo: [f64; 3]) -> Body<f64> {
+pub(crate) fn cube_at(v: [f64; 3], f: [[f64; 3]; 3], lo: [f64; 3]) -> Body<f64> {
     cube_sized(v, f, lo, SIDE)
 }
 
@@ -106,7 +107,7 @@ fn cube(f: [[f64; 3]; 3], lo: [f64; 3]) -> Body<f64> {
 }
 
 /// [`cube_at`]'s six half-spaces `n·x ≤ d`.
-fn cube_planes_at(v: [f64; 3], f: [[f64; 3]; 3], lo: [f64; 3]) -> Vec<([f64; 3], f64)> {
+pub(crate) fn cube_planes_at(v: [f64; 3], f: [[f64; 3]; 3], lo: [f64; 3]) -> Vec<([f64; 3], f64)> {
     cube_planes_sized(v, f, lo, SIDE)
 }
 
@@ -135,8 +136,25 @@ fn cube_planes(f: [[f64; 3]; 3], lo: [f64; 3]) -> Vec<([f64; 3], f64)> {
 /// its vertices are the planes' feasible triple meets, each face is
 /// the vertices on its plane fanned about their centroid, and the
 /// volume sums the pyramids over the faces from an interior point.
-fn convex_volume(planes: &[([f64; 3], f64)]) -> f64 {
+/// Each distinct half-space is taken once, compared at unit normal, so
+/// two operands' half-spaces on one plane bound one face, not two.
+pub(crate) fn convex_volume(planes: &[([f64; 3], f64)]) -> f64 {
     const EPS: f64 = 1e-9;
+    let at_unit = |(n, d): ([f64; 3], f64)| {
+        let l = dot(n, n).sqrt();
+        (n.map(|c| c / l), d / l)
+    };
+    let mut distinct: Vec<([f64; 3], f64)> = Vec::new();
+    for &p in planes {
+        let (n, d) = at_unit(p);
+        if !distinct.iter().any(|&q| {
+            let (m, e) = at_unit(q);
+            (0..3).all(|t| (m[t] - n[t]).abs() < EPS) && (e - d).abs() < EPS
+        }) {
+            distinct.push(p);
+        }
+    }
+    let planes = &distinct[..];
     let mut pts: Vec<[f64; 3]> = Vec::new();
     let n = planes.len();
     for i in 0..n {
@@ -241,17 +259,15 @@ fn boxes_within(boxes: &[([f64; 3], [f64; 3])], planes: &[([f64; 3], f64)]) -> f
 }
 
 /// `body` as a boolean operand: the at-rest gate's finished body.
-fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
+pub(crate) fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
     AtRestBody::validate(body, tol())
         .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }
 
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    &BooleanDeclarations,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+/// One run of an op: its tag, its result and the oracle's volume.
+pub(crate) type Run = (String, Result<BooleanResult<f64>, BooleanError>, f64);
+
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 /// The placements: `v` inside the near face, on its edge along `w`
 /// (four turns about the face normal), at its corner (four turns).
@@ -262,17 +278,14 @@ const PLACEMENTS: [(&str, [f64; 3], &[f64]); 3] = [
 ];
 
 /// The grid's direction `(i, j)`: 12 turns about z by 7 elevations.
-fn direction(i: u32, j: u32) -> [f64; 3] {
+pub(crate) fn direction(i: u32, j: u32) -> [f64; 3] {
     let theta = std::f64::consts::TAU * (f64::from(i) + 0.37) / 12.0;
     let phi = (f64::from(j) - 3.0) * 0.4 + 0.05;
     [theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()]
 }
 
 /// Every op in both orders at one pose: `(tag, result, want)`.
-fn pose_runs(
-    (place, lo): (&str, [f64; 3]),
-    (i, j, psi): (u32, u32, f64),
-) -> Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)> {
+fn pose_runs((place, lo): (&str, [f64; 3]), (i, j, psi): (u32, u32, f64)) -> Vec<Run> {
     let prism = finished(
         "the prism",
         fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body,
@@ -295,20 +308,73 @@ fn every_op(
     (x, vx): (&AtRestBody<f64>, f64),
     (y, vy): (&AtRestBody<f64>, f64),
     common: f64,
-) -> Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)> {
-    let decls = BooleanDeclarations::default();
+) -> Vec<Run> {
     let mut out = Vec::new();
     for (order, p, q, vp) in [(orders[0], x, y, vx), (orders[1], y, x, vy)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, vx + vy - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vp - common),
+            ("U", topo::union, vx + vy - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vp - common),
         ];
         for (op, run, want) in ops {
-            out.push((format!("{order} {op}"), run(p, q, &decls, tol()), want));
+            out.push((format!("{order} {op}"), run(p, q, tol()), want));
         }
     }
     out
+}
+
+/// Boxes `(lo, hi)` as convex pieces.
+fn box_pieces(boxes: &[([f64; 3], [f64; 3])]) -> Pieces {
+    boxes
+        .iter()
+        .map(|&(l, h)| {
+            (0..3)
+                .flat_map(|k| {
+                    let e = [0, 1, 2].map(|j| if j == k { 1.0 } else { 0.0 });
+                    [(e.map(|c| -c), -l[k]), (e, h[k])]
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// The operands and op a run's tag names, its last two words `"{order}
+/// {op}"`: `order` is `first` where `x` came first.
+pub(crate) fn tag_cones<'p>(
+    tag: &str,
+    first: &str,
+    (x, y): (&'p [Vec<Plane>], &'p [Vec<Plane>]),
+) -> (&'p [Vec<Plane>], &'p [Vec<Plane>], Cones) {
+    let mut words = tag.rsplit(' ');
+    let (op, order) = (words.next().unwrap(), words.next().unwrap());
+    let (p, q) = if order == first { (x, y) } else { (y, x) };
+    let op = match op {
+        "U" => Cones::Union,
+        "I" => Cones::Intersect,
+        "S" => Cones::Subtract,
+        other => panic!("{tag}: no op {other}"),
+    };
+    (p, q, op)
+}
+
+/// Asserts that every run's body holds one vertex per cone at each of
+/// `points` ([`pierce_point_finding`]), the runs from [`every_op`] with
+/// `first` naming `x` first.
+fn assert_one_vertex_per_cone(
+    runs: &[Run],
+    points: &[[f64; 3]],
+    first: &str,
+    pieces: (&[Vec<Plane>], &[Vec<Plane>]),
+) {
+    for (tag, r, _) in runs {
+        let Some(bb) = r.as_ref().ok().and_then(BooleanResult::body) else {
+            continue;
+        };
+        for &p in points {
+            let finding = pierce_point_finding(&bb.body, p, tag_cones(tag, first, pieces));
+            assert_eq!(finding, None, "{tag} at {p:?}");
+        }
+    }
 }
 
 #[test]
@@ -327,39 +393,27 @@ fn pierce_runs_battery() {
     }
 }
 
-/// Where the pierce point `v` holds several vertices in a built body:
-/// none, if they share one point and no face runs through two of them
-/// (a face meeting two is where the pierce weld joins them), else the
-/// finding.
-fn pierce_point_finding(body: &Body<f64>, at: [f64; 3]) -> Option<String> {
-    let at_v: Vec<_> = body
-        .vertex_points()
-        .filter(|(_, p)| [p.x, p.y, p.z] == at)
-        .map(|(k, _)| k)
-        .collect();
-    let point = |k| body.get_vertex(k).unwrap().point;
-    if at_v.iter().any(|&k| point(k) != point(at_v[0])) {
-        return Some(format!(
-            "the vertices at v do not share one point: {at_v:?}"
-        ));
+/// Where a built body breaks one vertex per cone at the pierce point
+/// `at`: none, if its vertices there share one point key, are as many as
+/// the op's cones ([`cone_finding`]), and the body tessellates and
+/// passes `check_mesh` (the mesher refuses corners that cross at a
+/// pinch), else the finding.
+fn pierce_point_finding(
+    body: &Body<f64>,
+    at: [f64; 3],
+    cones: (&[Vec<Plane>], &[Vec<Plane>], Cones),
+) -> Option<String> {
+    if let Some(finding) = shared_point_spread_finding()
+        .1
+        .or_else(|| shared_point_finding(body, at))
+        .or_else(|| cone_finding(body, at, cones))
+    {
+        return Some(finding);
     }
-    for (face, f) in body.faces() {
-        let mut met = Vec::new();
-        for &l in std::iter::once(&f.outer).chain(&f.rings) {
-            if let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary {
-                for he in body.loop_cycle(first).unwrap() {
-                    let v = body.get_half_edge(he).unwrap().start;
-                    if at_v.contains(&v) && !met.contains(&v) {
-                        met.push(v);
-                    }
-                }
-            }
-        }
-        if met.len() > 1 {
-            return Some(format!("face {face:?} runs through two vertices at v"));
-        }
+    match mesh::tessellate(body, 0.05, tol()).map(|m| mesh::validate::check_mesh(&m)) {
+        Ok(Ok(())) => None,
+        other => Some(format!("the body does not mesh: {other:?}")),
     }
-    None
 }
 
 /// **The sweep's guard**, over a committed subset of
@@ -367,8 +421,8 @@ fn pierce_point_finding(body: &Body<f64>, at: [f64; 3]) -> Option<String> {
 /// pierce lane, where the two-run families live) and every third
 /// direction of the edge and corner placements at their first turn. No
 /// pose ships a body that is not `SOUND` by [`outcome`], and in the
-/// face placement every body holds `v` as one vertex wherever a face
-/// meets it. In the face placement refusals pass: the residue is the
+/// face placement every body holds one vertex per cone at `v`, on one
+/// point key, and meshes. In the face placement refusals pass: the residue is the
 /// filed rows'. The edge and corner placements reach `v` through the
 /// vertex-vertex lane, where every run builds `SOUND`.
 #[test]
@@ -378,11 +432,17 @@ fn the_sweep_subset_ships_no_bad_body() {
         let every = if place == "face" { 1 } else { 3 };
         for i in (0..12).step_by(every) {
             for j in 0..7 {
+                let prism = box_pieces(&BOXES);
+                let cube = vec![cube_planes(frame(direction(i, j), psis[0]), lo)];
                 for (tag, r, want) in pose_runs((place, lo), (i, j, psis[0])) {
                     let finding = match &r {
-                        Ok(res) if place == "face" => {
-                            res.body().and_then(|bb| pierce_point_finding(&bb.body, V))
-                        }
+                        Ok(res) if place == "face" => res.body().and_then(|bb| {
+                            pierce_point_finding(
+                                &bb.body,
+                                V,
+                                tag_cones(&tag, "pc", (&prism, &cube)),
+                            )
+                        }),
                         _ => None,
                     };
                     let line = outcome(r, want, tol());
@@ -450,7 +510,7 @@ fn four_germ_vertex_pairs_build_every_op() {
 }
 
 /// A convex CCW polygon's prism over z ∈ [0, 1] as half-spaces `n·x ≤ d`.
-fn polygon_prism(poly: &[(f64, f64)]) -> Vec<([f64; 3], f64)> {
+pub(crate) fn polygon_prism(poly: &[(f64, f64)]) -> Vec<([f64; 3], f64)> {
     let mut planes: Vec<([f64; 3], f64)> = (0..poly.len())
         .map(|i| {
             let (p, q) = (poly[i], poly[(i + 1) % poly.len()]);
@@ -465,14 +525,14 @@ fn polygon_prism(poly: &[(f64, f64)]) -> Vec<([f64; 3], f64)> {
 
 /// A prism with a reflex top corner at `v`: its profile and the convex
 /// polygons whose prisms tile it, with disjoint interiors.
-struct Corner {
+pub(crate) struct Corner {
     profile: Vec<(f64, f64)>,
     pieces: Vec<Vec<(f64, f64)>>,
-    v: [f64; 3],
+    pub(crate) v: [f64; 3],
 }
 
 /// A 343° notch: corner `(1, 1, 1)`.
-fn notch343() -> Corner {
+pub(crate) fn notch343() -> Corner {
     Corner {
         profile: vec![
             (0.0, 0.0),
@@ -533,7 +593,7 @@ type Pose = (&'static str, fn() -> Corner, [f64; 3], f64, [f64; 3]);
 /// between its own either way round B's vertex, so B's run for it holds
 /// that pair's run, which mints at its copy. Each pose here nests, and
 /// on a tree that demanded adjacency in B all refused `PairingMismatch`
-/// (`work/join/a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch.md`).
+/// (`a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch`, JOIN, closed by PR 4050).
 /// The held runs here are struts inside the holder's fan, in its first
 /// corner, its last or between, and fans ending in its first corner or
 /// its last. Every op in both orders is `SOUND` at the corner's pieces
@@ -567,7 +627,6 @@ fn six_crossing_corners_build_every_op() {
         ),
         ("wedge edge i=3 j=0 psi=0.3", wedge345, r2(3, 0), 0.3, edge),
     ];
-    let decls = BooleanDeclarations::default();
     let mut bad = Vec::new();
     for (pose, shape, m, psi, lo) in poses {
         let c = shape();
@@ -588,12 +647,12 @@ fn six_crossing_corners_build_every_op() {
         let common = clip(&cube_planes_at(c.v, f, lo));
         for (order, x, y, vx) in [("ac", &a, &b, va), ("ca", &b, &a, vb)] {
             let ops: [(&str, Op, f64); 3] = [
-                ("U", topo::union_with, va + vb - common),
-                ("I", topo::intersect_with, common),
-                ("S", topo::subtract_with, vx - common),
+                ("U", topo::union, va + vb - common),
+                ("I", topo::intersect, common),
+                ("S", topo::subtract, vx - common),
             ];
             for (op, run, want) in ops {
-                let line = outcome(run(x, y, &decls, tol()), want, tol());
+                let line = outcome(run(x, y, tol()), want, tol());
                 if !line.starts_with("OK SOUND") {
                     bad.push(format!("{pose} {order} {op}: {line}"));
                 }
@@ -627,17 +686,19 @@ const STAIR_BOXES: [([f64; 3], [f64; 3]); 3] = [
     ([0.0, 2.0, 0.0], [1.0, 3.0, 1.0]),
 ];
 
-/// **Two pinches in one op are each crossed.** The cube's near face lies
-/// in a plane through both of [`STAIR`]'s reflex top corners, turned so
-/// that each corner has two Out runs (PR 4038's review r1, `u2 S_tt`,
-/// direction 204 of 720). The intersection pinches at both corners, so
-/// `cross_pinches` crosses two vertices in one op. Every op in both
-/// orders builds `SOUND` at the boxes' clipped volume and holds each
-/// corner as one vertex wherever a face meets it. Red if the pre-pass
-/// stops after its first crossing: the second pinch's zip fuses it to
-/// itself.
+/// **Two pinches in one op are each split per cone.** The cube's near
+/// face lies in a plane through both of [`STAIR`]'s reflex top corners,
+/// turned so that each corner has two Out runs (PR 4038's review r1, `u2
+/// S_tt`, direction 204 of 720). The intersection pinches at both
+/// corners, so `zip::split_cones` splits two vertex pairs in one op, and
+/// the lumps that met there become shells of their own. Every op in
+/// both orders builds `SOUND` at the boxes' clipped volume, holds one
+/// vertex per cone at each corner, on one point key, and meshes. Red if the split
+/// stops after its first pinch (the second pinch's zip fuses it to
+/// itself), or if the lumps stay one shell (the merge refuses a
+/// disconnected shell).
 #[test]
-fn two_pinches_in_one_op_are_each_crossed() {
+fn two_pinches_in_one_op_are_each_split_per_cone() {
     let (a, b) = ([2.0, 1.0, 1.0], [1.0, 2.0, 1.0]);
     let [e1, e2, _] = frame(unit([b[0] - a[0], b[1] - a[1], b[2] - a[2]]), 0.0);
     let t = std::f64::consts::TAU * (204.0 + 0.37) / 720.0;
@@ -655,6 +716,7 @@ fn two_pinches_in_one_op_are_each_crossed() {
         common > 1e-3,
         "the cube holds some of the staircase: {common}"
     );
+    let pieces = (box_pieces(&STAIR_BOXES), vec![cube_planes_at(mid, f, lo)]);
     for (tag, r, want) in every_op(["pc", "cp"], (&prism, 6.0), (&cube, SIDE.powi(3)), common) {
         let findings: Vec<String> = match &r {
             Ok(res) => res
@@ -662,7 +724,10 @@ fn two_pinches_in_one_op_are_each_crossed() {
                 .map(|bb| {
                     [a, b]
                         .into_iter()
-                        .filter_map(|p| pierce_point_finding(&bb.body, p))
+                        .filter_map(|p| {
+                            let cones = tag_cones(&tag, "pc", (&pieces.0, &pieces.1));
+                            pierce_point_finding(&bb.body, p, cones)
+                        })
                         .collect()
                 })
                 .unwrap_or_default(),
@@ -674,18 +739,17 @@ fn two_pinches_in_one_op_are_each_crossed() {
     }
 }
 
-/// **A pinch crossed on the second operand's side.** The L-prism's
-/// bottom reflex corner `(1, 1, 0)` at a corner of the cube, the cube
-/// along Fibonacci direction 19 of 120 and turned 1.9 about it (PR
-/// 4038's review r2, `Lbot fib19 corner psi=1.9`). In cube ∪ prism the
-/// collision's first operand has no face to cross, and the prism does:
-/// `cross_pinches` splits the second operand's vertex, so every first
-/// operand vertex that corresponded to it gains the new vertex. The union
-/// builds `SOUND` with one vertex at the corner wherever a face meets
-/// it. Red if the new vertex gains no correspondents: the zip finds no
-/// ring half-edge for it.
+/// **A corner pinch on the second operand's side builds.** The
+/// L-prism's bottom reflex corner `(1, 1, 0)` at a corner of the cube,
+/// the cube along Fibonacci direction 19 of 120 and turned 1.9 about it
+/// (PR 4038's review r2, `Lbot fib19 corner psi=1.9`). Cube ∪ prism
+/// holds two vertices at the corner, one per cone, on one point key: the
+/// seams meet each cone once, so the zips leave them apart and no vertex
+/// is split. The union builds `SOUND` and meshes. Red if the vertices at
+/// the corner are not one per cone on one point key, or the body does
+/// not mesh.
 #[test]
-fn a_pinch_split_on_the_second_operands_side_builds() {
+fn a_corner_pinch_on_the_second_operands_side_builds() {
     let v = [1.0, 1.0, 0.0];
     let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
     let z: f64 = 1.0 - 2.0 * (19.0 + 0.5) / 120.0;
@@ -700,24 +764,21 @@ fn a_pinch_split_on_the_second_operands_side_builds() {
     let cube = finished("the cube", cube_at(v, f, lo));
     let common = shared(&cube_planes_at(v, f, lo));
     let want = 3.0 + SIDE * SIDE * SIDE - common;
-    let r = topo::union_with(&cube, &prism, &BooleanDeclarations::default(), tol());
+    let r = topo::union(&cube, &prism, tol());
+    let pieces = (vec![cube_planes_at(v, f, lo)], box_pieces(&BOXES));
     let finding = r
         .as_ref()
         .ok()
         .and_then(|res| res.body())
-        .and_then(|bb| pierce_point_finding(&bb.body, v));
+        .and_then(|bb| pierce_point_finding(&bb.body, v, (&pieces.0, &pieces.1, Cones::Union)));
     let line = outcome(r, want, tol());
     assert!(line.starts_with("OK SOUND"), "cube ∪ prism: {line}");
     assert_eq!(finding, None, "cube ∪ prism");
 }
 
 /// **A vertex-vertex pinch the pairing start avoids.** With `v` on the
-/// cube's edge (direction `i = 6, j = 1`), cube ∖ prism used to pinch at
-/// `v` over two seams: each cube face through `v` passes it twice on its
-/// outer loop, round a notch the prism cuts, so no kept face could cross
-/// the pinch and the op refused `PinchUncrossed`
-/// (`a-pinch-no-kept-face-can-cross-refuses`). The vertex pair crosses
-/// four times, and its pairing starts where A's runs lie on the side the
+/// cube's edge (direction `i = 6, j = 1`), the vertex pair crosses four
+/// times, and its pairing starts where A's runs lie on the side the
 /// op keeps of A (`insert::pairing_start_turns`): each run A keeps is a
 /// copy of its own, and the result needs no crossing at `v`. Every op in
 /// both orders builds `SOUND` at the clipping oracle. Red when the
@@ -732,39 +793,51 @@ fn a_four_germ_pinch_the_pairing_start_avoids_builds_every_op() {
     }
 }
 
-/// Asserts that `y ∖ x`'s result (the `"yx S"` run of [`every_op`])
-/// refuses `PinchUncrossed` and every other run builds `SOUND`.
-fn assert_only_the_difference_refuses(
-    runs: Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)>,
-) {
+/// Asserts that the `tag` run's body has a face through two vertices at
+/// `at`: one vertex per cone, the face passing both.
+fn assert_a_face_runs_through_two_vertices(runs: &[Run], tag: &str, at: [f64; 3]) {
+    let body = runs
+        .iter()
+        .find(|(t, ..)| t == tag)
+        .and_then(|(_, r, _)| r.as_ref().ok())
+        .and_then(BooleanResult::body)
+        .unwrap_or_else(|| panic!("{tag}: no body"));
+    assert!(
+        faces_through_two_vertices_at(&body.body, at) > 0,
+        "{tag}: no face runs through two vertices at the pinch"
+    );
+}
+
+/// Asserts that every run builds `SOUND`, and that each body tessellates
+/// and passes `check_mesh`.
+fn assert_every_run_builds_and_meshes(runs: Vec<Run>) {
     for (tag, r, want) in runs {
-        if tag == "yx S" {
-            assert!(
-                matches!(r, Err(BooleanError::PinchUncrossed { .. })),
-                "{tag}: {}",
-                outcome(r, want, tol())
-            );
-        } else {
-            let line = outcome(r, want, tol());
-            assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
-        }
+        let meshed = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+            mesh::tessellate(&bb.body, 0.05, tol()).map(|m| mesh::validate::check_mesh(&m))
+        });
+        let line = outcome(r, want, tol());
+        assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
+        assert!(
+            matches!(meshed, Some(Ok(Ok(())))),
+            "{tag}: the body does not mesh: {meshed:?}"
+        );
     }
 }
 
-/// **A pinch round a notch on a face's outer loop refuses typed.** A
-/// ≈300° vee's reflex top corner `(2, 0.5, 1)` inside the cube's near
-/// face, the cube along Fibonacci direction 62 of 120 (PR 4038's review
-/// r2, `vee300 fib62 face`). The plane cuts the vee in two lobes
-/// meeting at the corner; one runs off the face's edge, so in cube ∖
-/// vee the near face's outer loop passes the corner twice, round the
-/// other lobe's notch. No kept face crosses there but that outer loop,
-/// and crossing it leaves a ring meeting the outer loop: the op refuses
-/// `PinchUncrossed` (`a-pinch-no-kept-face-can-cross-refuses`, nested).
-/// Every other run builds `SOUND` at the clipped volume. Red if an outer
-/// loop may cross (`ResultInvalid { RingMeetsOuter }`) or the pre-pass
-/// is skipped (`Euler(SelfLoopEdge)`).
+/// **A pinch round a notch on a face's outer loop is one vertex per
+/// cone.** A ≈300° vee's reflex top corner `(2, 0.5, 1)` inside the
+/// cube's near face, the cube along Fibonacci direction 62 of 120 (PR
+/// 4038's review r2, `vee300 fib62 face`). The plane cuts the vee in two
+/// lobes meeting at the corner; one runs off the face's edge, so in cube
+/// ∖ vee the near face's outer loop passes the corner twice, round the
+/// other lobe's notch. The result holds one vertex per cone there, two
+/// on one point key, and the near face's one outer loop runs through
+/// both (`a-pinch-no-kept-face-can-cross-refuses`). Every op in both
+/// orders builds `SOUND` at the clipped volume and meshes. Red if the
+/// zips fuse the pinch to itself (`Euler(SelfLoopEdge)`), or if the
+/// outer loop is split into a ring meeting it (`RingMeetsOuter`).
 #[test]
-fn a_pinch_round_a_notch_on_a_faces_outer_loop_refuses_typed() {
+fn a_pinch_round_a_notch_on_a_faces_outer_loop_is_one_vertex_per_cone() {
     const VEE: [(f64, f64); 5] = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5), (0.0, 4.0)];
     let pieces: [&[(f64, f64)]; 2] = [
         &[(0.0, 0.0), (2.0, 0.0), (2.0, 0.5), (0.0, 4.0)],
@@ -781,26 +854,23 @@ fn a_pinch_round_a_notch_on_a_faces_outer_loop_refuses_typed() {
     let va = mass_properties(&vee, tol()).unwrap().volume;
     let common = pieces_within(&pieces, (0.0, 1.0), &cube_planes_at(v, f, lo));
     assert!(common > 1e-3, "the cube holds some of the vee: {common}");
-    assert_only_the_difference_refuses(every_op(
-        ["xy", "yx"],
-        (&vee, va),
-        (&cube, SIDE.powi(3)),
-        common,
-    ));
+    let runs = every_op(["xy", "yx"], (&vee, va), (&cube, SIDE.powi(3)), common);
+    assert_a_face_runs_through_two_vertices(&runs, "yx S", v);
+    let vee_pieces: Pieces = pieces.iter().map(|p| polygon_prism(p)).collect();
+    let cube_pieces = vec![cube_planes_at(v, f, lo)];
+    assert_one_vertex_per_cone(&runs, &[v], "xy", (&vee_pieces, &cube_pieces));
+    assert_every_run_builds_and_meshes(runs);
 }
 
-/// **A staircase's second pinch, round a notch, refuses typed.** The
-/// cube's near face through both of [`STAIR`]'s reflex top corners,
-/// turned to direction 594 of 720 (PR 4038's review r1, `u2 S_tt
-/// b594`). Cube ∖ staircase crosses its first pinch; at the second, the
-/// one face through the corner twice passes it on its outer loop. An
-/// outer-loop crossing there reads `LoopRoleInverted` on both loops: it
-/// keeps the outer role on the hole-shaped half, and the two halves
-/// meet at the corner (`RingMeetsOuter`), the nested shape again. The
-/// op refuses `PinchUncrossed`, and every other run builds `SOUND`.
-/// Red as [`a_pinch_round_a_notch_on_a_faces_outer_loop_refuses_typed`].
+/// **A staircase's second pinch, round a notch, is one vertex per
+/// cone.** The cube's near face through both of [`STAIR`]'s reflex top
+/// corners, turned to direction 594 of 720 (PR 4038's review r1, `u2
+/// S_tt b594`). Cube ∖ staircase pinches at both corners, and each
+/// holds two vertices, one per cone, on one point key. Every op in both
+/// orders builds `SOUND` and meshes. Red as
+/// [`a_pinch_round_a_notch_on_a_faces_outer_loop_is_one_vertex_per_cone`].
 #[test]
-fn a_staircases_second_pinch_round_a_notch_refuses_typed() {
+fn a_staircases_second_pinch_round_a_notch_is_one_vertex_per_cone() {
     let (a, b) = ([2.0, 1.0, 1.0], [1.0, 2.0, 1.0]);
     let [e1, e2, _] = frame(unit([b[0] - a[0], b[1] - a[1], b[2] - a[2]]), 0.0);
     let t = std::f64::consts::TAU * (594.0 + 0.37) / 720.0;
@@ -817,31 +887,46 @@ fn a_staircases_second_pinch_round_a_notch_refuses_typed() {
         common > 1e-3,
         "the cube holds some of the staircase: {common}"
     );
-    assert_only_the_difference_refuses(every_op(
-        ["xy", "yx"],
-        (&stair, 6.0),
-        (&cube, SIDE.powi(3)),
-        common,
-    ));
+    let runs = every_op(["xy", "yx"], (&stair, 6.0), (&cube, SIDE.powi(3)), common);
+    let body = runs
+        .iter()
+        .find(|(t, ..)| t == "yx S")
+        .and_then(|(_, r, _)| r.as_ref().ok())
+        .and_then(BooleanResult::body)
+        .expect("yx S builds");
+    for p in [a, b] {
+        assert_eq!(vertices_at(&body.body, p).len(), 2, "yx S: {p:?}");
+    }
+    let pieces = (box_pieces(&STAIR_BOXES), vec![cube_planes_at(mid, f, lo)]);
+    assert_one_vertex_per_cone(&runs, &[a, b], "xy", (&pieces.0, &pieces.1));
+    assert_every_run_builds_and_meshes(runs);
 }
 
-/// **An island face pinched to its hole's ring crosses there.** The
-/// holed block `[0, 2]³` less `[0.5, 1.5]² × [0, 2]`, its hole corner
+/// `fixtures::holed_block(2.0, &[1.0])`, `[0, 2]³` less `[0.5, 1.5]² ×
+/// [0, 2]`, as four boxes.
+fn holed_block_pieces() -> Pieces {
+    box_pieces(&[
+        ([0.0, 0.0, 0.0], [2.0, 0.5, 2.0]),
+        ([0.0, 0.5, 0.0], [0.5, 1.5, 2.0]),
+        ([1.5, 0.5, 0.0], [2.0, 1.5, 2.0]),
+        ([0.0, 1.5, 0.0], [2.0, 2.0, 2.0]),
+    ])
+}
+
+/// **An island face pinched to its hole's ring stays its own face.**
+/// The holed block `[0, 2]³` less `[0.5, 1.5]² × [0, 2]`, its hole corner
 /// `(0.5, 0.5, 2)` inside the cube's near face, the cube along the
 /// grid's direction `i = 6, j = 0` (PR 4026's review r2, `holed c00
 /// side=4 g6.0`). In cube ∖ block the plane's section closes round the
 /// hole, so the cube's plane keeps an island inside the hole of its
 /// near face, the two touching at the corner, and one seam meets the
-/// corner twice. No kept face passes the corner twice; the island's
-/// outer corner and the near face's ring corner, one surface and sense,
-/// cross by `kef` (`zip::split_across`), the island ringless: the
-/// difference builds `SOUND` at the clipped volume, as do ∪ and ∩ in
-/// both orders. Red if the two faces' crossing asks both corners to be
-/// outer (`PinchUncrossed`). Block ∖ cube refuses before the pre-pass,
-/// where two fragments of the pierced face meet the pinch
-/// (`a-pierce-weld-refuses-where-its-copies-divide-a-kept-face`).
+/// corner twice: the island's outer loop and the near face's ring pass
+/// it at two vertices on one point key. Every op in both orders builds
+/// `SOUND` at the clipped volume and meshes. Red if the split leaves the
+/// seam meeting one vertex twice (`ZipCorrespondence`), or kills the
+/// island into the holed face.
 #[test]
-fn an_island_face_pinched_to_its_holes_ring_crosses_and_builds() {
+fn an_island_face_pinched_to_its_holes_ring_stays_its_own_face() {
     let v = [0.5, 0.5, 2.0];
     let f = frame(direction(6, 0), 0.0);
     let lo = [-2.0, -2.0, 0.0];
@@ -853,34 +938,52 @@ fn an_island_face_pinched_to_its_holes_ring_crosses_and_builds() {
     let common = boxes_within(&[([0.0; 3], [2.0; 3])], &planes)
         - boxes_within(&[([0.5, 0.5, 0.0], [1.5, 1.5, 2.0])], &planes);
     assert!(common > 1e-3, "the cube holds some of the block: {common}");
-    for (tag, r, want) in every_op(["xy", "yx"], (&block, 6.0), (&cube, SIDE.powi(3)), common) {
-        let line = outcome(r, want, tol());
-        if tag == "xy S" {
-            assert!(
-                line.contains("two fragments of a pierced face meet one pinch"),
-                "{tag}: {line}"
-            );
-        } else {
-            assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
-        }
-    }
+    let runs = every_op(["xy", "yx"], (&block, 6.0), (&cube, SIDE.powi(3)), common);
+    let pieces = (holed_block_pieces(), vec![planes]);
+    assert_one_vertex_per_cone(&runs, &[v], "xy", (&pieces.0, &pieces.1));
+    assert_every_run_builds_and_meshes(runs);
 }
 
-/// **An island pinched twice to its hole's ring crosses at both
-/// points, the ringless island dying each time.** The block `[0, 4]² ×
-/// [0, 2]` less a U-shaped hole whose arms end in tips at `(1.25, 3, 2)`
-/// and `(2.75, 3, 2)`; the cube (side 12) has its near face in a plane
-/// through both tips, turned to direction 54 of 72 about their line
-/// (PR 4051's review, `u2tip mid side=12 psi=0 th54`). In cube ∖ block
-/// the plane keeps an island inside the hole of its near face, touching
-/// the hole's ring at both tips, and each tip is a pinch: the island's
-/// outer corner and the ring's corner cross by `kef`, which must kill
-/// the island, the ringless face, both times. Every op in both orders
-/// builds `SOUND` at the clipped volume. Red if `kef` is handed the
-/// first corner's face whatever it holds (`Euler(FaceHasRings)`) or the
-/// two faces' crossing asks both corners to be outer (`PinchUncrossed`).
+/// **The holed block's intersection pinched at its hole corner builds.**
+/// The holed block of
+/// [`an_island_face_pinched_to_its_holes_ring_stays_its_own_face`], its
+/// hole corner `(0.5, 0.5, 2)` inside the cube's near face, the cube
+/// along the grid's direction `i = 0, j = 5` (PR 4026's review r2,
+/// `holed c00 side=4 g0.5`). Block ∩ cube pinches at the corner, where
+/// the cube's plane meets the hole's two walls; the result holds one
+/// vertex per cone there, on one point key. Every op in both orders
+/// builds `SOUND` at the clipped volume and meshes. Red if the zips fuse
+/// the pinch to itself.
 #[test]
-fn an_island_pinched_twice_to_its_holes_ring_dies_at_each_crossing() {
+fn the_holed_blocks_intersection_pinched_at_its_hole_corner_builds() {
+    let v = [0.5, 0.5, 2.0];
+    let f = frame(direction(0, 5), 0.0);
+    let lo = [-2.0, -2.0, 0.0];
+    let mut block = fixtures::holed_block::<f64>(2.0, &[1.0], tol());
+    fixtures::describe_as_intersections(&mut block, tol());
+    let block = finished("the holed block", block);
+    let cube = finished("the cube", cube_at(v, f, lo));
+    let planes = cube_planes_at(v, f, lo);
+    let common = boxes_within(&[([0.0; 3], [2.0; 3])], &planes)
+        - boxes_within(&[([0.5, 0.5, 0.0], [1.5, 1.5, 2.0])], &planes);
+    assert!(common > 1e-3, "the cube holds some of the block: {common}");
+    let runs = every_op(["xy", "yx"], (&block, 6.0), (&cube, SIDE.powi(3)), common);
+    let pieces = (holed_block_pieces(), vec![planes]);
+    assert_one_vertex_per_cone(&runs, &[v], "xy", (&pieces.0, &pieces.1));
+    assert_every_run_builds_and_meshes(runs);
+}
+
+/// **An island pinched twice to its hole's ring stays its own face at
+/// both points.** The block `[0, 4]² × [0, 2]` less a U-shaped hole
+/// whose arms end in tips at `(1.25, 3, 2)` and `(2.75, 3, 2)`; the cube
+/// (side 12) has its near face in a plane through both tips, turned to
+/// direction 54 of 72 about their line (PR 4051's review, `u2tip mid
+/// side=12 psi=0 th54`). In cube ∖ block the plane keeps an island inside
+/// the hole of its near face, touching the hole's ring at both tips, and
+/// each tip is a pinch split per cone. Every op in both orders builds
+/// `SOUND` at the clipped volume and meshes.
+#[test]
+fn an_island_pinched_twice_to_its_holes_ring_stays_its_own_face() {
     const RIM: [(f64, f64); 10] = [
         (1.0, 1.0),
         (3.0, 1.0),
@@ -933,10 +1036,38 @@ fn an_island_pinched_twice_to_its_holes_ring_dies_at_each_crossing() {
         - pieces_within(&hole, (0.0, h), &planes);
     let vb = 16.0 * h - pieces_within(&hole, (0.0, h), &[]);
     assert!(common > 1e-3, "the cube holds some of the block: {common}");
-    for (tag, r, want) in every_op(["xy", "yx"], (&block, vb), (&cube, side.powi(3)), common) {
-        let line = outcome(r, want, tol());
-        assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
-    }
+    let runs = every_op(["xy", "yx"], (&block, vb), (&cube, side.powi(3)), common);
+    // The block round the hole, each tip's cap cut along the tip's line.
+    let solid: [&[(f64, f64)]; 8] = [
+        &[(0.0, 0.0), (4.0, 0.0), (4.0, 1.0), (0.0, 1.0)],
+        &[(0.0, 1.0), (1.0, 1.0), (1.0, 4.0), (0.0, 4.0)],
+        &[(3.0, 1.0), (4.0, 1.0), (4.0, 4.0), (3.0, 4.0)],
+        &[(1.5, 1.8), (2.5, 1.8), (2.5, 4.0), (1.5, 4.0)],
+        &[(1.0, 2.8), (1.25, 3.0), (1.25, 4.0), (1.0, 4.0)],
+        &[(1.25, 3.0), (1.5, 2.8), (1.5, 4.0), (1.25, 4.0)],
+        &[(2.5, 2.8), (2.75, 3.0), (2.75, 4.0), (2.5, 4.0)],
+        &[(2.75, 3.0), (3.0, 2.8), (3.0, 4.0), (2.75, 4.0)],
+    ];
+    let block_pieces: Pieces = solid
+        .iter()
+        .map(|poly| {
+            let mut planes = polygon_prism(poly);
+            planes.retain(|&(n, _)| n[2] == 0.0);
+            planes.extend([([0.0, 0.0, 1.0], h), ([0.0, 0.0, -1.0], 0.0)]);
+            planes
+        })
+        .collect();
+    let block_volume: f64 = solid
+        .iter()
+        .map(|poly| h * crate::common::differential::area(poly))
+        .sum();
+    assert!(
+        (block_volume - vb).abs() < 1e-12,
+        "the pieces tile the block: {block_volume} vs {vb}"
+    );
+    let cube_pieces = vec![planes];
+    assert_one_vertex_per_cone(&runs, &[p, q], "xy", (&block_pieces, &cube_pieces));
+    assert_every_run_builds_and_meshes(runs);
 }
 
 /// The oracle against the kernel-free closed form the strut-facing row
@@ -1049,14 +1180,14 @@ fn segment_distance(a: ([f64; 3], [f64; 3]), b: ([f64; 3], [f64; 3])) -> f64 {
 ///   edges leave `v` 3.7e-7 rad apart (at the default ε) and run
 ///   within the band for a
 ///   stretch, which the census passes: that class is filed
-///   (`work/contact/two-copies-of-a-pierce-carry-edges-that-run-within-the-band.md`),
+///   (`work/inside/two-copies-of-a-pierce-carry-edges-that-run-within-the-band.md`),
 ///   and this row does not claim them apart.
 ///
 /// Tier 3′ is not asserted: its edge-edge lane reads the section edge
 /// from `v` and the prism's edge piece near `(4, 1)` as an overlap,
 /// because it reads their line offset at the long edge's start, which
 /// lies on the short edge's line
-/// (`work/contact/the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start.md`).
+/// (`work/inside/the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start.md`).
 #[test]
 fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() {
     let v = [2.0, 0.6, 1.0];
@@ -1085,13 +1216,11 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
     let (va, vb) = (vol(&prism), SIDE * SIDE * SIDE);
     // Whether the op leaves the pierce's copies apart at `v`.
     let ops: [(&str, Op, f64, bool); 2] = [
-        ("union", topo::union_with, va + vb - common, true),
-        ("subtract", topo::subtract_with, va - common, false),
+        ("union", topo::union, va + vb - common, true),
+        ("subtract", topo::subtract, va - common, false),
     ];
     for (op, run, want, apart) in ops {
-        let Ok(BooleanResult::Body(bb)) =
-            run(&prism, &cube, &BooleanDeclarations::default(), tol())
-        else {
+        let Ok(BooleanResult::Body(bb)) = run(&prism, &cube, tol()) else {
             panic!("{op}: the near-tangent pose did not build");
         };
         assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{op}: tier 2");
@@ -1194,9 +1323,13 @@ fn posed(c: &Corner, f: [[f64; 3]; 3], at: [f64; 3]) -> (AtRestBody<f64>, Vec<Ve
         tol(),
     );
     fixtures::describe_as_intersections(&mut b, tol());
+    (finished("a posed corner", b), posed_pieces(c, f, at))
+}
+
+/// [`posed`]'s pieces' half-spaces alone.
+fn posed_pieces(c: &Corner, f: [[f64; 3]; 3], at: [f64; 3]) -> Vec<Vec<HalfSpace>> {
     let turn = |n: [f64; 3]| [0, 1, 2].map(|t| f[0][t] * n[0] + f[1][t] * n[1] + f[2][t] * n[2]);
-    let pieces = c
-        .pieces
+    c.pieces
         .iter()
         .map(|p| {
             polygon_prism(p)
@@ -1204,25 +1337,15 @@ fn posed(c: &Corner, f: [[f64; 3]; 3], at: [f64; 3]) -> (AtRestBody<f64>, Vec<Ve
                 .map(|(n, d)| (turn(n), d - dot(n, c.v) + dot(turn(n), at)))
                 .collect()
         })
-        .collect();
-    (finished("a posed corner", b), pieces)
+        .collect()
 }
 
-/// `a` at rest and `b` posed by `f` with its corner on `a`'s: every op
-/// in both orders, against the two corners' pieces clipped pairwise.
-fn corner_pair_runs(
-    a: &Corner,
-    b: &Corner,
-    f: [[f64; 3]; 3],
-) -> Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)> {
-    let x = finished(
-        "a corner",
-        fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
-    );
-    let (y, bp) = posed(b, f, a.v);
+/// `a` at rest and `b` posed by `f` with its corner on `a`'s: each
+/// corner's volume and their common one, the pieces clipped pairwise.
+fn corner_pair_volumes(a: &Corner, b: &Corner, f: [[f64; 3]; 3]) -> (f64, f64, f64) {
     let ap: Vec<_> = a.pieces.iter().map(|p| polygon_prism(p)).collect();
-    let vol = |ps: &[Vec<([f64; 3], f64)>]| ps.iter().map(|p| convex_volume(p)).sum::<f64>();
-    let (va, vb) = (vol(&ap), vol(&bp));
+    let bp = posed_pieces(b, f, a.v);
+    let vol = |ps: &[Vec<HalfSpace>]| ps.iter().map(|p| convex_volume(p)).sum::<f64>();
     let common: f64 = ap
         .iter()
         .flat_map(|p| {
@@ -1233,16 +1356,27 @@ fn corner_pair_runs(
             })
         })
         .sum();
-    let decls = BooleanDeclarations::default();
+    (vol(&ap), vol(&bp), common)
+}
+
+/// `a` at rest and `b` posed by `f` with its corner on `a`'s: every op
+/// in both orders, against the two corners' pieces clipped pairwise.
+fn corner_pair_runs(a: &Corner, b: &Corner, f: [[f64; 3]; 3]) -> Vec<Run> {
+    let x = finished(
+        "a corner",
+        fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
+    );
+    let (y, _) = posed(b, f, a.v);
+    let (va, vb, common) = corner_pair_volumes(a, b, f);
     let mut out = Vec::new();
     for (order, l, r, vl) in [("ab", &x, &y, va), ("ba", &y, &x, vb)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, va + vb - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vl - common),
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vl - common),
         ];
         for (op, run, want) in ops {
-            out.push((format!("{order} {op}"), run(l, r, &decls, tol()), want));
+            out.push((format!("{order} {op}"), run(l, r, tol()), want));
         }
     }
     out
@@ -1261,30 +1395,8 @@ fn corner_pair_runs(
 /// rather than the innermost.
 #[test]
 fn eight_crossing_corners_nest_two_deep_and_build_every_op() {
-    let r2 = {
-        let theta = std::f64::consts::TAU * 13.11 / 24.0;
-        let phi: f64 = 2.0 * 0.23 + 0.02;
-        let m = [theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()];
-        frame(m, 2.3 * std::f64::consts::TAU / 24.0)
-    };
-    let r1 = [
-        [0.6060175730696241, -0.785797686202516, -0.12355038441694527],
-        [
-            -0.29342602576332566,
-            -0.36520218952479033,
-            0.8834752561170229,
-        ],
-        [
-            -0.7393536829796299,
-            -0.4991486322981075,
-            -0.45189243669194745,
-        ],
-    ];
     let mut bad = Vec::new();
-    for (pose, a, b, f) in [
-        ("notch343 vs notch343", notch343(), notch343(), r2),
-        ("wedge343 vs wedge330", wedge(343.0), wedge(330.0), r1),
-    ] {
+    for (pose, a, b, f) in eight_crossing_poses() {
         for (tag, r, want) in corner_pair_runs(&a, &b, f) {
             let line = outcome(r, want, tol());
             if !line.starts_with("OK SOUND") {
@@ -1300,39 +1412,91 @@ fn eight_crossing_corners_nest_two_deep_and_build_every_op() {
     );
 }
 
-/// **A nested pairing at a vertex another crossing pair shares refuses
-/// typed.** [`notch343`] against a pinch of two cubes at its corner,
+/// **A six-crossing pair at the notch's shared corner builds in both
+/// orders.** [`notch343`] against a pinch of two cubes at its corner,
 /// the sweep's grid direction `i=0 j=0` turned `psi=2.2`: the notch
-/// crosses one cube's corner six times, nested in that cube's walk
-/// order, and the other's as well. With the pinch first, B's vertex is
-/// shared and holds the nested pair: every op refuses
-/// `SharedVertexCrossings`, since turning a nested run to clear the
-/// other pair's cuts would make it hold the rest. With the notch first,
-/// the shared vertex is A's: the intersection builds `SOUND`, and the
-/// union and difference refuse `ClassificationInvariant` "a vertex at a
-/// shared point is the In end of one null edge and the Out end of
-/// another", the class
-/// `work/join/a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another.md`
-/// holds, which main reaches at four crossings too. Red if the shared
-/// vertex's nested plan reaches the reconcile.
+/// crosses one cube's corner six times and the other's twice, at the
+/// notch's corner, which both pairs share.
+/// - Notch first, the shared vertex is A's: one run turns, and its own
+///   pair's other run hangs at its copy.
+/// - Pinch first, it is B's, and the six-crossing pair nests in B's
+///   walk order: a fan holds a strut. In the union and the difference
+///   that fan holds the other pair's strut too and turns, which leaves
+///   its strut outside it and holds its other sibling; in the
+///   intersection nothing turns, and the strut hangs at the fan's copy.
+///
+/// Every op builds `SOUND`, one vertex per cone at the corner, on one
+/// point key, and meshing ([`pierce_point_finding`]). Red as
+/// `SharedVertexCrossings` if a plan nested in B's walk order is refused
+/// at a shared vertex, and as `ClassificationInvariant` if the runs a
+/// turn re-nests keep the holders read before it
+/// (`insert::hang_at_shared`).
 #[test]
-fn a_nested_pairing_at_a_shared_vertex_refuses_typed() {
-    for (tag, r, want) in pinch_runs(direction(0, 0), 2.2) {
-        let what = match &r {
-            Err(BooleanError::SharedVertexCrossings { .. }) => "SharedVertexCrossings".to_owned(),
-            Err(BooleanError::ClassificationInvariant { what }) => (*what).to_owned(),
-            Err(e) => format!("{e:?}"),
-            Ok(_) => outcome(r, want, tol()),
-        };
-        let expected = match tag.as_str() {
-            "ab I" => "OK SOUND",
-            "ab U" | "ab S" => {
-                "a vertex at a shared point is the In end of one null edge and the Out end of another"
-            }
-            _ => "SharedVertexCrossings",
-        };
-        assert!(what.starts_with(expected), "{tag}: {what}");
+fn a_six_crossing_pair_at_the_notchs_shared_corner_builds_in_both_orders() {
+    let (m, psi) = (direction(0, 0), 2.2);
+    let (notch, pinch) = pinch_pieces(m, psi);
+    let mut bad = Vec::new();
+    for (tag, r, want) in pinch_runs(m, psi) {
+        let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+            pierce_point_finding(
+                &bb.body,
+                notch343().v,
+                tag_cones(&tag, "ab", (&notch, &pinch)),
+            )
+        });
+        let line = outcome(r, want, tol());
+        if !line.starts_with("OK SOUND") || finding != Some(None) {
+            bad.push(format!("{tag}: {line} {finding:?}"));
+        }
     }
+    assert!(
+        bad.is_empty(),
+        "{} runs not SOUND at one vertex per cone:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
+
+/// **A run turned round a shared vertex holds the rest of its pair.**
+/// [`notch343`] against the corner pinch at the pinch battery's poses
+/// `i=0 j=2 k=2` and `i=0 j=6 k=3`. Two vertex pairs cross at the
+/// notch's corner, which both share: one four times, the other twice.
+/// One run of the four-crossing pair holds the other pair's cuts and
+/// turns onto its complement, which holds its own pair's other run. Every
+/// op in both orders builds `SOUND`, one vertex per cone at the corner,
+/// on one point key, and meshing ([`pierce_point_finding`]). Red as
+/// `ClassificationInvariant` ("a vertex at a shared point is the In end
+/// of one null edge and the Out end of another") when the held run
+/// mints at the shared vertex rather than at the turned run's copy
+/// (`insert::hang_at_shared`).
+#[test]
+fn a_run_turned_at_a_shared_vertex_holds_the_rest_of_its_pair() {
+    let v = notch343().v;
+    let mut bad = Vec::new();
+    for (i, j, k) in [(0, 2, 2), (0, 6, 3)] {
+        let psi = f64::from(k) * 1.05 + 0.1;
+        let m = direction(i, j);
+        let (notch, pinch) = pinch_pieces(m, psi);
+        for (tag, r, want) in pinch_runs(m, psi) {
+            let finding = r
+                .as_ref()
+                .ok()
+                .and_then(BooleanResult::body)
+                .and_then(|bb| {
+                    pierce_point_finding(&bb.body, v, tag_cones(&tag, "ab", (&notch, &pinch)))
+                });
+            let line = outcome(r, want, tol());
+            if !line.starts_with("OK SOUND") || finding.is_some() {
+                bad.push(format!("i={i} j={j} k={k} {tag}: {line} {finding:?}"));
+            }
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "{} runs not SOUND at one vertex per cone:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
 }
 
 /// **A fan at a shared vertex reads the other pair's cuts from its own
@@ -1387,22 +1551,18 @@ fn pinch_runs_battery() {
 /// at that corner, in opposite octants of the frame, united undeclared.
 /// Every op in both orders, against the pinch's two cubes clipped by
 /// the notch's pieces.
-fn pinch_runs(
-    m: [f64; 3],
-    psi: f64,
-) -> Vec<(String, Result<BooleanResult<f64>, BooleanError>, f64)> {
+fn pinch_runs(m: [f64; 3], psi: f64) -> Vec<Run> {
     let c = notch343();
     let a = finished(
         "the notch",
         fixtures::prism::<f64>(&c.profile, 1.0, tol()).body,
     );
     let f = frame(m, psi);
-    let decls = BooleanDeclarations::default();
     let (c1, c2) = (
         finished("a cube", cube_at(c.v, f, [0.0; 3])),
         finished("a cube", cube_at(c.v, f, [-SIDE; 3])),
     );
-    let BooleanResult::Body(pinch) = topo::union_with(&c1, &c2, &decls, tol()).unwrap() else {
+    let BooleanResult::Body(pinch) = topo::union(&c1, &c2, tol()).unwrap() else {
         panic!("the pinch is empty");
     };
     let b = pinch.body;
@@ -1423,15 +1583,317 @@ fn pinch_runs(
     let mut out = Vec::new();
     for (order, x, y, vx) in [("ab", &a, &b, va), ("ba", &b, &a, vb)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, va + vb - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vx - common),
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vx - common),
         ];
         for (op, run, want) in ops {
-            out.push((format!("{order} {op}"), run(x, y, &decls, tol()), want));
+            out.push((format!("{order} {op}"), run(x, y, tol()), want));
         }
     }
     out
+}
+
+/// [`pinch_runs`]' operands as convex pieces: the notch's, and the
+/// pinch's two cubes.
+fn pinch_pieces(m: [f64; 3], psi: f64) -> (Pieces, Pieces) {
+    let c = notch343();
+    let f = frame(m, psi);
+    (
+        c.pieces.iter().map(|p| polygon_prism(p)).collect(),
+        vec![
+            cube_planes_at(c.v, f, [0.0; 3]),
+            cube_planes_at(c.v, f, [-SIDE; 3]),
+        ],
+    )
+}
+
+/// A right-handed frame, as rows.
+type Frame = [[f64; 3]; 3];
+
+/// The volume `x`'s and `y`'s convex pieces share.
+fn common_volume(x: &[Vec<Plane>], y: &[Vec<Plane>]) -> f64 {
+    x.iter()
+        .flat_map(|p| {
+            y.iter().map(move |q| {
+                let mut all = p.clone();
+                all.extend_from_slice(q);
+                convex_volume(&all)
+            })
+        })
+        .sum()
+}
+
+/// [`notch343`] at its corner against `pinch` (whose pieces are
+/// `pinch_pieces`): every op in both orders, against the oracle, as
+/// `(tag, run, want)`, with the two operands' pieces.
+fn notch_against(pinch: &AtRestBody<f64>, pinch_pieces: &[Vec<Plane>]) -> (Vec<Run>, Pieces) {
+    let c = notch343();
+    let notch = finished(
+        "the notch",
+        fixtures::prism::<f64>(&c.profile, 1.0, tol()).body,
+    );
+    let notch_pieces: Pieces = c.pieces.iter().map(|p| polygon_prism(p)).collect();
+    let volume = |ps: &[Vec<Plane>]| ps.iter().map(|p| convex_volume(p)).sum::<f64>();
+    let runs = every_op(
+        ["ab", "ba"],
+        (&notch, volume(&notch_pieces)),
+        (pinch, volume(pinch_pieces)),
+        common_volume(&notch_pieces, pinch_pieces),
+    );
+    (runs, notch_pieces)
+}
+
+/// Unites `bodies` one by one; `None` where a union refuses.
+fn unite_all(bodies: Vec<Body<f64>>) -> Option<AtRestBody<f64>> {
+    let mut parts = bodies.into_iter().map(|b| finished("a part", b));
+    let mut acc = parts.next()?;
+    for b in parts {
+        match topo::union(&acc, &b, tol()) {
+            Ok(BooleanResult::Body(bb)) => acc = bb.body,
+            _ => return None,
+        }
+    }
+    Some(acc)
+}
+
+/// A right-handed frame whose cube corner diagonal runs along `d`: its
+/// three edges at the corner make equal angles with `d`, turned `psi`
+/// about it.
+fn corner_diagonal_frame(d: [f64; 3], psi: f64) -> Frame {
+    let [u, w, m] = frame(d, psi);
+    let (s6, s2, s3) = (6f64.sqrt(), 2f64.sqrt(), 3f64.sqrt());
+    [
+        [(2.0f64 / 3.0).sqrt(), 0.0, 1.0 / s3],
+        [-1.0 / s6, 1.0 / s2, 1.0 / s3],
+        [-1.0 / s6, -1.0 / s2, 1.0 / s3],
+    ]
+    .map(|l| [0, 1, 2].map(|x| l[0] * u[x] + l[1] * w[x] + l[2] * m[x]))
+}
+
+/// Whether the octants of frames `f` and `g` overlap: a direction on a
+/// sampled sphere strictly inside both.
+fn octants_overlap(f: Frame, g: Frame) -> bool {
+    let inside = |f: Frame, s: [f64; 3]| f.iter().all(|a| dot(*a, s) > 1e-3);
+    let n = 60;
+    (0..n).any(|p| {
+        (0..2 * n).any(|q| {
+            let th = std::f64::consts::PI * (f64::from(p) + 0.5) / f64::from(n);
+            let ph = std::f64::consts::PI * f64::from(q) / f64::from(n);
+            let s = [th.sin() * ph.cos(), th.sin() * ph.sin(), th.cos()];
+            inside(f, s) && inside(g, s)
+        })
+    })
+}
+
+/// **Four pairs at one vertex**: [`notch343`]'s corner against four
+/// side-4 cubes whose corners touch only there, three tilted round the
+/// grid direction and one along it (PR 4249's second review's probe),
+/// every op in both orders. One [`outcome`] line per run, with the
+/// built body's [`pierce_point_finding`] at the corner, for a diff
+/// between two trees.
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn four_pairs_battery() {
+    let v = notch343().v;
+    for i in 0..12 {
+        for j in 0..7 {
+            let n = unit(direction(i, j));
+            let [p, q, _] = frame(n, 0.0);
+            for (t, tilt) in [-0.36, -0.2, -0.5].into_iter().enumerate() {
+                for k in 0..4 {
+                    let spin = f64::from(k) * 0.7 + 0.1;
+                    let mut fs: Vec<Frame> = (0..3)
+                        .map(|c| {
+                            let a = std::f64::consts::TAU * f64::from(c) / 3.0 + 0.3 * f64::from(k);
+                            let d =
+                                [0, 1, 2].map(|x| a.cos() * p[x] + a.sin() * q[x] + tilt * n[x]);
+                            corner_diagonal_frame(d, spin + 1.3 * f64::from(c))
+                        })
+                        .collect();
+                    fs.push(corner_diagonal_frame(n, spin + 0.5));
+                    let pose = format!("four i={i} j={j} t={t} k={k}");
+                    if (0..4).any(|x| (x + 1..4).any(|y| octants_overlap(fs[x], fs[y]))) {
+                        println!("{pose}: SKIP overlap");
+                        continue;
+                    }
+                    let pinch = unite_all(
+                        fs.iter()
+                            .map(|&f| cube_sized(v, f, [0.0; 3], SIDE))
+                            .collect(),
+                    )
+                    .filter(|b| {
+                        (mass_properties(b, tol()).unwrap().volume - 4.0 * SIDE.powi(3)).abs()
+                            < 1e-9
+                    });
+                    let Some(pinch) = pinch else {
+                        println!("{pose}: SKIP the cubes do not unite at the corner alone");
+                        continue;
+                    };
+                    let pinch_pieces: Pieces = fs
+                        .iter()
+                        .map(|&f| cube_planes_sized(v, f, [0.0; 3], SIDE))
+                        .collect();
+                    let (runs, notch_pieces) = notch_against(&pinch, &pinch_pieces);
+                    for (tag, r, want) in runs {
+                        let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+                            pierce_point_finding(
+                                &bb.body,
+                                v,
+                                tag_cones(&tag, "ab", (&notch_pieces, &pinch_pieces)),
+                            )
+                        });
+                        println!("{pose} {tag}: {} {finding:?}", outcome(r, want, tol()));
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// **Three pairs whose hang leaves the point on two keys refuse typed.**
+/// [`notch343`]'s corner against three cubes whose corners touch only
+/// there, two poses (PR 4249's review probes): `three i=4 j=3 k=1`
+/// (side-2 cubes, diagonals 120° apart in the plane normal to the grid
+/// direction) and `tripod i=0 j=4 t=1 k=0` (side-4 cubes tilted 0.25
+/// toward it). In each union a run turns at the shared corner and its
+/// siblings hang at its copy (`insert::hang_at_shared`), and the pinched
+/// operand's own cones sit on keys no seam links
+/// (`work/flush/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`):
+/// the notch-first union refuses `PinchConesOnSeparateKeys`, and at
+/// `three` the cubes-first union and difference too; with the notch
+/// first the intersection and difference build `SOUND`, one vertex per
+/// cone on one key, meshing.
+/// Red as `OK BAD` (tier 3′ `CensusUndecidable`, the cones on two keys)
+/// without `zip::refuse_split_hung_points`.
+#[test]
+fn three_pairs_whose_hang_leaves_the_point_on_two_keys_refuse_typed() {
+    let v = notch343().v;
+    let mut poses: Vec<(&str, Vec<Frame>, f64, &[&str])> = Vec::new();
+    // `three`: each cube's corner diagonal along `d`, twisted by `psi`.
+    let [p, q, _] = frame(direction(4, 3), 0.3 + 0.9);
+    let three = (0..3)
+        .map(|t| {
+            let th = f64::from(t) * std::f64::consts::TAU / 3.0;
+            let d = [0, 1, 2].map(|c| th.cos() * p[c] + th.sin() * q[c]);
+            let [p, q, a] = frame(d, 0.0);
+            let s = (2.0f64 / 3.0).sqrt();
+            let e = |k: f64| {
+                let t = 0.2 + f64::from(t) + k * std::f64::consts::TAU / 3.0;
+                [0, 1, 2].map(|i| a[i] / 3f64.sqrt() + s * (t.cos() * p[i] + t.sin() * q[i]))
+            };
+            let (e0, e1, e2) = (e(0.0), e(1.0), e(2.0));
+            if dot(cross(e0, e1), e2) > 0.0 {
+                [e0, e1, e2]
+            } else {
+                [e1, e0, e2]
+            }
+        })
+        .collect();
+    poses.push(("three i=4 j=3 k=1", three, 2.0, &["ab U", "ba U", "ba S"]));
+    // `tripod`: each cube's corner diagonal along `d`, its frame turned.
+    let n = unit(direction(0, 4));
+    let [p, q, _] = frame(n, 0.0);
+    let tripod = (0..3)
+        .map(|c| {
+            let a = std::f64::consts::TAU * f64::from(c) / 3.0;
+            let d = [0, 1, 2].map(|x| a.cos() * p[x] + a.sin() * q[x] + 0.25 * n[x]);
+            corner_diagonal_frame(d, 0.3 + f64::from(c))
+        })
+        .collect();
+    poses.push(("tripod i=0 j=4 t=1 k=0", tripod, SIDE, &["ab U"]));
+    for (pose, frames, side, guarded) in poses {
+        let pinch = unite_all(
+            frames
+                .iter()
+                .map(|&f| cube_sized(v, f, [0.0; 3], side))
+                .collect(),
+        )
+        .unwrap_or_else(|| panic!("{pose}: the cubes do not unite"));
+        let pinch_pieces: Pieces = frames
+            .iter()
+            .map(|&f| cube_planes_sized(v, f, [0.0; 3], side))
+            .collect();
+        let (runs, notch_pieces) = notch_against(&pinch, &pinch_pieces);
+        for (tag, r, want) in runs {
+            if guarded.contains(&tag.as_str()) {
+                assert!(
+                    matches!(r, Err(BooleanError::PinchConesOnSeparateKeys { .. })),
+                    "{pose} {tag}: {}",
+                    outcome(r, want, tol())
+                );
+                continue;
+            }
+            if tag.starts_with("ba") {
+                continue;
+            }
+            let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+                pierce_point_finding(
+                    &bb.body,
+                    v,
+                    tag_cones(&tag, "ab", (&notch_pieces, &pinch_pieces)),
+                )
+            });
+            let line = outcome(r, want, tol());
+            assert!(line.starts_with("OK SOUND"), "{pose} {tag}: {line}");
+            assert_eq!(finding, Some(None), "{pose} {tag}");
+        }
+    }
+}
+
+/// **A run turned round a shared vertex holds two siblings.**
+/// [`notch343`]'s corner against a pinch of two 50° wedges touching
+/// there, the second the first turned half a turn about its own `y`, at
+/// the grid direction `i=1 j=3` turned `0.7 + 0.3 j` (PR 4249's review
+/// probe `wpinch n343 a=50 i=1 j=3`). With the notch first, in the union
+/// and the difference one run at the notch's corner turns and holds two
+/// runs of its own pair, both hung at its copy. Every op with the notch
+/// first builds `SOUND`, one vertex per cone on one key, meshing. Red as
+/// `ClassificationInvariant` ("a vertex at a shared point is the In end
+/// of one null edge and the Out end of another") without
+/// `insert::hang_at_shared`.
+#[test]
+fn a_run_turned_at_a_shared_vertex_holds_two_siblings() {
+    let v = notch343().v;
+    let f = frame(direction(1, 3), 0.7 + 0.3 * 3.0);
+    let g = [f[0].map(|t| -t), f[1], f[2].map(|t| -t)];
+    let w = wedge(50.0);
+    let (b1, p1) = posed(&w, f, v);
+    let (b2, p2) = posed(&w, g, v);
+    let BooleanResult::Body(pinch) = topo::union(&b1, &b2, tol()).unwrap() else {
+        panic!("the wedges' union is empty");
+    };
+    let pinch_pieces: Pieces = p1.into_iter().chain(p2).collect();
+    let (runs, notch_pieces) = notch_against(&pinch.body, &pinch_pieces);
+    for (tag, r, want) in runs.into_iter().filter(|(tag, ..)| tag.starts_with("ab")) {
+        let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+            pierce_point_finding(
+                &bb.body,
+                v,
+                tag_cones(&tag, "ab", (&notch_pieces, &pinch_pieces)),
+            )
+        });
+        let line = outcome(r, want, tol());
+        assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
+        assert_eq!(finding, Some(None), "{tag}");
+    }
+}
+
+/// **The outer lane prefers a clean arc at an exact tie**: wedge343
+/// against wedge330 at the grid's `i=0 j=1`, unturned. Union in B, A
+/// order splits a face whose two chord arcs are one clean and one
+/// ring-held, and the clean one builds SOUND. Red when the outer lane
+/// takes a ring-held arc where a clean one exists: the other split
+/// leaves a vertex on a face tier 3 reads as an unrecorded contact.
+#[test]
+fn the_outer_lane_prefers_a_clean_arc_at_an_exact_tie() {
+    let runs = corner_pair_runs(&wedge(343.0), &wedge(330.0), frame(direction(0, 1), 0.0));
+    let (_, r, want) = runs
+        .into_iter()
+        .find(|(tag, _, _)| tag == "ba U")
+        .expect("the B-first union");
+    let line = outcome(r, want, tol());
+    assert!(line.starts_with("OK SOUND"), "ba U: {line}");
 }
 
 /// A named pair of corners.
@@ -1444,6 +1906,113 @@ type CornerPair = (&'static str, fn() -> Corner, fn() -> Corner);
 #[test]
 #[ignore = "differential battery; run with --ignored --nocapture"]
 fn corner_pairs_battery() {
+    corner_pair_grid(|pose, a, b, f| {
+        let runs = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            corner_pair_runs(a, b, f)
+                .into_iter()
+                .map(|(tag, r, want)| format!("{tag}: {}", outcome(r, want, tol())))
+                .collect::<Vec<_>>()
+        }));
+        match runs {
+            Ok(lines) => {
+                for l in lines {
+                    println!("{pose} {l}");
+                }
+            }
+            Err(_) => println!("{pose} PANIC"),
+        }
+    });
+}
+
+/// **The corner-pair oracle agrees with a Monte Carlo of the same
+/// pieces** at every pose of [`corner_pairs_battery`]: the common
+/// volume to within 5σ of a uniform sample of `a`'s bounding box,
+/// σ = `box·√(p(1 − p)/N)`, and each corner's volume to its profile's
+/// shoelace area. The seed is fixed so that a run reproduces; at
+/// 2730 poses a 5σ miss by chance is about one in 600 runs. Red when
+/// `convex_volume` misreads a pose, such as counting one face twice
+/// where two operands' half-spaces lie on one plane.
+#[test]
+#[ignore = "oracle cross-check, kernel-free; run with --ignored --nocapture"]
+fn the_corner_pair_oracle_agrees_with_a_monte_carlo() {
+    const N: u32 = 40_000;
+    let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+    let mut uniform = move || {
+        state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D4_9BB1_3311_14EB);
+        (z ^ (z >> 31)) as f64 / u64::MAX as f64
+    };
+    let shoelace = |c: &Corner| {
+        let p = &c.profile;
+        (0..p.len())
+            .map(|i| {
+                let (a, b) = (p[i], p[(i + 1) % p.len()]);
+                a.0 * b.1 - b.0 * a.1
+            })
+            .sum::<f64>()
+            / 2.0
+    };
+    let inside = |ps: &[Vec<HalfSpace>], x: [f64; 3]| {
+        ps.iter().any(|p| p.iter().all(|&(n, d)| dot(n, x) <= d))
+    };
+    let (mut poses, mut worst) = (0, 0.0_f64);
+    corner_pair_grid(|pose, a, b, f| {
+        let (va, vb, common) = corner_pair_volumes(a, b, f);
+        for (what, c, v) in [("a", a, va), ("b", b, vb)] {
+            let want = shoelace(c);
+            assert!(
+                (v - want).abs() < 1e-9,
+                "{pose}: {what}'s volume {v} against its profile's {want}"
+            );
+        }
+        let (ap, bp): (Vec<_>, _) = (
+            a.pieces.iter().map(|p| polygon_prism(p)).collect(),
+            posed_pieces(b, f, a.v),
+        );
+        let lo = [0, 1].map(|t| {
+            a.profile
+                .iter()
+                .map(|p| [p.0, p.1][t])
+                .fold(f64::MAX, f64::min)
+        });
+        let hi = [0, 1].map(|t| {
+            a.profile
+                .iter()
+                .map(|p| [p.0, p.1][t])
+                .fold(f64::MIN, f64::max)
+        });
+        let span = [hi[0] - lo[0], hi[1] - lo[1], 1.0];
+        let space = span[0] * span[1];
+        let mut hits = 0u32;
+        for _ in 0..N {
+            let x = [
+                lo[0] + span[0] * uniform(),
+                lo[1] + span[1] * uniform(),
+                uniform(),
+            ];
+            if inside(&ap, x) && inside(&bp, x) {
+                hits += 1;
+            }
+        }
+        let p = f64::from(hits) / f64::from(N);
+        let (mc, sigma) = (space * p, space * (p * (1.0 - p) / f64::from(N)).sqrt());
+        let z = (common - mc).abs() / sigma.max(space / f64::from(N));
+        worst = worst.max(z);
+        poses += 1;
+        assert!(
+            z <= 5.0,
+            "{pose}: common {common} against Monte Carlo {mc} ± {sigma} (σ), {z:.1}σ off"
+        );
+    });
+    println!("{poses} poses, worst {worst:.2}σ at N = {N}");
+}
+
+/// Every pose of [`corner_pairs_battery`]: five corner pairs over the
+/// sweep's grid plus axis-aligned turns and exact-tie turns, `each`
+/// given its label, the two corners and `b`'s frame.
+fn corner_pair_grid(mut each: impl FnMut(&str, &Corner, &Corner, [[f64; 3]; 3])) {
     let pairs: [CornerPair; 5] = [
         ("n343-n343", notch343, notch343),
         ("w343-w330", || wedge(343.0), || wedge(330.0)),
@@ -1480,22 +2049,894 @@ fn corner_pairs_battery() {
         let (a, b) = (a(), b());
         for (dname, m) in &dirs {
             for psi in psis {
-                let f = frame(*m, psi);
-                let runs = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    corner_pair_runs(&a, &b, f)
-                        .into_iter()
-                        .map(|(tag, r, want)| format!("{tag}: {}", outcome(r, want, tol())))
-                        .collect::<Vec<_>>()
-                }));
-                match runs {
-                    Ok(lines) => {
-                        for l in lines {
-                            println!("{pname} {dname} psi={psi:.4} {l}");
-                        }
-                    }
-                    Err(_) => println!("{pname} {dname} psi={psi:.4} PANIC"),
+                each(
+                    &format!("{pname} {dname} psi={psi:.4}"),
+                    &a,
+                    &b,
+                    frame(*m, psi),
+                );
+            }
+        }
+    }
+}
+
+/// The L-prism ([`PROFILE`]) as a corner at `V`, tiled by [`BOXES`]'
+/// footprints.
+fn ltop() -> Corner {
+    Corner {
+        profile: PROFILE.to_vec(),
+        pieces: BOXES
+            .iter()
+            .map(|&(l, h)| vec![(l[0], l[1]), (h[0], l[1]), (h[0], h[1]), (l[0], h[1])])
+            .collect(),
+        v: V,
+    }
+}
+
+/// The asymmetric reflex corner: `(1, 1, 1)`, a 0° edge and a 34° one
+/// round a 326° notch (PR 4139's review r1, `asym`).
+fn asym() -> Corner {
+    Corner {
+        profile: vec![(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (1.0, 1.0), (0.0, 1.5)],
+        pieces: vec![
+            vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.5)],
+            vec![(1.0, 0.0), (4.0, 0.0), (4.0, 3.0), (1.0, 1.0)],
+        ],
+        v: [1.0, 1.0, 1.0],
+    }
+}
+
+/// A seeded rotation (xorshift) as three orthonormal rows: PR 4139's
+/// review r1's poses, kept bit for bit.
+fn seeded_rotation(seed: u64) -> [[f64; 3]; 3] {
+    let mut s = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+    let mut r = || {
+        s ^= s << 13;
+        s ^= s >> 7;
+        s ^= s << 17;
+        (s >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0
+    };
+    let a = unit([r(), r(), r()]);
+    let b0 = [r(), r(), r()];
+    let along = dot(a, b0);
+    let b = unit([0, 1, 2].map(|t| b0[t] - along * a[t]));
+    [a, b, cross(a, b)]
+}
+
+/// Fibonacci direction `i` of `n`.
+fn fibonacci(i: u32, n: u32) -> [f64; 3] {
+    let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let z = 1.0 - 2.0 * (f64::from(i) + 0.5) / f64::from(n);
+    let r = (1.0 - z * z).sqrt();
+    let t = ga * f64::from(i);
+    [r * t.cos(), r * t.sin(), z]
+}
+
+/// PR 4139's review r1's `dbl` pose `seed`, `fib`: corner `a` at rest
+/// and corner `b` turned by a seeded rotation about it, touching only at
+/// their corner `v` (their union, two vertices at `v`), and the cube whose near face
+/// holds `v`, along Fibonacci direction `fib` of 600 and turned 0.4
+/// about it; with the operand's pieces and volume, the cube's planes,
+/// and the volume they share.
+struct Dbl {
+    pinched: AtRestBody<f64>,
+    pieces: Pieces,
+    cube: AtRestBody<f64>,
+    planes: Vec<Plane>,
+    volume: f64,
+    common: f64,
+}
+
+fn dbl(corners: (&Corner, &Corner), seed: u64, fib: u32) -> Dbl {
+    dbl_pose(corners, seed, fib).unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// [`dbl`], or why the pose is not one: the corners' union refused or
+/// does not pinch at `v`, or the cube holds none of the operand.
+fn dbl_pose((a, b): (&Corner, &Corner), seed: u64, fib: u32) -> Result<Dbl, String> {
+    let pose = format!("seed={seed} fib{fib}");
+    let v = a.v;
+    let x1 = finished(
+        "a corner",
+        fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
+    );
+    let (x2, posed_pieces) = posed(b, seeded_rotation(seed * 31 + 5), v);
+    let pinched =
+        topo::union(&x1, &x2, tol()).map_err(|e| format!("{pose}: the corners' union: {e:?}"))?;
+    let pinched = pinched.body().expect("the union is not empty").body.clone();
+    if vertices_at(&pinched, v).len() != 2 {
+        return Err(format!("{pose}: the operand does not pinch at v"));
+    }
+    let mut pieces: Pieces = a.pieces.iter().map(|p| polygon_prism(p)).collect();
+    pieces.extend(posed_pieces);
+    let f = frame(fibonacci(fib, 600), 0.4);
+    let lo = [-2.0, -2.0, 0.0];
+    let cube = finished("the cube", cube_at(v, f, lo));
+    let planes = cube_planes_at(v, f, lo);
+    let volume: f64 = pieces.iter().map(|p| convex_volume(p)).sum();
+    let common: f64 = pieces
+        .iter()
+        .map(|p| convex_volume(&[p.clone(), planes.clone()].concat()))
+        .sum();
+    if common <= 1e-3 {
+        return Err(format!(
+            "{pose}: the cube holds none of the operand: {common}"
+        ));
+    }
+    Ok(Dbl {
+        pinched,
+        pieces,
+        cube,
+        planes,
+        volume,
+        common,
+    })
+}
+
+/// **The `dbl` battery**: [`dbl`]'s pinched operand against its cube
+/// for two corner pairs, six seeds and every tenth of the 600
+/// Fibonacci directions, every op in both orders. One [`outcome`] line
+/// per run with its cone and mesh finding (as
+/// [`a_pinched_operands_pierces_of_one_point_mint_one_ring`] reads
+/// them), for a diff between two trees.
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn dbl_battery() {
+    for (names, (a, b)) in [
+        ("asym asym", (asym(), asym())),
+        ("Ltop asym", (ltop(), asym())),
+    ] {
+        for seed in [15, 225, 268, 426, 2296, 2959] {
+            for fib in (0..600).step_by(10) {
+                let Ok(d) = dbl_pose((&a, &b), seed, fib) else {
+                    continue;
+                };
+                let cube_pieces = vec![d.planes.clone()];
+                let runs = every_op(
+                    ["xy", "yx"],
+                    (&d.pinched, d.volume),
+                    (&d.cube, SIDE.powi(3)),
+                    d.common,
+                );
+                for (tag, r, want) in runs {
+                    let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+                        let cones = tag_cones(&tag, "xy", (&d.pieces, &cube_pieces));
+                        cone_finding(&bb.body, a.v, cones).or_else(|| {
+                            match mesh::tessellate(&bb.body, 0.05, tol())
+                                .map(|m| mesh::validate::check_mesh(&m))
+                            {
+                                Ok(Ok(())) => None,
+                                other => Some(format!("no mesh: {other:?}")),
+                            }
+                        })
+                    });
+                    println!(
+                        "{names} seed={seed} fib{fib} {tag}: {} | {finding:?}",
+                        outcome(r, want, tol())
+                    );
                 }
             }
         }
+    }
+}
+
+/// **One [`dbl_battery`] line, replayed**: `DBL_POSE="asym 268 100 yx S"`
+/// (the first corner, `asym` or `Ltop`; the seed; the direction; the
+/// line's tag) prints its [`outcome`].
+#[test]
+#[ignore = "replay of one dbl_battery line; set DBL_POSE"]
+fn dbl_one() {
+    let spec = std::env::var("DBL_POSE").expect("DBL_POSE, e.g. \"asym 268 100 yx S\"");
+    let [first, seed, fib, order, op] = spec.split_whitespace().collect::<Vec<_>>()[..] else {
+        panic!("DBL_POSE: {spec:?}");
+    };
+    let a = if first == "Ltop" { ltop() } else { asym() };
+    let d = dbl_pose((&a, &asym()), seed.parse().unwrap(), fib.parse().unwrap())
+        .unwrap_or_else(|e| panic!("{e}"));
+    let tag = format!("{order} {op}");
+    let (_, r, want) = every_op(
+        ["xy", "yx"],
+        (&d.pinched, d.volume),
+        (&d.cube, SIDE.powi(3)),
+        d.common,
+    )
+    .into_iter()
+    .find(|(t, ..)| *t == tag)
+    .unwrap_or_else(|| panic!("no op {tag:?}"));
+    println!("{spec}: {}", outcome(r, want, tol()));
+}
+
+/// **The output stage's join leaves a pinch's cones their vertices**
+/// (`boolean::edge_join`). The union of [`dbl`]'s seed 268, direction
+/// 11 holds two cones at `v`, one vertex each; one of them has two
+/// edges only, collinear between one pair of planes, the shape the join
+/// kills. It shares its point key with the other cone's vertex, so the
+/// join leaves it: the union builds `SOUND` at the clipped volume, with
+/// two vertices at `v` and no joinable vertex. Red if the join kills it:
+/// the joined edge runs through the other vertex, and tier 3′ refuses
+/// `UnrecordedContact { VertexOnEdge }` at `v`.
+#[test]
+fn the_join_stage_leaves_a_pinchs_cones_their_vertices() {
+    let v = asym().v;
+    let d = dbl((&asym(), &asym()), 268, 11);
+    let want = d.volume + SIDE.powi(3) - d.common;
+    let r = topo::union(&d.pinched, &d.cube, tol());
+    let body = r
+        .as_ref()
+        .ok()
+        .and_then(|res| res.body())
+        .expect("the union builds")
+        .body
+        .clone();
+    let line = outcome(r, want, tol());
+    assert!(line.starts_with("OK SOUND"), "{line}");
+    let at_v = vertices_at(&body, v);
+    assert_eq!(
+        cone_finding(
+            &body,
+            v,
+            (&d.pieces, std::slice::from_ref(&d.planes), Cones::Union)
+        ),
+        None
+    );
+    assert_eq!(at_v.len(), 2, "one vertex per cone at v");
+    let valence = |w| body.half_edges().filter(|(_, h)| h.start == w).count();
+    assert!(
+        at_v.iter().any(|&w| valence(w) == 2),
+        "a cone at v is a straight edge through it: {:?}",
+        at_v.iter().map(|&w| valence(w)).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        topo::joinable_vertices(
+            &body,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap(),
+        vec![],
+        "maximal edges"
+    );
+}
+
+/// **A pinched operand's pierces of one face at one point mint one
+/// ring.** The operand is two [`asym`] corners touching only at
+/// `v = (1, 1, 1)`, one turned by a seeded rotation (their union, two
+/// vertices at `v`); the cube's near face holds `v`, the cube along
+/// Fibonacci direction `fib` of 600 and turned 0.4 about it (PR 4139's
+/// review r1, set `dbl`). One corner crosses the face in two sectors
+/// and the other in one between them, so the face's ring at `v` holds a
+/// strut per run of both, nested by their germs together
+/// (`vtxfac::mint_ring`), all on one point key. Every op in both orders
+/// builds `SOUND` at the pieces' clipped volume, holds one vertex per
+/// cone at `v`, and meshes. Red if each pierce mints its own ring: the
+/// face then holds two vertices at `v` whose corners cross, and the
+/// union fails tier 3′ there.
+#[test]
+fn a_pinched_operands_pierces_of_one_point_mint_one_ring() {
+    for (seed, fib) in [(268, 11), (15, 11), (426, 6)] {
+        let pose = format!("seed={seed} fib{fib}");
+        let v = asym().v;
+        let Dbl {
+            pinched,
+            pieces,
+            cube,
+            planes,
+            volume,
+            common,
+        } = dbl((&asym(), &asym()), seed, fib);
+        let runs = every_op(
+            ["xy", "yx"],
+            (&pinched, volume),
+            (&cube, SIDE.powi(3)),
+            common,
+        );
+        let cube_pieces = vec![planes];
+        for (tag, r, want) in runs {
+            let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+                let cones = tag_cones(&tag, "xy", (&pieces, &cube_pieces));
+                cone_finding(&bb.body, v, cones).or_else(|| {
+                    match mesh::tessellate(&bb.body, 0.05, tol())
+                        .map(|m| mesh::validate::check_mesh(&m))
+                    {
+                        Ok(Ok(())) => None,
+                        other => Some(format!("the body does not mesh: {other:?}")),
+                    }
+                })
+            });
+            let line = outcome(r, want, tol());
+            assert!(line.starts_with("OK SOUND"), "{pose} {tag}: {line}");
+            assert_eq!(finding, Some(None), "{pose} {tag}");
+        }
+    }
+}
+
+/// **A pinch's cones sit on one point key** (`zip::share_points`). Six
+/// of [`dbl`]'s poses whose union with the cube pinches at `v` in two
+/// cones. Both cones' vertices are the pinched operand's own, which the
+/// corners' union left on two keys; the cube's copies of `v` sit on a
+/// third, which the zips fuse away. The seam correspondence pairs each
+/// operand vertex with a cube copy, so it ties all three keys, and after
+/// the zips the two cones' vertices move onto one key.
+/// Both unions build `SOUND` at the clipped volume, with one vertex per
+/// cone at `v`, on one key, and mesh. Red without the move: tier 3′
+/// refuses `UnrecordedContact { VertexVertex }` at `v`, and the output
+/// stage's join, which reads the pinch from its keys, kills a cone's
+/// vertex (one vertex for two cones; the mesher refuses or panics).
+/// The unions rebind at least one class (a union whose zips already
+/// leave its cones on one key rebinds none), and every class rebound
+/// held one point, bit for bit (`topo::take_shared_points`): the
+/// rebind reads no position, so this is its premise's pin.
+#[test]
+fn a_pinchs_cones_share_one_point_key() {
+    let mut rebound = 0;
+    for (names, (a, b), seed, fib) in [
+        ("Ltop asym", (ltop(), asym()), 2296, 21),
+        ("Ltop asym", (ltop(), asym()), 2296, 3),
+        ("Ltop asym", (ltop(), asym()), 2296, 8),
+        ("Ltop asym", (ltop(), asym()), 2959, 3),
+        ("asym asym", (asym(), asym()), 15, 6),
+        ("asym asym", (asym(), asym()), 225, 6),
+    ] {
+        let pose = format!("{names} seed={seed} fib{fib}");
+        let v = a.v;
+        let d = dbl((&a, &b), seed, fib);
+        let want = d.volume + SIDE.powi(3) - d.common;
+        let cube_pieces = vec![d.planes.clone()];
+        for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
+            shared_point_spread_finding();
+            let r = topo::union(x, y, tol());
+            let (classes, spread) = shared_point_spread_finding();
+            rebound += classes;
+            assert_eq!(spread, None, "{pose} {order} U");
+            let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+                point_key_finding(&bb.body, v)
+                    .or_else(|| cone_finding(&bb.body, v, (&d.pieces, &cube_pieces, Cones::Union)))
+                    .or_else(|| {
+                        match mesh::tessellate(&bb.body, 0.05, tol())
+                            .map(|m| mesh::validate::check_mesh(&m))
+                        {
+                            Ok(Ok(())) => None,
+                            other => Some(format!("the body does not mesh: {other:?}")),
+                        }
+                    })
+            });
+            let line = outcome(r, want, tol());
+            assert!(line.starts_with("OK SOUND"), "{pose} {order} U: {line}");
+            assert_eq!(finding, Some(None), "{pose} {order} U");
+        }
+    }
+    assert!(rebound > 0, "no union rebound a class");
+}
+
+/// **A pinch's unions build from every root of the pierce ring**
+/// (`topo::test_support::with_ring_root`): [`a_pinchs_cones_share_one_point_key`]'s
+/// poses, each of the two-run ring's three regions taken as its ring
+/// vertex, in both operand orders. The ring's corners are one cyclic
+/// order whichever region roots it, and every root builds `SOUND` at the
+/// clipped volume. On the four `Ltop asym` poses the leaf region inside
+/// run 1's chord mints run 1's strut first.
+#[test]
+fn a_pinchs_unions_from_every_root_of_the_ring() {
+    for (names, (a, b), seed, fib) in [
+        ("Ltop asym", (ltop(), asym()), 2296, 21),
+        ("Ltop asym", (ltop(), asym()), 2296, 3),
+        ("Ltop asym", (ltop(), asym()), 2296, 8),
+        ("Ltop asym", (ltop(), asym()), 2959, 3),
+        ("asym asym", (asym(), asym()), 15, 6),
+        ("asym asym", (asym(), asym()), 225, 6),
+    ] {
+        let d = dbl((&a, &b), seed, fib);
+        let want = d.volume + SIDE.powi(3) - d.common;
+        for root in 0..3 {
+            let pose = format!("{names} seed={seed} fib{fib}, rooted at region {root}");
+            for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
+                let r = fixtures::with_ring_root(root, || topo::union(x, y, tol()));
+                let line = outcome(r, want, tol());
+                assert!(line.starts_with("OK SOUND"), "{pose} {order} U: {line}");
+            }
+        }
+    }
+}
+
+/// The near-tangent corners: the L-prism's, review r1's `vee300` and
+/// `asym` notches, and the 345° and 60° wedges.
+fn near_tangent_corners() -> [(&'static str, Corner); 5] {
+    let l = |pieces: Vec<Vec<(f64, f64)>>| Corner {
+        profile: PROFILE.to_vec(),
+        pieces,
+        v: V,
+    };
+    [
+        (
+            "Ltop",
+            l(vec![
+                vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+                vec![(0.0, 1.0), (1.0, 1.0), (1.0, 2.0), (0.0, 2.0)],
+            ]),
+        ),
+        (
+            "vee300",
+            Corner {
+                profile: vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5), (0.0, 4.0)],
+                pieces: vec![
+                    vec![(0.0, 0.0), (2.0, 0.0), (2.0, 0.5), (0.0, 4.0)],
+                    vec![(2.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5)],
+                ],
+                v: [2.0, 0.5, 1.0],
+            },
+        ),
+        (
+            "asym",
+            Corner {
+                profile: vec![(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (1.0, 1.0), (0.0, 1.5)],
+                pieces: vec![
+                    vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.5)],
+                    vec![(1.0, 0.0), (4.0, 0.0), (4.0, 3.0), (1.0, 1.0)],
+                ],
+                v: [1.0, 1.0, 1.0],
+            },
+        ),
+        ("w345", wedge345()),
+        ("w60", wedge(60.0)),
+    ]
+}
+
+/// The near-tangent cube for corner `c`: its near face's plane holds `v`
+/// and is tilted `d` off the corner's edge `e` (0 and 1 its top edges,
+/// before and after `v` in the profile, 2 the vertical edge), the
+/// normal at `al` eighths of a turn about the edge.
+fn near_tangent_frame(c: &Corner, e: usize, al: u32, d: f64) -> [[f64; 3]; 3] {
+    let n = c.profile.len();
+    let i = c
+        .profile
+        .iter()
+        .position(|&(a, b)| a == c.v[0] && b == c.v[1])
+        .unwrap();
+    let (p, a, b) = (
+        c.profile[i],
+        c.profile[(i + n - 1) % n],
+        c.profile[(i + 1) % n],
+    );
+    let edge = unit(
+        [
+            [a.0 - p.0, a.1 - p.1, 0.0],
+            [b.0 - p.0, b.1 - p.1, 0.0],
+            [0.0, 0.0, -1.0],
+        ][e],
+    );
+    let [p1, p2, _] = frame(edge, 0.0);
+    let th = std::f64::consts::TAU * (f64::from(al) + 0.25) / 8.0;
+    let m = [0, 1, 2].map(|k| th.cos() * p1[k] + th.sin() * p2[k] + d * edge[k]);
+    frame(m, 0.7)
+}
+
+/// Every op in both orders between corner `c`'s prism and the cube of
+/// side [`SIDE`] at `c.v` in frame `f`, placed by `lo`.
+fn corner_runs(c: &Corner, f: [[f64; 3]; 3], lo: [f64; 3]) -> Vec<Run> {
+    let a = finished(
+        "the corner",
+        fixtures::prism::<f64>(&c.profile, 1.0, tol()).body,
+    );
+    let b = finished("the cube", cube_at(c.v, f, lo));
+    let clip = |extra: &[([f64; 3], f64)]| -> f64 {
+        c.pieces
+            .iter()
+            .map(|p| {
+                let mut all = polygon_prism(p);
+                all.extend_from_slice(extra);
+                convex_volume(&all)
+            })
+            .sum()
+    };
+    let common = clip(&cube_planes_at(c.v, f, lo));
+    every_op(["ac", "ca"], (&a, clip(&[])), (&b, SIDE.powi(3)), common)
+}
+
+/// [`corner_runs`]'s operands as convex pieces.
+fn corner_pieces(c: &Corner, f: [[f64; 3]; 3], lo: [f64; 3]) -> (Pieces, Pieces) {
+    (
+        c.pieces.iter().map(|p| polygon_prism(p)).collect(),
+        vec![cube_planes_at(c.v, f, lo)],
+    )
+}
+
+/// **Near-tangent pierces** (PR 4139's review r1, its `nt` set): each
+/// corner against the cube whose near face is tilted ±1e-3, ±1e-5 or
+/// 1e-7 off one of the corner's three edges, `v` inside the face or on
+/// its edge. Every op in both orders prints its [`outcome`] and its
+/// [`pierce_point_finding`] at `v`.
+///
+/// `cargo test -p sweep --release --test all near_tangent_battery --
+/// --ignored --nocapture`, on two trees, and diff the lines.
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn near_tangent_battery() {
+    for (name, c) in near_tangent_corners() {
+        for e in 0..3 {
+            for al in 0..8 {
+                for d in [1e-3, -1e-3, 1e-5, -1e-5, 1e-7] {
+                    for (place, lo, _) in &PLACEMENTS[..2] {
+                        let f = near_tangent_frame(&c, e, al, d);
+                        let (x, y) = corner_pieces(&c, f, *lo);
+                        for (tag, r, want) in corner_runs(&c, f, *lo) {
+                            let body = r.as_ref().ok().and_then(BooleanResult::body);
+                            let at = body.map(|bb| {
+                                pierce_point_finding(&bb.body, c.v, tag_cones(&tag, "ac", (&x, &y)))
+                                    .unwrap_or_else(|| "one vertex per cone".into())
+                            });
+                            println!(
+                                "{name} nt e{e} a{al} d{d:e} {place} {tag}: {} | {}",
+                                outcome(r, want, tol()),
+                                at.unwrap_or_default()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// **An edge split on an existing vertex keeps that vertex's bits.**
+/// The L's top corner `v` on the cube's edge, its face tilted 1e-3
+/// ([`near_tangent_battery`]'s `Ltop nt e0 a1 d1e-3 edge`): the cube's
+/// edge splits at `v`, and every op in both orders holds `v` exactly,
+/// one vertex per cone, on one point key, and meshes. Red if the split
+/// mints the edge's carrier at the parameter read back from `v`, which
+/// is ulps off it, and the cube-first ops keep that point.
+#[test]
+fn an_edge_split_on_the_corner_keeps_its_bits() {
+    let (_, c) = near_tangent_corners()
+        .into_iter()
+        .find(|(name, _)| *name == "Ltop")
+        .unwrap();
+    let lo = PLACEMENTS[1].1;
+    let f = near_tangent_frame(&c, 0, 1, 1e-3);
+    let (x, y) = corner_pieces(&c, f, lo);
+    for (tag, r, want) in corner_runs(&c, f, lo) {
+        let Some(bb) = r.as_ref().ok().and_then(BooleanResult::body) else {
+            panic!("{tag}: the op did not build: {r:?}");
+        };
+        assert_eq!(
+            pierce_point_finding(&bb.body, c.v, tag_cones(&tag, "ac", (&x, &y))),
+            None,
+            "{tag} at v"
+        );
+        let line = outcome(r, want, tol());
+        assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
+    }
+}
+
+/// **A near-tangent sliver is a cone of its own.** The 345° wedge's
+/// corner on the face of a cube tilted 1e-7 off the wedge's edge at 345°
+/// ([`near_tangent_battery`]'s `w345 nt e0 a0 d1e-7 face`): the face's
+/// plane crosses the wedge's top face 1e-7 rad inside that edge, so the
+/// intersection holds, beside its main lump, a sliver about 2e-7 wide and
+/// 1e-6 deep along the edge, which meets the lump only at `v`. Two cones
+/// at `v`, so the intersection builds in both orders at the clipped
+/// volume, two solids, two vertices at `v` on one point key, and meshes.
+/// Red if the counter steps over the sliver's cell round `v` (reading one
+/// cone), or if the boolean drops the sliver or fuses its corner with the
+/// lump's.
+#[test]
+fn a_near_tangent_sliver_is_a_cone_of_its_own() {
+    let (_, c) = near_tangent_corners()
+        .into_iter()
+        .find(|(name, _)| *name == "w345")
+        .unwrap();
+    let lo = PLACEMENTS[0].1;
+    // The battery's tilt is 1e-7, a sliver about 2e-7 wide: two hundred
+    // bands at the default ε, but under one band at ε = 1e-6, where the
+    // sliver is honestly one solid with the lump. So the tilt is never
+    // less than 100 ε, which keeps it two hundred bands wide there.
+    let f = near_tangent_frame(&c, 0, 0, (100.0 * tol().eps()).max(1e-7));
+    let (x, y) = corner_pieces(&c, f, lo);
+    assert_eq!(
+        cones_at(c.v, &x, &y, Cones::Intersect),
+        Ok((2, 0)),
+        "the intersection's cones at v"
+    );
+    for (tag, r, want) in corner_runs(&c, f, lo) {
+        if !tag.ends_with('I') {
+            continue;
+        }
+        let Some(bb) = r.as_ref().ok().and_then(BooleanResult::body) else {
+            panic!("{tag}: the intersection did not build: {r:?}");
+        };
+        assert_eq!(
+            bb.body.solids().count(),
+            2,
+            "{tag}: the lump and the sliver"
+        );
+        assert_eq!(
+            pierce_point_finding(&bb.body, c.v, tag_cones(&tag, "ac", (&x, &y))),
+            None,
+            "{tag} at v"
+        );
+        let line = outcome(r, want, tol());
+        assert!(line.starts_with("OK "), "{tag}: {line}");
+    }
+}
+
+/// [`eight_crossing_corners_nest_two_deep_and_build_every_op`]'s two
+/// poses: two corners and the frame the second is posed in.
+fn eight_crossing_poses() -> [(&'static str, Corner, Corner, Frame); 2] {
+    let r2 = {
+        let theta = std::f64::consts::TAU * 13.11 / 24.0;
+        let phi: f64 = 2.0 * 0.23 + 0.02;
+        let m = [theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()];
+        frame(m, 2.3 * std::f64::consts::TAU / 24.0)
+    };
+    let r1 = [
+        [0.6060175730696241, -0.785797686202516, -0.12355038441694527],
+        [
+            -0.29342602576332566,
+            -0.36520218952479033,
+            0.8834752561170229,
+        ],
+        [
+            -0.7393536829796299,
+            -0.4991486322981075,
+            -0.45189243669194745,
+        ],
+    ];
+    [
+        ("notch343 vs notch343", notch343(), notch343(), r2),
+        ("wedge343 vs wedge330", wedge(343.0), wedge(330.0), r1),
+    ]
+}
+
+/// One of [`eight_crossing_poses`] with a side-4 cube pinched onto the
+/// posed corner at the shared point (PR 4274's review r1 probe): the
+/// cube's corner diagonal is the posed corner's top-face normal tilted
+/// `tilt` rad toward azimuth `az` in that face (0.6155 lays a cube edge
+/// in it: near-tangent), spun `spin`. The posed corner and the cube
+/// unite at the point alone, so the shared vertex carries the eight
+/// crossings' nesting and a second pair. Every op in both orders, each
+/// line its [`outcome`] and the built body's [`pierce_point_finding`]
+/// at the point; `Err` when the pinch does not unite as posed.
+fn eight_crossings_with_a_pinched_cube(
+    (pose, a, b, f): &(&str, Corner, Corner, Frame),
+    tilt: f64,
+    az: f64,
+    spin: f64,
+) -> Result<Vec<(String, String)>, String> {
+    let x = finished(
+        "a corner",
+        fixtures::prism::<f64>(&a.profile, 1.0, tol()).body,
+    );
+    let a_pieces: Pieces = a.pieces.iter().map(|p| polygon_prism(p)).collect();
+    let (posed_b, mut b_pieces) = posed(b, *f, a.v);
+    let d = [0, 1, 2]
+        .map(|t| tilt.cos() * f[2][t] + tilt.sin() * (az.cos() * f[0][t] + az.sin() * f[1][t]));
+    let g = corner_diagonal_frame(d, spin);
+    let cube = finished("a cube", cube_sized(a.v, g, [0.0; 3], SIDE));
+    let united = match topo::union(&posed_b, &cube, tol()) {
+        Ok(BooleanResult::Body(bb)) => bb.body,
+        other => return Err(format!("{pose}: the pinch {:?}", other.err())),
+    };
+    b_pieces.push(cube_planes_sized(a.v, g, [0.0; 3], SIDE));
+    let vol = |ps: &[Vec<Plane>]| ps.iter().map(|p| convex_volume(p)).sum::<f64>();
+    let (va, vb) = (vol(&a_pieces), vol(&b_pieces));
+    let got = mass_properties(&united, tol()).unwrap().volume;
+    if (got - vb).abs() > 1e-9 {
+        return Err(format!("{pose}: the pinch's volume {got} vs {vb}"));
+    }
+    let common = common_volume(&a_pieces, &b_pieces);
+    let mut out = Vec::new();
+    for (order, l, r, vl) in [("ab", &x, &united, va), ("ba", &united, &x, vb)] {
+        let ops: [(&str, Op, f64); 3] = [
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vl - common),
+        ];
+        for (op, run, want) in ops {
+            let tag = format!("{order} {op}");
+            let res = run(l, r, tol());
+            let finding = res.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+                pierce_point_finding(&bb.body, a.v, tag_cones(&tag, "ab", (&a_pieces, &b_pieces)))
+            });
+            let line = format!("{} {finding:?}", outcome(res, want, tol()));
+            out.push((tag, line));
+        }
+    }
+    Ok(out)
+}
+
+/// **A strut chain at a shared vertex nests another pair's strut, and
+/// depth three hangs there.** [`eight_crossings_with_a_pinched_cube`]
+/// on the wedges, two cube poses; with the cube's union first, the
+/// shared vertex is the wedge's, B's.
+/// - `t=0 a=0 k=0` (tilt 0, spin 0.2): the reconcile turns the two
+///   fans of the eight-crossing pair in the union and the difference,
+///   leaving its strut chain `[2,5] ⊃ [3,4]` at the shared vertex, and
+///   the cube's strut nests in both.
+/// - `t=2 a=3 k=0` (tilt 0.55, azimuth 4.8, spin 0.2): nothing turns,
+///   and the pair's chain `[0,7] ⊃ [1,6] ⊃ [2,5] ⊃ [3,4]` (fan, fan,
+///   strut, strut) hangs from depth one to three, the innermost by a
+///   strut.
+///
+/// Every op in both orders builds `SOUND`, one vertex per cone on one
+/// key, meshing ([`pierce_point_finding`]). Red as
+/// `ClassificationInvariant`:
+/// - at the first pose, "the In end of one null edge and the Out end of
+///   another", when a run only struts hold mints after the shared
+///   vertex's other struts (`insert::mint_plans`), so the cube's strut
+///   hangs at the outer strut's tip;
+/// - at the second, when `insert::hang_at_shared` caps the depth at one
+///   ("a nested null edge's holder was not minted before it") or names
+///   the outermost holder ("the In end … the Out end");
+/// - at both, "the walk order and the corner's geometry disagree" when
+///   it drops `by_strut`.
+#[test]
+fn a_strut_chain_at_a_shared_vertex_nests_another_pairs_strut_and_depth_three_hangs() {
+    let poses = eight_crossing_poses();
+    let mut bad = Vec::new();
+    for (tilt, az) in [(0.0, 0.0), (0.55, 4.8)] {
+        let lines = eight_crossings_with_a_pinched_cube(&poses[1], tilt, az, 0.2)
+            .unwrap_or_else(|e| panic!("tilt={tilt}: {e}"));
+        for (tag, line) in lines {
+            if !line.starts_with("OK SOUND") || !line.ends_with("Some(None)") {
+                bad.push(format!("tilt={tilt} {tag}: {line}"));
+            }
+        }
+    }
+    assert!(
+        bad.is_empty(),
+        "{} runs not SOUND at one vertex per cone:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
+}
+
+/// **The eight crossings with a pinched cube, over 48 cube poses**:
+/// [`eight_crossings_with_a_pinched_cube`] for both of
+/// [`eight_crossing_poses`], tilted 0, 0.3, 0.55 and 0.61 rad toward
+/// four azimuths and spun three ways. One line per run, for a diff
+/// between two trees.
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn eight_crossings_with_a_pinched_cube_battery() {
+    for pose in &eight_crossing_poses() {
+        for (ti, tilt) in [0.0f64, 0.3, 0.55, 0.61].into_iter().enumerate() {
+            for (ai, az) in [0.0f64, 1.6, 3.2, 4.8].into_iter().enumerate() {
+                for k in 0..3 {
+                    let at = format!("{} t={ti} a={ai} k={k}", pose.0);
+                    match eight_crossings_with_a_pinched_cube(
+                        pose,
+                        tilt,
+                        az,
+                        f64::from(k) * 0.9 + 0.2,
+                    ) {
+                        Ok(lines) => {
+                            for (tag, line) in lines {
+                                println!("{at} {tag}: {line}");
+                            }
+                        }
+                        Err(e) => println!("{at}: SKIP {e}"),
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Every op of `x` (volume `vx`) and `y` (`vy`) sharing `common`, in
+/// both orders, through the plain booleans.
+fn plain_runs(x: &AtRestBody<f64>, y: &AtRestBody<f64>, vx: f64, vy: f64, common: f64) -> Vec<Run> {
+    let t = tol();
+    vec![
+        ("ab U".into(), topo::union(x, y, t), vx + vy - common),
+        ("ab I".into(), topo::intersect(x, y, t), common),
+        ("ab S".into(), topo::subtract(x, y, t), vx - common),
+        ("ba U".into(), topo::union(y, x, t), vx + vy - common),
+        ("ba I".into(), topo::intersect(y, x, t), common),
+        ("ba S".into(), topo::subtract(y, x, t), vy - common),
+    ]
+}
+
+/// **An edge lying exactly in the partner's face plane, its ends
+/// resting on a piece of that face the section divides off, records
+/// the rests where the result keeps them**, in every op and order:
+/// `SOUND` by [`outcome`], tier 3′ included. Two witnesses:
+///
+/// - `corner_pairs_battery`'s exact-tie turn `i=0 j=1 psi=0` of each
+///   wedge pair, B's corner edge in A's top-face plane
+///   (`work/flush/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-undeclared-contacts.md`);
+/// - the L-prism's top edge in the near face plane of the cube turned
+///   `1.9` about Fibonacci direction 0 of 120, which has no `y` part
+///   (`work/flush/an-l-prism-top-edge-exactly-in-the-cube-face-plane-ships-an-undeclared-contact.md`).
+///
+/// Red when a vertex-on-face record follows its face's key through the
+/// division instead of the pieces whose interiors the census confirms
+/// it meets (`boolean::ops::place_found`): `ab U` of each wedge pair and
+/// `ba U` of `w350-w200` fail tier 3′, and so do the L-prism's `ab U`,
+/// `ab S` and `ba U`.
+#[test]
+fn an_edge_in_the_partners_face_plane_records_its_rests_where_the_result_keeps_them() {
+    let t = tol();
+    let pairs: [CornerPair; 3] = [
+        ("w343-w330", || wedge(343.0), || wedge(330.0)),
+        ("w300-w270", || wedge(300.0), || wedge(270.0)),
+        ("w350-w200", || wedge(350.0), || wedge(200.0)),
+    ];
+    let mut runs = Vec::new();
+    for (name, a, b) in pairs {
+        let (a, b) = (a(), b());
+        let f = frame(direction(0, 1), 0.0);
+        let x = finished("a corner", fixtures::prism::<f64>(&a.profile, 1.0, t).body);
+        let (y, _) = posed(&b, f, a.v);
+        let (va, vb, common) = corner_pair_volumes(&a, &b, f);
+        runs.extend(
+            plain_runs(&x, &y, va, vb, common)
+                .into_iter()
+                .map(|(op, r, want)| (format!("{name} {op}"), r, want)),
+        );
+    }
+    let n = 120.0_f64;
+    let z = 1.0 - 1.0 / n;
+    let m = [(1.0 - z * z).sqrt(), 0.0, z];
+    let prism = finished("the L-prism", fixtures::prism::<f64>(&PROFILE, 1.0, t).body);
+    let cube = finished("the cube", cube_at(V, frame(m, 1.9), [0.0, -2.0, 0.0]));
+    // The probe's convex-piece oracle, to its printed nine places.
+    let common = 0.062_429_284;
+    runs.extend(
+        plain_runs(&prism, &cube, 3.0, SIDE.powi(3), common)
+            .into_iter()
+            .map(|(op, r, want)| (format!("Ltop {op}"), r, want)),
+    );
+    let bad: Vec<String> = runs
+        .into_iter()
+        .map(|(tag, r, want)| format!("{tag}: {}", outcome(r, want, t)))
+        .filter(|l| !l.contains(": OK SOUND") && !l.contains(": EMPTY ok"))
+        .collect();
+    assert!(bad.is_empty(), "every run SOUND:\n{}", bad.join("\n"));
+}
+
+/// **A cube less a pinched operand whose splits cross the seams' faces
+/// zips them as one seam** (`zip::zip_split`). Three of [`dbl`]'s poses
+/// (`asym 268 100`, `Ltop 2296 50`, `asym 15 40`): at `v` the cube holds
+/// two ring vertices and the operand its two vertices, each vertex
+/// holding corners of both cones of the difference, and each operand
+/// pairing those corners differently. Each split merges or divides its
+/// own section faces at its own corners, so one cube face's edges pair
+/// with three of the operand's. The cube less the operand builds
+/// `SOUND` at the clipped volume, one vertex per cone at `v`, and
+/// meshes, also with the split seam glued from the operand's side
+/// (`topo::swap_split_roles`), where several faces of the hosting side
+/// pair with one of the other. Red if the zips pair faces only one to
+/// one (the op refuses `ZipCorrespondence`), or if a joint between two
+/// loops absorbs the host's outer loop as a ring (it refuses
+/// `Euler(RingIsOuter)`, the other side only).
+#[test]
+fn a_cube_less_a_pinched_operand_whose_splits_cross_the_seams_faces_builds() {
+    let poses = [
+        (asym as fn() -> Corner, "asym", 268, 100),
+        (ltop, "Ltop", 2296, 50),
+        (asym, "asym", 15, 40),
+    ];
+    for ((corner, first, seed, fib), swap) in
+        poses.into_iter().flat_map(|p| [(p, false), (p, true)])
+    {
+        let a = corner();
+        let pose = format!("{first} seed={seed} fib{fib} yx S, roles swapped {swap}");
+        let d = dbl((&a, &asym()), seed, fib);
+        let want = SIDE.powi(3) - d.common;
+        topo::swap_split_roles(swap);
+        let r = topo::subtract(&d.cube, &d.pinched, tol());
+        topo::swap_split_roles(false);
+        let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+            let cones = tag_cones("yx S", "xy", (&d.pieces, std::slice::from_ref(&d.planes)));
+            cone_finding(&bb.body, a.v, cones).or_else(|| {
+                match mesh::tessellate(&bb.body, 0.05, tol())
+                    .map(|m| mesh::validate::check_mesh(&m))
+                {
+                    Ok(Ok(())) => None,
+                    other => Some(format!("the body does not mesh: {other:?}")),
+                }
+            })
+        });
+        let line = outcome(r, want, tol());
+        assert!(line.starts_with("OK SOUND"), "{pose}: {line}");
+        assert_eq!(finding, Some(None), "{pose}: one vertex per cone, meshing");
     }
 }

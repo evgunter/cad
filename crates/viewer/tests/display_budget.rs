@@ -49,7 +49,7 @@ const OVER_BUDGET_DELTA: f64 = 1.0e-5;
 
 /// The tour's gallery ring, as the committed fixture.
 fn gallery_ring(tol: Tol) -> DocSession {
-    let mut session = DocSession::inline(gallery_ring_doc(tol), tol);
+    let mut session = crate::common::inline_without_door(gallery_ring_doc(tol), tol);
     session.pump();
     session
 }
@@ -180,8 +180,8 @@ fn the_gallery_ring_at_the_starting_delta_is_inside_the_budget() {
 #[test]
 fn a_document_inside_the_budget_is_drawn_as_asked() {
     let tol = Tol::witness();
-    let (doc, _root) = viewer::scene::plate_with_hole(tol).expect("the startup document");
-    let mut session = DocSession::inline(doc, tol);
+    let (doc, _) = viewer::scene::plate_with_hole(tol).expect("the startup document");
+    let mut session = crate::common::inline_without_door(doc, tol);
     session.pump();
     let body = session.landed_body().expect("the plate gathers");
     let requested = delta(INITIAL_DELTA);
@@ -558,20 +558,20 @@ const ANSWERS: &[Answer] = &[
         document: "corner_table",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 76,
+        predicted: 60,
         requested_cost: None,
-        largest_probe: 76,
-        probe_triangles: 228,
+        largest_probe: 60,
+        probe_triangles: 180,
         stop: ProbeStop::Flat,
     },
     Answer {
         document: "corner_table",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 76,
+        predicted: 60,
         requested_cost: None,
-        largest_probe: 76,
-        probe_triangles: 228,
+        largest_probe: 60,
+        probe_triangles: 180,
         stop: ProbeStop::Flat,
     },
     Answer {
@@ -698,20 +698,20 @@ const ANSWERS: &[Answer] = &[
         document: "kitchen_sink",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 3392,
+        predicted: 2880,
         requested_cost: None,
-        largest_probe: 424,
-        probe_triangles: 804,
+        largest_probe: 360,
+        probe_triangles: 628,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "kitchen_sink",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 8032,
+        predicted: 7520,
         requested_cost: None,
-        largest_probe: 1004,
-        probe_triangles: 1384,
+        largest_probe: 940,
+        probe_triangles: 1208,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -898,20 +898,20 @@ const ANSWERS: &[Answer] = &[
         document: "part_select",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 32,
+        predicted: 24,
         requested_cost: None,
-        largest_probe: 32,
-        probe_triangles: 96,
+        largest_probe: 24,
+        probe_triangles: 72,
         stop: ProbeStop::Flat,
     },
     Answer {
         document: "part_select",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 32,
+        predicted: 24,
         requested_cost: None,
-        largest_probe: 32,
-        probe_triangles: 96,
+        largest_probe: 24,
+        probe_triangles: 72,
         stop: ProbeStop::Flat,
     },
     Answer {
@@ -921,37 +921,37 @@ const ANSWERS: &[Answer] = &[
         predicted: 20272,
         requested_cost: None,
         largest_probe: 2534,
-        probe_triangles: 3580,
+        probe_triangles: 3578,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "die_composed",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 177280,
+        predicted: 177264,
         requested_cost: None,
-        largest_probe: 22160,
-        probe_triangles: 23206,
+        largest_probe: 22158,
+        probe_triangles: 23202,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "die_composed_tour",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 208464,
+        predicted: 208127,
         requested_cost: None,
-        largest_probe: 26058,
-        probe_triangles: 29824,
+        largest_probe: 26016,
+        probe_triangles: 29740,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "die_composed_tour",
         requested: 1e-5,
-        delta: 1.954846211277421e-5,
+        delta: 1.9336001620400844e-5,
         predicted: 1000000,
-        requested_cost: Some(1954846),
+        requested_cost: Some(1933600),
         largest_probe: 119934,
-        probe_triangles: 177654,
+        probe_triangles: 178038,
         stop: ProbeStop::Converged,
     },
     Answer {
@@ -1121,7 +1121,7 @@ fn the_budget_commits_the_delta_it_always_has() {
     let tol = Tol::witness();
     let mut answers: Vec<Answer> = Vec::new();
     for (document, doc) in budgeted_documents(tol) {
-        let mut session = DocSession::inline(doc, tol);
+        let mut session = crate::common::inline_without_door(doc, tol);
         session.pump();
         let body = session
             .landed_body()
@@ -1223,7 +1223,7 @@ fn no_probe_out_tessellates_the_picture_it_sizes() {
     let tol = Tol::witness();
     let mut flat_rows = 0_usize;
     for (document, doc) in budgeted_documents(tol) {
-        let mut session = DocSession::inline(doc, tol);
+        let mut session = crate::common::inline_without_door(doc, tol);
         session.pump();
         let body = session
             .landed_body()
@@ -1255,7 +1255,7 @@ fn no_probe_out_tessellates_the_picture_it_sizes() {
     );
 }
 
-/// The tour's two gallery documents — the multi-root ones the display
+/// The tour's two gallery documents — the multi-copy ones the display
 /// budget was written for.
 fn gallery_documents(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
     let tour = corpus::documents()
@@ -1308,7 +1308,7 @@ fn extent_of(body: &pncad::topo::Body<f64>, delta: f64, tol: Tol) -> f64 {
 fn a_bodys_count_has_stopped_falling_by_its_own_extent() {
     let tol = Tol::witness();
     for (document, doc) in budgeted_documents(tol) {
-        let mut session = DocSession::inline(doc, tol);
+        let mut session = crate::common::inline_without_door(doc, tol);
         session.pump();
         let body = session
             .landed_body()
@@ -1358,7 +1358,7 @@ fn a_bodys_count_has_stopped_falling_by_its_own_extent() {
 fn a_budget_delta_does_not_depend_on_the_delta_asked_for() {
     let tol = Tol::witness();
     for (document, doc) in gallery_documents(tol) {
-        let mut session = DocSession::inline(doc, tol);
+        let mut session = crate::common::inline_without_door(doc, tol);
         session.pump();
         let body = session
             .landed_body()

@@ -10,14 +10,10 @@ use editor_core::ExtrudeSide;
 use std::fmt::Write as _;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, DocEdit, EvalOptions, EvalOutcome, Evaluation, Formula,
-    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SitedRef, SlotId, ValuePayload,
-    evaluate,
+    BooleanValue, CancelToken, DocEdit, EvalOptions, EvalOutcome, Evaluation, Formula, Node,
+    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, ValuePayload, evaluate,
 };
-use editor_core::{CapEnd, RoleSeg};
-use fixture::{
-    ang, axis_in_plane, die, insert, len, on_frame, on_frame_keeping, scl, square, step,
-};
+use fixture::{ang, die, insert, len, on_frame, revolve_about, scl, square, step};
 use geom_core::Tol;
 use topo::{Body, mass_properties};
 
@@ -84,7 +80,7 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     let (doc, a) = insert(
         doc,
         Node::Extrude {
-            profile: pa,
+            profile: pa.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -99,25 +95,18 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: pb,
+            profile: pb.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
     );
     let (x, y) = if swap { (b, a) } else { (a, b) };
-    // The flush start caps are declared; sides resolve per operand,
-    // so one pair serves both operand orders.
-    let decl = editor_core::declare_continuation(vec![(
-        SitedRef::new(a, fixture::fname(a, RoleSeg::Cap(CapEnd::Start))),
-        SitedRef::new(b, fixture::fname(b, RoleSeg::Cap(CapEnd::Start))),
-    )]);
+    // The start caps are flush.
     let (doc, s) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: x,
-            b: y,
-            declare: decl,
+        Node::Subtract {
+            from: x.into(),
+            tool: y.into(),
         },
     );
     (doc, s)
@@ -169,7 +158,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
     let (doc, e_old) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -183,7 +172,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
     let (doc, e_new) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -203,7 +192,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
 }
 
 /// R4: a diamond whose BOTH mid ancestors fail — `through` must be
-/// deterministic (first blocking input in Node::inputs() order) and
+/// deterministic (first blocking input in `Doc::upstream` order) and
 /// identical across the sequential and parallel schedules; every
 /// `through` must land on a Failed entry.
 #[test]
@@ -221,7 +210,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
     let (doc, fa) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: bad(),
             side: ExtrudeSide::Along,
         },
@@ -229,18 +218,15 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
     let (doc, fb) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: bad(),
             side: ExtrudeSide::Along,
         },
     );
     let (doc, join) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: fa,
-            b: fb,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![fa.into(), fb.into()]),
         },
     );
     // One more hop: a transform downstream of the poisoned join.
@@ -263,7 +249,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
                 "extrude {id:?} must fail typed (parallel={parallel})"
             );
         }
-        // through = FIRST blocking input in inputs() order = fa.
+        // through = FIRST blocking input in upstream order = fa.
         match ev.nodes.get(&join) {
             Some(NodeResult::Poisoned { through }) => {
                 assert_eq!(*through, fa, "parallel={parallel}")
@@ -367,7 +353,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, base) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -391,11 +377,8 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, t2) = insert(doc, tr(-0.25, -0.125, -0.0625));
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: t1,
-            b: t2,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
         },
     );
     // Circular pattern of base about a datum axis (data only).
@@ -409,36 +392,25 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: base,
+            input: base.into(),
             count: Formula::count(4),
             kind: editor_core::PatternKind::Circular {
-                axis: ax,
+                axis: ax.into(),
                 step: ang(std::f64::consts::FRAC_PI_2),
             },
         },
     );
     // Revolve: half-turn of a square offset from the axis.
-    let (doc, plane, rp) = on_frame_keeping(
+    let (doc, rp) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(1.5, 0.0, 0.25)],
     );
-    let (doc, rax) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
     let (doc, rev) = insert(
         doc,
-        Node::Revolve {
-            profile: rp,
-            axis: rax,
-            angle: ang(std::f64::consts::PI),
-        },
+        revolve_about(rp, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::PI)),
     );
     // Split the union by a datum plane.
     let (doc, pl) = insert(
@@ -451,33 +423,29 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, sp) = insert(
         doc,
         Node::Split {
-            target: u,
-            tool: pl,
+            target: u.into(),
+            tool: pl.into(),
         },
     );
     // Poisoned subgraph: failing extrude + a dependent subtract.
     let (doc, bad) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: Formula::div(len(1.0), scl(0.0)).unwrap(),
             side: ExtrudeSide::Along,
         },
     );
     let (doc, poisoned) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: u,
-            b: bad,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: u.into(),
+            tool: bad.into(),
         },
     );
     (
         doc,
-        vec![
-            p, base, t1, t2, u, ax, pat, rp, rax, rev, pl, sp, bad, poisoned,
-        ],
+        vec![p, base, t1, t2, u, ax, pat, rp, rev, pl, sp, bad, poisoned],
     )
 }
 
@@ -547,18 +515,18 @@ fn four_way_schedule_memo_identity_on_rich_doc() {
     // Poisoned.
     assert!(seq.value(_ids[4]).is_some(), "union must succeed");
     assert!(seq.value(_ids[6]).is_some(), "pattern must succeed");
-    assert!(seq.value(_ids[9]).is_some(), "revolve must succeed");
+    assert!(seq.value(_ids[8]).is_some(), "revolve must succeed");
     assert!(
-        seq.value(_ids[11]).is_some(),
+        seq.value(_ids[10]).is_some(),
         "split must succeed: {:?}",
-        seq.nodes.get(&_ids[11])
+        seq.nodes.get(&_ids[10])
     );
     assert!(matches!(
-        seq.nodes.get(&_ids[12]),
+        seq.nodes.get(&_ids[11]),
         Some(NodeResult::Failed(_))
     ));
     assert!(matches!(
-        seq.nodes.get(&_ids[13]),
+        seq.nodes.get(&_ids[12]),
         Some(NodeResult::Poisoned { .. })
     ));
     let par = run(&doc, None, true);
@@ -577,28 +545,14 @@ fn four_way_schedule_memo_identity_on_rich_doc() {
 /// by `angle`.
 fn revolve_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
-    let (doc, plane, rp) = on_frame_keeping(
+    let (doc, rp) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(1.5, 0.0, 0.25)],
     );
-    let (doc, rax) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
-    let (doc, rev) = insert(
-        doc,
-        Node::Revolve {
-            profile: rp,
-            axis: rax,
-            angle: ang(angle),
-        },
-    );
+    let (doc, rev) = insert(doc, revolve_about(rp, (0.0, 0.0), (0.0, 1.0), ang(angle)));
     (doc, rev)
 }
 
@@ -699,7 +653,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         let (doc, cube) = insert(
             doc,
             Node::Extrude {
-                profile: cp,
+                profile: cp.into(),
                 distance: len(2.0),
                 side: ExtrudeSide::Along,
             },
@@ -714,7 +668,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         let (doc, pip) = insert(
             doc,
             Node::Extrude {
-                profile: pp,
+                profile: pp.into(),
                 distance: len(0.125),
                 side: ExtrudeSide::Against,
             },
@@ -746,20 +700,12 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
                 )
             },
         );
-        // The pip's outer cap lies ON the cube's top —
-        // declared (the rotational variant maps the SAME names). The
-        // B side is read at the TRANSFORM, the subtract's operand.
-        let decl = editor_core::declare_continuation(vec![(
-            SitedRef::new(cube, fixture::fname(cube, RoleSeg::Cap(CapEnd::End))),
-            SitedRef::new(tr, fixture::fname(pip, RoleSeg::Cap(CapEnd::Start))),
-        )]);
+        // The pip's outer cap lies ON the cube's top.
         let (doc, sub) = insert(
             doc,
-            Node::Boolean {
-                op: BooleanOp::Subtract,
-                a: cube,
-                b: tr,
-                declare: decl,
+            Node::Subtract {
+                from: cube.into(),
+                tool: tr.into(),
             },
         );
         (doc, sub)
@@ -789,86 +735,58 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
     );
 }
 
-/// R6: the refusal doors — every wrong wiring is a TYPED per-node
-/// failure, never a panic and never a silent guess.
+/// R6: the refusal doors — every wrong wiring is a TYPED refusal, at
+/// the edit door where the read's kind decides it and per node where
+/// its value does, never a panic and never a silent guess.
 #[test]
 fn wire_doors_refuse_typed() {
     let (doc, ids) = rich_doc();
-    let (p, base, u, ax, pat) = (ids[0], ids[1], ids[4], ids[5], ids[6]);
-    // Instances fed to a boolean: WrongOperand (their flag #5).
-    let (d, bad_bool) = insert(
-        doc.clone(),
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: u,
-            b: pat,
-            declare: Vec::new(),
+    let (base, u, ax, pat) = (ids[1], ids[4], ids[5], ids[6]);
+    // Instances fed to a boolean (their flag #5): a boolean reads one
+    // body, so the door refuses the kind.
+    let refusal = crate::fixture::insert_refused(
+        &doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![u.into(), pat.into()]),
         },
     );
-    let ev = run(&d, None, false);
-    match ev.nodes.get(&bad_bool) {
-        Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::WrongOperand {
-                expected, found, ..
-            } => {
-                assert_eq!((*expected, *found), ("body", "instances"));
+    assert!(
+        matches!(
+            refusal,
+            editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Bodies,
+                ..
             }
-            other => panic!("expected WrongOperand, got {other:?}"),
-        },
-        other => panic!("expected Failed, got {other:?}"),
-    }
-    // Revolve about the rich doc's `ax` — a 3-D z-axis datum. This
-    // asserted `AxisNotInSketchPlane`, a decided projection finding the
-    // direction out of plane. A revolve seats an axis written IN a
-    // frame now, so a world-space axis never reaches that question: it
-    // is refused one door earlier, as the wrong KIND of node, with no
-    // band consulted.
-    let (d, bad_rev) = insert(
-        doc.clone(),
-        Node::Revolve {
-            profile: p,
-            axis: ax,
-            angle: ang(1.0),
-        },
+        ),
+        "{refusal:?}"
     );
-    let ev = run(&d, None, false);
-    match ev.nodes.get(&bad_rev) {
-        Some(NodeResult::Failed(e)) => {
-            assert!(
-                matches!(e.kind, NodeErrorKind::WrongOperand { input, .. } if input == ax),
-                "got {:?}",
-                e.kind
-            );
-        }
-        other => panic!("expected Failed, got {other:?}"),
-    }
-    // Split by an axis datum: WrongOperand (needs a plane).
-    let (d, bad_split) = insert(
-        doc.clone(),
+    // Split by an axis datum: the tool reads a plane, so the door
+    // refuses the kind.
+    let refusal = crate::fixture::insert_refused(
+        &doc,
         Node::Split {
-            target: u,
-            tool: ax,
+            target: u.into(),
+            tool: ax.into(),
         },
     );
-    let ev = run(&d, None, false);
-    match ev.nodes.get(&bad_split) {
-        Some(NodeResult::Failed(e)) => {
-            assert!(
-                matches!(e.kind, NodeErrorKind::WrongOperand { .. }),
-                "got {:?}",
-                e.kind
-            );
-        }
-        other => panic!("expected Failed, got {other:?}"),
-    }
+    assert!(
+        matches!(
+            refusal,
+            editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Axis,
+                ..
+            }
+        ),
+        "{refusal:?}"
+    );
     // Pattern count 0: NonPositiveCount.
     let (d, bad_pat) = insert(
         doc.clone(),
         Node::Pattern {
-            input: base,
+            input: base.into(),
             count: Formula::count(0),
             kind: editor_core::PatternKind::Circular {
-                axis: ax,
+                axis: ax.into(),
                 step: ang(1.0),
             },
         },
@@ -918,7 +836,7 @@ fn datum_kind_is_key_separated() {
     );
     assert!(matches!(
         &e2.value(n2).unwrap().payload,
-        ValuePayload::Datum(editor_core::DatumValue::Axis { .. })
+        ValuePayload::Datum(editor_core::PoseValue::Axis { .. })
     ));
 }
 
@@ -959,7 +877,7 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
     );
     // Edit one operand's extrude distance: the cone invalidates.
     let extrude_id = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
@@ -969,7 +887,8 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
         DocEdit::SetParam {
             node: extrude_id,
             slot: SlotId::Distance,
-            expr: len(1.75),
+            value: len(1.75).into(),
+            fresh: Vec::new(),
         },
     );
     let e3 = evaluate::<Interval>(&doc2, Some(&e2), &CancelToken::new(), &opts, Tol::witness());
@@ -995,7 +914,8 @@ fn edit_back_restores_bit_identical_bodies() {
         DocEdit::SetParam {
             node: d.pz_transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(1.25),
+            value: len(1.25).into(),
+            fresh: Vec::new(),
         },
     );
     let e1 = run(&moved, Some(&e0), false);
@@ -1011,7 +931,8 @@ fn edit_back_restores_bit_identical_bodies() {
         DocEdit::SetParam {
             node: d.pz_transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(1.0),
+            value: len(1.0).into(),
+            fresh: Vec::new(),
         },
     );
     let e2 = run(&back, Some(&e1), false);

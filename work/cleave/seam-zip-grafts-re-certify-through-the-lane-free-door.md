@@ -2,13 +2,13 @@
 id: seam-zip-grafts-re-certify-through-the-lane-free-door
 kind: issue
 title: the seam-zip lanes' grafts (setopfinish, the REST lane) re-certify through the lane-free EdgeCurve::certify although their chain now holds AtRestPolicy
-status: parked
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: E
 parent: graft-recertifies-through-the-narrow-lane
 refs: [the-union-fallback-graft-re-certifies-a-disjoint-operand-through-the-lane-free-door]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+closed: 2026-10-12
 ---
 
 
@@ -53,3 +53,17 @@ When the operand gate admits the class: re-certify these grafts
 through the policy's lane (`recertify_via`/`certify_via` with
 `T::nurbs_lane()`, raising `graft_solid` to `T: AtRestPolicy`), or
 carry, with the measurement above as the argument.
+
+## Released from the D10 hold (2026-10-08)
+
+Nothing D10 changes gates this row, so it is open: generic graft plumbing (combine.rs graft_solid, called from finish.rs and rest.rs); D10 changes nothing there. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed
+
+Done by #4791 (PCERT, `lane-free-doors-skip-the-analytic-rung3-limbs`):
+`boolean::combine::graft_solid` is `T: AtRestPolicy` and grafts with
+`Bridge::Recertify { tol, lane: T::nurbs_lane() }`, so its one caller
+today, `setopfinish` (`finish.rs`), re-certifies through the policy's
+lane. The REST lane's site no longer exists (`boolean/rest.rs` is gone).
+Closed by PCERT's PR 4876, which found the row still open; the change
+that closed it was PCERT's, the file is CLEAVE's.

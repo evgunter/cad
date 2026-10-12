@@ -1,12 +1,13 @@
-//! **A shaft set into a full-turn bore, its cylindrical `Rest`
-//! declared, unions.**
+//! **A shaft set into a full-turn bore, resting on its cylindrical
+//! wall, unions.**
 //!
 //! The collar is the rectangle `ρ ∈ [0.5, 1.5]`, `y ∈ [1, 2]` revolved
 //! a full turn about `y`: its bore is ONE face with a self-mated seam
 //! ruling at azimuth 0, bounded by two rim circles that each carry one
 //! vertex. The shaft is the three-arc peg of radius 0.5 (three wall
 //! thirds, three seam rulings) turned so its axis is `y`, its first
-//! ruling at azimuth `a`. Every bore × peg-wall pair is declared `Rest`.
+//! ruling at azimuth `a`. Every bore × peg-wall pair is one carrier
+//! with opposed senses, a `Rest`.
 //!
 //! What the mate makes the kernel do, by the shaft's azimuth and span:
 //!
@@ -16,8 +17,8 @@
 //!   the bore once its interior is certified clear of the bore's
 //!   boundary;
 //! - the bore is one face where the peg is three, so the two solids
-//!   divide the contact band differently, and the zip's seam runs where
-//!   only one of them has an edge;
+//!   divide the contact band differently, and the seam runs where only
+//!   one of them has an edge;
 //! - at an azimuth off the collar's seam, the collar's seam vertices sit
 //!   inside a peg wall third, with the collar's flat caps leaving them
 //!   radially;
@@ -33,7 +34,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::mate2_common::{full_turn_collar, onto_y, peg_at, wall_decls};
+use crate::mate2_common::{full_turn_collar, onto_y, peg_at, walls_at};
 use core::f64::consts::PI;
 use geom_core::{Affine3, Point3, Tol};
 use sweep::test_support::finished;
@@ -85,11 +86,11 @@ const SPANS: [(&str, f64, f64); 4] = [
 ];
 
 /// The blind spans: the shaft enters through one rim and its cap floats
-/// inside the bore. A shaft wholly inside the bore is
-/// `work/zip/blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex.md`.
-const BLIND: [(&str, f64, f64); 2] = [
+/// inside the bore; or both its caps float inside it.
+const BLIND: [(&str, f64, f64); 3] = [
     ("blind from below", 0.5, 1.0),
     ("blind from above", 1.5, 1.0),
+    ("wholly inside", 1.2, 0.6),
 ];
 
 /// `got` against the closed form, relative to the larger operand.
@@ -97,15 +98,13 @@ fn agrees(got: f64, want: f64) -> bool {
     (got - want).abs() <= 1e-12 * collar_volume()
 }
 
-/// `c ∪ p` and `p ∪ c`, each with its declarations in its own operand
-/// order: a body, its volume the closed form, one shell, tier 3 and the
+/// `c ∪ p` and `p ∪ c`: a body, its volume the closed form, one shell, tier 3 and the
 /// pseudomanifold census clean.
 fn unions_both_ways(c: &AtRestBody<f64>, p: &AtRestBody<f64>, h: f64, tag: &str) {
     let tol = Tol::witness();
     for (order, a, b) in [("collar ∪ shaft", c, p), ("shaft ∪ collar", p, c)] {
         let tag = format!("{tag}, {order}");
-        let decls = wall_decls(a, b);
-        let bb = match topo::union_with(a, b, &decls, tol) {
+        let bb = match topo::union(a, b, tol) {
             Ok(BooleanResult::Body(bb)) => bb,
             other => panic!("{tag}: the mate does not union: {:?}", other.err()),
         };
@@ -165,6 +164,8 @@ fn a_shaft_a_quarter_turn_off_the_bores_seam_unions() {
 /// **A blind shaft unions** on the bore's seam, off it and a quarter
 /// turn off it, at every pose and in both operand orders: its floating
 /// cap rim crosses the bore's seam ruling, and the section joins it.
+/// Wholly inside, the contact is a band round the whole bore, and the
+/// run it walls off reads its rings on one full period of the chart.
 #[test]
 fn a_blind_shaft_unions_on_and_off_the_bores_seam() {
     for deg in [0.0, 60.0, 90.0] {
@@ -172,31 +173,75 @@ fn a_blind_shaft_unions_on_and_off_the_bores_seam() {
     }
 }
 
-/// **Off the seam, the zip builds the mate**: the join's surgery
-/// refuses it, and the declared-REST zip builds it on the join's own
-/// segments.
+/// **Off the seam, the join builds the mate**: the peg's rulings put
+/// the join's run vertices at exactly the pierce rings' azimuth, and the
+/// chart reads each ring off those rows.
 #[test]
-fn a_shaft_off_the_bores_seam_is_built_by_the_zip() {
+fn a_shaft_off_the_bores_seam_is_built_by_the_join() {
     let (c, (_, y0, h)) = (collar(), SPANS[0]);
     let p = shaft(60.0, y0, h);
-    let decls = wall_decls(&c, &p);
-    let join =
-        topo::test_support::boolean_join_refusal(BooleanOp::Union, &c, &p, &decls, Tol::witness());
+    let join = topo::test_support::boolean_join_refusal(BooleanOp::Union, &c, &p, Tol::witness());
     assert!(
-        matches!(
-            join,
-            Ok(Some(topo::BooleanError::Join(
-                topo::SplitJoinError::RingHomingAmbiguous { .. }
-            )))
-        ),
-        "the join refuses the mate, got {join:?}"
+        join.as_ref().is_ok_and(Option::is_none),
+        "the join connects the mate, got {join:?}"
     );
     let tol = Tol::witness();
     let (c, p) = (
         sweep::test_support::finished("the collar", c, tol),
         sweep::test_support::finished("the shaft", p, tol),
     );
-    unions_both_ways(&c, &p, h, "the zip's row");
+    unions_both_ways(&c, &p, h, "the join's row");
+}
+
+/// **The join's union carries the carrier ladder's rows**: the mate off
+/// the seam records each bore × peg-wall `Rest` once, as `SameOpposite`
+/// at the carrier ladder, its cells the two faces of their operands. In
+/// both operand orders.
+#[test]
+fn the_joins_union_records_each_rest_at_the_carrier_ladder() {
+    let (c, (_, y0, h)) = (collar(), SPANS[0]);
+    let p = shaft(60.0, y0, h);
+    let tol = Tol::witness();
+    let (c, p) = (
+        sweep::test_support::finished("the collar", c, tol),
+        sweep::test_support::finished("the shaft", p, tol),
+    );
+    for (order, a, b) in [("collar ∪ shaft", &c, &p), ("shaft ∪ collar", &p, &c)] {
+        let mut rests: Vec<_> = walls_at(a, BORE)
+            .into_iter()
+            .flat_map(|fa| walls_at(b, BORE).into_iter().map(move |fb| (fa, fb)))
+            .map(|(fa, fb)| {
+                [
+                    topo::RowCell::face(topo::Operand::A, fa),
+                    topo::RowCell::face(topo::Operand::B, fb),
+                ]
+            })
+            .collect();
+        rests.sort();
+        assert_eq!(
+            rests.len(),
+            3,
+            "{order}: the bore against three wall thirds"
+        );
+        let bb = match topo::union(a, b, tol) {
+            Ok(BooleanResult::Body(bb)) => bb,
+            other => panic!("{order}: the mate does not union: {:?}", other.err()),
+        };
+        let curved: Vec<_> = bb
+            .coincidences
+            .iter()
+            .filter(|r| r.site == topo::DecisionSite::CarrierLadder)
+            .collect();
+        let mut cells: Vec<_> = curved.iter().map(|r| r.cells).collect();
+        cells.sort();
+        assert_eq!(cells, rests, "{order}: one row per Rest");
+        assert!(
+            curved
+                .iter()
+                .all(|r| r.relation == topo::Relation::SameOpposite),
+            "{order}: {curved:?}"
+        );
+    }
 }
 
 /// The collar with its bore split into two full-turn faces by the
@@ -290,20 +335,18 @@ fn split_collar() -> Body<f64> {
 /// seam azimuth every shaft span unions in both orders and at every
 /// pose. Off the seam, the circle's own vertex sits inside a shaft wall
 /// third
-/// ([`a_bore_split_on_its_own_carrier_unions_off_the_seam_where_the_shaft_ends_at_a_rim`]).
+/// ([`a_bore_split_on_its_own_carrier_unions_off_the_seam_at_every_span`]).
 #[test]
 fn a_bore_split_on_its_own_carrier_unions_at_the_seam_azimuth() {
     unions_at(&split_collar(), 0.0, "split bore");
 }
 
-/// **Off the seam, the split bore unions where the shaft ends at a
-/// rim**: flush, proud above and proud below, at every pose and in both
-/// operand orders, though the circle's vertex sits inside a shaft wall
-/// third. The through span is
-/// `work/zip/a-vertex-of-one-solid-inside-the-rest-contact-has-no-twin.md`.
+/// **Off the seam, the split bore unions at every span**: through,
+/// flush, proud above and proud below, at every pose and in both operand
+/// orders, though the circle's vertex sits inside a shaft wall third.
 #[test]
-fn a_bore_split_on_its_own_carrier_unions_off_the_seam_where_the_shaft_ends_at_a_rim() {
-    unions_over(&split_collar(), 60.0, "split bore", &SPANS[1..]);
+fn a_bore_split_on_its_own_carrier_unions_off_the_seam_at_every_span() {
+    unions_over(&split_collar(), 60.0, "split bore", &SPANS);
 }
 
 /// **The other three ops answer the closed form**: `∩` empty in both
@@ -323,26 +366,27 @@ fn intersect_and_differences_answer_the_closed_form() {
                 for (span, y0, h) in SPANS {
                     let p = placed(&shaft(deg, y0, h), &pose);
                     let tag = format!("{bore}, azimuth {deg}, {span}, pose {pose_name}");
-                    let ab = wall_decls(&c, &p);
-                    let ba = wall_decls(&p, &c);
-                    let run = |op, a, b, decls| {
-                        topo::boolean_op_with(op, a, b, decls, topo::SweepStrategy::Realized, tol)
+                    let run = |op, a, b| {
+                        topo::boolean_op_with(
+                            op,
+                            a,
+                            b,
+                            &topo::BooleanInputs::default(),
+                            topo::SweepStrategy::Realized,
+                            tol,
+                        )
                     };
-                    for (order, a, b, decls) in [("c ∩ p", &c, &p, &ab), ("p ∩ c", &p, &c, &ba)]
-                    {
+                    for (order, a, b) in [("c ∩ p", &c, &p), ("p ∩ c", &p, &c)] {
                         assert!(
-                            matches!(
-                                run(BooleanOp::Intersect, a, b, decls),
-                                Ok(BooleanResult::Empty)
-                            ),
+                            matches!(run(BooleanOp::Intersect, a, b), Ok(BooleanResult::Empty)),
                             "{tag}: {order} is empty"
                         );
                     }
-                    for (order, a, b, decls, want) in [
-                        ("c ∖ p", &c, &p, &ab, collar_volume()),
-                        ("p ∖ c", &p, &c, &ba, shaft_volume(h)),
+                    for (order, a, b, want) in [
+                        ("c ∖ p", &c, &p, collar_volume()),
+                        ("p ∖ c", &p, &c, shaft_volume(h)),
                     ] {
-                        let bb = match run(BooleanOp::Subtract, a, b, decls) {
+                        let bb = match run(BooleanOp::Subtract, a, b) {
                             Ok(BooleanResult::Body(bb)) => bb,
                             other => panic!("{tag}: {order}: {other:?}"),
                         };

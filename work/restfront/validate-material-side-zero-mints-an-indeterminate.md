@@ -2,19 +2,21 @@
 id: validate-material-side-zero-mints-an-indeterminate
 kind: issue
 title: validate's material-side check mints an Indeterminate by hand after a definite Zero
-status: open
+status: closed
+closed: 2026-10-10
 opened: 2026-10-01
 ---
 
 
 ## What
 
-`crates/topo/src/validate.rs`, inside `tier3_local_checks_marked`'s
-material-side jet check: `decide("material_cusp_side",
-Margin::sagitta(signed, arm), band)` answering `Ok(Sign::Zero)` pushes
-`ValidationError::SliverDihedral { cause: Indeterminate { margin:
-MarginDiag::INVALID, predicate: Some("material_cusp_side"), .. } }`
-built by hand. The comment argues the arm cannot be reached (the same
+`crates/topo/src/validate.rs`, `MaterialStations::after_positive` (check
+4's material hook inside `geom_brep::second_order_walk`):
+`decide("material_cusp_side", Margin::sagitta(signed, station.arm), band)`
+answering `Ok(Sign::Zero)` breaks the walk with an `Indeterminate {
+margin: MarginDiag::INVALID, predicate: Some("material_cusp_side"), .. }`
+built by hand, which `tier3_local_checks_marked` pushes as
+`ValidationError::SliverDihedral { check: WedgeCheck::MaterialSide, .. }`. The comment argues the arm cannot be reached (the same
 quantity's magnitude decided positive one decision above) and
 announces it anyway; the announcement is right, but the escalation it
 carries is on no frame's escalation log.
@@ -24,8 +26,16 @@ carries is on no frame's escalation log.
 `geom_core::k_stats::decide_nonzero("material_cusp_side", …)` is the
 door: it reads a side off the sign and escalates a definite `Zero`
 inside the funnel, so the `Cusp`/`Slit` match loses its third arm.
-`crates/topo/src/boolean/rim_wedge.rs`'s `Sign::Zero` arm on the same
-reading is the same shape on cleave's ground, appended to
-`work/cleave/topo-mints-indeterminates-outside-the-funnel.md`. Found
-by the `linalg/decided-not-minted` sweep of `MarginDiag::INVALID`
+`crates/topo/src/boolean/rim_wedge.rs` reads the same side through
+the same hook (`validate::MaterialStations::after_positive`), so this
+one repair covers both callers.
+Found by the `linalg/decided-not-minted` sweep of `MarginDiag::INVALID`
 literals.
+
+## Review
+
+The repair is in ENCL's `material-pairing-gate-definite-zero-ends-as-unreadable` (branch `encl/material-pairing-zero`). `MaterialStations::after_positive` now reads the cusp side through `decide_nonzero`, so a definite Zero carries its tagged margin and the `Cusp`/`Slit` match has two arms.
+
+## Closed
+
+2026-10-10, by ENCL's PR 4474 (`material-pairing-gate-definite-zero-ends-as-unreadable`). `MaterialStations::after_positive` reads the cusp side through `decide_nonzero`, and its Zero, a contradiction of the positive sagitta decided one step earlier, ends in the defect ending.

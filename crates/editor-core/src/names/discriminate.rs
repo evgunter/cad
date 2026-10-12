@@ -23,7 +23,7 @@ pub(crate) fn band(tol: Tol) -> Result<Band, NamingError> {
 pub(crate) const FAMILY: &str = "name_frag_";
 
 /// The order-along predicate's name, written once: the ranker records
-/// it and [`decision_words`] states what it decides.
+/// it and [`DECISION_WORDS`] states what it decides.
 pub(crate) const ORDER_ALONG: &str = "name_frag_order_along";
 
 /// The on-member-edge predicate's name (`emit_union`'s `Flush`): whether
@@ -45,33 +45,41 @@ pub(crate) const ON_MEMBER_EDGE: &str = "name_frag_on_member_edge";
 /// ranked along that line or tied, so they enter the names.
 pub(crate) const ON_SEAM_LINE: &str = "name_frag_on_seam_line";
 
-/// The chord-on-rim predicate's name (`emit_topo`'s `chord_on_rim`):
-/// whether a boolean's chord between two merged faces lies within the
-/// rim its key's side reads it through to.
+/// The chord-on-rim predicate's name (`emit_topo`'s `chord_within`):
+/// whether a boolean's chord between two faces of one operand lies
+/// within an edge those faces share — the rim a merged pair's key side
+/// reads it through to, an unmerged pair's one shared rim, or, where
+/// the pair shares several edges, each of them in turn
+/// (`rim_holding`). On a straight rim it places the chord's ends on the
+/// rim's segment; on a curved one it orders them along the carrier
+/// (`Track::cover`).
 ///
 /// **Outside the [`FAMILY`], and that is a choice with a cost.** The
 /// family is the fragment QUALIFIER vocabulary: `resolve`'s diagnosis
 /// ladder reads a `name_frag_` flip as the name's own discriminator
 /// changing sign. This predicate is not a qualifier — its verdict
-/// enters no name — so it stays out. The cost: when its flip is what
-/// makes a chord's name vanish (the chord leaves its rim and the
-/// emitter refuses), the ladder ranks that flip as a generic one rather
-/// than as the name's own.
+/// picks which shared edge a chord descends to, and adds nothing to
+/// the name's qualifiers — so it stays out. The cost: when its flip is
+/// what makes a chord's name vanish or move (the chord leaves its rim
+/// and the emitter refuses, or lands in another shared edge), the
+/// ladder ranks that flip as a generic one rather than as the name's
+/// own.
 pub(crate) const CHORD_ON_RIM: &str = "name_chord_on_rim";
 
-/// What one of the naming layer's decisions decides, in the words a
+/// What each of the naming layer's decisions decides, in the words a
 /// refusal or a diagnosis states in place of the predicate's name
 /// (which is routing, kept to `Debug`): a clause with no colon or dash
-/// of its own. `None` for a predicate this layer does not own.
-pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
-    match predicate {
-        ORDER_ALONG => Some("the order of two crossings along an edge"),
-        ON_MEMBER_EDGE => Some("a point's place along an edge"),
-        ON_SEAM_LINE => Some("whether a point lies on a seam's line"),
-        CHORD_ON_RIM => Some("whether a chord lies on its rim"),
-        _ => None,
-    }
-}
+/// of its own.
+pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
+    (ORDER_ALONG, "the order of two crossings along an edge"),
+    (ON_MEMBER_EDGE, "a point's place along an edge"),
+    (ON_SEAM_LINE, "whether a point lies on a seam's line"),
+    (CHORD_ON_RIM, "whether a chord lies on its rim"),
+    (
+        crate::pose::SEL_DATUM_DISTANCE,
+        "which side of a selection's stated distance from a datum a point lies on",
+    ),
+];
 
 /// One candidate's extent along an oriented carrier: the certified
 /// min/max of its probe parameters (values stay HERE — only the
@@ -83,47 +91,57 @@ pub(crate) struct Extent<T> {
     pub max: T,
 }
 
-/// Ranks `extents` along their carrier via the margined pairwise
-/// order `name_frag_order_along` (margin: gap between extents).
-/// Returns `rank[i]` (0-based); `None` when some pair is genuinely
-/// unordered (overlapping extents — the N2 tie); in-band escalates
-/// typed.
-pub(crate) fn order_along<T: Decide>(
-    extents: &[Extent<T>],
+/// Whether extent `i` lies certainly before `j` along their carrier
+/// (`Some(true)`), certainly after it (`Some(false)`), or neither:
+/// `i` before `j` iff `max(i) ≤ min(j)`, decided through
+/// `name_frag_order_along`. Touching extents count as ordered; two
+/// that overlap, or two equal points, do not. In-band escalates typed.
+pub(crate) fn extent_before<T: Decide>(
+    i: &Extent<T>,
+    j: &Extent<T>,
     b: Band,
+) -> Result<Option<bool>, NamingError> {
+    let ij = decide(ORDER_ALONG, Margin::of(j.min - i.max), b);
+    let ji = decide(ORDER_ALONG, Margin::of(i.min - j.max), b);
+    match (ij, ji) {
+        (Ok(Sign::Positive | Sign::Zero), Ok(Sign::Negative)) => Ok(Some(true)),
+        (Ok(Sign::Negative), Ok(Sign::Positive | Sign::Zero)) => Ok(Some(false)),
+        (Err(source), _) | (_, Err(source)) => Err(NamingError::Escalated {
+            predicate: ORDER_ALONG,
+            source,
+        }),
+        _ => Ok(None),
+    }
+}
+
+/// Ranks `n` candidates along their carrier by the pairwise order
+/// `before(i, j)` (`i < j`) answers, [`extent_before`]'s or one built
+/// on it: `rank[i]` (0-based), or `None` when some pair is unordered
+/// (the N2 tie) or the pairs do not make one strict order.
+pub(crate) fn rank_by(
+    n: usize,
+    mut before: impl FnMut(usize, usize) -> Result<Option<bool>, NamingError>,
 ) -> Result<Option<Vec<u32>>, NamingError> {
-    let n = extents.len();
     // A rank is a `u32`, and every count below is at most `n − 1`.
     super::emit::to_u32(n, "a ranked group has more members than a rank holds")?;
-    let mut before = vec![0u32; n]; // before[i] = #{j : j certified-before i}
+    let mut ahead = vec![0u32; n]; // ahead[i] = #{j : j certified-before i}
     for i in 0..n {
         for j in (i + 1)..n {
-            // i before j iff max(i) ≤ min(j) (certified positive gap);
-            // Zero (touching extents) counts as ordered too.
-            let ij = decide(ORDER_ALONG, Margin::of(extents[j].min - extents[i].max), b);
-            let ji = decide(ORDER_ALONG, Margin::of(extents[i].min - extents[j].max), b);
-            match (ij, ji) {
-                (Ok(Sign::Positive | Sign::Zero), Ok(Sign::Negative)) => before[j] += 1,
-                (Ok(Sign::Negative), Ok(Sign::Positive | Sign::Zero)) => before[i] += 1,
-                (Err(source), _) | (_, Err(source)) => {
-                    return Err(NamingError::Escalated {
-                        predicate: ORDER_ALONG,
-                        source,
-                    });
-                }
-                // Overlapping or doubly-zero extents: unordered.
-                _ => return Ok(None),
+            match before(i, j)? {
+                Some(true) => ahead[j] += 1,
+                Some(false) => ahead[i] += 1,
+                None => return Ok(None),
             }
         }
     }
     // A consistent strict order yields distinct ranks 0..n.
     let mut seen = vec![false; n];
-    for &r in &before {
+    for &r in &ahead {
         let ix = r as usize;
         if ix >= n || seen[ix] {
             return Ok(None);
         }
         seen[ix] = true;
     }
-    Ok(Some(before))
+    Ok(Some(ahead))
 }

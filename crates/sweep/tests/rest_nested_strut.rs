@@ -3,22 +3,16 @@
 //! the notch, the two touching only along the apex line, so the apex is
 //! two vertices at one point. A prism rests on the block's top with its
 //! corner on the apex and its two edges from there reaching the block's
-//! filleted top corners, at the arcs' tangent joints: the fillet's
-//! tangency makes the join refuse, which hands the union to the REST
-//! lane. In the prism's corner the wedge pair's strut hangs at the tip
-//! of the notch pair's, so a seam segment's end is the notch strut's
-//! copy, which the lane's strut undo kills.
+//! filleted top corners, at the arcs' tangent joints. In the prism's
+//! corner the wedge pair's strut hangs at the tip of the notch pair's,
+//! and the fillets' tangency puts a germ on each joint's edge.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
-use profile::RawLoop;
 use profile::test_support::bulge_loop;
 use sweep::test_support::{extruded, sketch_at};
-use topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, CarriedVv, ContactClass,
-    RestZipFrontier,
-};
+use topo::{AtRestBody, Body, BooleanBody, BooleanResult};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -27,31 +21,21 @@ fn tol() -> Tol {
 /// tan(π/8): a quarter-circle's bulge.
 const Q: f64 = 0.414_213_562_373_095_03;
 
-/// The prism over `pts` (`(x, y, bulge)`) over z ∈ [z0, z0 + 1], every
-/// joint where an arc meets a line declared tangent.
+/// The prism over `pts` (`(x, y, bulge)`) over z ∈ [z0, z0 + 1].
 fn prism(pts: &[(f64, f64, f64)], z0: f64) -> AtRestBody<f64> {
-    let n = pts.len();
-    let joints = (0..n)
-        .filter(|&i| (pts[(i + n - 1) % n].2 == Q) != (pts[i].2 == Q))
-        .collect();
     let chain = pts
         .iter()
         .map(|&(x, y, b)| (Point2::new(x, y), b))
         .collect();
-    let body: Body<f64> = extruded(
-        sketch_at(z0),
-        vec![bulge_loop(chain).with_tangent_joints(joints)],
-        1.0,
-        tol(),
-    );
+    let body: Body<f64> = extruded(sketch_at(z0), vec![bulge_loop(chain)], 1.0, tol());
     sweep::test_support::finished("an operand", body, tol())
 }
 
 /// The pinch: the block, notched from 60° to 120° up to y = 1.5 with
 /// its top corners filleted at radius 0.1, and the wedge from 75° to
-/// 105° in the notch, folded into one body; and its v-v records as
-/// `Rest` rows.
-fn pinch() -> (BooleanBody<f64>, Vec<CarriedVv>) {
+/// 105° in the notch, folded into one body; and its v-v and edge-edge
+/// records, carried.
+fn pinch() -> (BooleanBody<f64>, topo::OperandRecords) {
     let mx = 1.5 / 60f64.to_radians().tan();
     let block = prism(
         &[
@@ -72,19 +56,14 @@ fn pinch() -> (BooleanBody<f64>, Vec<CarriedVv>) {
         (1.6 * r.cos(), 1.6 * r.sin(), 0.0)
     };
     let wedge = prism(&[(0.0, 0.0, 0.0), at(75.0), at(105.0)], 0.0);
-    let decls = topo::test_support::flush_declarations(&block, &wedge, tol());
-    let Ok(BooleanResult::Body(pinch)) = topo::union_with(&block, &wedge, &decls, tol()) else {
+    let Ok(BooleanResult::Body(pinch)) = topo::union(&block, &wedge, tol()) else {
         panic!("the wedge folds into the notch");
     };
-    let rows = pinch
-        .contacts
-        .vv
-        .iter()
-        .map(|&pair| CarriedVv {
-            pair,
-            class: ContactClass::Rest,
-        })
-        .collect();
+    let rows = topo::OperandRecords {
+        vf: Vec::new(),
+        ve: Vec::new(),
+        ..pinch.contacts.carried()
+    };
     (pinch, rows)
 }
 
@@ -106,46 +85,69 @@ fn resting() -> AtRestBody<f64> {
     )
 }
 
-/// **A pinch apex meeting one vertex refuses as the REST lane's
-/// frontier, in either order.** The join refuses both orders and hands
-/// the union to the lane, which reads the segments through its strut
-/// undo. The two apex vertices each correspond to the prism's corner,
-/// which the lane's one-to-one seam does not read: it refuses
-/// `PinchApex` before any chord is minted
-/// (`work/zip/the-rest-lane-zips-no-pinch-apex.md`), whichever operand
-/// holds the pinch.
+/// **A pinch apex meeting one vertex builds, in either order.** The
+/// join connects both orders and the union is the two stacked solids'
+/// volumes added: the interiors are disjoint, the prism resting on the
+/// pinch's top. It passes tiers 2, 3 and 3′.
 #[test]
-fn a_pinch_apex_meeting_one_vertex_refuses_as_the_frontier_in_either_order() {
+fn a_pinch_apex_meeting_one_vertex_builds_in_either_order() {
     let (pinch, rows) = pinch();
     let pinch = pinch.body;
     let top = resting();
+    let vol = |b: &Body<f64>| topo::mass_properties(b, tol()).unwrap().volume;
+    let want = vol(&pinch) + vol(&top);
     for pinch_first in [true, false] {
         let (a, b) = if pinch_first {
             (&pinch, &top)
         } else {
             (&top, &pinch)
         };
-        let mut decls = topo::test_support::flush_declarations(a, b, tol());
-        if pinch_first {
-            decls.carried_a.vv = rows.clone();
+        let carried = rows.clone();
+        let inputs = if pinch_first {
+            topo::BooleanInputs {
+                records_a: carried,
+                ..Default::default()
+            }
         } else {
-            decls.carried_b.vv = rows.clone();
-        }
-        let join =
-            topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, a, b, &decls, tol());
+            topo::BooleanInputs {
+                records_b: carried,
+                ..Default::default()
+            }
+        };
+        let join = topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, a, b, tol());
         assert!(
-            matches!(join, Ok(Some(BooleanError::Join(_)))),
-            "pinch first: {pinch_first}: the join refuses, which opens the lane: {join:?}"
+            matches!(join, Ok(None)),
+            "pinch first: {pinch_first}: the join connects: {join:?}"
         );
-        let got = topo::union_with(a, b, &decls, tol());
+        let Ok(BooleanResult::Body(bb)) = topo::boolean_op_with(
+            topo::BooleanOp::Union,
+            a,
+            b,
+            &inputs,
+            topo::SweepStrategy::Realized,
+            tol(),
+        ) else {
+            panic!("pinch first: {pinch_first}: the union builds");
+        };
+        let got = vol(&bb.body);
         assert!(
-            matches!(
-                got,
-                Err(BooleanError::RestZipUnsupported {
-                    what: RestZipFrontier::PinchApex
-                })
-            ),
-            "pinch first: {pinch_first}: the lane refuses the pinch apex: {got:?}"
+            (got - want).abs() <= 1e-12 * want,
+            "pinch first: {pinch_first}: volume {got} against {want}"
+        );
+        assert_eq!(
+            topo::validate_closed(&bb.body),
+            Ok(()),
+            "pinch first: {pinch_first}: tier 2"
+        );
+        assert_eq!(
+            topo::validate_geometric(&bb.body, tol()),
+            Ok(()),
+            "pinch first: {pinch_first}: tier 3"
+        );
+        assert_eq!(
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+            Ok(()),
+            "pinch first: {pinch_first}: tier 3′"
         );
     }
 }

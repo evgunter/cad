@@ -2,12 +2,14 @@
 id: two-section-loft-with-an-inverted-top-normal-builds
 kind: issue
 title: A two-section loft whose top section's plane normal points DOWN (against the stacking) builds and tier 3 says Ok — nothing checks the last section's normal against the stacking direction
-status: dispatched
+status: closed
 opened: 2026-09-16
 refs: [2752]
 priority: P0
 cost: M
 branch: carve/fold-reads-the-far-normal
+pr: 4188
+closed: 2026-10-06
 ---
 
 Found by BOOL-6's R2 review (PR 2752), pre-existing at the merge base,
@@ -40,3 +42,18 @@ The interim fix, which the designers converged on, also decides the far
 section's normal against each slab: branch
 `carve/fold-reads-the-far-normal`. It closes this row. The certificate
 that later retires the fold refuses the same body as a fold.
+
+## Built (2026-10-06)
+
+`carve/fold-reads-the-far-normal`: the stacking fold decides each
+slab's displacement against both its sections' normals under
+`loft_stacking`, refusing a far normal that is against or edge-on to
+the slab as `LoftError::FarSectionNotForward { slab }`, and a far
+escalation as `FarStackingEscalated`. The issue's witness (top section
+facing down) and the interior case (`z = 0, 1, 0.5`, normals
+`+z, −z, −z`) refuse at slab 0. The check is a conservative interim:
+it also refuses some embedded lofts (an oblique hood, an oblique arc
+sweep), pinned as its disclosed cost. Rows in
+`crates/sweep/tests/bool6_per_slab_stacking.rs`. It retires with the
+fold when the loft door's embedding certificate lands
+(`self-overlapping-spines-build-and-validate`, "Weighed (2026-10-06)").

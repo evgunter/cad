@@ -192,17 +192,15 @@ impl Interval {
     /// decoration); no geometric meaning is implied, and this is
     /// *never* a substitute for [`Decide`] classification (the
     /// no-`PartialEq` rationale on the type stands). Serves
-    /// bit-faithful declared-coincidence checks (e.g.
-    /// `merge_coplanar_faces`' declared-equality rung) and D9
-    /// determinism pins. Unlike [`Bounds`], this does not collapse
+    /// content-key hashing and D9 determinism pins. Unlike [`Bounds`], this does not collapse
     /// NaI and empty: their decorations differ (`Ill` vs `Trv`).
     ///
     /// **Not a coincidence channel (allowlist justification, M4
     /// PR 5)**: this is SCALAR PLUMBING — exact access to this
     /// scalar's own storage representation (content-key hashing,
     /// determinism pins), never a comparison between descriptions.
-    /// Production bit-identity COINCIDENCE checking retired with N6
-    /// (GeomSource); the CI tripwire's consumer allowlist is empty,
+    /// Production bit-identity COINCIDENCE checking is retired (N6);
+    /// the CI tripwire's consumer allowlist is empty,
     /// and this entry stays on the plumbing justification (#53).
     #[must_use]
     pub fn repr_bits(self) -> (u64, u64, u8) {
@@ -318,6 +316,22 @@ pub fn norm_sq(v: &[Interval; 3]) -> Interval {
     v[0].powi(2) + v[1].powi(2) + v[2].powi(2)
 }
 
+/// Interval dot product of two triples, fixed ascending order (D9).
+#[must_use]
+pub fn dot(a: &[Interval; 3], b: &[Interval; 3]) -> Interval {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/// Interval cross product of two triples, fixed component order (D9).
+#[must_use]
+pub fn cross(a: &[Interval; 3], b: &[Interval; 3]) -> [Interval; 3] {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
 /// A certified upper bound on `‖v‖` for a componentwise enclosure: the
 /// upper end of [`norm_sq`]'s root, which is
 /// [`Certification::sqrt`](certification::Certification::sqrt)'s
@@ -338,11 +352,7 @@ pub fn norm_sq(v: &[Interval; 3]) -> Interval {
 pub fn norm_sup(v: &[Interval; 3]) -> f64 {
     // The backend's root, which is `Certification::sqrt`'s: naming the door
     // here would list this file as an importer, and it holds `Real`.
-    let root = Interval(norm_sq(v).0.sqrt());
-    if !root.is_certified() {
-        return f64::NAN;
-    }
-    root.0.hi()
+    certified_hi(Interval(norm_sq(v).0.sqrt()))
 }
 
 /// `num / den` rounded DOWN — a lower bound on the real quotient,
@@ -374,6 +384,14 @@ pub fn max_bound(a: f64, b: f64) -> f64 {
 #[must_use]
 pub fn min_bound(a: f64, b: f64) -> f64 {
     -max_bound(-a, -b)
+}
+
+/// The upper end of an enclosure, `NaN` when it is refused: an upper
+/// bound on the value, or no bound at all. Asked by name because a
+/// refused enclosure carries ordinary endpoints.
+#[must_use]
+pub fn certified_hi(x: Interval) -> f64 {
+    if x.is_certified() { x.hi() } else { f64::NAN }
 }
 
 /// `num / den` rounded UP — an upper bound on the real quotient, which
@@ -452,6 +470,10 @@ impl Real for Interval {
     /// counterpart of `f64`'s NaN-in, NaN-through).
     fn from_f64(x: f64) -> Self {
         Self(DInterval::point(x))
+    }
+
+    fn from_computed(x: f64) -> Self {
+        Self::from_f64(x)
     }
 
     /// The exact point `[0, 0]`.
@@ -804,16 +826,20 @@ impl crate::real::CertifiedEnclosure for Interval {
 /// see [`crate::spline::locate`]'s module docs). Sound because every
 /// span's polynomial extension agrees with the curve on the span
 /// itself, so hulling the per-span interval evaluations over the box
-/// contains the true image. Poison (NaI/empty) surfaces NaN brackets
-/// and lands on the first span deterministically — the poisoned `t`
-/// then propagates through the evaluation arithmetic as a value.
+/// contains the true image.
+///
+/// It reads the stored **bracket**, not the certificate: a `Trv`
+/// enclosure is a sound bracket and locates, and its decoration rides
+/// through to whichever reader certifies. A NaI (NaN ends) or an empty
+/// enclosure (inverted ends) is no bracket, so it locates nothing.
 impl crate::spline::SpanLocate for Interval {
-    fn locate_spans<'a>(self, knots: &'a crate::spline::KnotVector) -> crate::spline::SpanSet<'a> {
-        // `span_range` now answers in validated spans, which is exactly
-        // what a `SpanSet` carries — so the locator is the range query
-        // again, with no unpacking in between.
-        let (first, last) = knots.span_range(Bounds::lo(self), Bounds::hi(self));
-        crate::spline::SpanSet { first, last }
+    fn locate_spans<'a>(
+        self,
+        knots: &'a crate::spline::KnotVector,
+    ) -> Option<crate::spline::SpanSet<'a>> {
+        let range = crate::spline::ParamRange::new(Bounds::lo(self), Bounds::hi(self))?;
+        let (first, last) = knots.span_range(range);
+        Some(crate::spline::SpanSet { first, last })
     }
 
     fn enclosure_hull(self, other: Self) -> Self {
@@ -822,6 +848,35 @@ impl crate::spline::SpanLocate for Interval {
         // (NaI/empty propagate; 1788's empty-absorbing hull would drop
         // poison).
         Self(enclosure_hull_of(self.0, other.0))
+    }
+
+    fn restrict_window(
+        window: &[Self],
+        span: crate::spline::Span<'_>,
+        held: &[Self],
+        ends: (f64, f64),
+        _held_ends: (Self, Self),
+    ) -> Vec<Self> {
+        // A held knot at `Interval` is the point of its `f64` structure,
+        // so the certified restriction reads the structure; the held
+        // values are checked for length only, as at every scalar.
+        if held.len() != span.knots().knots().len() {
+            return vec![Self::from_f64(f64::NAN); span.degree() + 1];
+        }
+        crate::spline::blossom::restrict_window(window, span, ends)
+    }
+
+    fn point_value(self) -> Option<f64> {
+        let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
+        (lo == hi && !lo.is_nan()).then_some(lo)
+    }
+
+    fn plain_constant(self) -> Option<f64> {
+        self.point_value()
+    }
+
+    fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
+        arm.enclosure()
     }
 }
 

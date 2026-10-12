@@ -9,12 +9,13 @@
 
 use crate::common;
 use crate::fixture::m7_8::{edge_findings, m7_8_cube, m7_8_edges, nurbs_wall};
+use geom_core::spline::{Knots, SpanLocate};
 
 use geom_core::{Dual64, Point3, Real, Tol};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, Rechart};
 
 /// The M7-8 edges of `body` with their restated specs, in arena order.
-fn wall_edges<T: Real>(body: &Body<T>) -> Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> {
+fn wall_edges<T: SpanLocate>(body: &Body<T>) -> Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> {
     body.edges()
         .filter_map(|(k, e)| match body.get_curve_geom(e.curve) {
             Some(topo::CurveGeom::Certified(c))
@@ -60,14 +61,59 @@ fn set_edge_curve_re_describes_every_m7_8_edge_at_f64() {
     assert_eq!(edge_findings(&body), 0, "check 2 is clean after it");
 }
 
+/// The split is construction state, and its pcurves minted, tier 3
+/// says so through check 11's UNDECIDED arm (Ev's decision 2 in PR
+/// 4251: a joinable reading the band cannot decide refuses rather than
+/// passing). The two children are one transverse locus of the plane and
+/// the NURBS wall, so whether the split vertex is a regular point is
+/// read through the wedge between them, whose lever arm on a NURBS
+/// surface is not implemented (`dihedral_arm`, an unreadable margin):
+/// the reading is undecided at every ε, and the gate refuses it with the
+/// join's own words. Beside it, the minted body's one other verdict is
+/// check 7's on the wall's sub-range trim image, which the quadrature
+/// declines: made although check 11 refused, and reported first, which
+/// is the composed door's order when check 11 is the only structural
+/// refusal (`validate_geometric_certificate`). This is the at-rest body whose join reading is undecided:
+/// a split nearer a pole or an apex refuses at the split's own readings
+/// in the same band, and the halfcap files at the import's join.
 #[test]
 fn split_edge_splits_an_m7_8_edge_into_two_of_the_class_at_f64() {
     let mut body = m7_8_cube::<f64>();
     let (edge, _) = wall_edges(&body)[0].clone();
-    body.split_edge(edge, 0.5, Tol::witness())
-        .expect("an M7-8 edge splits at f64");
+    let split = body
+        .split_edge(edge, 0.5, Tol::witness())
+        .expect("an M7-8 edge splits at f64")
+        .vertex;
     assert_eq!(m7_8_edges(&body), 5, "both children are of the class");
     assert_eq!(edge_findings(&body), 0, "check 2 is clean after the split");
+
+    topo::mint_pcurves(&mut body, Tol::witness()).expect("the split body's pcurves mint");
+    let errors = topo::validate_geometric(&body, Tol::witness())
+        .expect_err("a split vertex is construction state");
+    let [
+        topo::ValidationError::VolumeUncomputable { .. },
+        undecided @ topo::ValidationError::JoinUndecidedAtRest { undecided: reading },
+    ] = &errors[..]
+    else {
+        panic!("check 7's quadrature refusal, then check 11's undecided arm: {errors:?}");
+    };
+    assert_eq!(reading.vertex, split, "it names the split vertex");
+    let topo::JoinReading::Regularity(diag) = &reading.reading else {
+        panic!("the regularity reading: {reading:?}");
+    };
+    assert_eq!(diag.predicate, Some("dihedral_arm"), "{diag:?}");
+    let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
+    assert_eq!(
+        undecided.to_string(),
+        format!(
+            "whether two edges meeting at a vertex on one curve are one edge is undecided \
+             (margin is invalid (NaN or a refused enclosure) against the ambiguity band ({:?}, {:?})). \
+             Recourse: move the vertex clear of the pole, apex or tangency it sits near; an \
+             unreadable margin may indicate a kernel or file defect worth reporting",
+            band.zero(),
+            band.escalate()
+        )
+    );
 }
 
 /// The top face moves onto a fresh copy of its own plane, and every
@@ -150,12 +196,16 @@ where
     let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let spec = geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
+            pair: geom_brep::SurfacePair::new(s1, s2),
             witness: p0.lerp(p1, T::from_f64(0.5)),
         },
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
+            geom::NurbsCurve3::new(
+                Knots::from(kv).lift(geom_core::Real::from_f64),
+                vec![p0, p1],
+                vec![Real::one(); 2],
+            )
+            .unwrap(),
         )),
         param_start: T::zero(),
         param_end: T::one(),

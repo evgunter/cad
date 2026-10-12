@@ -1,35 +1,11 @@
 //! Corpus document **corner_table** — the corner-aligned four-leg
 //! table (`#71`; the kernel pins live in `topo/tests/corner_table.rs`).
-//! Here it is a RECIPE: every flush contact is declared by NAME on the
-//! union that meets it, never inferred from values.
+//! Here it is a RECIPE: each leg is unioned onto the accumulated
+//! body, and every flush contact — its two corner wall planes against
+//! the top's sides, by leg 2 the already-MERGED side faces — is glued
+//! by the union's own margins.
 //!
-//! **Authored through the LIB-SEL2 detect/declare protocol**
-//! (`docs/SELECT-DESIGN.md` §3): the author EVALUATES the document so
-//! far, runs `find_flush_candidates` between the accumulated body and
-//! the new leg, inspects the findings (the counts asserted below are
-//! that inspection), and turns them into the union's declared pairs
-//! through `declared_pairs`. The findings carry exactly the names the
-//! evaluation's own table speaks — including the `Merged` rows earlier
-//! unions minted — so the N3 name tracking is what the detector DOES.
-//! Detection
-//! decides through the C4 verifier's own doors, so detect-then-declare
-//! cannot disagree with the boolean's verify-at-use.
-//!
-//! Two authoring-visible consequences, both stated:
-//!
-//! - the detector also reports the COPLANAR-BUT-DISJOINT pairs: each
-//!   new leg's floor against the earlier legs' floors at z = 0, and
-//!   its inner-wall planes against same-side earlier legs' (all
-//!   `SameOriented`). Declaring them is recording true intent — those
-//!   faces ARE flush by construction — and a declared pair whose
-//!   faces never meet in the op is a SILENT no-op at the op (C4's
-//!   verified-at-use posture, CONTACT-DESIGN: verification happens
-//!   where declaration meets geometry, and these never meet), so the
-//!   pins below are unchanged;
-//! - the four unions therefore declare 2/4/5/7 pairs (the inspection
-//!   comment at the assert derives the inventory).
-//!
-//! Vocabulary: Profile, Extrude, Boolean (Union, declared),
+//! Vocabulary: Profile, Extrude, Boolean (Union),
 //! `InsertNode`, `SetParam`.
 //!
 //! Geometry (dyadic): top `[0,4] × [0,3] × [1,1.25]`; four legs
@@ -56,21 +32,14 @@
 //! extrude plus all four unions, everything else reused).
 
 use editor_core::ExtrudeSide;
-use editor_core::{
-    BooleanOp, CancelToken, DocEdit, EvalOptions, Evaluation, Node, RoleSeg, SlotId,
-    declared_pairs, evaluate, find_flush_candidates,
-};
-use topo::PlaneRelation;
+use editor_core::{DocEdit, Node, SlotId};
 
 use crate::fixture::len;
 
 use super::{CorpusDoc, MassPin, Recorder};
 
-use geom_core::Tol;
-
 /// The four leg footprints, corner order `(0,0) → (4,0) → (4,3) →
-/// (0,3)`. Which faces are flush is no longer written down here —
-/// that is the detector's job.
+/// (0,3)`.
 fn legs() -> [[(f64, f64); 4]; 4] {
     [
         [(0.0, 0.0), (0.5, 0.0), (0.5, 0.5), (0.0, 0.5)],
@@ -90,14 +59,13 @@ pub fn document() -> CorpusDoc {
         vec![vec![(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (0.0, 3.0)]],
     );
     let top = r.insert(Node::Extrude {
-        profile: top_profile,
+        profile: top_profile.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
 
     let mut acc = top;
     let mut first_leg = top; // overwritten by the first leg's extrude
-    let mut prior: Option<Evaluation<f64>> = None;
     for (i, poly) in legs().into_iter().enumerate() {
         let prof = r.profile(
             [0.0, 0.0, 0.0],
@@ -106,64 +74,23 @@ pub fn document() -> CorpusDoc {
             vec![poly.to_vec()],
         );
         let ext = r.insert(Node::Extrude {
-            profile: prof,
+            profile: prof.into(),
             distance: len(1.125),
             side: ExtrudeSide::Along,
         });
         if i == 0 {
             first_leg = ext;
         }
-        // The protocol (SELECT-DESIGN §3): evaluate, detect, INSPECT,
-        // declare — findings pass through the author's hands as
-        // values; nothing is fused.
-        let ev = evaluate::<f64>(
-            &r.doc,
-            prior.as_ref(),
-            &CancelToken::new(),
-            &EvalOptions::default(),
-            Tol::witness(),
-        );
-        let findings = find_flush_candidates(&ev, acc, ext, Tol::witness())
-            .expect("corner-table flush pairs are definite");
-        // The inspection. Each leg shares planes with the accumulated
-        // body in three families: its two corner wall planes (against
-        // the top's — by leg 2, the already-MERGED — side faces), the
-        // floor plane of every earlier leg (disjoint coplanar faces),
-        // and the inner-wall plane it shares with each same-side
-        // earlier leg (leg 2's y = 0.5 with leg 1; leg 3's x = 3.5
-        // with leg 2; leg 4's y = 2.5 with leg 3 AND x = 0.5 with
-        // leg 1). Hence 2, then 2+1+1, then 2+2+1, then 2+3+2 — and
-        // every one a flush wall, the merge-stage SameOriented flavor.
-        assert_eq!(findings.len(), [2, 4, 5, 7][i], "leg {i}: {findings:#?}");
-        assert!(
-            findings
-                .iter()
-                .all(|f| f.evidence.relation == PlaneRelation::SameOriented),
-            "leg {i}: {findings:#?}"
-        );
-        // Once a wall pair has GLUED (leg 1's union), the accumulated body's
-        // side of the next wall finding is the boolean's `Merged` row
-        // — the detector answers with the N3 merge-lane name itself.
-        if i > 0 {
-            assert!(
-                findings
-                    .iter()
-                    .any(|f| matches!(f.pair.0.name.path.first(), Some(RoleSeg::Merged(_)))),
-                "leg {i}: no Merged-named wall in {findings:#?}"
-            );
-        }
-        let uni = r.insert(Node::Boolean {
-            op: BooleanOp::Union,
-            a: acc,
-            b: ext,
-            declare: declared_pairs(&findings),
+        let uni = r.insert(Node::Union {
+            members: editor_core::Bodies::Spelled(vec![acc.into(), ext.into()]),
         });
         acc = uni;
-        prior = Some(ev);
     }
+    r.place(acc);
+
     CorpusDoc {
         name: "corner_table",
-        about: "corner-aligned four-leg table (declared flush contacts)",
+        about: "corner-aligned four-leg table (flush contacts)",
         edits: r.edits,
         doc: r.doc,
         result: Some(acc),
@@ -174,7 +101,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: first_leg,
             slot: SlotId::Distance,
-            expr: len(1.0625),
+            value: len(1.0625).into(),
+            fresh: Vec::new(),
         },
         bump_root: first_leg,
     }

@@ -2,11 +2,13 @@
 id: sphere-wedge-arm-does-not-fold-split-meridians-by-lineage
 kind: issue
 title: sphere()'s wedge arm reads a two-edge boundary and refuses a meridian that arrives in lineage pieces, where the torus arm folds pieces by lineage
-status: open
+status: closed
 opened: 2026-09-16
 refs: [2748, 542]
 priority: P0
 cost: H
+pr: 4573
+closed: 2026-10-11
 ---
 
 Found by BOOL-5's dual review (PR 2748) and filed by the S-BOOL
@@ -31,3 +33,23 @@ stays on both wedge caps), and the body fails tier 3 here. The sweep
 keeps one wall per arc in a partial revolve until this folds
 (`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`,
 which also needs the sweep to mint those pieces with split lineage).
+
+The sweep no longer reaches it (FUSE, `fuse/sweep-runs`, 2026-10-06):
+a partial revolve carries a run of cocircular arcs as one wall and each
+wedge cap carries the run as one meridian edge, so the arm reads a
+two-edge boundary there. The lineage-piece case from a split edge
+stands as found.
+
+## Moot (`flux/sphere-arm`, 2026-10-10)
+
+The wedge arm is gone: Gauss–Bonnet reads a lune whose meridians arrive
+in pieces, lineage or not, since a great circle turns by zero at a joint.
+Witnesses: `geom-brep/tests/bool5_wedge_arm.rs`
+`a_split_meridian_wedge_measures_the_quarter_lune`,
+`bool5r1_probes.rs` (lineage pieces) and `bool5r2_wedge_probes.rs`, each
+at `2R²·π/2`.
+
+## Closed (2026-10-11, PR 4573)
+
+(FLUX orchestrator) Merged after dual review, three fix passes and two
+independent verifiers. The DR row is `docs/dual-review-log/rows/PR-4573.md`.

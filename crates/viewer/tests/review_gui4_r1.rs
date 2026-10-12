@@ -101,6 +101,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
         DocEdit::SetOffset {
             instance: rot_post,
             offset: Some(Placement::literal(&rotated)),
+            fresh: Vec::new(),
         },
         tol,
     );
@@ -110,9 +111,13 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
         DocEdit::SetOffset {
             instance: rot_shelf,
             offset: Some(Placement::literal(&Frame::translation(asm::SHELF_AT))),
+            fresh: Vec::new(),
         },
         tol,
     );
+    for instance in [rot_post, rot_shelf] {
+        doc = common::placed(&doc, instance, tol).0;
+    }
     let path = ws.create(&doc, tol).expect("the rotated assembly stores");
 
     let mut session = DocSession::inline(pncad::document::Doc::empty_derived("r1-boot", tol), tol);
@@ -138,11 +143,15 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
         &asm::down_at(-0.05 - s / 2.0, 0.04 + s / 2.0),
     );
     assert_eq!(
-        post_a_top.node, rot_post,
+        post_a_top.node,
+        common::copy_of(session.committed_doc(), rot_post),
         "the rotated instance is where the placement puts it"
     );
     let shelf_bottom = asm::shelf_underside(&session);
-    assert_eq!(shelf_bottom.node, rot_shelf);
+    assert_eq!(
+        shelf_bottom.node,
+        common::copy_of(session.committed_doc(), rot_shelf)
+    );
 
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_a_top.clone());
@@ -270,7 +279,7 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
         .pick_for(eval, &ray, &view)
         .expect("the pick answers")
         .expect("the rotated probe is under the ray");
-    assert_eq!(hit.node, bench.post_b, "the probed instance answers");
+    assert_eq!(hit.node, bench.post_b_copy, "the probed instance answers");
     assert!(
         (hit.point.z - drawn.z).abs() < 1e-9
             && (hit.point.x - drawn.x).abs() < 1e-9
@@ -515,7 +524,7 @@ fn r1_the_memo_bounds_scan_at_resolution_a_changed_store_is_not_re_read() {
     std::fs::write(&post_file, saved).expect("the post file restores");
     std::fs::write(bench.dir.join("r1-junk.pncad"), "not a document").expect("the junk writes");
     let broken = asm::open_bench(&bench, tol);
-    for row in broken.tree_rows() {
+    for row in asm::instance_rows(&broken) {
         match &row.status {
             RowStatus::Failed { message, .. } => assert!(
                 message.contains("r1-junk.pncad"),
@@ -526,7 +535,11 @@ fn r1_the_memo_bounds_scan_at_resolution_a_changed_store_is_not_re_read() {
     }
     // …and that open still SUCCEEDED, which is the revision's actual
     // win: no document is held hostage by a messy directory.
-    assert_eq!(broken.tree_rows().len(), 3, "the tree is whole");
+    assert_eq!(
+        broken.tree_rows().len(),
+        6,
+        "the tree is whole: three instances and their placements"
+    );
 }
 
 /// **Save-as rebinds the resolver, and the rebind RE-RESOLVES** (the
@@ -584,7 +597,7 @@ fn r1_save_as_rebinds_the_directory_and_the_rebind_re_resolves() {
         "the moved file opens"
     );
     reopened.pump();
-    for row in reopened.tree_rows() {
+    for row in asm::instance_rows(&reopened) {
         match &row.status {
             RowStatus::Failed { message, .. } => assert!(
                 message.contains("no document with id"),
@@ -821,8 +834,8 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
         &index,
         &asm::up_at(asm::POST_B_AT[0] + s / 2.0, asm::POST_B_AT[1] + s / 2.0),
     );
-    assert_eq!(top.node, bench.post_b);
-    assert_eq!(bottom.node, bench.post_b);
+    assert_eq!(top.node, bench.post_b_copy);
+    assert_eq!(bottom.node, bench.post_b_copy);
     assert_ne!(top.name, bottom.name, "two DIFFERENT faces of one instance");
 
     let mut tool = MateTool::new();
@@ -831,7 +844,7 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     let (doc, eval) = session.landed_pair().expect("landed");
     match tool.proposal(doc, eval, asm::seat_choice()) {
         Err(viewer::matetool::MateToolError::SamePick { head }) => {
-            assert_eq!(head.id(), bench.post_b);
+            assert_eq!(head.id(), bench.post_b_copy, "said as the picked copy");
         }
         other => panic!("a self-mate must refuse at the tool, got {other:?}"),
     }
@@ -851,10 +864,10 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
 /// consumes** (the fix-pass rule; this row pinned the silent no-op as
 /// shipped and went red when propagation landed).
 ///
-/// Display state names the INSTANCE; the drawn scene is keyed by
-/// product roots; `display::drawn_targets` resolves one to the other.
-/// Hiding a patterned instance therefore hides every placed copy (the
-/// pattern's whole drawn root), and probing it displaces and marks
+/// Display state names the INSTANCE; the drawn scene is keyed by world
+/// placements; `display::drawn_targets` resolves one to the other.
+/// Hiding a patterned instance therefore hides every placed copy of the
+/// pattern, and probing it displaces and marks
 /// them — the pattern replicates the instance, and the display fact
 /// is the instance's. The `Pattern` node itself still has no display
 /// identity (`NotAnInstance`), which is right: the instance is the
@@ -874,7 +887,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
     let pattern = common::insert_into(
         &mut doc,
         Node::Pattern {
-            input: instance,
+            input: instance.into(),
             count: parse_formula("3", &scope).expect("a count"),
             kind: PatternKind::Linear {
                 direction: [
@@ -887,6 +900,21 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
         },
         tol,
     );
+    // The world (A10): each of the pattern's copies, projected and
+    // placed.
+    for index in 0..3 {
+        let copy = common::insert_into(
+            &mut doc,
+            Node::Part {
+                of: pattern.into(),
+                select: pncad::document::PartSelect::Instance(pncad::document::Formula::count(
+                    index,
+                )),
+            },
+            tol,
+        );
+        doc = common::placed(&doc, copy, tol).0;
+    }
     let path = ws.create(&doc, tol).expect("the pattern assembly stores");
 
     let mut session = DocSession::inline(pncad::document::Doc::empty_derived("r1-boot", tol), tol);
@@ -905,7 +933,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
         .stats()
         .triangles;
 
-    // HIDE: accepted, and the pattern's whole drawn root leaves the
+    // HIDE: accepted, and every copy of the pattern leaves the
     // picture — hiding the instance hides its placed copies.
     assert!(
         session
@@ -925,7 +953,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
     assert_eq!(
         hidden_scene.stats().triangles,
         0,
-        "the pattern is the document's ONLY drawn root, so hiding its \
+        "the pattern's copies are the document's ONLY drawn copies, so hiding its \
          instance draws the honest empty picture — not the stale one"
     );
     // …and the pick index dropped it with the picture.
@@ -983,7 +1011,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
     assert_eq!(
         probed.stats().probe_parts,
         3,
-        "every placed copy — one drawn part per pattern body — is marked"
+        "every placed copy — one drawn part per projected pattern copy — is marked"
     );
     assert!(
         probed.flags().contains(&SceneMesh::FLAG_PROBE),
@@ -995,7 +1023,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
         probed.bounds()
     );
 
-    // The `Pattern` node itself, which is what IS drawn, refuses both.
+    // The `Pattern` node itself refuses both: it is no instance.
     assert!(
         matches!(
             session
@@ -1008,7 +1036,7 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
                 AdmissionFault::NotAnInstance { .. }
             )))
         ),
-        "so the drawn thing has no display identity at all"
+        "so a pattern has no display identity at all"
     );
 }
 
@@ -1041,7 +1069,7 @@ fn r1_an_assembly_alone_in_an_empty_directory_opens_and_badges() {
         alone,
         "the resolver is the opened file's directory"
     );
-    let rows = session.tree_rows();
+    let rows = asm::instance_rows(&session);
     assert_eq!(rows.len(), 3, "the tree still shows every instance");
     for row in &rows {
         match &row.status {

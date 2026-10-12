@@ -10,7 +10,7 @@ cost: D
 
 **The long form of M10-7's census** — the full table, one row per name,
 which `geom_core::sym`'s module docs summarize and cite. It lives here
-rather than in the module because 106 rows of evidence is a reference
+rather than in the module because 104 rows of evidence is a reference
 and the module needs to stay readable; the module carries the counts,
 the argument and the two families that matter, and points here for the
 rest.
@@ -29,7 +29,12 @@ B: grep -rhoE '"[a-z0-9_]*(coincid|cosurface|identity|endpoint|on_surface|
 then the union, minus the bare filter words themselves (`carrier`,
 `parallel`, `matches`, `identity`, `circles`, `coincide`, `coincident`,
 `coincidence`, `no_carrier`) and minus test-harness names matching
-`matches_loopbuilder`. **106 names.**
+`matches_loopbuilder`. **106 names** at M10-7; **104 rows** since
+`bool_germ_frame_axes_parallel` retired into the section table's
+`cc_axes_parallel` (TANG, PR 4118) and `plane_nurbs_on_locus` into
+both `ssi_on_locus` and `ssi_on_locus_foot`: it decided the larger of
+the plane residual and the wall foot, which the plane × NURBS lane now
+decides under those two names.
 
 **Its blind spots, which are the previous sweep's and are still real.**
 A misses a predicate named through a wrapper or a table — and that miss
@@ -46,16 +51,24 @@ not reproducible from a rule written down anywhere, so this file states
 its own rule rather than quoting a count it cannot re-derive. The
 difference is filter width, not new predicates: the buckets' SHAPE is
 unchanged, and the one claim that matters — that the IMPLICIT bucket is
-exactly S-CERT's four names and no more — holds at either width.
+exactly S-CERT's quantities and no more — holds at either width.
 
 ## The counts
 
 | bucket | count |
 | --- | --- |
-| IMPLICIT (S-CERT's frontier) | 4 |
+| IMPLICIT (S-CERT's frontier) | 3 |
 | NOT A PREDICATE | 8 |
-| EXPLICIT | 94 |
-| **total** | **106** |
+| EXPLICIT | 93 |
+| **total** | **104** |
+
+**The table is M10-7's sweep less its retirements, not a re-run.**
+Re-running the rule above on 2026-10-06 (PR 4118) returns 482 names:
+the kernel has named many predicates since M10-7, and the table has
+not followed. Four table names no longer appear in the sweep at all:
+`arc_continue_needs_arc_carrier`, `arc_continue_off_carrier`,
+`path_arc_continue_on_carrier`, and the retired
+`bool_germ_frame_axes_parallel` (removed).
 
 `EXPLICIT` means the margin is a closed form in the parameters over
 analytic carriers — a distance, a dot, a cross, a radius difference, a
@@ -96,8 +109,7 @@ CSV rather than a name filter.
 
 | name | bucket | evidence | site | rule (M10-8) |
 | --- | --- | --- | --- | --- |
-| `offset_reanchor_on_carrier` | IMPLICIT | an offset carrier re-anchored through a solve | `crates/topo/src/replace_face.rs` | not in the M10-8 documents |
-| `plane_nurbs_on_locus` | IMPLICIT | a chart-image foot, found by a solve | `crates/geom-brep/src/certify.rs` | not in the M10-8 documents |
+| `offset_corner_on_surface` | IMPLICIT | an offset corner found by a root solve on a moved surface | `crates/topo/src/offset_derive.rs` | not in the M10-8 documents |
 | `ssi_on_locus` | IMPLICIT | a marched intersection point's residual | `crates/geom-brep/src/ssi/certify.rs` | not in the M10-8 documents |
 | `ssi_on_locus_foot` | IMPLICIT | the foot of that point's projection | `crates/geom-brep/src/ssi/certify.rs` | not in the M10-8 documents |
 | `arc_continue_needs_arc_carrier` | NOT A PREDICATE | a `pncad-py` tag string, never a classified margin | `crates/pncad-py/src/tests.rs` | not in the M10-8 documents |
@@ -113,7 +125,6 @@ CSV rather than a name filter.
 | `bool_dir_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/sectors.rs` | not in the M10-8 documents |
 | `bool_face_disc_carrier` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/contain.rs` | not in the M10-8 documents |
 | `bool_faces_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/sectors.rs` | not in the M10-8 documents |
-| `bool_germ_frame_axes_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/join.rs` | not in the M10-8 documents |
 | `bool_plane_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/contact_verify.rs` | not in the M10-8 documents |
 | `bool_sphere_escape_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/ops.rs` | not in the M10-8 documents |
 | `bool_sphere_extent_gap` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/ops.rs` | not in the M10-8 documents |
@@ -452,7 +463,7 @@ way in — and not to the real-margin class.
 
 ## Re-homed at M10's exit sweep (2026-09-13)
 
-Here because it is the tier's own reference: 106 rows of evidence that
+Here because it is the tier's own reference: 105 rows of evidence that
 `geom_core::sym`'s module docs summarize and cite by name.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.

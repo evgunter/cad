@@ -22,7 +22,7 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, CountMismatch, DocEdit, EditError, Formula, Frame, Node, NodeErrorKind, NodeResult,
+    CountMismatch, DocEdit, EditError, Formula, Frame, Node, NodeErrorKind, NodeResult,
     PatternKind, PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload,
     apply,
 };
@@ -47,7 +47,7 @@ fn fin_only() -> (ProfileDoc, RecipeNodeId) {
         ]],
     );
     let fin = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(0.8125),
         side: ExtrudeSide::Along,
     });
@@ -76,7 +76,7 @@ fn the_fin_group_is_one_node_and_one_body() {
     let d = doc_named("heat_sink_fins");
     let groups = d
         .doc
-        .order()
+        .ids()
         .iter()
         .filter(|&&id| matches!(d.doc.node(id), Some(Node::PlacedUnion { .. })))
         .count();
@@ -127,6 +127,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
                         angle: ang(0.0),
                     },
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -140,12 +141,10 @@ fn the_fin_group_equals_the_transform_union_chain() {
                 let u = apply(
                     &chain,
                     &DocEdit::InsertNode {
-                        node: Box::new(Node::Boolean {
-                            op: BooleanOp::Union,
-                            a,
-                            b: placed,
-                            declare: Vec::new(),
+                        node: Box::new(Node::Union {
+                            members: editor_core::Bodies::Spelled(vec![a.into(), placed.into()]),
                         }),
+                        fresh: Vec::new(),
                     },
                     Tol::witness(),
                     &editor_core::RefusingReach,
@@ -173,6 +172,7 @@ fn the_fin_group_equals_the_transform_union_chain() {
                 )
                 .expect("a stepped rule takes a count"),
             ),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -252,13 +252,10 @@ fn the_die_tool_is_one_node_and_still_cuts() {
     let mut groups = 0;
     let mut unions = 0;
     let mut transforms = 0;
-    for &id in d.doc.order() {
+    for id in d.doc.ids() {
         match d.doc.node(id) {
             Some(Node::PlacedUnion { .. }) => groups += 1,
-            Some(Node::Boolean {
-                op: BooleanOp::Union,
-                ..
-            }) => unions += 1,
+            Some(Node::Union { .. }) => unions += 1,
             Some(Node::Transform { .. }) => transforms += 1,
             _ => {}
         }
@@ -283,7 +280,7 @@ fn every_instance_is_one_instance_segment_deep() {
     let ev = eval::<f64>(&d.doc);
     let tool = d
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(d.doc.node(id), Some(Node::PlacedUnion { .. })))
@@ -325,7 +322,7 @@ fn boxes_at(frames: Vec<Frame>) -> (ProfileDoc, RecipeNodeId) {
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let solid = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -411,7 +408,7 @@ fn a_circular_group_places_around_a_datum_axis() {
         vec![vec![(4.0, -0.5), (5.0, -0.5), (5.0, 0.5), (4.0, 0.5)]],
     );
     let solid = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -420,7 +417,7 @@ fn a_circular_group_places_around_a_datum_axis() {
             solid,
             Formula::count(4),
             PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(std::f64::consts::FRAC_PI_2),
             },
         )
@@ -441,7 +438,7 @@ fn a_circular_group_places_around_a_datum_axis() {
 fn the_edit_door_refuses_a_two_spelling_count() {
     let (doc, fin) = fin_only();
     let with_count = Node::PlacedUnion {
-        input: fin,
+        input: fin.into(),
         count: Some(Formula::count(2)),
         kind: PatternKind::Explicit(vec![Frame::IDENTITY, Frame::translation([9.0, 0.0, 0.0])]),
     };
@@ -449,7 +446,8 @@ fn the_edit_door_refuses_a_two_spelling_count() {
         apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(with_count)
+                node: Box::new(with_count),
+                fresh: Vec::new()
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -457,7 +455,7 @@ fn the_edit_door_refuses_a_two_spelling_count() {
         Err(EditError::PlacementRuleMismatch { .. })
     ));
     let pattern_explicit = Node::Pattern {
-        input: fin,
+        input: fin.into(),
         count: Formula::count(2),
         kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
     };
@@ -465,7 +463,8 @@ fn the_edit_door_refuses_a_two_spelling_count() {
         apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(pattern_explicit)
+                node: Box::new(pattern_explicit),
+                fresh: Vec::new()
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -496,6 +495,7 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -510,14 +510,14 @@ fn a_placement_rule_refusals_recourse_gets_through() {
         (
             "a placed union's list, with a count",
             Node::PlacedUnion {
-                input: fin,
+                input: fin.into(),
                 count: Some(Formula::count(1)),
                 kind: listed(),
             },
             Some(CountMismatch::ListedWithCount),
             "insert it without a count, since the list is the count",
             vec![Node::PlacedUnion {
-                input: fin,
+                input: fin.into(),
                 count: None,
                 kind: listed(),
             }],
@@ -525,14 +525,14 @@ fn a_placement_rule_refusals_recourse_gets_through() {
         (
             "a placed union's stepped rule, without a count",
             Node::PlacedUnion {
-                input: fin,
+                input: fin.into(),
                 count: None,
                 kind: linear(),
             },
             Some(CountMismatch::SteppedWithoutCount),
             "insert it with a count",
             vec![Node::PlacedUnion {
-                input: fin,
+                input: fin.into(),
                 count: Some(Formula::count(2)),
                 kind: linear(),
             }],
@@ -540,7 +540,7 @@ fn a_placement_rule_refusals_recourse_gets_through() {
         (
             "a pattern given a list",
             Node::Pattern {
-                input: fin,
+                input: fin.into(),
                 count: Formula::count(1),
                 kind: listed(),
             },
@@ -549,12 +549,12 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             // Both routes: the pattern kept, and the union that fuses.
             vec![
                 Node::Pattern {
-                    input: fin,
+                    input: fin.into(),
                     count: Formula::count(1),
                     kind: linear(),
                 },
                 Node::PlacedUnion {
-                    input: fin,
+                    input: fin.into(),
                     count: None,
                     kind: listed(),
                 },
@@ -608,7 +608,7 @@ fn the_slot_surface_follows_the_rule() {
     )
     .expect("a stepped rule takes a count");
     let pattern: AuthoredNode = Node::Pattern {
-        input: fin,
+        input: fin.into(),
         count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -640,7 +640,8 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
         apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(empty)
+                node: Box::new(empty),
+                fresh: Vec::new()
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -663,6 +664,7 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
                 )
                 .expect("a stepped rule takes a count"),
             ),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -688,6 +690,7 @@ fn the_wire_refuses_an_emptied_placement_list() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::placed_union_at(fin, vec![Frame::IDENTITY])),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -744,7 +747,8 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(with(nan))
+                node: Box::new(with(nan)),
+                fresh: Vec::new()
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -760,7 +764,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         Some(PlacementRuleFault::ImproperFrame { index: 0, .. })
     ));
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: Box::new(with(mirror)) }, Tol::witness(), &editor_core::RefusingReach),
+        apply(&doc, &DocEdit::InsertNode { node: Box::new(with(mirror)), fresh: Vec::new() }, Tol::witness(), &editor_core::RefusingReach),
         Err(EditError::ImproperPlacement { determinant, .. }) if determinant < 0.0
     ));
 
@@ -779,6 +783,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(two),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -808,7 +813,8 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
         apply(
             &doc,
             &DocEdit::InsertNode {
-                node: Box::new(with(turned))
+                node: Box::new(with(turned)),
+                fresh: Vec::new()
             },
             Tol::witness(),
             &editor_core::RefusingReach
@@ -840,7 +846,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
             vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]],
         );
         let solid = r.insert(Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         });
@@ -868,6 +874,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                     })
                     .collect(),
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -889,6 +896,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                         angle: ang(an),
                     },
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -902,12 +910,10 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                 let u = apply(
                     &cdoc,
                     &DocEdit::InsertNode {
-                        node: Box::new(Node::Boolean {
-                            op: BooleanOp::Union,
-                            a,
-                            b: placed,
-                            declare: Vec::new(),
+                        node: Box::new(Node::Union {
+                            members: editor_core::Bodies::Spelled(vec![a.into(), placed.into()]),
                         }),
+                        fresh: Vec::new(),
                     },
                     Tol::witness(),
                     &editor_core::RefusingReach,
@@ -977,6 +983,7 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
             &before,
             &DocEdit::InsertNode {
                 node: Box::new(node.clone()),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

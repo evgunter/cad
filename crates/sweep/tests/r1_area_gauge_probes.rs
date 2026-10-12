@@ -95,8 +95,13 @@ fn debug_assertions_are_on() -> bool {
 fn r1_e2e_gauge_is_silent_at_the_interval_lane() {
     use geom_core::Interval;
     let (sections, places) = r1_sections();
-    let lofted =
-        loft_body::<Interval>(&sections, &places, 2, Tol::witness()).expect("r1 loft builds");
+    let lofted = loft_body::<Interval>(
+        &sweep::test_support::lift_sections::<Interval>(&sections),
+        &sweep::test_support::lift_places::<Interval>(&places),
+        2,
+        Tol::witness(),
+    )
+    .expect("r1 loft builds");
     match topo::props::mass_properties(&lofted.body, Tol::witness()) {
         Ok(m) => println!(
             "R1-E2E(interval) area_pad {:?} surface {:?}",

@@ -9,9 +9,9 @@
 
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
-    ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
-    resolve, resolve_with_prior,
+    CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
+    Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate, resolve,
+    resolve_with_prior,
 };
 
 use super::{ang, insert, len, minted, on_frame, scl, step};
@@ -61,7 +61,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -100,17 +100,14 @@ where
     );
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b: tr,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), tr.into()]),
         },
     );
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: u,
+            input: u.into(),
             count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -128,7 +125,10 @@ where
         .iter()
         .find_map(|(n, e)| {
             let hit = n.kind == EntityKind::Edge
-                && matches!(n.path.first(), Some(RoleSeg::FromA(_)))
+                && matches!(
+                    n.path.first(),
+                    Some(RoleSeg::From { read, of: _ }) if *read == crate::fixture::out(&doc, a)
+                )
                 && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
             (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
         })
@@ -146,7 +146,8 @@ where
         DocEdit::SetParam {
             node: tr,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(2.5),
+            value: len(2.5).into(),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run::<T>(&doc2, Some(&ev1));
@@ -168,6 +169,7 @@ where
             node: pat,
             slot: SlotId::Count,
             expr: editor_core::Formula::count(1),
+            fresh: Vec::new(),
         },
     );
     let ev3 = run::<T>(&doc3, Some(&ev1));
@@ -223,18 +225,16 @@ where
     let (docu, ub) = insert(
         docu,
         Node::Extrude {
-            profile: up,
+            profile: up.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
     );
     let (docu, us) = insert(
         docu,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: ua,
-            b: ub,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: ua.into(),
+            tool: ub.into(),
         },
     );
     let evu = run::<T>(&docu, None);

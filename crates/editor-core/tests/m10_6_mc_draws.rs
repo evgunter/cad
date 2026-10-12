@@ -33,8 +33,7 @@ use geom_core::Tol;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::mc::{McConfig, McRefusal, monte_carlo, sample_offsets};
 use editor_core::{
-    Dimension, Distribution, DocEdit, Formula, FreeVar, MeasureExpr, Node, ProfileDoc,
-    RecipeNodeId, UnitSym, VarName, apply,
+    Dimension, Distribution, DocEdit, FreeVar, ProfileDoc, RecipeNodeId, UnitSym, VarName,
 };
 
 /// The nominal, and a number with no dyadic shortcuts in it: a mean
@@ -47,51 +46,24 @@ const SAMPLES: usize = 96;
 
 /// The document: one varying parameter, and a measure that reads it.
 ///
-/// Deliberately the SIMPLEST document that has both — the measured
-/// value is the parameter's own value, so a disagreement between the
-/// two paths cannot be blamed on geometry standing between the draw
-/// and the reading.
+/// Deliberately the SIMPLEST measured document: a unit cube and its copy
+/// translated by `x` along x, measured from the cube's vertex at the
+/// origin to the copy's — whose value is `|x − 0|`, the parameter's own
+/// value, so a disagreement between the two paths cannot be blamed on
+/// geometry standing between the draw and the reading.
 fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
-    let tol = Tol::witness();
-    let mut doc = ProfileDoc::empty_derived("m10-mc-draws", tol);
-    let applied = apply(
-        &doc,
-        &DocEdit::DeclareVar {
-            name: VarName::from_static("x"),
-            def: editor_core::VarDecl::Free(FreeVar::Continuous {
-                dim: Dimension::Length,
-                value: NOMINAL,
-                display_unit: UnitSym::canonical_for(Dimension::Length),
-                distribution: Some(law),
-            }),
-        },
-        tol,
-        &editor_core::RefusingReach,
-    )
-    .expect("the parameter declares");
-    doc = applied.doc;
-
-    let applied = apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(
-                Node::measure(
-                    MeasureExpr::value(Formula::named(
-                        VarName::from_static("x"),
-                        Dimension::Length,
-                    )),
-                    Vec::new(),
-                )
-                .expect("a measure over a value leaf takes no references"),
-            ),
-        },
-        tol,
-        &editor_core::RefusingReach,
-    )
-    .expect("the measure inserts");
-    doc = applied.doc;
-    let measure = applied.record.minted.expect("an insert mints an id");
-    (doc, measure)
+    let mut r = crate::fixture::Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("x"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
+            dim: Dimension::Length,
+            value: NOMINAL,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
+            distribution: Some(law),
+        }),
+    });
+    let measure = r.measure_of_translation("x");
+    (r.doc, measure)
 }
 
 /// `summarize`'s arithmetic, in the order the lane runs it. Re-stated

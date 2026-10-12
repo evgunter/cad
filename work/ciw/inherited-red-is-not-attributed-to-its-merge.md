@@ -70,3 +70,48 @@ that ruling rather than being closed by it.
 
 No lane should design this before those three are taken. The unit is
 opened with the numbers named rather than dispatched.
+
+## Evidence from EMIT (2026-10-06): three inherited reds in one day
+
+Each one was found by a lane tripping over it on an unrelated PR. Each was
+then re-diagnosed from scratch and bisected by hand.
+
+1. **#4081 (`cleave/split-segment-curve`)** moved `viewer::review_pick_r2`'s
+   corpus tally. Its own CI passed on a base before #4088/#4086, and main
+   runs no test job on push. #4090 tripped over it, an EMIT bisect named
+   #4081, and #4090 carried the re-pin.
+2. **#4120 and #4074 (sweep rows that pin fixed tolerances)** left the
+   strict-tolerance step red for any PR whose `eps_extra` reached sweep.
+   That step went red on several unrelated PRs in one hour. The eps rows
+   don't cover sweep, which is filed as
+   `a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge`.
+   #4083 fixed it on main. Two older nightly-only reds (#4008, #3942: stale
+   pins) were fixed by #4184.
+3. **#4140 (`fuse/join-every-stage`)** joined away collinear valence-two
+   vertices on every boolean output. That was intended, and #4140
+   re-baselined editor-core for it. But three viewer slow-set rows
+   (`display_budget`, `review_pick_r2`, `pick3_acceptance`) moved, and
+   #4140 touched no viewer file, so the gate never ran them. #4183 tripped
+   over it, an EMIT bisect named #4140, and #4201 re-pinned.
+
+**The common shape.** The gate seeds only the crates a diff touches (the
+latency cut, ruled), so a change upstream of viewer or sweep moves
+downstream slow or eps pins unseen. The next unrelated PR that seeds the
+downstream crate inherits the red with no attribution.
+
+**How the reds were attributed.** Job logs are readable from a cloud box
+for attribution: GitHub MCP `get_job_logs` with `return_content=false`
+returns a signed URL that `curl` fetches.
+
+## A fourth: merged before its gate (EMIT, 2026-10-07)
+
+#4234 added a payload rung (`SectorRead`). Its own `lint` run failed on
+it: `payload-rung-sweep.py --check`. It merged at 07:33 with `lint` red
+and `test` still running, so before any `gate ok`. Main's next run was a
+work-only render, which skips `lint`, so main read green. The red first
+showed on #4228, an EMIT PR that had merged main. `--check` on
+`origin/main` reproduced it, and #4241 fixed it.
+
+This one is not the latency cut. The PR's own checks saw the failure; the
+merge did not wait for them. Main's skipped `lint` then hid it. Branch
+protection that requires `gate ok` would have stopped it at the merge.

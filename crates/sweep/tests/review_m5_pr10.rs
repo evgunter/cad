@@ -387,7 +387,10 @@ fn review_open_chains_are_unrepresentable_and_close_by_construction() {
         Affine3::identity(),
         Affine3::translation(geom_core::Vec3::new(0.0, 0.0, 1.0)),
     ];
-    let g = sweep::skin::loft_geometry(&[was_open.clone(), was_open], &places, 1, Tol::witness())
+    let sections = [was_open.clone(), was_open];
+    let params = sweep::loft_parameters(&sections, &places, 1, Tol::witness())
+        .expect("the closed-by-construction pair parameterizes");
+    let g = sweep::skin::loft_geometry(&sections, &places, 1, &params, Tol::witness())
         .expect("the closed-by-construction pair skins to a tube");
     assert_eq!(g.walls[0].len(), 4, "four vertices, four walls — closed");
 }
@@ -439,7 +442,10 @@ fn a_sub_tolerance_arc_lofts_as_a_line() {
         Affine3::identity(),
         Affine3::translation(geom_core::Vec3::new(0.0, 0.0, 1.0)),
     ];
-    let geometry = sweep::skin::loft_geometry(&[section(), section()], &places, 1, Tol::witness())
+    let sections = [section(), section()];
+    let params = sweep::loft_parameters(&sections, &places, 1, Tol::witness())
+        .expect("the square parameterizes");
+    let geometry = sweep::skin::loft_geometry(&sections, &places, 1, &params, Tol::witness())
         .expect("the square lofts");
     for (i, place) in places.iter().enumerate() {
         let curve = &geometry.sections[0][0][i];

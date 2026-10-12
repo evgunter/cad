@@ -1,10 +1,11 @@
 //! **The plane–plane band's cut-off** (`work/band/a-plane-plane-blend-
-//! cannot-end-at-an-unrequested-corner.md`, steps 1 and 2): a straight
+//! cannot-end-at-an-unrequested-corner.md`, steps 1 to 3): a straight
 //! band ends at a trivalent vertex of one convexity as the request
 //! decides — all three edges, the corner patch; the edge alone, the
 //! cut-off in the end face's plane section of the band (a chord at any
-//! angle for a chamfer, an arc at a perpendicular end face for a
-//! fillet); two, the turn, refused.
+//! angle for a chamfer, and for a fillet an arc of a circle at a
+//! perpendicular end face and of an ellipse at an oblique one); two,
+//! the turn, refused.
 //!
 //! Every built row is checked at its closed form and at tier 3, with
 //! naming totality; the box rows are checked once more against an
@@ -15,10 +16,11 @@
 
 use core::f64::consts::PI;
 
+use geom::{Curve3, Surface};
 use geom_core::{Point2, Point3, Tol, Vec3};
-use sweep::blend::battery::{END_FACE_CURVED, END_FACE_OBLIQUE};
+use sweep::blend::battery::END_FACE_CURVED;
 use sweep::blend::build::{Blended, fillet_edges};
-use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
+use sweep::blend::{BlendError, CornerConfig};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
     assert_naming_totality, block, cube, pocket_die, prism, prism_on, realized, sketch_from_axes,
@@ -36,6 +38,85 @@ pub(crate) fn volume(body: &Body<f64>) -> f64 {
     let p = mass_properties(body, tol()).expect("closed-form props");
     assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
     p.volume
+}
+
+/// The widest certified enclosure a row accepts as a claim: the
+/// quadrature lane's half-width follows the run's eps, `1e-6` at the
+/// default and finer rows and a thousand eps at the coarse one.
+pub(crate) fn pad_ceiling() -> f64 {
+    (1e3 * tol().eps()).max(1e-6)
+}
+
+/// How near a carve's volume midpoint sits to the closed form on an
+/// ellipse-trimmed band, set by the run's eps alone and never by the
+/// enclosure, so a row cannot pass by its enclosure widening: `1e-8` at
+/// the default and finer rows (measured within `7e-9`), ten eps at the
+/// coarse one (measured within `1.4e-6`).
+pub(crate) fn midpoint_tol() -> f64 {
+    (10.0 * tol().eps()).max(1e-8)
+}
+
+/// **How far the carve's round end arcs and mitres stray from the faces
+/// they join**: over 65 points of each circle or ellipse arc the carve
+/// minted, the largest distance from either face's stored plane,
+/// cylinder or sphere, with the number of arcs read.
+pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
+    let rec = out.naming.as_ref().expect("the carve records its births");
+    let (mut arcs, mut worst) = (0, 0.0f64);
+    let minted = rec
+        .arcs
+        .iter()
+        .map(|(e, _, _)| e)
+        .chain(rec.mitres.iter().map(|(e, _)| e));
+    for arc in minted {
+        let e = out.body.get_edge(*arc).expect("a minted arc");
+        let c = out
+            .body
+            .get_curve_geom(e.curve)
+            .and_then(|g| g.certified())
+            .expect("a certified arc");
+        if !matches!(c.carrier(), Curve3::Circle { .. } | Curve3::Ellipse { .. }) {
+            continue;
+        }
+        arcs += 1;
+        let surfaces = [e.he_plus, e.he_minus].map(|h| {
+            let f = out.body.face_of_half_edge(h).expect("an arc's face");
+            out.body
+                .get_surface(out.body.get_face(f).expect("a face").surface)
+                .expect("a stored surface")
+                .clone()
+        });
+        let (t0, t1) = c.params();
+        for k in 0..=64 {
+            let p = c.carrier().eval(t0 + (t1 - t0) * f64::from(k) / 64.0);
+            for s in &surfaces {
+                let d = match *s {
+                    Surface::Plane { origin, normal, .. } => (p - origin).dot(normal).abs(),
+                    Surface::Cylinder {
+                        origin,
+                        axis,
+                        radius,
+                        ..
+                    } => {
+                        let d = p - origin;
+                        ((d - axis * d.dot(axis)).norm() - radius).abs()
+                    }
+                    Surface::Sphere { center, radius, .. } => ((p - center).norm() - radius).abs(),
+                    ref other => panic!("an end arc joins a {other:?}"),
+                };
+                worst = worst.max(d);
+            }
+        }
+    }
+    (arcs, worst)
+}
+
+/// A body's volume and the half-width of its certified enclosure: zero
+/// on a closed-form inventory, the quadrature lane's on a curved face
+/// trimmed by an ellipse (a fillet's band at an oblique end face).
+pub(crate) fn volume_enclosure(body: &Body<f64>) -> (f64, f64) {
+    let p = mass_properties(body, tol()).expect("certified props");
+    (p.volume, p.volume_pad)
 }
 
 /// The edge of `body` between the two points, either way round.
@@ -73,6 +154,15 @@ impl Verb {
         body: &Body<f64>,
         edges: &[EdgeKey],
     ) -> Result<Blended<f64>, BlendError> {
+        self.run_finished(&sweep::test_support::at_rest(body, tol()), edges)
+    }
+
+    /// [`Self::run`] on an operand already finished.
+    pub(crate) fn run_finished(
+        self,
+        body: &topo::AtRestBody<f64>,
+        edges: &[EdgeKey],
+    ) -> Result<Blended<f64>, BlendError> {
         match self {
             Self::Chamfer => chamfer_edges(body, edges, D, tol()),
             Self::Fillet => fillet_edges(body, edges, D, tol()),
@@ -85,6 +175,18 @@ impl Verb {
         match self {
             Self::Chamfer => D * D / 2.0,
             Self::Fillet => (1.0 - PI / 4.0) * D * D,
+        }
+    }
+
+    /// How far the section's centroid stands off each support, along
+    /// the other: `d/3` for the chamfer's triangle, `r·(10 − 3π)/(12 −
+    /// 3π)` for the region between a right dihedral and its ball. A
+    /// band cut off by two planes oblique to its edge removes the
+    /// section times the length between them at that centroid.
+    pub(crate) fn centroid(self) -> f64 {
+        match self {
+            Self::Chamfer => D / 3.0,
+            Self::Fillet => D * (10.0 - 3.0 * PI) / (12.0 - 3.0 * PI),
         }
     }
 
@@ -102,7 +204,8 @@ impl Verb {
 
 /// Carve, and check what holds of every built row: tier 3, Euler on one
 /// genus-0 shell, naming totality, and `ΔV = removed` (negative where
-/// the band adds material).
+/// the band adds material) — to `1e-12` on a closed-form inventory, and
+/// within the certified enclosure where an ellipse trims a band.
 pub(crate) fn carve(
     body: &Body<f64>,
     edges: &[EdgeKey],
@@ -122,10 +225,20 @@ pub(crate) fn carve(
         "{what} ({verb:?}): one closed genus-0 shell"
     );
     assert_naming_totality(body, &out, edges, what);
-    let dv = volume(body) - volume(&out.body);
+    let ((v0, pad0), (v1, pad1)) = (volume_enclosure(body), volume_enclosure(&out.body));
+    let (dv, pad) = (v0 - v1, pad0 + pad1);
     assert!(
-        (dv - removed).abs() < 1e-12,
-        "{what} ({verb:?}): ΔV {dv} vs the closed form {removed}"
+        pad < pad_ceiling() && (dv - removed).abs() < 1e-12 + pad,
+        "{what} ({verb:?}): ΔV {dv} ± {pad} vs the closed form {removed}"
+    );
+    assert!(
+        (dv - removed).abs() < midpoint_tol(),
+        "{what} ({verb:?}): ΔV's midpoint {dv} is off the closed form {removed}"
+    );
+    let (_, stray) = arc_residual(&out);
+    assert!(
+        stray < 1e-12,
+        "{what} ({verb:?}): an end arc strays {stray} from a face it joins"
     );
     out
 }
@@ -235,7 +348,13 @@ fn a_chamfered_box_edge_matches_the_boolean_less_its_prism() {
         &beyond(1.5, -1.0),
         tol(),
     );
-    let carved = chamfer_edges(&body, &[front, back], D, tol()).expect("both edges chamfer");
+    let carved = chamfer_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[front, back],
+        D,
+        tol(),
+    )
+    .expect("both edges chamfer");
     let (v_bool, v_carve) = (volume(&by_boolean), volume(&carved.body));
     assert!(
         (v_bool - v_carve).abs() < 1e-12,
@@ -244,12 +363,12 @@ fn a_chamfered_box_edge_matches_the_boolean_less_its_prism() {
 }
 
 /// **An oblique end face**: a parallelogram prism's top front edge
-/// ends at two parallel slanted side walls. The chamfer is cut off in a
-/// chord across each at the prism closed form — the end planes are
-/// parallel, so the band's length is the edge's — and the fillet,
-/// whose section there is an ellipse, refuses typed.
+/// ends at two parallel slanted side walls. Both verbs are cut off at
+/// the prism closed form — the end planes are parallel, so the band's
+/// length is the edge's — the chamfer in a chord across each wall and
+/// the fillet in an arc of the wall's elliptic section of its cylinder.
 #[test]
-fn an_oblique_end_face_cuts_the_chamfer_off_and_refuses_the_fillet() {
+fn an_oblique_end_face_cuts_both_verbs_off_at_the_prism_closed_form() {
     let body = prism(
         vec![
             (Point2::new(0.0, 0.0), 0.0),
@@ -261,18 +380,9 @@ fn an_oblique_end_face_cuts_the_chamfer_off_and_refuses_the_fillet() {
         tol(),
     );
     let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-    carve(
-        &body,
-        &[e],
-        Verb::Chamfer,
-        Verb::Chamfer.section() * 2.0,
-        "oblique ends",
-    );
-    match Verb::Fillet.run(&body, &[e]) {
-        Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-            assert_eq!(detail, END_FACE_OBLIQUE);
-        }
-        other => panic!("an oblique fillet end refuses as a run-out, got {other:?}"),
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let out = carve(&body, &[e], verb, verb.section() * 2.0, "oblique ends");
+        assert_eq!(out.naming.as_ref().expect("births").arcs.len(), 2);
     }
 }
 
@@ -367,7 +477,8 @@ fn shoelace_yz(ps: &[Point3<f64>]) -> f64 {
 
 /// **The refusals the cut-off leaves**, each typed: a curved end face,
 /// a foot that lands inside a face rather than on the end face's rim,
-/// an end vertex of valence four, a mixed-convexity end, and the turn.
+/// an end vertex of valence four, and a mixed-convexity end. A turn's
+/// own refusals are `band_planar_mitre`'s.
 #[test]
 fn every_end_the_cut_off_does_not_build_refuses_typed() {
     // A curved end face: a prism whose right side is an arc.
@@ -414,9 +525,14 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
     // Valence four: a chamfered cube's patch vertex, which a trimline of
     // the chamfer ends at.
     let cube_body = cube(1.0, tol());
-    let chamfered = chamfer_edges(&cube_body, &query::all_edges(&cube_body), D, tol())
-        .expect("the cube chamfers")
-        .body;
+    let chamfered = chamfer_edges(
+        &sweep::test_support::at_rest(&cube_body, tol()),
+        &query::all_edges(&cube_body),
+        D,
+        tol(),
+    )
+    .expect("the cube chamfers")
+    .body;
     let rec_edge = query::all_edges(&chamfered)
         .into_iter()
         .find(|&e| {
@@ -457,21 +573,6 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
             other => panic!("{verb:?}: a mixed end refuses, got {other:?}"),
         }
     }
-
-    // The turn: two edges of the box's top meeting at a corner.
-    let body = the_box();
-    let a = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-    let b = edge(&body, [2.0, 0.0, 1.0], [2.0, 1.5, 1.0]);
-    for verb in [Verb::Chamfer, Verb::Fillet] {
-        match verb.run(&body, &[a, b]) {
-            Err(BlendError::UnsupportedCorner {
-                corner: CornerConfig::Turn,
-                policy: Some(RunOutPolicy::Mitre),
-                ..
-            }) => {}
-            other => panic!("{verb:?}: two edges of a corner refuse as a turn, got {other:?}"),
-        }
-    }
 }
 
 /// **A closed rim that turns once**: a teardrop prism's top rim — two
@@ -479,21 +580,19 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
 /// plane–plane junction is a definite turn and its two others are
 /// tangent, so chain G1 breaks the closed chain into ONE open chain
 /// whose head and tail are both the corner; the end there names two of
-/// the corner's three edges, the turn, refused typed at that vertex.
+/// the corner's three edges, an isosceles turn, so the verdict admits
+/// it, and the open chain — lines joined to an arc — refuses typed at
+/// the open-chain door, which carves no chain whose links mix arms.
 #[test]
-fn a_closed_rim_with_one_turn_breaks_there_and_refuses_the_turn() {
-    use profile::RawLoop;
+fn a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain() {
     let s3 = 3f64.sqrt();
     let body = sweep::test_support::extruded(
         profile::SketchPlane::xy(),
-        vec![
-            profile::test_support::bulge_loop(vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(1.5, -s3 / 2.0), s3),
-                (Point2::new(1.5, s3 / 2.0), 0.0),
-            ])
-            .with_tangent_joints(vec![1, 2]),
-        ],
+        vec![profile::test_support::bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.5, -s3 / 2.0), s3),
+            (Point2::new(1.5, s3 / 2.0), 0.0),
+        ])],
         1.0,
         tol(),
     );
@@ -512,20 +611,25 @@ fn a_closed_rim_with_one_turn_breaks_there_and_refuses_the_turn() {
         })
         .collect();
     assert_eq!(rim.len(), 3, "two lines and the arc");
+    let band = geom_core::Band::linear(tol()).expect("the run's band");
+    let request = sweep::blend::BlendRequest {
+        body: &body,
+        edges: rim.clone(),
+        size: D,
+    };
+    let verdict = sweep::blend::run_battery(&request, band).expect("the verdict admits the turn");
+    let [turn] = &verdict.turns[..] else {
+        panic!("one turn, got {:?}", verdict.turns);
+    };
+    let p = *body
+        .get_point(body.get_vertex(turn.vertex).expect("v").point)
+        .expect("p");
+    assert!(
+        (p - Point3::new(0.0, 0.0, 1.0)).norm() == 0.0,
+        "the turn is the teardrop's corner, got {p:?}"
+    );
     match Verb::Fillet.run(&body, &rim) {
-        Err(BlendError::UnsupportedCorner {
-            vertex,
-            corner: CornerConfig::Turn,
-            policy: Some(RunOutPolicy::Mitre),
-        }) => {
-            let p = *body
-                .get_point(body.get_vertex(vertex).expect("v").point)
-                .expect("p");
-            assert!(
-                (p - Point3::new(0.0, 0.0, 1.0)).norm() == 0.0,
-                "the turn is the teardrop's corner, got {p:?}"
-            );
-        }
-        other => panic!("a rim that turns once refuses the turn, got {other:?}"),
+        Err(BlendError::UnsupportedChain { .. }) => {}
+        other => panic!("a rim that turns once refuses its mixed chain, got {other:?}"),
     }
 }

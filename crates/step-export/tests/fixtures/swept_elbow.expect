@@ -33,9 +33,9 @@
 # torus. So the torus is a CONVERGENCE reference, not this body's
 # volume: the measured relative gap is 3.84e-6 at 9 stations and fell
 # from 2.2e-4 at 5 (the #210 convergence pin). The certified enclosure's
-# PAD below is 8.19e-5 mm³ -- its HALF-width, 7.0e-14 relative, nearly
-# EIGHT orders tighter than that gap -- so nothing here is being absorbed
-# by a loose pad.
+# PAD below is 1.14e-5 mm³ -- its HALF-width, 9.7e-15 relative, more
+# than EIGHT orders tighter than that gap -- so nothing here is being
+# absorbed by a loose pad.
 #
 # EXPECT_VOLUME_MM3 is therefore the kernel's OWN certified midpoint,
 # and the claim this oracle row makes is the one an external oracle can
@@ -69,8 +69,8 @@ KERNEL_SHELLS=1
 KERNEL_FACES=6
 KERNEL_EDGES=12
 KERNEL_VERTICES=8
-KERNEL_VOLUME_MM3=1178101772.4005451
-KERNEL_VOLUME_PAD_MM3=4.340972026284362E-5
+KERNEL_VOLUME_MM3=1178101772.4005454
+KERNEL_VOLUME_PAD_MM3=1.1379786002407855E-5
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
 EXPECT_FACES=6

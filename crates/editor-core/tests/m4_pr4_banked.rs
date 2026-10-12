@@ -23,9 +23,9 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    BooleanOp, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
-    ProfileDoc, Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId,
-    StableName, diff_verdicts, evaluate, resolve_with_prior,
+    CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
+    Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
+    diff_verdicts, evaluate, resolve_with_prior,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -57,7 +57,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -97,7 +97,7 @@ fn band_cut() -> BandCut {
     let (doc, band) = insert(
         doc,
         Node::Extrude {
-            profile: bp,
+            profile: bp.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -115,11 +115,9 @@ fn band_cut() -> BandCut {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b: transform,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: transform.into(),
         },
     );
     BandCut {
@@ -161,7 +159,8 @@ fn a_flip_against_a_wall_no_piece_borders_renames_no_piece() {
         DocEdit::SetParam {
             node: f.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(1.25),
+            value: len(1.25).into(),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -220,14 +219,10 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     // position keeps the same coplanarity, so ONE declared list serves
     // both). The B side is read at the TRANSFORM, the boolean's operand;
     // a transform carries `b0`'s names verbatim (N1).
-    let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b: transform,
-            declare: decl,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
         },
     );
     let (doc2, _) = step(
@@ -235,7 +230,8 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
         DocEdit::SetParam {
             node: transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(0.5),
+            value: len(0.5).into(),
+            fresh: Vec::new(),
         },
     );
     // M5 PR 8: the scenario runs under BOTH sweep strategies. The
@@ -276,7 +272,11 @@ fn fused_vertex_scenario(
         .keys()
         .filter(|n| {
             n.kind == EntityKind::Vertex
-                && matches!(n.path.first(), Some(RoleSeg::FromA(_) | RoleSeg::FromB(_)))
+                && matches!(
+                    n.path.first(),
+                    // Either operand's: every carried name.
+                    Some(RoleSeg::From { .. })
+                )
                 && !r2.contains_key(*n)
         })
         .collect();

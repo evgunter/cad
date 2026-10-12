@@ -39,7 +39,7 @@
 //! orientation parity, which positions alone cannot decide at n = 2
 //! (see `derive_naming`).
 
-use profile::{ConstructedLoop, ConstructedProfile, Segment, SegmentKind, ValidatedProfile};
+use profile::{ConstructedLoop, Segment, SegmentKind, ValidatedProfile};
 
 use crate::names::{
     NamingError, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, SectionCircle, to_u32,
@@ -332,7 +332,7 @@ impl ProfilePieces {
     /// names is what such a test reads.
     #[cfg(test)]
     pub(crate) fn numbered(counts: &[usize]) -> Self {
-        let step = |l: usize, k: usize| StepId((1000 * l + k) as u64);
+        let step = |l: usize, k: usize| StepId::new(0, (1000 * l + k) as u64);
         Self {
             edges: counts
                 .iter()
@@ -438,10 +438,10 @@ pub struct ProfileValue<T: geom_core::Real> {
     /// (`work/wire/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`),
     /// and nothing here decides it.
     ///
-    /// Expressions rather than lowered tokens, because lowering is
+    /// Variables rather than lowered tokens, because lowering is
     /// scope-relative and the scope that matters is the ATTACHING
     /// evaluation's descent chain, read where the attach happens.
-    pub edge_radii: Vec<Vec<Option<crate::expr::Expr>>>,
+    pub edge_radii: Vec<Vec<Option<crate::var::VarId>>>,
 }
 
 /// The profile node's f64 PRECOMPUTE (LIB-SWITCH §4b): the replayed
@@ -455,21 +455,16 @@ pub struct ProfileValue<T: geom_core::Real> {
 /// under the guided lift the op's own validation follows in the log.
 #[derive(Debug, Clone)]
 pub(crate) struct ProfilePre {
-    /// The replayed profile at f64 (program order). Its `plane` is the
-    /// 2-D record's assembly frame: [`ProfilePre::placement_f64`]
-    /// where there is one, the conventional `SketchPlane::xy()` where
-    /// there is not — validation is 2-D and the naming anchor is
-    /// loop-derived, so no decision reads it. What a consumer PLACES
-    /// with is `placement_f64`, never this field's plane.
-    pub profile_f64: ConstructedProfile<f64>,
-    /// [`ProfilePre::profile_f64`]'s canonical form, minted by the
-    /// pre-pass's one validation. Its plane is `profile_f64`'s
-    /// assembly frame, with the same caveat: a consumer places with
-    /// `placement_f64` (or the lane's derived frame), never with it.
+    /// The replayed profile's canonical form at f64, minted by the
+    /// pre-pass's one validation. Its plane is the 2-D record's
+    /// assembly frame: [`ProfilePre::placement_f64`] where there is
+    /// one, the conventional `SketchPlane::xy()` where there is not —
+    /// validation is 2-D and the naming anchor is loop-derived, so no
+    /// decision reads it. A consumer places with `placement_f64` (or
+    /// the lane's derived frame), never with this plane.
     pub validated_f64: ValidatedProfile<f64>,
     /// The profile's `f64` placement, where the profile HAS one: an
-    /// authored frame's document read, or a section's lane read pinned
-    /// to `f64`. `None` for a profile on a derived frame (DM1c), whose
+    /// authored frame's document read. `None` for a profile on a derived frame (DM1c), whose
     /// only placement is the lane's — the invariant carried in the
     /// type rather than by a placeholder a reader could mistake for a
     /// placement.
@@ -500,7 +495,7 @@ fn arc_bits(arc: geom_core::Arc2<f64>) -> [u64; 4] {
 /// surfaced typed by the caller, never a panic.
 ///
 /// The match covers vertex POSITIONS, each validated segment's KIND and
-/// an arc's carrier and sweep, and the declared joint set. Positions
+/// an arc's carrier and sweep, and the constructed joint set. Positions
 /// alone are NOT enough (PR #291 review MAJOR-1, both reviewers,
 /// executed): on a 2-vertex loop the forward and reversed maps agree on
 /// every position (index arithmetic mod 2), so a reversed hole circle —
@@ -515,7 +510,7 @@ fn arc_bits(arc: geom_core::Arc2<f64>) -> [u64; 4] {
 /// `Line` matches either stored kind, because a sub-tolerance stored
 /// arc classifies as one and keeps no carrier to compare; a loop with
 /// no validated arc needs n ≥ 3 to close, where positions already
-/// decide. Declared joints ride the same maps and are checked as sets.
+/// decide. Constructed joints ride the same maps and are checked as sets.
 pub(crate) fn derive_naming(
     validated: &ValidatedProfile<f64>,
     program_loops: &[ConstructedLoop<f64>],
@@ -567,18 +562,20 @@ pub(crate) fn derive_naming(
                 if !segments_ok {
                     continue;
                 }
-                // Declared joints as SETS under the vertex map
-                // (canonical joints are canonical vertex indices).
+                // Constructed joints as SETS under the vertex map
+                // (canonical joints are canonical vertex indices): the
+                // validated loop's tangent joints less the ones it
+                // decided from values are the ones the program's
+                // constructors made.
+                let decided = |j: &usize| vl.decided_joints().iter().any(|d| d.joint == *j);
                 let mut mapped: Vec<usize> = vl
                     .tangent_joints()
                     .iter()
+                    .filter(|j| !decided(j))
                     .map(|&j| u32::try_from(j).ok().map(vmap))
                     .collect::<Option<_>>()?;
                 mapped.sort_unstable();
-                let mut prog_joints = pl.tangent_joints().to_vec();
-                prog_joints.sort_unstable();
-                prog_joints.dedup();
-                if mapped != prog_joints {
+                if mapped != pl.constructed_joints() {
                     continue;
                 }
                 found = Some(a);

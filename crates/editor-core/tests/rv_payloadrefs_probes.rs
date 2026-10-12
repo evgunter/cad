@@ -30,8 +30,8 @@ use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, EditError, Formula, FreeVar, MeasureExpr, Node, PatternKind, PersistError,
-    ProfileDoc, RecipeNodeId, SnapshotError, VarName, apply, load, save,
+    Dimension, DocEdit, EditError, Formula, FreeVar, Node, PatternKind, PersistError, ProfileDoc,
+    RecipeNodeId, SnapshotError, VarName, apply, load, save,
 };
 use fixture::{ang, insert, len, on_frame, scl, square};
 use geom_core::Tol;
@@ -54,7 +54,7 @@ fn patterned_on_a_count_param() -> (ProfileDoc, VarName, RecipeNodeId) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -73,7 +73,7 @@ fn patterned_on_a_count_param() -> (ProfileDoc, VarName, RecipeNodeId) {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: Formula::named(name.clone(), Dimension::Count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -150,10 +150,7 @@ fn rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref() {
 fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading() {
     let name = VarName::from_static("depth");
     // The F1 checker, at construction, with no document in sight.
-    let fault = MeasureExpr::add(
-        MeasureExpr::value(Formula::named(name.clone(), Dimension::Length)),
-        MeasureExpr::value(ang(1.0)),
-    );
+    let fault = Formula::add(Formula::named(name.clone(), Dimension::Length), ang(1.0));
     assert!(
         fault.is_err(),
         "a length added to an angle is refused by the F1 checker at construction"
@@ -161,7 +158,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
 
     // The param TABLE, which construction never asks: reading a
     // declared LENGTH parameter as an ANGLE builds fine.
-    let leaf = MeasureExpr::value(Formula::named(name.clone(), Dimension::Angle));
+    let leaf = Formula::named(name.clone(), Dimension::Angle);
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("rv-payloadrefs-f1"),
@@ -175,7 +172,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -195,10 +192,12 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Measure {
-                expr: leaf,
-                refs: Vec::new(),
+            node: Box::new(Node::Assertion {
+                value: leaf,
+                bound: ang(0.0),
+                relation: editor_core::AssertionRelation::AtLeast,
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -209,7 +208,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
             ..
         }) => assert_eq!(
             (declared, referenced),
-            (Dimension::Length, Dimension::Angle)
+            (editor_core::VarKind::Length, Dimension::Angle)
         ),
         other => panic!(
             "the EDIT door is the first door to see a payload reading a declared parameter at \
@@ -237,12 +236,12 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     let rendered = format!(
         "{}",
         SnapshotError::PayloadVarKind {
-            node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
+            node: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 7)),
             var: editor_core::SpokenVar::new(
-                editor_core::VarId(3),
+                editor_core::VarId::new(0, 3),
                 Some(VarName::from_static("depth")),
             ),
-            declared: editor_core::Dimension::Angle,
+            declared: editor_core::VarKind::Angle,
             referenced: editor_core::Dimension::Length,
         }
     );
@@ -261,7 +260,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
         "{}",
         EditError::PayloadUnknownVarName {
             name: VarName::from_static("depth"),
-            node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
+            node: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 7)),
         }
     );
     assert!(

@@ -16,7 +16,7 @@
 use crate::shared::tol::band;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{ChartWindow, Pcurve, PcurveCache};
+use geom_brep::{Pcurve, PcurveCache};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Vec2, Vec3};
 
@@ -78,15 +78,6 @@ fn breaks() -> KnotVector {
     KnotVector::clamped(vec![0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0], 1).unwrap()
 }
 
-fn window() -> ChartWindow<f64> {
-    ChartWindow {
-        u_min: 0.0,
-        u_max: 5.1961524227066,
-        v_min: 0.0,
-        v_max: 1.0,
-    }
-}
-
 /// The FORWARD rim on an imported chart: `p0 = (u₀, v)` and the whole
 /// displacement `pd = (u₁ − u₀, 0)`. Under the pre-#327 code every one
 /// of `side_of`, the expected sub-arc knots and `slack_affine` was
@@ -107,7 +98,6 @@ fn a_forward_arc_rim_certifies_on_a_non_unit_chart() {
         tau,
         &rim(1.0),
         &imported_wall(),
-        window(),
         band(),
     )
     .expect("a full-period rim on its own imported wall must certify");
@@ -142,7 +132,6 @@ fn a_reversed_arc_rim_certifies_on_a_non_unit_chart() {
         tau,
         &rim(-1.0),
         &imported_wall(),
-        window(),
         band(),
     )
     .expect("a reversed full-period rim must certify too");
@@ -170,7 +159,6 @@ fn an_interior_column_still_refuses() {
         tau,
         &rim(1.0),
         &imported_wall(),
-        window(),
         band(),
     );
     assert!(
@@ -208,7 +196,6 @@ fn a_seam_column_certifies_on_a_non_unit_chart() {
             1.0,
             &carrier,
             &wall,
-            window(),
             band(),
         )
     };

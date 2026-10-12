@@ -1,28 +1,27 @@
-//! **Tier 3's pcurve pass reads a face whole** (C4): a face is excused
-//! only when every refusal its edges meet is one whose rows are not
-//! owed (an uncovered class), whatever order the walk meets them in; and
-//! a stored row stated over more of its carrier than the edge spans is
-//! refused, on a complete face and a half-minted one alike.
+//! **Tier 3's pcurve pass on a torus wall** (C4): a strut no torus
+//! holds is a defect tier 3 and the mint name; a stored row stated over
+//! more of its carrier than the edge spans is refused, on a complete
+//! face and a half-minted one alike; and a face bounded by a Villarceau
+//! arc mints.
 //!
-//! The excuse rows run on a quarter revolve of a profile whose one arc
+//! The strut rows run on a quarter revolve of a profile whose one arc
 //! is centred off the axis, so its wall is a minted torus, with struts
 //! added to that wall:
 //!
-//! - an OBLIQUE circle (neither a parallel nor a meridian), which the
-//!   closed-form lane refuses as uncovered (`TorusGeneralCircle`) —
-//!   rows not owed;
-//! - a straight line, which no torus holds (`CarrierOffChart`, a
-//!   defect).
-//!
-//! (R2's probes used a sphere's general circle as the uncovered class;
-//! PR 3733 gave that class its route, so the rows moved to the torus.)
+//! - an OBLIQUE circle (neither a parallel, a meridian nor a Villarceau
+//!   circle), which the torus's incidence test reads off the torus
+//!   (`CarrierOffChart`);
+//! - a circle ⊥ the axis through the tube's crest, centred off the
+//!   axis, which the incidence test reads on the torus while it is no
+//!   circle of it (`CarrierGrazesChart`);
+//! - a straight line, which no torus holds (`CarrierOffChart`).
 //!
 //! Adopted from PCERT reviewer R2's probes on PR 3759.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, PcurveCache, PcurveCertifyError};
+use geom_brep::{EdgeCurveSpec, Grazer, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
@@ -93,6 +92,21 @@ fn oblique_circle_through(p: Point3<f64>) -> Curve3<f64> {
     }
 }
 
+/// A circle ⊥ the torus's axis through `p` on its crest, centred
+/// `2·K·ε` off the axis: past the centring band, while it leaves the
+/// crest by only the square of that.
+fn crest_circle_through(p: Point3<f64>) -> Curve3<f64> {
+    let delta = 2.0 * tol().k() * tol().eps();
+    let center = Point3::new(0.0, p.y, delta);
+    let radius = p.distance(center);
+    Curve3::Circle {
+        center,
+        axis: Vec3::unit_y(),
+        radius,
+        u_ref: (p - center) * (1.0 / radius),
+    }
+}
+
 fn strut(body: &mut Body<f64>, he: HalfEdgeKey, end: Point3<f64>, spec: EdgeCurveSpec<f64>) {
     body.mev(MevSite::Fan { he1: he, he2: he }, end, spec, tol())
         .unwrap();
@@ -121,7 +135,7 @@ fn off_chart(e: &PcurveMintError) -> bool {
     )
 }
 
-/// Tier 3's findings and the wall's mint, with the general strut at
+/// Tier 3's findings and the wall's mint, with the oblique strut at
 /// cycle position `g` and the off-chart strut at `o` (`None` leaves
 /// that strut out), and the body.
 fn verdicts(
@@ -147,47 +161,58 @@ fn verdicts(
     (findings, mint, body)
 }
 
-/// **The controls: each strut alone.** The uncovered strut's wall is
-/// excused, tier 3 clean and the mint storing nothing on it; the
-/// off-chart strut's wall is loud in both, at whichever corner it
-/// stands.
-#[test]
-fn each_strut_alone_is_excused_or_refused_by_its_own_class() {
-    let (f, m, _) = verdicts(Some(0), None);
-    assert!(f.is_empty(), "the uncovered strut is excused: {f:?}");
-    assert_eq!(m, Ok(0), "the mint excuses the wall, storing nothing");
-    for i in 0..2 {
-        let (f, m, _) = verdicts(None, Some(i));
-        assert!(matches!(f.as_slice(), [e] if off_chart(e)), "{f:?}");
-        assert!(matches!(&m, Err(e) if off_chart(e)), "{m:?}");
-    }
+fn grazes(e: &PcurveMintError) -> bool {
+    matches!(
+        e,
+        PcurveMintError::Certify {
+            error: PcurveCertifyError::CarrierGrazesChart {
+                grazer: Grazer::TorusCircle,
+                ..
+            },
+            ..
+        }
+    )
 }
 
-/// **An uncovered strut masks nothing.** The same wall carries the
-/// off-chart strut beside the uncovered one, in four cycle orders: the
-/// face is read whole before it is excused, so tier 3 names the
-/// off-chart strut, and the mint refuses with it, in every order — and
-/// in every order the reversed body (`Body::revert`, which carries the
-/// rows and walks each loop the other way) reads the same.
+/// **Each strut alone is refused by its own class**, at whichever
+/// corner it stands: the oblique circle and the line are off the torus,
+/// and the crest circle grazes it. Tier 3 names the strut and the mint
+/// refuses with it; none is excused.
 #[test]
-fn an_uncovered_strut_masks_no_off_chart_strut_in_any_cycle_order() {
-    for (g, o) in [(0, 1), (1, 0), (0, 2), (2, 0)] {
-        let (f, m, body) = verdicts(Some(g), Some(o));
+fn each_strut_alone_is_refused_by_its_own_class() {
+    for i in 0..2 {
+        let (f, m, _) = verdicts(Some(i), None);
         assert!(
             matches!(f.as_slice(), [e] if off_chart(e)),
-            "general at {g}, off-chart at {o}: tier 3 names the off-chart strut: {f:?}"
+            "oblique at {i}: {f:?}"
         );
         assert!(
             matches!(&m, Err(e) if off_chart(e)),
-            "general at {g}, off-chart at {o}: the mint refuses with it: {m:?}"
+            "oblique at {i}: {m:?}"
         );
-        let reverted = body.revert();
-        let fr = validate_pcurves(&reverted, band());
+        let (f, m, _) = verdicts(None, Some(i));
         assert!(
-            matches!(fr.as_slice(), [e] if off_chart(e)),
-            "general at {g}, off-chart at {o}: reversed, the same verdict: {fr:?}"
+            matches!(f.as_slice(), [e] if off_chart(e)),
+            "line at {i}: {f:?}"
         );
+        assert!(matches!(&m, Err(e) if off_chart(e)), "line at {i}: {m:?}");
     }
+    let mut body = torus_quarter();
+    let (wall, cycle) = torus_wall(&body);
+    let crest = cycle
+        .iter()
+        .copied()
+        .find(|&he| (start_point(&body, he).y - 0.5).abs() < 1e-12)
+        .expect("the wall has a corner on the tube's crest");
+    let p = start_point(&body, crest);
+    arc_strut(&mut body, crest, crest_circle_through(p), 0.2);
+    let f = validate_pcurves(&body, band());
+    assert!(
+        matches!(f.as_slice(), [e] if grazes(e)),
+        "crest circle: {f:?}"
+    );
+    let m = topo::mint_pcurves_of(&mut body, &[wall], tol());
+    assert!(matches!(&m, Err(e) if grazes(e)), "crest circle: {m:?}");
 }
 
 /// **A stale wide row is refused, complete or half-minted.** On a
@@ -239,8 +264,7 @@ fn a_stale_wide_row_is_refused_complete_or_half_minted() {
             for (j, &h2) in cycle.iter().enumerate() {
                 let mut body = base.clone();
                 let wide = cache.pcurve().clone();
-                let window = wide.chart_box(lo, hi);
-                let row = PcurveCache::certify(wide, lo, hi, &carrier, &surface, window, band())
+                let row = PcurveCache::certify(wide, lo, hi, &carrier, &surface, band())
                     .expect("the carrier's own image certifies over a longer span");
                 body.attach_pcurve(h1, row);
                 if j != i {
@@ -285,49 +309,38 @@ fn certificate_refused(e: &PcurveMintError) -> bool {
     )
 }
 
-/// **An uncovered strut masks no certificate either.** A covered strut
-/// whose refusal the band cannot decide — a parallel tilted off the
-/// torus's axis — stands on the same wall as the uncovered oblique
-/// strut. Tilted 2ε, it refuses in its derivation (`ChartWinding`);
-/// tilted ε at the second corner, its image derives and only its
-/// certificate refuses (`Envelope`), which an excused face once left
-/// unread. The face is excused only when every refusal is not owed,
-/// and the covered strut's is one of its refusals, so tier 3 names it,
-/// the mint refuses with it, and the reversed body reads the same, in
-/// every order.
+/// **A covered strut whose refusal the band cannot decide is named** —
+/// a parallel tilted off the torus's axis. Tilted 2ε, it refuses in its
+/// derivation (`ChartWinding`); tilted ε, its image derives and only
+/// its certificate refuses (`Envelope`). Tier 3 names it, the mint
+/// refuses with it, and the reversed body reads the same, at either
+/// corner.
 #[test]
-fn an_uncovered_strut_masks_no_refused_certificate() {
+fn a_tilted_parallel_strut_refuses_its_certificate() {
     let (f, _, _) = verdicts(None, None);
     assert!(f.is_empty(), "the bare wall is clean: {f:?}");
     let eps = tol().eps();
-    for (g, c, k) in [(1, 0, 2.0), (0, 1, 2.0), (0, 1, 1.0), (2, 1, 1.0)] {
+    for (c, k) in [(0, 2.0), (1, 2.0), (1, 1.0)] {
         let tilt = k * eps;
         let mut body = torus_quarter();
         let (wall, cycle) = torus_wall(&body);
         let p = start_point(&body, cycle[c]);
         arc_strut(&mut body, cycle[c], tilted_parallel_through(p, tilt), 0.2);
-        let alone = validate_pcurves(&body, band());
-        assert!(
-            matches!(alone.as_slice(), [e] if certificate_refused(e)),
-            "the control: the tilted parallel alone refuses its certificate: {alone:?}"
-        );
-        let p = start_point(&body, cycle[g]);
-        arc_strut(&mut body, cycle[g], oblique_circle_through(p), 0.2);
         let f = validate_pcurves(&body, band());
         assert!(
             matches!(f.as_slice(), [e] if certificate_refused(e)),
-            "general at {g}, parallel tilted {tilt} at {c}: tier 3 names the certificate: {f:?}"
+            "parallel tilted {tilt} at {c}: tier 3 names the certificate: {f:?}"
         );
         let mut minted = body.clone();
         let m = topo::mint_pcurves_of(&mut minted, &[wall], tol());
         assert!(
             matches!(&m, Err(e) if certificate_refused(e)),
-            "general at {g}, parallel tilted {tilt} at {c}: the mint refuses with it: {m:?}"
+            "parallel tilted {tilt} at {c}: the mint refuses with it: {m:?}"
         );
         let fr = validate_pcurves(&body.revert(), band());
         assert!(
             matches!(fr.as_slice(), [e] if certificate_refused(e)),
-            "general at {g}, parallel tilted {tilt} at {c}: reversed, the same verdict: {fr:?}"
+            "parallel tilted {tilt} at {c}: reversed, the same verdict: {fr:?}"
         );
     }
 }
@@ -400,8 +413,7 @@ fn a_row_shifted_a_whole_period_is_refused_at_every_position() {
             for (j, &h2) in cycle.iter().enumerate() {
                 let mut body = base.clone();
                 let image = cache.pcurve().clone();
-                let window = image.chart_box(lo, hi);
-                let row = PcurveCache::certify(image, lo, hi, &carrier, &surface, window, band())
+                let row = PcurveCache::certify(image, lo, hi, &carrier, &surface, band())
                     .expect("the row certifies one period over");
                 body.attach_pcurve(h1, row);
                 if j != i {
@@ -479,13 +491,7 @@ fn a_loop_moved_a_period_over_reads_only_its_gap_at_every_position() {
                 .carrier()
                 .clone();
             let (t0, t1) = cache.params();
-            let window = geom_brep::ChartWindow {
-                u_min: -3.0 * tau,
-                u_max: 4.0 * tau,
-                v_min: -5.0,
-                v_max: 5.0,
-            };
-            let row = PcurveCache::certify(image, t0, t1, &carrier, &surface, window, band())
+            let row = PcurveCache::certify(image, t0, t1, &carrier, &surface, band())
                 .expect("the row certifies a period over");
             moved.attach_pcurve(he, row);
         }
@@ -503,5 +509,135 @@ fn a_loop_moved_a_period_over_reads_only_its_gap_at_every_position() {
                 "moved {shift}, gap {j}, reversed: {fr:?}"
             );
         }
+    }
+}
+
+/// The vertex of `face`'s outer cycle at `p`.
+fn half_edge_at(body: &Body<f64>, face: FaceKey, p: Point3<f64>) -> HalfEdgeKey {
+    let topo::LoopBoundary::Cycle { first } = body
+        .get_loop(body.get_face(face).unwrap().outer)
+        .unwrap()
+        .boundary
+    else {
+        panic!("the face's outer loop is a cycle")
+    };
+    body.loop_cycle(first)
+        .unwrap()
+        .into_iter()
+        .find(|&he| start_point(body, he).distance(p) < 1e-9)
+        .unwrap_or_else(|| panic!("no vertex of the face at {p:?}"))
+}
+
+/// **A torus face bounded by a Villarceau arc mints, on either
+/// family.** A half revolve (azimuth `0 → π`) of the circle of radius
+/// `r` about `(R, 0)` has two torus faces, the upper and lower halves,
+/// each with corners on the outer equator at azimuths `0` and `π` and
+/// on the inner equator at the same two. The Villarceau circle centred
+/// `r` along `+x` meets the equator at `(R + r, 0, 0)`, the outer corner
+/// at `0`, and half a turn later at `(−(R − r), 0, 0)`, the inner corner
+/// at `π`; between them it crosses the upper half on one family and
+/// the lower on the other. `mef` joins the two corners with that arc,
+/// described in the torus's chart (`EdgeDescription::Chart`), and mints
+/// the split face's rows: each half of the arc is a `FocalSection` row,
+/// each of the two faces' loops closes, and tier 3 reads the body
+/// clean.
+#[test]
+fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
+    let (big, r) = (2.0_f64, 0.5_f64);
+    for family in [1.0_f64, -1.0] {
+        let mut body = revolved_about_y(
+            vec![
+                (Point2::new(big + r, 0.0), 1.0),
+                (Point2::new(big - r, 0.0), 1.0),
+            ],
+            Revolution::Partial(core::f64::consts::PI),
+            tol(),
+        );
+        // Which way the revolve sweeps: the side its outer equator
+        // crosses at azimuth π/2.
+        let sweep = body
+            .edges()
+            .find_map(|(_, e)| {
+                let m = body
+                    .get_curve_geom(e.curve)
+                    .unwrap()
+                    .certified()
+                    .unwrap()
+                    .mid_point();
+                (m.y.abs() < 1e-9 && (m.z.abs() - (big + r)).abs() < 1e-9).then_some(m.z.signum())
+            })
+            .expect("the outer equator crosses azimuth π/2");
+        let (outer, inner) = (
+            Point3::new(big + r, 0.0, 0.0),
+            Point3::new(-(big - r), 0.0, 0.0),
+        );
+        // The upper (lower) half: the torus face one of whose edges
+        // passes over (under) the equator.
+        let face = body
+            .faces()
+            .find_map(|(fk, f)| {
+                let Surface::Torus { .. } = *body.get_surface(f.surface).unwrap() else {
+                    return None;
+                };
+                let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary
+                else {
+                    return None;
+                };
+                body.loop_cycle(first)
+                    .unwrap()
+                    .into_iter()
+                    .any(|he| {
+                        let e = body.get_half_edge(he).unwrap().edge;
+                        let curve = body.get_edge(e).unwrap().curve;
+                        let m = body
+                            .get_curve_geom(curve)
+                            .unwrap()
+                            .certified()
+                            .unwrap()
+                            .mid_point();
+                        m.y * family > 0.5 * r
+                    })
+                    .then_some(fk)
+            })
+            .expect("the half revolve has both torus halves");
+        let chart = body.get_face(face).unwrap().surface;
+        let tilt = (r / big).asin();
+        let side = Vec3::new(0.0, family * tilt.sin(), sweep * tilt.cos());
+        let villarceau = Curve3::Circle {
+            center: Point3::new(r, 0.0, 0.0),
+            axis: Vec3::unit_x().cross(side),
+            radius: big,
+            u_ref: Vec3::unit_x(),
+        };
+        assert!(villarceau.eval(0.0).distance(outer) < 1e-12);
+        assert!(villarceau.eval(core::f64::consts::PI).distance(inner) < 1e-12);
+        let spec = EdgeCurveSpec::arc_of_circle(villarceau, 0.0, core::f64::consts::PI)
+            .unwrap()
+            .at_rest_in_chart(chart, false);
+        let he1 = half_edge_at(&body, face, outer);
+        let he2 = half_edge_at(&body, face, inner);
+        let made = body
+            .mef(
+                topo::MefSite::Chords { he1, he2 },
+                spec,
+                topo::FaceSurface::Inherit,
+                tol(),
+            )
+            .unwrap_or_else(|e| panic!("family {family}: the Villarceau split refuses: {e}"));
+        for he in [made.he_plus, made.he_minus] {
+            let row = body
+                .pcurve(he)
+                .unwrap_or_else(|| panic!("family {family}: {he:?} has no row"));
+            assert!(
+                matches!(row.pcurve(), Pcurve::FocalSection(_)),
+                "family {family}: the arc's row is its focal section: {:?}",
+                row.pcurve()
+            );
+        }
+        let findings = validate_pcurves(&body, band());
+        assert!(
+            findings.is_empty(),
+            "family {family}: tier 3 reads the split clean: {findings:?}"
+        );
     }
 }

@@ -57,3 +57,10 @@ whose chords no longer read it). The unification this item asks for is
 now also a move: one home beside `torus_chart_windows`, out of
 `chord_join.rs`.
 
+## Where the torus walk stands (CONTACT-11, 2026-10-08)
+
+`torus_chart_windows` now also checks that each entry equals the
+previous exit (`bool_torus_chart_closure`). It decides
+`bool_torus_chart_box` through `solid_contain::chart_polygon_box`,
+which it shares with the cone trim. The walk itself is still a second
+copy of `chord_join::face_azimuth_window`'s.

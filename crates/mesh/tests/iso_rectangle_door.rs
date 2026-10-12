@@ -89,8 +89,8 @@ fn the_oblique_lens_refuses_at_the_shape_door() {
 /// The SHAPE door and the flux lane answer the same rimless lune on
 /// their own premises: the partial sphere wedge is a chart rectangle
 /// `[0, θ] × [−π/2, π/2]`, so the door admits it and it meshes, and
-/// `mass_properties` measures it by the flux lane's own reading of the
-/// two meridian half-planes (`props_wedge_azimuth`) — the wedge of the
+/// `mass_properties` measures it by the flux lane's Gauss–Bonnet
+/// reading of its loop — the wedge of the
 /// unit ball over `θ = 2`, volume `(2/3)·θ`. The door's answer is the
 /// shape's and does not depend on which lunes the flux lane measures.
 #[test]
@@ -300,9 +300,11 @@ fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
 /// `mass_properties` says so bitwise on both patterns. The premise is
 /// ENFORCED, not assumed: a child restated through `set_edge_curve`
 /// with its interval shifted by a period on its own carrier (every
-/// piece still certifies) no longer meets its sibling, and every
-/// consumer refuses `props_meridian_pieces_meet` — this row reds if
-/// the fold ever admits it.
+/// piece still certifies) no longer meets its sibling, and the shape
+/// door refuses `props_meridian_pieces_meet` — this row reds if the
+/// fold ever admits it. `mass_properties` needs no fold: the torus's
+/// chart Green form reads each piece's own span, so the shifted child
+/// — the identical arc — measures as the donut.
 #[test]
 fn split_children_partition_the_parent_edges_own_parametrisation() {
     let tol = Tol::witness();
@@ -383,17 +385,20 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
         let meet = PropsError::NotIsoRectangle {
             what: "props_meridian_pieces_meet",
         };
-        let got = topo::mass_properties(&shifted, tol).map(|m| m.volume);
+        let got = topo::mass_properties(&shifted, tol)
+            .unwrap_or_else(|e| panic!("{fracs:?}: the shifted child measures: {e:?}"))
+            .volume;
+        let want = f64::from_bits(v0);
         assert!(
-            matches!(&got, Err(topo::MassPropsError::Face { source, .. }) if *source == meet),
-            "{fracs:?}: the shifted child no longer meets its sibling: {got:?}"
+            (got - want).abs() <= 1e-12 * want,
+            "{fracs:?}: the shifted child is the identical arc: {got} vs {want}"
         );
         assert!(
             matches!(
                 mesh::tessellate(&shifted, 0.1, tol),
                 Err(TessellateError::UnsupportedCurvedShape { source, .. }) if source == meet
             ),
-            "{fracs:?}: tessellate refuses by the same name"
+            "{fracs:?}: tessellate refuses at the shape door"
         );
     }
 }

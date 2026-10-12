@@ -11,29 +11,30 @@
 //!   face a merge lists is published by no face of its own;
 //! - a seam edge's sides are the parents of the faces it lies between;
 //! - a document whose finished body depends on member order (a vertex a
-//!   declared merge left behind) still publishes, with no two rows
+//!   flush merge left behind) still publishes, with no two rows
 //!   sharing a name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
 
+use crate::blocks::{failure, run};
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{failure, run};
 use crate::emit_shared_rim_several::{Bx, document, permutations};
 use crate::emit_union_rim_piece_ranks::{Case, cases, runs, signature};
 use crate::fixture::{face_vertices, insert, table};
 
 use editor_core::{
     EntityKey, EntityKind, Entry, Evaluation, Node, NodeErrorKind, RecipeNodeId, RoleSeg,
-    StableName,
+    StableName, VarId,
 };
 
-/// The member faces a published face name cites: its own, or each of a
-/// `Merged` set's, through any `Fragment`.
-fn member_faces(name: &StableName, out: &mut BTreeSet<(RecipeNodeId, StableName)>) {
+/// The member faces a published face name cites, each with the read it
+/// came through: its own, or each of a `Merged` set's, through any
+/// `Fragment`.
+fn member_faces(name: &StableName, out: &mut BTreeSet<(VarId, StableName)>) {
     match name.path.first() {
-        Some(RoleSeg::FromMember { member, of }) if of.kind == EntityKind::Face => {
-            out.insert((*member, (**of).clone()));
+        Some(RoleSeg::From { read, of }) if of.kind == EntityKind::Face => {
+            out.insert((*read, (**of).clone()));
         }
         Some(RoleSeg::Merged(set)) => set.iter().for_each(|c| member_faces(c, out)),
         _ => {}
@@ -57,30 +58,24 @@ fn point(body: &topo::Body<f64>, v: topo::VertexKey) -> geom_core::Point3<f64> {
 /// **Every vertex a union names for a member vertex is that vertex**:
 /// at its point, and bordering a face of the member that the member
 /// vertex lies on. Returns how many such vertices were checked.
+///
+/// A name carries the member's READ, and an evaluation holds no map
+/// from a read back to the node that defines it, so the member is
+/// found among the evaluated nodes whose own table holds the vertex
+/// (a pass-through transform's table is its input's verbatim, so there
+/// can be more than one); the vertex must be that vertex of one of
+/// them.
 fn member_vertices_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> usize {
     let body = body_of(ev, union);
     let t = table(ev, union);
     let mut checked = 0;
     for (name, entry) in t.iter() {
-        let (Entry::Unique(e), [RoleSeg::FromMember { member, of }]) =
-            (entry, name.path.as_slice())
-        else {
+        let (Entry::Unique(e), [RoleSeg::From { read, of }]) = (entry, name.path.as_slice()) else {
             continue;
         };
         let (EntityKey::Vertex(v), EntityKind::Vertex) = (e.key, of.kind) else {
             continue;
         };
-        let (mbody, mtable) = (body_of(ev, *member), table(ev, *member));
-        let Some(Entry::Unique(w)) = mtable.lookup(of) else {
-            panic!("{at}: {name:?} names no vertex of its member")
-        };
-        let EntityKey::Vertex(w) = w.key else {
-            panic!("{at}: {name:?} is not a member vertex")
-        };
-        assert!(
-            (point(body, v) - point(mbody, w)).norm() < 1e-9,
-            "{at}: {name:?} is not at its member vertex"
-        );
         let mut cited = BTreeSet::new();
         for f in body.faces_of_vertex(v).unwrap() {
             if let Some(fname) = t.name_of(&editor_core::EntityRef {
@@ -90,17 +85,44 @@ fn member_vertices_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> 
                 member_faces(fname, &mut cited);
             }
         }
-        let borders = mbody.faces_of_vertex(w).unwrap().into_iter().any(|g| {
-            mtable
-                .name_of(&editor_core::EntityRef {
-                    body: 0,
-                    key: EntityKey::Face(g),
+        let candidates: Vec<RecipeNodeId> = ev
+            .nodes
+            .keys()
+            .copied()
+            .filter(|&n| {
+                n != union
+                    && ev.value(n).is_some_and(|v| {
+                        matches!(v.name_table.lookup(of), Some(Entry::Unique(w))
+                            if matches!(w.key, EntityKey::Vertex(_)))
+                    })
+            })
+            .collect();
+        assert!(
+            !candidates.is_empty(),
+            "{at}: {name:?} names no vertex of its member"
+        );
+        let holds = candidates.iter().any(|&member| {
+            let (mbody, mtable) = (body_of(ev, member), table(ev, member));
+            let Some(Entry::Unique(w)) = mtable.lookup(of) else {
+                return false;
+            };
+            let EntityKey::Vertex(w) = w.key else {
+                return false;
+            };
+            (point(body, v) - point(mbody, w)).norm() < 1e-9
+                && mbody.faces_of_vertex(w).unwrap().into_iter().any(|g| {
+                    mtable
+                        .name_of(&editor_core::EntityRef {
+                            body: 0,
+                            key: EntityKey::Face(g),
+                        })
+                        .is_some_and(|g| cited.contains(&(*read, g.clone())))
                 })
-                .is_some_and(|g| cited.contains(&(*member, g.clone())))
         });
         assert!(
-            borders,
-            "{at}: {name:?} borders no face of its member that the member vertex lies on"
+            holds,
+            "{at}: {name:?} is not at its member vertex, or borders no face of its member that \
+             the member vertex lies on"
         );
         checked += 1;
     }
@@ -156,9 +178,9 @@ fn seam_sides_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> usize
 /// The member faces a parent name lists: its one member face, or each
 /// of a flat `Merged` set's, and `None` for any other shape.
 fn parent_members(parent: &StableName) -> Option<BTreeSet<StableName>> {
-    let one = |n: &StableName| matches!(n.path.as_slice(), [RoleSeg::FromMember { of, .. }] if of.kind == EntityKind::Face);
+    let one = |n: &StableName| matches!(n.path.as_slice(), [RoleSeg::From { of, .. }] if of.kind == EntityKind::Face);
     match parent.path.as_slice() {
-        [RoleSeg::FromMember { .. }] if one(parent) => Some(BTreeSet::from([parent.clone()])),
+        [RoleSeg::From { .. }] if one(parent) => Some(BTreeSet::from([parent.clone()])),
         [RoleSeg::Merged(set)] if set.len() >= 2 && set.iter().all(one) => {
             Some(set.iter().cloned().collect())
         }
@@ -231,9 +253,9 @@ const NEAR: Bx = ((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0));
 
 /// The ZIP row's shape
 /// (`work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`):
-/// `a`, `b` declared flush and a slab over `b`'s end.
+/// `a`, `b` flush and a slab over `b`'s end.
 fn near_slab() -> Case {
-    Case::flat("near", vec![A, B, NEAR], vec![0, 1, 2], vec![(0, 1)])
+    Case::flat("near", vec![A, B, NEAR], vec![0, 1, 2])
 }
 
 /// The unions that refuse in some member orders, as `(case, union,
@@ -242,35 +264,7 @@ fn near_slab() -> Case {
 /// of which refuses. The rows below check what the others publish, and
 /// fail on any refusal not pinned here, so a new one cannot pass by
 /// being skipped.
-const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[
-    ("abg", "U", 2, "DeclareResolve:2"),
-    ("abgg2", "U", 16, "DeclareResolve:16"),
-    ("abgids", "U", 2, "DeclareResolve:2"),
-    ("abglow", "U", 2, "DeclareResolve:2"),
-    ("cross", "U", 24, "UndeclaredCoincidence:24"),
-    ("fam000", "U", 2, "DeclareResolve:2"),
-    ("fam001", "U", 2, "DeclareResolve:2"),
-    ("fam002", "U", 2, "DeclareResolve:2"),
-    ("fam012", "U", 2, "DeclareResolve:2"),
-    ("fam022", "U", 2, "DeclareResolve:2"),
-    ("fam100", "U", 4, "DeclareResolve:4"),
-    ("fam101", "U", 4, "DeclareResolve:4"),
-    ("fam102", "U", 4, "DeclareResolve:4"),
-    ("fam112", "U", 4, "DeclareResolve:4"),
-    ("fam122", "U", 4, "DeclareResolve:4"),
-    ("fam200", "U", 2, "DeclareResolve:2"),
-    ("fam201", "U", 2, "DeclareResolve:2"),
-    ("fam202", "U", 2, "DeclareResolve:2"),
-    ("fam212", "U", 2, "DeclareResolve:2"),
-    ("fam222", "U", 2, "DeclareResolve:2"),
-    ("near", "U", 2, "DeclareResolve:2"),
-    ("r1flush", "U", 18, "DeclareResolve:18"),
-    ("r1three", "U", 24, "UndeclaredCoincidence:24"),
-    ("r2endsg", "U", 12, "DeclareResolve:12"),
-    ("r4trig", "U", 12, "DeclareResolve:12"),
-    ("row", "U", 24, "UndeclaredCoincidence:24"),
-    ("rowids", "U", 24, "UndeclaredCoincidence:24"),
-];
+const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[("cross", "U", 10, "Naming:10")];
 
 /// Every refusal `case`'s runs meet, pinned against [`KNOWN_REFUSING`]
 /// for the whole run; `each` sees the unions that publish.
@@ -340,6 +334,24 @@ fn a_union_cites_only_what_the_finished_body_holds() {
     assert!(vertices > 1000, "only {vertices} member vertices checked");
 }
 
+/// The read member `m` comes through, as the union's table spells it:
+/// the read of any carried name whose entity `m` minted. (An
+/// evaluation holds no map from a node to its read; `m` minting its own
+/// names — no pass-through between it and the union — is the premise.)
+fn read_of(ev: &Evaluation<f64>, union: RecipeNodeId, m: RecipeNodeId) -> VarId {
+    fn find(name: &StableName, m: RecipeNodeId) -> Option<VarId> {
+        name.path.iter().find_map(|seg| match seg {
+            RoleSeg::From { read, of } if of.node == m => Some(*read),
+            RoleSeg::Merged(set) => set.iter().find_map(|c| find(c, m)),
+            _ => None,
+        })
+    }
+    table(ev, union)
+        .iter()
+        .find_map(|(name, _)| find(name, m))
+        .unwrap_or_else(|| panic!("the union carries a name {m:?} minted"))
+}
+
 /// The union-space name of member `m`'s face whose vertices all lie on
 /// y = 0.
 fn wall_at_y0(ev: &Evaluation<f64>, union: RecipeNodeId, m: RecipeNodeId) -> StableName {
@@ -357,8 +369,8 @@ fn wall_at_y0(ev: &Evaluation<f64>, union: RecipeNodeId, m: RecipeNodeId) -> Sta
     StableName {
         kind: EntityKind::Face,
         node: union,
-        path: vec![RoleSeg::FromMember {
-            member: m,
+        path: vec![RoleSeg::From {
+            read: read_of(ev, union, m),
             of: editor_core::NameRef::new(on.expect("a face at y = 0")),
         }],
     }
@@ -366,7 +378,7 @@ fn wall_at_y0(ev: &Evaluation<f64>, union: RecipeNodeId, m: RecipeNodeId) -> Sta
 
 /// **A face cut and merged in one step publishes no piece under a
 /// constituent's name** (N3). `fam012`: `a` = x 0..1 and `b` = x
-/// 0.5..1.5, declared flush, and a slab `g` at x 0.3..0.4 through `a`'s
+/// 0.5..1.5, flush, and a slab `g` at x 0.3..0.4 through `a`'s
 /// y = 0 wall. In `[b, g, a]` one step cuts `a`'s wall and merges its
 /// right piece with `b`'s; in `[a, b, g]` the wall merges first and `g`
 /// cuts the merge. Either way the wall is two faces, both fragments of
@@ -413,7 +425,7 @@ fn a_face_cut_and_merged_in_one_step_publishes_no_constituent() {
 }
 
 /// **The ZIP document's body is one in every member order.** `[b, s, a]`
-/// and `[s, b, a]` cut the slab's bottom seam before the declared merge
+/// and `[s, b, a]` cut the slab's bottom seam before the flush merge
 /// meets it; the output stage joins the vertex that cut leaves between
 /// the slab's bottom and the merged wall (maximal edges), so they build
 /// the vertex set the other orders build, and every order publishes.
@@ -557,12 +569,7 @@ fn one_table(faces: &std::collections::BTreeMap<String, BTreeSet<StableName>>) {
 #[test]
 fn a_boss_on_one_piece_of_a_covered_face_is_cited_in_no_order() {
     const PILLAR: Bx = ((0.1, 0.2), (0.4, 0.6), (0.5, 2.0));
-    let case = Case::flat(
-        "nearpillar",
-        vec![A, B, NEAR, PILLAR],
-        vec![0, 1, 2, 3],
-        vec![(0, 1)],
-    );
+    let case = Case::flat("nearpillar", vec![A, B, NEAR, PILLAR], vec![0, 1, 2, 3]);
     let (faces, ids) = face_tables(&case);
     assert!(
         faces.len() >= 8,
@@ -574,7 +581,7 @@ fn a_boss_on_one_piece_of_a_covered_face_is_cited_in_no_order() {
     let cites_pillar = |wall: &StableName| {
         let mut members = BTreeSet::new();
         member_faces(wall, &mut members);
-        members.iter().any(|(m, _)| *m == pillar)
+        members.iter().any(|(_, of)| of.node == pillar)
     };
     for (at, names) in &faces {
         for n in names {
@@ -620,13 +627,12 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
         let (doc, u1) = insert(
             doc,
             Node::Union {
-                members: vec![ids[0], ids[1]],
-                declare: Vec::new(),
+                members: editor_core::Bodies::Spelled(vec![ids[0].into(), ids[1].into()]),
             },
         );
         for order in permutations(&[0, 1]) {
             let members: Vec<_> = order.iter().map(|&i| [u1, ids[2]][i]).collect();
-            let (docx, top) = crate::fixture::union_over(doc.clone(), &members, Vec::new());
+            let (docx, top) = crate::fixture::union_over(doc.clone(), &members);
             let ev = run(&docx);
             let at = format!("{touch:?} {third:?} {order:?}");
             for union in [u1, top] {
@@ -637,22 +643,9 @@ fn a_member_of_two_touching_shells_names_each_shell_for_itself() {
                 );
                 member_vertices_hold(&ev, union, &at);
                 seam_sides_hold(&ev, union, &at);
-                // `U1` records its own touch and passes 3′. The union
-                // over it drops `U1`'s records, so its value ships the
-                // touch undeclared, which 3′ refuses and the door (tier 3
-                // only, the census parked) does not; pinned as it stands
-                // (`work/wire/a-boolean-drops-its-operands-own-contact-records.md`).
-                match crate::docm7_union_declare::census_of(&ev, union) {
-                    Ok(()) => assert!(union == u1, "{at}: the top union passes 3′"),
-                    Err(errors) => assert!(
-                        union == top
-                            && errors.iter().all(|e| matches!(
-                                e,
-                                topo::ValidationError::UndeclaredContact { .. }
-                            )),
-                        "{at}: 3′ refuses only the dropped touch: {errors:?}"
-                    ),
-                }
+                // `U1` records its own touch, and the union over it
+                // carries that record.
+                assert_eq!(crate::blocks::census_of(&ev, union), Ok(()), "{at}: 3′");
             }
             fused += 1;
         }

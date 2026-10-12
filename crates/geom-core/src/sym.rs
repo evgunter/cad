@@ -933,31 +933,32 @@
 //! Two greps over `crates/` and `demos/` — one for the names handed to a
 //! funnel door, one for identity/gap-shaped string literals — and their
 //! union minus the bare filter words and the test-harness names. **106
-//! names.** The rule is written out in
-//! `work/sym/symbolic-tier-census.md`, which also carries the full
+//! names** at M10-7, **104** since two retired. The rule is written out in
+//! `work/tier/symbolic-tier-census.md`, which also carries the full
 //! table: one row per name, with its bucket, its evidence and its site.
 //! Only the counts and the two families that matter are here.
 //!
 //! | bucket | count |
 //! | --- | --- |
-//! | IMPLICIT (S-CERT's frontier) | 4 |
+//! | IMPLICIT (S-CERT's frontier) | 3 |
 //! | NOT A PREDICATE | 8 |
-//! | EXPLICIT | 94 |
+//! | EXPLICIT | 93 |
 //!
-//! **106 and not the 66 the previous sweep reported**, because that
+//! **106 at M10-7, and not the 66 the previous sweep reported**, because that
 //! number is not re-derivable from a rule written down anywhere and this
 //! one states its own. The difference is filter width, not new
 //! predicates.
 //!
-//! **IMPLICIT — 4**, and this is the census's load-bearing claim:
+//! **IMPLICIT — 3**, and this is the census's load-bearing claim:
 //! `ssi_on_locus` and `ssi_on_locus_foot` (a marched intersection
-//! point's residual and the foot of its projection),
-//! `plane_nurbs_on_locus` (a chart-image foot) and
-//! `offset_reanchor_on_carrier` (an offset carrier re-anchored through a
-//! solve) — EXACTLY the four S-CERT's frontier item already names, at
-//! either filter width. A quantity found by iteration has no expression
-//! in the parameters, so no normal form reaches it and its residual
-//! widens with the box whatever this tier does.
+//! point's residual and the foot of its projection, the plane × NURBS
+//! lane's chart-image foot among them) and `offset_corner_on_surface`
+//! (an offset corner found by a root solve) — EXACTLY the quantities
+//! S-CERT's frontier item
+//! (`work/tier/param-box-certification-of-implicit-quantities.md`)
+//! names, at either filter width. A quantity found by iteration has no
+//! expression in the parameters, so no normal form reaches it and its
+//! residual widens with the box whatever this tier does.
 //!
 //! **NOT A PREDICATE — 8.** Seven are `pncad-py` TAG strings for error
 //! and enum variants; `carrier_kind` is a diagnostic name on an
@@ -965,7 +966,7 @@
 //! (`topo/src/boolean/carrier_eq.rs`) — a structure contradiction, with
 //! no margin ever classified.
 //!
-//! **EXPLICIT — 94.** Closed forms in the parameters over analytic
+//! **EXPLICIT — 93.** Closed forms in the parameters over analytic
 //! carriers. Nine carry a MEASURED symbolic/numeric split from
 //! `editor-core/tests/m10_7_census_probe.rs` (at `Sym<Probe>`, through
 //! the same funnel, over the M10 fixtures and the tour's plate):
@@ -1037,6 +1038,10 @@ use crate::tolerance::Tol;
 /// The atom algebra: the rule A/B reductions over a residual.
 #[path = "sym/algebra.rs"]
 mod algebra;
+/// The deferring session: decisions taken numerically, the Zeros a
+/// reader asks about discharged afterwards.
+#[path = "sym/deferred.rs"]
+pub mod deferred;
 /// The seam pins: the discharge vocabulary's spellings held against
 /// one another, one row per seam.
 #[cfg(test)]
@@ -1070,6 +1075,10 @@ mod rational;
 /// stayed numeric, what blocked it.
 #[path = "sym/report.rs"]
 pub mod report;
+/// The re-valuation instrument: a decision's DAG evaluated at another
+/// parameter point, against the build there (test-only).
+#[cfg(feature = "sym-revalue-testing")]
+pub mod revalue;
 /// Rule G: the canonical square root — the one door every `Sqrt` atom
 /// is minted through, and the `D ≥ 0` side condition its quotient
 /// split rests on.
@@ -1323,6 +1332,17 @@ struct SymNode {
 }
 
 impl SymNode {
+    /// **The one spelling of a literal's node**: what
+    /// [`Real::from_f64`], `zero` and `one` intern, and what
+    /// [`SpanLocate::plain_constant`] recomputes to recognise one.
+    fn literal(x: f64) -> Self {
+        SymNode {
+            op: SymOp::Lit,
+            payload: x.to_bits(),
+            kids: [SymId::UNRECORDED; 3],
+        }
+    }
+
     /// **The children this node actually has** — `kids` is a fixed pair
     /// and the arity says how much of it is the expression; every walk
     /// over the DAG wants this slice and none of them wants the
@@ -2553,6 +2573,10 @@ struct Session {
     plain_built: Vec<SymId>,
     plain_atoms: Vec<u128>,
     plain_frozen: Vec<SymId>,
+    /// **The Zeros a deferring session left for later**
+    /// ([`with_deferred_session`]): `None` in every other session, which
+    /// discharges each decision as it is taken.
+    deferred: Option<std::collections::HashMap<u32, deferred::Pending>>,
     /// **The roots the PLAIN walk was asked for** — the leaf's NEED is
     /// counted over their closure ([`leaf_need`]). A SET and not a
     /// list: one decision asks for one root many times over a leaf
@@ -2720,6 +2744,7 @@ impl Session {
             plain_built: Vec::new(),
             plain_atoms: Vec::new(),
             plain_frozen: Vec::new(),
+            deferred: None,
             plain_roots: IdSet::default(),
             foreign: IdSet::default(),
             plain_unpublished: IdSet::default(),
@@ -2972,7 +2997,7 @@ fn with_session_in<R>(
     memo: Option<Arc<DriveMemo>>,
     f: impl FnOnce() -> R,
 ) -> (R, SymCounts) {
-    let nested = SESSION.with(|s| s.borrow().is_some());
+    let nested = session_installed();
     // The opaque sequence is per-replay state, restored on the way out
     // so a nested or sequential call cannot inherit a partial count
     // (`OPAQUE_SEQ`'s docs carry the D9 argument).
@@ -3167,7 +3192,19 @@ pub fn session_counts() -> Option<SymCounts> {
 /// `f64`, and the test reads the thread's state rather than the type.
 #[must_use]
 pub fn decisions_are_thread_portable() -> bool {
-    session_counts().is_none() && !report::active()
+    !session_installed() && !report::active()
+}
+
+/// **Whether a symbolic session is installed on this thread** — the one
+/// home of that test. A value minted outside the installed session is
+/// not in its table and freezes there (module docs: no session, no
+/// tier), so whatever keeps a `Sym` value across calls reads this
+/// before it serves one: [`decisions_are_thread_portable`] does, and so
+/// does the NURBS speed meter's memo, which serves and fills only while
+/// it is false.
+#[must_use]
+pub fn session_installed() -> bool {
+    SESSION.with(|s| s.borrow().is_some())
 }
 
 /// Records `node` in the installed session and answers its id. Outside a
@@ -4360,6 +4397,18 @@ enum Discharge {
     Registered,
 }
 
+impl Discharge {
+    /// The kind as the margin it decided carries it
+    /// ([`crate::MarginDiag::theorem`]).
+    const fn theorem(self) -> crate::Theorem {
+        match self {
+            Self::Theorem => crate::Theorem::SymbolicZero,
+            Self::SignGated => crate::Theorem::SignGated,
+            Self::Registered => crate::Theorem::Registered,
+        }
+    }
+}
+
 #[cfg(any(test, feature = "probe"))]
 impl Discharge {
     /// **Every discharge kind, once** — the roster the seam pins
@@ -4457,6 +4506,75 @@ fn discharge(id: SymId) -> Option<Discharge> {
 /// the first attempt, where it always was.
 fn discharge_retried(id: SymId) -> Option<(Discharge, u8)> {
     discharge_in(id, true)
+}
+
+/// **Whether the early form of `id` keeps an opaque value**
+/// ([`SymOp::Opaque`]): a value computed apart from the parameter
+/// symbols, which the tier keeps as an unknown of its own. Read off the
+/// form's indeterminates, through every atom's arguments; where the
+/// walk froze a node on its budget, or poisoned the form, the form says
+/// nothing past that node, and the node's DAG is read for an opaque
+/// value instead. A frozen node over the parameter symbols alone is no
+/// opaque value: it is a form too big for this budget. `None` outside a
+/// session.
+fn keeps_an_opaque_atom(id: SymId) -> Option<bool> {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let sess = slot.as_mut()?;
+        let opaque: std::collections::HashSet<u128> = sess
+            .nodes
+            .values()
+            .filter(|n| n.op == SymOp::Opaque)
+            .map(|n| indet_opaque(n.payload))
+            .collect();
+        if opaque.is_empty() {
+            return Some(false);
+        }
+        let reaches_opaque = |sess: &Session, from: SymId| {
+            let mut stack = vec![from];
+            let mut seen = std::collections::HashSet::new();
+            while let Some(at) = stack.pop() {
+                let Some(node) = sess.nodes.get(&at) else {
+                    continue;
+                };
+                if node.op == SymOp::Opaque {
+                    return true;
+                }
+                if seen.insert(at) {
+                    stack.extend(node.kids().iter().copied());
+                }
+            }
+            false
+        };
+        let early = early_form(sess, id);
+        if early.poisoned {
+            return Some(reaches_opaque(sess, id));
+        }
+        let mut stack = vec![early];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(form) = stack.pop() {
+            for poly in [&form.num, &form.den] {
+                for (mono, _) in poly.terms() {
+                    for &(x, _) in mono {
+                        if !seen.insert(x) {
+                            continue;
+                        }
+                        if opaque.contains(&x) {
+                            return Some(true);
+                        }
+                        if let Some(atom) = sess.atoms.get(&x) {
+                            stack.extend(atom.args.iter().flatten().cloned());
+                        } else if sess.nodes.contains_key(&SymId(x))
+                            && reaches_opaque(sess, SymId(x))
+                        {
+                            return Some(true);
+                        }
+                    }
+                }
+            }
+        }
+        Some(false)
+    })
 }
 
 fn discharge_in(id: SymId, retries: bool) -> Option<(Discharge, u8)> {
@@ -4780,6 +4898,14 @@ impl<T> Sym<T> {
         Self::param(symbol, value)
     }
 
+    /// Mints the literal `x`, carrying `value` (`x` read at `T`).
+    fn literal(value: T, x: f64) -> Self {
+        Self {
+            value,
+            node: intern(SymNode::literal(x)),
+        }
+    }
+
     /// Mints the node for a nullary op.
     fn nullary(value: T, op: SymOp, payload: u64) -> Self {
         Self {
@@ -5028,17 +5154,21 @@ impl<T: Real> Real for Sym<T> {
     const NAME: &'static str = "symbolic";
 
     fn from_f64(x: f64) -> Self {
-        Self::nullary(T::from_f64(x), SymOp::Lit, x.to_bits())
+        Self::literal(T::from_f64(x), x)
+    }
+
+    fn from_computed(x: f64) -> Self {
+        Self::opaque(T::from_computed(x))
     }
 
     fn zero() -> Self {
         // The same node a `from_f64(0.0)` mints, so the two spellings
         // of the additive identity share one id.
-        Self::nullary(T::zero(), SymOp::Lit, 0f64.to_bits())
+        Self::literal(T::zero(), 0.0)
     }
 
     fn one() -> Self {
-        Self::nullary(T::one(), SymOp::Lit, 1f64.to_bits())
+        Self::literal(T::one(), 1.0)
     }
 
     fn pi() -> Self {
@@ -5161,12 +5291,32 @@ impl<T: CertifiedEnclosure> CertifiedEnclosure for Sym<T> {
 /// the hull mints a `Hull` node keyed by the two operands' ids (never by
 /// their forms — see [`SymOp::Hull`]).
 impl<T: SpanLocate> SpanLocate for Sym<T> {
-    fn locate_spans<'a>(self, knots: &'a KnotVector) -> SpanSet<'a> {
+    fn locate_spans<'a>(self, knots: &'a KnotVector) -> Option<SpanSet<'a>> {
         self.value.locate_spans(knots)
     }
 
     fn enclosure_hull(self, other: Self) -> Self {
         self.binary(other, self.value.enclosure_hull(other.value), SymOp::Hull)
+    }
+
+    fn point_value(self) -> Option<f64> {
+        self.value.point_value()
+    }
+
+    /// A constant only when this value's node is the literal of its
+    /// value ([`SymNode::literal`], recomputed by its content hash, so
+    /// nothing is interned and no session is read): any other node, a
+    /// constant expression included, may carry a symbol, and `None` is
+    /// the conservative answer. Not read through the node's form
+    /// (`constant_value`): expanding a form runs the session's work and
+    /// moves the `SymCounts` a digest records, from inside a meter.
+    fn plain_constant(self) -> Option<f64> {
+        let v = self.value.plain_constant()?;
+        (self.node == SymNode::literal(v).id()).then_some(v)
+    }
+
+    fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {
+        T::split_projective(crate::spline::projective::SymArm(arm))
     }
 }
 
@@ -5261,11 +5411,28 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// Everything else is `T::sign_within` verbatim.
 impl<T: Decide> Decide for Sym<T> {
     fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
+        #[cfg(feature = "sym-revalue-testing")]
+        let noted = revalue::note(self.node, self.value);
+        let decided = self.decide_sign(band);
+        #[cfg(feature = "sym-revalue-testing")]
+        revalue::settle(noted, &decided);
+        decided
+    }
+}
+
+impl<T: Decide> Sym<T> {
+    /// [`Decide::sign_within`]'s body, apart so the re-valuation hook
+    /// can read the outcome it returns.
+    fn decide_sign(self, band: Band) -> Result<Decided, Indeterminate> {
         // Where this decision's own K sample will land, read before the
         // base scalar records it (`k_stats::sink_mark`).
         #[cfg(feature = "probe")]
         let mark = crate::k_stats::sink_mark();
         let numeric = self.value.sign_within(band);
+        if let Some(deferred) = deferred::defer(self.node, numeric) {
+            count_decision(None);
+            return deferred;
+        }
         let domain_violation = matches!(&numeric, Err(e) if e.margin.is_invalid());
         let definitely_nonzero = matches!(
             &numeric,
@@ -5359,7 +5526,7 @@ impl<T: Decide> Decide for Sym<T> {
             };
             return Ok(Decided {
                 sign: Sign::Zero,
-                margin,
+                margin: margin.proven(how.theorem()),
             });
         }
         // The shape report wants the residual that BLOCKED — rendered

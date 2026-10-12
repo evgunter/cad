@@ -44,9 +44,9 @@ use crate::fixture::xy_frame;
 use corpus::{documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
-    AssertionVerdict, BooleanValue, CancelToken, ContentKey, Datum, DatumValue, Dimension,
-    EvalOptions, Evaluation, LoopProgram, Node, NodeResult, ProductError, ProfileProgram,
-    SplitSide, ValuePayload, assemble, evaluate, product_recorded,
+    AssertionVerdict, BooleanValue, CancelToken, ContentKey, Datum, Dimension, EvalOptions,
+    Evaluation, LoopProgram, Node, NodeResult, PoseValue, ProductError, ProfileProgram, SplitSide,
+    ValuePayload, assemble, evaluate, product_recorded,
 };
 use geom::{Curve3, Surface};
 use geom_core::{Bounds, Decide, Dual64, Tol};
@@ -140,7 +140,7 @@ impl Fnv {
                 for p in n.control() {
                     self.p3(p);
                 }
-                for w in n.weights() {
+                for w in n.weight_channel() {
                     self.u64(w.to_bits());
                 }
                 for k in n.knots().knots() {
@@ -220,7 +220,7 @@ impl Fnv {
                 for p in n.control() {
                     self.p3(p);
                 }
-                for w in n.weights() {
+                for w in n.weight_channel() {
                     self.u64(w.to_bits());
                 }
                 for k in n.knots_u().knots() {
@@ -266,7 +266,8 @@ impl Fnv {
 fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
     let mut d = Fnv::new();
     for &id in &ev.order {
-        d.u64(id.0);
+        d.u64(u64::from(id.0.ordinal()));
+        d.u64(id.0.digest());
         match ev.result(id) {
             None => d.u64(0),
             Some(NodeResult::Failed(_)) => d.u64(1),
@@ -274,41 +275,29 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
             Some(NodeResult::Ok(v)) => {
                 d.u64(3);
                 match &v.payload {
-                    ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
+                    ValuePayload::Datum(PoseValue::Plane { origin, normal }) => {
                         d.u64(10);
                         d.p3(origin);
                         d.v3(&normal.get());
                     }
-                    ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
+                    ValuePayload::Datum(PoseValue::Axis { origin, dir }) => {
                         d.u64(11);
                         d.p3(origin);
                         d.v3(&dir.get());
                     }
-                    ValuePayload::Datum(DatumValue::Point { position }) => {
+                    ValuePayload::Datum(PoseValue::Point { position }) => {
                         d.u64(12);
                         d.p3(position);
                     }
-                    ValuePayload::Datum(DatumValue::Frame(f)) => {
+                    ValuePayload::Datum(PoseValue::Frame(f)) => {
                         d.u64(23);
                         d.p3(&f.origin());
                         d.v3(&f.u().get());
                         d.v3(&f.v().get());
                     }
-                    // Tag 24, appended: both spellings of an in-plane
-                    // axis, so a drift in the numbers a revolve
-                    // actually consumes cannot hide behind the lift.
-                    ValuePayload::Datum(DatumValue::AxisInPlane {
-                        plane_origin,
-                        plane_dir,
-                        origin,
-                        dir,
-                    }) => {
-                        d.u64(24);
-                        d.s(plane_origin.x);
-                        d.s(plane_origin.y);
-                        d.s(plane_dir.x);
-                        d.s(plane_dir.y);
-                        d.p3(origin);
+                    // Tag 24 is retired with the in-plane axis datum.
+                    ValuePayload::Datum(PoseValue::Direction { dir }) => {
+                        d.u64(26);
                         d.v3(&dir.get());
                     }
                     ValuePayload::Profile(p) => {
@@ -520,14 +509,15 @@ fn assemble_census_door_matches_f64_at_dual64() {
     // public door. This assertion pins the divergence set so a change
     // in either direction (a gate returning to duals, or new corpus
     // members joining the divergence) is loud rather than silent.
-    // Observed 2026-08-29 at head 2435345d: `heat_sink` and
-    // `kitchen_sink` refuse at f64 with `UndeclaredContact` /
-    // `CensusUndecidable` findings; `cut_cylinder` with the split
-    // sides' undeclared section contacts. All three assemble green at
-    // `Dual64`.
+    // `kitchen_sink` and `cut_cylinder` refuse at f64 on
+    // `CensusUndecidable` (curved faces of two copies within reach),
+    // whose pairs' touches the gather records none of; both assemble
+    // green at `Dual64`. `heat_sink` left the set when the gather began
+    // recording copies' touches (D10): its fins' pierces are
+    // interference findings, which refuse nothing.
     assert_eq!(
         divergent,
-        vec!["heat_sink", "kitchen_sink", "cut_cylinder"],
+        vec!["kitchen_sink", "cut_cylinder"],
         "the f64-refuses/Dual64-assembles divergence set changed"
     );
 }
@@ -543,12 +533,12 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let disc = LoopProgram::circle(0.0, 0.0, 0.75).unwrap();
     let xy_frame_0 = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_0,
+        frame: xy_frame_0.into(),
         loops: vec![disc],
         ids: Vec::new(),
     }));
     let puck = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: fixture::len(0.5),
         side: ExtrudeSide::Along,
     });
@@ -560,7 +550,10 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
             fixture::scl(0.25f64.cos()),
         ],
     }));
-    let _split = r.insert(Node::Split { target: puck, tool });
+    let _split = r.insert(Node::Split {
+        target: puck.into(),
+        tool: tool.into(),
+    });
     let doc = r.doc;
 
     let ev_f = eval::<f64>(&doc);

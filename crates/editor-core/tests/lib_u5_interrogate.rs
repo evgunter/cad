@@ -12,9 +12,8 @@
 //! `vertex_position` — the doors `names::interrogate` exports, whose
 //! own return type is this enum. Two other public doors surface an
 //! `InterrogateError` WHOLE inside a refusal of their own and are not
-//! this suite's subject: `select_where` and `find_flush_candidates`
-//! wrap one in `SelectRefusal::Unreadable` (`names::select`,
-//! `names::flush`), and a measurement reference wraps one in
+//! this suite's subject: `select_where` wraps one in
+//! `SelectRefusal::Unreadable` (`names::select`), and a measurement reference wraps one in
 //! `NodeErrorKind::MeasureRefUnreadable` (`eval::wire`). They index
 //! the payload with the name table's own `ent.body`, exactly as
 //! `interrogate::entity_of` does, so the two exclusions the ladder row
@@ -100,7 +99,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -196,7 +195,7 @@ fn a_foreign_node_id_refuses_typed_and_differs_from_an_unknown_name() {
     let (doc, node) = box_doc();
     let ev = eval(&doc);
     let name = all_faces(&ev, node)[0].clone();
-    let foreign = RecipeNodeId(4242);
+    let foreign = RecipeNodeId::new(0, 4242);
 
     assert_eq!(
         face_frame(&ev, foreign, &name).unwrap_err(),
@@ -353,18 +352,15 @@ fn box_with_a_failed_and_a_poisoned_node() -> (ProfileDoc, RecipeNodeId, RecipeN
     let (doc, failed) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: square,
+            profile: square.into(),
             distance: len(0.0),
             side: ExtrudeSide::Along,
         },
     );
     let (doc, poisoned) = fixture::insert(
         doc,
-        Node::Boolean {
-            op: editor_core::BooleanOp::Union,
-            a: failed,
-            b: good,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![failed.into(), good.into()]),
         },
     );
     (doc, good, failed, poisoned)
@@ -581,7 +577,7 @@ fn the_reachable_ladder_is_driven_through_its_doors() {
     let face = all_faces(&ev, good)[0].clone();
     let edge = all_edges(&ev, good)[0].clone();
     let body = all_bodies(&ev, good)[0].clone();
-    let foreign = RecipeNodeId(4242);
+    let foreign = RecipeNodeId::new(0, 4242);
     let stranger = a_name_no_face_answers_to(good);
 
     // The N2 tie, from the fixture that mints one.

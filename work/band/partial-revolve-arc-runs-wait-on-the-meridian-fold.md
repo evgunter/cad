@@ -2,12 +2,13 @@
 id: partial-revolve-arc-runs-wait-on-the-meridian-fold
 kind: issue
 title: revolve: a partial revolve still sweeps one wall per arc of a cocircular run, because one wall would carry a meridian in pieces mass properties do not fold
-status: parked
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [sphere-wedge-arm-does-not-fold-split-meridians-by-lineage]
-refs: [swept-cocircular-arc-runs-build-one-wall]
+refs: [swept-cocircular-arc-runs-build-one-wall, sweeps-build-one-rim-edge-per-segment-not-per-run, sphere-wedge-arm-does-not-fold-split-meridians-by-lineage]
+closed: 2026-10-06
+pr: 4200
 ---
 
 
@@ -56,3 +57,19 @@ never by stored geometry).
   `common::latitude_seam::latitude_arc` cuts the full revolve's), and
   the partial rows of `run_walls_built::arc_runs_build_one_wall_each`
   flip to one wall.
+
+## Closed (FUSE, `fuse/sweep-runs`, 2026-10-06)
+
+Closed by `sweeps-build-one-rim-edge-per-segment-not-per-run`, without
+the fold: a station is no longer a vertex (PR 3881's ruling), so a
+partial revolve collapses each run before it builds and each wedge cap
+carries an arc run as ONE meridian edge. The sphere arm then reads the
+two-edge boundary it serves, and the torus arm's `props_rim_level`
+refusal does not arise. `CurvedRuns` is gone. Measured:
+`run_walls_built::partially_revolved_arc_runs_build_one_wall_each`
+(k = 1..4 arcs, three loop starts, both directions, sphere and torus)
+passes tiers 2 and 3 and meets the closed-form volume.
+`torax_axial`'s two-arc lune row moved: the revolve no longer mints
+the equator seam its split arc used to revolve into, so the row cuts
+it by hand (`common::latitude_seam::latitude_on_partial_wall`) before
+it re-authors it.

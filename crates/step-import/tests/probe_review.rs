@@ -88,10 +88,11 @@ fn a3_sweep_all_tiers() {
 }
 
 /// A1, **resolved**: an inside-out torus (face sense flipped, loop
-/// left alone) is REFUSED typed. The normalization now reads the
+/// left alone) is REFUSED typed. The whole torus adopts as its one
+/// stated face, and the curved sense gate reads its winding off the
 /// loop's cyclic order — the only place a fundamental polygon's
-/// winding lives — instead of its reversal-invariant flag multiset,
-/// so the inversion is detected instead of being minted away.
+/// winding lives — through the face's chart Green form, so the
+/// inversion is a disagreement between the face's bit and its loop.
 #[test]
 fn a1_inside_out_torus_cannot_slip_through() {
     let text = fixture("torus").replace(
@@ -102,12 +103,8 @@ fn a1_inside_out_torus_cannot_slip_through() {
         .expect_err("an inside-out torus must not import at all");
     let text = err.to_string();
     assert!(
-        text.contains("ORIENTATION-INVERTED") && text.contains("#17"),
-        "the refusal must name the inversion and the face: {text}"
-    );
-    assert!(
-        text.contains("same_sense"),
-        "and the kernel limitation that blocks an honest inverted import: {text}"
+        text.contains("CurvedSenseInverted"),
+        "the refusal must name the inversion: {text}"
     );
 }
 
@@ -121,7 +118,7 @@ fn a1_reversed_bound_torus() {
     );
     let err = import_step(&text, &ImportOptions::default(), Tol::witness())
         .expect_err("a reversed-bound torus is inside out and must not import");
-    assert!(err.to_string().contains("ORIENTATION-INVERTED"), "{err}");
+    assert!(err.to_string().contains("CurvedSenseInverted"), "{err}");
 }
 
 /// A1 control: flip one box face's sense — what does the kernel do
@@ -190,15 +187,12 @@ fn a1_flipped_torus_volume() {
     }
 }
 
-/// A1, **resolved**: the CONSISTENTLY inverted statement — sense AND
-/// bound both flipped — is ISO 10303-42's other legal encoding of the
-/// SAME right-side-out solid, and it must import, not refuse. It does,
-/// with the correct positive volume and a green tier 3.
-///
-/// This is the assertion that keeps the fix from being "refuse
-/// anything unusual": the two encodings that mean a right-side-out
-/// ring both adopt, and the two that mean an inside-out one both
-/// refuse.
+/// A1: the CONSISTENTLY inverted statement — sense AND bound both
+/// flipped — is a consistent face whose normal opposes the torus's
+/// surface normal (ISO 10303-42's `same_sense`), so its material is
+/// outside the tube: the complement of the ring, an inside-out outer
+/// shell. It adopts as stated, its bit and its loop agree, and the
+/// at-rest gate refuses the solid's negative volume.
 #[test]
 fn a1_double_flipped_torus() {
     let text = fixture("torus")
@@ -210,25 +204,9 @@ fn a1_double_flipped_torus() {
             "#18 = FACE_BOUND('',#19,.T.);",
             "#18 = FACE_BOUND('',#19,.F.);",
         );
-    let Ok(StepImport::Solid {
-        body,
-        normalizations,
-        ..
-    }) = import_step(&text, &ImportOptions::default(), Tol::witness())
-    else {
-        panic!("the equivalent re-encoding of a valid torus must import");
-    };
-    assert_eq!(normalizations.len(), 1, "still one reported normalization");
-    let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
-    assert!(
-        v > 0.0,
-        "a right-side-out ring has positive volume, got {v}"
-    );
-    assert_eq!(
-        topo::validate_geometric(&body, Tol::witness()),
-        Ok(()),
-        "tier 3"
-    );
+    let err = import_step(&text, &ImportOptions::default(), Tol::witness())
+        .expect_err("the ring's complement is no solid to import");
+    assert!(err.to_string().contains("NegativeVolume"), "{err}");
 }
 
 /// A1, **resolved**: the original imports; the sense-flip does not.
@@ -259,75 +237,6 @@ fn a1_bound_flip_torus_senses() {
         "#18 = FACE_BOUND('',#19,.F.);",
     );
     assert!(import_step(&text, &ImportOptions::default(), Tol::witness()).is_err());
-}
-
-/// A1, **resolved** — the finding's own probe, inverted. It used to
-/// show that the bound-flipped torus built a body HALF-EDGE-IDENTICAL
-/// to the original: the reversal had been discarded. Now the
-/// bound-flip has no body at all, and the structure it used to
-/// produce belongs to the file that genuinely means it — the
-/// double-flip re-encoding, whose half-edge signature must equal the
-/// original's because it states the same solid.
-#[test]
-fn a1_torus_halfedge_diff() {
-    let sig = |text: &str| {
-        let Ok(StepImport::Solid { body, .. }) =
-            import_step(text, &ImportOptions::default(), Tol::witness())
-        else {
-            panic!("expected a body")
-        };
-        let mut sig = Vec::new();
-        for (_, lp) in body.loops() {
-            let topo::LoopBoundary::Cycle { first } = lp.boundary else {
-                continue;
-            };
-            let cycle = body.loop_cycle(first).unwrap();
-            let dirs: Vec<String> = cycle
-                .iter()
-                .map(|&he| {
-                    let h = body.get_half_edge(he).unwrap();
-                    format!("{:?}:{:?}", h.edge, h.start)
-                })
-                .collect();
-            sig.push(dirs.join(","));
-        }
-        sig
-    };
-    let orig = sig(&fixture("torus"));
-    let double = sig(&fixture("torus")
-        .replace(
-            "#17 = ADVANCED_FACE('',(#18),#38,.T.);",
-            "#17 = ADVANCED_FACE('',(#18),#38,.F.);",
-        )
-        .replace(
-            "#18 = FACE_BOUND('',#19,.T.);",
-            "#18 = FACE_BOUND('',#19,.F.);",
-        ));
-    assert_eq!(
-        orig, double,
-        "the two legal encodings of one solid must reconstruct to one body"
-    );
-    // And the single flips, which mean the OTHER solid, reach no body.
-    for (from, to) in [
-        (
-            "#17 = ADVANCED_FACE('',(#18),#38,.T.);",
-            "#17 = ADVANCED_FACE('',(#18),#38,.F.);",
-        ),
-        (
-            "#18 = FACE_BOUND('',#19,.T.);",
-            "#18 = FACE_BOUND('',#19,.F.);",
-        ),
-    ] {
-        assert!(
-            import_step(
-                &fixture("torus").replace(from, to),
-                &ImportOptions::default(),
-                Tol::witness(),
-            )
-            .is_err(),
-            "a single flip means an inside-out ring and must refuse"
-        );
-    }
 }
 
 /// A1 control: reversed FACE_BOUND on a box face must be caught.

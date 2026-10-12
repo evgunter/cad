@@ -473,7 +473,7 @@ pub(crate) fn install_number_formatter(ctx: &egui::Context) {
 /// convention away from a real edit landing on the wrong slot.
 ///
 /// **The value [`Self::preview`] carries is the GESTURE's, not a
-/// widget's.** A slot and a parameter each drag one number, so for
+/// widget's.** A slot and a variable each drag one number, so for
 /// those two the distinction is invisible; the free-move probe drags a
 /// rigid frame written as three millimetre boxes, and every preview it
 /// emits carries the WHOLE frame ([`vec3_row_ops`]). The type is
@@ -493,7 +493,7 @@ pub(crate) struct GestureVocabulary<Preview> {
 }
 
 /// **The four operations of a VALUE drag**, minted from the one slot
-/// or parameter they all name.
+/// or variable they all name.
 ///
 /// The caller spells the target once and writes no operation at all,
 /// so the begin, the preview and the commit cannot come to name
@@ -582,8 +582,8 @@ pub(crate) fn free_move_gesture<'a>(
 ///
 /// **It is a function because the same file once had two copies of it
 /// and one of them was wrong**: the slot rows mapped the triple and the
-/// document-parameter row mapped a bare `changed()`, so dragging a
-/// parameter committed one edit, one undo step and one re-evaluation
+/// document-variable row mapped a bare `changed()`, so dragging a
+/// variable committed one edit, one undo step and one re-evaluation
 /// per frame. Two spellings of a ratified rule is one spelling too
 /// many. Any future dragged number in this file calls this; nothing but
 /// this comment enforces that, which is the honest state of it.
@@ -683,8 +683,8 @@ pub(crate) fn drag_gesture_ops<Value>(
 ///
 /// [`GestureVocabulary`]'s companion for the half of a field that is
 /// not a drag. A slot's number door is `SessionOp::SetSlot` and its
-/// text door `SessionOp::SetSlotExpression`; a parameter's are
-/// `SessionOp::SetParam` and `SessionOp::SetParamText`. The SHAPE is
+/// text door `SessionOp::SetSlotExpression`; a variable's are
+/// `SessionOp::SetVariable` and `SessionOp::SetVariableText`. The SHAPE is
 /// the same at both rows, which is why it is a parameter rather than
 /// a branch: what differs between the two fields is only which
 /// operation each door spells.
@@ -720,7 +720,7 @@ pub(crate) struct FieldShowing {
     /// A text it shows INSTEAD of that number — a driven slot's
     /// reading ([`crate::props::field_text`]), or the refused text a
     /// slot's draft holds. `None` is a field showing its number, which
-    /// is every parameter row and every literal slot that evaluated.
+    /// is every variable row and every literal slot that evaluated.
     pub(crate) text: Option<String>,
     /// **The text a keyboard edit starts from, where the field does
     /// not show it** — a driven slot's source
@@ -754,7 +754,7 @@ struct OpenEdit {
 }
 
 /// **A panel value field: one number, two doors and a gesture** — the
-/// whole of what `pane::properties`' slot row and parameter row draw,
+/// whole of what `pane::properties`' slot row and variable row draw,
 /// spelled once.
 ///
 /// `writing` is how the field is written (`crate::forms::FieldWriting`
@@ -827,7 +827,7 @@ struct OpenEdit {
 /// rule and stays where it is.** This one answers *did the widget
 /// hand one text over twice*; that one answers *does this edit write
 /// what the document already holds*, which is what a person re-typing
-/// `50 mm` over a parameter declared `50 mm` reaches. A reader who
+/// `50 mm` over a variable declared `50 mm` reaches. A reader who
 /// collapses them re-opens both.
 ///
 /// # A field is not drawn for a value its notation cannot name
@@ -2294,7 +2294,7 @@ mod tests {
     use eframe::egui;
     use pncad::document::{Axis3, Frame, RecipeNodeId, SlotId};
 
-    const NODE: RecipeNodeId = RecipeNodeId(7);
+    const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
     /// How many Tab/ArrowUp pairs the row spends looking for the
     /// focus. A budget rather than a count: which step the focus
@@ -2699,7 +2699,7 @@ mod tests {
     /// silence.
     ///
     /// Only the free-move vocabulary: the value drag's typed arm is
-    /// `SetSlot` or `SetParam`, a direct edit that drives no gesture
+    /// `SetSlot` or `SetVariable`, a direct edit that drives no gesture
     /// and names none.
     #[test]
     fn the_typed_arm_names_the_gesture_the_drag_does() {
@@ -3497,14 +3497,14 @@ mod value_field_tests {
     /// `pane::properties` draws both through the one
     /// [`super::value_field_ops`] call, with the one formatter and the
     /// one parser — so a rule about the field is a rule about both,
-    /// and a harness that drove only the parameter row would be
+    /// and a harness that drove only the variable row would be
     /// reading half of what it claims. The two differ in exactly what
     /// this enum carries: which pair of doors a typed text takes, and
     /// (at a slot) whether the field shows a number or a SOURCE.
     #[derive(Clone)]
     enum Subject {
-        /// A document parameter's row — `Selection::Param`'s arm.
-        Param(VarId),
+        /// A document variable's row — `Selection::Variable`'s arm.
+        Variable(VarId),
         /// A feature's slot row — `slot_value_ui`.
         Slot { node: RecipeNodeId, slot: SlotId },
     }
@@ -3532,7 +3532,7 @@ mod value_field_tests {
     }
 
     impl Row {
-        /// One length parameter, declared in millimetres and holding
+        /// One length variable, declared in millimetres and holding
         /// `canonical` metres.
         fn millimetres(label: &str, canonical: f64) -> Self {
             let tol = Tol::witness();
@@ -3551,7 +3551,7 @@ mod value_field_tests {
             Self {
                 ctx: egui::Context::default(),
                 session,
-                subject: Subject::Param(var),
+                subject: Subject::Variable(var),
                 rect: egui::Rect::NOTHING,
                 emitted: Vec::new(),
                 landed: Vec::new(),
@@ -3565,7 +3565,7 @@ mod value_field_tests {
         /// xy frame — the row `slot_value_ui` draws, and the row the
         /// PR's expression door is reached from.
         ///
-        /// One declared parameter comes with it (`base_r`, 4 mm), so a
+        /// One declared variable comes with it (`base_r`, 4 mm), so a
         /// row about a DRIVEN slot has something to drive it with.
         fn extrude_distance(label: &str, canonical: f64) -> Self {
             let tol = Tol::witness();
@@ -3579,7 +3579,7 @@ mod value_field_tests {
             let (doc, extrude) = inserted(
                 &doc,
                 Node::Extrude {
-                    profile,
+                    profile: profile.into(),
                     distance: Formula::written_length(WrittenLength::canonical_in(canonical, MM))
                         .expect("a finite written length"),
                     side: pncad::document::ExtrudeSide::Along,
@@ -3630,7 +3630,7 @@ mod value_field_tests {
             let (doc, pattern) = inserted(
                 base.session.doc(),
                 Node::Pattern {
-                    input: extrude,
+                    input: extrude.into(),
                     count: Formula::count(count),
                     kind: PatternKind::Linear {
                         direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -3654,8 +3654,8 @@ mod value_field_tests {
         /// draft store for.
         fn field(&self) -> super::FieldShowing {
             match &self.subject {
-                Subject::Param(_) => {
-                    crate::pane::properties::param_showing(&self.row(), self.session.notation())
+                Subject::Variable(_) => {
+                    crate::pane::properties::variable_showing(&self.row(), self.session.notation())
                 }
                 Subject::Slot { .. } => crate::pane::properties::slot_showing(
                     &self.slot(),
@@ -3683,14 +3683,14 @@ mod value_field_tests {
             )
         }
 
-        fn row(&self) -> props::ParamRow {
-            let Subject::Param(var) = &self.subject else {
-                panic!("this row is not a parameter row");
+        fn row(&self) -> props::VariableRow {
+            let Subject::Variable(var) = &self.subject else {
+                panic!("this row is not a variable row");
             };
-            props::param_rows(self.session.doc())
+            props::variable_rows(self.session.doc())
                 .into_iter()
                 .find(|row| row.var == *var)
-                .expect("the parameter is declared")
+                .expect("the variable is declared")
         }
 
         fn slot(&self) -> props::SlotRow {
@@ -3723,11 +3723,11 @@ mod value_field_tests {
             let mut output = ctx.run_ui(input, |ui| {
                 let showing = field.clone();
                 match &subject {
-                    Subject::Param(var) => value_field_ops(
+                    Subject::Variable(var) => value_field_ops(
                         ui,
                         showing,
-                        value_gesture(ValueGestureName::Param(*var)),
-                        crate::pane::properties::param_doors(*var),
+                        value_gesture(ValueGestureName::Variable(*var)),
+                        crate::pane::properties::variable_doors(*var),
                         &mut ops,
                         &mut notices,
                     ),
@@ -3832,7 +3832,7 @@ mod value_field_tests {
         }
     }
 
-    /// **Clicking into a parameter field and away again emits
+    /// **Clicking into a variable field and away again emits
     /// nothing** — C5 at the panel, over the case the claim is
     /// actually about.
     ///
@@ -3947,7 +3947,7 @@ mod value_field_tests {
         row.click_away();
         let landed = row.landed();
         assert!(
-            matches!(landed.as_slice(), [SessionOp::SetParam { .. }]),
+            matches!(landed.as_slice(), [SessionOp::SetVariable { .. }]),
             "one number typed, one edit: {landed:?}"
         );
         assert_eq!(
@@ -4093,7 +4093,7 @@ mod value_field_tests {
     /// **A panel field is not drawn for a value its notation cannot
     /// name**, and the row says which notation could not name it.
     ///
-    /// A parameter declared in millimetres and standing at `1e306` m
+    /// A variable declared in millimetres and standing at `1e306` m
     /// has no millimetre value at all — the quotient leaves the type
     /// ([`crate::props::written`]) — so before this door the panel put
     /// `inf` in a `DragValue`, which is the text an edit starts from.
@@ -4144,7 +4144,7 @@ mod value_field_tests {
     ///
     /// The refusal is a fact about a PAIR — a value and a notation —
     /// and a driven slot reads in the working notation, which may be
-    /// one whose conversion leaves the type: `base_r * 1e308` in
+    /// one whose conversion leaves the type: `base_r` times 10^308 in
     /// millimetres has no value. Its row still shows its reading, as
     /// the no-reading marker after the driven mark, and still opens its
     /// keyboard edit on its SOURCE, because the field under that text is
@@ -4158,8 +4158,9 @@ mod value_field_tests {
             panic!("the fixture is a slot row");
         };
         // A product far past `f64::MAX * MILLI`: written in
-        // millimetres, its conversion leaves the type.
-        let source = "base_r * 1e308".to_owned();
+        // millimetres, its conversion leaves the type. Each factor is a
+        // constant in range (a bare number in a formula is exact).
+        let source = format!("base_r{} * 100000000.0", " * 1000000000000000.0".repeat(20));
         let outcome = row.session.perform(SessionOp::SetSlotExpression {
             node,
             slot,
@@ -4203,7 +4204,8 @@ mod value_field_tests {
                 props::DRIVEN,
                 props::computed_text(
                     Dimension::Length,
-                    0.004 * 1e308,
+                    // The chain's own products, left to right.
+                    (0..20).fold(0.004, |v, _| v * 1e15) * 1e8,
                     crate::props::Notation::DEFAULT
                 )
             )),
@@ -4239,7 +4241,7 @@ mod value_field_tests {
         row.click_away();
         let landed = row.landed();
         assert!(
-            matches!(landed.as_slice(), [SessionOp::SetParam { .. }]),
+            matches!(landed.as_slice(), [SessionOp::SetVariable { .. }]),
             "the edit the user typed: {landed:?}"
         );
         assert_eq!(row.session.history().len(), before + 1);
@@ -4256,7 +4258,7 @@ mod value_field_tests {
         row.click_away();
         let landed = row.landed();
         assert!(
-            matches!(landed.as_slice(), [SessionOp::SetParamText { .. }]),
+            matches!(landed.as_slice(), [SessionOp::SetVariableText { .. }]),
             "{landed:?}"
         );
         let after = row.row();
@@ -4264,7 +4266,7 @@ mod value_field_tests {
         assert_eq!(after.unit.map(|unit| unit.symbol()), Some("m"));
     }
 
-    /// The doc-parameter fixture, read back: a declaration minted at
+    /// The doc-variable fixture, read back: a declaration minted at
     /// `canonical` metres really is written in millimetres, so the
     /// rows above are about a field whose render and whose value are
     /// in different notations.
@@ -4393,7 +4395,7 @@ mod value_field_tests {
     }
 
     /// **An open edit the document moved under is still the field's
-    /// own text**, at a driven slot and at a parameter.
+    /// own text**, at a driven slot and at a variable.
     ///
     /// The field is focused, the value under it changes elsewhere (an
     /// undo, another pane), and the user clicks away without typing.
@@ -4426,24 +4428,24 @@ mod value_field_tests {
             "and the change made elsewhere stands"
         );
 
-        let mut param = Row::millimetres("chrome-stale-param", 0.01);
-        let Subject::Param(var) = param.subject.clone() else {
-            panic!("the fixture is a parameter row");
+        let mut var_row = Row::millimetres("chrome-stale-var_row", 0.01);
+        let Subject::Variable(var) = var_row.subject.clone() else {
+            panic!("the fixture is a variable row");
         };
-        param.click_in();
-        let outcome = param.session.perform(SessionOp::SetParam {
+        var_row.click_in();
+        let outcome = var_row.session.perform(SessionOp::SetVariable {
             var,
             value: props::SlotValue::Continuous(0.02),
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        param.click_away();
-        let emitted = param.taken();
+        var_row.click_away();
+        let emitted = var_row.taken();
         assert!(
             emitted.is_empty(),
-            "the untouched parameter edit emits nothing: {emitted:?}"
+            "the untouched variable edit emits nothing: {emitted:?}"
         );
         assert_eq!(
-            param.showing().0,
+            var_row.showing().0,
             20.0,
             "and the 20 mm set elsewhere stands"
         );
@@ -4532,12 +4534,12 @@ mod value_field_tests {
     #[test]
     fn typing_the_opening_text_back_after_a_change_is_an_edit() {
         let mut row = Row::millimetres("chrome-deliberate-revert", 0.01);
-        let Subject::Param(var) = row.subject.clone() else {
-            panic!("the fixture is a parameter row");
+        let Subject::Variable(var) = row.subject.clone() else {
+            panic!("the fixture is a variable row");
         };
         let (_, opening) = row.showing();
         row.click_in();
-        let outcome = row.session.perform(SessionOp::SetParam {
+        let outcome = row.session.perform(SessionOp::SetVariable {
             var,
             value: props::SlotValue::Continuous(0.02),
         });
@@ -4546,7 +4548,7 @@ mod value_field_tests {
         row.click_away();
         let landed = row.landed();
         assert!(
-            matches!(landed.as_slice(), [SessionOp::SetParam { .. }]),
+            matches!(landed.as_slice(), [SessionOp::SetVariable { .. }]),
             "typing `{opening}` back is one edit: {landed:?}"
         );
         assert_eq!(row.showing().0, 10.0, "and the value is 10 mm again");
@@ -4557,12 +4559,12 @@ mod value_field_tests {
     #[test]
     fn an_ime_commit_of_the_opening_text_is_an_edit() {
         let mut row = Row::millimetres("chrome-ime-revert", 0.01);
-        let Subject::Param(var) = row.subject.clone() else {
-            panic!("the fixture is a parameter row");
+        let Subject::Variable(var) = row.subject.clone() else {
+            panic!("the fixture is a variable row");
         };
         let (_, opening) = row.showing();
         row.click_in();
-        let outcome = row.session.perform(SessionOp::SetParam {
+        let outcome = row.session.perform(SessionOp::SetVariable {
             var,
             value: props::SlotValue::Continuous(0.02),
         });
@@ -4573,13 +4575,13 @@ mod value_field_tests {
         row.click_away();
         let landed = row.landed();
         assert!(
-            matches!(landed.as_slice(), [SessionOp::SetParam { .. }]),
+            matches!(landed.as_slice(), [SessionOp::SetVariable { .. }]),
             "composing `{opening}` back is one edit: {landed:?}"
         );
         assert_eq!(row.showing().0, 10.0, "and the value is 10 mm again");
     }
 
-    /// **An arrow key still steps a PARAMETER's field** — the field
+    /// **An arrow key still steps a VARIABLE's field** — the field
     /// shows its number, so keeping a buffer across the key is only for
     /// a field showing text.
     #[test]
@@ -4591,13 +4593,13 @@ mod value_field_tests {
         row.click_away();
         let landed = row.landed();
         assert!(
-            matches!(landed.as_slice(), [SessionOp::SetParam { .. }]),
+            matches!(landed.as_slice(), [SessionOp::SetVariable { .. }]),
             "one step, one edit: {landed:?}"
         );
         assert!(row.showing().0 > 10.0, "and the value moved up");
     }
 
-    /// **Escape abandons an edit**, at a parameter and at a driven
+    /// **Escape abandons an edit**, at a variable and at a driven
     /// slot: `egui` parses the buffer again the frame after focus
     /// leaves, and that parse does not see the Escape.
     #[test]

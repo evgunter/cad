@@ -24,10 +24,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    DimensionError, DocEdit, EditError, EvalOptions, ExprPath, Formula, LoopProgram, MeasureExpr,
-    Node, NodeResult, ParseError, PersistError, ProfileDoc, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, ValuePayload, VarEnv, content_pin, eval,
-    eval_count, parse_formula, unparse,
+    DimensionError, DocEdit, EditError, EvalOptions, ExprPath, Formula, LoopProgram, Node,
+    NodeResult, ParseError, PersistError, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecipeNodeId, SlotId, ValuePayload, VarEnv, content_pin, eval, eval_count,
+    parse_formula, unparse,
 };
 use fixture::{Recorder, len, run, scl, xy_frame};
 use geom_core::{Interval, Tol};
@@ -56,14 +56,12 @@ fn deep_count(start: i64, levels: usize) -> Formula {
     })
 }
 
-/// A measurement `levels` deep: `measure_levels` nested sums over value
-/// leaves, the first holding `metres` as an expression nested the rest
-/// of the way, so it evaluates to `metres + 0.25 · (measure_levels - 1)`.
-fn deep_measure(metres: f64, levels: usize, measure_levels: usize) -> MeasureExpr<Formula> {
-    let first = MeasureExpr::value(deep_length(metres, levels - measure_levels + 1));
-    (1..measure_levels).fold(first, |m, _| {
-        MeasureExpr::add(m, MeasureExpr::value(len(0.25))).unwrap()
-    })
+/// A sum `levels` deep: `sum_levels` nested sums, the first term
+/// holding `metres` as an expression nested the rest of the way, so it
+/// evaluates to `metres + 0.25 · (sum_levels - 1)`.
+fn deep_sum(metres: f64, levels: usize, sum_levels: usize) -> Formula {
+    let first = deep_length(metres, levels - sum_levels + 1);
+    (1..sum_levels).fold(first, |m, _| Formula::add(m, len(0.25)).unwrap())
 }
 
 /// The nesting refusal a door raised, with the bound it names.
@@ -81,7 +79,7 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(2.0), len(0.0)])),
@@ -95,13 +93,14 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let extrude = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: deep_length(0.5, levels),
         side: ExtrudeSide::Along,
     });
-    let measure = r.insert(Node::Measure {
-        expr: deep_measure(0.5, levels, levels.div_ceil(2)),
-        refs: vec![],
+    let measure = r.insert(Node::Assertion {
+        value: deep_sum(0.5, levels, levels.div_ceil(2)),
+        bound: len(0.0),
+        relation: editor_core::AssertionRelation::AtLeast,
     });
     (r, extrude, measure)
 }
@@ -116,17 +115,19 @@ fn extrude_document(distance: Formula) -> (Recorder, RecipeNodeId) {
         vec![fixture::square(0.0, 0.0, 0.5)],
     )));
     let extrude = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance,
         side: ExtrudeSide::Along,
     });
     (r, extrude)
 }
 
-/// [`extrude_document`] over a plain length, saved from its snapshot.
+/// [`extrude_document`] over a plain length, saved as its edit log over
+/// the empty document: the log carries the distance as the formula it
+/// was written as, where the snapshot's slot holds a variable's id.
 fn saved_extrude() -> String {
-    editor_core::persist::save(&extrude_document(len(0.5)).0.doc, &[], Tol::witness())
-        .expect("the document saves")
+    let [_, (_, log)] = both_saves(&extrude_document(len(0.5)).0);
+    log
 }
 
 /// `r` saved from its snapshot and from its edit log replayed over the
@@ -143,11 +144,14 @@ fn both_saves(r: &Recorder) -> [(&'static str, String); 2] {
     ]
 }
 
-/// The value a measurement node evaluated to.
+/// The value an assertion compared.
 fn measured(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
     match ev.result(id) {
         Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Measure { value, .. } => *value,
+            ValuePayload::Assertion(
+                editor_core::AssertionVerdict::Holds { measured, .. }
+                | editor_core::AssertionVerdict::Violated { measured, .. },
+            ) => *measured,
             other => panic!("node {id:?} is a {}", other.kind_name()),
         },
         _ => panic!("node {id:?} did not evaluate"),
@@ -216,31 +220,24 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
             ("a chain of negations", negations(0.5, BOUND), -0.5),
         ] {
             assert_eq!(
-                eval(&editor_core::test_support::stored_expr(&e), &env),
+                eval(&Clone::clone(&e), &env),
                 Ok(value),
                 "{label} evaluates at f64"
             );
             assert!(
-                eval(
-                    &editor_core::test_support::stored_expr(&e),
-                    &VarEnv::<Interval>::default()
-                )
-                .is_ok(),
+                eval(&Clone::clone(&e), &VarEnv::<Interval>::default()).is_ok(),
                 "{label} evaluates at Interval"
             );
             let copy = e.clone();
             assert!(copy.bit_eq(&e), "{label} clones bit for bit");
-            assert!(format!("{e:?}").contains("Literal"), "{label} prints");
+            assert!(format!("{e:?}").contains("Quantity"), "{label} prints");
             let text = unparse(&e, &|_| None);
             let back = parse_formula(&text, &BTreeMap::new())
                 .unwrap_or_else(|err| panic!("{label} reads back through the text door: {err}"));
             assert!(back.bit_eq(&e), "{label} round-trips through its text");
         }
         assert_eq!(
-            eval_count(
-                &editor_core::test_support::stored_expr(&deep_count(1, BOUND)),
-                &env
-            ),
+            eval_count(&Clone::clone(&deep_count(1, BOUND)), &env),
             Ok(i64::try_from(BOUND).unwrap()),
             "a count sum at the bound evaluates exactly"
         );
@@ -255,7 +252,7 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
             let e = parse_formula(&text, &BTreeMap::new())
                 .unwrap_or_else(|err| panic!("{label} nested to the bound parse: {err}"));
             assert!(
-                eval_count(&editor_core::test_support::stored_expr(&e), &env).is_ok(),
+                eval_count(&Clone::clone(&e), &env).is_ok(),
                 "{label} evaluate"
             );
         }
@@ -333,18 +330,6 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
                 "count_to_scalar",
                 Formula::count_to_scalar(deep_count(1, BOUND)).err(),
             ),
-            (
-                "measure neg",
-                MeasureExpr::neg(deep_measure(0.5, BOUND, 3)).err(),
-            ),
-            (
-                "measure add",
-                MeasureExpr::add(
-                    MeasureExpr::value(len(0.0)),
-                    deep_measure(0.5, BOUND, BOUND),
-                )
-                .err(),
-            ),
         ] {
             let error = refused.unwrap_or_else(|| panic!("{label} one past the bound refuses"));
             assert_eq!(refused_bound(&error), BOUND, "{label}");
@@ -381,8 +366,9 @@ fn one_past_the_bound_refuses_typed_at_every_door_that_mints_one() {
             other => panic!("the edit door refuses the deeper tree, got {other:?}"),
         }
 
-        // The load door: the saved distance wrapped in one more negation.
-        let text = editor_core::persist::save(&r.doc, &[], Tol::witness()).unwrap();
+        // The load door: the saved distance wrapped in one more negation,
+        // in the edit log that writes it as a formula.
+        let [_, (_, text)] = both_saves(&r);
         match editor_core::persist::load(&wrap_distance(&text, 1).0, Tol::witness()) {
             Err(PersistError::Dimension { error, .. }) => assert_eq!(refused_bound(&error), BOUND),
             other => panic!("the load door refuses the deeper tree, got {other:?}"),
@@ -491,19 +477,20 @@ fn a_negative_leaf_at_the_bound_reads_back() {
     });
 }
 
-/// **A measurement shares the bound, at every split of its levels
-/// between measurement nodes and the expression a value leaf holds**:
-/// at the bound it saves and loads back on the smallest stack, and one
-/// level more refuses at the constructor.
+/// **An assertion's value shares the bound, at every split of its
+/// levels between sums and the expression a term holds**: at the bound
+/// it saves and loads back on the smallest stack, and one level more
+/// refuses at the constructor.
 #[test]
-fn a_measurement_shares_the_bound_at_every_split() {
+fn an_assertion_value_shares_the_bound_at_every_split() {
     on_the_smallest_stack(|| {
         for measure_levels in [1, 2, 3, BOUND / 2, BOUND - 1, BOUND] {
-            let at = deep_measure(0.5, BOUND, measure_levels);
+            let at = deep_sum(0.5, BOUND, measure_levels);
             let (mut r, _) = extrude_document(len(0.5));
-            r.insert(Node::Measure {
-                expr: at.clone(),
-                refs: vec![],
+            r.insert(Node::Assertion {
+                value: at.clone(),
+                bound: len(0.0),
+                relation: editor_core::AssertionRelation::AtLeast,
             });
             let pin = content_pin(&r.doc, Tol::witness()).expect("the document pins");
             for (label, text) in both_saves(&r) {
@@ -515,8 +502,7 @@ fn a_measurement_shares_the_bound_at_every_split() {
                     "split {measure_levels}: the {label} loads back"
                 );
             }
-            let one_more = MeasureExpr::add(at, MeasureExpr::value(len(0.0)))
-                .expect_err("one level more refuses");
+            let one_more = Formula::add(at, len(0.0)).expect_err("one level more refuses");
             assert_eq!(refused_bound(&one_more), BOUND, "split {measure_levels}");
         }
     });
@@ -643,13 +629,22 @@ fn loads_on_several_threads_keep_their_own_count() {
 /// Whether `v` is an expression on the wire: a tag object whose payload
 /// has the expression wire's shape all the way down.
 fn is_expression(v: &Value) -> bool {
+    if v.as_str() == Some("Turn") {
+        return true;
+    }
     let Some((tag, inner)) = tagged(v) else {
         return false;
     };
     match tag {
-        "Literal" => has_exactly(inner, &["value", "dim", "unit"]),
-        "Param" => has_exactly(inner, &["name", "dim"]),
-        "Count" => inner.is_i64(),
+        "Quantity" => {
+            has_exactly(inner, &["value", "dim", "unit"])
+                || has_exactly(inner, &["value", "dim", "unit", "distribution"])
+        }
+        "Ratio" => has_exactly(inner, &["num", "den"]),
+        "Var" => has_exactly(inner, &["var", "dim"]),
+        "Name" => has_exactly(inner, &["name", "dim"]),
+        "Fresh" => has_exactly(inner, &["index", "dim"]),
+        "Integer" => inner.is_i64(),
         "Neg" | "Sin" | "Cos" | "Tan" | "CountToScalar" => is_expression(inner),
         "Add" | "Sub" | "Mul" | "Div" | "Atan2" | "Min" | "Max" => inner
             .as_array()
@@ -665,7 +660,9 @@ fn is_measurement(v: &Value) -> bool {
     };
     match tag {
         "Primitive" => tagged(inner).is_some(),
-        "Value" => is_expression(inner),
+        // An authored value leaf is a formula; a stored one, the
+        // variable its value lowered to.
+        "Value" => is_expression(inner) || has_exactly(inner, &["var", "dim"]),
         "Neg" => is_measurement(inner),
         "Add" | "Sub" | "Mul" | "Div" | "Min" | "Max" => inner
             .as_array()
@@ -750,14 +747,18 @@ fn the_load_doors_limit_is_the_deepest_body_a_save_writes() {
     ));
     let (mut deepest, mut at) = (0, String::new());
     for (name, r) in &recorders {
+        // A snapshot whose slots all read free variables holds no
+        // expression; its edit log, written in formulas, does.
+        let mut found = 0;
         for (label, text) in both_saves(r) {
             let parsed: Value = serde_json::from_str(body(&text)).expect("a saved body is JSON");
             let (enclosing, roots) = envelope(&parsed);
-            assert!(roots > 0, "{name}'s {label} holds an expression");
+            found += roots;
             if enclosing > deepest {
                 (deepest, at) = (enclosing, format!("{name}'s {label}"));
             }
         }
+        assert!(found > 0, "{name}'s saves hold an expression");
     }
     assert_eq!(
         deepest + 2 * BOUND,

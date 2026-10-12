@@ -22,9 +22,11 @@ use profile::{Profile, SketchPlane};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
 use topo::{Body, BooleanError, BooleanOp};
 
+use crate::common::oracles::{ball_volume, lens_volume};
+
 /// A ball of radius `r` centred at `c`, poled on y: its seam meridians
 /// lie in the half-plane `z = 0, x ≥ 0` about its centre.
-fn ball(r: f64, c: Vec3<f64>) -> Body<f64> {
+pub(crate) fn ball(r: f64, c: Vec3<f64>) -> Body<f64> {
     let b = sweep::test_support::revolved_about_y(
         vec![(Point2::new(0.0, -r), 1.0), (Point2::new(0.0, r), 0.0)],
         Revolution::Full,
@@ -35,7 +37,7 @@ fn ball(r: f64, c: Vec3<f64>) -> Body<f64> {
 
 /// A rod of radius `r` along z through `(x, y)`, from `z0` to `z1`: two
 /// half-walls, whose seam lines run at `(x ± r, y)`.
-fn rod_z(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64)) -> Body<f64> {
+pub(crate) fn rod_z(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64)) -> Body<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(x, y), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
@@ -80,21 +82,6 @@ fn rod_x(r: f64, (y, z): (f64, f64), (x0, x1): (f64, f64), seams_beside: bool) -
     .unwrap()
 }
 
-fn ball_volume(r: f64) -> f64 {
-    4.0 / 3.0 * PI * r.powi(3)
-}
-
-/// The volume of a spherical cap of height `h` on a sphere of radius `r`.
-fn cap_volume(r: f64, h: f64) -> f64 {
-    PI * h.powi(2) * (3.0 * r - h) / 3.0
-}
-
-/// The lens two balls `r1`, `r2` at centre distance `d` share.
-fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
-    let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (2.0 * d);
-    cap_volume(r1, r1 - x) + cap_volume(r2, r2 - (d - x))
-}
-
 const R1: f64 = 1.0;
 const R2: f64 = 0.8;
 const D: f64 = 1.4;
@@ -117,7 +104,7 @@ fn lens() -> Body<f64> {
     .expect("the lens")
 }
 
-fn boolean(
+pub(crate) fn boolean(
     op: BooleanOp,
     a: &Body<f64>,
     b: &Body<f64>,
@@ -135,7 +122,7 @@ fn boolean(
 
 /// The boolean's body, `None` for an empty result; a refusal fails with
 /// the payload.
-fn built(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
+pub(crate) fn built(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
     boolean(op, a, b)
         .unwrap_or_else(|e| panic!("{op:?} refused: {e:?}"))
         .body()
@@ -144,8 +131,10 @@ fn built(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
 
 /// Every tier of validation, a closed tessellation, then the volume
 /// against `want` through the kernel's mass properties (exact on
-/// closed-form faces), to 1e-9 of the result floored at unit scale.
-fn assert_body(label: &str, body: &Body<f64>, want: f64) {
+/// closed-form faces), to 1e-9 of the result: relative, so a body at
+/// ×1e-3 is held as tightly as one at ×1. The tessellation's chord
+/// tolerance is 1e-3 of the result's own length, `want^⅓`.
+pub(crate) fn assert_body(label: &str, body: &Body<f64>, want: f64) {
     let tol = Tol::witness();
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
     assert_eq!(
@@ -158,7 +147,7 @@ fn assert_body(label: &str, body: &Body<f64>, want: f64) {
         Ok(()),
         "{label}: validate_geometric"
     );
-    let m = mesh::tessellate(body, 1e-3, tol)
+    let m = mesh::tessellate(body, 1e-3 * want.cbrt(), tol)
         .unwrap_or_else(|e| panic!("{label}: tessellates, got {e:?}"));
     assert_eq!(
         mesh::validate::check_mesh(&m),
@@ -169,7 +158,7 @@ fn assert_body(label: &str, body: &Body<f64>, want: f64) {
         .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
     assert_eq!(p.volume_pad, 0.0, "{label}: closed-form faces only");
     assert!(
-        (p.volume - want).abs() <= 1e-9 * want.max(1.0),
+        (p.volume - want).abs() <= 1e-9 * want,
         "{label}: volume {} against the closed form {want}",
         p.volume
     );
@@ -178,14 +167,20 @@ fn assert_body(label: &str, body: &Body<f64>, want: f64) {
 /// How two operands stand: apart (touching at a point at most), or the
 /// second inside the first.
 #[derive(Clone, Copy)]
-enum Pose {
+pub(crate) enum Pose {
     Apart,
     Inside,
 }
 
 /// Every op in both operand orders, each against the closed form the
 /// operands' volumes `va`, `vb` and their pose give.
-fn assert_every_op(label: &str, a: &Body<f64>, b: &Body<f64>, (va, vb): (f64, f64), pose: Pose) {
+pub(crate) fn assert_every_op(
+    label: &str,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    (va, vb): (f64, f64),
+    pose: Pose,
+) {
     let (union, meet) = match pose {
         Pose::Apart => (va + vb, 0.0),
         Pose::Inside => (va, vb),
@@ -210,7 +205,7 @@ const OPS: [BooleanOp; 3] = [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::
 
 /// Every op in both operand orders refuses, and `expect` holds of each
 /// refusal.
-fn assert_every_op_refuses(
+pub(crate) fn assert_every_op_refuses(
     label: &str,
     a: &Body<f64>,
     b: &Body<f64>,
@@ -227,7 +222,7 @@ fn assert_every_op_refuses(
 }
 
 /// The unit vector along `(x, y, z)`.
-fn dir(x: f64, y: f64, z: f64) -> Vec3<f64> {
+pub(crate) fn dir(x: f64, y: f64, z: f64) -> Vec3<f64> {
     let v = Vec3::new(x, y, z);
     v / v.norm()
 }

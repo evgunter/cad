@@ -71,7 +71,7 @@ The review counted 56 hits across 28 tests. The seam edge is
 restated as a plain image on the chart, which the door reads as the wall that keeps it; the
 boundary pass then describes it as the plane × wall intersection.
 
-**Pinned** in `crates/sweep/tests/split_through_a_seam_ruling.rs`: solid cylinder, tube, and
+**Pinned** in `crates/sweep/tests/split_through_a_ruling.rs`: solid cylinder, tube, and
 counterbore outer walls, and a frustum, each through its seam ruling at t ∈ {0.05, 0.4, 1, π/2,
 2, 3, −0.4, −1.2}, both normals. They answer at the closed-form volumes, and both halves pass
 tiers 1, 2, 3 and 3′. Every family had poses red on main; t = π/2 holds the axis, so it also

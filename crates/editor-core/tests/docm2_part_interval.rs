@@ -1,9 +1,8 @@
 //! **DOCM-2 under the Interval lane** — A7's lane rows: the
 //! `part_select` corpus document evaluates at `Interval` with a
-//! WIDENED parameter the split's body reads, and each Part's body is
-//! the half's or the instance's own, read off the split's or the
-//! pattern's value at the same lane; and the amendment's `Sym<Interval>`
-//! pin of the relaxed same-source assertions on the exact document.
+//! WIDENED parameter the split's body reads, and the Part's body is
+//! the instance's own, read off the pattern's value at the same lane;
+//! and the amendment's `Sym<Interval>` pin of the exact document.
 //!
 //! The widening is scaled to the row's ε because the hosted matrix
 //! runs this row at every ε row and the widened split must certify at
@@ -22,8 +21,8 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, FreeVar, Node,
-    PartSelect, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide, UnitSym, ValuePayload, VarName,
-    apply, evaluate,
+    PartSelect, ProfileDoc, RecipeNodeId, SplitSide, UnitSym, ValuePayload, VarName, apply,
+    evaluate,
 };
 use geom_core::{Bounds, Decide, Interval, SymBudget, Tol};
 use topo::Body;
@@ -73,6 +72,7 @@ fn widened_document(width: f64) -> ProfileDoc {
                     hi: width,
                 }),
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -83,36 +83,26 @@ fn widened_document(width: f64) -> ProfileDoc {
 
 /// Every Part of `doc` with the node it reads and its selector.
 fn parts(doc: &ProfileDoc) -> Vec<(RecipeNodeId, RecipeNodeId, PartSelect)> {
-    doc.order()
+    doc.ids()
         .iter()
         .filter_map(|&id| match doc.node(id) {
-            Some(Node::Part { of, select }) => Some((id, *of, select.clone())),
+            Some(Node::Part { of, select }) => Some((id, doc.operation_of(*of)?, select.clone())),
             _ => None,
         })
         .collect()
 }
 
-/// **Each Part's body IS the body read off the value at the lane** —
+/// **The Part's body IS the body read off the value at the lane** —
 /// the same `Arc`, and description for description.
 fn assert_parts_are_their_bodies(ev: &Evaluation<Interval>, doc: &ProfileDoc, label: &str) {
     let found = parts(doc);
-    assert_eq!(found.len(), 3, "{label}: two halves and one instance");
+    assert_eq!(found.len(), 1, "{label}: one instance");
     for (id, of, select) in found {
         let ValuePayload::Body(part) = &ev.value(id).expect("the Part").payload else {
             panic!("{label}: a body value");
         };
         let read: &Arc<Body<Interval>> = match (&select, &ev.value(of).expect("the input").payload)
         {
-            (PartSelect::SplitHalf(h), ValuePayload::Split { above, below }) => {
-                let side = match h {
-                    SplitHalf::Above => above,
-                    SplitHalf::Below => below,
-                };
-                match side {
-                    SplitSide::Body(b) => b,
-                    SplitSide::Empty => panic!("{label}: the half holds material"),
-                }
-            }
             (PartSelect::Instance(_), ValuePayload::Instances(v)) => &v[1],
             other => panic!("{label}: {other:?}"),
         };
@@ -140,7 +130,7 @@ fn node_where(
     doc: &ProfileDoc,
     pick: impl Fn(&editor_core::Node<editor_core::ProfileProgram>) -> bool,
 ) -> RecipeNodeId {
-    *doc.order()
+    *doc.ids()
         .iter()
         .find(|id| doc.node(**id).is_some_and(&pick))
         .expect("the document carries the node")
@@ -165,8 +155,12 @@ enum Rung {
 /// (DOCM-1's measurement of record); the SPLIT of that box does not:
 /// at ε/10 its section-edge carrier certification against the mapped
 /// source escalates (`carrier_matches_mapped_source`, an enclosure a
-/// few parts per million over the band's zero); ε/16 and every
-/// narrower rung certify. Each
+/// few parts per million over the band's zero). At ε/16 the split
+/// certifies and the union of its halves does not: the glue door reads
+/// the cut faces' plane offset in band (`bool_plane_offset`), so the pair
+/// is not glued, and the corner that reads it one carrier refuses
+/// (`carrier_unglued_coincidence`). ε/32 and every narrower rung
+/// certify. Each
 /// rung is asserted, so a floor that moves — up or down — reds this
 /// row naming the rung.
 #[test]
@@ -174,6 +168,7 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
     let e = Tol::witness().eps();
     let doc = widened_document(e);
     let split = node_where(&doc, |n| matches!(n, Node::Split { .. }));
+    let union = node_where(&doc, |n| matches!(n, Node::Union { .. }));
     let ladder: [(u32, Rung); 8] = [
         (
             10,
@@ -182,7 +177,13 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
                 predicate: "carrier_matches_mapped_source",
             },
         ),
-        (16, Rung::Green),
+        (
+            16,
+            Rung::Escalates {
+                node: union,
+                predicate: "carrier_unglued_coincidence",
+            },
+        ),
         (32, Rung::Green),
         (64, Rung::Green),
         (128, Rung::Green),
@@ -226,13 +227,12 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
 
 /// The divisor of ε the assertion row is pinned at — two rungs under
 /// the floor the ladder measures at the default ε.
-const A7_DIVISOR: f64 = 64.0;
+const A7_DIVISOR: f64 = 128.0;
 
 /// **A7 — the corpus document at `Interval`, nominal and widened.** The
 /// height the split's body reads is widened by ε/`A7_DIVISOR`; the
-/// split, both halves and the union recompute through the upstream
-/// key; every Part's body is the half's or the instance's own at the
-/// lane.
+/// split and the union of its halves recompute through the upstream
+/// key; the Part's body is the instance's own at the lane.
 #[test]
 fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
     let width = Tol::witness().eps() / A7_DIVISOR;
@@ -259,14 +259,14 @@ fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
     assert_parts_are_their_bodies(&widened, &doc, "widened");
     // The frame, the profile and the tool plane read no parameter and
     // are served from the memo; the box and everything that reads it —
-    // the split, the halves, the union, the pattern, the instance, its
+    // the split, the union of its halves, the pattern, the instance, its
     // placement — recompute.
     assert_eq!(widened.reused, 3, "the three parameter-free leaves");
     assert_eq!(widened.recomputed, doc.len() - 3);
     // The widened box reaches the halves: the above half's top cap
     // carries the width.
     let split = *doc
-        .order()
+        .ids()
         .iter()
         .find(|id| matches!(doc.node(**id), Some(Node::Split { .. })))
         .expect("the split");
@@ -289,9 +289,9 @@ fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
 }
 
 /// **The `Sym<Interval>` pin** (the amendment, item 2): the exact
-/// corpus document — whose union rejoins two pieces carrying one
-/// pass-through source — evaluates green at the symbolic scalar, which
-/// has no bit channel either.
+/// corpus document — whose union rejoins the two halves of one split
+/// — evaluates green at the symbolic scalar, which has no bit channel
+/// either.
 #[test]
 fn the_part_select_document_evaluates_at_sym_interval() {
     let cd = corpus::part_select::document();

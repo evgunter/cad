@@ -79,8 +79,13 @@ fn r2_the_prism_closed_form_scales_with_the_rod_length() {
     let (v0, e0, f0) = census(&source);
     let vol0 = volume(&source);
 
-    let out = fillet_edges(&source, &creases, R, tol())
-        .unwrap_or_else(|e| panic!("the long rod's creases carve, got {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &creases,
+        R,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the long rod's creases carve, got {e}"));
     assert_eq!(
         census(&out.body),
         (v0 + 4, e0 + 6, f0 + 2),
@@ -115,7 +120,13 @@ fn r2_the_prism_closed_form_scales_with_the_rod_length() {
 fn r2_naming_is_total_on_the_planar_open_band_and_its_corners() {
     let source = cube(1.0, tol());
     let edges = query::all_edges(&source);
-    let out = fillet_edges(&source, &edges, 0.15, tol()).expect("the die carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &edges,
+        0.15,
+        tol(),
+    )
+    .expect("the die carves");
     assert_eq!(out.blend_faces.len(), 12, "one band per box edge");
     assert_eq!(out.corner_faces.len(), 8, "one patch per corner");
     assert_naming_totality(&source, &out, &edges, "the die");
@@ -130,7 +141,13 @@ fn r2_naming_is_total_on_the_planar_open_band_and_its_corners() {
 fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
     let source = rod_with_flat(tol());
     let creases = rod_creases(&source);
-    let out = fillet_edges(&source, &creases, R, tol()).expect("the rod carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &creases,
+        R,
+        tol(),
+    )
+    .expect("the rod carves");
     let rec = out.naming.as_ref().expect("birth records");
     let (arc, _, _) = rec.arcs[0];
     let c = out
@@ -148,10 +165,10 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
     else {
         panic!("a cut-off arc is a circle");
     };
-    let EdgeDescription::Intersection { s1, s2, witness } = c.description() else {
+    let EdgeDescription::Intersection { pair, witness } = c.description() else {
         panic!("a cut-off arc is a transverse intersection");
     };
-    let (s1, s2, witness) = (*s1, *s2, *witness);
+    let (pair, witness) = (*pair, *witness);
     let (t0, t1) = c.params();
     for (label, carrier) in [
         (
@@ -177,7 +194,7 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
         let attached = body.set_edge_curve(
             arc,
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+                description: EdgeDescriptionSpec::Intersection { pair, witness },
                 carrier,
                 param_start: t0,
                 param_end: t1,

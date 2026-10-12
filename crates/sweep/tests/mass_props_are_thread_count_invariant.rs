@@ -171,8 +171,12 @@ fn sym_bodies() -> Vec<(String, Body<Sym<f64>>)> {
     let eps = Tol::witness().get().eps;
     let arc = |s: f64| {
         loft_body::<Sym<f64>>(
-            &[arc_section(s), arc_section(s), arc_section(s)],
-            &stacked(&[0.0, 1.0, 2.0], s),
+            &sweep::test_support::lift_sections::<Sym<f64>>(&[
+                arc_section(s),
+                arc_section(s),
+                arc_section(s),
+            ]),
+            &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0, 2.0], s)),
             2,
             Tol::witness(),
         )
@@ -180,11 +184,11 @@ fn sym_bodies() -> Vec<(String, Body<Sym<f64>>)> {
         .body
     };
     let strip = loft_body::<Sym<f64>>(
-        &[
+        &sweep::test_support::lift_sections::<Sym<f64>>(&[
             strip_section(1.0e12 * eps, 1.0e9 * eps, false),
             strip_section(1.0e12 * eps, 1.0e9 * eps, false),
-        ],
-        &stacked(&[0.0, 1.0], 1.0e12 * eps),
+        ]),
+        &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0], 1.0e12 * eps)),
         1,
         Tol::witness(),
     )
@@ -196,9 +200,11 @@ fn sym_bodies() -> Vec<(String, Body<Sym<f64>>)> {
     ]
 }
 
+/// `retried` is not a column: the session block opens `with_session`,
+/// which installs no retry ladder, so it would read zero by construction.
 fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usize) -> String {
     format!(
-        "{name} {door} {} decisions={} sz={} sg={} reg={} rref={} rcon={} num={} frozen={} shapes={}",
+        "{name} {door} {} decisions={} sz={} sg={} reg={} rref={} rcon={} num={} disp={} frozen={} shapes={}",
         if refused { "REFUSED" } else { "OK" },
         c.decisions(),
         c.symbolic_zero,
@@ -207,6 +213,7 @@ fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usi
         c.registrations_refused,
         c.registrations_contradicted,
         c.numeric,
+        c.theorems_disputed,
         c.frozen,
         shapes,
     )
@@ -252,6 +259,15 @@ fn digest() -> String {
 /// MERGE BASE (see the module docs); an ε with no entry prints its
 /// block and fails, which is how a new row gets cut.
 ///
+/// **What a golden holds.** The `# f64` block is one line per roster
+/// body ([`line`]): the certified volume, area and their pads as bits,
+/// or the typed refusal naming its face, then the verdict and
+/// escalation channels' counts and hashes. The `# sym-session` block is
+/// one line per `Sym` body and door ([`counts_line`]): the session's
+/// receipt by outcome (`sz`, `sg`, `reg`, `rref`, `rcon`, `num`), its
+/// disputes (`disp`), the nodes it froze (`frozen`) and the shape
+/// report's length.
+///
 /// **When a lane may re-cut here instead, and what licenses it.** The
 /// merge-base rule exists to stop a branch recording its own
 /// regression as the baseline — not to make a pinned number a
@@ -263,162 +279,8 @@ fn digest() -> String {
 /// — a move the branch cannot explain, or one in the wrong direction —
 /// is a finding, and the table stays where it is.
 ///
-/// **Re-cut at all three ε when the C9 ring became a newtype over
-/// `interval-transcendentals`' `DInterval`.** That is the other repair
-/// the assertion below names: the ring padded one representable step
-/// outward on every operation and the backend pads only where the
-/// operation is inexact, so four rows' pads shrank and none grew
-/// (`loft_prism`'s volume lands on exactly `9`), and the sym-session
-/// decision counts are untouched. Every verdict hash in the block is
-/// unchanged — nothing certified that refused, or refused that
-/// certified — and the pads are the whole of what moved, downward.
-///
-/// **Re-cut at all three ε when tier 3's check 6 planar arm began
-/// examining loops of `Line` and `Circle` carriers.** Both sym-session
-/// bodies have two planar caps whose loops carry an arc, and each cap
-/// loop now takes the one `bool_ring_run_winding` decision it was
-/// skipped before: on both `validate_geometric` rows the decision,
-/// shape, numeric and frozen-operand counts each rise by exactly 2,
-/// the verdicts stay `OK` / `REFUSED`, and no other line of the block
-/// moves.
-///
-/// **Re-cut at all three ε when tier 3's check 1 began reading every
-/// edge carrier's datums.** Only the `frozen` column of the two
-/// `validate_geometric` rows moves, and down: `sym_arc_loft`
-/// 2141 → 685 / 2059 → 599 / 2117 → 670 and `sym_thin_strip`
-/// 2181 → 860 / 2178 → 825 / 2179 → 858 at ε = 1e-6 / 1e-9 / 1e-12.
-/// Decisions, discharges, shapes and verdicts are unchanged. The
-/// carrier pass decides nothing; it builds its datum reads inside the
-/// session, and so interns nodes the later decisions' margins share —
-/// nodes the plain walk used to freeze as absent from its table
-/// (`geom_core::sym`'s `form_in`: "a node absent from this leaf's table
-/// is frozen here by design") and now expands. Measured by switching
-/// the pass off on a probe branch, which restores the old column.
-///
-/// **Re-cut at all three ε when the sketch pushforward began reading
-/// its segment's stored centre and sweep** (`geom_brep::SketchSegment`,
-/// #3254) instead of rebuilding them inside `eval` from the chord and
-/// the bulge. Only the `frozen` column of the two `validate_geometric`
-/// rows moves, and down: `sym_arc_loft` 685 → 656 / 599 → 570 /
-/// 670 → 641 and `sym_thin_strip` 860 → 803 / 825 → 768 / 858 → 801 at
-/// ε = 1e-6 / 1e-9 / 1e-12. Decisions, discharges, shapes and verdicts
-/// are unchanged: the pushforward shares the carrier's centre node, so
-/// fewer operands reach the walk as nodes absent from its table.
-///
-/// **Re-cut at all three ε when `MassPropsError`'s sentence dropped its
-/// stage prefix and the face's key.** Only the text after `REFUSED`
-/// moves; the refusing face stays pinned, now by the line's own
-/// `at FaceKey(…)`, and no verdict, pad or count changes.
-///
-/// **Re-cut at all three ε when the certification schedule began
-/// assigning its end samples** (`geom_brep::schedule_param`: `t₀` and
-/// `t₁` themselves rather than `t₀ + (t₁ − t₀)·0` and `·1`). Only the
-/// `sym_thin_strip validate_geometric` row moves: 8 of its decisions
-/// discharge as structural zeros instead of numerically (`sz` 26 → 34,
-/// `num` 634 → 626 at every ε), and `frozen` falls 803 → 757 /
-/// 768 → 722 / 801 → 755 at ε = 1e-6 / 1e-9 / 1e-12. Decisions, shapes
-/// and the verdict are unchanged. The end sample is now the interval's
-/// own end exactly, so 8 end residuals take a form the session proves
-/// zero rather than one it rounds.
-///
-/// **Re-cut at all three ε at the merge that brought rule G and the
-/// decision read** (`geom_core::SymRules::canonical_root`,
-/// `decision_read`) **together with the tier-3 re-cuts above**:
-/// `sym_arc_loft`'s `validate_geometric` row reads 8 more theorems out
-/// of `numeric` (`sz` 40 → 48, `num` 620 → 612) at every ε. Neither
-/// side moved it alone — the tree with the rules and without the
-/// re-cuts read `sz=40`, and so did the tree with the re-cuts and
-/// without the rules — so the 8 are the two composing. Decisions,
-/// frozen, shapes and verdicts are unchanged.
-///
-/// **Re-cut at all three ε when profile loops stopped storing a bulge
-/// beside each arc and the lifts began copying the stored carrier**
-/// (PATHS 5a, #3527). Only the `frozen` column of the two
-/// `validate_geometric` rows moves, and down: `sym_arc_loft`
-/// 656 → 654 / 570 → 568 / 641 → 638 and `sym_thin_strip`
-/// 757 → 754 / 722 → 719 / 755 → 752 at ε = 1e-6 / 1e-9 / 1e-12.
-/// Decisions, discharges, shapes and verdicts are unchanged.
-///
-/// **Re-cut at all three ε when the quadrature lane's square roots
-/// became the backend's** (`geom_core::interval::Certification::sqrt`,
-/// #3727) in place of a local root that stepped one ulp outward at
-/// both ends even where the root was exact. Only the two NURBS lofts'
-/// area readings move: `loft_prism`'s `a` rises 149 ulps and its
-/// `apad` falls 0.18961175980001 → 0.18961175979655 at every ε, and
-/// `arc_loft_1e9eps`'s `apad` falls by 4.2e-11 of itself at ε = 1e-6
-/// and 1e-9. Both enclosures still hold the true area: `loft_prism`'s
-/// 25.31243834738 m² (its two flared walls integrated independently)
-/// and the arc loft's `s²·(18 + π(1+√2))`.
-/// Volumes, volume pads, refusals, verdict hashes and the sym-session
-/// counts are unchanged.
-///
-/// **Re-cut at all three ε when check 4 of the pcurve certificate became
-/// incidence plus fidelity** (`geom_brep::pcurve_cache`, C4). The
-/// quadrature's map-residual honesty pad reads each edge's certificate
-/// envelope, and on `tilted_cut_upper`'s cylinder wall the restated
-/// envelope is smaller. Only that row moves, and only down: `vpad` and
-/// `apad` fall by 2.5e-9 of themselves at ε = 1e-9, by ~5e-12 at
-/// 1e-6, and by 1.3e-6 at 1e-12. The volume's midpoint moves two ulps
-/// with its pad at 1e-6 and 1e-12. Areas, refusals, verdict hashes and
-/// the sym-session counts are unchanged.
-///
-/// **Re-cut at all three ε when a cylinder face's flux became its chart
-/// Green form** (`geom_brep::props::curved_face_loops`, `−∮ v du` over
-/// every loop). Only `bulged_extrusion`'s verdict row moves: its walls
-/// no longer run the iso-rectangle premises and the rim-side reading
-/// (`props_rim_level`, `props_rim_level_group`, `props_du_consistent`,
-/// `props_rim_side`), so 18 verdicts fall to 13 and the hash with them.
-/// Its volume and area bits, and every other row, are unchanged.
-///
-/// **Re-cut at all three ε when that Green form checked its closure**
-/// (`props_loop_closed` at every loop junction,
-/// `props_chart_loops_closed` per face — the premise that makes the sum
-/// anchor-free). Only `bulged_extrusion`'s verdict row moves again,
-/// 13 → 18, and its hash; its volume and area bits, and every other
-/// row, are unchanged.
-///
-/// **Re-cut at all three ε when check 5 of the pcurve certificate
-/// decided only an escape's positive part** (`geom_brep::pcurve_cache`'s
-/// `trim_containment`). Only `sym_arc_loft`'s `validate_geometric` row
-/// moves: two of its numeric decisions become theorems (`sz` 54 → 56,
-/// `num` 638 → 636). Every verdict, pad and other row is unchanged.
-///
-/// **Re-cut at all three ε when check 7 took a quadrature face about the
-/// body's corner** (`topo::props::certify_role`: a sign the walk's own
-/// enclosure leaves unresolved is read again with those faces measured
-/// about the corner). Only `sym_thin_strip`'s `validate_geometric` row
-/// moves, the strip whose sign the schedule never decides: its
-/// quadrature faces are measured once more, eight more decisions
-/// (`num` 654 → 662, `decisions` 692 → 700). Every verdict, pad and other row,
-/// `sym_arc_loft`'s included, is unchanged.
-///
-/// **Re-cut at all three ε when a pcurve row became an image plus a
-/// joint element** (`topo::joint`, the re-anchor ruling, PR 4024). Only
-/// the two `validate_geometric` rows move, the same at every ε but
-/// `frozen`. Tier 3 decides the closure joint as every other joint and
-/// reads the winding off the elements: the closure margins go
-/// (`pcurve_loop_closure` 4, `pcurve_loop_closure_height` 4), the
-/// closure joint's two continuity margins come in (8), and the lever is
-/// read at all 16 joints (`pcurve_loop_pole_joint`, all definite) — 16
-/// more numeric decisions on each body (`sym_arc_loft` 692 → 708, `num`
-/// 636 → 652). The window a row certifies against is now the hull of
-/// the face's images, so on `sym_thin_strip` an image's escape against
-/// the window end it sets cancels: 16 `pcurve_trim_containment` and 6
-/// `pcurve_iso_boundary` decisions become theorems (`sz` 38 → 64,
-/// `num` 662 → 652, `decisions` 700 → 716) and the early walk freezes
-/// 46 fewer nodes (`frozen` 719 → 673 at 1e-9). Every verdict, pad and
-/// f64 row is unchanged.
-///
-/// **Re-cut at all three ε when `skin::segment_curve` began building an
-/// arc's NURBS from the evaluation's own points and the spoke
-/// `a − centre`** (PATHS 5b) instead of the stored radius and an
-/// endpoint `atan2`. Only the two arc lofts move: `arc_loft_1e9eps`'s
-/// `v`, `a`, `vpad` and `apad` in their last bits (its volume by 4, 5
-/// and 7 ulps at ε = 1e-6 / 1e-9 / 1e-12), and the `frozen` column of
-/// the two `validate_geometric` rows — `sym_arc_loft` 654 → 607 /
-/// 568 → 539 / 638 → 606 and `sym_thin_strip` 708 → 704 / 673 → 674 /
-/// 706 → 699. Decisions, discharges, shapes, refusals and every verdict
-/// hash are unchanged.
+/// **Each re-cut names its cause in its PR body**, and the history of
+/// what moved is `git log -p -- crates/sweep/tests/thread-count-digest/`.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

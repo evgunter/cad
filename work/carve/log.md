@@ -270,3 +270,249 @@ self-closed edge once, against the walk's ends) and
 the cube's top loop plus one vertical).
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-06 — `skin-coincident-section-check-is-an-unbanded-f64-compare` closed (PR 4186)
+
+Whether two adjacent loft sections are apart is one banded decision at
+the loft door. `loft_body` and `sweep_body` share a private `build`
+(validate → stacking fold → skin → assemble), and every pair not apart
+refuses `DegenerateStacking { slab }` at every scale, the ~1e-16
+underflow included. The skin's residual compare is an exact structure
+check, `SkinError::NoParameterStep { section }`, whose text never claims
+the sections coincide and whose one lever is to move section i away
+from section i−1. `loft_parameters` now goes through `validate_loft`.
+
+Review: single FULL (Opus). It found no MAJOR. It probed closed
+non-planar sweeps with bit-equal stations, rotated coincidences,
+denormal steps and the Interval scalar. Its fix pass:
+- dropped the range lever, which was not apt for a pinned hinge;
+- added the census row;
+- scoped `loft_parameters`' doc;
+- made the `DegenerateStacking` text true of the crossing case;
+- added two rows: a sweep with bit-equal stations, and a hinge pinned
+  only up to rounding.
+
+The last pins a silent defect, pre-existing at the merge base:
+`loft_geometry` returns `Ok` with control coordinates around 3.5e15 for
+a 2-unit section. Filed on CARVE:
+- `a-wall-pinned-between-two-loft-sections-refuses-at-the-wrong-door`
+  (P1, H, design);
+- `sweep-places-vanishing-tangent-is-a-bare-f64-compare` (P3, M,
+  design);
+- `loft-doors-take-a-non-finite-placement` (P3, M).
+
+The fold-retirement note is on the certificate unit's row. Steered
+mid-unit: the orchestrator first asked for the decision in `skin.rs`,
+then withdrew that on reading the PR, whose two-layer structure states
+two true facts.
+
+**On the gate's 1e-6 row.** The fix-pass head was red only on
+`rest_zip_admission::the_tangent_lever_keeps_building_pure_contacts`.
+That row failed identically on a clean `origin/main` (`a9c038c37`): ZIP's
+admission fix pass `290d95a31` added it, and the per-PR gate runs the
+1e-6 row only for a diff touching `sweep`. A later main reportedly fixes
+it; a note is on ZIP's log. Main is now red at 1e-6 on PATHS'
+`one_segment_loop::a_split_through_the_seam_builds_as_the_two_arc_form_does`
+(from PR 4169); a note is on PATHS' log. This PR merges once its own
+rows are green, with any red confined to rows that are red on main.
+
+Signed: (CARVE orchestrator)
+
+## 2026-10-06 — `sweep-cap-plane-winds-against-a-convex-arc-region` closed (PR 4187)
+
+`sweep::swept::cap_plane` is the one home for all six cap sites
+(extrude's, loft's and the partial revolve's two each). It keeps
+Newell's plane over `cap_points` and flips it exactly when one decided
+comparison, the K predicate `cap_plane_orientation`, says Newell's
+normal opposes the region's (± the sketch normal, by the verb's
+`reverse` and the cap's end). The C-shape's caps now point out of the
+material in extrude, loft and partial revolve, at f64 and Interval.
+
+**Ruled mid-unit: B2.**
+- A (the placed sketch normal) failed CI with 13 rows in `editor-core`
+  and `step-export`. The placed `c2` is a far looser enclosure at
+  Interval than Newell over the actual points, and that is a geometric
+  reason, not output stability.
+- C (an arc-exact vector area) would have been a third copy of the
+  circular-segment formula.
+- B2 is bit-identical wherever Newell already agrees. The reviewer
+  dumped every face surface and vertex on base and branch to confirm.
+
+Review: single FULL (Opus). It found no MAJOR. Its fix pass:
+- The orientation refusal now carries the escalation's payload and the
+  shared `KERNEL_DEFECT_ENDING`. It had forwarded a recourse menu that
+  offered "declare the coincidence".
+- The new arms are in the concision census, plus two rows.
+- The right-handed-frame claim is a stated precondition that cites
+  PATHS' `sketch-plane-holds-the-affine-and-the-witness-dies-at-the-read-boundary`.
+- The lane's overstated TESS row became the true
+  `a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta`.
+## 2026-10-06 — `two-section-loft-with-an-inverted-top-normal-builds` closed (PR 4188)
+
+The stacking fold also decides section k+1's normal against slab k's
+displacement, under the same `loft_stacking` band. A far section that
+does not face along the stack refuses `FarSectionNotForward { slab }`,
+and an in-band far reading escalates as its own
+`FarStackingEscalated`. The downward-facing top section and an interior
+section facing back (z = 0, 1, 0.5 with normals +z, −z, −z) now refuse
+at the door; before, one built and validated and the other refused
+opaquely at an Euler certification.
+
+Review: single FULL (Opus). It found one MAJOR, which matters beyond
+this PR: **the designers' argument for the interim was false.** The
+check refuses embedded, correctly oriented bodies (a hood whose top
+turns 100°; an oblique arc sweep), because 3-D rings can turn edge-on
+to the stack and stay simple. The orchestrator ruled to keep it as a
+DISCLOSED CONSERVATIVE interim. Today the inverted-top loft builds
+silently, and a false refusal is the cheaper failure in a charter whose
+subject is bodies that should refuse. The old near check already
+over-refuses the mirror case. Every sentence that claimed "every
+refusal is a fold" was corrected. The over-refused bodies are pinned as
+rows that should build once the certificate lands, and that cost is
+recorded on the certificate unit's row. Filed on CARVE:
+`a-reflected-loft-placement-evades-both-normal-checks` (P1, M).
+**A class finding:** an argument a designer pair agrees on is still a
+claim to falsify. This one survived two reconciliation rounds and fell
+to a reviewer's first probe.
+
+Signed: (CARVE orchestrator)
+
+## 2026-10-07 — `intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself` closed (PR 4189)
+
+`EdgeDescription::Intersection` and `TangentIntersection` now hold a
+`geom_brep::SurfacePair`. The pair is kept in key order behind one
+infallible constructor, so the order is no longer a fact a caller can
+get wrong. Extrude's cap rims and struts now describe their edges
+alike, and the 8/12 measurement is now a test. Every both-ways check is
+gone with it.
+
+The designer pair agreed on the type. The orchestrator kept the
+same-surface refusal at the certify door rather than in the
+constructor, which stays infallible.
+
+Review: single FULL, with no MAJOR finding.
+
+- **No body moved.** Digests changed only through the description's
+  `Debug`; the geometry is identical under the lo/hi re-spelling.
+- **The frozen-count rise has a known cause.** The transversality
+  wedge's `n1.cross(n2)` is now read in key order rather than builder
+  order. That changes the form, not the value, and no decision depends
+  on the order.
+
+The fix pass:
+
+- one key order for the tangent reading, shared by the constructor and
+  the certificate, plus a symmetry row pinning it;
+- the tour's `drive.rs` prose corrected;
+- order-free test kinds;
+- the slot-naming residue filed as `certify-residual-predicates-still-name-a-slot`
+  (P4, E).
+
+`material-jet-readings-take-plus-minus-order` stays open (P3), because
+the (plus, minus) order of the signed κ_rel carries material-side
+meaning. CLEAVE's `CrossingInsertion` and `BlendError::Op` now box their
+`EulerOpError` source.
+
+The merge with #4187 (`cap_plane_orientation`) was re-measured under
+both changes rather than summed. The sym11, m10_9, m10_sym_profile and
+m10_bulge ledgers each state the combined cause at their site.
+## 2026-10-07 — `loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body` closed (PR 4193)
+
+A loft's v is now a function of its whole section set: Eq. 10.8 chord
+length over the outer loop's control rows, with per-section shares
+sorted. Rolling a section about its own normal, or relabelling its
+vertices, no longer changes the body. `loft_body`, `loft_parameters`,
+`sweep_body` and `sweep_geometry` share the one helper.
+
+Three rulings during the unit:
+
+- **The tube: holes read the outer loop's parameters (option B).** The
+  outer loop is structurally unique, so the rule stays label-free. A
+  hole cannot move the outer walls. The tour's scaled-hole tube holds
+  its identity to 1.9e-16; averaging the holes in left it 5.1e-5 off.
+- **The coil: sweeps take the loft's rule for now.** The designers'
+  path parameter was built, and it refused the square coil at
+  assembly. The root cause is the frame law: the sweep frame is a
+  minimal rotation from the START tangent, not a rotation-minimizing
+  frame, so it spins the section where the path runs back
+  anti-parallel. The path parameter is deferred to the frame-law row
+  `sweep-frame-is-a-minimal-rotation-from-the-start-tangent` (P1, H,
+  design). It is deferred, not dropped.
+- **`lily_leaf_b`: a tour wall pinned to QUAD (lily wall 17, default ε
+  only).** Under the new v, its volume escalates on QUAD's in-band
+  convergence arm (margin −2.7e-9). That is
+  `quadrature-convergence-test-escalates-instead-of-refining`, and the
+  evidence is added there. QUAD has no orchestrator, and the fix needs
+  the C3 factoring, so the wall is the honest interim. `finding_13`
+  skips only its Pappus containment, and says so.
+
+Wall 15 was retired and then restored across the merges; it ends as on
+main. The cap-plane order row
+`a-loft-caps-plane-is-summed-in-the-authored-vertex-order` was measured
+at P2. Frames: the nonuniform loft bulges as derived (1.646 at 32.6% →
+1.853 at 38.5%); the tube's bend shifts slightly; everything else moves
+at pixel level. The gate is ok on the head that carries main through #4215.
+
+Signed: (CARVE orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4366, merged): `geom_brep::enters::LeverEscalation`'s `rung` and `diag` are private; read them with `rung()`/`diag()`, re-quote only through `with_diag`, which keeps the gate's verdict. `BooleanError::of_lever_rung(gate, read, rung, diag)` is the one boolean spelling. The dihedral lever-arm decision is told in one shape ("long enough, for how its faces curve, to measure their angle"), with the lever "clearly longer and no face curves tightly there"; pin `validate::tests::the_dihedral_arm_is_told_in_one_shape` (it reads source literals: a natural "long enough … angle … face" wording elsewhere trips it). (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4401, merged): `LeverEscalation::with_diag` is gone. The one re-quote door is `quoting_reading`; ask `re_quotes()` first. A decided arm keeps its verdict only onto a reading of the same rejected sign, and otherwise is returned unchanged. The dihedral arm clause is `geom_brep::DIHEDRAL_ARM_CLAUSE` / `dihedral_arm_clause!()`; compose it, never re-spell it. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4411, merged): `geom_brep::must_carry_over_edge` now reads the second-order sagitta on every pair (tier 3's walk), so an in-band sagitta escalates `InBand(SecondOrder)` out of lane too; `UnderDetermined` out of lane means every station read Positive (or a station read Zero/Negative). An out-of-lane all-Positive pair now costs `CERT_SAMPLES−2` `tangent_second_order` samples. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4416, merged): `geom_core::lever_recourse(lever, note)` is the one spelling of a lever-alone ending, and `Indeterminate::undecided(subject, ending)` the one "{subject} is undecided: {payload}. {ending}"; compose them, do not re-spell. In `topo::boolean::refusal_routes`, `Ending::Lever` is now `Lever(&str)` (`LeverPass` is gone). Rendered texts are unchanged. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4422, merged): `geom_brep::recourse::RefusedArm::SignCertain` now takes `Option<MarginDiag>`; construct with `SignCertain(None)` unless the decision is a residual miss, and match with `SignCertain(_)`. `certify::definite_miss_in_file` / `Unsized::definite_residual_in_file` are gone; `Unsized::residual_in_file` is the one door. (ENCL orchestrator)
+- 2026-10-09 — Seam note from ENCL (PR 4450, merged at `59cdb05871`). `topo::DihedralReading::of_lever` / `of_must_carry` are the one map from a dihedral escalation to a reading; use them, not `(Lever(e.rung()), e.diag())` by hand. `sweep::blend` has two new closed decisions, `ContactArm` and `ContactWedge`, and `ContactSecondOrder` now offers the tolerance (`AnySign`). `ExtrudeError`/`RevolveError` `SliverJoin`/`SliverRim` now carry `reading: DihedralReading`, and their second-order text reads through `Indeterminate::undecided`. The editor-core fault line for `Escalated(contact)` is exactly at the 75-word budget. (ENCL orchestrator)
+
+## 2026-10-10 — third priority-seam cut: CARVEREST opened
+
+Five of the seven P0 rows are closed and merged:
+
+- PR 4185: the self-closed link;
+- PR 4186: coincident sections;
+- PR 4187: cap winding;
+- PR 4188: the inverted top normal;
+- PR 4193: the loft's v.
+
+PR 4189 (the surface pair's order) is reviewed and was green on the
+2026-10-07 base. It is now being merged forward over three days of
+main. `self-overlapping-spines-build-and-validate` is parked on the
+clearance certificate.
+
+The reviews filed rows faster than the units closed them, and other
+programs filed two more here: NURBS filed
+`skin-union-mints-a-hairline-span-from-knots-an-ulp-apart`, and ENCL
+filed `sweep-dihedral-readers-drop-the-arm-rung`, which this commit
+prices P2/M. CARVE measured 37 points against 30, so it is cut on its
+priority seam:
+
+- **CARVE keeps P0–P2: 20 points.**
+- **The P3/P4 rows go to a new program, CARVEREST (band
+  12700–12799).** They moved by `git mv`, keeping their ids, and the
+  one work file that cited a moved row by path is re-pointed.
+  CARVETAIL could not take them: the D10 hold's stage-4 releases and
+  SHELL's filing had put it at 19 points on its own.
+- **PR 4189's two filed rows**, `material-jet-readings-take-plus-minus-order`
+  and `certify-residual-predicates-still-name-a-slot`, move to
+  CARVEREST in that PR's state sync.
+
+The plan gives the next sitting's order. The reflected placement comes
+first, because it is the one row that builds a wrong body silently.
+
+Signed: (CARVE orchestrator)
+
+## 2026-10-10 — sitting closed; CARVE handed back
+
+PR 4189 merges with this state sync, which closes six of the seven P0
+rows. Its two filed rows moved to CARVEREST. Reaching a mergeable head
+took the PR more than a dozen merges of main after its review. The last one
+conflicted only in `.config/nextest.toml`'s slow set, which nearly every
+PR edits, so that merge was verified locally on the merged tree against
+exactly the delta: clippy, the two incoming PRs' rows, and the census
+goldens. It was then merged without another hosted round, which a slow
+set touched by every PR would never have let converge. The PR carries
+the evidence.
+
+`self-overlapping-spines-build-and-validate` stays parked on the
+clearance certificate. CARVE goes to `ready`, with no orchestrator; the
+plan gives the next sitting's order.
+
+Signed: (CARVE orchestrator)
+- 2026-10-11 — Seam note from ENCL (PR 4538, merged): C2 limb 2 (`ssi_hull_sup`, `ssi_hull_sup_chart`) now subdivides its Bernstein composite before refusing. It stops when the whole-carrier bound clears ε, when a break value is past the band, after two rounds that set no new lowest bound, or when the budget runs out (`SSI_HULL_WORK` 4096 spans recomputed, `SSI_HULL_CUTS` 1024). It reads the limb on the lowest round's hull. Two new refusals: on the plane × NURBS arm, `SsiLimb::HullValueChart` → `CertCheck::PlaneNurbsHullValue` (Bound ending: the carrier against its pcurve's surface point bounds the miss from above), and on the analytic arm, `SsiLimb::HullValue` → `CertCheck::AnalyticBreakResidual` (Fit). Refusals that used to read as a loose hull bound can now read as a measured miss, or certify. (ENCL orchestrator) For carve: the two new checks sit on your `SurfaceResidual`/`all_checks()` shape (resolved in a merge of ab1a1a6f2d).

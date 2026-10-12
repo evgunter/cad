@@ -613,7 +613,6 @@ fn options_doors() -> Vec<Roster> {
     let import = ImportOptions::default();
     let ImportOptions {
         eps_in: _,
-        declared_contacts: _,
         examine_chart_coherence: _,
     } = &import;
 
@@ -632,6 +631,7 @@ fn options_doors() -> Vec<Roster> {
         profile_lift: _,
         param_box: _,
         seed: _,
+        symbols: _,
     } = &eval;
 
     vec![
@@ -656,22 +656,6 @@ fn options_doors() -> Vec<Roster> {
             "import_step",
             vec![
                 ("eps_in", Bound(&["eps_in"])),
-                // The import-side declaration channel is a list of
-                // `ImportContact`, and that element type has no Python
-                // spelling: binding the field means minting a value
-                // class for the position anchor, which is its own
-                // surface work and its own row. Recorded here as
-                // ABSENT rather than left to be discovered, and the
-                // decay check below is what stops the reason
-                // outliving the fact.
-                (
-                    "declared_contacts",
-                    Spelling::NotBound {
-                        would_be: &["declared_contacts"],
-                        reason: "its element type `ImportContact` has no Python spelling, so \
-                                 the keyword would take a list of nothing a caller can build",
-                    },
-                ),
                 // The flag is a `bool` a Python keyword could carry
                 // trivially; what it cannot carry is the ANSWER. The
                 // field it turns on reports a `topo::CoherenceReport`
@@ -766,6 +750,17 @@ fn options_doors() -> Vec<Roster> {
                         reason: "the E4 tangent seed needs a scalar that carries a tangent, \
                                  and an f64 evaluation carries none — the box's twin, but \
                                  with no degenerate form that reaches f64 at all",
+                    },
+                ),
+                (
+                    "symbols",
+                    Spelling::NotBound {
+                        would_be: &["symbols"],
+                        reason: "every variable a symbol is the coincidence door's replay, \
+                                 which needs the symbolic scalar; an f64 evaluation binds a \
+                                 symbol as its value, so the switch would change nothing \
+                                 this door can show. The door's answers reach Python as each \
+                                 row's rung",
                     },
                 ),
             ],

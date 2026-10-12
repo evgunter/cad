@@ -191,7 +191,7 @@ Review: orchestrator's read. The byte-identical goldens are the check.
 - A variable read on both sides of the cut still refuses, now for anonymous variables as well (`UncutVarReference`).
 
 **Persistence** (`persist/check.rs`). Slot fields serialize as `VarId`. The load walks:
-- **Slot-reads-minted.** A slot's id must be logged as `Minted::Var`, otherwise `SlotReadsUnmintedVar { node, slot }`.
+- **Slot-reads-minted.** A slot's id must be logged as `Minted::Var`, otherwise `ReaderOfUnmintedVar { node, var }`: the existing refusal, which names the variable rather than the slot.
 - **Slot kind (VR4).** A live slot variable's kind must equal `slot.dimension()`, otherwise `SlotVarKind`. The structural divide also refuses: a Count variable in a continuous slot, or the reverse.
 - **Anonymous ⇒ read.** Walk 6 is re-read as live-through-a-reader (a slot, or the definition of a live variable).
 - The existing walks are re-pointed at definitions.
@@ -302,7 +302,7 @@ The second pass greps `-> Expr\b` and `serde_json::from_str::<.*Expr` and takes 
 14. **(D) Load.**
     - A snapshot with `{"Literal":…}` refuses `Unreadable`, naming `Literal`.
     - A ratio `{num:2,den:4}` refuses `PersistError::Dimension`.
-    - A slot of an unminted id refuses `SlotReadsUnmintedVar`.
+    - A slot of an unminted id refuses `ReaderOfUnmintedVar`.
     - A Length slot holding a Count variable refuses `SlotVarKind`.
 15. **(B–D) Python.**
     - `Node.extrude(p, w)` with `w` a `WrittenLength` mints one anonymous variable (`len(doc.vars())` grows by 1).
@@ -355,10 +355,34 @@ Loud census rows: `ParamSource` `ALPHABET`, `pncad-py` `tags.rs`/`surface_census
 - **Q1–Q9:** each recommendation is accepted.
   - Q1 and Q5 are written into VARIABLES-DESIGN, at VR6 and VR4 respectively.
   - Q2's fresh table replaces INTENT-VARS-1 §8 Q2's cut refusal at C.
-  - Q3's reach loss is measured in C and filed on `work/sym/`.
+  - Q3's reach loss is measured in C and filed on `work/sym/`; Q3 and Q4 are revised below.
   - Q4's stackup cost is measured in C on `tolerance`, `mcplate` and `chaintol`, and stated in the PR body.
 - **Equal values typed apart stop counting as shared** (§9). When C makes two separately typed equal radii lose `Declared` evidence, a fixture or demo that relied on that evidence shares one variable. That is D10's way to say it, and it is never a kernel change. Each such site is listed in the PR body. A tour demo that now has to declare what it once got by coincidence is a usage finding (`memories/demo-purpose.md`). It is filed on `work/intent/` for stage 4's coincidence door, which glues on Zero.
 - **Review posture:**
   - A, C and D draw a concurrent dual (H, STRUCTURAL).
   - B is mechanical and gated by byte-identical goldens, so it gets the orchestrator's read plus one single review.
 - **Disk:** each implementer and reviewer runs in its own cloud session.
+- **Q3 and Q4, revised at C (Ev).** Binding every former literal as a
+  symbol made the symbolic tier unaffordable. A datum frame's nine
+  components became nine symbols, and the Gram–Schmidt discharge over
+  them ran for minutes per box: 57 interval tests ran past their
+  120 s budget, one over 50 minutes, all of it in `sym::algebra`'s
+  reduction. Ev named the root: the analysis treated every variable as
+  a perturbable continuous real, and nobody wants a sensitivity to a
+  datum frame's components or to any value that carries no tolerance.
+  The rule now (VARIABLES-DESIGN VR8):
+  - A variable is an analysis axis only if it carries a tolerance — a
+    band or a distribution. A free variable without one is a constant
+    in every analysis lane (box, dual seeds, Sym, Monte Carlo,
+    stackup), named or anonymous. In Sym it binds as its exact
+    nominal.
+  - Tokens and content keys still read ids: two separately typed
+    `5 mm` stay distinct as evidence. Coincidence is structure's
+    question, not the analysis's.
+  - `range` and an explicit seed name their variable and widen it
+    whatever it carries.
+  - A datum frame's components are untoleranced, so they are
+    constants. Perturbing a placement is stage 3's question.
+  - Stage 4's `unproven-coincidence` lint binds every variable as a
+    symbol in its own pass: this lane's constants are a numeric
+    convenience, not a structural claim.

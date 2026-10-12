@@ -27,7 +27,7 @@ use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{BlendError, Open, Start, fillet_edges};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
-use pncad::topo::{Body, EdgeKey};
+use pncad::topo::{AtRestBody, Body, EdgeKey};
 
 #[path = "common/rim_select.rs"]
 mod rim_select;
@@ -116,7 +116,7 @@ fn t1_wall_6_as_authored_still_refuses_tangential_at_margin_zero() {
     let tol = Tol::witness();
     let (lant, _) = lily_lantern(tol);
     let all: Vec<EdgeKey> = lant.edges().map(|(k, _)| k).collect();
-    match fillet_edges(&lant, &all, 0.02, tol).map_err(|r| r.error) {
+    match fillet_edges(&finished("lant", lant.clone(), tol), &all, 0.02, tol).map_err(|r| r.error) {
         Err(BlendError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(
@@ -142,7 +142,7 @@ fn t2_the_three_convex_rims_fillet_whole_at_the_named_radii() {
     ] {
         let arcs = rim_at(&lant, rim_r, rim_y, Seeds::TwoSided);
         assert_eq!(arcs.len(), 2, "{name} is seam-split into two arcs");
-        let out = fillet_edges(&lant, &arcs, 0.02, tol)
+        let out = fillet_edges(&finished("lant", lant.clone(), tol), &arcs, 0.02, tol)
             .unwrap_or_else(|e| panic!("{name} fillets whole at r = 0.02, got {e:?}"));
         pncad::topo::validate_geometric(&out.body, tol)
             .unwrap_or_else(|e| panic!("{name} carves tier-3 valid, got {e:?}"));
@@ -175,7 +175,7 @@ fn t3_the_mouth_rim_carves_and_adds_material() {
     let v0 = pncad::topo::mass_properties(&lant, tol)
         .expect("mass properties")
         .volume;
-    let out = fillet_edges(&lant, &arcs, 0.02, tol)
+    let out = fillet_edges(&finished("lant", lant.clone(), tol), &arcs, 0.02, tol)
         .unwrap_or_else(|e| panic!("the concave mouth rim carves whole at r = 0.02, got {e:?}"));
     pncad::topo::validate_geometric(&out.body, tol)
         .unwrap_or_else(|e| panic!("the mouth carves tier-3 valid, got {e:?}"));
@@ -204,7 +204,9 @@ fn t4_one_mouth_arc_gets_the_recourse_whose_request_carves() {
     let (r_mouth, y_mouth) = rims[2];
     let arcs = rim_at(&lant, r_mouth, y_mouth, Seeds::TwoSided);
     assert_eq!(arcs.len(), 2);
-    match fillet_edges(&lant, &arcs[..1], 0.02, tol).map_err(|r| r.error) {
+    match fillet_edges(&finished("lant", lant.clone(), tol), &arcs[..1], 0.02, tol)
+        .map_err(|r| r.error)
+    {
         Err(BlendError::UnsupportedCorner { corner, .. }) => {
             let shown = format!("{corner}");
             assert!(
@@ -225,4 +227,10 @@ fn t4_one_mouth_arc_gets_the_recourse_whose_request_carves() {
         shown.contains("rim whole") && shown.contains("either material side"),
         "the sentence names the whole-rim request t3 takes, on both sides: {shown}"
     );
+}
+
+/// `body` finished for a blend door, which takes finished bodies only.
+fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
+    AtRestBody::validate(body, tol)
+        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }

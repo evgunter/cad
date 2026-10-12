@@ -2,8 +2,9 @@
 id: set-edge-curve-keeps-a-certified-edges-rows-across-a-reparameterization
 kind: issue
 title: set_edge_curve keeps a certified edge's rows across a re-parameterization, so a later site mint keeps an image over an interval its edge does not span
-status: dispatched
+status: closed
 opened: 2026-10-06
+closed: 2026-10-06
 priority: P3
 refs: [kev-describing-leaves-a-re-described-certified-members-far-face-rows-stale]
 cost: E
@@ -66,3 +67,40 @@ moves the carrier or interval (`Remints::Every`, as `kev_describing`
 now does), which changes `Completes`' declaration for
 `set_edge_curve`; then the assertion lands. Or the posture stays, in
 which case the assertion cannot.
+
+## Closed
+
+Closed by the first option, applied to every certified description.
+`Body::set_edge_curve` (`crates/topo/src/attach.rs`) plans every
+description through `Body::description_rows`, the plan `kev_describing`
+uses, through the one predicate `Body::description_remints`. A certified
+edge's face on a spline chart is left as found. With both doors
+re-minting every described edge's faces, `Remints` had one case left and
+is retired.
+
+A measured rule (re-mint only where sampled points moved) was tried
+first and dropped. It sampled five points, and a spline carrier on the
+same locus and interval can move between them: the rim witness below
+moves 2 mm between its quarters and kept its stale rows. The measured
+rule was adopted because re-minting every description refused a sound
+boolean (`sweep/tests/carved_sphere_operand.rs`, both rows,
+`Pcurve { Unminted }`). That refusal did not come from the closing mint
+being unable to re-image the sphere's general circle; it can. It came
+from the boolean's two containment-fallback finishes
+(`boolean/ops.rs` `fallback`'s assembly/voided arm and `finish_fallback`),
+which re-describe and go to the gate with no closing mint. Both now
+close with `mint_pcurves`, as the boolean's main output stage does.
+
+`replace_faces_offset` (`crates/topo/src/replace_face.rs`) now drops the
+rows of every edge that ends at a vertex it moves, before its re-anchors'
+site mints. The closing `mint_pcurves` re-derives them. The doubt about a
+vertex the move leaves in place is filed as
+`work/shell/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`.
+
+The `debug_assert!` above is in `pcurves::site_rows`' kept-image arm.
+The witnesses are
+`euler_site_pcurve_rows::a_re_parameterized_certified_edge_re_mints_its_faces`,
+which is this row's recipe, and
+`reach_split_gate_per_face::a_spline_rim_moved_between_its_quarters_keeps_no_row`.
+The sibling door `set_face_surfaces_describing` is filed as
+`set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`.

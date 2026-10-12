@@ -132,3 +132,112 @@ Ev ruled over five design rounds; each round is recorded in `docs/DESIGN-FORK-LO
 - D2's prefer-intrinsic authority question. Ev's 2026-07-19 rule says every definitely-transverse edge carries `Intersection`. An agent-written clause (`99cc678bfd`) exempts a *declared* conventional description. The code exempts a *derived* one.
 
 **Buildable now:** field privacy and the vouch (1), and the tier-1 naming check (2). The three agreed parts in "The question" above stand.
+
+## Built, and what waits
+
+The first step of the ruled final state is built: `kef` and `kfmrh`
+ask the move's keys through `Body::vouch_move` (`RechartDoor::Kef`,
+`RechartDoor::Kfmrh`) and refuse a strand, then an unvouched landing;
+`kef_describing` and `kfmrh_describing` take the move with its
+re-descriptions under a band (`Body::vouch_described_move`,
+`crates/topo/src/attach.rs`); `kef_carried_redescriptions` and
+`kfmrh_carried_redescriptions` restate the stored descriptions there,
+keeping the stored kind. A move onto a face wearing the "no chart yet"
+placeholder asks nothing to vouch on that side (`Body::unvouched`,
+`Landing::chartless`). The shell's rim glue takes `kfmrh_describing`
+with `loop_rekeyed`'s specs, and `rename_loop_surface` is gone.
+
+What waits:
+
+- **`kef_minting` and `kfmrh_minting` still move unasked**, so the
+  twins do not absorb them yet. Their production callers, each kept
+  for the reason below: the boolean zip (`zip.rs`: `fuse_by_joint`'s
+  hole arm, `split_side`, and `zip_seam`'s fuse and its two retiring
+  kills), the coplanar merge (`merge_group`), the chord join's sliver
+  cut (`cut_core`) and the blend (`SourceFaces::kef_minted`).
+- **`zip_seam`'s two retiring kills** (the loop over the seam and the
+  final kill) move a seam edge onto a kept operand face that rests.
+  The edge's stored description names an aux copy minted into the
+  operand's arena (`bool_planar_chord_spec`, `chord_spec`), a
+  different surface from the one the survivor wears, so a key swap
+  cannot state it: its honest description is the one `describe_edges`
+  (`crates/topo/src/boolean/ops.rs`) derives after the zip and merge,
+  where the dihedral decides `Intersection`, `TangentIntersection` or
+  a chart image. Deriving that at the kill is the restatement deriving
+  kind, `restatement-derives-each-moved-edges-kind`, released from the D10 hold by INTENT stage 4 E (2026-10-09) for a designer pass.
+- **The coplanar merge refuses the twin on curved survivors.**
+  `merge_group` through `kef_describing` with
+  `kef_carried_redescriptions` certifies every planar kill, and
+  refuses `RechartUnvouched` on 115 calls in the `ci` profile, at the
+  default eps, 1e-6 and 1e-12 alike, all onto a curved survivor
+  (cylinder and torus stacks: `reach_continuation`,
+  `reach_aligned_half_rods`, `curved_mergedoor`, `germ_torus_doors`,
+  `verbs_cylcyl_probe`). The moved edges it does not vouch for are of
+  two kinds. A chart image on the absorbed key whose other face, a
+  neighbour cut from the same operand face, wears that key too (60
+  calls): the kill leaves it coherent, so `carried_by_kill` lists
+  nothing for it, and on the survivor's curved chart, a different key,
+  no residual vouches for it. And an edge the zip's kills left
+  incoherent before the merge runs (`TangentIntersection` or
+  `Intersection` naming the absorbed key and a key neither face
+  wears, or a chart image on such a key; 55 calls), which no
+  restatement lists. Two coplanar faces carry no certified
+  `Intersection` between them, so the key swap the planar kills need
+  is honest; the curved ones need the first kind stated on the kept
+  key by the caller, and the zip's strands described before the merge.
+- **Transient faces cannot wear the placeholder while an intrinsic
+  edge they border names their key.** A face that borders a kept face
+  carries the shared edge as `Intersection(own key, kept key)`, and
+  no description can name the placeholder, so making the face
+  chartless strands the edge: `vouch_move` asks the strand before the
+  chartless arm. Measured in the `ci` profile at the default eps
+  (1e-6 and 1e-12 within 1%):
+  - the chord join's null face, re-charted to the placeholder when
+    `cut_core` completes it (`set_face_surface`): 8,684 of 43,830
+    refuse `RechartStrandsDescriptions`. Its section faces inherit
+    that surface, so the zip's fuse and `split_side`'s kill wait with
+    it;
+  - `cut_core`'s own kill precedes completion: it merges two slivers,
+    and a sliver wears the operand face it was walled off from
+    (`join`'s `mef(.., Inherit)`, its chord stated on that key by
+    `running_from`). Of its 145,934 calls, 13,963 refuse the twin
+    `RechartFalsifies` (`Intersection(sliver key, neighbour)`
+    key-swapped onto the surviving sliver's surface, which the edge
+    does not lie on) and 3,010 refuse residuals or vouching;
+  - the blend's carve strips minted chartless: 7 of the 9 strip
+    `mef`s refuse `RechartStrandsDescriptions` on every or nearly
+    every call (`open/planar.rs`'s first chord 27,404 of 27,404); its
+    kills refuse the twin on 9,715 of 40,575 calls, the same
+    `Intersection` key swap.
+
+  The strands are all `Intersection(old key, other)`, coherent now.
+  Each wants either a description that does not name the transient
+  face's key (a chart image on the other face: a change of kind, the
+  D10-held restatement), or a chartless arm that also leaves a strand
+  on a chartless face unasked mid-op. Which is a design question.
+- **The open fork (PR 4562, 2026-10-10).** Every caller stays on
+  `_minting` (option (c) of both questions below) until the fork is
+  ruled. Both questions ask how an edge a kill moves gets described,
+  so they go to the designers with `restatement-derives-each-moved-edges-kind`:
+  - **F1, the merge on curved survivors.** (a) `merge_group` lists a
+    re-derived `Chart(kept key)` for each same-key chart image, which
+    settles 60 of the 115 calls. The other 55 wait on the zip's
+    retiring kills being described. (b) Planar survivors take the twin
+    and curved ones keep `_minting` as a named, counted residue.
+    (c) It stays on `_minting`.
+  - **F2, chartless transients against the strand rule.** (a) The
+    chartless arm also leaves unasked a strand onto or off a chartless
+    face mid-op, and agreed part 3's scope-close check catches it at
+    rest. This reverses the ordering PR 4204 pinned and narrows ruling
+    1's "refuse a strand". (b) While a face is transient, the edges it
+    borders are described as chart images on the neighbour: a change
+    of kind at mint, which is the restatement. (c) `cut_core`, the
+    blend, the zip's fuse and `split_side` stay on `_minting`.
+  - Two smaller moves are measured and not built. `split_side`
+    certifies through the twin with carried restatements on 24 of 24
+    calls. `fuse_by_joint`'s hole arm is a same-key `kfmrh` (no ci row
+    reaches it), so `kfmrh_describing(face, divided, &[], tol)` would
+    be the same move.
+- Field privacy and the vouched-move module, and tier 1's naming check
+  with D1's text, need every operator to refuse a strand, so they
+  follow the absorption.

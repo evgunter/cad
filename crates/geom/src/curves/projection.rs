@@ -2,10 +2,9 @@
 //! §6.1, pp. 229–234) — the C2.1 foot-point machinery: Newton on the
 //! orthogonality condition `g(t) = C′(t)·(C(t) − P)`, with the
 //! [`Projection3`]/[`Projection2`] **carrying their own certified
-//! orthogonality residual**
-//! so a bad projection cannot launder a bad cache — the consumer
-//! re-checks the carried values through its own Decide/band machinery;
-//! this module pins their presence and honesty.
+//! distance** so a bad projection cannot launder a bad cache — the
+//! consumer re-checks it through its own Decide/band machinery; this
+//! module pins its presence and honesty.
 //!
 //! # This half's reading of the shared policy
 //!
@@ -28,30 +27,25 @@
 //! - **Acceptance** (the Book's two zero conditions plus its
 //!   parameter-stagnation condition, as named constants):
 //!   *point coincidence* `|C(t) − P| ≤` [`PROJECT_EPS_POINT`];
-//!   *cosine* `|g| ≤` [`PROJECT_EPS_COSINE`]`·|C′|·|C − P|` — note
-//!   that at a degenerate parameterization point (`|C′| = 0`, e.g. a
-//!   cusp or a stationary control layout) this criterion is met with a
-//!   trivially-zero orthogonality residual, so a consumer must band
-//!   the **pair**: the carried `distance` stays honest there and is
-//!   the value that refuses a bad foot (C2.1's both-residuals point);
+//!   *cosine* `|g| ≤` [`PROJECT_EPS_COSINE`]`·|C′|·|C − P|`;
 //!   *stagnation* `|Δt|·|C′| ≤` [`PROJECT_EPS_POINT`] (this is how a
-//!   domain-end foot converges: the clamp pins `t`, the step dies, and
-//!   the projection reports the **honest, possibly large**
-//!   orthogonality residual of the boundary point — the consumer's
-//!   band decides, never this module).
+//!   domain-end foot converges: the clamp pins `t` and the step dies).
 //! - **Non-convergence** is the typed [`ProjectionInconclusive`]
 //!   refusal — never a best-effort answer.
 //!
 //! # Honesty, in one parameter
 //!
-//! The shared contract is `crate::projection_policy`'s. Here the residual
-//! set is two: on a closed curve a deliberately bad seed can converge
-//! to the far branch with a tiny `orthogonality` and a large
-//! `distance`, and at `|C′| = 0` the cosine test is met with a
-//! trivially-zero `orthogonality` — so a consumer bands the **pair**.
-//! The planted-fixture rows in `tests/curves/projection.rs` pin both,
-//! via [`NurbsCurve3::project_from_seed`], the raw-Newton entry that
-//! exists for exactly those fixtures and for warm-started consumers.
+//! The shared contract is `crate::projection_policy`'s. The residual
+//! the projection carries is `distance`. A foot is a point of the
+//! curve at every exit, so `distance` bounds the query point's
+//! distance from the curve above: a far branch of a closed curve, a
+//! domain-end clamp and a degenerate parameterization point
+//! (`|C′| = 0`, e.g. a cusp or a stationary control layout, where the
+//! cosine test meets a trivially-zero residual) each read a distance
+//! no smaller than the true one. The planted wrong-branch row in
+//! `tests/curves/projection.rs` pins it via
+//! [`NurbsCurve3::project_from_seed`], the raw-Newton entry that exists
+//! for exactly such fixtures and for warm-started consumers.
 
 use geom_core::{Bounds, CertifiedBounds, Point2, Point3, Readable, Real};
 
@@ -95,22 +89,18 @@ impl core::error::Error for ProjectionInconclusive {}
 
 macro_rules! nurbs_project {
     ($Curve:ident, $Point:ident, $Projection:ident) => {
-        /// A converged foot point WITH its certified residuals (C2.1:
-        /// the projection carries `|C′(t*)·(C(t*) − P)|` and the
-        /// distance, so a bad projection cannot launder a bad cache —
-        /// the consumer re-checks both through its own band machinery;
-        /// see the module docs' honesty section).
+        /// A converged foot point with its certified distance (C2.1;
+        /// the module docs' honesty section).
         ///
         /// **At `T = Dual` every `T`-valued field here carries a partial
         /// derivative rather than a total one — issue #874.** `t` is
         /// selected as `f64` and frozen (`crate::projection_policy::mid`), so
         /// each field is differentiated at fixed `t*` and each is short
         /// by its own `∂/∂t × dt*/dp` term: the coefficient is `C′(t*)`
-        /// for `foot`, `C″·(C − P) + |C′|²` for `orthogonality`, and
-        /// `C′·(C − P)/|C − P|` for `distance`.
+        /// for `foot` and `C′·(C − P)/|C − P|` for `distance`.
         ///
-        /// **`distance` is the only one the iteration bounds, and it
-        /// bounds it on ONE of the three exits.** Its coefficient is the
+        /// **The iteration bounds `distance`'s dropped term on ONE of
+        /// the three exits.** Its coefficient is the
         /// cosine acceptance quantity itself, so on the *cosine* exit
         /// the dropped term is at most `ε₂·|C′|·|dt*/dp|` — small, not
         /// zero. The *coincidence* exit returns with no orthogonality
@@ -132,10 +122,6 @@ macro_rules! nurbs_project {
             pub foot: $Point<T>,
             /// `|C(t*) − P|` in meters — the nearness residual, at `T`.
             pub distance: T,
-            /// `|C′(t*)·(C(t*) − P)|` — the orthogonality residual
-            /// (meters² per parameter unit; honest and possibly large
-            /// for a domain-end foot), at `T`.
-            pub orthogonality: T,
             /// Newton steps consumed (diagnostic structure).
             pub iterations: usize,
         }
@@ -160,7 +146,7 @@ macro_rules! nurbs_project {
                         #[allow(clippy::cast_precision_loss)]
                         let frac = j as f64 / (PROJECT_SEEDS_PER_SPAN - 1) as f64;
                         let t = u0 + (u1 - u0) * frac;
-                        let d = span.eval_in_span(T::from_f64(t)) - p;
+                        let d = span.eval_in_span(T::from_computed(t)) - p;
                         let d2 = mid(d.dot(d));
                         // Strict `<`: first minimum wins, NaN never does.
                         if d2 < best_d2 {
@@ -191,7 +177,7 @@ macro_rules! nurbs_project {
             /// seed — the raw entry behind [`Self::project`] (module
             /// docs: iteration policy, acceptance conditions, clamping,
             /// honesty). A bad seed converges to whatever stationary
-            /// point it converges to; the carried residuals stay
+            /// point it converges to; the carried distance stays
             /// honest, which is the point.
             ///
             /// # Errors
@@ -209,8 +195,12 @@ macro_rules! nurbs_project {
                 let mut last_g = f64::NAN;
                 let mut last_dist = f64::NAN;
                 while iterations < PROJECT_MAX_ITERS {
-                    let span = self.span_at(t);
-                    let (c, c1, c2) = span.ders_in_span(T::from_f64(t));
+                    // A NaN seed has no span: the projection is
+                    // inconclusive.
+                    let Some(span) = self.span_at(t) else {
+                        break;
+                    };
+                    let (c, c1, c2) = span.ders_in_span(T::from_computed(t));
                     let d = c - p;
                     // The iteration reads structure through the
                     // brackets; the T-valued jet above is what the
@@ -227,7 +217,6 @@ macro_rules! nurbs_project {
                             t,
                             foot: c,
                             distance: d.norm(),
-                            orthogonality: c1.dot(d).abs(),
                             iterations,
                         });
                     }
@@ -241,13 +230,10 @@ macro_rules! nurbs_project {
                     // Acceptance: parameter stagnation (domain-end
                     // feet land here — module docs).
                     if ((tn - t) * speed).abs() <= PROJECT_EPS_POINT {
-                        let span = self.span_at(tn);
-                        // The foot and its tangent only: the order-1
-                        // door answers both from one basis pass, bit
-                        // for bit with the order-2 door's first two
-                        // components, whose third row this acceptance
-                        // has no use for.
-                        let (c, c1) = span.ders1_in_span(T::from_f64(tn));
+                        let Some(span) = self.span_at(tn) else {
+                            break;
+                        };
+                        let c = span.eval_in_span(T::from_computed(tn));
                         let d = c - p;
                         let dist = d.norm();
                         if !mid(dist).is_nan() {
@@ -255,7 +241,6 @@ macro_rules! nurbs_project {
                                 t: tn,
                                 foot: c,
                                 distance: dist,
-                                orthogonality: c1.dot(d).abs(),
                                 iterations,
                             });
                         }

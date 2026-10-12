@@ -8,11 +8,13 @@
 //! it is verified by code-read + suites-green only (rare germ-fan
 //! lane), stated in the audit doc's row.
 //!
-//! **CI EXECUTES THIS SUITE.** It is rostered in
-//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
-//! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
-//! by `--check-executed`, so every assertion below is a gate and a red here
-//! fails the merge. By hand:
+//! **The nightly executes this suite; the PR gate only builds it.** It is
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! under the DEFAULT selection by `scripts/k_probe_sweep.sh` in the
+//! nightly's dev-probe row, whose tally is floored by `--check-executed`,
+//! so a red here reds the nightly. The PR gate compiles it (`clippy
+//! --all-features`) and runs none of it, so a PR can merge green over a red
+//! here. By hand:
 //! `cargo test -p topo --features probe --test all -- rim_dim_review_probes::`.
 
 #![cfg(feature = "probe")]
@@ -27,7 +29,6 @@ use geom_core::k_stats::{self, Probe};
 use topo::{BooleanResult, subtract};
 
 const FIXED: &[&str] = &[
-    "props_rim_level_group",
     "props_rim_side",
     "bool_join_facing",
     "bool_strut_order",
@@ -161,13 +162,12 @@ fn silent_fixed_predicates_scale_linearly() {
         let a = fin("a", bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)));
         let b = fin("b", bx((1.0, 2.0), (0.5, 1.5), (0.5, 1.5)));
         k_stats::start_recording();
-        // Flush: b's x-max face lies IN a's x=2 face plane. Undeclared,
-        // so the op REFUSES typed at bool_plane_offset — but the
-        // bool_plane_orient sample fires (and records) first, which is
-        // all this probe harvests.
+        // Flush: b's x-max face lies IN a's x=2 face plane, which the
+        // op glues on its decided zero; the bool_plane_orient sample
+        // fires on the way, which is all this probe harvests.
         assert!(
-            subtract(&a, &b, Tol::witness()).is_err(),
-            "undeclared flush must refuse"
+            subtract(&a, &b, Tol::witness()).is_ok(),
+            "the flush subtract builds"
         );
         // Oblique split of a cube.
         let body = bx((0.0, 2.0), (0.0, 2.0), (0.0, 2.0)).clone();

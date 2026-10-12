@@ -8,7 +8,7 @@
 //!
 //! Node kinds: Datum (Point/Axis/Plane), Profile (plain, arc-bearing
 //! by fillet construction, hand-declared tangent), Extrude, Revolve,
-//! Split, Boolean (Union, declared), Transform, Pattern (Linear and
+//! Split, Boolean (Union), Transform, Pattern (Linear and
 //! Circular).
 //!
 //! Edit kinds — the `EDIT_KINDS` names, which is every arm the corpus
@@ -36,12 +36,12 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Attr, AttrKind, Axis3, BooleanOp, BranchCertification, Datum, Dimension, Distribution, DocEdit,
+    Attr, AttrKind, Axis3, BranchCertification, Datum, Dimension, Distribution, DocEdit,
     EntityKind, ExprPath, Formula, FreeValue, FreeVar, MetaValue, Node, PatternKind, Rgba8,
     RoleSeg, SlotId, StableName, UnitSym, VarName, WitnessDatum,
 };
 
-use crate::fixture::{ang, axis_in_plane, declare_x_offset_flush, len, scl};
+use crate::fixture::{ang, len, revolve_about, scl};
 
 use super::{CorpusDoc, Recorder};
 
@@ -93,6 +93,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::DefineVar {
         var: VarName::from_static("n").into(),
         def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
+        fresh: Vec::new(),
     });
 
     // Datums: an inert point (deleted below — the DeleteNode arm),
@@ -124,17 +125,14 @@ pub fn document() -> CorpusDoc {
     )
     .expect("mul");
     let block_a = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: dist,
         side: ExtrudeSide::Along,
     });
 
-    // A flush neighbour and the union declaring its contacts (F5). The
-    // offset is HALF the width, so the blocks OVERLAP along x while
-    // their y-walls and both caps stay flush — the sliding-overlap
-    // shape `declare_x_offset_flush` declares. (A pure face-to-face
-    // touch at x = 1 would be a REST contact, which the join stage
-    // still refuses — the tracked envelope entry, not corpus fodder.)
+    // A flush neighbour and its union (F5). The offset is HALF the
+    // width, so the blocks OVERLAP along x while their y-walls and
+    // both caps stay flush — the sliding-overlap shape.
     let profile_b = r.profile(
         [0.5, 0.0, 0.0],
         [1.0, 0.0, 0.0],
@@ -142,16 +140,12 @@ pub fn document() -> CorpusDoc {
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let block_b = r.insert(Node::Extrude {
-        profile: profile_b,
+        profile: profile_b.into(),
         distance: len(1.25),
         side: ExtrudeSide::Along,
     });
-    let declare = declare_x_offset_flush(&r.doc, block_a, block_b);
-    let union = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: block_a,
-        b: block_b,
-        declare,
+    let union = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![block_a.into(), block_b.into()]),
     });
 
     // Split the union with a plane tool.
@@ -159,9 +153,9 @@ pub fn document() -> CorpusDoc {
         origin: [len(0.0), len(0.0), len(0.625)],
         normal: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    r.insert(Node::Split {
-        target: union,
-        tool,
+    let split = r.insert(Node::Split {
+        target: union.into(),
+        tool: tool.into(),
     });
 
     // A transformed copy, patterned linearly; a lone block patterned
@@ -175,7 +169,7 @@ pub fn document() -> CorpusDoc {
         },
     ));
     let linear = r.insert(Node::Pattern {
-        input: moved,
+        input: moved.into(),
         count: Formula::count(2),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -183,15 +177,15 @@ pub fn document() -> CorpusDoc {
         },
     });
     let lone = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(0.5),
         side: ExtrudeSide::Along,
     });
-    r.insert(Node::Pattern {
-        input: lone,
+    let circular = r.insert(Node::Pattern {
+        input: lone.into(),
         count: Formula::count(2),
         kind: PatternKind::Circular {
-            axis,
+            axis: axis.into(),
             step: ang(std::f64::consts::PI),
         },
     });
@@ -200,18 +194,18 @@ pub fn document() -> CorpusDoc {
     // (-2, 0, 0) with v = world +Z, so the line the pattern turns about
     // is this frame's +y through (0, 0) — the same line in space, said
     // in the coordinates the revolve reads.
-    let (rev_plane, rev_profile) = r.profile_keeping(
+    let (_, rev_profile) = r.profile_keeping(
         [-2.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
-    let rev_axis = r.insert(axis_in_plane(rev_plane, (0.0, 0.0), (0.0, 1.0)));
-    r.insert(Node::Revolve {
-        profile: rev_profile,
-        axis: rev_axis,
-        angle: ang(std::f64::consts::FRAC_PI_2),
-    });
+    let revolve = r.insert(revolve_about(
+        rev_profile,
+        (0.0, 0.0),
+        (0.0, 1.0),
+        ang(std::f64::consts::FRAC_PI_2),
+    ));
 
     // ---- the non-insert edit vocabulary ----
     // Structural: drive the linear pattern's count from `n`.
@@ -219,6 +213,7 @@ pub fn document() -> CorpusDoc {
         node: linear,
         slot: SlotId::Count,
         expr: Formula::named(VarName::from_static("n"), Dimension::Count),
+        fresh: Vec::new(),
     });
     // Subtree surgery: replace `sin(π/2)` with the Scalar literal 1
     // (same dimension, same value — a pure representation edit).
@@ -234,7 +229,8 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetParam {
         node: lone,
         slot: SlotId::Distance,
-        expr: len(0.375),
+        value: len(0.375).into(),
+        fresh: Vec::new(),
     });
     // The extrude's structural side: the same block, below its plane.
     r.push(DocEdit::SetExtrudeSide {
@@ -328,9 +324,16 @@ pub fn document() -> CorpusDoc {
         attr: Attr::Color(Rgba8::opaque(20, 90, 160)),
     });
     r.push(DocEdit::Rebind {
+        body: None,
         from: a_body,
         to: b_body,
     });
+
+    // The world, in the order the document's product held it.
+    super::place_instances(&mut r, circular, 2);
+    super::place_halves(&mut r, split);
+    super::place_instances(&mut r, linear, 3);
+    r.place(revolve);
 
     CorpusDoc {
         name: "kitchen_sink",
@@ -342,7 +345,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: moved,
             slot: SlotId::Translation(Axis3::Y),
-            expr: len(5.0),
+            value: len(5.0).into(),
+            fresh: Vec::new(),
         },
         bump_root: moved,
     }

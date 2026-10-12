@@ -8,7 +8,15 @@
 //! metered, over its own window, against a region enclosing the sliver
 //! before any carve: `r ≤ ‖p − c‖ ≤ ρ` (`ρ` the farthest the sliver
 //! reaches from `c`, which on this rod is `‖V − c‖`), cut down to the
-//! half-plane `(p − c)·(V − c) ≥ floor` the sliver lies in.
+//! half-plane `(p − c)·(V − c) ≥ floor` the sliver lies in. A cycle
+//! not clear of that region is read against the sliver itself: crossing
+//! it (`RingClearance`, a measurement), wholly inside it, or neither
+//! certified. The last two join predicate 2's verdict, which outranks
+//! an inside ring with a bound wherever the reach cannot certify the
+//! bore's wall: the ruled crease's reach has no exact core, so a bore in
+//! the sliver refuses `FaceClearance` as a bound at its wall. The cap's
+//! inside reading and its depth are pinned at unit level
+//! (`blend::open::end_face`).
 //!
 //! The fixture is the D-rod (`test_support::rod_d_profile_at`'s D at
 //! [`ROD_FLAT`]) with a second profile loop through it, or a channel in
@@ -21,13 +29,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Sign, Tol};
+use crate::common::interval::iv;
+use geom_core::{Bounds, Decide, Interval, Point2, Real, Sign, Tol};
 use profile::{ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::{BlendError, Convexity, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, extruded, rod_chord_at, rod_creases, rod_section_cut,
 };
-use topo::{Body, mass_properties, validate_geometric};
+use topo::{AtRestPolicy, Body, EntityId, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -44,6 +53,15 @@ fn bore(x: f64, y: f64, a: f64) -> ProfileLoop<f64> {
     bulge_loop(vec![
         (Point2::new(x + a, y), 1.0),
         (Point2::new(x - a, y), 1.0),
+    ])
+}
+
+/// [`bore`] at any scalar.
+fn round_loop<T: Real>(x: f64, y: f64, a: f64) -> ProfileLoop<T> {
+    let f = T::from_f64;
+    bulge_loop(vec![
+        (Point2::new(f(x + a), f(y)), f(1.0)),
+        (Point2::new(f(x - a), f(y)), f(1.0)),
     ])
 }
 
@@ -71,7 +89,13 @@ fn assert_cap_ring_refusal(body: &Body<f64>, what: &str) {
     validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{what}: source tier 3, {e:?}"));
     let creases = rod_creases(body);
     assert_eq!(creases.len(), 2, "{what}: the D's two creases");
-    match fillet_edges(body, &creases, ROD_FILLET, tol()).map_err(|e| {
+    match fillet_edges(
+        &sweep::test_support::at_rest(body, tol()),
+        &creases,
+        ROD_FILLET,
+        tol(),
+    )
+    .map_err(|e| {
         let text = e.error.to_string();
         (e.error, text)
     }) {
@@ -117,14 +141,135 @@ fn assert_cap_ring_refusal(body: &Body<f64>, what: &str) {
     }
 }
 
-/// **A bore wholly inside the removed sliver refuses** rather than
-/// being left on the cap outside the region it bounds. The bore at
-/// `(0.297, 0.395)` is `0.003` from the flat, `0.0033` from the wall
-/// and `≈ 0.1085` from `c`: every point of it is in the material the
-/// band removes.
+/// The refusal a bore inside the sliver owes today: its rings read
+/// inside at the caps, but the reach reads its wall, which runs between
+/// the caps through the band's material, as a bound (the ruled crease's
+/// reach has no exact core), and a bound outranks an inside reading.
+/// `FaceClearance` with `bounded: true`, naming the bore's wall.
+fn assert_bound_at_the_wall(body: &Body<f64>, a: f64, what: &str) {
+    validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{what}: source tier 3, {e:?}"));
+    let got = fillet_edges(
+        &sweep::test_support::at_rest(body, tol()),
+        &rod_creases(body),
+        ROD_FILLET,
+        tol(),
+    )
+    .map(|out| out.body.faces().count())
+    .map_err(|e| e.error);
+    let Err(BlendError::FaceClearance {
+        at: EntityId::Face(wall),
+        chain: Convexity::Convex,
+        bounded: true,
+        ..
+    }) = got
+    else {
+        panic!("{what}: expected a bound at the bore's wall, got {got:?}")
+    };
+    let radius = body
+        .get_face(wall)
+        .and_then(|f| body.get_surface(f.surface))
+        .and_then(|s| match s {
+            geom::Surface::Cylinder { radius, .. } => Some(*radius),
+            _ => None,
+        });
+    assert!(
+        radius.is_some_and(|r| (r - a).abs() < 1e-12),
+        "{what}: the face named is the bore's wall, of radius {a}: {radius:?}"
+    );
+}
+
+/// **A bore wholly inside the removed sliver refuses as a bound at its
+/// wall** ([`assert_bound_at_the_wall`]). The bore at `(0.297, 0.395)`
+/// is `0.003` from the flat, `0.0033` from the wall and `≈ 0.1085` from
+/// `c`.
 #[test]
-fn a_bore_inside_the_d_rods_removed_sliver_refuses_ring_clearance() {
-    assert_cap_ring_refusal(&bored_d_rod(0.297, 0.395, 0.002), "bore in the sliver");
+fn a_bore_inside_the_d_rods_removed_sliver_refuses_as_a_bound_at_its_wall() {
+    assert_bound_at_the_wall(
+        &bored_d_rod(0.297, 0.395, 0.002),
+        0.002,
+        "bore in the sliver",
+    );
+}
+
+/// **The same bore at the certified scalar**: a bound at its wall, as
+/// at `f64`.
+#[test]
+fn a_bore_inside_the_d_rods_removed_sliver_refuses_as_a_bound_at_interval() {
+    let tol = tol();
+    let body = sweep::test_support::finished(
+        "bored",
+        extruded(
+            SketchPlane::xy(),
+            vec![d_loop(), round_loop(0.297, 0.395, 0.002)],
+            Interval::from_f64(ROD_L),
+            tol,
+        ),
+        tol,
+    );
+    let got = fillet_edges(&body, &rod_creases(&body), iv(ROD_FILLET), tol).map(|_| ());
+    let Err(e) = got else {
+        panic!("the bore refuses at Interval")
+    };
+    assert!(
+        matches!(
+            e.error,
+            BlendError::FaceClearance {
+                at: EntityId::Face(_),
+                bounded: true,
+                ..
+            }
+        ),
+        "a bound at the wall at Interval, got {:?}",
+        e.error
+    );
+}
+
+/// **A hair either side of the arc and a hair off the flat.** On the
+/// ray from `c` towards `V`, a bore of radius `0.004` whose near side is
+/// `1e-4` short of the arc crosses it, and refuses as a measurement at
+/// the cap, ahead of the bound its wall reads; one `1e-4` past it, and
+/// one `1e-4` off the flat inside the sliver, lie wholly inside and
+/// refuse as the bound at their walls.
+#[test]
+fn a_bore_a_hair_across_the_slivers_boundary_crosses_and_one_inside_it_is_a_bound() {
+    let (c, v) = upper_corner(ROD_FILLET);
+    let (dx, dy) = (v.0 - c.0, v.1 - c.1);
+    let n = dx.hypot(dy);
+    let (a, hair) = (0.004, 1e-4);
+    let on_ray = |d: f64| (c.0 + d * dx / n, c.1 + d * dy / n);
+    let (x, y) = on_ray(ROD_FILLET + a - hair);
+    assert_cap_ring_refusal(&bored_d_rod(x, y, a), "a hair short of the arc");
+    let (x, y) = on_ray(ROD_FILLET + a + hair);
+    assert_bound_at_the_wall(&bored_d_rod(x, y, a), a, "a hair past the arc");
+    assert_bound_at_the_wall(
+        &bored_d_rod(ROD_FLAT - 0.002 - hair, 0.395, 0.002),
+        0.002,
+        "a hair off the flat",
+    );
+}
+
+/// **A cap carrying a bore inside the sliver and a bore across its arc
+/// refuses as the crossing, in either order** the profile lists them:
+/// a crossing anywhere outranks the inside ring and its wall's bound.
+#[test]
+fn a_cap_with_an_inside_bore_and_a_crossing_bore_crosses_in_either_order() {
+    let (c, v) = upper_corner(ROD_FILLET);
+    let (dx, dy) = (v.0 - c.0, v.1 - c.1);
+    let n = dx.hypot(dy);
+    let across = (c.0 + ROD_FILLET * dx / n, c.1 + ROD_FILLET * dy / n, 0.003);
+    let inside = (0.297, 0.395, 0.002);
+    for (what, [p, q]) in [
+        ("inside first", [inside, across]),
+        ("across first", [across, inside]),
+    ] {
+        let body = extruded(
+            SketchPlane::xy(),
+            vec![d_loop(), bore(p.0, p.1, p.2), bore(q.0, q.1, q.2)],
+            ROD_L,
+            tol(),
+        );
+        assert_cap_ring_refusal(&body, what);
+    }
 }
 
 /// **A bore straddling the cut-off arc refuses**: centred ON the arc,
@@ -154,8 +299,13 @@ fn a_bore_clear_of_the_d_rods_sliver_carves_at_the_closed_form() {
         validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
         let creases = rod_creases(&body);
         let vol0 = volume(&body);
-        let out = fillet_edges(&body, &creases, ROD_FILLET, tol())
-            .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &creases,
+            ROD_FILLET,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
         let dv = volume(&out.body) - vol0;
         let want = -2.0 * rod_section_cut(ROD_R, ROD_FLAT, ROD_FILLET) * ROD_L;
@@ -164,16 +314,21 @@ fn a_bore_clear_of_the_d_rods_sliver_carves_at_the_closed_form() {
 }
 
 /// A closed polygonal profile loop through `pts`.
-fn poly(pts: &[(f64, f64)]) -> ProfileLoop<f64> {
-    bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect())
+fn poly<T: Real>(pts: &[(f64, f64)]) -> ProfileLoop<T> {
+    let f = T::from_f64;
+    bulge_loop(
+        pts.iter()
+            .map(|&(x, y)| (Point2::new(f(x), f(y)), f(0.0)))
+            .collect(),
+    )
 }
 
 /// The D-rod's own outline.
-fn d_loop() -> ProfileLoop<f64> {
-    let c = rod_chord_at(ROD_FLAT);
+fn d_loop<T: Real>() -> ProfileLoop<T> {
+    let (c, f) = (rod_chord_at(ROD_FLAT), T::from_f64);
     bulge_loop(vec![
-        (Point2::new(ROD_FLAT, c.half), c.wall_bulge),
-        (Point2::new(ROD_FLAT, -c.half), 0.0),
+        (Point2::new(f(ROD_FLAT), f(c.half)), f(c.wall_bulge)),
+        (Point2::new(f(ROD_FLAT), f(-c.half)), f(0.0)),
     ])
 }
 
@@ -185,8 +340,13 @@ fn assert_carves_at_the_closed_form(body: &Body<f64>, what: &str) {
     let creases = rod_creases(body);
     assert_eq!(creases.len(), 2, "{what}: the D's two creases");
     let vol0 = volume(body);
-    let out = fillet_edges(body, &creases, ROD_FILLET, tol())
-        .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(body, tol()),
+        &creases,
+        ROD_FILLET,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
     let dv = volume(&out.body) - vol0;
     let want = -2.0 * rod_section_cut(ROD_R, ROD_FLAT, ROD_FILLET) * ROD_L;
@@ -264,7 +424,13 @@ fn a_channel_in_the_cut_cycle_reaching_into_the_sliver_refuses_ring_clearance() 
     validate_geometric(&body, tol()).expect("source tier 3");
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the D's two creases");
-    match fillet_edges(&body, &creases, ROD_FILLET, tol()).map_err(|e| {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &creases,
+        ROD_FILLET,
+        tol(),
+    )
+    .map_err(|e| {
         let text = e.error.to_string();
         (e.error, text)
     }) {
@@ -306,5 +472,113 @@ fn a_channel_in_the_cut_cycle_reaching_into_the_sliver_refuses_ring_clearance() 
             "the cut-off arc was mef'd across the channel's edges ({} faces)",
             out.body.faces().count()
         ),
+    }
+}
+
+/// A rectangular hole `[x0, x1] × [y0, y1]` through the D-rod.
+fn rect_holed_d_rod<T: Decide + AtRestPolicy>(x0: f64, y0: f64, x1: f64, y1: f64) -> Body<T> {
+    let hole = poly(&[(x0, y0), (x1, y0), (x1, y1), (x0, y1)]);
+    extruded(
+        SketchPlane::xy(),
+        vec![d_loop(), hole],
+        T::from_f64(ROD_L),
+        tol(),
+    )
+}
+
+/// Three rectangular holes, each with an edge that runs from inside the
+/// ball's section (`‖p − c‖ < r`, kept material) out to where the
+/// sliver's half-planes put it out of reach. The top edge of the first,
+/// at `y = c_y + 0.05`, is inside the section from `x = 0.1134` on and
+/// runs left to `x = 0.1`; its nearest point to the sliver, the corner
+/// `(0.275, 0.3964)`, is `≈ 0.0099` short of the arc. The second and
+/// third reach out of the section on the far side of `c` from `V` and
+/// below the upper foot.
+const TWO_FACED_HOLES: [(f64, f64, f64, f64, &str); 3] = [
+    (0.1, 0.35, 0.275, 0.3964, "a hole level with the corner"),
+    (0.12, 0.37, 0.27, 0.41, "a hole above the ball centre"),
+    (
+        0.24,
+        0.27,
+        0.28,
+        0.39,
+        "a hole beside the flat, below the foot",
+    ),
+];
+
+/// **A straight edge that misses the sliver by leaving its enclosure
+/// through two faces carves** ([`TWO_FACED_HOLES`]): no one face of the
+/// enclosure clears the whole edge, while every point of it is clear of
+/// one face or another, and a straight edge is read point by point.
+#[test]
+fn a_hole_whose_edge_leaves_the_slivers_enclosure_by_two_faces_carves_at_the_closed_form() {
+    for (x0, y0, x1, y1, what) in TWO_FACED_HOLES {
+        assert_carves_at_the_closed_form(&rect_holed_d_rod(x0, y0, x1, y1), what);
+    }
+}
+
+/// **The same holes carve at the certified scalar**, their volume
+/// enclosing `ΔV = −2·A·L`. Two of their edges run along the section's
+/// axes, which are floor directions of the enclosure, so the reading
+/// holds only if a crossing whose divisor is within rounding of zero
+/// is not spread over the whole edge.
+#[test]
+fn a_hole_whose_edge_leaves_the_slivers_enclosure_by_two_faces_carves_at_interval() {
+    let tol = tol();
+    for (x0, y0, x1, y1, what) in TWO_FACED_HOLES {
+        let body =
+            sweep::test_support::finished(what, rect_holed_d_rod::<Interval>(x0, y0, x1, y1), tol);
+        let creases = rod_creases(&body);
+        assert_eq!(creases.len(), 2, "{what}: the D's two creases");
+        let out = fillet_edges(&body, &creases, iv(ROD_FILLET), tol)
+            .unwrap_or_else(|e| panic!("{what}: both creases carve at Interval, got {e:?}"));
+        validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
+        let vol = |b: &Body<Interval>| mass_properties(b, tol).expect("interval props").volume;
+        let dv = vol(&out.body) - vol(&body);
+        let want = -2.0 * rod_section_cut(ROD_R, ROD_FLAT, ROD_FILLET) * ROD_L;
+        assert!(
+            dv.lo() <= want + 1e-12 && want - 1e-12 <= dv.hi() && dv.hi() - dv.lo() < 1e-6,
+            "{what}: ΔV {dv:?} vs {want}"
+        );
+    }
+}
+
+/// **The enclosure's half-plane leaves no wedge near either foot**: a
+/// bore straddling the cut-off arc just past a foot, away from `V`,
+/// lies in kept material, and the half-plane towards `V` alone would
+/// take some of it in. The floors on the section's own axes close that
+/// wedge, so each carves: `δ` past the flat's foot along the flat, and
+/// past the wall's foot along the wall, each bore half the gap between
+/// the arc and the face it runs beside.
+#[test]
+fn a_bore_on_the_arc_just_past_a_foot_carves_at_the_closed_form() {
+    let (c, _) = upper_corner(ROD_FILLET);
+    let wall = c.1.atan2(c.0);
+    for delta in [2.0f64, 5.0, 20.0].map(f64::to_radians) {
+        for (angle, gap, side) in [
+            (
+                -delta,
+                &(|p: (f64, f64)| ROD_FLAT - p.0) as &dyn Fn((f64, f64)) -> f64,
+                "flat",
+            ),
+            (
+                wall + delta,
+                &|p: (f64, f64)| ROD_R - p.0.hypot(p.1),
+                "wall",
+            ),
+        ] {
+            let p = (
+                c.0 + ROD_FILLET * angle.cos(),
+                c.1 + ROD_FILLET * angle.sin(),
+            );
+            let a = 0.5 * gap(p);
+            assert_carves_at_the_closed_form(
+                &bored_d_rod(p.0, p.1, a),
+                &format!(
+                    "a bore of radius {a:.2e}, {:.1}° past the {side}'s foot",
+                    delta.to_degrees()
+                ),
+            );
+        }
     }
 }

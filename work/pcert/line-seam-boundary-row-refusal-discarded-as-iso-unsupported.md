@@ -2,8 +2,12 @@
 id: line-seam-boundary-row-refusal-discarded-as-iso-unsupported
 kind: issue
 title: pcert: the LINE-seam arm discards boundary_iso_u's refusal as IsoUnsupported
-status: open
+status: closed
 opened: 2026-09-29
+priority: P2
+closed: 2026-10-07
+pr: 4268
+branch: pcert/line-seam-row-refusal
 ---
 
 

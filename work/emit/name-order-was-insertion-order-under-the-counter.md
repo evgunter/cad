@@ -2,11 +2,14 @@
 id: name-order-was-insertion-order-under-the-counter
 kind: issue
 title: Where a name's canonical form picks the least name, the counter made that the earliest-inserted node and the mint makes it an arbitrary one
-status: open
+status: closed
 opened: 2026-09-30
+closed: 2026-10-07
 priority: P2
 cost: M
 parent: sibling-branches-mint-one-node-id-for-different-nodes
+branch: emit/ordinal-ids
+pr: 4244
 ---
 
 
@@ -124,3 +127,44 @@ paragraph) states the pair; fork-log row 74 records it.
 - **Test:** re-drawing another member never takes a held flush stretch. Use
   the designers' fixture, with `declared_side_fault`'s refusal set aside, or
   wait for the doors row that relaxes it.
+
+## Built (branch `emit/ordinal-ids`)
+
+- `MintId { ordinal: u32, digest: u64 }` (`mint.rs`) is the one inner
+  type of `RecipeNodeId`, `StepId` and `VarId`; its derived `Ord`
+  compares the ordinal first. On the wire it is a string,
+  `<ordinal>:<16 hex digest>`, `FullId`'s spelling. The display tag
+  stays the digest's high 48 bits.
+- `Doc::order`, `Doc::positions` and `Doc::var_order` are gone;
+  `Doc::ids` and `Doc::var_ids` derive from the maps' keys.
+  `OrderMismatch`, `VarOrderMismatch`, `NodeIdCollides`, `VarIdCollides`
+  and `StepIdFault::Collides` are retired. `MintLogOrder` now refuses
+  a log whose ordinals do not count up from one.
+- `docm7_union_declare::redrawing_another_member_never_takes_a_held_flush_stretch`
+  holds the rule through the doors.
+- Corpus: `name_tables_by_position` against main moves only the
+  `Borders` wall order in the three `nested_islands` documents; every
+  `FromMember` holder and every value channel is unchanged.
+- Filed: `work/wire/id-lowerings-to-u64-tokens-drop-the-ordinal.md`,
+  `work/flux/analysis-boxes-keep-an-axis-order-the-ids-already-give.md`.
+
+## Closed (PR 4244, 2026-10-07)
+
+PR 4244 builds the ruling. `RecipeNodeId`, `StepId` and `VarId` each wrap
+one `MintId { ordinal: u32, digest: u64 }`, which orders by ordinal
+first. On the wire an id is spelled `"<ordinal>:<16 hex>"`, because
+snapshot maps are keyed by id.
+
+`Doc::order`, `positions` and `var_order` are gone, and so are the
+collision refusals. The load door's mint-log check is now exact: the
+ordinals must count up from one. "Least" in `Flush` means first minted,
+and `redrawing_another_member_never_takes_a_held_flush_stretch` holds it
+in both list orders.
+
+Nothing needed a single integer. The kernel's u64 tokens take the digest;
+the residue is filed as `work/wire/id-lowerings-to-u64-tokens-drop-the-ordinal.md`.
+
+Review surfaced one defect main shares: a member that `SetMembers` adds
+after its union points forward, so save and cascade delete break. It is
+filed as `work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`.
+

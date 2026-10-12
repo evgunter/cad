@@ -2,11 +2,13 @@
 id: cap-rim-refusal-order-follows-the-arena
 kind: issue
 title: replace_faces_offset: a cone chart whose rims leave whole-disc caps refuses as the rim edge's RechartFalsifies (no gap) on one frustum and ReanchorOffCarrier (with the gap) on its mirror
-status: open
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: E
 design: true
+pr: 4351
+closed: 2026-10-08
 ---
 
 
@@ -50,3 +52,11 @@ order it walks the rim in — the vertex re-anchor first, say, so the
 caller always reads the gap — or whether the edge refusal is the
 honest first word and should carry the gap too. Either way the five
 rows above can return to asserting one variant.
+
+## Closed
+
+PR #4351. The per-chart door derives a moved cone's rims as its sections
+with the caps and its corners as roots, so the frustums of both nappes
+now build at every reach short of the apex; there is no rim refusal
+whose order could follow the arena. `common::cone_nappe::rim_refusal_gap`
+is gone with it.

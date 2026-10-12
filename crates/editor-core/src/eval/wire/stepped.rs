@@ -9,8 +9,8 @@
 use geom_core::{Affine3, Band, Decide, Point3, Sign, UnitVec3, Vec3};
 
 use super::{PATTERN_DIRECTION_ROLE, escalated, turns_off, unit};
+use crate::decision::Decision;
 use crate::eval::{NodeErrorKind, StepTurns};
-use crate::expr::Expr;
 use crate::formula::Formula;
 
 /// The funnel name of a linear pattern's spacing sign.
@@ -63,7 +63,7 @@ impl<T: Decide> SteppedOperands<T> {
     pub(crate) fn linear(
         direction: Vec3<T>,
         spacing: T,
-        authored: &[Expr; 3],
+        authored: &[Formula; 3],
         band: Band,
     ) -> Result<Self, NodeErrorKind> {
         let unit_dir = unit(direction, PATTERN_DIRECTION_ROLE, band)?;
@@ -72,7 +72,7 @@ impl<T: Decide> SteppedOperands<T> {
             geom_core::Margin::of(spacing),
             band,
         )
-        .map_err(escalated(PATTERN_SPACING))?;
+        .map_err(escalated(Decision::PatternSpacing))?;
         match decided.sign {
             Sign::Positive => Ok(Self(Rule::Linear {
                 direction: unit_dir,
@@ -97,17 +97,17 @@ impl<T: Decide> SteppedOperands<T> {
         origin: Point3<T>,
         dir: UnitVec3<T>,
         step: T,
-        authored: &Expr,
+        authored: &Formula,
         band: Band,
     ) -> Result<Self, NodeErrorKind> {
         let seen = geom_core::k_stats::decide_flagged_reported(PATTERN_STEP, step, band, "F14")
-            .map_err(escalated(PATTERN_STEP))?;
+            .map_err(escalated(Decision::PatternStep))?;
         let positive = match seen.sign {
             Sign::Zero => return Err(NodeErrorKind::DegenerateStep),
             Sign::Positive => true,
             Sign::Negative => false,
         };
-        let turns = match turns_off(PATTERN_STEP_TURN, step, T::tau(), band)? {
+        let turns = match turns_off(Decision::PatternStepTurn, step, T::tau(), band)? {
             Sign::Negative => return Ok(Self(Rule::Circular { origin, dir, step })),
             Sign::Zero => StepTurns::Whole,
             Sign::Positive => match turns_held(step, band)? {
@@ -140,7 +140,7 @@ enum Held {
 fn turns_held<T: Decide>(step: T, band: Band) -> Result<Held, NodeErrorKind> {
     let off = |k: u64| {
         let whole = T::tau() * T::from_f64(k as f64);
-        turns_off(PATTERN_STEP_TURN, step, whole, band)
+        turns_off(Decision::PatternStepTurn, step, whole, band)
     };
     let (mut below, mut above) = (1, 2);
     loop {
@@ -167,7 +167,7 @@ fn turns_held<T: Decide>(step: T, band: Band) -> Result<Held, NodeErrorKind> {
 /// for a negative step, plus) the turns in degrees. Either lands
 /// every copy where `authored` does, up to rounding. A formula the
 /// expression bound refuses is [`StepTurns::Over`].
-fn within_turn(authored: &Expr, positive: bool, held: u64) -> StepTurns {
+fn within_turn(authored: &Formula, positive: bool, held: u64) -> StepTurns {
     let sign = if positive { 1.0 } else { -1.0 };
     let literal = authored.literal_value().zip(
         authored
@@ -181,24 +181,27 @@ fn within_turn(authored: &Expr, positive: bool, held: u64) -> StepTurns {
         }
         None => Formula::angle_in(360.0 * held as f64, quantity::DEG).and_then(|turns| {
             if positive {
-                Formula::sub(Formula::from(authored), turns)
+                Formula::sub(authored.clone(), turns)
             } else {
-                Formula::add(Formula::from(authored), turns)
+                Formula::add(authored.clone(), turns)
             }
         }),
     };
     within.map_or(StepTurns::Over(held), StepTurns::Within)
 }
 
-/// `authored`, negated, in the grammar a user types: a literal's own
+/// `authored`, negated, in the grammar a user types: a number's own
 /// value negated (a zero stays `0.0`), anything else under a unary
 /// minus. Either evaluates to the exact negation, so the direction it
 /// spells steps the copies where the negative spacing did. `None`
 /// when the expression bound refuses the negation.
-fn negated(authored: &Expr) -> Option<Formula> {
+fn negated(authored: &Formula) -> Option<Formula> {
+    if let Some(ratio) = authored.as_ratio() {
+        return Formula::ratio(-ratio.num(), ratio.den()).ok();
+    }
     match authored.literal_value() {
         Some(v) => Formula::literal(-v + 0.0, authored.dim()),
-        None => Formula::neg(Formula::from(authored)),
+        None => Formula::neg(authored.clone()),
     }
     .ok()
 }

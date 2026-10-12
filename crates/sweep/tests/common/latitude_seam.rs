@@ -350,17 +350,17 @@ pub fn door_cavity(body: &Body<f64>, t: f64) -> Body<f64> {
     cavity
 }
 
-/// Every edge of `body` re-certified exactly as the void door's graft
-/// does (`combine.rs`'s recertify arm: the description with its image
-/// verbatim, carrier and interval verbatim, endpoints from `he_plus`,
-/// surfaces from the body itself), and the refusals. A `Scaffold`
+/// Every edge of `body` re-certified as `graft_solid`'s re-certifying
+/// graft does (`combine.rs`'s `Bridge::Recertify` arm, the boolean
+/// finish: the description with its image verbatim, carrier and
+/// interval verbatim, endpoints from `he_plus`, surfaces from the body
+/// itself, the scalar's NURBS lane), and the refusals. A `Scaffold`
 /// edge is skipped, as the graft skips it.
 ///
-/// A MIRROR of that arm, and it can drift from it: if the graft's
-/// meter changes, this reads a different meter. The rows that also
-/// call `insert_voids` on the same cavity (the door's own verdict)
-/// are what catch a drift — this reader's refusals would disagree
-/// with a door that no longer refuses, or refuses more.
+/// A MIRROR of that arm, and nothing pins it to the arm: if the
+/// graft's meter changes, this reads a different meter. The void door
+/// is not that arm — it grafts by key remapping and carries each
+/// certificate verbatim.
 pub fn graft_recertify_failures(body: &Body<f64>) -> Vec<(EdgeKey, CertifyError)> {
     let band = geom_core::Band::linear(Tol::witness()).expect("band");
     body.edges()
@@ -371,12 +371,13 @@ pub fn graft_recertify_failures(body: &Body<f64>) -> Vec<(EdgeKey, CertifyError)
             }
             let start_v = body.get_half_edge(e.he_plus)?.start;
             let end_v = body.half_edge_end(e.he_plus)?;
-            EdgeCurve::certify(
+            EdgeCurve::certify_via(
                 curve.restated_spec(),
                 vertex_point(body, start_v).expect("a live vertex"),
                 vertex_point(body, end_v).expect("a live vertex"),
                 |sk| body.get_surface(sk).cloned(),
                 band,
+                <f64 as topo::AtRestPolicy>::nurbs_lane(),
             )
             .err()
             .map(|err| (ek, err))
@@ -455,17 +456,19 @@ fn latitude_arc(
     let (he1, he2) = (leaving(body, face, va), leaving(body, face, vb));
     let (sin, cos) = from.sin_cos();
     let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::RevolvedPoint {
-            point: station,
-            place: geom_core::Affine3::rotation_about_axis(
-                Point3::new(0.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-                from,
-            ),
-            axis_origin: Point3::new(0.0, 0.0, 0.0),
-            axis_dir: Vec3::new(0.0, 1.0, 0.0),
-            angle: theta,
-        }),
+        description: EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::whole(
+            geom_brep::MappedSource::RevolvedPoint {
+                point: station,
+                place: geom_core::Affine3::rotation_about_axis(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 1.0, 0.0),
+                    from,
+                ),
+                axis_origin: Point3::new(0.0, 0.0, 0.0),
+                axis_dir: Vec3::new(0.0, 1.0, 0.0),
+                angle: theta,
+            },
+        )),
         carrier: Curve3::Circle {
             center: Point3::new(0.0, station.y, 0.0),
             // The rotation's own sense: `+y × +x = −z`, the way a
@@ -501,4 +504,41 @@ pub fn latitude_on_full_wall(body: &mut Body<f64>, surface: SurfaceKey, station:
     let pi = core::f64::consts::PI;
     latitude_arc(body, surface, station, 0.0, pi);
     latitude_arc(body, surface, station, pi, pi);
+}
+
+/// Cuts the latitude a partial revolve about `+y` (sketch plane `xy`)
+/// through `theta` would have struck at `station` into its curved wall
+/// on `surface`: each wedge cap's meridian on the wall split at the
+/// station, then one [`latitude_arc`] across the wall, as the revolve
+/// declares a latitude rim.
+pub fn latitude_on_partial_wall(
+    body: &mut Body<f64>,
+    surface: SurfaceKey,
+    station: Point2<f64>,
+    theta: f64,
+) {
+    let tol = Tol::witness();
+    let on_wall = |b: &Body<f64>, he: HalfEdgeKey| {
+        b.face_of_half_edge(he)
+            .is_some_and(|f| b.get_face(f).unwrap().surface == surface)
+    };
+    let at = crossing(station.y);
+    let meridians: Vec<(EdgeKey, f64)> = body
+        .edges()
+        .filter(|(_, e)| on_wall(body, e.he_plus) != on_wall(body, e.he_minus))
+        .filter_map(|(k, e)| {
+            let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
+            let (t0, t1) = c.params();
+            at(c.carrier(), t0, t1).map(|t| (k, t))
+        })
+        .collect();
+    assert_eq!(
+        meridians.len(),
+        2,
+        "the latitude crosses both cap meridians"
+    );
+    for (m, t) in meridians {
+        body.split_edge(m, t, tol).expect("the meridian splits");
+    }
+    latitude_arc(body, surface, station, 0.0, theta);
 }

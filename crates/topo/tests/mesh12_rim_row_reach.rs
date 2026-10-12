@@ -19,26 +19,22 @@
 //! holds for exact incidence; the endpoint band is what opens this
 //! window.
 //!
-//! **Through the import door the window is empty at every ε row**
-//! (measured at 1e-6, 1e-9, 1e-12 on the same shape as a STEP solid,
-//! as a two-cap sphere and as issue 723's half-cap): `import_step`
-//! refuses every `R·Δv ≥ ε` at its pcurve re-mint —
-//! `pcurve_loop_continuity`, which decides the junction's chart-v jump
-//! at the same band this condition reports it at, escalating in the
-//! ambiguity band and refusing above it — and imports the `R·Δv < ε`
-//! shape, on which the condition is quiet by the same band. Props'
-//! `props_rim_level` never decides the question: the re-mint sits in
-//! front of it. No fixture can be committed, and the condition's
-//! import-door reach is nil by construction rather than by absence of
-//! a file.
+//! **The pcurve re-mint does not close the window.** It decides each
+//! junction's deck element and not its chart-v jump (a joint's 3-D
+//! coincidence follows from the rows' envelopes and the endpoint
+//! pinning), so it mints every gap the certifying doors construct, and
+//! the import door, which re-mints through it, no longer refuses
+//! `R·Δv ≥ ε` there. Its reach through import is unmeasured since
+//! (`work/tess/rim-continuation-import-reach-reopened-by-the-deck-element-walk.md`).
 //!
 //! **Through the Euler doors the shape is a rim-only cap**: a sphere
 //! face whose one loop is two rim arcs and no meridian. With the gap
 //! inside the band, the shape door and the flux lane answer on the same
 //! undecidable gap (the shape door on `props_rim_side`, the flux lane
-//! on `props_rim_only_extent`); at `Δv = 0` the door admits the face
-//! and the flux lane measures it — the two caps sum to the sphere's
-//! closed forms. `mesh::tessellate` refuses it typed either way: in the
+//! on its loop's closure, `props_loop_closed`); at `Δv = 0` the
+//! door admits the face and the flux lane measures it under its bit —
+//! the two caps sum to the sphere's closed forms. `mesh::tessellate`
+//! refuses it typed either way: in the
 //! band on the shape door's escalation (`UnsupportedCurvedShape`), and
 //! at `Δv = 0` as `MeridianFreeCurvedFace`, the walk's own refusal of a
 //! loop with no meridian. So the finding these rows pin is real and is
@@ -169,17 +165,17 @@ fn a_two_level_rim_row_from_the_certifying_doors_reports_its_gap() {
     );
 }
 
-/// **The re-mint admits no gap the examination reports — the record,
+/// **The re-mint admits the gaps the examination reports — the record,
 /// pinned on one body with no file.** `topo::mint_pcurves` is the gate
-/// `import_step` refuses at (`pcurve_loop_continuity`, the junction's
-/// chart-v jump at the linear band), and the examination reports the
-/// same gap at the same band. Bisected on `R·Δv` over the same
-/// construction: the largest gap the re-mint admits and the smallest
-/// the examination reports are adjacent at `ε`, the examination is
-/// quiet at the former and the re-mint refuses the latter, so the
-/// intersection an import fixture would need is empty at this ε.
+/// `import_step` re-mints through, and it no longer decides the
+/// junction's chart-v jump: a joint's 3-D coincidence follows from the
+/// two rows' envelopes and the endpoint pinning, and the walk decides
+/// only its deck element. So every gap the certifying doors construct
+/// (`R·Δv` inside the endpoint band) mints, while the examination
+/// reports from `R·Δv = ε`; the intersection an import fixture would
+/// need is no longer empty at this ε.
 #[test]
-fn the_remint_admits_no_gap_the_examination_reports() {
+fn the_remint_admits_the_gaps_the_examination_reports() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let mint_ok = |f: f64| {
@@ -199,40 +195,57 @@ fn the_remint_admits_no_gap_the_examination_reports() {
         mint_ok(0.5) && !reports(0.5),
         "below the band: minted, quiet"
     );
-    assert!(
-        !mint_ok(1.9) && reports(1.9),
-        "inside the window: refused, reported"
-    );
-    let (mut lo, mut hi) = (0.5_f64, 1.9_f64);
-    for _ in 0..80 {
-        let m = 0.5 * (lo + hi);
-        if mint_ok(m) { lo = m } else { hi = m }
-    }
-    let admits_up_to = lo;
-    let (mut quiet, mut loud) = (0.5_f64, 1.9_f64);
-    for _ in 0..80 {
-        let m = 0.5 * (quiet + loud);
-        if reports(m) { loud = m } else { quiet = m }
-    }
-    let reports_from = loud;
-    assert!(
-        admits_up_to < reports_from,
-        "the re-mint admits up to {admits_up_to:.17}ε, the examination reports from {reports_from:.17}ε"
-    );
-    assert!(
-        !reports(admits_up_to),
-        "quiet at the last admitted gap {admits_up_to:.17}ε"
-    );
-    assert!(
-        !mint_ok(reports_from),
-        "refused at the first reported gap {reports_from:.17}ε"
-    );
-    for (what, f) in [("admission", admits_up_to), ("report", reports_from)] {
+    for f in [1.5, 1.9] {
         assert!(
-            (f - 1.0).abs() < 1e-6,
-            "the {what} threshold sits at ε: {f:.17}"
+            mint_ok(f) && reports(f),
+            "inside the window at {f}ε: minted, reported"
         );
     }
+    // Past the joint bound nothing reaches the walk: the door that
+    // builds the cap refuses a 100ε gap (its endpoint pin), and a
+    // minted rim row moved 100ε along the meridian does not certify, so
+    // no row can carry the gap to a joint.
+    assert!(
+        two_level_rim_cap(100.0 * eps / RS).is_err(),
+        "a 100ε gap is refused where the cap is built"
+    );
+    let mut body = two_level_rim_cap(0.5 * eps / RS).unwrap();
+    topo::mint_pcurves(&mut body, tol).unwrap();
+    let band = Band::linear(tol).unwrap();
+    let moved = body
+        .half_edges()
+        .find_map(|(he, h)| {
+            let row = body.pcurve(he)?;
+            let geom_brep::Pcurve::Harmonic { p0, pa, pb, pl } = row.pcurve() else {
+                return None;
+            };
+            let edge = body.get_edge(h.edge)?;
+            let Some(topo::CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+                return None;
+            };
+            let face = body.face_of_half_edge(he)?;
+            let sphere = body.get_surface(body.get_face(face)?.surface)?;
+            let shifted = geom_brep::Pcurve::Harmonic {
+                p0: geom_core::Point2::new(p0.x, p0.y + 100.0 * eps / RS),
+                pa: *pa,
+                pb: *pb,
+                pl: *pl,
+            };
+            let (t0, t1) = row.params();
+            Some(geom_brep::PcurveCache::certify(
+                shifted,
+                t0,
+                t1,
+                curve.carrier(),
+                sphere,
+                band,
+            ))
+        })
+        .expect("the cap stores a harmonic rim row");
+    assert!(
+        moved.is_err(),
+        "a rim row 100ε off its carrier does not certify"
+    );
 }
 
 /// **Nothing that meshes or measures consumes the discarded
@@ -243,26 +256,20 @@ fn the_remint_admits_no_gap_the_examination_reports() {
 /// GAP, which is the coordinate this unit's row is about:
 ///
 /// * **`Δv = 0`** — the two arcs state ONE rim circle, so the body is a
-///   sphere split by one rim into two caps, and each face MEASURES.
-///   Its levels hold one latitude and carry no extent, so the missing
-///   extreme is the pole the rims' shared traversal points at
-///   (`props_rim_interior_side`'s σ; issue 1250, PROPS
-///   sphere-pole-side). The two caps sum to `4πR³/3`, which is what
-///   `topo/tests/props_sphere_cap_door.rs` weighs directly. The shape
-///   door admits it: with `lo == hi` no rim sits at an extreme rather
-///   than the other, so its rim-side companion has nothing to compare
-///   and extent is not a shape question.
-/// * **`R·Δv` inside the ambiguity band** — the levels carry an extent
-///   that is neither definitely zero nor definitely positive, so
-///   whether this is a cap whose pole should be folded in or a zone of
-///   sub-band height is exactly what cannot be decided. **Both** the
-///   shape door and the flux lane say so, one predicate apart: the
-///   door's rim-side unanimity asks which extreme each rim sits at and
-///   escalates `props_rim_side` typed, and the flux lane escalates
-///   `props_rim_only_extent` typed before any pole is pushed. One
-///   undecidable gap read at one lever under three names — the third
-///   being `props_face_extent`, which would have read it one step
-///   later still.
+///   sphere split by one rim into two caps, each holding a pole in its
+///   interior. The rim has a pole on each side, so its loop encodes no
+///   side and each cap measures under its bit by Gauss–Bonnet: the two
+///   sum to `4πR³/3`, which `topo/tests/props_sphere_cap_door.rs`
+///   weighs directly. The shape door admits
+///   it: with `lo == hi` no rim sits at an extreme rather than the
+///   other, so its rim-side companion has nothing to compare and extent
+///   is not a shape question.
+/// * **`R·Δv` inside the ambiguity band** — the two arcs end a sub-band
+///   gap apart, so whether they meet is exactly what cannot be decided.
+///   **Both** the shape door and the flux lane say so: the door's
+///   rim-side unanimity asks which extreme each rim sits at and
+///   escalates `props_rim_side` typed, and the flux lane escalates its
+///   closure decide `props_loop_closed` typed.
 ///
 /// What `mesh::tessellate` answers for the same two bodies is the next
 /// row.
@@ -293,7 +300,7 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
                     matches!(
                         &flux,
                         Err(PropsError::Escalated { cause, .. })
-                            if cause.predicate == Some("props_rim_only_extent")
+                            if cause.predicate == Some("props_loop_closed")
                     ),
                     "{flux:?}"
                 );
@@ -304,8 +311,7 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
         }
     }
     // The two caps of one sphere: their areas sum to `4πR²` and their
-    // fluxes to `3V = 4πR³`, which is the closed form the gap was
-    // hiding.
+    // fluxes to `3V = 4πR³`.
     let area: f64 = caps.iter().map(|c| c.area).sum();
     let flux: f64 = caps.iter().map(|c| c.flux).sum();
     let tau = core::f64::consts::TAU;

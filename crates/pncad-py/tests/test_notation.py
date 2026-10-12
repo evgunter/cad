@@ -97,9 +97,15 @@ def saved_params(doc):
     }
 
 
-def saved_nodes(doc):
-    """The `nodes` map of `doc`'s saved snapshot, as parsed JSON."""
-    return json.loads(doc.save().split("\n", 1)[1])["snapshot"]["nodes"]
+def saved_distance(doc):
+    """The one extrude's stored distance, read off the FILE: the slot
+    holds a variable's id, and the value and the unit it was written in
+    are that free variable's, as `{"value": .., "unit": ..}`."""
+    snapshot = json.loads(doc.save().split("\n", 1)[1])["snapshot"]
+    extrudes = [n["Extrude"] for n in snapshot["nodes"].values() if "Extrude" in n]
+    assert len(extrudes) == 1, extrudes
+    held = snapshot["vars"][str(extrudes[0]["distance"])]["def"]["Free"]["Continuous"]
+    return {"value": held["value"], "unit": held["display_unit"]}
 
 
 def doc_with(name, param):
@@ -429,9 +435,7 @@ class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
 
     def distance_of(self, doc):
         """The one extrude's stored `distance`, read off the FILE."""
-        extrudes = [n["Extrude"] for n in saved_nodes(doc).values() if "Extrude" in n]
-        self.assertEqual(len(extrudes), 1)
-        return extrudes[0]["distance"]["Literal"]
+        return saved_distance(doc)
 
     def test_the_written_door_records_the_unit_the_author_wrote(self):
         doc = Doc()
@@ -519,9 +523,7 @@ class TestTheOneCallIsTheComposition(unittest.TestCase):
         ]
         profile = doc.insert(Node.polygon(square, plane=doc.sketch_frame()))
         doc.insert(Node.extrude(profile, Formula.length_in(25, mm)))
-        extrudes = [n["Extrude"] for n in saved_nodes(doc).values() if "Extrude" in n]
-        self.assertEqual(len(extrudes), 1)
-        stored = extrudes[0]["distance"]["Literal"]
+        stored = saved_distance(doc)
         self.assertEqual(stored["unit"], "mm")
         self.assertEqual(stored["value"], 0.025)
 

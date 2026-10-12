@@ -120,6 +120,13 @@ impl<T: Real> Arc2<T> {
     /// centre-anchored form at s = 0, and tighter wherever `|s·sweep|`
     /// is small, because `|R − I| = 2·|sin(s·sweep/2)|` scales the
     /// centre's width down instead of doubling it.
+    ///
+    /// Both claims are about the start `a` the caller hands in. A split
+    /// edge's description (`geom_brep::MappedCurve`) hands in the
+    /// authored arc's start and its own sub-range's parameter, so its
+    /// start sample is not exact: it pays the sub-range start's rounding
+    /// times `radius·sweep`
+    /// (`work/nurbs/revolved-point-eval-levers-angle-width-by-the-coordinates.md`).
     pub fn point_from(self, a: Point2<T>, s: T) -> Point2<T> {
         let Self { centre, sweep, .. } = self;
         let half = T::from_f64(0.5);
@@ -176,6 +183,13 @@ impl<T: Real> Arc2<T> {
         let mid = a.lerp(b, T::from_f64(0.5));
         let normal = Vec2::new(-unit.y, unit.x);
         mid - normal * (len * self.quarter_tan() * T::from_f64(0.5))
+    }
+
+    /// **The apex of a full turn started at `a`**: the carrier point
+    /// opposite `a`, `centre + (centre − a)` — the sweep's midpoint at
+    /// |Δθ| = 2π, where [`Arc2::apex`]'s chord is zero.
+    pub fn antipode(self, a: Point2<T>) -> Point2<T> {
+        self.centre + (self.centre - a)
     }
 
     /// The carrier's point at the end of the sweep, reached from the

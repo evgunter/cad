@@ -1,9 +1,12 @@
 ---
 id: a-subnormal-weight-face-now-passes-the-meters-refinement
 kind: issue
-title: A subnormal-weight face now passes the meters' refinement, and offset_fit's Elevation arm calls an underflow a kernel finding
-status: open
+title: A subnormal-weight face now passes the meters' refinement, and offset_fit's composite reads its weight underflow as an unbounded cell
+status: dispatched
 opened: 2026-10-01
+priority: P3
+branch: encl/subnormal-weight-face
+cost: E
 ---
 
 
@@ -22,16 +25,23 @@ arm is now worded as a kernel defect.
 
 What this leaves on ENCL's ground, unmeasured:
 
-- `offset_fit.rs` `OffsetFitError::Elevation`'s docs said a
-  subnormal-weight face "refuses earlier, in the meters' rational
-  refinement". That sentence is gone. The v elevation reads the weights
-  the u elevation produced in `f64`, where a combination of two
-  subnormal weights can round to zero, so such a face may now reach
-  `Elevation`, whose message calls the refusal a kernel finding and asks
-  for a report. For a face whose weights are all near the bottom of the
-  `f64` range that is not a defect; the honest recourse is the one the
-  patch-bound arm used to give (scale every weight up by one constant,
-  which is the same surface).
+- `offset_fit.rs` `Composite::build` raises a degree-1 base direction
+  in the ring (`PatchSpans::elevated`), not at `f64`, so the
+  `OffsetFitError::Elevation` arm is gone (PR 4616). The underflow it
+  could report has moved, not gone. The raised weight coefficients are
+  binomial-quotient combinations of the described weights, rounded
+  outward, so on a face whose weights are subnormal a coefficient's
+  lower end can round to `0`. Even without a raise, `wt = w·w_fit`
+  and the `w³` in `cell_terms` underflow the same way. `cell_terms`
+  then refuses the cell (`!(w_lo > 0.0)`, and the same guard on `wt`)
+  and returns `None`. `cell_bound` reads that as `+∞`, and the loop
+  ends `OffsetFitError::BoundNotFinite` with `best: None`. That arm's
+  recourse points at the regularity floor and `|d|`. The honest
+  recourse is the one the patch-bound arm used to give: scale every
+  weight up by one constant, which describes the same surface. So the
+  row is still a real issue, a refusal that names the wrong lever. Its
+  arm moved, and it is still unmeasured end to end.
 - Whether any such face gets past the meters at all — the quotient rule
   in `rational_cells` divides by a weight hull of about 5e-324 — was not
-  measured.
+  measured. If none does, the bullet above is unreachable and the row
+  closes on that measurement.

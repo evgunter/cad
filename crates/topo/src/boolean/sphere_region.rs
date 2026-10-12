@@ -96,7 +96,8 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::BooleanDecision;
 use super::circle_roots::{
-    CircleRoots, FirstHarmonic, FirstHarmonicRows, first_harmonic_roots_in_band, rounding_charge,
+    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band,
+    rounding_charge,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -111,7 +112,7 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     coaxial: "bool_sphere_region_roots_coaxial",
     extreme: "bool_sphere_region_roots_extreme",
     root_slack: "bool_sphere_region_roots_slack",
-    decision: BooleanDecision::Containment,
+    decision: BooleanDecision::CONTAINMENT_UNNAMED,
 };
 
 /// The boundary reading's rows (module docs).
@@ -132,9 +133,7 @@ const TARGET_SHARES: [f64; 3] = [0.5, 0.25, 0.75];
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum RegionRefusal {
     /// The point is in the band of a boundary arc; or no ray decided,
-    /// and the first one set aside read in band; or, the walk's refusal
-    /// of the whole query, two computations of one root count disagreed
-    /// (`bool_sphere_region_roots_count`, an invalid margin).
+    /// and the first one set aside read in band.
     Escalated(Indeterminate),
     /// No ray settled ([`ray_walk::NoRaySettled`]): each grazed or gave
     /// nothing to read. `outer` is the face's outer loop, the loop the
@@ -312,13 +311,16 @@ impl<T: Decide> SphereFaceRegion<T> {
             };
             let k = match ConicArc::of(&circle, (arc.t0, arc.t1), BOUNDARY, band) {
                 Ok(Some(k)) => k,
-                Err(ConicArcError::Escalated(diag)) => return Err(RegionRefusal::Escalated(diag)),
+                Err(ConicArcError::Escalated(e)) => return Err(RegionRefusal::Escalated(e.diag)),
                 Ok(None) | Err(ConicArcError::WoundPastPeriod) => {
                     return Err(RegionRefusal::WoundPastPeriod);
                 }
             };
-            match k.hit(p, BOUNDARY, band).map_err(RegionRefusal::Escalated)? {
-                ConicHit::On | ConicHit::End => return Ok(None),
+            match k
+                .hit(p, BOUNDARY, band)
+                .map_err(|e| RegionRefusal::Escalated(e.diag))?
+            {
+                ConicHit::On(_) | ConicHit::End => return Ok(None),
                 ConicHit::Off | ConicHit::Carrier => {}
             }
         }
@@ -366,17 +368,11 @@ impl<T: Decide> SphereFaceRegion<T> {
         let mut crossings = Crossings::new();
         for (j, arc) in self.arcs.iter().enumerate() {
             let thetas = match self.ray_roots(arc, g, band).map_err(in_band)? {
-                CircleRoots::Miss => continue,
-                CircleRoots::Certified { count, thetas } => thetas[..count].to_vec(),
+                FirstHarmonicRoots::Miss => continue,
+                FirstHarmonicRoots::Certified(thetas) => thetas,
                 // The arc in the ray's plane, or a tangency.
-                CircleRoots::OnSurface | CircleRoots::Uncertain => return Err(RayFault::Graze),
-                // Two computations of one count disagreeing is a broken
-                // invariant, not a ray's conditioning (D9); every caller of
-                // the root doors refuses on it.
-                CircleRoots::CountDisagrees => {
-                    return Err(RayFault::Fatal(RegionRefusal::Escalated(
-                        crate::invalid_margin::invalid(band, "bool_sphere_region_roots_count"),
-                    )));
+                FirstHarmonicRoots::OnSurface | FirstHarmonicRoots::Uncertain => {
+                    return Err(RayFault::Graze);
                 }
             };
             for theta in thetas {
@@ -420,7 +416,7 @@ impl<T: Decide> SphereFaceRegion<T> {
         arc: &RegionArc<T>,
         g: Vec3<T>,
         band: Band,
-    ) -> Result<CircleRoots<T>, Indeterminate> {
+    ) -> Result<FirstHarmonicRoots<T>, Indeterminate> {
         let v_ref = arc.axis.cross(arc.u_ref);
         let offset = arc.center - self.center;
         let d = g.dot(offset);

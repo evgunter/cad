@@ -2,11 +2,14 @@
 id: an-edge-edge-crossing-vertex-of-a-union-is-spelled-by-member-order
 kind: issue
 title: A union vertex where a member edge crosses another member's edge is spelled by member order (Flush::crossing falls through to the fold's spelling)
-status: open
+status: closed
 opened: 2026-10-01
+closed: 2026-10-12
 priority: P2
 cost: M
 refs: [a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush]
+branch: emit/touch-crossing
+pr: 4816
 ---
 
 
@@ -37,3 +40,48 @@ edge's sense against the other operand's closed body. Once the sense is
 built (`a-second-crossing-by-one-face-renames-the-first-and-its-pieces`,
 branch `emit/crossing-sense`), re-measure this row against the narrower
 case that is left.
+
+## Since the crossing's sense
+
+Crossings now carry their sense (`a-second-crossing-by-one-face-renames-the-first-and-its-pieces`),
+so the two orders spell the vertex `EdgeCrossing { b's LateralEdge, ·, a's
+RimEdge(End), · }` and `Crossing { b's LateralEdge, a's Cap(End), sense }`.
+`KNOWN_ABSENT`'s digests were re-baselined for the new spellings, and its
+counts went from four absences per case to six: every piece of a divided
+edge is now named by its ends, a lone one included, so the lone piece of
+`b`'s lateral edge that ends at the vertex carries the order's spelling too.
+
+## Re-measured under the killed-lineage chase (EMIT, 2026-10-12, PR 4794)
+
+Rim pieces whose lineage ran through a killed stretch used to be
+chords. They now resolve as the pieces they are, so more crossings
+between two members' edges are spelled edge to edge, as the README
+says. Measured with the chase on and off:
+- **`cross`.** Over its 14 fused orders, crossings spelled face to edge
+  where two members' edges cross there fell from 50 to 28. Those
+  spelled edge to edge rose from 34 to 56. Its absences in
+  `emit_union_rim_piece_ranks`'s `KNOWN_ABSENT` rose from 266 to 308,
+  because an edge-to-edge spelling still names its two edges by member
+  order. That is this row's split, reached at more vertices.
+- **`r5poke`.** Three of the eight corner spellings (four corners, two
+  orders) were face to edge, and one is now. The order-dependent
+  corner moved from `(1.5, 0, 1)` to `(0.5, 1, 1)`, and the count held
+  at 6.
+
+## Closed by the touch ruling's build (branch `emit/touch-crossing`)
+
+A union names a vertex where two member edges meet from the finished
+body, `EdgeCrossing` of the two in name order with the senses the fold
+step that minted it read (`emit_union::Flush::edge_crossing`).
+`r5poke` and `r5pokehi` publish one table in both orders
+(`KNOWN_ABSENT` holds neither), and `cross` drops from main's 308
+absences (after the killed-lineage chase) to 140, a strict subset of
+main's: every one that went was an edge crossing, its face-crossing
+spelling in the other order, or a member-edge piece ending at it. What
+`cross` and `r1three` keep is a crossing of a union seam, filed as
+`work/emit/a-crossing-of-a-union-seam-is-spelled-by-member-order.md`.
+Row: `emit_crossing_sense::an_edge_crossing_of_two_members_is_named_alike_in_either_order`.
+
+## Closed (PR 4816, 2026-10-12)
+
+Closed by PR 4816. The union reads edge x edge vertices from the finished body. On the merged tree `KNOWN_ABSENT` goes from 6 to 0 for r5poke and for r5pokehi, and from 308 to 140 for cross (a strict subset). The remainder is filed as `a-crossing-of-a-union-seam-is-spelled-by-member-order`.

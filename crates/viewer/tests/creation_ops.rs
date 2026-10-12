@@ -1,19 +1,19 @@
 //! **From nothing to a solid, replayed headlessly** (GAUTH-1): the
 //! creation op vocabulary driving the real `DocSession` with no
 //! renderer — the new-document door, the datum/profile/extrude/revolve
-//! inserts with their typed refusals, the revolve tool's held picks,
+//! inserts with their typed refusals, the revolve tool's held pick,
 //! and the ring acceptance stream.
 //!
 //! # The ring row's comparison, and its strength
 //!
 //! The acceptance stream — `NewDocument("hollow-ring")`, one profile
-//! of two concentric circle loops, an axis datum, a full-turn
-//! revolve — is asserted against the committed gallery fixture
+//! of two concentric circle loops, a full-turn revolve about an axis
+//! in the profile's own plane — is asserted against the committed gallery fixture
 //! (`gallery_ring.pncad`: the ring demo's document as the
 //! exporter saved it, ε re-stamped per `common::gallery_ring_at`).
 //! The comparator is **`Doc::bit_eq`** — spec D7's replay-identity
 //! comparator, the strongest equality the document layer supports:
-//! every float compares by bits, identity/order/roots structurally.
+//! every float compares by bits, identity/order/placements structurally.
 //! `PartialEq` would conflate `±0.0`; nothing weaker would be a claim
 //! about the same document. The row goes red when the fixture is
 //! regenerated from a deliberately changed demo recipe — and then the
@@ -97,23 +97,14 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
             ],
         },
     );
-    let axis = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            // The revolve's axis, in the sketch it turns: the frame's
-            // v is world +Y, so this is its own +y through (0, 0).
-            datum: DatumSpec::AxisInPlane {
-                plane,
-                origin: len2([0.0, 0.0]),
-                direction: scl2([0.0, 1.0]),
-            },
-        },
-    );
     let revolve = session_insert(
         &mut session,
         SessionOp::AddRevolve {
             profile,
-            axis,
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            axis_origin: len2([0.0, 0.0]),
+            axis_direction: scl2([0.0, 1.0]),
             angle: ang(TAU),
         },
     );
@@ -138,9 +129,9 @@ fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
          document under D7's replay-identity comparator"
     );
     assert_eq!(
-        session.committed_doc().roots(),
-        &[revolve],
-        "the revolve is the one product root"
+        common::world(session.committed_doc()),
+        [revolve],
+        "the revolve gesture placed what it made: the world is the revolve"
     );
 
     // End to end: the authored document evaluates, and the revolve's
@@ -157,6 +148,55 @@ fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
         }
         other => panic!("expected a body, got {other:?}"),
     }
+}
+
+/// **A creation gesture places what it made, in the same action**
+/// (A10): the extrude and its identity world placement are one
+/// recorded action — the world is `[extrude]`, the tree badges the
+/// extrude, and ONE undo takes both. Breaks if the gesture leaves the
+/// body unplaced (nothing is drawn), records the placement as a second
+/// action, or places something else.
+#[test]
+fn a_creation_gesture_places_what_it_made_in_one_action() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
+    let profile = common::rectangle_in(&mut session, plane, 0.02, 0.01);
+    let before = session.committed_doc().clone();
+    assert!(before.placements().is_empty(), "nothing is placed yet");
+    let outcome = session.perform(SessionOp::AddExtrude {
+        profile,
+        distance: len(0.005),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [extrude, placement] = outcome.minted[..] else {
+        panic!("two inserts: {:?}", outcome.minted);
+    };
+    let doc = session.committed_doc();
+    assert!(matches!(doc.node(extrude), Some(Node::Extrude { .. })));
+    assert!(
+        matches!(
+            doc.node(placement),
+            Some(Node::PlaceInWorld { body, pose })
+                if Some(body.read) == doc.output(extrude, 0) && pose.steps.is_empty()
+        ),
+        "the extrude's identity placement"
+    );
+    assert_eq!(common::world(doc), [extrude], "what was made is the world");
+    let rows = session.tree_rows();
+    assert!(
+        common::row_of(&rows, extrude).placed,
+        "the extrude wears the world badge"
+    );
+    assert!(
+        !common::row_of(&rows, placement).placed,
+        "the placement's own row is an ordinary one"
+    );
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "one undo takes the body and its placement together"
+    );
 }
 
 #[test]
@@ -195,7 +235,7 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     assert_eq!(session.committed_doc().id(), DocumentId::derive("bracket"));
 
-    // A datum plane (unused downstream — a root of its own).
+    // A datum plane (unused downstream).
     let _plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
@@ -227,8 +267,16 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
     let v2 = body_volume(&mut session, extrude, tol);
     assert_eq!(v.to_bits(), v2.to_bits(), "same volume after reload");
 
-    // Undo walks back across the creations one at a time; redo
-    // restores the whole document.
+    // Undo walks back across the reopened log one edit at a time (the
+    // file records edits, not actions: `history`'s module docs) — the
+    // extrude's world placement, then the extrude; redo restores the
+    // whole document.
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    assert!(
+        session.committed_doc().placements().is_empty(),
+        "the placement goes first"
+    );
+    assert!(session.committed_doc().node(extrude).is_some());
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     assert!(session.committed_doc().node(extrude).is_none());
     assert!(session.committed_doc().node(profile).is_some());
@@ -237,7 +285,7 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
     for _ in 0..3 {
         assert!(session.perform(SessionOp::Undo).refusal.is_none());
     }
-    assert!(session.committed_doc().order().is_empty(), "back to empty");
+    assert!(session.committed_doc().ids().is_empty(), "back to empty");
     let at_root = session.perform(SessionOp::Undo);
     assert!(matches!(
         at_root.refusal,
@@ -245,7 +293,9 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
             direction: Step::Undo
         })
     ));
-    for _ in 0..4 {
+    // Five edits: the plane, the sketch frame, the profile, the extrude
+    // and its placement.
+    for _ in 0..5 {
         assert!(session.perform(SessionOp::Redo).refusal.is_none());
     }
     assert!(session.committed_doc().bit_eq(&authored), "redo restores");
@@ -324,7 +374,7 @@ fn new_document_derives_its_id_and_clears_the_session() {
         DocumentId::derive("fresh-part"),
         "the id is authored at creation from the typed name"
     );
-    assert!(doc.order().is_empty(), "an empty document");
+    assert!(doc.ids().is_empty(), "an empty document");
     assert_eq!(session.selection(), &Selection::None);
     assert!(session.hover().is_none(), "hover cleared");
     assert!(session.path().is_none(), "no backing file until saved");
@@ -411,7 +461,8 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
         },
         SessionOp::AddRevolve {
             profile,
-            axis: extrude,
+            axis_origin: len2([0.0, 0.0]),
+            axis_direction: scl2([0.0, 1.0]),
             angle: ang(TAU),
         },
     ] {
@@ -457,10 +508,9 @@ fn each_datum_form_inserts_its_variant_with_literal_slots() {
     );
     let doc = session.committed_doc();
     let expect_bit_eq = |id: RecipeNodeId, want: AuthoredNode| {
-        assert!(
-            doc.node(id)
-                .expect("the datum is live")
-                .bit_eq(&editor_core::test_support::stored(&want)),
+        assert_eq!(
+            doc.node(id).expect("the datum is live").written(doc),
+            want,
             "the inserted node is the literal spelling of the form"
         );
     };
@@ -540,19 +590,21 @@ fn the_rectangle_template_is_the_centred_polygon() {
     );
     assert_eq!(minted.ids.iter().flatten().count(), 5, "five steps");
     let want = Node::Profile(ProfileProgram {
-        plane,
+        frame: session
+            .committed_doc()
+            .output(plane, 0)
+            .expect("the frame defines its frame")
+            .into(),
         loops: vec![
             LoopProgram::polygon([(-0.02, -0.01), (0.02, -0.01), (0.02, 0.01), (-0.02, 0.01)])
                 .expect("finite corners"),
         ],
         ids: minted.ids.clone(),
     });
-    assert!(
-        session
-            .committed_doc()
-            .node(profile)
-            .expect("the profile is live")
-            .bit_eq(&editor_core::test_support::stored(&want)),
+    let doc = session.committed_doc();
+    assert_eq!(
+        doc.node(profile).expect("the profile is live").written(doc),
+        want,
         "corners at (±w/2, ±h/2), counter-clockwise from lower-left"
     );
 }
@@ -635,20 +687,7 @@ fn profile_refusals_are_typed_at_the_door() {
 fn a_refusal_at_any_creation_door_leaves_no_history_state() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    // The frame comes FIRST now: the axis is written in it.
     let plane = common::xy_frame_in(&mut session);
-    let axis = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            // The revolve's axis, in the sketch it turns: the frame's
-            // v is world +Y, so this is its own +y through (0, 0).
-            datum: DatumSpec::AxisInPlane {
-                plane,
-                origin: len2([0.0, 0.0]),
-                direction: scl2([0.0, 1.0]),
-            },
-        },
-    );
     let states = session.history().len();
     for op in [
         SessionOp::NewDocument {
@@ -669,12 +708,13 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
             loops: vec![],
         },
         SessionOp::AddExtrude {
-            profile: axis,
+            profile: plane,
             distance: len(0.01),
         },
         SessionOp::AddRevolve {
-            profile: axis,
-            axis,
+            profile: plane,
+            axis_origin: len2([0.0, 0.0]),
+            axis_direction: scl2([0.0, 1.0]),
             angle: ang(TAU),
         },
     ] {
@@ -700,18 +740,6 @@ fn extrude_and_revolve_require_their_node_kinds() {
             })],
         },
     );
-    let axis = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            // The revolve's axis, in the sketch it turns: the frame's
-            // v is world +Y, so this is its own +y through (0, 0).
-            datum: DatumSpec::AxisInPlane {
-                plane,
-                origin: len2([0.0, 0.0]),
-                direction: scl2([0.0, 1.0]),
-            },
-        },
-    );
     let extrude = session_insert(
         &mut session,
         SessionOp::AddExtrude {
@@ -722,7 +750,7 @@ fn extrude_and_revolve_require_their_node_kinds() {
 
     // The extrude door: an extrude node is not a profile, and neither
     // is an id the document never held.
-    for wrong in [extrude, RecipeNodeId(999)] {
+    for wrong in [extrude, RecipeNodeId::new(0, 999)] {
         let refused = session.perform(SessionOp::AddExtrude {
             profile: wrong,
             distance: len(0.02),
@@ -738,41 +766,20 @@ fn extrude_and_revolve_require_their_node_kinds() {
         );
     }
 
-    // The revolve door, both seats: a non-profile profile pick, then
-    // a non-axis axis pick (a plane datum is not an axis either).
-    let refused = session.perform(SessionOp::AddRevolve {
-        profile: axis,
-        axis,
-        angle: ang(TAU),
-    });
-    assert!(
-        matches!(
-            &refused.refusal,
-            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Profile })
-                if node.id() == axis
-        ),
-        "{:?}",
-        refused.refusal
-    );
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0; 3]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
+    // The revolve door's one seat: a feature or a frame is not a
+    // profile. The axis is no pick — two coordinate pairs in the
+    // profile's own plane — so there is no second seat to refuse.
     for wrong in [extrude, plane] {
         let refused = session.perform(SessionOp::AddRevolve {
-            profile,
-            axis: wrong,
+            profile: wrong,
+            axis_origin: len2([0.0, 0.0]),
+            axis_direction: scl2([0.0, 1.0]),
             angle: ang(TAU),
         });
         assert!(
             matches!(
                 &refused.refusal,
-                Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::SketchAxis })
+                Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Profile })
                     if node.id() == wrong
             ),
             "{:?}",
@@ -780,36 +787,15 @@ fn extrude_and_revolve_require_their_node_kinds() {
         );
     }
 
-    // The add-datum door, for the axis a revolve takes: its frame is
-    // a pick, and a plane datum or a feature is not a frame. Nothing
-    // lands.
-    let before = session.committed_doc().order().len();
-    for wrong in [extrude, plane] {
-        let refused = session.perform(SessionOp::AddDatum {
-            datum: DatumSpec::AxisInPlane {
-                plane: wrong,
-                origin: len2([0.0, 0.0]),
-                direction: scl2([0.0, 1.0]),
-            },
-        });
-        assert!(
-            matches!(
-                &refused.refusal,
-                Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Frame })
-                    if node.id() == wrong
-            ),
-            "{:?}",
-            refused.refusal
-        );
-    }
-    assert_eq!(session.committed_doc().order().len(), before);
-
-    // The happy path inserts the revolve with both references.
+    // The happy path inserts the revolve, its axis on the node itself.
     let revolve = session_insert(
         &mut session,
         SessionOp::AddRevolve {
             profile,
-            axis,
+            // The frame's v is world +Y, so this is its own +y
+            // through (0, 0).
+            axis_origin: len2([0.0, 0.0]),
+            axis_direction: scl2([0.0, 1.0]),
             angle: ang(TAU),
         },
     );
@@ -819,8 +805,14 @@ fn extrude_and_revolve_require_their_node_kinds() {
     ));
 }
 
+/// The revolve tool's axis, as the chrome's default writes it: the
+/// profile frame's own +y through (0, 0).
+fn tool_op(tool: &RevolveTool) -> Result<SessionOp, SeatError> {
+    tool.op(len2([0.0, 0.0]), scl2([0.0, 1.0]), ang(TAU))
+}
+
 #[test]
-fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
+fn the_revolve_tool_holds_its_profile_pick_and_survives_its_loss() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);
@@ -834,130 +826,35 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
             })],
         },
     );
-    let axis = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            // The revolve's axis, in the sketch it turns: the frame's
-            // v is world +Y, so this is its own +y through (0, 0).
-            datum: DatumSpec::AxisInPlane {
-                plane,
-                origin: len2([0.0, 0.0]),
-                direction: scl2([0.0, 1.0]),
-            },
-        },
-    );
 
     let mut tool = RevolveTool::new();
     assert!(
         matches!(
-            tool.op(ang(TAU)),
+            tool_op(&tool),
             Err(SeatError::Empty {
                 seat: Seat::RevolveProfile
             })
         ),
-        "no picks, no op"
+        "no pick, no op"
     );
     tool.pick(session.committed_doc(), profile);
     assert_eq!(tool.profile(), Some(profile));
-    assert!(
-        matches!(
-            tool.op(ang(TAU)),
-            Err(SeatError::Empty {
-                seat: Seat::RevolveAxis
-            })
-        ),
-        "one pick, no op"
-    );
-    tool.pick(session.committed_doc(), axis);
-    assert_eq!(tool.axis(), Some(axis));
 
     // The tool's op commits exactly one insert through the session.
-    let op = tool.op(ang(TAU)).expect("both seats filled");
+    let op = tool_op(&tool).expect("the seat is filled");
     let revolve = session_insert(&mut session, op);
     assert!(matches!(
         session.committed_doc().node(revolve),
         Some(Node::Revolve { .. })
     ));
 
-    // Survival: delete the axis (which takes the revolve with it) and
-    // reconcile — the axis seat empties with a typed event NAMING the
-    // seat and the node, the profile stays held, and the next pick
-    // refills the empty seat.
-    let mut tool = RevolveTool::new();
-    tool.pick(session.committed_doc(), profile);
-    tool.pick(session.committed_doc(), axis);
-    let deleted = session.perform(SessionOp::DeleteNode { node: axis });
-    assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
-    let events = tool.reconcile(session.committed_doc());
-    assert_eq!(events.len(), 1, "one drop, reported");
-    assert!(
-        matches!(
-            events.first(),
-            Some(SeatEvent::PickLost {
-                seat: Seat::RevolveAxis,
-                node
-            }) if node.id() == axis
-        ),
-        "the event names the emptied seat and the vanished node: {events:?}"
-    );
-    assert_eq!(tool.profile(), Some(profile), "the live pick survives");
-    assert_eq!(tool.axis(), None, "the vanished pick is dropped");
-    let axis = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            // The revolve's axis, in the sketch it turns: the frame's
-            // v is world +Y, so this is its own +y through (0, 0).
-            datum: DatumSpec::AxisInPlane {
-                plane,
-                origin: len2([0.0, 0.0]),
-                direction: scl2([0.0, 1.0]),
-            },
-        },
-    );
-    tool.pick(session.committed_doc(), axis);
-    assert_eq!(tool.axis(), Some(axis), "the next pick refills the seat");
-    assert!(tool.op(ang(TAU)).is_ok());
-}
-
-/// The seats are ROLES: a dropped profile leaves the axis IN the axis
-/// seat (no promotion — deliberately divergent from the mate tool's
-/// pair semantics; both module docs state it), and the next pick
-/// refills the profile seat.
-#[test]
-fn a_dropped_profile_does_not_promote_the_axis() {
-    let tol = Tol::witness();
-    let mut session = session(tol);
-    let plane = common::xy_frame_in(&mut session);
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Circle {
-                centre: [R, 0.0],
-                radius: RO,
-            })],
-        },
-    );
-    let axis = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            // The revolve's axis, in the sketch it turns: the frame's
-            // v is world +Y, so this is its own +y through (0, 0).
-            datum: DatumSpec::AxisInPlane {
-                plane,
-                origin: len2([0.0, 0.0]),
-                direction: scl2([0.0, 1.0]),
-            },
-        },
-    );
-    let mut tool = RevolveTool::new();
-    tool.pick(session.committed_doc(), profile);
-    tool.pick(session.committed_doc(), axis);
-    // Delete the profile alone: nothing consumes it, so the cascade
-    // is just the profile.
+    // Survival: delete the profile (which takes the revolve with it)
+    // and reconcile — the seat empties with a typed event NAMING the
+    // seat and the node, and the next pick refills it.
     let deleted = session.perform(SessionOp::DeleteNode { node: profile });
     assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
     let events = tool.reconcile(session.committed_doc());
+    assert_eq!(events.len(), 1, "one drop, reported");
     assert!(
         matches!(
             events.first(),
@@ -966,21 +863,18 @@ fn a_dropped_profile_does_not_promote_the_axis() {
                 node
             }) if node.id() == profile
         ),
-        "{events:?}"
+        "the event names the emptied seat and the vanished node: {events:?}"
     );
-    assert_eq!(tool.profile(), None, "the profile seat is empty");
-    assert_eq!(tool.axis(), Some(axis), "the axis STAYS in the axis seat");
+    assert_eq!(tool.profile(), None, "the vanished pick is dropped");
     assert!(
         matches!(
-            tool.op(ang(TAU)),
+            tool_op(&tool),
             Err(SeatError::Empty {
                 seat: Seat::RevolveProfile
             })
         ),
-        "one seat empty, no op"
+        "the seat is empty, no op"
     );
-    // The next pick refills the PROFILE seat, not the axis.
-    let plane = common::xy_frame_in(&mut session);
     let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
@@ -992,23 +886,25 @@ fn a_dropped_profile_does_not_promote_the_axis() {
         },
     );
     tool.pick(session.committed_doc(), profile);
-    assert_eq!(tool.profile(), Some(profile));
-    assert_eq!(tool.axis(), Some(axis));
-    assert!(tool.op(ang(TAU)).is_ok());
+    assert_eq!(
+        tool.profile(),
+        Some(profile),
+        "the next pick refills the seat"
+    );
+    assert!(tool_op(&tool).is_ok());
 
-    // clear() empties both seats — the chrome's start-over door.
+    // clear() empties the seat — the chrome's start-over door.
     tool.clear();
     assert_eq!(tool.profile(), None);
-    assert_eq!(tool.axis(), None);
 }
 
-/// A NewDocument under held picks: a reconciling consumer hears both
-/// drops, typed. (A consumer that SKIPS reconcile is not reliably
+/// A NewDocument under a held pick: a reconciling consumer hears the
+/// drop, typed. (A consumer that SKIPS reconcile is not reliably
 /// caught — fresh inserts re-mint the same small ids and the stale
-/// picks alias the new nodes; the module docs state the hazard and
+/// pick aliases the new node; the module docs state the hazard and
 /// issue #1384 tracks the class.)
 #[test]
-fn reconcile_drops_both_picks_across_a_new_document() {
+fn reconcile_drops_the_pick_across_a_new_document() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);
@@ -1022,29 +918,15 @@ fn reconcile_drops_both_picks_across_a_new_document() {
             })],
         },
     );
-    let axis = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            // The revolve's axis, in the sketch it turns: the frame's
-            // v is world +Y, so this is its own +y through (0, 0).
-            datum: DatumSpec::AxisInPlane {
-                plane,
-                origin: len2([0.0, 0.0]),
-                direction: scl2([0.0, 1.0]),
-            },
-        },
-    );
     let mut tool = RevolveTool::new();
     tool.pick(session.committed_doc(), profile);
-    tool.pick(session.committed_doc(), axis);
     let out = session.perform(SessionOp::NewDocument {
         name: "fresh".to_owned(),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let events = tool.reconcile(session.committed_doc());
-    assert_eq!(events.len(), 2, "both picks dropped, loudly: {events:?}");
+    assert_eq!(events.len(), 1, "the pick dropped, loudly: {events:?}");
     assert_eq!(tool.profile(), None);
-    assert_eq!(tool.axis(), None);
 }
 
 /// **The reported defect, end to end: a form authoring in millimetres
@@ -1151,23 +1033,14 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 
     // And an ANGLE authored in degrees, the other half of the picker
     // pair — a right angle reads as 90, not as 1.5707963267948966.
-    let axis = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            // The circle is drawn on `plane`, so the revolve's axis is
-            // written there too — its +y through (0, 0).
-            datum: DatumSpec::AxisInPlane {
-                plane,
-                origin: len2([0.0, 0.0]),
-                direction: scl2([0.0, 1.0]),
-            },
-        },
-    );
     let revolve = session_insert(
         &mut session,
         SessionOp::AddRevolve {
             profile,
-            axis,
+            // The circle is drawn on `plane`, so the revolve's axis is
+            // written there too — its +y through (0, 0).
+            axis_origin: len2([0.0, 0.0]),
+            axis_direction: scl2([0.0, 1.0]),
             angle: Formula::written_angle(WrittenAngle::canonical_in(
                 core::f64::consts::FRAC_PI_2,
                 mm.angle,
@@ -1203,10 +1076,10 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 /// evidence that a profile drew and extruded on it.
 ///
 /// **Not the union of block and boss.** A boss drawn on the face
-/// frame is FLUSH with the block at that face by construction, so its
-/// union refuses until the contact is declared; that path, with its
-/// sum-of-volumes assertion, is `viewer::pane::create`'s
-/// `declared_union` rows.
+/// frame is FLUSH with the block at that face by construction; a union
+/// across flush contacts, with its sum-of-volumes assertion, is
+/// `tests/combine_ops.rs`'s
+/// `a_union_across_two_flush_contacts_lands_as_one_action`.
 ///
 /// It is still a TWO-FORM trip for a person — add the datum, then draw
 /// on it — which is the residue
@@ -1320,7 +1193,7 @@ fn a_new_xy_plane_inserts_the_frame_and_the_profile_as_one_action() {
         "the frame and the profile are one action's two edits"
     );
     let doc = session.committed_doc();
-    let order = doc.order().to_vec();
+    let order = doc.ids().to_vec();
     assert_eq!(order.len(), 2, "two nodes and no more");
     let (frame, profile) = (order[0], order[1]);
     assert!(
@@ -1331,7 +1204,8 @@ fn a_new_xy_plane_inserts_the_frame_and_the_profile_as_one_action() {
         panic!("the second insert is the profile")
     };
     assert_eq!(
-        program.plane, frame,
+        Some(program.frame),
+        doc.output(frame, 0),
         "the profile names the node the action actually minted"
     );
 
@@ -1341,7 +1215,7 @@ fn a_new_xy_plane_inserts_the_frame_and_the_profile_as_one_action() {
     let outcome = session.perform(SessionOp::Undo);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
-        session.committed_doc().order().is_empty(),
+        session.committed_doc().ids().is_empty(),
         "one undo took the whole gesture, frame included"
     );
 }
@@ -1368,7 +1242,7 @@ fn a_refused_new_xy_profile_leaves_the_document_untouched() {
         outcome.committed
     );
     assert!(
-        session.committed_doc().order().is_empty(),
+        session.committed_doc().ids().is_empty(),
         "and no frame was left behind for the refusal to strand"
     );
 }
@@ -1392,7 +1266,7 @@ fn a_new_xy_frame_lands_where_its_preview_drew() {
         })],
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let frame = session.committed_doc().order()[0];
+    let frame = session.committed_doc().ids()[0];
     session.pump();
     let ev = session.evaluation().expect("the document evaluated");
     let landed = viewer::sketch::frame_placement(session.committed_doc(), ev, frame)
@@ -1441,7 +1315,7 @@ fn a_new_xy_action_mints_the_frame_before_the_profile() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let doc = session.committed_doc();
-    let order = doc.order().to_vec();
+    let order = doc.ids().to_vec();
     assert_eq!(
         outcome.minted, order,
         "both ids, in the order the action applied them: {:?}",
@@ -1481,4 +1355,25 @@ fn an_add_on_an_existing_frame_mints_only_the_profile() {
         session.committed_doc().node(outcome.minted[0]),
         Some(Node::Profile(_))
     ));
+}
+
+/// **A viewport pick on a revolve's body is that body, not a half**: a
+/// revolve defines a body and an axis, so the pick seats its body's
+/// port; the seat line says no half, and the duplicate lands.
+#[test]
+fn a_viewport_picked_revolve_is_its_body_not_a_split_half() {
+    use viewer::combine::DuplicateTool;
+    let tol = Tol::witness();
+    let (mut session, revolve) = authored_ring(tol);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    let mut tool = DuplicateTool::new();
+    tool.pick_at(&doc, revolve, Some(0));
+    let line = viewer::seats::seat_line(tool.seats(), &doc);
+    assert!(
+        !line.contains("half"),
+        "a revolve is said as a split half: {line}"
+    );
+    let outcome = session.perform(tool.op().expect("seated"));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }

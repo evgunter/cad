@@ -326,8 +326,13 @@ fn r2_rims_one_n_past_the_suite_carve_at_the_homed_oracle() {
             body.edges().count(),
             body.faces().count(),
         );
-        let out = fillet_edges(body, &arcs, RHO, tol())
-            .unwrap_or_else(|e| panic!("{name}: the whole rim carves, got {e}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(body, tol()),
+            &arcs,
+            RHO,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name}: the whole rim carves, got {e}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: one band");
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
@@ -338,8 +343,17 @@ fn r2_rims_one_n_past_the_suite_carve_at_the_homed_oracle() {
         );
         assert_eq!(
             (c1.0 - c0.0, c1.1 - c0.1, c1.2 - c0.2),
-            (n, n + 1, 1),
-            "{name}: one vertex and one edge per crossing, one more edge, one band face"
+            // The closing join (maximal edges) takes every host rim foot
+            // but the one the band's slit lands on: n - 1 joins, each one
+            // vertex and one edge.
+            (1, 2, 1),
+            "{name}: one vertex and one edge per crossing, one more edge, one band face, \
+             less the n - 1 joins of the host trimlines"
+        );
+        assert_eq!(
+            out.naming.as_ref().map(|r| r.edge_joins.len()),
+            Some(n - 1),
+            "{name}: every host rim foot but the slit's is joined"
         );
         let p1 = mass_properties(&out.body, tol()).expect("props");
         assert_eq!(p1.volume_pad, 0.0, "{name}: closed-form faces only after");

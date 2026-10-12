@@ -9,12 +9,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::block;
+use crate::blocks::block;
 use crate::fixture;
 use editor_core::{
-    BooleanOp, Dimension, Distribution, DocEdit, DocumentId, EditError, Formula, FreeVar, Node,
-    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SplitError, UnitSym, UpstreamCause,
-    VarKind, VarName, apply,
+    Dimension, Distribution, DocEdit, DocumentId, EditError, Formula, FreeVar, Node, PatternKind,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SplitError, UnitSym, UpstreamCause, VarKind, VarName,
+    apply,
 };
 use fixture::{fname, insert, len, run, scl, step, wall};
 use geom_core::{Sign, Tol};
@@ -124,7 +124,7 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
     let (doc, _pattern) = insert(
         doc,
         Node::Pattern {
-            input: body,
+            input: body.into(),
             count: Formula::named(p("n"), Dimension::Count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -137,6 +137,7 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
         DocEdit::DefineVar {
             var: p("n").into(),
             def: editor_core::VarDecl::Free(length(4.0)),
+            fresh: Vec::new(),
         },
     )
     .expect_err("n is a count for good");
@@ -164,6 +165,7 @@ fn a_count_refuses_a_definition_of_another_kind_with_a_recourse_that_gets_throug
         DocEdit::DefineVar {
             var: p("n").into(),
             def: editor_core::VarDecl::Free(FreeVar::Count { value: 5 }),
+            fresh: Vec::new(),
         },
     )
     .expect("a count definition lands on the count");
@@ -187,20 +189,22 @@ fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::Sta
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let wb = wall(&doc, b, 0);
-    let (doc, _fillet) = insert(
+    let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: a,
             radius: len(0.1),
-            selection: vec![fname(b, wb.clone())],
+            selection: editor_core::Operand::select(a, vec![fname(b, wb.clone())]),
         },
     );
+    let doc = crate::fixture::place(doc, fillet).0;
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let wc = wall(&doc, c, 0);
     let (from, to) = (fname(b, wb), fname(c, wc));
+    let body = doc.output(a, 0);
     let (doc, _) = step(
         doc,
         DocEdit::Rebind {
+            body,
             from: from.clone(),
             to: to.clone(),
         },
@@ -216,7 +220,7 @@ fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::Sta
 #[test]
 fn a_split_that_cannot_rebuild_a_forward_reference_names_the_rebind_that_gets_through() {
     let (doc, forward, back) = forward_selection();
-    let cut: BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
+    let cut: BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
     let split = |doc: &ProfileDoc| {
         editor_core::split(
             doc,
@@ -243,9 +247,11 @@ fn a_split_that_cannot_rebuild_a_forward_reference_names_the_rebind_that_gets_th
             && text.matches("Recourse:").count() == 1,
         "the split's own recourse, once, and not the insert door's: {text}"
     );
+    let body = crate::fixture::body_selecting(&doc, &forward);
     let (back_doc, _) = step(
         doc,
         DocEdit::Rebind {
+            body,
             from: forward,
             to: back,
         },
@@ -317,6 +323,7 @@ const WORDLESS: &[(&str, &[&str])] = &[
             "bool_point_in_solid_infinity",
             "bool_point_in_solid_infinity_enclosure",
             "bool_point_in_solid_order",
+            "cap_plane_orientation",
             "carrier_endpoint_end",
             "carrier_endpoint_start",
             "carrier_matches_mapped_source",
@@ -350,16 +357,14 @@ fn every_predicate_a_subtract_logs_has_words_or_a_reason() {
     let (doc, m) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, _cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b: m,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: m.into(),
         },
     );
     let ev = run(&doc, &editor_core::EvalOptions::default());
     let logged: BTreeSet<&'static str> = doc
-        .order()
+        .ids()
         .iter()
         .filter_map(|id| ev.value(*id))
         .flat_map(|v| v.verdicts.iter().map(|verdict| verdict.predicate))
@@ -369,7 +374,7 @@ fn every_predicate_a_subtract_logs_has_words_or_a_reason() {
     for predicate in &logged {
         let text = UpstreamCause::PredicateFlip {
             predicate,
-            at: RecipeNodeId(1),
+            at: RecipeNodeId::new(0, 1),
             from: Sign::Negative,
             to: Sign::Positive,
         }

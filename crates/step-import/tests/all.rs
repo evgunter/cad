@@ -65,10 +65,10 @@ mod curve_promotion_report;
 mod cusp_round_trip;
 #[path = "freecad.rs"]
 mod freecad;
-#[path = "geom_origin_import_arm.rs"]
-mod geom_origin_import_arm;
 #[path = "halfcap_pole.rs"]
 mod halfcap_pole;
+#[path = "imported_loft_rim_offset.rs"]
+mod imported_loft_rim_offset;
 #[path = "inst_review_probes.rs"]
 mod inst_review_probes;
 #[path = "lamina_annulus_round_trip.rs"]
@@ -93,6 +93,8 @@ mod perf12_census_goldens;
 mod placed_m7_8_instance;
 #[path = "poleguard.rs"]
 mod poleguard;
+#[path = "poles_inside_a_seam_region.rs"]
+mod poles_inside_a_seam_region;
 #[path = "probe_dup.rs"]
 mod probe_dup;
 #[path = "probe_eps.rs"]
@@ -135,6 +137,8 @@ mod roundtrip;
 mod rw2_probes;
 #[path = "s58_iso_rectangle.rs"]
 mod s58_iso_rectangle;
+#[path = "shell_reads_a_chart_worn_both_ways.rs"]
+mod shell_reads_a_chart_worn_both_ways;
 #[path = "spiric_roundtrip.rs"]
 mod spiric_roundtrip;
 #[path = "split_iso_side.rs"]
@@ -148,6 +152,8 @@ mod tier_gate;
 mod verbs_chamfer_roundtrip;
 #[path = "wall_column_structure.rs"]
 mod wall_column_structure;
+#[path = "whole_torus_one_face.rs"]
+mod whole_torus_one_face;
 #[path = "wild.rs"]
 mod wild;
 

@@ -1,6 +1,6 @@
 //! ExprPath stability, RecipeNodeId permanence, and graph-validation
-//! refusals (spec D5 + D8) — the contracts GeomSource (PR 5) and the
-//! naming layer (N1) will lean on.
+//! refusals (spec D5 + D8) — the contracts the naming layer (N1)
+//! leans on.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{len, scl};
@@ -16,17 +16,24 @@ use geom_core::Tol;
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
-impl editor_core::SlotPayload<editor_core::Expr> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::VarId> for FakeProfile {}
 impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
 impl editor_core::ProfilePayload for FakeProfile {
     type Authored = Self;
     fn lower<E>(
         authored: &Self,
-        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::Expr, E>,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(
+            editor_core::OperandSlot,
+            &editor_core::Operand,
+        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
-    fn authored(&self) -> Self {
+    fn authored_with(
+        &self,
+        _: &mut dyn FnMut(editor_core::VarId, editor_core::Dimension) -> editor_core::Formula,
+    ) -> Self {
         self.clone()
     }
     fn drawn_pieces(
@@ -50,6 +57,7 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
         .apply(
             &TEdit::InsertNode {
                 node: Box::new(Node::Profile(FakeProfile("square"))),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -62,10 +70,11 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
         .apply(
             &TEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile,
+                    profile: profile.into(),
                     distance,
                     side: ExtrudeSide::Along,
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -93,6 +102,7 @@ fn expr_path_survives_edits_to_other_expressions() {
                 node: Box::new(Node::Datum(Datum::Point {
                     position: [len(0.0), len(0.0), len(0.0)],
                 })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -105,13 +115,14 @@ fn expr_path_survives_edits_to_other_expressions() {
             &TEdit::SetParam {
                 node: datum,
                 slot: SlotId::Origin(editor_core::Axis3::X),
-                expr: len(0.042),
+                value: len(0.042).into(),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap();
-    assert_eq!(d.doc.expr_at(&path).unwrap(), &before);
+    assert_eq!(d.doc.expr_at(&path).unwrap(), before);
 }
 
 #[test]
@@ -141,8 +152,8 @@ fn expr_path_survives_edits_to_unrelated_subtrees() {
             &editor_core::RefusingReach,
         )
         .unwrap();
-    assert_eq!(e.doc.expr_at(&second).unwrap(), &before);
-    assert_eq!(e.doc.expr_at(&first).unwrap(), &len(0.020));
+    assert_eq!(e.doc.expr_at(&second).unwrap(), before);
+    assert_eq!(e.doc.expr_at(&first).unwrap(), len(0.020));
     // The whole-slot expression still type-checks as Length.
     assert_eq!(
         e.doc
@@ -166,6 +177,7 @@ fn recipe_node_ids_are_never_reused() {
         .apply(
             &TEdit::InsertNode {
                 node: Box::new(Node::Profile(FakeProfile("p0"))),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -185,6 +197,7 @@ fn recipe_node_ids_are_never_reused() {
         .apply(
             &TEdit::InsertNode {
                 node: Box::new(Node::Profile(FakeProfile("p1"))),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -199,15 +212,16 @@ fn recipe_node_ids_are_never_reused() {
 #[test]
 fn dangling_ref_rejected() {
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
-    let ghost = RecipeNodeId(99);
+    let ghost = RecipeNodeId::new(0, 99);
     let err = doc
         .apply(
             &TEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile: ghost,
+                    profile: ghost.into(),
                     distance: len(0.01),
                     side: ExtrudeSide::Along,
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -226,15 +240,16 @@ fn self_reference_cannot_forge_the_next_id() {
     // Guessing the about-to-mint id is still an unresolved ref: refs
     // must resolve among EXISTING nodes, so insertion cannot cycle.
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
-    let guessed = RecipeNodeId(0); // no node holds it
+    let guessed = RecipeNodeId::new(0, 0); // no node holds it
     let err = doc
         .apply(
             &TEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile: guessed,
+                    profile: guessed.into(),
                     distance: len(0.01),
                     side: ExtrudeSide::Along,
                 }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -248,22 +263,26 @@ fn self_reference_cannot_forge_the_next_id() {
     );
 }
 
+/// A delete of a read node is accepted (D10): the reader keeps its
+/// read, unresolved, and the delete reports it.
 #[test]
-fn delete_of_referenced_node_rejected() {
+fn delete_of_referenced_node_strands_its_reader() {
     let (doc, profile, extrude) = profile_and_extrude();
-    let err = doc
+    let read = doc.output(profile, 0).expect("the profile's output");
+    let applied = doc
         .apply(
             &TEdit::DeleteNode { id: profile },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .unwrap_err();
+        .expect("a read node deletes");
     assert_eq!(
-        err,
-        EditError::DeleteWouldDangle {
-            id: doc.spoken(profile),
-            referenced_by: doc.spoken(extrude)
-        }
+        applied.maintenance,
+        vec![editor_core::Maintenance::StrandedRead {
+            node: doc.spoken(extrude),
+            slot: editor_core::OperandSlot::Profile,
+            var: doc.spoken_var(read),
+        }]
     );
 }
 
@@ -277,6 +296,7 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
                 node: extrude,
                 slot: SlotId::Distance,
                 expr: len(0.01),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -294,7 +314,8 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
             &TEdit::SetParam {
                 node: extrude,
                 slot: SlotId::Distance,
-                expr: scl(1.0),
+                value: scl(1.0).into(),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -304,7 +325,7 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
         err,
         EditError::SlotDimensionMismatch {
             slot: SlotId::Distance,
-            expected: Dimension::Length,
+            expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
             found: Dimension::Scalar,
         }
     );

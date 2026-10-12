@@ -223,19 +223,23 @@ fn a_section_whose_projection_is_a_circle_is_a_first_harmonic() {
 /// crosses a wall about `z` near `θ = ±π/2` by `depth` (four roots)
 /// or, at a depth inside the band, grazes it. At the default band: a
 /// graze in the band is no certified answer either way, a definite
-/// depth is four certified crossings, each on the wall. The
-/// half-angle ladder alone certified a `Miss` at −1e-9 m on a 5 m
-/// wall and answered `CountDisagrees` at 1e-8 m on a 50 m wall and at
-/// 2e-8 m on a 500 m one.
+/// depth is four certified crossings, each on the wall — or, at 2e-8 m
+/// on the 50 m and 500 m walls, `Uncertain`: there the `f64`
+/// residual's rounding places the shallow roots up to 3.1e-10 and
+/// 4.5e-9 m from the true ones (the exact oracle), and the root slack,
+/// which must read inside the zero band, refuses them. The half-angle
+/// ladder alone certified a `Miss` at −1e-9 m on a 5 m wall and
+/// answered `CountDisagrees` at 1e-8 m on a 50 m wall and at 2e-8 m on
+/// a 500 m one.
 #[test]
 fn a_graze_is_read_by_its_depth() {
     let band = Band::new(1e-9, 1e-8).unwrap();
-    for (r, depth, tilt) in [
-        (5.0, -1e-9, 0.0_f64),
-        (50.0, 1e-8, 0.0),
-        (500.0, 2e-8, 0.0),
-        (50.0, 2e-8, 0.3),
-        (5.0, 5e-6, 0.3),
+    for (r, depth, tilt, placed) in [
+        (5.0, -1e-9, 0.0_f64, false),
+        (50.0, 1e-8, 0.0, false),
+        (500.0, 2e-8, 0.0, false),
+        (50.0, 2e-8, 0.3, false),
+        (5.0, 5e-6, 0.3, true),
     ] {
         let label = format!("wall r {r}, depth {depth}, tilt {tilt}");
         let e = ellipse(
@@ -251,6 +255,13 @@ fn a_graze_is_read_by_its_depth() {
             assert!(
                 matches!(got, Ok(CircleRoots::Uncertain) | Err(_)),
                 "{label}: a graze in the band, got {got:?}"
+            );
+            continue;
+        }
+        if !placed {
+            assert!(
+                matches!(got, Ok(CircleRoots::Uncertain)),
+                "{label}: roots the band cannot place refuse on their slack, got {got:?}"
             );
             continue;
         }
@@ -389,10 +400,10 @@ mod fuzz_rows {
     //! the configurations where the ladder's root variable distorts arc
     //! length most, checked against the TRUE distance, at three bands.
 
-    use core::f64::consts::{PI, TAU};
+    use core::f64::consts::TAU;
 
     use super::*;
-    use crate::boolean::conic_oracle::{distance, sign_changes, unit};
+    use crate::boolean::conic_oracle::{distance, exact, unit};
     use geom_core::{Point3, Vec3};
     use test_utils::fuzz;
 
@@ -403,8 +414,9 @@ mod fuzz_rows {
     ///
     /// - every certified root lies on the surface, its TRUE distance
     ///   inside the zero band;
-    /// - a certified count is never below the true sign changes, which a
-    ///   dense sampling of the true distance finds;
+    /// - a certified count is the true count of crossings, which the
+    ///   exact oracle ([`exact::truth`]) places round the turn, a graze
+    ///   pair however close included;
     /// - a `Miss` is never certified for a carrier that comes within the
     ///   zero band of the surface, or crosses it.
     ///
@@ -429,7 +441,6 @@ mod fuzz_rows {
     }
 
     fn hold_against_the_true_distance(rng: &mut fuzz::Rng) {
-        let dense = 20_000;
         for eps in [1e-6, 1e-9, 1e-12] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
             let (mut certified, mut misses, mut uncertain, mut escalated) = (0, 0, 0, 0);
@@ -478,16 +489,11 @@ mod fuzz_rows {
                 };
                 let t0 = rng.range(0.0, TAU);
                 let t1 = t0 + rng.range(0.1, TAU);
-                let mid = (t0 + t1) / 2.0;
                 let Ok(found) = conic_quadric_roots(&e, t0, t1, &s, band) else {
                     escalated += 1;
                     continue;
                 };
-                let samples: Vec<f64> = (0..=dense)
-                    .map(|k| distance(&s, e.eval(mid - PI + TAU * f64::from(k) / f64::from(dense))))
-                    .collect();
-                let changes = sign_changes(&samples);
-                let closest = samples.iter().fold(f64::INFINITY, |m, d| m.min(d.abs()));
+                let truth = exact::truth(&e, &s);
                 let label = format!(
                     "ε {eps}, case {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
                     fuzz::replay()
@@ -499,20 +505,24 @@ mod fuzz_rows {
                             let off = distance(&s, e.eval(t)).abs();
                             assert!(off <= eps, "{label}: root {t} lies {off} off the surface");
                         }
-                        assert!(
-                            count >= changes,
-                            "{label}: {count} certified roots, {changes} sign changes"
+                        assert_eq!(
+                            count,
+                            truth.roots.len(),
+                            "{label}: certified {count} of {:?}",
+                            truth.roots
                         );
                     }
                     CircleRoots::Miss => {
                         misses += 1;
                         assert!(
-                            changes == 0 && closest > eps,
-                            "{label}: a Miss {closest} from the surface, {changes} sign changes"
+                            truth.roots.is_empty() && truth.depth > eps,
+                            "{label}: a Miss {} from the surface, true crossings {:?}",
+                            truth.depth,
+                            truth.roots
                         );
                     }
                     CircleRoots::Uncertain | CircleRoots::OnSurface => uncertain += 1,
-                    CircleRoots::CountDisagrees => panic!("{label}: CountDisagrees"),
+                    CircleRoots::AtApex => panic!("{label}: no apex on a sphere or a wall"),
                 }
             }
             println!(
@@ -746,7 +756,6 @@ mod graze_rows {
                             assert!(off <= eps, "{label}: root {t} lies {off} off");
                         }
                     }
-                    Ok(CircleRoots::CountDisagrees) => panic!("{label}: CountDisagrees"),
                     _ => declined += 1,
                 }
             }

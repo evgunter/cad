@@ -7,7 +7,7 @@ opened: 2026-09-24
 priority: P1
 cost: M
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage3-is-built]
 ---
 
 
@@ -115,3 +115,7 @@ a last step `translation(0, 0, d)` on side `a`'s offset (`mate_coset`'s
 `PlanarRest` arm), so retiring it moves no pose. It does move the
 lever's terms (`Σ|authored lengths|` becomes `‖origin‖`) and with them
 the bits of every levered clash on a standoff.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: the kernel half landed; what remains is MSOLVE-15 (rider, Clocking and standoff deletion over MateFrame offsets), re-cut where mate frames become Frame variables at stage 3. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

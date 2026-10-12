@@ -46,16 +46,18 @@ pub fn document() -> CorpusDoc {
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        frame: plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(L),
         side: ExtrudeSide::Along,
     });
     let blank = r.insert(Node::chamfer(cube, len(D), prism_edges(&r.doc, cube, 4)));
+
+    r.place(blank);
 
     CorpusDoc {
         name: "die_chamfer",
@@ -68,7 +70,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: cube,
             slot: SlotId::Distance,
-            expr: len(L_BUMPED),
+            value: len(L_BUMPED).into(),
+            fresh: Vec::new(),
         },
         bump_root: cube,
     }

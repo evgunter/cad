@@ -2,7 +2,8 @@
 id: a-boolean-drops-its-operands-own-contact-records
 kind: issue
 title: A boolean drops its operands' own contact records, so a union's record and 3′ verdict follow the member it folds last
-status: open
+status: closed
+closed: 2026-10-11
 opened: 2026-10-02
 priority: P1
 cost: M
@@ -55,6 +56,17 @@ All from `crates/editor-core/tests/union_pinch_member_order.rs`
   round, all fail 3′. So do P − X, X − P, X ∪ P and P ∪ X, where
   X = slab − p1 − p2 and P is the plate. They fail on main too.
 
+- **Prisms touching along a line** (PR 4129's review 4 N3 and review 5,
+  reproduced on main 1f27ea08). U is two upright triangular prisms
+  about (1.5, 1), radius 0.4, over 0–50° and 180–230° (or 0–50° and
+  120–170°), z 0.5–2.0 and 0.4–1.9. They touch only along the vertical
+  line through (1.5, 1), and U is tier-3′ valid with its contacts.
+  Against the plate `[0, 3] × [0, 2] × [0, 1]`, P − U [14, 30, 19],
+  U − P [10, 18, 12] and P ∩ U [10, 18, 12] build with the closed-form
+  volumes (5.932588, 0.116439, 0.067412) and pass tier 3, but tier 3′
+  refuses `UndeclaredContact` along that line. Review 5 measured the
+  same pose with leaning prisms, and found P ∪ U fails 3′ there too.
+
 ## Owed
 
 - Carry each operand's surviving records through the op, under
@@ -65,3 +77,20 @@ All from `crates/editor-core/tests/union_pinch_member_order.rs`
 
 Same class as `transform-and-pattern-drop-a-values-contact-records`: a
 node hands on a body without the records that certify it.
+
+## Closed (2026-10-11, stage 4 F)
+
+Stage 4 F makes this row's ruling: an operand's own records carry mechanically into every pair boolean and every union fold step (`BooleanInputs::records_a`/`records_b`, `OperandRecords`, cited `Backing::Carried`), under the existing drop rules, at vertex and edge granularity (curve and patch records do not carry yet: `a-boolean-drops-its-operands-curve-and-patch-records`); a union's records cite its members by their place in the member list. `union_pinch_member_order`'s six scenes, the reused corner-kiss union and the member of two touching shells now pass 3′ in every member order, with one record. Nothing new refuses at rest.
+
+## 2026-10-11, one witness was a different defect (FLUSH, PR 4650)
+
+`three_solids_on_one_line.rs`'s `a_prism_whose_face_holds_the_line_builds_or_refuses_typed`
+pinned two on-line refusals when the face prism folds last. Those were
+not operand-own records: they were the last step's own vertex-on-face
+records, dropped because their face was chased by key through the
+section's division (`boolean::ops::carry_rows`). FLUSH's
+`a-box-and-a-cylinder-through-its-corner-edge-intersect-past-tier-3-prime`
+lands them on the piece that holds the vertex, and all twelve building
+orders now pass tier 3′; the pin is `[0, 0, 0, 0]`. The test's other
+`DROPPED_RECORDS` pins did not move on that branch; their defect is
+this row's, which stage 4 F closes (above).

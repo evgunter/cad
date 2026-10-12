@@ -55,7 +55,7 @@ re-certify them against the target chart (the third is
 `split_edge`'s answer, and it is available here only where the door
 has the bound).
 
-Related: `work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete.md`
+Related: `work/pcert/validate-pcurves-never-recertifies-a-face-it-finds-incomplete.md`
 (the same pass, skipping passes 2 and 3 on an incomplete face) and
 `work/topo/half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete.md`
 (the minting half of the same surface).

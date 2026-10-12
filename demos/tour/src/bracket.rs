@@ -16,9 +16,9 @@
 //!
 //! What this part wants next is both leg ends trimmed flush to ONE
 //! plane, `x + y = 2.75`, and the cut edges broken. In the document
-//! that is three nodes: [`Node::Split`] along the plane, [`Node::Part`]
-//! keeping the corner piece (`Below`; the offcuts are `Above`), and
-//! [`Node::Chamfer`] on that half's section chords.
+//! that is two nodes: [`Node::Split`] along the plane, whose `below`
+//! output is the corner piece (the offcuts are `above`), and
+//! [`Node::Chamfer`] reading that output, on its section chords.
 //!
 //! The split builds, and [`split_and_break`] asserts what it builds:
 //! the halves partition the body (each offcut is a trapezoid prism of
@@ -31,13 +31,16 @@
 //! wall of its leg, cut off in that wall's plane in a chord at 45° to
 //! it, and the corner piece loses `4·(d²/2)·√2`, which the scene
 //! asserts and renders; the offcuts' chords chamfer the same way, each
-//! inside its own solid. Three walls pin the cells the cut-off does not
-//! build at this plane and setback: the chords filleted, on the corner
-//! piece and on the offcuts (an oblique end face under a round band,
-//! `UnsupportedRunOut`), and both section faces' whole rims chamfered
-//! (the turn, two of each corner's three edges requested —
-//! `CornerConfig::Turn`)
-//! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`).
+//! inside its own solid. The fillet builds too, each band cut off in an
+//! arc of the side wall's elliptic section of its cylinder, at
+//! `4·(1 − π/4)·r²·√2` on either half. One wall pins the cell no band
+//! builds at this plane: both section faces' whole rims chamfered. Each
+//! corner of a section face is a turn, two of its three edges
+//! requested, whose dihedrals differ — a right angle at the cap chord,
+//! 45° or 135° at the section edge on the side wall — so one band
+//! reaches past the mitre, the overrun
+//! (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`,
+//! step 5).
 //!
 //! The outline's decimal-via ancestor lives on as the large-K lint's
 //! litmus fixture (`tools/k-lint/tests/litmus.rs`).
@@ -48,12 +51,12 @@ use core::f64::consts::{PI, SQRT_2};
 use pncad::document::ExtrudeSide;
 use pncad::prelude::AuthoredNode;
 
-use pncad::document::{NodeErrorKind, PartSelect, RefusingReach};
+use pncad::document::{NodeErrorKind, Operand, RefusingReach};
 use pncad::geom_core::Tol;
 use pncad::prelude::{
-    BlendError, CancelToken, CornerConfig, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions,
-    Evaluation, Formula, LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat,
-    SegTag, Selector, SplitHalf, StableName, Start, ValuePayload, apply, evaluate, p2, select,
+    BlendError, CancelToken, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions, Evaluation,
+    Formula, LoopProgram, NamePat, Node, Open, ProfileProgram, RecipeNodeId, SegPat, SegTag,
+    Selector, SplitHalf, StableName, Start, ValuePayload, apply, evaluate, p2, select,
 };
 use pncad::profile::ClosedLoop;
 use pncad::topo::{Body, mass_properties};
@@ -111,6 +114,7 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
         doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
         &RefusingReach,
@@ -139,7 +143,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: frame,
+            frame: frame.into(),
             loops: vec![
                 LoopProgram::from_recorded(&outline(tol).program)
                     .expect("a literal recording lifts"),
@@ -151,7 +155,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let body = insert(
         &mut doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(DEPTH),
             side: ExtrudeSide::Along,
         },
@@ -162,32 +166,44 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
 
 /// This scene's recipe, as a document the GUI can open: the bracket,
 /// trimmed flush at `x + y = CUT`, its corner piece's four cap chords
-/// chamfered by name.
+/// chamfered by name, placed in the world.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, body) = document(tol);
-    trimmed_and_broken(&doc, body, tol).doc
+    let trimmed = trimmed_and_broken(&doc, body, tol);
+    apply(
+        &trimmed.doc,
+        &DocEdit::place(trimmed.chamfer, None),
+        tol,
+        &RefusingReach,
+    )
+    .expect("the chamfered corner places")
+    .doc
 }
 
 /// The trim and the break, as nodes over the bracket's extrude.
 struct Trimmed {
     doc: Doc<ProfileProgram>,
     split: RecipeNodeId,
-    corner: RecipeNodeId,
     chords: Vec<StableName>,
     chamfer: RecipeNodeId,
 }
 
-/// The cap chords of the corner piece, each named by its two end
+/// The split's `half` output.
+fn half(split: RecipeNodeId, half: SplitHalf) -> Operand {
+    Operand::output(split, half.port())
+}
+
+/// The cap chords of the split's `half`, each named by its two end
 /// vertices under the cap face it lies in.
-fn chord_selector() -> Selector {
+fn chord_selector(half: SplitHalf) -> Selector {
     Selector::of(NamePat::of_kind(EntityKind::Edge).path(vec![
-        SegPat::tag(SegTag::SectionEdge),
+        SegPat::tag(SegTag::SectionEdge).side(half),
         SegPat::tag(SegTag::Fragment),
     ]))
 }
 
-/// [`Node::Split`] along `x + y = CUT`, [`Node::Part`] keeping the
-/// corner piece, and [`Node::Chamfer`] on its four cap chords.
+/// [`Node::Split`] along `x + y = CUT`, and [`Node::Chamfer`] on the
+/// corner piece's four cap chords.
 fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -> Trimmed {
     let mut doc = doc.clone();
     let tool = insert(
@@ -198,28 +214,36 @@ fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -
         }),
         tol,
     );
-    let split = insert(&mut doc, Node::Split { target: body, tool }, tol);
-    let corner = insert(
+    let split = insert(
         &mut doc,
-        Node::Part {
-            of: split,
-            select: PartSelect::SplitHalf(SplitHalf::Below),
+        Node::Split {
+            target: body.into(),
+            tool: tool.into(),
         },
         tol,
     );
-    let chords = select(&eval(&doc, tol), corner, &chord_selector());
+    let chords = select(&eval(&doc, tol), split, &chord_selector(SplitHalf::Below));
     let chamfer = insert(
         &mut doc,
-        Node::chamfer(corner, len(SETBACK), chords.clone()),
+        Node::chamfer(half(split, SplitHalf::Below), len(SETBACK), chords.clone()),
         tol,
     );
     Trimmed {
         doc,
         split,
-        corner,
         chords,
         chamfer,
     }
+}
+
+/// The split's `half`, read off its value at the half's port.
+fn half_at(ev: &Evaluation<f64>, split: RecipeNodeId, half: SplitHalf) -> Body<f64> {
+    ev.value(split)
+        .expect("the split evaluated")
+        .payload
+        .output_body(u32::from(half.port()))
+        .unwrap_or_else(|e| panic!("the {half:?} half holds material: {e}"))
+        .clone()
 }
 
 fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId) -> Body<S> {
@@ -231,7 +255,7 @@ fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId) -> Body<S> {
 
 fn volume(body: &Body<f64>, tol: Tol) -> f64 {
     mass_properties(body, tol)
-        .expect("a planar-and-cylinder body has closed-form mass properties")
+        .expect("certified mass properties")
         .volume
 }
 
@@ -273,29 +297,19 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
     let Trimmed {
         doc,
         split,
-        corner,
         chords,
         chamfer,
     } = trimmed;
-    let (corner, chamfer) = (*corner, *chamfer);
-    // The offcuts, kept for the walls: a second root the scene's
-    // document does not carry.
-    let mut doc = doc.clone();
-    let offcuts = insert(
-        &mut doc,
-        Node::Part {
-            of: *split,
-            select: PartSelect::SplitHalf(SplitHalf::Above),
-        },
-        tol,
-    );
-    let ev = eval(&doc, tol);
+    let (split, chamfer) = (*split, *chamfer);
+    // The offcuts are the split's other output, read for the walls.
+    let (corner, offcuts) = (half(split, SplitHalf::Below), half(split, SplitHalf::Above));
+    let ev = eval(doc, tol);
 
     // The halves partition the body: each offcut is a trapezoid of
     // parallel sides 3 − CUT and 4 − CUT across a unit-wide leg.
     let whole = volume(&body_at(&ev, body), tol);
-    let off = volume(&body_at(&ev, offcuts), tol);
-    let kept = volume(&body_at(&ev, corner), tol);
+    let off = volume(&half_at(&ev, split, SplitHalf::Above), tol);
+    let kept = volume(&half_at(&ev, split, SplitHalf::Below), tol);
     assert_volume("the offcuts", off, 2.0 * DEPTH * ((3.0 - CUT) + 0.5));
     assert_volume("the halves' sum", off + kept, whole);
 
@@ -309,12 +323,18 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
     );
     let mut rim = [
         chords.clone(),
-        select(&ev, corner, &edges(vec![SegPat::tag(SegTag::SectionEdge)])),
+        select(
+            &ev,
+            split,
+            &edges(vec![
+                SegPat::tag(SegTag::SectionEdge).side(SplitHalf::Below),
+            ]),
+        ),
     ]
     .concat();
     rim.sort();
     assert_eq!(rim.len(), 8, "two section faces, four edges each: {rim:?}");
-    let off_chords = select(&ev, offcuts, &chord_selector());
+    let off_chords = select(&ev, split, &chord_selector(SplitHalf::Above));
 
     // Each chord's chamfer, ending on the leg's two parallel side walls
     // a unit apart, is a right-angle prism of section d²/2 that a 45°
@@ -329,41 +349,41 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
     let mut off_doc = doc.clone();
     let off_chamfer = insert(
         &mut off_doc,
-        Node::chamfer(offcuts, len(SETBACK), off_chords.clone()),
+        Node::chamfer(offcuts.clone(), len(SETBACK), off_chords.clone()),
         tol,
     );
     let off_broken = volume(&body_at(&eval(&off_doc, tol), off_chamfer), tol);
     assert_volume("the chamfered offcuts", off_broken, off - delta_v);
 
+    // Filleted, each band's section is the region between a right
+    // dihedral and its ball, over the same √2 between parallel walls;
+    // each end is an arc of the wall's ellipse, `r / cos 45°` long.
+    let delta_f = 4.0 * (1.0 - PI / 4.0) * SETBACK * SETBACK * SQRT_2;
+    let rounded = |doc: &Doc<ProfileProgram>, of: Operand, chords: Vec<StableName>| {
+        let mut doc = doc.clone();
+        let fillet = insert(&mut doc, Node::fillet(of, len(SETBACK), chords), tol);
+        volume(&body_at(&eval(&doc, tol), fillet), tol)
+    };
+    let filleted = rounded(doc, corner.clone(), chords.clone());
+    assert_volume("the filleted corner piece", filleted, kept - delta_f);
+    let off_filleted = rounded(doc, offcuts, off_chords);
+    assert_volume("the filleted offcuts", off_filleted, off - delta_f);
+
     let retire = "retire the probe, and render what the kernel now builds";
-    let probes: [WallProbe; 3] = [
-        WallProbe {
-            n: 2,
-            what: "the same four chords, filleted by name",
-            node: Node::fillet(corner, len(SETBACK), chords.clone()),
-            pinned: |e| matches!(e, BlendError::UnsupportedRunOut { .. }),
+    let probes: [WallProbe; 1] = [WallProbe {
+        n: 3,
+        what: "both section faces' whole rims, chamfered by name",
+        node: Node::chamfer(corner, len(SETBACK), rim),
+        pinned: |e| {
+            matches!(
+                e,
+                BlendError::UnsupportedRunOut {
+                    detail: pncad::sweep::blend::battery::TURN_NOT_ISOSCELES,
+                    ..
+                }
+            )
         },
-        WallProbe {
-            n: 3,
-            what: "both section faces' whole rims, chamfered by name",
-            node: Node::chamfer(corner, len(SETBACK), rim),
-            pinned: |e| {
-                matches!(
-                    e,
-                    BlendError::UnsupportedCorner {
-                        corner: CornerConfig::Turn,
-                        ..
-                    }
-                )
-            },
-        },
-        WallProbe {
-            n: 5,
-            what: "the offcuts' cap chords, filleted by name",
-            node: Node::fillet(offcuts, len(SETBACK), off_chords),
-            pinned: |e| matches!(e, BlendError::UnsupportedRunOut { .. }),
-        },
-    ];
+    }];
     for WallProbe {
         n,
         what,
@@ -391,8 +411,10 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
     format!(
         "split at x + y = {CUT}: offcuts V = {off:.6}, corner piece V = {kept:.6}, sum = whole; \
          its four cap chords, named by their ends, chamfer at d = {SETBACK} to V = {broken:.6} \
-         (less 4·(d²/2)·√2), as the offcuts' do to V = {off_broken:.6}, and filleting them, or \
-         breaking the section faces' whole rims, refuses (walls 2, 3, 5)"
+         (less 4·(d²/2)·√2), as the offcuts' do to V = {off_broken:.6}; filleted at r = \
+         {SETBACK}, each band cut off in an elliptic arc, they reach V = {filleted:.6} and \
+         {off_filleted:.6} (less 4·(1 − π/4)·r²·√2), and breaking the section faces' whole \
+         rims refuses as the overrun past an asymmetric mitre (wall 3)"
     )
 }
 

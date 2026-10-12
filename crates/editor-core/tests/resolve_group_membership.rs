@@ -25,7 +25,7 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Axis3, BooleanOp, CancelToken, Datum, Diagnosis, DocEdit, Entry, EvalOptions, Evaluation,
+    Axis3, CancelToken, Datum, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
     GroupCutters, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx,
     SlotId, StableName, evaluate, resolve_with_prior,
 };
@@ -54,7 +54,7 @@ fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> (ProfileDoc
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -76,7 +76,16 @@ fn set(doc: ProfileDoc, node: RecipeNodeId, slot: SlotId, to: f64) -> ProfileDoc
         SlotId::Normal(_) => scl(to),
         _ => len(to),
     };
-    step(doc, DocEdit::SetParam { node, slot, expr }).0
+    step(
+        doc,
+        DocEdit::SetParam {
+            node,
+            slot,
+            value: expr.into(),
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 /// The fragment names `node` minted in `ev1` that `ev2` no longer
@@ -151,11 +160,9 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b: u,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: a.into(),
+            tool: u.into(),
         },
     );
     let (doc, bar) = block(doc, (2.9, 3.1), (0.5, 3.5), 0.5, 3.0);
@@ -172,11 +179,9 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: sub,
-            b: tr,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: sub.into(),
+            tool: tr.into(),
         },
     );
     (doc, sub, tr, cut)
@@ -271,7 +276,13 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
             normal: [scl(1.0), scl(1.0), scl(0.0)],
         }),
     );
-    let (doc, split) = insert(doc, Node::Split { target: ext, tool });
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: ext.into(),
+            tool: tool.into(),
+        },
+    );
     let ev1 = run(&doc, None);
     let mut doc2 = doc.clone();
     for (slot, to) in [
@@ -286,7 +297,7 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
     let ev2 = silent(run(&doc2, Some(&ev1)));
     let ev1 = silent(ev1);
     let rows = vanished((&doc, &ev2), (&doc, &ev1), split, |n, _| {
-        matches!(n.path.first(), Some(RoleSeg::SplitFragment { .. }))
+        n.kind == EntityKind::Face && matches!(n.path.first(), Some(RoleSeg::SplitFragment { .. }))
     });
     assert!(
         !rows.is_empty(),
@@ -373,8 +384,7 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: order.iter().map(|&i| m[i]).collect(),
-                declare: Vec::new(),
+                members: editor_core::Bodies::Spelled(order.iter().map(|&i| m[i].into()).collect()),
             },
         );
         // Member `member`'s wall `segment` (of the block `of`), as the
@@ -382,12 +392,15 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
         let member_wall = |member, of, segment| StableName {
             kind: editor_core::EntityKind::Face,
             node: u,
-            path: vec![RoleSeg::FromMember {
-                member,
+            path: vec![RoleSeg::From {
+                read: crate::fixture::out(&doc, member),
                 of: editor_core::NameRef::new(wall(&doc, of, segment)),
             }],
         };
-        let from = |n: &StableName, m: RecipeNodeId| matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == m);
+        let from = |n: &StableName, m: RecipeNodeId| {
+            let m_read = crate::fixture::out(&doc, m);
+            matches!(n.path.first(), Some(RoleSeg::From { read, .. }) if *read == m_read)
+        };
         for (axis, by, ranked, gone, new) in [
             (Axis3::Y, 2.5, false, vec![], vec![member_wall(tr, bar, 0)]),
             (Axis3::X, 1.5, true, vec![member_wall(tr, bar, 1)], vec![]),
@@ -508,21 +521,20 @@ fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: vec![plate, tr, cblock],
-                declare: Vec::new(),
+                members: editor_core::Bodies::Spelled(vec![plate.into(), tr.into(), cblock.into()]),
             },
         );
         let ev1 = run(&doc, None);
         let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Y), 2.5);
         let ev2 = silent(run(&doc2, Some(&ev1)));
         let ev1 = silent(ev1);
-        // The plate's own entities: its top's fragments and its rim.
-        let rows = vanished(
-            (&doc, &ev2),
-            (&doc, &ev1),
-            u,
-            |n, _| matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == plate),
-        );
+        // The plate's own faces: its top's fragments. (Its rim's one
+        // piece is named by its ends, and the slide moves one of them.)
+        let plate_read = crate::fixture::out(&doc, plate);
+        let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, _| {
+            n.kind == EntityKind::Face
+                && matches!(n.path.first(), Some(RoleSeg::From { read, .. }) if *read == plate_read)
+        });
         assert!(rows.is_empty(), "{label}: {rows:?}");
         for ev in [&ev1, &ev2] {
             let t = &ev.value(u).expect("the union evaluates").name_table;
@@ -530,7 +542,7 @@ fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
                 .iter()
                 .filter(|(n, _)| {
                     n.kind == editor_core::EntityKind::Face
-                        && matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == plate)
+                        && matches!(n.path.first(), Some(RoleSeg::From { read, .. }) if *read == plate_read)
                 })
                 .map(|(n, _)| n.clone())
                 .collect();
@@ -561,8 +573,7 @@ fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: order.iter().map(|&i| m[i]).collect(),
-                declare: Vec::new(),
+                members: editor_core::Bodies::Spelled(order.iter().map(|&i| m[i].into()).collect()),
             },
         );
         let ev1 = run(&doc, None);
@@ -632,11 +643,8 @@ fn plate_and_bar() -> (
     );
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: plate,
-            b: tr,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), tr.into()]),
         },
     );
     (doc, plate, bar, tr, u)
@@ -645,7 +653,7 @@ fn plate_and_bar() -> (
 /// Whether `n` is the pair union's row descended from the plate's
 /// entity spelled `seg`.
 fn from_plate(n: &StableName, plate: RecipeNodeId, seg: &RoleSeg) -> bool {
-    matches!(n.path.first(), Some(RoleSeg::FromA(p)) if p.node == plate && p.path == [seg.clone()])
+    matches!(n.path.first(), Some(RoleSeg::From { of: p, .. }) if p.node == plate && p.path == [seg.clone()])
 }
 
 const TOP: RoleSeg = RoleSeg::Cap(editor_core::CapEnd::End);
@@ -654,7 +662,7 @@ const TOP: RoleSeg = RoleSeg::Cap(editor_core::CapEnd::End);
 fn rim(doc: &ProfileDoc, plate: RecipeNodeId, segment: u32) -> RoleSeg {
     RoleSeg::RimEdge(
         editor_core::CapEnd::End,
-        crate::fixture::piece(doc, plate, 0, segment as usize),
+        crate::fixture::piece(doc, plate, 0, segment as usize).into(),
     )
 }
 
@@ -682,6 +690,20 @@ fn slid(
     (bar, u, rows)
 }
 
+/// The bar's wall `segment` as the plate-and-bar union publishes it:
+/// carried in through the bar's transform's read.
+fn bar_wall(segment: u32) -> StableName {
+    let (doc, _, bar, tr, u) = plate_and_bar();
+    StableName {
+        kind: editor_core::EntityKind::Face,
+        node: u,
+        path: vec![RoleSeg::From {
+            read: crate::fixture::out(&doc, tr),
+            of: editor_core::NameRef::new(wall(&doc, bar, segment)),
+        }],
+    }
+}
+
 /// `GroupResized { was: 2, now: 1 }` at `node` with these cutters.
 fn two_to_one(node: RecipeNodeId, gone: Vec<StableName>, new: Vec<StableName>) -> Diagnosis {
     Diagnosis::GroupResized {
@@ -703,9 +725,9 @@ fn two_to_one(node: RecipeNodeId, gone: Vec<StableName>, new: Vec<StableName>) -
 fn a_cutter_that_stops_cutting_is_named_gone() {
     // `slid` builds this same recipe, so its pieces are these.
     let (doc, plate, ..) = plate_and_bar();
-    let (bar, u, rows) = slid((1.5, 0.0), &[rim(&doc, plate, 0), rim(&doc, plate, 2)]);
+    let (_, u, rows) = slid((1.5, 0.0), &[rim(&doc, plate, 0), rim(&doc, plate, 2)]);
     for (n, d) in rows {
-        assert_eq!(d, two_to_one(u, vec![wall(&doc, bar, 1)], vec![]), "{n:?}");
+        assert_eq!(d, two_to_one(u, vec![bar_wall(1)], vec![]), "{n:?}");
     }
 }
 
@@ -717,11 +739,9 @@ fn a_cutter_that_stops_cutting_is_named_gone() {
 /// gone and that wall new.
 #[test]
 fn a_cutter_that_starts_cutting_is_named_new() {
-    // `slid` builds this same recipe, so its pieces are these.
-    let (doc, ..) = plate_and_bar();
-    let (bar, u, rows) = slid((0.0, 2.5), &[TOP]);
+    let (_, u, rows) = slid((0.0, 2.5), &[TOP]);
     for (n, d) in rows {
-        assert_eq!(d, two_to_one(u, vec![], vec![wall(&doc, bar, 0)]), "{n:?}");
+        assert_eq!(d, two_to_one(u, vec![], vec![bar_wall(0)]), "{n:?}");
     }
 }
 
@@ -738,19 +758,19 @@ fn a_cutter_that_starts_cutting_is_named_new() {
 fn two_cutters_that_change_at_once_are_both_named() {
     // `slid` builds this same recipe, so its pieces are these.
     let (doc, plate, ..) = plate_and_bar();
-    let (bar, u, rows) = slid((1.5, 2.5), &[TOP]);
+    let (_, u, rows) = slid((1.5, 2.5), &[TOP]);
     let mut answered = 0;
     for (n, d) in rows {
         answered += 1;
         assert_eq!(
             d,
-            two_to_one(u, vec![wall(&doc, bar, 1)], vec![wall(&doc, bar, 0)]),
+            two_to_one(u, vec![bar_wall(1)], vec![bar_wall(0)]),
             "{n:?}"
         );
     }
     assert_eq!(answered, 2, "both vanished pieces are the rung's to answer");
-    let (bar, u, rows) = slid((0.0, 5.0), &[TOP, rim(&doc, plate, 0), rim(&doc, plate, 2)]);
-    let mut gone = vec![wall(&doc, bar, 1), wall(&doc, bar, 3)];
+    let (_, u, rows) = slid((0.0, 5.0), &[TOP, rim(&doc, plate, 0), rim(&doc, plate, 2)]);
+    let mut gone = vec![bar_wall(1), bar_wall(3)];
     gone.sort();
     for (n, d) in rows {
         assert_eq!(d, two_to_one(u, gone.clone(), vec![]), "{n:?}");
@@ -793,19 +813,23 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: vec![m[order[0]], m[order[1]], plate],
-                declare: Vec::new(),
+                members: editor_core::Bodies::Spelled(vec![
+                    m[order[0]].into(),
+                    m[order[1]].into(),
+                    plate.into(),
+                ]),
             },
         );
         let ev1 = run(&doc, None);
         let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::X), 1.5);
         let ev2 = silent(run(&doc2, Some(&ev1)));
         let ev1 = silent(ev1);
+        let plate_read = crate::fixture::out(&doc, plate);
         let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, e| {
             matches!(e, Entry::Unique(_))
                 && n.kind == editor_core::EntityKind::Edge
                 && matches!(n.path.first(),
-                    Some(RoleSeg::FromMember { member, .. }) if *member == plate)
+                    Some(RoleSeg::From { read, .. }) if *read == plate_read)
         });
         assert!(
             !rows.is_empty(),
@@ -814,8 +838,8 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
         let x1_wall = StableName {
             kind: editor_core::EntityKind::Face,
             node: u,
-            path: vec![RoleSeg::FromMember {
-                member: tr,
+            path: vec![RoleSeg::From {
+                read: crate::fixture::out(&doc, tr),
                 of: editor_core::NameRef::new(wall(&doc, bar, 1)),
             }],
         };
@@ -826,5 +850,142 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
                 "{order:?}: {n:?}"
             );
         }
+    }
+}
+
+/// **The pieces of one line at a node are one group, whichever parent
+/// edge each descends from** (N2, *Edge pieces*; N5's group-size rung).
+///
+/// A 20×2×1 bar is notched at x ∈ [9, 11] through its front top edge,
+/// which leaves that edge two pieces, P1 and P2, of one line. A U-shaped
+/// cutter then cuts both, its prongs at x ∈ [3, 4] across P1 and at
+/// x ∈ [15, 16] across P2: four pieces of the line at the cut. Shortening
+/// the first prong so it stops short of the bar leaves P1 whole and P2
+/// cut, three. Each vanished piece of P1 reads the line's group, 4 → 3,
+/// with the prong's walls as the cutters gone: two untied parents on one
+/// line are not a tie, and their groups are not two groups of unequal
+/// size the rung cannot state. The runs are read without their verdict
+/// logs and against one document, as the split row is.
+#[test]
+fn the_pieces_of_one_line_from_two_parents_are_one_group() {
+    let doc = ProfileDoc::empty_derived("group-membership-line", Tol::witness());
+    let (doc, bar) = block(doc, (0.0, 20.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, notch) = block(doc, (9.0, 11.0), (-1.0, 0.5), 0.5, 1.0);
+    let (doc, notched) = insert(
+        doc,
+        Node::Subtract {
+            from: bar.into(),
+            tool: notch.into(),
+        },
+    );
+    let u = |reach: f64| {
+        vec![
+            (3.0, -2.0),
+            (16.0, -2.0),
+            (16.0, 0.5),
+            (15.0, 0.5),
+            (15.0, -1.5),
+            (4.0, -1.5),
+            (4.0, reach),
+            (3.0, reach),
+        ]
+    };
+    let (doc, u_profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.5],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![u(0.5)],
+    );
+    let (doc, cutter) = insert(
+        doc,
+        Node::Extrude {
+            profile: u_profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, cut) = insert(
+        doc,
+        Node::Subtract {
+            from: notched.into(),
+            tool: cutter.into(),
+        },
+    );
+    let Some(Node::Profile(p)) = doc.node(u_profile) else {
+        panic!("the cutter's profile");
+    };
+    let ids = p
+        .ids
+        .iter()
+        .map(|l| l.iter().copied().map(Some).collect())
+        .collect();
+    let (doc2, _) = step(
+        doc.clone(),
+        DocEdit::SetProgram {
+            node: u_profile,
+            loops: vec![editor_core::LoopProgram::polygon(u(-0.5)).unwrap()],
+            ids,
+            fresh: Vec::new(),
+        },
+    );
+    let ev1 = run(&doc, None);
+    let ev2 = silent(run(&doc2, Some(&ev1)));
+    let ev1 = silent(ev1);
+    let from_read = crate::fixture::out(&doc, notched);
+    let pieces = |ev: &Evaluation<f64>| {
+        ev.value(cut)
+            .expect("the cut evaluates")
+            .name_table
+            .iter()
+            .filter(|(n, _)| {
+                n.kind == EntityKind::Edge
+                    && matches!(
+                        n.path.as_slice(),
+                        [
+                            RoleSeg::From { read, .. },
+                            RoleSeg::Fragment(editor_core::Qualifier::Ends(_))
+                        ] if *read == from_read
+                    )
+            })
+            .count()
+    };
+    let rows = vanished((&doc2, &ev2), (&doc2, &ev1), cut, |n, e| {
+        matches!(e, Entry::Unique(_))
+            && n.kind == EntityKind::Edge
+            && matches!(
+                n.path.as_slice(),
+                [
+                    RoleSeg::From { read, .. },
+                    RoleSeg::Fragment(editor_core::Qualifier::Ends(_))
+                ] if *read == from_read
+            )
+    });
+    assert_eq!(
+        rows.len(),
+        2,
+        "P1's two pieces vanish ({} pieces before, {} after): {rows:?}",
+        pieces(&ev1),
+        pieces(&ev2)
+    );
+    for (n, d) in rows {
+        let Diagnosis::GroupResized {
+            node,
+            was,
+            now,
+            cutters: GroupCutters::Read { gone, new },
+        } = d
+        else {
+            panic!("{n:?}: the line's group resized, not {d:?}");
+        };
+        assert_eq!(
+            (node, was, now),
+            (cut, 4, 3),
+            "{n:?}: the line's four pieces became three"
+        );
+        assert!(
+            !gone.is_empty() && new.is_empty(),
+            "{n:?}: the prong's walls are the cutters gone: gone {gone:?}, new {new:?}"
+        );
     }
 }

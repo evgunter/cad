@@ -108,3 +108,45 @@ went to Ev.
 
 This row stays open as the door-certificate unit, parked on the three
 CLEAR prerequisites.
+
+## When the fold retires (from PR 4186's review, 2026-10-06)
+
+Whether two adjacent sections are apart is decided today as the Zero arm
+of the fold's centroid-along-the-base-normal margin (`stacking_fold`,
+called from `build` in `crates/sweep/src/loft.rs` after `validate_loft`
+and before `skin_validated`). It must stay BEFORE the skin, while the
+embedding certificate needs the walls and so runs after it. The unit
+that retires the fold therefore splits that arm out as its own decide at
+the same call site. Otherwise the skin's `NoParameterStep` becomes the
+coincidence door again, against its own doc.
+
+## The interim's known cost (from PR 4188's review, 2026-10-06)
+
+The far-normal check the designers agreed as the interim
+(`LoftError::FarSectionNotForward`) is CONSERVATIVE. The turning-number
+argument holds for rings projected along the stack, not for the 3-D
+rings, which can turn edge-on to it and stay simple. So it refuses some
+embedded, correctly oriented bodies. Two rows in
+`crates/sweep/tests/bool6_per_slab_stacking.rs` pin them, and each
+should BUILD once this unit's certificate retires the fold:
+`an_embedded_hood_with_a_downturned_top_is_refused_by_the_far_decide`
+(volume +227.5 at the old base) and
+`an_embedded_oblique_arc_sweep_is_refused_by_the_far_decide`. The old
+near check has the same hole on the mirror side.
+
+## A closed spine is the exact case (CONTACTHOLD, 2026-10-12)
+
+Measured by CONTACTHOLD's
+`zero-to-distinct-cells-on-one-point-doors-audit` with a scratch test,
+not committed. `sweep_body` of a 0.5 square along a closed path (a
+degree-3 interpolation of 33 points on a radius-3 circle in z = 0, its
+last point set to its first) at 9 stations builds. `sweep_places` puts
+the last station on the first, and `stacking_fold` reads only adjacent
+slabs, so the end cap lies on the start cap. Tiers 1 and 2 pass, and
+`validate_pseudomanifold` with no records refuses two
+`UnrecordedContact { EdgeEdgeCross }`, at (3, 0, ±0.25), margin 0. So a
+document refuses it at rest, loudly, but the door decided nothing: no
+Zero is read about the closure, and the refusal names two edges rather
+than the path. The certificate this row parks on would refuse it at
+the door. A closed spine whose ends should join into a ring (a full
+revolve's analogue) is a separate request.

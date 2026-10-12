@@ -140,28 +140,32 @@ is a typed document error).
   parameter; joint distributions are v1-foreclosed (E11.2; a `Joint`
   form is an additive schema variant later).
 
-## E3 — A measurement is ONE dimension-generic recipe sink node
+## E3 — A measurement is ONE dimension-generic operation
 
-**Decision**: F4's vocabulary grows exactly one `Measure { expr }`
-sink node — typed F1 quantity out, no body output. The quantity
-kind rides the measured *expression* through the F1 lattice, never
-per-kind node variants: measurement primitives are typed functions
-in the F7 extension — `distance(a, b)`, `min_clearance(a, b)` →
-Length; `angle(a, b)` → Angle; mass properties in their own
-dimensions (their Length-powers force the recorded *additive* F1
-lattice growth, never a Measure-local type) — over StableName
-entity references and node outputs.
+**Decision**: F4's vocabulary grows exactly one `Measure { primitive }`
+operation — it reads the bodies its references are sited at and
+defines one typed F1 quantity, its output, and no body. The quantity
+kind is the primitive's, never a per-kind node variant: measurement
+primitives are typed functions in the F7 extension — `distance(a, b)`,
+`min_clearance(a, b)` → Length; `angle(a, b)` → Angle; mass properties
+in their own dimensions (their Length-powers force the recorded
+*additive* F1 lattice growth, never a Measure-local type) — over
+StableName entity references read at a node. Arithmetic over measured
+values is a defined variable over the measures' outputs (VR4), and the
+output is *observed* (D10): only an assertion reads it, directly or
+through a definition.
 
-Evaluated at every `T` like all nodes; failures poison descendants
-only (F2 verbatim; sinks have none). Persisted as an ordinary node;
+Evaluated at every `T` like all nodes; a failure poisons its readers
+(F2 verbatim) — the assertions reading the output, directly or through
+a definition — and nothing else. Persisted as an ordinary node;
 resolved through name tables with N-machinery's typed failure;
 content-key cached like everything.
 
 - **Rejected — per-kind Measure taxonomy** (`Distance`/`Angle`/…
-  variants, the round-1 shape): a parallel type vocabulary beside
-  F1 for zero expressive gain. **Rejected — lever-arm unification**
-  of angle with distance: it requires a chosen length scale — an
-  ad-hoc constant, exactly the class this project refuses.
+  node variants, the round-1 shape): a parallel type vocabulary
+  beside F1 for zero expressive gain. **Rejected — lever-arm
+  unification** of angle with distance: it requires a chosen length
+  scale — an ad-hoc constant, exactly the class this project refuses.
 
 - Rationale: measurements must be persisted, stable-named,
   diffable, scalar-generic, cache-keyed — exactly what recipe nodes
@@ -169,12 +173,12 @@ content-key cached like everything.
   persistence + naming + genericity story (the banked no-parallel-
   path principle forbids it), and its references would silently
   dangle; Measure nodes fail loudly through N5 diagnosis. And the
-  sublanguage is total and finite by charter, so any expression is
-  Measure-wrappable and dual/interval-evaluable by construction.
-- Counterargument: DAG pollution — dozens of measurement sinks.
-  Accepted; sinks are lazily evaluable, the GUI presents them as a
-  panel, and the document is the right home for design intent
-  (E10's assertions).
+  expression language is total and finite by charter, so any
+  arithmetic over measured values is a definition and
+  dual/interval-evaluable by construction.
+- Counterargument: DAG growth — dozens of measures. Accepted; the GUI
+  presents measures as a panel, and the document is the right home
+  for design intent (E10's assertions).
 
 **E3 amendments (revision E12, 2026-09-03).**
 
@@ -427,10 +431,13 @@ fields named now):
 - `ParamDef.distribution: Option<Distribution>` (E2 forms, offsets
   dimensioned per F1, shortest-round-trip floats as ratified);
 - the `Measure` node (E3) with its StableName references;
-- `Assertion { measure: NodeId, bound: Quantity, dir: AtLeast | AtMost }`
-  — tolerance *requirements* as recorded design intent (the CAD
-  analog of a test suite: "min wall ≥ 0.5 mm" lives in the document,
-  versioned and diffable, not in a script beside it).
+- `Assertion { value, relation: AtLeast | AtMost | Equal, bound }`
+  (D10's `≥`, `≤`, `=`), `value` a scalar variable (a measure's
+  output, or a definition over outputs) and `bound` a scalar
+  variable of the same dimension — tolerance *requirements* as
+  recorded design intent (the CAD analog of a test suite: "min wall
+  ≥ 0.5 mm" lives in the document, versioned and diffable, not in a
+  script beside it).
 
 Unknown-field/version handling per F3 verbatim; the migration chain
 gains one explicit version-to-version step.
@@ -448,8 +455,8 @@ margin-thin fixture (the honesty metric is itself regression-
 tested); (3) k_stats funnel rows for driver + solver predicates
 (the K re-examination evidence, E6/E8).
 
-**Open sub-question**: should a failing Assertion gate `build()`?
-v1 says no — assertions report; a gating mode is additive policy.
+A failing Assertion gates no `build()`: an assertion checks and never
+places (D10), so its verdict is a report.
 
 ## E11 — What the MVP does NOT do (loud)
 

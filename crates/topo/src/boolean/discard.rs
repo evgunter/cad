@@ -12,14 +12,13 @@
 //! face holding part of its region through a coincident copy runs into
 //! it ([`HeldEdge`]).
 //!
-//! Every path that splits an operand face records its discards: the
-//! section path (`finish`) and the declared-REST union (`rest`). The
-//! paths that keep or drop whole operands split no face, so no face of
-//! theirs has pieces for a discard to lie between, and they record
-//! none.
+//! The one path that splits an operand face, the section path
+//! (`finish`), records its discards. The paths that keep or drop whole
+//! operands split no face, so no face of theirs has pieces for a discard
+//! to lie between, and they record none.
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
 use crate::provenance::Provenance;
 
 use super::{BooleanError, Operand};
@@ -35,10 +34,13 @@ pub struct DiscardRow {
     pub face: FaceKey,
     /// Each stretch along which it bordered a face the result KEPT:
     /// the kept side's two end vertices, in result keys before the
-    /// zip's fusions (settle them through `vertex_merges`). The result
-    /// edge between the two settled ends is where the kept face meets
-    /// the region this face held; a stretch whose ends fuse, or that no
-    /// live edge joins, merged away with the faces beside it.
+    /// zip's fusions and the output stage's join and merge (settle them
+    /// through `BooleanNaming::settler`). The result edge between the
+    /// two settled ends, or the joined edge holding one of them
+    /// (`BooleanNaming::stretch_through_joins`), is where the kept face
+    /// meets the region this face held; a stretch whose ends fuse, or
+    /// lie inside a merged face, or that no live edge joins, merged away
+    /// with the faces beside it.
     pub bordered: Vec<(VertexKey, VertexKey)>,
     /// Each other boundary edge with its split ancestry (the edge,
     /// then each edge it was split from), in the same clone keys as
@@ -74,39 +76,13 @@ pub struct HeldEdge {
     pub at: VertexKey,
 }
 
-/// The end of the face lineage that starts at `face` and steps through
-/// `up`, the boolean's one bounded lineage walk: `up` names the next
-/// face of a row, `None` where none does, and `rows` counts the rows
-/// it reads. Its readers: fragment rows back to the face they were
-/// divided from (`BooleanNaming::face_fragments_a`/`_b`,
-/// `SplitNaming::face_fragments`), and a merge's absorption rows
-/// forward to the surviving face.
-///
-/// `None` when the rows cycle: a walk that outlasts `rows` steps has
-/// revisited a face, so the record is corrupt, and a reader refuses it
-/// rather than treating the face it stopped on as the end.
-pub fn lineage_root(
-    face: FaceKey,
-    rows: usize,
-    up: impl Fn(FaceKey) -> Option<FaceKey>,
-) -> Option<FaceKey> {
-    let mut at = face;
-    for _ in 0..=rows {
-        match up(at) {
-            Some(next) => at = next,
-            None => return Some(at),
-        }
-    }
-    None
-}
-
 /// The held edges one operand's discarded faces may border
 /// ([`DiscardRow::held`]).
 pub(super) struct HeldInto<'a, T: geom_core::Real> {
     /// Every held edge of the boolean.
     pub entries: &'a [HeldEdge],
     /// The discarded operand's chord-split rows, `(new, divided-from)`.
-    pub fragments: &'a [(FaceKey, FaceKey)],
+    pub fragments: &'a crate::lineage::FaceDivisions,
     /// The other operand, whose clone holds the edges.
     pub holder_op: Operand,
     /// Its clone.
@@ -129,20 +105,11 @@ impl<T: geom_core::Real> HeldInto<'_, T> {
         boundary: &std::collections::BTreeSet<VertexKey>,
     ) -> Result<Vec<(VertexKey, VertexKey)>, BooleanError> {
         let desync = |what| BooleanError::JoinDesync { what };
-        let root = |f| {
-            lineage_root(f, self.fragments.len(), |k| {
-                self.fragments
-                    .iter()
-                    .find(|(new, _)| *new == k)
-                    .map(|&(_, up)| up)
-            })
-            .ok_or_else(|| desync("a face's fragment lineage is cyclic"))
-        };
-        let own = root(face)?;
+        let own = self.fragments.root(face);
         let mut out = Vec::new();
         let enters = |at: VertexKey| self.copies.of(at).iter().any(|v| boundary.contains(v));
         for h in self.entries {
-            if h.holder != self.holder_op || !enters(h.at) || root(h.face)? != own {
+            if h.holder != self.holder_op || !enters(h.at) || self.fragments.root(h.face) != own {
                 continue;
             }
             let edge = self
@@ -168,7 +135,7 @@ impl<T: geom_core::Real> HeldInto<'_, T> {
 /// `kept_across(mate)` says whether the face across an edge is one the
 /// result keeps beside it (the stretch is then `bordered`); `kept_ends`
 /// maps that stretch's two ends, in `body`'s keys, to the kept side's
-/// ends in result keys, given the face across it. `held` gives the row
+/// ends in result keys, given the half-edge across it. `held` gives the row
 /// its held stretches; a path that holds no covered pair passes `None`.
 pub(super) fn discard_row<T: geom_core::Real>(
     body: &Body<T>,
@@ -176,7 +143,7 @@ pub(super) fn discard_row<T: geom_core::Real>(
     operand: Operand,
     kept_across: &dyn Fn(FaceKey) -> bool,
     kept_ends: &dyn Fn(
-        FaceKey,
+        HalfEdgeKey,
         VertexKey,
         VertexKey,
     ) -> Result<(VertexKey, VertexKey), BooleanError>,
@@ -210,15 +177,14 @@ pub(super) fn discard_row<T: geom_core::Real>(
                 .get_half_edge(he)
                 .ok_or_else(|| desync("a discarded face's half-edge no longer resolves"))?;
             boundary.insert(h.start);
-            let mate_face = body
-                .mate(he)
-                .and_then(|m| body.face_of_half_edge(m))
-                .ok_or_else(|| desync("a discarded face's edge has no face across it"))?;
+            let across = || desync("a discarded face's edge has no face across it");
+            let mate = body.mate(he).ok_or_else(across)?;
+            let mate_face = body.face_of_half_edge(mate).ok_or_else(across)?;
             if kept_across(mate_face) {
                 let end = body
                     .half_edge_end(he)
                     .ok_or_else(|| desync("a discarded face's half-edge has no end"))?;
-                row.bordered.push(kept_ends(mate_face, h.start, end)?);
+                row.bordered.push(kept_ends(mate, h.start, end)?);
             } else {
                 let mut chain = vec![h.edge];
                 let mut at = h.edge;

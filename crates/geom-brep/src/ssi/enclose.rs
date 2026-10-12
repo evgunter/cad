@@ -74,8 +74,11 @@
 use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, max_bound, min_bound, norm_sq, norm_sup};
-use geom_core::spline::Span;
+use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
+use geom_core::spline::algebra::certainly_positive;
+use geom_core::spline::{
+    KnotVector, ParamRange, RingRefinement, Span, TensorNet, span_derivative_scale,
+};
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
 use super::{ChartAxis, ChartSpeedRefusal, SsiError, TubeDegeneracy};
@@ -277,22 +280,6 @@ fn pad_interval<T: CertifiedEnclosure>(r: T) -> Interval {
     }
 }
 
-fn dot3(a: [Interval; 3], b: [Interval; 3]) -> Interval {
-    // Ascending association (D9), matching `Vec3::dot`.
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-/// (Component-for-component `offset_meters::cross`, which is the
-/// borrow-shaped twin one crate module over; noted at both sites so
-/// the duplication is a decision. A third consumer collapses them.)
-fn cross3(a: [Interval; 3], b: [Interval; 3]) -> [Interval; 3] {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
 fn constv<T: CertifiedBounds>(v: Vec3<T>) -> [Interval; 3] {
     [
         Interval::from_certified(v.x),
@@ -325,7 +312,7 @@ fn subp<T: CertifiedBounds>(b: Box3, p: Point3<T>) -> [Interval; 3] {
 pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Box3) -> Interval {
     let two = Interval::point(2.0);
     match *surface {
-        Surface::Plane { origin, normal, .. } => dot3(subp(b, origin), constv(normal)),
+        Surface::Plane { origin, normal, .. } => dot(&subp(b, origin), &constv(normal)),
         Surface::Sphere { center, radius, .. } => {
             // `sqr`, never `r * r`: the radius enclosure is one
             // operand, and squaring it as two independent ones widens
@@ -342,7 +329,7 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
         } => {
             let q = subp(b, origin);
             let a = constv(axis);
-            let h = dot3(q, a);
+            let h = dot(&q, &a);
             // |w|² from the radial vector itself, NOT as |q|² − (q·â)².
             //
             // The algebraic identity is exact in ℝ and catastrophic in
@@ -397,7 +384,7 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
             // the enclosure is as tight as the unit form's.
             let q = subp(b, origin);
             let a = constv(axis);
-            let h = dot3(q, a) * (Interval::from_bounds(2.0, 2.0) - norm_sq(&a));
+            let h = dot(&q, &a) * (Interval::from_bounds(2.0, 2.0) - norm_sq(&a));
             let r = Interval::from_certified(radius);
             [
                 (q[0] - a[0] * h) / r,
@@ -413,6 +400,15 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
     }
 }
 
+/// Whether [`implicit_enclosure`] and [`implicit_gradient_enclosure`]
+/// have an arm for `kind`. Off it both refuse every box, so a tube over
+/// such an operand reads a refused margin in every box at every rung:
+/// no verdict on the pair, whatever the carrier.
+pub(crate) const fn has_implicit_enclosure(kind: geom::SurfaceKind) -> bool {
+    use geom::SurfaceKind as K;
+    matches!(kind, K::Plane | K::Sphere | K::Cylinder)
+}
+
 /// `(∇f₁ × ∇f₂)·e` over `b` — **the uniqueness-tube quantity** (module
 /// docs). An enclosure excluding zero proves the solution set inside
 /// `b` is a graph over the `e` axis: at most one solution on each
@@ -425,11 +421,11 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 ) -> Interval {
     let g1 = implicit_gradient_enclosure(s1, b);
     let g2 = implicit_gradient_enclosure(s2, b);
-    dot3(cross3(g1, g2), constv(e))
+    dot(&cross(&g1, &g2), &constv(e))
 }
 
 /// The plane × NURBS chart probe's transversality margin over one
-/// chart window `rect` (`(u0, u1, v0, v1)`): `∇φ = (n·S_u, n·S_v)` read
+/// chart window `rect`: `∇φ = (n·S_u, n·S_v)` read
 /// along the chart direction transverse to the pcurve's tangent, divided
 /// by the chart's stretch along that direction. `n` is the plane normal
 /// already crossed into certification arithmetic; `tangent` is
@@ -438,7 +434,8 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 /// readings come from the derivative numerators' vector terms
 /// ([`CellNet::transverse_readings`]), so a rigid map that carries `n`
 /// with the wall moves the margin by its rounding width. `Ok(None)`
-/// when the stretch has no finite bound.
+/// when the stretch has no finite bound; `NaN` where `∇φ`'s enclosure
+/// is refused ([`tube_margin`]), which measured nothing.
 ///
 /// # Errors
 ///
@@ -448,7 +445,7 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     n: [Interval; 3],
-    rect: (f64, f64, f64, f64),
+    rect: UvWindow,
     tangent: (f64, f64, f64),
 ) -> Result<Option<f64>, SsiError> {
     let (tx, ty, tn) = tangent;
@@ -479,16 +476,27 @@ pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
         ));
     }
     // A lower bound over an upper bound stays one only rounded down.
-    Ok(Some(div_down(zero_free_lower_bound(phi), stretch)))
+    Ok(Some(
+        tube_margin(phi).map_or(f64::NAN, |m| div_down(m, stretch)),
+    ))
+}
+
+/// A uniqueness tube's reading of one transversality enclosure: its
+/// certified distance from zero ([`zero_free_lower_bound`]), or `None`
+/// where the enclosure is refused. A refused enclosure measured
+/// nothing, so its rung is not probed; read as `0` it would be a
+/// sliver's margin.
+pub(crate) fn tube_margin(i: Interval) -> Option<f64> {
+    i.is_certified().then(|| zero_free_lower_bound(i))
 }
 
 /// The certified distance of an enclosure from zero: `0` when it
-/// straddles (or is refused), which is exactly what makes the trilean
-/// land in the sliver band.
+/// straddles or is refused, the vacuous lower bound. A reading that
+/// must tell a refusal from a straddle asks [`tube_margin`].
 /// (The mignitude. `offset_meters::mig` is the same arithmetic read
 /// as a coefficient-hull assembly term rather than a decision; noted
 /// at both sites.)
-pub(super) fn zero_free_lower_bound(i: Interval) -> f64 {
+pub(crate) fn zero_free_lower_bound(i: Interval) -> f64 {
     if !i.is_certified() {
         return 0.0;
     }
@@ -499,6 +507,18 @@ pub(super) fn zero_free_lower_bound(i: Interval) -> f64 {
     } else {
         0.0
     }
+}
+
+/// An enclosure in units of which `per` make one metre, crossed to
+/// metres by one outward division by the exact `per`.
+pub(super) fn in_meters(i: Interval, per: f64) -> Interval {
+    i / Interval::point(per)
+}
+
+/// A certified upper bound on the magnitude of [`in_meters`]'s
+/// enclosure, `NaN` where it is refused.
+pub(super) fn mag_in_meters(i: Interval, per: f64) -> f64 {
+    in_meters(i, per).mag()
 }
 
 /// A NURBS wall's certified chart speeds over its whole domain, one per
@@ -525,13 +545,34 @@ impl ChartSpeeds {
     }
 }
 
-/// A parameter window `[u0, u1] × [v0, v1]` is one when each pair is
-/// ordered. A NaN end compares false, so it is refused with an inverted
-/// pair. Every box over a window asks this before it clamps the window
-/// to the domain: a clamp turns an inverted window past a domain end
-/// into an ordered point.
-fn ordered_window(u0: f64, u1: f64, v0: f64, v1: f64) -> bool {
-    u0 <= u1 && v0 <= v1
+/// A parameter window `u × v` on a chart: two [`ParamRange`]s, so it has
+/// no NaN or inverted side. Every [`NurbsBoxes`] reading takes one. It
+/// is minted before anything clamps it to the domain, because a clamp
+/// turns an inverted window past a domain end into an ordered point.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct UvWindow {
+    pub(crate) u: ParamRange,
+    pub(crate) v: ParamRange,
+}
+
+impl UvWindow {
+    /// `[u0, u1] × [v0, v1]`, or `None` when either pair has a NaN end
+    /// or is inverted: such a pair names no region.
+    pub(crate) fn new(u0: f64, u1: f64, v0: f64, v1: f64) -> Option<Self> {
+        Some(Self {
+            u: ParamRange::new(u0, u1)?,
+            v: ParamRange::new(v0, v1)?,
+        })
+    }
+
+    /// The window two chart points span, in either order, or `None`
+    /// when a coordinate is NaN ([`ParamRange::spanning`]).
+    pub(crate) fn spanning(a: (f64, f64), b: (f64, f64)) -> Option<Self> {
+        Some(Self {
+            u: ParamRange::spanning(a.0, b.0)?,
+            v: ParamRange::spanning(a.1, b.1)?,
+        })
+    }
 }
 
 /// Control-net enclosures for a NURBS chart over a parameter rectangle
@@ -546,14 +587,56 @@ fn ordered_window(u0: f64, u1: f64, v0: f64, v1: f64) -> bool {
 /// goes through the homogeneous quotient rule over each cell's net cut
 /// to the rectangle ([`CellNet::cut`]), so it shrinks with the
 /// rectangle below a span cell too.
+///
+/// The cells are the surface's own, or a [`CellGrid`]'s: the same
+/// surface's net refined in certification arithmetic, whose finer cells
+/// read tighter hulls. Evaluation ([`NurbsBoxes::rect_box`]'s midpoint)
+/// and the boundary rows always read the surface itself.
 pub(crate) struct NurbsBoxes<'a, T: CertifiedBounds> {
     surface: &'a NurbsSurface<T>,
+    grid: Option<&'a CellGrid>,
 }
 
 impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
-    /// Wrap a surface.
+    /// Wrap a surface, reading its own cells.
     pub(crate) fn new(surface: &'a NurbsSurface<T>) -> Self {
-        Self { surface }
+        Self {
+            surface,
+            grid: None,
+        }
+    }
+
+    /// Wrap a surface, reading the cells of `grid`, a refinement of this
+    /// surface's net ([`CellGrid::refined`]).
+    pub(crate) fn on_grid(surface: &'a NurbsSurface<T>, grid: &'a CellGrid) -> Self {
+        Self {
+            surface,
+            grid: Some(grid),
+        }
+    }
+
+    /// The `u` and `v` vectors the cells are spans of.
+    fn cell_knots(&self) -> (&'a KnotVector, &'a KnotVector) {
+        match self.grid {
+            Some(g) => (&g.ku, &g.kv),
+            None => (self.surface.knots_u(), self.surface.knots_v()),
+        }
+    }
+
+    /// The control block of the cell at spans `(su, sv)`, with its two
+    /// spans; `None` for an empty span (it covers no parameters) or a
+    /// read that leaves the net.
+    fn cell(&self, su: usize, sv: usize) -> Option<(CellNet, (Span<'a>, Span<'a>))> {
+        let (ku, kv) = self.cell_knots();
+        let spans = (ku.span(su)?, kv.span(sv)?);
+        let net = match self.grid {
+            Some(g) => CellNet::of_spans(spans, kv.control_count(), |k| {
+                let (p, w, h) = g.entry(k)?;
+                Some((p, w, Some(h)))
+            }),
+            None => CellNet::of_cell(self.surface.window(su, sv)?),
+        }?;
+        Some((net, spans))
     }
 
     /// The surface boxed.
@@ -571,12 +654,12 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// is constant along it) and [`ChartSpeedRefusal::NotFinite`] when it
     /// has no finite bound, `u` before `v`.
     pub(crate) fn chart_speeds(&self) -> Result<ChartSpeeds, SsiError> {
-        let (ud, vd) = (
-            self.surface.knots_u().domain(),
-            self.surface.knots_v().domain(),
-        );
+        let domain = UvWindow {
+            u: self.surface.knots_u().domain_range(),
+            v: self.surface.knots_v().domain_range(),
+        };
         let speed = |axis: ChartAxis| {
-            let m = self.speed_sup(ud.0, ud.1, vd.0, vd.1, axis == ChartAxis::U);
+            let m = self.speed_sup(domain, axis == ChartAxis::U);
             if !m.is_finite() {
                 Err(SsiError::ChartSpeed(ChartSpeedRefusal::NotFinite { axis }))
             } else if m <= 0.0 {
@@ -591,10 +674,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         })
     }
 
-    /// The (span_u, span_v) cell range touched by the rectangle, with
-    /// the rectangle as clamped, or `None` for a window with a NaN or
-    /// inverted end: such a window names no region, and clamping it
-    /// would land a NaN end on the first span.
+    /// The (span_u, span_v) cell range touched by the window, with the
+    /// window as clamped.
     ///
     /// The rectangle is **clamped to the knot domains** first. Callers
     /// pad windows by a tube radius, which routinely pushes them past
@@ -603,29 +684,31 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// that reaches a surface edge fail its own uniqueness tube. The
     /// clamp is sound because the objects being enclosed — a pcurve, a
     /// foot point — cannot leave the domain either.
-    fn cells(&self, u0: f64, u1: f64, v0: f64, v1: f64) -> Option<CellRange> {
-        if !ordered_window(u0, u1, v0, v1) {
-            return None;
-        }
-        let ku = self.surface.knots_u();
-        let kv = self.surface.knots_v();
-        let (ud, vd) = (ku.domain(), kv.domain());
-        let cu = (u0.clamp(ud.0, ud.1), u1.clamp(ud.0, ud.1));
-        let cv = (v0.clamp(vd.0, vd.1), v1.clamp(vd.0, vd.1));
+    fn cells(&self, w: UvWindow) -> CellRange {
+        let (ku, kv) = self.cell_knots();
+        let clamped = self.clamped(w);
+        let (cu, cv) = (clamped.u, clamped.v);
         // `span_range` answers in validated spans, but a cell RANGE is
         // what this returns: the interior of the rectangle is neither
         // end, so the two ends' proofs do not cover it. The callers
         // re-derive each cell's window with `NurbsSurface::window`,
         // which is also what skips the empty spans in between — hence
         // indices here, and the pair read back out.
-        let (u_lo, u_hi) = ku.span_range(cu.0, cu.1);
-        let (v_lo, v_hi) = kv.span_range(cv.0, cv.1);
-        Some(CellRange {
+        let (u_lo, u_hi) = ku.span_range(cu);
+        let (v_lo, v_hi) = kv.span_range(cv);
+        CellRange {
             u: (u_lo.index(), u_hi.index()),
             v: (v_lo.index(), v_hi.index()),
-            clamped_u: cu,
-            clamped_v: cv,
-        })
+            clamped,
+        }
+    }
+
+    /// The window clamped to the knot domains.
+    fn clamped(&self, w: UvWindow) -> UvWindow {
+        UvWindow {
+            u: w.u.clamp_to(self.surface.knots_u().domain_range()),
+            v: w.v.clamp_to(self.surface.knots_v().domain_range()),
+        }
     }
 
     /// A certified box for `∂S/∂u` (or `∂S/∂v`) over the rectangle, via
@@ -637,30 +720,30 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// the rectangle below a span cell and is never wider than the whole
     /// cell's. Refused
     /// when the weight hull touches zero (interval arithmetic refuses
-    /// the divisor), the net is malformed, or the window has a NaN or
-    /// inverted end. The boundary pass reads a directional partial off
+    /// the divisor) or the net is malformed. The boundary pass reads a
+    /// directional partial off
     /// it; the chart readings take norms from the same cut
     /// ([`NurbsBoxes::speed_sup`]).
-    pub(crate) fn deriv_box(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> Box3 {
-        self.deriv_hull(u0, u1, v0, v1, along_u, true)
+    pub(crate) fn deriv_box(&self, w: UvWindow, along_u: bool) -> Box3 {
+        self.deriv_hull(w, along_u, true)
     }
 
     /// [`NurbsBoxes::deriv_box`] read off every touched cell's whole net,
     /// without the cut: the exhaustiveness sweep's derivative box, whose
     /// slack the sweep's seeding is pinned against
-    /// (`work/ssi/the-chart-sweeps-first-order-box-reads-its-derivative-off-the-whole-span-cell.md`).
-    fn cell_deriv_box(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> Box3 {
-        self.deriv_hull(u0, u1, v0, v1, along_u, false)
+    /// (`work/ssiedge/the-chart-sweeps-first-order-box-reads-its-derivative-off-the-whole-span-cell.md`).
+    pub(crate) fn cell_deriv_box(&self, w: UvWindow, along_u: bool) -> Box3 {
+        self.deriv_hull(w, along_u, false)
     }
 
     /// The derivative box over the rectangle, each touched cell's net cut
     /// to it or read whole.
-    fn deriv_hull(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool, cut: bool) -> Box3 {
+    fn deriv_hull(&self, w: UvWindow, along_u: bool, cut: bool) -> Box3 {
         // Both boxes enclose `S_d` over the window's part of the cell,
         // so their meet does, and it is never wider than the whole
         // cell's: a zero the whole cell reads exactly stays exact.
         self.fold_cells(
-            (u0, u1, v0, v1),
+            w,
             cut,
             |net| net.derivative_box(along_u),
             Box3::meet_enclosure,
@@ -680,9 +763,9 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// whole readings per axis, though, and the norm of a per-axis meet
     /// can sit below both nets' norms, so over a cut window it is not
     /// bounded by the box's. `NaN` when refused.
-    pub(crate) fn speed_sup(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> f64 {
+    pub(crate) fn speed_sup(&self, w: UvWindow, along_u: bool) -> f64 {
         self.fold_cells(
-            (u0, u1, v0, v1),
+            w,
             true,
             |net| net.derivative_norm_sup(along_u),
             min_bound,
@@ -697,13 +780,13 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// each cell cut to the rectangle and met with its whole net.
     fn transverse_readings(
         &self,
-        (u0, u1, v0, v1): (f64, f64, f64, f64),
+        w: UvWindow,
         n: [Interval; 3],
         ex: Interval,
         ey: Interval,
     ) -> (Interval, f64) {
         self.fold_cells(
-            (u0, u1, v0, v1),
+            w,
             true,
             |net| net.transverse_readings(n, ex, ey),
             |(a, s), (b, t)| (a.meet(b), min_bound(s, t)),
@@ -716,16 +799,16 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// `join`ed across cells. With `cut`, each cell's net is also cut to
     /// the rectangle ([`CellNet::cut`]) and the two readings `meet`:
     /// both hold over the rectangle's part of the cell. `None` for a
-    /// window with a NaN or inverted end or a malformed net.
+    /// malformed net.
     fn fold_cells<R>(
         &self,
-        (u0, u1, v0, v1): (f64, f64, f64, f64),
+        w: UvWindow,
         cut: bool,
         read: impl Fn(&CellNet) -> R,
         meet: impl Fn(R, R) -> R,
         join: impl Fn(R, R) -> R,
     ) -> Option<R> {
-        let range = self.cells(u0, u1, v0, v1)?;
+        let range = self.cells(w);
         let mut out: Option<R> = None;
         for su in range.u.0..=range.u.1 {
             for sv in range.v.0..=range.v.1 {
@@ -733,15 +816,13 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 // it is sound and strictly tighter. The corner cell is
                 // always nonempty (`cells` locates its ends with
                 // `span_at`), so the fold is never left unseeded.
-                let Some(win) = self.surface.window(su, sv) else {
+                let (ku, kv) = self.cell_knots();
+                if !(ku.span_is_nonempty(su) && kv.span_is_nonempty(sv)) {
                     continue;
-                };
-                let whole = CellNet::of_cell(win)?;
+                }
+                let (whole, spans) = self.cell(su, sv)?;
                 let r = read(&whole);
-                let r = match cut
-                    .then(|| whole.cut(win, range.clamped_u, range.clamped_v))
-                    .flatten()
-                {
+                let r = match cut.then(|| whole.cut(spans, range.clamped)).flatten() {
                     Some(net) => meet(r, read(&net)),
                     None => r,
                 };
@@ -763,18 +844,9 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// span cell's control hull — it **keeps shrinking below the span
     /// cell**, which is what makes the exhaustiveness subdivision
     /// terminate on a surface with few spans.
-    pub(crate) fn rect_box(&self, u0: f64, u1: f64, v0: f64, v1: f64) -> Box3 {
-        // The window door, before the clamp below: clamping an inverted
-        // window past a domain end makes it an ordered point.
-        if !ordered_window(u0, u1, v0, v1) {
-            return refused_box();
-        }
-        let (ud, vd) = (
-            self.surface.knots_u().domain(),
-            self.surface.knots_v().domain(),
-        );
-        let (u0, u1) = (u0.clamp(ud.0, ud.1), u1.clamp(ud.0, ud.1));
-        let (v0, v1) = (v0.clamp(vd.0, vd.1), v1.clamp(vd.0, vd.1));
+    pub(crate) fn rect_box(&self, w: UvWindow) -> Box3 {
+        let w = self.clamped(w);
+        let (u0, u1, v0, v1) = (w.u.start(), w.u.end(), w.v.start(), w.v.end());
         let um = 0.5 * (u0 + u1);
         let vm = 0.5 * (v0 + v1);
         let hu = 0.5 * (u1 - u0);
@@ -786,12 +858,13 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         // `eval_in_span` at the midpoint's own span rather than `eval`:
         // the parameter is a thin `f64` structure value, so its span is
         // unique and no `SpanLocate` hull is needed.
-        let c = self
-            .surface
-            .window_at(um, vm)
-            .eval_in_span(T::from_f64(um), T::from_f64(vm));
-        let du = self.cell_deriv_box(u0, u1, v0, v1, true);
-        let dv = self.cell_deriv_box(u0, u1, v0, v1, false);
+        // Clamped into a finite domain, so the midpoint is a number.
+        let Some(win) = self.surface.window_at(um, vm) else {
+            unreachable!("a clamped window's midpoint is a number")
+        };
+        let c = win.eval_in_span(T::from_f64(um), T::from_f64(vm));
+        let du = self.cell_deriv_box(w, true);
+        let dv = self.cell_deriv_box(w, false);
         let ru = Interval::from_bounds(-hu, hu);
         let rv = Interval::from_bounds(-hv, hv);
         Box3 {
@@ -807,8 +880,111 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
 struct CellRange {
     u: (usize, usize),
     v: (usize, usize),
-    clamped_u: (f64, f64),
-    clamped_v: (f64, f64),
+    clamped: UvWindow,
+}
+
+/// A wall's control net refined in certification arithmetic, for
+/// [`NurbsBoxes::on_grid`]: the knot pair it is a net over, and each
+/// entry's Cartesian point and weight, row-major as
+/// `NurbsSurface::control()` is.
+///
+/// A refinement made inside a certificate chooses nothing (C6), so it is
+/// held only as enclosures: the homogeneous channels `(w·P, w)` are
+/// refined in the ring ([`RingRefinement`]), both ratios taken from the
+/// knots, so each entry encloses the described surface's refined
+/// coefficient. The grid keeps them homogeneous; a cell reads its
+/// points as the quotient and cuts from the channels themselves
+/// ([`CellNet::cut`]). Knot insertion is exact in ℝ, so the grid
+/// describes the same surface over the same parameters.
+#[derive(Clone, Debug)]
+pub(crate) struct CellGrid {
+    ku: KnotVector,
+    kv: KnotVector,
+    hom: Vec<[Interval; 4]>,
+}
+
+impl CellGrid {
+    /// `surface`'s net with `new_u` inserted along `u` and `new_v` along
+    /// `v`.
+    ///
+    /// `None` when an insertion chain refuses, or a refined weight is not
+    /// certainly positive ([`certainly_positive`]): the quotient would
+    /// enclose no point, and the caller reads the surface's own cells
+    /// instead, coarser and sound.
+    pub(crate) fn refined<T: CertifiedBounds>(
+        surface: &NurbsSurface<T>,
+        new_u: &[f64],
+        new_v: &[f64],
+    ) -> Option<Self> {
+        let (ku, kv) = (surface.knots_u(), surface.knots_v());
+        let ref_u = RingRefinement::new(ku, new_u).ok()?;
+        let ref_v = RingRefinement::new(kv, new_v).ok()?;
+        let homogeneous: Vec<[Interval; 4]> = surface
+            .control()
+            .iter()
+            .zip(surface.weights())
+            .map(|(p, &w)| {
+                let w = Interval::from_certified(w);
+                let [x, y, z] = [p.x, p.y, p.z].map(|x| w * Interval::from_certified(x));
+                [x, y, z, w]
+            })
+            .collect();
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let nets: [TensorNet; 4] = core::array::from_fn(|c| {
+            TensorNet::from_flat(nu, nv, homogeneous.iter().map(|h| h[c]).collect())
+                .refine_u(&ref_u)
+                .refine_v(&ref_v)
+        });
+        let [x, y, z, w] = nets.each_ref().map(TensorNet::as_flat);
+        if !certainly_positive(w) {
+            return None;
+        }
+        let hom = x
+            .iter()
+            .zip(y)
+            .zip(z)
+            .zip(w)
+            .map(|(((x, y), z), w)| [*x, *y, *z, *w])
+            .collect();
+        Some(Self {
+            ku: ref_u.knots().clone(),
+            kv: ref_v.knots().clone(),
+            hom,
+        })
+    }
+
+    /// Entry `k`'s point (the quotient), weight and homogeneous
+    /// channels.
+    fn entry(&self, k: usize) -> Option<([Interval; 3], Interval, [Interval; 4])> {
+        let h = *self.hom.get(k)?;
+        Some(([h[0] / h[3], h[1] / h[3], h[2] / h[3]], h[3], h))
+    }
+
+    /// The refined `u` vector.
+    #[cfg(test)]
+    pub(crate) fn knots_u(&self) -> &KnotVector {
+        &self.ku
+    }
+
+    /// The refined `v` vector.
+    #[cfg(test)]
+    pub(crate) fn knots_v(&self) -> &KnotVector {
+        &self.kv
+    }
+
+    /// The refined net's points, row-major: the quotients.
+    #[cfg(test)]
+    pub(crate) fn points(&self) -> Vec<[Interval; 3]> {
+        (0..self.hom.len())
+            .filter_map(|k| Some(self.entry(k)?.0))
+            .collect()
+    }
+
+    /// The refined net's weights, row-major.
+    #[cfg(test)]
+    pub(crate) fn weights(&self) -> Vec<Interval> {
+        self.hom.iter().map(|h| h[3]).collect()
+    }
 }
 
 /// One span cell's control block in certification arithmetic, cut to
@@ -823,6 +999,12 @@ struct CellNet {
     nv: usize,
     pts: Vec<[Interval; 3]>,
     wts: Vec<Interval>,
+    /// The block's homogeneous channels `(w·P, w)`, when it came from a
+    /// [`CellGrid`] that holds them: its points are their quotients, so
+    /// [`CellNet::cut`] forms `w·(P − c)` from them as `w·P − c·w`
+    /// rather than multiplying a quotient by `w` again, which widens.
+    /// `None` for the surface's own cells, whose points are exact.
+    hom: Option<Vec<[Interval; 4]>>,
     scale_u: Vec<Interval>,
     scale_v: Vec<Interval>,
 }
@@ -836,26 +1018,50 @@ impl CellNet {
     fn of_cell<T: CertifiedBounds>(win: SurfaceWindow<'_, T>) -> Option<Self> {
         let s = win.surface();
         let (ctl, wts) = (s.control(), s.weights());
-        let (spu, spv) = (win.span_u(), win.span_v());
-        let (pu, pv) = (spu.degree(), spv.degree());
-        let mut pts = Vec::with_capacity((pu + 1) * (pv + 1));
-        let mut ws = Vec::with_capacity((pu + 1) * (pv + 1));
-        for i in 0..=pu {
-            let row = win.row(i);
-            for j in 0..=pv {
-                let (p, &w) = ctl.get(row + j).zip(wts.get(row + j))?;
-                pts.push([
+        Self::of_spans((win.span_u(), win.span_v()), win.stride(), |k| {
+            let (p, &w) = ctl.get(k).zip(wts.get(k))?;
+            Some((
+                [
                     Interval::from_certified(p.x),
                     Interval::from_certified(p.y),
                     Interval::from_certified(p.z),
-                ]);
-                ws.push(Interval::from_certified(w));
+                ],
+                Interval::from_certified(w),
+                None,
+            ))
+        })
+    }
+
+    /// The control block of the cell at `(spu, spv)` of a row-major net
+    /// `stride` columns wide, each entry's point, weight and (from a
+    /// grid) homogeneous channels read through `at` by flat index.
+    /// `None` when a read leaves the net or the knots.
+    fn of_spans(
+        (spu, spv): (Span<'_>, Span<'_>),
+        stride: usize,
+        at: impl Fn(usize) -> Option<([Interval; 3], Interval, Option<[Interval; 4]>)>,
+    ) -> Option<Self> {
+        let (pu, pv) = (spu.degree(), spv.degree());
+        let mut pts = Vec::with_capacity((pu + 1) * (pv + 1));
+        let mut ws = Vec::with_capacity((pu + 1) * (pv + 1));
+        let mut hom = Some(Vec::with_capacity((pu + 1) * (pv + 1)));
+        for i in 0..=pu {
+            let row = (spu.first_control() + i) * stride + spv.first_control();
+            for j in 0..=pv {
+                let (p, w, h) = at(row + j)?;
+                pts.push(p);
+                ws.push(w);
+                hom = hom.zip(h).map(|(mut v, h)| {
+                    v.push(h);
+                    v
+                });
             }
         }
         Some(Self {
             nv: pv + 1,
             pts,
             wts: ws,
+            hom,
             scale_u: pair_scales(spu)?,
             scale_v: pair_scales(spv)?,
         })
@@ -871,26 +1077,19 @@ impl CellNet {
     /// is the caller's answer either way, and a sound one.
     ///
     /// The cut is blossoming, `b_k = f(a, …, a, b, …, b)` with `k` of the
-    /// `b`s, run by de Boor's recurrence in certification arithmetic on
-    /// the homogeneous net `(w·(P − c), w)`, and the Cartesian block is
-    /// read back as the quotient. `c` is the block's first point's lower
-    /// bracket end, translating the net so the products are formed on
-    /// differences; the cut block's points are in that frame.
+    /// `b`s ([`bezier_on`]), on the homogeneous net `(w·(P − c), w)`, and
+    /// the Cartesian block is read back as the quotient. `c` is the
+    /// block's first point's lower bracket end, translating the net so
+    /// the products are formed on differences; the cut block's points are
+    /// in that frame.
     ///
     /// The cut block's boxes are not always narrower than the whole
     /// block's. The recurrence's rounding can outgrow what the cut saves:
-    /// on a net constant along the cut whose `P − c` does not round
-    /// exactly, `d₁ − d₀` of two equal non-point intervals is a
-    /// symmetric interval rather than zero, and on a window a few ulps
-    /// wide the `degree / (b − a)` scale amplifies every such width. So
-    /// the caller meets the two ([`NurbsBoxes::deriv_box`]).
-    fn cut<T: CertifiedBounds>(
-        &self,
-        win: SurfaceWindow<'_, T>,
-        wu: (f64, f64),
-        wv: (f64, f64),
-    ) -> Option<Self> {
-        let (cut_u, cut_v) = (inside(win.span_u(), wu), inside(win.span_v(), wv));
+    /// on a window a few ulps wide the `degree / (b − a)` scale
+    /// amplifies every ulp the blossom adds. So the caller meets the two
+    /// ([`NurbsBoxes::deriv_box`]).
+    fn cut(&self, (span_u, span_v): (Span<'_>, Span<'_>), w: UvWindow) -> Option<Self> {
+        let (cut_u, cut_v) = (inside(span_u, w.u), inside(span_v, w.v));
         if cut_u.is_none() && cut_v.is_none() {
             return None;
         }
@@ -898,32 +1097,43 @@ impl CellNet {
         let nu = self.pts.len() / nv;
         let (mut scale_u, mut scale_v) = (self.scale_u.clone(), self.scale_v.clone());
         let origin = self.pts.first()?.map(Interval::lo);
-        // Four channels per control point: `w·(P − c)` and `w`.
-        let mut h: Vec<[Interval; 4]> = self
-            .pts
-            .iter()
-            .zip(&self.wts)
-            .map(|(p, &w)| {
-                let at = |k: usize| w * (p[k] - Interval::point(origin[k]));
-                [at(0), at(1), at(2), w]
-            })
-            .collect();
+        // Four channels per control point: `w·(P − c)` and `w`, from the
+        // homogeneous channels where the block holds them.
+        let c = origin.map(Interval::point);
+        let mut h: Vec<[Interval; 4]> = match &self.hom {
+            Some(hom) => hom
+                .iter()
+                .map(|h| {
+                    let at = |k: usize| h[k] - c[k] * h[3];
+                    [at(0), at(1), at(2), h[3]]
+                })
+                .collect(),
+            None => self
+                .pts
+                .iter()
+                .zip(&self.wts)
+                .map(|(p, &w)| {
+                    let at = |k: usize| w * (p[k] - c[k]);
+                    [at(0), at(1), at(2), w]
+                })
+                .collect(),
+        };
         if let Some(cut) = cut_u {
             for j in 0..nv {
                 let line: Vec<[Interval; 4]> = (0..nu).map(|i| h[i * nv + j]).collect();
-                for (i, c) in bezier_on(&line, win.span_u(), cut)?.into_iter().enumerate() {
+                for (i, c) in bezier_on(&line, span_u, cut)?.into_iter().enumerate() {
                     h[i * nv + j] = c;
                 }
             }
-            scale_u = bezier_scales(win.span_u().degree(), cut);
+            scale_u = bezier_scales(span_u.degree(), cut);
         }
         if let Some(cut) = cut_v {
             for i in 0..nu {
                 let line = &h[i * nv..(i + 1) * nv];
-                let cut_line = bezier_on(line, win.span_v(), cut)?;
+                let cut_line = bezier_on(line, span_v, cut)?;
                 h[i * nv..(i + 1) * nv].copy_from_slice(&cut_line);
             }
-            scale_v = bezier_scales(win.span_v().degree(), cut);
+            scale_v = bezier_scales(span_v.degree(), cut);
         }
         Some(Self {
             nv,
@@ -932,6 +1142,7 @@ impl CellNet {
                 .map(|c| [c[0] / c[3], c[1] / c[3], c[2] / c[3]])
                 .collect(),
             wts: h.iter().map(|c| c[3]).collect(),
+            hom: None,
             scale_u,
             scale_v,
         })
@@ -1140,12 +1351,12 @@ impl CellNet {
         // extreme at the ends of the hull of their `d`, where they are
         // read.
         let dots = |a: &[Affine]| -> Vec<(Interval, Interval)> {
-            a.iter().map(|t| (dot3(n, t.k), t.g)).collect()
+            a.iter().map(|t| (dot(&n, &t.k), t.g)).collect()
         };
         let (du, dv) = (dots(&au), dots(&bv));
         let along = qs
             .iter()
-            .map(|q| dot3(n, *q))
+            .map(|q| dot(&n, q))
             .reduce(Interval::hull)
             .filter(|d| d.is_certified())
             .and_then(|d| {
@@ -1381,8 +1592,11 @@ fn pair_scales(span: Span<'_>) -> Option<Vec<Interval>> {
     span.first_derived_window()
         .map(|i| {
             let (&lo, &hi) = t.get(i + 1).zip(t.get(i + p + 1))?;
-            let deg = Interval::point(p as f64);
-            Some(deg / (Interval::point(hi) - Interval::point(lo)))
+            Some(span_derivative_scale(
+                p,
+                Interval::point(lo),
+                Interval::point(hi),
+            ))
         })
         .collect()
 }
@@ -1390,14 +1604,14 @@ fn pair_scales(span: Span<'_>) -> Option<Vec<Interval>> {
 /// The derivative scale of a Bézier block over `[a, b]`: `degree / (b − a)`
 /// for every pair.
 fn bezier_scales(degree: usize, (a, b): (f64, f64)) -> Vec<Interval> {
-    let deg = Interval::point(degree as f64);
-    vec![deg / (Interval::point(b) - Interval::point(a)); degree]
+    vec![span_derivative_scale(degree, Interval::point(a), Interval::point(b)); degree]
 }
 
-/// The part of `span`'s knot interval inside `(lo, hi)`, when it is a
+/// The part of `span`'s knot interval inside `w`, when it is a
 /// proper part of positive width; `None` when the window covers the
 /// span whole or meets it in at most a point.
-fn inside(span: Span<'_>, (lo, hi): (f64, f64)) -> Option<(f64, f64)> {
+fn inside(span: Span<'_>, w: ParamRange) -> Option<(f64, f64)> {
+    let (lo, hi) = (w.start(), w.end());
     let t = span.knots().knots();
     let (&ta, &tb) = t.get(span.index()).zip(t.get(span.index() + 1))?;
     let (a, b) = (lo.max(ta), hi.min(tb));
@@ -1406,39 +1620,30 @@ fn inside(span: Span<'_>, (lo, hi): (f64, f64)) -> Option<(f64, f64)> {
 
 /// The Bézier coefficients over `[a, b]` of the polynomial piece that
 /// `line` (the `degree + 1` coefficients of `span`'s window) defines on
-/// that span: the blossom `f(a^{p−k}, b^k)` for each `k`, by de Boor's
-/// recurrence with the `r`-th level at its own argument. `None` when the
-/// line is not one window long or a knot read leaves the vector.
+/// that span, channel by channel: each channel's window restricted to
+/// `[a, b]` ([`geom_core::spline::SpanRow::restrict`]). `None` when the
+/// line is not one window long or the restriction refuses.
 fn bezier_on(
     line: &[[Interval; 4]],
     span: Span<'_>,
     (a, b): (f64, f64),
 ) -> Option<Vec<[Interval; 4]>> {
-    let (p, s, t) = (span.degree(), span.index(), span.knots().knots());
-    if line.len() != p + 1 {
-        return None;
+    let mut out = vec![[Interval::refused(); 4]; line.len()];
+    for c in 0..4 {
+        let channel: Vec<Interval> = line.iter().map(|l| l[c]).collect();
+        let row = span
+            .with_window(&channel)?
+            .restrict((Interval::point(a), Interval::point(b)))
+            .ok()?;
+        for (k, v) in row.into_iter().enumerate() {
+            out[k][c] = v;
+        }
     }
-    (0..=p)
-        .map(|k| {
-            let mut d = line.to_vec();
-            for r in 1..=p {
-                let x = Interval::point(if r <= p - k { a } else { b });
-                for i in (r..=p).rev() {
-                    // `s ≥ p` (the span's invariant), so `s + i − p` and
-                    // `s + i + 1 − r` are in the window's knot range.
-                    let (&lo, &hi) = t.get(s + i - p).zip(t.get(s + i + 1 - r))?;
-                    let lo = Interval::point(lo);
-                    let alpha = (x - lo) / (Interval::point(hi) - lo);
-                    let (d0, d1) = (d[i - 1], d[i]);
-                    d[i] = core::array::from_fn(|c| d0[c] + alpha * (d1[c] - d0[c]));
-                }
-            }
-            Some(d[p])
-        })
-        .collect()
+    Some(out)
 }
 
-fn refused_box() -> Box3 {
+/// The box every reading over a window that names no region answers.
+pub(crate) fn refused_box() -> Box3 {
     Box3 {
         x: Interval::refused(),
         y: Interval::refused(),
@@ -1450,6 +1655,11 @@ fn refused_box() -> Box3 {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// A test's window, ordered by construction.
+    fn win((u0, u1, v0, v1): (f64, f64, f64, f64)) -> UvWindow {
+        UvWindow::new(u0, u1, v0, v1).expect("an ordered window")
+    }
     use crate::implicit::{implicit_gradient, implicit_residual};
 
     fn sphere() -> Surface<f64> {
@@ -1492,26 +1702,23 @@ mod tests {
         NurbsSurface::new(ku, kv, control, weights).expect("valid patch")
     }
 
-    /// **A window with a NaN or inverted end names no region, and every
-    /// box over it is refused.** Without the window door, `f64::clamp`
-    /// passes a NaN end through and `span_range` lands it on the first
-    /// span, so a NaN window reads the first span's control block as a
-    /// certified box — a strict subset of this two-span patch's. The
-    /// ordered window beside them certifies, so the rows are about
-    /// the window and not the patch.
+    /// **A window with a NaN or inverted end names no region: it mints
+    /// no `UvWindow`, so no box is read over it.** A NaN window read as
+    /// the first span's control block would be a certified box that is
+    /// a strict subset of this two-span patch's. The ordered window
+    /// beside them mints and certifies, so the rows are about the window
+    /// and not the patch.
     #[test]
-    fn a_nan_or_inverted_window_is_refused_rather_than_landed_on_the_first_span() {
+    fn a_nan_or_inverted_window_is_not_a_window() {
         let s = multiplicity_2_patch();
         let boxes = NurbsBoxes::new(&s);
         let certified = |b: Box3| b.x.is_certified() && b.y.is_certified() && b.z.is_certified();
-        let all = |(u0, u1, v0, v1): (f64, f64, f64, f64)| {
-            [
-                ("deriv_box u", boxes.deriv_box(u0, u1, v0, v1, true)),
-                ("deriv_box v", boxes.deriv_box(u0, u1, v0, v1, false)),
-                ("rect_box", boxes.rect_box(u0, u1, v0, v1)),
-            ]
-        };
-        for (which, b) in all((0.2, 0.8, 0.0, 1.0)) {
+        let ok = win((0.2, 0.8, 0.0, 1.0));
+        for (which, b) in [
+            ("deriv_box u", boxes.deriv_box(ok, true)),
+            ("deriv_box v", boxes.deriv_box(ok, false)),
+            ("rect_box", boxes.rect_box(ok)),
+        ] {
             assert!(
                 certified(b),
                 "CONTROL: {which} over an ordered window refused"
@@ -1525,24 +1732,41 @@ mod tests {
             ("inverted u", (0.8, 0.2, 0.0, 1.0)),
             ("inverted v", (0.2, 0.8, 1.0, 0.0)),
         ] {
-            for (which, b) in all(w) {
-                assert!(!certified(b), "{name}: {which} certified {b:?}");
-            }
+            assert!(
+                UvWindow::new(w.0, w.1, w.2, w.3).is_none(),
+                "{name}: minted a window"
+            );
         }
+        // An unordered corner pair orders itself, and a NaN corner
+        // refuses where `min`/`max` would have kept the other corner.
+        assert_eq!(
+            UvWindow::spanning((0.8, 1.0), (0.2, 0.0)),
+            Some(win((0.2, 0.8, 0.0, 1.0)))
+        );
+        assert!(UvWindow::spanning((nan, 1.0), (0.2, 0.0)).is_none());
+        assert!(UvWindow::spanning((0.8, 1.0), (0.2, nan)).is_none());
     }
 
-    /// An inverted window past a domain end clamps to an ordered point,
-    /// so the door has to come before the clamp in every box.
+    /// An inverted window past a domain end would clamp to an ordered
+    /// point, so it is refused where it is minted, before any clamp; an
+    /// ordered one past the end clamps to the end's point and boxes.
     #[test]
-    fn an_inverted_window_past_the_domain_is_refused_by_rect_box() {
+    fn an_inverted_window_past_the_domain_is_not_a_window() {
         let s = multiplicity_2_patch();
         let b = NurbsBoxes::new(&s);
-        let c = |x: Box3| x.x.is_certified() && x.y.is_certified() && x.z.is_certified();
         assert!(
-            !c(b.rect_box(1.5, 1.2, 0.0, 1.0)),
-            "rect_box clamps an inverted window to a point"
+            UvWindow::new(1.5, 1.2, 0.0, 1.0).is_none(),
+            "inverted past hi"
         );
-        assert!(!c(b.rect_box(-0.2, -0.5, 0.0, 1.0)));
+        assert!(
+            UvWindow::new(-0.2, -0.5, 0.0, 1.0).is_none(),
+            "inverted past lo"
+        );
+        let x = b.rect_box(win((1.2, 1.5, 0.0, 1.0)));
+        assert!(
+            x.x.is_certified() && x.y.is_certified() && x.z.is_certified(),
+            "an ordered window past the end refused: {x:?}"
+        );
     }
 
     /// The derivative box SKIPS an empty span cell, and the skip never
@@ -1564,13 +1788,13 @@ mod tests {
         );
         let boxes = NurbsBoxes::new(&s);
         let (u0, u1, v0, v1) = (0.2, 0.8, 0.0, 1.0);
-        let (su0, su1) = boxes.cells(u0, u1, v0, v1).expect("an ordered window").u;
+        let (su0, su1) = boxes.cells(win((u0, u1, v0, v1))).u;
         assert!(
             (su0..=su1).contains(&3),
             "the rectangle must straddle the empty cell, got {su0}..={su1}"
         );
         for along_u in [true, false] {
-            let d = boxes.deriv_box(u0, u1, v0, v1, along_u);
+            let d = boxes.deriv_box(win((u0, u1, v0, v1)), along_u);
             assert!(
                 d.x.is_certified() && d.y.is_certified() && d.z.is_certified(),
                 "deriv box (along_u = {along_u}) refused across the empty cell"
@@ -1695,7 +1919,7 @@ mod tests {
         let margins = MARGIN_WINDOWS
             .into_iter()
             .map(|rect| {
-                chart_transverse_margin(&boxes, n, rect, tangent)
+                chart_transverse_margin(&boxes, n, win(rect), tangent)
                     .expect("no window is degenerate")
                     .expect("every stretch is finite")
             })
@@ -1833,8 +2057,8 @@ mod tests {
             let boxes = NurbsBoxes::new(wall);
             let fold = |b: Box3| norm_sup(&[b.x, b.y, b.z]);
             let (du, dv) = (
-                boxes.deriv_box(0.0, 1.0, 0.0, 1.0, true),
-                boxes.deriv_box(0.0, 1.0, 0.0, 1.0, false),
+                boxes.deriv_box(win((0.0, 1.0, 0.0, 1.0)), true),
+                boxes.deriv_box(win((0.0, 1.0, 0.0, 1.0)), false),
             );
             let fold_stretch = fold(Box3 {
                 x: du.x * ex + dv.x * ey,
@@ -1846,9 +2070,9 @@ mod tests {
                 fold(du),
                 fold(dv),
                 fold_stretch,
-                boxes.speed_sup(0.0, 1.0, 0.0, 1.0, true),
-                boxes.speed_sup(0.0, 1.0, 0.0, 1.0, false),
-                boxes.transverse_readings(whole, n, ex, ey).1,
+                boxes.speed_sup(win((0.0, 1.0, 0.0, 1.0)), true),
+                boxes.speed_sup(win((0.0, 1.0, 0.0, 1.0)), false),
+                boxes.transverse_readings(win(whole), n, ex, ey).1,
             ]
         };
         let wall = rational_wall(0.0);
@@ -2423,11 +2647,12 @@ mod tests {
                 }
             }
             for (u0, u1, v0, v1) in rects {
-                let du = boxes.deriv_box(u0, u1, v0, v1, true);
-                let dv = boxes.deriv_box(u0, u1, v0, v1, false);
-                let sup = [true, false].map(|along_u| boxes.speed_sup(u0, u1, v0, v1, along_u));
+                let du = boxes.deriv_box(win((u0, u1, v0, v1)), true);
+                let dv = boxes.deriv_box(win((u0, u1, v0, v1)), false);
+                let sup =
+                    [true, false].map(|along_u| boxes.speed_sup(win((u0, u1, v0, v1)), along_u));
                 let (phi, stretch) = boxes.transverse_readings(
-                    (u0, u1, v0, v1),
+                    win((u0, u1, v0, v1)),
                     plane_n.map(Interval::point),
                     Interval::point(e.0),
                     Interval::point(e.1),
@@ -2481,6 +2706,37 @@ mod tests {
         }
     }
 
+    /// **A refused plane normal measures no chart margin.** Over the
+    /// dome, a window's transverse margin against a plane is a finite
+    /// distance from zero. With the normal refused, `∇φ` is refused while
+    /// the chart's stretch stays finite, and the margin reads `NaN`
+    /// (measured nothing), never the `0` of a straddle.
+    #[test]
+    fn a_refused_normal_measures_no_chart_margin() {
+        let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+            .expect("clamped quadratic");
+        let mut control = Vec::with_capacity(9);
+        for i in 0..3u8 {
+            for j in 0..3u8 {
+                let y = if i == 1 && j == 1 { -1.5 } else { 0.0 };
+                control.push(Point3::new(f64::from(i) / 2.0, y, f64::from(j) / 2.0));
+            }
+        }
+        let dome = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).expect("the dome");
+        let boxes = NurbsBoxes::new(&dome);
+        let (tx, ty) = (1.0_f64, 0.3_f64);
+        let tangent = (tx, ty, tx.hypot(ty));
+        let read = |n| {
+            chart_transverse_margin(&boxes, n, win(INSIDE_ONE_CELL), tangent)
+                .expect("the window is not degenerate")
+                .expect("the stretch is finite")
+        };
+        let measured = read([0.0, 1.0, 0.0].map(Interval::point));
+        assert!(measured.is_finite() && measured > 0.0, "{measured}");
+        let refused = read([Interval::refused(); 3]);
+        assert!(refused.is_nan(), "a refused normal read {refused}");
+    }
+
     /// **The derivative box shrinks with its window below a span cell.**
     /// The dome `x = s, z = t, y = −4d·s(1−s)·t(1−t)` is one quadratic
     /// Bézier patch, so every window touches the same single cell, whose
@@ -2504,8 +2760,8 @@ mod tests {
         let dome = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).expect("the dome");
         let boxes = NurbsBoxes::new(&dome);
         let (u0, u1, v0, v1) = INSIDE_ONE_CELL;
-        let du = boxes.deriv_box(u0, u1, v0, v1, true);
-        let dv = boxes.deriv_box(u0, u1, v0, v1, false);
+        let du = boxes.deriv_box(win((u0, u1, v0, v1)), true);
+        let dv = boxes.deriv_box(win((u0, u1, v0, v1)), false);
         assert!(
             du.y.hi() < 0.0 && dv.y.lo() > 0.0,
             "S_u.y in [{}, {}] and S_v.y in [{}, {}] must be zero-free over the window",
@@ -2592,8 +2848,8 @@ mod tests {
                 };
                 let ((u0, u1), (v0, v1)) = (side(&mut rng), side(&mut rng));
                 for along_u in [true, false] {
-                    let cut = boxes.deriv_box(u0, u1, v0, v1, along_u);
-                    let whole = boxes.cell_deriv_box(u0, u1, v0, v1, along_u);
+                    let cut = boxes.deriv_box(win((u0, u1, v0, v1)), along_u);
+                    let whole = boxes.cell_deriv_box(win((u0, u1, v0, v1)), along_u);
                     for (axis, c, w) in [
                         ("x", cut.x, whole.x),
                         ("y", cut.y, whole.y),
@@ -2690,6 +2946,50 @@ mod tests {
         assert!(!implicit_enclosure(&torus, b).is_certified());
         assert!(!implicit_gradient_enclosure(&torus, b)[0].is_certified());
         assert!(!graph_margin(&torus, &sphere(), b, Vec3::new(1.0, 0.0, 0.0)).is_certified());
+    }
+
+    /// **[`super::has_implicit_enclosure`] answers what the enclosures
+    /// do**, kind by kind, on a box clear of every operand's degenerate
+    /// set. It asks both: the tube's one-arc proof (`one_arc_r3`)
+    /// reads the residual enclosure as well as the gradient, so an arm
+    /// that encloses the gradient alone does not admit a kind.
+    #[test]
+    fn the_enclosure_roster_is_the_enclosures_own() {
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, -2.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: 0.4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let torus = Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: 1.0,
+            minor_radius: 0.2,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let b = Box3::around(Point3::new(0.8, 0.2, 0.1), 0.05);
+        let mut seen = Vec::new();
+        for s in [plane, cylinder(), cone, sphere(), torus] {
+            let kind = s.kind();
+            seen.push(kind);
+            let encloses = implicit_enclosure(&s, b).is_certified()
+                && implicit_gradient_enclosure(&s, b)
+                    .iter()
+                    .all(|g| g.is_certified());
+            assert_eq!(super::has_implicit_enclosure(kind), encloses, "{kind:?}");
+        }
+        for kind in geom::SurfaceKind::ALL {
+            assert!(
+                seen.contains(&kind) || !super::has_implicit_enclosure(kind),
+                "{kind:?} is claimed and not measured here"
+            );
+        }
     }
 
     #[test]

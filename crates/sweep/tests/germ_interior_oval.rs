@@ -560,8 +560,10 @@ fn the_oval_lens_is_well_above_the_rows_tolerance() {
 /// W4; the side faces cut `(0,1)` and `(1,0)` pairs, W2): the lens arcs
 /// are evidenced, and tracing them is the crossing layer's business.
 /// What keeps the result from being a body is downstream of the guard —
-/// the join's germ frame, which has no torus × plane arm and is where
-/// every op refuses today — and that is what this row pins.
+/// the join's germ frame, where every op refuses: the end squares stand
+/// past the inner equator, so each cuts one null oval, a general spiric
+/// quartic the frame refuses by name. That is what this row pins, so it
+/// reds the day anything serves that section.
 #[test]
 fn the_corner_bar_never_comes_back_a_body() {
     let d = donut();
@@ -579,11 +581,21 @@ fn the_corner_bar_never_comes_back_a_body() {
         ("∖", topo::subtract(&d, &b, Tol::witness())),
         ("∖ reversed", topo::subtract(&b, &d, Tol::witness())),
     ] {
-        if let Ok(r) = r {
-            panic!(
+        match r {
+            Ok(r) => panic!(
                 "{what}: the corner bar came back {:?}",
                 r.body().map(|x| (x.kind, volume(&x.body)))
-            );
+            ),
+            Err(e) => assert!(
+                matches!(
+                    e,
+                    topo::BooleanError::GermSectionSpiric {
+                        loops: topo::SpiricLoops::Null,
+                        ..
+                    }
+                ),
+                "{what}: the end square's null oval refuses at the frame: {e:?}"
+            ),
         }
     }
 }
@@ -846,16 +858,19 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
     );
 }
 
-/// **A plane clear of the bump's control net is certified apart though
-/// its box overlaps (W0).** A wedge over the bump block whose underside
+/// **A plane clear of the bump's control net is parted before the
+/// certificate is asked, though its box overlaps.** A wedge over the bump block whose underside
 /// rises along `z = 2.4 + 0.3x`: every control point of the net lies
 /// below it (the inner four by `0.2` at the least, at `x = −2/3`), while
 /// the underside's box reaches down to `z = 1.5` into the bump face's.
 /// Every wedge edge stands at `x = ±3` or `y = ±3`, so the pair meets no
-/// crossing, and the certificate answers it with no component. Red
-/// against W0 dropped from the NURBS arm.
+/// crossing, and the walk's narrow phase (`boolean::separating`) parts
+/// it along the underside's own normal before the certificate is asked.
+/// Red against the walk reading the box overlap alone, which hands the
+/// pair to the certificate's W0 (whose own row is `section_cert_rows`'
+/// NURBS × plane one).
 #[test]
-fn a_plane_clear_of_the_bumps_net_is_certified_apart() {
+fn a_plane_clear_of_the_bumps_net_never_reaches_the_certificate() {
     let wedge = {
         let lp = ProfileLoop::polygon([
             Point2::new(-3.0, 1.5),
@@ -883,8 +898,5 @@ fn a_plane_clear_of_the_bumps_net_is_certified_apart() {
         .expect("the wedge extrudes")
         .body
     };
-    assert_eq!(
-        nurbs_verdicts(&nurbs_bump(), &wedge),
-        vec!["Nurbs × Plane: Ok([])".to_string()]
-    );
+    assert_eq!(nurbs_verdicts(&nurbs_bump(), &wedge), Vec::<String>::new());
 }

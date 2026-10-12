@@ -47,12 +47,13 @@ fn the_checked_constructor_refuses_empty_and_out_of_range_indices() {
     assert!(m.span(usize::MAX).is_none(), "no overflow, just None");
 }
 
-/// `span_at` is total on all of `f64` and its postcondition — the span
-/// it names is nonempty — is what the basis denominators rest on. In a
-/// release build the `debug_assert` is gone, so an empty span would
-/// divide by a zero knot difference and poison silently. Pin it.
+/// `span_at` locates every number and refuses only NaN, and its
+/// postcondition — the span it names is nonempty — is what the basis
+/// denominators rest on. In a release build the `debug_assert` is gone,
+/// so an empty span would divide by a zero knot difference and poison
+/// silently. Pin it.
 #[test]
-fn span_at_is_total_and_never_lands_on_an_empty_span() {
+fn span_at_locates_every_number_and_never_lands_on_an_empty_span() {
     for (name, k) in vectors() {
         let (lo, hi) = k.domain();
         let mut params: Vec<f64> = k.knots().to_vec();
@@ -73,7 +74,11 @@ fn span_at_is_total_and_never_lands_on_an_empty_span() {
             params.push(lo + (hi - lo) * (f64::from(step) / 100.0));
         }
         for t in params {
-            let span: Span = k.span_at(t);
+            let Some(span): Option<Span> = k.span_at(t) else {
+                assert!(t.is_nan(), "{name}: span_at({t}) refused a number");
+                continue;
+            };
+            assert!(!t.is_nan(), "{name}: span_at(NaN) located a span");
             assert!(
                 k.span_is_nonempty(span.index()),
                 "{name}: span_at({t}) landed on empty span {}",
@@ -83,9 +88,7 @@ fn span_at_is_total_and_never_lands_on_an_empty_span() {
                 span.index() >= k.first_span() && span.index() <= k.last_span(),
                 "{name}: span_at({t}) left the span range"
             );
-            // The total constructor and the checked one agree, and both
-            // agree with `find_span` — one located index, three names.
-            assert_eq!(span.index(), k.find_span(t));
+            // The located constructor and the checked one agree.
             assert_eq!(k.span(span.index()), Some(span));
         }
     }

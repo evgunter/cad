@@ -120,7 +120,7 @@ fn steps() -> Vec<ProgramStep<Formula>> {
 
 fn program() -> ProfileProgram<Formula> {
     ProfileProgram {
-        plane: editor_core::RecipeNodeId(0),
+        frame: editor_core::RecipeNodeId::new(0, 0).into(),
         loops: vec![
             LoopProgram::Chain(steps()),
             LoopProgram::circle(1.0, 1.0, 0.5).unwrap(),
@@ -146,7 +146,7 @@ fn program() -> ProfileProgram<Formula> {
 struct Exprs {
     /// Length: `Add`, `Sub`, `Neg`, `Mul`, `Div`, `Min`, `Max`, `Param`.
     length: Formula,
-    /// Angle: `Atan2` over two lengths.
+    /// Angle: `Atan2` over two lengths, plus `Turn`.
     angle: Formula,
     /// Scalar: `Sin`, `Cos`, `Tan`.
     scalar: Formula,
@@ -167,22 +167,25 @@ fn exprs() -> Exprs {
                     len(0.5),
                 )
                 .unwrap(),
-                Formula::mul(len(2.0), scl(1.5)).unwrap(),
+                Formula::mul(len(2.0), Formula::ratio(3, 2).unwrap()).unwrap(),
             )
             .unwrap(),
-            Formula::div(len(8.0), scl(4.0)).unwrap(),
+            Formula::div(len(8.0), Formula::ratio(4, 1).unwrap()).unwrap(),
         )
         .unwrap(),
         // A stored reader and an authored name: a program in a
         // document holds the first, an edit log can hold the second.
         Formula::add(
-            Formula::var(editor_core::VarId(0x3fa9_c1d2_a0b1_0001), Dimension::Length),
+            Formula::var(
+                editor_core::VarId::new(0, 0x3fa9_c1d2_a0b1_0001),
+                Dimension::Length,
+            ),
             Formula::named(VarName::from_static("width"), Dimension::Length),
         )
         .unwrap(),
     )
     .unwrap();
-    let angle = Formula::atan2(len(1.0), len(2.0)).unwrap();
+    let angle = Formula::add(Formula::atan2(len(1.0), len(2.0)).unwrap(), Formula::turn()).unwrap();
     let scalar = Formula::mul(
         Formula::sin(ang(0.3)).unwrap(),
         Formula::mul(
@@ -207,8 +210,10 @@ fn exprs() -> Exprs {
 /// Every `WireExpr` variant the module declares, so the row below can
 /// say what it covers instead of a reader counting arms by eye.
 const EXPRESSION_VARIANTS: &[&str] = &[
-    "Literal",
-    "Count",
+    "Quantity",
+    "Ratio",
+    "Integer",
+    "Turn",
     "Var",
     "Name",
     "Add",

@@ -6,11 +6,12 @@
 //! and its outer two Below, and a Below piece descends through the
 //! middle piece's key, which only the Above half holds.
 //!
-//! The two Below pieces of the rim are pieces of one parent edge on one
-//! side, told apart by their ends (N2's `Ends`); the two crossings are
-//! one name on each side, ranked along the rim by its carrier's own
-//! parameter (N2's crossing ordinal), so a crossing has one rank on
-//! both sides.
+//! Every piece of the rim is named by its ends (N2's `Ends`), the Above
+//! half's one piece included, which tells the two Below pieces apart;
+//! the two crossings are
+//! told apart on each side by their senses (N2), so neither is ranked:
+//! the rim enters the Above half at one and leaves it at the other, and
+//! the Below half the other way round.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
@@ -18,14 +19,14 @@ use std::collections::BTreeMap;
 use editor_core::test_support::clipped_cylinder;
 use editor_core::{
     CancelToken, CapEnd, EntityKey, EntityKind, Entry, EvalOptions, PieceRole, ProfileEdgeRef,
-    Qualifier, RoleSeg, SplitHalf, SplitSide, StableName, ValuePayload, evaluate,
+    Qualifier, RoleSeg, Sense, SplitHalf, SplitSide, StableName, ValuePayload, evaluate,
 };
 use geom_core::Tol;
 
 use crate::fixture::point;
 
 #[test]
-fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_ranks_its_crossings() {
+fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_their_senses() {
     let (doc, [ext, _, split]) = clipped_cylinder(Tol::witness());
     let ev = evaluate::<f64>(
         &doc,
@@ -49,18 +50,19 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_ranks_its_crossing
         name.node == ext
             && matches!(
                 name.path.as_slice(),
-                [RoleSeg::RimEdge(
-                    CapEnd::Start,
-                    ProfileEdgeRef::Piece {
-                        role: PieceRole::Piece(0),
-                        ..
-                    }
-                )]
+                [RoleSeg::RimEdge(CapEnd::Start, run)]
+                    if matches!(
+                        run.single(),
+                        Some(ProfileEdgeRef::Piece {
+                            role: PieceRole::Piece(0),
+                            ..
+                        })
+                    )
             )
     };
     // (side, kind) → the rows on the start rim's Piece(0), by tail.
     let mut pieces: BTreeMap<SplitHalf, Vec<StableName>> = BTreeMap::new();
-    let mut crossings: BTreeMap<(SplitHalf, u32), [f64; 3]> = BTreeMap::new();
+    let mut crossings: BTreeMap<(SplitHalf, Sense), [f64; 3]> = BTreeMap::new();
     for (name, entry) in value.name_table.iter() {
         let Entry::Unique(at) = entry else {
             panic!("no row ties: {name:?} {entry:?}");
@@ -76,21 +78,18 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_ranks_its_crossing
                 );
                 pieces.entry(*side).or_default().push(name.clone());
             }
-            (
-                EntityKind::Vertex,
-                [
-                    RoleSeg::CrossingVertex { side, edge },
-                    RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }),
-                ],
-            ) if rim(edge) => {
+            (EntityKind::Vertex, [RoleSeg::CrossingVertex { side, edge, sense }]) if rim(edge) => {
                 let EntityKey::Vertex(v) = at.key else {
                     panic!("a vertex row names a vertex: {name:?}");
                 };
                 let p = point(half, v);
-                crossings.insert((*side, *rank), p.to_array());
+                assert!(
+                    crossings.insert((*side, *sense), p.to_array()).is_none(),
+                    "one crossing a sense a side: {name:?}"
+                );
             }
             (EntityKind::Vertex, [RoleSeg::CrossingVertex { edge, .. }, ..]) if rim(edge) => {
-                panic!("a crossing of the rim is ranked one of two: {name:?}")
+                panic!("a crossing of the rim is ranked though its sense tells it apart: {name:?}")
             }
             _ => {}
         }
@@ -101,10 +100,16 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_ranks_its_crossing
         1,
         "the middle piece is the Above half's one piece of the rim: {above_pieces:?}"
     );
-    assert_eq!(
-        above_pieces[0].path.len(),
-        1,
-        "one piece takes no qualifier"
+    assert!(
+        matches!(
+            above_pieces[0].path.last(),
+            Some(RoleSeg::Fragment(Qualifier::Ends(ends))) if ends.len() == 2
+                && ends.iter().all(|e| matches!(
+                    e.path.first(),
+                    Some(RoleSeg::CrossingVertex { side: SplitHalf::Above, .. })
+                ))
+        ),
+        "a lone piece is named by its ends too, the two Above crossings: {above_pieces:?}"
     );
     let below_pieces = &pieces[&SplitHalf::Below];
     assert_eq!(
@@ -128,30 +133,30 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_ranks_its_crossing
     assert_eq!(
         crossings.len(),
         4,
-        "two ranked crossings a side: {crossings:?}"
+        "two crossings a side, one of each sense: {crossings:?}"
     );
-    for rank in 0..2 {
+    for sense in [Sense::Enters, Sense::Leaves] {
         let (a, b) = (
-            crossings[&(SplitHalf::Above, rank)],
-            crossings[&(SplitHalf::Below, rank)],
+            crossings[&(SplitHalf::Above, sense)],
+            crossings[&(SplitHalf::Below, sense.flipped())],
         );
         let gap = (0..3).map(|i| (a[i] - b[i]).abs()).fold(0.0, f64::max);
         assert!(
             gap < 1e-9,
-            "crossing #{rank} is one place on both sides: {a:?} {b:?}"
+            "where the rim enters one half it leaves the other: {a:?} {b:?}"
         );
     }
     let (first, second) = (
-        crossings[&(SplitHalf::Above, 0)],
-        crossings[&(SplitHalf::Above, 1)],
+        crossings[&(SplitHalf::Above, Sense::Enters)],
+        crossings[&(SplitHalf::Above, Sense::Leaves)],
     );
     assert!(
         (first[0] - second[0]).abs() > 0.5,
         "the two crossings are the two ends of the chord at y = 0.2: {first:?} {second:?}"
     );
-    // Rank 0 is the crossing first along the rim as the extrude stores
-    // it: on a semicircle the chord from the start grows along the arc,
-    // so it is the crossing nearer the rim's start.
+    // The rim, as the extrude stores it, starts Below and runs into the
+    // Above middle piece: it enters the Above half at the crossing nearer
+    // its start.
     let ext_body = crate::corpus::body_of(&ev, ext);
     let rim_edge = ext_body
         .edges()
@@ -171,7 +176,7 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_ranks_its_crossing
     let from_start = |c: [f64; 3]| ((c[0] - start.x).powi(2) + (c[1] - start.y).powi(2)).sqrt();
     assert!(
         from_start(first) < from_start(second),
-        "rank 0 is the crossing first along the rim's stored direction: {first:?} {second:?} \
+        "the rim enters the Above half first along its stored direction: {first:?} {second:?} \
          from {start:?}"
     );
 }
@@ -200,7 +205,13 @@ fn a_wall_crossed_twice_names_its_same_side_pieces_by_the_edges_they_keep() {
             normal: [scl(0.0), scl(1.0), scl(0.0)],
         }),
     );
-    let (doc, split) = insert(doc, Node::Split { target: ext, tool });
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: ext.into(),
+            tool: tool.into(),
+        },
+    );
     let ev = evaluate::<f64>(
         &doc,
         None,

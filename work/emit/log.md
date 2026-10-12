@@ -1973,6 +1973,28 @@ The builder sits beside `band_rim` (`names/role.rs`). It is exported through `pn
 
 `add_part_ui` now draws `creation_label_row` above the listing, because a pick commits at once. A pick commits through `push_labelled(INSTANCE_NOUN, AddInstance)`: one undo, a blank field commits the bare op, and refused text queues nothing, as on every other create form (PR 3713). The tests are an app-level row (save beside a stored part, type over the proposal, pick) and the noun pin. Review: nothing blocking; a comment now guards the chooser's take/put-back against an early return.
 
+## 2026-10-06 — PR 4183: a label refuses direction scopes and needs a character that shows
+
+A blinded designer pair (byte 192, A = Opus, B = Fable, recorded on
+`analysis/design-fork/emit-label-invisible-chars`) converged in its first
+reports. No ratified text changed: DESIGN.md has no character rule, and
+the rule lives in `label.rs`. So it was built without an `[ev]`; the PR
+body says it extends the rule approved on #3565.
+
+`Label::new` refuses, in this order:
+- a line break;
+- a control character;
+- one of the nine bidi embedding, override or isolate characters
+  (`LabelFault::Direction`, Python tag `label_direction_control`);
+- `Blank`: every character is whitespace or Unicode
+  `Default_Ignorable_Code_Point`. The 17 ranges are verified against
+  Unicode 16 and 18 (4174 code points).
+
+Joiners, bidi marks and emoji sequences pass. The viewer clears a field
+on `Label::is_blank`, the same predicate, so a field that shows nothing
+clears rather than refusing. Review folds: ALM and control-order rows, a
+full-range direction scan, narrowed docs, and the range test's stated
+re-derivation rule.
 ## 2026-10-06 — the strict-tolerance reds, traced
 
 Several PRs failed CI's strict-tolerance step today (#4164 among them).
@@ -1988,3 +2010,200 @@ Two nightly-only reds remain, both stale test pins, fixed on
 
 Job logs are readable from a cloud box: the GitHub MCP `get_job_logs`
 with `return_content=false` returns a signed URL that `curl` fetches.
+
+## 2026-10-06 — PR 4203: every crossing carries its sense
+
+The ruled row from PR 4134, the sense half.
+- The boolean records each operand edge piece's in/on/out class at its
+  vertex (`EdgePieceClass`). The vertex-on-face rows are the side codes
+  that pass decided (D5). The vertex-vertex rows are measured beside the
+  classification by `sectors::wedge_classes`.
+- Null-edge copies are exposed (`BooleanNaming::null_copies`), so an edge
+  that ends at a copy ends at the vertex. A side with no row refuses unless
+  the edge ends there.
+- The boolean and union name an edge × face vertex
+  `Crossing { edge, face, sense }` and an edge × edge vertex
+  `EdgeCrossing { a, a_sense, b, b_sense }`. The Split's `CrossingVertex`
+  gains `sense`.
+- Ranks run per sense.
+- Senses ride a union's fold. They flip under `RankRule::Reverse`, a
+  Split's crossings included, and a union rewrite re-reads them side by
+  side by image.
+
+`Ends` on every piece of a divided edge was built and reverted in the same
+PR. The review measured names growing about 2.41× per cut along a chain of
+trims (8.3M words at fourteen trims). It waits on
+`a-crossing-cites-its-edge-by-a-name-that-holds-that-edges-ends-so-names-grow-exponentially`.
+
+The pinned test is rebuilt as one document edited in place; it pins the
+crossing, and not the lone piece.
+
+Filed:
+- the touch and edge × edge spelling (design);
+- the unoriented-seam refusal (design);
+- the end-touch row, which main's edge joins left without a witness.
+
+## 2026-10-07 — PR 4212: a crossing cites the edge's line (ruled)
+
+Ev approved fork-log row 77: a crossing and every piece's base cite the
+edge's line, and N5 reads a cited line as the rows whose undivided base
+it is. Both designers converged on it after round 2. The growth row
+stays open for the build, which lands `Ends` on every piece on top.
+
+## 2026-10-07 — PR 4228: a crossing cites the edge's line; Ends on every piece
+
+This builds the #4212 ruling. Review found three real defects, all fixed
+with fail-before rows:
+- a cascade's `through` line, resolved on its own, cascaded wrongly;
+- `GroupResized` broke when two untied parents lay on one line;
+- the cross-piece ranking was anchored to the least-named piece, which
+  could swap ranks silently on a closed carrier.
+
+Two rows were filed: a curved-rim union that refuses `SharedRim` on main
+too, and the second-crossing row's same-sense group, which no geometry
+the kernel accepts reaches today. Main's lint red from #4234 was fixed by
+#4241 on the way. The growth row is closed.
+
+## 2026-10-07 — PR 4244: ids are a (mint ordinal, digest) pair
+
+This builds the #4156 ruling; nothing needed one integer. Review caught
+four things:
+- a probe-twin pin left stale;
+- msolve14's ε pins left stale (they hash ids; with ids masked to
+  positions the solve matches main at every ε);
+- `MintLogOrder`'s old wording;
+- docs restating a false "id order is topological".
+
+Filed from it: the forward-member row (doors), the u64-token residue
+(wire) and the analysis boxes' redundant axis order (flux). PR 4244
+merged second after #4228 and re-measured exactly the pins #4228 moved.
+The name row is closed.
+
+## 2026-10-07 — PR 4269: a vertex reads every key fused into it (P0)
+
+This fixes a regression from #4203. Leaning wedges' unions refused the
+unclassified-crossing emission in the 78 member orders whose first fold
+step unions two adjacent wedges.
+
+The cause was that `fused_partners` read the zips' fusions one hop deep.
+`split_cones` leaves per-cone copies that chain two fusions, so B's keys
+never reached the pinch vertex.
+
+Review asked for three things, all done:
+- partners nearest first, so every one-hop identity holds;
+- rows with mutation evidence;
+- a measurement: no corpus name moves.
+
+## 2026-10-07 — PR 4278: crossings of one NURBS piece rank by its parameter
+
+A crossing point is read along the piece's chord. The reading is used
+only when every control step shaping the piece advances along the
+chord, which makes the piece a graph over its chord, so the readings
+order as the parameters do.
+
+Review confirmed the argument and caught two things, both fixed: the
+certificate escalated where main tied, and no row checked the certificate.
+
+Filed from the review: K > 2 is unenforced (flux), and N2 states only
+part of the tie rule (emit). The lane also filed a swaying-loft refusal
+(nurbs) and the flush reading's NURBS gap (emit).
+
+## 2026-10-07 — PR 4281: merged sets are flat through FromMember (N3)
+
+A union over a union, or over a pair boolean, published an inner merge as
+one constituent. Merged sets now peel `FromA`, `FromB` and `FromMember`
+in one place. `Parents` and `member_edge` read constituents, and
+`face_descends_from` counts descent from a constituent.
+
+Review caught two things: an overstated PR claim (main never dropped
+declarations silently) and the untested pair-boolean case, which now has
+a row that is red on main. The wrong cascade diagnosis is filed as
+`a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent`.
+
+## 2026-10-12 — PR 4284: a corner keeps its name; every other meeting is a crossing (ruled)
+
+Ev approved fork-log row 120 on 2026-10-08. Both designers recommended
+the same final state in their first reports:
+- an operand's corner keeps its own name;
+- every other place an edge meets the other body is a crossing, with a
+  four-valued sense;
+- `EdgeCrossing` goes into N2;
+- `Seam` retires from vertices.
+
+On three or more members meeting at one point, Ev leans to A's reading
+but is unsure, so the build tries it and keeps it only if the pinch rows
+stay order-free.
+
+## 2026-10-12 — PR 4794: a split piece's lineage is chased through killed stretches
+
+A union over a curved rim cut into pieces refused `SharedRim::Several`.
+Review traced the cause to the lineage chase: a killed stretch deleted
+the parent link, so the piece fell to the derived-chord path. That has
+a P0 precedent fixed in the same place (PR 3114). The chase now reads
+the discard rows' boundary chains, and every one of the 8084 newly
+resolved edges lies within the operand edge it is named for.
+
+The curved `rim_holding` reading stays, with unit witnesses. Only
+`crossing_slots` renames. Two union refusal rows rightly lost their
+refusal, and their witnesses moved.
+
+Filed: `a-lone-cut-piece-of-an-operand-edge-keeps-its-bare-name`, which
+main already has, and `a-point-on-a-curved-edge-is-placed-by-its-chord`.
+
+## 2026-10-12 — PR 4816: the touch / edge-crossing ruling built
+
+This builds Ev's ruling on #4284:
+- a corner keeps its own name;
+- the sense has four values;
+- every edge meeting is a `Crossing` or an `EdgeCrossing`;
+- a union reads edge x edge vertices from the finished body.
+
+On the merged tree, `KNOWN_ABSENT` for cross went from 308 to 140, and
+r5poke and r5pokehi went to 0. Pinned emission refusals now build, each
+with one table.
+
+The residue was not built as Ev's leaned reading, because carrying three
+or more edges needs a design change. It keeps the junction spelling, read
+from the finished body.
+
+Review found three things:
+- several result vertices at one corner now tie (filed, design);
+- the README's flush text is false for two wedges + plate (owned by the
+  residue row);
+- silent fallbacks, now documented and pinned.
+
+Both design rows go to a designer pair next.
+
+
+## 2026-10-12 — PR 4816 merged; the partner-arms row closed
+
+PR 4816 merged with `gate ok` red on one row only. That row is
+`coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`
+at ε 1e-12, the base's red, which FLUSH has filed and which was reported on the PR.
+That merge deleted the seam-vertex partner arms, so
+`the-seam-vertex-contact-partner-arms-have-no-planar-witness-under-maximal-edges`
+is closed as moot.
+- 2026-10-12 — Seam note from ENCL (PR 4811, merged at `abff76bb25`): editor-core's undecided sentences render through `Indeterminate::undecided`. Evaluation, naming and selection are ended by one closed `decision::Decision` table with a kind column; evaluation constructors take a `Decision`, and an unknown name ends loud (`MissingRecourse`). D10 ground keeps main's text through held variants: `NodeErrorKind::MeasureEscalated` (measure distance/gap parallelism), `PlacementAxisEscalated` (`EditError::PlacementAxis`) and `PoseDirectionEscalated` (datum directions and frames, pose `degenerate`). All three classify as Escalated, and pncad-py `tags.rs` and viewer `tree.rs` gained arms. Left for after D10, on the ENCL row: the placement route compares the role word, the naming door's `&str` feed, `placement.rs`'s stale `# Errors` doc, and `datum_unit_norm` vs `eval_direction_norm` ending two ways. (ENCL orchestrator)
+
+## 2026-10-12 — the junction / corner-tie fork goes to Ev
+
+One designer pair weighed both design rows: the PR 4284 residue (three or
+more members at one point) and the corner the result holds as several
+vertices. It took three reconciliation rounds; the pair crossed twice on
+whether a face through the point belongs in the name. They converged:
+- a non-corner vertex is the run of lines through it;
+- each sense is read against what the name cites;
+- a corner's copies are `Fragment(Borders)` fragments of it.
+
+Fork-log row 124; the `[ev]` PR states it in N2.
+
+## 2026-10-12 — PR 4881 ruled
+
+Ev approved the converged recommendation. Ev asked two follow-up questions:
+- whether senses are inconsistent today (no: only a seam line's sense would be new);
+- whether that sense is meaningful.
+
+Then Ev ruled to leave the seam sense out while ranking is the easier route. Two vertices
+with one seam run rank along a straight seam they share. The two rows are
+now build rows, with `design` and `needs_ev` cleared; the fork-log row was renumbered to 124
+at merge.

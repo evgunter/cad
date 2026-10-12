@@ -33,8 +33,8 @@ against vtxfac's `Entry` with `is_edge`), the class
 (`PlaneSide::Above` against `SideCode::Out`), the side and attribute
 derivation (the split always takes `Above` except at a whole orbit;
 vtxfac reads the facing through `strut_faces_first`), and the record
-type. The split lane allows any number of runs; vtxfac refuses more
-than two (`PierceRunsUnordered`).
+type. Both lanes allow any number of runs; vtxfac also hangs its ring
+struts in the runs' angular order (`vtxfac::ring_order`).
 
 Owed: decide whether the enumeration and the site choice (fan, whole
 orbit, or strut at `after`, with its check) belong in one helper over

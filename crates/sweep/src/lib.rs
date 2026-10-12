@@ -1,7 +1,8 @@
 //! Sweep operations: solids from validated 2-D profiles —
-//! [`fn@extrude`], [`fn@revolve`], [`loft_body`], [`sweep_body`] (path
-//! sweep), [`fn@skin`], [`tube_along_arc`], and the blend family
-//! ([`mod@fillet`], [`mod@chamfer`], [`mod@blend`]).
+//! [`fn@extrude`], [`fn@revolve`], [`loft_body`] and
+//! [`loft_profiles`], [`sweep_body`] (path sweep), [`fn@skin`],
+//! [`tube_along_arc`], and the blend family ([`mod@fillet`],
+//! [`mod@chamfer`], [`mod@blend`]).
 //!
 //! This crate sits on top of the whole M2 stack: it consumes the
 //! `profile` crate's [`profile::ValidatedProfile`] (the only accepted
@@ -69,12 +70,12 @@
 //!
 //! # What an extrusion stores (the D2 story, applied)
 //!
-//! - **Side struts** — `MappedCurve::ExtrudedPoint { point, place,
-//!   vec }`; **bottom rims** minted as `MappedCurve::PlacedSegment` at
+//! - **Side struts** — `MappedSource::ExtrudedPoint { point, place,
+//!   vec }` over a whole range; **bottom rims** minted as `MappedSource::PlacedSegment` at
 //!   the sketch placement; **top rims** minted as `PlacedSegment` at
 //!   the placement translated by `w` (PR 3's binding handoff).
 //! - **Profile-corner joins**: once both side faces of a join exist,
-//!   the join (strut) edge upgrades to `Intersection { s1, s2,
+//!   the join (strut) edge upgrades to `Intersection { pair,
 //!   witness }` via `topo`'s certified `set_edge_curve`
 //!   (mint-time `Intersection` is impossible — the surfaces don't exist
 //!   yet). The choice is `geom_brep::classify_dihedral` at the strut
@@ -127,8 +128,11 @@
 //!   it). Smooth joins across genuinely distinct surfaces (line–arc
 //!   tangency: plane–cylinder) keep distinct surfaces and a
 //!   conventional join edge.
-//! - **Caps** via `geom_brep::newell_plane` over the loop vertices in
-//!   `next` order (outer loop in next order ⇒ outward normal).
+//! - **Caps** via `swept::cap_plane`: `geom_brep::newell_plane` over
+//!   the loop vertices and arc apexes, flipped where it disagrees with
+//!   the profile's validated winding (an outer loop runs
+//!   counterclockwise about the sketch normal) — the inscribed polygon's
+//!   own winding, which a large convex arc can reverse, never decides.
 //!
 //! # Holes
 //!
@@ -165,12 +169,13 @@ mod swept;
 pub mod test_support;
 
 pub use extrude::{ExtrudeError, ExtrudeSide, Extruded, Extrusion, SideWall, extrude};
-pub use loft::{LoftError, Lofted, loft_body, sweep_body};
+pub use loft::{LoftError, Lofted, loft_body, loft_profiles, sweep_body};
 pub use revolve::tube::{TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 pub use revolve::{
     BandWall, Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, WedgeCapsError,
     WedgeFrames, revolve, revolved_caps,
 };
+pub use swept::CapPlaneError;
 // `SketchSegment` is re-exported for `segment_curve`, the retained
 // 2-D-segment → 3-D-curve door (step-export builds exact arc path
 // legs through it — the LIB-U4 exact-path territory): a caller must

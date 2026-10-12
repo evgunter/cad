@@ -2,10 +2,13 @@
 id: a-nested-unions-merged-rows-are-not-flat-through-from-member
 kind: issue
 title: A union over a union publishes FromMember(u, Merged{…}) constituents: N3's flatness stops at FromMember
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-10-07
 priority: P2
 cost: M
+branch: emit/nested-union-flat
+pr: 4281
 ---
 
 
@@ -37,3 +40,56 @@ does, the outer set lists the inner set's constituents, re-wrapped as
 `FromMember`. If it does not, N3's flatness sentence should say it stops
 at a member boundary. Either way, a row should pin a nested union's
 merged face and joined edge.
+
+## Built
+
+Flatness applies across the member boundary: N3's "a merge of a merged
+face lists the faces, never the merge" has no member-boundary carve-out,
+and `FromMember` is a descent wrapper as `FromA`/`FromB` are. A
+flattened constituent is the inner constituent re-wrapped,
+`FromMember(u1, c)`, as a boolean over a boolean re-wraps with `FromA`.
+
+- `merged.rs`: one `peel` over `FromA`/`FromB`/`FromMember` serves
+  `constituents_through_wrappers` (so the pair emitter's merge mint and
+  `edge_set`) and the run-wall readers, which are read through
+  `FromMember` too.
+- `emit_union.rs`: `parent_name` mints a parent's `Merged` flat; the
+  collapse refuses a constituent that is a merged name through
+  `FromMember`; `Parents` keys a merged member face's constituents to
+  its parent, so a fold name listing them cites it; `member_edge` reads
+  a constituent of a member's joined edge as that edge.
+- `seam_pair::face_descends_from`: a face descended from one of a
+  merged face's constituents descends from it, so a declaration naming
+  a nested union's merged face that the fold merged and then divided
+  refuses `ConsumedByFold { FragmentedMerge }` instead of being dropped
+  as consumed.
+
+Rows (`tests/emit_nested_union_flat.rs`): the flat sets of a union of
+unions in all 12 member orders, one table; and a divided nested merge
+refusing only as consumed in all 24 outer orders. Each change above is
+red with its revert. No golden moved.
+
+## Review round (PR 4281)
+
+- `member_edge` reads a retired constituent as an edge on its line
+  (its own stretch, else the least set listing it, through
+  `NameTable::sets_listing`, an index beside `on_line`), and its doc
+  says so. The one reader, `Flush::way_of`, asks only whether the edge
+  lies on another's line, so which collinear edge answers is not
+  observable: reading the set first, and the last set rather than the
+  first, left a 36-order probe with a pillar in the inner union and 50
+  union rows identical.
+- Rows: a union over a declared pair boolean publishes flat sets in both
+  orders (red on main); a union offers its member's run wall across a
+  station (`run_wall_offers`, red on main).
+- Filed `a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent`.
+
+## Closed (PR 4281, 2026-10-07)
+
+Merged sets are flat through `FromMember`, for a union over a union and
+for a union over a pair boolean. Rows pin both, in every order, and the
+member's run wall is pinned too. Review found `member_edge`'s reading of
+a retired constituent unobservable by its one caller, so its doc now says
+so and the lookup is indexed. The wrong cascade diagnosis on a vanished
+merged name is filed separately.
+

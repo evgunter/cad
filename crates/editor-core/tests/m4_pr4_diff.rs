@@ -18,8 +18,8 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, CancelToken, DocEdit, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
-    RunStatus, SlotId, diff_verdicts, evaluate,
+    CancelToken, DocEdit, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RunStatus,
+    SlotId, diff_verdicts, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -57,7 +57,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -90,14 +90,10 @@ fn slide_union(tx: f64) -> Slide {
     // The sliding overlap's flush planes are declared on the union.
     // The B side is read at the TRANSFORM, the boolean's operand;
     // a transform carries `b0`'s names verbatim (N1).
-    let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b: transform,
-            declare: decl,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
         },
     );
     Slide {
@@ -113,7 +109,8 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
         DocEdit::SetParam {
             node: s.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(tx),
+            value: len(tx).into(),
+            fresh: Vec::new(),
         },
     );
     doc
@@ -187,7 +184,7 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: body,
+            input: body.into(),
             count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -202,6 +199,7 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
             node: pattern,
             slot: SlotId::Count,
             expr: editor_core::Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -228,8 +226,8 @@ fn failure_transitions_surface_as_status_rows() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: body,
-            tool: plane,
+            target: body.into(),
+            tool: plane.into(),
         },
     );
     let ev1 = run(&doc, None);
@@ -238,7 +236,8 @@ fn failure_transitions_surface_as_status_rows() {
         DocEdit::SetParam {
             node: plane,
             slot: SlotId::Normal(editor_core::Axis3::Z),
-            expr: scl(0.0),
+            value: scl(0.0).into(),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -265,11 +264,8 @@ fn parallel_schedule_preserves_verdict_logs() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, _uni) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     let seq = run(&doc, None);
@@ -280,6 +276,7 @@ fn parallel_schedule_preserves_verdict_logs() {
         &EvalOptions {
             epoch: editor_core::Epoch::mint(),
             parallel: true,
+            boolean_sweep: topo::SweepStrategy::Idealized,
             ..EvalOptions::default()
         },
         Tol::witness(),

@@ -29,3 +29,52 @@ it: gate each side with `T::gate_at_rest_kept` and hand back
 `AtRestBody`, with the contacts the split mints declared where the gate
 needs them, or a measurement that says which sides fail and why the type
 stays plain.
+
+## Evidence: near-tangent sliver sides (branch `cleave/frustum-apex`)
+
+Measured: two frusta revolved about y, radii 1 → ½ and the flared ½ → 1 (apex at y = 2 and
+y = −1), each cut through its wall ruling at azimuth a ∈ {0, 0.3, 1, 2, 3, 4, 5.5}, the normal
+turned t ∈ {1e-3, 1e-4, 1e-5} off the outward normal, both normals: 84 poses per ε. With the
+ruling pairing, 0 answer at ε 1e-6, 28 at 1e-9 (all clean at tiers 1–3′) and 56 at 1e-12. At
+1e-12 every side passes tiers 1 and 2 and every volume `mass_properties` certifies is the closed
+form. Ten poses have a side that tier 3 or 3′ escalates on. On main all ten refused
+`Join(DegenerateSection)`.
+
+- Tier 3 `VolumeUncomputable` (an `Escalated` on `props_du_consistent`, margin 1.986e-12, band
+  1e-12 / 1e-11) on the sliver side, where `mass_properties` refuses typed:
+  - frustum 1 → ½: a = 5.5, t = 1e-4, s = ±1;
+  - flared ½ → 1: a ∈ {0.3, 2, 3}, t = 1e-4, s = ±1.
+- Tier 3′ `CensusEscalated` on `pm_census_ee_gap`, on both sides, whose volumes certify right:
+  - flared: a = 1, t = 1e-5, s = +1, margin 1.145e-12;
+  - flared: a = 4, t = 1e-5, s = −1, margin 1.836e-12.
+
+Inside the split, the 1 → ½ frustum at a ∈ {0.3, 1, 3, 4}, t = 1e-4 refuses
+`Pcurves(Escalated)` instead, at the tier 3 rows' margin (1.986e-12 where read). Which of these
+poses answers moves with rounding in the pose's construction. The gate
+`a_near_tangent_cut_through_a_frustum_ruling_never_answers_wrongly`
+(`crates/sweep/tests/split_through_a_ruling.rs`) takes every one of these poses and asserts
+what the split promises: tiers 1 and 2, and no wrong certified volume. Gating the sides at
+tier 3 would turn these ten into refusals.
+
+## Evidence: a cut at the zero-band edge of a tangency (PR 4394's review)
+
+The rounded shoulder (`crates/sweep/tests/wedge_end_doors.rs`, `shoulder(h)`: unit quarter arc
+below a 2 × 2 block, extruded `h`), cut by `y = 1 − δ`, normal `−y`. The cut is tangent to the
+wall to within the zero band, so the section table answers `TangentLine` and the split mints the
+seam on the cut plane, `|δ|` off the cylinder. At `δ = −ε`, or a hair inside it, the split returns
+`Ok` with a side that tier 3 refuses (the `y < 1` side):
+
+| ε | δ | h = c·√(2ε) | seam stored | tier 3 on that side |
+|---|---|---|---|---|
+| 1e-6 | −1.0·ε | c ∈ {0.5, 0.9} | `Chart` on the cut plane | `VolumeUncomputable` on the wall: `props_meridian_on_surface` enclosure [9.99999999947e-7, 1.0000000001e-6] |
+| 1e-12 | −0.9999·ε | c ∈ {0.5, 0.9, 8} | `Chart` (c < 1), `TangentIntersection` (c = 8) | `VolumeUncomputable` on the wall: `props_loop_closed` enclosure [9.9964e-13, 1.0002e-12] |
+
+The 1e-12, c = 8 row (the intrinsic route) does the same on main before PR 4394. The `Chart` rows
+are PR 4394's: that PR routes the tangent chord through the must-carry rule, and a chart image is
+metered against the plane it is charted on only, so the carrier's ε offset from the wall shows up
+first at the props walk. At 1e-6 the intrinsic route (c = 8) refuses typed instead
+(`Join(Euler(Certification { Escalated { TangentGap } }))`, which meters both surfaces); at
+`|δ| ≥ 1.0001·ε` the reduction refuses `SliverVertex`, and every other `|δ| ≤ 0.9999·ε` row is
+tier-3 valid. Gating the sides at tier 3 would turn these rows into typed refusals. The reviewer's
+probe is `probe_band_edge_offsets` on branch `tang/split-chord-review-probes`
+(`crates/sweep/tests/tang_split_chord_review_probes.rs`).

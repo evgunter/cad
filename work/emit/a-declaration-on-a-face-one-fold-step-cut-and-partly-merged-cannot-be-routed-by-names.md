@@ -2,12 +2,12 @@
 id: a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names
 kind: issue
 title: A declaration on a face one fold step cut and partly merged cannot be routed by names, so its correct orders refuse beside orders that would bind the wrong face
-status: parked
+status: closed
+closed: 2026-10-11
 priority: P2
 cost: M
 design: true
 opened: 2026-09-30
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 refs: [union-refuses-in-some-member-orders-and-publishes-in-others, a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires, 3526]
 ---
 
@@ -97,3 +97,11 @@ Measured evidence for whoever builds stage 4 is in
 refused pair to every face descending from the name made `r4trig`
 1302 and 3102 fuse with no wrong binding, and all 22 mixed cases fuse
 in every order.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: route_declarations/look_through_fold route declared pairs, which stage 4 retires (booleans glue on Zero); the question then has no subject. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (2026-10-11, stage 4 F)
+
+A union holds no declared pairs and routes none: the fold reads the pairwise pass's verdict for each carrier pair through its faces' member lineage (`given_verdicts`, `UnionFold::member_faces`), never by name, so a face one step cut and partly merged needs no name. `union_member_orders_decide_alike::every_union_of_the_emit_corpus_decides_alike_in_every_member_order` holds `r2endsg` and `r4trig` alike in all 24 orders.

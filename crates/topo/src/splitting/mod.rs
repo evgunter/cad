@@ -54,12 +54,12 @@
 //!    (`neighborhood` — the convex-subdivision derivation), rule (a)
 //!    via the F3 primitive [`geom_brep::enters_material`] and rule (b)
 //!    per the F4 adjudication ([`rules`] — the derivation lives there).
-//! 5. **Null-edge insertion** (`insert`): an explicit transition-pair
-//!    run scan in worklist form (sidesteps the Program 14.7
-//!    head-rebinding erratum structurally), one
-//!    [`crate::Body::mev_null`] per ABOVE-run, orientation recorded as
-//!    F9 **data** (`NullEdge { below_end, above_end }`), ≥2 disjoint
-//!    ABOVE-runs handled and tested.
+//! 5. **Null-edge insertion** (`insert`): one
+//!    [`crate::Body::mev_null`] per corner of the section at the
+//!    vertex, hung as the tree the corners make (a star of one per
+//!    ABOVE-run where the runs lie apart; deeper where runs nest),
+//!    orientation recorded as F9 **data**
+//!    (`NullEdge { below_end, above_end }`).
 //!
 //! The result ([`SplitReduction`]) is the annotated body the joining
 //! step consumes: cached per-vertex sides, the ON set, and the minted
@@ -69,7 +69,9 @@
 
 mod classify;
 pub mod containment;
-pub(crate) use classify::{ConicPlaneMeet, PlaneCrossingLane, plane_crossing_lane};
+pub(crate) use classify::{
+    ConicPlaneMeet, PlaneCrossingLane, conic_plane_candidates, plane_crossing_lane,
+};
 pub use classify::{ConicRootFault, CrossingDecision};
 pub(crate) mod finish;
 mod insert;
@@ -87,7 +89,8 @@ mod section;
 mod section_loops;
 pub(crate) mod spiric_arc;
 
-use geom_core::{BandError, Indeterminate, Point3, Real, UnitVec3};
+use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
+use geom_core::{Band, BandError, Indeterminate, MarginDiag, Point3, Real, UnitVec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
@@ -99,10 +102,10 @@ use slotmap::SecondaryMap;
 
 pub use crate::chord_join::{ConicCrossingsCase, SplitJoinError};
 pub use containment::{
-    LoopContainment, OffPlane, OffPlaneCause, PointInLoopError, Uncrossable, UncrossableCarrier,
-    point_in_loop,
+    Escalation, LoopContainment, LoopDecision, OffPlane, OffPlaneCause, PointInLoopError,
+    Uncrossable, UncrossableCarrier, point_in_loop,
 };
-pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
+pub use finish::{SplitContacts, SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;
 pub use section::{
     Section, SectionEdge, SectionError, SectionPolygon, SectionRegion, plane_section,
@@ -121,6 +124,38 @@ pub struct SplitPlane<T: Real> {
     pub origin: Point3<T>,
     /// The unit normal; Above is the side it points to.
     pub normal: UnitVec3<T>,
+}
+
+/// Which reading of where the split plane leaves the faces round a
+/// vertex escalated ([`SplitReduceError::SectionGermsEscalated`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectionGermReading {
+    /// Whether a face meets the plane along a line there
+    /// (`split_germ_line`).
+    Line,
+    /// The order of two germs about the plane's normal
+    /// (`split_germ_side`, `split_germ_sense`, `split_germ_order`).
+    Order,
+}
+
+/// Why the germs round a vertex fix no corners of the section there
+/// ([`SplitReduceError::SectionGermsUnordered`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectionGermFault {
+    /// A face whose bounds lie on two sides of the plane meets it along
+    /// no line: its bounds both lie in the plane, or it lies in it to
+    /// the tolerance.
+    NoLine,
+    /// Two germs of different sectors lie along one direction, to the
+    /// tolerance.
+    Coincident,
+    /// The germs as read do not alternate between the material's starts
+    /// and ends. Argued to need faces within the tolerance of one
+    /// another, which the readings decided apart rule out; not reached.
+    Alternation,
+    /// The corners as read cross as chords of the vertex's orbit. Argued
+    /// as `Alternation` is; not reached.
+    Crossing,
 }
 
 /// A trilean side verdict against the split plane (the classification
@@ -191,14 +226,14 @@ pub struct SectorEntry {
 /// site — the record PR 3's joining consumes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NullEdgeRecord {
-    /// The ON vertex whose neighborhood classification minted this
-    /// null edge: the end of `attr` that is not the minted copy.
+    /// The vertex this null edge was minted at: the ON vertex whose
+    /// neighborhood classification minted it, or a copy minted there
+    /// before it; the end of `attr` that is not the minted copy.
     pub at_vertex: VertexKey,
     /// The null edge itself.
     pub edge: EdgeKey,
-    /// The F9 side attribute (`above_end` = the end holding the ABOVE
-    /// run: the minted copy, save for a whole-orbit run, where the old
-    /// vertex keeps it) — orientation as data.
+    /// The F9 side attribute (`above_end` = the end standing for the
+    /// piece above the plane) — orientation as data.
     pub attr: NullEdge,
     /// True for a dangling null edge (a wide same-side sector whose
     /// bisector crossed — the strut case, either way round).
@@ -224,6 +259,12 @@ pub struct SplitReduction<T: Real> {
     pub on_vertices: Vec<VertexKey>,
     /// Every null edge minted, in insertion order.
     pub null_edges: Vec<NullEdgeRecord>,
+    /// The pinches the ON verdicts decided, in ON-vertex order, keyed in
+    /// the operand ([`crate::coincidence`]).
+    pub coincidences: Vec<crate::Coincidence>,
+    /// Each piece a crossing split minted, `(new edge, divided-from
+    /// edge)` in mint order.
+    pub edge_pieces: Vec<(EdgeKey, EdgeKey)>,
 }
 
 /// **A knife edge the split would mint and cannot declare.** The plane
@@ -340,24 +381,54 @@ pub enum SplitReduceError {
         /// shell, the shell).
         errors: Vec<ValidationError>,
     },
-    /// A vertex landed in the sliver band of the plane (F6): the
-    /// operand/plane pair is ill-conditioned at this ε. No snapping —
-    /// resolution is an explicit repair/adoption op (D7 machinery).
+    /// The operand holds a vertex the join would take, or one whose
+    /// reading lands in the sliver band (tier 3's check 11): a body every
+    /// finisher would have joined, read where its scalar runs no at-rest
+    /// gate ([`AtRestBody::gate_unverdicted`]).
+    UnjoinedOperand {
+        /// The check-11 findings, each naming its vertex.
+        errors: Vec<ValidationError>,
+    },
+    /// Whether a vertex lies on the plane is undecided (F6): its distance
+    /// lies in the ambiguity band, beyond ε, or cannot be read. No
+    /// snapping — resolution is an explicit repair/adoption op (D7
+    /// machinery).
     SliverVertex {
         /// The offending vertex.
         vertex: VertexKey,
         /// The escalation diagnostics.
         diag: Indeterminate,
     },
-    /// A sector-level predicate (coplanarity gate, material sense,
-    /// wideness, or bisector side) escalated at an ON vertex.
+    /// A sector-level reading at an ON vertex (the face's extent, the
+    /// coplanarity gate, the material sense, wideness, the bisector side,
+    /// or a grazed wall's material) cannot place the vertex's
+    /// neighbourhood at this ε.
     SliverSector {
         /// The ON vertex being classified.
         vertex: VertexKey,
         /// The sector's face.
         face: FaceKey,
+        /// How the refused reading stands.
+        reading: SectorReading,
+    },
+    /// Where the plane leaves the faces round an ON vertex could not be
+    /// read: a reading landed in the band, so which germs bound each
+    /// corner of the section there is undecided.
+    SectionGermsEscalated {
+        /// The ON vertex.
+        vertex: VertexKey,
+        /// Which reading escalated.
+        reading: SectionGermReading,
         /// The escalation diagnostics (named predicate inside).
         diag: Indeterminate,
+    },
+    /// The directions in which the plane leaves the faces round an ON
+    /// vertex fix no corners of the section there; `fault` names why.
+    SectionGermsUnordered {
+        /// The ON vertex.
+        vertex: VertexKey,
+        /// What fixed no corners.
+        fault: SectionGermFault,
     },
     /// A sector's bounding chord has **no finite length**: its
     /// components overflow the norm (past ~1e154), or one of them is
@@ -386,14 +457,12 @@ pub enum SplitReduceError {
     /// Two cyclically-consecutive entries remained ON after rule (a) —
     /// the "no consecutive ONs" invariant failed. For a planar operand
     /// this means a coplanar sector escaped the gate (documented
-    /// invariant, checked loudly rather than assumed). Since M5 PR 9
-    /// the conic in-plane-departure chain resolves ONE ORDER DOWN
-    /// first (the C12.2 second-order trilean,
-    /// `tangent_sector_order2`: an arc grazing the plane classifies
-    /// by which side it CURVES to), so reaching this refusal on a
-    /// conic boundary means the chain tied at second order too — a
-    /// genuinely osculating configuration this machinery will not
-    /// guess at (in-band second order escalates F6 upstream instead).
+    /// invariant, checked loudly rather than assumed). A conic's
+    /// in-plane departure reads one order down first
+    /// ([`geom_brep::conic_bend_side`]: an arc grazing the plane
+    /// classifies by which side it bends to), so reaching this refusal
+    /// on a conic boundary means a whole conic edge lay within the band
+    /// of the plane (an undecided bend escalates upstream instead).
     ConsecutiveOnSectors {
         /// The ON vertex whose neighborhood violated the invariant.
         vertex: VertexKey,
@@ -446,12 +515,91 @@ pub enum SplitReduceError {
         edge: EdgeKey,
         /// Its endpoint vertices (the strictly Above/Below pair).
         endpoints: (VertexKey, VertexKey),
-        /// The underlying Euler refusal, untouched.
-        source: EulerOpError,
+        /// The underlying Euler refusal, untouched (boxed: it is the
+        /// largest payload any split refusal carries).
+        source: Box<EulerOpError>,
     },
     /// An underlying Euler operation refused (`split_edge` includes the
     /// certified-interiority refusals and escalations).
     Euler(EulerOpError),
+}
+
+/// **How the reading a [`SplitReduceError::SliverSector`] refuses
+/// stands**, which its ending follows from (D4 ¶1 (i)): every arm ends
+/// in the split's lever, read at the operation, and a margin that could
+/// not be read adds its note.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SectorReading {
+    /// A sector predicate's escalation: its margin in the band or
+    /// unreadable, or a gate's rejection of the sign it decided
+    /// ([`geom_core::MarginDiag::rejected_sign`]).
+    Escalated(Indeterminate),
+    /// A wall the plane grazes holds its material across from the edges
+    /// beside it in the vertex's cycle: the wall's outward normal over its
+    /// face extent and those edges' own sides, decided apart.
+    GrazeAgainstNeighbours {
+        /// The sense margin the wall's material side was decided on.
+        margin: MarginDiag,
+    },
+    /// At a smooth edge in the plane, one face reads the plane tangent
+    /// over its own face extent and the other reads it clear over its own:
+    /// two decided readings of the plane's tilt, over two arms, that
+    /// disagree.
+    SmoothEdgeDisagrees(TangencyReadings),
+}
+
+/// The two decided readings a [`SectorReading::SmoothEdgeDisagrees`]
+/// holds: `split_sector_coplanar`'s sine margins, each over its face's
+/// extent.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TangencyReadings {
+    /// The grazed face's, decided zero.
+    pub tangent: MarginDiag,
+    /// The other face's, decided past the band.
+    pub clear: MarginDiag,
+    /// The band both were decided against.
+    pub band: Band,
+}
+
+impl SectorReading {
+    /// The refused arm the shared table reads this reading as.
+    #[must_use]
+    pub fn arm(&self) -> RefusedArm<'_> {
+        match self {
+            Self::Escalated(diag) => RefusedArm::Undecided(diag),
+            Self::GrazeAgainstNeighbours { margin } => RefusedArm::SignCertain(Some(*margin)),
+            Self::SmoothEdgeDisagrees(TangencyReadings { clear, .. }) => {
+                RefusedArm::SignCertain(Some(*clear))
+            }
+        }
+    }
+
+    /// The one ending a refusal of this reading carries.
+    #[must_use]
+    pub fn ending(&self) -> String {
+        LeverOnly {
+            lever: SPLIT_COINCIDENCE_RECOURSE,
+        }
+        .recourse(self.arm(), Reading::Build)
+    }
+}
+
+impl core::fmt::Display for SectorReading {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Escalated(diag) => diag.payload().fmt(f),
+            Self::GrazeAgainstNeighbours { margin } => write!(
+                f,
+                "a wall the plane grazes holds its material across from the edges beside it \
+                 (margin {margin:e})"
+            ),
+            Self::SmoothEdgeDisagrees(TangencyReadings { tangent, clear, .. }) => write!(
+                f,
+                "the faces at a smooth edge in the plane read it tangent (margin {tangent:e}) and \
+                 clear (margin {clear:e}), each over its own extent"
+            ),
+        }
+    }
 }
 
 impl From<BandError> for SplitReduceError {
@@ -467,6 +615,7 @@ impl SplitReduceError {
         match unfinished {
             Unfinished::Scaffolding(errors) => Self::ScaffoldingOperand { errors },
             Unfinished::InsideOut(errors) => Self::InsideOutOperand { errors },
+            Unfinished::Unjoined(errors) => Self::UnjoinedOperand { errors },
         }
     }
 }
@@ -480,6 +629,17 @@ impl From<EulerOpError> for SplitReduceError {
 /// The recourse a split's escalations carry: a split takes no
 /// declarations, so its plane is the first lever.
 pub(crate) use geom_core::SPLIT_PLANE_RECOURSE as SPLIT_COINCIDENCE_RECOURSE;
+
+/// The ending of a split escalation whose margin is no size the user
+/// chose (an angle, a winding, an order, a vertex's offset from the
+/// plane): the split's lever alone, with the unreadable-margin note on
+/// poison (D4 ¶1 (i)).
+pub(crate) fn split_lever_ending(diag: &geom_core::Indeterminate) -> String {
+    LeverOnly {
+        lever: SPLIT_COINCIDENCE_RECOURSE,
+    }
+    .recourse(RefusedArm::Undecided(diag), Reading::Build)
+}
 
 impl core::fmt::Display for SplitReduceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -513,15 +673,10 @@ impl core::fmt::Display for SplitReduceError {
             Self::CrossingEscalated { fault, .. } => {
                 let diag = fault.diag();
                 let ending = fault.decision().map_or_else(
-                    || format!("Recourse: {SPLIT_COINCIDENCE_RECOURSE}"),
+                    || geom_core::lever_recourse(SPLIT_COINCIDENCE_RECOURSE, None),
                     |decision| decision.ending_of(&diag),
                 );
-                write!(
-                    f,
-                    "{} is undecided: {}. {ending}",
-                    fault.subject(),
-                    diag.payload()
-                )
+                diag.undecided(fault.subject(), ending).fmt(f)
             }
             Self::TangencyUnsupported { .. } => write!(
                 f,
@@ -529,30 +684,64 @@ impl core::fmt::Display for SplitReduceError {
                  cut is not supported yet. Recourse: move the split plane off the tangency"
             ),
             Self::KnifeEdge(k) => write!(f, "{k}"),
-            Self::ScaffoldingOperand { .. } => write!(
+            Self::ScaffoldingOperand { .. } => {
+                write!(f, "the body {}", Unfinished::SCAFFOLDING_REFUSAL)
+            }
+            Self::InsideOutOperand { .. } => {
+                write!(f, "the body {}", Unfinished::INSIDE_OUT_REFUSAL)
+            }
+            Self::UnjoinedOperand { .. } => {
+                write!(f, "the body {}", Unfinished::UNJOINED_REFUSAL)
+            }
+            Self::SliverVertex { diag, .. } => diag
+                .undecided(
+                    "whether a vertex lies on the split plane",
+                    split_lever_ending(diag),
+                )
+                .fmt(f),
+            Self::SliverSector { reading, .. } => write!(
                 f,
-                "the body is not a finished solid: it still carries what an edit left \
-                 behind, such as a strut or an empty loop, so the split refuses it. \
-                 Recourse: finish that edit first"
+                concat!(
+                    geom_core::undecided!(
+                        "which side of the split plane a face leaves a vertex on",
+                        payload
+                    ),
+                    ". {}"
+                ),
+                reading,
+                reading.ending()
             ),
-            Self::InsideOutOperand { .. } => write!(
-                f,
-                "the body is inside-out: its faces point into its material, so it encloses \
-                 negative volume and the split refuses it. Recourse: build it with its \
-                 faces pointing outward, or revert it"
-            ),
-            Self::SliverVertex { diag, .. } => write!(
-                f,
-                "a vertex lies within tolerance of the split plane ({}). Recourse: \
-                 {SPLIT_COINCIDENCE_RECOURSE}",
-                diag.payload()
-            ),
-            Self::SliverSector { diag, .. } => write!(
-                f,
-                "which side of the split plane a face leaves a vertex on is too close to \
-                 call ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
-                diag.payload()
-            ),
+            Self::SectionGermsEscalated { reading, diag, .. } => match reading {
+                SectionGermReading::Line => write!(
+                    f,
+                    "a face round a vertex lies too nearly in the split plane to say where \
+                     the plane leaves it ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
+                    diag.payload()
+                ),
+                SectionGermReading::Order => write!(
+                    f,
+                    "where the split plane leaves two faces round a vertex is too close to \
+                     order ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
+                    diag.payload()
+                ),
+            },
+            Self::SectionGermsUnordered { fault, .. } => {
+                let what = match fault {
+                    SectionGermFault::NoLine => {
+                        "a face round a vertex leaves the split plane along no line"
+                    }
+                    SectionGermFault::Coincident => {
+                        "the split plane leaves two faces round a vertex along one direction"
+                    }
+                    SectionGermFault::Alternation => {
+                        "material and gap do not alternate round a vertex in the split plane"
+                    }
+                    SectionGermFault::Crossing => {
+                        "the corners of the section round a vertex cross one another"
+                    }
+                };
+                write!(f, "{what}. Recourse: {SPLIT_COINCIDENCE_RECOURSE}")
+            }
             Self::NonFiniteSectorChord { .. } => write!(
                 f,
                 "a chord at a vertex has no finite length (a component overflows the norm \
@@ -688,14 +877,49 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut body = reduced.begin_surgery();
 
     classify::carrier_gate(&body, plane, band)?;
-    let (mut sides, mut on_vertices) = classify::classify_vertices(&body, plane, band)?;
-    classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
+    let (mut sides, mut on_vertices, on_margins) =
+        classify::classify_vertices_margined(&body, plane, band)?;
+    let edge_pieces =
+        classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 
     let mut null_edges = Vec::new();
+    let mut coincidences = Vec::new();
     for &v in &on_vertices {
-        let entries = neighborhood::classify_neighborhood(&body, plane, &sides, v, band)?;
+        let (entries, rays) =
+            neighborhood::classify_neighborhood_rays(&body, plane, &sides, v, band)?;
         let runs = insert::above_runs(&entries);
-        insert::insert_null_edges(&mut body, v, &entries, &runs, &mut sides, &mut null_edges)?;
+        // An operand vertex decided ON whose neighbourhood leaves two or
+        // more runs on a side: pieces of the solid touch there. A
+        // crossing's vertex was minted on the plane, so no margin
+        // decided it, and one run is a cut, not a touch.
+        if let (true, Some(&margin)) = (runs.len() >= 2, on_margins.get(v)) {
+            coincidences.push(crate::Coincidence {
+                cells: [
+                    crate::RowCell::Input {
+                        input: crate::Operand::A,
+                        cell: crate::Cell::Vertex(v),
+                    },
+                    crate::RowCell::Tool,
+                ],
+                relation: crate::Relation::OnCarrier,
+                site: crate::DecisionSite::SplitOn,
+                margin,
+                discharge: crate::Discharge::of(margin),
+            });
+        }
+        let hood = insert::Neighborhood {
+            vertex: v,
+            entries: &entries,
+            rays: &rays,
+        };
+        insert::insert_null_edges(
+            &mut body,
+            plane.normal.get(),
+            &hood,
+            &mut sides,
+            &mut null_edges,
+            band,
+        )?;
     }
 
     body.sweep_and_close();
@@ -705,6 +929,8 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         sides,
         on_vertices,
         null_edges,
+        coincidences,
+        edge_pieces,
     })
 }
 
@@ -857,47 +1083,21 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// joining order is the total lexicographic sort (`order` module) —
 /// byte-identical replay is pinned by test.
 ///
-/// # Below-side pinches (M3 PR 6a, D7)
+/// # Pinches
 ///
-/// At a **BOB pinch** vertex (pieces meeting at a tip line, pinched
-/// pieces on the plane normal's NEGATIVE side) the ch. 14 insertion —
-/// which mints vertex copies for ABOVE runs only — leaves every below
-/// fan sharing the one original vertex, and the join is forced into a
-/// zero-area 2-gon in each tip-adjacent face
-/// ([`SplitJoinError::DegenerateSection`], the PR 3 posture). The
-/// below fans need their own copies. This op realizes that
-/// below-copy minting through the **mirror identity**
-/// `split(S, n) ≡ swap(split(S, −n))` (exact: piece assignment is
-/// plane-orientation-equivariant — PR 2's principle, executed by the
-/// PR 3 review's orientation table, tol): on a `DegenerateSection` refusal
-/// the pipeline reruns under the flipped plane — where the pinched
-/// fans ARE the above runs and receive their distinct copies — and
-/// swaps the sides back. Success is therefore
-/// orientation-INDEPENDENT for the single-sided pinch class. A run
-/// whose mirror also refuses surfaces the direct run's typed refusal
-/// (one exception, below) —
-/// and this is a KNOWN COMPLETENESS FRONTIER, not a proof of
-/// impossibility: a body pinched on BOTH sides of the plane
-/// (`review_m3_pr6::r1_both_sided_pinch` is the pinned witness) has
-/// a valid decomposition, but each run direction refuses at its own
-/// below-side pinch — the mirror lane only relocates which side
-/// lacks copies. Resolving the both-sided class needs the native
-/// below-copy insertion lane (mixed copy loops in join
-/// role-resolution); until then it refuses typed, never emits a
-/// degenerate body. Note the error plumbing on asymmetric failures:
-/// if the mirror run fails DIFFERENTLY (e.g. `JoinDesync`), the
-/// pipeline reruns the direct orientation and surfaces the direct
-/// refusal — loud and typed, but attributed to the direct run (the
-/// mirror's distinct failure is not reported), at the cost of up to
-/// three pipeline runs.
+/// At a vertex where pieces of one side meet (a **pinch**: pieces
+/// meeting at a tip line, on either side of the plane or both), the
+/// reduction keeps one vertex per piece round it on each side, the
+/// tree of the section's corners there (`insert`), so each side's
+/// pieces get their own copies and no section closes across another's
+/// corner. Piece assignment does not depend on the plane's orientation:
+/// `split(S, n)` is `split(S, −n)` with its sides swapped.
 ///
-/// A plane grazing a curved wall never reaches the rerun: rule (b)
-/// lands a convex graze with its material, and rule (a) refuses a
-/// concave one in the reduction ([`SplitReduceError::KnifeEdge`]), which
-/// the mirrored run shares.
-/// The result's section-face normals still follow THIS
-/// call's plane convention (above face m = −n, below face m = +n)
-/// because the mirrored run's roles are the swap of ours.
+/// A plane grazing a curved wall makes no pinch: rule (b) lands a
+/// convex graze with its material, and rule (a) refuses a concave one
+/// in the reduction ([`SplitReduceError::KnifeEdge`]). The result's
+/// section-face normals follow this call's plane (above face m = −n,
+/// below face m = +n).
 ///
 /// **The operand is a finished body** ([`AtRestBody`]); one that carries
 /// no verdict (a dual's) is read for what the type promises, per solid,
@@ -908,12 +1108,11 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// # Errors
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole (no
-/// degenerate body is ever emitted). Each run gates
-/// its own sides at tier 2 ([`SplitFinishError::ResultInvalid`]), so a
-/// mirrored run whose side is not a closed solid surfaces the direct
-/// run's refusal, as any other mirror failure does. Tier 3 is
-/// deliberately not run on the sides: a pinch side's touching pieces
-/// carry contacts split declares nowhere.
+/// degenerate body is ever emitted). The sides are gated at tier 2
+/// ([`SplitFinishError::ResultInvalid`]); tier 3 is not run on them. A
+/// pinch side's touching pieces need no contact record, since their
+/// copies of the pinched vertex share its point key, and the ON verdict
+/// that pinched them is in [`SplitResult::coincidences`].
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
@@ -931,7 +1130,7 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     } else {
         operand
     };
-    let mut result = split_one_solid(operand, plane, tol)?;
+    let mut result = split_direct(operand, plane, tol)?;
     for part in [&mut result.above, &mut result.below] {
         if let finish::SplitPart::Body(body) = part {
             crate::pieces::sort_into_pieces(body, band, tol, T::quad_lane(), None)
@@ -941,54 +1140,7 @@ pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     Ok(result)
 }
 
-/// [`split`] over an operand read as one solid: the direct run, and the
-/// mirrored rerun for the pinch lane.
-fn split_one_solid<T: geom_core::Decide + crate::props::AtRestPolicy>(
-    operand: &Body<T>,
-    plane: &SplitPlane<T>,
-    tol: Tol,
-) -> Result<SplitResult<T>, SplitError> {
-    match split_direct(operand, plane, tol) {
-        Err(SplitError::Join(SplitJoinError::DegenerateSection { .. })) => {}
-        other => return other,
-    }
-    // D7: the pinch lane — rerun mirrored (the below fans become
-    // above runs and mint their copies), swap the sides back. A
-    // mirror that also refuses surfaces the DIRECT run's error.
-    let mirrored = SplitPlane {
-        origin: plane.origin,
-        normal: -plane.normal,
-    };
-    match split_direct(operand, &mirrored, tol) {
-        Ok(SplitResult {
-            above,
-            below,
-            naming,
-        }) => Ok(SplitResult {
-            above: below,
-            below: above,
-            // The naming sides were recorded against the MIRRORED
-            // plane; swap them back with the bodies so `sections`
-            // states sides in the caller's orientation.
-            naming: finish::SplitNaming {
-                sections: naming
-                    .sections
-                    .into_iter()
-                    .map(|(f, s)| (f, s.opposite()))
-                    .collect(),
-                face_fragments: naming.face_fragments,
-                // Pairs stay (copy, original): the mirrored run's
-                // copies land on the caller's BELOW side, but
-                // consumers resolve pair roles by which body holds
-                // each key, so no swap is needed here.
-                vertex_pairs: naming.vertex_pairs,
-            },
-        }),
-        Err(_) => split_direct(operand, plane, tol),
-    }
-}
-
-/// One direct (non-mirrored) run of the split pipeline.
+/// One run of the split pipeline over an operand read as one solid.
 ///
 /// The pcurve minting pass (M5 PR 6, C4) runs last, on each side that
 /// carries material: this lane is where curved faces are minted, so it
@@ -1008,6 +1160,38 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
         (PlaneSide::Below, &mut result.below),
     ] {
         if let finish::SplitPart::Body(body) = part {
+            crate::validate::validate_closed(body)
+                .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
+            // Every finisher ends with the join (`docs/DESIGN.md`, maximal edges).
+            let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
+            // Taken before the kills, which drop it (`SplitNaming::joined_lineage`).
+            let split_from: std::collections::BTreeMap<
+                crate::entity::EdgeKey,
+                crate::entity::EdgeKey,
+            > = body
+                .edges()
+                .filter_map(|(e, _)| match body.edge_provenance_of(e) {
+                    Some(crate::provenance::Provenance::SplitEdge { edge }) => Some((e, *edge)),
+                    _ => None,
+                })
+                .collect();
+            // On this run's own output: a refusal discards it.
+            let joins = body
+                .join_edges_within(band, tol, &|_| true)
+                .map_err(|refusal| SplitFinishError::EdgeJoin {
+                    side,
+                    refusal: crate::boolean::JoinRefusal::of(&refusal),
+                })?;
+            result.naming.joined_lineage.extend(
+                joins
+                    .iter()
+                    .filter_map(|j| split_from.get(&j.gone).map(|&from| (j.gone, from))),
+            );
+            result
+                .naming
+                .edge_joins
+                .extend(joins.into_iter().map(|j| (side, j)));
+            // The side's tier-2 gate again, on the body as joined.
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             crate::pcurves::mint_pcurves(body, tol)?;

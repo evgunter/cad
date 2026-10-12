@@ -40,7 +40,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -60,7 +60,7 @@ fn local_block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, BTreeSet<RecipeNodeId>,
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -92,8 +92,8 @@ fn z_up() -> MateFrame<Formula> {
 /// at its own mint.
 fn mate(a: StableName, b: StableName) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: z_up(),
@@ -122,7 +122,11 @@ fn kept_instance_mated_to_a_local_block(
 ) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, kept) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, cut, body) = local_block(doc, 3.0);
+    let (doc, mut cut, body) = local_block(doc, 3.0);
+    // The block is placed in the world, so the cut delivers it and the
+    // kept mate's side re-anchors through the instance left behind.
+    let (doc, placement) = crate::fixture::place(doc, body);
+    cut.insert(placement);
     let (doc, mate) = crate::fixture::insert_mate_with_stranded_head(
         doc,
         mate(in_part(kept, part_body, CapEnd::Start), local_cap(body)),
@@ -162,14 +166,15 @@ fn a_cut_that_would_start_a_mate_placing_refuses() {
     );
 }
 
-/// Row 2 — a group cut whole moves as selected (A4): the root keeps its
+/// Row 2 — a group cut whole, with the world placements of what it
+/// moves, moves as selected (A4): the root keeps its
 /// offset in the part and the instance left behind sits at the empty
 /// chain; the group re-forms there, and neither side reports anything:
 /// no edit records a frame.
 #[test]
 fn a_whole_group_cut_moves_as_selected_and_reports_nothing() {
     let (doc, store, [a, b, joint], offset) = placed_pair("eval4-r2");
-    let out = split(
+    let out = fixture::split_world(
         &doc,
         &BTreeSet::from([a, b, joint]),
         DocumentId::derive("eval4-r2-cell"),
@@ -203,7 +208,7 @@ fn a_whole_group_cut_moves_as_selected_and_reports_nothing() {
         out.part_maintenance
     );
     assert!(
-        out.remainder_maintenance.is_empty(),
+        crate::fixture::without_anonymous(&out.remainder_maintenance).is_empty(),
         "{:?}",
         out.remainder_maintenance
     );
@@ -215,7 +220,7 @@ fn a_whole_group_cut_moves_as_selected_and_reports_nothing() {
 #[test]
 fn inline_of_a_whole_group_split_restores_the_root_offset_and_reports_nothing() {
     let (doc, store, [a, b, joint], offset) = placed_pair("eval4-r3");
-    let out = split(
+    let out = fixture::split_world(
         &doc,
         &BTreeSet::from([a, b, joint]),
         DocumentId::derive("eval4-r3-cell"),
@@ -238,7 +243,8 @@ fn inline_of_a_whole_group_split_restores_the_root_offset_and_reports_nothing() 
     assert!(back.maintenance.is_empty(), "{:?}", back.maintenance);
 }
 
-/// Two instances of one block mated, the first placed at an offset:
+/// Two instances of one block mated, the first placed at an offset,
+/// both placed in the world:
 /// the document, its part store, `[a, b, mate]` and `a`'s offset.
 fn placed_pair(
     label: &str,
@@ -253,6 +259,7 @@ fn placed_pair(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
+    let doc = fixture::place_all(doc, &[a, b]);
     let (doc, joint) = insert(
         doc,
         mate(
@@ -266,6 +273,7 @@ fn placed_pair(
         DocEdit::SetOffset {
             instance: a,
             offset: Some(offset.clone()),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(groups(&doc), vec![vec![a, b]], "one group, two members");
@@ -273,7 +281,10 @@ fn placed_pair(
         doc,
         std::sync::Arc::new(store),
         [a, b, joint],
-        editor_core::test_support::stored_placement(&offset),
+        editor_core::test_support::stored_placement(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &offset,
+        ),
     )
 }
 

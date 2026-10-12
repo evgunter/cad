@@ -18,7 +18,7 @@ use core::f64::consts::{PI, TAU};
 use crate::revolve_common::{axis_y, validated};
 use geom::SurfaceKind;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, UnitVec3, Vec3};
-use profile::{ArcSweep, RawLoop, bulge_from_center, test_support::bulge_loop};
+use profile::{ArcSweep, bulge_from_center, test_support::bulge_loop};
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, split};
 use topo::{Body, DATUM_UNIT_NORM, transform_rigid};
@@ -37,7 +37,6 @@ struct Fixture {
     /// The profile at unit scale: each point, and the centre of the arc
     /// to the next point (counter-clockwise) or `None` for a line.
     chain: Vec<(Point2<f64>, Option<Point2<f64>>)>,
-    tangent_joints: Vec<usize>,
     /// The revolve's sweep, `None` for a full turn.
     theta: Option<f64>,
     inside: fn(f64, f64) -> bool,
@@ -64,7 +63,6 @@ fn fixtures() -> Vec<Fixture> {
             ),
             (Point2::new(2.0 + 0.75f64.sqrt(), 0.5), None),
         ],
-        tangent_joints: Vec::new(),
         theta,
         inside: |r, y| sq(r - 2.0) + sq(y) < 1.0 && y < 0.5,
         arc: Arc {
@@ -84,7 +82,6 @@ fn fixtures() -> Vec<Fixture> {
             (Point2::new(0.75, 1.25), None),
             (Point2::new(0.0, 1.25), None),
         ],
-        tangent_joints: vec![2, 3],
         theta,
         inside: |r, y| {
             (y > 0.0 && y <= 1.0 && r < 1.0)
@@ -110,7 +107,6 @@ fn fixtures() -> Vec<Fixture> {
                 (Point2::new(1.0, 1.0), Some(Point2::new(0.0, 0.25))),
                 (Point2::new(0.0, 1.5), None),
             ],
-            tangent_joints: Vec::new(),
             theta: None,
             inside: |r, y| {
                 (y > 0.0 && y < 1.0 && r < 1.0) || (y >= 1.0 && sq(r) + sq(y - 0.25) < 1.5625)
@@ -130,7 +126,6 @@ fn fixtures() -> Vec<Fixture> {
                 (Point2::new(1.0, 1.0), None),
                 (Point2::new(0.0, 1.0), None),
             ],
-            tangent_joints: Vec::new(),
             theta: None,
             inside: |r, y| y < 1.0 && sq(r) + sq(y - 0.25) < 1.5625,
             arc: Arc {
@@ -149,7 +144,6 @@ fn fixtures() -> Vec<Fixture> {
                 (Point2::new(1.0, 1.0), None),
                 (Point2::new(0.0, 1.0), None),
             ],
-            tangent_joints: Vec::new(),
             theta: None,
             inside: |r, y| y > -0.5 && y < 1.0 && sq(r) + sq(y - 0.25) < 1.5625,
             arc: Arc {
@@ -176,9 +170,7 @@ fn build(f: &Fixture, s: f64) -> Body<f64> {
         })
         .collect();
     revolve(
-        &validated(vec![
-            bulge_loop(chain).with_tangent_joints(f.tangent_joints.clone()),
-        ]),
+        &validated(vec![bulge_loop(chain)]),
         axis_y(),
         f.theta.map_or(Revolution::Full, Revolution::Partial),
         Tol::witness(),
@@ -383,9 +375,8 @@ fn a_cut_into_the_faces_window_refuses_at_the_gate() {
 /// **A cut clear of the face's window splits, and its halves are
 /// right**: `10⁻⁴` of the size plus `20 ε` beyond the face's least and
 /// greatest support (clear of the gate's `12 ε` pad), along thirteen
-/// directions, in two poses. The zones' fixtures are full turns: a
-/// sphere face's azimuth window is not read
-/// (`reach/split-gate-zone-ignores-the-azimuth-window`). Each half's
+/// directions, in two poses. The zones' fixtures are full turns; their
+/// partial turns are `reach_split_gate_azimuth`'s. Each half's
 /// volume is held to the grid within `2·10⁻³` of the body's, whose own
 /// volume is first held to the same grid.
 #[test]

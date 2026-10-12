@@ -33,9 +33,17 @@
 //! question a discrepancy between two of them asks does not survive
 //! translation to an interval scalar, where the two values would
 //! overlap by construction.
+//!
+//! **A reader at any scalar takes [`ChartRead`]**, the same inversion
+//! stated over `T: Real` for a consumer that is generic over its scalar
+//! (`shell`'s rim nesting). It is not routed through [`Chart`]: `Chart`
+//! reads `std`'s `atan2`, `asin` and `hypot`, and `Real`'s `f64` reads
+//! `libm`, so delegating would move `mesh`'s bits. The two spellings are
+//! reconciled by execution instead
+//! (`tests::the_generic_read_agrees_with_the_chart`).
 
 use geom::Surface;
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Real, Vec3};
 
 /// A curved surface's chart data for inversion (everything but the
 /// plane, which takes the planar path).
@@ -263,6 +271,121 @@ impl Chart {
     }
 }
 
+/// [`Chart`]'s inversion — `u_of`, `v_of`, `v_lever` and the lever arm
+/// `radial` — at any scalar (module docs, last paragraph). Each method
+/// is the `Chart` method of the same name, expression for expression,
+/// with its branches spelt through [`Real::select_le_zero`] and its
+/// clamp through [`Real::max`] / [`Real::min`].
+pub struct ChartRead<T: Real> {
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    v_ref: Vec3<T>,
+    anchor: Point3<T>,
+    kind: ReadKind<T>,
+}
+
+/// The kind payload of a [`ChartRead`].
+enum ReadKind<T: Real> {
+    Cylinder,
+    Cone { half_angle: T },
+    Sphere { r: T },
+    Torus { major: T, minor: T },
+}
+
+impl<T: Real> ChartRead<T> {
+    /// [`Chart::of`] at `T`.
+    pub fn of(surface: &Surface<T>) -> Option<Self> {
+        let (anchor, axis, u_ref, kind) = match *surface {
+            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
+            Surface::Cylinder {
+                origin,
+                axis,
+                u_ref,
+                ..
+            } => (origin, axis, u_ref, ReadKind::Cylinder),
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            } => (apex, axis, u_ref, ReadKind::Cone { half_angle }),
+            Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => (center, axis, u_ref, ReadKind::Sphere { r: radius }),
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => (
+                center,
+                axis,
+                u_ref,
+                ReadKind::Torus {
+                    major: major_radius,
+                    minor: minor_radius,
+                },
+            ),
+        };
+        Some(Self {
+            axis,
+            u_ref,
+            v_ref: axis.cross(u_ref),
+            anchor,
+            kind,
+        })
+    }
+
+    /// [`Chart::radial`] at `T`.
+    pub fn radial(&self, p: Point3<T>) -> T {
+        let w = p - self.anchor;
+        (w.dot(self.u_ref).powi(2) + w.dot(self.v_ref).powi(2)).sqrt()
+    }
+
+    /// [`Chart::u_of`] at `T`: the azimuth, turned half a period on a
+    /// cone's mirror nappe.
+    pub fn u_of(&self, p: Point3<T>) -> T {
+        let w = p - self.anchor;
+        let az = w.dot(self.v_ref).atan2(w.dot(self.u_ref));
+        let pi = T::pi();
+        match self.kind {
+            ReadKind::Cone { .. } => {
+                let mirrored = az.select_le_zero(az + pi, az - pi);
+                (-w.dot(self.axis)).select_le_zero(az, mirrored)
+            }
+            _ => az,
+        }
+    }
+
+    /// [`Chart::v_of`] at `T`.
+    pub fn v_of(&self, p: Point3<T>) -> T {
+        let w = p - self.anchor;
+        let h = w.dot(self.axis);
+        match self.kind {
+            ReadKind::Cylinder => h,
+            ReadKind::Cone { half_angle } => h / half_angle.cos(),
+            ReadKind::Sphere { r } => (h / r).max(-T::one()).min(T::one()).asin(),
+            ReadKind::Torus { major, .. } => {
+                let rho = (w - self.axis * h).norm();
+                h.atan2(rho - major)
+            }
+        }
+    }
+
+    /// [`Chart::v_lever`] at `T`.
+    pub fn v_lever(&self) -> T {
+        match self.kind {
+            ReadKind::Cylinder | ReadKind::Cone { .. } => T::one(),
+            ReadKind::Sphere { r } => r,
+            ReadKind::Torus { minor, .. } => minor,
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -326,6 +449,59 @@ mod tests {
         for h in [3.0, 9.0] {
             let d = c.radial(Point3::new(0.0, h, h));
             assert!((d - h).abs() < 1e-15, "expected {h}, got {d}");
+        }
+    }
+
+    /// **The two spellings of the inversion agree.** [`ChartRead`] at
+    /// `f64` against [`Chart`], on points of every curved kind, a cone's
+    /// mirror nappe and a sphere's poles included: `u`, `v`, the lever
+    /// arm and `v_lever` agree to a few ulps (the two read different
+    /// `atan2`/`asin` implementations, so bitwise is not the claim).
+    #[test]
+    fn the_generic_read_agrees_with_the_chart() {
+        let axis = Vec3::new(0.0, 0.0, 1.0);
+        let u_ref = Vec3::new(1.0, 0.0, 0.0);
+        let o = Point3::new(0.2, -0.1, 0.3);
+        let surfaces = [
+            Surface::Cylinder {
+                origin: o,
+                axis,
+                radius: 0.7,
+                u_ref,
+            },
+            Surface::Cone {
+                apex: o,
+                axis,
+                half_angle: 0.4,
+                u_ref,
+            },
+            Surface::Sphere {
+                center: o,
+                radius: 0.7,
+                axis,
+                u_ref,
+            },
+            Surface::Torus {
+                center: o,
+                axis,
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                u_ref,
+            },
+        ];
+        for surface in &surfaces {
+            let (chart, read) = (Chart::of(surface).unwrap(), ChartRead::of(surface).unwrap());
+            for i in 0..24 {
+                let u = -3.0 + 0.27 * f64::from(i);
+                let v = -1.1 + 0.1 * f64::from(i);
+                for p in [surface.eval(u, v), o + axis * 0.7, o - axis * 0.7] {
+                    let near = |a: f64, b: f64| (a - b).abs() <= 1e-13 * (1.0 + a.abs());
+                    assert!(near(chart.u_of(p), read.u_of(p)), "{surface:?} u at {p:?}");
+                    assert!(near(chart.v_of(p), read.v_of(p)), "{surface:?} v at {p:?}");
+                    assert!(near(chart.radial(p), read.radial(p)), "{surface:?} radial");
+                }
+            }
+            assert_eq!(chart.v_lever().to_bits(), read.v_lever().to_bits());
         }
     }
 }

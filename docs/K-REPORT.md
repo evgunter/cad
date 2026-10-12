@@ -958,7 +958,7 @@ ball from the oval's speed bound. The boundary reading's are
 | `point_in_arc_loop_spiric_advance` | a `const` in `spiric_arc`: a piece's ball's advance along the ray, less or plus its reach |
 | `point_in_arc_loop_reach` | (above) also a spiric piece's ball's clearance from the ray |
 
-**Roster addition (CLEAVE): a trimmed sphere face's region.** Fifteen
+**Roster addition (CLEAVE): a trimmed sphere face's region.** Fourteen
 names from `topo/src/boolean/sphere_region.rs`. Nine are its rays',
 which entered without an entry here: bare literals at their `decide`
 sites, and a `FirstHarmonicRows` value (`ROOT_ROWS`) for the
@@ -982,7 +982,6 @@ own circle:
 | `bool_sphere_region_arc_end` | `ConicRows` field (`BOUNDARY`): the distance to either end of the arc |
 | `bool_sphere_region_arc_trim` | `ConicRows` field (`BOUNDARY`): which side of the ends the point, or its foot, lies |
 | `bool_sphere_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle; a circle never mints it, and it never reaches the funnel |
-| `bool_sphere_region_roots_count` | a bare literal at an invalid-margin site: two computations of one root count disagree; a refusal of the query, never decided, and it never reaches the funnel |
 
 They pool with nothing: the region is read by the point-in-solid door
 at points on a sphere, a population apart from the planar walk's and
@@ -1150,6 +1149,34 @@ vertex and carrier datum). `boolean::solid_contain`'s in-face test does
 not certify (it reads a face's trim at its own surface plane) and adds
 no samples. Dimensions: `docs/predicate-dimension-audit.md`'s rows of
 the same names.
+
+**Roster change (CLEAVE, 2026-10-06): one name added.** An edge-edge
+site (`recl::resolve_edge_edge`) projects each solid's two flanking
+bounds perpendicular to the common line and reads membership off the
+projections. `bool_flank_offset` (a bare literal at `recl::flank_rep`)
+decides each projection's length times its bound's own reach
+(`decide_positive`): the bound's far end's distance off the line, in
+metres, four samples per site that reads membership (none at a
+declared-`Tangent` flank, which reads none). The common line is
+`sector_shape`'s unit direction of an edge chord and is read as it
+stands, with no decision of its own. Measured before the change over
+the `topo`, `sweep` and `editor-core` suites (29,744 readings at `f64`,
+`Interval`, `Dual` and the symbolic scalar): the smallest projection
+was 0.148, and the smallest margin through a public door, levered at
+the site's shorter sector arm, was 1.6e7 times the band's zero.
+Dimensions: `docs/predicate-dimension-audit.md`'s row of the same name.
+
+**Roster change (CARVE, 2026-10-06): one name added.** A sweep's cap
+plane (`sweep`'s `cap_plane`, read by `extrude`, `loft_body` and the
+partial `revolve`) keeps Newell's plane over the cap's vertices and
+arc apexes but orients it by the profile's validated winding: it
+decides `cap_plane_orientation`, the cosine between Newell's normal and
+the region's (the placed sketch normal, signed by the traversal and the
+cap's end), levered by the cap polygon's half-perimeter. It samples
+once per cap, two per body, and reads ±(half-perimeter) to within
+`O(ε/width)` on every certified cap, so it never lands near the band;
+a `Negative` sample is a cap whose inscribed polygon winds against its
+region (a large convex arc) and is flipped.
 
 **The three ladder names keep their names and lose a few samples.**
 The aiming ladders' roll offset used to be classified by a bare
@@ -1338,7 +1365,9 @@ proximity rule's closest baseline approach is `pm_census_ee_span`'s
 threshold, only 1.9× clear. A future scene with ~1e-14 float noise
 at model scale will advisory-flag at 1e-12; that is the intended
 signal (ε = 1e-12 has thin noise headroom at unit scale), not a
-false positive to tune away.
+false positive to tune away. (That reading is a tally today and never
+fails the row: "Rule 2's zero arm is a tally" at the end of this
+report.)
 
 ## M5 addendum — the curved-corpus telemetry snapshot (2026-08-03, M5 PR 14)
 
@@ -1925,7 +1954,9 @@ corpus has now grown fine enough to prove it.
 **`k-lint (gate)` fails on a finding** (ruled by the project owner, PR
 #243). The CI row — `.github/workflows/nightly.yml`'s `k-lint` job — is
 red whenever any margin in a fresh sweep
-crowds a decision boundary; harness breakage still fails it in its own
+crowds a decision boundary, except through rule 2's zero arm, which is
+tallied and printed and fails nothing ("Rule 2's zero arm is a tally",
+at the end of this report); harness breakage still fails it in its own
 distinct voice, and the two exit codes differ (2 vs 1) so they can
 never be confused for one another.
 
@@ -1996,14 +2027,15 @@ recipe and normalizes that same direction through `eval_direction_norm`
 (same arithmetic, same refusal shape, different name in this census).
 
 **And the mate road is not the only place one triple carries two
-names.** `DatumValue::AxisInPlane` is decided twice by design: the
-evaluation layer lifts the authored sketch direction and decides the
-lifted 3-D vector under `datum_unit_norm` (`wire.rs`'s
-`datum_unit(lift(plane_dir), …)`), while `sweep`'s revolve takes the
+names.** A revolve's axis is decided twice by design: the
+evaluation layer lifts the authored sketch direction for the revolve's
+axis output and decides the lifted 3-D vector under `datum_unit_norm`
+(`wire/pose.rs`'s `datum_unit(u * dir.x + v * dir.y, …)`), while
+`sweep`'s revolve takes the
 UNLIFTED sketch pair and decides it again under
 `revolve_axis_direction` (`revolve/axis.rs`) — same authored numbers,
 two names, because the frame's axes are orthonormal and
-`|lift(d)| = |d|`. The variant's own doc says why it carries both
+`|lift(d)| = |d|`. `Revolve`'s field doc says why it carries both
 spellings. So "one length, two funnel names, split by road" is a
 SHAPE in this workspace rather than a one-off, and the ruling below is
 about which layer names a decision, not about ever having only one
@@ -2013,7 +2045,7 @@ name for a value.
 (Ev's ruling (B), 2026-09-05, on the `[ev]` PR that put the options).
 The two names stay exactly where they are read, because the layer that
 OWNS a value is the layer whose telemetry names its length decision: a
-`DatumValue` has no unnormalized spelling, so its normal is the kernel
+`PoseValue` has no unnormalized spelling, so its normal is the kernel
 type's to decide, while a transform axis and a pattern direction are
 the evaluation layer's — and collapsing the two names would erase
 which layer a decision came from, in the one column this census has to
@@ -2966,3 +2998,33 @@ is the exception, re-counted off the frozen files by the same row.
 dated figure.** The M2-era, M4, M5 and M7 numbers in this report
 describe the snapshots they name and still describe them correctly; the
 figures here describe `c39a904e` and are dated as such.
+
+## Rule 2's zero arm is a tally (ruled by the project owner, PR 4567, 2026-10-10)
+
+Rule 2's zero arm reads a zero-classified margin above
+`band_zero / 10²`. **It is tallied and printed, and it does not fail
+`k-lint (dev-probe)`**; rule 2's definite arm and rules 1, 3 and 4 gate
+as before, and no kernel decision changed. The CLI prints, per file, the
+count of such margins and, per predicate, its count and the largest
+`|m| / band_zero` with the row it came from, as the share of ε that
+margin uses; the TOTAL line carries the count across files.
+
+What prompted it: at ε = 1e-12 the lily's walls carry ten such margins
+(`work/germ/circle-torus-root-slack-crowds-the-zero-band-at-1e-12.md`,
+closed by the change that shipped this): eight
+`bool_circle_torus_root_slack`, one `bool_circle_torus_meridian` and
+one `bool_sphere_region_roots_slack`, each the same at every ε row. A
+root slack is the arithmetic's own rounding bound, zero by
+construction, so on a metre-scale scene it sits in the window at the
+tightest ε however the bound is metered. The tally reports that as a
+fact about the scene and ε ("the margin uses 31% of eps here") rather
+than as a distribution change.
+
+`PROXIMITY_FACTOR`'s measured ceiling is still M7's own zero side,
+now stated as "the baseline tallies itself"
+(`tests/threshold_provenance.rs`), but it no longer gates anything:
+crossing it turns no row red, so only the structural edge constrains
+what gates. The ceiling stays as the re-cut trigger that
+`docs/k-report-data/README.md` names, and nothing mechanical fires
+it any more: a fresh sweep past it shows up only as a larger tally in
+the printed output.

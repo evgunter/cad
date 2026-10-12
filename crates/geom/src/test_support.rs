@@ -10,6 +10,8 @@
 //! fails this module until it is given a builder or declared as not
 //! read field by field.
 
+pub mod held_arc;
+
 use crate::datum::ANALYTIC_DATA_MAX;
 use crate::{Curve3, CurveKind, Surface, SurfaceKind};
 use geom_core::{Point3, Vec3};

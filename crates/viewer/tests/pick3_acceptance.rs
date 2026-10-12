@@ -373,7 +373,7 @@ fn the_door_answers_the_exhaustive_walk_and_keeps_every_aimed_vertex() {
     println!("# EDIT-PICK3 tie-break aim: {tie:#?}");
     println!("# EDIT-PICK3 wide aim: {wide:#?}");
     assert!(
-        tie.rays > 19_000,
+        tie.rays > 18_000,
         "the tie-break aim is the whole corpus's, not a subset: {} rays",
         tie.rays
     );

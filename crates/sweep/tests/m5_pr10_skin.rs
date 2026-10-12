@@ -280,19 +280,17 @@ fn incompatible_sections_refuse_at_the_skin_door() {
     assert!(skin(&compat, 1).is_ok());
 }
 
+/// The bare skin has no band, so it cannot say whether two sections
+/// are apart; it says what it can: the parameterization has no step.
 #[test]
-fn coincident_sections_refuse_with_the_shared_recourse() {
+fn coincident_sections_refuse_as_a_stepless_parameterization() {
     let one = strip(0)[0].clone();
     match skin(&[one.clone(), one], 1) {
-        Err(e @ SkinError::DegenerateSection { .. }) => {
-            let msg = e.to_string();
-            assert_eq!(
-                msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-                1,
-                "{msg}"
-            );
-        }
-        other => panic!("expected DegenerateSection, got {}", describe(&other)),
+        Err(SkinError::NoParameterStep { section: 1 }) => {}
+        other => panic!(
+            "expected NoParameterStep at section 1, got {}",
+            describe(&other)
+        ),
     }
 }
 

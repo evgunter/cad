@@ -42,7 +42,7 @@
 //!   `[0.75,2.75]`, so the cross section is constant through it)
 
 use editor_core::ExtrudeSide;
-use editor_core::{BooleanOp, DocEdit, Node, RecipeNodeId, SlotId};
+use editor_core::{DocEdit, Node, RecipeNodeId, SlotId};
 
 use crate::fixture::len;
 
@@ -57,7 +57,7 @@ fn block(r: &mut Recorder, x: (f64, f64), y: (f64, f64), z: f64, h: f64) -> Reci
         vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(h),
         side: ExtrudeSide::Along,
     })
@@ -69,17 +69,12 @@ fn plate_with_tube(r: &mut Recorder) -> RecipeNodeId {
     let plate = block(r, (0.0, 4.0), (0.0, 4.0), 0.0, 1.0);
     let outer = block(r, (1.0, 3.0), (1.0, 3.0), 0.5, 2.5);
     let hole = block(r, (1.5, 2.5), (1.5, 2.5), 0.25, 3.0);
-    let tube = r.insert(Node::Boolean {
-        op: BooleanOp::Subtract,
-        a: outer,
-        b: hole,
-        declare: Vec::new(),
+    let tube = r.insert(Node::Subtract {
+        from: outer.into(),
+        tool: hole.into(),
     });
-    r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: plate,
-        b: tube,
-        declare: Vec::new(),
+    r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![plate.into(), tube.into()]),
     })
 }
 
@@ -88,12 +83,11 @@ pub fn document_105() -> CorpusDoc {
     let mut r = Recorder::new();
     let u1 = plate_with_tube(&mut r);
     let pillar = block(&mut r, (1.75, 2.25), (1.75, 2.25), 0.75, 2.0);
-    let u2 = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: u1,
-        b: pillar,
-        declare: Vec::new(),
+    let u2 = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![u1.into(), pillar.into()]),
     });
+    r.place(u2);
+
     CorpusDoc {
         name: "nested_islands_105",
         about: "doubly-nested island union chain (#105 exactness pin)",
@@ -107,7 +101,8 @@ pub fn document_105() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: pillar,
             slot: SlotId::Distance,
-            expr: len(1.75),
+            value: len(1.75).into(),
+            fresh: Vec::new(),
         },
         bump_root: pillar,
     }
@@ -119,12 +114,11 @@ pub fn document_106_depth1() -> CorpusDoc {
     let mut r = Recorder::new();
     let u1 = plate_with_tube(&mut r);
     let slab = block(&mut r, (-1.0, 5.0), (-1.0, 5.0), 1.375, 1.0);
-    let cut = r.insert(Node::Boolean {
-        op: BooleanOp::Intersect,
-        a: u1,
-        b: slab,
-        declare: Vec::new(),
+    let cut = r.insert(Node::Intersect {
+        members: editor_core::Bodies::Spelled(vec![u1.into(), slab.into()]),
     });
+    r.place(cut);
+
     CorpusDoc {
         name: "nested_islands_106_depth1",
         about: "depth-1 nested-island intersect (the #93 coverage control)",
@@ -138,7 +132,8 @@ pub fn document_106_depth1() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: slab,
             slot: SlotId::Distance,
-            expr: len(0.75),
+            value: len(0.75).into(),
+            fresh: Vec::new(),
         },
         bump_root: slab,
     }
@@ -151,19 +146,15 @@ pub fn document_106_depth2() -> CorpusDoc {
     let mut r = Recorder::new();
     let u1 = plate_with_tube(&mut r);
     let pillar = block(&mut r, (1.75, 2.25), (1.75, 2.25), 0.75, 2.0);
-    let u2 = r.insert(Node::Boolean {
-        op: BooleanOp::Union,
-        a: u1,
-        b: pillar,
-        declare: Vec::new(),
+    let u2 = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(vec![u1.into(), pillar.into()]),
     });
     let slab = block(&mut r, (-1.0, 5.0), (-1.0, 5.0), 1.375, 1.0);
-    let cut = r.insert(Node::Boolean {
-        op: BooleanOp::Intersect,
-        a: u2,
-        b: slab,
-        declare: Vec::new(),
+    let cut = r.insert(Node::Intersect {
+        members: editor_core::Bodies::Spelled(vec![u2.into(), slab.into()]),
     });
+    r.place(cut);
+
     CorpusDoc {
         name: "nested_islands_106_depth2",
         about: "depth-2 nested-island intersect (#106 closed by #113; exact 13/4)",
@@ -180,7 +171,8 @@ pub fn document_106_depth2() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: pillar,
             slot: SlotId::Distance,
-            expr: len(1.75),
+            value: len(1.75).into(),
+            fresh: Vec::new(),
         },
         bump_root: pillar,
     }

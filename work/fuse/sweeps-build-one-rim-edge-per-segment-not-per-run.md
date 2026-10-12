@@ -2,7 +2,9 @@
 id: sweeps-build-one-rim-edge-per-segment-not-per-run
 kind: issue
 title: Sweeps build one rim edge per profile segment, not per collinear or cocircular run: extrude mints a station vertex on both cap rims, a partial revolve one wall per arc
-status: open
+status: closed
+closed: 2026-10-07
+pr: 4200
 opened: 2026-10-06
 priority: P1
 cost: M
@@ -47,3 +49,36 @@ naming move with it.
 
 This precedes step 3, the tier-2 no-joinable-vertex check: a sweep
 output holding station vertices would fail it.
+
+## Built (FUSE, `fuse/sweep-runs`, 2026-10-06)
+
+- **extrude** and **partial revolve** collapse each loop's runs before
+  they build, as the full revolve did (`swept::collapse_runs`,
+  `revolve::runs::Collapsed`): one strut, one wall and one rim edge
+  per cap per run. `SideWall` carries `bottom_rim` / `top_rim`.
+- **The partial revolve's arc runs are direct construction**, no curved
+  join: each wedge cap carries a cocircular run as one meridian edge,
+  so the props blocker that kept one wall per arc
+  (`partial-revolve-arc-runs-wait-on-the-meridian-fold`) does not
+  arise; `CurvedRuns` is gone.
+- **A run of on-axis segments** in a partial revolve is one axis edge:
+  its interior pole was a valence-2 vertex between the two wedge caps.
+- **Naming:** `RimEdge(end, PieceRun)` and `AxisEdge(PieceRun)` hold
+  the run (one-piece runs keep their wire spelling); a partial
+  revolve's meridians are per run; no cap vertex or meridian vertex at
+  a station.
+- **Asserted:** `run_walls_built::holds` checks every swept body for
+  `topo::joinable_vertices` and for curved stations
+  (`common::stations::station_vertices`).
+
+## Closed (PR 4200, 2026-10-07)
+
+- **Extrude and partial revolve** build one strut, wall and rim edge per
+  run of profile segments, as the full revolve already did. The
+  collapse lives in `swept::collapse_runs` and `revolve/runs.rs`.
+- **Partial revolve's cocircular runs** are direct construction. No
+  curved join was needed.
+- **A partial revolve's on-axis run** is one axis edge.
+- **Rim and axis names hold the run.** A one-piece run keeps the old
+  wire form.
+- **Review:** single FULL review; the fix pass is in.

@@ -71,6 +71,7 @@ use crate::node::{RecipeNodeId, SlotId};
 pub(crate) type ShellEmitter<T> = fn(
     RecipeNodeId,
     RecipeNodeId,
+    crate::VarId,
     &NameTable,
     &Body<T>,
     &ShellNaming,
@@ -189,8 +190,6 @@ pub(crate) fn fold_shell_error<T: Real>(
         },
         E::NoSolid => E::NoSolid,
         E::Roles { error } => E::Roles { error },
-        E::Pieces { error } => E::Pieces { error },
-        E::OperandOuterShells { solid } => E::OperandOuterShells { solid },
         E::Partition { shell, error } => E::Partition { shell, error },
         // The pessimistic pair, which is the reading under which the two
         // offsets cross: the material as thin as the bracket admits,
@@ -206,6 +205,19 @@ pub(crate) fn fold_shell_error<T: Real>(
             gap: end(gap, Infimum),
             needed: end(needed, Supremum),
         },
+        // The same pessimistic reading: the overlap as long as the
+        // bracket admits, the wall as thick.
+        E::OffsetsCross {
+            face,
+            other,
+            overlap,
+            thickness,
+        } => E::OffsetsCross {
+            face,
+            other,
+            overlap: end(overlap, Supremum),
+            thickness: end(thickness, Supremum),
+        },
         E::ChartSenseMixed { face, other } => E::ChartSenseMixed { face, other },
         E::Face { face, error } => E::Face {
             face,
@@ -217,7 +229,6 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::OpenFacesDisconnect { shell, components } => {
             E::OpenFacesDisconnect { shell, components }
         }
-        E::OpenFaceRingUnsupported { face, kind } => E::OpenFaceRingUnsupported { face, kind },
         E::OpenFaceChartPartial { face, other } => E::OpenFaceChartPartial { face, other },
         E::Lift { face, error } => E::Lift {
             face,
@@ -228,6 +239,7 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::Rim { face, error } => E::Rim { face, error },
         E::Escalated { source } => E::Escalated { source },
         E::Pcurve { source } => E::Pcurve { source },
+        E::Join { refusal } => E::Join { refusal },
         E::NotValid { errors } => E::NotValid { errors },
     }
 }
@@ -315,10 +327,27 @@ fn fold_replace_face_error<T: Real>(
             vertex,
             gap: end(gap, Supremum),
         },
-        R::ReanchorOffCarrier { edge, gap } => R::ReanchorOffCarrier {
+        R::EdgeSection {
             edge,
-            gap: end(gap, Supremum),
+            kind,
+            other_kind,
+            verdict,
+        } => R::EdgeSection {
+            edge,
+            kind,
+            other_kind,
+            verdict,
         },
+        R::CornerSection {
+            vertex,
+            edge,
+            verdict,
+        } => R::CornerSection {
+            vertex,
+            edge,
+            verdict: fold_corner_verdict(verdict, end),
+        },
+        R::DeclaredEdgeTilted { edge } => R::DeclaredEdgeTilted { edge },
         R::ReanchorPastCarrierEnd { edge, gap } => R::ReanchorPastCarrierEnd {
             edge,
             gap: end(gap, Supremum),
@@ -366,6 +395,7 @@ fn fold_replace_face_error<T: Real>(
         R::Escalated { source } => R::Escalated { source },
         R::Op { edge, error } => R::Op { edge, error },
         R::Pcurve { source } => R::Pcurve { source },
+        R::Join { refusal } => R::Join { refusal },
         R::ResultNotClosed { errors } => R::ResultNotClosed { errors },
     }
 }
@@ -395,6 +425,30 @@ fn fold_offset_error<T: Real>(
     }
 }
 
+/// A corner root's verdict, folded arm by arm.
+fn fold_corner_verdict<T: Real>(
+    verdict: topo::CornerVerdict<T>,
+    end: fn(T, BracketEnd) -> f64,
+) -> topo::CornerVerdict<f64> {
+    use topo::CornerVerdict as C;
+    match verdict {
+        C::Ssi(e) => C::Ssi(e),
+        // The sine as near zero as the bracket admits: the reading
+        // under which the surface grazes.
+        C::Graze { sine } => {
+            let (lo, hi) = (
+                end(sine, BracketEnd::Infimum),
+                end(sine, BracketEnd::Supremum),
+            );
+            C::Graze {
+                sine: if lo.abs() < hi.abs() { lo } else { hi },
+            }
+        }
+        C::NoRoot => C::NoRoot,
+        C::Unsupported { what } => C::Unsupported { what },
+    }
+}
+
 /// The boundary-row extraction's refusal, folded arm by arm.
 fn fold_iso_row_error<T: Real>(
     error: geom_brep::IsoRowError<T>,
@@ -405,8 +459,9 @@ fn fold_iso_row_error<T: Real>(
     match error {
         // Either end is interior to the domain; the infimum is the one
         // reported.
-        I::Interior { u, domain } => I::Interior {
-            u: end(u, Infimum),
+        I::Interior { axis, at, domain } => I::Interior {
+            axis,
+            at: end(at, Infimum),
             domain,
         },
         I::Structure { source } => I::Structure { source },

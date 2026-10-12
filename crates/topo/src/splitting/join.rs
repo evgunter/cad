@@ -11,8 +11,9 @@
 //! [`crate::chord_join`], one implementation shared with the boolean
 //! lane's joining. What is here is the split lane's
 //! **sweep** — the order it visits null edges in, the loose-end
-//! pairing, and the role resolution and area certification it layers
-//! on the core's side-agnostic outcome.
+//! pairing, and the role resolution, area certification and spur
+//! reading it layers on the core's side-agnostic outcome, with the one
+//! Euler operation it runs itself: the `kev` of a section strut.
 //!
 //! # The sweep (Programs 14.9/14.10, re-derived)
 //!
@@ -36,9 +37,10 @@
 //!   rounding order (`super::order`'s module docs). A curved face's
 //!   crossings lie on a conic, which no lexicographic order follows:
 //!   they are paired along the conic, each entry into the face with
-//!   the exit that ends the arc inside it ([`conic_pairs`]). The
-//!   partner of such a half is consumed only by it, and it consumes
-//!   only its partner.
+//!   the exit that ends the arc inside it ([`conic_pairs`]), or, where
+//!   the conic is a pair of rulings, along each ruling
+//!   ([`ruling_pairs`]). The partner of such a half is consumed only by
+//!   it, and it consumes only its partner.
 //! - **Elsewhere, the book's rule**: the first registered half in the
 //!   *same face* (at the time of the scan) with the *opposite* up/down
 //!   sense, among the halves with no fixed partner.
@@ -47,14 +49,17 @@
 //!
 //! When [`ChordJoiner::cut_core`] reports the polygon COMPLETE, the
 //! 2-loop null face comes back with its roles unresolved. This lane
-//! resolves them by membership of the minted above-copy vertex set,
+//! resolves them by membership of the null edges' above-end vertex set,
 //! certifies the polygon's area definitely-positive
 //! (**`split_section_area`**, margin 2·A/P) — a zero-area section
-//! polygon (a below-side pinch) is refused typed,
-//! [`SplitJoinError::DegenerateSection`] — holds a positive-area
-//! polygon to carrying no zero-width spur (`split_section_spur`;
-//! `Sweep::assert_no_spur`), and writes the F9 record.
+//! polygon is refused typed,
+//! [`SplitJoinError::DegenerateSection`] — reads a positive-area
+//! polygon's zero-width spurs in pairs, a strut on one loop under a
+//! slit on the other, and kills the struts (`split_section_spur`;
+//! `Sweep::strip_spurs`), so the finish and the section query read one
+//! loop, and writes the F9 record.
 
+use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
 
@@ -63,12 +68,12 @@ use super::{SplitPlane, SplitReduction};
 use crate::body::Body;
 use crate::chord_join::{
     ChordJoiner, ConicCrossingsCase, CutOutcome, Datum, FragmentRows, JoinLane, Leave, SectionCase,
-    SectionCtx, SegmentEdge, SplitJoinError, WallSection, corrupt_edge, corrupt_face, corrupt_he,
-    corrupt_loop, he_face, lone_site_placeholder, vertex_point, wall_section,
+    SectionConic, SectionCtx, SegmentEdge, SplitJoinError, WallSection, corrupt_edge, corrupt_face,
+    corrupt_he, corrupt_loop, he_face, lone_site_placeholder, vertex_point, wall_section,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::null::{CurveGeom, NullFacePair};
-use crate::validate::decide;
+use crate::validate::{decide, decide_nonzero};
 use geom_core::Tol;
 
 /// One completed section polygon: the null face and its role loops
@@ -78,9 +83,9 @@ use geom_core::Tol;
 pub(crate) struct CompletedSection {
     /// The null face (two coincident loops).
     pub(crate) face: FaceKey,
-    /// The loop through the minted above copies.
+    /// The loop through the null edges' above ends.
     pub(crate) above_loop: LoopKey,
-    /// The loop through the original below-side vertices.
+    /// The loop through their below ends.
     pub(crate) below_loop: LoopKey,
 }
 
@@ -207,9 +212,12 @@ fn he_edge<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeKey, SplitJ
 }
 
 /// The fixed partners of the null-edge halves on faces with more than
-/// two crossings (module docs), both ways round: a planar face's along
-/// its section line ([`line_pairs`]), a curved face's along its section
-/// conic ([`conic_pairs`]).
+/// two crossings (module docs), both ways round. A planar face's are
+/// paired along its section line ([`line_pairs`]). A curved face's are
+/// paired by what the C5 table makes of the plane against its wall
+/// ([`wall_section`]): along a section conic ([`conic_pairs`]), or along
+/// each of two rulings ([`ruling_pairs`]); a tangent ruling pairs
+/// nothing here and keeps the book's rule.
 ///
 /// A face's halves are taken in insertion order (null-edge record
 /// order, up half first — the half starting at `below_end`, the order
@@ -223,7 +231,8 @@ fn he_edge<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeKey, SplitJ
 ///
 /// # Errors
 ///
-/// [`line_pairs`]' and [`conic_pairs`]', each naming the face.
+/// [`wall_section`]'s, and [`line_pairs`]', [`conic_pairs`]' and
+/// [`ruling_pairs`]', each naming the face.
 ///
 /// # Panics
 ///
@@ -284,7 +293,36 @@ fn fixed_partners<T: Decide>(
         }
         let pairs = match *wall {
             geom::Surface::Plane { normal, .. } => line_pairs(red, face, normal, &crossings, band)?,
-            _ => conic_pairs(red, face, &crossings, band)?,
+            _ => {
+                let at = body
+                    .get_half_edge(halves[0])
+                    .ok_or_else(|| corrupt_he(halves[0]))?
+                    .start;
+                match wall_section(body, band, red.plane.origin, red.plane.normal, face, at)? {
+                    Some(WallSection {
+                        wall,
+                        case: SectionCase::Conic(conic),
+                    }) => conic_pairs(face, &wall, &conic, &crossings, band)?,
+                    Some(WallSection {
+                        case: SectionCase::Straight(rulings),
+                        ..
+                    }) => ruling_pairs(face, &rulings, &crossings, band)?,
+                    Some(WallSection {
+                        case: SectionCase::Loops { .. },
+                        ..
+                    }) => {
+                        return Err(SplitJoinError::SectionInvariant {
+                            face,
+                            what: "a split reached a torus face, which its reduce refuses",
+                        });
+                    }
+                    Some(WallSection {
+                        case: SectionCase::Tangent(_),
+                        ..
+                    })
+                    | None => Vec::new(),
+                }
+            }
         };
         for (a, b) in pairs {
             partner.insert(a, b);
@@ -348,7 +386,7 @@ fn leave_on<T: Decide>(
 struct Crossing<T: Decide> {
     half: HalfEdgeKey,
     point: Point3<T>,
-    /// Starts at an above copy (`Sweep::is_down`).
+    /// Starts at an above end (`Sweep::is_down`).
     down: bool,
     /// The section's direction into the face there ([`split_leave`]).
     leave: geom_core::Vec3<T>,
@@ -391,21 +429,109 @@ fn line_pairs<T: Decide>(
         Ok(_) => return Ok(Vec::new()),
         Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
     }
-    let d = d.normalize();
+    let along: Vec<&Crossing<T>> = crossings.iter().collect();
+    Ok(pair_along_line(face, &along, red.plane.origin, d.normalize(), band)?.0)
+}
+
+/// Crossings on one line through `origin` along unit `d`, paired along
+/// it: keyed by `(p − origin)·d`, ordered by
+/// [`super::order::sort_along_line`], each taking the first unpaired
+/// one before it of opposite sense. Returns the pairs and the number
+/// of crossings left unpaired.
+///
+/// # Errors
+///
+/// [`SplitJoinError::Escalated`] naming the face, where the order of
+/// two crossings along the line is undecided.
+fn pair_along_line<T: Decide>(
+    face: FaceKey,
+    crossings: &[&Crossing<T>],
+    origin: Point3<T>,
+    d: geom_core::Vec3<T>,
+    band: Band,
+) -> Result<(Vec<(HalfEdgeKey, HalfEdgeKey)>, usize), SplitJoinError> {
     let keys: Vec<T> = crossings
         .iter()
-        .map(|c| (c.point - red.plane.origin).dot(d))
+        .map(|c| (c.point - origin).dot(d))
         .collect();
     let order = super::order::sort_along_line(&keys, band)
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
     let mut pairs = Vec::new();
     let mut loose: Vec<&Crossing<T>> = Vec::new();
     for i in order {
-        let c = &crossings[i];
+        let c = crossings[i];
         match loose.iter().position(|e| e.down != c.down) {
             Some(j) => pairs.push((loose.remove(j).half, c.half)),
             None => loose.push(c),
         }
+    }
+    Ok((pairs, loose.len()))
+}
+
+/// A curved face's crossings paired where the plane meets its wall
+/// along two rulings (a cylinder's parallel pair, a cone's pair through
+/// the apex): each crossing goes to the ruling it lies on, by
+/// **`split_join_ruling_side`** (its distance from the other ruling
+/// less its distance from this one, m), and each ruling's crossings
+/// are paired along it ([`pair_along_line`]). An arc of the section
+/// inside the face runs along one ruling, so no pair spans the two; the
+/// sweep's lexicographic order interleaves two rulings' crossings
+/// wherever the rulings are not parallel to its `v` axis. A crossing
+/// left unpaired on its ruling refuses rather than falling to the
+/// book's rule, which could pair it across to the other ruling.
+///
+/// **Unpinned**: no shipped fixture reaches either refusal. The side
+/// is undecided only where the rulings meet, at a cone's apex, and a
+/// split through the apex refuses in the reduction first; a ruling
+/// with a crossing left over is a face whose sections along it do not
+/// alternate in and out.
+///
+/// # Errors
+///
+/// [`SplitJoinError::Escalated`] naming the face, where a crossing
+/// lies as near one ruling as the other, or where [`pair_along_line`]
+/// escalates; [`SplitJoinError::SectionCrossings`] with
+/// [`ConicCrossingsCase::NotAlternating`] where a ruling's crossings do
+/// not pair off; [`SplitJoinError::SectionInvariant`] where the
+/// section's carrier is not a line.
+fn ruling_pairs<T: Decide>(
+    face: FaceKey,
+    rulings: &[geom::Curve3<T>; 2],
+    crossings: &[Crossing<T>],
+    band: Band,
+) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
+    let mut lines = Vec::with_capacity(2);
+    for ruling in rulings {
+        let geom::Curve3::Line { origin, dir } = *ruling else {
+            return Err(SplitJoinError::SectionInvariant {
+                face,
+                what: "a ruling section carried a non-line",
+            });
+        };
+        lines.push((origin, dir.normalize()));
+    }
+    let off = |p: Point3<T>, (o, d): (Point3<T>, geom_core::Vec3<T>)| (p - o).cross(d).norm();
+    let mut on: [Vec<&Crossing<T>>; 2] = [Vec::new(), Vec::new()];
+    for c in crossings {
+        let margin = Margin::of(off(c.point, lines[1]) - off(c.point, lines[0]));
+        match decide_nonzero("split_join_ruling_side", margin, band)
+            .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+        {
+            NonzeroSign::Positive => on[0].push(c),
+            NonzeroSign::Negative => on[1].push(c),
+        }
+    }
+    let mut pairs = Vec::new();
+    for (side, &(origin, d)) in on.iter().zip(&lines) {
+        let (along, loose) = pair_along_line(face, side, origin, d, band)?;
+        if loose > 0 {
+            return Err(SplitJoinError::SectionCrossings {
+                face,
+                case: ConicCrossingsCase::NotAlternating,
+                band,
+            });
+        }
+        pairs.extend(along);
     }
     Ok(pairs)
 }
@@ -455,9 +581,6 @@ fn line_pairs<T: Decide>(
 /// reads the order cyclically, so where the cycle starts changes no
 /// pair.
 ///
-/// A planar face, a straight section and the kinds the gate refuses
-/// pair nothing here: they keep the book's rule.
-///
 /// **Unpinned**: no shipped fixture reaches [`ConicCrossingsCase::Grazing`]
 /// or [`ConicCrossingsCase::NotAlternating`]; both are typed and read
 /// here only.
@@ -468,26 +591,14 @@ fn line_pairs<T: Decide>(
 /// gap is undecided; [`SplitJoinError::SectionCrossings`] where a
 /// heading is in the band ([`ConicCrossingsCase::Grazing`]) or the
 /// senses do not alternate in walk order
-/// ([`ConicCrossingsCase::NotAlternating`]); the C5 table's refusals.
+/// ([`ConicCrossingsCase::NotAlternating`]).
 fn conic_pairs<T: Decide>(
-    red: &SplitReduction<T>,
     face: FaceKey,
+    wall: &geom::Surface<T>,
+    conic: &SectionConic<T>,
     crossings: &[Crossing<T>],
     band: Band,
 ) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
-    let body = &red.body;
-    let first = crossings[0].half;
-    let at = body
-        .get_half_edge(first)
-        .ok_or_else(|| corrupt_he(first))?
-        .start;
-    let Some(WallSection {
-        wall,
-        case: SectionCase::Conic(conic),
-    }) = wall_section(body, band, red.plane.origin, red.plane.normal, face, at)?
-    else {
-        return Ok(Vec::new());
-    };
     let refuse = |case| SplitJoinError::SectionCrossings { face, case, band };
     let escalate = |diag| SplitJoinError::Escalated { face, diag };
     let mut heading = None;
@@ -497,7 +608,7 @@ fn conic_pairs<T: Decide>(
         let tangent = conic.tangent(theta);
         let h = if c.down { c.leave } else { -c.leave };
         let sine = h.dot(tangent) / tangent.norm();
-        let arm = geom_brep::curvature_lever_arm(&wall, c.point);
+        let arm = geom_brep::curvature_lever_arm(wall, c.point);
         let sign = match decide("split_join_conic_heading", Margin::levered(sine, arm), band) {
             Ok(Sign::Zero) => return Err(refuse(ConicCrossingsCase::Grazing)),
             Ok(sign) => sign,
@@ -586,7 +697,7 @@ struct Sweep<T: Decide> {
     joiner: ChordJoiner,
     /// Completed polygons, in completion order.
     completed: Vec<CompletedSection>,
-    /// Minted above copies (role membership).
+    /// The null edges' above ends (role membership).
     above_set: SecondaryMap<VertexKey, ()>,
     /// The split plane (section-area certification).
     plane: SplitPlane<T>,
@@ -665,6 +776,7 @@ impl<T: Decide> Sweep<T> {
                 let outer_loop = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
                 let (above_loop, below_loop) = self.resolve_roles(body, face, outer_loop, ring)?;
                 self.certify_section_area(body, face, below_loop)?;
+                self.strip_spurs(body, face, above_loop, below_loop)?;
                 body.set_null_face_pair(
                     face,
                     NullFacePair::Split {
@@ -731,8 +843,7 @@ impl<T: Decide> Sweep<T> {
     ///
     /// The join's body is mid-operation, and an edge's curve is a link
     /// there ([`crate::live::OPERATORS_KEEP_LINKS`]): a torn one panics,
-    /// where null scaffolding is skipped. [`Self::assert_no_spur`]
-    /// reads the kinds this walk read.
+    /// where null scaffolding is skipped.
     fn certify_section_area(
         &self,
         body: &Body<T>,
@@ -766,19 +877,13 @@ impl<T: Decide> Sweep<T> {
             });
         };
         let hes = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
-        let mut straight = Vec::with_capacity(hes.len());
         let mut placeholders = 0;
         for &he in &hes {
             let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
             let edge = body
                 .get_edge(he_data.edge)
                 .ok_or_else(|| corrupt_edge(he_data.edge))?;
-            let entry = body.edge_curve_linked(he_data.edge, edge);
-            straight.push(matches!(
-                entry,
-                CurveGeom::Certified(c) if matches!(c.carrier(), geom::Curve3::Line { .. })
-            ));
-            let CurveGeom::Certified(curve) = entry else {
+            let CurveGeom::Certified(curve) = body.edge_curve_linked(he_data.edge, edge) else {
                 continue;
             };
             let end = body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?;
@@ -831,8 +936,7 @@ impl<T: Decide> Sweep<T> {
         }
         let margin = Margin::over_lever(twice_area.abs(), perimeter);
         match decide("split_section_area", margin, self.band) {
-            // A positive NET area can still carry a zero-area spur.
-            Ok(Sign::Positive) => self.assert_no_spur(body, face, &hes, &straight),
+            Ok(Sign::Positive) => Ok(()),
             Ok(_) => Err(SplitJoinError::DegenerateSection { face }),
             Err(diag) => Err(SplitJoinError::Escalated { face, diag }),
         }
@@ -840,72 +944,257 @@ impl<T: Decide> Sweep<T> {
 }
 
 impl<T: Decide> Sweep<T> {
-    /// A completed polygon of positive area carries no **spur**: no
-    /// vertex at which the loop runs out along a straight edge and
-    /// straight back, so the vertex before it and the vertex after it
-    /// coincide. A spur is a contact the plane only touches joined into
-    /// a real section's loop, and it would leave a zero-width slit in
-    /// both halves. None reaches the join, because no contact mints a
-    /// null edge of its own: rule (b) sends an edge the plane only
-    /// touches along a corner with its material; rule (a) refuses a wall
-    /// that bends away from its material
-    /// ([`crate::SplitReduceError::KnifeEdge`]); and a cusp, the one
-    /// contact rule (b)'s safety default could otherwise send across,
-    /// has a zero-width sector the neighbourhood classifier refuses
-    /// first ([`crate::SplitReduceError::SliverSector`] on
-    /// `sector_straight`). An exact spur is that invariant broken, and
-    /// panics; one the band cannot tell from a corner escalates.
+    /// Reads a completed polygon's **spurs** ([`spur_tips`]) and kills
+    /// its struts. A spur is a vertex at which a loop runs out along an
+    /// edge and back over the same curve. Every spur of a
+    /// polygon of positive area is the trace of one edge of the operand
+    /// lying in the plane, and comes as a pair, one on each loop:
     ///
-    /// The margin is the distance between the tip's two neighbours
-    /// (`split_section_spur`, a length through [`Margin::norm3`]).
-    /// **Only straight tips are read.** A curved out-and-back — the
-    /// loop running out along an arc and back along the same arc — is
-    /// a spur too (its two excesses cancel; it bounds nothing), but
-    /// telling it from two DIFFERENT arcs between one pair of points,
-    /// which do bound area, needs a carrier comparison this check does
-    /// not make (`work/hone/split-section-spur-guard-skips-curved-spurs.md`).
+    /// - on the loop of the side the edge belongs to, a **strut**: the
+    ///   edge itself, one half followed by the other ([`strut_turn`]), out
+    ///   to a vertex no other edge reaches. That side's material lies
+    ///   under the edge, so its section runs on across it: the strut is
+    ///   killed, tip and all, and every reader of the section (the
+    ///   finish, [`super::plane_section`]) reads the loop without it.
+    /// - on the other side's loop, a **slit**: two distinct edges over
+    ///   it, from two copies of its far end to one vertex at its tip.
+    ///   That side's material lies on both sides of the edge, and its
+    ///   piece touches itself along it, through distinct entities. The
+    ///   slit stays in that side's section face; the section query takes
+    ///   it out of the region's outline, inside which it lies
+    ///   (`section::drop_slits`).
     ///
-    /// `hes` is the below loop's cycle, and `straight` whether each
-    /// member's curve is a line, as [`Self::certify_section_area`] read
-    /// them.
-    fn assert_no_spur(
+    /// The edge is one rule (b) reads reflex: both its faces leave it
+    /// into one side, which holds material on both sides of it, and the
+    /// edge goes to the other. Where that side's runs either side of it
+    /// lie apart at both its ends, it bounds two polygons and is no
+    /// spur. Where they join round one end, in one copy of the vertex
+    /// there, it is a spur of one polygon. Where they join round both
+    /// ends, its trace is a polygon of its own that bounds nothing, which
+    /// [`Self::certify_section_area`] has refused
+    /// ([`SplitJoinError::DegenerateSection`];
+    /// `work/cleave/a-keel-in-the-plane-wrapped-round-at-both-ends-refuses-a-degenerate-section.md`).
+    ///
+    /// A contact the plane only touches makes no spur, because none mints
+    /// a null edge of its own: rule (b) sends an edge touched along a
+    /// convex corner with its material; rule (a) refuses a wall that
+    /// bends away from its material ([`crate::SplitReduceError::KnifeEdge`]);
+    /// and a cusp, which rule (b)'s safety default could otherwise send
+    /// across, has a zero-width sector the neighbourhood classifier
+    /// refuses first ([`crate::SplitReduceError::SliverSector`] on
+    /// `sector_straight`). So at the straight tips, where the pairing is
+    /// read, the struts and the slits are as many: an unpaired one is
+    /// that invariant broken, and panics. A tip the band cannot tell from
+    /// a corner escalates.
+    ///
+    /// **Only straight spurs are paired**; every strut is killed, curved
+    /// or straight, since [`strut_turn`] reads topology alone, and every
+    /// slit, curved or straight, is read for the section query. Pairing
+    /// the curved ones is `work/hone/split-section-spur-guard-skips-curved-spurs.md`.
+    fn strip_spurs(
         &self,
-        body: &Body<T>,
+        body: &mut Body<T>,
         face: FaceKey,
-        hes: &[HalfEdgeKey],
-        straight: &[bool],
+        above_loop: LoopKey,
+        below_loop: LoopKey,
     ) -> Result<(), SplitJoinError> {
-        let n = hes.len();
-        if n < 3 {
-            return Ok(());
+        let (mut struts, mut slits) = (Vec::new(), Vec::new());
+        for l in [above_loop, below_loop] {
+            for tip in spur_tips(body, face, l, self.band)? {
+                match tip {
+                    Spur::Strut { at, straight: true } => struts.push(at),
+                    Spur::Slit {
+                        at, straight: true, ..
+                    } => slits.push(at),
+                    Spur::Strut { .. } | Spur::Slit { .. } => {}
+                }
+            }
         }
-        let start = |he: HalfEdgeKey| -> Result<Point3<T>, SplitJoinError> {
-            Ok(vertex_point(
-                body,
-                body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start,
-            ))
-        };
-        for i in 0..n {
-            let inbound = (i + n - 1) % n;
-            if !(straight[inbound] && straight[i]) {
-                continue;
-            }
-            let (before, after) = (start(hes[inbound])?, start(hes[(i + 1) % n])?);
-            match decide(
-                "split_section_spur",
-                Margin::norm3(after - before),
-                self.band,
-            ) {
-                Ok(Sign::Zero) => unreachable!(
-                    "section polygon {face:?} runs out along a touching edge and back: a \
-                     contact minted a null edge of its own, which rules (a) and (b) and the \
-                     classifier's sector_straight refusal of a cusp rule out"
-                ),
-                Ok(_) => {}
-                Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
-            }
+        if struts.len() != slits.len() {
+            unreachable!(
+                "section polygon {face:?} has {} strut(s) at {struts:?} and {} slit(s) at \
+                 {slits:?} among its straight tips: every spur is the trace of one edge of the \
+                 operand in the plane, the edge itself on the loop of the side that holds it \
+                 and two chords on the other's, and a contact the plane only touches mints no \
+                 null edge to trace one without the other",
+                struts.len(),
+                slits.len()
+            );
+        }
+        for l in [above_loop, below_loop] {
+            kill_struts(body, l)?;
         }
         Ok(())
+    }
+}
+
+/// A spur of a section loop ([`Sweep::strip_spurs`]): a tip at which
+/// the loop runs out along an edge and back over the same curve, at its
+/// point. `straight` says both edges are lines.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Spur<T: Decide> {
+    /// The loop runs out along one edge and back along the same edge.
+    Strut { at: Point3<T>, straight: bool },
+    /// The loop runs out along one edge, `out` its half leaving the tip,
+    /// and back along another over the same line or conic arc, to a copy
+    /// of the vertex it left.
+    Slit {
+        at: Point3<T>,
+        out: HalfEdgeKey,
+        straight: bool,
+    },
+}
+
+/// What a half of a section loop runs along, as [`spur_tips`] compares
+/// it.
+enum Run<'a, T: Decide> {
+    Line,
+    Conic(&'a geom_brep::EdgeCurve<T>, bool),
+    Unread,
+}
+
+/// The spurs of the loop `l` of the section polygon `face`, in cycle
+/// order:
+///
+/// - a **strut** wherever a half is followed by its own mate
+///   ([`strut_turn`]);
+/// - a **slit** wherever two distinct edges run out from a vertex and
+///   back to a vertex at its point (`split_section_spur`, the distance
+///   between the two through [`Margin::norm3`]) over one curve: both
+///   lines, or both conic arcs that agree at a quarter, a half and three
+///   quarters of the way along. Five points of a conic fix it, and the
+///   middle one fixes the arc of it between the ends, so two conic arcs
+///   that agree there are one; a line and an arc between one pair of
+///   points bound area, and so do two arcs that disagree.
+///
+/// A section edge is a line or a conic (the carrier gate refuses
+/// spirics and splines in the plane's reach), so no tip is left unread.
+///
+/// # Errors
+///
+/// [`SplitJoinError::Escalated`] where the band cannot tell a tip from
+/// a corner; corruption on a torn loop.
+pub(super) fn spur_tips<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    l: LoopKey,
+    band: Band,
+) -> Result<Vec<Spur<T>>, SplitJoinError> {
+    let LoopBoundary::Cycle { first } = body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.boundary
+    else {
+        return Ok(Vec::new());
+    };
+    let hes = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
+    let n = hes.len();
+    let mut members = Vec::with_capacity(n);
+    for &he in &hes {
+        let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
+        let edge = body
+            .get_edge(he_data.edge)
+            .ok_or_else(|| corrupt_edge(he_data.edge))?;
+        let run = match body.edge_curve_linked(he_data.edge, edge) {
+            CurveGeom::Certified(c) if matches!(c.carrier(), geom::Curve3::Line { .. }) => {
+                Run::Line
+            }
+            CurveGeom::Certified(c)
+                if crate::loop_winding::ConicFrame::of(c.carrier()).is_some() =>
+            {
+                Run::Conic(c, edge.he_plus == he)
+            }
+            _ => Run::Unread,
+        };
+        members.push((vertex_point(body, he_data.start), run));
+    }
+    let zero = |d: geom_core::Vec3<T>| -> Result<bool, SplitJoinError> {
+        match decide("split_section_spur", Margin::norm3(d), band) {
+            Ok(sign) => Ok(sign == Sign::Zero),
+            Err(diag) => Err(SplitJoinError::Escalated { face, diag }),
+        }
+    };
+    // The point `f` of the way along a conic half, in its own direction.
+    let along = |c: &geom_brep::EdgeCurve<T>, forward: bool, f: T| {
+        let (t0, t1) = c.params();
+        let (a, b) = if forward { (t0, t1) } else { (t1, t0) };
+        c.carrier().eval(a + (b - a) * f)
+    };
+    let mut tips = Vec::new();
+    for index in 0..n {
+        let inbound = (index + n - 1) % n;
+        let ((before, into), (at, out)) = (&members[inbound], &members[index]);
+        let (before, at) = (*before, *at);
+        if strut_turn(body, hes[inbound])? {
+            let straight = matches!(into, Run::Line);
+            tips.push(Spur::Strut { at, straight });
+            continue;
+        }
+        let same_curve = match (into, out) {
+            (Run::Line, Run::Line) => Some(true),
+            (Run::Conic(..), Run::Conic(..)) => Some(false),
+            _ => None,
+        };
+        let Some(straight) = same_curve else {
+            continue;
+        };
+        if !zero(members[(index + 1) % n].0 - before)? {
+            continue;
+        }
+        if let (Run::Conic(a, fa), Run::Conic(b, fb)) = (into, out) {
+            let mut agree = true;
+            for f in [T::from_f64(0.25), T::from_f64(0.5), T::from_f64(0.75)] {
+                // `into` from `before` to the tip; `out` from the tip
+                // back, so its point `1 − f` of the way along.
+                if !zero(along(a, *fa, f) - along(b, *fb, T::one() - f))? {
+                    agree = false;
+                    break;
+                }
+            }
+            if !agree {
+                continue;
+            }
+        }
+        tips.push(Spur::Slit {
+            at,
+            out: hes[index],
+            straight,
+        });
+    }
+    Ok(tips)
+}
+
+/// Whether `he` turns back at its end: the next half of its loop is its
+/// own mate and the edge's two ends are two vertices, so its edge is a
+/// **strut** of that loop, out to a vertex no other edge reaches and
+/// back — the validator's valence-1 strut. An edge closed on one vertex
+/// is never one, whatever follows it.
+fn strut_turn<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<bool, SplitJoinError> {
+    let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
+    let next = body
+        .get_half_edge(he_data.next)
+        .ok_or_else(|| corrupt_he(he_data.next))?;
+    Ok(next.edge == he_data.edge && next.start != he_data.start)
+}
+
+/// Kills every strut of the loop `l` ([`strut_turn`]) with the vertex at
+/// its tip ([`Body::kev`]), repeating until none is left, so a chain of
+/// struts goes from its tip back.
+fn kill_struts<T: Decide>(body: &mut Body<T>, l: LoopKey) -> Result<(), SplitJoinError> {
+    loop {
+        let LoopBoundary::Cycle { first } =
+            body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.boundary
+        else {
+            return Ok(());
+        };
+        let mut strut = None;
+        for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {
+            if strut_turn(body, he)? {
+                strut = Some(he);
+                break;
+            }
+        }
+        let Some(he) = strut else {
+            return Ok(());
+        };
+        body.kev(he)?;
     }
 }
 
@@ -1055,6 +1344,8 @@ mod torn_hop_rows {
                     sides: SecondaryMap::new(),
                     on_vertices: Vec::new(),
                     null_edges: null_edges.clone(),
+                    coincidences: Vec::new(),
+                    edge_pieces: Vec::new(),
                 };
                 fixed_partners(&red, &above, band()).map(|p| p.len())
             },

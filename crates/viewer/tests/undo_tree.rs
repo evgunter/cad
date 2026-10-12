@@ -33,10 +33,10 @@ fn session(tol: Tol) -> (DocSession, pncad::document::RecipeNodeId) {
 /// The distance edit these rows use: the extrude carries a DRIVEN
 /// distance, so the literal slot they move is the profile's — but the
 /// simplest editable literal in this fixture is a new document
-/// parameter, which every row below shares.
+/// variable, which every row below shares.
 fn set_thickness(session: &mut DocSession, metres: f64) -> Vec<DocEdit<ProfileProgram>> {
     session
-        .perform(SessionOp::SetParam {
+        .perform(SessionOp::SetVariable {
             var: common::thickness_var(session.committed_doc()),
             value: SlotValue::Continuous(metres),
         })
@@ -44,14 +44,14 @@ fn set_thickness(session: &mut DocSession, metres: f64) -> Vec<DocEdit<ProfilePr
 }
 
 fn thickness_of(doc: &Doc<ProfileProgram>) -> f64 {
-    match props::param_rows(doc)
+    match props::variable_rows(doc)
         .into_iter()
         .find(|row| row.label.name() == Some(&common::thickness_param()))
-        .expect("the fixture declares the parameter")
+        .expect("the fixture declares the variable")
         .value
     {
         SlotValue::Continuous(v) => v,
-        SlotValue::Count(_) => panic!("the fixture's parameter is continuous"),
+        SlotValue::Count(_) => panic!("the fixture's variable is continuous"),
     }
 }
 
@@ -187,12 +187,14 @@ fn a_replayed_history_is_the_files_log_step_for_step() {
         DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: common::len(0.02),
+            value: common::len(0.02).into(),
+            fresh: Vec::new(),
         },
         DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: common::len(0.03),
+            value: common::len(0.03).into(),
+            fresh: Vec::new(),
         },
     ];
     let history = History::replayed(doc, &edits, tol).expect("the log replays");
@@ -206,5 +208,59 @@ fn a_replayed_history_is_the_files_log_step_for_step() {
             .value
             .expect("the distance evaluates"),
         SlotValue::Continuous(0.03)
+    );
+}
+
+/// **Undo restores a reader a delete stranded** (D10; review A's
+/// MINOR-3): deleting the plate's profile is accepted and leaves its
+/// extrude reading a variable no operation defines, refused
+/// `UnresolvedRead`; undoing the delete returns the document it started
+/// from, bit for bit, and the extrude reads its profile and builds again.
+#[test]
+fn undo_restores_a_reader_a_delete_stranded() {
+    let tol = Tol::witness();
+    let (doc, profile, extrude) = common::parametric_plate(tol);
+    let error_of = |doc: &Doc<ProfileProgram>| {
+        let evaluation: pncad::document::Evaluation<f64> = pncad::document::evaluate(
+            doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            tol,
+        );
+        evaluation
+            .node_error(extrude)
+            .map(|e| format!("{:?}", e.kind))
+    };
+    assert_eq!(error_of(&doc), None, "the plate builds");
+    let mut history = History::new(doc.clone());
+    let edit = DocEdit::DeleteNode { id: profile };
+    let deleted = pncad::document::apply(&doc, &edit, tol, &pncad::document::RefusingReach)
+        .expect("a delete with a reader is accepted");
+    history.commit(edit, deleted.doc);
+    let stranded = error_of(history.doc()).unwrap_or_default();
+    assert!(
+        stranded.starts_with("UnresolvedRead"),
+        "the stranded extrude refuses typed: {stranded}"
+    );
+    assert!(
+        history.doc().upstream(extrude).is_empty(),
+        "and reads nothing live"
+    );
+
+    history.undo().expect("the delete undoes");
+    assert!(
+        history.doc().bit_eq(&doc),
+        "undo restores the document bit for bit"
+    );
+    assert_eq!(
+        history.doc().upstream(extrude),
+        vec![profile],
+        "the read is back"
+    );
+    assert_eq!(
+        error_of(history.doc()),
+        None,
+        "and the extrude builds again"
     );
 }

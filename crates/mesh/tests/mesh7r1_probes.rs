@@ -461,19 +461,17 @@ fn a_pole_crossing_arc_is_refused_by_the_branch_door_not_the_shape_door() {
     let tol = Tol::witness();
     assert_eq!(door_verdict(&body, cap), Ok(()));
     assert_eq!(door_verdict(&body, rest), Ok(()));
-    // Issue 1598 is closed at the closed form's own premise, not at
-    // either door: the complement's rim traversal says its interior
-    // lies below the extent the levels fold, so the face refuses by
-    // name and the body no longer answers 0.0 for a closed sphere.
+    // Issue 1598 is closed at the closed form's side reader, not at
+    // either door: the complement holds the south pole, which no face
+    // may hold inside it, so the face refuses by name and the body no
+    // longer answers 0.0 for a closed sphere.
     let mp = topo::mass_properties(&body, tol);
     assert!(
         matches!(
             mp,
             Err(topo::MassPropsError::Face {
                 face,
-                source: geom_brep::props::PropsError::NotIsoRectangle {
-                    what: "props_rim_interior_side"
-                }
+                source: geom_brep::props::PropsError::SenseContradicted,
             }) if face == rest
         ),
         "issue 1598: the complement refuses typed; got {mp:?}"

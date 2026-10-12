@@ -23,7 +23,7 @@
 use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::{NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::{ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertifyError};
+use geom_brep::{EnvelopeStatement, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::spline::KnotVector;
 use geom_core::{Bounds, Decide, Point2, Point3, Real, Vec2};
 use std::sync::Arc;
@@ -88,23 +88,15 @@ fn imported_wall(perturb: Option<usize>) -> NurbsSurface<f64> {
     NurbsSurface::new(ku, kv, control, weights).unwrap()
 }
 
-/// The surface lifted to `T` (control points through `from_f64`;
-/// weights and knots are `f64` structure and stay so).
+/// The surface lifted to `T`: control points, weights and knots
+/// through `from_f64`.
 fn lift_surface<T: Real>(s: &NurbsSurface<f64>) -> NurbsSurface<T> {
-    let control = s.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        control,
-        s.weights().to_vec(),
-    )
-    .unwrap()
+    s.map_scalar(T::from_f64)
 }
 
 /// The curve lifted to `T`, as [`lift_surface`].
 fn lift_curve<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
-    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsCurve3::new(c.knots().clone(), control, c.weights().to_vec()).unwrap()
+    c.map_scalar(T::from_f64)
 }
 
 /// `certify` of the column `u = u_star` traversing the whole `v`
@@ -114,7 +106,6 @@ fn certify_column<T: Decide>(
     carrier: &NurbsCurve3<f64>,
     u_star: f64,
 ) -> Result<PcurveCache<T>, PcurveCertifyError> {
-    let (u0, u1) = chart.knots_u().domain();
     let (v0, v1) = chart.knots_v().domain();
     let f = T::from_f64;
     PcurveCache::certify(
@@ -126,12 +117,6 @@ fn certify_column<T: Decide>(
         T::one(),
         &Curve3::Nurbs(Arc::new(lift_curve::<T>(carrier))),
         &Surface::Nurbs(Arc::new(lift_surface::<T>(chart))),
-        ChartWindow {
-            u_min: f(u0),
-            u_max: f(u1),
-            v_min: f(v0),
-            v_max: f(v1),
-        },
         band(),
     )
 }

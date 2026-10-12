@@ -21,7 +21,7 @@ use crate::fixture::{self, insert, tol};
 use editor_core::Formula;
 use editor_core::{
     AuthoredStep, DocEdit, EditError, LoopProgram, Node, PieceRole, ProfileDoc, ProfileEdgeRef,
-    ProfileProgram, RecipeNodeId, StepHandleRefusal, StepIdFault, VarEnv, keep_grid,
+    ProfileProgram, RecipeNodeId, StepHandleRefusal, StepIdFault, keep_grid,
 };
 use geom_core::{Point2, Tol};
 use profile::{Open, Start, Step, Verb};
@@ -76,7 +76,7 @@ fn placed_twice(loop_: &LoopProgram<Formula>) -> (ProfileDoc, RecipeNodeId, Reci
         insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                frame: plane.into(),
                 loops: vec![loop_.clone()],
                 ids: Vec::new(),
             }),
@@ -128,7 +128,7 @@ fn a_handle_binds_to_the_id_its_placement_minted() {
             role: PieceRole::RunOut
         }
     );
-    let drawn = p.pieces(&VarEnv::default(), tol()).unwrap();
+    let drawn = p.pieces(&doc.var_env(), tol()).unwrap();
     assert!(
         drawn.edges[0].contains(&wall),
         "the run out is a drawn piece: {drawn:?}"
@@ -209,7 +209,7 @@ fn a_piece_door_refuses_a_role_its_verb_never_draws() {
     assert!(p.piece(0, &a.fillet, PieceRole::RunIn).is_ok());
     // Unminted: the program before it entered the document.
     let free = ProfileProgram {
-        plane: p.plane,
+        frame: p.frame,
         loops: p.loops.clone(),
         ids: Vec::new(),
     };
@@ -267,6 +267,7 @@ fn a_keep_map_lowers_to_the_grid_the_door_stores() {
         node: first,
         loops: loops.clone(),
         ids: grid,
+        fresh: Vec::new(),
     };
     let after = doc
         .apply(&edit, tol(), &editor_core::RefusingReach)
@@ -288,6 +289,7 @@ fn a_keep_map_lowers_to_the_grid_the_door_stores() {
             node: first,
             loops,
             ids: twice,
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,

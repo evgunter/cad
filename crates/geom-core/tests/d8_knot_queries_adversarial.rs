@@ -28,14 +28,13 @@
 //! - **The span search from its definition** (`knots[i] ≤ t <
 //!   knots[i+1]`, located by exhaustive scan over `first_span
 //!   ..= last_span`) rather than from the retired linear scan, plus the
-//!   three documented totality exits.
-//! - **The mutation sequence itself**, reconstructed from
-//!   `to_bezier_spans_extra`'s loop, with the raw-slice entitlement
-//!   (`clamped` still accepts the list) and the `unreachable!` guard's
-//!   condition both checked *before every insertion* — including with
-//!   injected extras, at multiplicity saturation, and at degree 1.
-//! - **The public door**, driven with extras chosen to reach the
-//!   `unreachable!` if anything can: NaN, ±∞, both domain ends, `-0.0`,
+//!   two documented clamps, and no span at NaN.
+//! - **The decomposition itself** (`SplineCoeffs::bernstein_spans`),
+//!   every row held to exact containment of its piece's blossom —
+//!   including with injected extras, at multiplicity saturation, and at
+//!   degree 1.
+//! - **The public door**, driven with extras chosen to break the
+//!   decomposition if anything can: NaN, ±∞, both domain ends, `-0.0`,
 //!   values one ULP inside each end, and duplicates of existing knots.
 //!
 //! Merged into few tests on purpose (nextest is process-per-test);
@@ -46,13 +45,17 @@
 test_utils::gated_to![
     "crates/geom-core/src/spline/",
     "crates/geom-core/src/interval.rs",
+    "crates/geom-core/tests/exact_q/",
 ];
 
+use crate::exact_q::Q;
+use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::CurveCertData;
 use geom_core::spline::compose::tensor::{SurfaceCertData, surface_curve_residual};
+use num_bigint::BigInt;
 use test_utils::fuzz;
 
 // ---------------------------------------------------------------------
@@ -101,7 +104,7 @@ fn oracle_pairs(kv: &KnotVector) -> Vec<(f64, usize)> {
 /// The span index **from the definition**: the unique `i` in
 /// `[first_span, last_span]` with `knots[i] ≤ t < knots[i+1]`, found by
 /// exhaustive scan; `None` when `t` is outside `[lo, hi)` or NaN, where
-/// no such `i` exists and the function's totality contract takes over.
+/// no such `i` exists and `span_at`'s clamp (or refusal) takes over.
 fn oracle_span_by_definition(kv: &KnotVector, t: f64) -> Option<usize> {
     let k = kv.knots();
     let mut found = None;
@@ -132,7 +135,10 @@ fn retired_linear_span(knots: &[f64], u: f64) -> usize {
 /// `geom-brep/src/props/quad.rs`'s `raw_span`, reproduced: the other
 /// raw-slice span search live in the tree. Evidence for a census note,
 /// not a gate.
-fn quad_raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> usize {
+fn quad_raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> Option<usize> {
+    if t.is_nan() {
+        return None;
+    }
     let last = count.saturating_sub(1).max(degree);
     let mut span = degree;
     let mut i = degree;
@@ -142,7 +148,7 @@ fn quad_raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> usize {
         }
         i += 1;
     }
-    span.min(last)
+    Some(span.min(last))
 }
 
 // ---------------------------------------------------------------------
@@ -308,8 +314,8 @@ fn enumerated() -> Vec<(String, KnotVector)> {
     // exact under `==`, and every interior value differs from `-0.0`),
     // and it is the sharpest form of the `u == lo` / `u == hi` case the
     // span substitution rests on: the probe `+0.0` compares `==` to the
-    // endpoint but is a different bit pattern, and `find_span`'s guard
-    // is spelled `!(t > knots[p])`.
+    // endpoint but is a different bit pattern, and the search's guard
+    // is spelled `t <= knots[p]`.
     push(
         "signed zero/p3/lo is −0.0".to_string(),
         build(3, -0.0, 1.0, &[(0.5, 2)]),
@@ -554,22 +560,32 @@ fn check_span(name: &str, kv: &KnotVector) {
     let (first, last) = (kv.first_span(), kv.last_span());
 
     for t in probes(kv) {
-        let got = kv.find_span(t);
+        let located = kv.span_at(t).map(|s| s.index());
+        assert_eq!(
+            quad_raw_span(knots, kv.degree(), kv.control_count(), t).is_none(),
+            t.is_nan(),
+            "{name}: quad.rs's raw_span copy refuses at {t} where span_at does not, or the reverse"
+        );
+        let Some(got) = located else {
+            assert!(t.is_nan(), "{name}: span_at({t}) refused a number");
+            continue;
+        };
+        assert!(!t.is_nan(), "{name}: span_at(NaN) located span {got}");
         match oracle_span_by_definition(kv, t) {
             Some(want) => assert_eq!(
                 got, want,
-                "{name}: find_span({t}) = {got}, the definition says {want}"
+                "{name}: span_at({t}) = {got}, the definition says {want}"
             ),
             None => {
-                // Outside `[lo, hi)`, or NaN: the three documented exits.
-                let want = if t.is_nan() || t < lo { first } else { last };
+                // Outside `[lo, hi)`: the two documented clamps.
+                let want = if t < lo { first } else { last };
                 assert!(
-                    t.is_nan() || t < lo || t >= hi,
+                    t < lo || t >= hi,
                     "{name}: {t} is in [lo, hi) yet no span contains it"
                 );
                 assert_eq!(
                     got, want,
-                    "{name}: find_span({t}) = {got}, the totality contract says {want}"
+                    "{name}: span_at({t}) = {got}, the clamping contract says {want}"
                 );
             }
         }
@@ -593,28 +609,27 @@ fn check_span(name: &str, kv: &KnotVector) {
         } else {
             assert_eq!(
                 linear, 0,
-                "{name}: below the domain (or NaN) the retired scan returns its initialiser"
+                "{name}: below the domain the retired scan returns its initialiser"
             );
         }
         // Evidence, not a gate: `quad.rs`'s raw-slice span
-        // search is the same function as `find_span` on a valid clamped
-        // vector, at every probe including the totality exits.
+        // search is the same function as `span_at` on a valid clamped
+        // vector, at every probe including the clamping exits.
         assert_eq!(
             quad_raw_span(knots, kv.degree(), kv.control_count(), t),
-            got,
-            "{name}: quad.rs's raw_span disagrees with find_span at {t} — if this ever \
+            Some(got),
+            "{name}: quad.rs's raw_span disagrees with span_at at {t} — if this ever \
              fires the census note about it is wrong"
         );
-        // `span_at` must never land on an empty span; `find_span`'s
-        // tie-break is the whole reason the raw insertion path can index
-        // `knots[k+1]`.
+        // `span_at` must never land on an empty span; its tie-break is
+        // the whole reason the raw insertion path can index `knots[k+1]`.
         assert!(
             kv.span_is_nonempty(got),
-            "{name}: find_span({t}) = {got} is an EMPTY span"
+            "{name}: span_at({t}) = {got} is an EMPTY span"
         );
         assert!(
             (first..=last).contains(&got),
-            "{name}: find_span({t}) = {got} is outside [{first}, {last}]"
+            "{name}: span_at({t}) = {got} is outside [{first}, {last}]"
         );
     }
 }
@@ -680,84 +695,125 @@ fn interior_knots_and_the_span_search_against_definitional_oracles() {
 }
 
 // ---------------------------------------------------------------------
-// C3 / C7: the mutation sequence, and the guard it runs under
+// C3 / C7: the decomposition, against its definition
 // ---------------------------------------------------------------------
 
-/// `to_bezier_spans_extra`'s loop, reconstructed on knots alone: the
-/// merge, the sort, and one insertion per missing multiplicity. Before
-/// each insertion it asserts the two things the PR moved from "held by
-/// the type" to "held by convention" — the list is still a valid clamped
-/// vector for `p` (the raw-slice entitlement), and `u` still satisfies
-/// the `unreachable!` guard's condition.
+/// The decomposition itself ([`SplineCoeffs::bernstein_spans`]) on `kv`
+/// with `extra`, checked against its definition: the breaks are the
+/// vector's distinct knots merged with the extras strictly inside the
+/// domain, and every row's coefficient `k` CONTAINS, in exact
+/// arithmetic, the piece's blossom at `a^(p−k), b^k` over the span the
+/// piece lies in — computed here by de Boor's recurrence in unbounded
+/// rationals from the window's own coefficients. Nothing is
+/// reconstructed from the code under test but the definition.
+///
+/// The exact containment is asserted at degree ≤ `EXACT_DEGREE`; above
+/// it every row is held to certification and the breaks only. The
+/// oracle costs `p³` unbounded-rational steps per piece, which runs to
+/// minutes over the enumerated set at degree 17, and the degree-7 deep
+/// fold is held to exact containment in `compose`'s unit rows.
+///
+/// [`SplineCoeffs::bernstein_spans`]: geom_core::spline::SplineCoeffs::bernstein_spans
+/// The highest degree [`simulate_decomposition`] holds to exact
+/// containment.
+const EXACT_DEGREE: usize = 6;
+
 fn simulate_decomposition(name: &str, kv: &KnotVector, extra: &[f64]) {
     let p = kv.degree();
     let (lo, hi) = kv.domain();
-    let mut knots = kv.knots().to_vec();
-    let mut interior: Vec<(f64, usize)> = kv.interior_knots().collect();
-    for &v in extra {
-        if v > lo && v < hi && !interior.iter().any(|(w, _)| *w == v) {
-            interior.push((v, 0));
+    #[allow(clippy::cast_precision_loss)]
+    let coeffs: Vec<f64> = (0..kv.control_count())
+        .map(|i| {
+            if i % 2 == 0 {
+                1.0 + i as f64
+            } else {
+                -(1.0 + i as f64)
+            }
+        })
+        .collect();
+    let lifted: Vec<Interval> = coeffs.iter().map(|&c| Interval::point(c)).collect();
+    let got = kv
+        .with_coeffs(&lifted)
+        .expect("the vector's own count")
+        .bernstein_spans(extra);
+    let mut want: Vec<f64> = kv.knot_runs().map(|(k, _)| k).collect();
+    want.extend(extra.iter().copied().filter(|&v| v > lo && v < hi));
+    want.sort_by(f64::total_cmp);
+    want.dedup_by(|a, b| a == b);
+    assert_eq!(got.breaks(), want.as_slice(), "{name}: the merged breaks");
+    assert_eq!(got.degree(), p, "{name}: the degree");
+    // The blossom's ratios are invariant under an affine change of
+    // parameter, and translating by `lo` then scaling by a power of two
+    // near the domain's width is exact in rationals: it keeps every
+    // knot a short dyadic whatever the domain's magnitude, which is what
+    // keeps the oracle's arithmetic cheap at 1e300 and at subnormals.
+    let width = hi - lo;
+    // A width that overflows (a domain across the whole range) keeps
+    // the unscaled knots: correct, only slower.
+    let e = if width.is_finite() {
+        width.log2().floor()
+    } else {
+        0.0
+    };
+    #[allow(clippy::cast_possible_truncation)]
+    let shift = e.abs() as usize;
+    let scale = if e >= 0.0 {
+        Q::new(BigInt::from(1), BigInt::from(1) << shift)
+    } else {
+        Q::new(BigInt::from(1) << shift, BigInt::from(1))
+    };
+    let origin = Q::from_f64(lo);
+    let at = |x: f64| Q::from_f64(x).sub(&origin).mul(&scale);
+    let knots: Vec<Q> = kv.knots().iter().map(|&t| at(t)).collect();
+    let one = Q::from_f64(1.0);
+    for (j, (row, ends)) in got.spans().iter().zip(got.breaks().windows(2)).enumerate() {
+        let (a, b) = (ends[0], ends[1]);
+        if p > EXACT_DEGREE {
+            assert!(
+                row.len() == p + 1 && row.iter().all(|c| c.is_certified()),
+                "{name}: piece {j} [{a}, {b}] is not a certified degree-{p} row: {row:?}"
+            );
+            continue;
+        }
+        let s = kv
+            .span_at(a)
+            .unwrap_or_else(|| panic!("{name}: piece {j} at {a} locates no span"))
+            .index();
+        assert_eq!(row.len(), p + 1, "{name}: piece {j} is a degree-{p} row");
+        let level = |d: &mut Vec<Q>, r: usize, u: &Q| {
+            for jj in (r..=p).rev() {
+                let i = s - p + jj;
+                let lam = u.sub(&knots[i]).div(&knots[i + p + 1 - r].sub(&knots[i]));
+                d[jj] = one.sub(&lam).mul(&d[jj - 1]).add(&lam.mul(&d[jj]));
+            }
+        };
+        let (qa, qb) = (at(a), at(b));
+        let mut pyramid: Vec<Vec<Q>> = vec![(s - p..=s).map(|i| Q::from_f64(coeffs[i])).collect()];
+        for r in 1..=p {
+            let mut d = pyramid[r - 1].clone();
+            level(&mut d, r, &qa);
+            pyramid.push(d);
+        }
+        for (k, c) in row.iter().enumerate() {
+            let mut d = pyramid[p - k].clone();
+            for r in p - k + 1..=p {
+                level(&mut d, r, &qb);
+            }
+            let truth = &d[p];
+            assert!(
+                c.is_certified()
+                    && truth.cmp_f64(c.lo()) != core::cmp::Ordering::Less
+                    && truth.cmp_f64(c.hi()) != core::cmp::Ordering::Greater,
+                "{name}: piece {j} [{a}, {b}] coefficient {k} {c:?} does not contain the \
+                 exact blossom {:e}",
+                truth.to_f64_report()
+            );
         }
     }
-    interior.sort_by(|a, b| a.0.total_cmp(&b.0));
-
-    let mut inserted = 0usize;
-    for (v, m) in &interior {
-        for step in *m..p {
-            // The entitlement `span_offset_in` now takes on trust.
-            let cur = KnotVector::clamped(knots.clone(), p).unwrap_or_else(|e| {
-                panic!("{name}: before step {step} at {v} the raw list is not clamped: {e}")
-            });
-            // The `unreachable!`'s condition, verbatim.
-            assert!(
-                *v > knots[p] && *v < knots[knots.len() - p - 1],
-                "{name}: step {step} would reach insert_once_ring's unreachable! at {v}"
-            );
-            let k = cur.find_span(*v);
-            assert_eq!(
-                k,
-                retired_linear_span(&knots, *v),
-                "{name}: step {step} at {v}: the binary search left the linear scan"
-            );
-            // The clamps stay untouched, which is what keeps `knots[p]`
-            // and `knots[len − p − 1]` meaning `lo` and `hi` next round.
-            assert!(
-                k >= p && k < knots.len() - p - 1,
-                "{name}: step {step} at {v} would insert at {} , inside a clamp run",
-                k + 1
-            );
-            knots.insert(k + 1, *v);
-            inserted += 1;
-        }
-    }
-    let final_kv = KnotVector::clamped(knots.clone(), p)
-        .unwrap_or_else(|e| panic!("{name}: the decomposed list is not clamped: {e}"));
-    assert_eq!(
-        knots[p], lo,
-        "{name}: the leading clamp moved during decomposition"
-    );
-    assert_eq!(
-        knots[knots.len() - p - 1],
-        hi,
-        "{name}: the trailing clamp moved during decomposition"
-    );
-    // Every interior value ends at full multiplicity `p`, which is what
-    // makes the span chunks Bézier.
-    for (v, m) in final_kv.interior_knots() {
-        assert_eq!(
-            m, p,
-            "{name}: {v} ended at multiplicity {m}, not the degree {p}"
-        );
-    }
-    assert_eq!(
-        knots.len(),
-        kv.knots().len() + inserted,
-        "{name}: insertion count does not match the length growth"
-    );
 }
 
 #[test]
-fn the_raw_slice_entitlement_survives_the_whole_mutation_sequence() {
+fn the_decomposition_contains_every_pieces_exact_blossom() {
     let mut cases: Vec<(String, KnotVector, Vec<f64>)> = Vec::new();
     for (name, kv) in enumerated() {
         let (lo, hi) = kv.domain();
@@ -816,10 +872,10 @@ fn lift(v: &[f64]) -> Vec<Interval> {
 
 /// Drives the one public entry point that forwards caller-supplied
 /// break parameters into `to_bezier_spans_extra`, with extras chosen to
-/// reach `insert_once_ring`'s `unreachable!` if any input can. A panic
-/// here IS the finding; the residual value is not the subject.
+/// break the decomposition if any input can. A panic here IS the
+/// finding; the residual value is not the subject.
 #[test]
-fn caller_supplied_break_parameters_cannot_reach_the_unreachable() {
+fn caller_supplied_break_parameters_cannot_break_the_decomposition() {
     // A bilinear-in-u, quadratic-in-v wall; a cubic pcurve and carrier on
     // one shared domain (the entry point refuses unequal domains).
     let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();

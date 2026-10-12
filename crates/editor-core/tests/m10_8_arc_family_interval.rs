@@ -133,7 +133,7 @@ pub(crate) fn replay_retried(
 ) -> (Vec<DecisionShape>, Option<String>, geom_core::SymCounts) {
     for name in box_.axes().keys() {
         name_param(
-            geom_core::ParamSymbol::new(name.0),
+            geom_core::ParamSymbol::new(name.0.digest()),
             &doc.spoken_var(*name).to_string(),
         );
     }

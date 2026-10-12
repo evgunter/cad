@@ -251,8 +251,7 @@ fn r1_a_box_through_a_slot_cap() {
         pv(1.0, -0.5, 1.0),
         pv(1.0, 0.5, 0.0),
         pv(-1.0, 0.5, 1.0),
-    ])
-    .with_tangent_joints(vec![0, 1, 2, 3]);
+    ]);
     let a = body_of(vec![slot], 0.0, 2.0);
     let b = boxx(-0.15, 0.15, -0.15, 0.15, 1.0, 3.0);
     let v = report("slot-cap", &a, &b);
@@ -286,8 +285,7 @@ fn r1_a_box_through_a_rounded_rectangle_cap() {
         pv(-w + r, h, q),
         pv(-w, h - r, 0.0),
         pv(-w, -h + r, q),
-    ])
-    .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
+    ]);
     let a = body_of(vec![rr], 0.0, 2.0);
     let b = boxx(-0.15, 0.15, -0.15, 0.15, 1.0, 3.0);
     let v = report("rounded-rect-cap", &a, &b);

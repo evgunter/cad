@@ -29,7 +29,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
-use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};
 use topo::{Body, BooleanError};
 
@@ -41,7 +41,7 @@ fn vol(body: &Body<f64>) -> f64 {
 /// volume: bulge b = 0.6 on the vertical chord (0.5, 1) → (0.5, 1.5),
 /// so sagitta s = b·c/2, arc radius R = ((c/2)² + s²)/(2s), centre
 /// (0.5 + s − R, 1.25). b < 1 keeps the arc's end tangents off both
-/// neighbouring segments (no undeclared tangency) and R < centre-x
+/// neighbouring segments (no tangent junction to decide) and R < centre-x
 /// keeps the revolved torus a ring torus (r < R).
 const BULGE: f64 = 0.6;
 
@@ -78,7 +78,7 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
     } else {
         0.0 // straight generator: a cone with its apex on the axis
     };
-    let mut lp = bulge_loop(vec![
+    let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), cap),   // bottom cap → (0.5, 0.5)
         (Point2::new(0.5, 0.5), 0.0),   // wall → (0.5, 1.0)
         (Point2::new(0.5, 1.0), BULGE), // torus arc → (0.5, 1.5)
@@ -86,9 +86,7 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
         (Point2::new(0.5, 2.0), cap),   // top cap → (0, 2.5)
         (Point2::new(0.0, 2.5), 0.0),   // axis seam → start
     ]);
-    if sphere {
-        lp = lp.with_tangent_joints(vec![1, 4]);
-    }
+
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -214,31 +212,42 @@ fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
     }
 }
 
-/// **E2E row 2 — the refused pose.** The same brick raised into the
+/// **E2E row 2 — the pose in the band.** The same brick raised into the
 /// torus band (y ∈ [1.05, 1.45] against the band's y ∈ [1.25 ± R_arc]
 /// ≈ [0.97, 1.53]). The torus is on the union's KIND roster, so the
 /// gate admits the pair; the crossing layer records the brick's plane
-/// against the torus band, and the union stops at the JOIN's germ
-/// frame, which has no `(Torus, Plane)` arm. That is the join-side door
-/// the torus gate admission was told to expect, measured.
+/// against the torus band, and the union passes the JOIN's germ frame,
+/// its germ-pair dispatch and the chord, which takes the concentric
+/// circles of the brick's planes `y = 1.05` and `1.45`. The band lies
+/// within the brick's sides, so the union is the vase and the brick
+/// less the band's slice between those planes, in closed form.
 #[test]
-fn the_same_union_posed_into_the_torus_band_stops_at_the_germ_frame() {
+fn the_same_union_posed_into_the_torus_band_builds() {
     let a = finished("the vase", vase(), Tol::witness());
     let b = finished(
         "the brick",
         brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
-    let err =
-        topo::union(&a, &b, Tol::witness()).expect_err("a torus × plane germ has no join arm");
-    let BooleanError::GermFrameUnsupported {
-        a_kind: geom::SurfaceKind::Torus,
-        b_kind: geom::SurfaceKind::Plane,
-        ..
-    } = err
-    else {
-        panic!("expected the germ frame's (Torus, Plane) refusal, got {err:?}");
+    let out = topo::union(&a, &b, Tol::witness()).expect("the union builds");
+    let body = &out.body().expect("a non-empty union").body;
+    assert_eq!(topo::validate_geometric(body, Tol::witness()), Ok(()));
+    let (cx, r_arc, a_h) = bulge_arc();
+    // `π∫(cx + √(R² − t²))² dt` over `|t| ≤ h`: the band's volume within
+    // `h` of its middle.
+    let band = |h: f64| {
+        let iq = 2.0
+            * (h / 2.0 * (r_arc * r_arc - h * h).sqrt() + r_arc * r_arc / 2.0 * (h / r_arc).asin());
+        PI * (cx * cx * 2.0 * h + 2.0 * cx * iq + (r_arc * r_arc * 2.0 * h - 2.0 * h * h * h / 3.0))
     };
+    let caps = 2.0 * (2.0 / 3.0) * PI * 0.125;
+    let vase_vol = caps + 2.0 * PI * 0.25 * 0.5 + band(a_h);
+    let want = vase_vol + 2.0 * 2.0 * 0.4 - band(0.2);
+    let got = vol(body);
+    assert!(
+        (got - want).abs() <= want * 1e-9_f64.max(1e3 * Tol::witness().eps()),
+        "the union's volume {got} against the analytic {want}"
+    );
 }
 
 /// **Row 3 — what the ruling's own blind spot answered, and what it
@@ -397,14 +406,26 @@ fn tilted_cone_brick() -> (Body<f64>, topo::FaceKey) {
 /// **Row 4 — the cone at a TILTED axis**: the cone-relabelled brick
 /// does not finish, so no probe meets its face's box at the boolean.
 /// The at-rest gate refuses it on the relabelled face: its four lines
-/// lie off the cone, and its loop's pcurves do not close on the cone's
-/// chart (a loop discontinuity).
+/// lie off the cone, and a line's chart image does not map back onto
+/// the line (check 4's map residual). The loop walk decides each joint's
+/// element as integers and leaves the joint's coincidence to the rows'
+/// certificates, so the certificate, not a chart-space gap, is what
+/// refuses it.
 #[test]
 fn a_probe_on_a_tilted_cones_locus_is_always_refused() {
     let (a, face) = tilted_cone_brick();
     let finding = refused_on_the_relabelled_face(a, face);
     assert!(
-        matches!(finding, topo::PcurveMintError::LoopDiscontinuity { .. }),
+        matches!(
+            finding,
+            topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::MapResidual,
+                    ..
+                },
+                ..
+            }
+        ),
         "{finding:?}"
     );
 }
@@ -450,7 +471,16 @@ fn a_cone_relabelled_brick_clear_of_the_probe_is_refused_at_rest() {
     let (a, face) = tilted_cone_brick();
     let finding = refused_on_the_relabelled_face(a, face);
     assert!(
-        matches!(finding, topo::PcurveMintError::LoopDiscontinuity { .. }),
+        matches!(
+            finding,
+            topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::MapResidual,
+                    ..
+                },
+                ..
+            }
+        ),
         "{finding:?}"
     );
 }

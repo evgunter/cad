@@ -38,6 +38,7 @@
 
 use crate::common::oracles::sigma;
 use geom::{Curve3, Surface};
+use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point3, Vec3};
 use sweep::blend::arms::{BlendArm, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
 use sweep::blend::{Convexity, FILLET3_SPINE_KIND_RECOURSE};
@@ -241,7 +242,11 @@ fn rows() -> Vec<Row> {
 
 impl Row {
     /// Build this row's blend at `radius` with the two stored sense bits.
-    fn blend(&self, radius: f64, senses: (bool, bool)) -> (EdgeBlend<f64>, Point3<f64>) {
+    fn blend(
+        &self,
+        radius: f64,
+        senses: (SurfaceSide, SurfaceSide),
+    ) -> (EdgeBlend<f64>, Point3<f64>) {
         if let Some((origin, axis)) = self.axis {
             let sheet = Meridian {
                 origin,
@@ -287,7 +292,12 @@ fn every_curved_arm_solves_the_rolling_ball_equations_in_both_configurations() {
     let radius = 0.05;
     for row in rows() {
         let mut centers = Vec::new();
-        for senses in [(true, true), (false, false), (true, false), (false, true)] {
+        for senses in [
+            (Inner, Inner),
+            (Outer, Outer),
+            (Inner, Outer),
+            (Outer, Inner),
+        ] {
             let (blend, center) = row.blend(radius, senses);
             for (s, sense, which) in [(&row.a, senses.0, "first"), (&row.b, senses.1, "second")] {
                 let d = signed_dist(s, center);
@@ -363,7 +373,7 @@ fn every_curved_arm_solves_the_rolling_ball_equations_in_both_configurations() {
 fn every_curved_arm_mints_its_spine_from_the_ball_centre() {
     let radius = 0.05;
     for row in rows() {
-        let (blend, center) = row.blend(radius, (true, true));
+        let (blend, center) = row.blend(radius, (Inner, Inner));
         match (row.axis, blend.surface.clone()) {
             (
                 Some((o, k)),
@@ -428,7 +438,7 @@ fn the_ball_centre_returns_the_rim_as_the_radius_vanishes() {
     for row in rows() {
         let mut previous = f64::INFINITY;
         for radius in [1e-2, 1e-4, 1e-6, 1e-8] {
-            let (_, center) = row.blend(radius, (true, true));
+            let (_, center) = row.blend(radius, (Inner, Inner));
             let gap = (center - row.rim).norm();
             assert!(
                 gap < 100.0 * radius,
@@ -476,10 +486,15 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
         let (tp, _) = sheet
             .trace(
                 &plane(Point3::new(0.0, 0.0, 0.0), n, Vec3::new(1.0, 0.0, 0.0)),
-                true,
+                Convexity::Convex.ball_side(true),
             )
             .unwrap();
-        let (ts, _) = sheet.trace(&sphere(sphere_c, 1.0), sphere_sense).unwrap();
+        let (ts, _) = sheet
+            .trace(
+                &sphere(sphere_c, 1.0),
+                Convexity::Convex.ball_side(sphere_sense),
+            )
+            .unwrap();
         let new = sheet.blend(tp, ts, radius);
         let (
             Surface::Torus {

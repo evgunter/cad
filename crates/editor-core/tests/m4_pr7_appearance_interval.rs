@@ -10,10 +10,10 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Attr, AttrKind, BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Evaluation,
-    Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
+    Attr, AttrKind, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Evaluation, Node,
+    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
 };
-use fixture::{declare_x_offset_flush, insert, len, on_frame, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Interval;
 use geom_core::Tol;
 
@@ -35,7 +35,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -60,14 +60,10 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
     let doc = ProfileDoc::empty_derived("m4_pr7_appearance_interval", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let decl = declare_x_offset_flush(&doc, a, b);
     let (doc, uni) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: decl,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     // Resolving: the union body, a union-minted face, and operand A's

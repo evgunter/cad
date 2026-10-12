@@ -55,7 +55,7 @@ fn unreadable(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Directio
         Some(FramePlacement::Unreadable(r)) => r,
         other => panic!(
             "node {} carries {other:?}, not a refusal",
-            test_utils::refusal::tag(node.0)
+            test_utils::refusal::tag(node.0.digest())
         ),
     }
 }
@@ -67,7 +67,7 @@ fn authored(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> profile::S
         Some(FramePlacement::Authored(p)) => p,
         other => panic!(
             "node {} carries {other:?}, not an authored placement",
-            test_utils::refusal::tag(node.0)
+            test_utils::refusal::tag(node.0.digest())
         ),
     }
 }
@@ -89,7 +89,10 @@ fn assert_same_plane(
 /// The world points of a node's body, sorted by bits.
 fn point_bits(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Vec<(u64, u64, u64)> {
     let Some(ValuePayload::Body(b)) = ev.value(node).map(|v| &v.payload) else {
-        panic!("node {} has no body", test_utils::refusal::tag(node.0))
+        panic!(
+            "node {} has no body",
+            test_utils::refusal::tag(node.0.digest())
+        )
     };
     let mut out: Vec<(u64, u64, u64)> = b
         .vertex_points()
@@ -169,7 +172,7 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
     let (doc, extrude) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: first,
+            profile: first.into(),
             distance: fixture::len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -281,7 +284,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
     let (doc, cube) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: base,
+            profile: base.into(),
             distance: fixture::len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -289,8 +292,13 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
     let (doc, derived) = fixture::insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: cube,
-            face: fixture::fname(cube, editor_core::RoleSeg::Cap(editor_core::CapEnd::End)),
+            face: editor_core::Operand::select(
+                cube,
+                vec![fixture::fname(
+                    cube,
+                    editor_core::RoleSeg::Cap(editor_core::CapEnd::End),
+                )],
+            ),
             spin: fixture::ang(0.0),
         }),
     );
@@ -304,7 +312,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
     let (doc, up) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: boss,
+            profile: boss.into(),
             distance: fixture::len(0.5),
             side: ExtrudeSide::Along,
         },
@@ -389,7 +397,7 @@ fn the_frames_axes_are_decided_once_per_frame_not_once_per_profile() {
             axis_decisions(&ev_four, profile),
             0,
             "profile {} reads the frame's placement and decides no axis",
-            test_utils::refusal::tag(profile.0)
+            test_utils::refusal::tag(profile.0.digest())
         );
     }
 }
@@ -462,7 +470,7 @@ fn an_authored_frames_profile_places_at_the_nominal_not_at_the_boxed_lane() {
 
 /// Row 7 — **a frame whose NOMINAL axes refuse does not poison the
 /// readers that never wanted the nominal.** The frame lands its value
-/// at the lane, an in-plane axis written against it evaluates, and the
+/// at the lane, a tube built in it evaluates, and the
 /// refusal is raised at the PROFILE, which is the reader that needed
 /// the nominal placement.
 ///
@@ -495,10 +503,18 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
             v: [0.0, 1.0, 0.0].map(fixture::scl),
         }),
     );
-    let (doc, axis) = fixture::insert(doc, fixture::axis_in_plane(frame, (0.0, 0.0), (0.0, 1.0)));
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(fixture::desc(frame, vec![fixture::square(0.0, 0.0, 0.5)])),
+    );
+    let (doc, tube) = fixture::insert(
+        doc,
+        Node::Tube {
+            frame: frame.into(),
+            major_radius: fixture::len(2.0),
+            window: editor_core::TubeWindow::Full,
+            minor_radius: fixture::len(0.5),
+        },
     );
     let ev = evaluate::<f64>(
         &doc,
@@ -517,10 +533,9 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
          driven to zero here"
     );
     assert!(
-        ev.value(axis).is_some(),
-        "an in-plane axis reads the LANDED frame and does not care about the \
-         nominal: {:?}",
-        ev.node_error(axis)
+        ev.value(tube).is_some(),
+        "a tube reads the LANDED frame and does not care about the nominal: {:?}",
+        ev.node_error(tube)
     );
     assert!(
         matches!(
@@ -549,10 +564,10 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
     assert!(
         shown.contains(&format!(
             "datum frame node {}",
-            test_utils::refusal::tag(frame.0)
+            test_utils::refusal::tag(frame.0.digest())
         )) && shown.contains(&format!(
             "profile node {}",
-            test_utils::refusal::tag(profile.0)
+            test_utils::refusal::tag(profile.0.digest())
         )),
         "the sentence the user reads names both nodes by id: {shown}"
     );
@@ -563,7 +578,7 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
     assert!(
         at(&format!(
             "datum frame node {}",
-            test_utils::refusal::tag(frame.0)
+            test_utils::refusal::tag(frame.0.digest())
         )) < at("zero length"),
         "the locator trails the fact it qualifies: {shown}"
     );
@@ -649,5 +664,83 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
         ),
         "and the profile reads the same axis back, off the same frame: {:?}",
         ev.result(profile)
+    );
+}
+
+/// **A frame whose axis is undecided at the nominal keeps its held
+/// sentence on both roads** (D10's pose ground is held). Row 7's
+/// document, with `u`'s length inside the band at the nominal rather
+/// than zero: the carried refusal raises
+/// `NodeErrorKind::PoseDirectionEscalated`, said "too close to call"
+/// with the bare escalation's tail, and the profile's `FrameDirection`
+/// carries that sentence after "and the frame refused its own
+/// direction".
+#[test]
+fn a_frame_undecided_at_the_nominal_keeps_its_held_sentence() {
+    let tol = Tol::witness();
+    let in_band = tol.eps() * tol.k().sqrt();
+    let doc = ProfileDoc::empty_derived("wire_frame_placement_carry_held", tol);
+    let doc = doc
+        .apply(
+            &DocEdit::DeclareVar {
+                name: span(),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, in_band)),
+            },
+            tol,
+            &editor_core::RefusingReach,
+        )
+        .expect("the parameter declares")
+        .doc;
+    let (doc, frame) = fixture::insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [0.0, 0.0, 0.0].map(fixture::len),
+            u: [
+                Formula::named(span(), Dimension::Scalar),
+                fixture::scl(0.0),
+                fixture::scl(0.0),
+            ],
+            v: [0.0, 1.0, 0.0].map(fixture::scl),
+        }),
+    );
+    let (doc, profile) = fixture::insert(
+        doc,
+        Node::Profile(fixture::desc(frame, vec![fixture::square(0.0, 0.0, 0.5)])),
+    );
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            param_box: boxed_at(doc.var_named(span().as_str()).expect("declared"), 1.0),
+            ..EvalOptions::default()
+        },
+        tol,
+    );
+    let raised = unreadable(&ev, frame).node_error();
+    let editor_core::NodeErrorKind::PoseDirectionEscalated { predicate, source } = &raised else {
+        panic!("a frame axis inside the band escalates in the held arm: {raised:?}");
+    };
+    assert_eq!(*predicate, "datum_unit_norm");
+    let held = format!("whether a direction has any length is too close to call: {source}");
+    assert_eq!(raised.to_string(), held, "the frame door's held sentence");
+    assert!(
+        held.contains(" — a near-coincidence; Recourse: move the geometry"),
+        "the bare escalation's tail: {held}"
+    );
+    let shown = ev
+        .node_error(profile)
+        .expect("the profile refused")
+        .kind
+        .to_string();
+    assert_eq!(
+        shown,
+        format!(
+            "profile node {} is drawn on datum frame node {}, and the frame refused its own \
+             direction: {held}",
+            test_utils::refusal::tag(profile.0.digest()),
+            test_utils::refusal::tag(frame.0.digest())
+        ),
+        "the profile carries the frame's held sentence"
     );
 }

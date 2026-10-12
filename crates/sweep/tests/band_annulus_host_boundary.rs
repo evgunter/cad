@@ -103,8 +103,8 @@ fn refusal(name: &str, err: BlendError) -> (f64, bool) {
 fn carves(name: &str, body: &Body<f64>, rim: (f64, f64), r: f64) {
     validate_geometric(body, tol()).expect("the fixture is tier-3 valid");
     let arcs = rim_arcs_at(body, rim.0, rim.1);
-    let out =
-        fillet_edges(body, &arcs, r, tol()).unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
+    let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), &arcs, r, tol())
+        .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{name}: tier-3 valid, {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "{name}: one band");
 }
@@ -115,7 +115,9 @@ fn carves(name: &str, body: &Body<f64>, rim: (f64, f64), r: f64) {
 fn refuses(name: &str, body: &Body<f64>, rim: (f64, f64), r: f64, bounded: bool) -> f64 {
     validate_geometric(body, tol()).expect("the fixture is tier-3 valid");
     let arcs = rim_arcs_at(body, rim.0, rim.1);
-    let err = fillet_edges(body, &arcs, r, tol()).expect_err(name).error;
+    let err = fillet_edges(&sweep::test_support::at_rest(body, tol()), &arcs, r, tol())
+        .expect_err(name)
+        .error;
     let (read, was) = refusal(name, err);
     assert_eq!(
         was, bounded,
@@ -367,8 +369,13 @@ fn a_tilted_cut_clear_of_a_tipped_cylinder_hosts_trim_carves() {
         .map(|(k, _)| k)
         .expect("the tipped rim's seed arc");
     let arcs = topo::query::rim_of(&body, seed).expect("one rim");
-    let out = fillet_edges(&body, &arcs, 0.1, tol())
-        .unwrap_or_else(|e| panic!("the tipped shaft carves, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &arcs,
+        0.1,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the tipped shaft carves, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "one band");
 }

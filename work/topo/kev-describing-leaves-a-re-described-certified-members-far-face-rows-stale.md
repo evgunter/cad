@@ -88,9 +88,8 @@ to tier 3. Closing this row makes it sound.
 
 The first closing option. `Body::kev_describing` plans the site mint
 over every face a listed member's halves are on, a certified member's
-as well as a null one's (`Body::description_rows` under
-`Remints::Every`, `attach.rs`; `Body::set_edge_curve` keeps
-`Remints::FirstDescription`), each face as the kill leaves it with
+as well as a null one's (`Body::description_rows`, `attach.rs`, which
+`Body::set_edge_curve` now shares), each face as the kill leaves it with
 every listed member's halves under the curve the kill installs. A
 certified member's face on a spline chart is left as found, for tier
 3. `kev_released_rows` leaves every face so planned to that plan

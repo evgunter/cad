@@ -9,10 +9,10 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
     MeridianEnd, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SitedRef, SplitHalf, band,
-    band_rim, band_rim_pi, evaluate, meridian_vertex,
+    ProgramArcData, ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg, Sense, SitedRef,
+    SplitHalf, band, band_rim, band_rim_pi, evaluate, meridian_vertex,
 };
-use fixture::{ang, axis_in_plane, insert, len, len2, minted, on_frame_keeping, table};
+use fixture::{ang, insert, len, len2, minted, on_frame, on_frame_keeping, revolve_about, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -50,7 +50,7 @@ fn cube(doc: ProfileDoc, x0: f64, side: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(side),
             side: ExtrudeSide::Along,
         },
@@ -97,7 +97,7 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
                 t.lookup(&minted(
                     EntityKind::Edge,
                     ext,
-                    RoleSeg::RimEdge(end, pe(&doc, ext, 0, s))
+                    RoleSeg::RimEdge(end, pe(&doc, ext, 0, s).into())
                 ))
                 .is_some()
             );
@@ -147,7 +147,7 @@ fn an_extrude_against_the_normal_has_its_end_cap_below_its_start_cap() {
     let (doc, block) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             // The sketch plane's normal is u x v = +z.
             distance: len(1.0),
             side: ExtrudeSide::Against,
@@ -187,23 +187,8 @@ fn an_extrude_against_the_normal_has_its_end_cap_below_its_start_cap() {
 /// Profile on the xy plane (the y datum axis lies in it).
 fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
-    let (doc, plane, p) =
-        on_frame_keeping(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts]);
-    let (doc, axis) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
-    insert(
-        doc,
-        Node::Revolve {
-            profile: p,
-            axis,
-            angle: ang(angle),
-        },
-    )
+    let (doc, p) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts]);
+    insert(doc, revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(angle)))
 }
 
 /// The natural meridian, on the same plane and axis as [`revolve_doc`]:
@@ -224,26 +209,12 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![meridian],
             ids: Vec::new(),
         }),
     );
-    let (doc, axis) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
-    insert(
-        doc,
-        Node::Revolve {
-            profile: p,
-            axis,
-            angle: ang(angle),
-        },
-    )
+    insert(doc, revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(angle)))
 }
 
 #[test]
@@ -296,7 +267,7 @@ fn partial_revolve_on_axis_names_axis_edge_and_poles() {
         t.lookup(&minted(
             EntityKind::Edge,
             rev,
-            RoleSeg::AxisEdge(pe(&doc, rev, 0, 3))
+            RoleSeg::AxisEdge(pe(&doc, rev, 0, 3).into())
         ))
         .is_some()
     );
@@ -400,7 +371,7 @@ fn full_holed_revolve_names_the_cavity_loop() {
     // loop: bands, full rims, its cylinders' seam meridians, meridian
     // vertices, all under loop index 1.
     let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
-    let (doc, plane, p) = on_frame_keeping(
+    let (doc, p) = on_frame(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -410,20 +381,9 @@ fn full_holed_revolve_names_the_cavity_loop() {
             vec![(1.25, 0.25), (1.75, 0.25), (1.75, 0.75), (1.25, 0.75)],
         ],
     );
-    let (doc, axis) = insert(
-        doc,
-        // The axis, in the frame's own coordinates: the profile's v is
-        // world +Y, so the line the revolve turns about is that
-        // frame's +y through (0, 0).
-        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
-    );
     let (doc, rev) = insert(
         doc,
-        Node::Revolve {
-            profile: p,
-            axis,
-            angle: ang(std::f64::consts::TAU),
-        },
+        revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
     );
     let ev = run(&doc);
     let t = table(&ev, rev);
@@ -593,7 +553,7 @@ fn partial_revolve_of_an_all_on_axis_loop_names_both_poles() {
         t.lookup(&minted(
             EntityKind::Edge,
             rev,
-            RoleSeg::AxisEdge(pe(&doc, rev, 0, 1))
+            RoleSeg::AxisEdge(pe(&doc, rev, 0, 1).into())
         ))
         .is_some(),
         "the on-axis diameter is the caps' shared axis edge"
@@ -620,8 +580,8 @@ fn split_names_sections_fragments_and_crossings() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: ext,
-            tool: plane,
+            target: ext.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc);
@@ -697,25 +657,39 @@ fn split_names_sections_fragments_and_crossings() {
                 ext,
                 RoleSeg::LateralEdge(pv(&doc, ext, 0, s)),
             );
-            assert!(
-                t.lookup(&minted(
-                    EntityKind::Edge,
-                    split,
-                    RoleSeg::SplitFragment {
-                        side,
-                        parent: strut.clone().into()
-                    }
-                ))
-                .is_some(),
+            // The strut's one piece on each side, named by its ends.
+            let fragment = RoleSeg::SplitFragment {
+                side,
+                parent: strut.clone().into(),
+            };
+            assert_eq!(
+                t.iter()
+                    .filter(|(n, _)| {
+                        n.node == split
+                            && n.path.first() == Some(&fragment)
+                            && matches!(
+                                n.path.as_slice(),
+                                [_, RoleSeg::Fragment(Qualifier::Ends(_))]
+                            )
+                    })
+                    .count(),
+                1,
                 "missing strut fragment side={side:?} v={s}"
             );
+            // The strut runs up from the start cap, so it enters the
+            // half above the plane and leaves the half below it.
+            let sense = match side {
+                SplitHalf::Above => Sense::Enters,
+                SplitHalf::Below => Sense::Leaves,
+            };
             assert!(
                 t.lookup(&minted(
                     EntityKind::Vertex,
                     split,
                     RoleSeg::CrossingVertex {
                         side,
-                        edge: strut.into()
+                        edge: strut.into(),
+                        sense,
                     }
                 ))
                 .is_some(),
@@ -748,7 +722,7 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: tr,
+            input: tr.into(),
             count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],

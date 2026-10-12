@@ -10,8 +10,11 @@
 //!
 //! The near-miss rows slide the touch across the lens's rim. Outside by
 //! a few balls the touch is no event; inside it, it is a tangency of the
-//! two boundaries, and within the ball of the rim it is not certified
-//! clear of the face's edge: both refuse typed. The rows place the touch
+//! two boundaries, and refuses typed. Within the ball of the rim the
+//! touch is not certified clear of the face's edge: a tangent edge that
+//! crosses the rim's latitude reaches the face and refuses typed, while
+//! one running along the rim never reaches it, since the face's box (its
+//! chart rectangle) misses the edge's. The rows place the touch
 //! by [`reach`], `√(2r·(zero + escalate))`: how far along a line tangent
 //! to a carrier of radius `r` the line stays within the band of it.
 //! The kernel's ball (`topo::boolean::carrier_touch::off_face`) is
@@ -253,13 +256,64 @@ fn a_touch_just_inside_the_lens_face_refuses() {
     assert_every_op_refuses("lens, brick inside", &lens(), &brick, pierce_refusal);
 }
 
-/// **Outside the face but inside the ball of its rim**: the touch places
-/// `Out`, but the rim reaches the ball, so the face may hold part of the
-/// cap the touch's crossings can land in. It refuses at the pierce.
+/// **Outside the face, 0.3 balls from its rim, the edge along the
+/// rim**: the touch's ball reaches the rim, so the face is not cleared
+/// of it (`topo::boolean::carrier_touch::off_face`), but the pair never
+/// reaches that door. The face holds the cap `y ≥ RIM`, and its box is
+/// its chart rectangle (`topo::boolean::boxes::sphere_window`), floored
+/// at `RIM − pad`, `pad = escalate + 2·zero` (the sweep's). The edge
+/// runs along x at `y = cos θ`, θ the rim's angle plus `0.3·reach`, so
+/// it lies `RIM − cos θ ≈ sin(rim)·0.3·reach ≈ 0.168·reach` below the
+/// cap: 7.9e-7, 2.5e-5 and 7.9e-4 at ε 1e-12, 1e-9 and 1e-6, against
+/// pads of 1.2e-11, 1.2e-8 and 1.2e-5. That is 65 pads or more, and the
+/// two boxes spend two. The sweep's box cull drops the pair. The ball,
+/// about `1.03·reach`, is wider than the gap, but the cull clears the
+/// EDGE, and every point where the span can meet the carrier is a
+/// point of the edge. The brick holds the half-space beyond the tangent
+/// plane, which meets the unit ball at the touch alone, outside the
+/// lens, so the operands are disjoint and every op builds.
 #[test]
-fn a_touch_outside_the_lens_face_within_reach_of_its_rim_refuses() {
-    let brick = brick_touching_unit_sphere(0.25, rim_angle() + 0.3 * reach(R1));
-    assert_every_op_refuses("lens, brick at the rim", &lens(), &brick, pierce_refusal);
+fn a_touch_outside_the_lens_face_within_reach_of_its_rim_along_it_builds() {
+    let theta = rim_angle() + 0.3 * reach(R1);
+    let band = Band::linear(Tol::witness()).unwrap();
+    let pad = band.escalate() + 2.0 * band.zero();
+    assert!(
+        RIM - theta.cos() >= 60.0 * pad,
+        "the edge's gap below the cap, {}, against the pad {pad}",
+        RIM - theta.cos()
+    );
+    let brick = brick_touching_unit_sphere(0.25, theta);
+    assert_every_op_apart(
+        "lens, brick at the rim",
+        &lens(),
+        &brick,
+        (lens_volume(), 0.5),
+    );
+}
+
+/// **The same touch, its edge turned 45° across the rim's latitude**:
+/// the edge's box now spans the rim, so the pair reaches the pierce,
+/// whose ball about the touch the rim reaches, and the sweep of the
+/// brick's edges refuses there. (Swept the other way, the lens's edges
+/// against the brick's faces stop first at a containment escalation.)
+#[test]
+fn a_touch_outside_the_lens_face_within_reach_of_its_rim_across_it_refuses() {
+    let theta = rim_angle() + 0.3 * reach(R1);
+    let n = Vec3::new(0.0, theta.cos(), theta.sin());
+    let m = Vec3::new(0.0, -theta.sin(), theta.cos());
+    let along = (Vec3::new(1.0, 0.0, 0.0) + m) * FRAC_1_SQRT_2;
+    let brick = edge_brick((0.25, 1.0), n, along, n, n.cross(along));
+    for op in OPS {
+        match boolean(op, &brick, &lens()) {
+            Err(e) => assert!(
+                pierce_refusal(&e),
+                "lens, turned brick at the rim {op:?}: got {e:?}"
+            ),
+            Ok(_) => {
+                panic!("lens, turned brick at the rim {op:?}: built across a touch it cannot clear")
+            }
+        }
+    }
 }
 
 /// A 270° sector of the unit disc, its mouth the quadrant `x > 0, y < 0`.

@@ -59,7 +59,7 @@ mod tests {
     fn a_duplicate_appearance_key_is_said_by_its_minting_node() {
         let name = StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(0x3fa9_c1d2_a0b1_0042),
+            node: RecipeNodeId::new(0, 0x3fa9_c1d2_a0b1_0042),
             path: Vec::new(),
         };
         let record = AppearanceRecord::default();

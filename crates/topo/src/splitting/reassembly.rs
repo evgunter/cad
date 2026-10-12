@@ -61,7 +61,7 @@ pub(crate) fn quad_prism(profile: &[(f64, f64); 4], height: f64, tol: Tol) -> Bo
 /// solid, cross-shell fusion), then the loopglue zip — per coincident
 /// vertex pair a scaffolding `mekr`/`mef` + `kev`, per doubled edge a
 /// `kef` — the ch. 12 machinery's ch. 14 call site.
-fn reglue_pair<T: geom_core::Decide + crate::props::AtRestPolicy>(
+pub(crate) fn reglue_pair<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     below_face: FaceKey,
     above_face: FaceKey,
@@ -188,7 +188,9 @@ fn reassembly_oracle_generic_cube() {
     // Re-glue and compare.
     reglue_pair(&mut body, below_face, above_face, tol);
     assert_eq!(validate(&body), Ok(()));
-    body.merge_coplanar_faces(tol).unwrap();
+    // The oracle compares against the operand with the crossings
+    // inserted, which the public door's join would take away.
+    crate::test_support::merge_unjoined(&mut body, tol).unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
 
     // Reference: operand + the same crossing insertions only.

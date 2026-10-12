@@ -2,9 +2,9 @@
 //! over a run"): an extrude or a revolve builds one wall over a run of
 //! collinear or cocircular profile pieces, and its role-path segment
 //! holds the run —
-//! its pieces in authored order — while rims and cap vertices stay per
-//! piece and a station inside the run mints no `LateralEdge` or
-//! `BandRim`.
+//! its pieces in authored order — and so does each of its rims and
+//! meridians; a station inside the run has no entity, so it mints no
+//! `LateralEdge`, `BandRim`, cap vertex or meridian vertex.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::ExtrudeSide;
@@ -16,7 +16,7 @@ use editor_core::{
 use geom_core::Tol;
 
 use crate::fixture::{
-    ang, axis_in_plane, frame, insert, len, len2, minted, piece, run, scl, table, vpiece,
+    ang, frame, insert, len, len2, minted, piece, revolve_about, run, scl, table, vpiece,
 };
 
 fn to(x: f64, y: f64) -> ProgramTarget<Formula> {
@@ -43,7 +43,7 @@ fn profiled(steps: Vec<ProgramStep<Formula>>) -> (ProfileDoc, RecipeNodeId, Reci
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -60,7 +60,7 @@ fn extruded_by(steps: Vec<ProgramStep<Formula>>, side: ExtrudeSide) -> (ProfileD
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side,
         },
@@ -68,16 +68,8 @@ fn extruded_by(steps: Vec<ProgramStep<Formula>>, side: ExtrudeSide) -> (ProfileD
 }
 
 fn revolved(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane, p) = profiled(steps);
-    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
-    insert(
-        doc,
-        Node::Revolve {
-            profile: p,
-            axis,
-            angle: ang(angle),
-        },
-    )
+    let (doc, _, p) = profiled(steps);
+    insert(doc, revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(angle)))
 }
 
 fn run_of(doc: &ProfileDoc, sweep: RecipeNodeId, segments: &[usize]) -> PieceRun {
@@ -97,8 +89,8 @@ fn rows_with(
 }
 
 /// **Extrude.** One `Lateral` over the run, its pieces in authored
-/// order; no `LateralEdge` at the station; a rim per piece at each cap
-/// and a cap vertex at the station on each cap.
+/// order; no `LateralEdge` at the station; one rim over the run at each
+/// cap, none per piece, and no cap vertex at the station.
 #[test]
 fn an_extruded_run_wall_is_named_by_its_pieces() {
     let (doc, ex) = extruded(subdivided(0.0));
@@ -130,16 +122,25 @@ fn an_extruded_run_wall_is_named_by_its_pieces() {
         "a station has no strut"
     );
     for end in [editor_core::CapEnd::Start, editor_core::CapEnd::End] {
+        let rim = minted(
+            EntityKind::Edge,
+            ex,
+            RoleSeg::RimEdge(end, run_of(&doc, ex, &[0, 1])),
+        );
+        assert!(t.lookup(&rim).is_some(), "{end:?} rim of the run");
         for k in [0, 1] {
             let rim = minted(
                 EntityKind::Edge,
                 ex,
-                RoleSeg::RimEdge(end, piece(&doc, ex, 0, k)),
+                RoleSeg::RimEdge(end, piece(&doc, ex, 0, k).into()),
             );
-            assert!(t.lookup(&rim).is_some(), "{end:?} rim of piece {k}");
+            assert!(t.lookup(&rim).is_none(), "{end:?} no rim of piece {k}");
         }
         let v = minted(EntityKind::Vertex, ex, RoleSeg::CapVertex(end, station));
-        assert!(t.lookup(&v).is_some(), "{end:?} cap vertex at the station");
+        assert!(
+            t.lookup(&v).is_none(),
+            "{end:?} no cap vertex at the station"
+        );
     }
 }
 
@@ -168,11 +169,10 @@ fn a_wrapping_run_begins_after_the_start_vertex() {
 }
 
 /// **Revolve, partial and full.** The bottom side sweeps one `Band` over
-/// the run either way. A partial revolve's wedge caps keep the station:
-/// its meridians stay per piece and the station's meridian vertices are
-/// named, but no `BandRim` stands there. A full revolve keeps no entity
-/// for the station: the run sweeps one plane annulus with no meridian,
-/// and the station has no rim and no meridian vertex.
+/// the run either way, and neither keeps an entity for the station: no
+/// `BandRim` and no meridian vertex stands there. A partial revolve's
+/// wedge caps carry the run as one meridian each, named by the run; a
+/// full revolve sweeps it to one plane annulus with no meridian.
 #[test]
 fn a_revolved_run_wall_is_named_by_its_pieces() {
     for angle in [std::f64::consts::FRAC_PI_2, std::f64::consts::TAU] {
@@ -208,18 +208,24 @@ fn a_revolved_run_wall_is_named_by_its_pieces() {
             assert!(t.lookup(&v).is_none(), "the station has no entity");
         } else {
             for end in [MeridianEnd::Start, MeridianEnd::End] {
+                let m = minted(
+                    EntityKind::Edge,
+                    rev,
+                    RoleSeg::Meridian(end, run_of(&doc, rev, &[0, 1])),
+                );
+                assert!(t.lookup(&m).is_some(), "{end:?} meridian of the run");
                 for k in [0, 1] {
                     let m = minted(
                         EntityKind::Edge,
                         rev,
                         RoleSeg::Meridian(end, run_of(&doc, rev, &[k])),
                     );
-                    assert!(t.lookup(&m).is_some(), "{end:?} meridian of piece {k}");
+                    assert!(t.lookup(&m).is_none(), "{end:?} no meridian of piece {k}");
                 }
                 let v = editor_core::meridian_vertex(end, rev, station);
                 assert!(
-                    t.lookup(&v).is_some(),
-                    "{end:?} meridian vertex at the station"
+                    t.lookup(&v).is_none(),
+                    "{end:?} no meridian vertex at the station"
                 );
             }
         }
@@ -316,11 +322,9 @@ fn d_of_two_arcs(x0: f64) -> Vec<ProgramStep<Formula>> {
 
 /// **A run of cocircular arcs is named by its pieces** exactly as a
 /// straight run is: an extrude's one cylinder `Lateral` over both
-/// quarters, no `LateralEdge` at the station, a rim per piece; a full
-/// revolve's one torus `Band` with no `BandRim` at the station. A
-/// partial revolve keeps one wall per arc
-/// (`work/band/partial-revolve-arc-runs-wait-on-the-meridian-fold.md`),
-/// so it names a `Band` per piece and the `BandRim` between them.
+/// quarters, no `LateralEdge` at the station, one rim over the run; a
+/// revolve's one torus `Band`, partial or full, with no `BandRim` at
+/// the station.
 #[test]
 fn a_run_of_arcs_is_named_by_its_pieces() {
     let (doc, ex) = extruded(d_of_two_arcs(0.0));
@@ -344,17 +348,14 @@ fn a_run_of_arcs_is_named_by_its_pieces() {
         "a station has no strut"
     );
     for end in [editor_core::CapEnd::Start, editor_core::CapEnd::End] {
-        for k in [0, 1] {
-            let rim = minted(
-                EntityKind::Edge,
-                ex,
-                RoleSeg::RimEdge(end, piece(&doc, ex, 0, k)),
-            );
-            assert!(t.lookup(&rim).is_some(), "{end:?} rim of arc {k}");
-        }
+        let rim = minted(
+            EntityKind::Edge,
+            ex,
+            RoleSeg::RimEdge(end, run_of(&doc, ex, &[0, 1])),
+        );
+        assert!(t.lookup(&rim).is_some(), "{end:?} rim of the arc run");
     }
     for angle in [std::f64::consts::FRAC_PI_2, std::f64::consts::TAU] {
-        let full = angle == std::f64::consts::TAU;
         let (doc, rev) = revolved(d_of_two_arcs(2.0), angle);
         let ev = run(&doc, &Default::default());
         let t = table(&ev, rev);
@@ -367,18 +368,11 @@ fn a_run_of_arcs_is_named_by_its_pieces() {
         };
         let station = vpiece(&doc, rev, 0, 1);
         let rim = t.lookup(&editor_core::band_rim(rev, station));
-        if full {
-            assert!(t.lookup(&band(&[0, 1])).is_some(), "the arc run's band");
-            assert!(rim.is_none(), "a station has no rim");
-        } else {
-            for k in [0, 1] {
-                assert!(
-                    t.lookup(&band(&[k])).is_some(),
-                    "{angle}: the band of arc {k}"
-                );
-            }
-            assert!(rim.is_some(), "{angle}: the rim between the arcs' bands");
-        }
+        assert!(
+            t.lookup(&band(&[0, 1])).is_some(),
+            "{angle}: the arc run's band"
+        );
+        assert!(rim.is_none(), "{angle}: a station has no rim");
     }
 }
 
@@ -404,6 +398,7 @@ fn reprogrammed(
             node: p,
             loops: vec![LoopProgram::Chain(steps)],
             ids: vec![ids],
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -566,7 +561,9 @@ fn arc_run_names_agree_across_scalars() {
 /// The profile a sweep node sweeps.
 fn profile_of(doc: &ProfileDoc, sweep: RecipeNodeId) -> RecipeNodeId {
     match doc.node(sweep) {
-        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => *profile,
+        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => doc
+            .operation_of(*profile)
+            .expect("the profile read is live"),
         other => panic!("not a sweep: {other:?}"),
     }
 }

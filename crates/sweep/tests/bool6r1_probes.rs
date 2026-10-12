@@ -6,9 +6,8 @@
 //! POPULATION and the EDGES: how many `loft_stacking` samples one loft
 //! now mints, whether the slab margin is the step itself at the band's
 //! two edges, whether the fold's vertex PAIRING carries any
-//! information, what a pair of sections with different vertex counts
-//! reaches, and where the sliver hands off between the skin's unbanded
-//! coincidence check and the loft's banded degenerate arm.
+//! information, and what a pair of sections with different vertex
+//! counts reaches.
 //!
 //! Two of these rows are not here: `a_spine_curled_past_pi_still_faces_out_everywhere`
 //! and `a_curl_past_a_full_turn_builds_a_spine_that_revisits_itself`
@@ -24,7 +23,7 @@ use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{Affine3, Mat3, Point2, Tol, Vec3};
 use profile::RawLoop;
 use sweep::test_support::{loft_prism_sections, stacked_at};
-use sweep::{LoftError, SkinError, loft_body};
+use sweep::{LoftError, loft_body};
 
 use crate::common;
 use common::quad;
@@ -95,13 +94,10 @@ fn stacking_verdicts(run: impl FnOnce()) -> Vec<Sign> {
         .collect()
 }
 
-/// **The population: one `loft_stacking` sample per SLAB.** The old
-/// statement minted exactly one per loft whatever `k` was; the fold
-/// mints `k − 1`, all Positive on a forward stack. This is the claim
-/// the ε-posture paragraph makes about the predicate's distribution,
-/// executed rather than asserted.
+/// **The population: two `loft_stacking` samples per SLAB**, one per
+/// section normal the slab spans, all Positive on a forward stack.
 #[test]
-fn the_fold_mints_one_loft_stacking_verdict_per_slab() {
+fn the_fold_mints_two_loft_stacking_verdicts_per_slab() {
     for k in [2usize, 3, 4, 5, 9, 17] {
         let (sections, places) = forward_stack(k);
         let v_degree = k.min(4) - 1;
@@ -111,9 +107,9 @@ fn the_fold_mints_one_loft_stacking_verdict_per_slab() {
         });
         assert_eq!(
             signs.len(),
-            k - 1,
+            2 * (k - 1),
             "{k} sections must mint {} loft_stacking samples, got {signs:?}",
-            k - 1
+            2 * (k - 1)
         );
         assert!(
             signs.iter().all(|s| *s == Sign::Positive),
@@ -249,52 +245,6 @@ fn a_triangle_under_a_square_is_refused_before_the_fold() {
     println!("   triangle-under-square refuses: {:?}", out.err());
 }
 
-/// **Where the sliver hands off.** The skin refuses coincident
-/// sections by a BARE `params[j-1] < params[j]` (no band), so the
-/// question the PR's finding raises is which door answers a pair that
-/// is within ε but not exactly coincident. This row walks the step
-/// down from ε to zero and prints the door at each — the sliver band
-/// belongs to the loft's `DegenerateStacking`, and the skin takes over
-/// only once the NORMALISED chord step underflows to zero.
-#[test]
-fn the_sliver_hands_off_from_the_loft_to_the_skin() {
-    let tol = Tol::witness();
-    let eps = tol.eps();
-    let mut doors: Vec<(f64, &'static str)> = Vec::new();
-    for step in [
-        0.5 * eps,
-        1e-3 * eps,
-        1e-9 * eps,
-        1e-15,
-        1e-16,
-        1e-17,
-        1e-300,
-        0.0,
-    ] {
-        let sections = vec![sq(), sq(), sq(), sq()];
-        let places = stacked_at(&[0.0, 1.0, 1.0 + step, 2.0]);
-        let door = match loft_body::<f64>(&sections, &places, 2, tol) {
-            Ok(_) => "built",
-            Err(LoftError::DegenerateStacking { .. }) => "loft: DegenerateStacking",
-            Err(LoftError::StackingEscalated { .. }) => "loft: StackingEscalated",
-            Err(LoftError::ReversedStacking { .. }) => "loft: ReversedStacking",
-            Err(LoftError::Skin(SkinError::DegenerateSection { .. })) => "skin: DegenerateSection",
-            Err(_) => "other",
-        };
-        println!("   sliver {step:e} -> {door}");
-        doors.push((step, door));
-    }
-    assert_eq!(
-        doors[0].1, "loft: DegenerateStacking",
-        "half of eps is the loft's sliver, not the skin's coincidence"
-    );
-    assert_eq!(
-        doors.last().expect("rows").1,
-        "skin: DegenerateSection",
-        "exactly coincident sections are the skin's, before the fold"
-    );
-}
-
 /// **The straddle set the PR's table names, executed.** Curls 3.5,
 /// 4.7, 6.0, 9.0 and 13.0 at 17 stations — the last two past two full
 /// turns — all build, and the same total curl refuses once the
@@ -338,9 +288,10 @@ fn the_verdict_sequence_up_to_a_refusal_is_slab_local() {
     });
     assert_eq!(
         a,
-        vec![Sign::Positive, Sign::Negative],
-        "slab 0 decides Positive, slab 1 Negative, and the fold stops there \
-         — slab 2 is never sampled"
+        vec![Sign::Positive, Sign::Positive, Sign::Negative],
+        "slab 0 decides Positive against both its normals, slab 1 Negative \
+         against its base normal, and the fold stops there — slab 1's far \
+         normal and slab 2 are never sampled"
     );
     assert_eq!(a, b, "the last section cannot reach slab 1's verdict");
 }

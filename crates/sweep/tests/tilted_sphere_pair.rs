@@ -11,7 +11,7 @@
 //! arc from the germs it pairs, which reads no chart. The faces it leaves are
 //! bounded by circles that are neither rims nor meridians, and the
 //! sphere flux arm measures them by Gauss–Bonnet
-//! (`props::curved::sphere_circle_loop`). Every body is held to all
+//! (`props::curved::sphere_face`). Every body is held to all
 //! three validation tiers and to its volume against the lens the two
 //! spheres share, computed here from the radii and the centre distance
 //! alone.
@@ -22,12 +22,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::PI;
-
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y};
 use topo::{AtRestBody, Body, BooleanOp};
+
+use crate::common::oracles::{ball_volume, cap_volume, lens_volume};
 
 /// A ball of radius `r` centred at `c`, poles on world `y`.
 fn ball(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
@@ -38,23 +38,6 @@ fn ball(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     );
     let b = topo::transform_rigid(&b, &Affine3::translation(c), Tol::witness()).unwrap();
     finished("the ball", b, Tol::witness())
-}
-
-fn ball_volume(r: f64) -> f64 {
-    4.0 / 3.0 * PI * r.powi(3)
-}
-
-/// The volume of a spherical cap of height `h` on a sphere of radius `r`.
-fn cap_volume(r: f64, h: f64) -> f64 {
-    PI * h.powi(2) * (3.0 * r - h) / 3.0
-}
-
-/// The lens two balls `r1`, `r2` at centre distance `d` share: the cap
-/// of each beyond the radical plane, which sits at
-/// `x = (d² + r1² − r2²)/2d` from the first centre.
-fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
-    let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (2.0 * d);
-    cap_volume(r1, r1 - x) + cap_volume(r2, r2 - (d - x))
 }
 
 /// Every tier of validation, then the volume against `expected` through
@@ -157,8 +140,7 @@ fn sphere_pairs_tilted_against_both_charts_build_under_every_boolean() {
 /// **The equal pair at the `Interval` scalar**: enclosures throughout,
 /// the chords' departure trileans and the Gauss–Bonnet turning angles on
 /// enclosures, and every body certifies with a volume bracket around
-/// the lens closed form — at the default and the 1e-6 band; at 1e-12
-/// the pcurve mint escalates first, pinned below.
+/// the lens closed form, at every band the sweep runs.
 #[test]
 fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
     use crate::common::interval::iv;
@@ -189,24 +171,6 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
             BooleanOp::Intersect => topo::boolean::intersect(&a, &b, Tol::witness()),
             BooleanOp::Subtract => topo::boolean::subtract(&a, &b, Tol::witness()),
         };
-        // At ε 1e-12 the tilted arcs' fitted pcurve rows meet the loop's
-        // continuity check with enclosures wider than the band, and the
-        // mint escalates by name
-        // (`work/pcert/fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar.md`).
-        if Tol::witness().get().eps < 1e-10 {
-            let Err(topo::BooleanError::Pcurves {
-                source: topo::PcurveMintError::Escalated { cause, .. },
-            }) = &out
-            else {
-                panic!("Interval {op:?} at eps 1e-12: expected the mint's escalation, got {out:?}");
-            };
-            assert_eq!(
-                cause.predicate,
-                Some("pcurve_loop_continuity"),
-                "Interval {op:?}"
-            );
-            continue;
-        }
         let out = out.unwrap_or_else(|e| panic!("Interval {op:?} refused: {e:?}"));
         let body = &out
             .body()
@@ -327,10 +291,7 @@ fn a_pip_with_its_seam_in_the_cubes_top_stops_at_the_role_read() {
 /// equal pair's lens, and the bitten cap `A ∖ B` keeps on B's sphere —
 /// encode their side by their loop, so a lone flip of the bit reads as
 /// `CurvedSenseInverted` in tier 3 and as `SenseContradicted` in the
-/// mass properties, rather than as the complement's volume. (A face
-/// with a pole on its loop encodes no side; there the bit stands alone,
-/// as on the rimless band —
-/// `work/props/a-sphere-face-whose-boundary-encodes-no-side-is-measured-under-its-bit-alone.md`.)
+/// mass properties, rather than as the complement's volume.
 #[test]
 fn a_flipped_tilted_face_is_refused_by_name() {
     let a = ball(1.0, BASE);
@@ -373,6 +334,63 @@ fn a_flipped_tilted_face_is_refused_by_name() {
     }
 }
 
+/// **A remnant face that keeps one pole and loses the other encodes its
+/// side.** With B offset `(0.6, 1.2)` from A, B swallows A's north pole,
+/// so A's remnant faces in `A ∪ B` keep the south pole on their loop
+/// and have the north one off it, inside B; the side of the loop that
+/// holds no pole is the face's. A flipped bit on any such face is named
+/// by tier 3's check 6 and refused by the mass properties, where the
+/// bit alone used to measure the complement. Faces with both poles on
+/// their loop still encode no side (`MaterialSign::Unencoded`), the
+/// residual check 4 reads as a lamina; this row asserts only on faces
+/// whose side is encoded, and that there are some.
+#[test]
+fn a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let a = ball(1.0, BASE);
+    let b = ball(1.0, BASE + Vec3::new(0.6, 1.2, 0.0));
+    let body = run(BooleanOp::Union, &a, &b)
+        .unwrap_or_else(|e| panic!("A ∪ B refused: {e:?}"))
+        .body()
+        .expect("a body")
+        .body
+        .clone();
+    let shared = lens_volume(1.0, 1.0, (0.6_f64.powi(2) + 1.2_f64.powi(2)).sqrt());
+    assert_body("A ∪ B", &body, 2.0 * ball_volume(1.0) - shared);
+    let mut encoded = 0;
+    for (k, f) in body.faces() {
+        let surface = body.get_surface(f.surface).expect("the surface");
+        if !matches!(surface, geom::Surface::Sphere { .. }) {
+            continue;
+        }
+        let (outer, _) = topo::props::loop_edges(&body, f.outer).expect("the loop");
+        if geom_brep::props::boundary_material_sign(surface, &outer, band)
+            == Ok(geom_brep::props::MaterialSign::Unencoded)
+        {
+            continue;
+        }
+        encoded += 1;
+        let inverted = body.flipped_face_sense_for_tests(k).expect("the face");
+        let errors = topo::validate_geometric(&inverted, tol).expect_err("tier 3 refuses");
+        assert!(
+            errors.contains(&topo::ValidationError::CurvedSenseInverted { face: k }),
+            "face {k:?} flipped: {errors:?}"
+        );
+        assert!(
+            matches!(
+                topo::mass_properties(&inverted, tol),
+                Err(topo::MassPropsError::Face {
+                    face,
+                    source: geom_brep::props::PropsError::SenseContradicted,
+                }) if face == k
+            ),
+            "face {k:?} flipped is refused, not measured"
+        );
+    }
+    assert!(encoded > 0, "a remnant whose side its loop encodes");
+}
+
 /// **A tilted split of a sphere body refuses at the reduce.** The split
 /// lane refuses a sphere face before its join, where CLEAVE's conic
 /// pairing (`topo::splitting::join`'s `conic_pairs`) would walk the
@@ -413,4 +431,48 @@ fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
             }
         }
     }
+}
+
+/// **A section passing near a chart pole images at every band.** Two
+/// unit balls whose centre line leans `s = 0.7 + δ` toward `y`, so the
+/// radical circle passes within about `δ` of the first ball's north
+/// pole. Its rows are projected images whose pieces refine toward the
+/// pole until each piece's azimuth sector holds, so δ down to 1e-5
+/// builds and certifies whole. Through the pole (δ = 0) azimuth names
+/// no point, and the row refuses typed on the azimuth sector; splitting
+/// such an arc at the pole is the join's
+/// (`work/reach/tilted-section-through-a-chart-pole-is-not-split-at-the-pole.md`).
+#[test]
+fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
+    let c = Vec3::new(2.0, 2.0, 0.5);
+    let pair = |d: f64| {
+        let s = 0.7 + d;
+        let lean = Vec3::new(1.4 * (1.0 - s * s).sqrt(), 1.4 * s, 0.0);
+        (ball(1.0, c), ball(1.0, c + lean))
+    };
+    let expected = 2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.4);
+    for d in [1e-5, 1e-4, 3e-4] {
+        let (a, b) = pair(d);
+        let out = run(BooleanOp::Union, &a, &b)
+            .unwrap_or_else(|e| panic!("δ {d}: the near-pole section refused: {e:?}"));
+        let body = &out.body().unwrap_or_else(|| panic!("δ {d}: empty")).body;
+        assert_body(&format!("δ {d}"), body, expected);
+    }
+    let (a, b) = pair(0.0);
+    let out = run(BooleanOp::Union, &a, &b);
+    assert!(
+        matches!(
+            &out,
+            Err(topo::BooleanError::Pcurves {
+                source: topo::PcurveMintError::Certify {
+                    error: geom_brep::PcurveCertifyError::SectorRefused {
+                        channel: geom_brep::SectorChannel::Azimuth,
+                        ..
+                    },
+                    ..
+                },
+            })
+        ),
+        "δ 0: the arc through the pole refuses on its azimuth sector, got {out:?}"
+    );
 }

@@ -23,8 +23,9 @@
 //!    build's, EXACTLY** — same nodes, same outcomes, same predicates,
 //!    same signs, in order. "Certifying" is one exclusion and it is
 //!    named at [`crate::drive::certifying_vector`]: an `Assertion` node
-//!    reports and gates nothing (E10 v1), and certification is a gate,
-//!    so its rows are not in the comparison.
+//!    checks and never places (D10), so its rows are not in the
+//!    comparison. An assertion the leaf could not decide is still an
+//!    indeterminacy, and bisects under 1.
 //!
 //! **What the wrapper adds, and what it does not** (ERROR-DESIGN E12).
 //! The numeric channel is `Interval`'s, verbatim and bit for bit —
@@ -344,7 +345,8 @@ pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
 /// shut (`SymRules::without_the_reads`) the same columns move by less
 /// than the takes' spread, so the read is not what it costs. What it
 /// buys is the link's twelve theorems, ten of them exactly the ten
-/// rule G costs `carrier_on_surface_2` at one attempt per rung
+/// rule G costs the `carrier_on_surface_1`/`_2` pair at one attempt per
+/// rung
 /// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`)
 /// — so the rule-G attempt pays back what the default rule G takes.
 ///
@@ -486,10 +488,11 @@ impl Default for DriveConfig {
 /// A free function and not a method on the strict form: the form is
 /// `resolve::vdiff`'s, beside the population form it is the counterpart
 /// of, and WHICH ROWS A GATE EXCLUDES is this driver's policy. One node
-/// kind qualifies and it is [`Node::Assertion`], whose contract is that
-/// nothing downstream reads its verdict — "no gate consults it" (E10
-/// v1: assertions report; a gating mode is additive policy nobody has
-/// ratified), and certification IS a gate. The measure node itself is
+/// kind qualifies and it is [`Node::Assertion`]: an assertion checks
+/// and never places (D10), so a leaf whose verdict differs from the
+/// witness's is not a different build. Its comparison's escalation is
+/// still read by `classify_replay`'s definiteness step, so an
+/// assertion the leaf cannot decide bisects. The measure node itself is
 /// NOT dropped: a leaf where the measurement could not be taken is not
 /// the witness build, and that difference stays in the comparison.
 ///
@@ -646,9 +649,6 @@ pub enum RefusalReason {
 /// receipt reads only the name.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MeasureRefusalClass {
-    /// The selection resolved to the wrong KIND of entity
-    /// ([`NodeErrorKind::MeasureSelectionKind`]).
-    SelectionKind,
     /// The clearance engine refused, with its own refusal
     /// ([`NodeErrorKind::MeasureClearanceRefused`]).
     Clearance(crate::clearance::ClearanceRefusal),
@@ -660,7 +660,6 @@ impl MeasureRefusalClass {
     #[must_use]
     pub fn name(&self) -> &'static str {
         match self {
-            Self::SelectionKind => "selection_kind",
             Self::Clearance(r) => r.name(),
         }
     }
@@ -1548,15 +1547,13 @@ pub fn drive(
 /// The first `Measure` node reading a `min_clearance` primitive, if
 /// the document has one ([`DriveRefusal::SymbolicClearanceUnsupported`]).
 fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
-    doc.order().iter().copied().find(|&id| {
-        let Some(Node::Measure { expr, .. }) = doc.node(id) else {
-            return false;
-        };
-        let mut prims = Vec::new();
-        expr.primitives(&mut prims);
-        prims
-            .iter()
-            .any(|p| matches!(p, crate::measure::MeasurePrimitive::MinClearance { .. }))
+    doc.ids().iter().copied().find(|&id| {
+        matches!(
+            doc.node(id),
+            Some(Node::Measure {
+                primitive: crate::measure::MeasurePrimitive::MinClearance { .. }
+            })
+        )
     })
 }
 
@@ -1804,7 +1801,10 @@ fn classify_replay<T: geom_core::Decide>(
             continue;
         };
         match &err.kind {
-            NodeErrorKind::Escalated { source, .. } => return indeterminate(source),
+            NodeErrorKind::Escalated { source, .. }
+            | NodeErrorKind::MeasureEscalated { source, .. }
+            | NodeErrorKind::PlacementAxisEscalated { source, .. }
+            | NodeErrorKind::PoseDirectionEscalated { source, .. } => return indeterminate(source),
             NodeErrorKind::ProfileLaneReplay {
                 structure: Some(refusal),
                 ..
@@ -2245,9 +2245,6 @@ pub fn assertion_at(
 /// [`MinClearanceLane`]: crate::measure::MinClearanceLane
 fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalClass> {
     match kind {
-        // The selection resolved to the wrong KIND of entity. Document
-        // structure; no parameter value moves it.
-        NodeErrorKind::MeasureSelectionKind { .. } => Some(MeasureRefusalClass::SelectionKind),
         NodeErrorKind::MeasureClearanceRefused(r) => {
             use crate::clearance::ClearanceRefusal as C;
             let engine = || Some(MeasureRefusalClass::Clearance(r.clone()));
@@ -2286,7 +2283,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use geom::{Curve3, Surface};
-    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
+    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey, SurfacePair};
     use geom_core::k_stats::{Bracket, Escalation};
     use geom_core::{Band, Point3, Real, Vec3};
 
@@ -2336,8 +2333,7 @@ mod tests {
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::TangentIntersection {
-                s1: k1,
-                s2: k2,
+                pair: SurfacePair::new(k1, k2),
                 witness: carrier.eval(lift(0.5)),
             },
             carrier,

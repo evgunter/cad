@@ -156,7 +156,7 @@ fn probe_dense_isoarc_residuals_at_joins() {
 /// circle's uniform rational-quadratic form.
 #[test]
 fn probe_foreign_segmentation_certifies_through_the_same_door() {
-    use geom_brep::{ChartWindow, PcurveCache};
+    use geom_brep::PcurveCache;
     use geom_core::Point3;
 
     let radius = 1.5f64;
@@ -231,14 +231,8 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
         angle: theta,
         breaks,
     };
-    let window = ChartWindow {
-        u_min: 0.0,
-        u_max: 1.0,
-        v_min: 0.0,
-        v_max: 1.0,
-    };
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let cache = PcurveCache::certify(pcurve, 0.0, theta, &carrier, &surface, window, band)
+    let cache = PcurveCache::certify(pcurve, 0.0, theta, &carrier, &surface, band)
         .expect("a FOREIGN 4-sub-arc chart certifies through the same door (carrier-keyed)");
     println!(
         "RW2 probe 3: foreign 4-sub-arc segmentation certified, envelope {:e}",
@@ -282,7 +276,7 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
         angle: theta,
         breaks: breaks2,
     };
-    let refusal = PcurveCache::certify(pcurve2, 0.0, theta, &carrier, &surface2, window, band)
+    let refusal = PcurveCache::certify(pcurve2, 0.0, theta, &carrier, &surface2, band)
         .expect_err("a wrong interior weight must refuse");
     let text = format!("{refusal:?}");
     assert!(

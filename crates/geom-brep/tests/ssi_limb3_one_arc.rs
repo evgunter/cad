@@ -96,7 +96,7 @@ fn ground() -> (Surface<f64>, SsiDomain) {
 /// fold as the locus does. Certified on the graph alone, it answers the
 /// wrong pairing and this row goes red. At
 /// L = 1.2w the fold answers at every ε; at L = 1.5w it answers or
-/// refuses (at ε 1e-6 limb 3's margin is too close to call), and never
+/// refuses (at ε 1e-6 limb 3's margin is undecided), and never
 /// answers another pairing.
 #[test]
 fn the_fold_answers_its_two_arcs_paired_as_the_locus_pairs_them() {
@@ -790,4 +790,161 @@ fn a_side_whose_slope_across_it_dips_refuses_by_its_cover() {
         &format!("the dipping slope, ε {:e}", eps()),
         declared(&wall, (0.0, 1.0)),
     );
+}
+
+/// `m` C0 quadratic spans with Bernstein coefficients `(P, −N, P)` on
+/// each: `P, −N, P, …, P`.
+fn loose(m: usize, p: f64, n: f64) -> Vec<f64> {
+    (0..=2 * m)
+        .map(|j| if j % 2 == 0 { p } else { -n })
+        .collect()
+}
+
+/// The loose-side rows ([`a_side_whose_hull_is_loose_reads_clear_at_both_doors`]):
+/// `z = k·x + h(y)`, `h` over `m` C0 spans each `(P, −N, P)` in units of
+/// ε, then the control's `m`s.
+fn loose_side_rows(grid: &[((f64, f64), f64, usize)], controls: &[usize]) {
+    let e = eps();
+    let (plane, _) = ground();
+    let domain = SsiDomain {
+        center: Point3::new(0.5, 0.5, 0.0),
+        half_extent: 1.0,
+        extent: 1.0,
+        floor_scale: 1.0,
+    };
+    let low_u = ssi::ChartSide {
+        fixed: ChartAxis::U,
+        end: ChartEnd::Low,
+    };
+    let answer = |wall: &NurbsSurface<f64>, at: &str| {
+        let out = ssi::plane_nurbs_ssi(&plane, wall, domain, band())
+            .unwrap_or_else(|err| panic!("{at}: the search refused: {err}"));
+        let region = out
+            .boundary
+            .iter()
+            .any(|c| matches!(c, ssi::SsiBoundaryContact::Side { side, .. } if *side == low_u));
+        (out.branches.len(), out.boundary.len(), region)
+    };
+    for &((pk, nk), k, m) in grid {
+        let at = format!("P {pk}ε, N {nk}ε, k {k}, m {m}, ε {e:e}");
+        let wall = c0_wall(k, &loose(m, pk * e, nk * e));
+        assert_eq!(
+            answer(&wall, &at),
+            (0, 0, false),
+            "{at}: the search's answer (branches, contacts, a region along the side)"
+        );
+        let got = declared(&wall, (0.0, 1.0));
+        let tube = matches!(
+            got,
+            Err(geom_brep::PlaneNurbsRefusal::TubeNotOneArc {
+                cause: ssi::OneArcRefusal::Count { solutions: 0 },
+                ..
+            })
+        );
+        let bound = matches!(
+            got,
+            Err(geom_brep::PlaneNurbsRefusal::Limb {
+                limb: ssi::SsiLimb::HullSup,
+                ..
+            } | geom_brep::PlaneNurbsRefusal::Escalated {
+                limb: ssi::SsiLimb::HullSup,
+                ..
+            })
+        );
+        // Limb 2 clears only on spans one wall span wide or less, so from
+        // the composite's `SSI_CERT_SPANS` first spans (the pcurve's knots
+        // lie on that grid) clearing takes at least `m − SSI_CERT_SPANS`
+        // cuts. Measured beside that floor: off the wall's knots no row
+        // took more than 6 cuts or 22 spans of work per wall span (342 and
+        // 1314 at m = 64, 6102 and 22 434 at m = 1024, the steepest P/N at
+        // ε 1e-6), and at m = 1024 none took fewer than 1.12 cuts per wall
+        // span (1148, P 0.6ε, k 100, the default ε).
+        let floor = m - ssi::SSI_CERT_SPANS;
+        let fits = 6 * m <= ssi::SSI_HULL_CUTS && 22 * m <= ssi::SSI_HULL_WORK;
+        let spent = floor > ssi::SSI_HULL_CUTS || (m >= 1024 && m * 112 / 100 > ssi::SSI_HULL_CUTS);
+        if fits {
+            assert!(
+                tube,
+                "{at}: the carrier along the side passes limbs 1 and 2, and its tube holds \
+                 no solution: {got:?}"
+            );
+        } else if spent {
+            assert!(
+                bound,
+                "{at}: limb 2's subdivision budget is spent, and it refuses on its bound: \
+                 {got:?}"
+            );
+        } else {
+            assert!(
+                tube || bound,
+                "{at}: the carrier refuses, by its tube holding no solution or on limb 2's \
+                 bound: {got:?}"
+            );
+        }
+    }
+    for &m in controls {
+        let at = format!("the control, m {m}, ε {e:e}");
+        let wall = c0_wall(10.0, &loose(m, 0.3 * e, 0.5 * e));
+        assert_eq!(
+            answer(&wall, &at),
+            (0, 1, true),
+            "{at}: the search's answer (branches, contacts, a region along the side)"
+        );
+    }
+}
+
+/// **A side whose Bernstein hull is loose reads clear, at the search and
+/// at rest.** `z = k·x + h(y)`, `h` over `m` C0 spans each `(P, −N, P)`,
+/// `P > N`: along the side `x = 0`, `φ = h ≥ (P − N)/2 > 0` and the wall
+/// rises inward, so the locus is empty, but every span's hull holds `−N`.
+/// The search answers no branch and no region. Red under the side's sign
+/// read on its unrefined hull: the search then reports a `Side` region on
+/// the empty locus.
+///
+/// The carrier along the side lies within `P < ε` of the plane, and it
+/// never certifies. Limb 2's composite starts on the pcurve's 32 spans
+/// and halves them, so its spans are dyadic. A span two wall spans wide
+/// does not clear: the wall span holding its start, extended to its end,
+/// reads `h(s) = 2(P + N)·s(s − 1) + P ≥ 5P + 4N > ε` there (`s ≥ 2` in
+/// that span's units), and the composite's end coefficient is that
+/// value. So limb 2 passes only on spans one wall span wide or less,
+/// which takes at least `m − 32` cuts. Over 64 spans that is well inside
+/// its budget, and its tube refuses with no solution in a box. Over 2048
+/// it takes 2016 cuts, past the 1024 its budget holds, and it refuses on
+/// its bound. Over 1024 the floor, 992, fits the cap, but no row measured
+/// (default ε and 1e-6) cleared under 1148 cuts, and every row refuses on
+/// its bound at the default ε, 1e-6 and 1e-12. Over 256, which of the two refusals comes depends on where
+/// the pcurve's values at the breaks fall against the wall's knots: the
+/// breaks in `t` are fixed, but the foot points' offset (about 6e-13 at
+/// ε 1e-6, rounded away at the default ε) carries their images in `v`
+/// off the knots. On a knot, a span holding one wall span reads that
+/// span's polynomial alone; off it, the span also reads its neighbour's
+/// polynomial extended across it, and takes more halving.
+///
+/// The control, `(0.3ε, −0.5ε, 0.3ε)` on each span, holds two zeros of
+/// `φ` on every span: its hulls straddle because `φ` does, and the side
+/// is a `Side` region, as the locus within ε of it is. One row of the
+/// grid and one control; the whole grid is
+/// [`a_side_whose_hull_is_loose_reads_clear_over_the_grid`].
+#[test]
+fn a_side_whose_hull_is_loose_reads_clear_at_both_doors() {
+    loose_side_rows(&[((0.6, 0.2), 10.0, 64)], &[64]);
+}
+
+/// [`a_side_whose_hull_is_loose_reads_clear_at_both_doors`] over the
+/// reported grid: `P/N ∈ {0.6/0.2, 0.9/0.5}`, `k ∈ {10, 100}`,
+/// `m ∈ {64, 256, 1024}`, the row that spends limb 2's budget at
+/// `m = 2048`, and the control at `m = 1024` too.
+#[test]
+fn a_side_whose_hull_is_loose_reads_clear_over_the_grid() {
+    let mut grid = Vec::new();
+    for pn in [(0.6, 0.2), (0.9, 0.5)] {
+        for k in [10.0, 100.0] {
+            for m in [64, 256, 1024] {
+                grid.push((pn, k, m));
+            }
+        }
+    }
+    grid.push(((0.6, 0.2), 10.0, 2048));
+    loose_side_rows(&grid, &[64, 1024]);
 }

@@ -166,8 +166,13 @@ fn the_bored_dome_equator_fillets_at_three_radii() {
             );
         }
         let rim = bored_dome_equator(&body);
-        let out = fillet_edges(&body, &[rim], r, tol())
-            .unwrap_or_else(|e| panic!("the bored dome fillets at r = {r}, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &[rim],
+            r,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("the bored dome fillets at r = {r}, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("tier 3 at r = {r}, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1);
@@ -199,10 +204,20 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
         (4, 6, 4),
         "the zone is four revolution walls, its two plane annuli unslit"
     );
-    let first = fillet_edges(&body, &[zone_rim(&body, -0.5)], r, tol())
-        .unwrap_or_else(|e| panic!("the bottom rim fillets, got {e:?}"));
-    let second = fillet_edges(&first.body, &[zone_rim(&first.body, 1.0)], r, tol())
-        .unwrap_or_else(|e| panic!("the top rim fillets on the filleted body, got {e:?}"));
+    let first = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[zone_rim(&body, -0.5)],
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the bottom rim fillets, got {e:?}"));
+    let second = fillet_edges(
+        &sweep::test_support::at_rest(&first.body, tol()),
+        &[zone_rim(&first.body, 1.0)],
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the top rim fillets on the filleted body, got {e:?}"));
     validate_geometric(&second.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
     assert_eq!(
         (
@@ -247,7 +262,7 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
 #[test]
 fn both_zone_rims_in_one_call_match_the_sequential_composition() {
     let r = 0.08;
-    let body = zone(0.6, Revolution::Full);
+    let body = sweep::test_support::finished("body", zone(0.6, Revolution::Full), tol());
     let rims = [zone_rim(&body, -0.5), zone_rim(&body, 1.0)];
     let one = fillet_edges(&body, &rims, r, tol())
         .unwrap_or_else(|e| panic!("the one-call shared-wall pair builds (#935), got {e:?}"));
@@ -259,8 +274,13 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
     let seq = |first: f64, second: f64| {
         let a = fillet_edges(&body, &[zone_rim(&body, first)], r, tol())
             .expect("the first sequential call");
-        let b = fillet_edges(&a.body, &[zone_rim(&a.body, second)], r, tol())
-            .expect("the second sequential call");
+        let b = fillet_edges(
+            &sweep::test_support::at_rest(&a.body, tol()),
+            &[zone_rim(&a.body, second)],
+            r,
+            tol(),
+        )
+        .expect("the second sequential call");
         mass_properties(&b.body, tol())
             .expect("mass properties")
             .volume
@@ -313,8 +333,13 @@ fn the_unbored_hemisphere_equator_carves_as_one_band() {
         }),
         "an on-axis profile mints no closed rim edge at all"
     );
-    let out = fillet_edges(&body, &arcs, 0.1, tol())
-        .unwrap_or_else(|e| panic!("the hemisphere equator carves whole, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &arcs,
+        0.1,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the hemisphere equator carves whole, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the filleted hemisphere must be tier-3 valid, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one band over both arcs");
@@ -333,7 +358,7 @@ fn near_limit_radii_refuse_typed() {
     // huge setbacks such a radius implies (the battery's own stated
     // ordering); predicate 3 is the backstop. Either is the honest
     // typed refusal.
-    let body = bored_dome();
+    let body = sweep::test_support::finished("body", bored_dome(), tol());
     let rim = bored_dome_equator(&body);
     match fillet_edges(&body, &[rim], 0.45, tol()).map_err(|r| r.error) {
         Err(BlendError::SpineIrregular { .. } | BlendError::FaceClearanceUncertified { .. }) => {}
@@ -352,7 +377,7 @@ fn near_limit_radii_refuse_typed() {
     }
     // The narrow-bore zone: at r = 0.35 the bottom trim circle's
     // setback (≈ 0.29) exceeds the ≈ 0.24 gap to the bore rim.
-    let narrow = zone(1.7, Revolution::Full);
+    let narrow = sweep::test_support::finished("narrow", zone(1.7, Revolution::Full), tol());
     let bottom = zone_rim(&narrow, -0.5);
     match fillet_edges(&narrow, &[bottom], 0.35, tol()).map_err(|r| r.error) {
         Err(BlendError::FaceClearanceUncertified { .. }) => {}
@@ -385,7 +410,14 @@ fn the_partial_zone_refuses_through_its_own_gates() {
                 )
         })
         .expect("an open plane–sphere arc");
-    match fillet_edges(&body, &[open_arc], 0.08, tol()).map_err(|r| r.error) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[open_arc],
+        0.08,
+        tol(),
+    )
+    .map_err(|r| r.error)
+    {
         Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
         other => panic!("the open arc refuses through its own gates, got {other:?}"),
     }
@@ -399,7 +431,13 @@ fn the_partial_zone_refuses_through_its_own_gates() {
 fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
     let body = bored_dome();
     let rim = bored_dome_equator(&body);
-    let mut out = fillet_edges(&body, &[rim], 0.1, tol()).unwrap();
+    let mut out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[rim],
+        0.1,
+        tol(),
+    )
+    .unwrap();
     validate_geometric(&out.body, tol()).expect("tier-3 valid before the plant");
     let band_face = out.band_faces[0];
     let surface = out

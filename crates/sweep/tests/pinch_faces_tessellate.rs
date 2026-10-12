@@ -14,7 +14,7 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use topo::test_support as fixtures;
-use topo::{AtRestBody, Body, BooleanDeclarations, BooleanResult, LoopBoundary};
+use topo::{AtRestBody, Body, BooleanResult, LoopBoundary};
 
 type V3 = [f64; 3];
 
@@ -159,18 +159,18 @@ fn cylinder(v: V3, m: V3, psi: f64) -> AtRestBody<f64> {
     )
 }
 
-/// The poses whose boolean escalates at ε 1e-6, each on a margin of
-/// its own in band, and the predicate it escalates on
-/// (`work/join/two-pinch-poses-escalate-at-eps-1e-6.md`): the join's
-/// partner order, read on `main` at `cadf2ed188` as well, and a pierce
-/// sector's curvature side, in `sectors`, which no ray walk reaches.
-const REFUSES_AT_1E6: &[(&str, &str)] = &[
-    ("notch307 fib117 edge psi=1.9 cp S", "bool_join_nearest"),
-    (
-        "Lbot cyl fib4 psi=0.9 seam cp S",
-        "bool_pierce_sector_side_curved",
-    ),
-];
+/// The poses whose boolean escalates at ε 1e-6, on a margin of its own
+/// in band, and the predicate it escalates on.
+///
+/// The L on the cylinder: a pierce sector's bound clears the curved
+/// wall it leaves by at most about 8 µm within its reach (the sagitta
+/// charge reads a lower bound of 4.2 µm), inside the band's escalation
+/// threshold of 10 µm. The side it lies on is not certain at that ε, so
+/// the escalation is the geometry's.
+const REFUSES_AT_1E6: &[(&str, &str)] = &[(
+    "Lbot cyl fib4 psi=0.9 seam cp S",
+    "bool_pierce_sector_side_curved",
+)];
 
 /// The faces of `body` whose loops pass two distinct vertices at one
 /// point.
@@ -331,7 +331,6 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
             1.0,
         ),
     ];
-    let decls = BooleanDeclarations::default();
     for (tag, prism, other, prism_first, op, delta) in rows {
         let prism = finished(
             "the prism",
@@ -343,8 +342,8 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
             (&other, &prism)
         };
         let run = match op {
-            "U" => topo::union_with(x, y, &decls, tol()),
-            _ => topo::subtract_with(x, y, &decls, tol()),
+            "U" => topo::union(x, y, tol()),
+            _ => topo::subtract(x, y, tol()),
         };
         // At ε 1e-6 these poses read a margin in band ([`REFUSES_AT_1E6`]).
         if tol().eps() == 1e-6

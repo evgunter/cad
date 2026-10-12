@@ -49,3 +49,17 @@ Decide what the mesh of a pseudomanifold edge is:
   positions, a combinatorial distinction `check_mesh` already admits.
 
 Then make the census and `check_mesh` agree on that answer.
+
+## Measured (JOIN's pinch unit, base `f9bf3bca`)
+
+With `tessellate` at δ = 0.05 added to `outcome`, `SOUND` bodies of two
+JOIN batteries panic at the cross-face census (`tessellate.rs`,
+`unpaired_chord_segment`: "chord segment … is an edge of 4 face
+triangles"):
+- 18 lines of `join_pierce_runs_sweep::pierce_runs_battery`, e.g.
+  `edge i=3 j=1 psi=0 pc S`;
+- 86 lines of `corner_pairs_battery`.
+
+Each holds `v` as one vertex, and no face passes it twice. The lines
+are identical on main and on the pinch unit's head, so they are this
+row's class, not a pinch's.

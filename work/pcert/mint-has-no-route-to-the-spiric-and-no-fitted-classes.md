@@ -4,6 +4,7 @@ kind: issue
 title: the mint has no route to two minor uncovered classes, so their faces stay uncached under C4's exemption
 status: open
 opened: 2026-10-02
+priority: P2
 ---
 
 Filed by PCERT's `pcert/at-rest-rows-mandatory` (PR 3759), which makes

@@ -7,7 +7,7 @@ opened: 2026-10-03
 priority: P3
 cost: M
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage3-is-built]
 ---
 
 
@@ -46,3 +46,7 @@ of every mate frame's bits), or a statement of the convention where a
 user meets it: `MateFrame`'s docs now say it, and the Python stub; the
 guide states it once. Priority low: it is learnable, and it surprised
 the first author who wrote an in-face offset.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: what a frame read off a face means (a Frame against a Plane pose that forgets in-plane motion) is stage 3's pose-kind work, which re-specifies face_base and point_at_frame. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

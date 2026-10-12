@@ -2,9 +2,9 @@
 //! a recipe: a plate with two crossing slots, so the SECOND subtract's
 //! A operand is itself a boolean result (boolean-of-boolean), and the
 //! second tool's floor is coplanar with the first cavity's floor — a
-//! contact the recipe DECLARES by name.
+//! contact the second subtract glues.
 //!
-//! Vocabulary: Profile, Extrude, Boolean (Subtract, declared),
+//! Vocabulary: Profile, Extrude, Boolean (Subtract),
 //! `InsertNode`, `SetParam`.
 //!
 //! Geometry (dyadic): plate `[0,3]² × [0,1]`; slot 1
@@ -24,10 +24,7 @@
 //! plus both subtracts).
 
 use editor_core::ExtrudeSide;
-use editor_core::{
-    BooleanOp, CapEnd, DocEdit, EntityKind, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId,
-    StableName,
-};
+use editor_core::{CapEnd, DocEdit, EntityKind, Node, RecipeNodeId, RoleSeg, SlotId, StableName};
 
 use crate::fixture::len;
 
@@ -52,7 +49,7 @@ pub fn document() -> CorpusDoc {
         vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]],
     );
     let plate = r.insert(Node::Extrude {
-        profile: plate_p,
+        profile: plate_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -65,21 +62,19 @@ pub fn document() -> CorpusDoc {
         vec![vec![(1.0, -1.0), (2.0, -1.0), (2.0, 4.0), (1.0, 4.0)]],
     );
     let slot1 = r.insert(Node::Extrude {
-        profile: slot1_p,
+        profile: slot1_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     // Nothing is coincident yet (the tool pierces the plate top and
-    // overhangs both ends), so this subtract declares nothing.
-    let sub1 = r.insert(Node::Boolean {
-        op: BooleanOp::Subtract,
-        a: plate,
-        b: slot1,
-        declare: Vec::new(),
+    // overhangs both ends).
+    let sub1 = r.insert(Node::Subtract {
+        from: plate.into(),
+        tool: slot1.into(),
     });
 
-    // Slot 2: runs in x, SAME floor plane z = 0.5 — the declared
-    // contact, and the reason the second operand is a boolean result.
+    // Slot 2: runs in x, SAME floor plane z = 0.5 — the coincident
+    // floors, and the reason the second operand is a boolean result.
     let slot2_p = r.profile(
         [0.0, 0.0, 0.5],
         [1.0, 0.0, 0.0],
@@ -87,31 +82,20 @@ pub fn document() -> CorpusDoc {
         vec![vec![(-1.0, 1.0), (4.0, 1.0), (4.0, 2.0), (-1.0, 2.0)]],
     );
     let slot2 = r.insert(Node::Extrude {
-        profile: slot2_p,
+        profile: slot2_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
-    // The first cavity's floor is slot 1's start cap, reversed onto
-    // the B side of `sub1`; slot 2's start cap is its own.
-    let cavity_floor = StableName {
-        kind: EntityKind::Face,
-        node: sub1,
-        path: vec![RoleSeg::FromB(cap(slot1, CapEnd::Start).into())],
-    };
-    let decl = editor_core::declare_rest(vec![(
-        SitedRef::new(sub1, cavity_floor),
-        SitedRef::new(slot2, cap(slot2, CapEnd::Start)),
-    )]);
-    let sub2 = r.insert(Node::Boolean {
-        op: BooleanOp::Subtract,
-        a: sub1,
-        b: slot2,
-        declare: decl,
+    let sub2 = r.insert(Node::Subtract {
+        from: sub1.into(),
+        tool: slot2.into(),
     });
+
+    r.place(sub2);
 
     CorpusDoc {
         name: "crossing_slots",
-        about: "R13 / #86 crossing slots: boolean-of-boolean, declared floor",
+        about: "R13 / #86 crossing slots: boolean-of-boolean, coincident floors",
         edits: r.edits,
         doc: r.doc,
         result: Some(sub2),
@@ -122,7 +106,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: slot1,
             slot: SlotId::Distance,
-            expr: len(1.25),
+            value: len(1.25).into(),
+            fresh: Vec::new(),
         },
         bump_root: slot1,
     }

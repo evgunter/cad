@@ -88,8 +88,9 @@ fn flux_bits(loop_: &[LoopEdge<f64>]) -> Result<(u64, u64), PropsError> {
 /// folded to `[lowest t0, highest t1]` all the same, and the row
 /// asserted that. Inverted: an honest split is still the control,
 /// bitwise, and every chain whose pieces leave a parameter GAP or
-/// OVERLAP refuses `props_meridian_pieces_meet` at the door and at the
-/// flux lane.
+/// OVERLAP refuses `props_meridian_pieces_meet` at the door; the flux
+/// lane, a Green form over the pieces' geometry, refuses the loop that
+/// does not close (`props_loop_closed`).
 #[test]
 fn a_gap_between_the_pieces_of_a_chain_refuses_typed() {
     let honest = flux_bits(&gapped(0.7, 0.7));
@@ -107,6 +108,12 @@ fn a_gap_between_the_pieces_of_a_chain_refuses_typed() {
     let meet = PropsError::NotIsoRectangle {
         what: "props_meridian_pieces_meet",
     };
+    // The flux lane is the torus's chart Green form, which reads the
+    // pieces' geometry: a parameter gap or overlap is a loop that does
+    // not close.
+    let open = PropsError::NotIsoRectangle {
+        what: "props_loop_closed",
+    };
     for (name, m0, m1) in [
         ("gap [0.5, 0.9]", 0.5, 0.9),
         ("gap [0.3, 1.1]", 0.3, 1.1),
@@ -114,7 +121,7 @@ fn a_gap_between_the_pieces_of_a_chain_refuses_typed() {
     ] {
         let got = flux_bits(&gapped(m0, m1));
         println!("{name}: {got:?}");
-        assert_eq!(got, Err(meet.clone()), "{name}: the pieces do not meet");
+        assert_eq!(got, Err(open.clone()), "{name}: the pieces do not meet");
         assert_eq!(
             require_iso_rectangle(&torus(), &gapped(m0, m1), band()),
             Err(meet.clone()),
@@ -147,11 +154,14 @@ fn a_chain_that_closes_on_itself_refuses_by_one_name_at_every_rotation() {
     let closed = PropsError::NotIsoRectangle {
         what: "torus meridian pieces close a loop with no rim",
     };
+    let rimless = PropsError::NotIsoRectangle {
+        what: "curved face without a rim (non-sphere)",
+    };
     for k in 0..3 {
         let got = curved_face(&torus(), &full(k), true, band())
             .map(|c| (c.flux.to_bits(), c.area.to_bits()));
         println!("rotation {k}: {got:?}");
-        assert_eq!(got, Err(closed.clone()), "rotation {k}: the flux lane");
+        assert_eq!(got, Err(rimless.clone()), "rotation {k}: the flux lane");
         assert_eq!(
             require_iso_rectangle(&torus(), &full(k), band()),
             Err(closed.clone()),
