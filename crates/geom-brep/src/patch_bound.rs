@@ -667,16 +667,20 @@ fn window_terms(
 }
 
 /// A certified upper bound on `‖x‖` over every `x` in the convex hull of
-/// `vectors`: the largest norm of one of them, the norm being convex. On
-/// one knot span a VECTOR B-spline is a convex combination of its active
+/// `vectors`: the largest norm of one of them, the norm being convex, read
+/// through [`pair_norm_sup`] as terms that do not read the offset. On one
+/// knot span a VECTOR B-spline is a convex combination of its active
 /// control vectors, so this bounds the form's norm over the cell. `NaN`
 /// for no vectors, or when one is refused.
 fn vectors_norm_sup(vectors: &[[Interval; 3]]) -> f64 {
-    vectors
+    let terms: Vec<Affine> = vectors
         .iter()
-        .map(norm_sup)
-        .reduce(max_bound)
-        .unwrap_or(f64::NAN)
+        .map(|&k| Affine {
+            k,
+            g: Interval::zero(),
+        })
+        .collect();
+    pair_norm_sup(&[[Interval::zero(); 3]], &terms, &[], 1.0)
 }
 
 /// A certified upper bound on `‖x × y‖` over every `x` in the convex
@@ -769,9 +773,8 @@ pub(crate) struct QuotientForm<'q> {
 impl QuotientForm<'_> {
     /// The weight hull's lower end, the divisor every norm reads; `None`
     /// unless the hull is certified positive.
-    pub(crate) fn floor(&self) -> Option<Interval> {
-        (self.weight.is_certified() && self.weight.lo() > 0.0)
-            .then(|| Interval::point(self.weight.lo()))
+    pub(crate) fn floor(&self) -> Option<f64> {
+        (self.weight.is_certified() && self.weight.lo() > 0.0).then(|| self.weight.lo())
     }
 
     /// A certified upper bound on `‖S_d‖` over the cell,
@@ -781,16 +784,12 @@ impl QuotientForm<'_> {
     /// Each term is affine in `S`, so its norm, convex in `S`, is largest
     /// at one of the offsets: the maximum is the numerator's norm bound
     /// with no box in it, and a rigid map carries every `k_i − g_i·q_j`
-    /// to its image. The terms are divided by the weight's lower bound
-    /// before any norm squares them, so a subnormal weight's products are
-    /// not squared away, and the maximum is read through
-    /// [`pair_norm_sup`].
+    /// to its image. The maximum is read through [`pair_norm_sup`], which
+    /// divides by the weight's lower bound before the norm.
     pub(crate) fn speed_sup(&self) -> f64 {
-        let Some(floor) = self.floor() else {
-            return f64::NAN;
-        };
-        let terms: Vec<Affine> = self.terms.iter().map(|t| t.per(floor)).collect();
-        pair_norm_sup(self.offsets, &terms, &[])
+        self.floor().map_or(f64::NAN, |floor| {
+            pair_norm_sup(self.offsets, &self.terms, &[], floor)
+        })
     }
 
     /// The signed componentwise enclosure of `S_d` over the cell with
@@ -832,28 +831,36 @@ impl Affine {
     }
 }
 
-/// `max ‖x(q) + y(q)‖` over the terms `x` of `xs`, `y` of `ys` and
-/// the offsets `q`, rounded outward; `NaN` when a read refuses.
+/// `max ‖x(q) + y(q)‖ / floor` over the terms `x` of `xs`, `y` of `ys`
+/// and the offsets `q`, rounded outward; `NaN` when a read refuses or
+/// `floor` is not positive and finite.
 ///
-/// Every pair is screened in `f64` first ([`Centred::of_affine`], then
-/// [`screen_bound`]: an upper bound on the sum's norm from centres and
-/// radii), and only the best-screened pair, and then each pair whose
+/// A pair is read in certification arithmetic with its terms divided
+/// by `floor` first, so the norm squares the quotients and a
+/// subnormal weight's products are not squared away.
+///
+/// Every pair is screened in `f64` first ([`Centred::centre`] with one
+/// [`Centred::radius`] per list, then [`screen_bound`]: an upper bound
+/// on the sum's norm from centres and radii), and only the best-screened pair, and then each pair whose
 /// screen is above the maximum read so far, is read in certification
 /// arithmetic. A pair skipped has a real norm at most that maximum, so
 /// the result is at most the full enumeration's and below it only by
 /// rounding. A screen that is `+∞` or `NaN` (an unbounded or
 /// unformable radius or centre) rules nothing out, so such a pair is
 /// read. Every input is asked for its refusal first, as the full
-/// enumeration's `norm_sup` would ask every pair.
+/// enumeration's `norm_sup` would ask every pair. The screens are of
+/// the undivided terms, held against the maximum times `floor` rounded
+/// down.
 ///
 /// An empty `ys` reads `max ‖x(q)‖`. When no term reads the offset
 /// (every `g` an exact zero, as on a polynomial net) every offset reads
 /// alike, and only the first is read.
-pub(crate) fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine]) -> f64 {
+pub(crate) fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine], floor: f64) -> f64 {
     let certified = |a: &Affine| a.g.is_certified() && a.k.iter().all(|c| c.is_certified());
-    if !(xs.iter().all(certified)
-        && ys.iter().all(certified)
-        && qs.iter().flatten().all(|c| c.is_certified()))
+    if !(floor > 0.0 && floor.is_finite())
+        || !(xs.iter().all(certified)
+            && ys.iter().all(certified)
+            && qs.iter().flatten().all(|c| c.is_certified()))
     {
         return f64::NAN;
     }
@@ -862,32 +869,66 @@ pub(crate) fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine]) 
         .chain(ys)
         .all(|t| t.g.lo() == 0.0 && t.g.hi() == 0.0);
     let qs = if flat { &qs[..qs.len().min(1)] } else { qs };
-    let xa: Vec<(Centred, Centred)> = xs.iter().map(Centred::affine_parts).collect();
-    let ya: Vec<(Centred, Centred)> = ys.iter().map(Centred::affine_parts).collect();
-    let none = [Centred {
+    let none = Centred {
         mid: [0.0; 3],
         rad: 0.0,
-    }];
+    };
+    // A flat term's `g` is an exact zero, whose centre and radius are.
+    let parts = |ts: &[Affine]| -> Vec<(Centred, Centred)> {
+        ts.iter()
+            .map(|t| {
+                let g = if flat { none } else { Centred::of_scalar(t.g) };
+                (Centred::of(&t.k), g)
+            })
+            .collect()
+    };
+    let (xa, ya) = (parts(xs), parts(ys));
+    let qc: Vec<Centred> = qs.iter().map(Centred::of).collect();
+    // One radius per list, over every term at every offset: the image's
+    // radius only grows with each magnitude it reads (`Centred::radius`).
+    let reach = Centred::reach(qc.iter());
+    let radius = |parts: &[(Centred, Centred)]| {
+        Centred::radius(
+            &Centred::reach(parts.iter().map(|(k, _)| k)),
+            &Centred::reach(parts.iter().map(|(_, g)| g)),
+            &reach,
+        )
+    };
+    let (rx, ry) = (radius(&xa), if ys.is_empty() { 0.0 } else { radius(&ya) });
     let mut screens: Vec<(f64, (usize, usize, usize))> =
-        Vec::with_capacity(qs.len() * xs.len() * ys.len().max(1));
+        Vec::with_capacity(qc.len() * xa.len() * ys.len().max(1));
+    let none = [none];
     let mut cy: Vec<Centred> = Vec::with_capacity(ys.len());
-    for (p, q) in qs.iter().enumerate() {
-        let q = Centred::of(q);
+    for (p, q) in qc.iter().enumerate() {
         cy.clear();
-        cy.extend(ya.iter().map(|(k, g)| Centred::of_affine(k, g, &q)));
+        cy.extend(ya.iter().map(|(k, g)| Centred {
+            mid: Centred::centre(k, g, q),
+            rad: ry,
+        }));
         let cy = if ys.is_empty() { &none[..] } else { &cy[..] };
         for (i, (k, g)) in xa.iter().enumerate() {
-            let a = Centred::of_affine(k, g, &q);
+            let a = Centred {
+                mid: Centred::centre(k, g, q),
+                rad: rx,
+            };
             for (j, b) in cy.iter().enumerate() {
                 screens.push((screen_bound(&a, b), (p, i, j)));
             }
         }
     }
+    // A unit floor divides nothing.
+    let per = |t: &Affine| {
+        if floor == 1.0 {
+            *t
+        } else {
+            t.per(Interval::point(floor))
+        }
+    };
     let norm = |(p, i, j): (usize, usize, usize)| {
-        let x = xs[i].at(qs[p]);
+        let x = per(&xs[i]).at(qs[p]);
         match ys.get(j) {
             Some(y) => {
-                let y = y.at(qs[p]);
+                let y = per(y).at(qs[p]);
                 norm_sup(&core::array::from_fn(|k| x[k] + y[k]))
             }
             None => norm_sup(&x),
@@ -896,12 +937,23 @@ pub(crate) fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine]) 
     let Some(&(_, best)) = screens.iter().max_by(|a, b| a.0.total_cmp(&b.0)) else {
         return f64::NAN;
     };
+    // The screens are of the undivided terms, so each is held against
+    // the maximum times the floor, rounded down.
+    let undivided = |sup: f64| {
+        if floor == 1.0 {
+            sup
+        } else {
+            (sup * floor).next_down()
+        }
+    };
     let mut sup = norm(best);
+    let mut over = undivided(sup);
     for &(bound, pair) in &screens {
         // A `NaN` screen or maximum rules nothing out.
-        let ruled_out = bound <= sup;
+        let ruled_out = bound <= over;
         if !ruled_out && pair != best {
             sup = max_bound(sup, norm(pair));
+            over = undivided(sup);
         }
     }
     sup
@@ -927,12 +979,37 @@ impl Centred {
         Self { mid, rad }
     }
 
-    /// An affine term's `k` and `g` (the scalar in the first axis).
-    fn affine_parts(a: &Affine) -> (Self, Self) {
-        (Self::of(&a.k), Self::of(&[a.g, a.g, a.g]))
+    /// A certified scalar's centre, in every axis, and radius:
+    /// [`Centred::of`] of the vector repeating it.
+    fn of_scalar(g: Interval) -> Self {
+        let mid = 0.5 * g.lo() + 0.5 * g.hi();
+        let rad = max_bound(0.0, max_bound(g.hi() - mid, mid - g.lo()).next_up());
+        Self { mid: [mid; 3], rad }
     }
 
-    /// `k − g·q` from the parts' centres and radii, in `f64`. A point of
+    /// The largest magnitudes of a list: per axis the largest `|mid|`,
+    /// and the largest radius, `NaN` if any is.
+    fn reach<'a>(list: impl Iterator<Item = &'a Self>) -> Self {
+        list.fold(
+            Self {
+                mid: [0.0; 3],
+                rad: 0.0,
+            },
+            |r, c| Self {
+                mid: core::array::from_fn(|i| max_bound(r.mid[i], c.mid[i].abs())),
+                rad: max_bound(r.rad, c.rad),
+            },
+        )
+    }
+
+    /// The centre of `k − g·q` from the parts' centres, `g`'s in its
+    /// first axis, in `f64`. A zero factor is an exact zero
+    /// ([`times_or_zero`]).
+    fn centre(k: &Self, g: &Self, q: &Self) -> [f64; 3] {
+        core::array::from_fn(|i| k.mid[i] - times_or_zero(g.mid[0], q.mid[i]))
+    }
+
+    /// The radius about [`Centred::centre`] of `k − g·q`. A point of
     /// the image is within `r_k + |g_c|·r_q + r_g·(|q_c| + r_q)` of
     /// `k_c − g_c·q_c` on each axis, and computing that centre rounds
     /// it by at most `3u·(|k_c| + |g_c·q_c|)`; the radius is that sum
@@ -940,21 +1017,31 @@ impl Centred {
     /// its own and by the smallest normal for any subnormal step. A zero
     /// factor is an exact zero ([`times_or_zero`]), so an unbounded offset beside
     /// a term that does not read it adds nothing rather than `0·∞`.
-    fn of_affine(k: &Self, g: &Self, q: &Self) -> Self {
-        let (gm, gr) = (g.mid[0], g.rad);
-        let mid: [f64; 3] = core::array::from_fn(|i| k.mid[i] - times_or_zero(gm, q.mid[i]));
+    ///
+    /// It never falls when any `|mid|` or radius it reads grows, so it
+    /// is a radius for every term and offset whose magnitudes are at most
+    /// these ([`Centred::reach`]).
+    fn radius(k: &Self, g: &Self, q: &Self) -> f64 {
+        let (gm, gr) = (g.mid[0].abs(), g.rad);
         let rad = (0..3)
             .map(|i| {
                 let qa = q.mid[i].abs();
                 k.rad
-                    + times_or_zero(gm.abs(), q.rad)
+                    + times_or_zero(gm, q.rad)
                     + times_or_zero(gr, qa + q.rad)
-                    + 4.0 * f64::EPSILON * (k.mid[i].abs() + times_or_zero(gm.abs(), qa))
+                    + 4.0 * f64::EPSILON * (k.mid[i].abs() + times_or_zero(gm, qa))
             })
             .fold(0.0, max_bound);
+        rad * (1.0 + 8.0 * f64::EPSILON) + f64::MIN_POSITIVE
+    }
+
+    /// `k − g·q`'s centre and radius ([`Centred::centre`],
+    /// [`Centred::radius`]).
+    #[cfg(test)]
+    fn of_affine(k: &Self, g: &Self, q: &Self) -> Self {
         Self {
-            mid,
-            rad: rad * (1.0 + 8.0 * f64::EPSILON) + f64::MIN_POSITIVE,
+            mid: Self::centre(k, g, q),
+            rad: Self::radius(k, g, q),
         }
     }
 }
@@ -1215,7 +1302,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 offsets: &about,
                 weight: w_cell,
             };
-            let q = core::array::from_fn(|k| coordinate_hull(&about, k));
+            let q: [Interval; 3] = core::array::from_fn(|k| coordinate_hull(&about, k));
             let (s_u, s_v) = (fu.derivative_box(q), fv.derivative_box(q));
             // Weight-net hulls on the cell.
             let w10s = window_hull(&w_nets.d10, &w.u_d1, &w.v_val);
@@ -1654,8 +1741,9 @@ pub(crate) mod tests {
     }
 
     /// **The screened pair norm is the full enumeration's.** Random
-    /// affine terms and offsets, some with enclosures a tenth wide so the
-    /// screen's radius terms carry weight, some with near-tied terms: the
+    /// affine terms, offsets and floors, some with enclosures a tenth wide
+    /// so the screen's radius terms carry weight, some with near-tied
+    /// terms: the
     /// screened maximum is never above the enumeration's `norm_sup` over
     /// every pair (it reads a subset) and never below it by more than
     /// rounding (what it skips is bounded by what it read). One refused
@@ -1686,12 +1774,18 @@ pub(crate) mod tests {
             let qs: Vec<[Interval; 3]> = (0..nq)
                 .map(|_| core::array::from_fn(|_| iv(&mut rng, 0.5, wide)))
                 .collect();
-            let got = pair_norm_sup(&qs, &xs, &ys);
+            let floor = if case % 4 == 0 {
+                1.0
+            } else {
+                rng.range(0.1, 4.0)
+            };
+            let got = pair_norm_sup(&qs, &xs, &ys, floor);
+            let per = Interval::point(floor);
             let mut all = f64::NEG_INFINITY;
             for q in &qs {
                 for x in &xs {
                     for y in &ys {
-                        let (a, b) = (x.at(*q), y.at(*q));
+                        let (a, b) = (x.per(per).at(*q), y.per(per).at(*q));
                         all = all.max(norm_sup(&core::array::from_fn(|k| a[k] + b[k])));
                     }
                 }
@@ -1705,7 +1799,7 @@ pub(crate) mod tests {
             let mut refused = xs.clone();
             refused[0].k[1] = Interval::refused();
             assert!(
-                pair_norm_sup(&qs, &refused, &ys).is_nan(),
+                pair_norm_sup(&qs, &refused, &ys, floor).is_nan(),
                 "case {case}: a refused coordinate must refuse the read — {}",
                 fuzz::replay()
             );
@@ -1785,7 +1879,7 @@ pub(crate) mod tests {
             ("an unbounded term", &near, vec![unit_k, unbounded_k]),
         ];
         for (name, qs, xs) in cases {
-            let got = pair_norm_sup(qs, &xs, &[zero]);
+            let got = pair_norm_sup(qs, &xs, &[zero], 1.0);
             let all = enumerated_pair_norm(qs, &xs, &[zero]);
             assert!(
                 (got.is_nan() && all.is_nan())

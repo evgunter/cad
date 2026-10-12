@@ -40,3 +40,17 @@ coefficient norms.
 For each site, decide whether frame sensitivity costs anything here (a
 re-derived verdict near its threshold, or tightness), and if so read the
 bound from the vector coefficients' norms.
+
+## The same site's first-order factor is a relaxation too (ENCL `encl/one-chart-speed` §5 sweep, 2026-10-12)
+
+In `rational_carrier_m_bound` (`crates/mesh/src/chords.rs`), the
+`C′` factor of each coordinate's `s2` is
+`s1 = (|Ã′| + |C − c|·|w′|)/w`, a sum of three separately-hulled
+magnitudes. That is the triangle relaxation of the per-term
+quotient-rule reading. ENCL's `geom_brep::patch_bound::QuotientForm`
+now reads the surface's first-order box as the per-term hull of
+`k_i − g_i·(S − c)` over the weight hull, and the speed as the joint
+`max_{i,j} ‖k_i − g_i·q_j‖ / inf w`. On the meters' fixtures the
+relaxed speed was up to `1.125`× the joint one. A fix that moves this
+site onto vector norms can take the per-term reading in the same
+change.

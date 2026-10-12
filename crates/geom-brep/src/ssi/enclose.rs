@@ -1291,7 +1291,7 @@ impl CellNet {
     /// so `n·` of it is extreme, and its norm largest, at one of the
     /// block's points: both readings are read from the vectors
     /// `ex·a(P_j) + ey·b(P_j)` alone, the norm through
-    /// [`pair_norm_sup`] after the floor divides the terms, and a rigid
+    /// [`pair_norm_sup`] over the weight's floor, and a rigid
     /// map that carries `n` with the wall moves them by their rounding
     /// width.
     fn transverse_readings(&self, n: [Interval; 3], ex: Interval, ey: Interval) -> (Interval, f64) {
@@ -1335,11 +1335,7 @@ impl CellNet {
                     })
                     .reduce(Interval::hull)
             });
-        let (au, bv): (Vec<Affine>, Vec<Affine>) = (
-            au.iter().map(|a| a.per(floor)).collect(),
-            bv.iter().map(|b| b.per(floor)).collect(),
-        );
-        let sup = pair_norm_sup(&qs, &au, &bv);
+        let sup = pair_norm_sup(&qs, &au, &bv, floor);
         (along.map_or_else(Interval::refused, |a| a / fu.weight), sup)
     }
 }
