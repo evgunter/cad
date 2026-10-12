@@ -708,6 +708,16 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **P3, guards and latent soundness:** corner on a circle's interior unseen; join re-mint refusing as a kernel defect (design); mirrored split that joins; split join killing a child; wrap-edge arm; chart singularity read by distance alone (design).
   - **P4:** the joined finisher minting twice.
 - 2026-10-09 — `fused-into-names-vertices-not-live-in-the-result` is dispatched to the step-3 lane on `fuse/fused-into-is-live`. It re-measures on main first, since the join is a new vertex remover, then fixes at the remover.
+- 2026-10-09 — The `fused-into-is-live` lane measures on main, then gets its ruling.
+  - **Corpus:** the rebuilt lattice probe (1000 bricks × 3 declared ops) gives 387 of 2721 bodies with a dead `fused_into` value.
+  - **Removers of the 768 dead values:**
+    - the join, 336;
+    - merge pruning, 420;
+    - the merge's `delete_lone_ring`, 12;
+    - nothing else.
+  - **Why the old type fails:** every dead survivor's point now lies inside a live edge or face, so a `VertexKey` value can never be total over live keys.
+  - **Ruled (orchestrator), as the step-4 rule applied (a name reads over live cells):** `fused_into` returns a typed live cell (`Vertex` | `InEdge` | `InFace`). The join and merge kill records are chased to it, and the corpus is pinned as a row.
+  - **What stays the same:** consumers' naming output does not move. A border inside a cell still settles to None. Naming it is filed as a separate design row.
 - 2026-10-09 — Seam note from ENCL (PR 4366, merged): `geom_brep::enters::LeverEscalation`'s `rung` and `diag` are private; read them with `rung()`/`diag()`, re-quote only through `with_diag`, which keeps the gate's verdict. `BooleanError::of_lever_rung(gate, read, rung, diag)` is the one boolean spelling. The dihedral lever-arm decision is told in one shape ("long enough, for how its faces curve, to measure their angle"), with the lever "clearly longer and no face curves tightly there"; pin `validate::tests::the_dihedral_arm_is_told_in_one_shape` (it reads source literals: a natural "long enough … angle … face" wording elsewhere trips it). (ENCL orchestrator)
 - 2026-10-09 — (ENCL, PR 4366) Your ground: `merge_faces.rs` `KeptBoundaryUndecided` now ends through `DIHEDRAL_ARM`'s recourse. (ENCL orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4401, merged): `LeverEscalation::with_diag` is gone. The one re-quote door is `quoting_reading`; ask `re_quotes()` first. A decided arm keeps its verdict only onto a reading of the same rejected sign, and otherwise is returned unchanged. The dihedral arm clause is `geom_brep::DIHEDRAL_ARM_CLAUSE` / `dihedral_arm_clause!()`; compose it, never re-spell it. (ENCL orchestrator)
@@ -720,3 +730,16 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
 - 2026-10-11 — ZIP closed (`docs/doc-ledger/zip-leaves-the-tracker.md`); `a-dip-inside-a-rest-contact-is-refused-by-the-result-gate` moved here because its fix site, `carry_rows`, is the same as `a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face`'s.
 - 2026-10-11 — Note to FUSE's orchestrator (Ev, in chat): wrap up the work in progress, then cut the slate into lower-priority successor programs. The P0 that the charter claims no longer holds. The two confident-wrong-answer rows it names have closed (`subtract-of-a-hollow-operand-files-the-island-under-one-solid`, #3891; `boolean-rebuild-folds-an-in-band-second-order-into-conventional`, #3889), and no live row is P0. The highest rows are 11 at P1, mostly breadth (the curved and spline joins, the census lanes) plus the record-dropping rows. The track is at 73.5 budget points against 30. The cut follows `work/README.md` Track size: on the priority seam, rows moved by `git mv` with their ids, and FUSE re-banded to match its spine. For the precedent, see TOPO's second cut (`work/topo/log.md`, 2026-10-11) and `docs/doc-ledger/zip-leaves-the-tracker.md`. (Posted from a tracker-review session, not FUSE's own.)
 - 2026-10-11 `a-record-on-a-curved-edge-resting-on-a-face-refuses` closed by CONTACTHOLD: PR 4604 merged (its closing note above).
+- 2026-10-12 — PR 4398 lands, and `fused-into-names-vertices-not-live-in-the-result` closes.
+  - **What it builds:**
+    - `BooleanNaming::settler(body)` settles a vertex on the live cell its point lies in: a vertex, an edge via `edge_join::joined_cell`, or a face via `merge_substitutions`, which carries `MergedGroup::substitutions`.
+    - The walk is shared with `Descendants::chained` (`chase_live`). It refuses typed: `SettleError::{Dead, Cyclic, DuplicateRow}`.
+    - `fused_into` is the fused vertices settled. The naming layer settles every bordered end and carries `NamingError::Settle`. Naming output does not move.
+  - **Rows:** the lattice corpus (2721 bodies) asserts that every settled cell holds its point, read off a pre-output-stage snapshot armed by the test.
+  - **Review:**
+    - Lane A (Opus) found no blockers. Its five minors were fixed, among them one chase rather than two, the error kept typed through naming, and unfused ends settled too.
+    - Lane B (Fable) died twice: once at a container restart, once at the usage limit. Its third run passed an independent geometry probe (0 bad of about 67,500 values). Mutants b2/c2 (a live but wrong cell) and (e) (a cycle passing) survived the committed rows, and round 2 killed them. Round 2 also built the settler's steps from `joined_cell` and `MergedGroup::substitutions`, so it has no private table.
+    - An Opus delta check confirmed all four items.
+  - **CI:** green except FLUSH's own red at 1e-12 on main (`a-ring-serving-two-pierces-*`). Main moved under the PR four times; the last merge of main was data-only and landed on local checks.
+  - **Filed:** `a-discard-border-inside-a-merged-face-or-joined-edge-reads-as-no-border` (P3, design). `Cell` is added to `work/lib/payload-rungs-behind-struct-payloads.md` beside `OperandKeys`.
+- 2026-10-12 — `face-lineage-rows-are-checked-by-their-readers-not-where-they-are-added` (P1) is dispatched to the same lane on `fuse/face-lineage-at-append`. It measures the writers' append order first; a writer that cannot hold the check is a fork.

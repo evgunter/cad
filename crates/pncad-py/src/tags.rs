@@ -1170,7 +1170,10 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // The escalation's payload is a MARGIN and a band, not an arm;
         // the predicate that escalated is a name the kernel mints and
         // the message carries.
-        NodeErrorKind::Escalated { .. } => None,
+        NodeErrorKind::Escalated { .. }
+        | NodeErrorKind::MeasureEscalated { .. }
+        | NodeErrorKind::PlacementAxisEscalated { .. }
+        | NodeErrorKind::PoseDirectionEscalated { .. } => None,
         NodeErrorKind::PoseRead { fault, .. } => Some(pose_read_fault_tag(fault)),
         NodeErrorKind::PoseDegenerate { construction } => Some(match construction {
             pncad::document::pose::PoseConstruction::Through => "through",
