@@ -38,11 +38,6 @@ impl<K: Ord + Copy> Lineage<K> {
         Self { root, cells }
     }
 
-    /// Whether `cell` is of the lineage.
-    pub(crate) fn contains(&self, cell: K) -> bool {
-        self.cells.contains(&cell)
-    }
-
     /// The lineage's cells, the root among them, in key order.
     pub(crate) fn cells(&self) -> impl Iterator<Item = K> + '_ {
         self.cells.iter().copied()
@@ -103,7 +98,11 @@ mod tests {
         let rows = [(f[2], f[1]), (f[3], f[4]), (f[1], f[0])];
         let lineage = Lineage::of(f[0], &rows);
         for (i, want) in [true, true, true, false, false].into_iter().enumerate() {
-            assert_eq!(lineage.contains(f[i]), want, "face {i} of f0's lineage");
+            assert_eq!(
+                lineage.cells().any(|g| g == f[i]),
+                want,
+                "face {i} of f0's lineage"
+            );
         }
         assert_eq!(
             lineage.pieces().collect::<Vec<_>>().len(),

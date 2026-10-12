@@ -236,9 +236,9 @@ use geom_core::{
 };
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig};
-use crate::patch_bound::{PatchBoundError, is_rational};
+use crate::patch_bound::{PatchBoundError, check_direction, is_rational};
 use crate::recourse::Reading;
-use geom_core::spline::TensorCoeffs;
+use geom_core::spline::{Derived, TensorCoeffs};
 
 /// The fitted surface's degree in both directions. A CONSTANT (D9:
 /// structure, never data-dependent tuning). Bicubic is the kernel's
@@ -2231,47 +2231,44 @@ impl Composite {
         // The base's homogeneous nets and their first derivatives.
         let a_grid: [TensorCoeffs<'_>; 3] =
             core::array::from_fn(|c| channel(base, c, NetForm::of(base), &ctr));
-        // A degree-1 direction's partial is constant on each span; its
-        // derived vector would be degree 0, which no clamped vector
-        // spells. On a single span it is decomposed on the direction's
-        // own vector as the constant's degree-1 form, both coefficients
-        // the one difference. Across an interior knot the partial jumps,
-        // which no continuous degree-1 form spells, so that direction is
-        // refused as the crease it is. Every base channel is then raised
-        // one degree in each degree-1 direction it varies along, in the
-        // ring: exact in ℝ, so the composite is still about the base's
-        // own nets. The raise buys hull tightness, measured once on
-        // `tests/offset_fit.rs`' degree-1 rows (certified sup, raised
-        // against not): bilinear 4.26e-5 against 4.58e-5, rational
-        // bilinear 7.58e-5 against 9.46e-5, ruled 1.228e-5 against
-        // 1.229e-5, with the same cells and rounds. A degree ≥ 2
-        // direction whose derived vector is not clamped is refused typed.
-        let lift = |k: &KnotVector| match k.degree() {
-            1 if k.interior_knots().next().is_some() => Err(PatchBoundError::Degree1Crease),
-            1 => Ok(1),
-            _ => Ok(0),
-        };
-        let (lift_u, lift_v) = (lift(ku)?, lift(kv)?);
+        // `check_direction` admits a degree-1 direction only as one
+        // span, so its partial is one constant: span 0's difference,
+        // decomposed on the direction's own vector as its degree-1 form.
+        // Every base channel is then raised one degree in each degree-1
+        // direction, in the ring: exact in ℝ, so the composite is still
+        // about the base's own nets. The raise buys hull tightness,
+        // measured once on `tests/offset_fit.rs`' degree-1 rows
+        // (certified sup, raised against not): bilinear 4.26e-5 against
+        // 4.58e-5, rational bilinear 7.58e-5 against 9.46e-5, ruled
+        // 1.228e-5 against 1.229e-5, with the same cells and rounds.
+        check_direction(ku)?;
+        check_direction(kv)?;
+        let lift = |k: &KnotVector| usize::from(matches!(k.derived(), Derived::SpanConstant(_)));
+        let (lift_u, lift_v) = (lift(ku), lift(kv));
         let raise = |p: PatchSpans, lu: usize, lv: usize| {
             let (pu, pv) = p.degree();
             p.elevated(pu + lu, pv + lv)
         };
         let val = |g: &TensorCoeffs<'_>| raise(dec(g), lift_u, lift_v);
         let du = |g: &TensorCoeffs<'_>| {
-            let p = if lift_u == 1 {
-                let diff = g.diff_u();
-                dec(&TensorCoeffs::from_fn(ku, kv, |_, j| diff.get(0, j)))
-            } else {
-                dec(&g.derivative_u().ok_or(PatchBoundError::DerivedKnots)?)
+            let p = match g.derived_u() {
+                Derived::Vector(t) => dec(&t),
+                Derived::SpanConstant(_) => {
+                    let diff = g.diff_u();
+                    dec(&TensorCoeffs::from_fn(ku, kv, |_, j| diff.get(0, j)))
+                }
+                Derived::Discontinuous { .. } => return Err(PatchBoundError::DerivedKnots),
             };
             Ok::<_, PatchBoundError>(raise(p, 0, lift_v))
         };
         let dv = |g: &TensorCoeffs<'_>| {
-            let p = if lift_v == 1 {
-                let diff = g.diff_v();
-                dec(&TensorCoeffs::from_fn(ku, kv, |i, _| diff.get(i, 0)))
-            } else {
-                dec(&g.derivative_v().ok_or(PatchBoundError::DerivedKnots)?)
+            let p = match g.derived_v() {
+                Derived::Vector(t) => dec(&t),
+                Derived::SpanConstant(_) => {
+                    let diff = g.diff_v();
+                    dec(&TensorCoeffs::from_fn(ku, kv, |i, _| diff.get(i, 0)))
+                }
+                Derived::Discontinuous { .. } => return Err(PatchBoundError::DerivedKnots),
             };
             Ok::<_, PatchBoundError>(raise(p, lift_u, 0))
         };

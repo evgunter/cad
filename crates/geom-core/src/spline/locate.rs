@@ -134,6 +134,67 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// other's — unsound for a straddling enclosure).
     fn enclosure_hull(self, other: Self) -> Self;
 
+    /// The Bernstein coefficients over `[a, b]` of the piece one
+    /// coefficient channel defines on `span`, read from `window`, the
+    /// channel's `p + 1` coefficients on that span: coefficient `k` is
+    /// the blossom at `a` taken `p − k` times and `b` taken `k` times.
+    /// `held` is the curve's knot values in the scalar (its
+    /// [`Knots::values`]), and `held_ends` the ends `ends` in the scalar
+    /// (a breakpoint's held value, any other end its constant).
+    ///
+    /// Per scalar, as the locator is. At `Interval` it is the window's
+    /// certified restriction ([`super::SpanRow::restrict`]), whose every
+    /// coefficient encloses the true one; a held knot there is the point
+    /// of its `f64` structure, so the restriction reads the structure.
+    /// At every other scalar it is de Boor's recurrence over the held
+    /// knots and ends, the ratio `α` formed in the scalar and the fixed
+    /// association `x·(1 − α) + y·α` (D9).
+    ///
+    /// **Every scalar refuses the same inputs**, read on the `f64`
+    /// structure: a window that is not `p + 1` long, an end outside the
+    /// span's closure, and held knots that are not the vector's length
+    /// answer poison coefficients — the piece's polynomial past its span
+    /// is not the curve, and an extension answered at one scalar and
+    /// refused at another hides a caller that crosses a knot. The poison
+    /// is the window's own ([`poison_from`] its first entry), or a bare
+    /// NaN for an empty window, which has no channel to carry.
+    fn restrict_window(
+        window: &[Self],
+        span: Span<'_>,
+        held: &[Self],
+        ends: (f64, f64),
+        held_ends: (Self, Self),
+    ) -> Vec<Self> {
+        let p = span.degree();
+        let knots = span.knots().knots();
+        // Indexing justified: `p ≤ index ≤ last_span() = len − p − 2`.
+        let (lo, hi) = (knots[span.index()], knots[span.index() + 1]);
+        let inside = |x: f64| lo <= x && x <= hi;
+        if window.len() != p + 1 || held.len() != knots.len() || !inside(ends.0) || !inside(ends.1)
+        {
+            let poison = window
+                .first()
+                .map_or_else(|| Self::from_f64(f64::NAN), |&c| poison_from(c));
+            return vec![poison; p + 1];
+        }
+        let first = span.first_control();
+        (0..=p)
+            .map(|k| {
+                let mut d = window.to_vec();
+                for r in 1..=p {
+                    let u = if r <= p - k { held_ends.0 } else { held_ends.1 };
+                    for i in (r..=p).rev() {
+                        // `first + i + p + 1 − r ≤ index + p`, inside the vector.
+                        let (lo, hi) = (held[first + i], held[first + i + p + 1 - r]);
+                        let alpha = (u - lo) / (hi - lo);
+                        d[i] = d[i - 1] * (Self::one() - alpha) + d[i] * alpha;
+                    }
+                }
+                d[p]
+            })
+            .collect()
+    }
+
     /// One homogeneous channel (`w`, or one coordinate of `w·P`) of a
     /// curve whose knots are `knots` through `refinement` at this
     /// scalar, per scalar as the locator is. At `Interval` it is the

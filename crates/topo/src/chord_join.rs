@@ -106,6 +106,7 @@
 //! tangent ruling has no self-loop: its two ends coincide along the
 //! ruling, which refuses.
 
+use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
@@ -121,6 +122,7 @@ use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
 use crate::ring_path::{LoopArc, Path, Quadric, path_parity};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
+use crate::splitting::order::{FRAME_ARM, FRAME_AXIS};
 use crate::splitting::rules::{face_axial_range, face_extent};
 use crate::validate::decide;
 use geom_core::Tol;
@@ -372,79 +374,82 @@ impl From<PointInLoopError> for SplitJoinError {
     }
 }
 
-/// The recourse the section join's escalations carry. The join runs
-/// under a split, which takes no declarations, and under a Boolean,
-/// which does; the levers true at both are the geometry and the
-/// tolerance, and `BooleanError::Join` adds the declaration.
+/// The lever the section join's refusals carry, under a split and a
+/// Boolean alike: the geometry.
 use geom_core::COINCIDENCE_RECOURSE as JOIN_RECOURSE;
-
-impl core::fmt::Display for SplitJoinError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.render(f, JOIN_RECOURSE)
-    }
-}
 
 /// What a [`SplitJoinError::OrderEscalated`] could not decide, by its
 /// predicate: the join order's frame, or the order of two points in it.
 fn order_decision(predicate: Option<&str>) -> &'static str {
     match predicate {
-        Some("split_join_frame_axis") => {
-            "whether the section plane's normal lies along a coordinate axis"
-        }
-        Some("split_join_frame_arm") => {
-            "which direction in the section plane to order points along"
-        }
+        Some(FRAME_AXIS) => "whether the section plane's normal lies along a coordinate axis",
+        Some(FRAME_ARM) => "which direction in the section plane to order points along",
         _ => "the order of two section points",
     }
 }
 
-/// A [`SplitJoinError`] as a Boolean shows it: the Boolean takes
-/// declarations, so its escalations offer the shared
-/// [`geom_core::COINCIDENCE_RECOURSE`] where the join's own `Display`
-/// (which a split shares) offers only the geometry and the tolerance.
-pub(crate) struct UnderBoolean<'a>(pub(crate) &'a SplitJoinError);
-
-impl core::fmt::Display for UnderBoolean<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.render(f, geom_core::COINCIDENCE_RECOURSE)
+/// The ending of a join order escalation. The frame's two decisions
+/// (an axis component, an arm's length in the plane) are no size the
+/// user chose, so they end in the join's lever alone (D4 ¶1 (i)); the
+/// order of two points compares metred coordinates, a size, and takes
+/// the escalation's whole ending.
+fn order_ending(diag: &Indeterminate) -> String {
+    match diag.predicate {
+        Some(FRAME_AXIS | FRAME_ARM) => LeverOnly {
+            lever: JOIN_RECOURSE,
+        }
+        .recourse(RefusedArm::Undecided(diag), Reading::Build),
+        _ => diag.ending(JOIN_RECOURSE),
     }
 }
 
-impl SplitJoinError {
-    /// The sentence, with the recourse every ill-conditioned arm
-    /// states supplied by the caller that knows which levers its reader
-    /// has: [`JOIN_RECOURSE`] under a split, the shared coincidence
-    /// recourse under a Boolean ([`UnderBoolean`]).
-    fn render(&self, f: &mut core::fmt::Formatter<'_>, recourse: &str) -> core::fmt::Result {
+impl core::fmt::Display for SplitJoinError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::OrderEscalated { diag } => write!(
                 f,
-                "{} is too close to call ({}). Recourse: {recourse}",
-                order_decision(diag.predicate),
-                diag.payload()
+                "{}",
+                diag.undecided(order_decision(diag.predicate), order_ending(diag))
             ),
+            // The section's sized decisions (a pose's gap, an apex's
+            // offset, a tangent chord's advance) end as geom-brep ends
+            // them: the escalation's whole ending.
             Self::Escalated { diag, .. } => write!(
                 f,
-                "where a section runs across a face is too close to call ({}). Recourse: \
-                 {recourse}",
-                diag.payload()
+                "{}",
+                diag.undecided(
+                    "where a section runs across a face",
+                    diag.ending(JOIN_RECOURSE)
+                )
             ),
             Self::DegenerateSection { .. } => write!(
                 f,
-                "a section is degenerate: it bounds zero area. Recourse: {recourse}"
+                "a section is degenerate: it bounds zero area. Recourse: {JOIN_RECOURSE}"
             ),
             Self::RingHoming(e) => match e {
-                crate::splitting::PointInLoopError::Escalated { diag, .. } => write!(
+                // The walk's decision is the question. The join asks it of
+                // many vertices, and a smaller tolerance moves the others'
+                // readings into the band as it decides one, so it ends in
+                // the decision's lever alone, as the Boolean's placement
+                // does (`refusal_routes`'s `Ending::Placement`).
+                crate::splitting::PointInLoopError::Escalated {
+                    decision,
+                    escalation,
+                    diag,
+                    ..
+                } => write!(
                     f,
-                    "which piece a hole loop falls in is too close to call ({}). Recourse: \
-                     {recourse}",
-                    diag.payload()
+                    "re-homing a hole loop: {}",
+                    diag.undecided(
+                        decision.subject(),
+                        crate::boolean::ContainDecision::Loop(*decision)
+                            .lever_ending(*escalation, diag),
+                    )
                 ),
-                // The rays are the walk's own, so the levers are its, under
-                // a split and a Boolean alike.
+                // The rays are the walk's own, so the levers are its.
                 crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
                     f,
-                    "which piece holds a hole loop is undecided: {}",
+                    geom_core::undecided!("which piece holds a hole loop", payload),
                     crate::ray_walk::NoRaySettled
                 ),
                 crate::splitting::PointInLoopError::CorruptLoop { .. } => {
@@ -452,17 +457,17 @@ impl SplitJoinError {
                 }
                 crate::splitting::PointInLoopError::Uncrossable(u) => write!(
                     f,
-                    "which piece holds a hole loop cannot be read: {u}. Recourse: {recourse}"
+                    "which piece holds a hole loop cannot be read: {u}. Recourse: {JOIN_RECOURSE}"
                 ),
                 crate::splitting::PointInLoopError::OffPlane(o) => write!(
                     f,
-                    "which piece holds a hole loop cannot be read: {o}. Recourse: {recourse}"
+                    "which piece holds a hole loop cannot be read: {o}. Recourse: {JOIN_RECOURSE}"
                 ),
             },
             Self::RingHomingAmbiguous { .. } => write!(
                 f,
                 "every vertex of a hole loop lies on the boundary of the piece being \
-                 divided off, so which piece holds it cannot be decided. Recourse: {recourse}"
+                 divided off, so which piece holds it cannot be decided. Recourse: {JOIN_RECOURSE}"
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
@@ -511,7 +516,7 @@ impl SplitJoinError {
             } => write!(
                 f,
                 "{} is undecided for the section through a curved face: {}. Recourse: \
-                 {recourse}",
+                 {JOIN_RECOURSE}",
                 geom::EllipseInvalid::escalated_subject(diag),
                 diag.payload()
             ),
@@ -538,7 +543,7 @@ impl SplitJoinError {
             Self::SectionCrossings { case, band, .. } => write!(
                 f,
                 "a curved face's crossings cannot be paired along the section: {case} \
-                 ('split_join_conic_heading', band ({:e}, {:e})). Recourse: {recourse}",
+                 ('split_join_conic_heading', band ({:e}, {:e})). Recourse: {JOIN_RECOURSE}",
                 band.zero(),
                 band.escalate(),
             ),
@@ -4420,19 +4425,17 @@ mod tests {
                 Some(*diag),
                 "k = {k}: on the frame"
             );
-            // The ending the join has always given it, at a split and
-            // under a Boolean.
+            // The section's escalation ends as geom-brep ends it: the
+            // enclosure's whole ending, kind lever first. (That a
+            // straddle's enclosure reads as subdividable is open on the
+            // cleave row `split-escalations-end-a-poisoned-margin-in-the-plane-lever`.)
             assert!(
-                err.to_string()
-                    .ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
+                err.to_string().contains(&format!(
+                    "{}. Recourse: subdivide the parameter box for a tighter enclosure, or \
+                     move the geometry",
+                    diag.payload()
+                )),
                 "k = {k}: {err}"
-            );
-            assert!(
-                UnderBoolean(&err)
-                    .to_string()
-                    .ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
-                "k = {k}: {}",
-                UnderBoolean(&err)
             );
         }
     }
@@ -4671,6 +4674,62 @@ mod tests {
                 SectionCase::Conic(_) => "conic",
             }))
         );
+    }
+
+    /// **A hole loop's re-homing ends in the walk decision's lever
+    /// alone.** The join asks the walk of many vertices, so no margin it
+    /// carries binds the operation: no tolerance is offered on a read
+    /// margin or a straddle, and no box to subdivide.
+    #[test]
+    fn ring_homing_ends_in_the_walks_decision() {
+        use crate::splitting::{Escalation, LoopDecision};
+        use geom_core::{Decided, MarginDiag};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = 3e-9_f64.sign_within(band).unwrap_err();
+        let straddle = geom_core::k_stats::straddle(
+            "rh_straddle",
+            Decided {
+                sign: Sign::Zero,
+                margin: MarginDiag::value(0.5e-9),
+            },
+            Decided {
+                sign: Sign::Positive,
+                margin: MarginDiag::value(3e-8),
+            },
+            band,
+        );
+        let cases = [
+            (
+                LoopDecision::Ray,
+                "where a test ray from a point meets the loop's boundary",
+                "nudge the point so no boundary corner lines up with it",
+            ),
+            (
+                LoopDecision::Boundary,
+                "whether a point lies on the loop's boundary or clear of it",
+                "move the point exactly onto the boundary or clearly off it",
+            ),
+        ];
+        for (decision, subject, lever) in cases {
+            for (escalation, diag) in [(Escalation::Margin, read), (Escalation::Straddle, straddle)]
+            {
+                let text = SplitJoinError::RingHoming(PointInLoopError::Escalated {
+                    r#loop: LoopKey::default(),
+                    decision,
+                    escalation,
+                    diag,
+                })
+                .to_string();
+                assert_eq!(
+                    text,
+                    format!(
+                        "re-homing a hole loop: {subject} is undecided: {}. Recourse: {lever}",
+                        diag.payload()
+                    ),
+                    "{decision:?}, {escalation:?}"
+                );
+            }
+        }
     }
 
     /// The split lane's adjacency question on a conic between edge (a

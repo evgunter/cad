@@ -1375,6 +1375,17 @@ pub enum ValidationError {
         /// The solid whose oriented boundary encloses negative volume.
         solid: SolidKey,
     },
+    /// **A sliver read inside-out by a ray.** Check 7 passed `solid` with
+    /// its `V/A` in band, which the +V invariant exempts
+    /// ([`Self::NegativeVolume`]), and a ray that met none of its boundary
+    /// left a point in its material: infinity lies inside it. The tier-3
+    /// battery never raises it. The Boolean does, for an operand read as
+    /// given (`boolean::reduce`'s operand gate, and every witness read of
+    /// a missed ray's side against an operand).
+    SliverInsideOut {
+        /// The solid whose material holds the side at infinity.
+        solid: SolidKey,
+    },
     /// Tier 3: the exact-B-rep volume for the +V invariant could not
     /// be computed — a face's boundary fell outside the M2
     /// iso-rectangle inventory or its closed-form classification
@@ -3424,6 +3435,12 @@ pub(crate) fn classify_point_in_solid(
                 .into(),
             NOT_YET_ENDING.into(),
         ),
+        S::InsideOut => (
+            "a solid the check read holds the side at infinity in its material, so it is \
+             inside-out"
+                .into(),
+            "Recourse: build it with its faces pointing outward, or revert it".into(),
+        ),
         S::KindUnsupported { kind, .. } => (
             format!(
                 "a face the check read is a {} surface, which it has no way yet to cross",
@@ -3774,6 +3791,11 @@ impl fmt::Display for ValidationError {
             Self::NegativeVolume { .. } => write!(
                 f,
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
+            ),
+            Self::SliverInsideOut { .. } => f.write_str(
+                "a solid too thin for its volume to show its orientation is inside-out: \
+                 a ray from outside it crosses into its material. Recourse: build it with \
+                 its faces pointing outward, or revert it",
             ),
             Self::VolumeUncomputable { source, .. } => {
                 let MassPropsReading { why, recourse, .. } = classify_mass_props(source);

@@ -678,6 +678,13 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "PinchRaysInAFace",
+            BooleanError::PinchRaysInAFace {
+                operand: Operand::A,
+                face: FaceKey::default(),
+            },
+        ),
+        (
             "VertexReadTwice",
             BooleanError::VertexReadTwice {
                 operand: Operand::A,

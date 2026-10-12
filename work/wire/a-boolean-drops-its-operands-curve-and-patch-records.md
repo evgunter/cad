@@ -33,3 +33,27 @@ scenes that passed 3′ on F's carry hold vertex and edge contacts only.
   curve and the third folds in after them, and its 3′ verdict.
 - The carried kinds for curve and patch records, under `remap_carried`'s
   drop rules (a curve record survives where its curve's entities do).
+
+## 2026-10-11 — an edge-face span the op now mints, dropped on carry (FLUSH, PR 4737)
+
+PR 4737 makes the boolean record a line edge's span in a plane face
+(`boolean::ops::record_spans`). `ContactRecords::carried` drops that
+record like any edge–face one, so the next op never sees it. The
+review probe battery `sweep` `review_4737_span_probes::review_4737_span_battery`
+(ignored, release) unites a triangle prism with a brick whose face
+`y = 0.5` holds the prism's apex edge, then cuts the union with a plate
+across the contact, carrying its records:
+
+```
+CARRY ang=0 whole_in_face plate I x => records=[0, 0, 0, 0, 0, 0]
+  t3p=ERR [UnrecordedContact VertexOnEdge (0.0, 0.5, 1.123),
+           UnrecordedContact VertexOnEdge (0.0, 0.5, 0.8),
+           UnrecordedContact EdgeFaceOverlap (0.0, 0.5, 0.9615), ...]
+```
+
+18 of the battery's `plate I x` lines refuse 3′ this way, at all three
+turns. The lines are identical on PR 4737's pre-fix head (`dfe5ea10`):
+the carry drops the face span, and the cut's new ends on the apex edge
+have nothing to inherit. Carrying an edge–face record through the cut's
+lineage (onto the pieces whose interiors still meet the face, as D1
+rules for an edge–edge one) is this row's owed step for that kind.

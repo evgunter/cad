@@ -1342,7 +1342,19 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
 impl<T: Real> Geo<T> {
     /// Whether `a` and `b` are one vertex or sit on one point — the
     /// structural rung of D1 tier 3′ ("same surface or point key"): an
-    /// op's copies of one vertex share its point.
+    /// op's copies of one vertex share its point, and so do the cones of
+    /// a pinch (Ev, PR 4057), whose vertices may be copies of several
+    /// operand vertices the op glued there by a value decision (one
+    /// pierce ring serving several pierces, `boolean::vtxfac::mint_ring`,
+    /// whose seams tie their keys, `boolean::zip::share_points`). The op
+    /// records that decision (`DecisionSite::VertexFusion`) for the
+    /// `unproven-coincidence` lint where a record of its result cites it
+    /// (`boolean::reduce::PendingRow`): where the cones stay distinct
+    /// vertices, the record of the cones. Where the decision glues them
+    /// into one vertex, that record is gone, and the row is emitted only
+    /// where another touch at the point cites it through its chain (a
+    /// vertex on a face there). The census reads keys, not lineage, so
+    /// it cannot tell the cases apart and does not ask for the record.
     fn same_point(&self, a: VertexKey, b: VertexKey) -> bool {
         a == b
             || matches!(
@@ -3170,6 +3182,21 @@ pub(crate) fn face_reach<T: Decide>(
     face_reach_in(body, f, band, &crate::boolean::boxes::BoxFrame::World)
 }
 
+/// **The axis-aligned hull of `points`**: its low and high corners, each
+/// coordinate the least and the greatest. `None` for no points.
+pub(crate) fn point_hull<T: Decide>(
+    points: impl IntoIterator<Item = Point3<T>>,
+) -> Option<(Point3<T>, Point3<T>)> {
+    let mut it = points.into_iter();
+    let first = it.next()?;
+    Some(it.fold((first, first), |(lo, hi), p| {
+        (
+            Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z)),
+            Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
+        )
+    }))
+}
+
 /// [`face_reach`] read in `frame` ([`crate::boolean::boxes::BoxFrame`]):
 /// every point and direction the rule reads enters through the frame,
 /// and every extent is the same one.
@@ -3201,14 +3228,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             // the container, where dropping it would under-claim.
             geom::NetState::Placeholder | geom::NetState::Poisoned => None,
             geom::NetState::Described => {
-                let mut it = patch.control().iter().map(|p| frame.point(*p));
-                let first = it.next()?;
-                let (mut lo, mut hi) = (first, first);
-                for p in it {
-                    lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
-                    hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
-                }
-                Some((lo, hi))
+                point_hull(patch.control().iter().map(|p| frame.point(*p)))
             }
         },
         crate::boolean::boxes::FaceBoxRule::SphereWindow => {
@@ -3849,6 +3869,10 @@ impl Undecided {
                 Self::CorruptInstance
             }
             E::Loop(L::OffPlane(_)) => Self::OffPlane,
+            E::InsideOut => unreachable!(
+                "the census reads its instances' own selections, never one read as given, \
+                 and only that refuses InsideOut"
+            ),
         }
     }
 }
@@ -5570,16 +5594,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         }
         true
     };
-    let hull = |pts: &[Point3<T>]| -> Option<(Point3<T>, Point3<T>)> {
-        let mut it = pts.iter();
-        let first = *it.next()?;
-        let (mut lo, mut hi) = (first, first);
-        for p in it {
-            lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
-            hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
-        }
-        Some((lo, hi))
-    };
+    let hull = |pts: &[Point3<T>]| point_hull(pts.iter().copied());
     let reach_box = |f: FK| face_reach(body, f, band);
 
     // Arm 1: cross-solid proximity — curved × curved, (F5) curved ×
@@ -6733,17 +6748,28 @@ fn interiors_meet<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
-    let ncross = ea.dir.cross(eb.dir);
-    match gap_is_zero(
-        "pm_census_ee_parallel",
-        Margin::levered(ncross.norm(), ea.len.min(eb.len)),
-        band,
-        errors,
-    ) {
-        Some(false) => crossing_reading(ea, eb, ncross, band, errors).map(|cross| cross.is_some()),
+    match parallel(ea, eb, band, errors) {
+        Some(false) => crossing_reading(ea, eb, ea.dir.cross(eb.dir), band, errors)
+            .map(|cross| cross.is_some()),
         Some(true) => Some(collinear_overlap(ea, eb, band, errors).is_some()),
         None => None,
     }
+}
+
+/// Whether two line edges are parallel: the sine between them levered
+/// at the shorter's length. `None` where it escalated (pushed).
+fn parallel<T: Decide>(
+    ea: &EdgeGeo<T>,
+    eb: &EdgeGeo<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    gap_is_zero(
+        "pm_census_ee_parallel",
+        Margin::levered(ea.dir.cross(eb.dir).norm(), ea.len.min(eb.len)),
+        band,
+        errors,
+    )
 }
 
 /// A segment's census geometry, for the questions an op asks of two
@@ -6877,6 +6903,32 @@ pub(crate) fn segments_apart<T: Decide>(
     let before = |t: T| sign(t) == Ok(Sign::Negative);
     let after = |t: T| sign(t - e.len) == Ok(Sign::Positive);
     (before(t0) && before(t1)) || (after(t0) && after(t1))
+}
+
+/// [`parallel`] over two segments: whether their lines are parallel,
+/// decided as an edge-edge record's confirm pass decides it.
+///
+/// # Errors
+///
+/// The escalated decision.
+pub(crate) fn segments_parallel<T: Decide>(
+    a: (Point3<T>, Point3<T>),
+    b: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut errors = Vec::new();
+    let parallel = parallel(&segment(a), &segment(b), band, &mut errors);
+    escalation(parallel, errors)
+}
+
+/// The point of `a`'s line nearest `b`'s, for two segments whose lines
+/// are not parallel: where they cross, once they are decided to meet
+/// ([`ee_cross_point`]).
+pub(crate) fn segment_cross_point<T: Real>(
+    a: (Point3<T>, Point3<T>),
+    b: (Point3<T>, Point3<T>),
+) -> Point3<T> {
+    ee_cross_point(&segment(a), &segment(b))
 }
 
 /// A census answer, or the escalation it pushed.

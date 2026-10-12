@@ -2285,6 +2285,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchConesOnSeparateKeys
+        | BooleanErrorKind::PinchRaysInAFace
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
@@ -2559,13 +2560,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ArcSphereRoots",
         1,
     ),
-    ("finish.rs", "corner_holds", "Coincide::Sectors", 1),
-    (
-        "finish.rs",
-        "weld_pinches",
-        "BooleanDecision::VertexOnVertex",
-        1,
-    ),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
@@ -2690,6 +2684,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "ledger", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "ledger", "BooleanDecision::VertexOnVertex", 1),
     ("ops.rs", "ledger", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
+    ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
     (
         "ops.rs",
         "volume_backstop",
@@ -2864,6 +2860,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
+    (
+        "vtxfac.rs",
+        "ring_groups",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
     (
         "zip.rs",
         "one_vertex_sense",

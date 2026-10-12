@@ -545,8 +545,9 @@ pub enum MergeCoplanarError {
         fitted: bool,
     },
     /// Whether a kept face's boundary edge lies on both faces it bounds
-    /// could not be decided at this tolerance: its exact carrier reads
-    /// within the band of one of their surfaces and not clearly on it,
+    /// could not be decided at this tolerance: its line chord reads
+    /// within the band of one of their surfaces and not clearly on it
+    /// ([`edge_on_faces_reading`]),
     /// so the edge has no certified description. Refused, never
     /// guessed.
     KeptBoundaryOffFace {
@@ -672,18 +673,78 @@ pub(crate) enum DescribeRefusal {
         reading: DihedralReading,
         diag: Indeterminate,
     },
-    /// Its exact carrier reads within the band of one of its two faces'
-    /// surfaces, and not clearly on it.
+    /// Its line chord reads within the band of one of its two faces'
+    /// surfaces, and not clearly on it ([`edge_on_faces_reading`]).
     OffFace { edge: EdgeKey, diag: Indeterminate },
 }
 
-/// The lever of an edge whose exact carrier reads in band of a face it
-/// bounds, at both doors ([`MergeCoplanarError::KeptBoundaryOffFace`],
-/// the Boolean's `EdgeOnFaces`): its ends are vertices an earlier
-/// reading placed on the faces they meet, and its residual passes only
-/// at zero, so no tolerance is its recourse.
-pub(crate) const EDGE_ON_FACES_LEVER: &str = "move the geometry so each edge and vertex that meets \
-                                              a face lies clearly on that face or clearly off it";
+/// The question an edge read in band of a face it bounds asks, about
+/// `$edge` as its door names it: the Boolean's `EdgeOnFaces`, the merge
+/// door's [`MergeCoplanarError::KeptBoundaryOffFace`], the split's
+/// `EdgeOnFacesEscalated`.
+macro_rules! edge_on_faces_subject {
+    ($edge:literal) => {
+        concat!("whether ", $edge, " lies on both faces it bounds")
+    };
+}
+pub(crate) use edge_on_faces_subject;
+
+/// Its lever, after the door's own mover, about `$meets`: the residual
+/// passes only at zero, so no tolerance is its recourse. An edge that
+/// ends on the face cannot lie clearly off it, so the clearance it needs
+/// there is an angle.
+macro_rules! edge_on_faces_lever {
+    ($mover:expr, $meets:literal) => {
+        concat!(
+            $mover,
+            " so each edge and vertex that meets ",
+            $meets,
+            " lies clearly on it or clearly off it, and an edge that ends on it leaves it at a \
+             clear angle"
+        )
+    };
+}
+
+/// [`edge_on_faces_lever!`] at the Boolean and the merge door.
+pub(crate) const EDGE_ON_FACES_LEVER: &str =
+    edge_on_faces_lever!(geom_core::coincidence_move_arm!(), "a face");
+
+/// [`edge_on_faces_lever!`] at the split, whose plane is the first lever.
+pub(crate) const EDGE_ON_PLANE_LEVER: &str =
+    edge_on_faces_lever!(geom_core::split_plane_recourse!(), "the plane");
+
+/// **Whether an attachment refusal is an edge's own reading on its
+/// faces**, the input's (D9 row 1), at every door that describes an edge
+/// between vertices an earlier reading placed: its carrier's residual
+/// against a surface it lies on, or its chart image's, read in band, on a
+/// line carrier. A line is the chord between those vertices, so its miss
+/// is their offset plus a rounding, which escalating tells truly. A
+/// circle, ellipse, spiric or spline is a construction from the surfaces,
+/// whose own error can be amplified into the band (an ellipse nearly along
+/// a cylinder's axis carries its semi-major axis's rounding), so it keeps
+/// the gate's refusal, as does every other check and a definite miss.
+pub(crate) fn edge_on_faces_reading(
+    carrier: geom::CurveKind,
+    refusal: &EulerOpError,
+) -> Option<Indeterminate> {
+    let (EulerOpError::Certification { error } | EulerOpError::RechartFalsifies { error, .. }) =
+        refusal
+    else {
+        return None;
+    };
+    match (carrier, error) {
+        (
+            geom::CurveKind::Line,
+            geom_brep::CertifyError::Escalated {
+                check:
+                    geom_brep::CertCheck::SurfaceResidual { .. } | geom_brep::CertCheck::ChartResidual,
+                cause,
+                ..
+            },
+        ) => Some(*cause),
+        _ => None,
+    }
+}
 
 /// An attachment refusal's payload without its ending: a definite
 /// residual's check, sample and miss; any other certification
@@ -710,8 +771,8 @@ pub(crate) fn refusal_payload(cause: &EulerOpError) -> String {
 /// doors: the certification table's own, read at a build, where the
 /// description was offered on a fitted carrier, whose miss may be the
 /// fit's limit (`geom_brep::recourse::Unsized::Fit`); otherwise the
-/// defect ending, since the kernel placed an exact carrier, or its walk
-/// broke.
+/// defect ending, since the kernel constructed an exact carrier, or its
+/// walk broke.
 pub(crate) fn undescribed_ending(cause: Option<&EulerOpError>, fitted: bool) -> String {
     match cause {
         Some(EulerOpError::Certification { error }) if fitted => error
@@ -1196,7 +1257,7 @@ impl core::fmt::Display for MergeCoplanarError {
                 "merge_coplanar_faces: re-describing kept face {face:?}'s boundary edge {edge:?}, \
                  {}",
                 diag.undecided(
-                    "whether the edge lies on both faces it bounds",
+                    edge_on_faces_subject!("the edge"),
                     geom_brep::recourse::LeverOnly {
                         lever: EDGE_ON_FACES_LEVER,
                     }

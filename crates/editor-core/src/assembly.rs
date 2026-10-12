@@ -1920,6 +1920,7 @@ fn attribute(
         | ValidationError::LoopRoleInverted { .. }
         | ValidationError::CurvedSenseInverted { .. }
         | ValidationError::NegativeVolume { .. }
+        | ValidationError::SliverInsideOut { .. }
         | ValidationError::VolumeUncomputable { .. }
         | ValidationError::VolumeSignUnresolved { .. }
         | ValidationError::Pcurve { .. }
