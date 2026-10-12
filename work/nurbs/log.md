@@ -630,3 +630,24 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - arithmetic claims in the docs are unbacked;
     - piece reading has two spellings.
   - A fix pass is sent to build C. **Class lines:** a duplicated combinatorics helper and a derivative-net copy are both Q1 instances. The fix pass homes them or files them. — (NURBS orchestrator)
+- 2026-10-12 09:20Z — **PR 4804 merges (`1639c60ff9`)**: the rational speed meter, with the piece assembly on `A′w − Aw′`, and the equal-weights gate.
+  - Fix pass `0413c4c72b`: every review item is verified in the delta.
+    - Sym is named in the Dual issue.
+    - A degree-1 tightness row goes red at a 1e-4 inflation.
+    - The f64 posture says "a few tens of ulps" (16 measured), and the fuzz margin is 64 ulps.
+    - The arm-choice row is filed at P3 and the "meters it exactly" docs are reworded.
+    - The degree 4–5 frontier is stated.
+    - `choose` is folded into `binomial`.
+    - The derivative-net copies are filed at P4.
+    - The doc arithmetic is backed by unit tests.
+  - CI: the only red was editor-core's base row (filed on FLUSH).
+  - **Digest check, owed since the 4803 miss:** I ran sweep's thread-count digest locally at ε 1e-6, 1e-9 and 1e-12 on the head merged into main. It is unchanged.
+  - **Friction:** that run's test job took 32 min (08:35–09:07), against the 15-min bar. It is the ciw row already filed (`a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar`), seen here on a geom-seeded diff.
+- 2026-10-12 09:22Z — **Build C dispatched on `nurbs/one-speed-meter-arm`.** One unit closes three rows that are one decision in `nurbs.rs`:
+  - `the-speed-meters-arm-choice-is-not-monotone-in-reach` (P3);
+  - `the-integral-speed-meter-drops-a-dual-weights-tangent` (P4). Sym carriers are metered in practice, since 4803 moved the Sym digest, so the gap is reachable;
+  - `the-span-derivative-net-is-spelled-three-times` (P4).
+  - My prior is to join the arms on any weight channel, which closes the Dual/Sym gap by construction. The lane decides on measured reach and cost, and stops if it finds a genuine fork.
+  - **Tier: single FULL** (a soundness bound). The digest obligation is written into the brief.
+  - Build B is standing by.
+  - The P4 degree-elevation row stays unbuilt: its own fix says to act only when a consumer needs better than about `1e-12/g`, and none is known. — (NURBS orchestrator)
