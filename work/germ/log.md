@@ -974,3 +974,12 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-10-12 01:19 — Check-in: nothing ready. r4646b is alive and running mutants and fuzz (latest write 01:16). U-T2 (4743) is at `1c5d2bf0` with CI running; the lane traced its loft red to main and is merging latest main.
 - 2026-10-12 02:20 — U-T2 (4743) lane is idle at `1c5d2bf04` (+1303/−224, 19 files). It rebuilt the torus ring closure on path parity, not the torus chart, and updated spec §0.2, §1.3 and U-T2. Hosted test and gate are red; the lane says the loft row is red on main too, and the reviewer names every failure against main. One local review, r4743, is dispatched (brief sha256 `e350896bc86f`, in its own lane dir). r4646b is still running (fz written 01:36).
 - 2026-10-12 03:20 — Check-in: nothing ready. r4646b is fuzzing (latest write 03:20); r4743 is building its head (log 03:12). The container has been up 4h, so neither was lost.
+- 2026-10-12 04:05 — **PR 4646's second review (r4646b) is in: APPROVE-WITH-FIXES, 0/2/1.**
+  - The first review's MAJOR is confirmed fixed: of 577 sign-misread through-apex planes, the frozen head served 217 and this head serves 4, worst 0.43ε.
+  - The bound holds over 40,000 draws; the one past the band is pre-existing and identical on main.
+  - Every mutant is red at three ε. Every suite red is identical on main by name, so main's reds are now named rows. `near_tangent_pierce_poses` is green at 1e-6.
+  - MINORs:
+    - the offset row's tier-3 claim and its new flux item are stale (the body now builds, probably since PR 4680);
+    - R assumes an orthonormal cone frame (pre-existing; to file).
+  - Report saved at `scratchpad/dr4646/R2.md`.
+  - Fix pass 2: cloud session `session_01Dwdr5uZY3pD9V44RfyZkUx`. Then the row (sequential, M, tallied 0, major true, per precedent PR-4359/4553/4702) and merge.
