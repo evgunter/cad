@@ -2,11 +2,13 @@
 id: a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact
 kind: issue
 title: A union bridging a declared plane-to-cylinder Tangent rest fuses its two shells into one whose wall touches the face interior along a line no edge carries, and both at-rest gates pass it
-status: open
+status: review
 opened: 2026-10-03
 priority: P1
 cost: M
 refs: [tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line, 3987]
+branch: contacthold/face-face-touch-row
+pr: 4921
 ---
 
 
