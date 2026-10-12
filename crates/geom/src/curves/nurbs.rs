@@ -2237,6 +2237,7 @@ impl<T: Real> NurbsCurve3<T> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{NurbsCurve3, binomial, pieces_exact};
     use geom_core::spline::{KnotVector, Knots};
