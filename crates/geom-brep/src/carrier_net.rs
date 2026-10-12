@@ -241,11 +241,11 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> [Vec<Interval>; 3] {
         // The polynomial's coefficients in `s`.
         let mut mono = vec![Interval::zero(); n + 1];
         for (j, cj) in node.iter().take(n + 1).enumerate() {
-            for k in 0..=j {
+            for (k, mk) in mono.iter_mut().enumerate().take(j + 1) {
                 let term = Interval::from_f64(binom(j, k))
                     * am.powi(i32::try_from(j - k).unwrap_or(i32::MAX))
                     * w.powi(i32::try_from(k).unwrap_or(i32::MAX));
-                mono[k] = mono[k] + *cj * term;
+                *mk = *mk + *cj * term;
             }
         }
         // Monomial to Bernstein: `bᵢ = Σ_{k≤i} C(i,k)/C(n,k)·aₖ`.

@@ -577,7 +577,26 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<(T, T), SsiError> {
     // Limb 2's hull: `S(P(t)) − C(t)` enclosed as one composite, cut
     // at `cuts` besides the chart breaks, in metres.
-    let hull = net_rounds(carrier, pcurve, surface);
+    let chart = chart_breaks(carrier.knots(), pcurve.knots());
+    let (coords, pcoords, scoords) = (
+        carrier.certified_coords(),
+        pcurve.certified_coords(),
+        surface.certified_coords(),
+    );
+    let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
+        let (cdata, pdata, sdata) = chart_data(
+            (carrier.knots(), carrier.weight_channel(), &coords),
+            (pcurve.knots(), pcurve.weight_channel(), &pcoords),
+            (
+                surface.knots_u(),
+                surface.knots_v(),
+                surface.weight_channel(),
+                &scoords,
+            ),
+        )?;
+        let extra: Vec<f64> = chart.iter().chain(cuts).copied().collect();
+        chart_composite(&cdata, &pdata, &sdata, &extra)
+    };
     // ---- limb 1: the fixed schedule, through certified foot points --
     // The schedule on the carrier's held domain (its ends held, its
     // interior stations chosen points; the pcurve shares the carrier's
@@ -626,8 +645,40 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     Ok((worst, sup))
 }
 
+/// The three operands of limb 2's composite as certification data,
+/// each refusal named for its operand.
+#[allow(clippy::type_complexity)]
+pub(crate) fn chart_data<'a>(
+    (ck, cw, cc): (&'a KnotVector, &'a [f64], &'a [Vec<Interval>]),
+    (pk, pw, pc): (&'a KnotVector, &'a [f64], &'a [Vec<Interval>]),
+    (su, sv, sw, sc): (
+        &'a KnotVector,
+        &'a KnotVector,
+        &'a [f64],
+        &'a [Vec<Interval>],
+    ),
+) -> Result<
+    (
+        CurveCertData<'a>,
+        CurveCertData<'a>,
+        tensor::SurfaceCertData<'a>,
+    ),
+    SsiError,
+> {
+    let malformed = |what| move |_| SsiError::UnsupportedCertificate { what };
+    Ok((
+        CurveCertData::new(ck, cw, cc).map_err(malformed(
+            "the fitted carrier's enclosure data is malformed",
+        ))?,
+        CurveCertData::new(pk, pw, pc)
+            .map_err(malformed("the traced pcurve's enclosure data is malformed"))?,
+        tensor::SurfaceCertData::new(su, sv, sw, sc)
+            .map_err(malformed("the NURBS operand's enclosure data is malformed"))?,
+    ))
+}
+
 /// Limb 2's composite of one round: `S(P(t)) − C(t)` against the
-/// spline chart `surface`, enclosed as one tensor composite cut at
+/// spline chart `sdata`, enclosed as one tensor composite cut at
 /// `extra` besides both curves' knots.
 ///
 /// The tensor-product Bernstein composition encloses the difference at
@@ -638,30 +689,13 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
 /// samples anything (C2.2). Both curves are decomposed onto the merged
 /// break list by exact knot insertion, so a carrier and a pcurve on
 /// different knot vectors are aligned structurally.
-fn chart_composite<T: Decide + Bounds + CertifiedEnclosure>(
+pub(crate) fn chart_composite(
     cdata: &CurveCertData<'_>,
-    pcurve: &NurbsCurve2<T>,
-    surface: &NurbsSurface<T>,
+    pdata: &CurveCertData<'_>,
+    sdata: &tensor::SurfaceCertData<'_>,
     extra: &[f64],
 ) -> Result<Hull, SsiError> {
-    let pcoords = pcurve.certified_coords();
-    let pdata =
-        CurveCertData::new(pcurve.knots(), pcurve.weight_channel(), &pcoords).map_err(|_| {
-            SsiError::UnsupportedCertificate {
-                what: "the traced pcurve's enclosure data is malformed",
-            }
-        })?;
-    let scoords = surface.certified_coords();
-    let sdata = tensor::SurfaceCertData::new(
-        surface.knots_u(),
-        surface.knots_v(),
-        surface.weight_channel(),
-        &scoords,
-    )
-    .map_err(|_| SsiError::UnsupportedCertificate {
-        what: "the NURBS operand's enclosure data is malformed",
-    })?;
-    let residual = tensor::surface_curve_residual(&sdata, &pdata, cdata, extra).map_err(|_| {
+    let residual = tensor::surface_curve_residual(sdata, pdata, cdata, extra).map_err(|_| {
         SsiError::UnsupportedCertificate {
             what: "the tensor composite refused the carrier/pcurve pair (mismatched channel \
                    counts or knot domains — the shared-parameter identity is the entry \
@@ -680,76 +714,6 @@ fn chart_composite<T: Decide + Bounds + CertifiedEnclosure>(
         work: residual.span_bounds().len(),
         data: (),
     })
-}
-
-/// A spline carrier's limb-2 rounds against `surface`: each round's
-/// composite cut at `cuts` besides the carrier domain's uniform breaks
-/// ([`chart_breaks`]).
-fn net_rounds<'a, T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &'a NurbsCurve3<T>,
-    pcurve: &'a NurbsCurve2<T>,
-    surface: &'a NurbsSurface<T>,
-) -> impl Fn(&[f64]) -> Result<Hull, SsiError> + 'a {
-    let chart = chart_breaks(carrier.knots(), pcurve.knots());
-    let coords = carrier.certified_coords();
-    move |cuts| {
-        let cdata = CurveCertData::new(carrier.knots(), carrier.weight_channel(), &coords)
-            .map_err(|_| SsiError::UnsupportedCertificate {
-                what: "the fitted carrier's enclosure data is malformed",
-            })?;
-        let extra: Vec<f64> = chart.iter().chain(cuts).copied().collect();
-        chart_composite(&cdata, pcurve, surface, &extra)
-    }
-}
-
-/// **Limb 2 against one spline chart, alone**: a certified bound on
-/// `sup |S(P(t)) − C(t)|` over the pcurve's domain, decided zero
-/// against the band, with no mate and no tube. A spline carrier enters
-/// as its own net, on the pcurve's domain (the composite pairs them on
-/// one). A closed-form carrier enters as its enclosing net over the
-/// pcurve's domain ([`crate::carrier_net`]), re-enclosed at every
-/// round's breaks, so a halving shrinks its remainder too.
-///
-/// # Errors
-///
-/// As [`certify_branch`]'s limb 2; [`SsiError::UnsupportedCertificate`]
-/// for a closed-form carrier its arithmetic cannot enclose over a span.
-pub(crate) fn chart_hull_sup<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &geom::Curve3<T>,
-    pcurve: &NurbsCurve2<T>,
-    surface: &NurbsSurface<T>,
-    band: Band,
-) -> Result<T, SsiError> {
-    let mut at = Refused::default();
-    if let geom::Curve3::Nurbs(net) = carrier {
-        let hull = net_rounds(net, pcurve, surface);
-        return hull_limb(&CHART_HULL, subdivide(hull, band)?, band, &mut at);
-    }
-    let kv = pcurve.knots();
-    let (lo, hi) = kv.domain();
-    let knots: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
-    let grid = range_grid_points(lo, hi, SSI_CERT_SPANS, &knots);
-    let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
-        let mut breaks: Vec<f64> = knots.iter().chain(&grid).chain(cuts).copied().collect();
-        breaks.push(lo);
-        breaks.push(hi);
-        breaks.sort_by(f64::total_cmp);
-        breaks.dedup();
-        let net = crate::carrier_net::enclosing_net(carrier, &breaks).ok_or(
-            SsiError::UnsupportedCertificate {
-                what: "the carrier has no certified enclosure over a span of its image's \
-                       domain",
-            },
-        )?;
-        let weights = vec![1.0; net.knots.control_count()];
-        let cdata = CurveCertData::new(&net.knots, &weights, &net.coords).map_err(|_| {
-            SsiError::UnsupportedCertificate {
-                what: "the carrier's enclosing net is malformed",
-            }
-        })?;
-        chart_composite(&cdata, pcurve, surface, &[])
-    };
-    hull_limb(&CHART_HULL, subdivide(hull, band)?, band, &mut at)
 }
 
 /// A limb's verdict on its residual: `Ok` where it is zero to tolerance
@@ -1051,7 +1015,7 @@ pub(crate) fn subdivide<P, E>(
 
 /// One arm of limb 2: the predicates it decides its bound and its value
 /// at, and the limb a refusal on the value names.
-struct HullArm {
+pub(crate) struct HullArm {
     /// The bound's predicate.
     sup: &'static str,
     /// The value's predicate.
@@ -1070,7 +1034,7 @@ const ANALYTIC_HULL: HullArm = HullArm {
 
 /// Limb 2 against a NURBS operand: its value at a break is the bound's
 /// quantity at a point.
-const CHART_HULL: HullArm = HullArm {
+pub(crate) const CHART_HULL: HullArm = HullArm {
     sup: "ssi_hull_sup_chart",
     value: "ssi_hull_value_chart",
     value_limb: SsiLimb::HullValueChart,
@@ -1081,7 +1045,7 @@ const CHART_HULL: HullArm = HullArm {
 /// Interval arithmetic answers with `f64` bounds, lifted here so the
 /// limb is banded at the caller's scalar like every other residual
 /// (field docs).
-fn hull_limb<T: Decide>(
+pub(crate) fn hull_limb<T: Decide>(
     arm: &HullArm,
     stopped: Subdivided,
     band: Band,
@@ -1123,7 +1087,7 @@ fn hull_limb<T: Decide>(
 /// spacing) of an interior knot of EITHER curve. The composite merges
 /// both curves' knots into its break list, so a grid point near either
 /// one's knot would open a narrow span beside it.
-fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64> {
+pub(crate) fn chart_breaks(carrier: &KnotVector, pcurve: &KnotVector) -> Vec<f64> {
     let (lo, hi) = carrier.domain();
     let knots: Vec<f64> = carrier
         .interior_knots()

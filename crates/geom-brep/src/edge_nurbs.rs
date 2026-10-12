@@ -73,7 +73,7 @@
 //! a bound says that without an impl to write.
 
 use core::num::NonZeroUsize;
-use geom::{Curve3, NurbsCurve2, NurbsCurve3};
+use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
 use geom_core::spline::{KnotVector, SpanLocate, SplineError};
@@ -586,7 +586,8 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // hook, so the ORDER in which the two refusals can fire is exactly
     // what it was when the two loops were one.
     let mut min_sin = T::from_f64(f64::MAX);
-    let pcurve = chart_image(carrier, wall, |i, foot| {
+    let eval = |t| carrier.eval(t);
+    let pcurve = chart_image(net_schedule(carrier, &eval), wall, |i, foot| {
         // Transversality at the INTERIOR samples only: an endpoint is
         // shared with the neighbouring edges, where a vanishing angle
         // is a vertex fact rather than this edge's — the analytic
@@ -696,12 +697,13 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     }
     .map_err(refusal)?;
     let mut feet_a: Vec<Point2<f64>> = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
-    let pcurve_a = chart_image(carrier, a, |_, foot| {
+    let eval = |t| carrier.eval(t);
+    let pcurve_a = chart_image(net_schedule(carrier, &eval), a, |_, foot| {
         feet_a.push(foot);
         Ok(())
     })?;
     let mut min_sin = T::from_f64(f64::MAX);
-    let pcurve_b = chart_image(carrier, b, |i, foot| {
+    let pcurve_b = chart_image(net_schedule(carrier, &eval), b, |i, foot| {
         // Interior samples only, as the plane lane reads them.
         if i == 0 || i == PXN_FIT_SAMPLES - 1 {
             return Ok(());
@@ -1245,6 +1247,19 @@ impl core::fmt::Display for AnalyticRung3Refusal {
     }
 }
 
+/// What [`chart_image`] reads of a carrier: its evaluator, the `f64`
+/// domain the schedule spans, and that domain's ends as the carrier
+/// holds them.
+pub(crate) type Schedule<'a, T> = (&'a dyn Fn(T) -> geom_core::Point3<T>, (f64, f64), (T, T));
+
+/// A spline carrier's [`Schedule`]: its own knot domain, held.
+pub(crate) fn net_schedule<'a, T: SpanLocate>(
+    carrier: &'a NurbsCurve3<T>,
+    eval: &'a dyn Fn(T) -> geom_core::Point3<T>,
+) -> Schedule<'a, T> {
+    (eval, carrier.domain(), carrier.knot_values().domain())
+}
+
 /// **The chart image of a declared carrier on a NURBS wall** — the one
 /// derivation of this object in the tree.
 ///
@@ -1282,59 +1297,11 @@ impl core::fmt::Display for AnalyticRung3Refusal {
 /// whose projection does not converge (never a best-effort foot);
 /// [`PlaneNurbsRefusal::PcurveFit`] when the interpolation refuses; or
 /// whatever `per_sample` returns.
+///
+/// The carrier enters as its [`Schedule`]: [`net_schedule`] for a
+/// spline, its own knot domain and held ends.
 pub(crate) fn chart_image<T, F>(
-    carrier: &NurbsCurve3<T>,
-    wall: &NurbsSurface<T>,
-    per_sample: F,
-) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>
-where
-    T: Decide + Bounds + geom_core::CertifiedEnclosure,
-    F: FnMut(u32, Point2<f64>) -> Result<(), PlaneNurbsRefusal>,
-{
-    image_on_schedule(
-        |t| carrier.eval(t),
-        carrier.domain(),
-        carrier.knot_values().domain(),
-        wall,
-        per_sample,
-    )
-}
-
-/// [`chart_image`] for any carrier: a spline's over its own domain, any
-/// other kind's over `params`' outer ends (its bracket's, so the image
-/// covers the interval at every scalar), its ends held there.
-///
-/// # Errors
-///
-/// As [`chart_image`].
-pub(crate) fn curve_chart_image<T>(
-    carrier: &Curve3<T>,
-    (t0, t1): (T, T),
-    wall: &NurbsSurface<T>,
-) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>
-where
-    T: Decide + Bounds + geom_core::CertifiedEnclosure,
-{
-    if let Curve3::Nurbs(net) = carrier {
-        return chart_image(net, wall, |_, _| Ok(()));
-    }
-    let (lo, hi) = (t0.lo().min(t1.lo()), t0.hi().max(t1.hi()));
-    image_on_schedule(
-        |t| carrier.eval(t),
-        (lo, hi),
-        (T::from_f64(lo), T::from_f64(hi)),
-        wall,
-        |_, _| Ok(()),
-    )
-}
-
-/// The schedule both doors above share: `eval` read at the
-/// [`PXN_FIT_SAMPLES`] stations of `(t0, t1)`, its ends held at
-/// `held`, each projected onto `wall` and the feet interpolated.
-fn image_on_schedule<T, F>(
-    eval: impl Fn(T) -> geom_core::Point3<T>,
-    (t0, t1): (f64, f64),
-    (h0, h1): (T, T),
+    (eval, (t0, t1), (h0, h1)): Schedule<'_, T>,
     wall: &NurbsSurface<T>,
     mut per_sample: F,
 ) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>

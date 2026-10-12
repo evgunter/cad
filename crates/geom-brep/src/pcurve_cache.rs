@@ -2288,19 +2288,32 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
     wall: &NurbsSurface<T>,
 ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
     use crate::edge_nurbs::PlaneNurbsRefusal as P;
-    let (t0, t1) = match carrier {
-        Curve3::Nurbs(net) => net.domain(),
-        _ => (
-            params.0.lo().min(params.1.lo()),
-            params.0.hi().max(params.1.hi()),
-        ),
+    // A spline's image spans its own knot domain, which the composite
+    // pairs it on; any other carrier's spans `params`' outer ends (its
+    // bracket's, so the image covers the interval at every scalar),
+    // held there.
+    let eval = |t| carrier.eval(t);
+    let schedule = match carrier {
+        Curve3::Nurbs(net) => crate::edge_nurbs::net_schedule(net, &eval),
+        _ => {
+            let (lo, hi) = (
+                params.0.lo().min(params.1.lo()),
+                params.0.hi().max(params.1.hi()),
+            );
+            (
+                &eval as &dyn Fn(T) -> geom_core::Point3<T>,
+                (lo, hi),
+                (T::from_computed(lo), T::from_computed(hi)),
+            )
+        }
     };
+    let (t0, t1) = schedule.1;
     let certificate = |what| PcurveCertifyError::FittedCertificate {
         limb: None,
         what,
         magnitude: None,
     };
-    crate::edge_nurbs::curve_chart_image(carrier, params, wall).map_err(|e| match e {
+    crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(())).map_err(|e| match e {
         P::FootPointInconclusive {
             sample,
             last_distance,
@@ -2613,8 +2626,9 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
 }
 
 /// The fitted door's body for check 4 ([`crate::FittedLane`]): limb 2
-/// of C2 against this chart alone (`ssi::certify::chart_hull_sup`), a
-/// certified bound on `sup |S(P(t)) − C(t)|` over the image's domain.
+/// of C2 against this chart alone, a certified bound on
+/// `sup |S(P(t)) − C(t)|` over the image's domain, its rounds halved as
+/// `ssi::certify`'s limb 2 halves them.
 /// A closed-form carrier's image must cover the edge's interval
 /// `params`: its domain is the image's own, read as `f64` structure
 /// against the interval's outer ends (C6).
@@ -2653,7 +2667,64 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
             });
         }
     }
-    crate::ssi::certify::chart_hull_sup(carrier, image, chart, band).map_err(ssi_refusal)
+    use crate::ssi::certify::{
+        CHART_HULL, Hull, Refused, chart_breaks, chart_composite, chart_data, hull_limb, subdivide,
+    };
+    use geom_core::spline::algebra::range_grid_points;
+    // Each round's composite against this chart alone, cut at `cuts`
+    // besides the image's knots and the domain's uniform grid. A spline
+    // carrier enters as its own net; a closed-form one as its enclosing
+    // net over the round's breaks, so a halving shrinks its remainder
+    // too.
+    let (pcoords, scoords) = (image.certified_coords(), chart.certified_coords());
+    let pimage = (image.knots(), image.weight_channel(), &pcoords[..]);
+    let schart = (
+        chart.knots_u(),
+        chart.knots_v(),
+        chart.weight_channel(),
+        &scoords[..],
+    );
+    let stopped = if let Curve3::Nurbs(net) = carrier {
+        let grid = chart_breaks(net.knots(), image.knots());
+        let coords = net.certified_coords();
+        subdivide(
+            |cuts: &[f64]| -> Result<Hull, crate::ssi::SsiError> {
+                let (c, p, s) =
+                    chart_data((net.knots(), net.weight_channel(), &coords), pimage, schart)?;
+                let extra: Vec<f64> = grid.iter().chain(cuts).copied().collect();
+                chart_composite(&c, &p, &s, &extra)
+            },
+            band,
+        )
+    } else {
+        let (lo, hi) = image.knots().domain();
+        let knots: Vec<f64> = image.knots().interior_knots().map(|(k, _)| k).collect();
+        let grid = range_grid_points(lo, hi, crate::ssi::certify::SSI_CERT_SPANS, &knots);
+        subdivide(
+            |cuts: &[f64]| -> Result<Hull, crate::ssi::SsiError> {
+                let mut breaks: Vec<f64> = knots.iter().chain(&grid).chain(cuts).copied().collect();
+                breaks.extend([lo, hi]);
+                breaks.sort_by(f64::total_cmp);
+                breaks.dedup();
+                let enclosed = crate::carrier_net::enclosing_net(carrier, &breaks).ok_or(
+                    crate::ssi::SsiError::UnsupportedCertificate {
+                        what: "the carrier has no certified enclosure over a span of its \
+                               image's domain",
+                    },
+                )?;
+                let weights = vec![1.0; enclosed.knots.control_count()];
+                let (c, p, s) = chart_data(
+                    (&enclosed.knots, &weights, &enclosed.coords),
+                    pimage,
+                    schart,
+                )?;
+                chart_composite(&c, &p, &s, &[])
+            },
+            band,
+        )
+    };
+    let stopped = stopped.map_err(ssi_refusal)?;
+    hull_limb(&CHART_HULL, stopped, band, &mut Refused::default()).map_err(ssi_refusal)
 }
 
 /// The control-net diameter of a carrier, in metres — a convexity fact
