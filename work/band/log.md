@@ -885,3 +885,18 @@ gap times a corner-fixed ratio, so both readings are quadratic there. The
 README sentence and a comment were corrected before Ev answered "this
 design sounds good!". Fork-log row 121 (renumbered from 85 at merge) gets
 its second half. The build goes in three steps; step 1 is PR 4844.
+
+## 2026-10-12 — the turn reads its feet and its overrun chord (PR 4844, overrun step 1)
+
+A two-requested-edge turn at a trivalent plane–plane vertex reads two
+closed-form lengths per verb: the gap between the bands' feet on the third
+edge, and the overrun chord. Both Zero builds the mitre and records a
+`CommonFoot` coincidence (unproven at the document's door); both definite
+refuses `TURN_OVERRUN` naming the far band; anything else escalates. The
+sheared box's supplementary chamfer, refused before, now builds (convex and
+concave, at f64 and Interval, at the closed form). Cost H: a concurrent dual
+(DR row `PR-4844`), both APPROVE-WITH-FIXES, tally 0. Both reviews derived
+that the box-corner chamfer chord is the gap times a corner-fixed ratio —
+the `[ev]` analysis had said linear — and the README and PR 4245's comment
+were corrected before Ev ratified. The turn recourse drops its "clearly
+apart" leg until step 2 builds the overrun; step 2 restores it.
