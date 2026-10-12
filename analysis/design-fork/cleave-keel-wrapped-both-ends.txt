@@ -1,0 +1,5 @@
+fork: cleave keel wrapped round both ends (work/cleave/a-keel-in-the-plane-wrapped-round-at-both-ends-refuses-a-degenerate-section.md)
+dispatched: 2026-10-12
+urandom byte: 249
+mapping: Fable=A Opus=B
+protocol: 4fbf874b32
