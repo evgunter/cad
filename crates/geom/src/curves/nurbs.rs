@@ -1140,7 +1140,7 @@ macro_rules! nurbs_curve {
             /// honestly, so the margin collapses and the caller's
             /// trilean escalates rather than guessing.
             ///
-            /// **Rational carriers** — weights not all one held constant — take the
+            /// **Rational carriers** — weights not all one plain constant — take the
             /// second arm, [`Self::rational_speed_lower_bound`]. Equal
             /// weights cancel out of every evaluation, so such a curve
             /// is the polynomial one on the same net and this arm's
@@ -1181,12 +1181,16 @@ macro_rules! nurbs_curve {
             /// bounds on `‖C′‖`; neither is a claim about the curve's
             /// shape beyond its speed.
             ///
-            /// The arm is chosen on the weights' **held constants**
-            /// ([`SpanLocate::held_constant`]: every `w_j` the same
-            /// constant, exactly), never on an evaluation scalar and never
-            /// on the value channel alone, which would read a `Dual` or
-            /// `Sym` weight that moves with a parameter or a symbol as
-            /// the constant its value is.
+            /// The arm is chosen on the weights' **plain constants**
+            /// ([`SpanLocate::plain_constant`]: every `w_j` the same plain
+            /// constant, exactly), never on an evaluation scalar and
+            /// never on the value channel alone, which would read a
+            /// `Dual` or `Sym` weight that moves with a parameter or a
+            /// symbol as the constant its value is. That is the
+            /// conservative member of the class
+            /// `work/inlane/held-value-equalities-decided-on-the-value-channel.md`
+            /// names; a `T`-valued equality that `Sym` discharges would
+            /// add reach, never soundness.
             ///
             /// # Rounding posture
             ///
@@ -1249,16 +1253,16 @@ macro_rules! nurbs_curve {
             /// curve by its memo.
             fn speed_lower_bound_uncached(&self) -> geom_core::InfSpeed<T> {
                 let poison = T::from_f64(f64::NAN);
-                // Weights not all one held constant ⇒ rational: the
+                // Weights not all one plain constant ⇒ rational: the
                 // convexity argument does not hold directly, and the
-                // quotient-rule arm takes over. Equal constants cancel
-                // out of every evaluation, leaving the polynomial curve
-                // on the same net, which this arm's argument covers; a
-                // weight that carries a derivative or a symbol is no
-                // constant, whatever its value.
-                let held: Option<Vec<f64>> =
-                    self.weights.iter().map(|w| w.held_constant()).collect();
-                if !held.is_some_and(|h| h.windows(2).all(|w| w[0] == w[1])) {
+                // quotient-rule arm takes over. Equal plain constants
+                // cancel out of every evaluation, leaving the polynomial
+                // curve on the same net, which this arm's argument
+                // covers; a weight that carries a derivative or a symbol
+                // is no plain constant, whatever its value.
+                let constants: Option<Vec<f64>> =
+                    self.weights.iter().map(|w| w.plain_constant()).collect();
+                if !constants.is_some_and(|c| c.windows(2).all(|w| w[0] == w[1])) {
                     return geom_core::InfSpeed::new(self.rational_speed_lower_bound());
                 }
                 let p = self.knots.degree();

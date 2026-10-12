@@ -1799,8 +1799,8 @@ impl crate::spline::SpanLocate for Probe {
         crate::spline::SpanLocate::point_value(self.0)
     }
 
-    fn held_constant(self) -> Option<f64> {
-        crate::spline::SpanLocate::held_constant(self.0)
+    fn plain_constant(self) -> Option<f64> {
+        crate::spline::SpanLocate::plain_constant(self.0)
     }
 
     fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {

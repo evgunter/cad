@@ -888,7 +888,7 @@ impl crate::spline::SpanLocate for Interval {
         (lo == hi && !lo.is_nan()).then_some(lo)
     }
 
-    fn held_constant(self) -> Option<f64> {
+    fn plain_constant(self) -> Option<f64> {
         self.point_value()
     }
 

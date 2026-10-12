@@ -601,10 +601,8 @@ fn chord_length_parameters<T: SpanLocate>(
 ///
 /// The homogeneous treatment above is the RATIONAL lane, and it runs
 /// only when the input is rational. When every section is **integral**
-/// — every weight bit-exactly `1.0`, the kernel's own definition of
-/// non-rational (`NurbsCurve::speed_lower_bound`'s test) — the
-/// sections are interpolated in plain Cartesian ℝ³ and the result
-/// carries exactly `1.0` weights.
+/// — every weight bit-exactly `1.0` — the sections are interpolated in
+/// plain Cartesian ℝ³ and the result carries exactly `1.0` weights.
 ///
 /// The two lanes agree exactly in ℝ: with `w ≡ 1` the homogeneous data
 /// IS the Cartesian data, and the weight column's interpolant is the
@@ -743,10 +741,9 @@ pub fn skin_on<T: SpanLocate>(
     }
     // INTEGRAL INPUT ⇒ INTEGRAL OUTPUT, by structure (see the
     // "no synthesized weight channel" section of these docs): the
-    // kernel's own definition of non-rational is bit-exact unit
-    // weights (`NurbsCurve::speed_lower_bound`'s test), so this is a
-    // structure question about the input, decided by `==` — C6
-    // structure selection, never a predicate.
+    // integral lane takes bit-exact unit weights, a structure question
+    // about the input decided by `==` — C6 structure selection, never a
+    // predicate.
     let integral = sections
         .iter()
         .all(|c| c.weight_channel().iter().all(|w| *w == 1.0));
