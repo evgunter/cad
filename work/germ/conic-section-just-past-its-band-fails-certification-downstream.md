@@ -8,6 +8,7 @@ priority: P2
 cost: M
 design: true
 branch: germ/conic-past-band
+pr: 4812
 refs: [focal-section-vertex-azimuth-is-read-off-a-cancelling-sum, focal-section-envelope-bounds-the-whole-ellipse-not-the-span, focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor]
 ---
 
