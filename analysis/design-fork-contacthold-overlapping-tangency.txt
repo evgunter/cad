@@ -1,0 +1,4 @@
+fork: a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector (overlapping tangency between operands)
+dispatched: 2026-10-12
+byte: 117
+mapping: A=fable B=opus
