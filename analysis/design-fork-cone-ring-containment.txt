@@ -1,0 +1,4 @@
+fork: cone-ring-containment
+dispatched: 2026-10-12
+byte: 181
+mapping: A=fable B=opus
