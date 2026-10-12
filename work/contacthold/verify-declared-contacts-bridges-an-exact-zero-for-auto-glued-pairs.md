@@ -2,12 +2,13 @@
 id: verify-declared-contacts-bridges-an-exact-zero-for-auto-glued-pairs
 kind: issue
 title: verify_declared_contacts runs the tangent table with declared=true for auto-glued pairs, bridging an exact zero with no declaration behind it
-status: review
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
 branch: contacthold/claim-free-tangent-glue
 pr: 4831
+closed: 2026-10-12
 ---
 
 
