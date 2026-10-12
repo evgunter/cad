@@ -2,10 +2,12 @@
 id: a-requested-ring-edge-refuses-at-the-ring-meter
 kind: issue
 title: blend: a requested straight edge of a support's ring refuses at the ring meter, though its strip may clear
-status: open
+status: closed
 opened: 2026-10-06
 priority: P3
 cost: M
+pr: 4286
+closed: 2026-10-12
 ---
 
 
