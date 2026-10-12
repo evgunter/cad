@@ -2239,7 +2239,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    pair of the stem's weld cap against the arch's wall (plane ×
     //    torus, the arch's rim lying in the cap) takes the plane × wall
     //    arm and stops at the cap's chord, whose guard has no torus
-    //    partner: the join refuses on the stem's cap.
+    //    partner: the join refuses dividing a plane against a torus,
+    //    which only the arch carries, so the plane is the stem's cap.
     wall(
         1,
         "glue the two stem arcs into one stem (coincident-planar mate)",
@@ -2247,12 +2248,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::Join(pncad::topo::SplitJoinError::SectionInvariant { face, what })
-                    if what.contains("planar-side germ partner is not")
-                        && matches!(
-                            stem.get_face(*face).and_then(|f| stem.get_surface(f.surface)),
-                            Some(pncad::geom::Surface::Plane { .. })
-                        )
+                BooleanError::Join(pncad::topo::SplitJoinError::SectionUnarmed {
+                    divided: pncad::geom::SurfaceKind::Plane,
+                    wall: pncad::geom::SurfaceKind::Torus,
+                    ..
+                })
             )
         },
         "make the stem a single body — and close #968, whose whole content this is",
@@ -4118,24 +4118,18 @@ mod verbs_gate_r1_probes {
         // the glue reaches the join, whose germ pair of the stem's weld
         // cap against the arch's wall (plane × torus) takes the
         // plane × wall arm and refuses at the cap's chord, whose guard
-        // has no torus partner. Unconditional: an `if let` here would go
-        // quiet exactly when the refusal's shape changes.
-        let BooleanError::Join(pncad::topo::SplitJoinError::SectionInvariant { face, what }) =
-            &glued
-        else {
-            panic!("wall 1 stops at the join's plane × torus chord: {glued:?}");
-        };
-        assert!(
-            what.contains("planar-side germ partner is not"),
-            "the cap's chord guard: {glued:?}"
-        );
+        // has no torus partner: a plane divided against a torus, which
+        // only the arch carries, so the plane is the stem's cap.
         assert!(
             matches!(
-                stem.get_face(*face)
-                    .and_then(|f| stem.get_surface(f.surface)),
-                Some(Surface::Plane { .. })
+                glued,
+                BooleanError::Join(pncad::topo::SplitJoinError::SectionUnarmed {
+                    divided: pncad::geom::SurfaceKind::Plane,
+                    wall: pncad::geom::SurfaceKind::Torus,
+                    ..
+                })
             ),
-            "the stem's face is its weld cap: {glued:?}"
+            "wall 1 stops at the join's plane × torus chord, on the stem's cap: {glued:?}"
         );
         // **The weld itself has no torus contact**, measured
         // off the two loci: the stem tube's end circle has radius

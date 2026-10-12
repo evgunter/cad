@@ -338,6 +338,9 @@ impl<T: Decide> Quadric<T> {
                 // the next piece runs round and the pieces meet exactly,
                 // as the cone's do.
                 let start = kf + (from - kf) * (off_t / off_f);
+                // The ruling and lever are read only against a `Line` loop
+                // arc, and no loop arc on a torus is one
+                // ([`Self::torus_circle_arc`] yields conics alone).
                 let lead = Piece::Segment {
                     from,
                     to: start,
@@ -546,50 +549,69 @@ impl<T: Real> LoopArc<T> {
     }
 }
 
-/// **Which of its plane's two loops on a torus a loop arc's circle is**,
-/// as a margin in metres positive on that circle's side at a point of
-/// the plane near the torus. A meridian's plane holds the axis and cuts
-/// the meridian across it too, `2(R − r)` or more away: the side is
-/// `(p − c)·ê`, `ê` toward the circle's centre. A parallel's plane cuts
-/// the parallel across the tube: the side is `ρ − R`, signed outward
-/// for the outer parallel. Both are the boolean join's loop splits.
-#[derive(Clone, Copy)]
-pub(crate) enum ArcLoop<T: Real> {
-    /// A meridian: `(p − centre)·toward`, `toward` unit.
-    Meridian { centre: Point3<T>, toward: Vec3<T> },
-    /// A parallel: `p`'s distance from the axis `(centre, axis)` less
-    /// `major`, negated for the inner parallel (`outer` false).
-    Parallel {
-        centre: Point3<T>,
+/// **Which of two loops of one plane section a point lies on**: the sign
+/// of a margin in metres, definite at every point of a served section.
+/// The boolean join reads it at a germ site (`boolean::join`'s
+/// `SectionLoops`), and the ring lane at a crossing of a torus loop
+/// arc's plane ([`ArcLoop`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum LoopSplit<T: Real> {
+    /// `(p − origin)·dir`, `dir` unit.
+    Side {
+        /// A point of the plane between the loops.
+        origin: Point3<T>,
+        /// That plane's unit normal.
+        dir: Vec3<T>,
+    },
+    /// `p`'s distance from the axis `(origin, axis)` less `radius`,
+    /// `axis` unit.
+    Radius {
+        /// A point of the axis.
+        origin: Point3<T>,
+        /// The axis.
         axis: Vec3<T>,
-        major: T,
-        outer: bool,
+        /// The radius between the loops.
+        radius: T,
     },
 }
 
-impl<T: Decide> ArcLoop<T> {
-    /// The margin at `p`, positive on the arc's own loop.
-    fn margin(&self, p: Point3<T>) -> T {
+impl<T: Real> LoopSplit<T> {
+    /// The margin at `p`: positive on the split's positive loop.
+    pub(crate) fn margin(&self, p: Point3<T>) -> T {
         match *self {
-            Self::Meridian { centre, toward } => (p - centre).dot(toward),
-            Self::Parallel {
-                centre,
+            Self::Side { origin, dir } => (p - origin).dot(dir),
+            Self::Radius {
+                origin,
                 axis,
-                major,
-                outer,
-            } => {
-                let w = p - centre;
-                let off = (w - axis * w.dot(axis)).norm() - major;
-                if outer { off } else { -off }
-            }
+                radius,
+            } => (p - origin).cross(axis).norm() - radius,
         }
     }
+}
 
-    /// **`split_ring_path_torus_loop`** at `p`.
+/// **Which of its plane's two loops on a torus a loop arc's circle is**:
+/// the split between them and the circle's side of it. A meridian's
+/// plane holds the axis and cuts the meridian across it too, `2(R − r)`
+/// or more away: the split is the plane through the axis square to it,
+/// the circle on the side of `ê`, toward its centre. A parallel's plane
+/// cuts the parallel across the tube: the split is the core radius `R`,
+/// the outer parallel on its positive side. Both are the boolean join's
+/// loop splits for those sections.
+#[derive(Clone, Copy)]
+pub(crate) struct ArcLoop<T: Real> {
+    split: LoopSplit<T>,
+    /// Whether the arc's circle is on the split's positive side.
+    positive: bool,
+}
+
+impl<T: Decide> ArcLoop<T> {
+    /// **`split_ring_path_torus_loop`** at `p`: positive on the arc's
+    /// own loop.
     fn read(&self, p: Point3<T>, band: Band) -> Result<Sign, Indeterminate> {
+        let m = self.split.margin(p);
         decide(
             "split_ring_path_torus_loop",
-            Margin::of(self.margin(p)),
+            Margin::of(if self.positive { m } else { -m }),
             band,
         )
     }
@@ -660,9 +682,12 @@ impl<T: Decide> Quadric<T> {
         {
             let w = k - centre;
             let w = w - axis * w.dot(axis);
-            return Ok(Some(arc(ArcLoop::Meridian {
-                centre,
-                toward: w / w.norm(),
+            return Ok(Some(arc(ArcLoop {
+                split: LoopSplit::Side {
+                    origin: centre,
+                    dir: w / w.norm(),
+                },
+                positive: true,
             })));
         }
         if decide(
@@ -673,7 +698,7 @@ impl<T: Decide> Quadric<T> {
         {
             return Ok(None);
         }
-        let outer = match decide(
+        let positive = match decide(
             "split_ring_torus_parallel_side",
             Margin::of(radius - major),
             band,
@@ -682,11 +707,13 @@ impl<T: Decide> Quadric<T> {
             Sign::Negative => false,
             Sign::Zero => return Ok(None),
         };
-        Ok(Some(arc(ArcLoop::Parallel {
-            centre,
-            axis,
-            major,
-            outer,
+        Ok(Some(arc(ArcLoop {
+            split: LoopSplit::Radius {
+                origin: centre,
+                axis,
+                radius: major,
+            },
+            positive,
         })))
     }
 }

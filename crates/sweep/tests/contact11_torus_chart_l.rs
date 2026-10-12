@@ -38,8 +38,11 @@ fn a_notched_half_donut_refuses_at_the_torus_plane_pair() {
     assert!(
         matches!(
             &err,
-            BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. })
-                if what.contains("no plane×torus")
+            BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
+                divided: geom::SurfaceKind::Torus,
+                wall: geom::SurfaceKind::Torus,
+                ..
+            })
         ),
         "refused where the torus side's section has no plane × torus arm: {err:?}"
     );

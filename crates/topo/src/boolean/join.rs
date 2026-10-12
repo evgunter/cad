@@ -158,6 +158,7 @@ use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, Vertex
 use crate::face_normal::face_outward_normal;
 use crate::loop_winding::{RunClosing, RunMissesEnd};
 use crate::null::NullFacePair;
+use crate::ring_path::LoopSplit;
 use crate::validate::{decide, decide_positive};
 use geom_core::Tol;
 
@@ -2528,29 +2529,6 @@ pub(super) enum SectionLoops<T: geom_core::Real> {
     },
 }
 
-/// **Which loop of two a site of the section lies on**: the sign of a
-/// margin that is decided definite at every point of the section.
-#[derive(Clone, Copy, Debug)]
-pub(super) enum LoopSplit<T: geom_core::Real> {
-    /// `(p − origin)·dir`, `dir` unit.
-    Side {
-        /// A point of the plane between the loops.
-        origin: geom_core::Point3<T>,
-        /// That plane's unit normal.
-        dir: geom_core::Vec3<T>,
-    },
-    /// `p`'s distance from the axis `(origin, axis)` less `radius`,
-    /// `axis` unit.
-    Radius {
-        /// A point of the axis.
-        origin: geom_core::Point3<T>,
-        /// The axis.
-        axis: geom_core::Vec3<T>,
-        /// The radius between the loops.
-        radius: T,
-    },
-}
-
 impl<T: Decide> SectionLoops<T> {
     /// A conic's one loop, its centre a centre of symmetry.
     fn conic((center, axis): (geom_core::Point3<T>, geom_core::Vec3<T>)) -> Self {
@@ -2574,15 +2552,7 @@ impl<T: Decide> SectionLoops<T> {
             Self::One(lp) => return Ok((0, *lp)),
             Self::Two { loops, split } => (loops, split),
         };
-        let margin = match *split {
-            LoopSplit::Side { origin, dir } => (p - origin).dot(dir),
-            LoopSplit::Radius {
-                origin,
-                axis,
-                radius,
-            } => (p - origin).cross(axis).norm() - radius,
-        };
-        match decide("bool_join_section_loop", Margin::of(margin), band) {
+        match decide("bool_join_section_loop", Margin::of(split.margin(p)), band) {
             Ok(Sign::Positive) => Ok((0, loops[0])),
             Ok(Sign::Negative) => Ok((1, loops[1])),
             Ok(Sign::Zero) => Err(BooleanError::JoinDesync {

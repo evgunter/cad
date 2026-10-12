@@ -236,16 +236,16 @@ pub(crate) fn torus_door(
 ) -> Result<TorusDoor, String> {
     match run(op, x, y) {
         Err(e) if names_the_torus(&e) => {}
-        Err(BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. }))
-            if what.contains("planar-side germ partner is not") =>
-        {
-            return Ok(TorusDoor::PlanarChord);
-        }
-        Err(BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. }))
-            if what.contains("no plane×torus") =>
-        {
-            return Ok(TorusDoor::WallSection);
-        }
+        Err(BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
+            divided: geom::SurfaceKind::Plane,
+            wall: geom::SurfaceKind::Torus,
+            ..
+        })) => return Ok(TorusDoor::PlanarChord),
+        Err(BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
+            divided: geom::SurfaceKind::Torus,
+            wall: geom::SurfaceKind::Torus,
+            ..
+        })) => return Ok(TorusDoor::WallSection),
         other => {
             return Err(format!(
                 "the op: {:?}",
@@ -444,8 +444,11 @@ fn tangs_tube_passes_the_frame_to_the_wall_side_section() {
         assert!(
             matches!(
                 &r,
-                Err(BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. }))
-                    if what.contains("plane×torus")
+                Err(BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
+                    divided: geom::SurfaceKind::Torus,
+                    wall: geom::SurfaceKind::Torus,
+                    ..
+                }))
             ),
             "{op}: {:?}",
             r.err()

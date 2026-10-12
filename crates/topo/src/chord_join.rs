@@ -328,13 +328,26 @@ pub enum SplitJoinError {
     /// - **deliberate typed frontiers**: configurations the M5 lane
     ///   refuses BY DESIGN with the front door named in `what` (a
     ///   tangent germ pair inside the boolean join — a touching
-    ///   configuration, the M5 envelope's frontier; a non-cylinder
-    ///   planar-side germ partner — the PR 9c arms).
+    ///   configuration, the M5 envelope's frontier).
     SectionInvariant {
         /// The face being divided.
         face: FaceKey,
         /// What failed.
         what: &'static str,
+    },
+    /// A plane's section of a curved face the chord layer has no arm
+    /// for: valid input whose lane is not yet built (D2 addendum row 2),
+    /// refused typed. The chord is minted in the curved face itself
+    /// (`divided` is `wall`), or in a plane face against it (`divided`
+    /// is [`geom::SurfaceKind::Plane`]). The chord layer serves a plane
+    /// against a cylinder, a sphere or a cone.
+    SectionUnarmed {
+        /// The face being divided.
+        face: FaceKey,
+        /// Its surface kind.
+        divided: geom::SurfaceKind,
+        /// The curved kind whose section has no arm.
+        wall: geom::SurfaceKind,
     },
     /// A ring on a curved face whose island the ring lane does not read:
     /// it winds an island, and re-homes a ring, on a cylinder wall's
@@ -533,6 +546,16 @@ impl core::fmt::Display for SplitJoinError {
             ),
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")
+            }
+            Self::SectionUnarmed { divided, wall, .. } => {
+                let wall = crate::boolean::kind_word(*wall);
+                write!(
+                    f,
+                    "the join cannot yet trace where a plane meets a {wall} face, so it cannot \
+                     divide the {} face there. {}",
+                    crate::boolean::kind_word(*divided),
+                    crate::boolean::meeting_recourse(wall),
+                )
             }
             Self::RingIslandUnread { kind, .. } => write!(
                 f,
@@ -1516,8 +1539,8 @@ fn chord_spec<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::SectionInvariant`] for a kind the gate refuses;
-/// the table's refusals ([`section_case`]).
+/// [`SplitJoinError::SectionUnarmed`] for a kind no section arm
+/// reads; the table's refusals ([`section_case`]).
 pub(crate) fn wall_section<T: Decide>(
     body: &Body<T>,
     band: Band,
@@ -1537,10 +1560,10 @@ pub(crate) fn wall_section<T: Decide>(
         | geom::Surface::Sphere { .. }
         | geom::Surface::Cone { .. } => {}
         _ => {
-            return Err(SplitJoinError::SectionInvariant {
+            return Err(SplitJoinError::SectionUnarmed {
                 face,
-                what: "a section through a face kind no section arm reads (C5 has no plane×torus or \
-                       plane×spline section)",
+                divided: wall.kind(),
+                wall: wall.kind(),
             });
         }
     }
@@ -1645,10 +1668,10 @@ fn bool_planar_chord_spec<T: Decide>(
         wall,
         geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. } | geom::Surface::Cone { .. }
     ) {
-        return Err(SplitJoinError::SectionInvariant {
+        return Err(SplitJoinError::SectionUnarmed {
             face,
-            what: "boolean planar-side germ partner is not a cylinder, a sphere or a cone (arm \
-                   not wired)",
+            divided: geom::SurfaceKind::Plane,
+            wall: wall.kind(),
         });
     }
     let (p_o, p_n) = match body.get_surface(plane_key) {
@@ -2695,74 +2718,141 @@ fn loop_points<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Point3<T>>, 
 pub(crate) fn path_island_winding<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+    run: (HalfEdgeKey, HalfEdgeKey),
     closing: Option<&EdgeCurveSpec<T>>,
     band: Band,
 ) -> Result<Result<Sign, Indeterminate>, SplitJoinError> {
-    let invariant = |what| SplitJoinError::SectionInvariant { face, what };
-    let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    let surface = body
-        .get_surface(face_data.surface)
-        .ok_or_else(|| corrupt_face(face))?;
-    let quadric = Quadric::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
-    let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
-    let end = cycle
-        .iter()
-        .position(|&he| he == h2)
-        .ok_or_else(|| corrupt_he(h2))?;
-    let mut arcs = run_loop_arcs(body, face, (surface, &quadric), &cycle[..=end], band)?;
-    let (chord, q, travel) = match closing {
-        Some(spec) => {
-            let (t0, t1) = (spec.param_start, spec.param_end);
-            let chord = quadric_loop_arc(&quadric, &spec.carrier, (t0, t1), band)
-                .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-                .ok_or_else(|| ring_island_unread(face, surface))?;
-            let travel = spec.carrier.deriv(geom::mid_param(t0, t1)) * (t1 - t0);
-            (chord, spec.carrier.mid_point(t0, t1), travel)
-        }
-        None if matches!(quadric, Quadric::Sphere { .. } | Quadric::Torus { .. }) => {
-            return Err(invariant(
-                "a sphere or torus ring run is closed by a straight chord (the section lanes mint \
-                 an arc on a sphere or a torus)",
-            ));
-        }
-        None => {
-            let after = cycle[(end + 1) % cycle.len()];
-            let at = |he: HalfEdgeKey| {
-                Ok::<_, SplitJoinError>(vertex_point(
-                    body,
-                    body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start,
-                ))
-            };
-            let (from, to) = (at(after)?, at(h1)?);
-            (
-                LoopArc::segment(from, to),
-                from + (to - from) * T::from_f64(0.5),
-                to - from,
-            )
-        }
-    };
-    match quadric.off_apex(q, band) {
-        Ok(true) => {}
-        Ok(false) => return Err(ring_island_unread(face, surface)),
+    let island = match IslandReading::new(body, face, run, closing, band)? {
+        Ok(island) => island,
         Err(diag) => return Ok(Err(diag)),
+    };
+    let readings = island
+        .paths(body, face, band)?
+        .into_iter()
+        .map(|path| Ok::<_, SplitJoinError>(path.and_then(|path| island.read(path, band))));
+    match first_decided(readings)? {
+        Ok(Some(sign)) => Ok(Ok(sign)),
+        Err(diag) => Ok(Err(diag)),
+        Ok(None) => Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "no outer-loop point of a sphere, cone or torus face reads which side of a \
+                   ring-lane island it is on (every path to the closing chord meets the \
+                   island's boundary in the zero band)",
+        }),
     }
-    let arrives_on = arcs.len();
-    arcs.push(chord);
-    let outward = quadric.outward(q, face_data.sense);
-    let left = outward.cross(travel);
-    let lever = quadric.lever(q);
-    let read = |path: Path<T>| -> Result<Option<Sign>, Indeterminate> {
+}
+
+/// [`path_island_winding`]'s question, asked of one path at a time: the
+/// run's loop arcs closed by the chord, the chord's midpoint `q` the
+/// paths arrive at, and its left normal there.
+pub(crate) struct IslandReading<T: Real> {
+    quadric: Quadric<T>,
+    arcs: Vec<LoopArc<T>>,
+    q: Point3<T>,
+    left: Vec3<T>,
+}
+
+impl<T: Decide> IslandReading<T> {
+    /// The reading of the run `h1 → h2` closed by `closing`; an
+    /// escalation where `q` is not decided off a cone's apex or a
+    /// torus's axis.
+    pub(crate) fn new(
+        body: &Body<T>,
+        face: FaceKey,
+        (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+        closing: Option<&EdgeCurveSpec<T>>,
+        band: Band,
+    ) -> Result<Result<Self, Indeterminate>, SplitJoinError> {
+        let invariant = |what| SplitJoinError::SectionInvariant { face, what };
+        let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+        let surface = body
+            .get_surface(face_data.surface)
+            .ok_or_else(|| corrupt_face(face))?;
+        let quadric = Quadric::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
+        let cycle = body.loop_cycle(h1).ok_or_else(|| corrupt_he(h1))?;
+        let end = cycle
+            .iter()
+            .position(|&he| he == h2)
+            .ok_or_else(|| corrupt_he(h2))?;
+        let mut arcs = run_loop_arcs(body, face, (surface, &quadric), &cycle[..=end], band)?;
+        let (chord, q, travel) = match closing {
+            Some(spec) => {
+                let (t0, t1) = (spec.param_start, spec.param_end);
+                let chord = quadric_loop_arc(&quadric, &spec.carrier, (t0, t1), band)
+                    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                    .ok_or_else(|| ring_island_unread(face, surface))?;
+                let travel = spec.carrier.deriv(geom::mid_param(t0, t1)) * (t1 - t0);
+                (chord, spec.carrier.mid_point(t0, t1), travel)
+            }
+            None if matches!(quadric, Quadric::Sphere { .. } | Quadric::Torus { .. }) => {
+                return Err(invariant(
+                    "a sphere or torus ring run is closed by a straight chord (the section lanes \
+                     mint an arc on a sphere or a torus)",
+                ));
+            }
+            None => {
+                let after = cycle[(end + 1) % cycle.len()];
+                let at = |he: HalfEdgeKey| {
+                    Ok::<_, SplitJoinError>(vertex_point(
+                        body,
+                        body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start,
+                    ))
+                };
+                let (from, to) = (at(after)?, at(h1)?);
+                (
+                    LoopArc::segment(from, to),
+                    from + (to - from) * T::from_f64(0.5),
+                    to - from,
+                )
+            }
+        };
+        match quadric.off_apex(q, band) {
+            Ok(true) => {}
+            Ok(false) => return Err(ring_island_unread(face, surface)),
+            Err(diag) => return Ok(Err(diag)),
+        }
+        arcs.push(chord);
+        let left = quadric.outward(q, face_data.sense).cross(travel);
+        Ok(Ok(Self {
+            quadric,
+            arcs,
+            q,
+            left,
+        }))
+    }
+
+    /// The paths to `q` from every outer-loop point of `face`
+    /// ([`outer_references`]), in the order they are asked.
+    pub(crate) fn paths(
+        &self,
+        body: &Body<T>,
+        face: FaceKey,
+        band: Band,
+    ) -> Result<Vec<Result<Path<T>, Indeterminate>>, SplitJoinError> {
+        Ok(outer_references(body, face, &[])?
+            .into_iter()
+            .flat_map(|w| quadric_paths(&self.quadric, (w, self.q), band))
+            .collect())
+    }
+
+    /// The winding `path` reads: its lean against the left normal
+    /// (**`split_ring_path_lean`**) and its parity across the closed
+    /// curve; `None` where either is in the zero band.
+    pub(crate) fn read(&self, path: Path<T>, band: Band) -> Result<Option<Sign>, Indeterminate> {
         let lean = decide(
             "split_ring_path_lean",
-            Margin::levered(-path.arrival.dot(left) / left.norm(), lever),
+            Margin::levered(
+                -path.arrival.dot(self.left) / self.left.norm(),
+                self.quadric.lever(self.q),
+            ),
             band,
         )?;
         if lean == Sign::Zero {
             return Ok(None);
         }
+        let arrives_on = self.arcs.len() - 1;
         Ok(
-            path_parity(&path, &arcs, Some(arrives_on), band)?.map(|odd| {
+            path_parity(&path, &self.arcs, Some(arrives_on), band)?.map(|odd| {
                 let w_left = (lean == Sign::Positive) != odd;
                 if w_left {
                     Sign::Negative
@@ -2771,19 +2861,7 @@ pub(crate) fn path_island_winding<T: Decide>(
                 }
             }),
         )
-    };
-    let paths = outer_references(body, face, &[])?
-        .into_iter()
-        .flat_map(|w| quadric_paths(&quadric, (w, q), band));
-    match first_decided(paths.map(|path| Ok::<_, SplitJoinError>(path.and_then(read))))? {
-        Ok(Some(sign)) => return Ok(Ok(sign)),
-        Err(diag) => return Ok(Err(diag)),
-        Ok(None) => {}
     }
-    Err(invariant(
-        "no outer-loop point of a sphere, cone or torus face reads which side of a ring-lane island \
-         it is on (every path to the closing chord meets the island's boundary in the zero band)",
-    ))
 }
 
 /// **The first decided reading** of `readings`, asked in order and

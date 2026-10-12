@@ -182,18 +182,19 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     // window, so neither pair is an event; the op reaches the join,
     // whose germ pair of the stem's weld cap against the arch's wall
     // takes the plane × wall arm and refuses at the cap's chord, whose
-    // guard has no torus partner. The far-cap claims below are geometry
-    // and stand on their own.
-    let BooleanError::Join(topo::SplitJoinError::SectionInvariant { face, what }) = err else {
-        panic!("wall 1 stops at the join's plane × torus chord: {err:?}");
-    };
+    // guard has no torus partner: a plane face divided against a torus,
+    // which only the arch carries, so the plane is the stem's weld cap.
+    // The far-cap claims below are geometry and stand on their own.
     assert!(
-        what.contains("planar-side germ partner is not"),
-        "the cap's chord guard: {what}"
-    );
-    assert!(
-        plane_faces(&s).iter().any(|&(f, _, _)| f == face),
-        "the stem's face is its weld cap: {face:?}"
+        matches!(
+            err,
+            BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
+                divided: geom::SurfaceKind::Plane,
+                wall: geom::SurfaceKind::Torus,
+                ..
+            })
+        ),
+        "wall 1 stops at the join's plane × torus chord, on the stem's cap: {err:?}"
     );
     let frame = arch_frame();
     let far_cap = plane_faces(&a)

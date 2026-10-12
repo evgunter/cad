@@ -231,8 +231,11 @@ fn the_same_union_posed_into_the_torus_band_stops_at_the_chord() {
     assert!(
         matches!(
             &err,
-            BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. })
-                if what.contains("no plane×torus")
+            BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
+                divided: geom::SurfaceKind::Torus,
+                wall: geom::SurfaceKind::Torus,
+                ..
+            })
         ),
         "expected the torus side's section refusal, got {err:?}"
     );

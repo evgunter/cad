@@ -144,23 +144,23 @@ fn accepted_against_torus(
 /// reaches the join, where the germ pair of the stem's weld cap (plane)
 /// against the arch's wall (torus) takes the plane × wall arm and stops
 /// at the cap's chord, whose guard has no torus partner: a typed
-/// refusal on the stem's cap and no body to measure.
+/// refusal dividing a plane face against a torus, which only the arch
+/// carries, so the plane is the stem's cap; no body to measure.
 #[test]
 fn the_lily_stem_glue_is_past_the_circle_torus_pairs() {
     let (s, a) = (stem(), arch());
     let err =
         topo::union(&s, &a, Tol::witness()).expect_err("the stem glue still refuses, in the join");
-    let BooleanError::Join(topo::SplitJoinError::SectionInvariant { face, what }) = err else {
-        panic!("the lily's next door is the plane × torus chord: {err:?}");
-    };
     assert!(
-        what.contains("planar-side germ partner is not"),
-        "the cap's chord guard: {what}"
-    );
-    assert!(
-        s.get_face(face)
-            .is_some_and(|f| matches!(s.get_surface(f.surface), Some(geom::Surface::Plane { .. }))),
-        "the stem's face is its weld cap"
+        matches!(
+            err,
+            BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
+                divided: geom::SurfaceKind::Plane,
+                wall: geom::SurfaceKind::Torus,
+                ..
+            })
+        ),
+        "the lily's next door is the plane × torus chord, on the stem's cap: {err:?}"
     );
 }
 
@@ -553,16 +553,19 @@ fn a_planar_face_holding_the_arch_rim_is_no_edge_plane_holder() {
     let (s, a) = (stem(), arch());
     let t = Tol::witness();
     for (label, x, y, door) in [
-        ("stem ∪ arch", &s, &a, "planar-side germ partner is not"),
-        ("arch ∪ stem", &a, &s, "no plane×torus"),
+        ("stem ∪ arch", &s, &a, geom::SurfaceKind::Plane),
+        ("arch ∪ stem", &a, &s, geom::SurfaceKind::Torus),
     ] {
         let refusal = topo::test_support::boolean_join_refusal(topo::BooleanOp::Union, x, y, t)
             .unwrap_or_else(|e| panic!("{label}: the reduction refused {e:?}"));
         assert!(
             matches!(
                 &refusal,
-                Some(BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. }))
-                    if what.contains(door)
+                Some(BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
+                    divided,
+                    wall: geom::SurfaceKind::Torus,
+                    ..
+                })) if *divided == door
             ),
             "{label}: the join refuses at the plane × torus chord: {refusal:?}"
         );

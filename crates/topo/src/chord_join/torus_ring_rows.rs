@@ -26,21 +26,39 @@ const V: f64 = 3.0;
 
 /// The certified spec of `e` on the torus `surface`: the section arc of
 /// its plane, run forward from its corner (on the reversed carrier where
-/// its parameter falls).
+/// its parameter falls). The tube's top or bottom circle, whose plane
+/// touches the torus, is no transverse section: it is described in the
+/// torus's chart.
 fn edge_spec(body: &mut Body<f64>, surface: SurfaceKey, e: &IslandEdge) -> EdgeCurveSpec<f64> {
     let (t0, t1) = e.params;
     let (o, n) = e.plane;
-    let s2 = body.add_surface(plane(o, n));
     let (carrier, t0, t1) = if t1 > t0 {
         (e.carrier.clone(), t0, t1)
     } else {
         (e.carrier.reversed().unwrap(), -t0, -t1)
     };
-    EdgeCurveSpec {
-        description: geom_brep::EdgeDescriptionSpec::Intersection {
-            pair: geom_brep::SurfacePair::new(surface, s2),
+    let Some(&geom::Surface::Torus { major_radius, .. }) = body.get_surface(surface) else {
+        panic!("the sheet is a torus");
+    };
+    let touching = matches!(
+        e.carrier,
+        geom::Curve3::Circle { radius, .. } if (radius - major_radius).abs() < 1e-9 * major_radius
+    );
+    let description = if touching {
+        geom_brep::EdgeDescriptionSpec::Chart {
+            surface,
+            image: None,
+            wrap: false,
+            declared: None,
+        }
+    } else {
+        geom_brep::EdgeDescriptionSpec::Intersection {
+            pair: geom_brep::SurfacePair::new(surface, body.add_surface(plane(o, n))),
             witness: carrier.mid_point(t0, t1),
-        },
+        }
+    };
+    EdgeCurveSpec {
+        description,
         carrier,
         param_start: t0,
         param_end: t1,
@@ -232,10 +250,14 @@ fn scaled_frames() -> Vec<Frame> {
 /// between one plane's two parallels, and wider than half a turn), from
 /// every corner and in both directions, with the torus's axis either
 /// way, in three frames at two scales and at both senses — closed by a
-/// meridian or a parallel, outer or inner. Both windings are read.
+/// meridian or a parallel, outer or inner. Both windings are read. Every
+/// decided path from every outer-loop point reads the oracle's winding
+/// too, not only the first one the lane takes, so an arc of the run the
+/// reading missed would show on the paths that cross it.
 #[test]
 fn a_torus_ring_run_winds_its_island_as_the_oracle_does() {
     let mut seen = [0usize; 2];
+    let mut paths = 0usize;
     for f in scaled_frames() {
         for mirror in [false, true] {
             for sense in [true, false] {
@@ -255,6 +277,24 @@ fn a_torus_ring_run_winds_its_island_as_the_oracle_does() {
                                  {got:?}, the oracle {want:?}"
                             );
                             seen[usize::from(want == Sign::Positive)] += 1;
+                            let reading = IslandReading::new(&body, face, run, Some(&spec), band())
+                                .unwrap()
+                                .unwrap();
+                            for (k, path) in reading
+                                .paths(&body, face, band())
+                                .unwrap()
+                                .into_iter()
+                                .enumerate()
+                            {
+                                if let Ok(Some(sign)) = path.and_then(|p| reading.read(p, band())) {
+                                    assert_eq!(
+                                        sign, want,
+                                        "{name}, mirror {mirror}, sense {sense}, back {back}, \
+                                         from {r}, path {k}: the oracle {want:?}"
+                                    );
+                                    paths += 1;
+                                }
+                            }
                         }
                     }
                 }
@@ -262,6 +302,8 @@ fn a_torus_ring_run_winds_its_island_as_the_oracle_does() {
         }
     }
     assert!(seen[0] > 0 && seen[1] > 0, "both windings read: {seen:?}");
+    let runs = seen[0] + seen[1];
+    assert!(paths > 4 * runs, "{paths} paths decided over {runs} runs");
 }
 
 /// A point of the sheet inside `island` and one outside it, off its
@@ -375,4 +417,39 @@ fn a_spiric_closing_chord_is_a_ring_the_lane_does_not_read() {
         ),
         "{got:?}"
     );
+}
+
+/// **A run bounded by the tube's top or bottom circle is a ring the lane
+/// does not read yet**, typed: that parallel, of radius `R`, lies in a
+/// plane that touches the torus along it, so no path crosses the plane
+/// there and its side is no loop split. An island reaching it from
+/// below or above, from every corner: the circle in the run or as the
+/// closing chord.
+#[test]
+fn a_run_on_the_tubes_top_or_bottom_circle_is_a_ring_the_lane_does_not_read() {
+    use crate::ring_path::torus_islands::rectangle;
+    use core::f64::consts::FRAC_PI_2;
+    let f = frames()[0];
+    let surface = torus(f, false);
+    for (name, island) in [
+        ("top", rectangle(f, (-0.5, 0.6), (0.2, FRAC_PI_2))),
+        ("bottom", rectangle(f, (-0.5, 0.6), (-FRAC_PI_2, -0.2))),
+    ] {
+        for r in 0..island.edges.len() {
+            let (mut body, face, key) = sheet(f, surface.clone(), true);
+            let (run, closing) = run_from(&mut body, (face, key), &island, r);
+            let spec = edge_spec(&mut body, key, &closing);
+            let got = path_island_winding(&body, face, run, Some(&spec), band());
+            assert!(
+                matches!(
+                    got,
+                    Err(SplitJoinError::RingIslandUnread {
+                        kind: geom::SurfaceKind::Torus,
+                        ..
+                    })
+                ),
+                "{name}, from {r}: {got:?}"
+            );
+        }
+    }
 }
