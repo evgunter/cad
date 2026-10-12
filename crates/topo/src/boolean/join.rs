@@ -6646,3 +6646,149 @@ mod first_pair_rows {
         );
     }
 }
+
+/// Review probe (PR 4769): the multi-round matcher on abstract straight
+/// germs, with `first_pair` against an alternative that commits a
+/// random mutual pair, to test "the order cannot change the matching".
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_probe {
+    use super::*;
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+        fn f(&mut self) -> f64 {
+            (self.next() >> 11) as f64 / (1u64 << 53) as f64
+        }
+    }
+
+    type Out = Result<Vec<(Slot, Slot)>, ()>;
+
+    /// One run: `alt` = None is the PR's `first_pair`; Some(seed) picks
+    /// a random met pair whenever every nearest is mutual.
+    fn run(n: usize, adj: &[Vec<Option<f64>>], band: Band, alt: Option<u64>) -> Out {
+        let mut used = vec![false; n];
+        let mut out = Vec::new();
+        let mut rng = Rng(alt.unwrap_or(1) | 1);
+        loop {
+            let mut own: std::collections::BTreeMap<Slot, Met<f64>> = Default::default();
+            let mut at = 0;
+            for g in 0..n {
+                if used[g] {
+                    continue;
+                }
+                for h in 0..n {
+                    if h == g || used[h] {
+                        continue;
+                    }
+                    let Some(chord) = adj[g][h] else { continue };
+                    at += 1;
+                    let reach = Reach { arm: GermArm::Ahead, chord, turn: None };
+                    let met = (at, reach, ((h, 0), (g, 0)));
+                    match own.get(&(g, 0)) {
+                        Some(&(_, kept, _)) if !nearer_along(reach, kept, band).map_err(|_| ())? => {}
+                        _ => {
+                            own.insert((g, 0), met);
+                        }
+                    }
+                }
+            }
+            if own.is_empty() {
+                return Ok(out);
+            }
+            let mutual = own.iter().all(|(germ, &(_, _, (partner, _)))| {
+                own.get(&partner).is_some_and(|&(_, _, (back, _))| back == *germ)
+            });
+            let pick = if alt == Some(0) {
+                let mut met: Vec<_> = own.into_values().collect();
+                met.sort_by_key(|&(at, ..)| at);
+                let mut best: Option<(Reach<f64>, (Slot, Slot))> = None;
+                for (_, reach, m) in met {
+                    best = keep_nearer(best, (reach, m), |c, b| nearer(c, b, band)).map_err(|_| ())?;
+                }
+                best.unwrap().1
+            } else if alt.is_some() && mutual {
+                let v: Vec<_> = own.values().collect();
+                let i = (rng.next() as usize) % v.len();
+                v[i].2
+            } else {
+                first_pair(own, band).map_err(|_| ())?.unwrap()
+            };
+            used[pick.0.0] = true;
+            used[pick.1.0] = true;
+            let (a, b) = (pick.0.min(pick.1), pick.0.max(pick.1));
+            out.push((a, b));
+        }
+    }
+
+    #[test]
+    fn k_1_1_case_against_base() {
+        let pts: [(f64, f64); 8] = [(1.6374561303759052, 0.5775992446059082), (0.40233212126666984, 0.3418720853489539), (2.572078021535734, 2.269339501751353), (2.492829820460523, 0.6725138844041666), (1.1969478341656838, 1.0524143195635753), (0.6507604875594485, 2.121686389408788), (0.6512525825421824, 0.9950480970646106), (0.40292815436843227, 2.211559158237296)];
+        let edges = [(0,1),(0,2),(0,3),(0,4),(0,7),(1,6),(1,7),(2,3),(2,4),(2,5),(2,6),(2,7),(3,4),(3,5),(4,5),(4,6),(4,7),(5,7)];
+        let n = pts.len();
+        let mut adj = vec![vec![None; n]; n];
+        for &(i, j) in &edges {
+            let d: f64 = ((pts[i].0 - pts[j].0) * (pts[i].0 - pts[j].0) + (pts[i].1 - pts[j].1) * (pts[i].1 - pts[j].1)).sqrt();
+            adj[i][j] = Some(d);
+            adj[j][i] = Some(d);
+        }
+        let band = Band::new(1.0, 1.1).unwrap();
+        println!("pr   = {:?}", run(n, &adj, band, None));
+        println!("base = {:?}", run(n, &adj, band, Some(0)));
+        for s in 1..40u64 { println!("alt{s} = {:?}", run(n, &adj, band, Some(s * 7919))); }
+    }
+
+    #[test]
+    fn order_among_mutual_pairs_never_moves_the_matching() {
+        for &k in &[10.0, 3.0, 2.0, 1.5, 1.1] {
+            let band = Band::new(1.0, k).unwrap();
+            let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
+            let (mut built, mut differ, mut esc_split) = (0, 0, 0);
+            let mut shown = 0;
+            for _ in 0..200_000 {
+                let n = 3 + (rng.next() % 6) as usize;
+                let scale = 2.0 + rng.f() * 8.0;
+                let pts: Vec<(f64, f64)> = (0..n).map(|_| (rng.f() * scale, rng.f() * scale)).collect();
+                let mut adj = vec![vec![None; n]; n];
+                for i in 0..n {
+                    for j in i + 1..n {
+                        if rng.next() % 3 != 0 {
+                            let d = ((pts[i].0 - pts[j].0).powi(2) + (pts[i].1 - pts[j].1).powi(2)).sqrt();
+                            adj[i][j] = Some(d);
+                            adj[j][i] = Some(d);
+                        }
+                    }
+                }
+                let base = run(n, &adj, band, None);
+                for s in 0..4u64 {
+                    let other = run(n, &adj, band, Some(rng.next() ^ s));
+                    match (&base, &other) {
+                        (Ok(a), Ok(b)) => {
+                            let (mut a, mut b) = (a.clone(), b.clone());
+                            a.sort();
+                            b.sort();
+                            built += 1;
+                            if a != b {
+                                differ += 1;
+                                if shown < 2 {
+                                    shown += 1;
+                                    println!("K={k} differ: pts={pts:?} adj={adj:?}\n  pr={a:?}\n  alt={b:?}");
+                                }
+                            }
+                        }
+                        (Ok(_), Err(_)) | (Err(_), Ok(_)) => esc_split += 1,
+                        _ => {}
+                    }
+                }
+            }
+            let _ = esc_split;
+            println!("K={k}: both built {built}, matchings differ {differ}, one escalates {esc_split}");
+        }
+    }
+}
