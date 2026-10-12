@@ -1122,6 +1122,9 @@ impl AnalyticRung3Refusal {
                 limb.name()
             ),
             SsiError::UnsupportedCertificate { what } => Self::Unsupported { what },
+            SsiError::TubeProbeSilent { .. } => Self::Unsupported {
+                what: "the uniqueness tube's transversality enclosure was refused at every rung",
+            },
             _ => Self::Unsupported {
                 what: "the uniqueness tube refused for a reason outside this certificate's \
                        vocabulary",

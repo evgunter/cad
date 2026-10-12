@@ -432,7 +432,8 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 /// readings come from the derivative numerators' vector terms
 /// ([`CellNet::transverse_readings`]), so a rigid map that carries `n`
 /// with the wall moves the margin by its rounding width. `Ok(None)`
-/// when the stretch has no finite bound.
+/// when the stretch has no finite bound or `∇φ`'s enclosure is refused
+/// ([`tube_margin`]).
 ///
 /// # Errors
 ///
@@ -473,12 +474,21 @@ pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
         ));
     }
     // A lower bound over an upper bound stays one only rounded down.
-    Ok(Some(div_down(zero_free_lower_bound(phi), stretch)))
+    Ok(tube_margin(phi).map(|m| div_down(m, stretch)))
+}
+
+/// A uniqueness tube's reading of one transversality enclosure: its
+/// certified distance from zero ([`zero_free_lower_bound`]), or `None`
+/// where the enclosure is refused. A refused enclosure measured
+/// nothing, so its rung is not probed; read as `0` it would be a
+/// sliver's margin.
+pub(crate) fn tube_margin(i: Interval) -> Option<f64> {
+    i.is_certified().then(|| zero_free_lower_bound(i))
 }
 
 /// The certified distance of an enclosure from zero: `0` when it
-/// straddles (or is refused), which is exactly what makes the trilean
-/// land in the sliver band.
+/// straddles or is refused, the vacuous lower bound. A reading that
+/// must tell a refusal from a straddle asks [`tube_margin`].
 /// (The mignitude. `offset_meters::mig` is the same arithmetic read
 /// as a coefficient-hull assembly term rather than a decision; noted
 /// at both sites.)

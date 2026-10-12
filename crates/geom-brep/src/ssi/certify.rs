@@ -130,7 +130,7 @@ use crate::dihedral::{decide_positive, decide_reported};
 
 use super::enclose::{
     Box3, NurbsBoxes, UvWindow, chart_transverse_margin, graph_margin, in_meters, mag_in_meters,
-    zero_free_lower_bound,
+    tube_margin, zero_free_lower_bound,
 };
 use super::exhaust::UvRect;
 use super::one_arc::{Shortfall, dominant_axis, one_arc, one_arc_r3};
@@ -1116,13 +1116,11 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // midpoint, normalized. Any direction transverse to the
         // solution set works; this is the natural one.
         //
-        // The `n > 0.0` guard the f64 form carried is GONE rather than
-        // lifted: it is a value branch, which generic evaluation code
-        // may not take (Q1), and it bought nothing. A degenerate span
+        // No `n > 0.0` guard: it would be a value branch, which generic
+        // evaluation code may not take (Q1). A degenerate span
         // (zero-length tangent) divided by zero poisons `e`, the graph
-        // margin's certification enclosure is refused with it, and
-        // `zero_free_lower_bound` reports 0 — the same typed refusal
-        // the guarded zero vector produced, reached without a branch.
+        // margin's enclosure is refused with it, and the probe reads
+        // that rung as unprobed ([`tube_margin`]).
         let t = carrier.deriv(T::from_f64(0.5 * (a + b)));
         let n = t.norm();
         out.push((bx, t / n));
@@ -1183,7 +1181,7 @@ fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
         }
         prev = Some(bx);
         padded.push(bx);
-        let m = zero_free_lower_bound(graph_margin(s1, s2, bx, *e));
+        let m = tube_margin(graph_margin(s1, s2, bx, *e))?;
         if m < worst {
             worst = m;
         }
@@ -1308,9 +1306,9 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     };
     // The plane equation is what the whole limb certifies, so the
     // plane crosses through the CERTIFIED door: a component whose
-    // computation left its domain is refused and the transversality
-    // margin collapses to zero, rather than a zero-free enclosure of
-    // an equation nobody evaluated.
+    // computation left its domain is refused, and so is every window's
+    // margin, rather than a zero-free enclosure of an equation nobody
+    // evaluated.
     let n = [normal.x, normal.y, normal.z].map(Interval::from_certified);
     let mut worst = f64::INFINITY;
     let mut probed = Vec::with_capacity(windows.len());
@@ -1433,8 +1431,8 @@ type PairPads = ((f64, f64), (f64, f64));
 /// the two knot rectangles ([`super::four::one_arc_pair`]).
 ///
 /// `None` when either pcurve has no windows, the two disagree on their
-/// spans, or a tangent is unusable: a definite structural refusal at
-/// this rung.
+/// spans, a tangent is unusable, or a box's margin is refused
+/// ([`tube_margin`]): a definite structural refusal at this rung.
 fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     (pa, pb): (&NurbsCurve2<T>, &NurbsCurve2<T>),
     (na, nb): (super::ChartedNurbs<'_, T>, super::ChartedNurbs<'_, T>),
@@ -1463,7 +1461,7 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
         // A chain box's midpoint steers which determinant is asked: a
         // point the chain chose, entered as the constant it is.
         let e = tangent(T::from_f64(mid))?;
-        worst = worst.min(zero_free_lower_bound(graph_margin(&pair, x, e)));
+        worst = worst.min(tube_margin(graph_margin(&pair, x, e))?);
         boxes.push(x);
     }
     // An end's state is a point the one-arc proof looks for inside an
@@ -3102,6 +3100,82 @@ mod tests {
             refused.error
         );
         assert!(refused.at.is_none(), "limb 3 was located: {:?}", refused.at);
+    }
+
+    /// **A refused transversality enclosure is no sliver.** A torus has
+    /// no ℝ³ gradient enclosure, so every box of every rung of an
+    /// analytic tube against one is refused: the ladder answers nothing
+    /// (`TubeProbeSilent`, every rung offered), where reading each
+    /// refusal as a zero margin reported a straddle at the narrowest
+    /// rung.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_tube_whose_enclosures_are_refused_answers_no_rung() {
+        use super::{Lane, Limbs, Refused, certify_branch, tube_ladder};
+        use crate::ssi::{SsiError, SsiOperand};
+        use geom::{NurbsCurve3, Surface};
+        use geom_core::spline::KnotVector;
+        use geom_core::{Band, Point3, Vec3};
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let torus = Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: 1.25,
+            minor_radius: 0.25,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let carrier = NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.1, 0.0)],
+            vec![1.0; 2],
+        )
+        .unwrap();
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let got = certify_branch(
+            &carrier,
+            Lane::AtRest {
+                a: &SsiOperand::Analytic(&plane),
+                b: &SsiOperand::Analytic(&torus),
+                pcurve_a: None,
+                pcurve_b: None,
+            },
+            0.1,
+            band,
+            Limbs::Tube,
+            &mut Refused::default(),
+        )
+        .map(|_| ());
+        #[allow(clippy::cast_possible_truncation)]
+        let rungs = tube_ladder(0.1, band).count() as u32;
+        assert!(rungs > 0, "the ladder offers rungs");
+        assert!(
+            matches!(got, Err(SsiError::TubeProbeSilent { rungs: r }) if r == rungs),
+            "{got:?}"
+        );
+    }
+
+    /// **A tube reads a refused enclosure as no reading**, a straddling
+    /// one as zero, and a clear one as its distance from zero.
+    #[test]
+    fn the_tube_margin_tells_a_refusal_from_a_straddle() {
+        use super::tube_margin;
+        use geom_core::Interval;
+        use geom_core::interval::certification::Certification;
+        assert_eq!(tube_margin(Interval::refused()), None, "refused");
+        assert_eq!(
+            tube_margin(Interval::from_bounds(-1.0, 2.0)),
+            Some(0.0),
+            "straddle"
+        );
+        assert_eq!(
+            tube_margin(Interval::from_bounds(-3.0, -0.5)),
+            Some(0.5),
+            "clear"
+        );
     }
 
     /// **Limb 2's bound escalates at `Interval` with its margin as an

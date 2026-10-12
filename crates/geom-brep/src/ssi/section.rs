@@ -552,6 +552,9 @@ pub(crate) fn boundary_roots(
     roots(curve, &pieces, speed, floor_meters, arm, band)
 }
 
+/// [`roots`]' refusal where a cluster's slope hull is refused.
+const SLOPE_REFUSED: &str = "a boundary curve's slope over a root's bracket has no certified hull";
+
 /// The roots, to the floor ([`boundary_roots`]).
 fn roots(
     curve: &NurbsCurve3<f64>,
@@ -586,6 +589,13 @@ fn roots(
             .map(|d| hull(d))
             .reduce(Interval::hull)
             .unwrap_or_else(Interval::refused);
+        // A refused slope measured nothing; read as a zero slope it
+        // would be a graze.
+        if !dh.is_certified() {
+            return Err(SsiError::UnsupportedCertificate {
+                what: SLOPE_REFUSED,
+            });
+        }
         let w_hi = over
             .iter()
             .map(|(_, w)| magnitude(hull(w)))
