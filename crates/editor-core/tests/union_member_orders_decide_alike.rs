@@ -34,9 +34,8 @@
 //! **Scope.** The corpus is planar blocks: rests, continuations, a
 //! transverse union and an in-band sliver. Unions known to decide by
 //! member order are pinned where their issues own them, not here:
-//! `emit_shared_rim_several`'s `RESIDUES` (`row`, `rowids` and `cross`
-//! reach an emitter residue in some orders and build in the others;
-//! `work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`,
+//! `emit_shared_rim_several`'s `RESIDUES` (`cross` reaches an emitter
+//! residue in some orders and builds in the others;
 //! `work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`),
 //! and the capsule's rod ending on its joint
 //! (`work/tang/the-capsule-rod-ending-on-the-joint-parts-by-member-order.md`).
@@ -358,14 +357,11 @@ fn the_corpus_reaches_its_classes() {
     }
 }
 
-/// The emit corpus's unions that reach an emitter residue in some
-/// member orders, owned where their rows say and pinned in
-/// `emit_shared_rim_several`: `row` and `rowids` the seam-vertex
-/// parentage residue
-/// (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`),
-/// `cross` the held-edge residue
+/// The emit corpus's union that reaches an emitter residue in some
+/// member orders, owned where its row says and pinned in
+/// `emit_shared_rim_several`: `cross` the held-edge residue
 /// (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
-const EMIT_RESIDUES: [&str; 3] = ["row", "rowids", "cross"];
+const EMIT_RESIDUES: [&str; 1] = ["cross"];
 
 /// **Every union of the emit corpus decides alike in every member
 /// order** (`emit_shared_rim_several::probe_corpus`: blocks flush on
