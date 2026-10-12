@@ -508,6 +508,8 @@ mod readback_doors;
 mod recourse_roster;
 #[path = "review_4704_r1_probes.rs"]
 mod review_4704_r1_probes;
+#[path = "review_4781_r1_probes.rs"]
+mod review_4781_r1_probes;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_arms2_r1_probes.rs"]
