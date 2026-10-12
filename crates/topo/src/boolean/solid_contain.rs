@@ -176,12 +176,12 @@
 //!   levered by the radius), and **`bool_wall_outline_reach`** the
 //!   confined refusal's ball (a distance less a radius, metres).
 //! - **`bool_point_in_solid_infinity`**: the signed volume (scaled to
-//!   a mean-thickness margin in meters) — consulted only when a ray
+//!   a length, `V/A`) — consulted only when a ray
 //!   crosses NO boundary at all: `q` then sits on the at-infinity
 //!   side, which is `Out` for a positively-oriented body and `In` for
 //!   a complement (negative signed volume). Where that margin is not
-//!   definite — a body thin everywhere puts its mean half-thickness in
-//!   band however far `q` lies from it — a ray aimed from far out along
+//!   definite — a body thin everywhere puts its `V/A` in band however
+//!   far `q` lies from it — a ray aimed from far out along
 //!   the missed ray at a point inside a planar face reads the side
 //!   instead, off its closest crossing, on the rows above
 //!   ([`missed_side`]).
@@ -5699,7 +5699,7 @@ fn as_ray_fault(e: PointInSolidError) -> RayFault<PointInSolidError> {
 /// signed volume reads it where its sign is definite
 /// ([`at_infinity_side`]), and where it is not, rays aimed at the
 /// boundary from `from`, a point of the missed ray, do ([`aimed_side`]):
-/// the volume's margin is the selection's mean half-thickness, while an
+/// the volume's margin is the selection's `V/A`, while an
 /// aimed ray reads the side off one crossing's outward normal. Any point
 /// of the missed ray is on `q`'s side; `from` is the one twice the
 /// selection's reach out, past the ball about `q` that holds every
@@ -5869,7 +5869,7 @@ fn aimed_side<T: Decide>(
 /// triangulation read a two-arc disc cylinder as (near-)zero volume, a
 /// structural degeneracy of the chord approximation, and refused
 /// `ZeroVolumeBody` on a perfectly solid operand). Margin is scaled to
-/// a mean thickness (V / surface area, meters).
+/// a length (V / surface area, meters).
 ///
 /// The volume is the SELECTION's, not the body's: for
 /// [`point_in_solid`] the two coincide (the arena list), and for

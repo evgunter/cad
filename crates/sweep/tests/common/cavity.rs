@@ -46,7 +46,7 @@
 //! - `super::approx::prism`, which builds the `Surface::Approx`
 //!   surgery's base rather than a boolean operand.
 
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Real, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
@@ -166,7 +166,7 @@ pub fn vented_cavity() -> Body<f64> {
 /// POSITION, never by index, so a row cannot silently address a
 /// different edge. The result is sorted, so it is a set with a
 /// deterministic order.
-pub fn edges_with_corners(body: &Body<f64>, on: impl Fn(Point3<f64>) -> bool) -> Vec<EdgeKey> {
+pub fn edges_with_corners<T: Real>(body: &Body<T>, on: impl Fn(Point3<T>) -> bool) -> Vec<EdgeKey> {
     let mut found: Vec<EdgeKey> = body
         .edges()
         .filter(|(k, _)| {
