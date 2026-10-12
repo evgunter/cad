@@ -8,6 +8,7 @@ priority: P1
 cost: E
 refs: [hull-sup-limb-reads-its-bound-as-the-miss-at-the-import-door]
 branch: encl/loose-hull-budget
+pr: 4784
 ---
 
 
