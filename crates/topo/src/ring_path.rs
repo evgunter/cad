@@ -836,9 +836,17 @@ impl<T: Decide> Quadric<T> {
 ///   (**`split_ring_path_meets_plane`**, on the gap `r·√(A² + B²) − |D|`
 ///   in metres: moving the plane by it flips the meeting). A graze inside
 ///   the gap's band escalates, and the caller asks the next path. On the
-///   arrival arc, the root nearer the piece's end is the arrival.
+///   arrival arc, the root nearer the piece's end is the arrival. A gap
+///   in the zero band is a piece along the plane, which meets no arc it
+///   is decided apart from ([`misses_in_plane`]): a path's meridian or
+///   parallel through a point of an arc's carrier, or of its plane's
+///   other loop, runs so.
 /// - A segment meets a conic's plane where its ends' offsets from it
-///   (**`split_ring_path_segment_side`**) differ in sign.
+///   (**`split_ring_path_segment_side`**) differ in sign. An end on the
+///   plane says nothing unless the segment is decided apart from the arc
+///   (**`split_ring_path_segment_apart`**: its midpoint's distance from
+///   the arc less half its length), as a torus path's lead from a point
+///   on an arc's plane is.
 /// - A ruling meets a circle piece's plane once (it is decided across
 ///   it, **`split_ring_path_line_across`**: the cosine between the
 ///   plane's normal and the ruling, levered at the piece's radius), and
@@ -895,6 +903,17 @@ pub(crate) fn path_parity<T: Decide>(
                     },
                 ) => {
                     let Some(roots) = plane_roots(&p, (centre, axis), arrival, band)? else {
+                        let conic = Conic {
+                            centre,
+                            axis,
+                            u_ref,
+                            a,
+                            b,
+                            span,
+                        };
+                        if !arrival && misses_in_plane(&p, &conic, band)? {
+                            continue;
+                        }
                         return Ok(None);
                     };
                     let v_ref = axis.cross(u_ref);
@@ -1021,6 +1040,23 @@ pub(crate) fn path_parity<T: Decide>(
                     let s0 = decide_m("split_ring_path_segment_side", Margin::of(d0))?;
                     let s1 = decide_m("split_ring_path_segment_side", Margin::of(d1))?;
                     if s0 == Sign::Zero || s1 == Sign::Zero {
+                        let conic = Conic {
+                            centre,
+                            axis,
+                            u_ref,
+                            a,
+                            b,
+                            span,
+                        };
+                        let half = (to - from).norm() * T::from_f64(0.5);
+                        let mid = from + (to - from) * T::from_f64(0.5);
+                        if decide_m(
+                            "split_ring_path_segment_apart",
+                            Margin::of(conic.distance_floor(mid) - half),
+                        )? == Sign::Positive
+                        {
+                            continue;
+                        }
                         return Ok(None);
                     }
                     if s0 == s1 {
@@ -1064,6 +1100,127 @@ pub(crate) fn path_parity<T: Decide>(
         }
     }
     Ok(Some(odd))
+}
+
+/// A loop conic's arc, as [`LoopArc::Conic`] holds it.
+struct Conic<T: Real> {
+    centre: Point3<T>,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    a: T,
+    b: T,
+    span: (T, T),
+}
+
+impl<T: Decide> Conic<T> {
+    fn v_ref(&self) -> Vec3<T> {
+        self.axis.cross(self.u_ref)
+    }
+
+    /// The arc's point at its parameter `s`.
+    fn at(&self, s: T) -> Point3<T> {
+        let (sn, cs) = s.sin_cos();
+        self.centre + self.u_ref * (self.a * cs) + self.v_ref() * (self.b * sn)
+    }
+
+    /// The arc's parameter of `x`'s direction from its centre, on the
+    /// span's branch.
+    fn param(&self, x: Point3<T>) -> T {
+        let w = x - self.centre;
+        branch(
+            (w.dot(self.v_ref()) / self.b).atan2(w.dot(self.u_ref) / self.a),
+            self.span,
+        )
+    }
+
+    /// A lower bound on the distance from `x` to the arc: the distance
+    /// to the arc of the circle of radius `b` over the same span, less
+    /// `|a − b|`, which bounds how far a conic point lies from the
+    /// circle's at the same parameter. The circle arc's nearest point is
+    /// at `x`'s direction clamped to the span: on the span's branch the
+    /// end on `x`'s side is the nearer.
+    fn distance_floor(&self, x: Point3<T>) -> T {
+        let w = x - self.centre;
+        let s = branch(w.dot(self.v_ref()).atan2(w.dot(self.u_ref)), self.span);
+        let s = s.max(self.span.0).min(self.span.1);
+        let (sn, cs) = s.sin_cos();
+        let nearest = self.centre + (self.u_ref * cs + self.v_ref() * sn) * self.b;
+        (x - nearest).norm() - (self.a - self.b).abs()
+    }
+}
+
+/// **Whether the circle piece `p`, which [`plane_roots`] cannot cut
+/// with `conic`'s plane, misses the arc**: it runs along that plane,
+/// as a path's meridian or parallel through a point of an arc's
+/// carrier, or of its plane's other loop, does. Either:
+/// - the two circles are decided apart
+///   (**`split_ring_path_coplanar_apart`**: the annulus about the
+///   conic's centre between `min(a, b)` and `max(a, b)`, which holds
+///   the conic, against the piece's circle, by the centres' distance).
+///   A point on both would bound that distance by the triangle
+///   inequality, so the reading holds whatever the planes: a parallel
+///   against its plane's other loop on a torus, a meridian against the
+///   one across the axis; or
+/// - they are one circle (**`split_ring_path_same_circle`**: the larger
+///   of the centres' distance and each radius's difference; with
+///   [`plane_roots`]' gap in the band, the planes then lie within the
+///   band of each other too) and the arcs are decided disjoint on it:
+///   each end of either lies outside the other's span
+///   (**`split_ring_path_in_span`**, an angle levered at the radius, the
+///   distance along the circle). Two arcs of one circle overlap only
+///   where one holds an end of the other.
+///
+/// `Ok(false)` where neither is decided.
+fn misses_in_plane<T: Decide>(
+    p: &CircleArc<T>,
+    conic: &Conic<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let apart = (p.centre - conic.centre).norm();
+    let (inner, outer) = (conic.a.min(conic.b), conic.a.max(conic.b));
+    let gap = (apart - p.radius - outer)
+        .max(inner - p.radius - apart)
+        .max(p.radius - outer - apart);
+    if decide("split_ring_path_coplanar_apart", Margin::of(gap), band)? == Sign::Positive {
+        return Ok(true);
+    }
+    let differ = apart
+        .max((p.radius - conic.a).abs())
+        .max((p.radius - conic.b).abs());
+    if decide("split_ring_path_same_circle", Margin::of(differ), band)? != Sign::Zero {
+        return Ok(false);
+    }
+    // An end lies outside a span when either of its two readings is
+    // decided outside; an escalation counts only where neither is.
+    let outside = |t: T, (lo, hi): (T, T), arm: T| -> Result<bool, Indeterminate> {
+        let readings = [
+            decide(
+                "split_ring_path_in_span",
+                Margin::levered(t - lo, arm),
+                band,
+            ),
+            decide(
+                "split_ring_path_in_span",
+                Margin::levered(hi - t, arm),
+                band,
+            ),
+        ];
+        if readings.contains(&Ok(Sign::Negative)) {
+            return Ok(true);
+        }
+        readings.iter().find_map(|r| r.err()).map_or(Ok(false), Err)
+    };
+    for t in [p.span.0, p.span.1] {
+        if !outside(conic.param(p.at(t)), conic.span, conic.b)? {
+            return Ok(false);
+        }
+    }
+    for s in [conic.span.0, conic.span.1] {
+        if !outside(p.param(conic.at(s)), p.span, p.radius)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// **Where the circle piece `p` meets the plane through `o` with unit
@@ -1430,6 +1587,210 @@ mod tests {
             }
         }
         assert!(decided * 5 > asked, "{decided} of {asked} paths decided");
+    }
+
+    /// Points on the carriers of `island`'s arcs and on their planes'
+    /// other loops, off the island's boundary: on each meridian's circle
+    /// and the circle across the axis in its plane, and on each
+    /// parallel's circle and the one across the tube in its plane
+    /// (`π − v`), at chart coordinates off the island's; and where two
+    /// of those meet, as a box's edge pierces a torus on two box faces'
+    /// planes.
+    fn on_carriers((u0, u1): (f64, f64), (v0, v1): (f64, f64)) -> Vec<(f64, f64)> {
+        let us = [u0, u1, u0 + PI, u1 + PI];
+        let vs = [v0, v1, PI - v0, PI - v1];
+        let off_u = [u0 - 0.37, u1 + 0.41, u0 + 2.3, u1 - 2.9];
+        let off_v = [v0 - 0.33, v1 + 0.29, v0 + 2.7, v1 - 3.1];
+        let wrap = |a: f64| a.sin().atan2(a.cos());
+        // Off the island's boundary: a point on a carrier circle within
+        // the arc's span, or at a corner, lies on the curve the parity
+        // counts, which no path end may.
+        let near = |a: f64, b: f64| wrap(a - b).abs() < 0.05;
+        let within = |a: f64, (lo, hi): (f64, f64)| {
+            let t = lo + (wrap(a - lo)).rem_euclid(2.0 * PI);
+            t <= hi + 0.05 || wrap(a - lo).abs() < 0.05
+        };
+        let on_boundary = |u: f64, v: f64| {
+            ((near(v, v0) || near(v, v1)) && within(u, (u0, u1)))
+                || ((near(u, u0) || near(u, u1)) && within(v, (v0, v1)))
+        };
+        us.iter()
+            .flat_map(|&u| off_v.iter().chain(&vs).map(move |&v| (u, v)))
+            .chain(
+                vs.iter()
+                    .flat_map(|&v| off_u.iter().chain(&us).map(move |&u| (u, v))),
+            )
+            .filter(|&(u, v)| !on_boundary(u, v))
+            .collect()
+    }
+
+    /// **A torus path from a point on an arc's carrier, or on its
+    /// plane's other loop, reads the oracle's parity**, against every
+    /// island, in three frames, the axis either way: from such points,
+    /// to the grid and to each other (both ways). Each meridian or
+    /// parallel through such a point lies in an arc's plane, where it
+    /// meets no arc crossing it: it runs on the plane's other loop, or
+    /// on the arc's own circle off its span, and is read apart from the
+    /// arc ([`lies_apart_in_plane`]); its lead starts on the plane, and
+    /// is read apart by its distance from the arc
+    /// (**`split_ring_path_segment_apart`**). The far ends are the grid,
+    /// points inside the island and the other carrier points. A box's
+    /// edge piercing a torus leaves a ring vertex on two such planes at
+    /// once, and the one-face torus's outer loop (its wrap edges) lies on
+    /// arcs' carriers, so there the ring lane's paths start and end on
+    /// such points. Every decided path matches the oracle, some path
+    /// decides nearly every pair, and both parities are read.
+    #[test]
+    fn a_torus_path_from_an_arcs_carrier_reads_the_oracle_parity() {
+        use super::torus_islands::{island_spans, on_torus, rectangle, torus};
+        let (mut pairs, mut read, mut paths, mut decided, mut odd) = (0, 0, 0, 0, 0usize);
+        for f in frames() {
+            for mirror in [false, true] {
+                let surface = torus(f, mirror);
+                let quadric = Quadric::of(&surface).unwrap();
+                let grid = torus_grid(f);
+                for (name, us, vs) in island_spans() {
+                    let island = rectangle(f, us, vs);
+                    let arcs = torus_arcs(&quadric, &island);
+                    let carriers: Vec<_> = on_carriers(us, vs)
+                        .into_iter()
+                        .map(|(u, v)| on_torus(f, u, v))
+                        .collect();
+                    let within: Vec<_> = (1..4)
+                        .flat_map(|k| {
+                            (1..4).map(move |j| {
+                                let at = |(lo, hi): (f64, f64), i: i32| {
+                                    lo + (hi - lo) * f64::from(i) / 4.0
+                                };
+                                on_torus(f, at(us, k), at(vs, j))
+                            })
+                        })
+                        .collect();
+                    for (i, &a) in carriers.iter().enumerate() {
+                        for &b in grid
+                            .iter()
+                            .step_by(5)
+                            .chain(&within)
+                            .chain(&carriers[i + 1..])
+                        {
+                            if (a - b).norm() < 1e-9 {
+                                continue;
+                            }
+                            let want = (island.inside)(a) != (island.inside)(b);
+                            for (from, to) in [(a, b), (b, a)] {
+                                pairs += 1;
+                                let mut any = false;
+                                for path in quadric.paths((from, to), band()).unwrap() {
+                                    paths += 1;
+                                    if let Some(got) =
+                                        path_parity(&path, &arcs, None, band()).unwrap()
+                                    {
+                                        assert_eq!(
+                                            got, want,
+                                            "{name}, mirror {mirror}: {from:?} → {to:?}"
+                                        );
+                                        decided += 1;
+                                        odd += usize::from(got);
+                                        any = true;
+                                    }
+                                }
+                                read += usize::from(any);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            read * 50 >= pairs * 49 && decided * 2 > paths && odd * 20 > decided,
+            "{read} of {pairs} pairs read, {decided} of {paths} paths decided, {odd} odd"
+        );
+    }
+
+    /// **A circle piece on a loop arc's own circle misses it exactly
+    /// where the two arcs are disjoint**, and one on its plane's other
+    /// loop always does ([`misses_in_plane`]): the arc `(0.5, 1)` of a
+    /// torus meridian against pieces of the same circle, either way
+    /// round, and of the meridian across the axis, in three frames. A
+    /// piece holding the whole arc has both ends outside its span, so it
+    /// is the arc's ends inside the piece's span that read it: red
+    /// against the mutant "the arc's ends not read". The oracle rows
+    /// cannot see that mutant, because a path along an island's arc meets
+    /// the next arc at the corner first, and reads nothing there.
+    #[test]
+    fn a_piece_on_an_arcs_circle_misses_it_where_their_spans_are_disjoint() {
+        use super::torus_islands::{RADII, meridian};
+        for f in frames() {
+            let (big, small) = (RADII.0 * f.s, RADII.1 * f.s);
+            let edge = meridian(f, 0.3, (0.5, 1.0));
+            let LoopArc::Conic {
+                centre,
+                axis,
+                u_ref,
+                a,
+                b,
+                span,
+                ..
+            } = LoopArc::of(&edge.carrier, edge.params).unwrap()
+            else {
+                panic!("a meridian is a conic");
+            };
+            let conic = Conic {
+                centre,
+                axis,
+                u_ref,
+                a,
+                b,
+                span,
+            };
+            let on = |span| CircleArc {
+                centre,
+                axis,
+                radius: small,
+                u_ref,
+                span,
+            };
+            // The same circle travelled the other way: its parameter
+            // `t` is the arc's `−t`.
+            let back = |(lo, hi): (f64, f64)| CircleArc {
+                centre,
+                axis: -axis,
+                radius: small,
+                u_ref,
+                span: (-hi, -lo),
+            };
+            let out = centre - f.o;
+            let across = CircleArc {
+                centre: f.o - out,
+                axis,
+                radius: small,
+                u_ref,
+                span: (0.0, 6.0),
+            };
+            assert!((out.norm() - big).abs() < 1e-12, "the meridian's centre");
+            for (what, piece, misses) in [
+                ("disjoint, after", on((1.2, 2.0)), true),
+                ("disjoint, before", on((-1.0, 0.3)), true),
+                ("disjoint, round the back", on((1.3, 5.9)), true),
+                ("holding the arc", on((0.2, 1.4)), false),
+                ("inside the arc", on((0.6, 0.9)), false),
+                ("overlapping its end", on((0.8, 1.5)), false),
+                ("disjoint, the other way round", back((1.2, 2.0)), true),
+                (
+                    "holding the arc, the other way round",
+                    back((0.2, 1.4)),
+                    false,
+                ),
+                ("the meridian across the axis", across, true),
+            ] {
+                assert_eq!(
+                    misses_in_plane(&piece, &conic, band()).unwrap(),
+                    misses,
+                    "{what}, scale {}",
+                    f.s
+                );
+            }
+        }
     }
 
     /// **A piece that runs along the cylinder `ρ = R` says nothing of a

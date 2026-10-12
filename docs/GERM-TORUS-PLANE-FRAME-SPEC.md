@@ -160,12 +160,16 @@ every pose:
   added.
 - **A ring on a torus face** is reached through the public ops: the box
   `x ≥ 0 ∧ y ≥ h`, `h < 0`, against the one-face torus with its vertex
-  on the inner equator puts a pierce ring on the torus face, and
-  `path_ring_side` reads it undecided, so every op refuses
-  `RingHomingAmbiguous` (filed on GERM,
-  `a-pierce-ring-on-a-one-face-torus-face-reads-undecided`). The rows
-  above read no torus face's ring; the in-crate rows read 1536 torus
-  islands.
+  on the inner equator puts a pierce ring on the torus face, and so
+  does the bar `[−3, 3] × [0.2, 1.2] × [0, 3]` against the donut, torus
+  first. The ring's point lies in the planes of run arcs (a box edge
+  pierces the tube on two box faces' planes), and on the one-face
+  torus the face's outer loop lies on the other arcs' carriers, so
+  every path between them runs along an arc's plane; the ring lane
+  reads such a piece apart from the arc (§1.3), and both build their
+  true bodies in every op. Containment refuses `PartialTorusFace` on
+  their ∪ and `T ∖ P` bodies, whose torus walls are no chart rectangle
+  (INSIDE, below).
 - **A slab across the one-face torus** refuses `JoinDesync` in
   `choose_roles` at some vertex phases (filed on GERM,
   `a-slab-against-a-one-face-torus-desyncs-its-chord-roles`).
@@ -379,7 +383,13 @@ bodies, measured in §0.1:
   curve (`RingFace::Quadric`). The paths run on meridians and parallels.
   A crossing of a loop arc's plane counts only on that arc's own loop
   of the plane (`ArcLoop`, on the join's own `LoopSplit`), because a
-  plane cuts a torus in two. The
+  plane cuts a torus in two. A piece that runs along an arc's plane —
+  the meridian or parallel through a point of the arc's carrier or of
+  its plane's other loop, as a box edge's pierce point is — meets the
+  arc nowhere where the two are decided apart: its circle clear of the
+  arc's, or the arc's own circle with the two spans disjoint
+  (`ring_path::misses_in_plane`); so does a lead with an end on the
+  plane, decided farther from the arc than half its length. The
   parity does not depend on the path, because tier 3 lifts every face
   to a chart disc, so the island's curve bounds on the torus. Loop arcs
   read are meridians and parallels, but for two parallels: the tube's
