@@ -21,7 +21,9 @@ fn a_whole_spiric_oval_closes_one_edge_on_its_mirror_torus() {
     let (big, r, d) = (0.09375_f64, 0.0703125_f64, 0.0078125_f64);
     let (n, a) = (Vec3::unit_x(), Vec3::unit_y());
     let carrier = geom::Curve3::spiric(Point3::origin(), a, n, big, r, d, band).unwrap();
-    for chart_axis in [a, -a] {
+    for k in 0..12 { for chart_axis in [a, -a] {
+        let ang = core::f64::consts::TAU * f64::from(k) / 12.0;
+        let u_ref = n * ang.cos() + Vec3::unit_z() * ang.sin();
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
         let mirror = body
@@ -33,7 +35,7 @@ fn a_whole_spiric_oval_closes_one_edge_on_its_mirror_torus() {
                         axis: chart_axis,
                         major_radius: big,
                         minor_radius: r,
-                        u_ref: n,
+                        u_ref,
                     },
                     sense: true,
                 },
@@ -53,9 +55,9 @@ fn a_whole_spiric_oval_closes_one_edge_on_its_mirror_torus() {
                 FaceSurface::Inherit,
                 tol,
             )
-            .unwrap_or_else(|e| panic!("axis {chart_axis:?}: the closed oval edge: {e}"));
+            .unwrap_or_else(|e| panic!("k{k} axis {chart_axis:?}: the closed oval edge: {e}"));
         topo::mint_pcurves(&mut body, tol)
-            .unwrap_or_else(|e| panic!("axis {chart_axis:?}: the mint refuses: {e}"));
+            .unwrap_or_else(|e| panic!("k{k} axis {chart_axis:?}: the mint refuses: {e}"));
         let sigma = chart_axis.dot(a);
         for he in [made.he_plus, made.he_minus] {
             let row = body
@@ -80,7 +82,10 @@ fn a_whole_spiric_oval_closes_one_edge_on_its_mirror_torus() {
         let findings = topo::pcurves::validate_pcurves(&body, band);
         assert!(
             findings.is_empty(),
-            "axis {chart_axis:?}: tier 3 reads the body clean: {findings:?}"
+            "k{k} axis {chart_axis:?}: tier 3 reads the body clean: {findings:?}"
         );
+        let _ = 0;
+        eprintln!("R1PROBE k{k} axis {chart_axis:?} mass_properties: {:?}", topo::mass_properties(&body, tol).map(|m| format!("{:?}", m.enclosure())));
     }
+}
 }

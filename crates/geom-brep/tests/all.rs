@@ -311,3 +311,5 @@ mod tcost_k1_budget_exit;
 mod torus_chart_guards;
 #[path = "torus_meridian_radial.rs"]
 mod torus_meridian_radial;
+#[path = "probe_r1_mirror_wall.rs"]
+mod probe_r1_mirror_wall;

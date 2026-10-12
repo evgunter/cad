@@ -5323,7 +5323,7 @@ fn run_spiric_checks<T: Decide>(
             // at the mint, and a wrong sign is a whole-span
             // displacement the schedule sees at every sample.
             let sin_tilt = s_axis.cross(a_c).norm();
-            let d_center = s_center - torus_center(mirror);
+            let d_center = s_center - torus_center(mirror && std::env::var("PCERT_MUTANT").as_deref() != Ok("m2_gate_own"));
             let gates = [
                 ("pcurve_spiric_chart_center", Margin::norm3(d_center)),
                 ("pcurve_spiric_chart_major", Margin::of(s_major - r_major)),
@@ -5522,7 +5522,7 @@ fn run_spiric_checks<T: Decide>(
                 .min((f_min_c.powi(2) + c_offset.powi(2)).sqrt());
             let d_theta = T::pi() * T::from_f64(0.5) * (f_drift + d_offset.abs()) / rho_min;
             let arm = chart_major + chart_minor;
-            arm * d_theta + chart_minor * v_drift * reach + arm * u_drift * T::pi() + chart_drift
+            { let sw = std::env::var("PCERT_MUTANT").as_deref() == Ok("m3_swap"); arm * d_theta + chart_minor * (if sw { u_drift } else { v_drift }) * reach + arm * (if sw { v_drift } else { u_drift }) * T::pi() + chart_drift }
         }
     };
     let mut envelope_margin = T::zero();
@@ -8502,15 +8502,16 @@ fn spiric_chart_pcurve<T: Decide>(
             )
             .map_err(winding_escalated)?
                 == Sign::Zero;
+            let own = own || std::env::var("PCERT_MUTANT").as_deref() == Ok("m1_mint_own");
             let (mu, toward) = if own {
                 (T::one(), n)
             } else {
                 (T::zero() - T::one(), -n)
             };
             Ok(spiric(SpiricImage::Wall {
-                u0: stable_azimuth(toward.dot(cv), toward.dot(chart_u), band),
+                u0: if std::env::var("PCERT_MUTANT").as_deref() == Ok("m4_u0n") { stable_azimuth(n.dot(cv), n.dot(chart_u), band) } else { stable_azimuth(toward.dot(cv), toward.dot(chart_u), band) },
                 v0: T::zero(),
-                u_sense: sigma * mu,
+                u_sense: if std::env::var("PCERT_MUTANT").as_deref() == Ok("m5_nomu") { sigma } else { sigma * mu },
                 v_sense: sigma,
             }))
         }

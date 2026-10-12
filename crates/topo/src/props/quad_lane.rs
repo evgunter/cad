@@ -860,6 +860,7 @@ fn spiric_wall(
                 }
                 let sense = match (exact(*u_sense), exact(*v_sense)) {
                     (Some(u), Some(v)) if u == v && (v == 1.0 || v == -1.0) => v,
+                    (Some(u), Some(v)) if u == -v && (v == 1.0 || v == -1.0) && std::env::var("R1M").is_ok() => v,
                     (Some(u), Some(v)) if u == -v && (v == 1.0 || v == -1.0) => {
                         return Err(unsupported(
                             "a spiric wall image on the carrier's mirror torus — the wall \
