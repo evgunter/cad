@@ -265,3 +265,42 @@ fn a_weight_collapsed_by_refinement_reads_no_finite_bound() {
     let m = refined.speed_upper_bound().get();
     assert!(!m.is_finite(), "a collapsed weight read a finite bound {m}");
 }
+
+/// **The pair's own points do not suffice.** On this quadratic
+/// (`P₀ = P₁`, weights over six decades) the speed peaks near
+/// `658.6` while every pair term read at the pair's own two points
+/// stays below `4.9`: reading `j` over the pair only would be unsound
+/// by `136×`. `j` runs over every active point, and the row checks the
+/// sampled sup against the bound and against that pair-only reading.
+/// (Part 1's search for such a carrier drew weights over too narrow a
+/// range to find one.)
+#[test]
+fn reading_the_pair_terms_at_the_pairs_own_points_is_unsound() {
+    let (p0, p2) = ((-0.76958, 0.67766), (-0.21312, -0.94362));
+    let w = [563.52, 1.1505e-3, 1.6169e-3];
+    let c = curve(
+        vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+        2,
+        &[p0, p0, p2],
+        w.to_vec(),
+    );
+    let pts = [p0, p0, p2];
+    let least = w.iter().copied().fold(f64::INFINITY, f64::min);
+    let mut pair_only = 0.0f64;
+    for i in 0..2 {
+        for j in [i, i + 1] {
+            let v: [f64; 2] = core::array::from_fn(|k| {
+                let at = |p: (f64, f64)| if k == 0 { p.0 } else { p.1 };
+                w[i + 1] * (at(pts[i + 1]) - at(pts[i]))
+                    - (w[i + 1] - w[i]) * (at(pts[j]) - at(pts[i]))
+            });
+            pair_only = pair_only.max(2.0 * v[0].hypot(v[1]) / least);
+        }
+    }
+    let floor = sampled_sup_floor(&c, 4000);
+    assert!(
+        floor > 10.0 * pair_only,
+        "sampled sup {floor} vs the pair-only reading {pair_only}"
+    );
+    check("pair-only counterexample", &c);
+}
