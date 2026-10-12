@@ -2756,6 +2756,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its curve's distance from a face has no certified bound (it reaches a cone's \
              apex height or the other nappe)"
         }
+        CertifyError::AnalyticRung3(A::NoTubeEnclosure { .. }) => {
+            "its curve lies on both faces, but the check cannot yet prove it is their one \
+             crossing on a cone or a torus"
+        }
         CertifyError::IntervalNotForward {
             verdict: Refused::Zero(_),
         } => "its length is within the tolerance of zero",
@@ -2825,9 +2829,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
             | CertifyError::PlaneNurbs(P::FootPointInconclusive { .. } | P::Unsupported { .. })
-            | CertifyError::AnalyticRung3(A::NoOffsetBound { .. } | A::Unsupported { .. }) => {
-                NOT_YET_ENDING
-            }
+            | CertifyError::AnalyticRung3(
+                A::NoOffsetBound { .. } | A::NoTubeEnclosure { .. } | A::Unsupported { .. },
+            ) => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::NurbsLaneNotSupplied => {
                 "Recourse: check the body through a door that holds the NURBS lane, \

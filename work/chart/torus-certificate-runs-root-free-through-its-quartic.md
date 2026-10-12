@@ -61,3 +61,17 @@ wording to correct with it: `implicit_enclosure`'s "cannot bound tightly
 enough to be useful", `composite_form`'s and `certify.rs`'s module doc's
 "certified root, which certification arithmetic does not take", and
 `intersect.rs`'s C5 notes for the cone and torus arms.
+
+## A consumer waiting on it
+
+The edge certificate's tube (`edge_nurbs::analytic_rung3`) reads these
+arms. Until they exist it refuses every carrier with a torus or cone
+operand by name, `AnalyticRung3Refusal::NoTubeEnclosure`, once limb 2
+holds; the roster is `ssi::enclose::has_implicit_enclosure`. That
+covers STEP's re-imported spiric rims
+(`step-import/tests/spiric_roundtrip.rs`). Measured on the vessel
+cavity's rim: the 1e-4 m export spline lies 2.9e-13 m off the torus,
+and limb 2 certifies it, so the torus gradient arm is all that keeps it
+from adopting. When the arms land, widen the roster, and re-pin that row
+and `analytic_rung3_certificate.rs`'s
+`a_cone_or_torus_operand_refuses_the_tube_by_name`.

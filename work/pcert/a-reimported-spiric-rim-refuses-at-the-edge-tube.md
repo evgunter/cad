@@ -2,7 +2,8 @@
 id: a-reimported-spiric-rim-refuses-at-the-edge-tube
 kind: issue
 title: A STEP re-import of a spiric rim refuses adoption at the edge's rung-3 tube (TubeStraddles, margin 0.0): the geometry's verdict or the tube scale's?
-status: open
+status: closed
+closed: 2026-10-12
 opened: 2026-10-08
 priority: P2
 cost: M
@@ -50,3 +51,30 @@ Which is it?
 A margin of exactly `0.0` is suspicious either way. A fix owes one of
 two things: a tube that certifies the true section's spline when it lies
 within the band of it, or the statement of why this carrier has no tube.
+
+## Closed
+
+Neither. The 0.0 margin is a refused enclosure, not a measured
+straddle: `ssi/enclose.rs`'s `implicit_gradient_enclosure` has no torus
+(or cone) arm, so every box's `graph_margin` is NaI at every rung,
+`zero_free_lower_bound` reads that as 0, and the narrowest rung reports
+`TubeStraddles`. Its words then claim a sliver.
+
+- **Geometry.** The export spline (513 controls, 510 spans) lies
+  2.9e-13 m off the torus and 5e-18 m off the plane (20 000 samples),
+  and limb 2 certifies it. It is within the band.
+- **Scale and budget.** Neither binds. All 20 rungs run
+  (1.4e-2 m down to 2.7e-8 m, above the 8e-9 m floor), and `boxes: 510`
+  is the chain's span count, not a budget. An export-shaped
+  512-node interpolant of a plane × cylinder section at the vessel's
+  scale certifies
+  (`analytic_rung3_certificate.rs`,
+  `a_dense_interpolant_of_a_section_certifies_its_tube`).
+
+The edge now states why it has no tube:
+`AnalyticRung3Refusal::NoTubeEnclosure { operand }`, raised once limb 2
+holds. The roster is `ssi::enclose::has_implicit_enclosure`, pinned
+against the enclosures. A certifying spline on the same spiric waits on
+the torus arm, which is CHART's
+`torus-certificate-runs-root-free-through-its-quartic` (evidence added
+there).

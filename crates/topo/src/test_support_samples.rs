@@ -557,6 +557,9 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             operand: geom::SurfaceKind::Cone,
             why: geom_brep::SectorChannel::Lever.describe(),
         },
+        A::NoTubeEnclosure {
+            operand: geom::SurfaceKind::Torus,
+        },
         A::TubeStraddles {
             verdict: Refused::Zero(Classified {
                 margin: MarginDiag::value(0.0),

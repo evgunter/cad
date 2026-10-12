@@ -114,7 +114,10 @@ and the tube over the same interval, or over the whole carrier where
 the carrier is rational with unequal weights (no piece of it has `f64`
 weights at an enclosure scalar). A door that holds no lane certifies
 no such edge: it refuses `CertifyError::NurbsLaneNotSupplied`, as it
-refuses a plane × NURBS one. Each box, cut to the wall's knot rectangle (and to the
+refuses a plane × NURBS one. The tube's ℝ³ enclosure has arms for a plane,
+a sphere and a cylinder; an edge with a cone or torus operand refuses
+the tube by naming that operand (`AnalyticRung3Refusal::NoTubeEnclosure`) once limb 2
+holds. Each box, cut to the wall's knot rectangle (and to the
 ℝ³ slab where a search clips to one), holds exactly one piece: two
 simple solutions on its boundary, or a stretch of its boundary on a
 side of the wall's domain that the boundary pass reads within ε of the

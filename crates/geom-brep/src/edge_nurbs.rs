@@ -781,7 +781,9 @@ pub fn is_analytic<T: Real>(surface: &Surface<T>) -> bool {
 ///   distance at the schedule's samples, is implied by it;
 /// - **limb 3**: over a chain of boxes around the carrier the
 ///   enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so the solution set in
-///   the chain is one arc and it spans the carrier over `params`.
+///   the chain is one arc and it spans the carrier over `params`. The
+///   enclosure exists for a plane, a sphere and a cylinder; a cone or a
+///   torus operand refuses here, by name, before any box is probed.
 ///
 /// Both read the carrier cut to `params` (its bracket's outer ends, so
 /// the piece covers the interval at every scalar): the net past the
@@ -792,7 +794,7 @@ pub fn is_analytic<T: Real>(surface: &Surface<T>) -> bool {
 ///
 /// [`AnalyticRung3Refusal`]: a limb's measured refusal or escalation,
 /// the tube's verdict, an operand whose distance bound has no
-/// certificate, a spline operand, or an interval the carrier cannot be
+/// certificate, an operand the tube has no enclosure of, a spline operand, or an interval the carrier cannot be
 /// cut to.
 pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
@@ -821,6 +823,12 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             }
         };
         rung3_limb(kind, Limb2::Bound, offset, band)?;
+    }
+    if let Some(operand) = [s1.kind(), s2.kind()]
+        .into_iter()
+        .find(|&k| !crate::ssi::enclose::has_implicit_enclosure(k))
+    {
+        return Err(AnalyticRung3Refusal::NoTubeEnclosure { operand });
     }
     crate::ssi::certify::certify_branch(
         &piece,
@@ -1042,6 +1050,13 @@ pub enum AnalyticRung3Refusal {
         /// Why, in a clause.
         why: &'static str,
     },
+    /// The uniqueness tube has no enclosure of this operand's implicit
+    /// gradient, so no box of any rung certifies, whatever the carrier's
+    /// accuracy: raised once limb 2 holds against both operands.
+    NoTubeEnclosure {
+        /// The operand.
+        operand: geom::SurfaceKind,
+    },
     /// The uniqueness tube's transversality is not certified clear of
     /// the zero band — a sliver of the pair along the carrier at this
     /// tolerance ([`PlaneNurbsRefusal::TubeStraddles`] reads the same
@@ -1136,7 +1151,10 @@ impl AnalyticRung3Refusal {
             Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
             // The one-arc proof is the SSI door's own decision, and
             // `ending` reads it there.
-            Self::NoOffsetBound { .. } | Self::TubeNotOneArc { .. } | Self::Unsupported { .. } => {
+            Self::NoOffsetBound { .. }
+            | Self::NoTubeEnclosure { .. }
+            | Self::TubeNotOneArc { .. }
+            | Self::Unsupported { .. } => {
                 return None;
             }
         })
@@ -1183,6 +1201,12 @@ impl core::fmt::Display for AnalyticRung3Refusal {
             Self::NoOffsetBound { operand, why } => write!(
                 f,
                 "the carrier's distance from the {} has no certified bound: {why}",
+                operand.name()
+            ),
+            Self::NoTubeEnclosure { operand } => write!(
+                f,
+                "the carrier lies on both surfaces, but the uniqueness tube has no enclosure of \
+                 the {}'s gradient, so it cannot prove the carrier is their one crossing",
                 operand.name()
             ),
             Self::TubeStraddles { verdict, boxes } => write!(

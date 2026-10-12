@@ -398,6 +398,15 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
     }
 }
 
+/// Whether [`implicit_enclosure`] and [`implicit_gradient_enclosure`]
+/// have an arm for `kind`. Off it both refuse every box, so a tube over
+/// such an operand reads a refused margin in every box at every rung:
+/// no verdict on the pair, whatever the carrier.
+pub(crate) const fn has_implicit_enclosure(kind: geom::SurfaceKind) -> bool {
+    use geom::SurfaceKind as K;
+    matches!(kind, K::Plane | K::Sphere | K::Cylinder)
+}
+
 /// `(∇f₁ × ∇f₂)·e` over `b` — **the uniqueness-tube quantity** (module
 /// docs). An enclosure excluding zero proves the solution set inside
 /// `b` is a graph over the `e` axis: at most one solution on each
@@ -2890,6 +2899,48 @@ mod tests {
         assert!(!implicit_enclosure(&torus, b).is_certified());
         assert!(!implicit_gradient_enclosure(&torus, b)[0].is_certified());
         assert!(!graph_margin(&torus, &sphere(), b, Vec3::new(1.0, 0.0, 0.0)).is_certified());
+    }
+
+    /// **[`super::has_implicit_enclosure`] answers what the enclosures
+    /// do**, kind by kind, on a box clear of every operand's degenerate
+    /// set.
+    #[test]
+    fn the_enclosure_roster_is_the_enclosures_own() {
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, -2.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: 0.4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let torus = Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: 1.0,
+            minor_radius: 0.2,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let b = Box3::around(Point3::new(0.8, 0.2, 0.1), 0.05);
+        let mut seen = Vec::new();
+        for s in [plane, cylinder(), cone, sphere(), torus] {
+            let kind = s.kind();
+            seen.push(kind);
+            let encloses = implicit_enclosure(&s, b).is_certified()
+                && implicit_gradient_enclosure(&s, b)
+                    .iter()
+                    .all(|g| g.is_certified());
+            assert_eq!(super::has_implicit_enclosure(kind), encloses, "{kind:?}");
+        }
+        for kind in geom::SurfaceKind::ALL {
+            assert!(
+                seen.contains(&kind) || !super::has_implicit_enclosure(kind),
+                "{kind:?} is claimed and not measured here"
+            );
+        }
     }
 
     #[test]
