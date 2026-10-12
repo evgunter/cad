@@ -20,15 +20,15 @@ use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
-use crate::docm7_union_declare::block;
+use crate::blocks::block;
 
 use editor_core::{
     DocEdit, DocumentId, EvalOptions, Formula, FreeVar, InlineError, Node, ProfileDoc,
-    RecipeNodeId, ResolveFault, RoleSeg, SitedRef, SplitError, StableName, VarName, content_pin,
-    inline, load, product_named, save, split,
+    RecipeNodeId, ResolveFault, RoleSeg, SplitError, StableName, VarName, content_pin, inline,
+    load, product_named, save,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{desc, insert, len, on_frame, run, square, step, xy_frame};
+use fixture::{desc, insert, len, on_frame, run, split_world as split, square, step, xy_frame};
 use geom_core::Tol;
 use std::sync::Arc;
 
@@ -52,15 +52,15 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, side / 2.0)],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
     );
-    doc
+    fixture::place(doc, body).0
 }
 
 /// A two-group assembly: two instances of `doc_ref`, the second at
@@ -85,7 +85,7 @@ fn two_group_assembly(label: &str) -> (PartStore, ProfileDoc, Vec<RecipeNodeId>)
             fresh: Vec::new(),
         },
     );
-    (store, doc, ids)
+    (store, fixture::place_all(doc, &ids), ids)
 }
 
 /// The structural census the A4 identity compares: solids, faces,
@@ -115,6 +115,39 @@ fn wrap(instance: RecipeNodeId, of: &StableName) -> StableName {
             of: of.clone().into(),
         }],
     }
+}
+
+/// The one placement in `doc` that reads `body` — the world copy a
+/// split's remainder places its instance with.
+fn placement_reading(doc: &ProfileDoc, body: RecipeNodeId) -> RecipeNodeId {
+    let reading: Vec<RecipeNodeId> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| match doc.node(p) {
+            Some(Node::PlaceInWorld { body: read, .. }) => {
+                doc.operation_of(read.read) == Some(body)
+            }
+            _ => false,
+        })
+        .collect();
+    match reading.as_slice() {
+        [one] => *one,
+        other => panic!("{body:?} is placed once, got {other:?}"),
+    }
+}
+
+/// The bodies `doc` places, in its placements' document order — the
+/// order the product gathers its copies in.
+fn placed_bodies(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
+    doc.placements()
+        .into_iter()
+        .map(|p| match doc.node(p) {
+            Some(Node::PlaceInWorld { body, .. }) => doc
+                .operation_of(body.read)
+                .expect("a placement reads a body"),
+            other => panic!("a placement, got {other:?}"),
+        })
+        .collect()
 }
 
 /// Replays an edit list over a starting document — the "the recorded
@@ -188,26 +221,33 @@ fn row1_split_one_group_preserves_structure_and_names() {
 
     // NAME-RESOLUTION identity: every product name of the unsplit
     // evaluation resolves after the split — kept names verbatim, cut
-    // names through the instance qualifier (probing the WHOLE table is
-    // the strongest form of "probe several").
+    // names through the instance qualifier and the copy the remainder
+    // places (probing the WHOLE table is the strongest form of "probe
+    // several"). A product name is a copy's: `Placed` at the placement
+    // that put it in the world.
     let cut_instance = ids[1];
     let mapped = out.node_map[&cut_instance];
+    let placed_at = placement_reading(&out.remainder, out.instance);
+    // The cut name, re-anchored: the part's own copy of the instance's
+    // name, under the remainder instance, placed by the remainder.
+    let across = |name: &StableName| -> StableName {
+        let (placement, inner) = name.copy_of().expect("a product name is a copy's");
+        wrap(
+            out.instance,
+            &StableName {
+                kind: inner.kind,
+                node: mapped,
+                path: inner.path.clone(),
+            }
+            .in_copy(out.node_map[&placement]),
+        )
+        .in_copy(placed_at)
+    };
     let mut probed_cut = 0usize;
     for (name, _) in names1.iter() {
-        if name.node == cut_instance {
-            // The B-minted name, re-anchored: InPart(remap(name)) at
-            // the remainder's instance.
-            let RoleSeg::InPart { of } = &name.path[0] else {
-                panic!("an instance-minted product name wraps a part-local one");
-            };
-            let expected = wrap(
-                out.instance,
-                &StableName {
-                    kind: name.kind,
-                    node: mapped,
-                    path: vec![RoleSeg::InPart { of: of.clone() }],
-                },
-            );
+        let (_, inner) = name.copy_of().expect("a product name is a copy's");
+        if inner.node == cut_instance {
+            let expected = across(name);
             assert!(
                 names2.iter().any(|(n, _)| *n == expected),
                 "cut name {name:?} re-resolves as {expected:?}"
@@ -222,28 +262,21 @@ fn row1_split_one_group_preserves_structure_and_names() {
     }
     assert!(probed_cut > 0, "the probe actually crossed the seam");
 
-    // Geometry rides the names: one part-local vertex, resolved under
-    // the unsplit instance and under the split side's double wrapper,
-    // lands on bit-identical coordinates.
+    // Geometry rides the names: one part-local vertex, resolved through
+    // the unsplit copy and through the split side's copy, lands on
+    // bit-identical coordinates.
     let sample = names1
         .iter()
-        .find(|(n, _)| n.node == cut_instance && n.kind == editor_core::EntityKind::Vertex)
+        .find(|(n, _)| {
+            n.copy_of()
+                .is_some_and(|(_, inner)| inner.node == cut_instance)
+                && n.kind == editor_core::EntityKind::Vertex
+        })
         .map(|(n, _)| n.clone())
         .expect("a cut vertex name");
-    let RoleSeg::InPart { of } = &sample.path[0] else {
-        panic!("wrapped vertex");
-    };
-    let before = editor_core::vertex_position(&ev1, cut_instance, &sample).expect("resolves");
-    let after_name = wrap(
-        out.instance,
-        &StableName {
-            kind: sample.kind,
-            node: mapped,
-            path: vec![RoleSeg::InPart { of: of.clone() }],
-        },
-    );
-    let after =
-        editor_core::vertex_position(&ev2, out.instance, &after_name).expect("resolves after");
+    let before = editor_core::vertex_position(&ev1, sample.node, &sample).expect("resolves");
+    let after_name = across(&sample);
+    let after = editor_core::vertex_position(&ev2, placed_at, &after_name).expect("resolves after");
     assert_eq!(before.x.to_bits(), after.x.to_bits());
     assert_eq!(before.y.to_bits(), after.y.to_bits());
     assert_eq!(before.z.to_bits(), after.z.to_bits());
@@ -266,11 +299,12 @@ fn row1_split_plain_subtree_preserves_structure() {
     let (doc, e2) = insert(
         doc,
         Node::Extrude {
-            profile: p2,
+            profile: p2.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
     );
+    let doc = fixture::place(doc, e2).0;
     let opts = EvalOptions::default();
     let ev1 = run(&doc, &opts);
     let (body1, _) = product_named(&doc, &ev1, Tol::witness()).expect("gathers");
@@ -367,14 +401,18 @@ fn row2_inline_inverts_split_and_undo_restores() {
     assert_eq!(volume_bits(&body1), volume_bits(&body3));
     // The cut instance came back as a fresh node; its names correspond
     // through the two maps (split's, then inline's).
+    // A product name is a copy's; the cut took the instance AND the
+    // placement that put it in the world, and both came back fresh.
     let back = inlined.node_map[&out.node_map[&ids[1]]];
     for (name, _) in names1.iter() {
-        let expected = if name.node == ids[1] {
+        let (placement, inner) = name.copy_of().expect("a product name is a copy's");
+        let expected = if inner.node == ids[1] {
             StableName {
-                kind: name.kind,
+                kind: inner.kind,
                 node: back,
-                path: name.path.clone(),
+                path: inner.path.clone(),
             }
+            .in_copy(inlined.node_map[&out.node_map[&placement]])
         } else {
             name.clone()
         };
@@ -432,16 +470,16 @@ fn row2_appearance_rides_the_bridge_both_ways() {
         None,
     )
     .expect("legal");
-    let RoleSeg::InPart { of } = &face.path[0] else {
-        panic!("wrapped face");
-    };
+    // The instance's name, now the part's copy of it (the cut took
+    // the placement too), under the remainder's instance.
     let expected = wrap(
         out.instance,
         &StableName {
             kind: face.kind,
             node: out.node_map[&ids[1]],
-            path: vec![RoleSeg::InPart { of: of.clone() }],
-        },
+            path: face.path.clone(),
+        }
+        .in_copy(out.node_map[&placement_reading(&doc, ids[1])]),
     );
     assert!(
         out.remainder.appearance_of(&face).is_none(),
@@ -504,6 +542,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
             consumer,
             input,
             consumer_is_cut,
+            ..
         }) => {
             assert_eq!(
                 (consumer, input),
@@ -525,6 +564,7 @@ fn row3_severing_cut_refuses_naming_the_edge() {
             consumer,
             input,
             consumer_is_cut,
+            ..
         }) => {
             assert_eq!(
                 (consumer, input),
@@ -561,7 +601,7 @@ fn row3_uncut_param_reference_refuses() {
     let (doc, e1) = insert(
         doc,
         Node::Extrude {
-            profile: p1,
+            profile: p1.into(),
             distance: h(),
             side: ExtrudeSide::Along,
         },
@@ -571,11 +611,12 @@ fn row3_uncut_param_reference_refuses() {
     let (doc, e2) = insert(
         doc,
         Node::Extrude {
-            profile: p2,
+            profile: p2.into(),
             distance: h(),
             side: ExtrudeSide::Along,
         },
     );
+    let doc = fixture::place_all(doc, &[e1, e2]);
     match split(
         &doc,
         &BTreeSet::from([f1, p1, e1]),
@@ -689,12 +730,20 @@ fn row3_further_typed_refusals() {
             },
         ),
     );
-    match inline(&host, inst, &resolver, Tol::witness()) {
-        Err(InlineError::InstanceConsumed { node, by }) => {
-            assert_eq!((node, by), (host.spoken(inst), host.spoken(consumer)));
-        }
-        other => panic!("expected InstanceConsumed, got {other:?}"),
-    }
+    // A reader of the instance is re-pointed to the inlined body
+    // (InstanceConsumed retired with the world).
+    let inlined = inline(&host, inst, &resolver, Tol::witness())
+        .expect("an instance its reader reads inlines");
+    let Some(Node::Transform { input, .. }) = inlined.doc.node(consumer) else {
+        panic!("the reader stays")
+    };
+    assert!(
+        inlined
+            .doc
+            .operation_of(*input)
+            .is_some_and(|at| at != inst),
+        "the reader reads the inlined body"
+    );
 
     // A placed instance of a PLAIN-geometry part cannot inline: the
     // frame is not something the spliced recipe can express (D-3's
@@ -716,8 +765,8 @@ fn row3_further_typed_refusals() {
             let part_doc = part("asm4-r3f-part", 0.0, 1.0);
             assert_eq!(
                 root,
-                part_doc.spoken(part_doc.ids()[BODY_POSITION]),
-                "the plain extrude root is named, spoken from the part"
+                part_doc.spoken(part_doc.placements()[0]),
+                "the placement of the plain extrude is named, spoken from the part"
             );
         }
         other => panic!("expected UnplaceableFrame, got {other:?}"),
@@ -748,14 +797,14 @@ fn row4_roots_and_offsets_land_as_the_rules_say() {
     .expect("legal");
     let mapped = out.node_map[&ids[1]];
     assert_eq!(
-        out.remainder.roots(),
-        &[ids[0], out.instance],
-        "the instance takes the cut root's list position"
+        placed_bodies(&out.remainder),
+        [ids[0], out.instance],
+        "the remainder places the kept instance, then the new one"
     );
     assert_eq!(
-        out.part.roots(),
-        &[mapped],
-        "the part's root is the cut root"
+        placed_bodies(&out.part),
+        [mapped],
+        "the part places what the cut placed"
     );
     assert_eq!(
         fixture::offset_of(&out.remainder, out.instance),
@@ -768,8 +817,8 @@ fn row4_roots_and_offsets_land_as_the_rules_say() {
     );
 
     // The multi-group cut: both offsets MOVE, the remainder instance
-    // sits at the empty offset, and the part keeps the cut roots' LIST order
-    // even where insertion order disagrees.
+    // sits at the empty offset, and the part keeps the cut placements'
+    // order even where the instances' insertion order disagrees.
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-r4b-part", 0.0, 1.0), Tol::witness());
     let mut doc2 = ProfileDoc::empty(DocumentId::derive("asm4-r4b"), Tol::witness());
@@ -792,14 +841,8 @@ fn row4_roots_and_offsets_land_as_the_rules_say() {
         }
         inst.push(id);
     }
-    // Reorder the roots so the cut pair's list order disagrees with
-    // insertion order.
-    let (doc2, _) = step(
-        doc2,
-        DocEdit::SetRoots {
-            roots: vec![inst[2], inst[0], inst[1]],
-        },
-    );
+    // Placed in an order the instances' own order disagrees with.
+    let doc2 = fixture::place_all(doc2, &[inst[2], inst[1], inst[0]]);
     let out2 = split(
         &doc2,
         &BTreeSet::from([inst[0], inst[2]]),
@@ -809,14 +852,14 @@ fn row4_roots_and_offsets_land_as_the_rules_say() {
     )
     .expect("legal");
     assert_eq!(
-        out2.remainder.roots(),
-        &[out2.instance, inst[1]],
-        "the instance takes the FIRST cut root's position"
+        placed_bodies(&out2.remainder),
+        [inst[1], out2.instance],
+        "the remainder's new placement comes after the kept one"
     );
     assert_eq!(
-        out2.part.roots(),
-        &[out2.node_map[&inst[2]], out2.node_map[&inst[0]]],
-        "the part keeps the cut roots' A10 list order"
+        placed_bodies(&out2.part),
+        [out2.node_map[&inst[2]], out2.node_map[&inst[0]]],
+        "the part keeps the cut placements' order"
     );
     assert_eq!(
         fixture::offset_of(&out2.remainder, out2.instance),
@@ -917,16 +960,16 @@ fn split_pair_round_trips_persistence_and_still_evaluates_identically() {
     assert_eq!(volume_bits(&body1), volume_bits(&body2));
 }
 
-// ---- A cut a kept root separates regroups at its first root ----
+// ---- A cut a kept placement separates ----
 
-/// A non-adjacent multi-group cut's roots come together where the first
-/// of them was (A10's replacement rule), so the round trip returns the
-/// document up to node ids and that one regrouping (A4): the root set
-/// and the cut's own order are kept, the interleaving with the kept
-/// root is not, and the census, bit-equal volumes and whole-table name
-/// re-resolution all hold.
+/// A non-adjacent multi-group cut's placements leave together and come
+/// back together, after the kept ones (there is no list to splice into),
+/// so the round trip returns the document up to node ids and that one
+/// regrouping: the placed set and the cut's own order are kept, the
+/// interleaving with the kept placement is not, and the census,
+/// bit-equal volumes and whole-table name re-resolution all hold.
 #[test]
-fn a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_product() {
+fn a_separated_cut_comes_back_after_the_kept_placements_and_the_round_trip_keeps_the_product() {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-min1-part", 0.0, 1.0), Tol::witness());
     // A plain component (dyadic-exact volume, disjoint from the
@@ -942,7 +985,7 @@ fn a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_produ
     let (doc, e) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -965,13 +1008,7 @@ fn a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_produ
         inst.push(i);
     }
     let (i0, i1, i2) = (inst[0], inst[1], inst[2]);
-    // A reordered list, the cut roots NON-ADJACENT in it.
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetRoots {
-            roots: vec![e, i2, i0, i1],
-        },
-    );
+    let doc = fixture::place_all(doc, &[e, i2, i0, i1]);
     let opts = with_resolver(store);
     let ev1 = run(&doc, &opts);
     let (body1, names1) = product_named(&doc, &ev1, Tol::witness()).expect("gathers");
@@ -986,14 +1023,14 @@ fn a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_produ
     )
     .expect("legal");
     assert_eq!(
-        out.remainder.roots(),
-        &[e, out.instance, i0],
-        "the cut roots collapse onto the FIRST cut root's position"
+        placed_bodies(&out.remainder),
+        [e, i0, out.instance],
+        "the kept placements keep their order; the new one comes last"
     );
     assert_eq!(
-        out.part.roots(),
-        &[out.node_map[&i2], out.node_map[&i1]],
-        "the part keeps the cut roots' host ROOT-LIST order"
+        placed_bodies(&out.part),
+        [out.node_map[&i2], out.node_map[&i1]],
+        "the part keeps the cut placements' host order"
     );
 
     let mut store2 = PartStore::default();
@@ -1007,18 +1044,13 @@ fn a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_produ
     )
     .expect("inlines");
     let back = |i: RecipeNodeId| inlined.node_map[&out.node_map[&i]];
-    // [e, i2, i0, i1] round-trips to [e, i2, i1, i0] (in
-    // correspondence): the spliced block lands whole at the instance's
-    // position.
+    // [e, i2, i0, i1] round-trips to [e, i0, i2, i1] (in
+    // correspondence): the part's placements come in after the kept
+    // ones, in their own order.
     assert_eq!(
-        inlined.doc.roots(),
-        &[e, back(i2), back(i1), i0],
-        "the spliced block keeps its own order at the instance's position"
-    );
-    assert_ne!(
-        inlined.doc.roots(),
-        &[e, back(i2), i0, back(i1)],
-        "the original interleaving is genuinely not restored"
+        placed_bodies(&inlined.doc),
+        [e, i0, back(i2), back(i1)],
+        "the carried placements keep their own order, after the kept ones"
     );
 
     // The product and its names are the original's.
@@ -1029,12 +1061,14 @@ fn a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_produ
     assert_eq!(census(&body1), census(&body3));
     assert_eq!(volume_bits(&body1), volume_bits(&body3));
     for (name, _) in names1.iter() {
-        let expected = if name.node == i1 || name.node == i2 {
+        let (placement, inner) = name.copy_of().expect("a product name is a copy's");
+        let expected = if inner.node == i1 || inner.node == i2 {
             StableName {
-                kind: name.kind,
-                node: back(name.node),
-                path: name.path.clone(),
+                kind: inner.kind,
+                node: back(inner.node),
+                path: inner.path.clone(),
             }
+            .in_copy(back(placement))
         } else {
             name.clone()
         };
@@ -1100,7 +1134,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         other => panic!("expected BodyNameCrossesCut, got {other:?}"),
     }
 
-    // NameStraddlesCut: a name declared on a KEPT union derives from a
+    // NameStraddlesCut: a name a KEPT fillet selects derives from a
     // kept node AND (through an embedded operand name) from a cut node.
     let doc = part("asm4-min2-straddle-kept", 0.0, 1.0);
     let kept_e = doc.ids()[BODY_POSITION];
@@ -1112,7 +1146,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     let (doc, cut_e) = insert(
         doc,
         Node::Extrude {
-            profile: cut_p,
+            profile: cut_p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1120,37 +1154,21 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     let straddler = StableName {
         kind: EntityKind::Edge,
         node: kept_e,
-        path: vec![RoleSeg::FromA(
-            StableName {
+        path: vec![RoleSeg::From {
+            read: crate::fixture::out(&doc, cut_e),
+            of: StableName {
                 kind: EntityKind::Edge,
                 node: cut_e,
                 path: vec![RoleSeg::OutputBody],
             }
             .into(),
-        )],
+        }],
     };
-    let partner = StableName {
-        kind: EntityKind::Edge,
-        node: kept_e,
-        path: vec![RoleSeg::OutputBody],
-    };
-    let kept_p = doc.ids()[BODY_POSITION - 1];
-    let (doc, kept_twin) = insert(
-        doc,
-        Node::Extrude {
-            profile: kept_p,
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-    );
     let (doc, _) = insert(
         doc,
-        Node::Union {
-            members: vec![kept_e, kept_twin],
-            declare: editor_core::declare_rest(vec![(
-                SitedRef::at_mint(straddler.clone()),
-                SitedRef::at_mint(partner),
-            )]),
+        Node::Fillet {
+            radius: len(0.1),
+            selection: editor_core::Operand::select(kept_e, vec![straddler.clone()]),
         },
     );
     match split(
@@ -1225,21 +1243,19 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
 /// A's block, and A's block is named.
 #[test]
 fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
-    use editor_core::{BooleanOp, EntityKind, derivation_nodes};
+    use editor_core::{EntityKind, derivation_nodes};
     let doc = ProfileDoc::empty_derived("asm4-reach-earliest", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc, &EvalOptions::default());
     let table = &ev.value(u).expect("the union evaluates").name_table;
+    let a_read = crate::fixture::out(&doc, a);
     let from_a = table
         .iter()
         .map(|(n, _)| n.clone())
@@ -1247,7 +1263,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
             n.kind == EntityKind::Face
                 && n.path
                     .first()
-                    .is_some_and(|s| matches!(s, RoleSeg::FromA(_)))
+                    .is_some_and(|s| matches!(s, RoleSeg::From { read, .. } if *read == a_read))
         })
         .expect("the union keeps a face of operand A");
     let reached = derivation_nodes(&from_a);
@@ -1287,9 +1303,8 @@ fn selecting_fillet(doc: ProfileDoc, name: StableName) -> (ProfileDoc, BTreeSet<
     let (doc, _fillet) = insert(
         doc,
         Node::Fillet {
-            target: body,
             radius: len(0.1),
-            selection: vec![name],
+            selection: editor_core::Operand::select(body, vec![name]),
         },
     );
     let cut = doc
@@ -1318,21 +1333,19 @@ fn fillet_of(doc: &ProfileDoc, cut: &BTreeSet<RecipeNodeId>) -> RecipeNodeId {
 /// deleted node that sorts first.
 #[test]
 fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
-    use editor_core::{BooleanOp, EntityKind, derivation_nodes};
+    use editor_core::{EntityKind, derivation_nodes};
     let doc = ProfileDoc::empty_derived("asm4-reach-deleted", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 0.5);
     let (doc, u) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc, &EvalOptions::default());
     let table = &ev.value(u).expect("the union evaluates").name_table;
+    let a_read = crate::fixture::out(&doc, a);
     let from_a = table
         .iter()
         .map(|(n, _)| n.clone())
@@ -1340,7 +1353,7 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
             n.kind == EntityKind::Face
                 && n.path
                     .first()
-                    .is_some_and(|s| matches!(s, RoleSeg::FromA(_)))
+                    .is_some_and(|s| matches!(s, RoleSeg::From { read, .. } if *read == a_read))
         })
         .expect("the union keeps a face of operand A");
     let reached = derivation_nodes(&from_a);
@@ -1488,8 +1501,9 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     let foreign = StableName {
         kind: EntityKind::Face,
         node: kept_e,
-        path: vec![RoleSeg::FromA(
-            wrap(
+        path: vec![RoleSeg::From {
+            read: crate::fixture::out(&host, inst),
+            of: wrap(
                 inst,
                 &StableName {
                     kind: EntityKind::Face,
@@ -1498,7 +1512,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                 },
             )
             .into(),
-        )],
+        }],
     };
     let (host, _) = step(
         host,
@@ -1559,25 +1573,34 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         other => panic!("expected InstanceBodyNameReferenced, got {other:?}"),
     }
 
-    // StrandedPartName: the referenced document carries an N5-stranded
-    // declared-pair reference (its node deleted after authoring) — there is
-    // no node to remap it onto. BOTH shapes run. The FLAT name is
-    // minted AT the deleted node, so the node the refusal carries is
-    // the name's own mint; the NESTED name is minted at the SURVIVING
-    // body and embeds the deleted node's name in a path segment, so
-    // the node that stranded is a segment DOWN from the name the
-    // refusal can report. The pair is the property: the two coincide
-    // in the flat case and come apart in the nested one, which is why
-    // the name alone does not answer "which node stranded".
+    // StrandedPartName / StrandedPartRead: the referenced document
+    // carries an N5-stranded selected name (its node deleted after
+    // authoring) — there is nothing to remap it onto. BOTH shapes
+    // run. The FLAT name is minted AT the deleted node, so the node the
+    // refusal carries is the name's own mint; the NESTED name is minted
+    // at the SURVIVING body and carries the deleted node's name in
+    // through that node's read, so what stranded is a segment DOWN from
+    // the name, and the refusal names it separately: the read, which no
+    // operation of the part defines any more.
     for nested in [false, true] {
         let mut store = PartStore::default();
         let part_doc = part("asm4-min2-stranded-part", 0.0, 1.0);
-        let (part_doc, extra) = on_frame(
+        let (part_doc, extra_profile) = on_frame(
             part_doc,
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             vec![square(10.0, 0.0, 0.5)],
+        );
+        // A body whose name a fillet on the part body selects; the
+        // delete strands it.
+        let (part_doc, extra) = insert(
+            part_doc,
+            Node::Extrude {
+                profile: extra_profile.into(),
+                distance: len(1.0),
+                side: ExtrudeSide::Along,
+            },
         );
         let body = part_doc.ids()[BODY_POSITION];
         let at_extra = StableName {
@@ -1585,40 +1608,27 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             node: extra,
             path: vec![RoleSeg::OutputBody],
         };
+        let extra_read = crate::fixture::out(&part_doc, extra);
         let stranded = if nested {
             StableName {
                 kind: EntityKind::Edge,
                 node: body,
-                path: vec![RoleSeg::FromA(at_extra.into())],
+                path: vec![RoleSeg::From {
+                    read: extra_read,
+                    of: at_extra.into(),
+                }],
             }
         } else {
             at_extra
         };
-        let anchor = StableName {
-            kind: EntityKind::Edge,
-            node: body,
-            path: vec![RoleSeg::OutputBody],
-        };
-        let profile = part_doc.ids()[BODY_POSITION - 1];
-        let (part_doc, twin) = insert(
-            part_doc,
-            Node::Extrude {
-                profile,
-                distance: len(1.0),
-                side: ExtrudeSide::Along,
-            },
-        );
+        // The selection is READ at the surviving body; the stranded
+        // NAME derives from the extra node, which is what the delete
+        // below strands.
         let (part_doc, _) = insert(
             part_doc,
-            Node::Union {
-                members: vec![body, twin],
-                // Both sides are READ at the surviving body; the
-                // stranded side's NAME derives from the extra node,
-                // which is what the delete below strands.
-                declare: editor_core::declare_rest(vec![(
-                    SitedRef::new(anchor.node, stranded.clone()),
-                    SitedRef::at_mint(anchor),
-                )]),
+            Node::Fillet {
+                radius: len(0.1),
+                selection: editor_core::Operand::select(body, vec![stranded.clone()]),
             },
         );
         let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
@@ -1631,7 +1641,29 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         );
         let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
         match inline(&host, inst, &resolver, Tol::witness()) {
-            Err(InlineError::StrandedPartName { name, missing }) => {
+            // NESTED: the segment carries the name in through the deleted
+            // node's read, and the read is the first local id of the
+            // segment the walk meets; with its node gone nothing defines
+            // it, so the refusal names the read itself.
+            Err(InlineError::StrandedPartRead { name, read }) if nested => {
+                assert_eq!(name.name(), &stranded);
+                assert_eq!(
+                    read.id(),
+                    extra_read,
+                    "the refusal carries the read the deleted node defined"
+                );
+                assert_eq!(
+                    minter_label(&name),
+                    Some("part body"),
+                    "a carried name is the part's, spoken from it: {name}"
+                );
+                let msg = format!("{}", InlineError::StrandedPartRead { name, read });
+                assert!(
+                    msg.contains("no operation of the referenced document defines"),
+                    "the message states the fault: {msg}"
+                );
+            }
+            Err(InlineError::StrandedPartName { name, missing }) if !nested => {
                 assert_eq!(name.name(), &stranded);
                 assert_eq!(
                     missing,
@@ -1639,33 +1671,22 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                     "the refusal carries the deleted node, which the part no longer holds, \
                      nested={nested}"
                 );
-                if nested {
-                    assert_eq!(
-                        minter_label(&name),
-                        Some("part body"),
-                        "a carried name is the part's, spoken from it: {name}"
-                    );
-                    assert_ne!(
-                        missing.id(),
-                        name.name().node,
-                        "nested: the node that stranded is inside a path segment, so the name \
-                         alone does not name it"
-                    );
-                } else {
-                    assert_eq!(
-                        missing.id(),
-                        name.name().node,
-                        "flat: the name IS minted at the stranded node, so the two coincide — \
-                         the case that cannot tell the id from the name"
-                    );
-                }
+                assert_eq!(
+                    missing.id(),
+                    name.name().node,
+                    "flat: the name IS minted at the stranded node, so the two coincide — \
+                     the case that cannot tell the id from the name"
+                );
                 let msg = format!("{}", InlineError::StrandedPartName { name, missing });
                 assert!(
                     msg.contains("no longer has"),
                     "the message states the fault: {msg}"
                 );
             }
-            other => panic!("expected StrandedPartName, got {other:?}"),
+            other => panic!(
+                "expected StrandedPartName (flat) or StrandedPartRead (nested), \
+                 nested={nested}, got {other:?}"
+            ),
         }
     }
 }
@@ -1688,11 +1709,12 @@ fn reshaped_component(
     let (doc, e2) = insert(
         doc,
         Node::Extrude {
-            profile: p2,
+            profile: p2.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
     );
+    let doc = fixture::place(doc, e2).0;
     let program = match doc.node(p2) {
         Some(Node::Profile(p)) => p.clone(),
         other => panic!("a profile, got {other:?}"),
@@ -1705,8 +1727,10 @@ fn reshaped_component(
         let (doc, id) = insert(
             doc,
             Node::Datum(editor_core::Datum::FaceFrame {
-                at: e2,
-                face: fixture::fname(e2, RoleSeg::Lateral(dropped.into())),
+                face: editor_core::Operand::select(
+                    e2,
+                    vec![fixture::fname(e2, RoleSeg::Lateral(dropped.into()))],
+                ),
                 spin: fixture::ang(0.0),
             }),
         );
@@ -1814,7 +1838,9 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
     let doc = labelled(doc, e2, "walled block");
     let face_frame = face_frame.expect("the stranded frame");
     let dropped = match doc.node(face_frame) {
-        Some(Node::Datum(editor_core::Datum::FaceFrame { face, .. })) => face.clone(),
+        Some(Node::Datum(editor_core::Datum::FaceFrame { face, .. })) => {
+            doc.selection(*face).expect("a face selection").names[0].clone()
+        }
         other => panic!("a face frame, got {other:?}"),
     };
     let dropped_step = match dropped.path.as_slice() {

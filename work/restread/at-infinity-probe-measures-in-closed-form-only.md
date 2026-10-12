@@ -120,7 +120,7 @@ the brick. Probed at θ = 30° and 70°, plate ∩ rod.
 ## Another witness (JOIN, the parallel cylinder arm)
 
 Once the join splits two parallel cylinder walls along their rulings
-(`work/join/parallel-cylinder-germ-pair-has-no-join-arm.md`), the
+(`parallel-cylinder-germ-pair-has-no-join-arm`, JOIN, closed by PR 4031), the
 row's rods across the tilted drum cut's rim reach this probe. The
 drum's lower part (radius 0.5, cut through `(0, 0, 0.5)` at 0.3 rad)
 against a rod of radius 0.2 about `(0.5, 0)`, `z ∈ [0.2, 0.45]`; of
@@ -210,3 +210,104 @@ convergence escalation,
 `work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`,
 met on the same face shape. Pinned by `band_planar_oblique_fillet.rs`
 `a_brick_through_a_steep_elliptic_end_builds_in_every_op`.
+
+## A second fixture: the tilted rod's pieces (GERM, 2026-10-10)
+
+Measured on `germ/radial-hole-through-a-tube`, where the section
+certificate's square-wall arm lets the tilted rod of
+`crates/sweep/tests/germ_tilted_rod.rs` (radius `0.15`, axis from
+`(1.8, 0, 0)` along `(−sin β, 0, −cos β)` over `t ∈ [−0.3, 1.4]`) build
+against the half donut at `β = 0.3, 0.4`. The rod pieces the cap's plane
+`z = 0` trims along an ellipse — `h ∩ c`, `c ∩ h` and `c ∖ h` — measure
+exactly through `topo::mass_properties` (`πr²·1.4` and `πr²·0.3`), and
+`point_in_solid` answers every probe inside them, but refuses
+`VolumeUncertified` at probes outside them whose rays miss them:
+`(−2, 0, −0.1)` for both ∩ at spin 0 and for `c ∖ h` at every spin, and
+the rod's axis point at `t = 0.7` for `c ∖ h` at every spin. Pinned by
+`the_rod_short_of_the_inner_equator_answers_every_op`, which admits that
+refusal on the trimmed pieces' outside probes only.
+
+## A third fixture: a slab-cut plug as an operand (CLEAVE, 2026-10-11)
+
+Measured on main at `0a700cf7ac`, ε = 1e-9. Take the plug that the slab
+`[−3, 3] × [−1, 1] × [0, 1]` cuts from a radius-0.25 rod tilted π/3
+toward +x (`crates/sweep/tests/continuation_pose.rs`, `plug_and_hole`).
+The plug, its holed slab, and every result that holds the plug's
+ellipse-trimmed wall all refuse `Containment(VolumeUncertified)` when
+united with the far brick `[50, 51]³` (`sweep::test_support::assert_legal_operand`).
+The results that refuse are the plug ∪ a disjoint brick, and plug ∖
+that brick. The brick ∖ plug result is accepted. The refusal is the
+same at all 13 poses of that suite. Each body measures at its closed
+form through `topo::mass_properties`. The suite's apart pin does not
+assert legality for this reason.
+
+## 2026-10-11 — 1 023 boolean results at a curved corner pinch (FLUSH)
+
+`sweep` `curved_notch_pinch::curved_notch_pinch`
+(ignored, release; `notch343` with one face bowed into a cylinder arc,
+against a two-cube corner pinch, 84 directions × 3 turns, every op in
+both orders, plain booleans) on main `6e3985cb7`: 1 023 of 1 497
+built bodies refuse a union with a far brick
+`Containment(VolumeUncertified)`. Each has the right volume and
+passes tier 2 and the certificate. Instrumented on three poses, the
+probe's props refusal is the one this row names, on the bowed wall:
+`Face { source: NotIsoRectangle { what: "cylinder boundary carries an
+ellipse arc (curved cut) …" } }`. A cube face cutting the wall
+obliquely leaves an ellipse arc on its boundary. The 474 bodies whose
+further union passes are the poses where no cube face cuts the wall
+that way.
+
+Pinned by `a_curved_notch_at_a_corner_pinch_builds_bodies_two_lanes_cannot_read_yet`
+(poses `0 0 0 ab I` and `0 0 0 ab U` refuse; `9 4 4 ab S` passes):
+when this lane lands, flip those two expectations.
+
+## Two batteries read it as their one failure (FLUSH, 2026-10-11)
+
+Measured on `flush/e-tail` (main at `121741a2b` plus FLUSH's E tail),
+ε = 1e-9, once `crates/sweep/tests/pocket_ring_steep_ellipse.rs`
+`steep_quad_prism_battery` and `crates/sweep/tests/join3_r2_probes.rs`
+`j3r2_tilted_battery` judge their bodies through
+`common::differential::outcome`, which asks each built body to unite
+with the far brick `[50, 51]³`. Every body the two batteries read BAD
+passes tiers 2 and 3′ and the certificate and fails only that union:
+849 of 960 runs and 2 153 of 2 160. The cutters alone are legal
+operands (`j3r2_tilted_operands`: every one unites); the results
+carrying their ellipse-trimmed walls are not, and
+`j3r2_tilted_rod_operand` prints the refusal,
+`Containment(VolumeUncertified)`, for a tilted round rod and a tilted
+D at θ = 0.15 (a tilted square, with no curved wall, unites).
+
+## Measured (CLEAVE `cleave/missed-ray-side`, 2026-10-11)
+
+CLEAVE's missed-ray unit
+(`work/cleave/a-missed-ray-reads-the-solids-volume-sign-for-its-side`)
+reads a missed ray's side off a ray aimed at a planar face wherever the
+selection's volume does not decide it, and that includes this row's
+`VolumeUncertified` (`solid_contain.rs` `missed_side`, `aimed_side`).
+Each pin this row names was measured on the branch at ε 1e-9, 1e-6 and
+1e-12, and re-baselined to the answer it now gives:
+
+- `pis_arc_capped_poses::a_ray_meeting_nothing_refuses_only_where_no_ray_settles`
+  is now `a_ray_meeting_nothing_is_sided_by_a_ray_aimed_at_a_planar_face`:
+  `Out` at both bands.
+- `pis_arc_capped_poses` grids and `pis_cut_cavity`: no at-infinity
+  refusal on any case, so their `VolumeUncertified` escape arms are
+  gone.
+- `band_planar_oblique_fillet`: ∖ and ∪ with a brick apart build at
+  the closed-form volumes, and ∩ is empty.
+- `curved_notch_pinch`: the further union builds on all three pinned
+  poses, the brick's volume added. The test is renamed
+  `a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet`.
+- `parallel_cylinder_join::the_rim_crossing_rods_build_in_every_op`: all
+  18 builds now take a union with a far brick.
+- `germ_tilted_rod` and `pole_slit_window`: every outside probe answers.
+
+What stays: a selection with no planar face offers no aim point, so
+where its closed form refuses, the refusal stands. No such pose was
+measured.
+
+FLUSH's `join3_r2_probes::j3r2_tilted_rod_operand`, re-run on
+`cleave/missed-ray-side` after main's E tail merged in (ε 1e-9): the
+tilted round rod and the tilted D at θ = 0.15 now unite with the far
+brick (`operand Ok(())`), along with every other row of the probe. The
+two batteries above were not re-run.

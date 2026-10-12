@@ -15,7 +15,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::block;
+use crate::blocks::block;
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
@@ -53,9 +53,8 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     let doc = ProfileDoc::empty_derived("rv_self_naming", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node = Node::Fillet {
-        target: body,
         radius: len(0.1),
-        selection: vec![fname(body, wall(&doc, body, 0))],
+        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
     };
     let (doc, fillet) = insert(doc, node);
     // The repair door moves the fillet's selection into the fillet's
@@ -64,6 +63,7 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     let applied = apply(
         &doc,
         &DocEdit::Rebind {
+            body: doc.output(body, 0),
             from: fname(body, wall(&doc, body, 0)),
             to: fname(fillet, wall(&doc, fillet, 2)),
         },
@@ -76,8 +76,8 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
         panic!("the fillet is a Fillet")
     };
     assert_eq!(
-        selection,
-        &vec![fname(fillet, wall(&doc, fillet, 2))],
+        crate::fixture::selected(&doc, *selection),
+        vec![fname(fillet, wall(&doc, fillet, 2))],
         "the carrier now names its own space"
     );
 
@@ -154,8 +154,8 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
     let (doc, mate) = insert(
         doc,
         Node::Mate {
-            a: crate::fixture::head(instance_face(ia, part_body)),
-            b: crate::fixture::head_at(placed, head_b),
+            a: crate::fixture::head(instance_face(ia, part_body)).into(),
+            b: crate::fixture::head_at(placed, head_b).into(),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(),
@@ -187,8 +187,8 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         .expect("the solve refuses the mate whose operand left")
         .clone();
     assert!(
-        matches!(&fault, editor_core::MateFault::DanglingHead { head, .. } if *head == placed),
-        "typed, naming the node the walk stopped at, not silence: {fault:?}"
+        matches!(&fault, editor_core::MateFault::SideUnresolved { mate: m, .. } if *m == mate),
+        "typed, naming the stranded side, not silence: {fault:?}"
     );
 }
 
@@ -268,6 +268,7 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
     let repaired = apply(
         &applied.doc,
         &DocEdit::Rebind {
+            body: None,
             from: painted.clone(),
             to: live.clone(),
         },

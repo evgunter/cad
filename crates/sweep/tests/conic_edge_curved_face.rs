@@ -292,7 +292,7 @@ fn refusals(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Vec<topo::BooleanError>
 /// the crossing layer and the sector side pass. A ball's every op stops
 /// at the join: its wall × sphere pair has its section frame and no
 /// chord lane for its quartic section
-/// (`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`;
+/// (`work/sect/cylinder-sphere-germ-pair-has-no-join-lane.md`;
 /// `cylinder_sphere_frame` holds the same balls to their volumes). A
 /// rod's parallel walls join along their rulings, the narrow rods'
 /// pierce ring in the drum's wall joins, and every rod builds in every

@@ -51,7 +51,7 @@ fn block_part(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -62,6 +62,22 @@ fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
 }
 
+/// **Each of `pattern`'s `count` copies placed in the world**, in
+/// instance order: a `Part` per copy, each placed at the identity —
+/// the world a pattern's copies are in the product by (A10).
+fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, count: i64) -> ProfileDoc {
+    (0..count).fold(doc, |doc, i| {
+        let (doc, copy) = insert(
+            doc,
+            Node::Part {
+                of: pattern.into(),
+                select: editor_core::PartSelect::Instance(Formula::count(i)),
+            },
+        );
+        fixture::place(doc, copy).0
+    })
+}
+
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
     MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
         .expect("a definite frame")
@@ -69,8 +85,8 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
 
 fn seat_mate(a: StableName, b: StableName, origin: [f64; 3], sense: AxisSense) -> AuthoredNode {
     Node::Mate {
-        a: crate::fixture::head(a),
-        b: crate::fixture::head(b),
+        a: crate::fixture::head(a).into(),
+        b: crate::fixture::head(b).into(),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),
@@ -238,10 +254,10 @@ fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(3),
             kind: PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(theta),
             },
         },
@@ -318,7 +334,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 // Document ŷ: the placed group frame turns the leg
@@ -334,6 +350,8 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
         },
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    let doc = place_copies(doc, pattern, 2);
+    let doc = fixture::place(doc, top).0;
     let (doc, m0) = step(
         doc,
         DocEdit::InsertNode {
@@ -377,7 +395,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
             assert!(
                 findings
                     .iter()
-                    .all(|f| matches!(f.attribution, editor_core::Attribution::Declined(_))),
+                    .all(|f| matches!(f.attribution, Some(editor_core::Attribution::Declined(_)))),
                 "declines only: {findings:?}"
             );
         }
@@ -401,7 +419,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
     let (doc, p1) = insert(
         doc,
         Node::Pattern {
-            input: leg1,
+            input: leg1.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -413,7 +431,7 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
     let (doc, p2) = insert(
         doc,
         Node::Pattern {
-            input: leg2,
+            input: leg2.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -474,7 +492,7 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -545,7 +563,7 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -642,7 +660,7 @@ fn r2_nested_pattern_head_is_a_member() {
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
-            input: leg,
+            input: leg.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -653,7 +671,7 @@ fn r2_nested_pattern_head_is_a_member() {
     let (doc, outer) = insert(
         doc,
         Node::Pattern {
-            input: inner,
+            input: inner.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],

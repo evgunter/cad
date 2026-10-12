@@ -9,12 +9,11 @@
 
 use std::collections::BTreeMap;
 
+use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
 use crate::fixture::{ang, insert, len, point, scl, step, table};
 use editor_core::{
-    Axis3, BooleanOp, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, SlotId,
-    StableName,
+    Axis3, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, SlotId, StableName,
 };
 use geom_core::Tol;
 
@@ -55,11 +54,8 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
     let (doc, rib) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.5);
     let (doc, joined) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: plate,
-            b: rib,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), rib.into()]),
         },
     );
     // Two notches across the rib's y = 1 seam: the first in place, the
@@ -79,20 +75,15 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
     );
     let (doc, notches) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: n1,
-            b: tr,
-            declare: Vec::new(),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![n1.into(), tr.into()]),
         },
     );
     let (doc, cut) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: joined,
-            b: notches,
-            declare: Vec::new(),
+        Node::Subtract {
+            from: joined.into(),
+            tool: notches.into(),
         },
     );
     let (doc2, _) = step(
@@ -100,7 +91,7 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
         DocEdit::SetParam {
             node: tr,
             slot: SlotId::Translation(Axis3::Y),
-            expr: len(-4.0),
+            value: len(-4.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -185,14 +176,20 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
             normal: [scl(nx), scl(ny), scl(0.0)],
         }),
     );
-    let (doc, cut) = insert(doc, Node::Split { target: rod, tool });
+    let (doc, cut) = insert(
+        doc,
+        Node::Split {
+            target: rod.into(),
+            tool: tool.into(),
+        },
+    );
     let (nx, ny) = normal(30.0);
     let (doc2, _) = step(
         doc.clone(),
         DocEdit::SetParam {
             node: tool,
             slot: SlotId::Normal(Axis3::X),
-            expr: scl(nx),
+            value: scl(nx).into(),
             fresh: Vec::new(),
         },
     );
@@ -201,7 +198,7 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
         DocEdit::SetParam {
             node: tool,
             slot: SlotId::Normal(Axis3::Y),
-            expr: scl(ny),
+            value: scl(ny).into(),
             fresh: Vec::new(),
         },
     );

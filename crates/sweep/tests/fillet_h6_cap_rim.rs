@@ -165,7 +165,6 @@ fn obround_loop() -> ProfileLoop<f64> {
         (Point2::new(1.0, 0.5), 0.0),
         (Point2::new(-1.0, 0.5), 1.0),
     ])
-    .with_tangent_joints(vec![0, 1, 2, 3])
 }
 
 /// A rounded-corner square: line legs joined by quarter-arc fillets,
@@ -182,7 +181,6 @@ fn stadium_corners_loop() -> ProfileLoop<f64> {
         (Point2::new(-2.0, 1.0), 0.0),
         (Point2::new(-2.0, -1.0), q),
     ])
-    .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7])
 }
 
 /// A concave arc leg (negative bulge): the wall cylinder's material is
@@ -586,7 +584,7 @@ fn at_k(k: &str, arm_factor: &str) -> String {
 /// - at **K = 1.1**, below the crossover, the very same construction
 ///   reaches the arm: the four short rims keep the conventional
 ///   description, `extrude` hands the body back, and the at-rest gate
-///   refuses it with one `SliverDihedral { material_wedge_side }` per
+///   refuses it with one `SliverDihedral { MaterialPairing }` per
 ///   smooth rim — a smooth cap–wall pair has no material side.
 ///
 /// The second row is the measurement `Tol`'s K doc rests on: no floor
@@ -646,7 +644,7 @@ fn the_cap_rim_arm_is_unreachable_above_the_crossover_and_is_reached_below_it() 
         "below the crossover the at-rest gate must refuse the four smooth rims:\n{below}",
     );
     assert_eq!(
-        below.matches("material_wedge_side").count(),
+        below.matches("check: MaterialPairing").count(),
         4,
         "each at-rest refusal must be the smooth pair's missing material side:\n{below}",
     );

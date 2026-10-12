@@ -215,9 +215,11 @@ CERT_IMPORTERS=(
   crates/geom-brep/src/offset_meters.rs
   crates/geom-brep/src/patch_bound.rs
   crates/geom-brep/src/props/quad.rs
+  crates/geom-brep/src/props/spiric.rs
   crates/geom-brep/src/ssi/boundary.rs
   crates/geom-brep/src/ssi/enclose.rs
   crates/geom-brep/src/ssi/exhaust.rs
+  crates/geom-brep/src/ssi/four.rs
   crates/geom-brep/src/ssi/section.rs
   crates/geom-core/src/spline/algebra.rs
   crates/geom-core/src/spline/compose.rs

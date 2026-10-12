@@ -111,7 +111,7 @@ pub(crate) fn die<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String) 
         "21 sequential single-ring pip subtracts across ALL SIX faces (opposite \
          faces sum to 7), volume matches the dyadic oracle after every op \
          (observed bit-exact, gated 1e-9), final V = {}; tier 3' runs \
-         on the RESULT with its declared contacts (the #91 tier-3' modernization)",
+         on the RESULT with its contact records (the #91 tier-3' modernization)",
         8.0 - 21.0 * 0.25 * 0.25 * 0.125
     );
     (acc, note)
@@ -150,11 +150,10 @@ fn leg<S: Scalar>(cx: f64, cy: f64, z_top: f64, tol: Tol) -> AtRestBody<S> {
 /// All three are narrated LIVE from their actual outcomes; since M4
 /// PR 5 the SHIPPED variant is the TRUE corner-ALIGNED table (Ev,
 /// PR #71 — the first `demo_tripwires.rs` wire FIRED): each leg's
-/// outer faces lie exactly in the top's side planes, DECLARED per
-/// union, and the declared rung glues them — every later union sees
-/// maximal operands. Attempt 1 (coplanar touch, undeclared) now
-/// refuses at the coincidence door — rung (b), value equality never
-/// classifies — and the narration says so.
+/// outer faces lie exactly in the top's side planes, and each union
+/// glues them on their decided zero (D10) — every later union sees
+/// maximal operands. Attempt 1 (coplanar touch) glues the touching
+/// planes the same way, and the narration says so.
 pub(crate) fn table<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String) {
     let top: AtRestBody<S> = slab(TOP_X, TOP_Y, TOP_Z, tol);
     let leg_vol = |z_top: f64| (2.0 * LEG_HALF) * (2.0 * LEG_HALF) * z_top;
@@ -173,8 +172,7 @@ pub(crate) fn table<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String
         tol,
     );
     // Attempt 3 (the pre-PR 5 shipping variant, kept as narration):
-    // one corner-straddling leg — still works, no declarations needed
-    // (transversal seams only).
+    // one corner-straddling leg — transversal seams only.
     let z_top = TOP_Z.0 + 0.05;
     let per_straddle_gain = leg_vol(z_top) - LEG_HALF * LEG_HALF * 0.05;
     let straddle = check(
@@ -185,7 +183,7 @@ pub(crate) fn table<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String
 
     // SHIPPED (M4 PR 5, the fired table wire): TRUE corner-aligned
     // legs — outer faces exactly IN the top's side planes, the flush
-    // contacts DECLARED per union, glued by the declared rung.
+    // contacts glued by each union on their decided zero.
     let aligned_leg = |cx: f64, cy: f64| {
         let (x0, x1) = if cx > 0.0 {
             (cx - 2.0 * LEG_HALF, cx)
@@ -214,9 +212,9 @@ pub(crate) fn table<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String
         expected += per_leg_gain;
         let base = acc.as_ref().map_or(&top, |b| &b.body);
         acc = Some(expect_seamed(
-            "corner-ALIGNED leg union (declared)",
+            "corner-ALIGNED leg union",
             check(
-                crate::booleans::try_union_declared(base, &aligned_leg(cx, cy), tol),
+                crate::booleans::try_union(base, &aligned_leg(cx, cy), tol),
                 expected,
                 tol,
             ),
@@ -225,9 +223,9 @@ pub(crate) fn table<S: Scalar>(tol: Tol) -> (pncad::topo::BooleanBody<S>, String
     }
     let note = format!(
         "variants narrated live — (1) leg EXACTLY coplanar-touching the underside, \
-         UNDECLARED (shared value {}): {}; (2) leg inset, overlapping 0.05 into the \
+         (shared value {}): {}; (2) leg inset, overlapping 0.05 into the \
          top: {}; (3) the pre-PR 5 straddle workaround: {}; (4) SHIPPED: TRUE \
-         corner-ALIGNED legs, flush side planes DECLARED per union (M4 PR 5) — the \
+         corner-ALIGNED legs, flush side planes glued per union — the \
          straddle narration is retired",
         TOP_Z.0,
         describe(&coplanar, top_vol() + leg_vol(TOP_Z.0)),
@@ -334,9 +332,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             // is simpler: what this cell shows is a table, and a table
             // is not a fact the sheet is short of. What is NOT
             // duplicated is this scene's four
-            // narrated union variants (coplanar-undeclared refusing at
-            // the coincidence door; inset overlap; the straddle
-            // workaround; the shipped declared-flush rung) — narration,
+            // narrated union variants (coplanar gluing on its decided
+            // zero; inset overlap; the straddle workaround; the shipped
+            // flush-aligned legs) — narration,
             // which the standalone render keeps.
             montage: false,
             story: "a table: tabletop unioned with four corner-straddling legs",

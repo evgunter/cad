@@ -178,12 +178,10 @@ impl<T: Decide> Body<T> {
     /// what is there, and minting what is missing is the producer's
     /// closing mint.
     ///
-    /// A sphere's general circle's `Fitted` row certifies over its own
-    /// knot domain only, so each child's is derived afresh through the
-    /// fitted door ([`crate::AtRestPolicy::fitted_lane`]) and pinned onto
-    /// the parent's branch. Two frontiers, both stated at `split_cache`.
-    /// Any other `Fitted` row, and a `General` one, is left exactly as
-    /// found. And on a
+    /// A projected row restricts like any other, its hull terms read
+    /// through the fitted door ([`crate::AtRestPolicy::fitted_lane`]).
+    /// Two frontiers, both stated at `split_cache`. A `Fitted` or
+    /// `General` row is left exactly as found. And on a
     /// SPLINE chart the carry is exact — a described-NURBS wall's
     /// `IsoLine`/`IsoArc` rows restrict like any other and tier 3
     /// reads `Ok` — but the recovery step the caveat below names,
@@ -491,7 +489,8 @@ mod tests {
 
     use geom::Curve3;
     use geom_brep::{
-        EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, SketchSegment,
+        EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, MappedSource,
+        SketchSegment,
     };
     use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
 
@@ -557,18 +556,20 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(Point3::new(1.0, 0.0, 0.0), true).unwrap();
         let spec = EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
-                segment: SketchSegment::Arc {
-                    a: Point2::new(1.0, 0.0),
-                    b: Point2::new(0.0, 1.0),
-                    arc: Arc2 {
-                        centre: Point2::new(0.0, 0.0),
-                        radius: 1.0,
-                        sweep: FRAC_PI_2,
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::whole(
+                MappedSource::PlacedSegment {
+                    segment: SketchSegment::Arc {
+                        a: Point2::new(1.0, 0.0),
+                        b: Point2::new(0.0, 1.0),
+                        arc: Arc2 {
+                            centre: Point2::new(0.0, 0.0),
+                            radius: 1.0,
+                            sweep: FRAC_PI_2,
+                        },
                     },
+                    place: Affine3::identity(),
                 },
-                place: Affine3::identity(),
-            }),
+            )),
             carrier: Curve3::Circle {
                 center: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::unit_z(),
@@ -609,8 +610,11 @@ mod tests {
         // The restricted description is still a placed arc.
         assert!(matches!(
             c2.description(),
-            EdgeDescription::Scaffold(MappedCurve::PlacedSegment {
-                segment: SketchSegment::Arc { .. },
+            EdgeDescription::Scaffold(MappedCurve {
+                source: MappedSource::PlacedSegment {
+                    segment: SketchSegment::Arc { .. },
+                    ..
+                },
                 ..
             })
         ));

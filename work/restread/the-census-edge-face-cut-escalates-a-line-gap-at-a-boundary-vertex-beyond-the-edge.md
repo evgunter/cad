@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-08
 priority: P0
 cost: E
-refs: [near-tangent-boolean-results-ship-with-an-escalated-tier-3-census]
+refs: [4335]
 ---
 
 ## What

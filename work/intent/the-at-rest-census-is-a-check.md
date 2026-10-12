@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [an-assertion-relates-by-equality, interference-at-rest-is-a-finding, mates-declare-no-contact, a-mate-on-a-pinned-copy-refuses]
+blocked_on: [mates-declare-no-contact, a-mate-on-a-pinned-copy-refuses]
 ---
 
 INTENT stage 5, PR C. Ev approved the design in PR 4320 (fork log row
@@ -53,7 +53,7 @@ every pair of copies the boxes cannot prove apart, and decides each one
 apart, in contact, overlapping or undecided. A contact is recorded at the
 coincidence door; unless it is structural, the `unproven-coincidence`
 lint reports it. An overlap is an `AtRest` interference finding,
-localised to the faces bounding it, or loud and unquietable when the
-intersection refuses. An undecided pair is an `AtRest` could-not-look
-finding. Each finding is quiet under D10's rule or loud. Nothing
+localised to the faces bounding it, or loud, unquietable and never
+refusing when the intersection refuses. An undecided pair is an
+`AtRest` could-not-look finding, which refuses at no severity (DS6). Each finding is quiet under D10's rule or loud. Nothing
 refuses: a caller that wants a gate runs `enforce_checks` at `Error`."

@@ -216,3 +216,67 @@ The same sweep over an extruded rod (r 1, z ∈ [0, 1]), cut by planes
 touching either rim, splits at every pose. At each row, 6 to 15 of its
 192 poses per rim fail `mass_properties` the same two ways. Most are
 `QuadratureBudget`, with the width 1.1 to 7.6× the target.
+
+## 2026-10-09 — the lily's instance is gone (NURBS, PR 4438)
+
+`lily_leaf_b` now measures at the default ε: `V = 0.003134 m³` with
+certified half-width `5.6e-8` at degree 2, and `8.0e-8` at the cubic
+degree the leaves now take. PR 4438 changed the domain grid's
+clearance to `2⁻⁸` of the grid spacing, so the props lanes no longer
+mint a narrow cell beside a knot that lies within a hair of a
+refinement point. That retired wall 17 (`LEAF_B_VOLUME_WALL`, which no
+longer exists) and the `VolumeWall` machinery in `demos/tour`. The
+mechanism this row names, an in-band convergence test escalating
+instead of refining, is untouched. The CLEAVE instances above are not
+re-measured, so the row stays open.
+
+## A fifth copy, and a second witness (FLUX, 2026-10-10)
+
+`geom_brep::props::spiric::spiric_face_rounds` (the spiric-bounded cap
+and torus wall lane) runs the same round loop on the same meter and
+decides `props_quad_converged` with the same `?`, so the fix owes it
+too. Measured while that lane was a third-order rule: the sectioned
+vessel's torus wall (`crates/sweep/tests/spiric_rim.rs`,
+`the_sectioned_vessel_hollows_to_its_measured_volume`, wall `1/128`)
+landed round 0 at `width_len = 1.0304e-6` against the target
+`1.024e-6`, margin `−6.42e-9` in band `(1e-9, 1e-8)`, and tier 3
+refused `VolumeUncomputable { Escalated { props_quad_converged } }`
+on a face the next round would have certified. The landed fifth-order
+rule converges that face at round 0 far below the target, so no row
+pins the case now; it is a coincidence of one width against one
+target, which is this issue's shape.
+
+## More witnesses (FLUX, `flux/ellipse-ring`)
+
+`pocket_ring_steep_ellipse::steep_plate_rod_battery` (3 240 runs, ε =
+1e-9): with the cylinder quadrature reading rings, no run ends at
+`RingOnCurvedFace` any more, 2 872 build at the oracle's volume, and 44
+refuse here — `props_quad_converged` with margins of −6.8e-9 and the
+like, inside the band's escalate half, at every tilt θ ∈ {30, 50, 60,
+70, 78}° and both thicknesses, ∩ rows (no ring on the wall) among them.
+A run that refined one more round instead would measure.
+
+Related, from review R2 of PR 4557 (NOTE-2, its probes on
+`review/4557-01DDWu57`): hair-thin (1e-3 m) bars through the unit pipe
+refuse `QuadratureBudget` on their ringless walls — the lane's other
+number-wanting outcome on hairline faces, and not that PR's change.
+
+## More witnesses (CLEAVE, `cleave/wrap-edge-split`)
+
+`a_split_through_a_wrap_edges_vertex::a_boolean_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round`:
+a one-segment circle (r = 1, its vertex at azimuth 2 rad) extruded 2,
+tilted about x, against the brick `z ≤ z₀` whose top face passes
+through the bottom vertex. The boolean refuses
+`VolumeUnmeasured { operand: None, source: Face { .., source: Escalated { check: Converged } } }`
+on `props_quad_converged`:
+
+- ε = 1e-9: tilt 0.9, A ∩ B, margin −4.65e-9;
+- ε = 1e-12: tilts 0.4 and π/4, A ∩ B, margins 1.1e-12 and 1.5e-12;
+- the two-arc circle (vertices at azimuths 2 and 2 − π) at ε = 1e-12:
+  the same two tilts refuse B − A instead, at the same margins, and
+  build A ∩ B.
+
+On the one-segment form every other op of those poses builds at its
+closed-form volume. A ∩ B and B − A keep the same wall face, in
+opposite senses, and it measures in one of them and not the other.
+The test accepts this refusal by name and cites this row.

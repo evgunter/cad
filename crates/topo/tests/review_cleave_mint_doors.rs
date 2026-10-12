@@ -8,6 +8,7 @@
 
 use crate::common;
 use crate::fixture::m7_8::{m7_8_edges, nurbs_wall};
+use geom_core::spline::Knots;
 
 use geom_core::{Dual64, Point3, Real, Tol};
 use topo::{Body, EulerOpError, FaceSurface, MefSite, MevSite};
@@ -61,12 +62,16 @@ where
     let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let spec = geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: wall,
-            s2: nface.surface,
+            pair: geom_brep::SurfacePair::new(wall, nface.surface),
             witness: p0.lerp(p1, T::from_f64(0.5)),
         },
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
+            geom::NurbsCurve3::new(
+                Knots::from(kv).lift(geom_core::Real::from_f64),
+                vec![p0, p1],
+                vec![Real::one(); 2],
+            )
+            .unwrap(),
         )),
         param_start: T::zero(),
         param_end: T::one(),
@@ -158,12 +163,16 @@ where
     let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let spec = geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1: wall,
-            s2: plane,
+            pair: geom_brep::SurfacePair::new(wall, plane),
             witness: p0.lerp(mid, T::from_f64(0.5)),
         },
         carrier: geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(kv, vec![p0, mid], vec![1.0, 1.0]).unwrap(),
+            geom::NurbsCurve3::new(
+                Knots::from(kv).lift(geom_core::Real::from_f64),
+                vec![p0, mid],
+                vec![Real::one(); 2],
+            )
+            .unwrap(),
         )),
         param_start: T::zero(),
         param_end: T::one(),

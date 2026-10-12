@@ -921,7 +921,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             }
             // The RECORDED fits are what the emission branches read:
             // a fit sign decides whether a straight piece and its
-            // declared joint exist at all, so adopting this lane's
+            // constructed joint exist at all, so adopting this lane's
             // answer would be selecting structure at the lane.
             (picked, decision.fit_in, decision.fit_out)
         }

@@ -64,8 +64,10 @@
 //! bound** — the Book's own "both can fail to converge and this
 //! eventuality must be dealt with" honesty, as a type.
 
+use core::num::NonZeroUsize;
 use geom_core::linalg::lsq::{self, LsqError};
 use geom_core::spline::{KnotAlgebraError, KnotVector, KnotVectorIssue, SplineError, basis};
+use geom_core::spline::{Knots, SpanLocate};
 use geom_core::{Point2, Point3, Readable};
 
 use crate::curves::banded::{self, BandedLu};
@@ -245,9 +247,12 @@ pub struct FitOutcome<C> {
 /// The rational basis row at `t`: `(first, values)` with
 /// `values[j] = N_j(t)·w_{first+j} / Σ_j N_j(t)·w_{first+j}` — the
 /// `p + 1` nonzero rational basis functions, denominator accumulated
-/// ascending `j` (D9).
+/// ascending `j` (D9). A NaN `t` has no span, and its row is the
+/// evaluator's poison: `p + 1` NaN values, which no solve certifies.
 fn rational_row(kv: &KnotVector, weights: &[f64], t: f64) -> (usize, Vec<f64>) {
-    let span = kv.span_at(t);
+    let Some(span) = kv.span_at(t) else {
+        return (0, vec![f64::NAN; kv.degree() + 1]);
+    };
     let n = basis::basis_funs(span, t);
     let first = span.first_control();
     let mut den = 0.0f64;
@@ -394,6 +399,113 @@ pub fn interpolate_columns(
     let collocation = Collocation::new(params, degree)?;
     let control = collocation.solve(rows)?;
     Ok((collocation.knots, control))
+}
+
+/// [`interpolate_columns`] in the scalar `T`: the parameters, the
+/// averaged knots (Book Eq. 9.8), the collocation rows and the banded
+/// solve are all formed in `T`, so a parameter or a datum that is a
+/// function of the variables gives knots and control rows that are
+/// functions of them too. The structure is read off the value channel
+/// ([`SpanLocate::point_value`]): the refusals are
+/// [`interpolate_columns`]', decided there, the span each parameter
+/// lies in is located there, and the banded solve refuses on it
+/// (`curves/banded.rs`). The arithmetic is [`interpolate_columns`]'s
+/// operation for operation (a unit weight's product `n · 1` is `n`,
+/// bit for bit), so at `f64` the two answer the same bits.
+///
+/// Interior averages that round onto one value merge into one run, as
+/// [`interpolate_columns`]' vector holds them (`averaged_knots_in`).
+///
+/// # Errors
+///
+/// [`interpolate_columns`]'.
+pub fn interpolate_columns_in<T: SpanLocate>(
+    params: &[T],
+    degree: usize,
+    rows: &[Vec<T>],
+) -> Result<(Knots<T>, Vec<Vec<T>>), FitError> {
+    let n = params.len();
+    if rows.len() != n {
+        return Err(FitError::ParamCountMismatch {
+            params: n,
+            points: rows.len(),
+        });
+    }
+    let width = rows.first().map_or(0, Vec::len);
+    for (index, row) in rows.iter().enumerate() {
+        if row.len() != width {
+            return Err(FitError::RaggedRows {
+                row: index,
+                width,
+                found: row.len(),
+            });
+        }
+        if row
+            .iter()
+            .any(|v| !v.point_value().is_some_and(f64::is_finite))
+        {
+            return Err(FitError::NonFinitePoint { index });
+        }
+    }
+    let channel: Vec<f64> = params.iter().map(|u| u.value_channel()).collect();
+    check_ordered(&channel)?;
+    check_degree(n, degree)?;
+    let knots = averaged_knots_in(params, degree)?;
+    let (first, basis): (Vec<usize>, Vec<Vec<T>>) =
+        params.iter().map(|u| unit_row_in(&knots, *u)).unzip();
+    let lu = banded::factor(&first, &basis).map_err(FitError::Lsq)?;
+    let control = lu.solve(rows).map_err(FitError::Lsq)?;
+    Ok((knots, control))
+}
+
+/// [`averaged_knots`] in `T`: the same sums, ascending, divided by the
+/// degree, with the clamped ends the constants `0` and `1`.
+///
+/// Averages that round onto one value on the value channel are one
+/// breakpoint repeated, as [`averaged_knots`]' vector holds them: one
+/// run, whose multiplicity is their count and whose held value is the
+/// first of them. The others' values are dropped there, a held-value
+/// equality decided on the value channel
+/// (`work/inlane/held-value-equalities-decided-on-the-value-channel.md`).
+fn averaged_knots_in<T: SpanLocate>(params: &[T], degree: usize) -> Result<Knots<T>, FitError> {
+    let n = params.len();
+    let end = NonZeroUsize::new(degree + 1).unwrap_or(NonZeroUsize::MIN);
+    let mut runs = vec![(T::zero(), end)];
+    #[allow(clippy::cast_precision_loss)]
+    let p = T::from_f64(degree as f64);
+    for j in 1..(n - degree) {
+        let mut s = T::zero();
+        for u in &params[j..j + degree] {
+            s = s + *u;
+        }
+        let knot = s / p;
+        match runs.last_mut() {
+            Some((held, m)) if held.value_channel() == knot.value_channel() => {
+                *m = m.saturating_add(1);
+            }
+            _ => runs.push((knot, NonZeroUsize::MIN)),
+        }
+    }
+    match runs.last_mut() {
+        Some((held, m)) if held.value_channel() == 1.0 => *m = m.saturating_add(degree + 1),
+        _ => runs.push((T::one(), end)),
+    }
+    Knots::new(runs, degree).map_err(FitError::Structure)
+}
+
+/// [`rational_row`] at unit weights, in `T`: the basis values alive at
+/// `t` over the held knots, each divided by their sum.
+fn unit_row_in<T: SpanLocate>(knots: &Knots<T>, t: T) -> (usize, Vec<T>) {
+    let Some((span, _)) = knots.locate(t) else {
+        return (0, vec![T::from_f64(f64::NAN); knots.degree() + 1]);
+    };
+    let n = basis::basis_funs_in(span, t);
+    let first = span.span().first_control();
+    let mut den = T::zero();
+    for nj in &n {
+        den = den + *nj;
+    }
+    (first, n.iter().map(|nj| *nj / den).collect())
 }
 
 /// The factored collocation system of one parameterization at one
@@ -1213,5 +1325,40 @@ mod tests {
                 "no recourse in: {msg}"
             );
         }
+    }
+
+    /// The columns' solve in `T` is [`interpolate_columns`] at `f64`,
+    /// bit for bit: knots, and every control entry with its sign, on
+    /// uneven parameters, at degrees 1 to 3, over data holding zeros of
+    /// both signs.
+    #[test]
+    fn the_columns_solve_in_t_is_the_f64_solve_at_f64() {
+        let params = [0.0, 0.13, 0.31, 0.5, 0.77, 0.9, 1.0];
+        let rows: Vec<Vec<f64>> = params
+            .iter()
+            .enumerate()
+            .map(|(k, u)| {
+                let k = k as f64;
+                vec![u * 3.0 - 1.0, (k * 0.7).sin(), -0.0, 0.0, 1.0 / (1.0 + k)]
+            })
+            .collect();
+        let bits = |rows: &[Vec<f64>]| -> Vec<u64> {
+            rows.iter().flatten().map(|x| x.to_bits()).collect()
+        };
+        for degree in 1..=3 {
+            let (kv, plain) = interpolate_columns(&params, degree, &rows).unwrap();
+            let (held, in_t) = interpolate_columns_in(&params, degree, &rows).unwrap();
+            assert_eq!(held.structure().knots(), kv.knots(), "degree {degree}");
+            assert_eq!(bits(&in_t), bits(&plain), "degree {degree}");
+        }
+        // Averages that round onto one value: one run, repeated, as the
+        // f64 vector holds them.
+        let d = f64::EPSILON / 2.0;
+        let params = [0.0, 0.5 + d, 0.5 + 2.0 * d, 0.5 + 3.0 * d, 1.0];
+        let rows: Vec<Vec<f64>> = params.iter().map(|u| vec![*u, 1.0 - u]).collect();
+        let (kv, plain) = interpolate_columns(&params, 2, &rows).unwrap();
+        let (held, in_t) = interpolate_columns_in(&params, 2, &rows).unwrap();
+        assert_eq!(held.structure().knots(), kv.knots(), "a repeated average");
+        assert_eq!(bits(&in_t), bits(&plain), "a repeated average");
     }
 }

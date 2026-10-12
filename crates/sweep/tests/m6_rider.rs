@@ -18,7 +18,7 @@ use geom_core::Tol;
 use geom_core::Vec3;
 use sweep::test_support::{ball_poled_y, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, BooleanError};
+use topo::{Body, BooleanError};
 
 /// The union's volume under `strategy`, its operands each finished once.
 fn union(a: &Body<f64>, b: &Body<f64>, strategy: SweepStrategy) -> Result<f64, BooleanError> {
@@ -26,7 +26,7 @@ fn union(a: &Body<f64>, b: &Body<f64>, strategy: SweepStrategy) -> Result<f64, B
         BooleanOp::Union,
         &finished("operand A", a.clone(), Tol::witness()),
         &finished("operand B", b.clone(), Tol::witness()),
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         strategy,
         Tol::witness(),
     )?;

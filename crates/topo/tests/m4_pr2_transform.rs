@@ -99,14 +99,7 @@ fn transformed_tool_subtracts_exactly() {
     let placed = transform_rigid(&tool, &map, Tol::witness()).unwrap();
     tiers_ok(&placed);
     let placed = finished("the placed tool", placed, Tol::witness());
-    let out = match topo::subtract_with(
-        &base,
-        &placed,
-        &common::flush_declarations(&base, &placed, Tol::witness()),
-        Tol::witness(),
-    )
-    .unwrap()
-    {
+    let out = match topo::subtract(&base, &placed, Tol::witness()).unwrap() {
         BooleanResult::Body(b) => b.body,
         BooleanResult::Empty => panic!("nonempty subtract"),
     };

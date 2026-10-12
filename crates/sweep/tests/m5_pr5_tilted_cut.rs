@@ -325,14 +325,14 @@ mod interval {
                 continue;
             }
             count += 1;
-            let EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+            let EdgeDescription::Intersection { pair, .. } = *c.description() else {
                 panic!("section edge described as Intersection");
             };
             let (t0, t1) = c.params();
             for i in 0..=8u32 {
                 let t = t0 + (t1 - t0) * iv(f64::from(i) / 8.0);
                 let p = c.carrier().eval(t);
-                for key in [s1, s2] {
+                for key in pair.keys() {
                     let s = above.get_surface(key).unwrap();
                     let r = geom_brep::implicit_residual(s, p);
                     assert!(

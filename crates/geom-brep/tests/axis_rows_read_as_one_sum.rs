@@ -30,10 +30,12 @@ use crate::shared::tol::band;
 use geom::{Curve3, Surface};
 use geom_brep::intersect::{
     ConeCylinderSection, EqualCylinderSection, PlaneConeSection, PlaneCylinderSection,
-    PlaneTorusSection, RadiusEvidence, cone_cylinder_section, cylinder_cylinder_section,
-    plane_cone_section, plane_cylinder_section, plane_torus_section,
+    PlaneTorusSection, cone_cylinder_section, cylinder_cylinder_section, plane_cone_section,
+    plane_cylinder_section, plane_torus_section,
 };
-use geom_brep::{ExtentBall, Reach, SectionError, TangentLocus, TangentLocusError, tangent_locus};
+use geom_brep::{
+    ExtentBall, OutsideConic, Reach, SectionError, TangentLocus, TangentLocusError, tangent_locus,
+};
 use geom_core::{Band, Point3, Vec3};
 
 /// Each term's share of the zero band where the sum escalates, and where
@@ -186,7 +188,7 @@ fn pair(
     c2: &Surface<f64>,
     ball: ExtentBall<f64>,
 ) -> Result<EqualCylinderSection<f64>, SectionError> {
-    cylinder_cylinder_section(c1, c2, RadiusEvidence::Declared, &Reach::Ball(ball), band())
+    cylinder_cylinder_section(c1, c2, &Reach::Ball(ball), band())
 }
 
 /// **Cylinder × cylinder, and the witness, in either order.** At
@@ -467,7 +469,11 @@ fn plane_torus_axis_in_plane_reads_each_row_as_it_moves() {
 /// `lean` over a unit extent: at `0.9 + 0.9` the tangent generator
 /// stands `1.8` bands off the plane at the extent, where main minted it.
 /// `K + 0.3` either side beside a `0.6` gap escalates on the floor (main
-/// served the line pair or the apex point), and `K + 0.9` serves them.
+/// served the line pair or the apex point). At `K + 0.9` the `0.6` gap
+/// cuts, on the dipping side, a hyperbola whose far branch starts
+/// `0.6/(K + 0.9)` of the extent from the apex, far past the band, so it
+/// refuses naming the hyperbola and not the line pair; on the clearing
+/// side, an ellipse reaching as far, served and not the apex point.
 #[test]
 fn plane_cone_decides_the_apex_gap_and_the_discriminant_as_one_sum() {
     let z = zero();
@@ -509,10 +515,13 @@ fn plane_cone_decides_the_apex_gap_and_the_discriminant_as_one_sum() {
         );
         let got = at(SWING * z, past_edge(side, FLOOR_OUT));
         let served = if side > 0.0 {
-            matches!(got, Ok(PlaneConeSection::ApexLinePair { .. }))
+            matches!(&got, Err(e) if e.outside_conic() == Some(OutsideConic::Hyperbola))
         } else {
-            matches!(got, Ok(PlaneConeSection::ApexPoint(_)))
+            matches!(got, Ok(PlaneConeSection::TiltedEllipse(_)))
         };
-        assert!(served, "{side}: K + 0.9 beside 0.6 is served, got {got:?}");
+        assert!(
+            served,
+            "{side}: K + 0.9 beside 0.6 is the conic it cuts, got {got:?}"
+        );
     }
 }

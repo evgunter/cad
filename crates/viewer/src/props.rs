@@ -627,7 +627,7 @@ fn slot_row(
     let Some(expr) = node.expr(slot).and(doc.slot_expansion(id, slot)) else {
         return SlotRow {
             slot,
-            dimension: slot.dimension(),
+            dimension: slot.expr_dimension(),
             structural: slot.is_structural(),
             // No expression to classify. Reported as driven, which is
             // the refusing direction: nothing here should be
@@ -642,7 +642,7 @@ fn slot_row(
         };
     };
     let env = doc.var_env::<f64>();
-    let value = if slot.dimension() == Dimension::Count {
+    let value = if slot.expr_dimension() == Dimension::Count {
         eval_count(&expr, &env)
             .map(SlotValue::Count)
             .map_err(SlotFault::Eval)
@@ -653,7 +653,7 @@ fn slot_row(
     };
     SlotRow {
         slot,
-        dimension: slot.dimension(),
+        dimension: slot.expr_dimension(),
         structural: slot.is_structural(),
         driver: SlotDriver::of(doc, &expr),
         value,
@@ -1062,9 +1062,9 @@ pub fn slot_typed_edit(
 ) -> Result<DocEdit<ProfileProgram>, pncad::document::DimensionError> {
     let expr = match (value, unit) {
         (SlotValue::Count(count), _) => Formula::count(count),
-        (SlotValue::Continuous(v), None) => Formula::literal(v, slot.dimension())?,
+        (SlotValue::Continuous(v), None) => Formula::literal(v, slot.expr_dimension())?,
         (SlotValue::Continuous(v), Some(unit)) => {
-            Formula::literal_with_unit(v, slot.dimension(), unit)?
+            Formula::literal_with_unit(v, slot.expr_dimension(), unit)?
         }
     };
     Ok(slot_formula_edit(node, slot, expr))
@@ -1074,7 +1074,7 @@ pub fn slot_typed_edit(
 /// gesture an accepted offer emits ([`equal_variables`]). The kind is
 /// the door's to check (`EditError::SlotVarKind`).
 pub fn slot_read_edit(node: RecipeNodeId, slot: SlotId, var: VarId) -> DocEdit<ProfileProgram> {
-    slot_formula_edit(node, slot, Formula::var(var, slot.dimension()))
+    slot_formula_edit(node, slot, Formula::var(var, slot.expr_dimension()))
 }
 
 /// `expr` at `slot`, through the edit the slot's side of the
@@ -1095,7 +1095,7 @@ pub fn slot_formula_edit(
         DocEdit::SetParam {
             node,
             slot,
-            expr,
+            value: expr.into(),
             fresh: Vec::new(),
         }
     }
@@ -1475,7 +1475,7 @@ pub fn slot_unit_edit(
     unit: UnitDef,
 ) -> Result<DocEdit<ProfileProgram>, SlotUnitFault> {
     let value = slot_literal(doc, node, slot)?;
-    let expr = Formula::literal_with_unit(value, slot.dimension(), unit)
+    let expr = Formula::literal_with_unit(value, slot.expr_dimension(), unit)
         .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
     // The slot's own written value is re-noted in place, keeping the
     // variable (Q6); the check above has refused anything else.
@@ -1487,7 +1487,7 @@ pub fn slot_unit_edit(
     Ok(DocEdit::SetParam {
         node,
         slot,
-        expr,
+        value: expr.into(),
         fresh: Vec::new(),
     })
 }

@@ -9,7 +9,7 @@ prefix: roots/
 tag: (ROOTS orchestrator)
 ab_band: 11200-11299
 paths: [crates/geom-brep/src/implicit.rs, crates/geom-brep/src/intersect.rs, crates/topo/src/boolean/circle_roots.rs, crates/topo/src/boolean/reduce.rs]
-keep_out: [opened 2026-10-08 by REACH's closing cut on its priority seam (Ev in chat 2026-10-08: split REACH into priority-stratified successors and close it) - the rows moved by git mv with ids and bodies unchanged and REACH's directory left the tracker (docs/doc-ledger/reach-leaves-the-tracker.md), crates/topo/src/boolean/* and crates/topo/src/splitting/* are shared ground with REACH's sibling successors (ORBIT ROOTS TALLY APEX GAUGE REACHTAIL REACHHOLD) and with CLEAVE HONE GERM CONTACT ZIP BOXES PIN TANG and JOIN - run scripts/work.py territory on your branch and announce the seam in the PR]
+keep_out: [opened 2026-10-08 by REACH's closing cut on its priority seam (Ev in chat 2026-10-08: split REACH into priority-stratified successors and close it) - the rows moved by git mv with ids and bodies unchanged and REACH's directory left the tracker (docs/doc-ledger/reach-leaves-the-tracker.md), crates/topo/src/boolean/* and crates/topo/src/splitting/* are shared ground with REACH's sibling successors (ORBIT ROOTS TALLY APEX GAUGE REACHTAIL REACHHOLD) and with CLEAVE HONE GERM CONTACT ZIP BOXES PIN TANG SECT and FLUSH - run scripts/work.py territory on your branch and announce the seam in the PR]
 priority: P2
 ---
 

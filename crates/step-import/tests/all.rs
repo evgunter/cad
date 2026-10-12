@@ -65,10 +65,10 @@ mod curve_promotion_report;
 mod cusp_round_trip;
 #[path = "freecad.rs"]
 mod freecad;
-#[path = "geom_origin_import_arm.rs"]
-mod geom_origin_import_arm;
 #[path = "halfcap_pole.rs"]
 mod halfcap_pole;
+#[path = "imported_loft_rim_offset.rs"]
+mod imported_loft_rim_offset;
 #[path = "inst_review_probes.rs"]
 mod inst_review_probes;
 #[path = "lamina_annulus_round_trip.rs"]

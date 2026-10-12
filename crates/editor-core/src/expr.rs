@@ -367,6 +367,12 @@ mod sealed {
 pub trait LeafSet: Clone + core::fmt::Debug + PartialEq + sealed::Sealed {
     /// The form's type name, as `Debug` writes it.
     const FORM: &'static str;
+    /// What an operand field holds in this form ([`Slot::Read`]).
+    type Read: Clone
+        + core::fmt::Debug
+        + PartialEq
+        + serde::Serialize
+        + for<'de> serde::Deserialize<'de>;
     /// The text of one such leaf, read at `dim` ([`unparse`]).
     fn write(&self, dim: Dimension, out: &mut String);
     /// Pushes the bits of every float the leaf holds
@@ -410,6 +416,13 @@ pub trait Slot:
     + for<'de> serde::Deserialize<'de>
     + sealed::Sealed
 {
+    /// What an operand field holds in this form: the stored read
+    /// ([`VarId`]) or the authored [`crate::Operand`].
+    type Read: Clone
+        + core::fmt::Debug
+        + PartialEq
+        + serde::Serialize
+        + for<'de> serde::Deserialize<'de>;
     /// The variables it reads by id, in pre-order.
     fn var_ids(&self, out: &mut Vec<VarId>);
     /// How many levels the value nests, itself included: a stored
@@ -426,6 +439,7 @@ impl<L: LeafSet> Slot for ExprTree<L>
 where
     Self: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
+    type Read = L::Read;
     fn var_ids(&self, out: &mut Vec<VarId>) {
         let mut reads = Vec::new();
         ExprTree::var_reads(self, &mut reads);
@@ -442,6 +456,7 @@ where
 impl sealed::Sealed for VarId {}
 
 impl Slot for VarId {
+    type Read = VarId;
     fn var_ids(&self, out: &mut Vec<VarId>) {
         out.push(*self);
     }
@@ -462,6 +477,7 @@ impl sealed::Sealed for StoredLeaf {}
 
 impl LeafSet for StoredLeaf {
     const FORM: &'static str = "Expr";
+    type Read = VarId;
     fn write(&self, _dim: Dimension, _out: &mut String) {
         match *self {}
     }
@@ -564,6 +580,7 @@ impl sealed::Sealed for AuthoredLeaf {}
 
 impl LeafSet for AuthoredLeaf {
     const FORM: &'static str = "Formula";
+    type Read = crate::Operand;
     fn write(&self, dim: Dimension, out: &mut String) {
         match self {
             Self::Name(name) => out.push_str(name.as_str()),
@@ -632,7 +649,7 @@ pub(crate) enum Terminal<'a, L> {
 
 /// **How deep an expression may nest**: the longest chain of nodes
 /// from the root to a leaf, both ends included. The one bound on an
-/// [`Expr`] and on a [`crate::MeasureExpr`], read by every door that
+/// [`Expr`], read by every door that
 /// mints one: the smart constructors refuse past it
 /// ([`DimensionError::NestedTooDeep`]), the text parser builds through
 /// them, and the load door refuses a file nested deeper than the bound
@@ -1578,9 +1595,9 @@ impl<L: LeafSet> ExprTree<L> {
     }
 }
 
-/// The address of an expression subtree inside a document (spec D5,
-/// F7's "GeomSource's missing type"): a node, a NAMED slot (never an
-/// index), and a chain of AST-child indices. Stable under edits to
+/// The address of an expression subtree inside a document (spec D5):
+/// a node, a NAMED slot (never an index), and a chain of AST-child
+/// indices. Stable under edits to
 /// other expressions and to unrelated subtrees by construction.
 ///
 /// **Staleness caveat (M4 PR 1 review, non-blocker)**: within its OWN
@@ -1588,9 +1605,7 @@ impl<L: LeafSet> ExprTree<L> {
 /// ANCESTOR of the referent (or the whole slot) with a same-shape
 /// expression silently re-points an old path at a different
 /// subexpression; v1 has no slot generation/version to detect this.
-/// Consumers must re-derive their paths after any same-slot edit;
-/// PR 5's GeomSource must NOT assume same-slot staleness is
-/// detectable.
+/// Consumers must re-derive their paths after any same-slot edit.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExprPath {
