@@ -1590,6 +1590,8 @@ fn nearer_or_scan<T: Decide>(
 fn in_band(diag: &geom_core::Indeterminate) -> bool {
     match diag.margin.kind() {
         geom_core::MarginKind::Value => true,
+        // An interval-lane reading; one straddling the band's edge is
+        // not in band.
         geom_core::MarginKind::Enclosure => diag.terminal_sliver,
         geom_core::MarginKind::Invalid => false,
     }
@@ -6869,7 +6871,7 @@ mod first_pair_rows {
     /// matchings (a germ's shortened scan crosses two chained ties);
     /// [`first_pair`] escalates. The witness is the PR 4769 review's.
     #[test]
-    fn at_k_1_1_the_order_among_mutual_pairs_moves_the_matching() {
+    fn at_k_at_most_2_first_pair_reads_the_order_among_mutual_pairs() {
         let points = [
             (1.6374561303759052, 0.5775992446059082),
             (0.40233212126666984, 0.3418720853489539),
@@ -6901,30 +6903,29 @@ mod first_pair_rows {
             (5, 7),
         ];
         let band = Band::new(1.0, 1.1).unwrap();
-        let free = |rot: usize| {
-            move |own: BTreeMap<Slot, Met<f64>>| {
-                let mut met: Vec<_> = own.into_values().collect();
-                met.sort_by_key(|&(at, ..)| at);
-                let n = met.len().max(1);
-                met.rotate_left(rot % n);
-                let mut best: Option<(Reach<f64>, (Slot, Slot))> = None;
-                for (_, reach, m) in met {
-                    best = keep_nearer(best, (reach, m), |c, b| nearer_or_scan(c, b, band))?;
-                }
-                Ok(best.map(|(_, m)| m))
+        let escalated_mutual = std::cell::Cell::new(None);
+        let got = rounds(&points, &edges, band, |own| {
+            let mutual = own.iter().all(|(germ, &(_, reach, (partner, _)))| {
+                reach.turn.is_none()
+                    && own
+                        .get(&partner)
+                        .is_some_and(|&(_, _, (back, _))| back == *germ)
+            });
+            let pick = first_pair(own, band);
+            if pick.is_err() {
+                escalated_mutual.set(Some(mutual));
             }
-        };
-        let scan = rounds(&points, &edges, band, free(0));
-        let rotated = rounds(&points, &edges, band, free(2));
-        assert!(
-            matches!((&scan, &rotated), (Ok(f), Ok(r)) if f != r),
-            "the free order builds two matchings: {scan:?} against {rotated:?}"
-        );
-        let got = rounds(&points, &edges, band, |own| first_pair(own, band));
+            pick
+        });
         assert!(
             matches!(&got, Err(BooleanError::Escalated { diag, .. })
                 if diag.predicate == Some("bool_join_nearest")),
             "first_pair reads the order at K = 1.1: {got:?}"
+        );
+        assert_eq!(
+            escalated_mutual.get(),
+            Some(true),
+            "the escalating round is all mutual and straight, so the K gate is what reads it"
         );
     }
 }

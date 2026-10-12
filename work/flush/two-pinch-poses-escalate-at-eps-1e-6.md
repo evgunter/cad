@@ -127,12 +127,9 @@ The run then commits exactly the first round's pairs, or escalates.
 **Why each premise is needed.**
 
 - **`K > 2`.** Two chained ties span `2·zero`, which `K ≤ 2` can read
-  as definite. The review's witnesses:
-  - at `K = 2`, the scan `[3, 2, 1]` picks 1, and with 3 removed it
-    picks 2;
-  - at `K = 1.1`, eight germs whose round is all mutual build two
-    different matchings in two orders.
-  - `Tolerance` admits any `K > 1` (`CAD_AMBIGUITY_K`).
+  as definite. The review's witness: at `K = 2`, the scan `[3, 2, 1]`
+  picks 1, and with 3 removed it picks 2. `Tolerance` admits any
+  `K > 1` (`CAD_AMBIGUITY_K`).
 - **Straight germs.** Along a conic, `nearer_along` reads travel from
   the incumbent's site, not one number per candidate, so the argument
   does not carry over as written. Filed as
@@ -164,9 +161,11 @@ Pins (`first_pair_rows` in `join.rs`):
   - the germs are a circle's.
 
   A poisoned chord escalates even where the order is free.
-- `at_k_1_1_the_order_among_mutual_pairs_moves_the_matching`. On the
-  review's eight-germ witness, two orders build two different
-  matchings, and `first_pair` escalates.
+- `at_k_at_most_2_first_pair_reads_the_order_among_mutual_pairs`, the
+  `K` gate's guard. On the review's eight germs at `K = 1.1`, the
+  rounds reach one that is all mutual and straight, with pairs in
+  band. There `first_pair` escalates on `bool_join_nearest`; without
+  the gate it would take scan order.
 - Pose 1 is out of `REFUSES_AT_1E6`
   (`crates/sweep/tests/pinch_faces_tessellate.rs`). It builds and
   tessellates at ε 1e-6, 1e-9 and 1e-12, and the mesh volume is exact.
