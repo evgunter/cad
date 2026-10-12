@@ -1857,15 +1857,19 @@ impl core::fmt::Display for PcurveCertifyError {
                 }
             ),
             Self::CarrierDomain(refusal) => write!(f, "pcurve certification: {refusal}"),
+            // Each escalation ends in its decision's own labelled
+            // ending, read at a build: the door that reads it at rest
+            // asks `ending` instead of rendering this.
             Self::FittedEscalated { decision, cause } => write!(
                 f,
                 concat!(
                     "pcurve certification: the fitted lane's certificate escalated — {}",
                     geom_core::undecided!(),
-                    ": {}"
+                    ": {}. {}"
                 ),
                 decision,
-                cause.payload()
+                cause.payload(),
+                decision.ending(cause, Reading::Build)
             ),
             Self::IntervalNotForward => write!(
                 f,
@@ -1919,7 +1923,9 @@ impl core::fmt::Display for PcurveCertifyError {
                 cause,
             } => write!(
                 f,
-                "pcurve certification: {check:?} at sample {sample} escalated: {cause}"
+                "pcurve certification: {check:?} at sample {sample} escalated: {}. {}",
+                cause.payload(),
+                check.recourse(RefusedArm::Undecided(cause), Reading::Build)
             ),
             Self::Band(e) => write!(f, "pcurve certification: {e}"),
         }
@@ -2838,8 +2844,10 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
             };
         }
         E::ChartRow { source } => return PcurveCertifyError::ChartRow { source },
-        // Only a marching door refines; the refusal it could not answer
-        // is the certificate's, and reads as it.
+        // Only a marching door refines, and the fitted lane certifies
+        // through `certify_branch` alone, so this is unreachable here.
+        // Unwrapping it would drop a step-budget stop's own ending
+        // (`SsiError::ending`).
         E::RefinementExhausted { refusal, .. } => return ssi_refusal(*refusal),
         E::CertificateLimb { limb, margin } => (
             Some(limb),
@@ -9856,6 +9864,27 @@ mod tests {
             pcurve.ending(Reading::AtRest).as_deref(),
             Some(want),
             "the pcurve door: {pcurve}"
+        );
+        // A poisoned margin keeps the tube's lever, with the stored
+        // margin's unreadable note in place of the tighten offer.
+        let poisoned = crate::ssi::SsiError::CertificateEscalated {
+            limb: SsiLimb::Tube,
+            cause: Indeterminate {
+                margin: geom_core::MarginDiag::INVALID,
+                ..cause
+            },
+        };
+        let want = "Recourse: move the geometry so the surfaces cross at a clearer angle; an \
+                    unreadable margin may indicate a kernel or file defect worth reporting";
+        assert_eq!(
+            poisoned.ending(Reading::AtRest),
+            want,
+            "poisoned, the SSI door"
+        );
+        assert_eq!(
+            ssi_refusal(poisoned).ending(Reading::AtRest).as_deref(),
+            Some(want),
+            "poisoned, the pcurve door"
         );
     }
 

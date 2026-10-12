@@ -2243,14 +2243,14 @@ pub enum SsiDecision {
 
 impl SsiDecision {
     /// The ending this decision's escalation on `cause` carries, read at
-    /// `reading`: a trace's by [`TraceDecision::ending`], a limb's by its
-    /// own check, as the limb's decided refusal ends.
+    /// `at`: a trace's by [`TraceDecision::ending`], a limb's by its own
+    /// check, as the limb's decided refusal ends.
     #[must_use]
-    pub fn ending(self, cause: &Indeterminate, reading: Reading) -> String {
+    pub fn ending(self, cause: &Indeterminate, at: impl Into<ReadAt>) -> String {
         match self {
-            Self::Trace(decision) => decision.ending(cause, reading),
+            Self::Trace(decision) => decision.ending(cause, at.into().reading()),
             Self::Limb(limb) => {
-                crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), reading)
+                crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), at)
             }
         }
     }
