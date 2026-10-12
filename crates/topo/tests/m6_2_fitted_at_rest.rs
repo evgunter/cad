@@ -195,7 +195,7 @@ fn a_split_restricts_the_projected_row_to_each_child() {
 /// its text does not deny `f64` the right it has; the dual's own refusal
 /// names every scalar whose fitted door answers `Some`.
 #[test]
-fn the_dual_leaves_the_face_rowless_and_says_why() {
+fn the_dual_holds_neither_lane_and_each_refusal_names_its_scalar() {
     use geom_brep::{PcurveCache, PcurveCertifyError};
     use geom_core::{Dual64, Real};
     use topo::AtRestPolicy;

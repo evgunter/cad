@@ -862,10 +862,9 @@ pub enum EulerOpError {
         /// The typed re-certification failure.
         error: CertifyError,
     },
-    /// The spec is of a class whose certificate only the NURBS lane
-    /// derives — an `Intersection` of a plane and a described NURBS
-    /// wall (M7-8), or a spline carrier between two analytic surfaces
-    /// (C2's limbs) — and this scalar's policy holds no lane
+    /// The spec's certificate needs the NURBS lane (the classes are
+    /// listed on [`CertifyError::NurbsLaneNotSupplied`]), and this
+    /// scalar's policy holds no lane
     /// ([`crate::AtRestPolicy::nurbs_lane`] answers `None`: a dual,
     /// DL1). Every Euler door takes its lane from that policy, so a lane
     /// missing there is the scalar's. The body is untouched.
@@ -1372,10 +1371,9 @@ impl EulerOpError {
                 error.render(at)
             ),
             Self::NurbsLaneUnsupported { edge, scalar } => format!(
-                "{} lies between a plane and a spline face, or rides a spline curve between \
-                 two analytic faces, and its certificate is derived through the NURBS lane, \
-                 which only a scalar with certification rights holds; the {scalar} scalar \
-                 does not. Recourse: run the operation at a certifying scalar",
+                "{}'s certificate needs the NURBS lane, which only a scalar with \
+                 certification rights holds; the {scalar} scalar does not. Recourse: run the \
+                 operation at a certifying scalar",
                 edge.map_or_else(|| "the new edge".to_owned(), |e| format!("edge {e:?}"))
             ),
             Self::RebasedNullEdge { edge } => format!(

@@ -614,7 +614,7 @@ mod tests {
         // Onto an existing solid (the void door's and the booleans' shape).
         let target = dst.solids().next().unwrap().0;
         let mut unstaged = dst.clone();
-        let staged = crate::boolean::combine::graft_solids_with(&mut dst, &[target], &src)
+        let staged = crate::boolean::combine::graft_solids_disjoint(&mut dst, &[target], &src)
             .expect("the staged graft");
         let (map, _) = crate::boolean::combine::graft_unstaged(&mut unstaged, &[target], &src)
             .expect("the unstaged graft");

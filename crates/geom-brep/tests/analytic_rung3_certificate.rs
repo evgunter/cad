@@ -230,6 +230,58 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
     }
 }
 
+/// **The refusal for want of the lane comes first.** A rung-3 edge
+/// with a schedule defect — a backward interval, then an endpoint off
+/// the carrier — refuses `NurbsLaneNotSupplied` at a lane-free door,
+/// not the defect: the door checked nothing. With the lane in hand the
+/// same edge refuses on the defect itself.
+#[test]
+fn a_lane_free_door_refuses_for_the_lane_before_any_schedule_defect() {
+    let c = Curve3::Nurbs(Arc::new(bulged(16, 0.0)));
+    let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
+    let (k1, k2) = (arena.insert(plane()), arena.insert(cylinder_z()));
+    let spec = |t0: f64, t1: f64| EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(k1, k2),
+            witness: c.eval(0.5),
+        },
+        carrier: c.clone(),
+        param_start: t0,
+        param_end: t1,
+    };
+    let off = Vec3::new(0.0, 0.0, 0.25);
+    for (defect, spec, start, end) in [
+        ("backward", spec(1.0, 0.0), c.eval(1.0), c.eval(0.0)),
+        (
+            "endpoint off",
+            spec(0.0, 1.0),
+            c.eval(0.0) + off,
+            c.eval(1.0),
+        ),
+    ] {
+        let surfaces = |k| arena.get(k).cloned();
+        assert_eq!(
+            EdgeCurve::certify(spec.clone(), start, end, surfaces, band()).map(|_| ()),
+            Err(CertifyError::NurbsLaneNotSupplied),
+            "{defect}: lane-free"
+        );
+        let with_lane = EdgeCurve::certify_via(
+            spec,
+            start,
+            end,
+            surfaces,
+            band(),
+            Some(NurbsLane::certified()),
+        )
+        .map(|_| ());
+        let on_the_defect = match defect {
+            "backward" => matches!(with_lane, Err(CertifyError::IntervalNotForward { .. })),
+            _ => matches!(with_lane, Err(CertifyError::ResidualExceeded { .. })),
+        };
+        assert!(on_the_defect, "{defect}: with the lane: {with_lane:?}");
+    }
+}
+
 /// **Every lane-free door refuses an analytic rung-3 edge, typed.** C2's
 /// limbs are the edge certificate's own, so a door that cannot state
 /// them certifies nothing about the edge: [`EdgeCurve::certify`],

@@ -33,6 +33,14 @@
 //!   per source key, so records that named one dead source entity
 //!   still name one result key. A split lineage therefore chases
 //!   inside `dst` to the root it reached in `src`.
+//! - **Every certified carrier is re-certified against `dst`'s
+//!   surfaces** ([`Bridge::Recertify`]), through the scalar's NURBS
+//!   lane ([`crate::props::AtRestPolicy::nurbs_lane`]): the operands
+//!   have been through surgery, and a carrier whose certificate needs
+//!   the lane is refused at a scalar that holds none
+//!   ([`BooleanError::GraftRecertify`]). The disjoint grafts
+//!   ([`graft_solids_disjoint`], [`graft_solids_minted`]) carry each
+//!   certificate verbatim instead ([`Bridge::RemapKeys`]).
 //! - **A refusal writes nothing.** The transplant is staged in a fresh
 //!   body and committed into `dst` only once it has succeeded in full
 //!   (`graft_staged`).
@@ -181,8 +189,8 @@ impl crate::provenance::ForwardKeys for Forward<'_> {
 
 /// Transplants `src`'s single solid into `dst_solid` of `dst`
 /// (module docs). `src` is only read: its arenas are walked in slot
-/// order, and nothing of it is shared with `dst`. Its
-/// [`Bridge::Recertify`] holds `T`'s lane
+/// order, and nothing of it is shared with `dst`. It re-certifies every
+/// grafted carrier ([`Bridge::Recertify`]) through `T`'s NURBS lane
 /// ([`crate::props::AtRestPolicy::nurbs_lane`]).
 pub(crate) fn graft_solid<T: crate::props::AtRestPolicy>(
     dst: &mut Body<T>,
@@ -194,8 +202,10 @@ pub(crate) fn graft_solid<T: crate::props::AtRestPolicy>(
         dst,
         Targets::Existing(&[dst_solid]),
         src,
-        Bridge::Recertify { tol },
-        T::nurbs_lane(),
+        Bridge::Recertify {
+            tol,
+            lane: T::nurbs_lane(),
+        },
     )
     .map(|(map, _)| map)
 }
@@ -205,12 +215,12 @@ thread_local! {
     /// The bridge each of this thread's grafts ran, in call order: the
     /// witness a test reads to tell which one a graft took, where both
     /// mint the same certificates.
-    static BRIDGES: core::cell::RefCell<Vec<Bridge>> = const { core::cell::RefCell::new(Vec::new()) };
+    static BRIDGES: core::cell::RefCell<Vec<BridgeKind>> = const { core::cell::RefCell::new(Vec::new()) };
 }
 
 /// Drains [`BRIDGES`].
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn take_bridges() -> Vec<Bridge> {
+pub(crate) fn take_bridges() -> Vec<BridgeKind> {
     BRIDGES.with(|b| core::mem::take(&mut *b.borrow_mut()))
 }
 
@@ -223,9 +233,10 @@ pub(crate) fn take_bridges() -> Vec<Bridge> {
 /// the difference is which claim the graft makes about the result:
 ///
 /// - [`Bridge::Recertify`] re-runs the certification against the
-///   destination's surfaces, through the lane the graft is handed
+///   destination's surfaces, through the NURBS lane it carries
 ///   ([`geom_brep::EdgeCurve::certify_via`]) — what the seam-zip lanes
-///   want, whose operands have been through surgery.
+///   want, whose operands have been through surgery. [`graft_solid`]
+///   is the one door that builds it, with the scalar's lane.
 /// - [`Bridge::RemapKeys`] carries the source's certificate verbatim
 ///   with only the handles rewritten
 ///   ([`geom_brep::EdgeCurve::with_remapped_surfaces`]) — what a
@@ -235,19 +246,42 @@ pub(crate) fn take_bridges() -> Vec<Bridge> {
 ///   ([`super::voids::insert_voids`]), the containment fallback's
 ///   assembly and a sphere re-cut's rotated shells. It is also the only form that
 ///   can carry a description the certification lanes cannot express at
-///   all (a rational NURBS wall certifies nowhere), or one only a
-///   lane certifies (a plane × NURBS `Intersection`), at a scalar that
-///   holds none.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum Bridge {
-    /// Re-run the schedule against the destination (the seam-zip
+///   all (a rational NURBS wall certifies nowhere), or one only the
+///   NURBS lane certifies, at a scalar that holds none.
+#[derive(Clone, Copy)]
+pub(crate) enum Bridge<T: geom_core::Real> {
+    /// Re-run the certification against the destination (the seam-zip
     /// lanes), at the band of `tol` — the one reader of a tolerance in
-    /// the graft.
+    /// the graft — through `lane`.
     Recertify {
         /// The run's tolerance.
         tol: Tol,
+        /// The NURBS lane the re-certification runs through: `None`
+        /// refuses every carrier whose certificate needs it.
+        lane: Option<geom_brep::NurbsLane<T>>,
     },
     /// Rewrite the handles, keep the source's certificate (disjoint).
+    RemapKeys,
+}
+
+impl<T: geom_core::Real> Bridge<T> {
+    /// Which bridge this is, without its lane.
+    #[cfg(any(test, feature = "test-support"))]
+    fn kind(&self) -> BridgeKind {
+        match self {
+            Self::Recertify { .. } => BridgeKind::Recertify,
+            Self::RemapKeys => BridgeKind::RemapKeys,
+        }
+    }
+}
+
+/// [`Bridge`]'s variant, the record [`take_bridges`] drains.
+#[cfg(any(test, feature = "test-support"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BridgeKind {
+    /// [`Bridge::Recertify`].
+    Recertify,
+    /// [`Bridge::RemapKeys`].
     RemapKeys,
 }
 
@@ -263,22 +297,15 @@ pub(crate) enum Bridge {
 /// whole-body already; only the shell→solid attachment is per-solid),
 /// so the result is entity-for-entity what N separate single-solid
 /// grafts would have produced, in the same order.
-pub(crate) fn graft_solids_with<T: geom_core::Decide>(
+pub(crate) fn graft_solids_disjoint<T: geom_core::Decide>(
     dst: &mut Body<T>,
     dst_solids: &[SolidKey],
     src: &Body<T>,
 ) -> Result<GraftMap, BooleanError> {
-    graft_staged(
-        dst,
-        Targets::Existing(dst_solids),
-        src,
-        Bridge::RemapKeys,
-        None,
-    )
-    .map(|(map, _)| map)
+    graft_staged(dst, Targets::Existing(dst_solids), src, Bridge::RemapKeys).map(|(map, _)| map)
 }
 
-/// [`graft_solids_with`] onto destination solids minted here, one per
+/// [`graft_solids_disjoint`] onto destination solids minted here, one per
 /// source solid in source order, each carrying its source solid's
 /// record forwarded like every other record (module docs). Returns the
 /// minted keys beside the map.
@@ -286,7 +313,7 @@ pub(crate) fn graft_solids_minted<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
 ) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
-    graft_staged(dst, Targets::Minted, src, Bridge::RemapKeys, None)
+    graft_staged(dst, Targets::Minted, src, Bridge::RemapKeys)
 }
 
 /// **Every graft is staged: a refusal, or a panic on a torn source,
@@ -300,20 +327,18 @@ pub(crate) fn graft_solids_minted<T: geom_core::Decide>(
 /// cannot refuse; it mints in the stage's slot order, which is the
 /// source's, so `dst` ends key for key as a transplant straight into
 /// it would leave it. The cost is a second transplant of the source,
-/// never a copy of `dst`. `nurbs_lane` is the lane a
-/// [`Bridge::Recertify`] certifies through.
+/// never a copy of `dst`.
 fn graft_staged<T: geom_core::Decide>(
     dst: &mut Body<T>,
     targets: Targets<'_>,
     src: &Body<T>,
-    bridge: Bridge,
-    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
+    bridge: Bridge<T>,
 ) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
     #[cfg(any(test, feature = "test-support"))]
-    BRIDGES.with(|b| b.borrow_mut().push(bridge));
+    BRIDGES.with(|b| b.borrow_mut().push(bridge.kind()));
     let mut stage = Body::new();
     let (staged, _) = match targets {
-        Targets::Minted => graft_solids_impl(&mut stage, Targets::Minted, src, bridge, nurbs_lane)?,
+        Targets::Minted => graft_solids_impl(&mut stage, Targets::Minted, src, bridge)?,
         Targets::Existing(dst_solids) => {
             if let Some(dead) = dst_solids.iter().find(|&&k| dst.get_solid(k).is_none()) {
                 unreachable!(
@@ -331,17 +356,10 @@ fn graft_staged<T: geom_core::Decide>(
                         .insert(crate::entity::Solid { shells: Vec::new() })
                 })
                 .collect();
-            graft_solids_impl(
-                &mut stage,
-                Targets::Existing(&stand_ins),
-                src,
-                bridge,
-                nurbs_lane,
-            )?
+            graft_solids_impl(&mut stage, Targets::Existing(&stand_ins), src, bridge)?
         }
     };
-    let (committed, solids) = match graft_solids_impl(dst, targets, &stage, Bridge::RemapKeys, None)
-    {
+    let (committed, solids) = match graft_solids_impl(dst, targets, &stage, Bridge::RemapKeys) {
         Ok(done) => done,
         Err(e) => unreachable!(
             "graft commit refused ({e:?}): the stage is a body this call built from a \
@@ -365,7 +383,7 @@ pub(crate) fn graft_unstaged<T: geom_core::Decide>(
     } else {
         Targets::Existing(dst_solids)
     };
-    graft_solids_impl(dst, targets, src, Bridge::RemapKeys, None)
+    graft_solids_impl(dst, targets, src, Bridge::RemapKeys)
 }
 
 impl GraftMap {
@@ -425,8 +443,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
     dst: &mut Body<T>,
     targets: Targets<'_>,
     src: &Body<T>,
-    bridge: Bridge,
-    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
+    bridge: Bridge<T>,
 ) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
     // Arity is this door's precondition, distinct from corruption: the
     // caller states which destination each source solid lands in, so a
@@ -786,7 +803,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
         else {
             continue;
         };
-        let Bridge::Recertify { tol } = bridge else {
+        let Bridge::Recertify { tol, lane } = bridge else {
             // Handles only, certificate verbatim (see `Bridge`).
             let remapped = curve
                 .with_remapped_surfaces(|sk| surfaces.get(sk).copied())
@@ -873,7 +890,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
             point(end_v),
             |sk| dst.surfaces.get(sk).cloned(),
             band,
-            nurbs_lane,
+            lane,
         )
         .map_err(BooleanError::GraftRecertify)?;
         let Some(slot) = dst.curves.get_mut(dk) else {
@@ -920,100 +937,63 @@ fn graft_solids_impl<T: geom_core::Decide>(
 mod recertify_lane_tests {
     use std::sync::Arc;
 
-    use geom::{Curve3, NurbsCurve3, Surface};
-    use geom_brep::{CertifyError, EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom::{Curve3, NurbsCurve3};
+    use geom_brep::{CertifyError, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point3, Tol, Vec3};
+    use geom_core::{Band, Tol};
 
-    use super::{Bridge, Targets, graft_staged};
+    use super::{Bridge, Targets, graft_solid, graft_staged};
     use crate::props::AtRestPolicy;
-    use crate::{Body, BooleanError, CurveGeom, FaceSurface, MevSite};
+    use crate::test_support_fixtures::{describe_as_intersections, geometric_cube};
+    use crate::{Body, BooleanError, CurveGeom};
 
-    /// A body holding one analytic rung-3 edge: the unit quarter circle
-    /// in `z = 0` as one rational quadratic arc, exactly on the plane
-    /// `z = 0` and the cylinder `ρ = 1`, certified through the lane.
-    fn rung3_body() -> Body<f64> {
-        let w = std::f64::consts::FRAC_PI_4.cos();
-        let carrier = Arc::new(
-            NurbsCurve3::new(
-                KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
-                vec![
-                    Point3::new(1.0, 0.0, 0.0),
-                    Point3::new(1.0, 1.0, 0.0),
-                    Point3::new(0.0, 1.0, 0.0),
-                ],
-                vec![1.0, w, 1.0],
-            )
-            .unwrap(),
-        );
-        let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p0, true).unwrap();
-        let plane = body
-            .set_face_surface(
-                seed.face,
-                FaceSurface::New {
-                    surface: Surface::Plane {
-                        origin: Point3::origin(),
-                        normal: Vec3::unit_z(),
-                        u_ref: Vec3::unit_x(),
-                    },
-                    sense: true,
-                },
-            )
-            .unwrap();
-        let anchor = body.mvfs(p1, true).unwrap();
-        let cylinder = body
-            .set_face_surface(
-                anchor.face,
-                FaceSurface::New {
-                    surface: Surface::Cylinder {
-                        origin: Point3::origin(),
-                        axis: Vec3::unit_z(),
-                        radius: 1.0,
-                        u_ref: Vec3::unit_x(),
-                    },
-                    sense: true,
-                },
-            )
-            .unwrap();
-        body.mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
+    /// The unit cube, one solid, with one edge re-carried as a degree-1
+    /// spline between its two planes: an analytic rung-3 edge, certified
+    /// through the lane by `set_edge_curve`.
+    fn rung3_cube() -> Body<f64> {
+        let tol = Tol::witness();
+        let mut body = geometric_cube::<f64>(tol).body;
+        describe_as_intersections(&mut body, tol);
+        let (edge_key, edge) = body.edges().next().map(|(k, e)| (k, e.clone())).unwrap();
+        let (s1, s2) = crate::readback::edge_sides(&body, edge_key)
+            .unwrap()
+            .surfaces();
+        let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let p0 = point(body.get_half_edge(edge.he_plus).unwrap().start);
+        let p1 = point(body.half_edge_end(edge.he_plus).unwrap());
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(s1, s2),
+                witness: p0.lerp(p1, 0.5),
             },
-            p1,
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
-                    pair: geom_brep::SurfacePair::new(plane, cylinder),
-                    witness: carrier.eval(0.5),
-                },
-                carrier: Curve3::Nurbs(carrier),
-                param_start: 0.0,
-                param_end: 1.0,
-            },
-            Tol::witness(),
-        )
-        .expect("the lane certifies the quarter circle");
+            carrier: Curve3::Nurbs(Arc::new(
+                NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
+            )),
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        body.set_edge_curve(edge_key, spec, tol)
+            .expect("the lane certifies the spline edge between two planes");
         body
     }
 
-    /// **The re-certifying graft holds the lane it is handed.** With
-    /// none it refuses the analytic rung-3 edge typed, before any check
-    /// of the edge; with the policy's lane — the one `graft_solid`
-    /// hands — it certifies the edge, which only the lane's C2 limbs
-    /// (both operands' distance limbs and the tube) can do, since a
-    /// lane-free door refuses the class. The grafted edge then
-    /// re-certifies through the lane and refuses without it.
+    /// The re-certifying graft holds the lane `Bridge::Recertify`
+    /// carries. With none it refuses the analytic rung-3 edge typed,
+    /// before any check of the edge. With the policy's lane it
+    /// certifies the edge. Only the lane's C2 limbs (both operands'
+    /// distance limbs and the tube) can do that, because a lane-free
+    /// door refuses the class. The grafted edge then re-certifies
+    /// through the lane and refuses without it.
     #[test]
     fn the_recertifying_graft_certifies_an_analytic_rung3_edge_through_the_lane() {
-        let src = rung3_body();
+        let src = rung3_cube();
         let tol = Tol::witness();
         let free = graft_staged(
             &mut Body::new(),
             Targets::Minted,
             &src,
-            Bridge::Recertify { tol },
-            None,
+            Bridge::Recertify { tol, lane: None },
         )
         .map(|_| ());
         assert!(
@@ -1026,21 +1006,24 @@ mod recertify_lane_tests {
             "no lane: {free:?}"
         );
 
+        let lane = <f64 as AtRestPolicy>::nurbs_lane();
         let mut dst = Body::new();
         graft_staged(
             &mut dst,
             Targets::Minted,
             &src,
-            Bridge::Recertify { tol },
-            <f64 as AtRestPolicy>::nurbs_lane(),
+            Bridge::Recertify { tol, lane },
         )
         .expect("the policy's lane certifies the grafted edge");
         let band = Band::linear(tol).unwrap();
-        let mut grafted = 0;
+        let mut spline_edges = 0;
         for (_, edge) in dst.edges.iter() {
             let Some(CurveGeom::Certified(curve)) = dst.curves.get(edge.curve) else {
                 continue;
             };
+            if !matches!(curve.carrier(), Curve3::Nurbs(_)) {
+                continue;
+            }
             let he = &dst.half_edges[edge.he_plus];
             let point = |v| dst.points[dst.vertices[v].point];
             let (start, end) = (point(he.start), point(dst.half_edges[he.next].start));
@@ -1051,16 +1034,45 @@ mod recertify_lane_tests {
                 "the grafted edge at a lane-free door"
             );
             curve
-                .recertify_via(
-                    start,
-                    end,
-                    surfaces,
-                    band,
-                    <f64 as AtRestPolicy>::nurbs_lane(),
-                )
+                .recertify_via(start, end, surfaces, band, lane)
                 .expect("the grafted edge re-certifies through the lane");
-            grafted += 1;
+            spline_edges += 1;
         }
-        assert_eq!(grafted, 1, "the one rung-3 edge was grafted");
+        assert_eq!(spline_edges, 1, "the one rung-3 edge was grafted");
+    }
+
+    /// `graft_solid` — the production re-certifying door, reached from
+    /// the combine door — certifies an edge of each lane class it
+    /// meets through the scalar's lane: the analytic rung-3 edge, and
+    /// the M7-8 cube's plane × NURBS edges. The same graft with no lane
+    /// refuses each typed. (Ported from PR 4791's second review.)
+    #[test]
+    fn graft_solid_certifies_the_lane_classes_through_the_scalars_lane() {
+        let tol = Tol::witness();
+        for (label, src) in [
+            ("analytic rung-3", rung3_cube()),
+            ("plane x NURBS", crate::cert_m3r1_probes::m7_8_cube().0),
+        ] {
+            let mut dst = src.clone();
+            let solid = dst.solids().next().unwrap().0;
+            let got = graft_solid(&mut dst, solid, &src, tol).map(|_| ());
+            assert!(got.is_ok(), "{label}: graft_solid: {got:?}");
+            let free = graft_staged(
+                &mut src.clone(),
+                Targets::Minted,
+                &src,
+                Bridge::Recertify { tol, lane: None },
+            )
+            .map(|_| ());
+            assert!(
+                matches!(
+                    free,
+                    Err(BooleanError::GraftRecertify(
+                        CertifyError::NurbsLaneNotSupplied
+                    ))
+                ),
+                "{label}: no lane: {free:?}"
+            );
+        }
     }
 }
