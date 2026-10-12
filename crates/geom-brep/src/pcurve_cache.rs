@@ -2016,9 +2016,10 @@ pub enum EnvelopeStatement {
     /// On a PLANE chart the map is affine, so `S ∘ P` has the
     /// coefficients the image maps to, and the bound is the norms of
     /// their differences from the carrier's: `‖Δc‖ + σ(Δa, Δb) +
-    /// ‖Δl‖·T`, with `T = max(|t₀|, |t₁|)` and `σ(x, y) = sup_t ‖x·cos t
-    /// + y·sin t‖ = √(m + √(q² + (x·y)²))`, `m = (‖x‖² + ‖y‖²)/2`, `q =
-    /// (‖x‖² − ‖y‖²)/2` — `√(x² + y²)` for scalars.
+    /// ‖Δl‖·T`, with `T = max(|t₀|, |t₁|)` and
+    /// `σ(x, y) = sup_t ‖x·cos t + y·sin t‖ = √(m + √(q² + (x·y)²))`,
+    /// `m = (‖x‖² + ‖y‖²)/2`, `q = (‖x‖² − ‖y‖²)/2` — `√(x² + y²)` for
+    /// scalars.
     ///
     /// # On a periodic chart: incidence plus fidelity
     ///
