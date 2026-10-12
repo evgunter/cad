@@ -40,7 +40,7 @@ fn vector(v: V) -> Vec3<f64> {
 /// `L`'s two faces, cut by the shared face's plane through the vertex
 /// (the origin), and the two requested edges there, `e₁` then `e₂`.
 /// Its faces stand `R` from the vertex, wide of every band at `D`.
-fn corner(c: &Cone) -> (Body<f64>, [EdgeKey; 2]) {
+pub(crate) fn corner(c: &Cone) -> (Body<f64>, [EdgeKey; 2]) {
     const R: f64 = 10.0;
     let l = c.l;
     let ray = [across(c.e[0], l), across(c.e[1], l)];
@@ -111,13 +111,13 @@ fn corner(c: &Cone) -> (Body<f64>, [EdgeKey; 2]) {
 
 /// The probe's closed forms on `c`: the gap (positive where `e₁`'s foot
 /// is further) and each band's chord were it the further.
-fn closed(c: &Cone, verb: Verb) -> (f64, [f64; 2]) {
+pub(crate) fn closed(c: &Cone, verb: Verb) -> (f64, [f64; 2]) {
     let t = measure(c, verb, D, 2);
     let chord = |k: usize| norm(sub(t.q[1 - k], mul(c.l, t.feet[k])));
     (t.feet[0] - t.feet[1], [chord(0), chord(1)])
 }
 
-fn kind(verb: Verb) -> BlendKind {
+pub(crate) fn kind(verb: Verb) -> BlendKind {
     match verb {
         Verb::Chamfer => BlendKind::Chamfer,
         Verb::Fillet => BlendKind::Fillet,
@@ -126,7 +126,7 @@ fn kind(verb: Verb) -> BlendKind {
 
 /// What the battery decided at the turn.
 #[derive(Clone, Debug, PartialEq)]
-enum Outcome {
+pub(crate) enum Outcome {
     /// The mitre, its coincidence recorded.
     Mitre,
     /// The overrun, its far band `edges[k]`.
@@ -135,7 +135,7 @@ enum Outcome {
     Refused(String),
 }
 
-fn outcome(body: &Body<f64>, edges: [EdgeKey; 2], verb: Verb) -> Outcome {
+pub(crate) fn outcome(body: &Body<f64>, edges: [EdgeKey; 2], verb: Verb) -> Outcome {
     let band = Band::linear(tol()).expect("the run's band");
     let request = BlendRequest {
         body,
@@ -168,7 +168,7 @@ fn outcome(body: &Body<f64>, edges: [EdgeKey; 2], verb: Verb) -> Outcome {
 /// The verdict the closed forms call for, where they lie clear of the
 /// band's edges; `None` in the margins around them, where rounding may
 /// take either side.
-fn expected(gap: f64, chords: [f64; 2], band: Band) -> Option<Outcome> {
+pub(crate) fn expected(gap: f64, chords: [f64; 2], band: Band) -> Option<Outcome> {
     let (zero, definite) = (band.zero() / 2.0, band.escalate() * 2.0);
     let far = usize::from(gap < 0.0);
     if gap.abs() < zero && chords[0].max(chords[1]) < zero {
