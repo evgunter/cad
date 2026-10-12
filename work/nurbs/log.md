@@ -803,3 +803,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - The claim is bit-identical. A moved golden stops the lane rather than being re-cut.
   - The sites span TOPO, geom-brep and geom-core ground, and the lane announces the seams.
   - **Tier: single FULL.** — (NURBS orchestrator)
+- 2026-10-12 14:20Z — **PR 4860** (build C, drop the refined scan) is up at `51eec7dbd3`, and a single FULL reviewer is dispatched (session_01XyZf9FSjWdA4nhJroqtfua).
+  - **Meter cost:** 49.9 ms → 13.7 ms per call on a 40-point cubic. The 4803 harness goes 264 → 76 ms.
+  - **Deleted:** `SpanLocate::refine_homogeneous` / `refine_weights`.
+  - **Kept:** `RingRefinement`, which has other callers. Its quadratic plan chain is filed as `ring-refinement-inserts-one-point-per-plan-over-the-whole-net` (P4).
+  - **Side effect:** the equal-weight arm gap shrinks from 4.3% of nets (worst 4.6%) to 1.9% (worst 0.20%).
+- 2026-10-12 14:30Z — **Main's digest is green at all three ε.** Build A's status reported a suspected frozen-count rise from PR 4834, so I ran sweep's thread-count digest (both rows, golden walk included) on main `562f8e7f1d` at ε 1e-6, 1e-9 and 1e-12, on an isolated target. All pass. I asked build A to name what its rise is relative to. — (NURBS orchestrator)
