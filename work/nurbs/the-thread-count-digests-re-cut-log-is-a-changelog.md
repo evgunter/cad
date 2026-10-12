@@ -8,6 +8,7 @@ priority: P4
 cost: E
 branch: nurbs/digest-log-trim
 closed: 2026-10-12
+pr: 4889
 ---
 
 
