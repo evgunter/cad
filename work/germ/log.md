@@ -1104,3 +1104,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - U-T4: spiric rows green; the lane is running the lens and winding mutants; no PR yet.
   - The PR 4886 fix pass is running.
   - Re-armed for 23:52.
+- 2026-10-12 23:53 — Check-in. r4910 and r4906 are alive: their targets were written within 10 min, with drafts at 23:28 and 23:23.
+  - PR 4886 fix pass: M1 reproduces 16/144 mismatches; the lane is running M6–M9 and TAYLOR0.
+  - U-T4: main merged; running the post-merge clippy and rows; no PR yet.
+  - PR 4910's body: the ∪ / T∖P containment refusal (`PartialTorusFace`) was added as evidence to INSIDE's `point-in-solid-refuses-an-l-shaped-torus-face`, and the rows pin it. It filed `work/germ/a-ring-path-along-a-ruling-or-crest-arcs-carrier-reads-nothing.md` (GERM; no public pose found).
+  - Re-armed for 00:53.
