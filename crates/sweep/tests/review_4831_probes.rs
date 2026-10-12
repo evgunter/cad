@@ -484,31 +484,52 @@ fn p9_a_rod_seated_in_a_plates_bore() {
 }
 
 /// A sliver-thin fat disc (r 2, z ∈ [0, 1e-5]) with the thin disc (r 1
-/// about (1, 0)) run past it both ways: every op refuses with the
-/// kernel-bug kind `ClassificationInvariant`. OPEN DEFECT, not the
+/// about (1, 0)) run past it both ways. At ε 1e-9 every op refuses with
+/// the kernel-bug kind `ClassificationInvariant`. OPEN DEFECT, not the
 /// intended answer: the second order along the fat disc's 1e-5 seam
-/// edge reads in the zero band, the vertex pair's tangent descent leaves
-/// an `On` that no edge event resolves, tracked by
+/// edge reads in the zero band, and the vertex pair's tangent descent
+/// leaves an `On` that no edge event resolves, tracked by
 /// `work/contacthold/a-sliver-thin-glued-tangency-leaves-an-on-code-past-srecledges.md`.
+/// At any other ε an op refuses or answers at its closed form, tier 3
+/// clean.
 #[test]
 fn p10_a_sliver_thin_disc_nested_on_a_long_one() {
-    let a = ext("sliver fat", vec![circle(0.0, 0.0, 2.0)], 0.0, 1e-5);
-    let b = ext("thin long", vec![circle(1.0, 0.0, 1.0)], -1.0, 1.0 + 2e-5);
-    for (name, got) in [
-        ("A ∪ B", topo::union(&a, &b, tol())),
-        ("A ∖ B", topo::subtract(&a, &b, tol())),
-        ("B ∖ A", topo::subtract(&b, &a, tol())),
-        ("A ∩ B", topo::intersect(&a, &b, tol())),
+    let pi = std::f64::consts::PI;
+    let h = 1e-5;
+    let a = ext("sliver fat", vec![circle(0.0, 0.0, 2.0)], 0.0, h);
+    let b = ext(
+        "thin long",
+        vec![circle(1.0, 0.0, 1.0)],
+        -1.0,
+        1.0 + 2.0 * h,
+    );
+    let (va, vb, meet) = (4.0 * pi * h, pi * (1.0 + 2.0 * h), pi * h);
+    let at_default = tol().get().eps == 1e-9;
+    for (name, got, want) in [
+        ("A ∪ B", topo::union(&a, &b, tol()), va + vb - meet),
+        ("A ∖ B", topo::subtract(&a, &b, tol()), va - meet),
+        ("B ∖ A", topo::subtract(&b, &a, tol()), vb - meet),
+        ("A ∩ B", topo::intersect(&a, &b, tol()), meet),
     ] {
-        assert!(
-            matches!(
-                got,
-                Err(topo::BooleanError::ClassificationInvariant {
-                    what: "surviving record with an On code after srecledges"
-                })
+        match got {
+            Err(topo::BooleanError::ClassificationInvariant {
+                what: "surviving record with an On code after srecledges",
+            }) if at_default => {}
+            _ if at_default => panic!(
+                "p10 {name}: the sliver row's open defect moved: {:?}",
+                got.map(|_| ())
             ),
-            "p10 {name}: the sliver row's open defect moved: {:?}",
-            got.map(|_| ())
-        );
+            Ok(topo::BooleanResult::Body(r)) => {
+                assert_eq!(
+                    topo::validate_geometric(&r.body, tol()),
+                    Ok(()),
+                    "p10 {name}: tier 3"
+                );
+                let v = topo::mass_properties(&r.body, tol()).unwrap().volume;
+                assert!((v - want).abs() < 1e-9, "p10 {name}: volume {v} vs {want}");
+            }
+            Ok(topo::BooleanResult::Empty) => panic!("p10 {name}: empty"),
+            Err(e) => eprintln!("p10 {name}: refused {:?}", e.kind()),
+        }
     }
 }

@@ -19,8 +19,9 @@ sliver both ways. Every op refuses `ClassificationInvariant { what:
 "surviving record with an On code after srecledges" }`, the postcondition
 of `recl::recl_edges` (pinned:
 `crates/sweep/tests/review_4831_probes.rs::p10_a_sliver_thin_disc_nested_on_a_long_one`).
-At z ∈ [0, 1e-4] the same pose escalates and at [0, 1e-3] every op
-answers at its closed form.
+That is at ε 1e-9; at 1e-6 the union escalates (`VertexOnFace`) and at
+1e-12 it builds (hosted CI). At ε 1e-9, z ∈ [0, 1e-4] escalates and
+[0, 1e-3] answers every op at its closed form.
 
 PR 4831's fix pass exposed it. Before, `recl::resolve_edge_sector` handed
 the glued tangency to `recl::require_same`, which refused
