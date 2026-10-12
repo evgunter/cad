@@ -771,3 +771,13 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - `of-join-sites-are-held-by-grep-alone`.
   - `join-desync-is-the-catch-all-for-cyclic-lineage-records` stays open for the edge split-lineage sites and the naming tables they mix in.
 - 2026-10-12 — Three rows of one class are dispatched together on `fuse/records-read-the-piece`: a carried record reads a divided face by key, not by the piece its contact lies on (edge-face and face-face P1; vertex whose vertex the join or merge took P2; the older pit-and-spike vertex-on-face P1). The lane measures first. Carrying a killed vertex's point in its lineage row is a fork if it turns out to be needed.
+- 2026-10-12 — The `records-read-the-piece` measurement comes in, and each row is ruled.
+  - **Measurement:**
+    - the lattice through 3′: 0 failures;
+    - two-stage carries: 4,536 runs, 0 refusals;
+    - a hand pose for row 1;
+    - `carry_rows` instrumented over 8,342 tests: 0 by-key reads of a divided face.
+  - **Rulings:**
+    - **Pit-and-spike vertex-on-face row:** fixed on main by `Descendants::holder` (PR 4650); it closes.
+    - **Edge-face/face-face row:** no path, since no carried record kind holds a face cell and `cell_rows` is edge-edge only. It closes, cross-referenced to WIRE's carried-kind row, which takes the obligation.
+    - **Joined/merge-killed vertex row:** the code path is real but unreached. Build it: `holder(face, q)` as the one door, with the dead vertex's point read from the operand body. No geometry goes on lineage rows, so it is not a fork. A witness or unit row plus a mutant is required.
