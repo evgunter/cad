@@ -382,8 +382,9 @@ fn torus() -> Surface<f64> {
 }
 
 /// **Plane × torus, the cap lane.** A plane `lift` past the tube's crest,
-/// its normal tilted off the axis so the tilt reads `tilt` at the crest
-/// circle's radius 1: at `0.9 + 0.9` the plane stands `1.8` bands off
+/// its normal tilted off the axis so the tilt reads `tilt` at the
+/// largest radius a circle of the section can have, `1 + 4R`: at
+/// `0.9 + 0.9` the plane stands `1.8` bands off
 /// the crest on one side, where main minted the tangent circle. Both
 /// definite sides escalate on the floor at `K + 0.3` and serve at
 /// `K + 0.9`.
@@ -393,7 +394,7 @@ fn plane_torus_decides_the_cap_gap_and_the_tilt_as_one_sum() {
     let cap = |tilt: f64, lift: f64| {
         let plane = Surface::Plane {
             origin: Point3::new(0.0, 0.0, 4.0 * R + lift),
-            normal: turned(Vec3::unit_z(), Vec3::unit_x(), tilt),
+            normal: turned(Vec3::unit_z(), Vec3::unit_x(), tilt / (1.0 + 4.0 * R)),
             u_ref: Vec3::unit_y(),
         };
         plane_torus_section(&plane, &torus(), 2.0, band())

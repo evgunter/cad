@@ -2614,8 +2614,10 @@ pub enum PlaneTorusSection<T: Real> {
 ///    [`PlaneTorusSection::SpiricOvals`], minted through
 ///    [`Curve3::spiric`]; otherwise the section is a node, a folded
 ///    loop or empty, and refuses as routed to the general rung.
-/// 3. `pt_axis_normal` — margin `‖a×n‖·R` (the tilt angle's sine,
-///    metered at the would-be circle radius): Zero ⇒ the plane is
+/// 3. `pt_axis_normal` — margin `‖a×n‖·(R + r)` (the tilt angle's
+///    sine, metered at the largest radius a circle of the section can
+///    have, which it stands off the plane by that sine times): Zero ⇒
+///    the plane is
 ///    perpendicular to the axis; then `pt_cap_gap` — margin `r − |h|`
 ///    (meters, `h = (q − c)·a` the station's depth into the tube), read
 ///    with that tilt displacement beside it ([`decide_across`]):
@@ -2761,7 +2763,7 @@ pub fn plane_torus_section<T: Decide>(
             }
         }
         Sign::Positive | Sign::Negative => {
-            let tilt = Margin::levered(a.cross(n).norm(), big_r);
+            let tilt = Margin::levered(a.cross(n).norm(), big_r + r);
             match decide("pt_axis_normal", tilt, band).map_err(SectionError::Escalated)? {
                 Sign::Zero => {
                     // The plane is perpendicular to the axis: the

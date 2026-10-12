@@ -89,10 +89,11 @@
 //! each end ([`Leave`]) — the boolean's germ direction, the split's
 //! conic walk. The chord only orients the arc along it
 //! (`chord_arc_leave_germ`, `chord_arc_leave_section`), so a chord reads
-//! no chart: every conic that reaches it takes its arc the same way.
-//! What reaches it is bounded upstream, not here: the boolean's planar
-//! side wires a cylinder or a sphere partner, and the split's reduce
-//! refuses a sphere.
+//! no chart: every conic that reaches it takes its arc the same way. A
+//! section of two loops (a torus's) is first narrowed to the loop the
+//! chord's sites lie on. What reaches it is bounded upstream, not here:
+//! the boolean's planar side wires a cylinder, sphere, cone or torus
+//! partner, and the split's reduce refuses a sphere and a torus.
 //!
 //! A **self-loop chord** (both ends one vertex) is a one-site section
 //! loop's: a one-face closed wall cut across its one wrap edge, in the
@@ -120,7 +121,7 @@ use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
-use crate::ring_path::{LoopArc, Path, Quadric, path_parity};
+use crate::ring_path::{LoopArc, LoopSplit, Path, Quadric, path_parity};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::order::{FRAME_ARM, FRAME_AXIS};
 use crate::splitting::rules::{face_axial_range, face_extent};
@@ -340,7 +341,9 @@ pub enum SplitJoinError {
     /// refused typed. The chord is minted in the curved face itself
     /// (`divided` is `wall`), or in a plane face against it (`divided`
     /// is [`geom::SurfaceKind::Plane`]). The chord layer serves a plane
-    /// against a cylinder, a sphere or a cone.
+    /// against a cylinder, a sphere or a cone, and a torus where the
+    /// plane cuts it in two meridian or two concentric circles: a torus
+    /// here is a plane cutting it in two spiric ovals.
     SectionUnarmed {
         /// The face being divided.
         face: FaceKey,
@@ -696,6 +699,9 @@ fn section_reach<T: Decide>(
             crate::splitting::rules::cone_face_reach(body, face, p, (wall, within), band)
                 .map_err(unbounded)?,
         ),
+        geom::Surface::Torus { .. } => SectionReach::Torus(
+            crate::splitting::rules::face_reach_from(body, face, p).map_err(unbounded)?,
+        ),
         _ => SectionReach::Unmeasured,
     })
 }
@@ -985,6 +991,50 @@ pub(crate) enum SectionCase<T: Real> {
     Straight([geom::Curve3<T>; 2]),
     /// The tangent locus, as the table constructed it.
     Tangent(geom::Curve3<T>),
+    /// Two conics, each a loop of its own: a torus's two meridian
+    /// circles, or its two concentric ones. A chord is an arc of the
+    /// loop its sites lie on ([`section_loop`]).
+    Loops {
+        /// The loop on the split's positive side, then its negative one.
+        loops: [SectionConic<T>; 2],
+        /// The margin that tells them apart: the boolean join's split
+        /// for the same section (`boolean::join`'s `pt_germ_frame`).
+        split: LoopSplit<T>,
+    },
+}
+
+/// **The loop of a two-loop section a chord's sites lie on**
+/// (**`chord_section_loop`**: the split's margin at each site, in
+/// metres). On the meridian circles that margin is `√(ρ² − d²) ≥ R − r`
+/// at every point of the section, and on the concentric circles
+/// `√(r² − h²)`, which the table decided positive, so a site whose margin
+/// falls in the band is on neither loop, an invariant; an undecided one
+/// escalates. Sites on two loops are an invariant too: the boolean join
+/// pairs germs only on one loop.
+fn section_loop<T: Decide>(
+    face: FaceKey,
+    [positive, negative]: [SectionConic<T>; 2],
+    split: LoopSplit<T>,
+    sites: [Point3<T>; 2],
+    band: Band,
+) -> Result<SectionConic<T>, SplitJoinError> {
+    let side = |p| match decide("chord_section_loop", Margin::of(split.margin(p)), band) {
+        Ok(Sign::Zero) => Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a chord's site lies on neither loop of its section (its loop margin is in \
+                   the band)",
+        }),
+        Ok(sign) => Ok(sign),
+        Err(diag) => Err(SplitJoinError::Escalated { face, diag }),
+    };
+    match (side(sites[0])?, side(sites[1])?) {
+        (Sign::Positive, Sign::Positive) => Ok(positive),
+        (Sign::Negative, Sign::Negative) => Ok(negative),
+        _ => Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a chord's two sites lie on different loops of its section",
+        }),
+    }
 }
 
 /// What [`section_reach`] measured of a face, by its wall's kind.
@@ -994,6 +1044,11 @@ pub(crate) enum SectionReach<T: Real> {
     Cone(geom_brep::Reach<T>),
     /// A cylinder wall's face, as [`agreed_section`] reads it.
     Cylinder(WallReach<T>),
+    /// A torus wall's face, or a plane face against a torus: the
+    /// divided face's farthest distance from the chord's site, which the
+    /// plane×torus arm levers its axis tilt by (no shorter than the tube
+    /// radius).
+    Torus(T),
     /// Any other wall: the sphere lane reads no reach.
     Unmeasured,
 }
@@ -1080,7 +1135,8 @@ pub(crate) fn agreed_section<T: Decide>(
 /// what it did with the tangent arm.
 ///
 /// **Pair-general, not plane-first.** The arms wired today are
-/// plane×cylinder, plane×cone and plane×sphere, and either order is accepted: the
+/// plane×cylinder, plane×cone, plane×sphere and plane×torus (its
+/// meridian and concentric circles), and either order is accepted: the
 /// caller hands over the pair it has, and which member is the plane is
 /// this function's question rather than the caller's. A pair with no
 /// arm — every curved×curved pair, today — refuses typed here, which
@@ -1091,9 +1147,12 @@ pub(crate) fn agreed_section<T: Decide>(
 /// The sphere lane (M5 S13) classifies through `plane_sphere_section`
 /// — an exact Circle, never a fitted chord — whatever the section's
 /// tilt against the sphere's chart. The cylinder lane is PR 5/PR 9's
-/// `plane_cylinder_section`; the cone lane is `plane_cone_section`.
+/// `plane_cylinder_section`; the cone lane is `plane_cone_section`; the
+/// torus lane is `plane_torus_section`, whose spiric ovals refuse as
+/// [`SplitJoinError::SectionUnarmed`] (`divided` names the face being
+/// divided).
 fn section_case<T: Decide>(
-    face: FaceKey,
+    (face, divided): (FaceKey, geom::SurfaceKind),
     band: Band,
     s1: &geom::Surface<T>,
     s2: &geom::Surface<T>,
@@ -1116,7 +1175,7 @@ fn section_case<T: Decide>(
         _ => {
             return Err(invariant(
                 "a chord's section pair has no plane — the C5 arms this lane reads are \
-                 plane×cylinder, plane×cone and plane×sphere, and a curved×curved pair has no conic \
+                 plane×cylinder, plane×cone, plane×sphere and plane×torus, and a curved×curved pair has no conic \
                  to take an arc of; refused typed rather than defaulted to a straight chord. A \
                  sphere pair never arrives here: its section lies in the pair's radical \
                  plane, which the boolean's join hands each side as a plane×sphere pair",
@@ -1176,6 +1235,88 @@ fn section_case<T: Decide>(
             invariant("a conic classification carried a carrier that is neither ellipse nor circle")
         })
         };
+    // The torus (C5's plane×torus arm): the meridian and the concentric
+    // circles are two loops, a chord an arc of the one its sites lie on,
+    // told apart by the boolean join's own split for the section. The
+    // lever is the divided face's reach (a torus face, or the plane face
+    // against it), which bounds where that side's chord is consumed, but
+    // never shorter than the tube radius: a meridian circle is minted on
+    // the torus and stands off the cut by `r` times the axis tilt, which
+    // a definite verdict bounds by the band over the lever. The lever
+    // enters only the axis tilt's decision, and a longer one decides
+    // fewer tilts Zero, each of which then routes to the general rung's
+    // refusal; so the two sides' readings can part a served section only
+    // from a refusal.
+    if let geom::Surface::Torus {
+        center,
+        axis,
+        major_radius,
+        minor_radius,
+        ..
+    } = *wall
+    {
+        let SectionReach::Torus(reach) = reach else {
+            return Err(invariant(
+                "a torus wall's chord reached the section table with no reach measured of the \
+                 divided face",
+            ));
+        };
+        let loops = |c1, c2, split| {
+            let carried =
+                || invariant("a plane×torus classification carried a carrier that is not a circle");
+            Ok(SectionCase::Loops {
+                loops: [
+                    section_conic(c1).ok_or_else(carried)?,
+                    section_conic(c2).ok_or_else(carried)?,
+                ],
+                split,
+            })
+        };
+        let lever = reach.max(minor_radius);
+        return match geom_brep::plane_torus_section(plane_s, wall, lever, band).map_err(table)? {
+            geom_brep::PlaneTorusSection::MeridianCircles { c1, c2 } => {
+                let &geom::Curve3::Circle { center: k, .. } = &c1 else {
+                    return Err(invariant(
+                        "a plane×torus classification carried a carrier that is not a circle",
+                    ));
+                };
+                let dir = (k - center).normalize();
+                loops(
+                    c1,
+                    c2,
+                    LoopSplit::Side {
+                        origin: center,
+                        dir,
+                    },
+                )
+            }
+            geom_brep::PlaneTorusSection::ConcentricCircles { c1, c2 } => loops(
+                c1,
+                c2,
+                LoopSplit::Radius {
+                    origin: center,
+                    axis: axis.normalize(),
+                    radius: major_radius,
+                },
+            ),
+            geom_brep::PlaneTorusSection::SpiricOvals { .. } => {
+                Err(SplitJoinError::SectionUnarmed {
+                    face,
+                    divided,
+                    wall: geom::SurfaceKind::Torus,
+                })
+            }
+            // C7: the tangent locus is the tube's top or bottom circle,
+            // classification data — a touching configuration.
+            geom_brep::PlaneTorusSection::TangentCircle(_) => Err(invariant(
+                "tangent plane×torus germ pair under a minted chord — a touching configuration, \
+                 the typed frontier of the supported envelope",
+            )),
+            geom_brep::PlaneTorusSection::Empty => Err(invariant(
+                "empty plane×torus classification under a minted chord",
+            )),
+        };
+    }
     // The cone (C5's plane×cone arm): the tilted ellipse and the
     // axis-normal circle are conics to select an arc of; the apex lane's
     // generator pair is the ruling case, its tangent generator the
@@ -1184,7 +1325,7 @@ fn section_case<T: Decide>(
     // of another kind as its own wrong lane.
     let reach = match reach {
         SectionReach::Cylinder(reach) => reach,
-        SectionReach::Unmeasured => {
+        SectionReach::Unmeasured | SectionReach::Torus(_) => {
             return Err(invariant(
                 "a cone or cylinder wall's chord reached the section table with no reach \
                  measured of its face",
@@ -1613,6 +1754,13 @@ fn chord_spec<T: Decide>(
             }));
         }
         SectionCase::Conic(c) => c,
+        SectionCase::Loops { loops, split } => section_loop(
+            face,
+            loops,
+            split,
+            [vertex_point(body, u1), vertex_point(body, u2)],
+            band,
+        )?,
     };
     let p1 = vertex_point(body, u1);
     let p2 = vertex_point(body, u2);
@@ -1685,7 +1833,8 @@ pub(crate) fn wall_section<T: Decide>(
         geom::Surface::Plane { .. } => return Ok(None),
         geom::Surface::Cylinder { .. }
         | geom::Surface::Sphere { .. }
-        | geom::Surface::Cone { .. } => {}
+        | geom::Surface::Cone { .. }
+        | geom::Surface::Torus { .. } => {}
         _ => {
             return Err(SplitJoinError::SectionUnarmed {
                 face,
@@ -1703,7 +1852,7 @@ pub(crate) fn wall_section<T: Decide>(
         u_ref: normal.get(),
     };
     let case = section_case(
-        face,
+        (face, wall.kind()),
         band,
         &plane_s,
         &wall,
@@ -1825,7 +1974,10 @@ fn bool_planar_chord_spec<T: Decide>(
 ) -> Result<Option<EdgeCurveSpec<T>>, SplitJoinError> {
     if !matches!(
         wall,
-        geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. } | geom::Surface::Cone { .. }
+        geom::Surface::Cylinder { .. }
+            | geom::Surface::Sphere { .. }
+            | geom::Surface::Cone { .. }
+            | geom::Surface::Torus { .. }
     ) {
         return Err(SplitJoinError::SectionUnarmed {
             face,
@@ -1853,7 +2005,7 @@ fn bool_planar_chord_spec<T: Decide>(
         u_ref: p_n,
     };
     let conic = match section_case(
-        face,
+        (face, geom::SurfaceKind::Plane),
         band,
         &plane_s,
         wall,
@@ -1875,6 +2027,13 @@ fn bool_planar_chord_spec<T: Decide>(
             });
         }
         SectionCase::Conic(c) => c,
+        SectionCase::Loops { loops, split } => section_loop(
+            face,
+            loops,
+            split,
+            [vertex_point(body, u1), vertex_point(body, u2)],
+            band,
+        )?,
     };
     let p1 = vertex_point(body, u1);
     let p2 = vertex_point(body, u2);
@@ -4181,6 +4340,9 @@ mod sibling_escalation_rows;
 mod sphere_island_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torus_chord_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torus_ring_rows;
 
 #[cfg(test)]
@@ -4357,6 +4519,7 @@ mod tests {
                     SectionCase::Straight(_) => "straight",
                     SectionCase::Tangent(_) => "tangent",
                     SectionCase::Conic(_) => "conic",
+                    SectionCase::Loops { .. } => "loops",
                 }))
             );
         }
@@ -4420,6 +4583,7 @@ mod tests {
                         SectionCase::Straight(_) => "straight",
                         SectionCase::Tangent(_) => "tangent",
                         SectionCase::Conic(_) => "conic",
+                        SectionCase::Loops { .. } => "loops",
                     }))
                 );
             }
@@ -4487,6 +4651,7 @@ mod tests {
                     SectionCase::Straight(_) => "straight",
                     SectionCase::Tangent(_) => "tangent",
                     SectionCase::Conic(_) => "conic",
+                    SectionCase::Loops { .. } => "loops",
                 }))
             );
         }
@@ -4534,6 +4699,7 @@ mod tests {
                     SectionCase::Straight(_) => "straight",
                     SectionCase::Tangent(_) => "tangent",
                     SectionCase::Conic(_) => "conic",
+                    SectionCase::Loops { .. } => "loops",
                 }))
             );
         }
@@ -4597,6 +4763,7 @@ mod tests {
                         SectionCase::Straight(_) => "straight",
                         SectionCase::Tangent(_) => "tangent",
                         SectionCase::Conic(_) => "conic",
+                        SectionCase::Loops { .. } => "loops",
                     }))
                 );
             }
@@ -4647,6 +4814,7 @@ mod tests {
                         SectionCase::Straight(_) => "straight",
                         SectionCase::Tangent(_) => "tangent",
                         SectionCase::Conic(_) => "conic",
+                        SectionCase::Loops { .. } => "loops",
                     }))
                 ),
             };
@@ -4853,6 +5021,7 @@ mod tests {
                     SectionCase::Straight(_) => "straight",
                     SectionCase::Tangent(_) => "tangent",
                     SectionCase::Conic(_) => "conic",
+                    SectionCase::Loops { .. } => "loops",
                 }))
             );
         }
@@ -4916,6 +5085,7 @@ mod tests {
                 SectionCase::Straight(_) => "straight",
                 SectionCase::Tangent(_) => "tangent",
                 SectionCase::Conic(_) => "conic",
+                SectionCase::Loops { .. } => "loops",
             }))
         );
     }
@@ -5237,7 +5407,8 @@ mod section_case_pair_tests {
     fn the_pair_is_order_free() {
         let f = FaceKey::default();
         for (a, b) in [(plane(), cylinder()), (cylinder(), plane())] {
-            let got = section_case(f, band(), &a, &b, reach()).expect("the rim arm is wired");
+            let got = section_case((f, geom::SurfaceKind::Plane), band(), &a, &b, reach())
+                .expect("the rim arm is wired");
             let SectionCase::Conic(c) = got else {
                 panic!("a square cut names a rim circle");
             };
@@ -5255,13 +5426,19 @@ mod section_case_pair_tests {
             (cylinder(), sphere()),
             (sphere(), sphere()),
         ] {
-            match section_case(f, band(), &a, &b, reach()) {
+            match section_case((f, geom::SurfaceKind::Plane), band(), &a, &b, reach()) {
                 Err(SplitJoinError::SectionInvariant { .. }) => {}
                 Err(e) => panic!("a curved pair must refuse SectionInvariant, got {e:?}"),
                 Ok(_) => panic!("a curved pair must refuse typed, never classify"),
             }
         }
-        match section_case(f, band(), &plane(), &plane(), reach()) {
+        match section_case(
+            (f, geom::SurfaceKind::Plane),
+            band(),
+            &plane(),
+            &plane(),
+            reach(),
+        ) {
             Err(SplitJoinError::SectionInvariant { .. }) => {}
             Err(e) => panic!("a planar pair must refuse SectionInvariant, got {e:?}"),
             Ok(_) => panic!("a planar pair must refuse typed here, never classify"),

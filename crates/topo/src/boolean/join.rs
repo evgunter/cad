@@ -4953,6 +4953,7 @@ mod frame_dispatch_tests {
             let head = match wall_section(&body, b, through, unit_normal, face, corner) {
                 Ok(Some(WallSection { case, .. })) => match case {
                     SectionCase::Conic(_) => "conic",
+                    SectionCase::Loops { .. } => "loops",
                     SectionCase::Straight(_) => "lines",
                     SectionCase::Tangent(_) => "tangent",
                 },

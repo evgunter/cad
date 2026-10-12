@@ -771,6 +771,8 @@ mod germ_coplanar_conic;
 mod germ_interior_oval;
 #[path = "germ_interior_saddle.rs"]
 mod germ_interior_saddle;
+#[path = "germ_plane_torus_chord.rs"]
+mod germ_plane_torus_chord;
 #[path = "germ_plane_torus_frame.rs"]
 mod germ_plane_torus_frame;
 #[path = "germ_radial_hole.rs"]
