@@ -2,7 +2,7 @@
 id: ring-refinement-inserts-one-point-per-plan-over-the-whole-net
 kind: issue
 title: RingRefinement inserts one point per plan over the whole net, so an equal split costs O(insertions × n) to plan and to apply
-status: open
+status: deferred
 opened: 2026-10-12
 priority: P4
 cost: M
@@ -36,3 +36,21 @@ Insert all of a span's points at once (Boehm's multi-insertion, or the
 Oslo algorithm), or refine per span from its local window: `O(n·k·p)`.
 Measure the remaining callers first; at the sizes they see the cost may
 not matter.
+
+## Deferred (2026-10-12, the NURBS orchestrator's ruling)
+
+Measured with the speed meter's refined scan removed (PR 4860), by
+timing `RingRefinement::new` / `equal_split` (planning) and
+`RingRefinement::refine` (applying) inside real workloads, release:
+
+| workload | wall | planning | applying | calls |
+|---|---|---|---|---|
+| sweep thread-count digest (`the_walk_matches_the_serial_golden_at_four_threads`, ε 1e-9; times summed over its 4 threads) | 22 501 ms | 0.8 ms | 12.3 ms | 44 |
+| NURBS SSI (`m8_4_intersection_iso::a_degree_two_widening_measures_against_the_oracle`) | 1 486 ms | 1.0 ms | 8.8 ms | 34 |
+| rational mass properties (`m8_3_rational_volume::tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion`) | 6 576 ms | 0.1 ms | 2.7 ms | 8 |
+
+At most 0.7% of wall time: the remaining callers (`props/quad.rs`,
+`ssi/section.rs`, `ssi/certify.rs`, `ssi/enclose.rs`, `spline/net.rs`)
+refine short vectors. The quadratic chain stays, disclosed; the linear
+per-span refinement above is the fix if a caller ever refines a long
+carrier.

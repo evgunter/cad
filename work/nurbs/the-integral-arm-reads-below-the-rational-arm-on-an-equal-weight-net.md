@@ -2,7 +2,7 @@
 id: the-integral-arm-reads-below-the-rational-arm-on-an-equal-weight-net
 kind: issue
 title: The integral arm reads a little below the rational arm on an equal-weight net, by degree elevation
-status: open
+status: deferred
 opened: 2026-10-12
 priority: P4
 cost: M
@@ -42,3 +42,18 @@ the same 1697 nets (seed `0x77`) the one-ulp-off reading is now higher
 on 33 (1.9%, was 4.3%), by a median 0.03% and at worst 0.20% (was
 4.6%): degree elevation alone. The shape that remains is the first
 bullet's.
+
+## Deferred (2026-10-12, the NURBS orchestrator's ruling)
+
+With the refined scan gone (PR 4860), measured on 4796 random integral
+nets (`random_curve`, degree 1–6, every seventh an exact stall, seed
+`0x77`) plus the swaying family at degree 2–3, `a` 0.5–8: on the
+certified (`Interval`) lane the one-ulp-off reading is higher on 95,
+and **0** have a positive rational reading under a non-positive
+integral one; the least `span·meter` among them is `0.043`, far above
+the bands the consumers decide `Margin::metered` against. (At `f64`
+19 degree-2 stall nets read about `1e-17` one ulp off against the
+integral arm's exact `0`: rounding inside the meter's stated posture on
+a curve whose speed is `0`, not reach.) No decision moves, so the gap
+stays, disclosed; the fix to build if a consumer needs it is the
+shape above (degree-elevate the integral piece reading).
