@@ -383,16 +383,16 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/section.rs", 2, 2, ""),
     (
         "crates/geom-core/src/interval.rs",
-        23,
+        25,
         5,
         "the type's own body. The 5 that ask are the two refusal doors \
          (`certified_bracket`, `sign_within`) and the directed helpers `norm_sup`, \
-         `div_down` and `div_up`. The other 18 are not certification \
+         `div_down` and `div_up`. The other 20 are not certification \
          reads at all — blind spot 1: they are the evaluation scalar's own \
          implementation reads of the `DInterval` it wraps (the `Bounds` forwarders, \
-         `repr_bits`, `copysign`, the kink selectors and the two `select_le_zero` \
-         arms), which test NaI and empty themselves and carry the decoration forward \
-         rather than certifying",
+         `repr_bits`, `copysign`, the kink selectors, the two `select_le_zero` \
+         arms and `sum_rounded_once`'s two ends), which test NaI and empty themselves \
+         and carry the decoration forward rather than certifying",
     ),
     (
         "crates/geom-core/src/interval/certification.rs",
@@ -416,7 +416,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          construction",
     ),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
-    ("crates/topo/src/props/quad_lane.rs", 7, 7, ""),
+    (
+        "crates/topo/src/props/quad_lane.rs",
+        8,
+        7,
+        "the one that does not ask is `least_point`'s order key, which reads both ends \
+         only to choose which point anchors a loop; the point it chooses carries its own \
+         decoration into the sum, so an uncertified end chooses an anchor and certifies \
+         nothing",
+    ),
 ];
 
 /// The repo root: this crate's directory, two levels up.

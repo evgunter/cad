@@ -1685,8 +1685,8 @@ mod tests {
         /// **All or nothing.** The notch307 prism with a disc planted in
         /// its top has planes bounded by lines and planes bounded by a
         /// circle, so no face takes the polygon route: its re-derivation
-        /// is each face's own closed form about the corner, summed in walk
-        /// order, bit for bit. The prism's slanted edges end off their
+        /// is each face's own closed form about the corner, summed
+        /// rounded once, bit for bit. The prism's slanted edges end off their
         /// vertex points, so a line-bounded plane read as its polygon
         /// would not match. The prism alone takes the polygon route.
         #[test]
@@ -1720,18 +1720,17 @@ mod tests {
                 "a disc in the top keeps every face off the polygon route"
             );
             let centre = corner_of(&body, lane, &runs).unwrap();
-            let (mut flux, mut area) = (Interval::zero(), Interval::zero());
-            let mut polygon = Interval::zero();
+            let (mut flux, mut area, mut polygon) = (Vec::new(), Vec::new(), Vec::new());
             for run in &runs {
                 let (face, surface) = resolve_face(&body, run.face);
                 let loops = face_loops(&body, face).unwrap();
                 let (c, _) =
                     super::super::closed_form(surface, &loops, face.sense, band, centre, None)
                         .unwrap();
-                flux = flux + c.flux;
-                area = area + c.area;
-                polygon = polygon
-                    + match vertex_rings(&body, surface, &flat_loops(&body, face).unwrap(), lane)
+                flux.push(c.flux);
+                area.push(c.area);
+                polygon.push(
+                    match vertex_rings(&body, surface, &flat_loops(&body, face).unwrap(), lane)
                         .unwrap()
                     {
                         Some(rings) => {
@@ -1740,8 +1739,11 @@ mod tests {
                                 .flux
                         }
                         None => c.flux,
-                    };
+                    },
+                );
             }
+            let sum = |terms: &[Interval]| geom_core::Real::sum_rounded_once(terms);
+            let (flux, area, polygon) = (sum(&flux), sum(&area), sum(&polygon));
             let bits = |x: Interval| (x.is_certified(), x.lo().to_bits(), x.hi().to_bits());
             assert_ne!(
                 bits(polygon),

@@ -1211,6 +1211,13 @@ enum SymOp {
     Lit,
     Pi,
     Add,
+    /// **One link of a rounded-once sum** ([`Real::sum_rounded_once`]):
+    /// its real is the sum of its two children, as [`SymOp::Add`]'s is,
+    /// and its value is the rounded-once sum of every term down its
+    /// left spine of `SumOnce` links — the chain the sum was built as,
+    /// so re-valuing it (`revalue`) rounds once where `Add` rounds at
+    /// every link.
+    SumOnce,
     Sub,
     Mul,
     Neg,
@@ -1288,6 +1295,7 @@ impl SymOp {
             Self::Hull => 23,
             Self::Opaque => 24,
             Self::Select => 25,
+            Self::SumOnce => 26,
         }
     }
 
@@ -1308,6 +1316,7 @@ impl SymOp {
             | Self::Atan
             | Self::Floor => 1,
             Self::Add
+            | Self::SumOnce
             | Self::Sub
             | Self::Mul
             | Self::Atan2
@@ -3409,7 +3418,7 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
         // one clause 1 has already refused. Kept behind the algebra
         // dials so the tier with them off is the earlier one bit for
         // bit; the plain walk never takes it.
-        SymOp::Add | SymOp::Sub | SymOp::Mul
+        SymOp::Add | SymOp::SumOnce | SymOp::Sub | SymOp::Mul
             if early
                 && (sess.rules.early_ab || sess.rules.trig_of_atan)
                 && !a.tainted(b)
@@ -3424,15 +3433,15 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             };
             let mut f = match (node.op, a.is_zero()) {
                 (SymOp::Mul, _) => Form::zero(),
-                (SymOp::Add, true) => b.clone(),
-                (SymOp::Add, false) => a.clone(),
+                (SymOp::Add | SymOp::SumOnce, true) => b.clone(),
+                (SymOp::Add | SymOp::SumOnce, false) => a.clone(),
                 (_, true) => b.neg()?,
                 (_, false) => a.clone(),
             };
             f.gated = gated;
             Some(f)
         }
-        SymOp::Add => a.add(b, budget),
+        SymOp::Add | SymOp::SumOnce => a.add(b, budget),
         SymOp::Sub => a.add(&b.neg()?, budget),
         SymOp::Mul => a.mul(b, budget),
         SymOp::Neg => a.neg(),
@@ -5266,8 +5275,8 @@ impl<T: Real> Real for Sym<T> {
     }
 
     /// The value channel is `T`'s rounded-once sum, bit-identical to
-    /// the plain lane's; the node chains the additions in the order
-    /// given.
+    /// the plain lane's; the node chains [`SymOp::SumOnce`] links in the
+    /// order given.
     fn sum_rounded_once(terms: &[Self]) -> Self {
         let values: Vec<T> = terms.iter().map(|t| t.value).collect();
         let value = T::sum_rounded_once(&values);
@@ -5276,7 +5285,7 @@ impl<T: Real> Real for Sym<T> {
             Some((&first, rest)) => {
                 let chain = rest
                     .iter()
-                    .fold(first, |acc, &t| acc.binary(t, value, SymOp::Add));
+                    .fold(first, |acc, &t| acc.binary(t, value, SymOp::SumOnce));
                 Sym {
                     value,
                     node: chain.node,

@@ -2424,6 +2424,61 @@ pub fn mass_properties_with_face_terms(
     Ok((props, terms))
 }
 
+/// A storage relabeling the data model declares free: every cycle
+/// loop's anchor moved `anchor_steps` half-edges along its cycle, and
+/// every face's ring list reversed when `reverse_rings`. Test
+/// vocabulary for the storage-invariance rows, which measure a body
+/// and its relabeling and compare bits.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[must_use]
+pub fn relabeled<T: Real>(body: &Body<T>, anchor_steps: usize, reverse_rings: bool) -> Body<T> {
+    let mut out = body.clone();
+    for lp in out.loops.values_mut() {
+        if let crate::entity::LoopBoundary::Cycle { first } = &mut lp.boundary {
+            for _ in 0..anchor_steps {
+                *first = crate::live::proven(
+                    &body.half_edges,
+                    *first,
+                    crate::entity::EntityId::HalfEdge,
+                )
+                .next;
+            }
+        }
+    }
+    if reverse_rings {
+        for face in out.faces.values_mut() {
+            face.rings.reverse();
+        }
+    }
+    out
+}
+
+/// [`mass_properties`] over the faces in the order `faces` gives them:
+/// the reporting walk and fold of the whole-body door, handed a face
+/// list in place of the arena's. Test vocabulary: a face-order
+/// permutation, which the arena cannot be asked for.
+///
+/// # Errors
+///
+/// As [`mass_properties`].
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn mass_properties_in_face_order<T: Decide + geom_core::CertifiedBounds>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    tol: Tol,
+) -> Result<MassProperties<T>, MassPropsError> {
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    mass_properties_impl(
+        body,
+        faces,
+        band,
+        &reporting_hook(Some(QuadLane::certified())),
+        tol,
+    )
+}
+
 /// The reporting walk: every face to the target, folded. The runs are
 /// handed back beside the sum for `mass_properties_with_face_terms`.
 fn mass_properties_runs<T: Decide>(
@@ -4650,6 +4705,10 @@ mod at_rest_policy_tests {
 /// consumer). Key-free math stays in `geom_brep::props::quad`; this
 /// module owns everything that needs half-edges and vertex points.
 mod quad_lane;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod storage_invariance;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

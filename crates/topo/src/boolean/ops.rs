@@ -7451,9 +7451,10 @@ mod tests {
     }
 
     /// **A tie between congruent closed-form bodies passes.** One prism
-    /// over a non-dyadic quadrilateral, its profile started at two
-    /// different corners: the same solid, whose `f64` flux sums round
-    /// apart (0.88374999999999970 against 0.88375000000000004 m³). Each
+    /// over a non-dyadic quadrilateral, and its copy a quarter metre
+    /// over in `x` and `y`: congruent solids whose vertex coordinates
+    /// round apart, so their `f64` flux sums do too
+    /// (0.88374999999999992 against 0.88375000000000004 m³). Each
     /// bound reads the tie through the interval re-derivation and
     /// passes, in both orders; a result the walk alone would call past
     /// its bound.
@@ -7461,11 +7462,10 @@ mod tests {
     fn volume_backstop_passes_a_closed_form_rounding_tie() {
         let band = Band::linear(Tol::witness()).unwrap();
         let profile = [(0.1, 0.2), (1.3, 0.25), (1.1, 1.7), (0.05, 0.9)];
-        let mut turned = profile;
-        turned.rotate_left(3);
+        let moved = profile.map(|(x, y)| (x + 0.25, y + 0.25));
         let (low, high) = (
             quad_prism(&profile, 0.7, Tol::witness()),
-            quad_prism(&turned, 0.7, Tol::witness()),
+            quad_prism(&moved, 0.7, Tol::witness()),
         );
         let volume = |body| crate::mass_properties(body, Tol::witness()).unwrap().volume;
         assert!(
@@ -9173,8 +9173,7 @@ mod from_computed_rows {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let profile = [(0.1, 0.2), (1.3, 0.25), (1.1, 1.7), (0.05, 0.9)];
-        let mut turned = profile;
-        turned.rotate_left(3);
+        let moved = profile.map(|(x, y)| (x + 0.25, y + 0.25));
         let off = SymBudget {
             max_terms: 0,
             max_degree: 0,
@@ -9193,7 +9192,7 @@ mod from_computed_rows {
                 );
                 body
             };
-            let (low, high) = (prism(&profile), prism(&turned));
+            let (low, high) = (prism(&profile), prism(&moved));
             let got = volume_backstop(
                 BooleanOp::Intersect,
                 &low,
