@@ -2080,9 +2080,9 @@ fn name_boolean_vertices<T: Decide>(
             // Written to a witness: an ordinary declared union reached
             // exactly this shape — one operand-descended edge on the A
             // side, none on the B side, and, everything above having
-            // already run, no single B face to supply the other parent. The vertex is half-decided, the
-            // body is sound and the recipe is legal, so what is missing is
-            // a rule. Maximal edges join that witness's vertex away, and
+            // already run, no single B face to supply the other parent.
+            // The vertex is half-decided, the body is sound and the
+            // recipe is legal, so what is missing is a rule. Maximal edges join that witness's vertex away, and
             // no document reaches the arm now
             // (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`).
             //
@@ -2150,13 +2150,9 @@ fn name_boolean_vertices<T: Decide>(
                 },
                 Along::A(pa),
             ),
-            (EntityKind::Face, EntityKind::Face) => (
-                RoleSeg::Seam {
-                    a: edge_line(&pa),
-                    b: edge_line(&pb),
-                },
-                Along::Nowhere,
-            ),
+            (EntityKind::Face, EntityKind::Face) => {
+                (RoleSeg::Seam { a: pa, b: pb }, Along::Nowhere)
+            }
             _ => return Err(bug("a seam vertex's parents are neither edges nor faces")),
         };
         // Pieces of one line crossed alike share a name, and rank along

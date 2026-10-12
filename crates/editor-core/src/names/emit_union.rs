@@ -728,8 +728,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// sense is the one the fold step that minted the vertex read,
     /// carried by its name `fold` ([`Flush::carried_sense`]). Where the
     /// finished edges at `v` lie on two lines, the vertex is where two
-    /// member edges meet ([`Flush::edge_crossing`]). Anything else is
-    /// `None`.
+    /// member edges meet ([`Flush::edge_crossing`]), and on three or more
+    /// a junction ([`Flush::junction`]). Anything else is `None`.
     fn crossing(
         &self,
         v: topo::VertexKey,
@@ -816,28 +816,23 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         &self,
         v: topo::VertexKey,
         fold: &StableName,
-        lines: [MemberEntity; 2],
+        [l0, l1]: [MemberEntity; 2],
     ) -> Result<Option<StableName>, NamingError> {
-        if lines[0].0 == lines[1].0 {
+        if l0.0 == l1.0 {
             return Ok(None);
         }
-        let mut sides = Vec::with_capacity(2);
-        for line in lines {
+        let side = |line: MemberEntity| -> Result<Option<(NameRef, Sense)>, NamingError> {
             let sense = match self.carried_sense(v, fold, &line)? {
-                Some(sense) => sense,
-                None => match self.read_sense(v, &line)? {
-                    Some(sense) => sense,
-                    None => return Ok(None),
-                },
+                Some(sense) => Some(sense),
+                None => self.read_sense(v, &line)?,
             };
-            let name = entity_name(self.union, &line);
-            sides.push((edge_line(&NameRef::new(name)), sense));
-        }
-        sides.sort();
-        let [(a, a_sense), (b, b_sense)]: [_; 2] =
-            sides.try_into().map_err(|_| NamingError::Emission {
-                what: "an edge crossing has two sides",
-            })?;
+            let name = edge_line(&NameRef::new(entity_name(self.union, &line)));
+            Ok(sense.map(|sense| (name, sense)))
+        };
+        let (Some(s0), Some(s1)) = (side(l0)?, side(l1)?) else {
+            return Ok(None);
+        };
+        let ((a, a_sense), (b, b_sense)) = if s0 <= s1 { (s0, s1) } else { (s1, s0) };
         Ok(Some(StableName {
             kind: EntityKind::Vertex,
             node: self.union,
@@ -1296,7 +1291,9 @@ fn member_edge_piece(name: &StableName) -> Option<(VarId, NameRef, bool)> {
 /// `Crossing { edge, face, sense }` ([`Flush::crossing`]), however the
 /// fold met it — as a crossing of the edge, or as a junction of seam
 /// lines — with the sense the step that minted it read; one where two
-/// member edges meet is their `EdgeCrossing` ([`Flush::edge_crossing`]).
+/// member edges meet is their `EdgeCrossing` ([`Flush::edge_crossing`]),
+/// and one where three or more meet the junction of the seam lines
+/// through it in the finished body ([`Flush::junction`]).
 ///
 /// Any other seam vertex embeds the member edge it lies on as far as the fold
 /// had cut it when it met the vertex — a piece that no published name
