@@ -316,3 +316,17 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 - **The pinch residue** (`flush/pinch-residue`) has three P2 rows on one ground: the 36 cube-less `ZipCorrespondence` lines, the curved-notch `JoinDesync`, and the vertex-vertex pinches whose cones stay on separate keys. The two refusals are to be root-caused before anything changes. The seams row is weighed against ruling B (PR 4728). If it needs a choice that D10, PR 4057 and ruling B leave open, the lane stops and reports. Three M rows together are reviewed as H: a concurrent dual pair.
 - **The two-pinch pose 1 proof** (`flush/two-pinch-pose-proof`) asks one question: can a cross-germ tie in `join::find_match` change the greedy matching? If it cannot, the escalation is spurious and the pose builds. If it can, a pose that shows it makes the escalation honest.
 — (FLUSH orchestrator)
+
+## 2026-10-12 — PR 4690 ratified: thinness is judged by pairs alone
+
+- **Ev ruled** on PR 4690 ("sounds good!"), and the PR merged.
+  - A boolean's result is too thin only when a pair of its cells is in band.
+  - An in-band shell is a shell, in a solid of several shells, whose role is certified in band.
+  - Check 7 is an orientation probe, not a thinness gate, at every door.
+  - Fork log row 113 is filled in: designer A's first recommendation matched.
+- **Implementation dispatched** on `flush/thinness-by-pairs`:
+  - retire PR 4636's sole-shell gate;
+  - flip the slab and sliver tests to build in [Kε, 2Kε), and add pair refusals below Kε;
+  - re-measure the gate half of `a-result-that-is-only-a-sliver-shell-passes-the-door` under pairs.
+- **Follows this unit:** `check-10-reads-a-cavitys-role-from-its-volume-sign` (`brick ∖ slab`, design).
+— (FLUSH orchestrator)
