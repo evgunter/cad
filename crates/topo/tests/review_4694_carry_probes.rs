@@ -114,11 +114,13 @@ fn undeclared_at(what: &str, refused: Result<(), Vec<topo::ValidationError>>, at
 }
 
 /// **A split across an edge kiss refuses both sides, loudly.** The
-/// kiss's two vertex–vertex records bound its edge overlap; the cut
-/// mints a new vertex on each kissing edge at z = 1/2, one pair at one
-/// point, which no decision of the op cites, so each side's half of the
-/// overlap is unbacked: each end record lands, and each side still
-/// refuses the new pair undeclared. Residue:
+/// kiss's two vertex–vertex records bound its edge overlap, and its
+/// edge–edge record names it; the cut mints a new vertex on each
+/// kissing edge at z = 1/2, one pair at one point, which no decision of
+/// the op cites. Each end record lands on its side, and the edge–edge
+/// record on the divided edges lands on both, on each side's pair of
+/// pieces that still meet; each side still refuses the new pair
+/// undeclared. Residue:
 /// `work/contacthold/a-cut-through-a-recorded-touch-mints-a-pair-no-record-backs.md`.
 #[test]
 fn a_split_across_an_edge_kiss_refuses_both_sides() {
@@ -126,8 +128,11 @@ fn a_split_across_an_edge_kiss_refuses_both_sides() {
     let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
     let base = union_of(&a, &b);
     assert_eq!(
-        base.contacts.vertex_vertex().count(),
-        2,
+        (
+            base.contacts.vertex_vertex().count(),
+            base.contacts.edge_edge().count()
+        ),
+        (2, 1),
         "{:?}",
         base.contacts
     );
@@ -143,7 +148,7 @@ fn a_split_across_an_edge_kiss_refuses_both_sides() {
         Some(topo::RegionLane::certified()),
     );
     let sides = sides.expect("each record lands");
-    assert_eq!((sides.above.len(), sides.below.len()), (1, 1), "{sides:?}");
+    assert_eq!((sides.above.len(), sides.below.len()), (2, 2), "{sides:?}");
     for (what, body, recs) in [
         ("above", split.above.body(), &sides.above),
         ("below", split.below.body(), &sides.below),

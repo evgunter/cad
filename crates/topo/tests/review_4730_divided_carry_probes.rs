@@ -18,7 +18,8 @@ fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody
 /// `c`'s corner (0.5, 0, 0) rests on `a`'s rim x ∈ (0, 1); the plane
 /// x = 0.5 − 1e-4 divides that rim, leaving the key on the piece below
 /// and the corner 1e-4 inside the piece above. At the default band the
-/// record lands on the piece above and both sides pass at rest. At a
+/// record lands on the piece above, beside the far end's record and the
+/// touch's edge–edge record, and both sides pass at rest. At a
 /// band where 1e-4 is inside the escalation zone the confirm cannot
 /// read the pair, and the carry refuses `Unread` (the only row that
 /// reaches that refusal). At a band where 1e-4 is Zero the corner reads
@@ -52,7 +53,7 @@ fn a_corner_just_past_a_cut_lands_refuses_unread_or_parts_by_band() {
             "{side}: {records:?}"
         );
     }
-    assert_eq!((sides.above.len(), sides.below.len()), (2, 0), "{sides:?}");
+    assert_eq!((sides.above.len(), sides.below.len()), (3, 0), "{sides:?}");
     let corner = base.contacts.rows()[1].cells()[0];
     assert!(matches!(corner, Cell::Vertex(_)), "{:?}", base.contacts);
     let at = |eps: f64| {
