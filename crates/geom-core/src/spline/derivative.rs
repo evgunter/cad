@@ -31,6 +31,12 @@
 //! domain's bound is the max over its nonempty spans, a window's over
 //! the spans it meets.
 //!
+//! A tensor patch's `S_u` is, on a nonempty cell, the same sum over the
+//! `u` pairs of each of the cell's active columns, with `S` in the hull
+//! of the cell's active points: [`rational_cell_stretch_sup`] is the
+//! same bound per direction, per cell. Both read one
+//! [`RationalPairTerm`].
+//!
 //! **No zero knot difference is reachable.** A span is walked only
 //! when it is nonempty, and its active pairs are `i ∈ [s − p, s − 1]`
 //! ([`Span::first_derived_window`](super::Span::first_derived_window),
@@ -90,6 +96,60 @@ fn norm<T: Real, const D: usize>(v: [T; D]) -> T {
         .sqrt()
 }
 
+/// **One pair term** of the rational derivative (module docs): the pair
+/// `(P₀, w₀) → (P₁, w₁)` with scale `k`, as the affine map
+/// `S ↦ k·[lever − dw·(S − p0)]` with `lever = w₁(P₁ − P₀)` and
+/// `dw = w₁ − w₀`. The one statement of the term: the sups below
+/// evaluate it at points, and a reader that carries it through a rigid
+/// map (`geom-brep`'s SSI enclosure) reads its parts.
+#[derive(Clone, Copy, Debug)]
+pub struct RationalPairTerm<T, const D: usize> {
+    /// The pair's derivative scale `p/(u_{i+p+1} − u_{i+1})`.
+    pub scale: T,
+    /// `w₁(P₁ − P₀)`.
+    pub lever: [T; D],
+    /// `w₁ − w₀`.
+    pub dw: T,
+    /// `P₀`.
+    pub p0: [T; D],
+}
+
+impl<T: Real, const D: usize> RationalPairTerm<T, D> {
+    /// The pair `(p0, w0) → (p1, w1)` at scale `scale`.
+    #[must_use]
+    pub fn new(scale: T, (p0, w0): ([T; D], T), (p1, w1): ([T; D], T)) -> Self {
+        Self {
+            scale,
+            lever: core::array::from_fn(|c| w1 * (p1[c] - p0[c])),
+            dw: w1 - w0,
+            p0,
+        }
+    }
+
+    /// The term at the point `s`: `scale·[lever − dw·(s − p0)]`.
+    #[must_use]
+    pub fn at(&self, s: [T; D]) -> [T; D] {
+        core::array::from_fn(|c| (self.lever[c] - self.dw * (s[c] - self.p0[c])) * self.scale)
+    }
+}
+
+/// `max_{term, point} ‖term(point)‖ / least`, or poison when there is
+/// no term.
+fn pair_sup<T: Real, const D: usize>(
+    terms: impl Iterator<Item = RationalPairTerm<T, D>>,
+    points: &[[T; D]],
+    least: T,
+) -> T {
+    let mut sup: Option<T> = None;
+    for t in terms {
+        for pj in points {
+            let n = norm(t.at(*pj));
+            sup = Some(sup.map_or(n, |s| s.max(n)));
+        }
+    }
+    sup.map_or_else(|| T::from_f64(f64::NAN), |s| s / least)
+}
+
 /// The pair-term bound on `sup ‖C′‖` over one nonempty `span` (module
 /// docs: the derivation and why no knot difference is checked), for the
 /// rational spline with control `points` and `weights` over the `held`
@@ -111,28 +171,82 @@ pub fn rational_span_speed_sup<T: Real, const D: usize>(
     let Some(least) = ws.iter().copied().reduce(T::min) else {
         return poison;
     };
-    let mut sup: Option<T> = None;
-    for i in span.first_derived_window() {
-        let (Some(pi), Some(pn), Some(&wi), Some(&wn), Some(&lo), Some(&hi)) = (
-            points.get(i),
-            points.get(i + 1),
-            weights.get(i),
-            weights.get(i + 1),
-            held.get(i + 1),
-            held.get(i + p + 1),
-        ) else {
-            return poison;
-        };
-        let k = span_derivative_scale(p, lo, hi);
-        let dw = wn - wi;
-        for pj in active {
-            let term: [T; D] =
-                core::array::from_fn(|c| (wn * (pn[c] - pi[c]) - dw * (pj[c] - pi[c])) * k);
-            let n = norm(term);
-            sup = Some(sup.map_or(n, |s| s.max(n)));
+    let terms: Option<Vec<RationalPairTerm<T, D>>> = span
+        .first_derived_window()
+        .map(|i| {
+            let scale = span_derivative_scale(p, *held.get(i + 1)?, *held.get(i + p + 1)?);
+            Some(RationalPairTerm::new(
+                scale,
+                (*points.get(i)?, *weights.get(i)?),
+                (*points.get(i + 1)?, *weights.get(i + 1)?),
+            ))
+        })
+        .collect();
+    terms.map_or(poison, |t| pair_sup(t.into_iter(), active, least))
+}
+
+/// The pair-term bound on one direction's derivative of a rational
+/// tensor patch over one nonempty cell `(su, sv)`: the surface twin of
+/// [`rational_span_speed_sup`]. `points` and `weights` are row-major,
+/// `nv` per `u` row (`[iu·nv + iv]`), over the `held_u` / `held_v`
+/// knot values of the vectors the spans index. Along `u` the pairs run
+/// along `u` in each of the cell's active columns, and `S_u` is their
+/// convex combination with the cell's active points standing for `S`
+/// (`S` lies in their hull): the max over pairs and over every active
+/// point of the cell, over the cell's least active weight. Along `v`
+/// the same with the roles swapped. Poison on an index past an array.
+#[must_use]
+pub fn rational_cell_stretch_sup<T: Real, const D: usize>(
+    (su, sv): (Span<'_>, Span<'_>),
+    (held_u, held_v): (&[T], &[T]),
+    points: &[[T; D]],
+    weights: &[T],
+    nv: usize,
+    along_u: bool,
+) -> T {
+    let poison = T::from_f64(f64::NAN);
+    let at = |iu: usize, iv: usize| -> Option<([T; D], T)> {
+        let k = iu.checked_mul(nv)?.checked_add(iv)?;
+        Some((*points.get(k)?, *weights.get(k)?))
+    };
+    let mut active = Vec::with_capacity((su.degree() + 1) * (sv.degree() + 1));
+    let mut least: Option<T> = None;
+    for iu in su.window() {
+        for iv in sv.window() {
+            let Some((pt, w)) = at(iu, iv) else {
+                return poison;
+            };
+            active.push(pt);
+            least = Some(least.map_or(w, |m| m.min(w)));
         }
     }
-    sup.map_or(poison, |s| s / least)
+    let Some(least) = least else {
+        return poison;
+    };
+    let mut terms = Vec::new();
+    let (run, other, held, p) = if along_u {
+        (su, sv, held_u, su.degree())
+    } else {
+        (sv, su, held_v, sv.degree())
+    };
+    for i in run.first_derived_window() {
+        let (Some(&lo), Some(&hi)) = (held.get(i + 1), held.get(i + p + 1)) else {
+            return poison;
+        };
+        let scale = span_derivative_scale(p, lo, hi);
+        for b in other.window() {
+            let (a0, a1) = if along_u {
+                (at(i, b), at(i + 1, b))
+            } else {
+                (at(b, i), at(b, i + 1))
+            };
+            let (Some(a0), Some(a1)) = (a0, a1) else {
+                return poison;
+            };
+            terms.push(RationalPairTerm::new(scale, a0, a1));
+        }
+    }
+    pair_sup(terms.into_iter(), &active, least)
 }
 
 /// [`rational_span_speed_sup`] over the nonempty spans `spans` of

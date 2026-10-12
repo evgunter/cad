@@ -63,7 +63,8 @@ pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
 pub use derivative::{
-    derivative_net, rational_span_speed_sup, rational_speed_sup, span_derivative_scale,
+    RationalPairTerm, derivative_net, rational_cell_stretch_sup, rational_span_speed_sup,
+    rational_speed_sup, span_derivative_scale,
 };
 pub use hull::{
     C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,
