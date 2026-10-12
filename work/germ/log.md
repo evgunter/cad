@@ -1003,3 +1003,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - Cloud session `session_01X4Xg9GKw7z9LuZF8GHceko`, branch `germ/conic-past-band`.
   - The U-T2 fix pass is running.
 - 2026-10-12 07:29 — Check-in: nothing ready. The U-T2 fix pass pushed `ad772e3a` and is waiting on hosted CI. The conic P2 lane is measuring (the aligned cylinder sweeps are done; it is comparing generic and aligned poses at 1e-9).
+- 2026-10-12 08:40 — **The conic P2 lane opened DRAFT PR 4812: a design fork.**
+  - The cylinder separates on `u·A`. No single quantity separates the cone.
+  - Most of the cone's image error is a `u0` cancellation in `chart_pcurve`, which is PCERT's.
+  - Three options; the lane leans toward fixing the image first, then one arm criterion.
+  - The row is `design: true`.
+  - Per the protocol, one problem statement with no options (sha256 `44910a558af6`). Blinding byte 248, even: **Opus = A**, recorded on `analysis/design-fork/conic-past-band`. Designers A (Opus) and B (Fable) are dispatched concurrently as local subagents, each in its own lane dir.
+  - The U-T2 fix pass is reading a CI red that it says is also red on clean main.
