@@ -302,8 +302,10 @@ fn the_rational_meter_stays_below_the_speed_and_refuses_a_stall() {
         built += 1;
         let reference = min_speed_ceiling(&c, fuzz::scaled(200));
         let (m, mi) = meters(&c);
+        // The `f64` reading is a bound up to its stated rounding (a few
+        // tens of relative ulps); the interval floor is held strictly.
         assert!(
-            !(m > reference) && !(mi > reference),
+            !(m > reference * (1.0 + 64.0 * f64::EPSILON)) && !(mi > reference),
             "case {case} (deg {deg}, {npts} pts, stall {stall}): meter {m} / {mi} \
              above the speed ceiling {reference} — {}",
             fuzz::replay()
@@ -322,6 +324,46 @@ fn the_rational_meter_stays_below_the_speed_and_refuses_a_stall() {
         "fuzz rot: {built} nets, {stalls} stalls of {cases} — {}",
         fuzz::replay()
     );
+}
+
+/// **The rational meter is tight where the truth is reachable.** On a
+/// degree-1 rational net every span is a straight segment, `A′w − Aw′`
+/// is constant on it, and each piece's `w` row ends on `w`'s value at
+/// the piece's end, so the piece assembly's bound IS the true minimum
+/// speed in ℝ (`w₀w₁‖ΔP‖/(Δu·w_max²)` on the slowest span). The
+/// interval floor must therefore sit between the enclosure ceiling and
+/// `1e-9` below it: an inflation of the bound by `1e-4` fails the upper
+/// assertion, a loss of tightness the lower.
+#[test]
+fn a_degree_one_rational_net_meters_its_exact_minimum() {
+    let segment = NurbsCurve3::<f64>::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        vec![Point3::new(0.0, 0.0, 0.0), Point3::new(2.0, 1.0, 0.0)],
+        vec![1.0, 3.0],
+    )
+    .unwrap();
+    // A zigzag that doubles back at each corner, weights spanning 0.5–3.
+    let zigzag = NurbsCurve3::<f64>::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 2.5, 3.0, 3.0], 1).unwrap(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 2.0, 0.0),
+            Point3::new(0.5, -1.0, 1.0),
+            Point3::new(2.0, 0.0, 0.0),
+        ],
+        vec![1.0, 3.0, 0.5, 2.0],
+    )
+    .unwrap();
+    for (name, c) in [("segment", &segment), ("zigzag", &zigzag)] {
+        let reference = min_speed_ceiling(c, 400);
+        let (_, mi) = meters(c);
+        assert!(
+            mi <= reference && mi >= reference * (1.0 - 1e-9),
+            "{name}: interval meter {mi} against the exact minimum's ceiling {reference} \
+             (ratio {})",
+            mi / reference
+        );
+    }
 }
 
 /// The meter is memoised on the curve, and the memo is not part of its

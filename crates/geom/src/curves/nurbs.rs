@@ -202,7 +202,10 @@ const INTEGRAL_METER_SPLITS: usize = 16;
 /// twice the integral arm's, and its Bernstein coefficients close on it
 /// more slowly, so it takes one more doubling than
 /// [`INTEGRAL_METER_SPLITS`] for the same reach on a swaying corner
-/// (`tests/curves/swaying_corner_meter.rs` pins it).
+/// (`tests/curves/swaying_corner_meter.rs` pins it). Its frontier, on
+/// the six-point swaying corner with one weight raised 1.3×: degree 4
+/// meters at `a = 2` and refuses at `a = 4`, degree 5 refuses from
+/// `a = 2`.
 const RATIONAL_PIECE_SPLITS: usize = 32;
 
 /// Whether [`piece_weights`] of degree `q` at `splits` pieces, and the
@@ -211,7 +214,7 @@ const RATIONAL_PIECE_SPLITS: usize = 32;
 /// breaks `k/S` over `q` levels is an integer over `S^q` no larger than
 /// `1`, and a column of `q + 1` of them sums to at most `q + 1`; both
 /// are exact while `(q + 1)·S^q ≤ 2⁵³` (to degree 12 at 16 pieces, 9 at
-/// 32).
+/// 32; `tests::pieces_exact_reaches_its_stated_degrees`).
 fn pieces_exact(q: usize, splits: usize) -> bool {
     let (Ok(s), Ok(q32), Ok(n)) = (
         u64::try_from(splits),
@@ -317,13 +320,6 @@ fn restrict<T: Real, V: Copy + Add<Output = V> + Mul<T, Output = V>>(
         .chunks_exact(row.len())
         .map(|w| combine(w, row))
         .collect()
-}
-
-/// `n choose k` as an `f64`, exact for every `n` the piece schedules
-/// reach (`2p − 1 ≤ 17`, the rational piece schedule's degrees).
-fn choose(n: usize, k: usize) -> f64 {
-    #[allow(clippy::cast_precision_loss)]
-    (0..k).fold(1.0, |acc, i| acc * (n - i) as f64 / (i + 1) as f64)
 }
 
 macro_rules! nurbs_curve {
@@ -1101,8 +1097,9 @@ macro_rules! nurbs_curve {
             /// **Rational carriers** — weights not all equal — take the
             /// second arm, [`Self::rational_speed_lower_bound`]. Equal
             /// weights cancel out of every evaluation, so such a curve
-            /// is the polynomial one on the same net and this arm meters
-            /// it exactly. The derivative of
+            /// is the polynomial one on the same net and this arm's
+            /// argument holds for it unchanged — it is the same curve,
+            /// which says nothing about which arm bounds it best. The derivative of
             /// a rational spline is *not* a convex combination of any
             /// control net, so the argument above does not apply
             /// directly and a quotient-rule assembly stands in. The
@@ -1207,7 +1204,7 @@ macro_rules! nurbs_curve {
                 // argument does not hold directly, and the quotient-rule
                 // arm takes over. Equal weights cancel out of every
                 // evaluation, leaving the polynomial curve on the same
-                // net, which this arm meters exactly.
+                // net, which this arm's argument covers.
                 if self.weight_channel.windows(2).any(|w| w[0] != w[1]) {
                     return geom_core::InfSpeed::new(self.rational_speed_lower_bound());
                 }
@@ -1557,8 +1554,9 @@ macro_rules! nurbs_curve {
             /// every other `Real`-generic bound in the kernel: the
             /// weight-derivative hulls come through certification arithmetic (correctly
             /// rounded), but the chord normalisation and the hull folds
-            /// do not, so the `f64` reading is a bound only up to about
-            /// a relative ulp. **The `Interval` instantiation is the
+            /// do not, so the `f64` reading is a bound only up to a few
+            /// tens of relative ulps (16 measured on a degree-1
+            /// carrier). **The `Interval` instantiation is the
             /// certified lane** — it encloses the same expression, and
             /// `tests/curves/m5_pr7_speed_meter.rs`'s bracket row pins that
             /// the interval answer contains the `f64` one. This is the
@@ -1694,8 +1692,9 @@ macro_rules! nurbs_curve {
                 let held = self.knots.values();
                 let knots = self.knots().knots();
                 let m = 2 * p - 1;
-                // `C(q, a)·C(p, b)` for `a + b = k`, and `C(m, k)`: exact.
-                let pair = |a: usize, b: usize| T::from_f64(choose(q, a) * choose(p, b));
+                // `C(q, a)·C(p, b)` for `a + b = k`, and `C(m, k)`: exact
+                // (`binomial`).
+                let pair = |a: usize, b: usize| T::from_f64(binomial(q, a) * binomial(p, b));
                 let origin = $Point::new($({ let _ = stringify!($c); T::zero() }),+);
                 let mut acc: Option<T> = None;
                 for index in self.knots().first_span()..=self.knots().last_span() {
@@ -1773,7 +1772,7 @@ macro_rules! nurbs_curve {
                             let Some(sum) = sum else {
                                 return poison;
                             };
-                            n_k.push(sum / T::from_f64(choose(m, k)));
+                            n_k.push(sum / T::from_f64(binomial(m, k)));
                         }
                         let Some(chord) = n_k.iter().copied().reduce(|x, y| x + y) else {
                             return poison;
@@ -2191,7 +2190,8 @@ fn rational_corrections<T: Real, const N: usize>(a: [T; N], w: [T; N]) -> [T; N]
 
 /// `C(k, i)` as exact `f64` structure (the multiplicative form, exact
 /// while every intermediate product is below 2⁵³ — every order a curve
-/// evaluator asks for is far inside that).
+/// evaluator asks for, and every `k ≤ 17` the rational piece assembly
+/// asks for, is far inside that; `tests::binomial_is_exact_to_17`).
 fn binomial(k: usize, i: usize) -> f64 {
     (0..i).fold(1.0, |acc, j| acc * (k - j) as f64 / (j + 1) as f64)
 }
@@ -2248,5 +2248,45 @@ impl<T: Real> NurbsCurve3<T> {
     /// the surface and curve halves answer it identically.
     pub fn is_placeholder(&self) -> bool {
         net::is_placeholder(&self.control)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{binomial, pieces_exact};
+
+    /// The degrees `pieces_exact`'s docs state, at both schedules.
+    #[test]
+    fn pieces_exact_reaches_its_stated_degrees() {
+        for (splits, top) in [(16, 12), (32, 9)] {
+            assert!(pieces_exact(top, splits), "degree {top} at {splits} pieces");
+            assert!(
+                !pieces_exact(top + 1, splits),
+                "degree {} at {splits} pieces",
+                top + 1
+            );
+        }
+        assert!(
+            !pieces_exact(2, 24),
+            "a split count that is no power of two"
+        );
+    }
+
+    /// `binomial` against Pascal's triangle in integers, for every row
+    /// the rational piece assembly reads.
+    #[test]
+    fn binomial_is_exact_to_17() {
+        let mut row: Vec<u64> = vec![1];
+        for n in 0..=17_usize {
+            for (k, c) in row.iter().enumerate() {
+                #[allow(clippy::cast_precision_loss)]
+                let exact = *c as f64;
+                assert!(binomial(n, k).to_bits() == exact.to_bits(), "C({n}, {k})");
+            }
+            row = std::iter::once(1)
+                .chain(row.windows(2).map(|w| w[0] + w[1]))
+                .chain(std::iter::once(1))
+                .collect();
+        }
     }
 }
