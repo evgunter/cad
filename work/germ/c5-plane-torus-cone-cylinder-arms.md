@@ -10,6 +10,7 @@ priority: P1
 cost: H
 design: true
 branch: germ/plane-torus-chord-circles
+pr: 4847
 ---
 
 ## From GitHub issue 1057
@@ -150,7 +151,7 @@ U-T3.
 
 ## U-T3, the plane × torus chord for the circles (GERM, 2026-10-12)
 
-On `germ/plane-torus-chord-circles`. The chord layer's torus arm takes an
+On `germ/plane-torus-chord-circles` (PR 4847). The chord layer's torus arm takes an
 arc of the meridian or concentric circle the chord's two sites lie on,
 picked by the join's own loop split; every pose whose plane holds the
 axis or stands square to it builds its true body in all six ops, on the
