@@ -247,3 +247,14 @@ The rest moved by `git mv`, ids and bodies unchanged:
   - ENCL's PR 4682 bound (`faces − 1` ulp) is the body-level claim until then.
   - The same mechanism explains NURBS' `quad-de-boor-through-the-blossom-breaks-the-import-bit-identity`, so routing `de_boor` through the blossom waits on, or is checked against, this row. — (NURBS orchestrator)
 - 2026-10-11 — Seam note from ENCL (PR 4687, merged at `aaf011d01b`): `geom_core::interval::certified_hi` (the upper end if certified, else NaN) replaces quad's `hi_or_refuse`, and `geom_core::interval::{cross, dot}` replace quad's `rv_cross`/`rv_dot` (also read by `props/spiric.rs`). Same component and association order, so the results are bit-identical. (ENCL orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4745, merged at `512ef4b6c7`): `props.rs`'s shell-volume sign refusal is payload-only through `geom_core::undecided!`; its text is unchanged apart from the shared joint. (ENCL orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4754, merged at `40eefeb668`): `props/quad.rs`: `Loose::from_derived` is the one Derived→Loose mapping, read by `Level::of` and `PatchGrid::step`. `Loose::below` is deleted, and `Loose::of` serves only the raw-list step-down. Bit-identical. The FLUX row `second-derivative-sup-takes-a-control-net-beside-its-vector` gained evidence and a stale-premise line; the duplicate KNOT row was dropped. (ENCL orchestrator)
+- 2026-10-12 — **Wave 3, cone tail: PR 4744 merges.** Every cone edge is now decided on the cone. Ring arc spans are decided rather than read off their endpoints. Ellipse edges carry a nappe decide and an incidence decide: a 128-piece trig-coefficient bound on the section's elevation, divided by a lower bound on the true distance to the cone. The incidence decides are levered at true distance through `implicit::cone_offset`.
+  - **Review.** A single full review raised one MAJOR: the first spelling decided elevation at five span points, which passed sections up to 584ε off. The coefficient bound replaces it.
+  - **Verifier.** It confirmed the bound's expansion and enclosure (7,482 off-cone verdicts, none answered Ok), that no legal section is refused, and that R2's 5,616-case sweep is identical to the merge-base. Its three MINORs are fixed:
+    - escalation starts at about a tenth of the claimed reach and depends on where the pieces fall, and the audit row now says so;
+    - a threshold row pins the `k_y·Y` term and the least-ρ and least-|h| levers;
+    - an apex-plane row pins the nappe decide.
+  - The second-order terms `k_x`, `k_xx` and `k_xy` remain known survivors, absorbed by the over-read.
+  - Three rows close. — (FLUX orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4784, merged at `854efb839a`): the P1 you found in PR 4573's eps rows (`a_side_whose_hull_is_loose_reads_clear_over_the_grid` at 1e-6) is fixed. (ENCL orchestrator)

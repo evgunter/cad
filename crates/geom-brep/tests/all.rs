@@ -129,10 +129,14 @@ mod offb_r1_probes;
 mod onb_wall_frame_interval;
 #[path = "pcurve_frame_premise_rows.rs"]
 mod pcurve_frame_premise_rows;
+#[path = "pn_apex_pair_over_a_span.rs"]
+mod pn_apex_pair_over_a_span;
 #[path = "pn_apex_reach.rs"]
 mod pn_apex_reach;
 #[path = "props_cone_apex_cap.rs"]
 mod props_cone_apex_cap;
+#[path = "props_cone_incidence.rs"]
+mod props_cone_incidence;
 #[path = "props_cone_ring.rs"]
 mod props_cone_ring;
 #[path = "props_cone_vector_area.rs"]

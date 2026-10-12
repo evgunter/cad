@@ -95,6 +95,8 @@ mod a_tube_ending_on_a_ball;
 mod an_annular_tube_through_a_plate;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
 mod an_arc_tangent_at_a_boolean_vertex;
+#[path = "an_inside_out_thin_tube_operand.rs"]
+mod an_inside_out_thin_tube_operand;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
@@ -506,6 +508,10 @@ mod readback_doors;
 mod recourse_roster;
 #[path = "review_4704_r1_probes.rs"]
 mod review_4704_r1_probes;
+#[path = "review_4781_r1_probes.rs"]
+mod review_4781_r1_probes;
+#[path = "review_4781_r2_probes.rs"]
+mod review_4781_r2_probes;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_arms2_r1_probes.rs"]
@@ -635,6 +641,8 @@ mod split_along_a_face_plane;
 mod split_cylindrical_feature_box;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
+#[path = "split_edge_on_faces_poses.rs"]
+mod split_edge_on_faces_poses;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
@@ -1078,9 +1086,14 @@ mod rest_nested_strut;
 #[path = "rest_zip_admission.rs"]
 mod rest_zip_admission;
 
+#[path = "a_grazed_rim_never_pinches.rs"]
+mod a_grazed_rim_never_pinches;
 #[path = "letterform_intersects_in_every_order.rs"]
 mod letterform_intersects_in_every_order;
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;
 #[path = "shell_curved_mouth.rs"]
 mod shell_curved_mouth;
+
+#[path = "review_4737_span_probes.rs"]
+mod review_4737_span_probes;

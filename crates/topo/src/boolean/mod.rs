@@ -1606,7 +1606,8 @@ pub struct NullEdgePairRecord {
 /// A pierced-face ring insertion record: the lone ring vertex minted
 /// inside the pierced face at the pierce point (the `vtxfacclassify`
 /// delta 3 — see `vtxfac` module docs for the designed Euler sequence).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// One ring serves every pierce of its face at its point.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PierceRingRecord {
     /// Which operand's clone holds the pierced face.
     pub operand: Operand,
@@ -1614,22 +1615,55 @@ pub struct PierceRingRecord {
     pub face: FaceKey,
     /// The ring vertex at the pierce point.
     pub ring_vertex: VertexKey,
+    /// The piercing vertices the ring serves, in the other operand's
+    /// clone keys.
+    pub pierces: Vec<VertexKey>,
+    /// Whether two of those pierces' germs lie along one direction (two
+    /// cones touching along a ray in the face), an order the ring broke
+    /// by their chords (`vtxfac::germ_order`): a corner of no angle.
+    pub tied: bool,
+}
+
+/// **Two pierces of one face decided one point** (`vtxfac::ring_groups`):
+/// the other operand's vertices `a` and `b`, which one ring serves. Where
+/// they sit on two point keys the ledger records the decision, its
+/// margin kept, beside a vertex-vertex record of that operand's
+/// (`ops::ledger`).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RingTie {
+    /// The piercing operand.
+    pub operand: Operand,
+    pub a: VertexKey,
+    pub b: VertexKey,
+    /// The margin `bool_contact_vertex` decided Zero.
+    pub margin: geom_core::MarginDiag,
+}
+
+impl<T: Real> BooleanReduction<T> {
+    /// The ring serving `vertex`'s pierce of the `pierced` operand's
+    /// face, as an index into [`Self::pierce_rings`].
+    fn ring_of(&self, pierced: Operand, vertex: VertexKey) -> Option<usize> {
+        self.pierce_rings
+            .iter()
+            .position(|r| r.operand == pierced && r.pierces.contains(&vertex))
+    }
+
+    /// Whether two pierce sites are served by one ring
+    /// ([`PierceRingRecord::pierces`]).
+    pub(crate) fn one_ring(&self, a: PairSite, b: PairSite) -> bool {
+        let ring = |site| match site {
+            PairSite::VertexAOnFaceB(c) => self.ring_of(Operand::B, c.vertex),
+            PairSite::VertexBOnFaceA(c) => self.ring_of(Operand::A, c.vertex),
+            _ => None,
+        };
+        ring(a).is_some_and(|r| ring(b) == Some(r))
+    }
 }
 
 /// **Whether two points are one vertex** (`bool_contact_vertex`, the
-/// distance between them): `true` decided zero, `false` decided apart,
-/// the escalation when the band cannot say. A distance has no negative
-/// side: a magnitude.
-pub(crate) fn one_vertex<T: Decide>(
-    p: Point3<T>,
-    q: Point3<T>,
-    band: Band,
-) -> Result<bool, Indeterminate> {
-    one_vertex_at(p, q, band).map(|at| at.is_some())
-}
-
-/// [`one_vertex`], answering the margin that decided the two points one
-/// (`None` apart).
+/// distance between them): the margin that decided them one, `None`
+/// decided apart, the escalation when the band cannot say. A distance
+/// has no negative side: a magnitude.
 pub(crate) fn one_vertex_at<T: Decide>(
     p: Point3<T>,
     q: Point3<T>,
@@ -1696,9 +1730,13 @@ pub struct BooleanReduction<T: Real> {
     pub coincidences: Vec<crate::Coincidence>,
     /// The vertex identities the sweep decided, in decision order: the
     /// rows [`Self::contacts`] cite ([`crate::Backing::Decided`] names
-    /// an index here), emitted into the result's coincidences only
-    /// where a record citing them survives ([`reduce::PendingRow`]).
+    /// an index here), emitted into the result's coincidences where a
+    /// record citing them survives or at a pinch the op made
+    /// ([`reduce::PendingRow`]).
     pub(crate) pending: Vec<reduce::PendingRow>,
+    /// Each pair of pierces one ring serves, decided one point
+    /// ([`RingTie`]).
+    pub(crate) ring_ties: Vec<RingTie>,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -2060,13 +2098,18 @@ pub enum BooleanError {
     /// volume tier 3's check 7 decides definitely negative
     /// ([`ValidationError::NegativeVolume`]), or a shell check 10 finds
     /// bounding a region of winding −1 inside a solid whose total is
-    /// positive ([`ValidationError::ShellWinding`]). Its faces bound the
+    /// positive ([`ValidationError::ShellWinding`]), or a solid check 7
+    /// passed in band that a ray reads inside-out
+    /// ([`ValidationError::SliverInsideOut`]). Its faces bound the
     /// complement of the region they enclose. A finished body never
-    /// holds one; the door reads both checks itself on an operand whose
-    /// scalar runs no at-rest gate (a dual,
-    /// [`crate::AtRestOutcome::NotRunAtThisScalar`]), and refuses it
-    /// before any classification reads it, rather than answering for
-    /// the complement.
+    /// holds one of the first two; the door reads both checks itself on
+    /// an operand whose scalar runs no at-rest gate (a dual,
+    /// [`crate::AtRestOutcome::NotRunAtThisScalar`]). The third it reads
+    /// up front on each sliver the at-rest gate passed and on every solid
+    /// of a dual's operand, where one point outside the solid's faces'
+    /// reach boxes decides; and wherever a witness read of the operand
+    /// meets its side at infinity inside its material. In each case it
+    /// refuses rather than answering for the complement.
     InsideOutOperand {
         /// The offending operand.
         operand: Operand,
@@ -2248,36 +2291,33 @@ pub enum BooleanError {
         /// The margin that decided, and its predicate.
         margin: Indeterminate,
     },
-    /// **A declared shared rim routed to the cusp family, which is
-    /// DEFINED but not BUILT** (the same ruling).
+    /// **A declared shared rim whose carrier pair has no tangent-locus
+    /// arm.**
     ///
-    /// Wedge 0 or 2π: the material pinches to a knife edge or opens to
-    /// a circular slit. This is the declared-cusp family, and it is the
-    /// arm the ruling deliberately left unbuilt. Two pieces are missing
-    /// for every pair that reaches it: a tangent-locus arm for the
-    /// pair's surface kinds (it is raised only where
-    /// [`geom_brep::tangent_locus`] answers `Unsupported`), and the
-    /// consumer that builds the cusp or slit edge from a locus, which is
-    /// unbuilt for every locus shape. The A11-rider shape: the design is
-    /// settled and the refusal points at the ruling that settles it.
+    /// The rim routing reads the two faces' outward normals opposed
+    /// across the rim (wedge 0 or 2π). Verifying the declaration there
+    /// needs the tangent locus of the pair's two surface kinds, and this
+    /// is raised only where [`geom_brep::tangent_locus`] answers
+    /// `Unsupported`.
     RimCuspArmUnbuilt {
         /// The declaration whose face pair carries the rim.
         declaration: crate::contact::DeclaredContact,
-        /// Which end of the wedge range the rim's material subtends —
-        /// the routing's own verdict, taken on the geometry.
+        /// Which end of the wedge range the two faces' material
+        /// subtends at the rim — the routing's own verdict, taken on the
+        /// geometry.
         wedge: geom_brep::MaterialWedge,
     },
     /// **A verified `Tangent` union whose locus runs through a face's
-    /// interior** (`docs/DESIGN.md` D1 tier 3, the #131 ruling).
+    /// interior** (`crates/topo/README.md` C7).
     ///
-    /// The witness lane derived the ruling and the C4 table verified it,
-    /// and the locus crosses the interior of a plane face of one operand.
-    /// The union then has material on both sides of the ruling: the
-    /// doubled cusp, two coincident distinct edges on the locus, each a
-    /// wedge-2π slit. That arm is unbuilt, and two vertex-on-face records
-    /// would certify two points of a line contact, so the union refuses.
-    /// Subtract and intersect leave material on at most one side of the
-    /// ruling and are not refused here.
+    /// The witness lane derived the line and the C4 table verified it,
+    /// and the line crosses the interior of a plane face of one operand.
+    /// Along that line the union keeps a face–face curve touch, and the
+    /// reduction mints no face–face row to record it, so a union refuses
+    /// on that declaration, whatever else the operands do: where they
+    /// touch only there the result would be two solids, and where they
+    /// also overlap elsewhere one solid pinched along the line. Subtract
+    /// and intersect owe no record of the touch and are not refused here.
     ///
     /// Kept distinct from [`BooleanError::RimCuspArmUnbuilt`]: that one
     /// is raised where no locus derives and the faces share a rim; here
@@ -2337,6 +2377,16 @@ pub enum BooleanError {
         /// it crosses into more. Keys of the other operand's working
         /// copy, as `vertex` is.
         partners: [VertexKey; 2],
+    },
+    /// Cones of one operand that touch along a ray lying in the other's
+    /// face: the pierces of that face at one point read germs along one
+    /// direction in a way the ring cannot order (`vtxfac::germ_order`):
+    /// three or more of them, or a ray the join cannot wind round.
+    PinchRaysInAFace {
+        /// The operand whose cones touch.
+        operand: Operand,
+        /// The pierced face, a key of the other operand's working copy.
+        face: FaceKey,
     },
     /// A pinch the result would hold with its cones on separate point
     /// keys: an operand's own pinch, which an earlier op left on several
@@ -2765,8 +2815,8 @@ pub enum BooleanError {
     /// attachment gate refused its description on a reading no move of
     /// the parts reaches. It ends in the defect ending (a kernel bug,
     /// loudly), or, on a fitted carrier, in the certification's own
-    /// last resort. An exact carrier read in band of one of its faces
-    /// is an [`BooleanError::Escalated`] of
+    /// last resort. A line chord read in band of one of its faces is an
+    /// [`BooleanError::Escalated`] of
     /// [`BooleanDecision::EdgeOnFaces`].
     EdgeUndescribed {
         /// The edge, diagnostic only: the result is never returned.
@@ -3029,6 +3079,8 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PinchConesOnSeparateKeys`].
     PinchConesOnSeparateKeys,
+    /// [`BooleanError::PinchRaysInAFace`].
+    PinchRaysInAFace,
     /// [`BooleanError::VertexReadTwice`].
     VertexReadTwice,
     /// [`BooleanError::NonManifoldResult`].
@@ -3266,6 +3318,7 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PinchConesOnSeparateKeys { .. } => BooleanErrorKind::PinchConesOnSeparateKeys,
+            Self::PinchRaysInAFace { .. } => BooleanErrorKind::PinchRaysInAFace,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
@@ -3733,20 +3786,12 @@ impl core::fmt::Display for BooleanError {
                 fact.map_or(crate::contact::CONTRADICTION_REASON, Contradiction::fact),
                 crate::contact::CONTRADICTION_RECOURSE,
             ),
-            Self::RimCuspArmUnbuilt { declaration, wedge } => write!(
+            Self::RimCuspArmUnbuilt { declaration, .. } => write!(
                 f,
-                "the declared faces meet along a rim circle where the material {}, and \
-                 the Boolean cannot yet verify a {} declaration there: it has no tangent \
-                 locus for these two surfaces, and cannot yet build the edge where they \
-                 touch. The declaration is the right one; there is no way through this \
-                 in the kernel yet",
-                match wedge {
-                    geom_brep::MaterialWedge::Cusp => "pinches to a knife edge",
-                    geom_brep::MaterialWedge::Slit => "opens to a thin slit",
-                    geom_brep::MaterialWedge::Seam | geom_brep::MaterialWedge::Transverse => {
-                        wedge.name()
-                    }
-                },
+                "the declared faces meet along a rim circle with their outward normals \
+                 opposed, and the Boolean cannot yet verify a {} declaration there: it has \
+                 no tangent locus for these two surfaces. The declaration is the right \
+                 one; there is no way through this in the kernel yet",
                 declaration.class.name()
             ),
             Self::TangentSlitArmUnbuilt {
@@ -3755,10 +3800,9 @@ impl core::fmt::Display for BooleanError {
             } => write!(
                 f,
                 "the declared faces touch along a line that runs through the interior of \
-                 the {} operand's face, so their union has material on both sides of \
-                 that line, and the Boolean cannot yet build the pair of edges such a \
-                 {} contact needs. The declaration is the right one; there is no way \
-                 through this in the kernel yet",
+                 the {} operand's face, and the Boolean cannot yet record a {} touch \
+                 along a face's interior in a union's contact records. The declaration \
+                 is the right one; there is no way through this in the kernel yet",
                 operand_word(*interior),
                 declaration.class.name()
             ),
@@ -3780,6 +3824,13 @@ impl core::fmt::Display for BooleanError {
                  several corners that only touch each other, and \
                  cuts into more than one of them in a way the Boolean cannot yet join. \
                  There is no way through this in the kernel yet",
+                operand_word(*operand)
+            ),
+            Self::PinchRaysInAFace { operand, .. } => write!(
+                f,
+                "the {} solid has corners that touch along a line lying in a face of \
+                 the other solid, in a way the Boolean cannot yet join. There is no \
+                 way through this in the kernel yet",
                 operand_word(*operand)
             ),
             Self::PinchConesOnSeparateKeys { operand, .. } => write!(
@@ -3835,11 +3886,7 @@ impl core::fmt::Display for BooleanError {
                 operand_word(*operand)
             ),
             Self::Euler(e) => write!(f, "euler operation refused: {e}"),
-            Self::Join(e) => write!(
-                f,
-                "the operands' sections could not be joined: {}",
-                crate::chord_join::UnderBoolean(e)
-            ),
+            Self::Join(e) => write!(f, "the operands' sections could not be joined: {e}"),
             Self::JoinUndecided(e) => write!(f, "{e}"),
             Self::RestPieceUnread { face, refusal } => {
                 let preamble = format_args!(
@@ -4485,6 +4532,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut null_edges = Vec::new();
     let mut null_pairs = Vec::new();
     let mut pierce_rings = Vec::new();
+    let mut ring_ties = Vec::new();
     let mut covered = Vec::new();
     let mut held = Vec::new();
     let mut edge_classes = Vec::new();
@@ -4496,11 +4544,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut touches = std::collections::BTreeMap::new();
     let mut paired: std::collections::BTreeMap<_, Vec<vtxfac::PairRead<T>>> =
         std::collections::BTreeMap::new();
-    // Vertex-on-face classification (sonva then sonvb, as 15.5).
+    // Vertex-on-face classification (sonva then sonvb, as 15.5). Each
+    // pierce inserts its piercing side's null edges as it is read; the
+    // rings follow, one per face and point (`vtxfac::mint_ring`).
     for (operand, pierced) in [
         (Operand::A, &contacts.a_on_b),
         (Operand::B, &contacts.b_on_a),
     ] {
+        let mut minted = Vec::with_capacity(pierced.len());
         for c in pierced.iter().map(|c| c.record) {
             let reread = rereads.get(&(operand, c.vertex)).copied();
             let (piercing_body, pierced_body) = match operand {
@@ -4517,7 +4568,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &contacts,
                 reread,
                 band,
-                tol,
             )?;
             // `classify_vertex_on_face` refuses a re-read vertex that
             // would write, so a re-read one touched: its orbit, and the
@@ -4526,9 +4576,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 reread.is_none() || (out.edges.is_empty() && out.ring.is_none()),
                 "a re-read pierce wrote"
             );
-            null_edges.extend(out.edges);
-            null_pairs.extend(out.pairs);
-            pierce_rings.extend(out.ring);
+            minted.push((out.edges, out.ring));
             covered.extend(out.covered);
             if reread.is_some() {
                 touches.insert(
@@ -4548,6 +4596,40 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     &out.classes,
                     &edge_splits,
                 )?);
+            }
+        }
+        // Each ring is minted, and its records read, where its first
+        // pierce was: a face pierced at one point alone mints as it
+        // would beside its piercing side.
+        let plans: Vec<(usize, &vtxfac::RingPlan<T>)> = minted
+            .iter()
+            .enumerate()
+            .filter_map(|(i, (_, plan))| plan.as_ref().map(|plan| (i, plan)))
+            .collect();
+        let only: Vec<_> = plans.iter().map(|&(_, plan)| plan).collect();
+        let pierced_body = match operand {
+            Operand::A => &mut b,
+            Operand::B => &mut a,
+        };
+        let mut rings = std::collections::BTreeMap::new();
+        let (groups, ties) = vtxfac::ring_groups(&only, band)?;
+        ring_ties.extend(ties.into_iter().map(|(i, j, margin)| RingTie {
+            operand,
+            a: only[i].contact.vertex,
+            b: only[j].contact.vertex,
+            margin,
+        }));
+        for group in groups {
+            let members: Vec<_> = group.iter().map(|&k| plans[k].1).collect();
+            let ring = vtxfac::mint_ring(pierced_body, &members, band, tol)?;
+            rings.insert(plans[group[0]].0, ring);
+        }
+        for (i, (edges, _)) in minted.into_iter().enumerate() {
+            null_edges.extend(edges);
+            if let Some(ring) = rings.remove(&i) {
+                null_edges.extend(ring.edges);
+                null_pairs.extend(ring.pairs);
+                pierce_rings.push(ring.ring);
             }
         }
     }
@@ -4766,6 +4848,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         null_edges,
         null_pairs,
         pierce_rings,
+        ring_ties,
         covered: covered
             .into_iter()
             .collect::<std::collections::BTreeSet<_>>()
@@ -5861,7 +5944,7 @@ fn verify_tangency_declaration<T: Decide>(
         }
     }
     // A verified `Tangent` whose line locus runs through a plane face is
-    // the doubled cusp a union refuses (CLEAVE); the read's own refusal
+    // a face–face touch a union cannot yet record; the read's own refusal
     // is the inner one, consumed only by a union. A seam never reaches
     // this: a locus through a face's interior is `seam_locus_no_edge`
     // at step 4.
@@ -6938,6 +7021,10 @@ mod tests {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
             },
+            BooleanError::PinchRaysInAFace {
+                operand: Operand::A,
+                face,
+            },
             BooleanError::VertexReadTwice {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
@@ -7141,6 +7228,7 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PinchConesOnSeparateKeys => "PinchConesOnSeparateKeys",
+                BooleanErrorKind::PinchRaysInAFace => "PinchRaysInAFace",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",

@@ -1046,9 +1046,24 @@ fn survives_two_isolated_axis_vertices_pinch_is_non_manifold() {
         matches!(e, RevolveError::NonManifoldAxisContact { .. }),
         "{e:?}"
     );
-    // Partially it revolves fine (ordinary shared cap vertices).
+    // Partially it revolves fine: each axis vertex is one vertex both
+    // caps share, so the on-axis Zero fuses and leaves no two cells on
+    // one point for the census to need a record for.
     let t = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
+    for y in [0.0, 2.0] {
+        let on_axis = t
+            .body
+            .vertex_points()
+            .filter(|(_, p)| p.x.abs() + (p.y - y).abs() + p.z.abs() < 1e-12)
+            .count();
+        assert_eq!(on_axis, 1, "one vertex at the axis point y = {y}");
+    }
+    assert_eq!(
+        topo::validate_pseudomanifold(&t.body, &topo::ContactRecords::default(), Tol::witness()),
+        Ok(()),
+        "tier 3′ with no records"
+    );
 }
 
 #[test]

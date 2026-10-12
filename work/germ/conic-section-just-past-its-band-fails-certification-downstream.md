@@ -95,3 +95,19 @@ kernel built from well-conditioned data. The arm-side criterion above
 is what makes it right here too: the section refuses at the arm, with a
 tolerance recourse, before a carrier reaches the gate. Until then this
 is the class's mislabelled door.
+
+## A cylinder's elongated ellipse at ε = 1e-12 (CLEAVE, `cleave/minted-edge-inband-cert`)
+
+Measured by `sweep/examples/split_near_tangent_census_probe.rs`
+(`curved` family) on main `f813abf9`. The unit cylinder (`z ∈ [0, 1]`,
+extruded) split by the plane through `(cos φ (1 + δ), sin φ (1 + δ), 0.5)`
+with normal `(cos φ, sin φ, 1e-6)`, so the section is an ellipse of
+semi-major axis about 1e6 m: at ε = 1e-12, for `φ ∈ {0, 0.5}` and every
+`δ ∈ [−1e-7, 1e-7]` the census tried, the join refuses
+`Join(Euler(Certification { ResidualExceeded { EndpointStart } }))`,
+margins 1.0e-11 to 1.16e-10 (80 runs; 6 more refuse `EndpointEnd`, 5
+`NotTransverse`), under the same "kernel defect; report it" ending. At
+ε = 1e-9 and 1e-6 the same poses refuse earlier or split. The in-band
+neighbours of this door, where the miss is the input's rather than the
+carrier's rounding, are filed as CLEAVE's
+`a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join`.

@@ -7279,9 +7279,16 @@ pub enum IsoFamilyRefusal {
     /// (`pcurve_chart_radial_moving`): a ruling or a moving carrier,
     /// undecided. The mint takes the ruling's form there as a structure
     /// tie-break that its envelope keeps honest; a family cannot be
-    /// read off a tie-break.
+    /// read off a tie-break. Its sentence is the question
+    /// ([`ISO_FAMILY_CLAUSE`]) and the payload, with no ending; the join,
+    /// which holds it, reads the escalation and writes its own sentence
+    /// on the same clause.
     Undecided(Indeterminate),
 }
+
+/// What the chart-class reading of [`chart_iso_family`] asks of an
+/// edge, after "whether": the one spelling of that question.
+pub const ISO_FAMILY_CLAUSE: &str = "runs along a cylinder's ruling or around it";
 
 impl core::fmt::Display for IsoFamilyRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -7289,8 +7296,9 @@ impl core::fmt::Display for IsoFamilyRefusal {
             Self::Image(e) => write!(f, "{e}"),
             Self::Undecided(diag) => write!(
                 f,
-                "whether the edge runs along a cylinder's ruling or around it is undecided: \
-                 {diag}"
+                concat!("whether the edge {}", geom_core::undecided!(), ": {}"),
+                ISO_FAMILY_CLAUSE,
+                diag.payload()
             ),
         }
     }
@@ -10470,6 +10478,23 @@ mod iso_family {
             chart_iso_family(&line(1e-7), &cylinder, band),
             Err(IsoFamilyRefusal::Undecided(_))
         ));
+    }
+
+    /// The undecided family's sentence is its question and payload: the
+    /// door holding it writes the ending.
+    #[test]
+    fn an_undecided_family_says_its_payload_and_no_ending() {
+        let refusal = IsoFamilyRefusal::Undecided(geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-8),
+            band: Band::new(1e-9, 1e-6).expect("a band"),
+            predicate: Some("pcurve_chart_radial_moving"),
+            terminal_sliver: false,
+        });
+        assert_eq!(
+            refusal.to_string(),
+            "whether the edge runs along a cylinder's ruling or around it is undecided: margin \
+             5e-8 lies inside the ambiguity band (1e-9, 1e-6)"
+        );
     }
 }
 

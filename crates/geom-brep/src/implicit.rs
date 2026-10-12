@@ -111,8 +111,8 @@ pub(crate) fn axial_radial<T: Real>(
     (h, w)
 }
 
-/// **A point's elevation off a cone, in metres — the ONE home of the
-/// cone's residual.** `ρ·cos α − s·sin α`, with `ρ` the point's distance
+/// **A point's elevation off a cone, in metres** — the cone's residual
+/// ([`cone_offset`]) at a point. `ρ·cos α − s·sin α`, with `ρ` the point's distance
 /// from the axis and `s` its axial height above the apex taken toward
 /// the nappe asked about:
 ///
@@ -145,7 +145,16 @@ pub fn cone_elevation<T: Real>(
         Some(crate::Nappe::Opening) => h,
         Some(crate::Nappe::Mirror) => T::zero() - h,
     };
-    w.norm() * c_a - s * s_a
+    cone_offset(w.norm(), s, s_a, c_a)
+}
+
+/// The cone residual itself, from a point's distance `rho` from the axis
+/// and its height `s` toward the nappe asked about, at `(sin α, cos α)`:
+/// `rho·cos α − s·sin α` ([`cone_elevation`]'s arithmetic, for a caller
+/// that holds `rho` and `s` already — a coaxial circle's radius and
+/// height, or a unit direction's two components).
+pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
+    rho * cos_a - s * sin_a
 }
 
 /// The linearized implicit residual of `p` against `s`, in meters (the
