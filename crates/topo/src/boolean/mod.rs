@@ -6326,7 +6326,7 @@ impl From<crate::lineage::RowRefusal> for BooleanError {
         Self::LineageRow {
             rows: refusal.rows,
             defect: refusal.defect,
-            key: refusal.cell,
+            key: refusal.key,
         }
     }
 }

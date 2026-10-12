@@ -152,7 +152,7 @@ pub struct RowRefusal {
     /// What is wrong with the row.
     pub defect: RowDefect,
     /// The cell the defect is about.
-    pub cell: Cell,
+    pub key: Cell,
 }
 
 impl core::fmt::Display for RowRefusal {
@@ -162,23 +162,66 @@ impl core::fmt::Display for RowRefusal {
             "a row of its {} {} ({:?})",
             self.rows.word(),
             self.defect.word(),
-            self.cell
+            self.key
         )
+    }
+}
+
+/// A key a substitution list can hold: the list it names in a refusal,
+/// and the cell it is.
+pub trait LineageKey: Ord + Copy + core::fmt::Debug {
+    /// The list a refusal over this key names.
+    const ROWS: LineageRows;
+    /// The key as a cell.
+    fn cell(self) -> Cell;
+}
+
+impl LineageKey for Cell {
+    const ROWS: LineageRows = LineageRows::Substitutions;
+    fn cell(self) -> Cell {
+        self
+    }
+}
+
+impl LineageKey for crate::entity::VertexKey {
+    const ROWS: LineageRows = LineageRows::Fusions;
+    fn cell(self) -> Cell {
+        Cell::Vertex(self)
     }
 }
 
 /// **A substitution list**: rows `(dead, by)`, each saying `by` holds
 /// `dead`'s interior now, in the order the stages retired them.
-/// [`Self::push`] refuses a row that maps a cell to itself or names a
-/// cell an earlier row retired, so the list cannot cycle and a chase
-/// through it ends within its length. The list sees only its own rows.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Substitutions {
-    rows: Vec<(Cell, Cell)>,
-    by_dead: std::collections::BTreeMap<Cell, Cell>,
+/// [`Self::push`] refuses a row that maps a key to itself or names a
+/// key an earlier row retired. So a row's `by` is live in the list when
+/// it is added and only a later row can retire it: the rows run one
+/// way, the list cannot cycle, and every chase through it ends. The
+/// list sees only its own rows: a key retired outside it is not checked
+/// here.
+///
+/// One rule, two instances: over cells (the boolean's descendant map
+/// and its naming's substitutions) and over vertices ([`Fusions`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Substitutions<K: LineageKey = Cell> {
+    rows: Vec<(K, K)>,
+    by_dead: std::collections::BTreeMap<K, K>,
 }
 
-impl Substitutions {
+/// **A vertex fusion list**: the fusions `(dead, kept)` in the order
+/// their `kev`s ran, the vertex instance of [`Substitutions`]: each key
+/// folds onto one survivor ([`Substitutions::survivor`]).
+pub type Fusions = Substitutions<crate::entity::VertexKey>;
+
+impl<K: LineageKey> Default for Substitutions<K> {
+    fn default() -> Self {
+        Self {
+            rows: Vec::new(),
+            by_dead: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
+impl<K: LineageKey> Substitutions<K> {
     /// Appends the row `(dead, by)`.
     ///
     /// # Errors
@@ -186,44 +229,64 @@ impl Substitutions {
     /// [`RowDefect::SelfRow`] where `dead` is `by`, and
     /// [`RowDefect::NamesRetired`] where an earlier row retired either;
     /// the list is left as it was.
-    pub(crate) fn push(&mut self, (dead, by): (Cell, Cell)) -> Result<(), RowRefusal> {
-        let refuse = |defect, cell| {
+    pub(crate) fn push(&mut self, (dead, by): (K, K)) -> Result<(), RowRefusal> {
+        let refuse = |defect, key: K| {
             Err(RowRefusal {
-                rows: LineageRows::Substitutions,
+                rows: K::ROWS,
                 defect,
-                cell,
+                key: key.cell(),
             })
         };
         if dead == by {
             return refuse(RowDefect::SelfRow, dead);
         }
-        if let Some(cell) = [dead, by]
+        if let Some(key) = [dead, by]
             .into_iter()
-            .find(|c| self.by_dead.contains_key(c))
+            .find(|k| self.by_dead.contains_key(k))
         {
-            return refuse(RowDefect::NamesRetired, cell);
+            return refuse(RowDefect::NamesRetired, key);
         }
         self.by_dead.insert(dead, by);
         self.rows.push((dead, by));
         Ok(())
     }
 
-    /// The cell holding `dead`'s interior, where a row retired it.
+    /// Appends `later`'s rows, which ran after these, in order.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::push`], at the first row that refuses; the list is
+    /// left as it was.
+    pub(crate) fn extend(&mut self, later: &Self) -> Result<(), RowRefusal> {
+        let mut out = self.clone();
+        later.rows.iter().try_for_each(|&row| out.push(row))?;
+        *self = out;
+        Ok(())
+    }
+
+    /// The key holding `dead`'s interior, where a row retired it.
     #[must_use]
-    pub fn get(&self, dead: Cell) -> Option<Cell> {
+    pub fn get(&self, dead: K) -> Option<K> {
         self.by_dead.get(&dead).copied()
     }
 
     /// The rows, in the order they were added.
     #[must_use]
-    pub fn rows(&self) -> &[(Cell, Cell)] {
+    pub fn rows(&self) -> &[(K, K)] {
         &self.rows
     }
 
-    /// The first cell `live` holds along the rows from `at`: `Ok(live)`,
-    /// or `Err(dead)` where the rows stop at a cell `live` does not hold.
+    /// The key `k` ends at through every row: itself where no row
+    /// retired it. Total, since the list cannot cycle.
+    #[must_use]
+    pub fn survivor(&self, k: K) -> K {
+        self.chase(k, |_| false).unwrap_or_else(|end| end)
+    }
+
+    /// The first key `live` holds along the rows from `at`: `Ok(live)`,
+    /// or `Err(dead)` where the rows stop at a key `live` does not hold.
     /// Total, since the list cannot cycle.
-    pub fn chase(&self, mut at: Cell, live: impl Fn(Cell) -> bool) -> Result<Cell, Cell> {
+    pub fn chase(&self, mut at: K, live: impl Fn(K) -> bool) -> Result<K, K> {
         loop {
             if live(at) {
                 return Ok(at);
@@ -233,6 +296,15 @@ impl Substitutions {
                 None => return Err(at),
             }
         }
+    }
+}
+
+impl<'a, K: LineageKey> IntoIterator for &'a Substitutions<K> {
+    type Item = &'a (K, K);
+    type IntoIter = core::slice::Iter<'a, (K, K)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.rows.iter()
     }
 }
 
@@ -274,7 +346,7 @@ impl FaceDivisions {
             Err(RowRefusal {
                 rows: LineageRows::FaceDivisions,
                 defect,
-                cell: Cell::Face(new),
+                key: Cell::Face(new),
             })
         };
         if new == from {
@@ -371,13 +443,13 @@ mod tests {
     fn a_substitution_list_refuses_a_self_row_and_a_row_naming_a_retired_cell() {
         let f = faces(3);
         let [a, b, c] = [f[0], f[1], f[2]].map(Cell::Face);
-        let mut list = Substitutions::default();
+        let mut list: Substitutions = Substitutions::default();
         list.push((a, b)).unwrap();
-        let refused = |defect, cell| {
+        let refused = |defect, key| {
             Err(RowRefusal {
                 rows: LineageRows::Substitutions,
                 defect,
-                cell,
+                key,
             })
         };
         for (row, want, case) in [
@@ -428,7 +500,7 @@ mod tests {
             Err(RowRefusal {
                 rows: LineageRows::FaceDivisions,
                 defect,
-                cell: Cell::Face(face),
+                key: Cell::Face(face),
             })
         };
         for (row, want, case) in [
@@ -490,7 +562,7 @@ mod tests {
             Err(RowRefusal {
                 rows: LineageRows::FaceDivisions,
                 defect: RowDefect::NotFresh,
-                cell: Cell::Face(parent),
+                key: Cell::Face(parent),
             }),
             "a key the list names, handed out again, is refused"
         );

@@ -2720,10 +2720,11 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["closed on its", "no period"],
         ),
         (
-            NamingError::Settle(topo::SettleError::Cyclic {
+            NamingError::Settle(topo::SettleError::Dead {
                 vertex: topo::VertexKey::default(),
+                reached: topo::Cell::Vertex(topo::VertexKey::default()),
             }),
-            vec!["a vertex of a Boolean's result is settled through rows that cycle"],
+            vec!["a vertex of a Boolean's result settles on a cell the result does not hold"],
         ),
         (
             NamingError::ConventionalVertex {
