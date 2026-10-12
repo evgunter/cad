@@ -743,8 +743,6 @@ pub struct DecisionEnding {
     pub name: &'static str,
     /// How its undecided refusal ends.
     pub kind: EndingKind,
-    /// What its margin measures, for the table's readers.
-    pub measures: &'static str,
 }
 
 /// **Every predicate this crate decides, with how its undecided refusal
@@ -764,263 +762,263 @@ pub struct DecisionEnding {
     )
 )]
 pub const DECISION_ENDINGS: &[DecisionEnding] = &[
+    // two arc apexes told apart by their separation
     DecisionEnding {
         name: "arc_apex_identity",
         kind: EndingKind::Sized,
-        measures: "two arc apexes told apart by their separation",
     },
+    // the magnitude an arc's consistency difference was read at, against the one where its f64
+    // rounding reaches the band
     DecisionEnding {
         name: "arc_carrier_resolution",
         kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
-        measures: "the magnitude an arc's consistency difference was read at, against the one where its \
-         f64 rounding reaches the band",
     },
+    // how far an arc stops short of a full circle
     DecisionEnding {
         name: "arc_diameter_clearance",
         kind: EndingKind::Sized,
-        measures: "how far an arc stops short of a full circle",
     },
+    // how far a table arc's start, turned by its sweep, lands from its end
     DecisionEnding {
         name: "arc_landing",
         kind: EndingKind::Sized,
-        measures: "how far a table arc's start, turned by its sweep, lands from its end",
     },
+    // an arc's span, as the clearance between its chord's reach and its apex
     DecisionEnding {
         name: "arc_span",
         kind: EndingKind::Sized,
-        measures: "an arc's span, as the clearance between its chord's reach and its apex",
     },
+    // how far a table arc's start lies off its carrier circle
     DecisionEnding {
         name: "arc_start_on_carrier",
         kind: EndingKind::Sized,
-        measures: "how far a table arc's start lies off its carrier circle",
     },
+    // a table arc's sweep against a full turn, levered by its radius
     DecisionEnding {
         name: "arc_sweep_range",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-        measures: "a table arc's sweep against a full turn, levered by its radius",
     },
+    // two points ordered by their x difference, at the exact-order band
     DecisionEnding {
         name: "canonical_order_x",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-        measures: "two points ordered by their x difference, at the exact-order band",
     },
+    // two points ordered by their y difference, at the exact-order band
     DecisionEnding {
         name: "canonical_order_y",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-        measures: "two points ordered by their y difference, at the exact-order band",
     },
+    // two circles' centre separation less the sum of their radii
     DecisionEnding {
         name: "carrier_circles_external",
         kind: EndingKind::Sized,
-        measures: "two circles' centre separation less the sum of their radii",
     },
+    // two circles told apart by their centre separation plus their radius difference
     DecisionEnding {
         name: "carrier_circles_identity",
         kind: EndingKind::Sized,
-        measures: "two circles told apart by their centre separation plus their radius difference",
     },
+    // two circles' centre separation less the difference of their radii
     DecisionEnding {
         name: "carrier_circles_internal",
         kind: EndingKind::Sized,
-        measures: "two circles' centre separation less the difference of their radii",
     },
+    // a line's clearance from a circle: the radius against the line's distance from the centre
     DecisionEnding {
         name: "carrier_line_circle",
         kind: EndingKind::Sized,
-        measures: "a line's clearance from a circle: the radius against the line's distance from the centre",
     },
+    // a point's lateral distance from a chord's line
     DecisionEnding {
         name: "chord_side",
         kind: EndingKind::Sized,
-        measures: "a point's lateral distance from a chord's line",
     },
+    // which side of an arc's carrier circle a point lies on, as its distance from the centre
+    // less the radius
     DecisionEnding {
         name: "circle_side",
         kind: EndingKind::Sized,
-        measures: "which side of an arc's carrier circle a point lies on, as its distance from the \
-         centre less the radius",
     },
+    // the overlap of two collinear segments along their shared carrier
     DecisionEnding {
         name: "collinear_overlap",
         kind: EndingKind::Sized,
-        measures: "the overlap of two collinear segments along their shared carrier",
     },
+    // a contact point told apart from a loop vertex by their separation
     DecisionEnding {
         name: "contact_at_shared_vertex",
         kind: EndingKind::Sized,
-        measures: "a contact point told apart from a loop vertex by their separation",
     },
+    // how far a full turn reaches from its vertex, levered by its diameter
     DecisionEnding {
         name: "full_turn_reach",
         kind: EndingKind::Sized,
-        measures: "how far a full turn reaches from its vertex, levered by its diameter",
     },
+    // a full turn's signed reach from its vertex, whose sign is its turn
     DecisionEnding {
         name: "full_turn_sense",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-        measures: "a full turn's signed reach from its vertex, whose sign is its turn",
     },
+    // how far inside a segment a point falls, from whichever end is nearer
     DecisionEnding {
         name: "line_span",
         kind: EndingKind::Sized,
-        measures: "how far inside a segment a point falls, from whichever end is nearer",
     },
+    // a loop's signed area, levered by its perimeter
     DecisionEnding {
         name: "loop_orientation",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-        measures: "a loop's signed area, levered by its perimeter",
     },
+    // an authored bulge told apart from zero
     DecisionEnding {
         name: "path_arc_bulge",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-        measures: "an authored bulge told apart from zero",
     },
+    // an authored centre's two radii told apart
     DecisionEnding {
         name: "path_arc_center_equidistant",
         kind: EndingKind::Sized,
-        measures: "an authored centre's two radii told apart",
     },
+    // an authored radius metered against zero
     DecisionEnding {
         name: "path_arc_center_radius",
         kind: EndingKind::Sized,
-        measures: "an authored radius metered against zero",
     },
+    // an authored chord metered against zero
     DecisionEnding {
         name: "path_arc_chord",
         kind: EndingKind::Sized,
-        measures: "an authored chord metered against zero",
     },
+    // an authored sweep angle metered against zero
     DecisionEnding {
         name: "path_arc_sweep",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-        measures: "an authored sweep angle metered against zero",
     },
+    // an authored sweep's arc length short of a full turn
     DecisionEnding {
         name: "path_arc_sweep_full",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-        measures: "an authored sweep's arc length short of a full turn",
     },
+    // a via point's lateral offset from the chord it bulges
     DecisionEnding {
         name: "path_arc_via_offset",
         kind: EndingKind::Sized,
-        measures: "a via point's lateral offset from the chord it bulges",
     },
+    // two arc carriers told apart by their centre separation plus their radius difference
     DecisionEnding {
         name: "path_carrier_identity",
         kind: EndingKind::Sized,
-        measures: "two arc carriers told apart by their centre separation plus their radius difference",
     },
+    // whether a ray and a circle meet at all: the circle's radius against the ray's
+    // perpendicular distance from its centre
     DecisionEnding {
         name: "path_carrier_meet",
         kind: EndingKind::Sized,
-        measures: "whether a ray and a circle meet at all: the circle's radius against the ray's \
-         perpendicular distance from its centre",
     },
+    // a circle's radius metered against zero
     DecisionEnding {
         name: "path_circle_radius",
         kind: EndingKind::Sized,
-        measures: "a circle's radius metered against zero",
     },
+    // a declared target's lateral miss from the tip's direction
     DecisionEnding {
         name: "path_collinear_target",
         kind: EndingKind::Sized,
-        measures: "a declared target's lateral miss from the tip's direction",
     },
+    // a declared continuation target's lateral miss from the departing ray
     DecisionEnding {
         name: "path_continuation_target_offset",
         kind: EndingKind::Sized,
-        measures: "a declared continuation target's lateral miss from the departing ray",
     },
+    // where the corner sits along a STRAIGHT side's carrier — forward of the incoming anchor,
+    // or back from the arrival's
     DecisionEnding {
         name: "path_corner_advance",
         kind: EndingKind::Sized,
-        measures: "where the corner sits along a STRAIGHT side's carrier — forward of the incoming \
-         anchor, or back from the arrival's",
     },
+    // the same window on a CIRCULAR carrier: the swept extent from the anchor forward to the
+    // corner, levered to metres
     DecisionEnding {
         name: "path_corner_advance_arc",
         kind: EndingKind::Sized,
-        measures: "the same window on a CIRCULAR carrier: the swept extent from the anchor forward to \
-         the corner, levered to metres",
     },
+    // the swept extent from the corner forward to a circular arrival's anchor, levered to
+    // metres
     DecisionEnding {
         name: "path_corner_reach_arc",
         kind: EndingKind::Sized,
-        measures: "the swept extent from the corner forward to a circular arrival's anchor, levered to \
-         metres",
     },
+    // the turn BETWEEN the two carriers at the corner, levered by the anchor separation
     DecisionEnding {
         name: "path_corner_turn",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-        measures: "the turn BETWEEN the two carriers at the corner, levered by the anchor separation",
     },
+    // a director's length metered against zero
     DecisionEnding {
         name: "path_director_norm",
         kind: EndingKind::Sized,
-        measures: "a director's length metered against zero",
     },
+    // an authored fillet radius metered against zero
     DecisionEnding {
         name: "path_fillet_radius",
         kind: EndingKind::Sized,
-        measures: "an authored fillet radius metered against zero",
     },
+    // the cosine of a junction's turn, levered by the arriving arm
     DecisionEnding {
         name: "path_junction_side",
         kind: EndingKind::Lever(JUNCTION_TANGENT_LEVER),
-        measures: "the cosine of a junction's turn, levered by the arriving arm",
     },
+    // the sine of a junction's turn, levered by the arriving arm
     DecisionEnding {
         name: "path_junction_turn",
         kind: EndingKind::Lever(JUNCTION_TANGENT_LEVER),
-        measures: "the sine of a junction's turn, levered by the arriving arm",
     },
+    // an authored leg's extent metered against zero
     DecisionEnding {
         name: "path_leg_length",
         kind: EndingKind::Sized,
-        measures: "an authored leg's extent metered against zero",
     },
+    // an emitted segment told apart from a fillet's arrival carrier: its end's lateral miss
+    // from the arrival ray and its advance along it, or its end's and arc midpoint's radial
+    // misses from the arrival circle
     DecisionEnding {
         name: "path_run_out_carrier",
         kind: EndingKind::Sized,
-        measures: "an emitted segment told apart from a fillet's arrival carrier: its end's lateral \
-         miss from the arrival ray and its advance along it, or its end's and arc midpoint's \
-         radial misses from the arrival circle",
     },
+    // the lever arm the seam arrival's own turn and side gates are metered through
     DecisionEnding {
         name: "path_seam_arrival_lever",
         kind: EndingKind::Sized,
-        measures: "the lever arm the seam arrival's own turn and side gates are metered through",
     },
+    // the cosine of the seam arrival's turn, levered by its arm
     DecisionEnding {
         name: "path_seam_arrival_side",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-        measures: "the cosine of the seam arrival's turn, levered by its arm",
     },
+    // the sine of the seam arrival's turn, levered by its arm
     DecisionEnding {
         name: "path_seam_arrival_turn",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-        measures: "the sine of the seam arrival's turn, levered by its arm",
     },
+    // how far along a containment ray a crossing falls
     DecisionEnding {
         name: "ray_advance",
         kind: EndingKind::Sized,
-        measures: "how far along a containment ray a crossing falls",
     },
+    // which side of a containment ray a point falls on
     DecisionEnding {
         name: "ray_side",
         kind: EndingKind::Sized,
-        measures: "which side of a containment ray a point falls on",
     },
+    // a segment's bow: its quarter-angle tangent, levered by its length
     DecisionEnding {
         name: "segment_straightness",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
-        measures: "a segment's bow: its quarter-angle tangent, levered by its length",
     },
+    // a segment's length
     DecisionEnding {
         name: "vertex_separation",
         kind: EndingKind::Sized,
-        measures: "a segment's length",
     },
 ];
 
@@ -1087,8 +1085,9 @@ pub const UNNAMED_DECISION: &str = geom_core::UNNAMED_DECISION;
 /// that stands alone, with no colon or dash of its own, so the door can
 /// follow it with the undecided verdict. The one home of these words,
 /// read by [`ProfileError::Escalated`] and [`crate::PathError::Escalated`]'s
-/// fall-through; [`DECISION_ENDINGS`]' `measures` are for the table's
-/// readers, not for the screen. `None` only for the fillet
+/// fall-through; the comment on each [`DECISION_ENDINGS`] row, saying
+/// what its margin measures, is for the table's readers, not for the
+/// screen. `None` only for the fillet
 /// constructor's gates, which the path door routes to a sentence of
 /// their own and which validation never decides;
 /// `recourse_roster::every_decided_name_has_a_subject_or_a_sentence`
