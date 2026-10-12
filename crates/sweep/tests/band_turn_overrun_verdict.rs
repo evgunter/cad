@@ -289,18 +289,26 @@ fn window(what: &str, skews: &[f64], at: impl Fn(f64) -> Outcome) -> Window {
 
 /// **The escalate band around a coincidence**, both verbs, at the box
 /// corner (`leaning_turn`, its face angle `90° + skew` against `90°`)
-/// and at a `60°` corner (`(60°, 60° + skew)`, `γ = 90°`), skews from
-/// `1e-6°` to `0.1°`: the verdict runs mitre, escalate, overrun, never
+/// and at a `60°` corner (`(60°, 60° + skew)`, `γ = 90°`): over four
+/// decades of skew the verdict runs mitre, escalate, overrun, never
 /// back. The band is narrow: the readings move linearly in the skew,
-/// so they leave it within a decade, about `1e-6°…1e-5°` at `D = 0.1`.
-/// The box corner's chamfer is the exception: both its readings move
-/// quadratically there (the gap as `d·s²/2` in the lean `s`), so it
-/// mitres up to about `0.007°` and escalates to about `0.02°`.
+/// so they leave it within a decade, about `1e-6°…1e-5°` at `D = 0.1`
+/// and the default band. The box corner's chamfer is the exception:
+/// both its readings move quadratically there (the gap as `d·s²/2` in
+/// the lean `s`), so it mitres up to about `0.007°` and escalates to
+/// about `0.02°`. Each window scales with the run's band.
 #[test]
 fn the_verdict_escalates_only_in_a_narrow_band_around_a_coincidence() {
-    let skews: Vec<f64> = (0..=30)
-        .map(|i| 10f64.powf(-6.0 + f64::from(i) / 6.0))
-        .collect();
+    // The skews scale with the run's band: as its zero over the default
+    // run's where the readings are linear in the skew, as its square
+    // root at the box corner's chamfer, where they are quadratic.
+    let z = Band::linear(tol()).expect("the run's band").zero() / 1e-9;
+    let skews = |from: f64| -> Vec<f64> {
+        (0..=24)
+            .map(|i| from * 10f64.powf(f64::from(i) / 6.0))
+            .collect()
+    };
+    let (linear, quadratic) = (skews(1e-6 * z), skews(1e-4 * z.sqrt()));
     let at_box = |verb: Verb| {
         move |skew: f64| {
             let (body, edges) = leaning_turn(skew.to_radians().tan());
@@ -326,17 +334,18 @@ fn the_verdict_escalates_only_in_a_narrow_band_around_a_coincidence() {
             "{what}: escalates within {lo:e}°…{hi:e}°, then overruns: {w:?}"
         );
     };
-    let chamfer_box = window("box chamfer", &skews, at_box(Verb::Chamfer));
-    inside(&chamfer_box, (3e-3, 3e-2), "box chamfer");
+    let r = z.sqrt();
+    let chamfer_box = window("box chamfer", &quadratic, at_box(Verb::Chamfer));
+    inside(&chamfer_box, (3e-3 * r, 3e-2 * r), "box chamfer");
     assert!(
-        chamfer_box.mitre.is_some_and(|m| m > 3e-3),
+        chamfer_box.mitre.is_some_and(|m| m > 3e-3 * r),
         "the box chamfer mitres to a few thousandths of a degree: {chamfer_box:?}"
     );
-    let fillet_box = window("box fillet", &skews, at_box(Verb::Fillet));
-    inside(&fillet_box, (1e-6, 1e-5), "box fillet");
+    let fillet_box = window("box fillet", &linear, at_box(Verb::Fillet));
+    inside(&fillet_box, (1e-6 * z, 1e-5 * z), "box fillet");
     for verb in [Verb::Chamfer, Verb::Fillet] {
-        let w = window(&format!("60° {verb:?}"), &skews, at_sixty(verb));
-        inside(&w, (1e-6, 1e-5), &format!("60° {verb:?}"));
+        let w = window(&format!("60° {verb:?}"), &linear, at_sixty(verb));
+        inside(&w, (1e-6 * z, 1e-5 * z), &format!("60° {verb:?}"));
     }
 }
 
@@ -346,12 +355,15 @@ fn the_verdict_escalates_only_in_a_narrow_band_around_a_coincidence() {
 /// so a gap read Zero can stand beside an overrun chord well outside
 /// the band — a mitre built there would miss its trimlines by that
 /// chord. The verdict escalates the straddle (`fillet3_turn_feet`)
-/// instead: overrun at `1°` and `0.1°`, the gap in band at `0.03°`, and
-/// the gap Zero under a definite chord at `0.01°`. The fillet's gap
-/// closes as its chord does, and neither verb builds at any of them.
+/// instead: at the default band, overrun at `1°` and `0.1°`, the gap in
+/// band at `0.03°`, and the gap Zero under a definite chord at `0.01°`
+/// (the angles scale with the square root of the run's band, as the
+/// gap does). The fillet's gap closes as its chord does, and neither
+/// verb builds at any of them.
 #[test]
 fn a_flattening_turns_needle_escalates_and_never_builds() {
     let band = Band::linear(tol()).expect("the run's band");
+    let r = (band.zero() / 1e-9).sqrt();
     let flat = |eps: f64| {
         let e = eps.to_radians();
         corner(&Cone::of(
@@ -367,6 +379,7 @@ fn a_flattening_turns_needle_escalates_and_never_builds() {
         (0.01, Some(BlendDecision::TurnFeet)),
     ];
     for (eps, escalates) in chamfer {
+        let eps = eps * r;
         let (body, edges) = flat(eps);
         let got = outcome(&body, edges, Verb::Chamfer);
         match escalates {
@@ -377,10 +390,10 @@ fn a_flattening_turns_needle_escalates_and_never_builds() {
             ),
         }
         let (gap, chords) = turn_readings(&body, edges, D, BlendKind::Chamfer, tol());
-        if eps == 0.01 {
+        if escalates == Some(BlendDecision::TurnFeet) {
             assert!(
-                gap.abs() < band.zero() && chords[0].min(chords[1]) > 100.0 * band.escalate(),
-                "the needle: gap {gap:e} Zero, chords {chords:?} far outside the band"
+                gap.abs() < band.zero() && chords[0].min(chords[1]) > band.escalate(),
+                "the needle: gap {gap:e} Zero, chords {chords:?} outside the band"
             );
         }
         let fillet = outcome(&body, edges, Verb::Fillet);
