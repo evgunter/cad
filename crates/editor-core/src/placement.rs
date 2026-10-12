@@ -1129,16 +1129,40 @@ mod tests {
         a.components().map(f64::to_bits)
     }
 
-    /// Keeps [`Placement::literal`]'s claim: a one-step literal
-    /// evaluates to its frame bit for bit — the `-0.0`s of [`sample`]
-    /// included, which any arithmetic on the way would turn to `+0.0`.
+    /// A rigid frame whose `-0.0`s are LOAD-BEARING, as [`sample`]'s
+    /// are: a quarter turn about `z`, then a translation.
+    fn rigid_sample() -> Frame {
+        Frame {
+            columns: [[-0.0, 1.0, 0.0], [-1.0, -0.0, 0.0], [0.0, 0.0, 1.0]],
+            translation: [1.0e12, -0.0, 0.1],
+        }
+    }
+
+    /// Keeps [`Placement::literal`]'s claim: a one-step literal of a
+    /// rigid frame evaluates to its frame bit for bit — the `-0.0`s of
+    /// [`rigid_sample`] included, which any arithmetic on the way would
+    /// turn to `+0.0` — and a literal that is not rigid is refused at
+    /// the decided door rather than evaluated.
     #[test]
     fn a_one_step_literal_is_its_frame_bit_for_bit() {
-        for f in [sample(), other()] {
+        let turn = Frame {
+            columns: [[0.6, 0.8, 0.0], [-0.8, 0.6, 0.0], [0.0, 0.0, 1.0]],
+            translation: [-3.0, 0.5, 1.0e-13],
+        };
+        for f in [rigid_sample(), turn] {
             let motion = Placement::literal(&f)
                 .eval::<f64>(&VarEnv::default(), band())
-                .expect("a literal evaluates");
+                .expect("a rigid literal evaluates");
             assert!(Frame::from_affine(motion).bit_eq(&f));
+        }
+        for f in [sample(), other()] {
+            assert!(
+                matches!(
+                    Placement::literal(&f).eval::<f64>(&VarEnv::default(), band()),
+                    Err(NodeErrorKind::Motion(RigidMotionError::NotRigid { .. }))
+                ),
+                "a literal that is not rigid is refused at the decided door: {f:?}"
+            );
         }
     }
 

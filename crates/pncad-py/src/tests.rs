@@ -6696,7 +6696,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("no_such_body", 2),
     ("no_such_name", 2),
     ("node_failed", 2),
-    ("non_finite", 4),
+    ("non_finite", 5),
     ("non_finite_direction", 2),
     ("non_finite_placement", 2),
     ("non_rigid_placement", 2),
@@ -6763,6 +6763,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("structure", 3),
     ("tolerance_conflict", 2),
     ("transition", 2),
+    // A coincidence: a crossing side the band left undecided, and a
+    // rigidity margin the decided door left undecided.
+    ("undecided", 2),
     ("underflowed_direction", 2),
     // One fact for the boolean and the blends: the operand gate
     // (`topo::Unfinished::Unjoined`) found a vertex tier 3's check 11
