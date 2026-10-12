@@ -1645,10 +1645,12 @@ impl MarginDiag {
 
     /// The tolerance below which a smaller one decides this reading
     /// passing `passes`, or `None` where none does: a poisoned reading,
-    /// one past the band (decided at this tolerance already), or one
-    /// whose sign no tolerance moves onto a side `passes` accepts.
+    /// one past the band (decided at this tolerance already), one whose
+    /// sign no tolerance moves onto a side `passes` accepts, or one the
+    /// symbolic tier proved zero ([`MarginDiag::theorem`]), which no
+    /// tolerance decides whatever its numeric reading.
     fn tightens_below(self, band: Band, passes: SizedPass) -> Option<f64> {
-        if self.placement(band) == Placement::Past {
+        if self.placement(band) == Placement::Past || self.theorem().is_some() {
             return None;
         }
         match self.0 {
@@ -1708,9 +1710,10 @@ impl MarginDiag {
     /// margin tightens where it is nonzero on a side the decision
     /// accepts; an enclosure where both ends do, below its nearer end;
     /// neither where it lies past the band, decided at this tolerance
-    /// already. Otherwise the lever alone, with [`SizedWords::otherwise`]
-    /// where given; a poisoned margin takes [`SizedWords::unreadable`]
-    /// instead ([`MarginDiag::unreadable_note`]).
+    /// already, nor where the symbolic tier proved it zero. Otherwise
+    /// the lever alone, with [`SizedWords::otherwise`] where given; a
+    /// poisoned margin takes [`SizedWords::unreadable`] instead
+    /// ([`MarginDiag::unreadable_note`]).
     ///
     /// The choice is made here, from the number, and only a sentence
     /// leaves. Because the sentence is chosen from the number, reading
@@ -2328,10 +2331,11 @@ impl Indeterminate {
     /// for the word and by [`Indeterminate::ending`] for the lever.
     ///
     /// Subdivision keeps a decided sign, a decided nonzero sign is
-    /// sign-certain, and a zero on the side a gate rejects stays there
-    /// at every smaller tolerance, so no tolerance arm rides with either
-    /// (D4 ¶1 (i)). An undecided enclosure and an unreadable margin say
-    /// theirs in the lever.
+    /// sign-certain, a zero on the side a gate rejects stays there at
+    /// every smaller tolerance, and one the symbolic tier proved is zero
+    /// at all of them, so no tolerance arm rides with any (D4 ¶1 (i)).
+    /// An undecided enclosure and an unreadable margin say theirs in
+    /// the lever.
     fn reading(&self) -> (Option<&'static str>, KindLever) {
         let (margin, band) = (self.margin, self.band);
         match (margin.placement(band), margin.kind()) {
@@ -2339,7 +2343,7 @@ impl Indeterminate {
                 Some("a decided sign this decision cannot use"),
                 KindLever::Door,
             ),
-            (Placement::ZeroBand, _)
+            (Placement::ZeroBand | Placement::Undecided, _)
                 if margin.tag().is_some()
                     && margin.tightens_below(band, self.passes()).is_none() =>
             {
@@ -2785,6 +2789,67 @@ mod tests {
         for (margin, words, want) in rows {
             assert_eq!(margin.sized_recourse(band, words), want, "{margin}");
         }
+    }
+
+    /// **A margin the symbolic tier proved zero is offered no
+    /// tolerance** (D4 ¶1 (i)): no smaller one decides it, whatever its
+    /// numeric reading, so a decision passing a positive sign ends in the
+    /// lever and its note — at rest, at the import door, and in a gate's
+    /// rejection. The same reading unproven is offered one.
+    #[test]
+    fn a_proven_zero_is_offered_no_tolerance() {
+        let band = band_1e9();
+        let words = SizedWords {
+            lever: "L",
+            size: "length",
+            passes: SizedPass::Positive,
+            otherwise: Some("n"),
+            unreadable: "u",
+        };
+        let file = FileCoincidence::new(1e-8);
+        let head = "This length is below the file's declared coincidence distance ε_in = 1e-8 m, \
+                    so the file does not state it. Recourse: L";
+        let unproven = MarginDiag::value(5e-9);
+        let proven = unproven.proven(Theorem::SymbolicZero);
+        assert_eq!(
+            unproven.sized_recourse(band, words),
+            "Recourse: L, or, if this length is intended, tighten the tolerance below 5e-10 m",
+            "unproven, at rest"
+        );
+        assert_eq!(
+            unproven.sized_recourse_in_file(band, words, file),
+            format!(
+                "{head}, or, if this length is intended, re-export the file with its \
+                 uncertainty declared below 5e-9 m and tighten the tolerance below 5e-10 m"
+            ),
+            "unproven, at the import door"
+        );
+        assert_eq!(
+            proven.sized_recourse(band, words),
+            "Recourse: L; n",
+            "proven, at rest"
+        );
+        assert_eq!(
+            proven.sized_recourse_in_file(band, words, file),
+            format!("{head}; n"),
+            "proven, at the import door"
+        );
+        let rejected = |margin: MarginDiag| Indeterminate {
+            margin: margin.rejected_by(Sign::Zero, SizedPass::Positive),
+            band,
+            predicate: None,
+            terminal_sliver: false,
+        };
+        assert!(
+            rejected(unproven).offers_tolerance(),
+            "unproven, a gate's rejection"
+        );
+        assert_eq!(
+            rejected(proven).under("L").to_string(),
+            "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8) — a decided zero no \
+             smaller tolerance moves onto a side this decision passes; Recourse: L",
+            "proven, a gate's rejection"
+        );
     }
 
     /// **No offer at the import door keeps a size the file does not
