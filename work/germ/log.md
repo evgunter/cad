@@ -1063,3 +1063,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - So the split is only the wording and timing of a refusal in those cases.
   - My recommendation: decide the end state now (anchored conic, plus PCERT's fixes), take A's relabel for now, and leave B's check to D4 ¶4's size range when it is built.
   - The PR stays open for Ev's decision.
+- 2026-10-12 20:40 — **Ev on PR 4812:** "your recommendation sounds good". Asked whether import should re-pose via a cached internal representation computed from the canonical one, so it round-trips. I replied with a rule: the stored form is the one the curve was born in, and the other is derived and cached.
+  - Imported ellipse: the file's centre form is stored exactly; the anchored form is a cache; export writes the original, bit-exact.
+  - Minted section: the anchored form is primary; the centre is derived for export.
+  - Waiting on Ev to confirm. Then: write the decision into the item and DESIGN-FORK-LOG row 121's second half, and merge.
