@@ -25,8 +25,11 @@ refined scan (`nurbs/refined-scan-cost`): a 40-control-point cubic
 read off the refined net. Its remaining callers construct and apply
 it in `geom-brep`: `props/quad.rs` (`RingRefinement::new`, `refine`,
 `refine_u` / `refine_v`), `ssi/section.rs`, `ssi/certify.rs` (over
-`cert_grid`) and `ssi/enclose.rs` (`refine_u` / `refine_v`), and in
-`geom-core`'s `spline/net.rs` equal-split grid (`equal_split`).
+`cert_grid`) and `ssi/enclose.rs` (`refine_u` / `refine_v`), and
+`patch_bound.rs`'s `patch_cells_refined` through `geom-core`'s
+`TensorChannels::refine_equal_split` (`spline/net.rs`, `equal_split`),
+which `mesh`'s `nurbs_cert` (rational patch certificates) and
+`offset_meters.rs` reach.
 `compose.rs`, `patch_bound.rs` and `offset_fit.rs` take only
 `equal_split_points`, the schedule, not the chain.
 
