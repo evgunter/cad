@@ -301,8 +301,8 @@ fn the_rational_meter_survives_adversarial_weights() {
 
     assert_real_and_sound("degree 5", &quintic_net(vec![1.0, 0.5, 2.0, 0.5, 2.0, 1.0]));
 
-    // A high degree with alternating extreme weights: the refined-span
-    // hulls refuse it at every ratio, and the piece assembly meters it.
+    // A high degree with alternating extreme weights, which the
+    // piece assembly meters at every ratio tried.
     for (lo, hi) in [(0.01, 100.0), (0.001, 1000.0)] {
         assert_real_and_sound(
             &format!("degree 5, alternating {lo}/{hi} weights"),
@@ -609,21 +609,34 @@ fn a_degree_two_net_the_refined_scan_read_higher_still_meters() {
         ],
     )
     .unwrap();
-    let m = c.speed_lower_bound().get();
+    use geom_core::{Bounds, Interval, Real};
+    let ci = c.map_scalar(<Interval as Real>::from_f64);
+    let (m, mi) = (c.speed_lower_bound().get(), ci.speed_lower_bound().get());
+    // The least enclosure ceiling of the speed over a grid: at least the
+    // true minimum, so a meter above it is unsound with certainty.
     let (lo, hi) = c.domain();
-    let speed = (0..=40_000)
-        .map(|i| c.deriv(lo + (hi - lo) * f64::from(i) / 40_000.0).norm())
+    let ceiling = (0..=4000)
+        .map(|i| {
+            let t = lo + (hi - lo) * f64::from(i) / 4000.0;
+            ci.deriv(Interval::from_f64(t)).norm().hi()
+        })
         .fold(f64::INFINITY, f64::min);
     assert!(
-        m > 0.0 && m <= speed,
-        "meter {m} (the pieces read 0.004256; the retired refined scan read 0.008833), \
-         sampled speed {speed}"
+        (0.004_25..0.004_26).contains(&m)
+            && mi.lo() > 0.0
+            && mi.lo() <= m
+            && m <= mi.hi()
+            && m <= ceiling,
+        "meter {m} / [{}, {}] (the pieces read 0.004256; the retired refined scan read \
+         0.008833), speed ceiling {ceiling}",
+        mi.lo(),
+        mi.hi()
     );
 }
 
 /// **Past the rational meter's degree ceiling the meter refuses.** At
-/// degree 25 the piece assembly's binomials are past the range pinned
-/// exact, and no other assembly stands behind it: the meter is poison
+/// degree 25, one past `RATIONAL_PIECE_MAX_DEGREE`, the piece assembly
+/// abstains and no other assembly stands behind it, at either scalar: the meter is poison
 /// (NaN), which every consumer's gate refuses, never a looser number.
 #[test]
 fn a_rational_carrier_past_degree_24_refuses() {
@@ -640,5 +653,12 @@ fn a_rational_carrier_past_degree_24_refuses() {
     let c =
         NurbsCurve3::<f64>::new(KnotVector::clamped(knots, p).unwrap(), control, weights).unwrap();
     let m = c.speed_lower_bound().get();
-    assert!(m.is_nan(), "a degree-25 rational carrier metered {m}");
+    let mi = c
+        .map_scalar(<geom_core::Interval as geom_core::Real>::from_f64)
+        .speed_lower_bound()
+        .get();
+    assert!(
+        m.is_nan() && geom_core::Real::is_poison(mi),
+        "a degree-25 rational carrier metered {m} / {mi:?}"
+    );
 }

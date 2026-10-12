@@ -3,30 +3,26 @@
 //!
 //! [`crate::spline::algebra`] decides every knot-algebra plan as `f64`
 //! structure. Its appliers combine control data off one schedule:
-//! [`CurvePlan::apply_rational`] in the projective form, at the scalars
+//! [`CurvePlan::apply_rational`](super::CurvePlan::apply_rational) in the projective form, at the scalars
 //! named by [`ProjectiveScalar`] only, over the knots and weights held
-//! there; [`CurvePlan::apply_points`] the same form on the plan's own
-//! `f64` channel; and [`CurvePlan::apply_certified`] in the homogeneous
+//! there; [`CurvePlan::apply_points`](super::CurvePlan::apply_points) the same form on the plan's own
+//! `f64` channel; and [`CurvePlan::apply_certified`](super::CurvePlan::apply_certified) in the homogeneous
 //! form, in the certification ring.
-//! [`CurvePlan::apply_homogeneous_in`] is the homogeneous form at a
-//! caller's generic scalar, over the knots held there.
 
-use super::algebra::{Coef, CurvePlan, Form, KnotAt};
 use super::locate::SpanLocate;
-use crate::real::Real;
 use crate::{Point2, Point3};
 
 /// The scalars the PROJECTIVE knot algebra means something at: `f64`,
 /// `Probe`, and `Dual` and `Sym` over them — not `Interval`, and not
 /// `Dual<Interval>`.
 ///
-/// [`CurvePlan::apply_rational`] combines de-homogenized points with
+/// [`CurvePlan::apply_rational`](super::CurvePlan::apply_rational) combines de-homogenized points with
 /// a quotient `λ` it forms from the held weights. At an evaluation
 /// scalar that is the fixed association the tree documents. In the
 /// certification ring it would enclose a de-homogenized combination
 /// of the plan's projective form, which is not how a certificate holds
 /// a refinement (C6: a refinement inside a certificate is held only as
-/// homogeneous enclosures `(w·P, w)`, [`CurvePlan::apply_certified`]).
+/// homogeneous enclosures `(w·P, w)`, [`CurvePlan::apply_certified`](super::CurvePlan::apply_certified)).
 /// So the applier, and every knot operation built on it, is bounded by
 /// this trait, and a call at the certification scalar does not
 /// typecheck:
@@ -72,7 +68,7 @@ use crate::{Point2, Point3};
 /// );
 /// ```
 ///
-/// Nor does [`CurvePlan::apply_points`], the plan's own `f64` reference,
+/// Nor does [`CurvePlan::apply_points`](super::CurvePlan::apply_points), the plan's own `f64` reference,
 /// combine ring enclosures with its `f64` `λ`:
 ///
 /// ```compile_fail,E0277
@@ -200,8 +196,8 @@ where
     }
 }
 
-/// The control data [`CurvePlan::apply_rational`] combines at the
-/// projective scalar `T` (and [`CurvePlan::apply_points`] at `f64`):
+/// The control data [`CurvePlan::apply_rational`](super::CurvePlan::apply_rational) combines at the
+/// projective scalar `T` (and [`CurvePlan::apply_points`](super::CurvePlan::apply_points) at `f64`):
 /// `T` itself, and the points and coordinate
 /// arrays over it. The applier's `λ` and its points share one scalar,
 /// so neither can be a certification enclosure ([`ProjectiveScalar`]).
@@ -218,41 +214,6 @@ impl<T: ProjectiveScalar> sealed::SealedPoint<T> for Point3<T> {}
 impl<T: ProjectiveScalar> ProjectivePoint<T> for Point3<T> {}
 impl<T: ProjectiveScalar, const N: usize> sealed::SealedPoint<T> for [T; N] {}
 impl<T: ProjectiveScalar, const N: usize> ProjectivePoint<T> for [T; N] {}
-
-impl CurvePlan {
-    /// **The same homogeneous schedule at the caller's scalar**, for a
-    /// caller generic over [`Real`] that refines a homogeneous channel
-    /// (`w`, or one coordinate of `w·P`): each step is
-    /// `β·x + α·y` with `α = (u − U_j)/Δ` and `β = (U_{j+p} − u)/Δ`
-    /// taken in `T` from `knots`, the knot values of the vector this
-    /// plan was made against (one per knot), and the inserted value:
-    /// a breakpoint already present is read there, so it stays one
-    /// quantity, and a new one enters as the constant of the schedule
-    /// it is. At `Interval` both ratios are outward-rounded
-    /// enclosures and the result encloses the refined channel of the
-    /// described curve, with no `f64` ratio standing in. It has no
-    /// hull meet, which `Real` cannot spell, so it is not the ring's
-    /// step: a caller that holds `Interval` channels refines through
-    /// [`RingRefinement`](super::RingRefinement).
-    ///
-    /// Total: a ratio-less step (elevation, removal), a malformed plan,
-    /// a short channel or a knot index past `knots` yields `T`'s poison
-    /// (`from_f64(NaN)`) in the targets it reaches.
-    pub fn apply_homogeneous_in<T: Real>(&self, knots: &[T], old: &[T]) -> Vec<T> {
-        self.apply_ratios(old, T::from_f64(f64::NAN), |x, y, _, form| {
-            let Form::Blend(Coef::Knots { u, lo, hi }) = form else {
-                return None;
-            };
-            let u = match u {
-                KnotAt::Index(i) => *knots.get(i)?,
-                KnotAt::Fresh(v) => T::from_f64(v),
-            };
-            let (lo, hi) = (*knots.get(lo)?, *knots.get(hi)?);
-            let span = hi - lo;
-            Some(x * ((hi - u) / span) + y * ((u - lo) / span))
-        })
-    }
-}
 
 #[cfg(test)]
 mod tests {
