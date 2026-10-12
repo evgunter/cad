@@ -297,6 +297,8 @@ mod pcurve_mirror_v;
 mod one_sum_differential;
 #[path = "pcurve_spiric.rs"]
 mod pcurve_spiric;
+#[path = "review_4897_r2_probes.rs"]
+mod review_4897_r2_probes;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
 #[path = "span_reach_differential.rs"]
