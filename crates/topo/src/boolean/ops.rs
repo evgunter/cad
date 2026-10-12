@@ -731,7 +731,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         seam_edges.extend(rep.seam_edges);
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
-    super::zip::share_points(&mut body, &points)?;
+    desc.absorb_shared(&super::zip::share_points(&mut body, &points)?);
     super::zip::refuse_split_hung_points(&body, &hung)?;
     // A pinch keeps one vertex per cone, so lumps that met only there
     // share no edge: each connected piece of a shell becomes a shell.
@@ -2793,7 +2793,8 @@ pub(super) struct Descendants {
     /// The vertex fusions, in mint order, result keys: the zips'
     /// ([`Self::absorb_fusions`]).
     vertices: Fusions,
-    /// Every vertex a row of `vertices` names (dead OR kept): its point
+    /// Every vertex a row of `vertices` names (dead OR kept), and every
+    /// vertex `zip::share_points` moved onto another key: its point
     /// rests were consumed into seam structure.
     fused: std::collections::BTreeSet<VertexKey>,
     /// Each operand's null-edge copies, in its clone keys: the vertices
@@ -2909,6 +2910,12 @@ impl Descendants {
         Ok(())
     }
 
+    /// The vertices `zip::share_points` moved onto their class's key:
+    /// each sits at a seam point now, as a fused vertex does.
+    fn absorb_shared(&mut self, moved: &[VertexKey]) {
+        self.fused.extend(moved.iter().copied());
+    }
+
     /// The merge's lineage, each cell a group killed onto its kept face
     /// ([`MergedGroup::substitutions`](crate::merge_faces::MergedGroup::substitutions)).
     ///
@@ -2996,9 +3003,12 @@ impl Descendants {
     /// piece of a divided face (its lineage through [`Self::fragments`],
     /// each through [`Self::live`]) is placed ([`piece_holds`]): the
     /// piece a kept vertex bounds (the record is then structure), else
-    /// the one whose interior holds the rest's point ([`rests`], one
-    /// point bit for bit with a kept vertex's in the result, which
-    /// [`carry_rows`] checks). `None` where every piece is read and none
+    /// the one whose interior holds the rest's point ([`rests`]). No
+    /// stage moves a vertex: a zip's fusion and `zip::share_points` are
+    /// the two that leave one at another's point, within ε, and
+    /// [`carry_rows`] skips the rows of either; so the rest is a kept vertex's
+    /// point in the result, bit for bit, which [`carry_rows`] checks.
+    /// `None` where every piece is read and none
     /// holds it: the part of the face it rested on left the result, or
     /// the point is on a piece's boundary. The point is placed with the
     /// census's own band: a point within it of a piece's carrier or
@@ -3339,9 +3349,8 @@ pub(super) fn ledger<T: Decide>(
 /// The point each vertex-on-face row's vertex rests at, read from the
 /// operand's clone, by `(operand, vertex)` in clone keys: the reduction's
 /// own rows (`a_on_b` an A vertex, `b_on_a` a B one) and each operand's
-/// carried ones. No stage moves a vertex, so this is the point a kept
-/// vertex has in the result ([`carry_rows`] checks it), and the one a
-/// vertex a later stage took had ([`Rest::Taken`]).
+/// carried ones: the point a kept vertex has in the result, and the one
+/// a vertex a later stage took had ([`Descendants::holder`]).
 ///
 /// # Errors
 ///
@@ -3402,8 +3411,8 @@ fn push_cited<R>(list: &mut Vec<Cited<R>>, record: Cited<R>, same: impl Fn(&R, &
 
 /// **Everything a result's records are carried from**: the reduction's
 /// own records, each operand's carried records through the reduction's
-/// splits ([`ledger`]), and every decision a record may cite, in
-/// decision order.
+/// splits ([`ledger`]), every decision a record may cite, in decision
+/// order, and where each vertex-on-face row's vertex rests ([`rests`]).
 pub(super) struct Ledger<T: Real> {
     /// The reduction's working set, citing rows of `pending`.
     discovered: ReductionContacts,
@@ -3684,8 +3693,8 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// seam edge, a cell the merge swallowed the face it lies in, a joined
 /// vertex or edge the edge the join made, an edge the op dropped the
 /// chord the join minted along it ([`Descendants::live`]); a face the
-/// op divided, the piece of it that holds the record's vertex
-/// ([`Descendants::holder`]). A record is never re-derived from
+/// op divided, the piece of it that holds the record's rest, the point
+/// its vertex had in its operand ([`Descendants::holder`]). A record is never re-derived from
 /// geometry: a division only chooses among the recorded face's own
 /// pieces. It leaves only where its cell left the result with no such
 /// row (a discarded fragment), where its vertex rests on no live piece
@@ -4255,8 +4264,9 @@ fn carry_rows<T: Decide + Bounds>(
     // Vertex-on-face records: the vertex's own key, the face read at
     // the vertex's rest.
     for ([(vs, vc), (fs, fc)], cites) in vf_rows {
-        // A vertex a zip fused sits on the seam, on the boundary of the
-        // face it rested on: the substituted pair is an incidence.
+        // A vertex a zip fused, or `zip::share_points` moved onto its
+        // class's key, sits on the seam, on the boundary of the face it
+        // rested on: the substituted pair is an incidence.
         let Cell::Vertex(v) = vc else {
             unreachable!("a vertex-on-face row's first end is its vertex")
         };
@@ -4276,9 +4286,7 @@ fn carry_rows<T: Decide + Bounds>(
                 what: "a vertex-on-face row's vertex has no rest point",
             })?;
         let rest = match x {
-            // No stage moves a vertex: a zip's fusion is the one that
-            // leaves a vertex at another's point, and a fused vertex's
-            // rows were skipped above. So a kept vertex is at its rest.
+            // A kept vertex is at its rest ([`Descendants::holder`]).
             Cell::Vertex(k) if is_at(body, k, at)? => Rest::Kept { vertex: k, at },
             Cell::Vertex(_) => {
                 return Err(BooleanError::JoinDesync {
@@ -4293,9 +4301,9 @@ fn carry_rows<T: Decide + Bounds>(
             record(body, &mut out, (vs, x), (fs, y), cites.clone());
         }
     }
-    // Records of two edges or faces: the reduction's touches along a
-    // line, the joins' and each operand's carried ones, both cells
-    // chased.
+    // Edge-edge records, the reduction's and each operand's carried
+    // ones, both cells chased: no edge-face or face-face record has a
+    // carried kind, and the reduction discovers none.
     for ([(xs, xc), (ys, yc)], cites) in cell_rows {
         if let (Some(x), Some(y)) = (
             desc.live(body, xs, view(xs), xc)?,
