@@ -168,7 +168,7 @@ pub mod geometry;
 pub(crate) mod source_walk;
 
 #[cfg(test)]
-mod cert_m3r1_probes;
+pub(crate) mod cert_m3r1_probes;
 pub mod instance;
 pub(crate) mod invalid_margin;
 #[cfg(test)]
@@ -394,8 +394,8 @@ pub mod test_support {
         crate::boolean::combine::take_bridges()
             .into_iter()
             .map(|b| match b {
-                crate::boolean::combine::Bridge::Recertify { .. } => GraftBridge::Recertify,
-                crate::boolean::combine::Bridge::RemapKeys => GraftBridge::RemapKeys,
+                crate::boolean::combine::BridgeKind::Recertify => GraftBridge::Recertify,
+                crate::boolean::combine::BridgeKind::RemapKeys => GraftBridge::RemapKeys,
             })
             .collect()
     }

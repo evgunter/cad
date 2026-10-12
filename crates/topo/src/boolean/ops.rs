@@ -116,7 +116,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::BooleanDecision;
 use super::SphereQuestion;
 use super::boxes;
-use super::combine::{Bridge, GraftMap, graft_solids_with};
+use super::combine::{GraftMap, graft_solids_disjoint};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::edge_join::join_stage;
 use super::finish::setopfinish;
@@ -5459,7 +5459,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 Some(base) => {
                     let base_solid =
                         single_solid(base).map_err(|_| corrupt("re-cut base is not one solid"))?;
-                    graft_solids_with(base, &[base_solid], &turned, Bridge::RemapKeys)?;
+                    graft_solids_disjoint(base, &[base_solid], &turned)?;
                 }
             }
         }
@@ -6037,7 +6037,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // there through the policy's lane, and nothing touches
                 // them since, so they keep their certificates, as at the
                 // void door above.
-                graft_solids_with(&mut body, &[solid], &b_body, Bridge::RemapKeys)?
+                graft_solids_disjoint(&mut body, &[solid], &b_body)?
             };
             let kind = match op {
                 BooleanOp::Subtract => BooleanResultKind::Voided,
@@ -8710,13 +8710,8 @@ mod holder_rows {
             Tol::witness(),
         );
         let solid = body.solids().next().unwrap().0;
-        let graft = crate::boolean::combine::graft_solids_with(
-            &mut body,
-            &[solid],
-            &copy.body,
-            crate::boolean::combine::Bridge::RemapKeys,
-        )
-        .unwrap();
+        let graft = crate::boolean::combine::graft_solids_disjoint(&mut body, &[solid], &copy.body)
+            .unwrap();
         let twin = *graft.faces.get(copy.top_face).unwrap();
         let (x, y) = if holds(&body, top, 0.5, 1.5) {
             (0.5, 1.5)

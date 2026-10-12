@@ -211,7 +211,8 @@
 //! - **`_certificate`** returns the [`crate::SignCertificate`] check 7
 //!   decided on instead of `()`.
 //! - **`_structural`** holds no certified lane (H5 ruling 3): check 7
-//!   through the closed form, no plane × NURBS lane at check 2, and at
+//!   through the closed form, no NURBS lane at check 2 (so no claim
+//!   about an edge whose certificate needs that lane), and at
 //!   tier 3′ no chart-region door in the census. Every door without it
 //!   has a twin with it. At tier 3 the twin also GATES check 7
 //!   differently: it runs the battery in one call, so check 7 waits on
@@ -2796,8 +2797,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its curve is not proved to span one arc of its faces' crossing"
         }
         CertifyError::NurbsLaneNotSupplied => {
-            "it lies between a plane and a spline face, and the check that ran was given no \
-             plane x NURBS lane, so nothing about it was checked"
+            "its certificate needs the NURBS lane, and the check that ran was given none, so \
+             nothing about it was checked"
         }
         CertifyError::Escalated { check, .. } => certify_undecided(*check),
         CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
@@ -2829,7 +2830,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             }
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::NurbsLaneNotSupplied => {
-                "Recourse: check the body through a door that holds the plane x NURBS lane, \
+                "Recourse: check the body through a door that holds the NURBS lane, \
                  at a certifying scalar"
             }
             CertifyError::ChartImageUnavailable { .. }
@@ -5025,9 +5026,9 @@ fn validate_geometric_kept<
     body: &Body<T>,
     tol: Tol,
 ) -> Result<(crate::props::SignCertificate<'_, T>, Vec<InBandShell>), Vec<ValidationError>> {
-    // The structural phase runs WITH check 2's plane x NURBS lane
-    // injected, which is what keeps this composed door re-deriving the
-    // M7-8 certificate class at rest; the public structural door,
+    // The structural phase runs WITH check 2's NURBS lane injected,
+    // which is what keeps this composed door re-deriving the lane's
+    // certificate classes at rest; the public structural door,
     // whose bound cannot name the lane, runs without it.
     //
     // The `?` between the two halves is the composition
@@ -5081,14 +5082,10 @@ fn validate_geometric_kept<
 /// verdicts (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
 /// A face that needed the quadrature is refused typed
 /// ([`ValidationError::VolumeUncomputable`]) rather than passed
-/// unbounded. **Check 2 makes no claim about an M7-8 edge** (a plane ×
-/// described-NURBS `Intersection`): that class re-derives only through
-/// the certified plane × NURBS lane, which this door does not hold. **Nor
-/// a between-samples claim about a rung-3 edge between two analytic
-/// faces**: its distance limbs and uniqueness tube run through the same
-/// lane (`geom_brep::analytic_rung3`), so this door re-certifies it at
-/// the schedule alone
-/// (`work/pcert/lane-free-doors-skip-the-analytic-rung3-limbs.md`).
+/// unbounded. **Check 2 makes no claim about an edge whose
+/// certificate needs the NURBS lane** ([`geom_brep::CertifyError::NurbsLaneNotSupplied`] lists the classes): such an
+/// edge re-derives only through that lane, which this door does not
+/// hold.
 /// Check 10 (shell winding) reads each shell's role off the same sums,
 /// and refuses a several-shell solid one of whose shells needed the
 /// quadrature or reads no role ([`ValidationError::ShellRoleUndecided`]).
@@ -5099,8 +5096,9 @@ fn validate_geometric_kept<
 ///
 /// # Errors
 ///
-/// As [`validate_geometric`], less the check-2 verdicts on M7-8 edges
-/// and plus the closed form's typed refusal at check 7.
+/// As [`validate_geometric`], less the check-2 verdicts on edges whose
+/// certificate needs the NURBS lane and plus the closed form's typed
+/// refusal at check 7.
 pub fn validate_geometric_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
@@ -5136,10 +5134,10 @@ pub fn validate_geometric_certificate_structural<
 #[derive(Clone, Copy)]
 enum StructuralPhase<T: geom_core::Decide> {
     /// The `_structural` doors: no lane at all — check 2 without the
-    /// plane × NURBS lane, check 7 MADE through the closed form.
+    /// NURBS lane, check 7 MADE through the closed form.
     NoLane,
     /// The composed [`validate_geometric`]'s first phase: check 2 through
-    /// the certified plane × NURBS lane it hands in, and check 7 NOT
+    /// the certified NURBS lane it hands in, and check 7 NOT
     /// made, because the composed door makes it next through the
     /// certified quadrature.
     BeforeCertifiedCheck7(geom_brep::NurbsLane<T>),
@@ -6135,11 +6133,11 @@ pub fn contact_marks<
 /// [`Dual`](geom_core::Dual) included, and it says less at every
 /// scalar, for the reasons [`validate_pseudomanifold_structural`]
 /// states: check 7 runs through the closed form alone, and check 2
-/// makes no claim about an M7-8 edge at all.
+/// makes no claim about an edge whose certificate needs the NURBS lane.
 ///
 /// # Errors
 ///
-/// As [`contact_marks`], less the check-2 verdicts on M7-8 edges and
+/// As [`contact_marks`], less the check-2 verdicts on those edges and
 /// plus the closed form's typed refusal.
 pub fn contact_marks_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
@@ -6473,12 +6471,11 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 /// at all, which the vector then says.
 ///
 /// `nurbs_lane` is check 2's second derivation, handed in for the same
-/// reason and with the same discipline. The M7-8 carrier class
-/// (`Intersection` of a plane and a described NURBS wall) re-derives
-/// only through the certified plane × NURBS lane, so a caller that
-/// holds none does not re-derive that class and this battery SKIPS
-/// those edges rather than reporting them (the lane's absence is its
-/// own refusal, [`geom_brep::CertifyError::NurbsLaneNotSupplied`]).
+/// reason and with the same discipline. An edge whose certificate
+/// needs the NURBS lane re-derives only through it, so a caller that
+/// holds none does not re-derive it and this battery SKIPS the edge
+/// rather than reporting it (the lane's absence is its own refusal,
+/// [`geom_brep::CertifyError::NurbsLaneNotSupplied`], which lists the classes).
 /// Every other carrier class is re-certified identically either way.
 ///
 /// `offset_fit` is check 1's re-derivation door for an `Approx` face
@@ -6693,7 +6690,7 @@ pub(crate) fn tier3_local_checks_marked<
         // Re-certification takes the lane this battery was handed: the
         // certified doors hand the certified lane and check 2 runs
         // whole, and the `_structural` doors hand none and make no
-        // claim about an M7-8 edge at all.
+        // claim about an edge whose certificate needs that lane.
         //
         // **Read that at its true width, because it is wider than the
         // class it is about.** `recertify_via` is ONE call and check 2
@@ -6701,12 +6698,12 @@ pub(crate) fn tier3_local_checks_marked<
         // resolver refuses `NurbsLaneNotSupplied` BEFORE the endpoint,
         // interval and chart-image checks run, so what a lane-free
         // caller does not get is every check-2 verdict on that edge —
-        // a drifted endpoint on an M7-8 edge included — and not merely
-        // the plane × NURBS limbs. That is why the skip is a skip and
+        // a drifted endpoint included — and not merely the lane's
+        // limbs. That is why the skip is a skip and
         // not a report: reporting it would name a defect in the body
         // for a fact about the caller.
         //
-        // **An imported or minted body of that class must re-derive
+        // **An imported or minted body holding such an edge must re-derive
         // its certificate at rest exactly as it did at attach time.**
         // That invariant did not move; what moved is which door
         // honours it. Every door whose bound names the right does
@@ -6715,15 +6712,6 @@ pub(crate) fn tier3_local_checks_marked<
         // and `AtRestPolicy`'s certifying arms and `step-import`'s
         // aggregate gate take those. The `_structural` doors do not,
         // and each says so at its own signature.
-        //
-        // **The same lane carries an analytic rung-3 edge's
-        // between-samples certificate** (`geom_brep::analytic_rung3`: the
-        // carrier's distance from each operand over the edge's interval,
-        // and the uniqueness tube). The certified doors re-derive it
-        // whole; the `_structural` doors, holding no lane, re-certify
-        // such an edge at the schedule alone, and do not report the
-        // skip, for the reason above: it is a fact about the caller
-        // (`work/pcert/lane-free-doors-skip-the-analytic-rung3-limbs.md`).
         //
         // Every other carrier class is re-certified the same way at
         // both doors. Re-certification re-derives; it never trusts the
@@ -9113,11 +9101,12 @@ pub fn validate_pseudomanifold<
 /// re-derivation — so the two can disagree on a body whose volume is
 /// below its sums' rounding ([`validate_geometric_structural`] says
 /// more). **Check 2 makes no claim
-/// about an M7-8 edge**, at any scalar, this one's `f64` included: that
-/// class re-derives only through the certified plane × NURBS lane,
+/// about an edge whose certificate needs the NURBS lane**, at any
+/// scalar, this one's `f64` included: such an edge re-derives only
+/// through that lane,
 /// which this door does not hold, and check 2 is a whole-edge check, so
 /// what goes unmade is every check-2 verdict on such an edge rather
-/// than only its plane × NURBS limbs. **The census examines no
+/// than only its lane's limbs. **The census examines no
 /// chart-region candidate and backs no crossing by a declared pair**:
 /// the pass hands the census no region door, so its two chart-region
 /// arms refuse rather than examine — the conformal face-pair arm on
