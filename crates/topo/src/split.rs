@@ -260,6 +260,9 @@ impl<T: Decide> Body<T> {
     /// lies exactly in both adjacent charts, so either certifies; the
     /// edge's own orientation names one, as it does for a blend's
     /// contact edge, and both children's plus halves lie in that face.
+    /// A parent whose tangency names a pair that face's surface is not
+    /// in is incoherent with its faces, and refuses
+    /// [`EulerOpError::DescriptionNotAdjacent`] rather than rest there.
     ///
     /// The pair's keys are links of the parent's certified description,
     /// so a key that does not resolve is a torn body, not a refusal.
@@ -295,13 +298,11 @@ impl<T: Decide> Body<T> {
                 witness,
             },
             band,
-            crate::pcurves::half_edge_face(self, he_plus).1.surface,
-            |lever| EulerOpError::SplitTangentEscalated {
-                edge,
-                diag: lever.diag(),
-            },
-            |diag| EulerOpError::SplitTangentBendEscalated { edge, diag },
+            || crate::pcurves::half_edge_face(self, he_plus).1.surface,
+            |_, diag| EulerOpError::SplitTangentEscalated { edge, diag },
+            |_, diag| EulerOpError::SplitTangentBendEscalated { edge, diag },
             || EulerOpError::SplitTangentRefuted { edge },
+            |_| EulerOpError::DescriptionNotAdjacent { edge: Some(edge) },
         )?
         .spec();
         Ok(EdgeCurveSpec {

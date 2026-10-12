@@ -158,13 +158,11 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                     witness: data.witness,
                 },
                 band,
-                s1,
-                |lever| {
-                    let (reading, source) = DihedralReading::of_lever(lever);
-                    sliver(reading, source)
-                },
-                |diag| sliver(DihedralReading::Bend, diag),
+                || s1,
+                &sliver,
+                &sliver,
                 || RevolveError::SmoothJoinRefuted { edge },
+                |chart| unreachable!("{chart:?} is `s1`, one of the join's pair"),
             )? {
                 MustCarryDescription::Intrinsic(description) => {
                     let spec = EdgeCurveSpec {

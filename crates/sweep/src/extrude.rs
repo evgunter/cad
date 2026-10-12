@@ -1272,13 +1272,15 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         witness: mid,
                     },
                     band,
-                    k_prev,
-                    |lever| {
-                        let (reading, source) = DihedralReading::of_lever(lever);
-                        sliver(reading, source)
-                    },
-                    |diag| sliver(DihedralReading::Bend, diag),
+                    || k_prev,
+                    sliver,
+                    sliver,
                     || ExtrudeError::SmoothJoinRefuted { edge: strut.edge },
+                    |chart| {
+                        unreachable!(
+                            "{chart:?} is the previous wall's surface, one of the strut's pair"
+                        )
+                    },
                 )? {
                     geom_brep::MustCarryDescription::Intrinsic(description) => {
                         let spec = EdgeCurveSpec {
@@ -1657,13 +1659,11 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
                     witness,
                 },
                 band,
-                wall,
-                |lever| {
-                    let (reading, source) = DihedralReading::of_lever(lever);
-                    sliver(reading, source)
-                },
-                |diag| sliver(DihedralReading::Bend, diag),
+                || wall,
+                sliver,
+                sliver,
                 || ExtrudeError::SmoothJoinRefuted { edge },
+                |chart| unreachable!("{chart:?} is the wall's surface, one of the rim's pair"),
             )? {
                 geom_brep::MustCarryDescription::Intrinsic(description) => {
                     let spec = EdgeCurveSpec {

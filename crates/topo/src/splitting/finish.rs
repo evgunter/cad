@@ -1056,13 +1056,16 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                             witness,
                         },
                         band,
-                        s_self,
-                        |lever| SplitFinishError::DescribeEscalated {
-                            edge,
-                            diag: lever.diag(),
-                        },
-                        |diag| SplitFinishError::DescribeBendEscalated { edge, diag },
+                        || s_self,
+                        |_, diag| SplitFinishError::DescribeEscalated { edge, diag },
+                        |_, diag| SplitFinishError::DescribeBendEscalated { edge, diag },
                         || SplitFinishError::SmoothJoinRefuted { edge },
+                        |chart| {
+                            unreachable!(
+                                "{chart:?} is this section face's own surface, one of the pair \
+                                 the join was read over"
+                            )
+                        },
                     )?;
                     // A description of the demanded kind that names
                     // the edge's current pair stays verbatim (a stated

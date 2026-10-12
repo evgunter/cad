@@ -1596,13 +1596,16 @@ fn chord_spec<T: Decide>(
                     witness,
                 },
                 band,
-                plane_key,
-                |lever| SplitJoinError::TangentChordEscalated {
-                    face,
-                    diag: lever.diag(),
-                },
-                |diag| SplitJoinError::TangentChordBendEscalated { face, diag },
+                || plane_key,
+                |_, diag| SplitJoinError::TangentChordEscalated { face, diag },
+                |_, diag| SplitJoinError::TangentChordBendEscalated { face, diag },
                 || SplitJoinError::TangentChordRefuted { face },
+                |chart| {
+                    unreachable!(
+                        "{chart:?} is the section plane this chord's pair was built with, so it \
+                         is one of the pair's surfaces"
+                    )
+                },
             )?
             .spec();
             return Ok(Some(EdgeCurveSpec {

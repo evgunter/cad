@@ -42,8 +42,11 @@ two answers for one locus.
 
 ## The question
 
-Whether to make the chart a function of the pair alone (key order, or
-a kind preference such as "the plane if one is a plane"), or of the
-edge (its orientation), and which. The rule is the natural home for
-whichever is chosen, so `Conventional` could carry the chart rather
-than leave it to the caller. Weighed with designers first.
+Whether the chart should stay each caller's choice or become a function
+the rule computes, and if so which: a function of the pair alone (key
+order, or a kind preference such as "the plane if one is a plane"), or
+of the edge (its orientation). Today `MustCarryDescription::Conventional`
+carries the chart, but only as the caller's `chart` argument to
+`geom_brep::must_carry_description` handed back; a ruling either keeps
+that argument or replaces it with the rule's own pick, after which each
+caller above drops one argument. Weighed with designers first.

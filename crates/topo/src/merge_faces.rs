@@ -619,39 +619,7 @@ impl EdgeDescribeFailure {
     }
 }
 
-/// The reading of the two faces at an edge that could not decide
-/// ([`MergeCoplanarError::KeptBoundaryUndecided`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DihedralReading {
-    /// The first-order dihedral: the angle between the faces, metered
-    /// over the edge, at the rung that could not decide.
-    Lever(geom_brep::LeverRung),
-    /// The second-order bend of two faces that meet smoothly.
-    Bend,
-}
-
-impl DihedralReading {
-    /// A first-order dihedral escalation ([`geom_brep::classify_dihedral`])
-    /// as the rung that raised it, with its diagnostics.
-    #[must_use]
-    pub const fn of_lever(escalation: geom_brep::LeverEscalation) -> (Self, Indeterminate) {
-        (Self::Lever(escalation.rung()), escalation.diag())
-    }
-
-    /// A must-carry station's escalation
-    /// ([`geom_brep::MustCarryEscalation`]) as the reading that raised
-    /// it — the first-order dihedral by rung, or the second-order bend —
-    /// with its diagnostics.
-    #[must_use]
-    pub const fn of_must_carry(
-        escalation: geom_brep::MustCarryEscalation,
-    ) -> (Self, Indeterminate) {
-        match escalation {
-            geom_brep::MustCarryEscalation::FirstOrder(lever) => Self::of_lever(lever),
-            geom_brep::MustCarryEscalation::SecondOrder(diag) => (Self::Bend, diag),
-        }
-    }
-}
+pub use geom_brep::DihedralReading;
 
 /// Why the edge describer refused one edge, before a door words it:
 /// the merge door as [`MergeCoplanarError::KeptBoundaryUndescribed`] /

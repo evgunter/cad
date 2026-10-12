@@ -5288,17 +5288,15 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             // the door derives it — `geom_brep::chart_pcurve` images a
             // ruling `Line` in a `Cone`'s chart as readily as in a
             // plane's. No arm the battery admits mints such a pair.
-            s1,
-            |lever| {
-                let (reading, source) = topo::DihedralReading::of_lever(lever);
-                escalated(reading, source)
-            },
-            |diag| escalated(topo::DihedralReading::Bend, diag),
+            || s1,
+            escalated,
+            escalated,
             || BlendError::SurgeryInvariant {
                 at: EntityId::Edge(edge),
                 detail: "a contact edge routed as a smooth join reads definitely transverse at \
                          a certification station",
             },
+            |chart| unreachable!("{chart:?} is `he_plus`'s surface, one of the edge's pair"),
         )?
         .spec()
     };

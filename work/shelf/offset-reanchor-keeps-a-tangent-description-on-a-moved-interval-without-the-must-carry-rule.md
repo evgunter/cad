@@ -51,8 +51,8 @@ tangent children are (`Body::tangent_piece`, `crates/topo/src/split.rs`):
 the moved edge's description is the rule's over the moved interval,
 `must_carry_description(SmoothJoin { surfaces, carrier, interval,
 chord, witness }, band, chart, …)`, with `Conventional` resting in the
-adjacent chart the door passes as `chart`, and the in-band (first- and
-second-order) and refuted verdicts refused typed at the offset door
-through the three constructors it passes. The pair's surfaces are the
+adjacent chart the door names through `chart`, and the in-band (first-
+and second-order), refuted and foreign-chart outcomes refused typed at
+the offset door through the constructors it passes. The pair's surfaces are the
 ones the re-attach certifies against (unmoved here, since the edge
 does not lie on the replaced face's boundary).
