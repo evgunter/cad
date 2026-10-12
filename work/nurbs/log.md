@@ -837,3 +837,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - if no decision flips, the row is deferred with (a) recorded as the fix;
     - if any decision flips, build (a).
   - The lane measures flips and consumer thresholds next. — (NURBS orchestrator)
+- 2026-10-12 14:50Z — **PR 4871 merges (`38d461e75f`, docs only).** `the-integral-meters-piece-refinement-is-not-monotone` is **deferred**.
+  - **Flips:** 0 of 9000 nets (degrees 2–13).
+  - **Consumer thresholds:** `Margin::metered` in certify, `topo::split` and `pcurve_cache` are each decided against the tolerance band. The least span·meter among the nets that lose reach is 0.07, so none crosses a band.
+  - **(a) is recorded as the fix** for when a consumer needs it: sub-pieces also try the parent direction. It is monotone by construction, dominates (b), and costs +55%.
+- 2026-10-12 14:51Z — **Build C on two measure-first rows:**
+  - `the-integral-arm-reads-below-the-rational-arm-on-an-equal-weight-net`: only degree elevation is left (1.9%, worst 0.20%). Defer if there are no flips.
+  - `ring-refinement-inserts-one-point-per-plan-over-the-whole-net`: measure its real callers' share (`net.rs`, `compose.rs`). Build the linear form if the share is visible, otherwise defer. — (NURBS orchestrator)
