@@ -1,9 +1,11 @@
 ---
 id: quad-de-boor-through-the-blossom-breaks-the-import-bit-identity
 kind: issue
-title: props/quad's de_boor stays off the blossom for a reason since refuted (the arc-loft round trip's one ulp is the face-sum order), so routing it is open
-status: open
+title: props/quad's de_boor through the blossom: the arc-loft round trip's one ulp was the face-sum order, and the routing ships
+status: closed
 opened: 2026-10-10
+closed: 2026-10-12
+branch: nurbs/quad-de-boor-through-the-blossom
 ---
 
 
@@ -73,3 +75,30 @@ Find the differing inputs; then either make the reader reproduce the
 native chart bit for bit (the row's premise), or show that the
 divergence is the monotone step's asymmetry and decide which side of
 the identity row gives.
+
+## Closed
+
+`props::quad`'s `de_boor` evaluates a node inside its span as the
+window's blossom (`CoeffWindow::blossom`, every level
+`Certification::between`), and `de_boor_on` steps through `between`
+inside the span's closure; past it (a vertex pad's node) the affine
+extension stays.
+
+With the routing, step-import's
+`arc_loft_natively_computes_its_rational_volume` is green: PR 4684's
+per-face bit identity (every face's flux term and half-width, native
+against imported) holds, and so do the gate's identity with the
+imported body's own measurement and ENCL's `faces − 1` ulp bound. The
+old red was the whole-body fold's face order, as corrected above.
+
+What the routing moves, every new enclosure inside the old one:
+- the step-export sidecars: the volume pads of `loft_prism`,
+  `nonuniform_loft` and `swept_elbow` fall 1.93x, 1.73x and 3.95x, and
+  the last two midpoints move one ulp;
+- the sweep thread-count digest at all three ε: `loft_prism`'s volume
+  pad by 48%, `arc_loft_1e9eps` by a few ulps, and `quintic_prism` at
+  ε = 1e-6 and 1e-9;
+- the certified endpoint census: `quad.rs` 11/6 → 12/7, the two reads
+  in `within`, behind its `is_certified()`.
+
+Each re-cut names the cause beside its numbers.
