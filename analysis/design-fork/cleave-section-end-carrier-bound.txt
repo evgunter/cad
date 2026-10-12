@@ -1,0 +1,5 @@
+fork: cleave section-end in-band join, separating the input's miss from the carrier's amplified rounding (work/cleave/a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join.md, PR 4810)
+dispatched: 2026-10-12
+urandom byte: 248
+mapping: Opus=A Fable=B
+protocol: 4fbf874b32
