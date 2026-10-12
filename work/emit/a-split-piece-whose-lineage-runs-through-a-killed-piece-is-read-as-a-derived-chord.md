@@ -73,6 +73,17 @@ off and the second is with it on:
   the grafted-B lane's `43v3` went `12v9`, unnamed. It now resolves to
   B's `8v1`.
 
+Over the whole editor-core suite, instrumented, 8084 edge reads
+resolve through a killed stretch where they did not before. Each lies
+within the operand edge it now names (`chord_within`), and each of
+those edges is named in its table. No read failed either check.
+
+After the fix, `rim_holding` is reached by one integration row,
+`emit_union_borders::a_curved_divider_names_as_the_pair_boolean_does`.
+That row's chord is a straight join-minted chord. No integration row
+reaches it with a curved chord, so the unit rows witness its curved
+reading.
+
 The unit witness is `a_lineage_through_a_killed_piece_reaches_the_table`.
 It splits a cube lateral twice and kills the middle piece. Without the
 rows the walk stops at the killed key; with them it reaches the named
