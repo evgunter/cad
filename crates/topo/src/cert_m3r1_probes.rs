@@ -60,7 +60,7 @@ fn nurbs_wall(bow: f64) -> Surface<f64> {
 /// the wall's four edges re-described as plane × NURBS `Intersection`s
 /// through the lane (M7-8). Returns the wall's surface key and the
 /// four edge keys.
-fn m7_8_cube() -> (
+pub(crate) fn m7_8_cube() -> (
     Body<f64>,
     crate::geometry::SurfaceKey,
     Vec<crate::entity::EdgeKey>,
