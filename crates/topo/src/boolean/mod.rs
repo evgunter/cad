@@ -5401,7 +5401,10 @@ fn screen_contradiction(diag: Indeterminate) -> BooleanError {
 
 /// REVIEW PROBE (PR 4831): an env-selected mutation is on.
 pub(crate) fn review_mut(n: u8) -> bool {
-    std::env::var("CAD_MUT").ok().and_then(|v| v.parse::<u8>().ok()) == Some(n)
+    std::env::var("CAD_MUT")
+        .ok()
+        .and_then(|v| v.parse::<u8>().ok())
+        == Some(n)
 }
 
 /// **Why the door's tangency check did not certify a pair.**
@@ -5795,9 +5798,8 @@ fn verify_tangency<T: Decide>(
         };
     // REVIEW PROBE (PR 4831): the old door's verdict on this pair.
     if read == DeclarationRead::Moot && std::env::var_os("CAD_GLUE_CMP").is_some() {
-        let (contact, seam_table) = contact_verify::old_door_probe(
-            &sa, sense_a, &sb, sense_b, &carrier, t0, t1, band,
-        );
+        let (contact, seam_table) =
+            contact_verify::old_door_probe(&sa, sense_a, &sb, sense_b, &carrier, t0, t1, band);
         let contact = contact && matches!(locus, rim_wedge::Locus::Line { .. });
         let seam = !contact
             && seam_table

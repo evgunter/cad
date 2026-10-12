@@ -86,10 +86,17 @@ fn check(
             format!("OK body {v:.9}")
         }
         Ok(topo::BooleanResult::Empty) => {
-            assert!(want.is_none(), "WRONG BODY {pose} {name} eps {eps}: Empty, want {want:?}");
+            assert!(
+                want.is_none(),
+                "WRONG BODY {pose} {name} eps {eps}: Empty, want {want:?}"
+            );
             "OK Empty".into()
         }
-        Err(e) => format!("REFUSED {:?}: {}", e.kind(), e.to_string().chars().take(700).collect::<String>()),
+        Err(e) => format!(
+            "REFUSED {:?}: {}",
+            e.kind(),
+            e.to_string().chars().take(700).collect::<String>()
+        ),
     }
 }
 
@@ -111,11 +118,24 @@ fn four(
         (
             "A ∪ B",
             topo::union(a, b, tol()),
-            &(|q| and(in_a(q), in_b(q)).map(|(x, y)| x || y)) as &dyn Fn(Point3<f64>) -> Option<bool>,
+            &(|q| and(in_a(q), in_b(q)).map(|(x, y)| x || y))
+                as &dyn Fn(Point3<f64>) -> Option<bool>,
         ),
-        ("A ∖ B", topo::subtract(a, b, tol()), &(|q| and(in_a(q), in_b(q)).map(|(x, y)| x && !y))),
-        ("B ∖ A", topo::subtract(b, a, tol()), &(|q| and(in_a(q), in_b(q)).map(|(x, y)| y && !x))),
-        ("A ∩ B", topo::intersect(a, b, tol()), &(|q| and(in_a(q), in_b(q)).map(|(x, y)| x && y))),
+        (
+            "A ∖ B",
+            topo::subtract(a, b, tol()),
+            &(|q| and(in_a(q), in_b(q)).map(|(x, y)| x && !y)),
+        ),
+        (
+            "B ∖ A",
+            topo::subtract(b, a, tol()),
+            &(|q| and(in_a(q), in_b(q)).map(|(x, y)| y && !x)),
+        ),
+        (
+            "A ∩ B",
+            topo::intersect(a, b, tol()),
+            &(|q| and(in_a(q), in_b(q)).map(|(x, y)| x && y)),
+        ),
     ];
     for (i, (name, got, f)) in rows.into_iter().enumerate() {
         let r = check(pose, name, got, want[i], f, probes);
@@ -133,7 +153,12 @@ fn slab(q: Point3<f64>, z0: f64, z1: f64) -> f64 {
     (z0 - q.z).max(q.z - z1)
 }
 fn boxd(q: Point3<f64>, x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> f64 {
-    (x.0 - q.x).max(q.x - x.1).max(y.0 - q.y).max(q.y - y.1).max(z.0 - q.z).max(q.z - z.1)
+    (x.0 - q.x)
+        .max(q.x - x.1)
+        .max(y.0 - q.y)
+        .max(q.y - y.1)
+        .max(z.0 - q.z)
+        .max(q.z - z.1)
 }
 
 fn grid() -> Vec<Point3<f64>> {
@@ -141,7 +166,11 @@ fn grid() -> Vec<Point3<f64>> {
     for i in 0..13 {
         for j in 0..13 {
             for z in [0.25, 0.75, 1.5] {
-                out.push(Point3::new(-3.1 + 0.53 * f64::from(i), -3.1 + 0.53 * f64::from(j), z));
+                out.push(Point3::new(
+                    -3.1 + 0.53 * f64::from(i),
+                    -3.1 + 0.53 * f64::from(j),
+                    z,
+                ));
             }
         }
     }
@@ -164,7 +193,12 @@ fn grid() -> Vec<Point3<f64>> {
 fn p1_a_bore_inside_a_disc_touching_its_wall() {
     let pi = std::f64::consts::PI;
     let a = ext("disc r2", vec![circle(0.0, 0.0, 2.0)], 0.0, 1.0);
-    let b = ext("bored plate", vec![rect(-3.0, -3.0, 3.0, 3.0), circle(1.0, 0.0, 1.0)], 0.0, 1.0);
+    let b = ext(
+        "bored plate",
+        vec![rect(-3.0, -3.0, 3.0, 3.0), circle(1.0, 0.0, 1.0)],
+        0.0,
+        1.0,
+    );
     four(
         "p1 bore-in-disc",
         &a,
@@ -181,8 +215,18 @@ fn p1_a_bore_inside_a_disc_touching_its_wall() {
 #[test]
 fn p2_a_bore_inside_a_bigger_bore() {
     let pi = std::f64::consts::PI;
-    let a = ext("big bore", vec![rect(-3.0, -3.0, 3.0, 3.0), circle(0.0, 0.0, 2.0)], 0.0, 1.0);
-    let b = ext("small bore", vec![rect(-3.0, -3.0, 3.0, 3.0), circle(1.0, 0.0, 1.0)], 0.0, 1.0);
+    let a = ext(
+        "big bore",
+        vec![rect(-3.0, -3.0, 3.0, 3.0), circle(0.0, 0.0, 2.0)],
+        0.0,
+        1.0,
+    );
+    let b = ext(
+        "small bore",
+        vec![rect(-3.0, -3.0, 3.0, 3.0), circle(1.0, 0.0, 1.0)],
+        0.0,
+        1.0,
+    );
     four(
         "p2 bore-in-bore",
         &a,
@@ -248,8 +292,17 @@ fn p3_a_nested_touch_just_off_tangent() {
 #[test]
 fn p4_a_plane_tangent_to_part_of_a_hole() {
     let pi = std::f64::consts::PI;
-    let a = ext("holed plate", vec![rect(-3.0, -3.0, 3.0, 3.0), circle(0.0, 0.0, 1.0)], 0.0, 1.0);
-    let b = finished("cutter", brick::<f64>((1.0, 4.0), (-4.0, 4.0), (0.5, 2.0), tol()), tol());
+    let a = ext(
+        "holed plate",
+        vec![rect(-3.0, -3.0, 3.0, 3.0), circle(0.0, 0.0, 1.0)],
+        0.0,
+        1.0,
+    );
+    let b = finished(
+        "cutter",
+        brick::<f64>((1.0, 4.0), (-4.0, 4.0), (0.5, 2.0), tol()),
+        tol(),
+    );
     four(
         "p4 plane tangent to part of a hole",
         &a,
@@ -266,8 +319,17 @@ fn p4_a_plane_tangent_to_part_of_a_hole() {
 #[test]
 fn p5_the_plane_tangent_to_a_hole_by_membership() {
     let pi = std::f64::consts::PI;
-    let a = ext("holed plate", vec![rect(-3.0, -3.0, 3.0, 3.0), circle(0.0, 0.0, 1.0)], 0.0, 1.0);
-    let b = finished("cutter", brick::<f64>((1.0, 4.0), (-4.0, 4.0), (-1.0, 2.0), tol()), tol());
+    let a = ext(
+        "holed plate",
+        vec![rect(-3.0, -3.0, 3.0, 3.0), circle(0.0, 0.0, 1.0)],
+        0.0,
+        1.0,
+    );
+    let b = finished(
+        "cutter",
+        brick::<f64>((1.0, 4.0), (-4.0, 4.0), (-1.0, 2.0), tol()),
+        tol(),
+    );
     four(
         "p5 plane tangent to a hole",
         &a,
@@ -306,7 +368,11 @@ fn p7_a_rod_lying_on_a_slab() {
     // here, so lie the slab's face vertical instead: slab x ∈ [2, 4],
     // rod a disc r 2 about the origin, the slab's face x = 2 tangent.
     let a = ext("disc r2", vec![circle(0.0, 0.0, 2.0)], 0.0, 1.0);
-    let b = finished("slab", brick::<f64>((2.0, 4.0), (-3.0, 3.0), (-1.0, 2.0), tol()), tol());
+    let b = finished(
+        "slab",
+        brick::<f64>((2.0, 4.0), (-3.0, 3.0), (-1.0, 2.0), tol()),
+        tol(),
+    );
     four(
         "p7 disc against a slab face",
         &a,

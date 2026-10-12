@@ -409,7 +409,16 @@ pub(crate) fn old_door_probe<T: Decide>(
 ) -> (bool, bool) {
     geom_core::k_stats::detached(|| {
         let contact = tangent_table(
-            s1, sense1, s2, sense2, carrier, t0, t1, true, Claim::Contact, band,
+            s1,
+            sense1,
+            s2,
+            sense2,
+            carrier,
+            t0,
+            t1,
+            true,
+            Claim::Contact,
+            band,
         )
         .is_ok();
         let seam = matches!(
