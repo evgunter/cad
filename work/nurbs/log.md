@@ -699,3 +699,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - 2026-10-12 11:19Z — **PR 4834** (build C's PR 2, `held_constant`, stacked on 4824) is up and green at `2fdcb41f58`. Build C reports it found no public "plain constant" spelling to reuse (Q1). The digest is unchanged, because the fixtures' weights are literals. A single FULL reviewer is dispatched on the delta over 4824: session_012aviQwSFoTSQnMXiDKyFH9.
   - **Seam:** a `Probe` impl in `k_stats.rs` (SCALAR, VERDICT), noted on both logs.
   - **Friction:** the 4824 fix pass, sent at 10:16Z and again at 10:33Z, went unacknowledged while build C built PR 2. It was re-sent at 11:18Z as an interrupt. The likely cause is that the lane read messages only at turn boundaries during a long local run. — (NURBS orchestrator)
+- 2026-10-12 11:22Z — **PR 4841** (build B, the `between` cost) is up at `8938a02769`.
+  - **Profile:** 99.96% of `between` calls on the row have a point ratio, and about half the cost was the interval multiply's 8 corner products.
+  - **Fix:**
+    - the backend `Mul` (`interval-transcendentals/src/arith.rs`) folds only a point operand's distinct corners;
+    - `between` skips the clamp for a certified ratio already inside (0, 1).
+  - **Claimed:** bit-identical, with no re-cuts. The slowdown goes from 1.70× to 1.22× at opt1 and from 1.73× to 1.12× in debug.
+  - **Filed:** Div's point sibling (P3, E).
+  - **Tier: single FULL**, reviewer session_01MaoqGhPJrPGK4KTSjVjNya. The backend multiply sits under every certified result, so bit-identity is the soundness claim; the review is pointed at signed zeros, infinities, the exactness witness and rounding direction.
+  - **Seam:** `between_exact_fuzz.rs` is TCOST/TINT ground (a new test file). — (NURBS orchestrator)
