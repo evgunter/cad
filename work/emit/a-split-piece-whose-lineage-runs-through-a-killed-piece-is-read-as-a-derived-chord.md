@@ -2,10 +2,13 @@
 id: a-split-piece-whose-lineage-runs-through-a-killed-piece-is-read-as-a-derived-chord
 kind: issue
 title: A split piece whose lineage runs through a killed piece reaches the derived-chord path
-status: open
+status: closed
 opened: 2026-10-08
 priority: P3
 cost: M
+closed: 2026-10-12
+pr: 4794
+branch: emit/curved-rim-chord
 ---
 
 
@@ -47,3 +50,30 @@ or keep killed edges' `SplitEdge` records reachable, so the chase
 reaches `8v1`. The row's first-piece document is the witness: with the
 fix, `26v3` resolves in the operand table, and `rim_holding` is not
 consulted.
+
+## Fixed on `emit/curved-rim-chord` (PR 4794)
+
+`emit_topo::KilledSplits` reads the discard rows' `boundary_chains`
+into the hops the kills dropped: rows of an operand whose clone is the
+arena are in arena keys, and a grafted B's rows are in B's keys.
+`chase_edge_to_table` steps through them where the lineage stops at an
+unnamed key. `chase_b` carries the walk on in B's keys from the
+operand key it reads back. The comment above the `resolves` test now
+says what holds: a root no table names was not split off an operand
+edge.
+
+Evidence. In each pair, the first route is with the fallback switched
+off and the second is with it on:
+- In the arc row's first-piece document, `26v3` (members in order) and
+  `40v1` (flipped) went `11v5`, unnamed, to `chord_kind`. Both now
+  resolve to `8v1`.
+- In the circle rows, `23v3` went `8v5`, unnamed, four times. It now
+  resolves to `5v1`.
+- In the cavity row (`a_cavity_cut_by_the_notched_prism_names_its_rim_pieces`),
+  the grafted-B lane's `43v3` went `12v9`, unnamed. It now resolves to
+  B's `8v1`.
+
+The unit witness is `a_lineage_through_a_killed_piece_reaches_the_table`.
+It splits a cube lateral twice and kills the middle piece. Without the
+rows the walk stops at the killed key; with them it reaches the named
+lateral. It is red when `KilledSplits::of` reads no rows.

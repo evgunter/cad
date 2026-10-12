@@ -16,9 +16,9 @@ use crate::emit_shared_rim_several::Bx;
 use crate::fixture::{edge_of, frame, insert, len, len2, out, table};
 
 use editor_core::{
-    EntityKind, ExtrudeSide, Formula, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg, StableName,
-    VarId,
+    EntityKind, ExtrudeSide, Formula, LoopProgram, NameRef, NameTable, Node, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, Qualifier, RecipeNodeId, RoleSeg,
+    StableName, VarId,
 };
 use geom_core::Tol;
 use topo::EdgeKey;
@@ -123,13 +123,16 @@ fn line_of(n: &StableName) -> StableName {
 }
 
 /// Every edge `union` names for an edge of member `notched` lies
-/// within that edge — on a straight source, both ends on its segment;
-/// on an arc about the z axis, both ends on its circle within the
-/// angular span its ends and middle bound — and the count of the
-/// union's curved edges named so on the top rim (z = 1).
+/// within exactly one row of the line its name cites — on a straight
+/// row, both ends on its segment; on an arc about the z axis, both ends
+/// on its circle within the angular span its ends and middle bound —
+/// and its name is that row's: the row bare, or its line + `Ends` where
+/// the edge is part of it. Returns the
+/// count of the curved edges named so on the top rim (z = 1).
 fn within_sources(
     ev: &editor_core::Evaluation<f64>,
     union: RecipeNodeId,
+    published: &NameTable,
     notched: RecipeNodeId,
     notched_read: VarId,
     at: &str,
@@ -161,7 +164,7 @@ fn within_sources(
         start(e.he_plus) == start(e.he_minus)
     };
     let mut on_top_arc = 0;
-    for (name, entry) in table(ev, union).iter() {
+    for (name, entry) in published.iter() {
         let (editor_core::Entry::Unique(e), EntityKind::Edge) = (entry, name.kind) else {
             continue;
         };
@@ -174,16 +177,14 @@ fn within_sources(
         if *read != notched_read {
             continue;
         }
-        // The source rows: `of` itself, or, where `of` cites a line,
-        // the rows lying on it.
-        let sources: Vec<EdgeKey> = match src_table.lookup(of) {
-            Some(_) => vec![edge_of(src_table, "the member's edge", of)],
-            None => src_table
-                .iter()
-                .filter(|(n, _)| n.kind == EntityKind::Edge && line_of(n) == **of)
-                .map(|(n, _)| edge_of(src_table, "a row on the cited line", n))
-                .collect(),
-        };
+        // Every row of `notched` on the line `of` lies on: `of`
+        // itself where it is a row, and its siblings.
+        let line = line_of(of);
+        let rows: Vec<(StableName, EdgeKey)> = src_table
+            .iter()
+            .filter(|(n, _)| n.kind == EntityKind::Edge && line_of(n) == line)
+            .map(|(n, _)| (n.clone(), edge_of(src_table, "a row on the cited line", n)))
+            .collect();
         let here = ends(body, k);
         let within = |src: EdgeKey| {
             let [q0, q1] = ends(src_body, src);
@@ -220,10 +221,37 @@ fn within_sources(
                 other => panic!("{at}: {name:?} descends from an edge of kind {other:?}"),
             }
         };
-        assert!(
-            sources.iter().any(|&src| within(src)),
-            "{at}: {name:?} with ends {here:?} lies within none of its sources {sources:?}"
-        );
+        // The piece the edge descends from is the one row it lies
+        // within; the pieces are disjoint, so there is at most one.
+        let holding: Vec<&(StableName, EdgeKey)> =
+            rows.iter().filter(|(_, src)| within(*src)).collect();
+        let [(piece, src)] = holding.as_slice() else {
+            panic!(
+                "{at}: {name:?} with ends {here:?} lies within {holding:?}, not one row of its line"
+            );
+        };
+        let whole = {
+            let q = ends(src_body, *src);
+            let same = |a: geom_core::Point3<f64>, b: geom_core::Point3<f64>| (a - b).norm() < 1e-9;
+            (same(here[0], q[0]) && same(here[1], q[1]))
+                || (same(here[0], q[1]) && same(here[1], q[0]))
+        };
+        // A bare name cites the piece the edge descends from; a piece
+        // spelled on its line is part of its row, never all of it
+        // (N2). A bare name on part of its row is
+        // `a-lone-cut-piece-of-an-operand-edge-keeps-its-bare-name`,
+        // not asserted here.
+        match src_table.lookup(of) {
+            Some(_) => assert!(
+                **of == *piece,
+                "{at}: {name:?} cites the row {of:?}, but the edge {here:?} lies within {piece:?}"
+            ),
+            None => assert!(
+                !whole,
+                "{at}: {name:?} is spelled as a piece of its line, but the edge {here:?} is \
+                 all of {piece:?}"
+            ),
+        }
         if topo::query::edge_carrier_kind(body, k) == Some(topo::query::CurveKind::Circle)
             && here.iter().all(|p| (p.z - 1.0).abs() < 1e-9)
         {
@@ -259,7 +287,7 @@ fn unites_in_both_orders(rim: Rim, x: (f64, f64), y: (f64, f64), pieces: usize, 
             "{at}: the union evaluates: {:?}",
             failure(&ev, u)
         );
-        let named = within_sources(&ev, u, notched, out(&doc, notched), &at);
+        let named = within_sources(&ev, u, table(&ev, u), notched, out(&doc, notched), &at);
         assert!(
             named >= pieces,
             "{at}: the top rim survives in at least {pieces} named pieces \
@@ -304,4 +332,117 @@ fn a_post_across_the_piece_of_a_notched_circle_through_0_unites() {
 #[test]
 fn a_post_across_the_other_piece_of_a_notched_circle_unites() {
     unites_in_both_orders(Rim::Circle, (-0.8, -0.4), (0.6, 1.2), 3, "post near 130°");
+}
+
+/// **A cavity the notched prism cuts through a slotted box**: the
+/// prism is the subtract's tool, so its rim pieces reach the result
+/// through the graft, and the slot kills the stretch of the first piece
+/// inside it. The pieces either side are named for the first piece.
+#[test]
+fn a_cavity_cut_by_the_notched_prism_names_its_rim_pieces() {
+    let (doc, notched) = notched_prism(Rim::Arc);
+    let (doc, boxed) = block(doc, (-1.5, 1.5), (-1.5, 1.5), 0.5, 1.0);
+    let (doc, slot) = block(doc, (0.6, 0.8), (0.4, 1.2), 0.4, 1.2);
+    let (doc, holed) = insert(
+        doc,
+        Node::Subtract {
+            from: boxed.into(),
+            tool: slot.into(),
+        },
+    );
+    let (doc, cut) = insert(
+        doc,
+        Node::Subtract {
+            from: holed.into(),
+            tool: notched.into(),
+        },
+    );
+    let ev = run(&doc);
+    assert!(
+        failure(&ev, cut).is_none(),
+        "the cavity evaluates: {:?}",
+        failure(&ev, cut)
+    );
+    let named = within_sources(
+        &ev,
+        cut,
+        table(&ev, cut),
+        notched,
+        out(&doc, notched),
+        "cavity",
+    );
+    assert!(
+        named >= 3,
+        "the top rim survives in at least three named pieces, found {named}"
+    );
+}
+
+/// **The edge check pins the piece.** The first-piece union's table,
+/// doctored the two ways a derivation that picked the wrong piece of
+/// the notched rim publishes it, fails [`within_sources`]: an edge
+/// named bare for one piece renamed for the other piece on its line;
+/// and an edge that is all of its piece respelled as a piece of the
+/// line, as it is when the wrong pick puts a second edge in its group.
+#[test]
+fn the_edge_check_refuses_a_name_for_the_other_piece() {
+    let (doc, notched) = notched_prism(Rim::Arc);
+    let (doc, post) = block(doc, (0.6, 0.8), (0.4, 1.2), 0.5, 1.0);
+    let (doc, u) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![notched.into(), post.into()]),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, u).is_none(), "the union evaluates");
+    let read = out(&doc, notched);
+    let src = table(&ev, notched);
+    // The other row on `of`'s line, where there is exactly one.
+    let other = |of: &StableName| {
+        let line = line_of(of);
+        let rows: Vec<&StableName> = src
+            .iter()
+            .map(|(n, _)| n)
+            .filter(|n| n.kind == EntityKind::Edge && line_of(n) == line && *n != of)
+            .collect();
+        match rows.as_slice() {
+            [one] if src.lookup(of).is_some() => Some((*one).clone()),
+            _ => None,
+        }
+    };
+    for respell in [false, true] {
+        let mut doctored = NameTable::new();
+        let mut swapped = 0;
+        for (name, entry) in table(&ev, u).iter() {
+            let mut name = name.clone();
+            if let [RoleSeg::From { read: r, of }] = name.path.as_mut_slice()
+                && *r == read
+                && let Some(o) = other(of)
+            {
+                if respell {
+                    *of = NameRef::new(line_of(of));
+                    name.path
+                        .push(RoleSeg::Fragment(Qualifier::Ends(Vec::new())));
+                } else {
+                    *of = NameRef::new(o);
+                }
+                swapped += 1;
+            }
+            match entry {
+                editor_core::Entry::Unique(e) => doctored.insert(name, *e).unwrap(),
+                editor_core::Entry::Tied(es) => doctored.insert_tied(name, es.clone()).unwrap(),
+            }
+        }
+        assert!(
+            swapped > 0,
+            "some edge is named bare for a piece of the notched rim"
+        );
+        let caught = std::panic::catch_unwind(|| {
+            within_sources(&ev, u, &doctored, notched, read, "doctored");
+        });
+        assert!(
+            caught.is_err(),
+            "respelled {respell}: the check passes {swapped} names for the other piece"
+        );
+    }
 }

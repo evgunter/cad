@@ -237,7 +237,7 @@ pub enum NamingError {
     /// reads the chord through to the side its own key descends to and
     /// names it as the rim that side's two constituents share — when
     /// the chord lies within that rim, which is checked geometrically
-    /// (`emit_topo`'s `chord_on_rim`). This is the refusal for a chord
+    /// (`emit_topo`'s `chord_within`). This is the refusal for a chord
     /// with no key side to read through to: a zip-listed edge, which
     /// the join minted. It does not say the body is wrong; what is
     /// missing is a rule for the chord.

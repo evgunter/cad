@@ -42,20 +42,34 @@ as PR 3167 did for a fragmented merged face, or say why a curved rim differs.
 
 ## Fixed on `emit/curved-rim-chord`
 
-The cause is the curved carrier. `emit_topo::rim_holding` picked the
-piece a chord lies within by `chord_on_rim`, which tests the chord's
-ends against the segment between a piece's ends. An arc chord lies on
-no piece's segment, so neither piece held it and the pair refused
-`Several`. The straight row passes only because its pieces are segments.
+The cause is a broken lineage. The arc piece from 53° to 197° is a
+split piece of the rim `8v1`. Its lineage runs through the stretch the
+post killed, `11v5`, and the kill drops that edge's birth record. So
+the chase stopped short of the operand table, and the piece went to
+the derived-chord path. That path's `rim_holding` then tested the arc
+against each piece's straight segment, found no piece holding it, and
+refused `Several`.
 
-The chord reaches `rim_holding` because its split lineage runs through
-the stretch the post killed, whose record died with it. That gap is
-filed as
-`a-split-piece-whose-lineage-runs-through-a-killed-piece-is-read-as-a-derived-chord`.
+Both are fixed:
+- **The chase.** It now reads the kills' dropped hops from the discard
+  rows, so the piece resolves to `8v1` in the table. The details are in
+  `a-split-piece-whose-lineage-runs-through-a-killed-piece-is-read-as-a-derived-chord`,
+  closed with this row.
+- **The derivation.** It reads "within" along the carrier
+  (`emit_topo::chord_within`): segment ends on a straight rim, and
+  `Track::cover` on a curved one. It does so for several shared edges
+  (`rim_holding`) and for a lone shared rim alike. Main had accepted
+  any chord on a lone curved rim, and could hold a straight chord on
+  an arc piece whose ends it shared.
 
-`rim_holding` now reads a curved chord against the curved pieces along
-their common carrier (`Track::cover`), the reading `joined_cover`
-already takes, and a straight one as before. Same rule as PR 3167, read
-on the carrier. Rows: `emit_curved_rim_chord`, which has this document
-in both member orders (red before the fix), the post across the second
-piece, and a notched full circle.
+**Rows** (`emit_curved_rim_chord`), each in both member orders where it
+is a union:
+- the post across the first piece, which is this document, red before
+  the fix;
+- the post across the second piece;
+- a notched full circle, twice;
+- the cavity, whose rim pieces arrive through the graft.
+
+Every one names each edge for the exact row it lies within. Unit rows
+(`emit_topo::rim_holding_rows`) cover `rim_holding` and `chord_within`
+on a split 270° prism.
