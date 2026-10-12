@@ -1608,10 +1608,11 @@ impl MarginDiag {
 
     /// Whether `sign` is a verdict classification can have reached on this
     /// reading against `band`: a definite sign on a reading past the band
-    /// on that side, and `Zero` on one not past it — within the zero band,
-    /// or, under the test-only staged-ceiling dial, the in-band reading it
-    /// passes as `Zero` (`k_stats`' `IDENTITY_PASS`). Never a poisoned
-    /// reading.
+    /// on that side, and `Zero` on one not past it — within the zero band;
+    /// in band, where the symbolic tier proved the margin zero
+    /// ([`MarginDiag::theorem`]); or, under the test-only staged-ceiling
+    /// dial, the in-band reading it passes as `Zero` (`k_stats`'
+    /// `IDENTITY_PASS`). Never a poisoned reading.
     pub(crate) fn admits_verdict(self, sign: Sign, band: Band) -> bool {
         let past = self.placement(band) == Placement::Past;
         let positive = match self.0 {
@@ -1647,8 +1648,11 @@ impl MarginDiag {
     /// passing `passes`, or `None` where none does: a poisoned reading,
     /// one past the band (decided at this tolerance already), one whose
     /// sign no tolerance moves onto a side `passes` accepts, or one the
-    /// symbolic tier proved zero ([`MarginDiag::theorem`]), which no
-    /// tolerance decides whatever its numeric reading.
+    /// symbolic tier proved identically zero ([`MarginDiag::theorem`]).
+    /// D4 ¶1 (i) offers a tolerance only for a size the user may intend,
+    /// and a proved zero is none: its numeric reading is the rounding of
+    /// an exact identity, and a tolerance that decided that reading would
+    /// pass the decision on the rounding.
     fn tightens_below(self, band: Band, passes: SizedPass) -> Option<f64> {
         if self.placement(band) == Placement::Past || self.theorem().is_some() {
             return None;
@@ -1710,7 +1714,8 @@ impl MarginDiag {
     /// margin tightens where it is nonzero on a side the decision
     /// accepts; an enclosure where both ends do, below its nearer end;
     /// neither where it lies past the band, decided at this tolerance
-    /// already, nor where the symbolic tier proved it zero. Otherwise
+    /// already, nor where the symbolic tier proved it zero, which is no
+    /// size the user may intend. Otherwise
     /// the lever alone, with [`SizedWords::otherwise`] where given; a
     /// poisoned margin takes [`SizedWords::unreadable`] instead
     /// ([`MarginDiag::unreadable_note`]).
@@ -2203,6 +2208,12 @@ impl fmt::Display for IndeterminatePayload<'_> {
                 f,
                 "margin {margin:e} lies inside the ambiguity band ({zero:e}, {escalate:e})"
             ),
+            // A proof decided it, so the enclosure is only where the
+            // numbers stand.
+            Placement::Undecided if margin.theorem().is_some() => write!(
+                f,
+                "enclosure {margin:e} reaches into the ambiguity band ({zero:e}, {escalate:e})"
+            ),
             Placement::Undecided => write!(
                 f,
                 "enclosure {margin:e} cannot be classified against the ambiguity \
@@ -2331,11 +2342,12 @@ impl Indeterminate {
     /// for the word and by [`Indeterminate::ending`] for the lever.
     ///
     /// Subdivision keeps a decided sign, a decided nonzero sign is
-    /// sign-certain, a zero on the side a gate rejects stays there at
-    /// every smaller tolerance, and one the symbolic tier proved is zero
-    /// at all of them, so no tolerance arm rides with any (D4 ¶1 (i)).
-    /// An undecided enclosure and an unreadable margin say theirs in
-    /// the lever.
+    /// sign-certain, and a zero on the side a gate rejects stays there
+    /// at every smaller tolerance, so no tolerance arm rides with either
+    /// (D4 ¶1 (i)). A margin the symbolic tier proved zero is no size the
+    /// user may intend, so none rides with it either, and no subdivision
+    /// unproves it. An undecided enclosure and an unreadable margin say
+    /// theirs in the lever.
     fn reading(&self) -> (Option<&'static str>, KindLever) {
         let (margin, band) = (self.margin, self.band);
         match (margin.placement(band), margin.kind()) {
@@ -2343,7 +2355,11 @@ impl Indeterminate {
                 Some("a decided sign this decision cannot use"),
                 KindLever::Door,
             ),
-            (Placement::ZeroBand | Placement::Undecided, _)
+            (Placement::ZeroBand | Placement::Undecided, _) if margin.theorem().is_some() => (
+                Some("a zero the symbolic tier proved, which no tolerance makes a size"),
+                KindLever::Door,
+            ),
+            (Placement::ZeroBand, _)
                 if margin.tag().is_some()
                     && margin.tightens_below(band, self.passes()).is_none() =>
             {
@@ -2792,10 +2808,13 @@ mod tests {
     }
 
     /// **A margin the symbolic tier proved zero is offered no
-    /// tolerance** (D4 ¶1 (i)): no smaller one decides it, whatever its
-    /// numeric reading, so a decision passing a positive sign ends in the
-    /// lever and its note — at rest, at the import door, and in a gate's
-    /// rejection. The same reading unproven is offered one.
+    /// tolerance** (D4 ¶1 (i)): a proved zero is no size the user may
+    /// intend, whatever its numeric reading, so a decision passing a
+    /// positive sign ends in the lever and its note — at rest, at the
+    /// import door, and in a gate's rejection, whose word names the
+    /// proof and whose payload does not call the reading unclassifiable.
+    /// The same reading unproven is offered one, in band, in the zero
+    /// band and as an enclosure.
     #[test]
     fn a_proven_zero_is_offered_no_tolerance() {
         let band = band_1e9();
@@ -2809,47 +2828,79 @@ mod tests {
         let file = FileCoincidence::new(1e-8);
         let head = "This length is below the file's declared coincidence distance ε_in = 1e-8 m, \
                     so the file does not state it. Recourse: L";
-        let unproven = MarginDiag::value(5e-9);
-        let proven = unproven.proven(Theorem::SymbolicZero);
-        assert_eq!(
-            unproven.sized_recourse(band, words),
-            "Recourse: L, or, if this length is intended, tighten the tolerance below 5e-10 m",
-            "unproven, at rest"
-        );
-        assert_eq!(
-            unproven.sized_recourse_in_file(band, words, file),
-            format!(
-                "{head}, or, if this length is intended, re-export the file with its \
-                 uncertainty declared below 5e-9 m and tighten the tolerance below 5e-10 m"
-            ),
-            "unproven, at the import door"
-        );
-        assert_eq!(
-            proven.sized_recourse(band, words),
-            "Recourse: L; n",
-            "proven, at rest"
-        );
-        assert_eq!(
-            proven.sized_recourse_in_file(band, words, file),
-            format!("{head}; n"),
-            "proven, at the import door"
-        );
         let rejected = |margin: MarginDiag| Indeterminate {
             margin: margin.rejected_by(Sign::Zero, SizedPass::Positive),
             band,
             predicate: None,
             terminal_sliver: false,
         };
-        assert!(
-            rejected(unproven).offers_tolerance(),
-            "unproven, a gate's rejection"
-        );
-        assert_eq!(
-            rejected(proven).under("L").to_string(),
-            "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8) — a decided zero no \
-             smaller tolerance moves onto a side this decision passes; Recourse: L",
-            "proven, a gate's rejection"
-        );
+        let proved =
+            "a zero the symbolic tier proved, which no tolerance makes a size; Recourse: L";
+        let rows = [
+            (
+                MarginDiag::value(5e-9),
+                "5e-10",
+                "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8)",
+            ),
+            (
+                MarginDiag::value(5e-10),
+                "5e-11",
+                "margin 5e-10 lies within the zero band (±1e-9)",
+            ),
+            (
+                MarginDiag::enclosure(2e-9, 5e-9),
+                "2e-10",
+                "enclosure [2e-9, 5e-9] reaches into the ambiguity band (1e-9, 1e-8)",
+            ),
+        ];
+        for (unproven, below, payload) in rows {
+            let proven = unproven.proven(Theorem::SymbolicZero);
+            assert_eq!(
+                unproven.sized_recourse(band, words),
+                format!(
+                    "Recourse: L, or, if this length is intended, tighten the tolerance below \
+                     {below} m"
+                ),
+                "{unproven}: unproven, at rest"
+            );
+            assert!(
+                rejected(unproven).offers_tolerance(),
+                "{unproven}: unproven, a gate's rejection"
+            );
+            assert_eq!(
+                proven.sized_recourse(band, words),
+                "Recourse: L; n",
+                "{unproven}: proven, at rest"
+            );
+            assert_eq!(
+                proven.sized_recourse_in_file(band, words, file),
+                format!("{head}; n"),
+                "{unproven}: proven, at the import door"
+            );
+            assert_eq!(
+                rejected(proven).under("L").to_string(),
+                format!("{payload} — {proved}"),
+                "{unproven}: proven, a gate's rejection"
+            );
+        }
+        // Only a proof takes the subdivision lever from an enclosure a
+        // gate rejected in band: under the staged-ceiling dial, an
+        // unproven one keeps it, straddling zero or not.
+        for unproven in [
+            MarginDiag::enclosure(2e-9, 5e-9),
+            MarginDiag::enclosure(-2e-9, 5e-9),
+        ] {
+            let ending = rejected(unproven).ending("L");
+            assert!(
+                ending.starts_with("Recourse: subdivide the parameter box"),
+                "{unproven}: unproven, a gate's rejection: {ending}"
+            );
+            assert_eq!(
+                rejected(unproven.proven(Theorem::SymbolicZero)).ending("L"),
+                "Recourse: L",
+                "{unproven}: proven, a gate's rejection"
+            );
+        }
     }
 
     /// **No offer at the import door keeps a size the file does not
