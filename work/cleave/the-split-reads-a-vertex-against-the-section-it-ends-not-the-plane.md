@@ -50,7 +50,9 @@ shallowest such face, under `vertex_section_side`: Zero is ON, in band
 escalates typed (`SliverVertex` at the split, `Escalated {
 Coincidence(VertexOnFace) }` at the Boolean, each with its lever), and
 definite reads the vertex off on its offset's side. Planar faces,
-rulings and tangent rulings add no reading, so `ψ = 0` and a vertex
+rulings and tangent rulings add no reading, nor does a face beside a conic edge at
+the vertex that the crossing lane reads parallel to the plane (its
+section there is that edge; `a_plane_along_an_elliptic_cut` pins it), so `ψ = 0` and a vertex
 with no curved face read as before.
 
 Measured on `origin/main` first, the unit cylinder turned φ ∈ {0.9,
