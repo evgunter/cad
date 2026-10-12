@@ -49,3 +49,22 @@ integrand itself depends on the origin, so its width should be judged
 against the flux's own magnitude after the fix. Settle whether
 `a-translated-arc-prism-panics-the-area-gauge-through-mass-properties`
 is this degradation.
+
+## A candidate home for the fix (ENCL `encl/one-chart-speed`, 2026-10-12)
+
+`crates/geom-brep/src/patch_bound.rs` now holds one per-cell rational
+quotient-numerator form, `QuotientForm`, which `rational_cells` (the
+O3 meters) and `ssi::enclose`'s `CellNet` (the SSI chart speeds) both
+read. It is `S_d`'s numerator about a cell-local centre `c`: the
+terms `k_i − g_i·q`, with `k_i` the coefficients of
+`Ã_d = A_d − c·w_d`, `g_i` those of `w_d`, and offsets
+`q_j = P_j − c`. No term holds an absolute coordinate. That is the
+translation-free assembly this row's "What is open" asks for, and
+`props/quad.rs`' `Ladder::cross_num`
+(`w·(A_u×A_v) − w_v·(A_u×A) − w_u·(A×A_v)` over `A` in the absolute
+frame) is a candidate consumer. `S_u × S_v` is the cross product of
+two such forms over `w²`, and the `(S − c) × (S − c)` term is
+identically zero. `patch_bound`'s own `m_sup` bound (the field's
+docs) already reads it that way, though through the triangle
+relaxation. `cross_num_u`/`cross_num_v` would need the forms' second
+partials as well, which `QuotientForm` does not carry yet.

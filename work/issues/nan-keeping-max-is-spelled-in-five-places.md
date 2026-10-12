@@ -32,7 +32,7 @@ manufactured by a quotient of finite operands (SSI log, PR 3646).
 ## A dropped NaN that cost a bound (PR 3916 review, 2026-10-03)
 
 **Reproduced.** `Centred::of` and `Centred::of_affine`
-(`crates/geom-brep/src/ssi/enclose.rs`), the `f64` screen of the plane ×
+(`crates/geom-brep/src/ssi/enclose.rs` then, `patch_bound.rs` now), the `f64` screen of the plane ×
 NURBS chart readings, folded their radii with `fold(0.0, f64::max)`.
 An offset spanning the whole finite range overflows its radius to `+∞`,
 a term that does not read it (`g` exactly zero) then forms `0·∞ = NaN`,
