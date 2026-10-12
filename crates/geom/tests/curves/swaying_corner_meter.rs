@@ -321,6 +321,8 @@ fn the_rational_meter_stays_below_the_speed_and_refuses_a_stall() {
         built * 2 >= cases && stalls * 8 >= cases,
         "fuzz rot: {built} nets, {stalls} stalls of {cases} — {}",
         fuzz::replay()
+    );
+}
 
 /// The meter is memoised on the curve, and the memo is not part of its
 /// value: reading it leaves `Debug` unchanged, a clone reads the same
