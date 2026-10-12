@@ -537,6 +537,22 @@ fn digest() -> String {
 /// later read, where each read used to build its own. That changes
 /// which nodes the early walk meets and freezes; which freeze cause
 /// each added count is, is not measured.
+///
+/// **Re-cut at all three ε when `props::quad`'s `de_boor` began
+/// evaluating a node inside its span as the window's blossom** (every
+/// level `Certification::between`, where the affine step had carried
+/// each level's width forward). Three rows move, and every new volume
+/// and area enclosure lies inside the old one:
+/// * `loft_prism`: the volume pad falls by 48% at every ε, its midpoint
+///   still the exact 9e9; the area is unchanged;
+/// * `arc_loft_1e9eps`: `v` by 2, 2 and 4 ulps and `a` by at most 2 at
+///   ε = 1e-6, 1e-9 and 1e-12, the volume pads by 1.5e-8 to 2.1e-8 of
+///   themselves and the area pads by about 1.8e-13;
+/// * `quintic_prism`, at ε = 1e-6 and 1e-9 only: `v` by 0 and 28 ulps
+///   and `a` by 4, the pads by at most 1.2e-9 of themselves.
+///
+/// Verdicts, refusals, the other rows and the sym-session counts are
+/// unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
