@@ -442,22 +442,24 @@ fn a_continuation_on_a_wall_bounded_by_an_ellipse_builds_every_op() {
     }
 }
 
-/// **A rim across a wall's ellipse builds where the join can describe
-/// it.** The slanted tube and a coaxial rod of the same radius from
-/// `z = 0.5` (turned `0.4` and `1.3` rad), their walls one carrier: the
-/// rod's lower rim crosses the tube's ellipse where `x = 0`, so each is
-/// split at the other's crossing, read where the circle's plane meets
-/// the ellipse's. The overlap is the tube less the part under `z = 0.5`,
-/// `1.5π − 2/15`; `t ∖ r` is that part, `2/15`, and `r ∖ t` the rod above
-/// `z = 2` and the part under the slant, `0.5π + 2/15`. `t ∪ r` refuses
-/// `EdgeUndescribed` with no conventional lane where `r ∪ t` builds
-/// (`cleave/a-rod-rim-across-a-tube-ellipse-union-is-undescribed-in-one-order`).
+/// **A rim across a wall's ellipse builds every op in both orders.**
+/// The slanted tube and a coaxial rod of the same radius from
+/// `z = 0.5`, turned about `z` through a family of angles, their walls
+/// one carrier: the rod's lower rim crosses the tube's ellipse where
+/// `x = 0`, so each is split at the other's crossing, read where the
+/// circle's plane meets the ellipse's. The overlap is the tube less the
+/// part under `z = 0.5`, `1.5π − 2/15`; `t ∖ r` is that part, `2/15`,
+/// `r ∖ t` the rod above `z = 2` and the part under the slant,
+/// `0.5π + 2/15`, and the union `2π + 2/15`. Whichever member's wall a
+/// union keeps, the piece of the other's rim lying across it (the
+/// ellipse's arc over `x > 0` in `t ∪ r`, the circle's over `x < 0` in
+/// `r ∪ t`) is described in the kept wall's chart.
 #[test]
-fn a_rim_across_a_walls_ellipse_builds_every_op_but_one_union_order() {
+fn a_rim_across_a_walls_ellipse_builds_every_op_in_both_orders() {
     let tol = Tol::witness();
     let t = slanted_tube();
     let common = 1.5 * PI - 2.0 / 15.0;
-    for turn in [0.4, 1.3] {
+    for turn in TURNS {
         let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), turn);
         let r = finished(
             "the rod",
@@ -465,14 +467,10 @@ fn a_rim_across_a_walls_ellipse_builds_every_op_but_one_union_order() {
             tol,
         );
         let label = |op: &str| format!("turn {turn}: {op}");
-        let res = topo::union(&t, &r, tol);
-        assert!(
-            matches!(res, Err(BooleanError::EdgeUndescribed { .. })),
-            "{}: {res:?}",
-            label("t ∪ r refuses EdgeUndescribed")
-        );
+        let union = 2.0 * PI + 2.0 / 15.0;
         for (op, res, volume) in [
-            ("r ∪ t", topo::union(&r, &t, tol), 2.0 * PI + 2.0 / 15.0),
+            ("t ∪ r", topo::union(&t, &r, tol), union),
+            ("r ∪ t", topo::union(&r, &t, tol), union),
             ("t ∖ r", topo::subtract(&t, &r, tol), 2.0 / 15.0),
             ("r ∖ t", topo::subtract(&r, &t, tol), 0.5 * PI + 2.0 / 15.0),
             ("t ∩ r", topo::intersect(&t, &r, tol), common),
@@ -496,6 +494,10 @@ fn a_rim_across_a_walls_ellipse_builds_every_op_but_one_union_order() {
         }
     }
 }
+
+/// The rod's turns about `z`: its seam rulings on either side of the
+/// crossings at `(0, ±1)`, near them and far.
+const TURNS: [f64; 6] = [0.0, 0.4, 1.3, 1.5, 2.0, 2.9];
 
 /// **Two sections the band reads coplanar are not taken for one
 /// curve.** Two radius-`0.01` rods on one axis, each cut below a plane

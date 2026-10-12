@@ -593,12 +593,8 @@ pub enum EdgeDescribeFailure {
     Intersection,
     /// Their tangency does not certify on the edge's carrier.
     Tangency,
-    /// The carrier has no conventional description in a chart.
-    NoConventionalLane,
-    /// The arc's image in its face's chart does not certify.
-    Arc,
-    /// The line's image in its face's chart does not certify.
-    Line,
+    /// Its curve's image in its face's chart does not certify.
+    Chart,
 }
 
 impl EdgeDescribeFailure {
@@ -610,11 +606,7 @@ impl EdgeDescribeFailure {
             }
             Self::Intersection => "its two faces' intersection does not certify on its curve",
             Self::Tangency => "its two faces' tangency does not certify on its curve",
-            Self::NoConventionalLane => {
-                "its curve has no description in a face's chart for its kind"
-            }
-            Self::Arc => "its arc does not certify as an image in its face's chart",
-            Self::Line => "its line does not certify as an image in its face's chart",
+            Self::Chart => "its curve does not certify as an image in its face's chart",
         }
     }
 }

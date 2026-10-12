@@ -2552,7 +2552,6 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .edge_curve_linked(edge, &edge_data)
             .certified()
             .cloned();
-        let curved = existing.as_ref().is_some_and(|c| c.carrier().is_curved());
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (witness, extent) = (draft.witness, draft.extent);
         match seam_reading(surf1, surf2, witness, extent, band)
@@ -2630,40 +2629,23 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         of_attachment(edge, EdgeDescribeFailure::Tangency, c.carrier().kind(), e)
                     })?;
                 } else if stale {
-                    if curved {
-                        // The conventional re-description for an arc
-                        // the adjacent surfaces under-determine, on the
-                        // UNCHANGED carrier (no silent geometric
-                        // rewrite — only the description moves). The
-                        // edge comes to REST here, so it is described
-                        // where it rests — as an image in `s1`'s own
-                        // chart (D3's transience fence) — and the arc
-                        // pushforward that used to BE the description
-                        // is recorded as the authority beside it.
-                        // Carrier kinds with no conventional
-                        // pushforward keep the typed refusal.
-                        let c = existing.as_ref().ok_or_else(corrupt)?;
-                        let (t0, t1) = c.params();
-                        let Some(spec) =
-                            geom_brep::EdgeCurveSpec::arc_of_circle(c.carrier().clone(), t0, t1)
-                        else {
-                            return Err(DescribeRefusal::failed(
-                                edge,
-                                EdgeDescribeFailure::NoConventionalLane,
-                            ));
-                        };
-                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|e| {
-                                of_attachment(edge, EdgeDescribeFailure::Arc, c.carrier().kind(), e)
-                            })?;
-                    } else {
-                        let spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                        let carrier = spec.carrier.kind();
-                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|e| {
-                                of_attachment(edge, EdgeDescribeFailure::Line, carrier, e)
-                            })?;
-                    }
+                    // The conventional re-description for a locus the
+                    // adjacent surfaces under-determine, whatever its
+                    // carrier's kind: an image in `s1`'s own chart on
+                    // the unchanged carrier (only the description
+                    // moves), its authority record carried as it was.
+                    let c = existing.as_ref().ok_or_else(corrupt)?;
+                    let chart = geom_brep::EdgeDescriptionSpec::chart(s1);
+                    let spec = geom_brep::EdgeCurveSpec {
+                        description: match c.authority() {
+                            geom_brep::EdgeAuthority::Declared(mc) => chart.declared_by(mc),
+                            geom_brep::EdgeAuthority::Derived => chart,
+                        },
+                        ..c.restated_spec()
+                    };
+                    body.set_edge_curve(edge, spec, tol).map_err(|e| {
+                        of_attachment(edge, EdgeDescribeFailure::Chart, c.carrier().kind(), e)
+                    })?;
                 }
             }
         }
@@ -8297,9 +8279,7 @@ mod tests {
             EdgeDescribeFailure::NotWalkable,
             EdgeDescribeFailure::Intersection,
             EdgeDescribeFailure::Tangency,
-            EdgeDescribeFailure::NoConventionalLane,
-            EdgeDescribeFailure::Arc,
-            EdgeDescribeFailure::Line,
+            EdgeDescribeFailure::Chart,
         ] {
             every.push(DescribeRefusal::failed(strut, failure));
             for fitted in [false, true] {
