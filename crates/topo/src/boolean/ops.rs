@@ -9249,6 +9249,63 @@ mod holder_rows {
         );
     }
 
+    /// A kept vertex whose rest is apart from its result point was moved
+    /// by a stage: the carry refuses. Red when the rest goes unchecked.
+    #[test]
+    fn a_kept_vertex_apart_from_its_rest_refuses() {
+        let (mut body, top, other) = divided();
+        let v = lone(&mut body, 1.5, 0.5, 1.0);
+        let rests = BTreeMap::from([((Operand::A, v), Point3::new(0.5, 1.5, 1.0))]);
+        let got = carried_from(
+            &body,
+            v,
+            top,
+            vec![(other, top)],
+            Descendants::default(),
+            &rests,
+        );
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::JoinDesync {
+                    what: "a vertex-on-face row's vertex is not at its operand point"
+                })
+            ),
+            "{got:?}"
+        );
+    }
+
+    /// A kept vertex whose rest is in band of its result point escalates
+    /// as the carry's lineage check. Red when an in-band gap is read as
+    /// one point, or as apart.
+    #[test]
+    fn a_kept_vertex_in_band_of_its_rest_escalates() {
+        let (mut body, top, other) = divided();
+        let v = lone(&mut body, 1.5, 0.5, 1.0);
+        let rests = BTreeMap::from([(
+            (Operand::A, v),
+            Point3::new(1.5 + 3.0 * band().zero(), 0.5, 1.0),
+        )]);
+        let got = carried_from(
+            &body,
+            v,
+            top,
+            vec![(other, top)],
+            Descendants::default(),
+            &rests,
+        );
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::Escalated {
+                    decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
+                    ..
+                })
+            ),
+            "{got:?}"
+        );
+    }
+
     /// A vertex with no logged rest point refuses: its face cannot be
     /// read without it. Red when it is read by key instead.
     #[test]
