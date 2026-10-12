@@ -369,5 +369,5 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 - **Filed:** `conic-germs-pair-order-is-unargued` (conic germs still escalate as on main), plus the ellipse-span issue on `geom-brep`.
 - **Battery moves:** every one is an escalation that now builds.
   - At 1e-6, 4 `four_pairs` lines go to OK BAD. They are on the seams row's list, which `flush/touch-key` is fixing.
-- **Class (the second time):** a proof about a banded comparator missed the non-transitivity of Zero ties (K ≤ 2). A lane proving order-independence under the trilean should state K as a premise.
+- **Class:** a proof about a banded comparator missed the non-transitivity of Zero ties (K ≤ 2). A lane proving order-independence under the trilean should state K as a premise.
 — (FLUSH orchestrator)
