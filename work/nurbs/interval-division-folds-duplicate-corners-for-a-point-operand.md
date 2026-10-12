@@ -2,10 +2,12 @@
 id: interval-division-folds-duplicate-corners-for-a-point-operand
 kind: issue
 title: The interval backend's division folds four corner quotients where a point operand has two, so every point-operand division pays twice the exactness witnesses it needs
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
+closed: 2026-10-12
+branch: nurbs/div-point-paths
 ---
 
 `interval-transcendentals/src/arith.rs`'s `Div for DInterval`, in its
@@ -33,3 +35,25 @@ pinning them to the four-corner fold over an edge table (the `Mul`
 row's `EDGES`, minus divisors that touch zero). The point paths should
 reuse `arith.rs`'s `corner_bounds`, generalized over the corner
 function, rather than mint a third fold.
+
+## Closed (NURBS, branch `nurbs/div-point-paths`)
+
+`Div`'s branch whose divisor keeps clear of zero now takes the point
+paths: a point operand folds its 2 distinct corner quotients, and
+point ÷ point takes its 1. The output is bit-identical.
+
+`corner_bounds` takes its directed corner functions, so `Mul` and `Div`
+share one fold and no third copy exists.
+
+**Rows** (`interval-transcendentals/src/arith.rs`):
+- `a_point_product_is_the_four_corner_fold` and
+  `a_point_quotient_is_the_four_corner_fold` sweep every interval over
+  `EDGES` at two decorations. For the quotient, divisors are restricted
+  to those clear of zero.
+- Their oracle is the literal four-corner fold, written out in the test
+  rather than read through `corner_bounds`, so a fault in the shared
+  fold cannot hide in its own reference.
+- Mutants, each red:
+  - a dropped divisor corner (quotient row);
+  - point ÷ point padded downward on both ends (quotient row);
+  - the shared fold taking `max` for its least (both rows).
