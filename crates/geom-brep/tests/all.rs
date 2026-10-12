@@ -135,6 +135,8 @@ mod pn_apex_pair_over_a_span;
 mod pn_apex_reach;
 #[path = "props_cone_apex_cap.rs"]
 mod props_cone_apex_cap;
+#[path = "props_cone_incidence.rs"]
+mod props_cone_incidence;
 #[path = "props_cone_ring.rs"]
 mod props_cone_ring;
 #[path = "props_cone_vector_area.rs"]

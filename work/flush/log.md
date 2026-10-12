@@ -340,3 +340,19 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 - **Merged over** main's open INTENT P0 loft test at 1e-12.
 - **Class** (the third time): fixes at `boolean/ops.rs`'s carry keep minting copies of the census's reads. The common brief now says the census's read is the one home.
 — (FLUSH orchestrator)
+
+## 2026-10-12 — PR 4777 merged: the pinch residue
+
+- **Closed:** `a-cube-less-a-pinched-operand-…` and `a-curved-notch-at-a-corner-pinch-…`.
+  - **The 36 `dbl` lines.** A split swaps corners' loop successors, so the section faces no longer pair one to one. They now zip by edge pairs (`glue`, and `zip_split` for a split seam). `glue` reproduces the old loopglue on every face-pair seam both reviewers measured.
+  - **The 15 curved lines.** The discard picks a null-edge copy by its mirrored place in the twin's cycle, loop by loop, not by its two end vertices.
+- **Review:** concurrent pair (three M rows treated as H). Both APPROVE-WITH-FIXES with 0 MAJOR. One fix pass, and R2's delta check confirmed it.
+- **Filed:**
+  - REFS `a-discard-names-a-bordered-stretch-by-its-two-end-vertices`. Same defect class one layer down, but it needs a naming-shape choice.
+  - FLUSH `a-split-seams-kfmrh-onto-a-curved-host-is-unexercised` (P3).
+- **The third row** (two parts' touching vertices on two keys) stopped at a design question.
+  - The designer pair agreed on their first reports: one point key wherever an op decided one point, across an assembly's solids too.
+  - **Ruled A** (fork-log row 121). It extends ruling B and changes no ratified decision. It is building on `flush/touch-key`.
+  - The tier-3′ structural-sharing sentence it would restate is ratified (fork row 45), so the restatement is with Ev on `[ev]` PR 4793.
+- **Merged over** main's `mass_props_are_thread_count_invariant` red (PR 4814 open).
+— (FLUSH orchestrator)

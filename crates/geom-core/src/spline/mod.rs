@@ -55,7 +55,7 @@ pub mod projective;
 pub mod range;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep, RingRefinement};
-pub use blossom::{BlossomError, SpanRow, restrict_bernstein, restrict_segment};
+pub use blossom::{BlossomError, SpanRow, diagonal_in_span, restrict_bernstein, restrict_segment};
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };

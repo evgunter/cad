@@ -43,3 +43,25 @@ glue's tangency decision among its citations. Choosing how a record
 cites a glue decision is the design question: a pending row that mirrors
 the glue's, or a `Backing` that addresses the recorded coincidences.
 Until then the row is backed by its end fusions alone.
+
+## Measured once reached (2026-10-12, `contacthold/same-side-tangent-touch`)
+
+The short-circuit is gone, so a same-side tangent touch now reaches
+`EdgeEdge::Touch`. Its row cites the two end fusions and nothing else.
+For the two discs kissing externally, the union's coincidences are as
+follows:
+
+- rows 0–1: the caps, `SameOriented` / `PlaneLadder`;
+- rows 2–5: the wall pairs, `TangentContact { seam: false }` /
+  `TangentWitness`;
+- rows 6–7: the two end `VertexFusion`s.
+
+The edge–edge record cites `[Decided(6), Decided(7)]`. Each
+vertex–vertex record cites one of 6 and 7. No record cites rows 2–5.
+`sameside-corner` reads the same, with the record citing
+`[Decided(4), Decided(5)]`, the two vertex–vertex rows' backings. The
+rows that reach the arm are
+`wedge_end_doors::two_discs_kissing_externally_touch_at_every_op`,
+`verbs_cylcyl_r1_review_probes::externally_tangent_walls_touch_at_every_op`
+and
+`review_4704_flush_round_oracle::a_same_side_tangent_touch_answers_every_op`.
