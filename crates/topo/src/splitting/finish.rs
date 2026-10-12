@@ -1059,19 +1059,12 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         band,
                     )
                     .description(pair, witness)
-                    .map_err(|refusal| match refusal {
-                        geom_brep::MustCarryRefusal::InBand(
-                            geom_brep::MustCarryEscalation::FirstOrder(escalation),
-                        ) => SplitFinishError::DescribeEscalated {
-                            edge,
-                            diag: escalation.diag(),
-                        },
-                        geom_brep::MustCarryRefusal::InBand(
-                            geom_brep::MustCarryEscalation::SecondOrder(diag),
-                        ) => SplitFinishError::DescribeBendEscalated { edge, diag },
-                        geom_brep::MustCarryRefusal::Refuted => {
-                            SplitFinishError::SmoothJoinRefuted { edge }
-                        }
+                    .map_err(|refusal| {
+                        refusal.route(
+                            |diag| SplitFinishError::DescribeEscalated { edge, diag },
+                            |diag| SplitFinishError::DescribeBendEscalated { edge, diag },
+                            || SplitFinishError::SmoothJoinRefuted { edge },
+                        )
                     })?;
                     // A description of the demanded kind that names
                     // the edge's current pair stays verbatim (a stated
