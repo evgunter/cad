@@ -4,7 +4,6 @@ kind: ruling
 title: C12 (7): a sphere face whose loop holds both poles is read through its seam region
 status: open
 opened: 2026-10-11
-needs_ev: true
 ---
 
 
@@ -18,3 +17,7 @@ The paragraph describes the seam-region reading built in PR 4746, under `a-pair-
 A region whose boundary carries both poles encodes no side, and a one-face region's flip is another valid body.
 
 (FLUX orchestrator)
+
+## Ev's answer (2026-10-12, PR 4753)
+
+"sure i think this is ok, though i don't feel like i have much context." The paragraph is adopted as written. It merges after PR 4746, whose function it names; this row closes then.
