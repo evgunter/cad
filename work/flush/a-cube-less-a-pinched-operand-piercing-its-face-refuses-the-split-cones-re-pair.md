@@ -2,10 +2,12 @@
 id: a-cube-less-a-pinched-operand-piercing-its-face-refuses-the-split-cones-re-pair
 kind: issue
 title: A cube less a pinched operand whose cones pierce its face at one point refuses ZipCorrespondence in split_cones' re-pair (36 dbl lines)
-status: open
+status: review
 opened: 2026-10-11
 priority: P2
 cost: M
+branch: flush/pinch-residue
+pr: 4777
 ---
 
 

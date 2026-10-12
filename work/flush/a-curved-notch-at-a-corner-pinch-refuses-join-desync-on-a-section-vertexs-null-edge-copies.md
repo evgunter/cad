@@ -2,11 +2,13 @@
 id: a-curved-notch-at-a-corner-pinch-refuses-join-desync-on-a-section-vertexs-null-edge-copies
 kind: issue
 title: A curved notch at a corner pinch refuses JoinDesync: a section vertex's null-edge copies have not exactly one kept end (15 lines, 5 poses)
-status: open
+status: review
 opened: 2026-10-11
 priority: P2
 cost: M
 refs: [4249]
+branch: flush/pinch-residue
+pr: 4777
 ---
 
 
