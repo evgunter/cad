@@ -56,9 +56,9 @@ row asserts the refusal by order.
 
 ## Closed
 
-`vtxfac::partner_side` reads a partner whose bounds read on the face, as
-well as one strictly off it: the side its bounds off the face read,
-where every sector has one off it. Each sector is a wedge under a
+`vtxfac::partner_side` reads a partner whose bounds read on a planar
+face, as well as one strictly off it: the side its bounds off the face
+read, where every sector has one off it. Each sector is a wedge under a
 half-turn, so the link lies in that closed half-space and meets the
 face's plane only along the rays read on it; the side of the link in
 that half-space, the partner's cone, meets the plane only along those
@@ -66,11 +66,12 @@ rays, on its boundary. So every direction in the plane stays on the
 other solid's boundary (an edge of the touching vertex along a shared
 ray reads `On`, as the touch read it), and the cones layer as before
 (`vtxfac::touch_classes`). A bound in band escalates instead of
-refusing `VertexReadTwice`. Still refused, as before: a sector of the
-partner on the face (both bounds on it), a partner along the face beside
-a touch with a sector in the face's plane, and a pair beside a partner
-along the face that reads a sector pair on one plane, the last two
-before any declaration is read for them.
+refusing `VertexReadTwice`. Still refused: a bound on a curved face's
+tangent plane (which way it leaves is the carriers' relative
+curvature), a sector of the partner on the face, and, beside a partner
+along the face, a touch with a sector in the face's plane or a pair
+reading a sector pair on one plane: coincidences the layering is not
+proved beside, refused before the glue door reads them.
 
 Every lying-pyramid cell (90) builds, tier 3, volumes that add up,
 material probes and the naming's classes against the other operand;
@@ -82,5 +83,6 @@ and refuse `RingMeetsRing` at step 3
 (`an-edge-lying-in-a-face-at-a-pierce-refuses-ring-meets-ring`);
 [2, 0, 3, 1] refuses at its step 3 on the bisector arm
 (`a-contact-line-whose-ray-holds-a-subdivision-bisector-refuses-unbuilt`).
-The PR body carries the proof, the adversarial poses and the mutants.
-
+An edge along the shared ray leaves its overlap unrecorded, filed as
+`an-edge-along-a-partners-ray-through-a-touch-has-no-record`. The PR
+body carries the proof, the adversarial poses and the mutants.
