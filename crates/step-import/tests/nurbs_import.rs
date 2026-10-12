@@ -369,23 +369,15 @@ fn arc_loft_natively_computes_its_rational_volume() {
             // that check decided on.
             let got = enclosure;
             let (want, want_terms) = native_props.expect("the native side certified");
-            // **BIT identity where it holds, ulp identity where it
-            // cannot** (R1 MINOR-2, re-stated for
-            // `work/exch/arc-loft-round-trip-volume-differs-by-face-order.md`).
-            // Overlap is what soundness needs, but it is not what actually
-            // happens, and asserting the weaker fact would let a real
-            // divergence hide inside a pad. What the reader reproduces is
-            // every FACE: the same chart and trim, so each face's
-            // quadrature runs on the same bits and returns the same flux.
-            // What it does not reproduce is the face ARENA order: its
-            // Euler-operator assembly allocates faces in its own order,
-            // and the body fold sums the face terms in plain `f64` in
-            // arena order (`topo::props`' `fold_runs`, D9 addendum idiom
-            // 2's sequential fold), and an `f64` sum rounds differently in
-            // another order. Whether the fold should be order-independent
-            // is FLUX's design row
-            // `work/flux/the-whole-body-property-fold-depends-on-face-order.md`.
-            // So:
+            // **BIT identity** (R1 MINOR-2). Overlap is what soundness
+            // needs, but it is not what actually happens, and asserting
+            // the weaker fact would let a real divergence hide inside a
+            // pad. What the reader reproduces is every FACE: the same
+            // chart and trim, so each face's quadrature runs on the same
+            // bits and returns the same flux. What it does not reproduce
+            // is the face ARENA order, and the body fold does not read it
+            // (`topo::props`' `fold_runs` sums the terms rounded once and
+            // the pads exactly, rounded up). So:
             //
             // * the import's gate enclosure IS the imported body's own
             //   measurement, bit for bit (same body, same order);
@@ -420,32 +412,22 @@ fn arc_loft_natively_computes_its_rational_volume() {
                 "the round trip must reproduce every face's flux bit for bit: \
                  native {want_terms:?}, imported {imported_terms:?}"
             );
-            // * native against imported bodies, the same terms summed in
-            //   two orders: two orders of one sum may round apart by at
-            //   most one ulp per addition, so the volumes must agree to
-            //   within `faces − 1` ulps of each other, and the pad (a sum
-            //   of non-negative pads in the same fold, outward) must still
-            //   agree bit for bit at this body's values. Measured: 0 ulps
-            //   before NURBS #4553 moved the rational wall's flux bits,
-            //   1 at ε = 1e-6 and 2 at 1e-9 after it, and 1 and 0 since
-            //   the skin computes in `T` (PR 4726) moved them again.
-            let faces = native.faces().count() as u64;
-            let ulps = got.volume.to_bits().abs_diff(want.volume.to_bits());
+            // * and so native against imported bodies, bit for bit: the
+            //   same multiset of terms, in two arena orders.
             assert!(
-                got.volume > 0.0 && want.volume > 0.0 && ulps < faces,
-                "the round trip must reproduce the volume to within the fold's \
-                 face-order rounding ({ulps} ulps against {faces} faces): \
+                got.volume > 0.0 && want.volume > 0.0,
+                "both volumes are positive: imported {}, native {}",
+                got.volume,
+                want.volume,
+            );
+            assert_eq!(
+                (got.volume.to_bits(), got.volume_pad.to_bits()),
+                (want.volume.to_bits(), want.volume_pad.to_bits()),
+                "the round trip must reproduce the volume and its pad bit for bit: \
                  imported {} ± {}, native {} ± {}",
                 got.volume,
                 got.volume_pad,
                 want.volume,
-                want.volume_pad,
-            );
-            assert_eq!(
-                got.volume_pad.to_bits(),
-                want.volume_pad.to_bits(),
-                "and the same certified pad: imported {}, native {}",
-                got.volume_pad,
                 want.volume_pad,
             );
             println!(
