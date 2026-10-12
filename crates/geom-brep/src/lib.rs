@@ -64,6 +64,7 @@ pub mod extent;
 pub mod fitted_lane;
 #[cfg(test)]
 mod grid_offsets;
+pub(crate) mod harmonic;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;

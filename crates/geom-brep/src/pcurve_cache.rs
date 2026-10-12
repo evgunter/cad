@@ -179,6 +179,7 @@ use geom_core::{
 };
 
 use crate::certify::{CERT_SAMPLES, CertCheck, sample_param};
+use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::recourse::{Reading, RefusedArm, Unsized};
 use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 
@@ -4357,42 +4358,6 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
 /// spelling; `p ≥ 0`.
 fn norm_gap<T: Real>(p: T, p_sq: T, q: Vec3<T>) -> T {
     (p_sq - q.dot(q)).abs() / (p + q.norm())
-}
-
-/// `sup_t ‖a·cos t + b·sin t‖`, exactly: the largest singular value of
-/// `[a b]`, `√(m + √(q² + (a·b)²))` with `m = (‖a‖² + ‖b‖²)/2` and
-/// `q = (‖a‖² − ‖b‖²)/2`. Every step is one of the scalar's own
-/// operations, so at `Interval` the result encloses the sup; the squares
-/// go through `norm_squared` and `powi(2)`, whose enclosures stay
-/// non-negative.
-fn harmonic_sup<T: Real>(a: Vec3<T>, b: Vec3<T>) -> T {
-    #[cfg(test)]
-    if harmonic_sum_mutant("vector") {
-        return a.norm() + b.norm();
-    }
-    let two = T::one() + T::one();
-    let (aa, bb) = (a.norm_squared(), b.norm_squared());
-    let (m, q) = ((aa + bb) / two, (aa - bb) / two);
-    (m + (q.powi(2) + a.dot(b).powi(2)).sqrt()).sqrt()
-}
-
-/// `sup_t |a·cos t + b·sin t| = √(a² + b²)`, exactly; an enclosure at
-/// `Interval` for [`harmonic_sup`]'s reason.
-fn harmonic_sup_scalar<T: Real>(a: T, b: T) -> T {
-    #[cfg(test)]
-    if harmonic_sum_mutant("scalar") {
-        return a.abs() + b.abs();
-    }
-    (a.powi(2) + b.powi(2)).sqrt()
-}
-
-/// The coefficient sum the two `harmonic_sup` forms replace, restored
-/// at test builds when `PCERT_HARMONIC_SUM_MUTANT` names the form at
-/// compile time (`vector` or `scalar`); the rows that refuse it are in
-/// `harmonic_sup_rows`.
-#[cfg(test)]
-fn harmonic_sum_mutant(form: &str) -> bool {
-    option_env!("PCERT_HARMONIC_SUM_MUTANT") == Some(form)
 }
 
 /// Check 4's **incidence** terms: a bound on `sup |S(P_d(t)) − C(t)|`
@@ -9169,8 +9134,10 @@ mod tests {
 
     /// The review probe's second attack, kept: tuned near-cancelling
     /// harmonic + linear corruptions cannot hide under the envelope
-    /// (the residual lives in `span{1, cos, sin, t}` and the envelope
-    /// dominates it termwise), and certification refuses them.
+    /// (the residual lives in `span{1, cos, sin, t}`, and the envelope
+    /// reads its constant and linear parts at their size and its
+    /// `cos`/`sin` pair at its exact sup, so the oracle's termwise sum
+    /// here is over it), and certification refuses them.
     #[test]
     fn cancellation_cannot_beat_the_envelope() {
         let (r, h, tilt) = (0.5, 0.5, 0.3);
