@@ -382,13 +382,19 @@ pub enum PropsError {
     /// wrong, whichever lane reads it: the closed forms' and the
     /// cylinder quadrature's one decision (`curved::require_holes_wound_against`).
     RingWoundWithFace,
-    /// **A face's loops wind its cylinder** (`props_quad_loop_winding`,
-    /// `props_quad_loops_closed`): one loop's stored chart images run
-    /// round the azimuth by no whole number of turns, so it is no
-    /// closed curve, or the face's loops together wind the cylinder,
-    /// so they bound no region of it. Stored data that is wrong: a
-    /// face's boundary bounds it. A band's two rims each wind once,
-    /// against each other, and are not this.
+    /// **A loop's stored chart images do not close**
+    /// (`props_quad_junction_closed`): at one junction the edge after
+    /// starts definitely farther from where the edge before ends than
+    /// their two ends' certified slack allows, once whole turns of the
+    /// azimuth are taken off. Stored data that is wrong: consecutive
+    /// edges of a loop meet at their shared vertex.
+    ChartLoopOpen,
+    /// **A face's loops wind its cylinder as no face's boundary does**:
+    /// with every junction decided closed, one loop winds the cylinder
+    /// more than once, or the face's loops wind it a nonzero number of
+    /// times together, so they bound no region of it. Stored data that
+    /// is wrong: a face's boundary is simple closed curves that bound
+    /// it. A band's two rims, once each and opposite ways, are not this.
     LoopsWindChart,
     /// A boundary edge's traversed **arc** leaves one branch of the
     /// chart, though its CARRIER is a certified iso curve: the arc's
@@ -687,11 +693,16 @@ impl core::fmt::Display for PropsError {
                  its area would be added to the face's rather than taken from it. \
                  {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
+            Self::ChartLoopOpen => write!(
+                f,
+                "a face's stored boundary does not close on its surface: one edge starts away \
+                 from where the edge before it ends. {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
             Self::LoopsWindChart => write!(
                 f,
-                "a face's stored boundary loops wind around its surface: one runs round it \
-                 by no whole number of turns, or together they wind it, so they bound no \
-                 region of the face. {KERNEL_OR_FILE_DEFECT_ENDING}"
+                "a face's stored boundary loops wind around its surface as no face's boundary \
+                 does: one winds more than once, or together they do not wind to zero, so they \
+                 bound no region of the face. {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::NappeSpanning => write!(
                 f,
@@ -997,6 +1008,7 @@ mod tests {
             PropsError::SenseContradicted,
             PropsError::SenseInverted,
             PropsError::RingWoundWithFace,
+            PropsError::ChartLoopOpen,
             PropsError::LoopsWindChart,
             PropsError::NappeSpanning,
             PropsError::NotOneChartBranch {

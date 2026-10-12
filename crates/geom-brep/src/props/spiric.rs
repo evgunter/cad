@@ -577,19 +577,22 @@ pub fn spiric_face_rounds<T: Decide>(
     window: RoundWindow,
 ) -> Result<RoundOutcome, PropsError> {
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    let first = window.first.min(QUAD_MAX_ROUNDS);
+    let schedule = super::quad::Schedule::to(QUAD_MAX_ROUNDS);
+    let first = schedule.first(window);
     let mut pieces = QUAD_INIT_PIECES << first;
-    for round in first..=QUAD_MAX_ROUNDS {
+    for round in first..=schedule.last() {
         let (bounds, [du, dv]) = face_bounds(face, pieces)?;
         let width_len = mean_boundary_displacement(bounds.flux, bounds.area)?;
-        let converged = super::quad::converged(
+        let converged = schedule.converged::<T>(
+            round,
             classify_len::<T>(
                 "props_quad_converged",
                 Margin::of(target_len - width_len),
                 band,
                 PropsCheck::Converged,
             ),
-            round == QUAD_MAX_ROUNDS,
+            (target_len, width_len),
+            band,
         )?;
         let out = if converged {
             match classify_len::<T>(
@@ -605,7 +608,7 @@ pub fn spiric_face_rounds<T: Decide>(
         } else {
             round_exit(
                 round,
-                QUAD_MAX_ROUNDS,
+                schedule.last(),
                 window,
                 bounds,
                 (width_len, target_len),

@@ -701,6 +701,7 @@ fn props_errors() -> Vec<PropsError> {
         PropsError::SenseContradicted,
         PropsError::SenseInverted,
         PropsError::RingWoundWithFace,
+        PropsError::ChartLoopOpen,
         PropsError::LoopsWindChart,
         PropsError::NotOneChartBranch {
             edge: 2,
