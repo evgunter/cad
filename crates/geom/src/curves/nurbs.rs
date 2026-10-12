@@ -296,6 +296,35 @@ fn blossom<T: Real, V: Copy + Add<Output = V> + Sub<Output = V> + Mul<T, Output 
     d.last().copied()
 }
 
+/// The derivative net of the degree-`p` coefficients `net`, whose
+/// first entry is coefficient `first`: entry `k` is
+/// `p·(net[k+1] − net[k])/(u_{i+p+1} − u_{i+1})` with `i = first + k`.
+/// The knot difference is checked positive on the structure `knots`
+/// and formed in `T` over the `held` knots. `None` on a non-positive
+/// difference or a knot index past the vector.
+fn derivative_net<T: Real, P: Copy + Sub<Output = V>, V: Mul<T, Output = V>>(
+    net: &[P],
+    knots: &[f64],
+    held: &[T],
+    p: usize,
+    first: usize,
+) -> Option<Vec<V>> {
+    net.windows(2)
+        .enumerate()
+        .map(|(k, pair)| {
+            let i = first + k;
+            let du = *knots.get(i + p + 1)? - *knots.get(i + 1)?;
+            #[allow(clippy::neg_cmp_op_on_partial_ord)]
+            if !(du > 0.0) {
+                return None;
+            }
+            #[allow(clippy::cast_precision_loss)]
+            let scale = T::from_f64(p as f64) / (*held.get(i + p + 1)? - *held.get(i + 1)?);
+            Some((pair[1] - pair[0]) * scale)
+        })
+        .collect()
+}
+
 /// `Σⱼ wⱼ·rowⱼ` over the nonzero exact weights `w`, in ascending `j`;
 /// `None` when every weight is zero.
 fn combine<T: Real, V: Copy + Add<Output = V> + Mul<T, Output = V>>(
@@ -1214,32 +1243,13 @@ macro_rules! nurbs_curve {
                 }
                 let knots = self.knots().knots();
                 let held = self.knots.values();
-                // Derivative coefficients, once for the curve:
-                // `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(uᵢ₊ₚ₊₁ − uᵢ₊₁)`. The knot
-                // difference is checked POSITIVE on f64 structure —
-                // the totality clause above — so every coefficient
-                // below is finite arithmetic on finite structure.
-                let mut coeffs = Vec::with_capacity(self.control.len() - 1);
-                for i in 0..(self.control.len() - 1) {
-                    let (Some(a), Some(b)) = (self.control.get(i), self.control.get(i + 1)) else {
-                        return geom_core::InfSpeed::new(poison);
-                    };
-                    let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
-                        return geom_core::InfSpeed::new(poison);
-                    };
-                    let du = hi - lo;
-                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-                    if !(du > 0.0) {
-                        return geom_core::InfSpeed::new(poison);
-                    }
-                    // The knot difference in `T`, over the held knots.
-                    let (Some(&lo), Some(&hi)) = (held.get(i + 1), held.get(i + p + 1)) else {
-                        return geom_core::InfSpeed::new(poison);
-                    };
-                    #[allow(clippy::cast_precision_loss)]
-                    let scale = T::from_f64(p as f64) / (hi - lo);
-                    coeffs.push((*b - *a) * scale);
-                }
+                // Derivative coefficients, once for the curve, with
+                // every knot difference checked POSITIVE on f64
+                // structure (the totality clause above), so each is
+                // finite arithmetic on finite structure.
+                let Some(coeffs) = derivative_net(&self.control, knots, held, p, 0) else {
+                    return geom_core::InfSpeed::new(poison);
+                };
                 // ---- Assembly 1: the global chord (the retired
                 // original arm, verbatim — same direction, same fold
                 // order, bit-identical where it was defined). ----
@@ -1695,7 +1705,6 @@ macro_rules! nurbs_curve {
                 // `C(q, a)·C(p, b)` for `a + b = k`, and `C(m, k)`: exact
                 // (`binomial`).
                 let pair = |a: usize, b: usize| T::from_f64(binomial(q, a) * binomial(p, b));
-                let origin = $Point::new($({ let _ = stringify!($c); T::zero() }),+);
                 let mut acc: Option<T> = None;
                 for index in self.knots().first_span()..=self.knots().last_span() {
                     let Some(span) = self.knots().span(index) else {
@@ -1710,31 +1719,15 @@ macro_rules! nurbs_curve {
                     ) else {
                         return poison;
                     };
-                    #[allow(clippy::cast_precision_loss)]
-                    let count = T::from_f64(pts.len() as f64);
-                    let c = pts.iter().fold(origin - origin, |acc, pt| acc + (*pt - origin)) / count;
-                    let c = origin + c;
+                    let c = Self::span_centroid(pts);
                     let a: Vec<$Vector<T>> =
                         pts.iter().zip(ws).map(|(pt, w)| (*pt - c) * *w).collect();
-                    let mut da = Vec::with_capacity(p);
-                    let mut dw = Vec::with_capacity(p);
-                    for i in 0..p {
-                        let j = lo_i + i;
-                        let (Some(&lo), Some(&hi)) = (knots.get(j + 1), knots.get(j + p + 1)) else {
-                            return poison;
-                        };
-                        #[allow(clippy::neg_cmp_op_on_partial_ord)]
-                        if !(hi - lo > 0.0) {
-                            return poison;
-                        }
-                        let (Some(&lo), Some(&hi)) = (held.get(j + 1), held.get(j + p + 1)) else {
-                            return poison;
-                        };
-                        #[allow(clippy::cast_precision_loss)]
-                        let scale = T::from_f64(p as f64) / (hi - lo);
-                        da.push((a[i + 1] - a[i]) * scale);
-                        dw.push((ws[i + 1] - ws[i]) * scale);
-                    }
+                    let (Some(da), Some(dw)) = (
+                        derivative_net(&a, knots, held, p, lo_i),
+                        derivative_net(ws, knots, held, p, lo_i),
+                    ) else {
+                        return poison;
+                    };
                     // The span's Bernstein rows: degree `n` row entry
                     // `k` is the blossom at `(u0^{n−k}, u1^k)`.
                     let arg = |n: usize, k: usize| move |r: usize| if r <= n - k { u0 } else { u1 };
@@ -1825,6 +1818,15 @@ macro_rules! nurbs_curve {
                 acc.unwrap_or(poison)
             }
 
+            /// A span's control centroid, `origin + Σ(Pⱼ − origin)/count`
+            /// folded in ascending `j`.
+            fn span_centroid(pts: &[$Point<T>]) -> $Point<T> {
+                let origin = $Point::new($({ let _ = stringify!($c); T::zero() }),+);
+                #[allow(clippy::cast_precision_loss)]
+                let count = T::from_f64(pts.len() as f64);
+                origin + pts.iter().fold(origin - origin, |acc, pt| acc + (*pt - origin)) / count
+            }
+
             /// One span's arm of [`Self::rational_speed_lower_bound`]'s
             /// assembly (the derivation lives there), over the
             /// homogeneous net `hom` (`w·P`) and weights `w` the span's
@@ -1851,15 +1853,9 @@ macro_rules! nurbs_curve {
                     .zip(w_active)
                     .map(|(a, wj)| origin + (*a - origin) / *wj)
                     .collect();
-                #[allow(clippy::cast_precision_loss)]
-                let count = T::from_f64(active.len() as f64);
                 // The span's own control centroid — the translation
                 // that keeps `sup‖C − c‖` span-sized.
-                let mut sum = origin - origin;
-                for pt in &active {
-                    sum = sum + (*pt - origin);
-                }
-                let c = origin + sum / count;
+                let c = Self::span_centroid(&active);
                 // The span's control chord, as unit direction.
                 let (Some(a), Some(b)) = (active.first(), active.last()) else {
                     return poison;
@@ -1885,40 +1881,22 @@ macro_rules! nurbs_curve {
                     w_hull = fold(w_hull, *wj);
                 }
                 // The numerator's two terms over the active derivative
-                // indices `[first, last)`, and `w′`'s SIGNED hull.
-                let mut num: Option<T> = None;
-                let mut wp_hull = None;
-                for i in first..last {
-                    let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
-                        return poison;
-                    };
-                    let du = hi - lo;
-                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-                    if !(du > 0.0) {
-                        return poison;
-                    }
-                    let (Some(ai), Some(aj), Some(&wi), Some(&wj), Some(&lo), Some(&hi)) = (
-                        hom.get(i),
-                        hom.get(i + 1),
-                        w.get(i),
-                        w.get(i + 1),
-                        held.get(i + 1),
-                        held.get(i + p + 1),
-                    ) else {
-                        return poison;
-                    };
-                    #[allow(clippy::cast_precision_loss)]
-                    let scale = T::from_f64(p as f64) / (hi - lo);
-                    // Homogeneous, centroid-translated: w_j·(P_j − c).
-                    let ci = (*ai - origin) - (c - origin) * wi;
-                    let cj = (*aj - origin) - (c - origin) * wj;
-                    let v = d.dot((cj - ci) * scale);
-                    num = Some(match num {
-                        None => v,
-                        Some(m) => m.min(v),
-                    });
-                    wp_hull = fold(wp_hull, (wj - wi) * scale);
-                }
+                // indices `[first, last)` — the homogeneous,
+                // centroid-translated net `w_j·(P_j − c)` — and `w′`'s
+                // SIGNED hull.
+                let translated: Vec<$Vector<T>> = hom_active
+                    .iter()
+                    .zip(w_active)
+                    .map(|(a, wj)| (*a - origin) - (c - origin) * *wj)
+                    .collect();
+                let (Some(dnum), Some(dw)) = (
+                    derivative_net(&translated, knots, held, p, first),
+                    derivative_net(w_active, knots, held, p, first),
+                ) else {
+                    return poison;
+                };
+                let num = dnum.iter().map(|q| d.dot(*q)).reduce(Real::min);
+                let wp_hull = dw.iter().fold(None, |acc, v| fold(acc, *v));
                 let (Some(num), Some((s_lo, s_hi)), Some((w_min, w_max)), Some((lo, hi))) =
                     (num, s_hull, w_hull, wp_hull)
                 else {
