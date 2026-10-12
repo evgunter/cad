@@ -45,7 +45,7 @@ use geom_core::Indeterminate;
 use crate::boolean::ContainDecision;
 use crate::splitting::Escalation;
 
-use crate::contact::{ContactClass, GlueClass};
+use crate::contact::GlueClass;
 
 pub use super::plane_eq::PlaneRung;
 pub use super::solid_contain::WallRung;
@@ -90,16 +90,6 @@ pub enum Contradiction {
     /// A tangency claimed between faces on ONE carrier: conformal
     /// contact, which is a `Rest` contact or a continuation.
     OneCarrier,
-    /// A seam's two faces leave the tangency on one side: a cusp.
-    SeamCusp,
-    /// A seam's two faces leave the tangency on opposite sides along
-    /// part of it and on one side along another.
-    SeamSidesMixed,
-    /// A face of a declared seam runs on through the tangency where the
-    /// other face touches it, instead of ending there.
-    SeamFaceRunsOn,
-    /// A declared seam's faces touch along no stretch of the tangency.
-    SeamUntouched,
 }
 
 impl Contradiction {
@@ -122,22 +112,6 @@ impl Contradiction {
             Self::OneCarrier => {
                 "the declared faces lie on one carrier, which is a Rest contact or a \
                  continuation, not a tangency"
-            }
-            Self::SeamCusp => {
-                "the declared faces leave the curve they are tangent along on the same \
-                 side, which is a cusp, not a seam"
-            }
-            Self::SeamSidesMixed => {
-                "the declared faces leave the curve they are tangent along on opposite \
-                 sides in one stretch and on the same side in another"
-            }
-            Self::SeamFaceRunsOn => {
-                "a declared face runs on through the curve the faces are tangent along, \
-                 where the other face touches it, instead of ending there"
-            }
-            Self::SeamUntouched => {
-                "the declared faces touch along no stretch of the curve they are tangent \
-                 along"
             }
         }
     }
@@ -162,11 +136,7 @@ impl Contradiction {
             | Self::TorusCentresDiffer
             | Self::TorusMajorRadiiDiffer
             | Self::TorusTubeRadiiDiffer
-            | Self::OneCarrier
-            | Self::SeamCusp
-            | Self::SeamSidesMixed
-            | Self::SeamFaceRunsOn
-            | Self::SeamUntouched => false,
+            | Self::OneCarrier => false,
         }
     }
 }
@@ -591,16 +561,14 @@ pub enum Coincide {
     /// cannot yet meet (`CurvedBooleanUnsupported`), so no verdict
     /// passes the operation.
     CurvedFlankSense,
-    /// Where two faces of the two solids that are declared to touch
-    /// tangentially touch: its rungs pass on different sets, and the
-    /// escalation does not say which refused.
+    /// Where two faces of the two solids touch tangentially, asked at
+    /// the glue door's tangency check: its rungs pass on different sets,
+    /// and the escalation does not say which refused.
     TangentLocus,
-    /// Whether a face of each solid ends on one circle, asked at a
-    /// declared-`Tangent` pair's door, where every verdict goes on to a
-    /// refusal of that declaration (the rim's routing, or the class
-    /// unsupported), so no verdict passes the operation
-    /// ([`RIM_FRONTIER`]); and at a declared seam's, where the one
-    /// circle is its locus ([`RIM_SEAM_LEVER`]).
+    /// Whether a face of each solid ends on one circle, asked at the glue
+    /// door's tangency check: one circle goes on to the tangency table
+    /// and the rim's routing, and none leaves the pair unglued
+    /// ([`RIM_LEVER`]).
     Rim,
     /// Whether a declared contact holds along its witness: the contact
     /// table's rows pass on different sets.
@@ -689,14 +657,11 @@ impl Coincide {
     /// undeclared one, or meets no declaration its door verifies.
     #[must_use]
     pub const fn settled_by(self, class: GlueClass) -> bool {
-        use GlueClass::{Contact, Continuation, Seam};
+        use GlueClass::{Continuation, Rest, Tangent};
         match (self, class) {
-            (Self::OnPlanes | Self::Carriers, Contact(ContactClass::Rest) | Continuation)
-            | (Self::Sectors, Contact(ContactClass::Rest | ContactClass::Tangent) | Continuation) => {
-                true
-            }
-            (Self::OnPlanes | Self::Carriers, Contact(ContactClass::Tangent) | Seam)
-            | (Self::Sectors, Seam)
+            (Self::OnPlanes | Self::Carriers, Rest | Continuation)
+            | (Self::Sectors, Rest | Tangent | Continuation) => true,
+            (Self::OnPlanes | Self::Carriers, Tangent)
             | (
                 Self::Planes
                 | Self::VertexOnFace
@@ -716,7 +681,7 @@ impl Coincide {
                 | Self::DeclaredReach
                 | Self::Section
                 | Self::Join,
-                Contact(ContactClass::Rest | ContactClass::Tangent) | Continuation | Seam,
+                Rest | Tangent | Continuation,
             ) => false,
         }
     }
@@ -727,7 +692,7 @@ impl Coincide {
     const fn ending(self) -> Ending {
         match self {
             Self::Planes => Ending::Frontier(PLANES_FRONTIER),
-            Self::Rim => Ending::Frontier(RIM_FRONTIER),
+            Self::Rim => Ending::Lever(RIM_LEVER),
             Self::OnPlanes | Self::Carriers => Ending::Lever(geom_core::coincidence_move_arm!()),
             Self::VertexOnFace => Ending::Lever(proximity_lever!()),
             Self::EdgeOnPlane | Self::SectorSide | Self::Sectors | Self::Join => {
@@ -742,9 +707,7 @@ impl Coincide {
             Self::TangentSide => Ending::Sized(TANGENT_SIDE),
             Self::FlankSense => Ending::Sized(FLANK_SENSE),
             Self::CurvedFlankSense => Ending::Lever(CURVED_FLANK_LEVER),
-            Self::TangentLocus => {
-                Ending::Lever("move the parts so the declared faces clearly touch along one line")
-            }
+            Self::TangentLocus => Ending::Lever(TANGENT_LOCUS_LEVER),
             Self::Contact | Self::Section => Ending::Lever(proximity_lever!()),
             Self::DeclaredReach => Ending::Lever(DECLARED_REACH_LEVER),
         }
@@ -811,19 +774,15 @@ const fn proximity(passes: SizedPass) -> SizedDecision {
 const PLANES_FRONTIER: &str = "Whichever way it reads, the Boolean cannot yet act on a Tangent \
                                contact declared between two plane faces";
 
-/// Whether the faces of a declared-`Tangent` pair end on one circle
-/// ([`Coincide::Rim`]): every verdict goes on to a refusal, whatever
-/// the rims are (one rim: `RimCuspArmUnbuilt` or `ContactContradicted`;
-/// none: `UnsupportedDeclarationClass`), so no move of the parts passes
-/// under that declaration.
-const RIM_FRONTIER: &str = "Whichever way it reads, the Boolean cannot yet act on a Tangent \
-                            contact declared between faces that end on one circle";
+/// Where two faces touch tangentially ([`Coincide::TangentLocus`]): a
+/// clear line, or clearly none, goes on.
+const TANGENT_LOCUS_LEVER: &str =
+    "move the parts so the two faces clearly touch along one line, or clearly do not";
 
-/// Whether the faces of a declared seam end on one circle
-/// ([`Coincide::Rim`] under a spent `Seam`): the one circle is the
-/// locus the seam is verified along, so only a shared rim passes.
-const RIM_SEAM_LEVER: &str = "move the parts so the faces declared a seam clearly end on one \
-                              shared circle";
+/// Whether the faces of a pair end on one circle ([`Coincide::Rim`]):
+/// either clear reading goes on, so the move is to make it clear.
+const RIM_LEVER: &str = "move the parts so the two faces clearly end on one circle, or clearly \
+                         do not";
 
 /// A curved flank's membership tie ([`Coincide::CurvedFlankSense`]):
 /// either sense goes on to the curved flank, which the Boolean cannot
@@ -1482,14 +1441,8 @@ impl BooleanDecision {
             // both senses pass there.
             Self::Coincidence(
                 Coincide::FlankSense,
-                DeclarationRead::Spent(GlueClass::REST | GlueClass::Continuation),
+                DeclarationRead::Spent(GlueClass::Rest | GlueClass::Continuation),
             ) => Ending::Sized(CORNER_SENSE),
-            // A declared seam is verified along the rim the two faces
-            // share: one circle passes, and a definitely different one
-            // leaves the seam without a locus, refused as a class.
-            Self::Coincidence(Coincide::Rim, DeclarationRead::Spent(GlueClass::Seam)) => {
-                Ending::Lever(RIM_SEAM_LEVER)
-            }
             Self::Coincidence(which, _) => which.ending(),
             // Its margin is the normals' cosine at the door's arm, `≈ ±arm`,
             // and the offset rung asks next: a declared `Rest` pair's
@@ -1709,14 +1662,13 @@ pub(in crate::boolean) mod tests {
         Band::linear(Tol::witness()).expect("the witness band forms")
     }
 
-    /// **A straddle `contfp` carries through `rim_wedge`'s seam cover**
-    /// (its containment refusal read as the bare diagnostic) ends where a
-    /// margin that was read ends: the seam door's and the tangent locus's
-    /// lever alone, where the poisoned margin it carried before the
-    /// enclosure added the unreadable-margin note. A rim no declaration
-    /// spent as a seam ends in its frontier either way.
+    /// **A straddle `contfp` carries through `rim_wedge`'s cover** (its
+    /// containment refusal read as the bare diagnostic) ends where a
+    /// margin that was read ends: the rim's and the tangent locus's lever
+    /// alone, where the poisoned margin it carried before the enclosure
+    /// added the unreadable-margin note.
     #[test]
-    fn a_straddle_through_the_seam_cover_ends_in_the_lever_alone() {
+    fn a_straddle_through_the_rim_cover_ends_in_the_lever_alone() {
         use crate::contact::GlueClass;
         use geom_core::{Decided, Sign};
         let band = band();
@@ -1737,9 +1689,9 @@ pub(in crate::boolean) mod tests {
             ..straddle
         };
         let said = |site, read, diag| BooleanError::coincidence(site, read, diag).to_string();
-        let seam = DeclarationRead::Spent(GlueClass::Seam);
+        let tangent = DeclarationRead::Spent(GlueClass::Tangent);
         for site in [Coincide::Rim, Coincide::TangentLocus] {
-            let (after, before) = (said(site, seam, straddle), said(site, seam, poisoned));
+            let (after, before) = (said(site, tangent, straddle), said(site, tangent, poisoned));
             assert!(!after.contains(UNREADABLE_MARGIN_NOTE), "{site:?}: {after}");
             assert!(
                 before.contains(UNREADABLE_MARGIN_NOTE),
@@ -1753,13 +1705,6 @@ pub(in crate::boolean) mod tests {
                 "{site:?}: the same lever"
             );
         }
-        let rest = DeclarationRead::Spent(GlueClass::REST);
-        let ending = |s: String| s.rsplit_once("Recourse: ").map(|(_, r)| r.to_owned());
-        assert_eq!(
-            ending(said(Coincide::Rim, rest, straddle)),
-            ending(said(Coincide::Rim, rest, poisoned)),
-            "the rim frontier"
-        );
     }
 
     fn diag_of(margin: MarginDiag) -> Indeterminate {
@@ -2125,13 +2070,12 @@ pub(in crate::boolean) mod tests {
                  touch there",
             ),
             Coincide::TangentLocus => Ending::Lever(
-                "Recourse: move the parts so the declared faces clearly touch along one line",
+                "Recourse: move the parts so the two faces clearly touch along one line, or \
+                 clearly do not",
             ),
-            // Asked only at a declared-`Tangent` door, every verdict of
-            // which goes on to a refusal of that declaration.
-            Coincide::Rim => Ending::Frontier(
-                "Whichever way it reads, the Boolean cannot yet act on a Tangent contact \
-                 declared between faces that end on one circle. There is no way through yet",
+            Coincide::Rim => Ending::Lever(
+                "Recourse: move the parts so the two faces clearly end on one circle, or clearly \
+                 do not",
             ),
             Coincide::Contact => Ending::Lever(MEET),
             Coincide::DeclaredReach => Ending::Lever(
@@ -2199,21 +2143,10 @@ pub(in crate::boolean) mod tests {
             // face the door verified: both senses pass.
             BooleanDecision::Coincidence(
                 Coincide::FlankSense,
-                DeclarationRead::Spent(GlueClass::REST | GlueClass::Continuation),
+                DeclarationRead::Spent(GlueClass::Rest | GlueClass::Continuation),
             ) => (
                 coincide_subject(Coincide::FlankSense),
                 Ending::Sized(LONGER, SizedPass::NonZero),
-            ),
-            // A declared seam's rim is its locus: the shared circle passes.
-            BooleanDecision::Coincidence(
-                Coincide::Rim,
-                DeclarationRead::Spent(GlueClass::Seam),
-            ) => (
-                coincide_subject(Coincide::Rim),
-                Ending::Lever(
-                    "Recourse: move the parts so the faces declared a seam clearly end on one \
-                     shared circle",
-                ),
             ),
             BooleanDecision::Coincidence(
                 which,
@@ -2719,10 +2652,10 @@ pub(in crate::boolean) mod tests {
         let settled = |which: Coincide| -> &'static [GlueClass] {
             match which {
                 Coincide::OnPlanes | Coincide::Carriers => {
-                    &[GlueClass::REST, GlueClass::Continuation]
+                    &[GlueClass::Rest, GlueClass::Continuation]
                 }
                 Coincide::Sectors => {
-                    &[GlueClass::REST, GlueClass::TANGENT, GlueClass::Continuation]
+                    &[GlueClass::Rest, GlueClass::Tangent, GlueClass::Continuation]
                 }
                 Coincide::Planes
                 | Coincide::VertexOnFace
@@ -2777,7 +2710,7 @@ pub(in crate::boolean) mod tests {
         // nothing on senses it could not read.
         use crate::boolean::CarrierRelation;
         for (senses, offer) in [
-            (Some(CarrierRelation::SameOpposite), Some(GlueClass::REST)),
+            (Some(CarrierRelation::SameOpposite), Some(GlueClass::Rest)),
             (
                 Some(CarrierRelation::SameOriented),
                 Some(GlueClass::Continuation),
@@ -3342,7 +3275,7 @@ pub(in crate::boolean) mod tests {
                     let text = BooleanError::plane_identity(
                         PlaneRung::Orientation,
                         PlaneDoor::OnPair(if id.declared {
-                            DeclarationRead::Spent(GlueClass::REST)
+                            DeclarationRead::Spent(GlueClass::Rest)
                         } else {
                             DeclarationRead::Moot
                         }),
@@ -3869,8 +3802,8 @@ pub(in crate::boolean) mod tests {
                 (Operand::A, face, Operand::B, face),
                 Some(crate::boolean::CarrierRelation::SameOpposite),
             ),
-            PlaneDoor::OnPair(DeclarationRead::Spent(GlueClass::REST)),
-            PlaneDoor::Screen(DeclarationRead::Spent(GlueClass::TANGENT)),
+            PlaneDoor::OnPair(DeclarationRead::Spent(GlueClass::Rest)),
+            PlaneDoor::Screen(DeclarationRead::Spent(GlueClass::Tangent)),
             PlaneDoor::Neighbours,
         ];
         let merge = MergeCoplanarError::of_declared_refusal(unreadable_norm(b)).to_string();

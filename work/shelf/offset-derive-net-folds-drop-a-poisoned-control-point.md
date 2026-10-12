@@ -42,3 +42,12 @@ Found by PIPE's S350 sweep (min/max folds over a control net in
 `crates/topo/src` and `crates/mesh/src`). `offset_derive.rs` is on no
 program's `paths:`; SHELL wrote its section lane (`shell:` commits), so
 it is filed here.
+
+## `polynomial_speed` is gone (NURBS, 2026-10-12)
+
+`nurbs/one-rational-speed-bound` replaces `offset_derive.rs`'s
+`polynomial_speed` with `certified_speed`, an `Interval` read of
+`NurbsCurve3::speed_upper_bound` (`geom_core::spline::rational_span_speed_sup`).
+Its fold is `Real::max`, NaN-propagating, so a poisoned control point
+poisons the bound instead of dropping out of it. The `level_row` half
+of this row is untouched.

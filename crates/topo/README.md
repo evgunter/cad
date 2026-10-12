@@ -239,7 +239,7 @@ an indeterminate verification at an interval scalar aborts.
 
 Failures, all typed: `UnrecordedContact` (the census);
 `ContactContradicted` (at use and
-at rest); `ContinuationContradicted` and `SeamContradicted` (at use);
+at rest); `ContinuationContradicted` (at use);
 `StaleContactDeclaration`; `CensusEscalated`. Invariant: every definite
 verdict wins over every declaration.
 
@@ -287,15 +287,17 @@ certified to lie in one closed side of that carrier.
 
 *Sources.* That certificate comes from exactly these, on either operand,
 to a face verified as one carrier with the target: a verified `Rest`
-(residual ≡ 0), a verified `Tangent` (the witness lane), a verified
-continuation, a verified seam, or a structural tangency (an edge
-described `TangentIntersection`).
+(residual ≡ 0), a verified continuation, a glued `Tangent` (along a line
+from the witness lane, a global side by the lane's own contract; along a
+rim, as below), or a structural tangency (an edge described
+`TangentIntersection`).
 
-*Which tangencies count.* A seam and a structural tangency are
-tangencies along a curve, and the condition asks for a certified side,
-not a local touch, so they count only where such a tangency is a global
-side for the two carriers' kinds (`boolean::tangency_certifies_side`). A
-seam counts for plane–cylinder, cylinder–cylinder, cylinder–sphere,
+*Which tangencies count.* A `Tangent` along a rim and a structural
+tangency are tangencies along a curve, and the condition asks for a
+certified side, not a local touch, so they count only where such a
+tangency is a global side for the two carriers' kinds
+(`boolean::tangency_certifies_side`). A rim tangency counts for
+plane–cylinder, cylinder–cylinder, cylinder–sphere,
 plane–torus and sphere–torus; a structural tangency only for
 plane–cylinder. A torus with a cylinder or with a torus does not count.
 The exclusion is conservative because the condition is read per pair of
