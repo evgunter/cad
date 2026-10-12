@@ -1,0 +1,30 @@
+diff --git a/crates/geom-brep/src/pcurve_cache.rs b/crates/geom-brep/src/pcurve_cache.rs
+index d6fc3be57..6363682f2 100644
+--- a/crates/geom-brep/src/pcurve_cache.rs
++++ b/crates/geom-brep/src/pcurve_cache.rs
+@@ -963,7 +963,7 @@ impl<T: SpanLocate> Pcurve<T> {
+                         v0,
+                         u_sense,
+                         v_sense,
+-                    } => Point2::new(*u0 + *u_sense * f.atan2(*offset), *v0 + *v_sense * t),
++                    } => Point2::new(*u0 + (if std::env::var("PCERT_MUTANT").as_deref() == Ok("m4_eval") { *v_sense } else { *u_sense }) * f.atan2(*offset), *v0 + *v_sense * t),
+                 }
+             }
+             Pcurve::FocalSection(image) => Point2::new(image.azimuth(t), image.second(t)),
+@@ -5323,7 +5323,7 @@ fn run_spiric_checks<T: Decide>(
+             // at the mint, and a wrong sign is a whole-span
+             // displacement the schedule sees at every sample.
+             let sin_tilt = s_axis.cross(a_c).norm();
+-            let d_center = s_center - torus_center(mirror);
++            let d_center = s_center - torus_center(mirror && std::env::var("PCERT_MUTANT").as_deref() != Ok("m2_gate_own"));
+             let gates = [
+                 ("pcurve_spiric_chart_center", Margin::norm3(d_center)),
+                 ("pcurve_spiric_chart_major", Margin::of(s_major - r_major)),
+@@ -8502,6 +8502,7 @@ fn spiric_chart_pcurve<T: Decide>(
+             )
+             .map_err(winding_escalated)?
+                 == Sign::Zero;
++            let own = own || std::env::var("PCERT_MUTANT").as_deref() == Ok("m1_mint_own");
+             let (mu, toward) = if own {
+                 (T::one(), n)
+             } else {

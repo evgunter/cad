@@ -194,3 +194,26 @@ fn tiny_offset_mirror_coincides() {
         }
     }
 }
+
+/// Claim 4: mirror_v of a wall flips the sign product; on which
+/// representable torus, if any, does the mirrored image certify?
+#[test]
+fn mirrored_wall_names_which_torus() {
+    let (big, r, d) = (0.09375, 0.0703125, 0.0078125);
+    let a = Vec3::unit_y();
+    let n = Vec3::unit_x();
+    let carrier = Curve3::Spiric { center: Point3::origin(), axis: a, u_ref: n, major_radius: big, minor_radius: r, offset: d };
+    let tor = |centre: Point3<f64>, ax: Vec3<f64>| Surface::Torus { center: centre, axis: ax, major_radius: big, minor_radius: r, u_ref: n };
+    let own = tor(Point3::origin(), a);
+    let mir = Point3::origin() + n * (2.0 * d);
+    for (what, chart) in [("own", own.clone()), ("own mirror", tor(mir, a))] {
+        let minted = geom_brep::chart_pcurve(&carrier, &chart, band()).unwrap();
+        let row = PcurveCache::certify(minted.clone(), 0.3, 2.9, &carrier, &chart, band()).unwrap();
+        let m = row.mirrored_v();
+        eprintln!("{what}: minted {:?}\n   mirrored {:?} cert {:?}", minted, m.pcurve(), m.certificate().statement);
+        for (cw, c2) in [("own +a", tor(Point3::origin(), a)), ("own -a", tor(Point3::origin(), -a)), ("mirror +a", tor(mir, a)), ("mirror -a", tor(mir, -a))] {
+            let res = PcurveCache::certify(m.pcurve().clone(), 0.3, 2.9, &carrier, &c2, band());
+            eprintln!("   on {cw}: {:?}", res.as_ref().map(|r| r.certificate().statement));
+        }
+    }
+}
