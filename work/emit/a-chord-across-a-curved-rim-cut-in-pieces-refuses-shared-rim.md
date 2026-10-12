@@ -2,8 +2,9 @@
 id: a-chord-across-a-curved-rim-cut-in-pieces-refuses-shared-rim
 kind: issue
 title: A union whose post crosses a curved rim a notch cut into pieces refuses SharedRim(Several)
-status: review
+status: closed
 opened: 2026-10-07
+closed: 2026-10-12
 priority: P2
 cost: M
 branch: emit/curved-rim-chord
@@ -73,3 +74,20 @@ is a union:
 Every one names each edge for the exact row it lies within. Unit rows
 (`emit_topo::rim_holding_rows`) cover `rim_holding` and `chord_within`
 on a split 270° prism.
+
+## Closed (PR 4794, 2026-10-12)
+
+The cause was the lineage chase. A split piece whose lineage ran
+through a stretch the boolean killed fell to the derived-chord path.
+`KilledSplits` now restores those links, so the piece resolves through
+its operand table, and the killed-lineage row is closed with it.
+
+The curved within-reading (`chord_within`) stays as the one reading for
+`rim_holding` and the `Rim::One` arm, with unit witnesses for: a chord
+held by its piece, a chord across a split, a chord at a piece end, a
+chord through 0°, and a straight chord against curved pieces.
+
+Only `crossing_slots` renamed in the corpus. Two union refusals in
+`wire_legal_union_refusals` rightly went, because their edges were split
+pieces.
+
