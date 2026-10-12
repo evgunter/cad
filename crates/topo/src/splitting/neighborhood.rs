@@ -145,7 +145,14 @@ pub(super) fn chord<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(VertexKey, Vec3<T>, Option<(Vec3<T>, T, geom_brep::ConicBend<T>, geom::CurveKind)>), SplitReduceError> {
+) -> Result<
+    (
+        VertexKey,
+        Vec3<T>,
+        Option<(Vec3<T>, T, geom_brep::ConicBend<T>, geom::CurveKind)>,
+    ),
+    SplitReduceError,
+> {
     let final_vertex = body.proven_half_edge_end(he);
     let p_base = body.resolve_vertex_point(vertex, Proven);
     let p_final = body.resolve_vertex_point(final_vertex, Proven);
