@@ -186,7 +186,7 @@ impl Substitutions {
     /// [`RowDefect::SelfRow`] where `dead` is `by`, and
     /// [`RowDefect::NamesRetired`] where an earlier row retired either;
     /// the list is left as it was.
-    pub fn push(&mut self, (dead, by): (Cell, Cell)) -> Result<(), RowRefusal> {
+    pub(crate) fn push(&mut self, (dead, by): (Cell, Cell)) -> Result<(), RowRefusal> {
         let refuse = |defect, cell| {
             Err(RowRefusal {
                 rows: LineageRows::Substitutions,
@@ -269,7 +269,7 @@ impl FaceDivisions {
     /// [`RowDefect::SelfRow`] where `new` is `from`, and
     /// [`RowDefect::NotFresh`] where an earlier row names `new`; the
     /// list is left as it was.
-    pub fn push(&mut self, (new, from): (FaceKey, FaceKey)) -> Result<(), RowRefusal> {
+    pub(crate) fn push(&mut self, (new, from): (FaceKey, FaceKey)) -> Result<(), RowRefusal> {
         let refuse = |defect| {
             Err(RowRefusal {
                 rows: LineageRows::FaceDivisions,
@@ -287,6 +287,21 @@ impl FaceDivisions {
         self.from.insert(new, from);
         self.rows.push((new, from));
         Ok(())
+    }
+
+    /// The list of `rows`, each added in turn as [`Self::push`] adds it:
+    /// the one way to build a list outside the kernel, where a mint
+    /// records its own rows.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::push`], at the first row it refuses.
+    pub fn from_rows(
+        rows: impl IntoIterator<Item = (FaceKey, FaceKey)>,
+    ) -> Result<Self, RowRefusal> {
+        let mut list = Self::default();
+        rows.into_iter().try_for_each(|row| list.push(row))?;
+        Ok(list)
     }
 
     /// The rows, in the order they were added.

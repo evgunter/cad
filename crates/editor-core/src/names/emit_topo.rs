@@ -4077,12 +4077,11 @@ mod tests {
         let naming = topo::BooleanNaming {
             a_keys: topo::OperandKeys::Direct,
             b_keys: topo::OperandKeys::Absent,
-            face_fragments_a: {
-                let mut rows = topo::FaceDivisions::default();
-                rows.push((built.top, built.bottom)).unwrap();
-                rows.push((laterals[1], laterals[0])).unwrap();
-                rows
-            },
+            face_fragments_a: topo::FaceDivisions::from_rows([
+                (built.top, built.bottom),
+                (laterals[1], laterals[0]),
+            ])
+            .unwrap(),
             merge_groups: vec![
                 (built.top, vec![laterals[0]]),
                 (built.bottom, vec![laterals[1]]),

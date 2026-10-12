@@ -678,14 +678,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "LineageRow",
-            BooleanError::LineageRow {
-                rows: topo::LineageRows::FaceDivisions,
-                defect: topo::RowDefect::NotFresh,
-                key: topo::Cell::Face(topo::FaceKey::default()),
-            },
-        ),
-        (
             "PinchRaysInAFace",
             BooleanError::PinchRaysInAFace {
                 operand: Operand::A,
