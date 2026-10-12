@@ -356,3 +356,18 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - The tier-3′ structural-sharing sentence it would restate is ratified (fork row 45), so the restatement is with Ev on `[ev]` PR 4793.
 - **Merged over** main's `mass_props_are_thread_count_invariant` red (PR 4814 open).
 — (FLUSH orchestrator)
+
+## 2026-10-12 — PR 4769 merged: a cross-germ tie among mutual pairs cannot move the matching
+
+- **Closed:** `two-pinch-poses-escalate-at-eps-1e-6`.
+  - **The rule.** When every germ's nearest is mutual, every germ is straight and K > 2, `join::first_pair` keeps scan order on an in-band reading instead of escalating, because the rounds then commit one matching or escalate. Pose 1 builds at ε 1e-6.
+  - **The argument.** A shortened scan keeps its winner, since every earlier candidate is at least (K−1)·zero beyond it, which K > 2 puts past a tie.
+- **Review:** sequential (byte 163).
+  - R1 found a MAJOR: the proof needs K > 2, and `Tolerance` accepts any K > 1. At K = 1.1 the PR picked one of two matchings where main escalated.
+  - That MAJOR triggered R2, which found the same gap and graded it MINOR.
+  - One fix pass followed, and R2's delta check confirmed it, with one rename.
+- **Filed:** `conic-germs-pair-order-is-unargued` (conic germs still escalate as on main), plus the ellipse-span issue on `geom-brep`.
+- **Battery moves:** every one is an escalation that now builds.
+  - At 1e-6, 4 `four_pairs` lines go to OK BAD. They are on the seams row's list, which `flush/touch-key` is fixing.
+- **Class (the second time):** a proof about a banded comparator missed the non-transitivity of Zero ties (K ≤ 2). A lane proving order-independence under the trilean should state K as a premise.
+— (FLUSH orchestrator)
