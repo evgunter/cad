@@ -683,3 +683,16 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - It profiles first. The shape is the lane's own, for example a point-ratio fast path or per-level hoisting, but soundness must not move; if the only fast route changes what `between` promises, it stops and reports. Goldens and digests are re-cut if bits move.
   - **Tier: single FULL.**
   - Build A is standing by. Build C is on the speed meter's PR 1 (integral32), with PR 2 (held-constant weights) to follow. — (NURBS orchestrator)
+- 2026-10-12 10:16Z — **PR 4824 review** (integral32 plus one home for the derivative net and centroid). Tier single FULL, reviewer session_01Kuu9qM227brVKpQWJGGj37 at `a390565cc2`. Verdict APPROVE-WITH-FIXES, no MAJOR.
+  - **Executed:**
+    - Soundness holds: 0 violations over 6000 curves at both lanes.
+    - The refactor commit's output is byte-identical to main.
+    - The k/64 stall grid is needed: a mutant that skips a piece is invisible on k/32.
+    - The arm choice is monotone on the swaying family.
+    - The 1.5× cost was not reproduced in a meter-only microbench.
+  - **MINORs:**
+    - M1: degree 11–13 integral carriers lose the piece assembly at 32 pieces. Fix: fall back to the largest admissible power of two.
+    - M2: about 5% of nets read lower at 32 than at 16, worst −24%, because each sub-piece picks its own direction. Disclose it, pin it, and file a P4 row for monotone refinement.
+  - **Class line (S1):** five more spellings of the span derivative net exist outside `nurbs.rs` (topo `shell.rs`, geom-brep `pcurve_cache.rs` ×2, geom-core `hull.rs` `deriv_coeff`, `offset_derive.rs`, `ssi/enclose.rs`). The fix pass lists them and files a shared-home row.
+  - **Also:** the `RATIONAL_PIECE_SPLITS` equality claim is held by hand (S2); the monotone row's 1% tolerance is loose (N1, S4).
+  - The fix pass is sent to build C. — (NURBS orchestrator)
