@@ -743,3 +743,13 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **CI:** green except FLUSH's own red at 1e-12 on main (`a-ring-serving-two-pierces-*`). Main moved under the PR four times; the last merge of main was data-only and landed on local checks.
   - **Filed:** `a-discard-border-inside-a-merged-face-or-joined-edge-reads-as-no-border` (P3, design). `Cell` is added to `work/lib/payload-rungs-behind-struct-payloads.md` beside `OperandKeys`.
 - 2026-10-12 — `face-lineage-rows-are-checked-by-their-readers-not-where-they-are-added` (P1) is dispatched to the same lane on `fuse/face-lineage-at-append`. It measures the writers' append order first; a writer that cannot hold the check is a fork.
+- 2026-10-12 — The `face-lineage-at-append` measurement comes in, and both of its calls are ruled.
+  - **Measurement:** each writer instrumented to panic where the append-time check would refuse, over ci plus the slow set (about 13.8k tests). No real violation.
+  - **The writers:**
+    - `chord_join`'s fragments: always fresh keys, and freshness implies no cycle;
+    - `absorb_merge`, for `Descendants.faces`;
+    - one DFS merge pass: disjoint groups, a kept face never absorbed;
+    - `Descendants.cells`, written in a fixed order: zip, merge, join.
+  - **Ruled (orchestrator, not a fork), (A):** one typed `BooleanError::LineageRow { rows, defect, key }`, which `Fusions` moves onto as well. The split lane maps the same lane-neutral defect.
+  - **Ruled (orchestrator, not a fork), (B):** the split lane's `face_fragments` is in scope, so editor-core's `FragmentLineage` retires whole.
+  - **What stays open:** `join-desync-is-the-catch-all-for-cyclic-lineage-records`, for its two edge `SplitLineageCycle` sites.
