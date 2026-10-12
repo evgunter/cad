@@ -4,6 +4,9 @@ kind: issue
 title: geom-brep: Unsized::Fit at rest reads a gate's rejected Zero on the undecided arm as the last resort, where its Zero arm reads a defect
 status: open
 opened: 2026-10-12
+priority: P3
+cost: E
+design: true
 ---
 
 
