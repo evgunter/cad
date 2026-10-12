@@ -19,7 +19,7 @@ lanes in flight are expected to close more, so the track is not split.
 | pri | item | cost | title |
 |---|---|---|---|
 | P0 | `an-apex-edge-in-the-partners-face-plane-fails-tier-3-prime-on-one-edge-face-overlap` | M | an apex edge in the partner's face plane fails tier 3′ on one `EdgeFaceOverlap` (the corner-pair row's six ARC lines, split out by PR 4650) |
-| P2 | `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses` | M | a thin-walled hollow ships while a slab as thin refuses: the door reads a sliver per shell, never per solid (design) |
+| P2 | `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses` | M | a thin-walled hollow ships while a slab as thin refuses: retire PR 4636's sole-shell gate; thinness is judged by pairs alone (Ev, PR 4690) |
 | P2 | `a-curved-notch-at-a-corner-pinch-refuses-join-desync-on-a-section-vertexs-null-edge-copies` | M | a curved notch at a corner pinch refuses `JoinDesync` on a section vertex's null-edge copies (15 lines, 5 poses) |
 | P2 | `a-cube-less-a-pinched-operand-piercing-its-face-refuses-the-split-cones-re-pair` | M | a cube less a pinched operand piercing its face refuses `ZipCorrespondence` at `split_cones`' re-pair (36 `dbl` lines, typed since PR 4728) |
 | P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys |

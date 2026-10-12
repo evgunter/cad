@@ -2,11 +2,12 @@
 id: a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses
 kind: issue
 title: A thin-walled hollow ships while a slab as thin refuses: the door reads a sliver per shell, never per solid
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P2
 cost: M
 refs: [a-result-that-is-only-a-sliver-shell-passes-the-door, 4636]
+branch: flush/thinness-by-pairs
 ---
 
 
