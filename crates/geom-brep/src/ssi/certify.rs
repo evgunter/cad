@@ -2707,6 +2707,111 @@ mod tests {
         assert!(net[0].iter().all(|x| x.is_certified()));
     }
 
+    /// **The tube's box chain encloses the described carrier, at `f64`
+    /// and at `Interval`.** The rational cubic of
+    /// `refined_net_encloses_the_exact_refined_net`: each box of
+    /// [`super::box_chain`] contains the exact refined control points of
+    /// its span (Boehm's insertion in exact rationals), so by the convex
+    /// hull property it contains the carrier's own arc over the span.
+    /// A chain read off the `f64` insertion plan (`refine_knots`) misses
+    /// some extremal point by its rounding.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn the_box_chain_encloses_the_exact_refined_net_at_every_scalar() {
+        use geom::NurbsCurve3;
+        use geom_core::spline::KnotVector;
+        use geom_core::{Bounds, Interval, Point3};
+
+        use crate::exact_q::{Q, refine_u};
+        use crate::ssi::enclose::Box3;
+
+        let knots = vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.7, 1.0, 1.0, 1.0, 1.0];
+        let kv = KnotVector::clamped(knots.clone(), 3).unwrap();
+        let ctl = [
+            [0.1, 0.2, 0.3],
+            [0.9, 1.3, -0.3],
+            [1.7, -0.6, 0.4],
+            [2.3, 0.7, 1.3],
+            [3.1, 0.1, 0.7],
+            [3.7, 0.9, -0.1],
+        ];
+        let weights = vec![1.0, 0.3, 2.7, 0.6, 1.1, 0.9];
+        let curve = NurbsCurve3::new(
+            geom_core::spline::Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+            ctl.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
+            weights.clone(),
+        )
+        .unwrap();
+        let exact: Vec<[Q; 4]> = ctl
+            .iter()
+            .zip(&weights)
+            .map(|(p, &w)| {
+                let w = Q::of(w);
+                let [x, y, z] = p.map(|c| w.mul(&Q::of(c)));
+                [x, y, z, w]
+            })
+            .collect();
+        let breaks = super::cert_grid(&kv);
+        let (exact, fine) = refine_u(&exact, (ctl.len(), 1), (&knots, 3), &breaks);
+        let spans: Vec<usize> = (3..fine.len() - 4)
+            .filter(|&i| fine[i] < fine[i + 1])
+            .collect();
+        let misses = |chain: &[Box3]| -> Vec<String> {
+            assert_eq!(chain.len(), spans.len(), "one box per non-empty span");
+            let mut out = Vec::new();
+            for (bx, &i) in chain.iter().zip(&spans) {
+                for (k, h) in exact.iter().enumerate().take(i + 1).skip(i - 3) {
+                    for (c, iv) in [bx.x, bx.y, bx.z].into_iter().enumerate() {
+                        if !h[c].div(&h[3]).within(iv.lo(), iv.hi()) {
+                            out.push(format!("span {i} point {k}.{c}"));
+                        }
+                    }
+                }
+            }
+            out
+        };
+        let at_f64: Vec<Box3> = super::box_chain(&curve)
+            .into_iter()
+            .map(|(b, _)| b)
+            .collect();
+        let at_f64 = misses(&at_f64);
+        assert!(at_f64.is_empty(), "f64 chain missed {at_f64:?}");
+        let at_interval: Vec<Box3> =
+            super::box_chain(&curve.map_scalar(<Interval as geom_core::Real>::from_f64))
+                .into_iter()
+                .map(|(b, _)| b)
+                .collect();
+        let at_interval = misses(&at_interval);
+        assert!(
+            at_interval.is_empty(),
+            "Interval chain missed {at_interval:?}"
+        );
+        // Contrast: hulls of the f64-planned refinement, lifted thin.
+        let planned = curve.refine_knots(&breaks).unwrap();
+        let hull = |xs: &[Point3<f64>], c: usize| {
+            let v = xs.iter().map(|p| [p.x, p.y, p.z][c]);
+            let lo = v.clone().fold(f64::INFINITY, f64::min);
+            let hi = v.fold(f64::NEG_INFINITY, f64::max);
+            Interval::from_bounds(lo, hi)
+        };
+        let planned: Vec<Box3> = spans
+            .iter()
+            .map(|&i| {
+                let net = &planned.control()[i - 3..=i];
+                Box3 {
+                    x: hull(net, 0),
+                    y: hull(net, 1),
+                    z: hull(net, 2),
+                }
+            })
+            .collect();
+        assert!(
+            !misses(&planned).is_empty(),
+            "the f64-planned chain must miss the exact net somewhere, or this row cannot tell \
+             the two apart"
+        );
+    }
+
     /// `cert_grid`'s cut-off: a carrier with `SSI_CERT_SPANS + degree`
     /// control points takes no breaks, one with a control point fewer
     /// still takes the whole grid. The interior knots are odd 128ths,

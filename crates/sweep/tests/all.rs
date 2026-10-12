@@ -646,6 +646,8 @@ mod split_across_a_revolve_seam;
 mod split_along_a_face_plane;
 #[path = "split_cylindrical_feature_box.rs"]
 mod split_cylindrical_feature_box;
+#[path = "split_edge_fitted_rows.rs"]
+mod split_edge_fitted_rows;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
 #[path = "split_edge_on_faces_poses.rs"]
