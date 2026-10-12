@@ -29,11 +29,14 @@ ending table for a sized decision.
   `geom_brep::offset_meters::MeterError::Escalated` now carries a
   `Meter`.
 
-- **A second name-keyed table** (ENCL, PR 4780):
-  `validate::LEVER_ONLY_DECISIONS` picks the ending both
-  `PathError::Escalated` and `ProfileError::Escalated` give a name
-  (`validate::escalation_ending`). The closed type below retires it with
-  the routing.
+- **The ending table is keyed by name** (ENCL, PR 4780):
+  `validate::DECISION_ENDINGS` gives each decided name an `EndingKind`,
+  read by both `PathError::Escalated` and `ProfileError::Escalated`. The
+  closed type below retires the name key with the routing.
+- **`JunctionTangent` contradicts its decision's kind.** The junction
+  rows are `Lever(JUNCTION_TANGENT_LEVER)`: an undecided turn offers the
+  lever alone, while the definite `JunctionTangent` still ends "(or
+  lower the tolerance)".
 
 ## Repair shape
 

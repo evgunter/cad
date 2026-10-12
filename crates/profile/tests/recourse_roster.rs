@@ -1,22 +1,14 @@
-//! **The roster: every predicate name this crate decides is routed to a
-//! recourse sentence, or listed in `validate::SHARED_CLAUSE_ONLY` as
-//! having nothing beyond the shared clause, with what it measures.**
+//! **The roster: every predicate name this crate decides is answered by
+//! the fillet table or has a row in `validate::DECISION_ENDINGS`, whose
+//! kind says how its undecided refusal ends.**
 //!
-//! `PathError::Escalated`'s `Display` routes a recourse by matching the
-//! escalated predicate's NAME. A name no arm carries falls through, and
-//! the fall-through is the subject of this suite:
-//!
-//! - a name the crate has DECIDED needs only the shared coincidence
-//!   clause renders with that clause and nothing about a gap — the
-//!   decision lives in `src`, beside the names, so the door can consult
-//!   it and a reader of a real refusal is not told the table is broken;
-//! - anything else renders `geom_core::MissingRecourse`, which names
-//!   the hole rather than asserting a category;
-//! - and a name cannot reach either by accident. The roster is read out
-//!   of the crate's own `src`, so a gate added anywhere — in
-//!   `sugar.rs`, in `path/arc_fillet.rs`, in a `#[cfg(test)]` module —
-//!   is as visible as one added beside a name it already knows, and a
-//!   gate RENAMED under a routed arm goes red the same way.
+//! `PathError::Escalated`'s `Display` routes some names to sentences of
+//! their own; the rest fall through, and `ProfileError::Escalated`
+//! renders every name, both ending by the row's kind. This suite holds
+//! the table complete both ways — a gate added or renamed anywhere in
+//! `src` without a row reds, and so does a row nothing decides — and a
+//! name with no row at runtime names its hole
+//! (`geom_core::MissingRecourse`) at both doors.
 //!
 //! The reader is `test_utils::source::predicate_census`, the tree's one
 //! home for this walk. **What it cannot read it reports**: a spelling
@@ -26,16 +18,14 @@
 //! in `unwalked`. Every one of those is a red row here, so the roster's
 //! completeness is a measurement rather than a claim.
 //!
-//! **The crate holds a second predicate-keyed table, and it is not a
-//! recourse table.** `ProfileError::Escalated`'s near-tangency addendum
-//! (`validate.rs`) appends a site NOTE for three carrier names at a
-//! segment pair and appends nothing otherwise; the levers themselves
-//! ride the shared ending for every name, so its default asserts nothing and
-//! it has no gap to name. Those three names also carry a sentence at
-//! `PathError`'s stored-form arm, and the two differ on purpose — the
+//! **The near-tangency addendum is keyed by name too, and it is a
+//! note, not a recourse.** `ProfileError::Escalated` appends a site
+//! NOTE for three carrier names at a segment pair; the levers ride the
+//! row's ending for every name. Those three names also carry a sentence
+//! at `PathError`'s stored-form arm, and the two differ on purpose — the
 //! validator sees a segment pair the caller authored, the door a form
-//! it is about to store. Both sites say so;
-//! `review_recourse_roster_r2_probes::the_validator_door_appends_a_site_note_and_routes_nothing`
+//! it is about to store.
+//! `review_recourse_roster_r2_probes::the_validator_door_ends_by_the_row_and_notes_a_near_tangency`
 //! pins the addendum's key, `fillet_recourse_followability` the other.
 //!
 //! Which arm answers a name is MEASURED — each name is put through the
@@ -113,87 +103,57 @@ fn names_a_gap(name: &'static str) -> bool {
     rendered(name).contains(&MissingRecourse(Some(name)).to_string())
 }
 
-/// **Every name the crate decides is routed to a sentence, or listed in
-/// `src` as having nothing beyond the shared clause.**
+/// **The ending table and the crate's decided names are one set.**
 ///
-/// The two sides are read from different places and compared: the names
-/// out of the crate's `src`, the routing out of the rendered refusal.
-/// A gate added anywhere is neither routed nor listed, so it reds here;
-/// a gate renamed under a routed arm stops being routed, so it reds
-/// here too; a name struck off the src list without a sentence reds as
-/// a gap the door now names; and a stale entry — a listed name nothing
-/// decides any more — reds as well.
+/// Every name `src` decides is answered by `fillet_recourse_for` or has
+/// exactly one row in `DECISION_ENDINGS`, never both; every row is a
+/// name `src` decides, with a subject; and no name with a row renders
+/// the gap sentence. Deleting a row, adding a gate without one, or
+/// renaming a gate under one all red here.
 #[test]
-fn every_decided_name_is_routed_or_listed_with_its_reason() {
+fn every_decided_name_has_one_row_and_every_row_is_decided() {
     let census = census();
     assert!(
         census.names.contains("path_junction_turn") && census.names.contains("fillet_corner_turn"),
         "the reader found no funnel calls it should have: {:?}",
         census.names
     );
-    let listed: BTreeSet<&str> = profile::SHARED_CLAUSE_ONLY
-        .iter()
-        .map(|(n, _)| *n)
-        .collect();
+    let rows: BTreeSet<&str> = profile::DECISION_ENDINGS.iter().map(|r| r.name).collect();
     assert_eq!(
-        listed.len(),
-        profile::SHARED_CLAUSE_ONLY.len(),
-        "a name is listed twice in SHARED_CLAUSE_ONLY"
+        rows.len(),
+        profile::DECISION_ENDINGS.len(),
+        "a name has two rows in DECISION_ENDINGS"
     );
-    for (name, _) in profile::SHARED_CLAUSE_ONLY {
+    for row in profile::DECISION_ENDINGS {
         assert!(
-            census.names.contains(*name),
-            "`{name}` is listed as needing nothing beyond the shared clause, but nothing in \
-             the crate's src decides it — a stale entry"
+            census.names.contains(row.name),
+            "`{}` has a row, but nothing in the crate's src decides it — a stale row",
+            row.name
+        );
+        assert!(
+            profile::decision_subject(row.name).is_some(),
+            "`{}` has a row and no subject",
+            row.name
+        );
+        assert!(
+            profile::fillet_recourse_for(row.name).is_none(),
+            "`{}` has a row and is answered by the fillet table: one home, not both",
+            row.name
         );
     }
     for name in &census.names {
         let name: &'static str = Box::leak(name.clone().into_boxed_str());
-        let gap = names_a_gap(name);
         assert!(
-            !gap,
-            "`{name}` is decided by this crate and its refusal names a gap. Route it to a \
-             sentence, or add it to `validate::SHARED_CLAUSE_ONLY` with what its margin \
-             measures. It renders: {}",
+            rows.contains(name) || profile::fillet_recourse_for(name).is_some(),
+            "`{name}` is decided by this crate and has no row in \
+             `validate::DECISION_ENDINGS`: give it one with its ending's kind and what its \
+             margin measures. It renders: {}",
             rendered(name)
         );
-        // A listed name must reach the door's shared-clause arm, not a
-        // routed sentence: the list is a claim about which arm answers.
-        if listed.contains(name) {
-            let what = profile::decision_subject(name).expect("a listed name has a subject");
-            assert!(
-                rendered(name).starts_with(&format!("{what} is undecided: ")),
-                "`{name}` is listed as shared-clause-only but a routed arm answers it: {}",
-                rendered(name)
-            );
-        }
-    }
-}
-
-/// **Every lever-only decision is one the crate decides, under a subject
-/// a refusal states.** A name in `validate::LEVER_ONLY_DECISIONS` that
-/// nothing in `src` decides any more — a gate renamed under it — would
-/// leave its decision on the sized ending with nothing to say so.
-#[test]
-fn every_lever_only_decision_is_decided_and_named() {
-    let census = census();
-    let listed: BTreeSet<&str> = profile::LEVER_ONLY_DECISIONS
-        .iter()
-        .map(|(n, _)| *n)
-        .collect();
-    assert_eq!(
-        listed.len(),
-        profile::LEVER_ONLY_DECISIONS.len(),
-        "a name is listed twice in LEVER_ONLY_DECISIONS"
-    );
-    for (name, _) in profile::LEVER_ONLY_DECISIONS {
         assert!(
-            census.names.contains(*name),
-            "`{name}` is listed as lever-only, but nothing in the crate's src decides it"
-        );
-        assert!(
-            profile::decision_subject(name).is_some(),
-            "`{name}` is listed as lever-only and has no subject"
+            !names_a_gap(name),
+            "`{name}` has a home and still names a gap: {}",
+            rendered(name)
         );
     }
 }
@@ -253,6 +213,16 @@ fn an_unknown_name_names_the_hole_and_asserts_nothing() {
         !text.contains(unknown),
         "the predicate's name is routing and stays out of the sentence: {text}"
     );
+    // The validator's door names the same hole.
+    let at_rest = profile::ProfileError::Escalated {
+        site: profile::EscalationSite::Loop { loop_index: 0 },
+        source: escalation(unknown),
+    }
+    .to_string();
+    assert!(
+        at_rest.contains(&MissingRecourse(Some(unknown)).to_string()),
+        "the validator's door names the hole too: {at_rest}"
+    );
     // The two junction keys are the names that label IS true for, and
     // they keep it.
     for key in ["path_junction_turn", "path_junction_side"] {
@@ -299,7 +269,7 @@ fn the_dispatch_order_owns_each_name_in_exactly_one_layer() {
         }
     }
     assert!(
-        patterned.contains("path_junction_turn") && patterned.contains("vertex_separation"),
+        patterned.contains("path_leg_length") && patterned.contains("vertex_separation"),
         "the pattern reader found no arms it should have: {patterned:?}"
     );
     for name in &patterned {
@@ -308,11 +278,6 @@ fn the_dispatch_order_owns_each_name_in_exactly_one_layer() {
             "`{name}` is written into a `path.rs` match pattern AND answered by \
              `fillet_recourse_for`. The map is asked first, so the pattern arm is dead: \
              one of the two is the name's home, not both"
-        );
-        assert!(
-            profile::shared_clause_only(name).is_none(),
-            "`{name}` is routed by a `path.rs` arm AND listed as shared-clause-only: the \
-             arm answers it, so the list entry is false"
         );
     }
     // The other direction, driven: every name the map answers renders
@@ -422,21 +387,27 @@ fn the_undecided_endings_follow_the_decisions_kind() {
             "a junction's turn, value",
             path("path_junction_turn", value),
             "whether the path turns at this junction is undecided: margin 5e-9 lies inside the \
-             ambiguity band (1e-9, 1e-8). Recourse: move the geometry",
+             ambiguity band (1e-9, 1e-8). Recourse: for tangency onto a new carrier use .tangent() (or the tangent-arc or seam-fillet close at \
+             the seam); for a straight continuation spell it line(len) off the directed point; \
+             otherwise move the geometry",
         ),
         (
             "a junction's turn, straddle",
             path("path_junction_turn", straddle),
             "whether the path turns at this junction is undecided: enclosure [-2e-9, 5e-9] \
-             cannot be classified against the ambiguity band (1e-9, 1e-8). Recourse: move the \
-             geometry",
+             cannot be classified against the ambiguity band (1e-9, 1e-8). Recourse: for tangency onto a new carrier use .tangent() (or the tangent-arc or seam-fillet close at \
+             the seam); for a straight continuation spell it line(len) off the directed point; \
+             otherwise move the geometry",
         ),
         (
             "a junction's turn, unreadable",
             path("path_junction_turn", poison),
             "whether the path turns at this junction is undecided: margin is invalid (NaN or a \
-             refused enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: move the \
-             geometry; an unreadable margin may indicate a kernel bug worth reporting",
+             refused enclosure) against the ambiguity band (1e-9, 1e-8). Recourse: for tangency \
+             onto a new carrier use .tangent() (or the tangent-arc or seam-fillet close at the \
+             seam); for a straight continuation spell it line(len) off the directed point; \
+             otherwise move the geometry; an unreadable margin may indicate a kernel bug worth \
+             reporting",
         ),
         (
             "a circle's radius, value",
@@ -563,10 +534,58 @@ fn the_undecided_endings_follow_the_decisions_kind() {
             ),
             "at loop 0 segment 1, whether the path carries straight on at this junction or \
              doubles back into a cusp is undecided: margin 5e-9 lies inside the ambiguity band \
-             (1e-9, 1e-8). Recourse: move the geometry",
+             (1e-9, 1e-8). Recourse: for tangency onto a new carrier use .tangent() (or the tangent-arc or seam-fillet close at \
+             the seam); for a straight continuation spell it line(len) off the directed point; \
+             otherwise move the geometry",
+        ),
+        (
+            "validation, an unknown name, value",
+            validation(
+                EscalationSite::Loop { loop_index: 0 },
+                "roster_unknown_probe",
+                value,
+            ),
+            "on loop 0, an unnamed decision is undecided: margin 5e-9 lies inside the ambiguity \
+             band (1e-9, 1e-8). Recourse: move the geometry, or, if this size is intended, \
+             tighten the tolerance below 5e-10 m — no recourse is recorded for this decision",
         ),
     ];
     for (what, got, want) in cases {
         assert_eq!(got, want, "{what}");
+    }
+}
+
+/// **Each lever-kind row, and the size it was easy to mistake for one,
+/// ends as its kind says at the validator's door**: the ending after the
+/// payload on a value reading, written out per row so changing a row's
+/// kind reds here.
+#[test]
+fn each_lever_row_ends_in_its_lever_on_a_value_reading() {
+    const MOVE: &str = "Recourse: move the geometry";
+    const SIZED: &str = "Recourse: move the geometry, or, if this size is intended, tighten the \
+                         tolerance below 5e-10 m";
+    let rows: &[(&str, &str)] = &[
+        ("arc_sweep_range", MOVE),
+        ("canonical_order_y", MOVE),
+        ("full_turn_sense", MOVE),
+        ("path_arc_bulge", MOVE),
+        ("path_arc_sweep", MOVE),
+        ("path_arc_sweep_full", MOVE),
+        ("path_corner_turn", MOVE),
+        ("path_seam_arrival_side", MOVE),
+        ("path_seam_arrival_turn", MOVE),
+        ("segment_straightness", MOVE),
+        ("full_turn_reach", SIZED),
+    ];
+    for (name, tail) in rows {
+        let text = profile::ProfileError::Escalated {
+            site: profile::EscalationSite::Loop { loop_index: 0 },
+            source: at(name, MarginDiag::value(5e-9)),
+        }
+        .to_string();
+        assert!(
+            text.ends_with(&format!("(1e-9, 1e-8). {tail}")),
+            "`{name}` should end \"{tail}\": {text}"
+        );
     }
 }

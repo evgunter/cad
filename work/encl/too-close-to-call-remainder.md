@@ -95,10 +95,9 @@ caller's, per `Reading`. Three render the whole escalation
 **Done: the profile slice, in PR 4780** (four sentences: `path.rs`'s
 junction arm and both fall-through arms, `validate.rs`'s
 `ProfileError::Escalated`, now "{site}, {subject} is undecided: …").
-Both doors end through one `validate::escalation_ending`: the names in
-`validate::LEVER_ONLY_DECISIONS` (levered turns and sides, angles, the
-loop winding, form and order selections, `arc_carrier_resolution`) end
-in their lever alone, every other in `ending(COINCIDENCE_RECOURSE)`.
+Both doors end a name by its row in `validate::DECISION_ENDINGS`
+(`EndingKind::Sized` or `Lever(lever)`), one row per decided name, held
+both ways against `src`; a name with no row names its hole at both.
 
 - Skipped: nothing on D10 ground in the slice.
 - Left: the hand-spelled decision-specific verdicts in `path.rs`'s
@@ -110,7 +109,9 @@ in their lever alone, every other in `ending(COINCIDENCE_RECOURSE)`.
   fillet and stored-form arms' `lever_recourse(.., None)`, which drops
   the unreadable-margin note on poison; `structure.rs`'s
   `StructureRefusal` bare `{source}` (owned by
-  `work/paths/paths-refusals-short-of-the-shape-guard.md`).
+  `work/paths/paths-refusals-short-of-the-shape-guard.md`); the seam
+  arrival and continuation arms' "widen the input tolerance (K·ε)"
+  against their rows' kinds.
 
 ## Repair shape
 
