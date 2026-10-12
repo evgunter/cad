@@ -55,3 +55,26 @@ Either build it, Below's strut loop killed whole and Above's
 two-chord slit nested as a ring of the square's section face (tier 3
 has to accept a zero-area ring, which is a design question), or refuse
 it with a payload that names the self-touch along the edge.
+
+## Build notes (from the design fork, PR 4795)
+
+- A completed section is an area polygon or a slit trace, decided from
+  topology before `certify_section_area`: a loop made entirely of
+  struts (`strut_turn`) is a slit. Its strut loop dies whole on the
+  side away from the keel's walls (Below under +z, Above under −z);
+  the other loop is nested as a ring of the section face of its side
+  that contains a tip vertex, by containment, not winding
+  (`section_sense` refuses a zero winding, so the role is read first;
+  `nest_hole_sections` needs a slit entry). A slit landing in no
+  outline, or inside a hole, refuses as a kernel defect.
+- Killing the strut loop leaves a lone-vertex ring (`kev` leaves an
+  empty loop); no single operator kills it today (`mekr` then `kev`,
+  or a new kill). `below_chord_u_ref` reads a chord that no longer
+  exists; the slit's u_ref comes from the face it nests into.
+- `plane_section` skips slit sections.
+- `DegenerateSection`'s docs in `chord_join.rs` ("A pinch does not
+  reach it") and the `strip_spurs` paragraph citing this row are
+  rewritten: an edge pinch wrapped at both ends does reach it today.
+- Pin rows: the input at both normals and three ε values, plus a
+  curved-keel twin. A later cut through the slit refuses `SliverSector`
+  until `work/tang/declared-cusps-second-order-wedge-arm.md` lands.
