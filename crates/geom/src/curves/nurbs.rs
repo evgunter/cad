@@ -194,15 +194,15 @@ const RATIONAL_METER_SPLITS: usize = 16;
 /// what it buys (the reach on a swaying corner roughly doubles with
 /// each doubling of the count) and `tests/curves/piece_coverage_meter.rs`
 /// that every piece is read.
-const INTEGRAL_METER_SPLITS: usize = 16;
+const INTEGRAL_METER_SPLITS: usize = 32;
 
 /// The rational speed meter's piece schedule (D9: structure, never a
 /// decision): `rational_piece_assembly` reads each nonempty span as
-/// this many equal pieces. Its numerator has degree `2p − 1`, about
-/// twice the integral arm's, and its Bernstein coefficients close on it
-/// more slowly, so it takes one more doubling than
-/// [`INTEGRAL_METER_SPLITS`] for the same reach on a swaying corner
-/// (`tests/curves/swaying_corner_meter.rs` pins it). Its frontier, on
+/// this many equal pieces, the same count as [`INTEGRAL_METER_SPLITS`]:
+/// on a curve whose weights are all equal its numerator is `w²·C′`,
+/// and the two arms then read the same reach, so the arm a curve takes
+/// costs it nothing (`tests/curves/swaying_corner_meter.rs` pins both
+/// arms and their agreement). Its frontier, on
 /// the six-point swaying corner with one weight raised 1.3×: degree 4
 /// meters at `a = 2` and refuses at `a = 4`, degree 5 refuses from
 /// `a = 2`.

@@ -2,10 +2,12 @@
 id: the-speed-meters-arm-choice-is-not-monotone-in-reach
 kind: issue
 title: The speed meter's arm choice is not monotone in reach: an equal-weight curve meters worse on the integral arm than one ulp off on the rational arm
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: M
+branch: nurbs/one-speed-meter-arm
+closed: 2026-10-12
 ---
 
 ## What
@@ -31,3 +33,17 @@ Either join the arms on an equal-weight curve (the rational arm's
 argument holds for any positive weights), or raise the integral arm's
 reach to match (`INTEGRAL_METER_SPLITS` = 32, or its own numerator
 reading). Re-measure the loft cost (PR 4803's table) either way.
+
+## Closed (2026-10-12)
+
+`INTEGRAL_METER_SPLITS` is 32, the rational piece schedule's count. On a
+polynomial carrier the integral arm now reads exactly what the rational
+arm does one ulp off: swaying degree 3, `a = 4`, 0.128 → 0.552 of the
+ceiling (the ulp-off reading); 254 random integral nets, p10 0.741 →
+0.946, median 0.981 → 0.996. Loft cost 11 → 16–18 ms (`Interval`, 40
+and 24 sections). Joining the arms instead was measured and refused:
+7–24× loft cost for no reach over this (the table is in the PR body).
+`an_equal_weight_curve_meters_no_worse_than_one_ulp_off`
+(`geom/tests/curves/swaying_corner_meter.rs`) is red at 16 pieces.
+The arm still reads the value channel; the `Dual`/`Sym` half is
+`the-integral-speed-meter-drops-a-dual-weights-tangent`.
