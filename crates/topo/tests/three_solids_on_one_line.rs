@@ -16,7 +16,7 @@
 //! - a third prism crossing one wedge about the line, or both;
 //! - one prism tilted about the line within the zero;
 //! - a prism whose side face holds the line;
-//! - the review's hunt seeds whose pierces the weld leaves apart;
+//! - the review's hunt seeds whose pierces meet at one point of the top;
 //! - one prism's corner moved off the line, within the zero, inside the
 //!   band and past it.
 //!
@@ -773,17 +773,16 @@ fn hunt(seed: u64, k: usize) -> Vec<Prism> {
         .collect()
 }
 
-/// **Pierces a weld leaves apart build one body in every member order**:
-/// the review's hunt seeds 506 (three prisms) and 507 (four), overlapping
+/// **Pierces of one point build one body in every member order**: the
+/// review's hunt seeds 506 (three prisms) and 507 (four), overlapping
 /// sectors through the plate's top at [`MEET`], some upright on the line
 /// and some leant about it. Folded first, their edges pierce the top at
-/// [`MEET`], and a pierce the weld has joined meets another copy of a
-/// pierce it already took, whose corners none of the joined vertex's
-/// hold: the pair stays apart. Every order builds sound by tier 3,
+/// [`MEET`], and one ring serves them all (`vtxfac::mint_ring`). Every
+/// order builds sound by tier 3,
 /// corners, a probe oracle about [`MEET`], a Monte Carlo volume, and one
 /// body.
 #[test]
-fn pierces_a_weld_leaves_apart_build_one_body_in_every_member_order() {
+fn pierces_of_one_point_build_one_body_in_every_member_order() {
     for (seed, k) in [(506, 3), (507, 4)] {
         let prisms = hunt(seed, k);
         let mut members = vec![finished(

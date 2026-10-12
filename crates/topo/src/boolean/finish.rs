@@ -1,8 +1,7 @@
 //! `setopfinish` (ch. 15 §15.8, Program 15.15 re-derived): promote
 //! each completed section-polygon pair into IN/OUT section faces in
 //! BOTH solids, distribute components, select per **Eq. 15.1**, carve
-//! the kept components, weld each kept pinch into one vertex
-//! (`weld_pinches`), `revert` the B side for ∖, and drive the
+//! the kept components, `revert` the B side for ∖, and drive the
 //! combine door — everything keyed by the F9 records, never by index
 //! offsets into correlated arrays (the book's `sonfa[i+inda]`
 //! bookkeeping is replaced by side data).
@@ -30,28 +29,22 @@
 //! witness ([`super::shell_witness`]) against the *pristine* other
 //! operand.
 
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide};
 use slotmap::SecondaryMap;
 
 use super::combine::{GraftMap, graft_solid};
 use super::discard::{DiscardRow, HeldInto, discard_row};
 use super::join::CompletedPolygonPair;
-use super::sectors;
 use super::shell_witness::{
     ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
 };
-use super::zip::{Fusions, Joint, SeamCorrespondence, fuse_by_joint};
-use super::{
-    BooleanError, BooleanOp, BooleanReduction, Coincide, DeclarationRead, Operand, SideCode,
-    one_vertex,
-};
+use super::zip::SeamCorrespondence;
+use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
-use crate::lineage::Lineage;
 use crate::live::{BoundaryMember, proven};
 use crate::splitting::finish::{carve, single_solid};
-use crate::validate::decide;
 use geom_core::Tol;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -70,17 +63,6 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     pub graft: GraftMap,
     /// The faces the selection discarded (`BooleanNaming::discards`).
     pub discards: Vec<DiscardRow>,
-    /// The pinch welds' face fragment rows `(new face, divided-from
-    /// face)`, A-clone keys.
-    pub weld_fragments_a: Vec<(FaceKey, FaceKey)>,
-    /// The pinch welds' face fragment rows, B-clone keys.
-    pub weld_fragments_b: Vec<(FaceKey, FaceKey)>,
-    /// The A-side pinch welds' vertex fusions `(dead, kept)`, result
-    /// keys.
-    pub weld_merges_a: Fusions,
-    /// The B-side pinch welds' vertex fusions, B-clone keys: they ran
-    /// before the graft, so a dead key has no result key.
-    pub weld_merges_b: Fusions,
 }
 
 /// Which side each operand keeps (Eq. 15.1 as data).
@@ -284,26 +266,10 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
     }
 
     // ---- Carve both kept sub-bodies (keys preserved). ----
-    let mut a_kept = carve(&red.a, a_solid, &a_kept_shells)
+    let a_kept = carve(&red.a, a_solid, &a_kept_shells)
         .map_err(|_| desync("carving the kept A component failed"))?;
     let mut b_kept = carve(&red.b, b_solid, &b_kept_shells)
         .map_err(|_| desync("carving the kept B component failed"))?;
-
-    // ---- Pinches: one vertex where two pierces of a kept face meet. ----
-    let a_welds = weld_pinches(
-        &mut a_kept,
-        (Operand::A, &connected.a_fragments, &a_sides),
-        &red,
-        band,
-        tol,
-    )?;
-    let b_welds = weld_pinches(
-        &mut b_kept,
-        (Operand::B, &connected.b_fragments, &b_sides),
-        &red,
-        band,
-        tol,
-    )?;
 
     // ---- ∖: revert the kept B side (Eq. 15.1's (BinA)⁻¹). ----
     if op == BooleanOp::Subtract {
@@ -366,7 +332,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         let ba = b_attr
             .get(pair.b_edge)
             .ok_or_else(|| desync("pair B edge without attribute"))?;
-        let (a_below, a_above) = (a_welds.kept(aa.below_end), a_welds.kept(aa.above_end));
+        let (a_below, a_above) = (aa.below_end, aa.above_end);
         let a_survivor = match (
             body.get_vertex(a_below).is_some(),
             body.get_vertex(a_above).is_some(),
@@ -375,8 +341,8 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
             (false, true) => a_above,
             _ => return Err(desync("pair A edge has not exactly one surviving end")),
         };
-        let b_below = graft.vertices.get(b_welds.kept(ba.below_end)).copied();
-        let b_above = graft.vertices.get(b_welds.kept(ba.above_end)).copied();
+        let b_below = graft.vertices.get(ba.below_end).copied();
+        let b_above = graft.vertices.get(ba.above_end).copied();
         let b_survivor = match (b_below, b_above) {
             (Some(v), None) => v,
             (None, Some(v)) => v,
@@ -397,37 +363,30 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
                 .or_default()
                 .push((pair.site, b_survivor));
         }
-        // A welded pinch lies on a seam once per pierce it fused, with
-        // B's vertex of each; an A vertex several crossing pairs cut
-        // lies on one seam per pair, with that pair's B vertex: every
-        // B correspondent is one pair's, and the pairs share their A
-        // vertex. A piercing vertex that keeps several In runs lies on
-        // its seam once per run, with that run's ring copy.
+        // An A vertex several crossing pairs cut lies on one seam per
+        // pair, with that pair's B vertex: every B correspondent is one
+        // pair's, and the pairs share their A vertex. A piercing vertex
+        // that keeps several In runs lies on its seam once per run, with
+        // that run's ring copy; a ring copy, once per run it holds, of
+        // the pierces of its face at its point (`vtxfac::mint_ring`).
         let shared_cut = one_each
             && pairs
                 .keys()
                 .all(|p| pairs.keys().next().is_some_and(|q| q.0 == p.0))
             && pairs.values().copied().collect::<BTreeSet<_>>() == *bs;
-        let one_pierce = pierce_runs.get(&a_survivor).is_some_and(|runs| {
-            runs.iter().all(|&(site, _)| site == runs[0].0)
+        let one_ring = pierce_runs.get(&a_survivor).is_some_and(|runs| {
+            runs.iter().all(|&(site, _)| red.one_ring(site, runs[0].0))
                 && runs.iter().map(|&(_, b)| b).collect::<BTreeSet<_>>() == *bs
         });
-        if bs.len() > 1
-            && !shared_cut
-            && !one_pierce
-            && !a_welds.merges.rows().iter().any(|&(_, k)| k == a_survivor)
-        {
+        if bs.len() > 1 && !shared_cut && !one_ring {
             return Err(desync("conflicting seam vertex correspondence"));
         }
     }
 
     // A kept vertex in result keys: A's survive the carve in place,
     // B's through the graft.
-    let a_kept = |v: VertexKey| {
-        let v = a_welds.kept(v);
-        body.get_vertex(v).is_some().then_some(v)
-    };
-    let b_kept = |v: VertexKey| graft.vertices.get(b_welds.kept(v)).copied();
+    let a_kept = |v: VertexKey| body.get_vertex(v).is_some().then_some(v);
+    let b_kept = |v: VertexKey| graft.vertices.get(v).copied();
     let mut discards = discarded(
         &red,
         a_solid,
@@ -451,373 +410,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         vertex_map,
         graft,
         discards,
-        weld_fragments_a: a_welds.fragments,
-        weld_fragments_b: b_welds.fragments,
-        weld_merges_a: a_welds.merges,
-        weld_merges_b: b_welds.merges,
     })
-}
-
-/// Joins `u` and `w` at `joint` ([`fuse_by_joint`]) and checks that the
-/// pair fused: one of them dead, the other live. Returns the fusion
-/// `(dead, kept)` and the face a chord divided off.
-fn weld_pair<T: Decide + crate::props::AtRestPolicy>(
-    body: &mut Body<T>,
-    (u, w): (VertexKey, VertexKey),
-    joint: Joint,
-    p: geom_core::Point3<T>,
-    tol: Tol,
-) -> Result<((VertexKey, VertexKey), Option<FaceKey>), BooleanError> {
-    let desync = |what| BooleanError::JoinDesync { what };
-    let ((dead, kept), made) = fuse_by_joint(body, joint, p, desync, tol)?;
-    if ![[u, w], [w, u]].contains(&[dead, kept])
-        || body.get_vertex(dead).is_some()
-        || body.get_vertex(kept).is_none()
-    {
-        return Err(desync("a pinch weld did not fuse its pair"));
-    }
-    Ok(((dead, kept), made))
-}
-
-/// The pinch welds of one kept side: each fusion `(dead, kept)` and the
-/// face each one divided.
-#[derive(Default)]
-struct Welds {
-    merges: Fusions,
-    fragments: Vec<(FaceKey, FaceKey)>,
-}
-
-impl Welds {
-    /// The vertex `v` survives as.
-    fn kept(&self, v: VertexKey) -> VertexKey {
-        self.merges.survivor(v)
-    }
-}
-
-/// **Pierces of one face that meet at a point are one vertex.**
-///
-/// Edges of the piercing body that coincide (a contact line, two or more
-/// edges the other operand recorded) pierce a face at one point, and
-/// each pierce mints its own ring vertex. Where several survive on one
-/// kept fragment of that face, the fragment's boundary meets itself
-/// there, and the order that met the point as an existing vertex built
-/// that meeting as one vertex. So they are welded pairwise, each pair
-/// joined by a zero-length edge and the edge collapsed: across the outer loop it divides the fragment, two
-/// regions meeting at the vertex; across one ring it divides the hole,
-/// two holes meeting there; across two loops (holes touching at a
-/// corner) it joins them into one.
-///
-/// The weld repairs one operand's own fragment before the zips; the
-/// vertex it leaves is split per cone with the rest
-/// (`zip::split_cones`).
-///
-/// The site is read from the pierced face's [`Lineage`] through the
-/// join's fragment `rows` and the welds' own, section faces
-/// (`sections`) aside. Pierces that survive on different fragments, or
-/// meet only on a section face, stay apart, as the contact's own
-/// vertices do; so do two whose corners of the site do not nest
-/// ([`corners_nest`]), one of them a copy whose corner the other's
-/// edges do not run in. A vertex an earlier weld left passes the
-/// fragment once per pierce it joined, and the next pierce joins it at
-/// the corner it stands in ([`corner_holds_pierce`]), or at none.
-fn weld_pinches<T: Decide + crate::props::AtRestPolicy>(
-    body: &mut Body<T>,
-    (operand, rows, sections): (
-        Operand,
-        &[(FaceKey, FaceKey)],
-        &SecondaryMap<FaceKey, SideCode>,
-    ),
-    red: &BooleanReduction<T>,
-    band: Band,
-    tol: Tol,
-) -> Result<Welds, BooleanError> {
-    // A pierce survives as whichever of its null-edge copies the kept
-    // side holds.
-    let copies = super::NullCopies::of_operand(&red.null_edges, operand);
-    let copies_of = |v: VertexKey| -> BTreeSet<VertexKey> { copies.of(v).into_iter().collect() };
-    let mut by_face: BTreeMap<FaceKey, Vec<BTreeSet<VertexKey>>> = BTreeMap::new();
-    for r in red.pierce_rings.iter().filter(|r| r.operand == operand) {
-        by_face
-            .entry(r.face)
-            .or_default()
-            .push(copies_of(r.ring_vertex));
-    }
-    let mut welds = Welds::default();
-    // Every pair of one face's pierces, through their copies: quadratic,
-    // over the few edges of the other operand that pierce one face, and a
-    // pair costs one point comparison unless it coincides.
-    for (&pierced, pierces) in &by_face {
-        for (i, us) in pierces.iter().enumerate() {
-            for (&u0, &w0) in pierces[i + 1..]
-                .iter()
-                .flat_map(|ws| us.iter().flat_map(move |u| ws.iter().map(move |w| (u, w))))
-            {
-                let (u, w) = (welds.kept(u0), welds.kept(w0));
-                if u == w || body.get_vertex(u).is_none() || body.get_vertex(w).is_none() {
-                    continue;
-                }
-                // Both resolved just above, so only the point is a read.
-                let point = |v| body.resolve_vertex_point(v, crate::live::Proven);
-                let pu = point(u);
-                // No row reaches the escalation: two pierces a band
-                // apart need the piercing operand's two edges a band
-                // apart. Seen from one germ the two sites lie in one
-                // half-turn unless they straddle its ends, and the join
-                // orders them there before the weld runs — escalating
-                // the waist at `bool_join_arc_travel` along a conic, at
-                // `bool_join_nearest` on a straight line; a narrower one
-                // the profile insert refuses at the operand's build. An
-                // operand built elsewhere, or two sites the half-turn
-                // parts, can still bring them here.
-                if !one_vertex(pu, point(w), band).map_err(|diag| BooleanError::Escalated {
-                    decision: super::BooleanDecision::VertexOnVertex,
-                    diag,
-                })? {
-                    continue;
-                }
-                let lineage = Lineage::of(pierced, rows.iter().chain(&welds.fragments));
-                let in_lineage = |f: FaceKey| lineage.contains(f) && !sections.contains_key(f);
-                let holds = |v, hv, other| corner_holds_pierce(body, operand, (v, hv), other, band);
-                let Some((face, joint)) = pinch_site(body, u, w, in_lineage, holds)? else {
-                    continue;
-                };
-                if !corners_nest(body, operand, (u, w), face, band)? {
-                    continue;
-                }
-                let ((dead, kept), made) = weld_pair(body, (u, w), joint, pu, tol)?;
-                if let Some(made) = made {
-                    welds.fragments.push((made, face));
-                }
-                welds.merges.push((dead, kept))?;
-            }
-        }
-    }
-    Ok(welds)
-}
-
-/// Whether `u`'s and `w`'s corners of `face` nest: every edge leaving
-/// either vertex runs inside the other's corner, a graze counting as
-/// inside.
-///
-/// Only then does a chord across `face` join the two on one fan in the
-/// order their edges leave the point. A pierce leaves a copy of its ring
-/// vertex per null edge, all on one point, each with a corner of the
-/// face; the other pierce's edges leave the point inside one of those
-/// corners. A chord to another copy splices the two fans out of order,
-/// and the vertex it leaves holds more cones than the point
-/// (`zip::split_cones`). Such a pair is left apart, and the copy whose
-/// corner holds the other pierce is welded to it instead.
-///
-/// # Errors
-///
-/// A corner read's refusal ([`sectors::orbit_corners`]), and the
-/// sectors' coincidence refusal where an edge runs along a bound within
-/// the band without lying on it, as [`sectors::within`] refuses.
-fn corners_nest<T: Decide>(
-    body: &Body<T>,
-    operand: Operand,
-    (u, w): (VertexKey, VertexKey),
-    face: FaceKey,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let read = |v| sectors::orbit_corners(body, operand, v, band).collect::<Result<Vec<_>, _>>();
-    let (cu, cw) = (read(u)?, read(w)?);
-    for (into, from) in [(&cu, &cw), (&cw, &cu)] {
-        // Each orbit half-edge is one corner's own (`end`) bound.
-        for leaving in from {
-            let mut held = false;
-            for corner in into.iter().filter(|c| c.face == face) {
-                held |= corner_holds(corner, leaving.end, leaving.end_reach.length(), band)?;
-            }
-            if !held {
-                return Ok(false);
-            }
-        }
-    }
-    Ok(true)
-}
-
-/// Whether `v`'s corner that `hv` leaves it from holds every edge leaving
-/// `other`, a graze counting as inside: of a vertex a face's boundary
-/// passes more than once, the corner `other`'s pierce stands in, if any.
-///
-/// # Errors
-///
-/// As [`corners_nest`], and [`BooleanError::JoinDesync`] where `hv`
-/// leaves no corner of `v`'s orbit.
-fn corner_holds_pierce<T: Decide>(
-    body: &Body<T>,
-    operand: Operand,
-    (v, hv): (VertexKey, HalfEdgeKey),
-    other: VertexKey,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    // A corner's face boundary leaves `v` along the orbit step of its
-    // own half-edge, `next(mate(he))`.
-    let mut corner = None;
-    for c in sectors::orbit_corners(body, operand, v, band) {
-        let c = c?;
-        if body.orbit_step(c.he) == Some(hv) {
-            corner = Some(c);
-        }
-    }
-    let corner = corner.ok_or(BooleanError::JoinDesync {
-        what: "a pinch face's half-edge leaves no corner of its vertex",
-    })?;
-    for leaving in sectors::orbit_corners(body, operand, other, band) {
-        let leaving = leaving?;
-        if !corner_holds(&corner, leaving.end, leaving.end_reach.length(), band)? {
-            return Ok(false);
-        }
-    }
-    Ok(true)
-}
-
-/// Whether direction `dir` (its edge reaching `reach`) leaves the point
-/// inside `corner`, a graze on a bound counting as inside: CCW of
-/// `start` and CW of `end` about the outward normal. The two flanks
-/// settle it where they agree; where they part, the corner's own turn
-/// does (convex: outside; reflex: inside), and a straight corner parts
-/// them only at a graze.
-fn corner_holds<T: Decide>(
-    corner: &sectors::OrbitCorner<T>,
-    dir: geom_core::Vec3<T>,
-    reach: T,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let n = corner.normal.vec();
-    let (a, b, d) = (
-        corner.start.normalize(),
-        corner.end.normalize(),
-        dir.normalize(),
-    );
-    // Each sign is a unit cross product levered at the shortest reach
-    // among the edges it reads: the bound's sideways offset there.
-    let arm = corner
-        .start_reach
-        .length()
-        .min(corner.end_reach.length())
-        .min(reach);
-    let sign = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| {
-        let margin = Margin::levered(x.cross(y).dot(n), arm);
-        decide("pinch_corner_holds", margin, band).map_err(|diag| {
-            BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
-        })
-    };
-    let (after_start, before_end) = (sign(a, d)?, sign(d, b)?);
-    let (s1, s2) = (after_start != Sign::Negative, before_end != Sign::Negative);
-    if s1 == s2 {
-        return Ok(s1);
-    }
-    Ok(match sign(a, b)? {
-        Sign::Positive => false,
-        Sign::Negative => true,
-        Sign::Zero => true,
-    })
-}
-
-/// The one face `allowed` admits whose boundary runs through both `u`
-/// and `w`, and the joint between the half-edges leaving them: a chord
-/// when the outer loop holds both, a hole when one ring does, else
-/// across their two loops, into the face's outer loop when it is one of
-/// them. `None` when no such face holds both. Where the boundary runs
-/// through one of them more than once, the half-edge is the one leaving
-/// the corner `holds` reads the other in; a face where no such corner
-/// holds it is no site of the pair, whose corners do not nest there.
-///
-/// # Panics
-///
-/// Where `u`, which both callers resolved just before, or a record
-/// past it does not resolve, or a walk does not close (D2 row 4): its
-/// orbit, each face and loop on it, a lone vertex's point, and each
-/// member and its edge. `body` is
-/// an operand mid-operation: carved, whose links the carve leaves
-/// resolving ([`carve`] checks that it drops only records no kept
-/// record names), then partly welded, whose links hold by
-/// [`crate::live::OPERATORS_KEEP_LINKS`].
-pub(super) fn pinch_site<T: Decide>(
-    body: &Body<T>,
-    u: VertexKey,
-    w: VertexKey,
-    allowed: impl Fn(FaceKey) -> bool,
-    holds: impl Fn(VertexKey, HalfEdgeKey, VertexKey) -> Result<bool, BooleanError>,
-) -> Result<Option<(FaceKey, Joint)>, BooleanError> {
-    let desync = |what| BooleanError::JoinDesync { what };
-    let mut site = None;
-    for face in body
-        .faces_of_vertex_linked(u)
-        .into_iter()
-        .filter(|&f| allowed(f))
-    {
-        let f = proven(&body.faces, face, EntityId::Face);
-        let mut hus = Vec::new();
-        let mut hws = Vec::new();
-        for (l, members) in body.face_boundary_by_loop(face, f) {
-            for member in members {
-                match member {
-                    BoundaryMember::Isolated { vertex, .. } => {
-                        if vertex == u || vertex == w {
-                            return Err(desync("a kept pierce vertex stands alone on its face"));
-                        }
-                    }
-                    BoundaryMember::Edge { he, half, .. } => {
-                        if half.start == u {
-                            hus.push((l, he));
-                        } else if half.start == w {
-                            hws.push((l, he));
-                        }
-                    }
-                }
-            }
-        }
-        if hws.is_empty() {
-            continue;
-        }
-        for (hs, (v, other)) in [(&mut hus, (u, w)), (&mut hws, (w, u))] {
-            if hs.len() > 1 {
-                let mut held = Vec::new();
-                for &(l, h) in hs.iter() {
-                    if holds(v, h, other)? {
-                        held.push((l, h));
-                    }
-                }
-                *hs = held;
-            }
-        }
-        if hus.is_empty() || hws.is_empty() {
-            // No corner of the vertex the face passes twice holds the
-            // other pierce. That vertex is a pierce an earlier weld
-            // joined, and the other is a copy of a pierce it already
-            // took: one pierce's copies take disjoint corners of the
-            // point, so their corners do not nest here, and the pair
-            // stays apart as `corners_nest` leaves one.
-            continue;
-        }
-        let here = match (hus.as_slice(), hws.as_slice()) {
-            (_, []) => continue,
-            (&[(lu, hu)], &[(lw, hw)]) if lu == lw && lu == f.outer => {
-                Joint::Chord { he1: hu, he2: hw }
-            }
-            (&[(lu, hu)], &[(lw, hw)]) if lu == lw => Joint::Hole {
-                face,
-                he1: hu,
-                he2: hw,
-            },
-            (&[(_, hu)], &[(lw, hw)]) if lw == f.outer => Joint::Loops {
-                target: hw,
-                ring: hu,
-            },
-            (&[(_, hu)], &[(_, hw)]) => Joint::Loops {
-                target: hu,
-                ring: hw,
-            },
-            _ => return Err(desync("a pinch face runs through a pierce vertex twice")),
-        };
-        if site.replace((face, here)).is_some() {
-            return Err(desync("two fragments of a pierced face meet one pinch"));
-        }
-    }
-    Ok(site)
 }
 
 /// The one result key `kept` holds, if it holds exactly one.

@@ -199,7 +199,7 @@ This is the JOIN pinch class above ("the planar pinches pass: the
 census's `same_point` clears the shared point key"). A curved face at
 the pinch, or a planar face carrying an arc edge, does not clear.
 
-Pinned by `a_curved_notch_at_a_corner_pinch_builds_bodies_two_lanes_cannot_read_yet`
+Pinned by `a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet`
 (poses `0 0 0 ab I` and `9 4 4 ab S` undecidable, `0 0 0 ab U` one
 solid and clean): when this lane lands, flip those two expectations.
 

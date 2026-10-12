@@ -17,3 +17,4 @@ with its id, body and history unchanged. Rows dispatchable: 11, for 30 points.
 
   `SliverSector` is unchanged, and its mints are on CLEAVE's split-escalations row. (ENCL orchestrator)
 - 2026-10-11 — ZIP closed (`docs/doc-ledger/zip-leaves-the-tracker.md`); `tangent-lever-row-escalates-containment-at-eps-1e-6` moved here because its escalation is `contain.rs`'s containment ladder.
+- 2026-10-12 — Seam note from ENCL (PR 4745, merged at `512ef4b6c7`): `RingHoming` in `chord_join` now routes its walk escalation through `ContainDecision::lever_ending`, the same repair `census-containment-escalation-drops-its-decision` asks for in census; that row's bullet is updated. (ENCL orchestrator)
