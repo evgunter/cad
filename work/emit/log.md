@@ -2120,3 +2120,17 @@ declarations silently) and the untested pair-boolean case, which now has
 a row that is red on main. The wrong cascade diagnosis is filed as
 `a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent`.
 
+## 2026-10-12 — PR 4284: a corner keeps its name; every other meeting is a crossing (ruled)
+
+Ev approved fork-log row 117 on 2026-10-08. Both designers recommended
+the same final state in their first reports:
+- an operand's corner keeps its own name;
+- every other place an edge meets the other body is a crossing, with a
+  four-valued sense;
+- `EdgeCrossing` goes into N2;
+- `Seam` retires from vertices.
+
+On three or more members meeting at one point, Ev leans to A's reading
+but is unsure, so the build tries it and keeps it only if the pinch rows
+stay order-free.
+

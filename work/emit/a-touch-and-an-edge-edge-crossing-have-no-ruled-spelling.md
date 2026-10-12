@@ -6,8 +6,6 @@ status: open
 opened: 2026-10-06
 priority: P2
 cost: M
-design: true
-needs_ev: true
 pr: 4284
 branch: emit/ev-touch-spelling
 refs: [a-second-crossing-by-one-face-renames-the-first-and-its-pieces]
@@ -46,3 +44,35 @@ same-senses group along the A edge as before.
 Whether a touch keeps `Seam`, takes a head of its own, or refuses; and
 whether `EdgeCrossing` is the spelling, written into N2 if so. A design
 fork, to weigh before anyone changes either.
+
+## Ruled (Ev, PR 4284, 2026-10-08)
+
+Ev approved the recommendation ("i think this makes sense"). The names
+README states it (N2 *Vertices*, the flush paragraph, N5's cutters
+bullet), and fork-log row 117 records it.
+
+**What to build:**
+- **Corner identity.** A vertex that is one of an operand's own vertices
+  is named as that vertex. `operand_identity` reads it through every
+  operand key the boolean leaves at the point (`operand_vertex_keys`,
+  and the contact rows), not only the kept key and its zip partners.
+- **A four-valued sense:** `Enters`, `Leaves`, `Outside`, `Inside`.
+  - `flipped` swaps `Enters` and `Leaves` and keeps the other two.
+  - `CrossingSenses` carries all four.
+  - The words read "the touch where E meets F from outside/inside".
+- **Every edge x face vertex is a `Crossing`, and every edge x edge
+  vertex is an `EdgeCrossing { a, a_sense, b, b_sense }`.** `Seam` stops
+  heading them, and the absent-side fallback ("no portion counts as
+  outside") goes.
+- **A union reads its edge x edge vertices from the finished body**, like
+  its edge x face ones. This closes
+  `an-edge-edge-crossing-vertex-of-a-union-is-spelled-by-member-order`.
+- **The residue: three or more members' edges at one point.** Ev leans
+  to A's reading, unsure: read each edge's sense against all the other
+  members together. Build it that way only if every `union_pinch` row
+  keeps one name in every member order. Otherwise keep today's spelling
+  there, say why in the PR, and file the residue.
+- **Re-baseline the goldens** (`crossing_slots` and the pinned digests),
+  turn the pinned emission refusals that now fuse into builds, and check
+  that those orders publish one table.
+
