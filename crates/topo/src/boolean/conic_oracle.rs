@@ -103,8 +103,8 @@ pub(super) fn ellipse(c: [f64; 3], n: [f64; 3], u: [f64; 3], a: f64, b: f64) -> 
     geom::Curve3::Ellipse {
         center: Point3::from_array(c),
         axis: n,
-        major: a,
-        minor: b,
+        semi_u: a,
+        semi_v: b,
         u_ref: (u - n * u.dot(n)).normalize(),
     }
 }

@@ -5058,8 +5058,8 @@ mod edge_span_tests {
         let ellipse = geom::Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major: 1.0,
-            minor: 0.05,
+            semi_u: 1.0,
+            semi_v: 0.05,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let root = core::f64::consts::FRAC_PI_2 - 2e-8;
@@ -5438,8 +5438,8 @@ mod clearance_rows {
                 -0.888_958_285_986_655_8,
             ),
             axis,
-            major: 4.846_323_757_498_574,
-            minor: 0.207_528_397_062_063_02,
+            semi_u: 4.846_323_757_498_574,
+            semi_v: 0.207_528_397_062_063_02,
             u_ref: Vec3::new(
                 0.087_713_558_478_483_3,
                 0.789_303_434_737_465_2,
@@ -5502,8 +5502,8 @@ mod clearance_rows {
         let e = geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         };
         let x = Vec3::new(1.0, 0.0, 0.0);
@@ -5600,8 +5600,8 @@ mod clearance_rows {
                     geom::Curve3::Ellipse {
                         center,
                         axis: n,
-                        major,
-                        minor,
+                        semi_u: major,
+                        semi_v: minor,
                         u_ref,
                     }
                 };

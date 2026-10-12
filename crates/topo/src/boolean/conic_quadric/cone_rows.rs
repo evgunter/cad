@@ -478,8 +478,8 @@ fn certified_answers_hold_against_the_quadric_form() {
                 geom::Curve3::Ellipse {
                     center: on - uref * major,
                     axis: n,
-                    major,
-                    minor: small,
+                    semi_u: major,
+                    semi_v: small,
                     u_ref: uref,
                 }
             };

@@ -155,7 +155,11 @@ impl<T: Decide> Bend<T> {
             // tangent the arc rises `y' = sin φ ≤ φ ≤ most·s`, so at most
             // `most·S²/2` over its length `S ≤ a·span` (the speed is at
             // most `a`), and never past the major diameter.
-            geom::Curve3::Ellipse { major, minor, .. } => {
+            geom::Curve3::Ellipse {
+                semi_u: major,
+                semi_v: minor,
+                ..
+            } => {
                 let (a, b) = (major.abs().max(minor.abs()), major.abs().min(minor.abs()));
                 let most = a / b.powi(2);
                 BendBounds::Planar {
@@ -5723,8 +5727,8 @@ mod tests {
                                 geom::Curve3::Ellipse {
                                     center: base + big_n * along_n,
                                     axis: u.cross(t),
-                                    major: along_n,
-                                    minor: along_t,
+                                    semi_u: along_n,
+                                    semi_v: along_t,
                                     u_ref: u,
                                 }
                             };

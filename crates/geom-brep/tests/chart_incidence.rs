@@ -67,8 +67,8 @@ fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
     let on = Curve3::Ellipse {
         center: centre,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     };
     let dist = off_cone(&on, alpha);
@@ -82,8 +82,8 @@ fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
     let moved = Curve3::Ellipse {
         center: centre + axis * shift,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     };
     let dist = off_cone(&moved, alpha);
@@ -153,8 +153,8 @@ fn each_harmonic_group_of_the_cone_residual_decides_alone() {
         Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 1.0),
             axis: Vec3::unit_z(),
-            major: (rho * rho + s).sqrt(),
-            minor: (rho * rho - s).sqrt(),
+            semi_u: (rho * rho + s).sqrt(),
+            semi_v: (rho * rho - s).sqrt(),
             u_ref: Vec3::unit_x(),
         },
         alpha,
@@ -270,8 +270,8 @@ fn an_in_band_move_is_never_read_off_the_cone_or_the_sphere() {
     let moved = Curve3::Ellipse {
         center: centre + Vec3::unit_z() * (0.5 * eps()),
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     };
     let got = chart_pcurve(&moved, &cone(alpha), band());

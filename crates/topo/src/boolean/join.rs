@@ -3168,7 +3168,7 @@ fn intersecting_cylinder_axes<T: Decide>(
         // coaxial-equal-radius pose was refused at the parallelism
         // gate, no torus question is asked of two cylinders with
         // meeting axes, the bisector ellipses' semi-axes are decided
-        // positive and major-first, and no arm this pair reaches states
+        // positive, and no arm this pair reaches states
         // a locus off the extent it was handed (the cylinder pair's
         // ellipses stand on the operands themselves).
         Err(
@@ -3178,9 +3178,7 @@ fn intersecting_cylinder_axes<T: Decide>(
             | geom_brep::SectionError::CoincidentSurfaces
             | geom_brep::SectionError::DegenerateTorus
             | geom_brep::SectionError::BeyondOperandExtent { .. }
-            | geom_brep::SectionError::Carrier(
-                geom::EllipseInvalid::AxesSwapped | geom::EllipseInvalid::MinorNotPositive,
-            )
+            | geom_brep::SectionError::Carrier(geom::EllipseInvalid::MinorNotPositive)
             | geom_brep::SectionError::Spiric(_),
         ) => FrameError::Desync(
             "the equal-radius cylinder section refused at the germ pair with a refusal this \
@@ -4747,8 +4745,8 @@ mod frame_dispatch_tests {
         let carrier = geom::Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(-s, 0.0, c),
-            major: 1.0 / c,
-            minor: 1.0,
+            semi_u: 1.0 / c,
+            semi_v: 1.0,
             u_ref: Vec3::new(c, 0.0, s),
         };
         let (t0, t1) = (
@@ -5467,8 +5465,8 @@ mod frame_dispatch_tests {
                     let geom::Curve3::Ellipse {
                         center,
                         axis,
-                        major,
-                        minor,
+                        semi_u: major,
+                        semi_v: minor,
                         u_ref,
                     } = *e
                     else {

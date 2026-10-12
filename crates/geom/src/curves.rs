@@ -121,49 +121,45 @@ pub enum Curve3<T: Real> {
     },
 
     /// The full ellipse
-    /// `P(θ) = center + u_ref·(major·cos θ) + v_ref·(minor·sin θ)`,
+    /// `P(θ) = center + u_ref·(semi_u·cos θ) + v_ref·(semi_v·sin θ)`,
     /// where `v_ref = axis × u_ref` (computed, never stored — the frame
     /// is right-handed by construction). C1 rung 2 (M5 PR 5): the exact
     /// conic carrier of the common curved-boolean cuts (tilted
     /// plane×cylinder, equal-radius cylinder×cylinder).
     ///
-    /// - `axis` is the unit ellipse-plane normal, `u_ref` the unit
-    ///   **semi-major** direction with `u_ref ⊥ axis` (both
-    ///   conventional, unchecked); `u_ref` carries the seam — `θ = 0`
-    ///   lives at `center + u_ref·major`.
+    /// - `axis` is the unit ellipse-plane normal, `u_ref` a unit
+    ///   **principal** direction with `u_ref ⊥ axis` (both conventional,
+    ///   unchecked), along either semi-axis; `u_ref` carries the seam —
+    ///   `θ = 0` lives at `center + u_ref·semi_u`, a principal vertex. A
+    ///   caller seams the curve at the principal vertex nearest the part
+    ///   of it in use, so the parameter there is near 0 and resolves to
+    ///   the scale of that part.
     /// - θ in radians, domain ℝ, period 2π; increasing θ winds
     ///   counterclockwise viewed from the tip of `axis` (right-hand
     ///   rule), exactly the circle convention. θ is **not** arc length
     ///   and not the polar angle of the point — it is the conic's
-    ///   eccentric anomaly; `|dP/dθ|` varies in `[minor, major]`.
-    /// - `major > minor > 0` **strictly** (meters). Equal semi-axes are
-    ///   a `Circle` — one kind per configuration (D3's closed-enum
-    ///   discipline) — and are refused by [`Curve3::ellipse`], the one
-    ///   deciding constructor. Like every conventional invariant the
-    ///   ordering is *data* here: evaluators consume the fields as
-    ///   given, and a struct-literal that bypasses the constructor owns
-    ///   the consequences (well-defined garbage, not poison). At rest,
-    ///   tier 3 certifies `major > 0` and `minor > 0`
-    ///   ([`Curve3::representability_margins`]) and NOT the ordering: a
-    ///   swapped pair names the same ellipse through a `u_ref` along its
-    ///   minor axis.
+    ///   eccentric anomaly; `|dP/dθ|` varies between the two semi-axes.
+    /// - Both semi-axes positive and distinct (meters), in either
+    ///   order. Equal semi-axes are a `Circle` — one kind per
+    ///   configuration (D3's closed-enum discipline) — and are refused
+    ///   by [`Curve3::ellipse`], the one deciding constructor. Like every
+    ///   conventional invariant this is *data* here: evaluators consume
+    ///   the fields as given, and a struct-literal that bypasses the
+    ///   constructor owns the consequences (well-defined garbage, not
+    ///   poison). At rest, tier 3 certifies both positive
+    ///   ([`Curve3::representability_margins`]). Which semi-axis is the
+    ///   larger is a reading of the two fields, never of their names.
     Ellipse {
         /// The ellipse's center.
         center: Point3<T>,
         /// The unit normal of the ellipse's plane (right-hand winding
         /// rule; conventional, unchecked).
         axis: Vec3<T>,
-        /// The semi-major axis length in meters: `major > minor` where
-        /// [`Curve3::ellipse`] minted it, which refuses otherwise. Tier 3
-        /// certifies it positive but not the ordering, and a struct
-        /// literal checks neither; readers past the constructor take
-        /// the semi-axes as magnitudes in either order
-        /// (`geom_brep::Conic`).
-        major: T,
-        /// The semi-minor axis length in meters: positive where
-        /// [`Curve3::ellipse`] or tier 3 decided it.
-        minor: T,
-        /// The unit semi-major direction ⊥ `axis` where θ = 0 lives —
+        /// The semi-axis along `u_ref`, in meters.
+        semi_u: T,
+        /// The semi-axis along `axis × u_ref`, in meters.
+        semi_v: T,
+        /// The unit principal direction ⊥ `axis` where θ = 0 lives —
         /// the seam, carried as conventional data per D2.
         u_ref: Vec3<T>,
     },
@@ -264,6 +260,59 @@ pub enum CurveKind {
     Nurbs,
 }
 
+/// An ellipse's principal frame, the larger semi-axis first
+/// ([`Curve3::major_frame`]): the reading of which stored semi-axis is
+/// the major one, for a reader whose formula needs the major vertex (a
+/// focus on the major axis, a lever at the farthest reach along it).
+#[derive(Clone, Copy, Debug)]
+pub struct MajorFrame<T: Real> {
+    /// The larger semi-axis in magnitude, signed as stored.
+    pub major: T,
+    /// The smaller semi-axis, signed as stored.
+    pub minor: T,
+    /// The direction the major semi-axis is measured along: `u_ref`, or
+    /// `axis × u_ref`. The minor one is along `axis × major_dir`.
+    pub major_dir: Vec3<T>,
+    /// The carrier parameter at `center + major_dir·major`: `0`, or
+    /// `π/2` where the seam is at a minor vertex.
+    pub phase: T,
+}
+
+impl<T: Real> Curve3<T> {
+    /// An [`Curve3::Ellipse`]'s principal frame with the major semi-axis
+    /// first, whichever its seam is at; `None` for every other kind.
+    /// Read off the magnitudes without a branch: the frame turned a
+    /// quarter, `θ = s + π/2`, is `center + v_ref·(semi_v·cos s) +
+    /// (axis × v_ref)·(semi_u·sin s)`.
+    #[must_use]
+    pub fn major_frame(&self) -> Option<MajorFrame<T>> {
+        let &Self::Ellipse {
+            axis,
+            semi_u,
+            semi_v,
+            u_ref,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let v_ref = axis.cross(u_ref);
+        // ≤ 0 where the seam's semi-axis is the smaller.
+        let seam_minor = semi_u.abs() - semi_v.abs();
+        let pick = |a: T, b: T| seam_minor.select_le_zero(a, b);
+        Some(MajorFrame {
+            major: pick(semi_v, semi_u),
+            minor: pick(semi_u, semi_v),
+            major_dir: Vec3::new(
+                pick(v_ref.x, u_ref.x),
+                pick(v_ref.y, u_ref.y),
+                pick(v_ref.z, u_ref.z),
+            ),
+            phase: pick(T::pi() * T::from_f64(0.5), T::zero()),
+        })
+    }
+}
+
 impl<T: Real> Curve3<T> {
     /// Which variant this carrier is.
     ///
@@ -326,17 +375,13 @@ impl CurveKind {
 /// the constructor is the only decision point).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EllipseInvalid {
-    /// The semi-axes coincide (|major − minor| ≤ ε): this configuration
+    /// The semi-axes coincide (|semi_u − semi_v| ≤ ε): this configuration
     /// is a `Circle`, and D3's one-kind-per-configuration discipline
     /// refuses to mint it as a degenerate `Ellipse`. It carries the
     /// funnel's rejection of the decided zero, so a caller that meant
     /// the axes to differ can escalate with the margin it was refused on.
     CircularAxes(Indeterminate),
-    /// `major` is definitely smaller than `minor`: the caller swapped
-    /// the axes (the frame convention is major-first; swap `u_ref` to
-    /// the true major direction and reorder).
-    AxesSwapped,
-    /// The minor semi-axis is not definitely positive (zero or
+    /// The smaller semi-axis is not definitely positive (zero or
     /// negative: a degenerate segment, not an ellipse).
     MinorNotPositive,
     /// A constructor predicate landed in the ambiguity band or was
@@ -370,11 +415,6 @@ impl core::fmt::Display for EllipseInvalid {
                 "ellipse construction: the semi-axes coincide — this configuration is a \
                  Circle, one kind per configuration (D3); construct the Circle carrier, or {}",
                 geom_core::COINCIDENCE_RECOURSE
-            ),
-            Self::AxesSwapped => write!(
-                f,
-                "ellipse construction: major < minor — the frame convention is major-first \
-                 (u_ref is the semi-major direction); swap the axes"
             ),
             Self::MinorNotPositive => write!(
                 f,
@@ -486,10 +526,10 @@ pub enum CurveDatum {
     URef,
     /// A circle's `radius`.
     Radius,
-    /// An ellipse's semi-major `major`.
-    Major,
-    /// An ellipse's semi-minor `minor`.
-    Minor,
+    /// An ellipse's semi-axis along its seam, `semi_u`.
+    SemiU,
+    /// An ellipse's semi-axis across its seam, `semi_v`.
+    SemiV,
     /// A spiric's torus `major_radius`.
     MajorRadius,
     /// A spiric's torus `minor_radius`.
@@ -517,8 +557,8 @@ impl CurveDatum {
             Self::Axis => "axis",
             Self::URef => "u_ref",
             Self::Radius => "radius",
-            Self::Major => "major",
-            Self::Minor => "minor",
+            Self::SemiU => "semi_u",
+            Self::SemiV => "semi_v",
             Self::MajorRadius => "major_radius",
             Self::MinorRadius => "minor_radius",
             Self::Offset => "offset",
@@ -586,14 +626,14 @@ impl<T: Real> Curve3<T> {
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             } => AnalyticData::new([
                 (D::Center, Point(center)),
                 (D::Axis, Direction(axis)),
-                (D::Major, Scalar(major)),
-                (D::Minor, Scalar(minor)),
+                (D::SemiU, Scalar(major)),
+                (D::SemiV, Scalar(minor)),
                 (D::URef, Direction(u_ref)),
             ]),
             Curve3::Spiric {
@@ -669,12 +709,12 @@ impl<T: Real> Curve3<T> {
             Curve3::Ellipse {
                 center: _,
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             } => [
-                lower(CurveDatum::Major, *major),
-                lower(CurveDatum::Minor, *minor),
+                lower(CurveDatum::SemiU, *major),
+                lower(CurveDatum::SemiV, *minor),
             ]
             .into_iter()
             .chain(frame(*axis, *u_ref, major.abs().max(minor.abs())))
@@ -705,18 +745,19 @@ impl<T: Real> Curve3<T> {
 
 impl<T: Decide> Curve3<T> {
     /// The one deciding door into [`Curve3::Ellipse`] (M5 PR 5 spec §1):
-    /// refuses `major = minor` (that configuration is a `Circle` — one
-    /// kind per configuration, D3), swapped axes, and a non-positive
-    /// minor, each through a named Q1 trilean:
+    /// refuses equal semi-axes (that configuration is a `Circle` — one
+    /// kind per configuration, D3) and a non-positive one, each through
+    /// a named Q1 trilean. The semi-axes come in either order: `u_ref`
+    /// is a principal direction, along either.
     ///
-    /// - `ellipse_axes_distinct` — margin `major − minor` (meters):
+    /// - `ellipse_minor_positive` — margin the smaller semi-axis
+    ///   (meters): Positive required; Zero/Negative ⇒
+    ///   [`EllipseInvalid::MinorNotPositive`]; in-band/poison ⇒
+    ///   escalated.
+    /// - `ellipse_axes_distinct` — margin `|semi_u − semi_v|` (meters):
     ///   Positive ⇒ a genuine ellipse; Zero ⇒
-    ///   [`EllipseInvalid::CircularAxes`]; Negative ⇒
-    ///   [`EllipseInvalid::AxesSwapped`]; in-band/poison ⇒
+    ///   [`EllipseInvalid::CircularAxes`]; in-band/poison ⇒
     ///   [`EllipseInvalid::Escalated`].
-    /// - `ellipse_minor_positive` — margin `minor` (meters): Positive
-    ///   required; Zero/Negative ⇒ [`EllipseInvalid::MinorNotPositive`];
-    ///   in-band/poison ⇒ escalated.
     ///
     /// Frame fields stay conventional data exactly as for `Circle`
     /// (unit, orthogonal, unchecked here — tier-3 certification owns
@@ -728,30 +769,30 @@ impl<T: Decide> Curve3<T> {
     pub fn ellipse(
         center: Point3<T>,
         axis: Vec3<T>,
-        major: T,
-        minor: T,
+        semi_u: T,
+        semi_v: T,
         u_ref: Vec3<T>,
         band: Band,
     ) -> Result<Self, EllipseInvalid> {
+        let minor = semi_u.min(semi_v);
         match geom_core::k_stats::decide("ellipse_minor_positive", Margin::of(minor), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(EllipseInvalid::MinorNotPositive),
             Err(diag) => return Err(EllipseInvalid::Escalated(diag)),
         }
-        let axes = Margin::of(major - minor);
+        let axes = Margin::of((semi_u - semi_v).abs());
         if let Err(diag) = geom_core::k_stats::decide_positive("ellipse_axes_distinct", axes, band)
         {
             return Err(match diag.margin.rejected_sign() {
                 Some(Sign::Zero) => EllipseInvalid::CircularAxes(diag),
-                Some(Sign::Negative) => EllipseInvalid::AxesSwapped,
-                Some(Sign::Positive) | None => EllipseInvalid::Escalated(diag),
+                Some(Sign::Positive | Sign::Negative) | None => EllipseInvalid::Escalated(diag),
             });
         }
         Ok(Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         })
     }
@@ -864,14 +905,14 @@ impl<T: Real> Curve3<T> {
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             } => Curve3::Ellipse {
                 center,
                 axis: -axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             },
             Curve3::Spiric {
@@ -921,14 +962,14 @@ impl<T: Real> Curve3<T> {
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             } => Curve3::Ellipse {
                 center: center + by,
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             },
             Curve3::Spiric {
@@ -1098,8 +1139,8 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             } => {
                 let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
@@ -1162,8 +1203,8 @@ impl<T: SpanLocate> Curve3<T> {
             }
             Curve3::Ellipse {
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
                 ..
             } => {
@@ -1238,8 +1279,8 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             } => {
                 let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
@@ -1295,8 +1336,8 @@ impl<T: SpanLocate> Curve3<T> {
             }
             Curve3::Ellipse {
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
                 ..
             } => {
@@ -1492,8 +1533,8 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             } => {
                 let w = p - *center;
@@ -1538,8 +1579,8 @@ mod tests {
             Curve3::Ellipse {
                 center: c,
                 axis: n,
-                major: 0.9,
-                minor: 0.4,
+                semi_u: 0.9,
+                semi_v: 0.4,
                 u_ref: u,
             },
             Curve3::Spiric {
@@ -1798,6 +1839,55 @@ mod tests {
         assert_eq!((a0.x, a0.y, a0.z), (-2.0, 0.0, 0.0));
     }
 
+    /// **The major frame is read off the stored semi-axes**, whichever
+    /// the seam is at: seamed at a major vertex it is the stored frame at
+    /// phase 0; seamed at a minor vertex it is `axis × u_ref` at phase
+    /// `π/2`, and the carrier there is the major vertex. Signs ride along.
+    #[test]
+    fn the_major_frame_is_read_from_the_semi_axes() {
+        let at = |semi_u: f64, semi_v: f64| Curve3::Ellipse {
+            center: Point3::new(1.0, 2.0, 3.0),
+            axis: Vec3::unit_z(),
+            semi_u,
+            semi_v,
+            u_ref: Vec3::unit_x(),
+        };
+        for (semi_u, semi_v, major, dir, phase) in [
+            (3.0, 1.0, 3.0, Vec3::unit_x(), 0.0),
+            (1.0, 3.0, 3.0, Vec3::unit_y(), core::f64::consts::FRAC_PI_2),
+            (-3.0, 1.0, -3.0, Vec3::unit_x(), 0.0),
+            (
+                1.0,
+                -3.0,
+                -3.0,
+                Vec3::unit_y(),
+                core::f64::consts::FRAC_PI_2,
+            ),
+        ] {
+            let e = at(semi_u, semi_v);
+            let f = e.major_frame().unwrap();
+            assert_eq!(
+                (f.major, f.minor.abs(), f.phase),
+                (major, 1.0, phase),
+                "({semi_u}, {semi_v})"
+            );
+            assert_eq!((f.major_dir - dir).norm(), 0.0, "({semi_u}, {semi_v})");
+            let vertex = Point3::new(1.0, 2.0, 3.0) + f.major_dir * f.major;
+            assert!(
+                e.eval(f.phase).distance(vertex) < 1e-15,
+                "({semi_u}, {semi_v})"
+            );
+        }
+        assert!(
+            Curve3::<f64>::Line {
+                origin: Point3::origin(),
+                dir: Vec3::unit_x()
+            }
+            .major_frame()
+            .is_none()
+        );
+    }
+
     /// The constructor trilean trios (M5 PR 5 acceptance: each named
     /// predicate gets exactly-degenerate, definitely-generic, and
     /// in-band rows).
@@ -1831,8 +1921,12 @@ mod tests {
         // … in-band escalates typed …
         let err = mk(1.0 + 5e-9, 1.0).unwrap_err();
         assert!(matches!(err, EllipseInvalid::Escalated(_)), "{err:?}");
-        // … and definitely-swapped refuses with the swap story.
-        assert_eq!(mk(1.0, 2.0).unwrap_err(), EllipseInvalid::AxesSwapped);
+        // … and the semi-axes come in either order, `u_ref` along the
+        // smaller one, deciding alike.
+        assert!(mk(1.0, 2.0).is_ok());
+        let err = mk(1.0, 1.0 + 5e-9).unwrap_err();
+        assert!(matches!(err, EllipseInvalid::Escalated(_)), "{err:?}");
+        assert_eq!(mk(0.0, 2.0).unwrap_err(), EllipseInvalid::MinorNotPositive);
 
         // ellipse_minor_positive: zero and negative refuse, in-band
         // escalates, poison escalates (total, never a panic).
@@ -1860,7 +1954,7 @@ mod tests {
         #[test]
         fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse { center, axis, major, minor, u_ref } = e else {
+            let Curve3::Ellipse { center, axis, semi_u: major, semi_v: minor, u_ref } = e else {
                 panic!("fixture is an ellipse");
             };
             let v_ref = axis.cross(u_ref);
@@ -1878,7 +1972,7 @@ mod tests {
         #[test]
         fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse { center, axis, major, minor, .. } = e else {
+            let Curve3::Ellipse { center, axis, semi_u: major, semi_v: minor, .. } = e else {
                 panic!("fixture is an ellipse");
             };
             let p = e.eval(theta);
@@ -2305,8 +2399,8 @@ mod tests {
             let Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             } = ei
             else {

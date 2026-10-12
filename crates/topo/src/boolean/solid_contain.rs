@@ -1484,13 +1484,18 @@ pub(super) fn wall_outline<T: Decide>(
                 }
                 (center, c_axis, true)
             }
-            geom::Curve3::Ellipse {
-                center,
-                axis: n,
-                major,
-                minor,
-                u_ref: major_dir,
+            ref ellipse @ geom::Curve3::Ellipse {
+                center, axis: n, ..
             } => {
+                let Some(geom::MajorFrame {
+                    major,
+                    minor,
+                    major_dir,
+                    ..
+                }) = ellipse.major_frame()
+                else {
+                    unreachable!("an Ellipse carrier has a major frame")
+                };
                 let cos = n.dot(axis);
                 if zero("bool_wall_section_tilt", sine(cos))?
                     || !zero(

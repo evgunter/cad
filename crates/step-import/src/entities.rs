@@ -939,8 +939,8 @@ impl<'a> Resolver<'a> {
                 Ok(Curve3::Ellipse {
                     center,
                     axis,
-                    major: self.as_length(id, major, expected)?,
-                    minor: self.as_length(id, minor, expected)?,
+                    semi_u: self.as_length(id, major, expected)?,
+                    semi_v: self.as_length(id, minor, expected)?,
                     u_ref,
                 })
             }

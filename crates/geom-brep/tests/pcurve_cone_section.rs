@@ -64,8 +64,8 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     let &Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     } = e
     else {
@@ -74,21 +74,56 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     Curve3::Ellipse {
         center,
         axis: -axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     }
 }
 
-/// Every pairing of nappe and traversal: the image is the
-/// cone instance of the `FocalSection` form, maps onto the carrier at rounding scale over two
-/// periods (the azimuth's branch never jumps), and certifies over a
-/// span longer than a half-turn with a rounding-scale envelope.
+/// The same ellipse seamed `k` quarter turns on, at each of its four
+/// principal vertices in turn: `u_ref` turned about `axis` and, on an
+/// odd turn, the semi-axes swapped.
+fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
+    let &Curve3::Ellipse {
+        center,
+        axis,
+        semi_u,
+        semi_v,
+        u_ref,
+    } = e
+    else {
+        unreachable!()
+    };
+    let (u_ref, semi_u, semi_v) = match k % 4 {
+        0 => (u_ref, semi_u, semi_v),
+        1 => (axis.cross(u_ref), semi_v, semi_u),
+        2 => (-u_ref, semi_u, semi_v),
+        _ => (-axis.cross(u_ref), semi_v, semi_u),
+    };
+    Curve3::Ellipse {
+        center,
+        axis,
+        semi_u,
+        semi_v,
+        u_ref,
+    }
+}
+
+/// Every pairing of nappe and traversal, seamed at each principal
+/// vertex: the image is the cone instance of the `FocalSection` form,
+/// maps onto the carrier at rounding scale over two periods (the
+/// azimuth's branch never jumps), and certifies over a span longer than
+/// a half-turn with a rounding-scale envelope. A carrier seamed at a
+/// minor vertex is read in its major frame through the image's `t0`.
 #[test]
 fn the_image_is_exact_on_both_nappes_and_both_traversals() {
     for axis_sign in [1.0, -1.0] {
         let surface = cone(axis_sign);
-        for carrier in [section(), reversed(&section())] {
+        let carriers = [section(), reversed(&section())]
+            .iter()
+            .flat_map(|e| (0..4).map(|k| seamed(e, k)))
+            .collect::<Vec<_>>();
+        for carrier in carriers {
             let what = format!("axis sign {axis_sign}, carrier {carrier:?}");
             let image = chart_pcurve(&carrier, &surface, band()).unwrap();
             let Pcurve::FocalSection(FocalImage { beta, sense, .. }) = image else {

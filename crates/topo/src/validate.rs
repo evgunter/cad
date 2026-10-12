@@ -2627,8 +2627,8 @@ fn datum_words(field: &'static str) -> Cow<'static, str> {
         "dir" => "direction".into(),
         "major_radius" => "ring radius".into(),
         "minor_radius" => "tube radius".into(),
-        "major" => "major semi-axis".into(),
-        "minor" => "minor semi-axis".into(),
+        "semi_u" => "semi-axis along the seam".into(),
+        "semi_v" => "semi-axis across the seam".into(),
         "half_angle" => "half-angle".into(),
         "control" => "control net".into(),
         _ => field.replace('_', " ").into(),
@@ -13985,8 +13985,8 @@ mod tests {
         let carrier = geom::Curve3::Ellipse {
             center: Point3::origin(),
             axis,
-            major: m,
-            minor: 1.0,
+            semi_u: m,
+            semi_v: 1.0,
             u_ref,
         };
         let spec = geom_brep::EdgeCurveSpec {

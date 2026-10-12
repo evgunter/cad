@@ -928,8 +928,8 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
     let ellipse = |axis: Vec3<f64>, major: f64, u_ref: Vec3<f64>| Curve3::Ellipse {
         center: c,
         axis,
-        major,
-        minor: 0.3,
+        semi_u: major,
+        semi_v: 0.3,
         u_ref,
     };
     let axis = Vec3::unit_z();
@@ -968,7 +968,7 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
             "ellipse, negative major with u_ref flipped",
             ellipse(axis, -0.5, x),
             K::Ellipse,
-            D::Major,
+            D::SemiU,
             Verdict::Unrepresentable(Value, Lower),
         ),
         (
@@ -1095,11 +1095,11 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
             Curve3::Ellipse {
                 center: o,
                 axis: z,
-                major: 1.0,
-                minor: 0.0,
+                semi_u: 1.0,
+                semi_v: 0.0,
                 u_ref: x,
             },
-            Some(V::Unrepresentable(D::Minor, Value, Lower)),
+            Some(V::Unrepresentable(D::SemiV, Value, Lower)),
         ),
         ("honest spiric", spiric(0.5, 0.3), None),
         (
@@ -1239,8 +1239,8 @@ fn the_frame_lever_is_the_kinds_radius() {
     let ellipse = |major: f64, minor: f64, d: f64| Curve3::Ellipse {
         center: o,
         axis: Vec3::new(0.0, 0.0, long(d)),
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref: Vec3::unit_x(),
     };
     let surface_verdict = |s: &Surface<f64>| {
@@ -1347,8 +1347,8 @@ fn the_elliptic_lever_is_the_larger_semi_axis_magnitude() {
         let carrier = Curve3::Ellipse {
             center: Point3::new(0.5, 0.0, 0.0),
             axis: Vec3::unit_z(),
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         };
         let (body, edge) = pillow_with_carrier(carrier, 0.0, pi, tol)

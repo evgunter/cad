@@ -874,7 +874,7 @@ pub(super) struct FirstHarmonicRows {
 
 /// **The certified roots of a first-harmonic residual along a carrier
 /// whose speed `|C′(θ)|` is at most `speed`** (a circle's radius, an
-/// ellipse's semi-major axis), reported within `π` of the midpoint of `[t0, t1]`: the
+/// ellipse's larger semi-axis), reported within `π` of the midpoint of `[t0, t1]`: the
 /// decisions of the module docs ("The first-harmonic door"), under the
 /// caller's `rows`.
 ///

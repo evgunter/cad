@@ -709,7 +709,8 @@ pub struct Conic<T: Real> {
     pub center: Point3<T>,
     /// The unit normal of the conic's plane.
     pub axis: Vec3<T>,
-    /// The unit direction of `major`, where `θ = 0` lives.
+    /// The unit direction `major` is measured along, where `θ = 0`
+    /// lives.
     pub u_ref: Vec3<T>,
     /// The semi-axis along `u_ref` (metres; any sign, any order).
     pub major: T,
@@ -745,8 +746,8 @@ impl<T: Real> Conic<T> {
             geom::Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             } => Some(Self {
                 center,
@@ -761,7 +762,7 @@ impl<T: Real> Conic<T> {
         }
     }
 
-    /// `axis × u_ref`, the semi-minor direction.
+    /// `axis × u_ref`, the direction `minor` is measured along.
     #[must_use]
     pub fn v_ref(&self) -> Vec3<T> {
         self.axis.cross(self.u_ref)

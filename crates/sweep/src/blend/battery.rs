@@ -2304,15 +2304,13 @@ pub fn cap_transverse<T: Decide + Bounds>(
                             source,
                         }
                     }
-                    // `major ≥ radius` by construction, and the radius
-                    // passed the size gate.
-                    EllipseInvalid::AxesSwapped | EllipseInvalid::MinorNotPositive => {
-                        BlendError::SurgeryInvariant {
-                            at: EntityId::Vertex(vertex),
-                            detail: "an oblique end face's ellipse came out with its axes \
-                                     swapped or a minor semi-axis that is not positive",
-                        }
-                    }
+                    // Its semi-axes are the radius and the radius over a
+                    // cosine, and the radius passed the size gate.
+                    EllipseInvalid::MinorNotPositive => BlendError::SurgeryInvariant {
+                        at: EntityId::Vertex(vertex),
+                        detail: "an oblique end face's ellipse came out with a semi-axis \
+                                     that is not positive",
+                    },
                 })
         }
     }

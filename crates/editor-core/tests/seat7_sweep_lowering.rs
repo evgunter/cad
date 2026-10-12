@@ -356,13 +356,21 @@ fn both_sweeps_evaluate_in_one_document() {
 /// alone, and the merged tree is neither value. `m4_pr8_corpus`'s exact
 /// mass pins, `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry
 /// held.
+///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when `Curve3::Ellipse`'s semi-axes became
+/// `semi_u`/`semi_v` along a principal `u_ref` and each section chord
+/// was seamed at the principal vertex nearest its arc: the digest feeds
+/// each curve's `Debug`, whose field names moved, and a split section's
+/// chords now store the same loci from another vertex
+/// (`m5_pr5_corpus::cut_cylinder_sides_carry_exact_ellipses` holds with
+/// the semi-axes read in either order).
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x20d0_b806_b3a7_87fe),
         ("corner_table", 0x0ff2_e6d5_8c6f_bdcd),
-        ("cut_cylinder", 0xa6c1_1622_9a6f_5245),
-        ("boss_union", 0xa1a1_dffb_faca_cea6),
+        ("cut_cylinder", 0x69b4_ddcd_0c34_ed7d),
+        ("boss_union", 0xe75b_724b_9279_fbee),
         ("kitchen_sink", 0x587e_9ada_00a5_7fb6),
     ];
     let mut moved: Vec<String> = Vec::new();

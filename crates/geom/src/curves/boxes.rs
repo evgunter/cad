@@ -320,8 +320,8 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     let Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     } = carrier
     else {

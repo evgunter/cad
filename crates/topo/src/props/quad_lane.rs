@@ -79,8 +79,8 @@ fn trig_at_start<T: Decide + Bounds + CertifiedEnclosure>(
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         } => {
             let v_ref = axis.cross(*u_ref);
@@ -327,14 +327,14 @@ fn translated_curve(curve: &Curve3<Interval>, by: Point3<Interval>) -> Option<Cu
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         } => Curve3::Ellipse {
             center: shift(center),
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         },
         Curve3::Spiric {
@@ -566,14 +566,16 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
 }
 
 /// An upper bound on an edge's length: a line's speed `|dir|`, an arc's radius (an
-/// ellipse's major) times its span, a spiric's speed bound
+/// ellipse's larger semi-axis) times its span, a spiric's speed bound
 /// `r(R − r)/f_min` times its span.
 fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
         Curve3::Line { dir, .. } => (dir.norm() * Interval::point(span)).mag(),
         Curve3::Circle { radius, .. } => (radius * Interval::point(span)).mag(),
-        Curve3::Ellipse { major, .. } => (major * Interval::point(span)).mag(),
+        Curve3::Ellipse { semi_u, semi_v, .. } => {
+            (Interval::point(semi_u.mag().max(semi_v.mag())) * Interval::point(span)).mag()
+        }
         Curve3::Spiric { .. } => spiric_edge_q(e, Point3::origin(), None)
             .and_then(|q| spiric::spiric_length_bound(&q))
             .ok_or(PropsError::QuadratureUnsupported {

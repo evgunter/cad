@@ -879,8 +879,8 @@ mod tests {
         let e = Curve3::Ellipse {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
-            major: 0.01,
-            minor: 10.0,
+            semi_u: 0.01,
+            semi_v: 10.0,
             u_ref: Vec3::unit_x(),
         };
         let t0 = core::f64::consts::FRAC_PI_2;
@@ -1086,8 +1086,8 @@ mod tests {
                 Curve3::Ellipse {
                     center: Point3::origin(),
                     axis: Vec3::unit_z(),
-                    major: 2.0,
-                    minor: 1.0,
+                    semi_u: 2.0,
+                    semi_v: 1.0,
                     u_ref: Vec3::unit_x(),
                 },
                 "conic",

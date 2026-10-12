@@ -102,8 +102,8 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref: toward,
         }
     };
@@ -152,14 +152,14 @@ fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         } => geom::Curve3::Ellipse {
             center: lift_p(center),
             axis: lift_v(axis),
-            major: at(major),
-            minor: at(minor),
+            semi_u: at(major),
+            semi_v: at(minor),
             u_ref: lift_v(u_ref),
         },
         _ => panic!("the sweep draws circles and ellipses"),

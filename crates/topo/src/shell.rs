@@ -4637,8 +4637,8 @@ fn moved_walls<T: Decide>(
                             geom::Curve3::Ellipse {
                                 center,
                                 ref axis,
-                                major,
-                                minor,
+                                semi_u: major,
+                                semi_v: minor,
                                 u_ref,
                             } => conic(center, axis, u_ref, major, minor),
                             geom::Curve3::Spiric {

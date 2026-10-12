@@ -322,8 +322,11 @@ impl<T: Bounds> SectionFrame<T> {
                 center: c, radius, ..
             } => self.scaled(c - center) + radius / self.minor,
             Curve3::Ellipse {
-                center: c, major, ..
-            } => self.scaled(c - center) + major / self.minor,
+                center: c,
+                semi_u,
+                semi_v,
+                ..
+            } => self.scaled(c - center) + semi_u.abs().max(semi_v.abs()) / self.minor,
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
         };
         Some(self.minor * (T::one() - rho))
@@ -521,8 +524,8 @@ impl<T: Decide + Bounds> CapSliver<T> {
                     Curve3::Ellipse {
                         center,
                         axis,
-                        major,
-                        minor,
+                        semi_u: major,
+                        semi_v: minor,
                         u_ref,
                     } => (center, axis, major, minor, u_ref),
                     Curve3::Line { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
@@ -693,7 +696,7 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
             Curve3::Line { .. } => InfSpeed::new(T::one()),
             Curve3::Circle { radius, .. } => InfSpeed::new(radius),
             // An ellipse's speed is never below its minor semi-axis.
-            Curve3::Ellipse { major, minor, .. } => InfSpeed::new(major.min(minor)),
+            Curve3::Ellipse { semi_u, semi_v, .. } => InfSpeed::new(semi_u.min(semi_v)),
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                 return Err(unbuilt_geometry(
                     EntityId::Edge(rim),

@@ -35,9 +35,13 @@ Measured (REACH, branch `reach/volume-backstop`, 2026-10-01):
   refuses through the same arm on its subtraction (margin −1.85e-9).
 
 Both orders are pinned by `crates/sweep/tests/reach_volume_backstop.rs`
-`a_boss_at_half_a_radian_measures_in_one_operand_order`. The refusing
-order goes red when this lands, and should then build at
-`penetrating_union(0.5)`.
+`a_boss_at_half_a_radian_meets_the_convergence_gap_at_the_default_eps`.
+Since CLEAVE's `a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex`
+seamed each section chord at the principal vertex nearest its arc,
+`union(boss, base)` refuses through the same arm too (face `5v1`, margin
+3.057633286600975e-9); `union(base, boss)` reads 3.1273351765955398e-9.
+Both orders still measure at 1e-6 and 1e-12. The pin goes red when this
+lands, and both orders should then build at `penetrating_union(0.5)`.
 
 ## The shape of a fix
 

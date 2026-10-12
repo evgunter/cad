@@ -1649,8 +1649,8 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
     let carrier = Curve3::Ellipse {
         center: Point3::origin(),
         axis: Vec3::new(-s, 0.0, c),
-        major: 1.0 / c,
-        minor: 1.0,
+        semi_u: 1.0 / c,
+        semi_v: 1.0,
         u_ref: Vec3::new(c, 0.0, s),
     };
     let mut body = Body::<f64>::new();

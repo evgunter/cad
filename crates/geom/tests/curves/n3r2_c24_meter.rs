@@ -31,8 +31,8 @@ fn bench(carrier: &Curve3<f64>, n: u32) -> (f64, f64) {
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         } => (*center, *u_ref, axis.cross(*u_ref), *major, *minor),
         _ => panic!("conic only"),
@@ -67,8 +67,8 @@ fn n3r2_c24_meter() {
     let ellipse = Curve3::Ellipse {
         center: Point3::new(0.1, 0.2, 0.3),
         axis,
-        major: 2.1,
-        minor: 0.7,
+        semi_u: 2.1,
+        semi_v: 0.7,
         u_ref,
     };
     for (name, c) in [("circle", &circle), ("ellipse", &ellipse)] {

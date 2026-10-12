@@ -1310,8 +1310,8 @@ mod tests {
                 Curve3::Ellipse {
                     center: frame.0,
                     axis: frame.1,
-                    major: 2.0,
-                    minor: 1.0,
+                    semi_u: 2.0,
+                    semi_v: 1.0,
                     u_ref: frame.2,
                 },
             ),

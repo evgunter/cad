@@ -152,50 +152,56 @@ fn a_tilted_boss_unions_onto_a_box() {
     }
 }
 
-/// **The order-dependent gap.** At 0.5 rad and the default ε the
-/// penetrating boss builds as `boss ∪ base` but not as `base ∪ boss`:
-/// there the quadrature's own convergence test on one wall face lands
-/// inside its band and escalates, so the backstop cannot measure the
-/// result
+/// **The quadrature's convergence gap at 0.5 rad.** At the default ε the
+/// penetrating boss refuses in both operand orders: the quadrature's own
+/// convergence test on a wall face lands inside its band and escalates,
+/// so the backstop cannot measure the result
 /// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining`).
 /// Pinned at that outcome; the refusal says what ran out, and offers no
-/// coincidence to declare. Where that margin lands is a matter of ε:
-/// at 1e-6 and 1e-12 it lands outside the band and both orders measure.
+/// coincidence to declare. Where that margin lands is a matter of ε and
+/// of the carrier's parameterization: at 1e-6 and 1e-12 it lands outside
+/// the band and both orders measure.
 #[test]
-fn a_boss_at_half_a_radian_measures_in_one_operand_order() {
+fn a_boss_at_half_a_radian_meets_the_convergence_gap_at_the_default_eps() {
     let theta = 0.5f64;
-    assert_sound(
-        topo::union(&boss(theta, 0.5), &base(), tol()),
-        penetrating_union(theta, BOSS_R),
-        "boss ∪ base at 0.5 rad",
-    );
-    let base_first = topo::union(&base(), &boss(theta, 0.5), tol());
-    if tol().eps() != DEFAULT_EPS {
-        assert_sound(
-            base_first,
-            penetrating_union(theta, BOSS_R),
-            "base ∪ boss at 0.5 rad off the default ε",
+    for (order, got) in [
+        (
+            "boss ∪ base",
+            topo::union(&boss(theta, 0.5), &base(), tol()),
+        ),
+        (
+            "base ∪ boss",
+            topo::union(&base(), &boss(theta, 0.5), tol()),
+        ),
+    ] {
+        let what = format!("{order} at 0.5 rad");
+        if tol().eps() != DEFAULT_EPS {
+            assert_sound(got, penetrating_union(theta, BOSS_R), &what);
+            continue;
+        }
+        let err = got.expect_err("the known gap");
+        let BooleanError::VolumeUnmeasured {
+            operand: None,
+            source:
+                MassPropsError::Face {
+                    source: geom_brep::props::PropsError::Escalated { cause, .. },
+                    ..
+                },
+        } = &err
+        else {
+            panic!("{what}: {err:?}");
+        };
+        assert_eq!(
+            cause.predicate,
+            Some("props_quad_converged"),
+            "{what}: {err:?}"
         );
-        return;
+        let text = err.to_string();
+        assert!(
+            text.contains("converged") && !text.contains("declare"),
+            "{what}: the refusal names the quadrature's convergence and no coincidence: {text}"
+        );
     }
-    let err = base_first.expect_err("the known gap");
-    let BooleanError::VolumeUnmeasured {
-        operand: None,
-        source:
-            MassPropsError::Face {
-                source: geom_brep::props::PropsError::Escalated { cause, .. },
-                ..
-            },
-    } = &err
-    else {
-        panic!("base ∪ boss at 0.5 rad: {err:?}");
-    };
-    assert_eq!(cause.predicate, Some("props_quad_converged"), "{err:?}");
-    let text = err.to_string();
-    assert!(
-        text.contains("converged") && !text.contains("declare"),
-        "the refusal names the quadrature's convergence and no coincidence: {text}"
-    );
 }
 
 /// The rod: `r = 0.5` about the vertical through `(x0, 0)`, over
@@ -469,11 +475,11 @@ fn a_planted_union_result_short_by_less_than_the_reporting_pads_refuses() {
 /// lower). Planting the one with the higher midpoint as the result of
 /// subtracting from the other puts the margin's midpoint below zero
 /// while the true margin is zero: the backstop must not call it
-/// implausible. It passes where the last round decides a zero margin
-/// on this pair, and refuses `VolumeUndecided` where it cannot
-/// ([`last_round_decides`]). A gate that read the midpoint, or
-/// subtracted the enclosures' width instead of adding it, refuses it as
-/// implausible.
+/// implausible. Its last round decides a zero margin on this pair at
+/// every ε row, so it passes there (measured; the rod pair of
+/// [`last_round_decides`] stays open at ε = 1e-12). A gate that read the
+/// midpoint, or subtracted the enclosures' width instead of adding it,
+/// refuses it as implausible.
 #[test]
 fn a_result_equal_in_truth_but_larger_at_the_midpoint_passes() {
     let cutter = oblique_cutter(0.0);
@@ -508,12 +514,10 @@ fn a_result_equal_in_truth_but_larger_at_the_midpoint_passes() {
     } else {
         (&circle, &arcs)
     };
-    let expect = if last_round_decides(1.0) {
+    assert_eq!(
+        planted(BooleanOp::Subtract, lower, &cutter, higher),
         Ok(AtRestOutcome::Validated)
-    } else {
-        Err(BooleanErrorKind::VolumeUndecided)
-    };
-    assert_eq!(planted(BooleanOp::Subtract, lower, &cutter, higher), expect);
+    );
 }
 
 /// **A dual runs no backstop** (DL3): the backstop is a validation, and

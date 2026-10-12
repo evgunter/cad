@@ -236,8 +236,8 @@ fn rational_quadratic_arc(e: &Curve3<f64>, t0: f64, t1: f64) -> NurbsCurve3<f64>
     let Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     } = *e
     else {

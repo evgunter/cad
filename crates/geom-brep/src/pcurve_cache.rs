@@ -3421,8 +3421,8 @@ fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         } => Some(Harmonic3 {
             c: center,
@@ -3797,7 +3797,11 @@ fn param_rate<T: SpanLocate>(carrier: &Curve3<T>) -> InfSpeed<T> {
         Curve3::Circle { radius, .. } => InfSpeed::new(radius),
         // The smaller semi-axis MAGNITUDE: the semi-axes carry no order
         // and no sign (`Conic`); `minor` for the ordinary order.
-        Curve3::Ellipse { major, minor, .. } => InfSpeed::new(major.abs().min(minor.abs())),
+        Curve3::Ellipse {
+            semi_u: major,
+            semi_v: minor,
+            ..
+        } => InfSpeed::new(major.abs().min(minor.abs())),
         Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
     }
 }
@@ -7644,9 +7648,9 @@ fn derive_class<T: Decide>(
                 Curve3::Ellipse {
                     center,
                     axis: e_axis,
-                    major,
-                    minor,
-                    u_ref: e_u,
+                    semi_u,
+                    semi_v,
+                    u_ref: seam,
                 } => {
                     // The tilted-section class: the exact
                     // [`Pcurve::FocalSection`] image (variant docs for
@@ -7661,6 +7665,13 @@ fn derive_class<T: Decide>(
                     if let Err(why) = cone_conic_incidence(carrier, surface, band)? {
                         return Err(off_chart(why));
                     }
+                    // The image is read about the major vertex, where
+                    // the focus is on the `t = t0` side: a carrier seamed
+                    // at a minor vertex is read a quarter turn on.
+                    let Some(frame) = carrier.major_frame() else {
+                        unreachable!("an Ellipse carrier has a major frame")
+                    };
+                    let (e_u, major, minor) = (frame.major_dir, frame.major, frame.minor);
                     let e_v = e_axis.cross(e_u);
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
                     let w = center - apex;
@@ -7710,10 +7721,10 @@ fn derive_class<T: Decide>(
                     Ok((
                         Pcurve::FocalSection(FocalImage {
                             u0: stable_azimuth(start.dot(cv), start.dot(u_ref), band),
-                            t0: T::zero(),
+                            t0: frame.phase,
                             v0: h / c_ha,
-                            va: e_u.dot(axis) * major / c_ha,
-                            vb: e_v.dot(axis) * minor / c_ha,
+                            va: seam.dot(axis) * semi_u / c_ha,
+                            vb: e_axis.cross(seam).dot(axis) * semi_v / c_ha,
                             vl: T::zero(),
                             beta,
                             sense,
@@ -8789,8 +8800,8 @@ mod tests {
             center: Point3::new(0.0, 0.0, h),
             // The ellipse's own axis is the section plane's normal.
             axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
-            major: r / tilt.cos(),
-            minor: r,
+            semi_u: r / tilt.cos(),
+            semi_v: r,
             u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
         }
     }
@@ -8935,8 +8946,8 @@ mod tests {
         let carrier = Curve3::Ellipse {
             center: Point3::new(0.1, -0.2, 0.5),
             axis: Vec3::unit_z(),
-            major: 0.7,
-            minor: 0.3,
+            semi_u: 0.7,
+            semi_v: 0.3,
             u_ref: Vec3::unit_x(),
         };
         let p = chart_pcurve(&carrier, &plane, band()).unwrap();
@@ -9196,8 +9207,8 @@ mod tests {
         let squashed = Curve3::Ellipse {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
-            major: r,
-            minor: r - d,
+            semi_u: r,
+            semi_v: r - d,
             u_ref: Vec3::unit_x(),
         };
         let rows = [
@@ -9441,8 +9452,8 @@ mod tests {
         let ellipse = Curve3::Ellipse {
             center: Point3::new(0.2, 0.0, 2.0),
             axis: Vec3::new(0.3_f64.sin(), 0.0, 0.3_f64.cos()),
-            major: 1.2,
-            minor: 1.0,
+            semi_u: 1.2,
+            semi_v: 1.0,
             u_ref: Vec3::new(0.3_f64.cos(), 0.0, -0.3_f64.sin()),
         };
         let err = chart_pcurve(&ellipse, &cone, band()).unwrap_err();
@@ -9553,8 +9564,8 @@ mod tests {
                 Curve3::Ellipse {
                     center: Point3::origin(),
                     axis: Vec3::unit_z(),
-                    major: 2.5,
-                    minor: 2.0,
+                    semi_u: 2.5,
+                    semi_v: 2.0,
                     u_ref: Vec3::unit_x(),
                 },
                 &torus,

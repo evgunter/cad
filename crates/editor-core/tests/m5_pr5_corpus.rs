@@ -59,7 +59,7 @@ fn cut_cylinder_sides_carry_exact_ellipses() {
         let ellipses = ellipse_edges(part);
         assert_eq!(ellipses.len(), 2, "two ellipse arcs bound the section");
         for c in &ellipses {
-            let Curve3::Ellipse { major, minor, .. } = *c.carrier() else {
+            let Some(geom::MajorFrame { major, minor, .. }) = c.carrier().major_frame() else {
                 panic!("ellipse filter guarantees the variant");
             };
             assert!((minor - 0.5).abs() < 1e-12);

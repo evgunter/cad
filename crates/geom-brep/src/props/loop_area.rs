@@ -66,8 +66,8 @@ pub fn loop_vector_area<T: SpanLocate>(
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 ..
             } => {
                 let w = center - ref_point;

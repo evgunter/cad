@@ -271,8 +271,8 @@ pub(in crate::boolean) fn truth(
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         } => (center, axis, (major, minor), u_ref),
         _ => panic!("the exact oracle reads circles and ellipses"),

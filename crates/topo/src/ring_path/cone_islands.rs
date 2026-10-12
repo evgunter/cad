@@ -156,8 +156,8 @@ fn conic_param(c: &geom::Curve3<f64>, p: Point3<f64>) -> f64 {
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         } => (center, axis, u_ref, major, minor),
         geom::Curve3::Circle {

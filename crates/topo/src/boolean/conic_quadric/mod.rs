@@ -503,8 +503,8 @@ mod tests {
         let ellipse = geom::Curve3::Ellipse {
             center: o,
             axis: z,
-            major: 1.0,
-            minor: 0.5,
+            semi_u: 1.0,
+            semi_v: 0.5,
             u_ref: x,
         };
         let sphere = geom::Surface::Sphere {

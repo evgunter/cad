@@ -3363,8 +3363,8 @@ pub(super) fn param_along<T: Decide>(
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         } => {
             let w = p - *center;

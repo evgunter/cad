@@ -251,11 +251,19 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// alone, and the merged tree is neither value. `m4_pr8_corpus`'s exact
 /// mass pins, `m5_pr8_bvh_diff` and `m10_p_fence`'s id-masked geometry
 /// held.
+///
+/// RE-BLESSED, `cut_cylinder` only, when `Curve3::Ellipse`'s semi-axes became
+/// `semi_u`/`semi_v` along a principal `u_ref` and each section chord
+/// was seamed at the principal vertex nearest its arc: the digest feeds
+/// each curve's `Debug`, whose field names moved, and a split section's
+/// chords now store the same loci from another vertex
+/// (`m5_pr5_corpus::cut_cylinder_sides_carry_exact_ellipses` holds with
+/// the semi-axes read in either order).
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xa6c1_1622_9a6f_5245u64),
+        ("cut_cylinder", 0x69b4_ddcd_0c34_ed7du64),
         ("part_select", 0x1613_0d79_3326_39ec),
         ("kitchen_sink", 0x587e_9ada_00a5_7fb6),
     ] {

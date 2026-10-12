@@ -197,8 +197,8 @@ fn ellipse(c: Point3<f64>, axis: Vec3<f64>, a: f64, b: f64, u: Vec3<f64>) -> Cur
     Curve3::Ellipse {
         center: c,
         axis,
-        major: a,
-        minor: b,
+        semi_u: a,
+        semi_v: b,
         u_ref: u,
     }
 }
@@ -323,8 +323,8 @@ mod interval_support {
                                 Curve3::Ellipse {
                                     center,
                                     axis,
-                                    major,
-                                    minor,
+                                    semi_u: major,
+                                    semi_v: minor,
                                     u_ref,
                                 } => ellipse(
                                     Point3::new(
@@ -441,8 +441,8 @@ fn n3r1_interval_brackets_are_dominated_by_the_box() {
         Curve3::Ellipse {
             center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
             axis: Vec3::new(ib(0.5, 0.6), iv(0.0), ib(0.8, 0.87)),
-            major: ib(50.0, 60.0),
-            minor: ib(0.01, 0.02),
+            semi_u: ib(50.0, 60.0),
+            semi_v: ib(0.01, 0.02),
             u_ref: Vec3::new(ib(0.8, 0.87), iv(0.0), ib(-0.6, -0.5)),
         },
         ib(0.9, 1.0),

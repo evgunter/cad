@@ -552,8 +552,8 @@ fn oblique_patch(
             Curve3::Ellipse {
                 center: o + a * v,
                 axis: u_ref.cross(y),
-                major: r / f.cos(),
-                minor: r,
+                semi_u: r / f.cos(),
+                semi_v: r,
                 u_ref,
             }
         };

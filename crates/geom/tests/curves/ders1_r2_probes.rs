@@ -275,8 +275,8 @@ fn tilted_ellipse<T: Real>() -> Curve3<T> {
     Curve3::Ellipse {
         center: Point3::new(f(-0.5), f(4.0), f(1.25)),
         axis: Vec3::new(f(2.0 / 3.0), f(2.0 / 3.0), f(1.0 / 3.0)),
-        major: f(2.5),
-        minor: f(1.0),
+        semi_u: f(2.5),
+        semi_v: f(1.0),
         u_ref: Vec3::new(f(1.0 / 3.0), f(-2.0 / 3.0), f(2.0 / 3.0)),
     }
 }

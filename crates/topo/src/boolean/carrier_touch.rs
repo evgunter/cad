@@ -387,8 +387,8 @@ fn edge_clear_of_ball<T: Decide + Bounds>(
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             ..
         } => {
             // The annulus between the semi-axis magnitudes, whichever is

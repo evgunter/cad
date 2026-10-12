@@ -113,8 +113,8 @@ pub fn ellipse_pcurve_on_plane(
     let &Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     } = carrier
     else {

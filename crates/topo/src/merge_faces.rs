@@ -5217,8 +5217,8 @@ mod winding_arm_tests {
                     carrier: geom::Curve3::Ellipse {
                         center: Point3::new(0.0, 0.0, 0.0),
                         axis: -Vec3::unit_z(),
-                        major: MAJOR,
-                        minor: MINOR,
+                        semi_u: MAJOR,
+                        semi_v: MINOR,
                         u_ref: Vec3::unit_x(),
                     },
                     param_start: -core::f64::consts::FRAC_PI_2,

@@ -11761,8 +11761,8 @@ mod tests {
             let carrier = geom::Curve3::Ellipse {
                 center: Point3::origin(),
                 axis: Vec3::unit_z(),
-                major: 20.0,
-                minor: 1.0,
+                semi_u: 20.0,
+                semi_v: 1.0,
                 u_ref: Vec3::unit_x(),
             };
             let (body, cap) = ellipse_cap(
@@ -11802,8 +11802,8 @@ mod tests {
             let carrier = geom::Curve3::Ellipse {
                 center: Point3::origin(),
                 axis: normal,
-                major,
-                minor: 0.1,
+                semi_u: major,
+                semi_v: 0.1,
                 u_ref: Vec3::new(1.0, 0.0, 20.0).normalize(),
             };
             let d = 8.0 * band().zero();

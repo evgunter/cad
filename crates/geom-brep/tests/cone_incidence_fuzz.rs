@@ -102,8 +102,8 @@ fn an_uncovered_perturbed_section_lies_within_the_sliver() {
             let ellipse = |(center, axis, u_ref, major, minor)| Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             };
             // The reading is linear in a small scale, so one probe

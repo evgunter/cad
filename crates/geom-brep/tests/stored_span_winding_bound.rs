@@ -426,8 +426,8 @@ fn section_arc<T: Real>() -> LoopEdge<T> {
     let carrier = Curve3::Ellipse {
         center: p(center[0], center[1], center[2]),
         axis: v(n[0], n[1], n[2]),
-        major: f(major),
-        minor: f(((across - center[0]) * (across + center[0])).sqrt()),
+        semi_u: f(major),
+        semi_v: f(((across - center[0]) * (across + center[0])).sqrt()),
         u_ref: v(half[0] / major, 0.0, half[2] / major),
     };
     LoopEdge::hand_built(carrier, f(0.0), f(0.2), true, 0, 0)

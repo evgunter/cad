@@ -4488,8 +4488,8 @@ mod tests {
         let ellipse = Curve3::Ellipse {
             center: Point3::origin(),
             axis: Vec3::new(-k, 0.0, 1.0).normalize(),
-            major: major_len,
-            minor: 1.0,
+            semi_u: major_len,
+            semi_v: 1.0,
             u_ref: Vec3::new(1.0, 0.0, k).normalize(),
         };
         let surface = cyl_surface(1.0);

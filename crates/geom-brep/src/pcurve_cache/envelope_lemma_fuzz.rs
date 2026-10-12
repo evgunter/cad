@@ -245,8 +245,8 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
                 Curve3::Ellipse {
                     center: at + axis * v0,
                     axis: normal,
-                    major: radius / theta.cos(),
-                    minor: radius,
+                    semi_u: radius / theta.cos(),
+                    semi_v: radius,
                     u_ref: major_dir,
                 },
             )
@@ -553,8 +553,8 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
                 return Curve3::Ellipse {
                     center,
                     axis,
-                    major,
-                    minor,
+                    semi_u: major,
+                    semi_v: minor,
                     u_ref,
                 };
             }
@@ -568,8 +568,8 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         } => {
             let axis = (axis + nudge(s, 3)).normalize();
@@ -577,8 +577,8 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
             Curve3::Ellipse {
                 center: center + nudge(s, 1),
                 axis,
-                major: scaled(s, major),
-                minor: scaled(s, minor),
+                semi_u: scaled(s, major),
+                semi_v: scaled(s, minor),
                 u_ref,
             }
         }
@@ -1447,8 +1447,8 @@ fn the_phase_remainder_carries_a_carrier_that_is_the_harmonic_part() {
     let carrier = Curve3::Ellipse {
         center: Point3::origin() - d0 * (big * e),
         axis: x.cross(y).normalize(),
-        major: x.norm(),
-        minor: y.norm(),
+        semi_u: x.norm(),
+        semi_v: y.norm(),
         u_ref: x.normalize(),
     };
     let (t0, t1) = (-0.5, 0.5);

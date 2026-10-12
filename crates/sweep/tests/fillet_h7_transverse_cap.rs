@@ -497,7 +497,10 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                         assert!(center.z.abs() < 1e-12, "{what}: the circle is the bottom's");
                     }
                     Curve3::Ellipse {
-                        major, minor, axis, ..
+                        semi_u: major,
+                        semi_v: minor,
+                        axis,
+                        ..
                     } => {
                         ellipses += 1;
                         assert_eq!(minor, R, "{what}: minor = r");
@@ -545,8 +548,8 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let n = Vec3::new(phi.sin(), 0.0, phi.cos());
     let oblique = cap_transverse(v, n, tau, R, 1.0, band).expect("an oblique cap is the ellipse");
     let EndSection::Ellipse(Curve3::Ellipse {
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref: u_major,
         axis: normal,
         ..

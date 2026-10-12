@@ -104,8 +104,8 @@ proptest! {
         let carrier = Curve3::Ellipse {
             center: Point3::new(cx, cy, cz),
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         };
         let t1 = t0 + dt;
@@ -127,8 +127,8 @@ fn ellipse_arc_box_is_span_tight_and_full_period_reaches_extrema() {
     let carrier = Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 0.0, 1.0),
-        major: 2.0,
-        minor: 0.5,
+        semi_u: 2.0,
+        semi_v: 0.5,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let (t0, t1) = (0.1, 0.4);
@@ -171,8 +171,8 @@ fn wide_bracket_ellipse_box_contains_every_realization() {
             let carrier_iv: Curve3<Interval> = Curve3::Ellipse {
                 center: Point3::new(iv(1.0), iv(-2.0), iv(0.5)),
                 axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                major: iv(2.0),
-                minor: iv(0.75),
+                semi_u: iv(2.0),
+                semi_v: iv(0.75),
                 u_ref: Vec3::new(Interval::from_bounds(-w, w), iv(1.0), iv(0.0)),
             };
             let (e0, e1) = (carrier_iv.eval(iv(t0)), carrier_iv.eval(iv(t1)));
@@ -182,8 +182,8 @@ fn wide_bracket_ellipse_box_contains_every_realization() {
                 let real: Curve3<f64> = Curve3::Ellipse {
                     center: Point3::new(1.0, -2.0, 0.5),
                     axis: Vec3::new(0.0, 0.0, 1.0),
-                    major: 2.0,
-                    minor: 0.75,
+                    semi_u: 2.0,
+                    semi_v: 0.75,
                     u_ref: Vec3::new(d, 1.0, 0.0),
                 };
                 for j in 0..=64u32 {

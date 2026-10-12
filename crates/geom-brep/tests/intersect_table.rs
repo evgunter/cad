@@ -172,8 +172,8 @@ fn plane_cylinder_tilted_is_the_exact_ellipse() {
     };
     // Axes: a = r/cos φ, b = r.
     let Curve3::Ellipse {
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         center,
         axis,
         ..
@@ -377,7 +377,12 @@ fn equal_cylinders_split_into_two_ellipses() {
     }
     // Both are genuine ellipses centered at the axes' intersection.
     for e in [&e1, &e2] {
-        let Curve3::Ellipse { center, minor, .. } = e else {
+        let Curve3::Ellipse {
+            center,
+            semi_v: minor,
+            ..
+        } = e
+        else {
             panic!("carrier is an ellipse");
         };
         assert!(center.x.abs() < 1e-12 && center.y.abs() < 1e-12 && center.z.abs() < 1e-12);
@@ -641,8 +646,8 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
         let Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         } = e
         else {
@@ -687,7 +692,12 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
     for phi in [0.04f64, 0.02, 0.01] {
         let s =
             plane_cone_section(&tilted_plane(phi, q), &cone, &at_apex(&cone, 1.0), band()).unwrap();
-        let PlaneConeSection::TiltedEllipse(Curve3::Ellipse { major, minor, .. }) = s else {
+        let PlaneConeSection::TiltedEllipse(Curve3::Ellipse {
+            semi_u: major,
+            semi_v: minor,
+            ..
+        }) = s
+        else {
             panic!("phi {phi}: expected the ellipse, got {s:?}");
         };
         for axis in [major, minor] {

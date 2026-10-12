@@ -35,7 +35,10 @@ fn ends_are_sections(out: &Blended<f64>, oblique: usize, what: &str) {
         match *c.carrier() {
             Curve3::Circle { radius, .. } => assert_eq!(radius, D, "{what}: a circle end"),
             Curve3::Ellipse {
-                major, minor, axis, ..
+                semi_u: major,
+                semi_v: minor,
+                axis,
+                ..
             } => {
                 ellipses += 1;
                 assert!((minor - D).abs() < 1e-15, "{what}: minor = r, got {minor}");

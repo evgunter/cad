@@ -319,12 +319,13 @@ fn meetings<T: Decide>(
             &Ellipse {
                 center,
                 axis,
-                major,
+                semi_u,
+                semi_v,
                 ..
             },
         ) => {
             let den = dir.dot(axis);
-            if !transverse(den, reach.max(major), band)? {
+            if !transverse(den, reach.max(semi_u.abs().max(semi_v.abs())), band)? {
                 return Ok(off_plane(at, center, axis, band)?.then(Vec::new));
             }
             let t = (center - origin).dot(axis) / den;
@@ -340,14 +341,16 @@ fn meetings<T: Decide>(
             &Ellipse {
                 center: c2,
                 axis: n2,
-                major,
+                semi_u,
+                semi_v,
                 ..
             },
         ) => {
             // Read parallel, every point of the circle stays within the
             // band of its centre's distance from the plane: the tilt is
             // levered by the radius, the farthest the circle reaches.
-            if !transverse(n1.cross(n2).norm(), r1.max(major), band)? {
+            let reach = semi_u.abs().max(semi_v.abs());
+            if !transverse(n1.cross(n2).norm(), r1.max(reach), band)? {
                 return Ok(off_plane(c1, c2, n2, band)?.then(Vec::new));
             }
             circle_meets_plane(c1, n1, r1, c2, n2, band)?
@@ -582,8 +585,8 @@ mod meetings_rows {
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         }
     }

@@ -400,8 +400,8 @@ impl<T: Real> Reach<T> {
                 Curve3::Circle { center, radius, .. } => (*center - pivot).norm() + radius.abs(),
                 Curve3::Ellipse {
                     center,
-                    major,
-                    minor,
+                    semi_u: major,
+                    semi_v: minor,
                     ..
                 } => (*center - pivot).norm() + major.abs().max(minor.abs()),
                 Curve3::Spiric {
@@ -452,8 +452,8 @@ impl<T: Real> Reach<T> {
                     Curve3::Ellipse {
                         center,
                         axis: k,
-                        major,
-                        minor,
+                        semi_u: major,
+                        semi_v: minor,
                         u_ref,
                     },
                 t0,
@@ -528,8 +528,8 @@ impl<T: Real> Reach<T> {
                 Curve3::Ellipse {
                     center,
                     axis: k,
-                    major,
-                    minor,
+                    semi_u: major,
+                    semi_v: minor,
                     u_ref,
                 } => conic_arc_range(
                     (*center, *u_ref, k.cross(*u_ref)),
@@ -786,8 +786,8 @@ mod tests {
             Curve3::Ellipse {
                 center: Point3::new(-1.0, 0.5, 0.2),
                 axis: Vec3::new(0.0, 0.0, 1.0),
-                major: 0.6,
-                minor: 1.4,
+                semi_u: 0.6,
+                semi_v: 1.4,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
         ] {
@@ -914,15 +914,19 @@ mod tests {
                 Curve3::Ellipse {
                     center: off,
                     axis: tilted,
-                    major: 2.0 * r,
-                    minor: 0.7 * r,
+                    semi_u: 2.0 * r,
+                    semi_v: 0.7 * r,
                     u_ref: Vec3::new(-0.8, 0.0, 0.6),
                 },
             ];
             for carrier in carriers {
                 let (a, b) = match carrier {
                     Curve3::Circle { radius, .. } => (radius, radius),
-                    Curve3::Ellipse { major, minor, .. } => (major, minor),
+                    Curve3::Ellipse {
+                        semi_u: major,
+                        semi_v: minor,
+                        ..
+                    } => (major, minor),
                     _ => unreachable!(),
                 };
                 let big = a.abs().max(b.abs());
@@ -1036,15 +1040,15 @@ mod tests {
             Curve3::Ellipse {
                 center: Point3::new(-1.0, 0.5, 0.2),
                 axis: tilted,
-                major: 2.0,
-                minor: 0.7,
+                semi_u: 2.0,
+                semi_v: 0.7,
                 u_ref: Vec3::new(-0.8, 0.0, 0.6),
             },
             Curve3::Ellipse {
                 center: Point3::new(-1.0, 0.5, 0.2),
                 axis: tilted,
-                major: 0.7,
-                minor: 2.0,
+                semi_u: 0.7,
+                semi_v: 2.0,
                 u_ref: Vec3::new(-0.8, 0.0, 0.6),
             },
         ];

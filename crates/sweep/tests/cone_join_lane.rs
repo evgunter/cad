@@ -238,13 +238,10 @@ fn is_conic(chord: &Chord, (centre, normal, a, b): (Point3<f64>, Vec3<f64>, f64,
             radius,
             ..
         } => (center, axis, radius, radius),
-        Curve3::Ellipse {
-            center,
-            axis,
-            major,
-            minor,
-            ..
-        } => (center, axis, major, minor),
+        ref e @ Curve3::Ellipse { center, axis, .. } => {
+            let frame = e.major_frame().unwrap();
+            (center, axis, frame.major, frame.minor)
+        }
         _ => return false,
     };
     (c - centre).norm() < 1e-12
@@ -378,8 +375,8 @@ fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
     let Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     } = e
     else {
@@ -392,8 +389,8 @@ fn ellipse_param(e: &Curve3<f64>, p: Point3<f64>) -> f64 {
     let Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     } = e
     else {

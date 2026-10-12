@@ -2390,8 +2390,13 @@ pub(super) fn piece_distance<T: Bounds>(
                 (pa - c).norm().max((pb - c).norm()),
             ))
         }
-        Curve3::Ellipse { center, major, .. } => {
-            let d = (center - c).norm();
+        Curve3::Ellipse {
+            center,
+            semi_u,
+            semi_v,
+            ..
+        } => {
+            let (d, major) = ((center - c).norm(), semi_u.abs().max(semi_v.abs()));
             Some(((d - major).max(T::zero()), d + major))
         }
         _ => CircleFrame::of(carrier).map(|k| k.distance((ta, tb), c)),
@@ -2424,8 +2429,8 @@ pub(super) fn piece_along<T: Bounds>(
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         } => {
             let v = axis.cross(u_ref);
@@ -3215,8 +3220,8 @@ fn boxed_reach<T: Bounds>(
                 Curve3::Ellipse {
                     center,
                     axis,
-                    major,
-                    minor,
+                    semi_u: major,
+                    semi_v: minor,
                     u_ref,
                 } => {
                     let mid = (*center - c).dot(u);
@@ -5565,8 +5570,8 @@ mod tests {
         let ellipse = |major: f64, minor: f64| Curve3::Ellipse {
             center: Point3::new(1.0, 0.5, -0.2),
             axis: Vec3::new(0.0, 0.6, 0.8),
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let nurbs = Curve3::Nurbs(Arc::new(
@@ -5697,8 +5702,8 @@ mod tests {
         let ellipse = Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major: 0.5,
-            minor: 2.0,
+            semi_u: 0.5,
+            semi_v: 2.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let c = Point3::new(0.0, 0.0, 0.0);

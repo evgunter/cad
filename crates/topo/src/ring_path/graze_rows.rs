@@ -384,8 +384,8 @@ fn split_ellipse(
     let geom::Curve3::Ellipse {
         center,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     } = *c
     else {
@@ -431,7 +431,7 @@ fn segment_section(
         cell.unresolvable += 1;
         return;
     };
-    let geom::Curve3::Ellipse { major, .. } = c else {
+    let geom::Curve3::Ellipse { semi_u: major, .. } = c else {
         unreachable!()
     };
     if !resolvable(band.zero(), off + (c.eval(0.0) - apex).norm() + 2.0 * major) {

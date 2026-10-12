@@ -123,9 +123,11 @@ pub(crate) fn compute_chords(
             // certified-conservative curvature-bound step; no torus
             // tightening applies (an ellipse never lies on a torus
             // chart of this kernel's constructions).
-            Curve3::Ellipse { major, minor, .. } => {
-                ceil_count(span, ellipse_step(delta_s, major, minor))?
-            }
+            Curve3::Ellipse {
+                semi_u: major,
+                semi_v: minor,
+                ..
+            } => ceil_count(span, ellipse_step(delta_s, major, minor))?,
             // Spiric arcs (the hollowed partial revolve's torus rim):
             // the curvature-bound step from the closed-form `sup|C″|`
             // (`spiric_step`). No torus tightening: `torus_boundary_step`

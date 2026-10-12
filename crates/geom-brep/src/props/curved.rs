@@ -2006,8 +2006,8 @@ fn require_cone_ellipse<T: Decide>(
     let Curve3::Ellipse {
         center,
         axis: n,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     } = e.carrier
     else {
@@ -2119,7 +2119,11 @@ fn require_cone_conic_spans<T: Decide>(
     for e in edges {
         match e.carrier {
             Curve3::Circle { radius, .. } => require_rim_span(e, radius, band)?,
-            Curve3::Ellipse { major, minor, .. } => require_span_within_period(
+            Curve3::Ellipse {
+                semi_u: major,
+                semi_v: minor,
+                ..
+            } => require_span_within_period(
                 e,
                 major.abs().min(minor),
                 band,
@@ -2141,7 +2145,11 @@ fn cone_edge_length<T: Decide>(e: &LoopEdge<T>) -> Result<T, PropsError> {
     match e.carrier {
         Curve3::Line { .. } => Ok((e.p1() - e.p0()).norm()),
         Curve3::Circle { radius, .. } => Ok(radius * (e.t1 - e.t0).abs()),
-        Curve3::Ellipse { major, minor, .. } => Ok(major.max(minor) * (e.t1 - e.t0).abs()),
+        Curve3::Ellipse {
+            semi_u: major,
+            semi_v: minor,
+            ..
+        } => Ok(major.max(minor) * (e.t1 - e.t0).abs()),
         Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
     }
 }
