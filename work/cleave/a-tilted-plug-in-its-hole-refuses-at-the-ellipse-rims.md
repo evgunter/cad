@@ -61,3 +61,40 @@ value-decided pairs, not only declared ones. Whether widening them to
 fix. Neighbours: `tang/an-ellipse-lying-on-a-wall-keeps-the-door`,
 where the swept edge is the ellipse; here the ellipse is on the
 boundary.
+
+## Built (branch cleave/one-carrier-reads-ellipses)
+
+The open point is settled without Ev. The "so the D10 hold leaves their
+reach where it was" sentence was agent-written (PR 4174), not a
+ruling. The hold covered units built on declared pairs, which stage 4
+F retired, and the one-carrier arms are now D10's own glue-on-Zero
+arms, so their reach is ordinary frontier work.
+
+- `carrier_cross::BoundaryReads` is gone. `boundary_crossing` reads
+  lines, circles and ellipses in both roles for both callers
+  (`reduce::interior` and `reduce::lying_on`). The swept span is
+  metred by the carrier's speed at the candidate
+  (`carrier_cross::speed_at`, which `reduce::wall_crossing` now reads
+  too), and its reach by the greatest speed.
+- `carrier_cross::meetings` gains the swept-ellipse arms: × line where
+  the line crosses the ellipse's plane, × circle and × ellipse on the
+  planes' common line (`ellipse_meets_plane`), and nothing for two
+  ellipses in parallel planes. Each has its own decision row
+  (`bool_carrier_cross_ellipse_line_tilt`, `…_ellipse_circle_tilt`,
+  `…_ellipses_tilt`, `…_line_meets_ellipse`); the last reads the common
+  line's gap from tangency in metres, `disc / (2a²b²·√qa)`.
+
+Measured on main at `aa7af40329`: all five ops refuse
+`CurvedPierceUnsupported` at every pose, θ = 0.3 and π/3, at ε =
+1e-9, 1e-6 and 1e-12. On the branch, at all three ε and every pose:
+`plug ∩ hole` and `hole ∩ plug` are empty, `plug ∖ hole` and
+`hole ∖ plug` build at their closed forms (tier 3), and the union
+refuses `GermEdgeCarrierUnsupported`
+(`a-tilted-plug-union-refuses-at-the-germ-segment-and-section-copy-rosters`).
+Pinned by `continuation_pose::a_tilted_plug_in_its_hole_reads_alike_at_every_pose`.
+
+The guard that held the old reach,
+`a_ruling_lying_on_a_wall::a_continuation_on_a_wall_bounded_by_an_ellipse_keeps_the_door`,
+is now `…_builds_every_op`. All six ops build at their closed forms at
+all three ε (∪ 2.5π in both orders, t ∖ r 0.5π, r ∖ t π, ∩ π in both
+orders), at tiers 3 and 3′, with their census pinned.
