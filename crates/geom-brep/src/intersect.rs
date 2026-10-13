@@ -2435,15 +2435,25 @@ pub fn plane_cone_section<T: Decide>(
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Negative => {
-                    // K = −D·(cos α·|c| + sin α·s) > 0 here.
-                    let k = c.powi(2) - sin_a.powi(2);
+                    // K = c² − sin²α, read as −D·M off `s` and `cos α`:
+                    // where the plane is near square to the axis or the
+                    // cone near flat, `c` and `sin α` sit near 1 and
+                    // carry the tilt and the aperture's complement only
+                    // to `u` over those small angles, which the
+                    // difference of squares hands to K whole.
+                    let k = (T::zero() - discr) * (sin_a * s + cos_a * c.abs());
                     let major = apex_gap.abs() * sin_a * cos_a / k;
                     let minor = apex_gap.abs() * sin_a / k.sqrt();
-                    let center = apex - (a * c - n * sin_a.powi(2)) * (apex_gap / k);
                     // The axis-normal trilean above made `s`
                     // definite, so the minor direction is.
                     let v_minor = s_vec / s;
                     let u_major = v_minor.cross(n);
+                    // The centre is the apex's foot on the plane moved
+                    // along the major axis by `c·δ·s/K`: in the plane by
+                    // construction, where `apex − (c·a − sin²α·n)·δ/K`
+                    // reads a vector that cancels to K along the normal
+                    // and then divides it by K.
+                    let center = apex - n * apex_gap + u_major * (c * apex_gap * s / k);
                     let e = Curve3::ellipse(center, n, major, minor, u_major, band)?;
                     Ok(PlaneConeSection::TiltedEllipse(e))
                 }
