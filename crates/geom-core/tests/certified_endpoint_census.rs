@@ -296,7 +296,21 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          non-finite mean, so a refused input still yields a finite centre and the \
          reach about it reports the trouble",
     ),
-    ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
+    (
+        "crates/geom-brep/src/pcurve_cache.rs",
+        5,
+        2,
+        "the remaining 3 are `T: Bounds` reads of an edge interval's evaluation \
+         bracket (blind spot 1), not a certification bracket. The fitted door's \
+         domain gate (`fitted_lane`) branches on them, the interval's outer ends \
+         against the image's stored `f64` knot domain: it is reached only through \
+         `run_fitted_checks`, whose check 2 has already decided `t1 - t0` through \
+         `decide`, which refuses an uncertified parameter, so a refused bracket \
+         stops at check 2 before this gate (at `f64` its NaN fails the gate). The \
+         general image's schedule ends for a closed-form carrier \
+         (`general_image_lane`) take no branch: they size an evidence schedule \
+         that `run_fitted_checks` re-checks with the original parameters",
+    ),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/props/quad.rs",
@@ -343,15 +357,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        17,
-        15,
+        12,
+        12,
         "`Box3`'s disjointness, containment, centre, split, reach meet and intersection all refuse \
          by name, and \
-         so does the mignitude (`zero_free_lower_bound`, 4). `weight_floor` refuses the weight \
-         hull by name before reading its lower end, `s_offsets` asks it of each weight step it \
-         reads, and `transverse_readings` of the `φ` range whose ends it reads. The 2 that do \
-         not ask are `Centred::of`'s centre and radius, whose one caller, `pair_norm_sup`, \
-         refuses every term and offset by name before any is centred",
+         so does the mignitude (`zero_free_lower_bound`, 4)",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
@@ -383,16 +393,18 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/section.rs", 2, 2, ""),
     (
         "crates/geom-core/src/interval.rs",
-        23,
+        24,
         5,
         "the type's own body. The 5 that ask are the two refusal doors \
          (`certified_bracket`, `sign_within`) and the directed helpers `norm_sup`, \
-         `div_down` and `div_up`. The other 18 are not certification \
+         `div_down` and `div_up`. The other 19 are not certification \
          reads at all — blind spot 1: they are the evaluation scalar's own \
          implementation reads of the `DInterval` it wraps (the `Bounds` forwarders, \
-         `repr_bits`, `copysign`, the kink selectors and the two `select_le_zero` \
-         arms), which test NaI and empty themselves and carry the decoration forward \
-         rather than certifying",
+         `repr_bits`, `copysign`, the kink selectors, the two `select_le_zero` \
+         arms, and `is_bounded`'s endpoint finiteness, which only refuses: a mint \
+         that reads it refuses an unbounded enclosure and certifies nothing), which \
+         test NaI and empty themselves and carry the decoration forward rather than \
+         certifying",
     ),
     (
         "crates/geom-core/src/interval/certification.rs",
@@ -407,8 +419,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-core/src/spline/compose/tensor.rs", 4, 4, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
-        13,
-        7,
+        11,
+        5,
         "the 6 that do not ask read a bracket `enclose_deep` returned (the decision \
          read's halves, 4, and the profiling instrument's denominator, 2), and \
          `enclose_deep` hands back `None` for a refused bracket \

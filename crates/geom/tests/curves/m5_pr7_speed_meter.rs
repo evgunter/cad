@@ -301,8 +301,8 @@ fn the_rational_meter_survives_adversarial_weights() {
 
     assert_real_and_sound("degree 5", &quintic_net(vec![1.0, 0.5, 2.0, 0.5, 2.0, 1.0]));
 
-    // A high degree with alternating extreme weights: the refined-span
-    // hulls refuse it at every ratio, and the piece assembly meters it.
+    // A high degree with alternating extreme weights, which the
+    // piece assembly meters at every ratio tried.
     for (lo, hi) in [(0.01, 100.0), (0.001, 1000.0)] {
         assert_real_and_sound(
             &format!("degree 5, alternating {lo}/{hi} weights"),
@@ -392,7 +392,7 @@ fn the_conservative_frontier_is_stated_not_hidden() {
     // below refuses with a comfortably positive true minimum speed, so
     // what it pins is the schedules' conservatism, not a property of
     // the geometry — stated out loud so the frontier moves visibly if
-    // `RATIONAL_METER_SPLITS` or `RATIONAL_PIECE_SPLITS` is ever
+    // `SPEED_PIECE_SPLITS` is ever
     // revisited. Refusing is always sound; it is only ever a usability
     // cost.
     let sharp_turn = {
@@ -557,4 +557,116 @@ fn an_illegal_rational_carrier_is_still_poison() {
         Point3::new(1.0, 0.0, 0.0),
     ];
     assert!(NurbsCurve3::<f64>::new(kv, control, vec![1.0, -0.5, 1.0]).is_err());
+}
+
+/// **The recorded cost of the rational meter's one assembly.** A random
+/// degree-2 rational net on which the retired refined-span scan read
+/// 0.008833, 2.07× the piece assembly's 0.004256 — the worst of 12 000
+/// random rational nets, none of which it flipped from refusal to a
+/// positive answer (PR body: the measurement behind dropping it). The
+/// pieces still give a sound positive meter here.
+#[test]
+fn a_degree_two_net_the_refined_scan_read_higher_still_meters() {
+    let kv = KnotVector::clamped(
+        vec![
+            0.0,
+            0.0,
+            0.0,
+            0.8765904702210048,
+            2.0031049934219385,
+            2.207242093548355,
+            2.417476068503517,
+            3.040458953263717,
+            3.040458953263717,
+            3.040458953263717,
+        ],
+        2,
+    )
+    .unwrap();
+    let control = [
+        (0.47042533060786207, 1.8368122137932459, 0.8471070191345498),
+        (-0.2786359689427669, -1.1026781083948687, -1.362308809483579),
+        (-0.13928010552090742, 1.4262453860626425, 0.9629405596731022),
+        (-0.1900937229785984, 1.4543248093512102, 1.031269722454271),
+        (-1.2556596330023742, 1.6476863440168557, -1.8518385988427881),
+        (0.3243157925096418, -1.721451095336202, 0.5596239356538915),
+        (-0.21717040994542858, 1.4076384529133108, 1.350528973580087),
+    ];
+    let c = NurbsCurve3::<f64>::new(
+        kv,
+        control
+            .iter()
+            .map(|&(x, y, z)| Point3::new(x, y, z))
+            .collect(),
+        vec![
+            2.418682293830656,
+            0.721487013986017,
+            4.454650574995238,
+            3.482305738782208,
+            4.699800986831008,
+            2.3774051196670034,
+            1.5430068958036145,
+        ],
+    )
+    .unwrap();
+    use geom_core::{Bounds, Interval, Real};
+    let ci = c.map_scalar(<Interval as Real>::from_f64);
+    let (m, mi) = (c.speed_lower_bound().get(), ci.speed_lower_bound().get());
+    // The least enclosure ceiling of the speed over a grid: at least the
+    // true minimum, so a meter above it is unsound with certainty.
+    let (lo, hi) = c.domain();
+    let ceiling = (0..=4000)
+        .map(|i| {
+            let t = lo + (hi - lo) * f64::from(i) / 4000.0;
+            ci.deriv(Interval::from_f64(t)).norm().hi()
+        })
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        (0.004_25..0.004_26).contains(&m)
+            && mi.lo() > 0.0
+            && mi.lo() <= m
+            && m <= mi.hi()
+            && m <= ceiling,
+        "meter {m} / [{}, {}] (the pieces read 0.004256; the retired refined scan read \
+         0.008833), speed ceiling {ceiling}",
+        mi.lo(),
+        mi.hi()
+    );
+}
+
+/// **Past the rational meter's degree ceiling the meter refuses.** At
+/// degree 29 the quotient's common degree `2p = 58` passes
+/// `QUOTIENT_MAX_DEGREE` (56), the piece reading refuses and no other
+/// assembly stands behind it, at either scalar: the meter is poison
+/// (NaN), which every consumer's gate refuses, never a looser number.
+/// At degree 28, the last below the ceiling, the same net meters.
+#[test]
+fn a_rational_carrier_past_degree_28_refuses() {
+    let net = |p: usize| {
+        let knots: Vec<f64> = std::iter::repeat_n(0.0, p + 1)
+            .chain(std::iter::repeat_n(1.0, p + 1))
+            .collect();
+        let control = (0..=p)
+            .map(|i| Point3::new(i as f64, 0.1 * (i % 2) as f64, 0.0))
+            .collect();
+        let weights = (0..=p)
+            .map(|i| if i % 2 == 0 { 1.0 } else { 1.5 })
+            .collect();
+        NurbsCurve3::<f64>::new(KnotVector::clamped(knots, p).unwrap(), control, weights).unwrap()
+    };
+    let below = net(28).speed_lower_bound().get();
+    assert!(
+        below.is_finite(),
+        "a degree-28 rational carrier metered {below}"
+    );
+    let c = net(29);
+    let m = c.speed_lower_bound().get();
+    let mi = c
+        .map_scalar(<geom_core::Interval as geom_core::Real>::from_f64)
+        .speed_lower_bound()
+        .get();
+    assert!(
+        m.is_nan() && geom_core::Real::is_poison(mi),
+        "a degree-29 rational carrier metered {m} / {mi:?}"
+    );
 }

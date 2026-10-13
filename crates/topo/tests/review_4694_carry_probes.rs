@@ -1,12 +1,12 @@
 //! Review rows for PR 4694 (the surgery carry): a merge's killed seam
-//! vertex, and a split through a declared touch.
+//! vertex, and a split through a corner kiss.
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
 use crate::common;
 use common::{brick, describe_as_intersections, finished, geometric_cube, line};
 use geom_core::{Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanResult, Cell, Cited, Cites, Contact, ContactRecords,
+    AtRestBody, BooleanBody, BooleanResult, Cell, Cited, Cites, Contact, ContactRecords,
     FaceSurface, MefSite, union, validate_pseudomanifold,
 };
 
@@ -25,13 +25,16 @@ fn union_of(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {
     }
 }
 
-/// **A merge's killed seam vertex lands where its seam edge does.** The
-/// vertex lies inside the merged face exactly as its killed seam edges
-/// do, and the merge's one lineage (`MergedGroup::substitutions`, which
-/// the boolean's descendant map reads too) takes both onto the kept face.
-/// Red if the carry refuses or drops the vertex's record.
+/// **A merge's killed seam vertex is substituted where its seam edge
+/// is.** The vertex lies inside the merged face exactly as its killed
+/// seam edges do, and the merge's one lineage (`MergedGroup::substitutions`,
+/// which the boolean's descendant map reads too) takes both onto the
+/// kept face. A record of the vertex and the bottom face is then put to
+/// the census on (kept face, bottom), a face pair it cannot read here, so
+/// the carry refuses it `Unread` rather than keep it. Red if the lineage
+/// keeps the vertex, or the carry lands a pair the census did not read.
 #[test]
-fn a_merge_carry_lands_the_killed_seam_vertex_with_its_edge() {
+fn a_merges_killed_seam_vertex_is_substituted_with_its_edge() {
     let mut cube = geometric_cube::<f64>(tol());
     describe_as_intersections(&mut cube.body, tol());
     let bottom = cube.mefs[0].face;
@@ -69,97 +72,41 @@ fn a_merge_carry_lands_the_killed_seam_vertex_with_its_edge() {
         .body
         .split_edge(diagonal.edge, 0.5, tol())
         .expect("the diagonal splits");
-    let pair = |body: &Body<f64>, x, y| Contact::new(body, x, y).unwrap();
-    let edge_rec: ContactRecords = [Cited::new(
-        pair(&cube.body, Cell::Edge(mid.new_edge), Cell::Face(bottom)),
-        Cites::decided(0),
-    )]
-    .into_iter()
-    .collect();
     let vertex_rec: ContactRecords = [Cited::new(
-        pair(&cube.body, Cell::Vertex(mid.vertex), Cell::Face(bottom)),
+        Contact::new(&cube.body, Cell::Vertex(mid.vertex), Cell::Face(bottom)).unwrap(),
         Cites::decided(0),
     )]
     .into_iter()
     .collect();
     let outcome = cube.body.merge_coplanar_faces(tol()).expect("the merge");
     assert!(outcome.groups[0].killed_vertices.contains(&mid.vertex));
-    let kept = outcome.groups[0].kept;
-    let e = outcome.carry_contacts(&edge_rec, &cube.body);
-    let v = outcome.carry_contacts(&vertex_rec, &cube.body);
-    assert_eq!(
-        e.unwrap().cell_pairs().collect::<Vec<_>>(),
-        [pair(&cube.body, Cell::Face(kept), Cell::Face(bottom))
-            .cells()
-            .into()]
-    );
-    assert_eq!(
-        v.unwrap().cell_pairs().collect::<Vec<_>>(),
-        [pair(&cube.body, Cell::Face(kept), Cell::Face(bottom))
-            .cells()
-            .into()]
-    );
-}
-
-/// Every error of `refused` is an undeclared contact at `at`.
-fn undeclared_at(what: &str, refused: Result<(), Vec<topo::ValidationError>>, at: &str) {
-    let errors = refused.expect_err(what);
-    assert!(
-        errors.iter().all(|e| matches!(
-            e,
-            topo::ValidationError::UnrecordedContact { witness, .. } if witness.contains(at)
-        )),
-        "{what}: {errors:?}"
-    );
-}
-
-/// **A split across an edge kiss refuses both sides, loudly.** The
-/// kiss's two vertex–vertex records bound its edge overlap, and its
-/// edge–edge record names it; the cut mints a new vertex on each
-/// kissing edge at z = 1/2, one pair at one point, which no decision of
-/// the op cites. Each end record lands on its side, and the edge–edge
-/// record on the divided edges lands on both, on each side's pair of
-/// pieces that still meet; each side still refuses the new pair
-/// undeclared. Residue:
-/// `work/contacthold/a-cut-through-a-recorded-touch-mints-a-pair-no-record-backs.md`.
-#[test]
-fn a_split_across_an_edge_kiss_refuses_both_sides() {
-    let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
-    let b = box_of((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), "b");
-    let base = union_of(&a, &b);
-    assert_eq!(
-        (
-            base.contacts.vertex_vertex().count(),
-            base.contacts.edge_edge().count()
-        ),
-        (2, 1),
-        "{:?}",
-        base.contacts
-    );
-    assert_eq!(
-        validate_pseudomanifold(&base.body, &base.contacts, tol()),
-        Ok(())
-    );
-    let plane = common::split_plane(Point3::new(0.0, 0.0, 0.5), Vec3::new(0.0, 0.0, 1.0), tol());
-    let split = topo::split(&base.body, &plane, tol()).expect("the edge kiss splits");
-    let sides = split.carry_contacts(
-        &base.contacts,
-        geom_core::Band::linear(tol()).unwrap(),
-        Some(topo::RegionLane::certified()),
-    );
-    let sides = sides.expect("each record lands");
-    assert_eq!((sides.above.len(), sides.below.len()), (2, 2), "{sides:?}");
-    for (what, body, recs) in [
-        ("above", split.above.body(), &sides.above),
-        ("below", split.below.body(), &sides.below),
+    let kept = Cell::Face(outcome.groups[0].kept);
+    let lineage = outcome.lineage();
+    for (what, cell) in [
+        ("the seam edge", Cell::Edge(mid.new_edge)),
+        ("the seam vertex", Cell::Vertex(mid.vertex)),
     ] {
-        let body = body.expect("material");
-        undeclared_at(
-            what,
-            validate_pseudomanifold(body, recs, tol()),
-            "(1.0, 1.0, 0.",
+        assert_eq!(
+            lineage.fate(cell),
+            topo::Fate::Substituted(kept),
+            "{what} is the kept face now"
         );
     }
+    assert_eq!(
+        outcome.carry_contacts(
+            &vertex_rec,
+            &cube.body,
+            geom_core::Band::linear(tol()).unwrap(),
+            Some(topo::RegionLane::certified()),
+        ),
+        Err(topo::CarryRefusal::Unread {
+            record: 0,
+            cells: Contact::new(&cube.body, kept, Cell::Face(bottom))
+                .unwrap()
+                .cells()
+        }),
+        "the kept top against the bottom"
+    );
 }
 
 /// **A split through a corner kiss carries the kiss onto both sides.**

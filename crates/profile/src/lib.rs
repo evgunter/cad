@@ -90,14 +90,14 @@
 //!   validation ([`ValidatedLoop::tangent_joints`]); a [`ProfileLoop`]
 //!   stores none.
 //! - **The sketch plane is a frame, and validation never reads it.**
-//!   [`SketchPlane`] holds one [`geom_core::OrthoFrame`] and nothing
+//!   [`SketchPlane`] holds one [`geom_core::RigidMotion`] and nothing
 //!   else: profile (x, y) ↦ origin + x·u + y·v, its placement map
 //!   derived from the frame, never stored. Rigidity — u, v, normal
 //!   orthonormal and right-handed — is the frame's type, so every
 //!   sweep door that takes the plane reads a witnessed normal. No door
 //!   takes a bare [`geom_core::Affine3`]; the plane crosses scalars only
 //!   through the frame's exact crossings (geom-core's
-//!   `linalg::ortho_frame`, "Crossing scalars"). Validation is purely
+//!   `linalg::rigid_motion`, "Not built yet"). Validation is purely
 //!   2-D (the plane is passed through untouched).
 //!
 //! # Validation and canonical form
@@ -155,7 +155,7 @@ mod sugar;
 pub mod test_support;
 mod validate;
 
-use geom_core::{Affine3, Arc2, OrthoFrame, Point2, Point3, Real, Tol, Vec3};
+use geom_core::{Affine3, Arc2, Point2, Point3, Real, RigidMotion, Tol, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
@@ -680,7 +680,7 @@ pub(crate) fn reversed_joint(j: usize, n: usize) -> usize {
 /// Rigidity — u, v, normal orthonormal and right-handed — comes from
 /// the frame witness rather than from a caller's diligence WHEN the
 /// plane came through [`Self::from_frame`], which is the only door
-/// that mints one: the placement is then [`OrthoFrame::to_affine`],
+/// that mints one: the placement is then [`RigidMotion::to_affine`],
 /// and those axes were decided where the frame was minted. Tier-3
 /// geometric validation certifies the placement at rest.
 ///
@@ -710,7 +710,7 @@ impl<T: Real> SketchPlane<T> {
     /// world origin — the identity placement, spelled as the frame it
     /// is so all three world planes come from one mint.
     pub fn xy() -> Self {
-        Self::from_frame(OrthoFrame::axes_xy(Point3::origin()))
+        Self::from_frame(RigidMotion::axes_xy(Point3::origin()))
     }
 
     /// The world yz-plane: u = ŷ, v = ẑ, normal = ŷ × ẑ = x̂, origin at
@@ -721,7 +721,7 @@ impl<T: Real> SketchPlane<T> {
     /// to world (0, x, y), and the extrusion normal — the third
     /// placement column — is +x̂.
     pub fn yz() -> Self {
-        Self::from_frame(OrthoFrame::axes_yz(Point3::origin()))
+        Self::from_frame(RigidMotion::axes_yz(Point3::origin()))
     }
 
     /// The world zx-plane: u = ẑ, v = x̂, normal = ẑ × x̂ = ŷ, origin at
@@ -731,22 +731,22 @@ impl<T: Real> SketchPlane<T> {
     /// so the captions' "a zx sketch extruded +y" is literal: sketch
     /// (x, y) maps to world (y, 0, x), and the extrusion normal is +ŷ.
     pub fn zx() -> Self {
-        Self::from_frame(OrthoFrame::axes_zx(Point3::origin()))
+        Self::from_frame(RigidMotion::axes_zx(Point3::origin()))
     }
 
     /// The plane a frame witness places: the placement is
-    /// [`OrthoFrame::to_affine`], so `u`, `v` and the normal are the
+    /// [`RigidMotion::to_affine`], so `u`, `v` and the normal are the
     /// frame's three axes, in that column order.
     ///
     /// There is no spelling of this door that takes three bare
     /// vectors. A caller holding an authored pair mints the frame
-    /// first — [`OrthoFrame::gram_schmidt`] under its own band, or one
+    /// first — [`RigidMotion::gram_schmidt`] under its own band, or one
     /// of the exact world frames — which is where "these axes are
     /// orthonormal" stops being the caller's obligation. A SKEWED pair
     /// is not refused there: the mint orthonormalizes it, keeping the
     /// first axis and yielding the second. Only a pair that spans no
     /// plane refuses.
-    pub fn from_frame(frame: OrthoFrame<T>) -> Self {
+    pub fn from_frame(frame: RigidMotion<T>) -> Self {
         Self::new(frame.to_affine())
     }
 

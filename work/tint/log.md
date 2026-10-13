@@ -1496,3 +1496,47 @@ subject, and what has actually caught them.
 - 2026-10-12 — Seam note from ENCL (PR 4800, merged at `428057bb7c`): the offset-fit, saddle-wall and shell tests match `WallReached { wall: SampleCap, .. }`; the scripted rows are split into work-budget and cap rows; topo's samples read `OFFSET_FIT_SAMPLE_CAP`/`OFFSET_FIT_WORK`. (ENCL orchestrator)
 - 2026-10-12 — Seam note from ENCL (PR 4780, merged at `62e76cf607`): profile's `recourse_roster` pins every lever row literally; `bool11_probes` and sweep's `review_recourse_roster_r2_probes` are re-baselined; the r2 validator probe is renamed `the_validator_door_ends_by_the_row_and_notes_a_near_tangency`. (ENCL orchestrator)
 - 2026-10-12 — Seam note from ENCL (PR 4811, merged at `abff76bb25`): editor-core's undecided sentences render through `Indeterminate::undecided`. Evaluation, naming and selection are ended by one closed `decision::Decision` table with a kind column; evaluation constructors take a `Decision`, and an unknown name ends loud (`MissingRecourse`). D10 ground keeps main's text through held variants: `NodeErrorKind::MeasureEscalated` (measure distance/gap parallelism), `PlacementAxisEscalated` (`EditError::PlacementAxis`) and `PoseDirectionEscalated` (datum directions and frames, pose `degenerate`). All three classify as Escalated, and pncad-py `tags.rs` and viewer `tree.rs` gained arms. Left for after D10, on the ENCL row: the placement route compares the role word, the naming door's `&str` feed, `placement.rs`'s stale `# Errors` doc, and `datum_unit_norm` vs `eval_direction_norm` ending two ways. (ENCL orchestrator)
+- 2026-10-12 — Seam note from ENCL: PR 4874 merged (`encl/fitted-escalated-keeps-decision`).
+  - `pcurve_cache`'s `FittedEscalated` keeps its SSI decision (`SsiDecision {Trace, Limb}`) and ends through `SsiDecision::ending`, which takes `impl Into<ReadAt>`.
+  - Its Display and `PcurveCertifyError::Escalated`'s now end in the decision's own labelled recourse at `Reading::Build`, so the doors that print the Display (`PcurveMintError::Certify`, step-import, `replace_face`, loft, blend) carry one ending each. Both texts are pinned literally.
+  - `PlaneNurbsRefusal::ending` ends `Escalated` through `SsiDecision::Limb`.
+  - Rows filed:
+    - PCERT `a-villarceau-tangent-parts-gated-zero-ends-as-a-kernel-defect`;
+    - CLEAVE `chart-pcurve-and-props-escalations-lose-their-check-at-split-join-and-point-in-solid`;
+    - `work/issues/describe-maps-every-chart-pcurve-escalation-to-chart-image`;
+    - ENCL `unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`.
+  - Pointers were added on the PCTAIL coincidence-menu row, the CHROME escalations-forwarded-whole row and the EXCH step-import row. (ENCL orchestrator)
+
+- **2026-10-12 — seam note from NURBS: PR 4892 merged (one rational speed bound, `geom_core::spline::rational_speed_sup`, `NurbsCurve*::speed_upper_bound`).**
+  - `topo/src/offset_derive.rs` `polynomial_speed` now admits rational carriers: the two "rational speed has no bound" refusals are gone.
+  - It reads an outward Interval hi with no `(1+1e-12).next_up()` pad. `level_row` and `plane_spline_root` answer on rational carriers (rows: `offset_derive::rational_carriers`). — (NURBS orchestrator)
+
+- **2026-10-13 — seam note from NURBS: PR 4928 merged (proven rational stretch and area floors).** `chart_stretch_inf`'s rational infs now read `NurbsSurface::{stretch_floor, area_floor}` (`geom_core::spline::{rational_stretch_floor, rational_area_floor}`, proofs in the derivative module docs). `weight_ratio_factor`, `skipping_surface_derivative_net` and `floor_weights_admissible` are deleted, and `net_direction` reads `derivative_net`.
+  - Your ground is touched only in prose or tests: the citations of the retired factor, and the chart reach rows. — (NURBS orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4944 merged** (`89f044e92e`).
+  - `SymCounts` gains `checks_expanded` and `checks_frozen`, and the digest prints them as `chk=expanded/total`.
+  - `Session::free` names the free indeterminates the session minted, and `any_indet` is the one shared walker.
+  - The digest bodies are now built inside the session, and the door is receipted on its own. The sym-session lines moved, e.g. arc `chk=103/110`, strip `104/116`, `disp=0` unchanged.
+  - A guard red-lines the digest when coverage falls below 4/5 at ≥ 20 checks.
+  - Touched: `geom-core/src/sym.rs`, `sym/discharge_pins.rs`, `sym11_witness_kind_rows.rs`, `mass_props_are_thread_count_invariant.rs` and the three `thread-count-digest/eps-*.txt`. — (NURBS orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 4943 merged. A sized decision's ending now depends on one classification of the reading, `MarginDiag::shows` (geom-core): Offer, NoSize, Floor, Unresolved, Past or Unreadable.
+  - The decision's note (`SizedWords::no_size`, renamed from `at_zero`/`otherwise`; geom-brep `NoSize`, renamed from `AtZero`) appears only on NoSize: an exact zero, the refused side, or a theorem.
+  - A positive reading below the floor gets the one `floor_note` sentence.
+  - A reading that touches or straddles zero gets the lever alone.
+  - The import door gives its sentence plus the lever, and never a decision note.
+  - PR 4855's rejected-sign filter is gone.
+  - New sized decisions take `no_size:`.
+  - Tests that predict an ending should call `MarginDiag::sized_recourse`, not restate the rule. (ENCL orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4954 merged** (`092b30227f`). Every first-order rational derivative bound now reads one Bernstein quotient bound on exact dyadic Bézier pieces (`geom_core::spline::derivative::QuotientPiece`, with the pieces in `geom_core::spline::pieces`).
+  - **Retired:**
+    - `rational_speed_sup`, `rational_stretch_sup`, `rational_stretch_floor` and `rational_area_floor`;
+    - `RationalPairTerm`, `pair_sup`, `Cell` and `over_cells`;
+    - enclose's `pair_norm_sup`, `Centred`, `Affine` and `screen_bound`;
+    - `pcurve_cache`'s `net_direction` and `floor_along`.
+  - **API change:** `NurbsSurface::stretch_floor(along_u)` and `area_floor()` are norm floors and lost their `d` argument.
+  - **Tighter readings:** `speed_upper_bound`, `stretch_sup`, `chart_stretch_inf` and enclose's `deriv_box` / `speed_sup` / `transverse_readings`. So iso slacks shrink and floors rise.
+  - **Degree ceilings:** curves meter to degree 28, surface sups and per-axis floors to 28 per axis, and the area floor to 18. Above those the bound refuses.
+  - **Filed:** `work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md` and `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
+  - **Next:** NURBS unit 2 moves `patch_bound` `rational_cells` (first and second order), mesh chords and `offset_meters` onto the same form. — (NURBS orchestrator)

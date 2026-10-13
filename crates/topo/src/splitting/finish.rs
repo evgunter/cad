@@ -132,80 +132,32 @@ pub struct SplitContacts {
 }
 
 impl<T: Decide> SplitResult<T> {
-    /// `records`, the operand's, carried onto each side that holds both of
-    /// a record's cells, every record citing the operand's
-    /// ([`crate::ContactRecords::carried_through`]). A side's survivors
-    /// keep their operand keys (`carve` clones one arena); a vertex the
-    /// cut copied (`SplitNaming::vertex_pairs`) is read on each side as
-    /// the copy that side holds, which shares its point, so a record at
-    /// such a vertex lands on every side that holds both its cells (D1
-    /// (ii)); and each cell is read through its side's joins.
-    ///
-    /// A record on an edge the cut split (`SplitNaming::edge_pieces`) or
-    /// a face it divided (`SplitNaming::face_fragments`, the section
-    /// faces excluded) lands, on each side, on every pair of pieces whose
-    /// interiors still meet, as
-    /// [`crate::ContactRecords::carried_through_pieces`] places it, at
-    /// `band` through `region`; where no pair meets on either side it is
-    /// carried by key as any other.
+    /// `records`, the operand's, carried onto the split's two sides
+    /// through [`Self::lineage`] ([`crate::ContactRecords::carried_through`],
+    /// at `band` through `region`), each side's records citing the
+    /// operand's.
     ///
     /// # Errors
     ///
-    /// [`CarryRefusal::Parted`] for a record whose cells the cut put on
-    /// different sides, [`crate::ContactRecords::carried_through`]'s
-    /// refusals for one that lands on no side, and
-    /// [`CarryRefusal::Unread`] for a pair of pieces the census cannot
-    /// read.
+    /// As [`crate::ContactRecords::carried_through`]; [`CarryRefusal::Parted`]
+    /// for a record whose cells the cut put on different sides.
     pub fn carry_contacts(
         &self,
         records: &crate::boolean::ContactRecords,
         band: geom_core::Band,
         region: Option<crate::RegionLane<T>>,
     ) -> Result<SplitContacts, CarryRefusal> {
-        let sides: Vec<(PlaneSide, &Body<T>, Vec<crate::boolean::EdgeJoin>)> = [
+        let sides: Vec<(PlaneSide, &Body<T>)> = [
             (PlaneSide::Above, self.above.body()),
             (PlaneSide::Below, self.below.body()),
         ]
         .into_iter()
-        .filter_map(|(side, body)| {
-            let joins = self
-                .naming
-                .edge_joins
-                .iter()
-                .filter(|(s, _)| *s == side)
-                .map(|&(_, j)| j)
-                .collect();
-            body.map(|b| (side, b, joins))
-        })
+        .filter_map(|(side, body)| body.map(|b| (side, b)))
         .collect();
-        let section = |f: FaceKey| self.naming.sections.iter().any(|&(s, _)| s == f);
-        let divisions = crate::Divisions {
-            edges: self.naming.edge_pieces.clone(),
-            faces: self
-                .naming
-                .face_fragments
-                .iter()
-                .copied()
-                .filter(|&(new, from)| !section(new) && !section(from))
-                .collect(),
-        };
-        let images: Vec<_> = sides
-            .iter()
-            .map(|(_, body, joins)| move |c: Cell| self.side_image(body, joins, c))
-            .collect();
-        let carried = records.carried_onto(
-            0,
-            &sides
-                .iter()
-                .zip(&images)
-                .map(|((_, body, _), image)| crate::boolean::records::Side { body, image })
-                .collect::<Vec<_>>(),
-            &divisions,
-            band,
-            region,
-        )?;
+        let bodies: Vec<&Body<T>> = sides.iter().map(|&(_, b)| b).collect();
+        let carried = records.carried_onto(0, &self.lineage(), &bodies, band, region)?;
         let mut out = SplitContacts::default();
-        for ((side, _, _), list) in sides.iter().zip(carried) {
+        for ((side, _), list) in sides.iter().zip(carried) {
             match side {
                 PlaneSide::Above => out.above = list,
                 _ => out.below = list,
@@ -216,29 +168,116 @@ impl<T: Decide> SplitResult<T> {
 }
 
 impl<T: Real> SplitResult<T> {
-    /// What the side `body`, ending with `joins`, made of operand cell
-    /// `c`: the cell, or the one copy of it the cut minted there, read
-    /// through the joins; `None` where the side holds neither, or more
-    /// than one copy.
-    fn side_image(
-        &self,
-        body: &Body<T>,
-        joins: &[crate::boolean::EdgeJoin],
-        c: Cell,
-    ) -> Option<Cell> {
-        let copies = self
+    /// **What the split made of each operand cell** (D1), in the scratch
+    /// keys both sides were carved from, read through each side's joins:
+    /// a vertex the cut copied is kept under its key and its copies
+    /// (`SplitNaming::vertex_pairs`); an edge the cut split
+    /// (`SplitNaming::edge_pieces`) or a face it divided
+    /// (`SplitNaming::face_fragments`, the section faces excluded) is
+    /// divided, exhaustively, into its pieces and the cells the cut
+    /// minted between them, which are the cells of its pieces on a
+    /// section face. One plane made every cell the cut minted, so two
+    /// it minted on a record's two cells meet where the record puts them.
+    #[must_use]
+    pub fn lineage(&self) -> crate::Lineage {
+        use crate::lineage::{Descent, Division, Fate, Remainder, roots};
+        let bodies: Vec<&Body<T>> = [self.above.body(), self.below.body()]
+            .into_iter()
+            .flatten()
+            .collect();
+        let section = |f: FaceKey| self.naming.sections.iter().any(|&(s, _)| s == f);
+        let joins: Vec<crate::boolean::EdgeJoin> =
+            self.naming.edge_joins.iter().map(|&(_, j)| j).collect();
+        // Each copied vertex, and each root of the edge and face rows, is
+        // stated once.
+        let stated = |lineage: crate::Lineage, cell: Cell, fate: Fate| {
+            lineage
+                .with(cell, fate)
+                .unwrap_or_else(|e| unreachable!("the split states each cell once: {e:?}"))
+        };
+        let mut lineage = crate::Lineage::new().through_joins(&joins).one_cut();
+        let mut copies: Vec<(crate::entity::VertexKey, Vec<Cell>)> = Vec::new();
+        for &(copy, original) in &self.naming.vertex_pairs {
+            match copies.iter_mut().find(|(o, _)| *o == original) {
+                Some((_, cs)) => cs.push(Cell::Vertex(copy)),
+                None => copies.push((original, vec![Cell::Vertex(copy)])),
+            }
+        }
+        for (original, copies) in copies {
+            let at = Cell::Vertex(original);
+            lineage = stated(lineage, at, Fate::Kept { at, copies });
+        }
+        for root in roots(&self.naming.edge_pieces) {
+            let pieces: Vec<EdgeKey> = Descent::of(root, &self.naming.edge_pieces)
+                .cells()
+                .collect();
+            let mut minted = Vec::new();
+            for body in &bodies {
+                let on_section = |v: crate::entity::VertexKey| {
+                    body.faces_of_vertex(v)
+                        .is_some_and(|fs| fs.into_iter().any(section))
+                };
+                for &e in &pieces {
+                    let Some(ends) = body.get_edge(e).and_then(|d| {
+                        Some([
+                            body.get_half_edge(d.he_plus)?.start,
+                            body.get_half_edge(d.he_minus)?.start,
+                        ])
+                    }) else {
+                        continue;
+                    };
+                    for v in ends.into_iter().filter(|&v| on_section(v)) {
+                        if !minted.contains(&Cell::Vertex(v)) {
+                            minted.push(Cell::Vertex(v));
+                        }
+                    }
+                }
+            }
+            lineage = stated(
+                lineage,
+                Cell::Edge(root),
+                Fate::Divided(Division {
+                    pieces: pieces.into_iter().map(Cell::Edge).collect(),
+                    minted,
+                    remainder: Remainder::Exhaustive,
+                }),
+            );
+        }
+        let fragments: Vec<(FaceKey, FaceKey)> = self
             .naming
-            .vertex_pairs
+            .face_fragments
+            .rows()
             .iter()
-            .filter_map(|&(copy, original)| {
-                (Cell::Vertex(original) == c).then_some(Cell::Vertex(copy))
-            });
-        let mut held = core::iter::once(c)
-            .chain(copies)
-            .map(|x| crate::boolean::joined_cell(joins, x))
-            .filter(|&x| crate::boolean::records::holds(body, x));
-        let first = held.next()?;
-        held.next().is_none().then_some(first)
+            .copied()
+            .filter(|&(new, from)| !section(new) && !section(from))
+            .collect();
+        for root in roots(&fragments) {
+            let pieces: Vec<FaceKey> = Descent::of(root, &fragments).cells().collect();
+            let mut minted = Vec::new();
+            for body in &bodies {
+                for (g, _) in body.edges() {
+                    let Ok(sides) = crate::readback::edge_sides(body, g) else {
+                        continue;
+                    };
+                    let (f0, f1) = sides.faces();
+                    let chord = (section(f0) && pieces.contains(&f1))
+                        || (section(f1) && pieces.contains(&f0));
+                    if chord && !minted.contains(&Cell::Edge(g)) {
+                        minted.push(Cell::Edge(g));
+                    }
+                }
+            }
+            lineage = stated(
+                lineage,
+                Cell::Face(root),
+                Fate::Divided(Division {
+                    pieces: pieces.into_iter().map(Cell::Face).collect(),
+                    minted,
+                    remainder: Remainder::Exhaustive,
+                }),
+            );
+        }
+        lineage
     }
 }
 
@@ -261,7 +300,7 @@ pub struct SplitNaming {
     /// mint order, call-time keys ([`crate::chord_join`]'s `ChordJoiner`
     /// log). Section faces appear here too (they are minted by the
     /// same mefs); consumers exclude the keys listed in `sections`.
-    pub face_fragments: Vec<(FaceKey, FaceKey)>,
+    pub face_fragments: crate::lineage::FaceDivisions,
     /// Crossing-split piece rows: `(new edge, divided-from edge)` in
     /// mint order, call-time keys ([`crate::Body::split_edge`] keeps the
     /// divided edge's key on the piece from its start).
@@ -370,8 +409,8 @@ pub enum SplitFinishError {
     },
     /// A section loop's winding about its chart normal has no sign, so
     /// the section face's material side cannot be read: in the band
-    /// (`diag`), or (`None`) zero, or unread because the loop carries a
-    /// spiric or NURBS edge. The split's carrier gate admits only line,
+    /// (`diag`), or (`None`) zero, or unread because the loop carries an
+    /// edge the winding does not read. The split's carrier gate admits only line,
     /// circle and ellipse edges, so every section edge is one the
     /// winding reads.
     SectionWindingUndecided {
@@ -536,8 +575,9 @@ impl core::fmt::Display for SplitFinishError {
             Self::SectionWindingUndecided { diag: None, .. } => write!(
                 f,
                 "which side of a cut face is material cannot be read: its outline \
-                 encloses no area, or has a spiric or NURBS edge, whose winding the \
-                 kernel does not read. Recourse: {}",
+                 encloses no area, or has an edge whose winding the kernel does not \
+                 read (a NURBS edge, or spiric edges pinched near a torus's inner \
+                 equator). Recourse: {}",
                 super::SPLIT_COINCIDENCE_RECOURSE
             ),
             Self::NestingContradiction { hole } => write!(
@@ -584,7 +624,7 @@ impl std::error::Error for SplitFinishError {}
 pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     red: SplitReduction<T>,
     completed: &[CompletedSection],
-    face_fragments: Vec<(FaceKey, FaceKey)>,
+    face_fragments: crate::lineage::FaceDivisions,
     tol: Tol,
 ) -> Result<SplitResult<T>, SplitFinishError> {
     // **The phase boundary, asserted.** The reduce and join phases
@@ -1047,25 +1087,26 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     );
                     // What the join stores is the must-carry rule's
                     // over the edge, and each refusal is this op's own.
-                    let (pair, [sa, sb]) =
-                        geom_brep::SurfacePair::sorted(s_self, surf_self, s_other, surf_other);
-                    let demanded = geom_brep::must_carry_over_edge(
-                        sa,
-                        sb,
-                        &spec.carrier,
-                        spec.param_start,
-                        spec.param_end,
-                        arm,
+                    let demanded = geom_brep::must_carry_description(
+                        geom_brep::SmoothJoin {
+                            surfaces: [(s_self, surf_self), (s_other, surf_other)],
+                            carrier: &spec.carrier,
+                            interval: (spec.param_start, spec.param_end),
+                            chord: p0.distance(p1),
+                            witness,
+                        },
                         band,
-                    )
-                    .description(pair, witness)
-                    .map_err(|refusal| {
-                        refusal.route(
-                            |diag| SplitFinishError::DescribeEscalated { edge, diag },
-                            |diag| SplitFinishError::DescribeBendEscalated { edge, diag },
-                            || SplitFinishError::SmoothJoinRefuted { edge },
-                        )
-                    })?;
+                        || s_self,
+                        |_, diag| SplitFinishError::DescribeEscalated { edge, diag },
+                        |_, diag| SplitFinishError::DescribeBendEscalated { edge, diag },
+                        || SplitFinishError::SmoothJoinRefuted { edge },
+                        |chart| {
+                            unreachable!(
+                                "{chart:?} is this section face's own surface, one of the pair \
+                                 the join was read over"
+                            )
+                        },
+                    )?;
                     // A description of the demanded kind that names
                     // the edge's current pair stays verbatim (a stated
                     // image travels exactly); anything else — a
@@ -1097,12 +1138,7 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         // in to within the BAND: on a near-flush
                         // operand it is metered like any description
                         // (D4 ¶3).
-                        spec.description = match demanded {
-                            geom_brep::MustCarryDescription::Intrinsic(description) => description,
-                            geom_brep::MustCarryDescription::Conventional => {
-                                geom_brep::EdgeDescriptionSpec::chart(s_self)
-                            }
-                        };
+                        spec.description = demanded.spec();
                         if let Some(geom_brep::EdgeAuthority::Declared(mc)) =
                             existing.as_ref().map(|c| c.authority())
                         {
@@ -1234,7 +1270,7 @@ fn below_chord_u_ref<T: Decide>(
 ///
 /// [`SplitFinishError::SectionWindingUndecided`];
 /// [`SplitFinishError::Corrupt`] on a torn loop.
-fn section_sense<T: Decide>(
+fn section_sense<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
     l: crate::entity::LoopKey,

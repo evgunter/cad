@@ -283,7 +283,7 @@ fn the_fenced_poses_keep_their_own_outcomes() {
     // the frame dispatch's margin measures.
     let skew = topo::transform_rigid(
         &spin(&cyl(1.0, 2.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0),
-        &Affine3::translation(Vec3::new(0.35, 0.0, 0.0)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.35, 0.0, 0.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap();

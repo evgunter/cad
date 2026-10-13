@@ -382,8 +382,9 @@ fn torus() -> Surface<f64> {
 }
 
 /// **Plane × torus, the cap lane.** A plane `lift` past the tube's crest,
-/// its normal tilted off the axis so the tilt reads `tilt` at the crest
-/// circle's radius 1: at `0.9 + 0.9` the plane stands `1.8` bands off
+/// its normal tilted off the axis so the tilt reads `tilt` at the
+/// largest radius a circle of the section can have, `1 + 4R`: at
+/// `0.9 + 0.9` the plane stands `1.8` bands off
 /// the crest on one side, where main minted the tangent circle. Both
 /// definite sides escalate on the floor at `K + 0.3` and serve at
 /// `K + 0.9`.
@@ -393,7 +394,7 @@ fn plane_torus_decides_the_cap_gap_and_the_tilt_as_one_sum() {
     let cap = |tilt: f64, lift: f64| {
         let plane = Surface::Plane {
             origin: Point3::new(0.0, 0.0, 4.0 * R + lift),
-            normal: turned(Vec3::unit_z(), Vec3::unit_x(), tilt),
+            normal: turned(Vec3::unit_z(), Vec3::unit_x(), tilt / (1.0 + 4.0 * R)),
             u_ref: Vec3::unit_y(),
         };
         plane_torus_section(&plane, &torus(), 2.0, band())
@@ -426,41 +427,121 @@ fn plane_torus_decides_the_cap_gap_and_the_tilt_as_one_sum() {
 
 /// A plane parallel-ish to the torus's axis, `d` off its centre along
 /// `y`, its normal tilted toward the axis so the tilt reads `tilt` over
-/// the extent 2.
-fn axial_cut(tilt: f64, d: f64) -> Result<PlaneTorusSection<f64>, SectionError> {
+/// the extent `lever`.
+fn axial_cut(tilt: f64, d: f64, lever: f64) -> Result<PlaneTorusSection<f64>, SectionError> {
     let plane = Surface::Plane {
         origin: Point3::new(0.0, d, 0.0),
-        normal: turned(Vec3::unit_y(), Vec3::unit_z(), tilt / 2.0),
+        normal: turned(Vec3::unit_y(), Vec3::unit_z(), tilt / lever),
         u_ref: Vec3::unit_x(),
     };
-    plane_torus_section(&plane, &torus(), 2.0, band())
+    plane_torus_section(&plane, &torus(), lever, band())
 }
 
-/// **Plane × torus, the axis-in-plane lane.** The meridian circles are
-/// minted parallel to the plane, `d` off it, and the tilt turns them
-/// about their centres' radial line, along the torus: `pt_axis_plane_gap`
-/// reads `d` alone, and `0.9 + 0.9` is served. The two-oval row is
-/// summed: an oval plane `K + 0.3` short of the inner equator beside a
-/// `0.6` tilt escalates on the floor (main minted the two ovals), and
-/// `K + 0.9` short mints them.
+/// **Plane × torus, the axis-in-plane lane.** A meridian circle is
+/// minted about a centre `d` off the plane, and its points lean off it
+/// by up to `r` times the tilt more: `pt_axis_plane_gap` decides the
+/// sum. Levered at the tube radius, the tilt's lean reads its own
+/// bands: at `0.9 + 0.9` main served circles `1.8` bands off the cut,
+/// and head escalates; `0.4 + 0.4` is served. A plane `K + 0.3` off the
+/// axis beside a `0.6` lean escalates on the floor (main served the
+/// circles), and `K + 0.9` off is decided off it. The two-oval row
+/// is summed: an oval plane `K + 0.3` short of the inner equator beside
+/// a `0.6` tilt over the extent 2 escalates on the floor (main minted
+/// the two ovals), and `K + 0.9` short mints them.
 #[test]
 fn plane_torus_axis_in_plane_reads_each_row_as_it_moves() {
     let z = zero();
-    let got = axial_cut(SPLIT * z, SPLIT * z);
+    let tube = 4.0 * R;
+    let got = axial_cut(SPLIT * z, SPLIT * z, tube);
+    assert!(
+        escalated_on(&got, &split_row("pt_axis_plane_gap")),
+        "split: escalates, got {got:?}"
+    );
+    let got = axial_cut(INSIDE * z, INSIDE * z, tube);
     assert!(
         matches!(got, Ok(PlaneTorusSection::MeridianCircles { .. })),
-        "split: the meridian circles, got {got:?}"
+        "inside: the meridian circles, got {got:?}"
+    );
+    let got = axial_cut(SWING * z, past_edge(1.0, FLOOR_IN), tube);
+    assert!(
+        escalated_on(&got, "pt_axis_plane_gap_floor"),
+        "K + 0.3 off the axis beside 0.6: escalates on the floor, got {got:?}"
+    );
+    let got = axial_cut(SWING * z, past_edge(1.0, FLOOR_OUT), tube);
+    assert!(
+        !matches!(got, Ok(PlaneTorusSection::MeridianCircles { .. }))
+            && !escalated_on(&got, "pt_axis_plane_gap")
+            && !escalated_on(&got, "pt_axis_plane_gap_floor"),
+        "K + 0.9 off the axis beside 0.6: decided off it, got {got:?}"
     );
     let short_of_equator = |past: f64| (1.0 - 4.0 * R) - past_edge(1.0, past);
-    let got = axial_cut(SWING * z, short_of_equator(FLOOR_IN));
+    let got = axial_cut(SWING * z, short_of_equator(FLOOR_IN), 2.0);
     assert!(
         escalated_on(&got, "pt_spiric_two_ovals_floor"),
         "K + 0.3 beside 0.6: escalates on the floor, got {got:?}"
     );
-    let got = axial_cut(SWING * z, short_of_equator(FLOOR_OUT));
+    let got = axial_cut(SWING * z, short_of_equator(FLOOR_OUT), 2.0);
     assert!(
         matches!(got, Ok(PlaneTorusSection::SpiricOvals { .. })),
         "K + 0.9 beside 0.6: the two ovals, got {got:?}"
+    );
+}
+
+/// The plane through the axis at height `h`, its normal turned off `z`
+/// toward `x` so its tilt reads `tilt` at `1 + 4R`, stored with its
+/// origin `s` off the axis along its own slope.
+fn stored_off_axis(tilt: f64, h: f64, s: f64) -> Surface<f64> {
+    let theta = tilt / (1.0 + 4.0 * R);
+    let along = Vec3::new(theta.cos(), 0.0, -theta.sin());
+    Surface::Plane {
+        origin: Point3::new(0.0, 0.0, h) + along * s,
+        normal: turned(Vec3::unit_z(), Vec3::unit_x(), theta),
+        u_ref: Vec3::unit_y(),
+    }
+}
+
+/// **Plane × torus, the cap lane, wherever the plane's origin is
+/// stored.** The circles are read where the plane crosses the axis, so a
+/// tilt just inside the band (`0.9` of it at `1 + 4R`) is served circles
+/// within the band of the cut and of the torus with the plane's origin
+/// on the axis or 5 m, 50 m or 500 m off it (main read the depth at the
+/// stored origin, and minted circles that far times the tilt off the
+/// cut). A plane crossing the axis `K + 0.9` bands above the tube's
+/// crest past its tilt's own `0.9`, its origin stored 200 m down its
+/// slope, where it reads well
+/// inside the tube, cuts nothing (main served it the concentric
+/// circles).
+#[test]
+fn plane_torus_reads_the_cap_where_the_plane_crosses_the_axis() {
+    let z = zero();
+    let (big_r, r) = (1.0, 4.0 * R);
+    for s in [0.0, 5.0, 50.0, 500.0] {
+        let plane = stored_off_axis(SPLIT * z, 0.5 * r, s);
+        let got = plane_torus_section(&plane, &torus(), 2.0, band());
+        let Ok(PlaneTorusSection::ConcentricCircles { c1, c2 }) = got else {
+            panic!("{s} m off: the concentric circles, got {got:?}");
+        };
+        let Surface::Plane { origin, normal, .. } = plane else {
+            unreachable!()
+        };
+        for c in [c1, c2] {
+            for k in 0..360 {
+                let p = c.eval(f64::from(k) * core::f64::consts::TAU / 360.0);
+                let off_plane = (p - origin).dot(normal).abs();
+                let off_torus = ((p.x.hypot(p.y) - big_r).hypot(p.z) - r).abs();
+                assert!(
+                    off_plane <= z && off_torus <= z,
+                    "{s} m off: a circle point stands {off_plane:e} off the cut and \
+                     {off_torus:e} off the torus, against the band's {z:e}"
+                );
+            }
+        }
+    }
+    let plane = stored_off_axis(SPLIT * z, r + past_edge(1.0, FLOOR_OUT) + SPLIT * z, 200.0);
+    let got = plane_torus_section(&plane, &torus(), 2.0, band());
+    assert!(
+        matches!(got, Ok(PlaneTorusSection::Empty)),
+        "a plane over the crest, stored 200 m off: nothing, got {got:?}"
     );
 }
 

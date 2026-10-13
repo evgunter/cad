@@ -2,11 +2,12 @@
 id: the-read-at-its-node-relabels-a-cancellation-above-it
 kind: issue
 title: The decision read answers at its node, ahead of a cancellation its parent would make: max(x + Z, 3) − max(x, 3) is sign_gated, a theorem with the read shut
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P2
 refs: [DECIDE-9, the-decision-read-answers-theorems-the-must-carry-stations-would-prove]
 cost: M
+closed: 2026-10-13
 ---
 
 
@@ -64,3 +65,121 @@ measured on this shape):
 
 Each must leave alone every decision the read answers where no form
 settles, and its `numeric` count.
+
+## Question, and Ev's answer
+
+Should a label say what the tier's own proof relied on, or the least
+that any proof would need?
+
+Some zeros can be proved two ways. Take `max(x + Z, 3) − max(x, 3)`:
+- The tier reads `x + Z ≤ 3` and `x ≤ 3` on the box, replaces both
+  maxes by `3`, and gets `3 − 3 = 0`. That proof relied on a sign
+  read, so it is `sign_gated`.
+- Simplifying `x + Z` to `x` makes the two maxes one expression. That
+  proof reads no sign, so it is `symbolic_zero`.
+
+(a) **The proof found.** The label is `sign_gated`, and it costs
+nothing.
+
+(b) **The least needed.** The label is `symbolic_zero`. To know that,
+the tier has to try the proof again with sign reads switched off.
+DECIDE-10's draft (branch `decide/10-read-behind-the-parent`) does
+this. On the tilted derived-frame family, the only measured documents
+where such zeros occur, it costs 25× and 21×:
+- the start-cap/FlipZ row goes from 0.525 s to 13.35 s;
+- the boss row goes from 0.130 s to 2.74 s.
+
+The cost is the second proof's own size: 368 distinct roots and
+read-free frames up to 1,391 terms. No memo removes it.
+
+Either way every decision gets the same answer. Only the label, which
+feeds reports, differs.
+
+Two designers weighed it independently and converged on (a) after one
+round:
+- What a document needs the read for is the differential against
+  `SymRules::without_the_reads`.
+- The ladder keeps asking its rungs in order of strength, which keeps
+  the draft's cheap top-rung check.
+- The three answers the read loses are each fixed at their own cause:
+  - **S8:** an atom is keyed by its argument's polynomial, with the
+    gate carried on the form.
+  - **S13:** a freeze is keyed by its operation over its kids' forms,
+    not by its node.
+  - **S12:** a label is a set of premises (`{}`, `{read}`,
+    `{registration}`, `{read, registration}`), and
+    `MarginDiag::jointly` is a union. On main, `jointly` reports
+    `sign_gated ⊔ registered` as `registered`, which drops the read.
+- The spec's invariant asked for (b), so it is retired.
+
+**Ev's answer (2026-10-12): the kind is deleted.** Ev first accepted
+(a), with a condition: "only if it can be made certain that the
+decision type cannot determine anything important". Ev said keeping
+it as debugging information or deleting it were both acceptable. Both
+designers were asked how to make that certain, and Ev chose full
+deletion ("full deletion sounds good!"):
+- **No decision carries how a zero was proved.** `Theorem`'s kinds
+  go; `Zero::Proven` carries nothing. `MarginDiag`'s theorem is a
+  "proven" bit. `jointly` is proven if both are. `deferred::discharged`
+  answers proven or not. `topo::Discharge` is `{Numeric, Proven}`, and
+  the coincidence records' `Rung::MarginIdentity` carries nothing.
+  This is certain by type: no reader can branch on a kind no type
+  holds.
+- **The read's `gated` flag on forms goes, with its bit in
+  `Form::digest`**, since it existed only to compute the kind:
+  - S8 is fixed by that: an atom is keyed by its argument's
+    polynomial.
+  - `zero_factors_gate` retires. It is DECIDE-9's zero-product rule,
+    which only ever chose a label, and it retires by this ruling.
+  - The door's refusal of a gated zero goes (S12 is answered).
+  - `door_zero` sees the read's zeros.
+- **The receipt and the K vocabulary lose the split.**
+  - `SymCounts` keeps `symbolic`, `numeric`, `frozen`, `retried`, and
+    the two registry soundness columns.
+  - The K tokens `sign_gated` and `registered` retire.
+  - Per-kind pins re-baseline to totals.
+- **What the read, or the registry, buys a document is the
+  differential** against the tier with that dial off
+  (`SymRules::without_the_reads`, `registered: false`), asserted in
+  decisions and verdicts.
+- **Rule C (`signed_root`)** rests on a sign of the box, not on a
+  branch the construction took, so a zero it reaches is not E12's
+  claim. It stays off in every shipped rule set and in the coincidence
+  replay. Retiring it is DECIDE's to schedule.
+- **What stays:**
+  - S13, a freeze keyed by its node, stays a filed reach item. It is
+    fixed by keying a freeze by its content, or by a measured retry
+    mask.
+  - DECIDE-10's shut walk never ships.
+
+
+## What DECIDE-10 shipped
+
+The label kind is deleted (branch `decide/10-delete-the-kind`):
+- `MarginDiag::proven` is one bit; `Theorem`, `Discharge`'s kinds,
+  the forms' `gated` flag, `zero_factors_gate` and rule C
+  (`signed_root`, with rule G's certified side-condition source) are
+  gone. `topo::Discharge` is `{Numeric, Proven}`, and
+  `Rung::MarginIdentity` and `Rung::CarrierVerdict` carry nothing.
+- `SymCounts` has one discharge column, `symbolic`; the K tokens
+  `sign_gated` and `registered` retire, and `k-lint` refuses them.
+- The contradiction check asks the tier's own algebra with the door
+  shut, so a registered zero under a definite sign stays the door's
+  event (`registrations_contradicted`), as it was.
+
+**The shapes**, as rows (`geom-core/tests/sym_root_rows.rs`, section
+5), proven with the read on / with it shut:
+- S1–S8, S10, S11: proven / proven. S8 is answered: an atom is keyed
+  by its argument's polynomial.
+- C1–C7: proven / not. C6 moved from numeric to proven by design.
+- S9, S12 (the door's): proven / proven. S12 is answered.
+- S13: refused / proven, filed as
+  `a-freeze-keyed-by-its-node-hides-a-cancellation-above-the-read`.
+
+**What a dial buys** is a differential row: the read on the tilted
+family (`m10_what_the_read_buys_on_the_tilted_caps`: the end cap and
+`FlipZ` refuse at `newell_plane_residual` with the read shut, the
+start cap reads the same either way), and the registry on the link,
+the bracket and the pad (`m10_9_what_the_registry_buys`).
+
+Closed by DECIDE-10 (PR #4929), 2026-10-13.

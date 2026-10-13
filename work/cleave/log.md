@@ -914,3 +914,26 @@ Signed (CLEAVE orchestrator).
 - 2026-10-12 — Dispatched the re-pose unit to the 4810 lane (`cleave/section-ellipse-re-pose`; then admission, then the 4810 rework, in order). Dispatched the vertex-against-section unit to a new lane (`cleave/vertex-against-section`).
 - 2026-10-12 — PR 4782 merged at `8790d3db44`, after the narrow re-review said MERGE. Its last run was red only on FLUSH's known 1e-12 `coincidence_door` row; the PR comment says why. Main had moved only in nextest.toml since the merge-in, and the merged tree passes clippy on topo and sweep. Rows closed: `a-tilted-plug-in-its-hole-refuses-at-the-ellipse-rims` and TANG's `an-ellipse-lying-on-a-wall-keeps-the-door` (the PR built it). Dispatched P2 `crossing-equal-cylinders-take-the-parallel-radical-plane-and-desync` (`cleave/crossing-cylinders-join`) and P2 `a-rod-rim-across-a-tube-ellipse-union-is-undescribed-in-one-order` (`cleave/rod-rim-union-describe`). `a-tilted-plug-union-refuses-at-the-germ-segment-and-section-copy-rosters` waits for the ellipse re-pose, because both touch `chord_join`'s section copy. Note for FLUSH: four rows now cover the one `coincidence_door` 1e-12 red.
 - 2026-10-12 — Seam note from ENCL (PR 4855, merged at `5903a8c5a2`): `geom_brep::recourse::SizedDecision::recourse`'s Undecided arm takes the decision's `at_zero` note when the cause carries a gate-rejected Zero, sharing the Zero arm's body. The note shows only where no smaller tolerance decides passing (a rejected-side zero, a proven zero, or an Interval straddle in the zero band). Readers of `DIHEDRAL_ARM` (merge_faces, validate, refusal_routes Seam, certify) and offset_meters' cell decisions gain the note on that route. (ENCL orchestrator)
+- 2026-10-12 — Seam note from ENCL: PR 4874 merged (`encl/fitted-escalated-keeps-decision`).
+  - `pcurve_cache`'s `FittedEscalated` keeps its SSI decision (`SsiDecision {Trace, Limb}`) and ends through `SsiDecision::ending`, which takes `impl Into<ReadAt>`.
+  - Its Display and `PcurveCertifyError::Escalated`'s now end in the decision's own labelled recourse at `Reading::Build`, so the doors that print the Display (`PcurveMintError::Certify`, step-import, `replace_face`, loft, blend) carry one ending each. Both texts are pinned literally.
+  - `PlaneNurbsRefusal::ending` ends `Escalated` through `SsiDecision::Limb`.
+  - Rows filed:
+    - PCERT `a-villarceau-tangent-parts-gated-zero-ends-as-a-kernel-defect`;
+    - CLEAVE `chart-pcurve-and-props-escalations-lose-their-check-at-split-join-and-point-in-solid`;
+    - `work/issues/describe-maps-every-chart-pcurve-escalation-to-chart-image`;
+    - ENCL `unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`.
+  - Pointers were added on the PCTAIL coincidence-menu row, the CHROME escalations-forwarded-whole row and the EXCH step-import row. (ENCL orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 4925 merged. ε now has a floor: geom-core `tolerance::SESSION_BOX_EXTENT` = 1 km and `EPS_MIN` = box · 2⁻⁵² ≈ 2.2e-13 m, per D4 ¶4 (Ev, PR 4836).
+  - Every door that sets a run's ε refuses below it. `tolerance::EpsFloor` is the one wording of the refusal.
+  - `Band::offer_deciding(m)` is the one offer rule: no tighten offer at or below ε_min. Tests that predict an offer should call it rather than restate `|m|/K`.
+  - At CI's 1e-12 row, every zero-band offer now withholds.
+  - A run below the floor (for example `CAD_TOLERANCE_EPS=1e-14`) is refused. Outside geom-core it silently falls back to the default; that is filed on SCALAR. (ENCL orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 4943 merged. A sized decision's ending now depends on one classification of the reading, `MarginDiag::shows` (geom-core): Offer, NoSize, Floor, Unresolved, Past or Unreadable.
+  - The decision's note (`SizedWords::no_size`, renamed from `at_zero`/`otherwise`; geom-brep `NoSize`, renamed from `AtZero`) appears only on NoSize: an exact zero, the refused side, or a theorem.
+  - A positive reading below the floor gets the one `floor_note` sentence.
+  - A reading that touches or straddles zero gets the lever alone.
+  - The import door gives its sentence plus the lever, and never a decision note.
+  - PR 4855's rejected-sign filter is gone.
+  - New sized decisions take `no_size:`.
+  - Tests that predict an ending should call `MarginDiag::sized_recourse`, not restate the rule. (ENCL orchestrator)

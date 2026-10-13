@@ -39,7 +39,7 @@ use std::collections::BTreeMap;
 use geom::SurfaceKind;
 use geom::{NetState, Surface};
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
-use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Real, Tol};
+use geom_core::{Band, BandError, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
@@ -163,27 +163,35 @@ pub struct MergeCoplanarOutcome {
 
 impl MergeCoplanarOutcome {
     /// `records`, the body's before the merge, carried onto `result`, the
-    /// body after it: each cell a group killed is the face it kept
-    /// ([`MergedGroup::substitutions`]), a joined-away cell is the edge
-    /// its join made, and every other cell is itself
-    /// ([`crate::ContactRecords::carried_through`]).
+    /// body after it, through [`Self::lineage`]
+    /// ([`crate::ContactRecords::carried_through`], at `band` through `region`).
     ///
     /// # Errors
     ///
     /// As [`crate::ContactRecords::carried_through`].
-    pub fn carry_contacts<T: Real>(
+    pub fn carry_contacts<T: geom_core::Decide>(
         &self,
         records: &crate::boolean::ContactRecords,
         result: &Body<T>,
+        band: geom_core::Band,
+        region: Option<crate::RegionLane<T>>,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::CarryRefusal> {
-        records.carried_through(0, result, |c| {
-            let merged = self
-                .groups
-                .iter()
-                .flat_map(MergedGroup::substitutions)
-                .find_map(|(dead, by)| (dead == c).then_some(by));
-            Some(merged.unwrap_or_else(|| crate::boolean::joined_cell(&self.joins, c)))
-        })
+        records.carried_through(0, &self.lineage(), result, band, region)
+    }
+
+    /// **What the merge made of each cell** (D1): each cell a group
+    /// killed is substituted by the face it kept
+    /// ([`MergedGroup::substitutions`]), every image read through the
+    /// joins; every other cell is kept.
+    #[must_use]
+    pub fn lineage(&self) -> crate::Lineage {
+        let mut lineage = crate::Lineage::new().through_joins(&self.joins);
+        for (dead, by) in self.groups.iter().flat_map(MergedGroup::substitutions) {
+            lineage = lineage
+                .with(dead, crate::Fate::Substituted(by))
+                .unwrap_or_else(|e| unreachable!("a cell dies in one group: {e:?}"));
+        }
+        lineage
     }
 }
 
@@ -619,39 +627,7 @@ impl EdgeDescribeFailure {
     }
 }
 
-/// The reading of the two faces at an edge that could not decide
-/// ([`MergeCoplanarError::KeptBoundaryUndecided`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DihedralReading {
-    /// The first-order dihedral: the angle between the faces, metered
-    /// over the edge, at the rung that could not decide.
-    Lever(geom_brep::LeverRung),
-    /// The second-order bend of two faces that meet smoothly.
-    Bend,
-}
-
-impl DihedralReading {
-    /// A first-order dihedral escalation ([`geom_brep::classify_dihedral`])
-    /// as the rung that raised it, with its diagnostics.
-    #[must_use]
-    pub const fn of_lever(escalation: geom_brep::LeverEscalation) -> (Self, Indeterminate) {
-        (Self::Lever(escalation.rung()), escalation.diag())
-    }
-
-    /// A must-carry station's escalation
-    /// ([`geom_brep::MustCarryEscalation`]) as the reading that raised
-    /// it — the first-order dihedral by rung, or the second-order bend —
-    /// with its diagnostics.
-    #[must_use]
-    pub const fn of_must_carry(
-        escalation: geom_brep::MustCarryEscalation,
-    ) -> (Self, Indeterminate) {
-        match escalation {
-            geom_brep::MustCarryEscalation::FirstOrder(lever) => Self::of_lever(lever),
-            geom_brep::MustCarryEscalation::SecondOrder(diag) => (Self::Bend, diag),
-        }
-    }
-}
+pub use geom_brep::DihedralReading;
 
 /// Why the edge describer refused one edge, before a door words it:
 /// the merge door as [`MergeCoplanarError::KeptBoundaryUndescribed`] /
@@ -1099,7 +1075,7 @@ const DECLARED_ORIENTATION: SizedDecision = SizedDecision {
     size: "span of the two faces",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The winding decision: its margin is the loop's signed area over its
@@ -1112,7 +1088,7 @@ const LOOP_WINDING: SizedDecision = SizedDecision {
     size: "area a loop encloses over its length",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 impl core::fmt::Display for MergeCoplanarError {
@@ -1207,10 +1183,10 @@ impl core::fmt::Display for MergeCoplanarError {
                 OutlineVerdict::UnsupportedWinding { r#loop } => write!(
                     f,
                     "no loop of the merged face {face:?} winds counterclockwise about its \
-                     outward normal, and loop {loop:?} rides a NURBS or spiric edge, whose \
-                     winding the kernel does not read, so which loop is the outline is not \
-                     known. Recourse: bound the merged faces with line, \
-                     circle or ellipse edges, whose winding the kernel reads"
+                     outward normal, and the kernel does not read loop {loop:?}'s winding (a \
+                     NURBS edge, or spiric edges pinched near a torus's inner equator), so \
+                     which loop is the outline is not known. Recourse: bound the merged faces \
+                     with line, circle, ellipse or spiric edges, whose winding the kernel reads"
                 ),
                 OutlineVerdict::AllNegative => write!(
                     f,
@@ -1737,7 +1713,7 @@ impl DeclaredSurfaceEq {
     }
 }
 
-impl<T: Decide> Body<T> {
+impl<T: crate::props::AtRestPolicy> Body<T> {
     /// Merges every maximal run of adjacent same-plane faces (module
     /// docs: structural or declared coincidence only), killing shared
     /// edges (`kef`; intra-face duplicates via `kemr`, whose new ring
@@ -3054,7 +3030,7 @@ impl<T: Decide> Body<T> {
         let winding = self.planar_loop_winding_decided(l, normal, band);
         match winding {
             LoopWinding::Empty => Ok(LoopWinding::Empty),
-            LoopWinding::Unsupported => Ok(LoopWinding::Unsupported),
+            LoopWinding::Unsupported(why) => Ok(LoopWinding::Unsupported(why)),
             LoopWinding::Wound(Ok(decided)) => Ok(LoopWinding::Wound(decided)),
             LoopWinding::Wound(Err(diag)) => Err(MergeCoplanarError::Escalated {
                 decision: MergeDecision::LoopWinding,
@@ -3144,7 +3120,7 @@ impl<T: Decide> Body<T> {
                     ..
                 })
                 | LoopWinding::Empty => {}
-                LoopWinding::Unsupported => {
+                LoopWinding::Unsupported(_) => {
                     unsupported.get_or_insert(l);
                 }
             }
@@ -4758,6 +4734,7 @@ mod winding_arm_tests {
     use super::*;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use crate::loop_winding::RunClosing::{self, Straight};
+    use crate::loop_winding::Unwound;
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::{Point3, Sign, Vec3};
 
@@ -4861,7 +4838,7 @@ mod winding_arm_tests {
     ) -> Result<LoopWinding<Sign>, MergeCoplanarError> {
         r.map(|w| match w {
             LoopWinding::Empty => LoopWinding::Empty,
-            LoopWinding::Unsupported => LoopWinding::Unsupported,
+            LoopWinding::Unsupported(why) => LoopWinding::Unsupported(why),
             LoopWinding::Wound(d) => LoopWinding::Wound(d.sign),
         })
     }
@@ -5322,7 +5299,7 @@ mod winding_arm_tests {
         fit_a_nurbs_quarter(&mut t, tol);
         assert_eq!(
             signed(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol))),
-            Ok(LoopWinding::Unsupported),
+            Ok(LoopWinding::Unsupported(Unwound::Spline)),
             "one fitted carrier and the whole cycle stops being answerable"
         );
         // ...and as a merged face's only loop it is named, not taken
@@ -5416,7 +5393,13 @@ mod winding_arm_tests {
                 "{text}"
             );
             let margin = 2.0 * h / (2.0 + 2.0 * (1.0 + h * h).sqrt());
-            let want = margin / (band.escalate() / band.zero());
+            let Some(want) = band.offer_deciding(margin) else {
+                assert!(
+                    !text.contains("tighten"),
+                    "no offer quotes a tolerance at or below EPS_MIN: {text}"
+                );
+                continue;
+            };
             let offered: f64 = text
                 .split_once("tighten the tolerance below ")
                 .and_then(|(_, tail)| tail.strip_suffix(" m"))
@@ -5764,7 +5747,7 @@ mod winding_arm_tests {
         };
         let run_margin =
             |t: &Tri, (h1, h2)| match t.body.planar_run_winding_decided((h1, h2), Straight, n, b) {
-                Ok(Some(Ok(d))) => d,
+                Ok(Ok(Ok(d))) => d,
                 other => panic!("the run winds: {other:?}"),
             };
 
@@ -5799,7 +5782,7 @@ mod winding_arm_tests {
         fit_a_nurbs_quarter(&mut t, tol);
         assert_eq!(
             t.body.planar_run_winding_decided(run, Straight, n, b),
-            Ok(None),
+            Ok(Err(Unwound::Spline)),
             "a NURBS edge on the run is not wound by its chord"
         );
 
@@ -5843,7 +5826,7 @@ mod winding_arm_tests {
         };
         let second = body.get_half_edge(first).unwrap().next;
         let run = |h1, h2| match body.planar_run_winding_decided((h1, h2), Straight, n, b) {
-            Ok(Some(Ok(d))) => d,
+            Ok(Ok(Ok(d))) => d,
             other => panic!("the run winds: {other:?}"),
         };
         for half in [first, second] {
@@ -5907,7 +5890,7 @@ mod winding_arm_tests {
                 n,
                 b,
             ) {
-                Ok(Some(Ok(d))) => d,
+                Ok(Ok(Ok(d))) => d,
                 other => panic!("the closed run winds: {other:?}"),
             }
         };
@@ -5975,7 +5958,7 @@ mod winding_arm_tests {
             "the run ends at the null half's far vertex, not at `d` itself"
         );
         match t.body.planar_run_winding_decided((h1, h2), Straight, n, b) {
-            Ok(Some(Ok(d))) => assert_eq!(d, whole, "the bracketed run is the triangle"),
+            Ok(Ok(Ok(d))) => assert_eq!(d, whole, "the bracketed run is the triangle"),
             other => panic!("the run winds: {other:?}"),
         }
     }

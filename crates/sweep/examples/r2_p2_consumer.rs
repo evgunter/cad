@@ -3,19 +3,15 @@
 //! Independent of the unit's own rows. It rebuilds the unit's fixture
 //! from public API only and asks the questions the unit's row does not:
 //!
-//!  1. Does the mint pass's OWN mate lookup find an operand pair for
-//!     the interior column? (`mint_face` calls `mate_surface`; the
-//!     unit's row hand-picks the plane instead, and says so.)
-//!  2. What does `certify_general` do with the mate the mint would
-//!     actually hand it?
-//!  3. Does the WIDENED cap-rim branch's `IsoLine` output certify?
+//!  1. What does `certify_general` answer for the interior column's
+//!     derived image, against its chart alone?
+//!  2. Does the WIDENED cap-rim branch's `IsoLine` output certify?
 //!     (The whole-body mint refuses during the WALK, so no row in the
 //!     tree ever puts that output through `run_iso_checks`.)
 //!
 //! The fixture is built through public doors only: both re-charts go
 //! through `Body::set_face_surfaces_describing`, so the seam's
-//! description names the surface its bowed face wears. Q2's first call
-//! asks what `certify_general` does with no mate at all.
+//! description names the surface its bowed face wears.
 //!
 //! Run: cargo run -p sweep --example r2_p2_consumer
 #![allow(clippy::print_stdout, clippy::too_many_lines)]
@@ -211,44 +207,6 @@ fn main() {
     };
     println!("widened chart u domain = {:?}", chart.knots_u().domain());
 
-    // ---- Q1: would the mint's OWN mate lookup find an operand pair? ----
-    // `mate_surface` (private) reads `Intersection { pair, .. }` from the
-    // edge's description and requires the FACE'S CURRENT surface key
-    // to be one of the pair. Replicated here verbatim.
-    let desc_pair = {
-        let e = body
-            .get_edge(body.get_half_edge(he_bowed).unwrap().edge)
-            .unwrap();
-        match body.get_curve_geom(e.curve) {
-            Some(topo::CurveGeom::Certified(c)) => match *c.description() {
-                geom_brep::EdgeDescription::Intersection { pair, .. } => Some(pair),
-                _ => None,
-            },
-            _ => None,
-        }
-    };
-    let own = body
-        .get_face(
-            body.get_loop(body.get_half_edge(he_bowed).unwrap().parent_loop)
-                .unwrap()
-                .face,
-        )
-        .unwrap()
-        .surface;
-    let mate_found = match desc_pair {
-        Some(pair) => pair.contains(own),
-        None => false,
-    };
-    println!("\nQ1  description pair = {desc_pair:?}, face's CURRENT surface = {own:?}");
-    println!(
-        "Q1  mate_surface would return: {}",
-        if mate_found {
-            "Some(mate)"
-        } else {
-            "None  <-- the mint hands certify_general None"
-        }
-    );
-
     // ---- Q2: the derivation, and the mint's own certification call. ----
     let out = topo::pcurve_of(&body, he_bowed, band);
     match &out {
@@ -273,39 +231,18 @@ fn main() {
                 (c.carrier().clone(), a, b)
             };
             let surf = Surface::Nurbs(Arc::new(chart.clone()));
-            // (a) with no mate:
-            let with_mint_mate = PcurveCache::certify_general(
+            let got = PcurveCache::certify_general(
                 Arc::clone(image),
                 ct0,
                 ct1,
                 &cc,
                 &surf,
-                None,
                 band,
                 <f64 as topo::AtRestPolicy>::fitted_lane(),
             );
             println!(
-                "Q2  certify_general(mate = None) -> {:?}",
-                with_mint_mate
-                    .as_ref()
-                    .map(|_| "Ok(cache)")
-                    .map_err(|e| format!("{e:?}"))
-            );
-            // (b) with the hand-picked plane the unit's row supplies:
-            let plane_surf = body.get_surface(plane).cloned().unwrap();
-            let with_hand_mate = PcurveCache::certify_general(
-                Arc::clone(image),
-                ct0,
-                ct1,
-                &cc,
-                &surf,
-                Some(&plane_surf),
-                band,
-                <f64 as topo::AtRestPolicy>::fitted_lane(),
-            );
-            println!(
-                "Q2  certify_general(mate = hand-picked plane)        -> {}",
-                match &with_hand_mate {
+                "Q2  certify_general -> {}",
+                match &got {
                     Ok(c) => format!("Ok, envelope {:e}", c.certificate().envelope),
                     Err(e) => format!("{e:?}"),
                 }
@@ -375,19 +312,15 @@ fn main() {
             };
             let cc = c.carrier().clone();
             let r = match p {
-                Pcurve::General(img) => {
-                    let mate = None;
-                    PcurveCache::certify_general(
-                        Arc::clone(img),
-                        *a,
-                        *b,
-                        &cc,
-                        &surf,
-                        mate,
-                        band,
-                        <f64 as topo::AtRestPolicy>::fitted_lane(),
-                    )
-                }
+                Pcurve::General(img) => PcurveCache::certify_general(
+                    Arc::clone(img),
+                    *a,
+                    *b,
+                    &cc,
+                    &surf,
+                    band,
+                    <f64 as topo::AtRestPolicy>::fitted_lane(),
+                ),
                 other => PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, band),
             };
             println!(
@@ -419,14 +352,13 @@ fn main() {
             let cc = c.carrier().clone();
             let (label, r) = match p {
                 Pcurve::General(img) => (
-                    "General (mate = None)",
+                    "General",
                     PcurveCache::certify_general(
                         Arc::clone(img),
                         *a,
                         *b,
                         &cc,
                         &surf,
-                        None,
                         band,
                         <f64 as topo::AtRestPolicy>::fitted_lane(),
                     ),

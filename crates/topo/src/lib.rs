@@ -131,6 +131,7 @@
 //! ```
 
 pub mod attach;
+pub(crate) mod bisect;
 pub mod body;
 pub mod boolean;
 pub(crate) mod carrier_speed;
@@ -336,12 +337,12 @@ pub mod test_support {
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
         pub use crate::test_support_meeting::{
-            Hole, MEET, PLATE, Point, Pose, apex_pyramid, arch, arch_cone, at, bearing,
-            branching_cone, comb, corners, corners_disjoint, crown, cycles_of, ell, ell_and_wedges,
-            fin, four_wedges, inner_rows, leaned, mix, near_flat, nest, nest_polygon, notch,
-            notch_rows, orders, posed_box, posed_boxes, posed_crown, posed_prism, posed_pyramid,
-            poses, pyramid_volumes, shape, single_arch, three_wedges, two_wedges, wedge,
-            wedges_on_one_side, zigzag,
+            Hole, MEET, PLATE, Point, Pose, along_lying_ray, apex_pyramid, arch, arch_cone, at,
+            bearing, branching_cone, comb, corners, corners_disjoint, crown, cycles_of, ell,
+            ell_and_wedges, fin, four_wedges, inner_rows, leaned, lying, mix, near_flat, nest,
+            nest_polygon, notch, notch_rows, on_the_lying_faces, orders, posed_box, posed_boxes,
+            posed_crown, posed_prism, posed_pyramid, poses, pyramid_volumes, shape, single_arch,
+            three_wedges, two_wedges, wedge, wedges_on_one_side, zigzag,
         };
     }
 
@@ -712,11 +713,6 @@ pub mod test_support {
             true,
             "ball_beside_a_slab_in_band_subtract",
         ),
-        (
-            "Coincidence(EdgeOnCurvedFace)",
-            true,
-            "brick_below_a_tube_union",
-        ),
     ];
 
     /// The topology-arena lengths of `body`. A free function because
@@ -838,27 +834,30 @@ pub(crate) mod vertex_section;
 
 pub use body::Body;
 pub use boolean::{
-    ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanError, BooleanErrorKind,
-    BooleanInputs, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
-    CarriedRecord, CarrierDesc, CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide,
-    CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, Contact, ContactKind,
+    AlongFace, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanError,
+    BooleanErrorKind, BooleanInputs, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult,
+    BooleanResultKind, CarriedRecord, CarrierDesc, CarrierEqError, CarrierRelation, CarryRefusal,
+    Cell, Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, Contact, ContactKind,
     ContactPairError, ContactRecords, ContainDecision, ContainError, Contradiction,
-    DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact, FaceContainment, Fusions,
-    GivenPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
-    LeverArm, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite,
-    PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
-    PlaneRung, PointInSolidError, ReductionContacts, SectorRead, SectorRung, SelfCheck,
-    SettleError, Settler, Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces,
-    SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact,
-    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
-    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
-    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, lineage_root,
-    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
-    tangent_pair_relation, union,
+    DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment,
+    FfContact, Fusions, GivenPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
+    JoinUndecided, LeverArm, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace,
+    PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
+    PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow,
+    SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
+    SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace,
+    TorusConvention, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp,
+    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
+    insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
+    joined_edge, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
+    subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
-pub use lineage::Divisions;
+pub use lineage::{
+    Division, FaceDivisions, Fate, Lineage, LineageError, LineageRows, Remainder, RowDefect,
+    RowRefusal, Substitutions,
+};
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
@@ -881,7 +880,7 @@ pub use census::{census_traces, census_traces_planted};
 pub use contact::{
     CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactClass, ContactFinding,
     ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL, FIT_DEFERRAL_FOR_USERS,
-    GlueClass, SEAM_STEER,
+    GlueClass,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -972,7 +971,7 @@ pub use splitting::{
     SplitReduction, SplitResult, TangencyReadings, Uncrossable, UncrossableCarrier,
     classify_neighborhood, plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
-pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
+pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, RingContact, RingPairContact, StaleDeclaration, Unfinished,

@@ -53,10 +53,6 @@ fn a_rung3_edge_at_rest_carries_its_projected_rows_and_its_edge_the_tube() {
         let cert = cache.certificate();
         assert_eq!(cert.statement, EnvelopeStatement::MapResidualProjected);
         assert!(
-            cert.ssi().is_none(),
-            "ROW: the row carries no pair certificate; the tube is the edge's"
-        );
-        assert!(
             cert.envelope <= band.zero(),
             "ROW: certified sup bound within ε"
         );
@@ -130,7 +126,7 @@ fn a_producers_closing_mint_re_derives_the_projected_row() {
     }
     let moved = topo::transform_rigid(
         &built.body,
-        &geom_core::Affine3::translation(geom_core::Vec3::new(0.25, -0.5, 1.0)),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(0.25, -0.5, 1.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap();

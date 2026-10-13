@@ -2,11 +2,28 @@
 id: pcurve-envelope-terms-sum-the-cos-and-sin-coefficients-of-a-deviation
 kind: issue
 title: "pcurve envelope: the plane arm and the Tilt and Drift terms sum a harmonic deviation's cos and sin coefficients, a lever up to 2 on the point deviation"
-status: open
+status: closed
 opened: 2026-10-08
 priority: P2
 cost: E
+branch: pcert/harmonic-envelope-exact-sup
+pr: 4842
+closed: 2026-10-12
 ---
+## Closed (PR 4842, 2026-10-12)
+
+Every check-4 term and class gate that bounds one `cos t`/`sin t`
+pair now reads its exact sup (`harmonic_sup`, `harmonic_sup_scalar`
+in `pcurve_cache.rs`): the sites below, plus the three axial class
+gates, fidelity and the focal-section envelope found by the sweep.
+Rows in `pcurve_cache/harmonic_sup_rows.rs`, each at a deviation in
+`(zero/2, zero)`, with a compile-time sum mutant
+(`PCERT_HARMONIC_SUM_MUTANT`) that reds them; the two unreachable
+winding-Zero drifts are pinned through `incidence`. Residue:
+`pcurve-radial-amplitude-sums-the-radial-pair`,
+`pcurve-envelope-terms-read-orthogonal-components-in-l1`.
+
+## The finding
 
 (TANG implementer, the sweep of
 `work/tang/a-rim-offset-half-the-zero-band-builds-in-one-member-order-only.md`.

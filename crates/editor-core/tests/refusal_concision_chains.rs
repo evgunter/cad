@@ -72,7 +72,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Blend/SurgeryInvariant",
     "Blend/Certify",
     "Naming/SplitLineage",
-    "Naming/FragmentLineage",
     "Naming/SeamVertexParentage",
     "Naming/SharedRim",
     "FaceFrameReadback/Dangling",
@@ -151,10 +150,6 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     (
         "Naming/SplitLineage",
         "split lineage of edge EdgeKey  cycles",
-    ),
-    (
-        "Naming/FragmentLineage",
-        "fragment lineage of face FaceKey  cycles",
     ),
 ];
 
@@ -242,7 +237,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MissingSlot",
     "Naming/Duplicate",
     "Naming/Emission",
-    "Naming/FragmentLineage",
     "Naming/MissingUpstream",
     "Naming/SeamVertexParentage",
     "Naming/SharedRim",
@@ -943,6 +937,7 @@ fn node_refusals() -> Vec<(String, NodeErrorKind)> {
     rows.extend(tube());
     rows.extend(split());
     rows.extend(transform());
+    rows.extend(motion());
     rows.extend(skin());
     rows.extend(loft());
     rows.extend(blend());
@@ -1769,7 +1764,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 J::SectionUnarmed {
                     face,
                     divided: geom::SurfaceKind::Plane,
-                    wall: geom::SurfaceKind::Torus,
+                    wall: geom::SurfaceKind::Nurbs,
                 },
             ),
             (
@@ -1909,18 +1904,6 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "NotRigid",
-            E::NotRigid {
-                check: "transform_rigid_col0_unit",
-            },
-        ),
-        (
-            "NonFiniteMap",
-            E::NonFiniteMap {
-                check: "transform_rigid_col0_unit",
-            },
-        ),
-        (
             "NullScaffold",
             E::NullScaffold {
                 edge: topo::EdgeKey::default(),
@@ -1937,6 +1920,56 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
     .chain(certify_refusal_routes())
     .chain(offset_fit_routes())
+    .collect()
+}
+
+/// A placement's motion: each mint's non-finite part, and the decided
+/// door's four refusals.
+fn motion() -> Vec<(String, NodeErrorKind)> {
+    use geom_core::{Band, Indeterminate, MarginDiag, MotionPart, RigidMotionError as E};
+    let band = Band::new(1.0e-9, 1.0e-8).expect("a fixed, ordered band");
+    [
+        ("NonFinite/Angle", E::NonFinite(MotionPart::Angle)),
+        (
+            "NonFinite/Translation",
+            E::NonFinite(MotionPart::Translation),
+        ),
+        ("NonFinite/Anchor", E::NonFinite(MotionPart::Anchor)),
+        ("NonFinite/Product", E::NonFinite(MotionPart::Product)),
+        ("NonFinite/Inverse", E::NonFinite(MotionPart::Inverse)),
+        (
+            "NotRigid/scale",
+            E::NotRigid {
+                check: "transform_rigid_col0_unit",
+            },
+        ),
+        (
+            "NotRigid/shear",
+            E::NotRigid {
+                check: "transform_rigid_col01_orth",
+            },
+        ),
+        (
+            "NotRigid/mirror",
+            E::NotRigid {
+                check: "transform_rigid_det_plus_one",
+            },
+        ),
+        (
+            "Undecided",
+            E::Undecided {
+                check: "transform_rigid_col01_orth",
+                source: Indeterminate {
+                    margin: MarginDiag::value(5.0e-9),
+                    band,
+                    predicate: Some("transform_rigid_col01_orth"),
+                    terminal_sliver: false,
+                },
+            },
+        ),
+    ]
+    .into_iter()
+    .map(|(n, e)| row(&format!("Motion/{n}"), NodeErrorKind::Motion(e)))
     .collect()
 }
 
@@ -3412,12 +3445,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             NamingError::SplitLineage(topo::SplitLineageCycle {
                 edge: topo::EdgeKey::default(),
             }),
-        ),
-        (
-            "FragmentLineage",
-            NamingError::FragmentLineage {
-                face: topo::FaceKey::default(),
-            },
         ),
         (
             "SeamVertexParentage",

@@ -114,7 +114,10 @@ and the tube over the same interval, or over the whole carrier where
 the carrier is rational with unequal weights (no piece of it has `f64`
 weights at an enclosure scalar). A door that holds no lane certifies
 no such edge: it refuses `CertifyError::NurbsLaneNotSupplied`, as it
-refuses a plane × NURBS one. Each box, cut to the wall's knot rectangle (and to the
+refuses a plane × NURBS one. An edge with an operand outside the
+tube's enclosure roster (`ssi::enclose::has_implicit_enclosure`) refuses
+the tube by naming that operand (`AnalyticRung3Refusal::NoTubeEnclosure`)
+once limb 2 holds. Each box, cut to the wall's knot rectangle (and to the
 ℝ³ slab where a search clips to one), holds exactly one piece: two
 simple solutions on its boundary, or a stretch of its boundary on a
 side of the wall's domain that the boundary pass reads within ε of the
@@ -152,8 +155,7 @@ a solution or a box about it, `ε/8` per axis at that axis's chart speed,
 holds one on its boundary (`ssi/four.rs`). At rest the edge certificate
 derives both charts' images of the carrier from the fixed foot schedule,
 decides each interior sample's two normals transversal, and certifies
-the pair with this tube (`edge_nurbs::nurbs_pair_limbs`); the pcurve
-cache derives the mate chart's image the same way. The certificate records the tube
+the pair with this tube (`edge_nurbs::nurbs_pair_limbs`). The certificate records the tube
 by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
 A component outside the chain is C3's exhaustiveness obligation, a
@@ -477,7 +479,10 @@ test of `chart_image_harmonic ∘
 chart_pcurve = carrier_harmonic` over the covered classes, not in a
 certificate over a parameter box. Where no closed form exists, the
 image is the one the chart holds exactly. A fitted image on a NURBS
-chart is bounded between the shared schedule's samples by hull bounds.
+chart is bounded between the shared schedule's samples by hull bounds,
+whatever the carrier's kind: a spline carrier enters the composite as
+its own net, a line as its degree-1 net, and a circle, ellipse or
+spiric as a per-span enclosure in certification arithmetic (C9).
 On an analytic chart, a carrier with no closed-form image (a spline
 carrier, a sphere's general circle) stores the *projected image*, the
 chart's own inverse applied to the carrier, `P(t) = ψ(C(t))`: the
@@ -538,11 +543,12 @@ validity is judged on what the producer returns. Every class of carrier
 a chart can hold has a route into a certified row, and a face no route
 covers refuses at the producer rather than reaching rest uncached. A
 carrier whose route refuses (a spline or a circle whose projected image
-reaches a pole) refuses at the producer like any other refusal: the
-exemption excuses only a class no route reaches, and a scalar that holds
+reaches a pole) refuses at the producer like any other refusal: no
+class goes unrouted, so the exemption excuses only a scalar that holds
 no certified lane, at which a net's projected row cannot read its hull. The
 lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
-plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
+plane-cap and torus-wall images of a `Curve3::Spiric`, on its own torus
+and on that torus's mirror through the cutting plane, data-free and
 closed from the carrier's own parameter), `FocalSection` (a conic
 whose projection onto the plane normal to the chart's axis has its
 focus on the axis, in two instances: a tilted plane×cone ellipse on its
@@ -672,7 +678,9 @@ does not blend), which needs the plan's feet: it runs in the surgery
 after predicate 6 and before any mutation. Face clearance reads each face
 three ways, not two: clear of the band's material, wholly inside it (the
 face goes with that material, as a face wholly inside a Boolean's tool
-does), or crossing it (refused). Every constant-radius arm
+does), or crossing it (refused). At a convex ruled band's cut-off the
+carve takes a through-feature wholly inside the material, between the
+band's two caps. Every constant-radius arm
 mints a torus or a cylinder (the envelope of equal spheres over a circle
 or a line spine); a cone belongs to the variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band

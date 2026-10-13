@@ -151,12 +151,20 @@ pair is from the two cells' carriers:
 
 - A **curve touch** is certified by the jet schedule along its locus
   (coincidence within ε, normal opposition within ε·κ_rel, κ_rel
-  definitely positive, hull bounds between samples). For an edge–face
-  pair the locus is the edge's carrier; for a face–face pair on two
+  definitely positive, hull bounds between samples). For an edge lying
+  in a face the locus is the edge's carrier; for a face–face pair on two
   carriers the census derives it from the carriers, on the closed-form
   lane the deciding operation used, and refuses typed where no such lane
   exists. Its endpoints are bounded by vertex records or the locus's
   closure; an unbacked bound is `UnrecordedContact`.
+- A **point touch** is a pair of any two cells whose interiors meet at
+  isolated points without crossing (a circle on a plane, a sphere on a
+  plane, two circles kissing). The census finds each point on the
+  closed-form lane of the two carriers, refusing typed where none
+  exists, and certifies there coincidence within ε, the point strictly
+  inside both cells, and κ_rel definitely positive; in band escalates.
+  Whether the solids cross at the point is the touch analysis's
+  reading of the faces around it.
 - A **patch** is a face–face pair on one carrier, backed by a
   `SameOpposite` decision (for a mate's patch, the at-rest
   census's `CensusAtRest` row; the mate places and never checks):
@@ -239,7 +247,7 @@ an indeterminate verification at an interval scalar aborts.
 
 Failures, all typed: `UnrecordedContact` (the census);
 `ContactContradicted` (at use and
-at rest); `ContinuationContradicted` and `SeamContradicted` (at use);
+at rest); `ContinuationContradicted` (at use);
 `StaleContactDeclaration`; `CensusEscalated`. Invariant: every definite
 verdict wins over every declaration.
 
@@ -287,15 +295,17 @@ certified to lie in one closed side of that carrier.
 
 *Sources.* That certificate comes from exactly these, on either operand,
 to a face verified as one carrier with the target: a verified `Rest`
-(residual ≡ 0), a verified `Tangent` (the witness lane), a verified
-continuation, a verified seam, or a structural tangency (an edge
-described `TangentIntersection`).
+(residual ≡ 0), a verified continuation, a glued `Tangent` (along a line
+from the witness lane, a global side by the lane's own contract; along a
+rim, as below), or a structural tangency (an edge described
+`TangentIntersection`).
 
-*Which tangencies count.* A seam and a structural tangency are
-tangencies along a curve, and the condition asks for a certified side,
-not a local touch, so they count only where such a tangency is a global
-side for the two carriers' kinds (`boolean::tangency_certifies_side`). A
-seam counts for plane–cylinder, cylinder–cylinder, cylinder–sphere,
+*Which tangencies count.* A `Tangent` along a rim and a structural
+tangency are tangencies along a curve, and the condition asks for a
+certified side, not a local touch, so they count only where such a
+tangency is a global side for the two carriers' kinds
+(`boolean::tangency_certifies_side`). A rim tangency counts for
+plane–cylinder, cylinder–cylinder, cylinder–sphere,
 plane–torus and sphere–torus; a structural tangency only for
 plane–cylinder. A torus with a cylinder or with a torus does not count.
 The exclusion is conservative because the condition is read per pair of
@@ -394,8 +404,11 @@ touch is recorded as any pair whose interiors meet — an edge–edge record
 of the two edges on the line, citing the glue's tangency decision and
 confirmed by reconstruction from its bounding vertex records. Where the
 line runs through a face's interior the touch is a face–face curve
-touch; the reduction mints no face–face row, so that union refuses
-(`BooleanError::TangentSlitArmUnbuilt`) until it does.
+touch, recorded the same way and bounded by the records of the cells
+its ends lie in; where the two sides are one piece (the operands also
+overlap elsewhere, or a later op joins them), the result is one solid
+pinched along the line, carrying the same record. A pinch is a record,
+never a junction.
 
 The same substrate is the at-rest door: `validate_pseudomanifold` with
 mate declarations landed in `ContactRecords`, no boolean, no zip.
