@@ -1,0 +1,4 @@
+fork: pinch-carrying-machinery-valence-4
+dispatched: 2026-10-13
+byte: 78
+mapping: A=opus B=fable
