@@ -625,12 +625,12 @@ fn the_plate_less_the_wedges_union_records_its_splits_per_cone() {
             Ok(topo::Cell::Vertex(k)) => at(topo::readback::vertex_point(&r.body, k).unwrap()),
             other => panic!("{what}: {v:?} settles on {other:?}"),
         };
-        for &(from, new) in &r.naming.cone_splits {
+        for &(new, from) in r.naming.cone_splits.rows() {
             assert_ne!(from, new, "{what}: a split's copy is a new vertex");
             assert!(point(new) == c, "{what}: the copy lies at MEET");
             assert!(point(from) == c, "{what}: the split vertex lies at MEET");
         }
-        split += r.naming.cone_splits.len();
+        split += r.naming.cone_splits.rows().len();
     }
     assert!(
         split > 0,
@@ -640,5 +640,8 @@ fn the_plate_less_the_wedges_union_records_its_splits_per_cone() {
         "the plate less one wedge",
         topo::subtract(&plate, &posed_prism(&holes[0], &rest, t()), t()),
     );
-    assert_eq!(one.naming.cone_splits, [], "no vertex in several cones");
+    assert!(
+        one.naming.cone_splits.is_empty(),
+        "no vertex in several cones"
+    );
 }

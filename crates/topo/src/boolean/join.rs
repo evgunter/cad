@@ -2071,8 +2071,9 @@ struct AlongEdge<T: geom_core::Real> {
 ///
 /// # Errors
 ///
-/// `JoinDesync` where the edge, its curve or its split lineage no
-/// longer resolves.
+/// `JoinDesync` where the edge or its curve no longer resolves, and
+/// [`BooleanError::SplitLineage`] where its split lineage never reaches
+/// a root.
 fn along_edge_conic<T: Decide>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
@@ -2092,7 +2093,7 @@ fn along_edge_conic<T: Decide>(
         .clone();
     let root = body
         .split_root(edge, |_| false)
-        .map_err(|_| desync("an OnEdge germ's edge has a cyclic split lineage"))?;
+        .map_err(BooleanError::SplitLineage)?;
     Ok(Some(AlongEdge { on, root, carrier }))
 }
 
