@@ -184,3 +184,19 @@ fn probe_brick_beside_the_ruling() {
     // restored); the faces are centimetres apart at dx = 0.3.
     assert!(refused.is_empty(), "faces that never touch refuse:\n{}", refused.join("\n"));
 }
+
+/// The same brick beside the ruling, its top in the ZERO band of the
+/// tube's carrier: the door reads the carriers tangent though the brick
+/// face never reaches the ruling. Printed only (pre-existing door).
+#[test]
+fn probe_brick_beside_the_ruling_in_the_zero_band() {
+    let b = band();
+    let gap = 0.5 * b.zero();
+    for dx in [0.3, 0.01] {
+        table(
+            &format!("beside0 dx={dx}"),
+            &tube(0.3, 1.0, 0.0, 1.0, 0.0),
+            &brick((dx, dx + 0.5), (0.2, 0.8), (-2.0, -1.0 - gap)),
+        );
+    }
+}
