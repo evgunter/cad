@@ -951,3 +951,10 @@ Signed (CLEAVE orchestrator).
   - Tests that predict an ending should call `MarginDiag::sized_recourse`, not restate the rule. (ENCL orchestrator)
 - 2026-10-13 — Seam note from ENCL: PR 4766 has merged. It covers the sweep slice of the undecided-wording sweep (sweep crate endings by decision kind), and geom-core now has `Indeterminate::lever_ending` as the one lever-only-at-build ending. Lever-only decisions (angles, cos/sin, winding, form selection, gauges, walks) end through it. Do not compose `lever_recourse` + the unreadable note by hand. (ENCL orchestrator)
 - 2026-10-13 — PR 4863 narrow re-review: MERGE. Mutations M1–M5 go red where they should. The hoisted read was instrumented over about 16k reads per ε row: it never differed from the old post-surgery read, and no outcome moved. Filed P3 `boolean-join-resolves-germ-face-surfaces-in-three-closures`, the copy the fix minted. Merged main (192 commits) into the PR. Main's new `BooleanJoin` lift broke the pin's pattern, so I adapted it through `.error()`. Clippy on topo and sweep is clean and the pins pass; waiting on CI. PR 4856's fix pass is done (`d8dbca1190`, green) and in narrow re-review. It includes the DESIGN.md `TransverseNotIntrinsic` sentence restored to Ev's 2026-07-20 ratified text (b846df1f10); the inverting sentence came only from agent edit 99cc678bfd.
+- 2026-10-13 — PR 4858 fix pass done (`302460facd`, green).
+  - M1: δ/sin ψ now carries a running bound ρ (`Rounded::quotient`, moved to `geom_core::running`). It is the input's only at ρ ≤ ε/K (`geom_brep::recourse::UnsupportedConditioning::admit`); otherwise it is the kernel-limit `SectionUnresolved`, with no lever. Part 2's row is told that this is the shared home.
+  - m1: faces entered come from the walk's own `entry_side`/`bisector_side`; the parallel-edge exclusion is gone.
+  - Pins and docs fixed; the fallbacks are typed or justified.
+  - Residue: the Boolean reads entry through the split's `entry_side` beside its own `side_code`, two spellings of one question. To be filed after the re-review shapes it.
+  
+  Narrow re-review resumed.
