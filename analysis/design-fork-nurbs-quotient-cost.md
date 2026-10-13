@@ -65,3 +65,22 @@
   - **Final:** move the per-cell raised-quotient cache to the operand (`ChartedNurbs`), lifetime of the surface; read windows by exact restriction (leaning, likely); build no tree unless a measurement after the cache move calls for one.
   - **On A's points:** per-axis levels and no cap answer the strip and cliff objections (sure); the k=2 excess bound is right (likely); the piece clause does not decide (likely).
   - **Order:** cache move, then products-once with restriction, then measure; the tree only if still above 2×.
+- **A, 22:57Z.**
+  - **Final:** adopts B's revised final state, exact restriction, entirely. "Literal dyadic pieces" and "one fold" do not decide; tightness does (sure). A cell-anchored tree matches no reader's window frame: chart windows nest per span, boundary reads strip-dyadic pieces, the walk reads Krawczyk-dyadic boxes.
+  - **Adds the same lifetime finding:** `NurbsBoxes` is rebuilt per rung in `certify` and per `partials` / `corner_class` call in `boundary`. Ownership fix: `ChartedNurbs` builds it at mint, and boundary's walker holds one.
+
+## Outcome: CONVERGED, 2026-10-13 22:58Z. No Ev, no fork-log row (no `[ev]` PR).
+
+**The final state:**
+- An operand-lifetime `NurbsBoxes` and per-cell raised-quotient cache.
+- Products formed once per cell, for both orders.
+- Dyadic pieces by de Casteljau halving, retiring `piece_weights` / `Cut` / `combine` and the exactness ceiling.
+- A window read by exact `restrict(a, b)` then 2×2 halving; one reading per window.
+- `CellNet::cut`, `bezier_on`, `cut_axis` and `CellAxis::Bezier` retire; the cut/whole meet becomes a debug containment check.
+- No tree; a window-keyed cache only if a measurement asks for one.
+
+**Order:**
+1. The lifetime fix.
+2. First order on products-once with halving.
+3. The cut becomes restriction.
+4. Measure: time, rung counts and worst margins against main.
