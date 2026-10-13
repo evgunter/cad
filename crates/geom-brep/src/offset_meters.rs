@@ -277,8 +277,8 @@ pub enum MeterError {
     /// smallest certified curvature radius on the folding side, so
     /// the offset self-intersects (or the bound is too weak to prove
     /// that it does not). The message names `reach`, the distance a
-    /// request must stay strictly inside; the margin and `kappa` ride
-    /// in the payload.
+    /// request must stay strictly inside, and on the zero arm the
+    /// margin; `kappa` rides in the payload.
     CurvatureHeadroom {
         /// The certified critical distance on the folding side, in
         /// metres (`+∞` when the patch does not curve that way).
@@ -312,9 +312,8 @@ impl core::fmt::Display for MeterError {
                 verdict,
             } => write!(
                 f,
-                "the face's normal cannot be proved non-zero (a chart {} m thin: normal \
-                 length {floor} m² per unit parameter area over speed {speed_lever} m), so it \
-                 has no offset",
+                "the face's normal is not shown non-zero (margin {:e} m, from normal length \
+                 {floor:e} m² per unit parameter area over speed {speed_lever:e} m)",
                 verdict.margin()
             ),
             Self::CurvatureHeadroom {
@@ -324,16 +323,17 @@ impl core::fmt::Display for MeterError {
             } => write!(
                 f,
                 "the offset distance's magnitude passes the face's radius of curvature on the \
-                 side it bends toward ({reach} m), so the offset folds over itself"
+                 side it bends toward ({reach:e} m), so the offset folds over itself"
             ),
             Self::CurvatureHeadroom {
                 reach,
-                verdict: Refused::Zero(_),
+                verdict: verdict @ Refused::Zero(_),
                 ..
             } => write!(
                 f,
-                "the offset distance's magnitude is within tolerance of the face's radius of \
-                 curvature on the side it bends toward ({reach} m), so the offset may fold"
+                "the offset distance's magnitude is not shown below the face's curvature radius \
+                 on its bending side, {reach:e} m (margin {:e} m), so the offset may fold",
+                verdict.margin()
             ),
             Self::Escalated { source, .. } => write!(
                 f,
@@ -1121,19 +1121,18 @@ mod tests {
         let rows = [
             (
                 floor_zero(5e-10),
-                "the face's normal cannot be proved non-zero (a chart 0.0000000005 m thin: \
-                 normal length 0.000000001 m² per unit parameter area over speed 2 m), so it \
-                 has no offset",
+                "the face's normal is not shown non-zero (margin 5e-10 m, from normal length 1e-9 \
+                 m² per unit parameter area over speed 2e0 m)",
             ),
             (
                 headroom(zero(5e-10)),
-                "the offset distance's magnitude is within tolerance of the face's radius of \
-                 curvature on the side it bends toward (0.001 m), so the offset may fold",
+                "the offset distance's magnitude is not shown below the face's curvature radius \
+                 on its bending side, 1e-3 m (margin 5e-10 m), so the offset may fold",
             ),
             (
                 headroom(negative(-1e-4)),
                 "the offset distance's magnitude passes the face's radius of curvature on the \
-                 side it bends toward (0.001 m), so the offset folds over itself",
+                 side it bends toward (1e-3 m), so the offset folds over itself",
             ),
         ];
         for (error, want) in rows {
