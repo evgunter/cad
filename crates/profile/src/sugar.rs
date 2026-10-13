@@ -836,6 +836,29 @@ fn swept<T: Real>(from: T, to: T, turn: T) -> T {
 /// guarantee stated one ulp too wide is not a guarantee. Correcting
 /// the claim is the fix; adding an angle branch to evaluation code to
 /// widen it would not be (Q1).
+///
+/// **No window here: the result's sign IS the branch.** It lies in
+/// `[−π, π)`, and its readers read its sign:
+/// - `fillet_leg_reach` (a Zero is corner-side);
+/// - `fillet_leg_fit` (`extent − setback`, the `f64` identity above);
+/// - the path corner gates `path_corner_advance_arc` /
+///   `path_corner_reach_arc` (only Positive passes).
+///
+/// At `d = ±π` both fold to `−π`, so a point exactly half a turn ahead
+/// reads behind. The verdict there is the branch's, and its soundness is
+/// the configuration argument above: a tangent point diametrically
+/// opposite the corner, which the reach and fit gates classify long
+/// before.
+///
+/// Over the scalars:
+/// - `ProfileLift::Guided` replays this at the evaluation scalar, through
+///   the coincidence door at `Sym<f64>` and the drive's symbolic leaf at
+///   `Sym<Interval>`;
+/// - at `Sym` a `floor` folds only on a zero-form argument (the exact
+///   tie), and the fit gate's two floors, `⌊d/τ⌋` and `⌊d/τ + ½⌋`, are
+///   different atoms, so the gate is decided numerically there;
+/// - at `Interval` a `d` straddling `±π` spans both signs, and the gates
+///   escalate or refuse on it.
 pub(crate) fn signed_swept<T: Real>(from: T, to: T, turn: T) -> T {
     ((to - from) * turn).reduce_periodic_centred(T::tau())
 }

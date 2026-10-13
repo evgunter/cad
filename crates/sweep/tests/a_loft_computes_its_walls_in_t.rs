@@ -10,7 +10,7 @@
 use geom::Surface;
 use geom_core::sym::revalue::{record, revalue};
 use geom_core::sym::with_session;
-use geom_core::{Affine3, ParamSymbol, Point2, Real, Sym, SymBudget, Theorem, Tol, Vec3};
+use geom_core::{Affine3, ParamSymbol, Point2, Real, Sym, SymBudget, Tol, Vec3};
 use profile::ProfileLoop;
 use profile::test_support::bulge_loop;
 use sweep::{Lofted, loft_body};
@@ -84,12 +84,12 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
         // (a constant re-values with no parameter bound): the arc rims'
         // weight margins and the class's other checks over the arc.
         let none = |_: ParamSymbol| None::<f64>;
-        let rim_theorems: Vec<Option<Theorem>> = decisions
+        let rim_theorems: Vec<bool> = decisions
             .iter()
             .filter(|d| d.predicate == "pcurve_iso_boundary")
             .filter(|d| d.sign == Some(geom_core::Sign::Zero))
             .filter(|d| revalue(d.node, &none).is_none())
-            .map(|d| d.theorem)
+            .map(|d| d.proven)
             .collect();
         (weights, corner, rim_theorems)
     });
@@ -109,7 +109,7 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
     );
     assert_eq!(
         rim_theorems,
-        vec![Some(Theorem::SymbolicZero); 10],
+        vec![true; 10],
         "every Zero the arc rims' checks answer over the bulge, the weight margin `w − cos(h/2)` \
          among them, is a symbolic Zero"
     );

@@ -4,10 +4,8 @@ kind: issue
 title: A pair boolean has no N2 spelling for one operand line meeting several faces of the other operand and no edge of it
 status: open
 opened: 2026-10-13
-design: true
 priority: P3
 cost: E
-needs_ev: true
 ---
 
 
@@ -78,3 +76,9 @@ of other members) raised `NamingError::Emission` ("one member edge meets
 other than one face …"). It now raises the same typed
 `SeamVertexParentage`. One member line meeting no face stays an
 emission bug. No test reaches either.
+
+## Ruling (Ev, PR 4965, fork-log row 131)
+
+Not named. Owed: move the shape from `SeamVertexParentage` to the `Emission` residue in both emitters, and state the link argument beside it. With planar faces, the kept region either keeps the other operand's edge, holds one of its faces, or pinches into two vertices, so a manifold pair does not reach this shape. Then close this row as unreached, citing both witnesses that pinched instead:
+- an L-prism with a box edge (union);
+- a V-cutter on a box edge (subtract).

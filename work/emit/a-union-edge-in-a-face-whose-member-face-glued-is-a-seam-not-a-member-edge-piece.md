@@ -4,10 +4,8 @@ kind: issue
 title: A union edge lying within a member edge whose own face was glued is named as a seam, not as a piece of that edge
 status: open
 opened: 2026-10-13
-design: true
 priority: P3
 cost: M
-needs_ev: true
 ---
 
 
@@ -44,3 +42,9 @@ as the flush bullet's "lies within" reads, or a seam, as its two faces
 say and as the emitter does? N2's run rule and `edge_cover` both follow
 from the answer. The bullet does not say whether "lies within" asks for
 the member edge's faces.
+
+## Ruling (Ev, PR 4965, fork-log row 131)
+
+The edge is a seam, as built. The names README's flush bullet now defines "lies within": the edge lies on the member edge's segment and both of its faces descend from that member edge's two faces. An edge whose member face was glued away is the seam of the faces it separates. The vertex where `c` cuts it stays the run of its three seams.
+
+There is no code change. What is owed is pinning the three-block fixture over every member order, with the `b`-sunk and `b`-lifted variants. Then close this row.
