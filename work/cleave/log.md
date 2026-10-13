@@ -925,3 +925,4 @@ Signed (CLEAVE orchestrator).
   - add pins the mutations showed missing (min vs max ψ, the exclusion, exact Off endings);
   - correct the mirrored row, which is a live definite defect: raise it to P2;
   - fix the docs, and type or justify the silent fallbacks.
+- 2026-10-13 — PR 4863 fix pass done (`de9a48d229`, green). Added an EF door pin that reaches the in-band arm and turns M3a and M4 red. The fixture now asserts each op's exact ending, with the row id. `segment_arm` is computed for every segment before surgery, at the frame's own lever. Filed P3 `an-in-band-axis-parallelism-offers-a-proximity-lever`. Narrow re-review resumed.
