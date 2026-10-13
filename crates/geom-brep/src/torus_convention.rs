@@ -92,6 +92,7 @@ impl TorusConvention {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use geom_core::{Band, MarginDiag};
 
@@ -103,7 +104,7 @@ mod tests {
     /// within it no tube, so the clause says only what the band did.
     #[test]
     fn a_zero_verdict_prints_its_reading() {
-        let band = Band::new(1e-9, 1e-8).unwrap();
+        let band = Band::new(1e-9, 1e-8).expect("a valid band");
         let zero = Refused::Zero(Classified {
             margin: MarginDiag::value(5e-10),
             band,
