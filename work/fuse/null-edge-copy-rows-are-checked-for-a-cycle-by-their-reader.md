@@ -2,11 +2,13 @@
 id: null-edge-copy-rows-are-checked-for-a-cycle-by-their-reader
 kind: issue
 title: The boolean's null-edge copy rows are checked for a cycle by their reader (uncopied), not where the reduction records them
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
 refs: [face-lineage-rows-are-checked-by-their-readers-not-where-they-are-added]
+closed: 2026-10-13
+pr: 4981
 ---
 
 

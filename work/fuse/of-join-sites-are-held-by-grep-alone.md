@@ -2,11 +2,13 @@
 id: of-join-sites-are-held-by-grep-alone
 kind: issue
 title: The Boolean's one route for a chord-join lineage refusal (BooleanError::of_join) is held at fifteen call sites by grep alone
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
 refs: [face-lineage-rows-are-checked-by-their-readers-not-where-they-are-added, 4868]
+closed: 2026-10-13
+pr: 4981
 ---
 
 
