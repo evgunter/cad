@@ -1291,3 +1291,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - **Missed:** neither the FULL review nor I measured run time.
     - **Class:** a bound that swaps a cheap reading for a tighter, costlier one needs a wall-time row, or the slow rows' timings read before merge.
     - **Next:** build C is profiling the cause. The 4984 reviewer has claim 8 (unit 2's added cost). Who lands the fix is decided once the cause is known.
+- 2026-10-13 16:33Z — **The cause of the 4954 regression** (build C, from gdb samples, 25/25 in one place).
+  - **Cause:** since 4954, `ssi::enclose`'s `CellNet` builds the full Bernstein quotients (`N_u`, `N_v` over `W²` on 2×2 pieces, in interval arithmetic) eagerly on every construction, and nothing caches them. Before, `derivative_box` was an O(n) pair-term hull.
+  - **Why it multiplies:** the four-variable walk's `rect_box` → `fold_cells` → `NurbsBoxes::cell` rebuilds the same cell's quotients 2–3× per residual or jacobian evaluation.
+  - **Measured locally:** the shell test took 35.3 s before 4954, and was still running past 30 min after it.
+  - **Fix:** dispatched to build C on `nurbs/enclose-quotient-memo` from 3ad2c1bf.
+    - Memoise per `NurbsBoxes`, keyed by `(su, sv)`, and make `CellNet.quotients` lazy, with answers bit-identical.
+    - Guarded by a counting row (one build per cell), with the removed memo as its named mutant.
+    - It also sweeps 4954's other readers for the same build-per-call shape. Build A was told to check 4984 for it.
+  - `enclose.rs` is ssiarith/ssiedge/ssimarch ground; seam notes go out when it lands.
