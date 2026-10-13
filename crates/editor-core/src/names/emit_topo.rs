@@ -2341,41 +2341,64 @@ fn name_boolean_vertices<T: Decide>(
 }
 
 /// **The lines of one operand's edges at a seam vertex** (N2), least
-/// first: each edge, except one lying on the straight line of a lesser
-/// one, which runs flush with it there and is that line. An edge whose
-/// table does not name it once, or that is not straight, is a line of
-/// its own.
+/// first ([`least_per_line`]). An edge whose table does not name it
+/// once is a line of its own.
 fn flush_lines<T: Decide>(
     edges: &[NameRef],
     op: &OperandCtx<'_, T>,
     bnd: geom_core::Band,
 ) -> Result<Vec<NameRef>, NamingError> {
-    let mut kept: Vec<(NameRef, Option<Segment<T>>)> = Vec::with_capacity(edges.len());
-    let mut sorted: Vec<&NameRef> = edges.iter().collect();
+    least_per_line(
+        edges.iter().cloned(),
+        |e| match crossed_edge(e, op.table) {
+            Some(k) => straight_segment(op.body, k),
+            None => Ok(None),
+        },
+        bnd,
+    )
+}
+
+/// **Edges that run flush on one straight line, counted once as the
+/// least of them** (N2's lines at a vertex), least first: each of
+/// `edges` in order, except one whose segment lies on the line of a
+/// lesser one's, through [`ON_MEMBER_EDGE`]. `segment` reads an edge's
+/// segment, `None` for an edge that is no straight line
+/// ([`straight_segment`]), which is a line of its own. The one home of
+/// the collapse the pair boolean (`flush_lines`) and the union
+/// (`emit_union::Flush::meeting`) both read.
+pub(super) fn least_per_line<E: Ord, T: Decide>(
+    edges: impl IntoIterator<Item = E>,
+    mut segment: impl FnMut(&E) -> Result<Option<Segment<T>>, NamingError>,
+    bnd: geom_core::Band,
+) -> Result<Vec<E>, NamingError> {
+    let mut sorted: Vec<E> = edges.into_iter().collect();
     sorted.sort();
+    let mut kept: Vec<(E, Option<Segment<T>>)> = Vec::with_capacity(sorted.len());
     for e in sorted {
-        let seg = match crossed_edge(e, op.table) {
-            Some(k)
-                if topo::query::edge_carrier_kind(op.body, k)
-                    == Some(topo::query::CurveKind::Line) =>
-            {
-                Some(Segment::of_edge(op.body, k)?)
-            }
-            _ => None,
-        };
+        let seg = segment(&e)?;
         let mut flush = false;
         if let Some(seg) = &seg {
-            for (_, on) in &kept {
-                if let Some(on) = on {
-                    flush |= on.runs_with(seg, ON_MEMBER_EDGE, bnd)?.is_some();
-                }
+            for on in kept.iter().filter_map(|(_, on)| on.as_ref()) {
+                flush |= on.runs_with(seg, ON_MEMBER_EDGE, bnd)?.is_some();
             }
         }
         if !flush {
-            kept.push((e.clone(), seg));
+            kept.push((e, seg));
         }
     }
     Ok(kept.into_iter().map(|(e, _)| e).collect())
+}
+
+/// Edge `e`'s segment if it is straight ([`is_straight`]), else `None`.
+pub(super) fn straight_segment<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+) -> Result<Option<Segment<T>>, NamingError> {
+    if is_straight(body, e) {
+        Segment::of_edge(body, e).map(Some)
+    } else {
+        Ok(None)
+    }
 }
 
 /// The edge a seam vertex is ranked along: an A-side edge, a B-side
@@ -3271,8 +3294,12 @@ fn rim_holding<T: Decide>(
     })
 }
 
-/// Whether edge `e` of `body` is carried by a line.
-fn is_straight<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
+/// Whether edge `e` of `body` is carried by a line: a tag read, no
+/// number consulted, and the one straightness test the flush readings
+/// share. The flush tests are straight-segment tests, and a curved
+/// edge's chord is not its locus (a sphere's two meridians share both
+/// ends and both faces).
+pub(super) fn is_straight<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
     topo::query::edge_carrier_kind(body, e) == Some(topo::query::CurveKind::Line)
 }
 
