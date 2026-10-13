@@ -63,13 +63,16 @@ and PCERT's (`pcurve_cache.rs` / `chart_pcurve`) ground; the PR announces it.
   Circles keep their seam.
 - `Curve3::Ellipse { semi_u, semi_v }`, `u_ref` a principal direction,
   either order; `AxesSwapped` retired, `ellipse_minor_positive` reads
-  the smaller semi-axis. `Curve3::major_frame` is the one reading of
-  which semi-axis is the major one: the cone focal section reads it
-  through `FocalImage::t0`, `solid_contain`'s wall seat through it.
-  Readers that levered or bounded by `major` alone now take the larger
+  the smaller semi-axis. `Curve3::major_frame` reads which semi-axis
+  is the major one by magnitude (a tie keeps the seam), for
+  `solid_contain`'s wall seat and `end_face`'s round-end frame;
+  `Curve3::section_frame(axis)` reads it off a surface of revolution's
+  axis, for the cone focal section (through `FocalImage::t0`), where a
+  near-circle's semi-axes round past each other. Readers that levered
+  or bounded by one semi-axis now take the larger or smaller
   magnitude: `arc_leaving`, `carrier_cross` (merged from main as
   `speed_hi`), `quad_lane::length_bound`, `surgery::piece_distance`,
-  `end_face`'s depth.
+  `end_face`'s depth, `ring_path`'s in-span lever.
 - Measured at all three ε (CLEAVE's census probe, on PR 4810's branch):
   the coin-flip family builds 66/66 at 1e-12 and 1e-6 and 54/66 at
   1e-9, where the `θ = 1e-4` planes refuse `SliverSector` at reduce as
@@ -77,5 +80,6 @@ and PCERT's (`pcurve_cache.rs` / `chart_pcurve`) ground; the PR announces it.
   1e-9; the cone family is unchanged; FLUX's tilted-slab ∩ cylinder
   (`walltilt t1e-2`) builds 12/12 at every ε.
 - Pins: `sweep` `section_ellipse_seam_poses`, `topo`
-  `chord_join::seam_rows`, `geom` `the_major_frame_is_read_from_the_semi_axes`,
+  `chord_join::seam_rows`, `geom` `the_major_frame_is_read_from_the_semi_axes` and
+  `a_section_frame_is_read_off_the_axis_of_revolution`,
   `geom-brep` `pcurve_cone_section` at every principal seam.
