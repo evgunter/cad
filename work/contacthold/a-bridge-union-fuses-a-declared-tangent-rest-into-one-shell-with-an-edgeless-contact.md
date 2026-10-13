@@ -2,7 +2,7 @@
 id: a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact
 kind: issue
 title: A union bridging a declared plane-to-cylinder Tangent rest fuses its two shells into one whose wall touches the face interior along a line no edge carries, and both at-rest gates pass it
-status: review
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
@@ -10,6 +10,7 @@ refs: [tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line, 
 branch: contacthold/face-face-touch-row
 pr: 4921
 design: true
+closed: 2026-10-13
 ---
 
 
@@ -103,3 +104,7 @@ Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author
 A designer pair (fork log row 129) converged: such a solid is valid, one solid, and the touch is a face–face record with no topology on the line — the same object as PR 4723's two-solid touch. The routes measured above are gone (declarations retired; `CarriedVf` deleted). What remains is the build: the reduction's face–face row at the tangency decision, the carried face–face kind, the census's curve-touch lane along an edge's carrier, and C9's same-solid discovery. `[ev]` PR for the D1/C7 wording; the build is dispatched in parallel since it is what C7 already anticipates.
 
 Ev took the record form on `[ev]` PR 4914 ("sounds good!", 2026-10-12); the build is `contacthold/face-face-touch-row`.
+
+## Closed (2026-10-13)
+
+PR 4921 built the record form: the reduction mints a face–face row at the tangency decision and the carry lands it, so the bridge union answers one solid carrying the record. What it left is filed: `a-carried-edge-face-record-the-census-cannot-read-refuses-every-later-op` (design, P1), `the-census-discovers-no-same-solid-tangent-touch-through-face-interiors` (P1).
