@@ -1180,3 +1180,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - the P1 in-band sweep `Miss` inside the escalation gap: session_01VFpKYy9ZPP2syxqS7FXz62, branch germ/in-band-sweep-gap-miss;
   - the plane×cone apex reach contradiction at pico-ε (no priority line; P1 by its effect): session_01KjnMSjzMzojvvQbXrkKSwh, branch germ/pn-apex-reach-pico-eps. It also checks the P2 sibling (cone frame `u_ref⊥axis` unchecked) as a possible root.
   - Review arms are drawn at review. Re-armed for 10:04.
+- 2026-10-13 10:10 — Check-in. **4927's fix pass is done** (head `23f3adef`). Every item is answered. The pinched-oval item closed with no refusal remaining; the winding now reads the certified `spiric_vector_area` and escalates where undecided; `join_lone_ring`'s pierce-ring arm escalates instead of `SectionInvariant`. Hosted CI: the 1e-6/1e-12 step reds only on the known `coincidence_door` row. The default-ε step is red too, but the lane could not read which row (it reproduced 13 695/13 695 green locally).
+  - **My call (as for 4886):** the fix pass changed answer-affecting logic: a new winding enclosure, and a pierce-ring arm that now escalates. So I dispatched one **delta review d4927** of `29cb416d` + `043d221b`, local Opus. It is not tallied.
+  - A subagent is reading the hosted default-ε red.
+  - Merged current main locally (`ecd87aa28b`, not yet pushed). nextest: main's file with the PR's +6 −2 sweep::all and +3 topo entries, compared per binary against main. Local verify of topo+sweep+geom-brep at three ε is running in /home/user/v4927.
+  - The two fuzz lanes are mid-work: in-band, "door fix green, hunt clean"; pn-apex, "branch pushed". Re-armed for 11:05.
