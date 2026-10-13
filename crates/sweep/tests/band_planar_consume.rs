@@ -536,7 +536,10 @@ fn a_blind_bore_inside_the_planar_sliver_refuses_as_a_bound() {
 /// `a·(ℓ/2 − 1)`, `ℓ` the axis's length between the walls; where that is
 /// within the tolerance band's escalate width the cut cannot tell them
 /// apart and escalates, so the row stands down at that ε.
-fn tilted_bore(what: &str) -> Option<(topo::AtRestBody<f64>, (f64, f64), (f64, f64), f64)> {
+/// [`tilted_bore`]'s body, the axis's two ends in `(y, z)`, and the radius.
+type TiltedBore = (topo::AtRestBody<f64>, (f64, f64), (f64, f64), f64);
+
+fn tilted_bore(what: &str) -> Option<TiltedBore> {
     let (r, h, a) = (D, 0.0255, 0.002);
     let s2 = 2f64.sqrt();
     // In `(y, z)`: `c = (r, 1 − r)`, the ray towards the old vertex
