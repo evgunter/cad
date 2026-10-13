@@ -161,7 +161,11 @@ fn read<T: Decide>(
     let accel = crate::carrier_speed::accel_hi(&carrier);
     let span = curve.params();
     if hi.get().is_poison() {
-        refuse(edge, "a record on a curved edge whose speed has no upper bound", errors);
+        refuse(
+            edge,
+            "a record on a curved edge whose speed has no upper bound",
+            errors,
+        );
         return None;
     }
     let length = Margin::metered((span.1 - span.0).abs(), lo);
@@ -490,13 +494,14 @@ fn reads_meet<T: Decide>(
         return Some(true);
     }
     let floor = floor(ra, rb, band);
-    // A floor that is poison, infinite or zero (`f − f`, or `1/f − 1/f`,
+    // A floor that is poison or infinite (`0·f` poison), or zero (`0·(1/f)`
     // poison) would stop every piece at the root or none: refuse rather
     // than read the spans whole. One below the band stops pieces at the
     // band, as no floor does.
-    let unread = |x: T| (x - x).is_poison();
+    let unread = |x: T| (x * T::zero()).is_poison();
     if floor.is_some_and(|f| unread(f) || unread(T::one() / f)) {
-        let what = "the census's tangency floor for two curved edges is not a finite positive length";
+        let what =
+            "the census's tangency floor for two curved edges is not a finite positive length";
         refuse(ra.edge, what, errors);
         refuse(rb.edge, what, errors);
         return None;
@@ -827,7 +832,11 @@ mod tests {
         let (q, d) = thin.curve.ders1(t0 - 30.0 * eps);
         let across = Vec3::unit_z().cross(d).normalize();
         let crossing = read(line(q - across * 0.1, across), (0.0, 0.2));
-        assert_eq!(meet(&thin, &crossing), (Some(false), vec![]), "the crossing reading");
+        assert_eq!(
+            meet(&thin, &crossing),
+            (Some(false), vec![]),
+            "the crossing reading"
+        );
     }
 
     /// **A point within the band of a long thin ellipse is on it.** The
