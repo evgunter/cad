@@ -747,8 +747,8 @@ fn true_apex_lines_still_serve() {
 
 /// **Two fuzz-found poses** (seeds `0xba10fe80e6ee4af9` and
 /// `0x5a26154859e91c73`), copied from their draws. Each cone's seam stands off square to its axis
-/// (`u_ref·axis` −7.9e-14 and −3.8e-12), its plane `D·extent` −11.3·ε
-/// and −9.3·ε off the apex's tangent column and −0.47·ε and −0.17·ε off
+/// (`u_ref·axis` −7.9e-14 and −3.8e-12), its plane at `D` −1.39e-12 and
+/// −3.43e-12 (`D·extent` −11.7·ε and −41.8·ε) and −0.47·ε and −0.17·ε off
 /// the apex. Read off the tilted seam, an oracle's generators lean off
 /// the cone by `τ·sin α`, which moves their slopes to the plane by
 /// `τ·sin α·|a·n|` at most, a part of these `D` that put each ellipse's

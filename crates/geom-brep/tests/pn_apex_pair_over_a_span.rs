@@ -513,7 +513,10 @@ fn a_plane_square_to_a_flat_cones_axis_reads_its_traces_rounding() {
 /// toward `axis × u_ref`, where the lean turns the lines' azimuth most:
 /// `τ·|a·n|/s`. Read off the seam as stored, that turn moved the served
 /// pair `2.7·ε` off the section over a span out to `6` from the apex at
-/// `ε = 1e-12`. The pair is served, within ε of the section.
+/// `ε = 1e-12`. The pair is served, within ε of the section. The spans
+/// stop at `6`: at `10` the arm's own bound on the pair, step 5's
+/// rounding charges for the squared frame among it, reaches past the
+/// zero band, and the arm escalates rather than serves.
 #[test]
 fn a_seam_off_square_to_the_axis_does_not_turn_the_pair() {
     let e = 1e-12;

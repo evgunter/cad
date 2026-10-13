@@ -67,7 +67,8 @@ axis, so the projection's rounding left `u_ref·axis = −7.9e-14` and
 `−3.8e-12`. The oracle walked its generators off that `u_ref`
 (`Pose::generator`), leaning them off the cone by `τ·sin α`, which
 moved their slopes to the plane by a part of these `D`
-(`1.3e-12`, `7.6e-13`). The served ellipses lie on both surfaces to
+(`−1.39e-12` and `−3.43e-12`, `D·extent` −11.68·ε and −41.8·ε at the
+pinned poses; the logs above quote the draws the old fuzzer intended). The served ellipses lie on both surfaces to
 `3e-15` and `3e-16`. At those slopes, a point `0.06` short along the far
 generator would stand `8e-14` off the plane. Re-squared, the oracle's
 reach is `2.94385` (served `2.943636`) and `0.067685` (served
