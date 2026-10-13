@@ -13,7 +13,10 @@
 
 use geom_core::Real;
 
-use super::{CarriedRecord, Cell, EeContact, OperandRecords, VeContact, VfContact, VvContact};
+use super::{
+    CarriedRecord, Cell, EeContact, EfContact, FfContact, OperandRecords, VeContact, VfContact,
+    VvContact,
+};
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, VertexKey};
@@ -574,9 +577,7 @@ impl ContactRecords {
     }
 
     /// These records carried back into an op as one operand's own, each
-    /// with its index here. An edge–face or face–face record has no
-    /// carried kind and stays here
-    /// (`work/wire/a-boolean-drops-its-operands-curve-and-patch-records.md`).
+    /// with its index here.
     #[must_use]
     pub fn carried(&self) -> OperandRecords {
         let mut out = OperandRecords::default();
@@ -599,7 +600,14 @@ impl ContactRecords {
                     contact: EeContact { a, b },
                     record,
                 }),
-                ContactKind::EdgeFace(..) | ContactKind::FaceFace(..) => {}
+                ContactKind::EdgeFace(edge, face) => out.ef.push(CarriedRecord {
+                    contact: EfContact { edge, face },
+                    record,
+                }),
+                ContactKind::FaceFace(a, b) => out.ff.push(CarriedRecord {
+                    contact: FfContact { a, b },
+                    record,
+                }),
             }
         }
         out
@@ -830,6 +838,7 @@ impl FromIterator<Cited<Contact>> for ContactRecords {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::{Cell, Contact, ContactKind, ContactPairError, ContactRecords};
+    use crate::boolean::{CarriedRecord, EfContact, FfContact};
     use crate::coincidence::{Backing, Cited, Cites};
     use crate::test_support_fixtures::prism_z;
     use geom_core::Tol;
@@ -910,6 +919,66 @@ mod tests {
         assert_eq!(
             records.rows()[0].cites.iter().collect::<Vec<_>>(),
             [Backing::Decided(0), Backing::Decided(2)]
+        );
+    }
+
+    /// An operand's edge–face and face–face records re-enter an op as
+    /// its own, each with its index. Red if either kind is dropped, or
+    /// filed under the other's index.
+    #[test]
+    fn curve_and_patch_records_carry_back_in_with_their_indices() {
+        let p = prism();
+        let edge = p
+            .body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                p.body
+                    .edge_vertices(e)
+                    .is_some_and(|(v, w)| p.top.contains(&v) && p.top.contains(&w))
+            })
+            .unwrap();
+        let mut records = ContactRecords::default();
+        for (k, (x, y)) in [
+            (Cell::Vertex(p.top[0]), Cell::Face(p.bottom_face)),
+            (Cell::Face(p.top_face), Cell::Face(p.bottom_face)),
+            (Cell::Edge(edge), Cell::Face(p.bottom_face)),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            records.push(Cited::new(
+                Contact::new(&p.body, x, y).unwrap(),
+                Cites::decided(u32::try_from(k).unwrap()),
+            ));
+        }
+        let carried = records.carried();
+        let (low, high) = if p.top_face < p.bottom_face {
+            (p.top_face, p.bottom_face)
+        } else {
+            (p.bottom_face, p.top_face)
+        };
+        assert_eq!(
+            carried.ff,
+            [CarriedRecord {
+                contact: FfContact { a: low, b: high },
+                record: 1
+            }]
+        );
+        assert_eq!(
+            carried.ef,
+            [CarriedRecord {
+                contact: EfContact {
+                    edge,
+                    face: p.bottom_face
+                },
+                record: 2
+            }]
+        );
+        assert_eq!(
+            carried.vf.len(),
+            1,
+            "the vertex record stays filed as before"
         );
     }
 }

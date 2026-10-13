@@ -90,6 +90,8 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("props_chart_junction_closed Zero", 16),
         ("props_chart_loop_turns Positive", 4),
         ("props_circle_axis_class Positive", 8),
+        ("props_cylinder_circle_off_axis Zero", 8),
+        ("props_cylinder_circle_tilt Zero", 8),
         ("props_face_extent Positive", 4),
         ("props_meridian_axial Zero", 8),
         ("props_meridian_on_surface Zero", 8),

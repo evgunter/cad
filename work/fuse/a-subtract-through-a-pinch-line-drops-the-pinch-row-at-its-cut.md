@@ -2,10 +2,12 @@
 id: a-subtract-through-a-pinch-line-drops-the-pinch-row-at-its-cut
 kind: issue
 title: A subtract that cuts one side of a pinch line records no contact where the cut leaves the pinch: neither end of either v-v row there resolves live
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
+closed: 2026-10-13
+pr: 3927
 ---
 
 
@@ -58,3 +60,17 @@ copies left out (measured). Close with that PR's merge.
 ## Released from the D10 hold (2026-10-08)
 
 Nothing D10 changes gates this row, so it is open: already fixed on main: PR 3927's group remap landed and union_flush_onto_edge_contact.rs pins "pinch ∖ upper wall" with a passing 3′ assert; it can close now. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## 2026-10-13, closed: fixed by PR 3927 (FUSE, carry-rows-after-4820)
+
+Measured on main `0d2117d0` with a temporary probe (never committed)
+in `boolean_op_with` that ran `validate_pseudomanifold(body, contacts)`
+on every body the door ships, over the topo, sweep and editor-core `ci`
+suites (8,390 tests, about 18,000 results). Across all of it there is no
+`StaleContactDeclaration`.
+
+The pin, `union_flush_onto_edge_contact::a_face_through_a_pinch_line_builds_in_every_op`
+(with `pinch ∖ upper wall`), passes tier 3′ on all 6 results. The fix is
+PR 3927's group remap, which takes each v-v group's null-edge copies in
+with its ends. PR 4820's `carry_rows` keeps that rule
+(`Descendants::copies_of`).
