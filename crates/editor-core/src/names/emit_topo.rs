@@ -1215,8 +1215,8 @@ pub(crate) fn name_boolean<T: Decide>(
     tie.flush(&mut t)?;
     // An operand corner the result holds as several vertices: each
     // copy's divider walls (N2), read through the faces' obstacles. The
-    // corner's faces are its parent, and a result face holds part of
-    // them where it descends from one, merged or not.
+    // corner's faces are its parent, and its pieces are the faces that
+    // hold part of them (`held_by`).
     let corner_walls = |sides: &BTreeSet<OpSide<VertexKey>>, copies: &[VertexKey]| {
         let mut parent: BTreeSet<OpSide<FaceKey>> = BTreeSet::new();
         for &side in sides {
@@ -1227,13 +1227,8 @@ pub(crate) fn name_boolean<T: Decide>(
                 .ok_or_else(|| bug("an operand corner's star does not resolve"))?;
             parent.extend(faces.into_iter().map(|f| side.with(f)));
         }
-        let is_piece = |f: FaceKey| -> Result<bool, NamingError> {
-            Ok(parent.contains(&descend_face(f)?)
-                || merged_descents
-                    .get(&f)
-                    .is_some_and(|ds| ds.iter().any(|d| parent.contains(d))))
-        };
-        obstacles.split_corner(body, &parent, copies, is_piece, &wall)
+        let pieces: BTreeSet<FaceKey> = parent.iter().flat_map(&held_by).collect();
+        obstacles.split_corner(body, &parent, copies, &pieces, &wall)
     };
 
     let edge_groups = name_boolean_edges(
@@ -5979,7 +5974,11 @@ mod touch_reread_rows {
     }
 
     /// At rest, every scene: seven operand corners are held as several
-    /// result vertices, and each copy's walls tell it apart.
+    /// result vertices, and each copy's walls tell it apart. They are
+    /// `x`'s apex, where `y`'s void meets it, in `x − y` over a void in
+    /// the arch, the bare arch, the quad arch and the bare quad arch and
+    /// over the void with the island in it, and in `x ∩ y` crossing the
+    /// island in the void and hanging across the near-flat quad void.
     #[test]
     fn a_vertex_read_twice_names_its_result_in_every_op() {
         let named = every_scene(&poses()[..1]);
@@ -5988,7 +5987,8 @@ mod touch_reread_rows {
         assert_eq!(named.tied_corners, 0, "corner names that tie");
     }
 
-    /// The other poses, every scene: the same seven corners at each.
+    /// The other poses, every scene: the same seven corners at each, as
+    /// a pose moves no scene's topology.
     #[test]
     fn a_vertex_read_twice_names_its_result_in_every_op_at_every_pose() {
         let rest = &poses()[1..];

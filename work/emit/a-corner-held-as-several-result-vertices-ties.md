@@ -68,16 +68,20 @@ the obstacles, the divides filter and the wall citation are
 `Obstacles::split`'s own (one `walls` reading now serves both). A corner
 held as one vertex keeps its bare name.
 
-One change to the obstacle reading itself: discards of a parent's faces
-are joined where both bounded one edge that died with them
-(`Discard::bounds`, the first edge of each boundary chain). A face
-parent has one face, so this joins only across an edge with that face
-on both sides; a corner's parent has several, and its discarded region
-crosses the corner's own edges. Without it the divides filter emptied
-both copies' sets in 5 of the 36 groups ("near-flat quad void -1e-3
-buried, island, hang_over", `x ∩ y`, every pose): each of three
-discards bordered one copy. With it no set is empty. The full
-`editor-core` suite (2976 tests, default ε) moved no face name.
+One change to the obstacle reading itself: discards of a parent are
+joined where both bounded one edge that died with them
+(`Discard::bounds`, the first edge of each boundary chain), as one
+connected part of the parent's lost region is one obstacle (N2). For a
+corner that joins two of its faces' discards across the edge between
+them; for a face, two discarded fragments of it across a chord that
+cut them. Without it the divides filter emptied both copies' sets in 5
+of the 36 groups ("near-flat quad void -1e-3 buried, island,
+hang_over", `x ∩ y`, every pose): each of three discards bordered one
+copy. With it no set is empty. Every join that changed an obstacle
+suite-wide was on the corner path, so the face case is unpinned
+(`a-face-whose-discarded-fragments-share-a-chord-has-no-fixture.md`).
+Both readings refuse a piece or copy, among several, that meets no
+divider, and a corner copy with no edge.
 
 Measured, `touch_reread_rows`: 36 tied groups before (the single-scene
 row, plus 7 corners × 5 poses in the every-op rows: 25 of two copies,
@@ -90,4 +94,7 @@ name that ties.
 
 The union's `Flush::least_vertex` path needs no fragment: a finished
 union's neighbourhood at a point is the union of its members', so a
-member corner lies in one finished vertex. Not changed.
+member corner lies in one finished vertex. Not changed. Measured: no
+fold step mints a corner fragment in any `editor-core` test whose name
+holds union, fold, member, pinch or corpus (364 tests), so nothing
+reaches `cite_member_edges` with several copies of one corner.

@@ -6,9 +6,10 @@
 //! region to the boolean. An OBSTACLE is a connected part of that lost
 //! region: one discarded fragment, or several joined where they border
 //! one edge of the result, where a later step discarded the region
-//! across an earlier step's seam, or, for a parent of several faces,
-//! where two of its faces were discarded on both sides of an edge that
-//! died with them. Each piece edge is chased to the
+//! across an earlier step's seam, or where both sides of an edge that
+//! died with them were discarded region of the parent: two fragments of
+//! one face across a chord that cut it, or two of a corner's faces
+//! across an edge between them. Each piece edge is chased to the
 //! stretch a discard recorded along it, through the edge's split
 //! lineage and the lineage the discards themselves carry for edges that
 //! died with them, and so to its obstacle. A face discarded where a
@@ -26,7 +27,9 @@
 //!
 //! One record serves the pair boolean, which records one step, and the
 //! union, which records each fold step and asks after the finished body
-//! ([`Obstacles::split`]).
+//! ([`Obstacles::split`]). Both readings are one rule
+//! ([`Obstacles::walls`]), and both refuse a piece or copy, among
+//! several, that meets no divider.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -43,9 +46,10 @@ struct Discard {
     /// region across them was discarded before, so it is one obstacle
     /// with this one.
     touches: Vec<EdgeKey>,
-    /// Its other boundary edges, which it died with: a discard of
-    /// another face of the parent across one of them is region of the
-    /// parent joined to this one there.
+    /// Its other boundary edges, which it died with: another discard of
+    /// the parent across one of them — a fragment of the same face
+    /// across a chord, or of another of a corner's faces across the edge
+    /// between them — is region of the parent joined to this one there.
     bounds: Vec<EdgeKey>,
 }
 
@@ -199,9 +203,9 @@ impl<K: Ord + Clone> Obstacles<K> {
         Ok(())
     }
 
-    /// **The one rule**: `pieces`, the faces of `body` that one face
-    /// `parent` is held as, grouped by the divider walls each borders,
-    /// each wall named by `wall`. Several pieces under one set are N2's
+    /// The rule on a face: `pieces`, the faces of `body` that one face
+    /// `parent` is held as, grouped by the divider walls each borders
+    /// ([`Obstacles::walls`]), each wall named by `wall`. Several pieces under one set are N2's
     /// tie. The sets come out sorted, in `W`'s order.
     ///
     /// `merged` are the parent's other faces, the ones the pair boolean
@@ -213,10 +217,9 @@ impl<K: Ord + Clone> Obstacles<K> {
     /// nor checked. Every face of a union's parent is a piece, and it passes
     /// none.
     ///
-    /// Refuses when a piece of a face held as several faces, merged ones
-    /// included, borders no divider: the face is connected, so what lies
-    /// between its pieces is discarded region, and a piece that borders
-    /// none of it is a region the kernel discarded without recording it.
+    /// What only a face has is `merged`: a corner's copies are all
+    /// grouped. Refuses as [`Obstacles::walls`] does, the face's merged
+    /// faces counted among its several.
     pub(crate) fn split<T: geom_core::Real, W: Ord + Clone>(
         &self,
         body: &Body<T>,
@@ -230,39 +233,45 @@ impl<K: Ord + Clone> Obstacles<K> {
             .chain(merged)
             .map(|&f| face_half_edges(body, f))
             .collect::<Result<Vec<_>, _>>()?;
-        let walls = self.walls(body, parent, &boundaries, pieces.len(), wall)?;
-        if pieces.len() + merged.len() >= 2 && walls.iter().any(BTreeSet::is_empty) {
-            return Err(bug(
-                "a piece of a face held as several borders no recorded discard between them",
-            ));
-        }
+        let walls = self.walls(
+            body,
+            parent,
+            &boundaries,
+            pieces.len(),
+            "a piece of a face held as several borders no recorded discard between them",
+            wall,
+        )?;
         Ok(group(walls, pieces))
     }
 
     /// The rule at a corner: `copies`, the vertices of `body` that one
     /// operand corner is held as, grouped by the divider walls each
-    /// meets. `parent` is the corner's faces and `is_piece` says which
-    /// faces of `body` hold part of them; a copy's boundary is those
+    /// meets. `parent` is the corner's faces and `pieces` the faces of
+    /// `body` that hold part of them; a copy's boundary is those
     /// faces' half-edges at the copy, read as a face piece's boundary is
     /// ([`Obstacles::split`]), so a wall is a face across an edge at the
     /// copy along which a piece of the corner meets an obstacle that
     /// borders two or more copies. Several copies under one set are
-    /// N2's tie, an empty set among them.
+    /// N2's tie. Refuses as [`Obstacles::walls`] does, and where a copy
+    /// has no edge at all.
     pub(crate) fn split_corner<T: geom_core::Real, W: Ord + Clone>(
         &self,
         body: &Body<T>,
         parent: &BTreeSet<K>,
         copies: &[VertexKey],
-        mut is_piece: impl FnMut(FaceKey) -> Result<bool, NamingError>,
+        pieces: &BTreeSet<FaceKey>,
         wall: impl FnMut(FaceKey) -> Result<W, NamingError>,
     ) -> Result<BTreeMap<Vec<W>, Vec<VertexKey>>, NamingError> {
         let mut boundaries = Vec::with_capacity(copies.len());
         for &v in copies {
             let mut at = Vec::new();
-            for e in body
+            let star = body
                 .edges_of_vertex(v)
-                .ok_or_else(|| bug("a corner copy's star does not resolve"))?
-            {
+                .ok_or_else(|| bug("a corner copy's star does not resolve"))?;
+            if star.is_empty() {
+                return Err(bug("a corner copy has no edge"));
+            }
+            for e in star {
                 let edge = body
                     .get_edge(e)
                     .ok_or_else(|| bug("a corner copy's edge is dangling"))?;
@@ -270,26 +279,40 @@ impl<K: Ord + Clone> Obstacles<K> {
                     let f = body
                         .face_of_half_edge(he)
                         .ok_or_else(|| bug("a corner copy's half-edge has no face"))?;
-                    if is_piece(f)? {
+                    if pieces.contains(&f) {
                         at.push(he);
                     }
                 }
             }
             boundaries.push(at);
         }
-        let walls = self.walls(body, parent, &boundaries, copies.len(), wall)?;
+        let walls = self.walls(
+            body,
+            parent,
+            &boundaries,
+            copies.len(),
+            "a copy of a corner held as several meets no recorded discard between them",
+            wall,
+        )?;
         Ok(group(walls, copies))
     }
 
-    /// Each of the first `counted` `boundaries`' divider walls: the
-    /// faces across its half-edges along which it meets an obstacle of
-    /// `parent` that two or more boundaries meet.
+    /// **The one rule**: each of the first `counted` `boundaries`'
+    /// divider walls, the faces across its half-edges along which it
+    /// meets an obstacle of `parent` that two or more boundaries meet.
+    ///
+    /// Refuses with `refusal` when, of two or more boundaries, a counted
+    /// one meets no divider: the parent is connected, so what lies
+    /// between the things it is held as is discarded region, and one
+    /// that borders none of it is a region the kernel discarded without
+    /// recording it.
     fn walls<T: geom_core::Real, W: Ord + Clone>(
         &self,
         body: &Body<T>,
         parent: &BTreeSet<K>,
         boundaries: &[Vec<topo::HalfEdgeKey>],
         counted: usize,
+        refusal: &'static str,
         mut wall: impl FnMut(FaceKey) -> Result<W, NamingError>,
     ) -> Result<Vec<BTreeSet<W>>, NamingError> {
         let mine: BTreeSet<usize> = parent
@@ -312,6 +335,9 @@ impl<K: Ord + Clone> Obstacles<K> {
                 link.join(w[0], w[1]);
             }
         }
+        // Two discards that both bounded an edge which died with them
+        // are one connected part of the parent's lost region (N2's
+        // obstacle).
         let mut bound_of: BTreeMap<EdgeKey, Vec<usize>> = BTreeMap::new();
         for &i in &mine {
             for &k in &self.discards[i].bounds {
@@ -375,6 +401,9 @@ impl<K: Ord + Clone> Obstacles<K> {
             if divides(o) && p < counted {
                 walls[p].insert(wall(across)?);
             }
+        }
+        if boundaries.len() >= 2 && walls.iter().any(BTreeSet::is_empty) {
+            return Err(bug(refusal));
         }
         Ok(walls)
     }
