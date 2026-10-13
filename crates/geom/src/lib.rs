@@ -158,7 +158,9 @@ pub mod surfaces;
 #[doc(hidden)]
 pub mod test_support;
 
-pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin};
+pub use convention::{
+    ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame, square_frame,
+};
 pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
 pub use curves::{
     Collocation, ComposeError, Curve3, CurveData, CurveDatum, CurveKind, CurveWindow2,

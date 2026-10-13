@@ -30,6 +30,53 @@ pub struct RepresentabilityMargin<T, D = SurfaceDatum> {
     pub margin: T,
 }
 
+/// **A stored frame squared**: the unit axis along a stored `axis` of
+/// any length, and the unit seam square to it toward a stored `u_ref`.
+/// The one home for a reader that needs the orthonormal frame a datum
+/// is only by convention (nothing margins a cone's frame at rest).
+///
+/// The seam is taken as `a × (u_ref × a)` over the unit `a`, which
+/// stands square to `a` to the rounding of its own size wherever the
+/// seam leans: `u_ref − a·(a·u_ref)` keeps a component along `a` of
+/// `u_ref`'s size times the rounding, which the renormalisation
+/// amplifies by `1/width` (98u at `u_ref·a = 0.99`). Here each
+/// component of the outer cross product is off by `2u` of its two
+/// products, which puts the result's component along `a` under `2√3·u`
+/// of `‖u_ref × a‖`; the inner product's own error tips that product
+/// off square to `a` by under `2√3·u/(width − 4u)`, which shrinks the
+/// result by under 5% where `width ≥ 16u`. That is a tilt under `3.7u`
+/// off the unit `a`, which stands under `u` off the stored axis'
+/// direction, and normalising the result adds `u`: under `6u` off the
+/// stored axis where `width ≥ 16u` (measured: under `2u` at every width
+/// down to `u`).
+///
+/// `width` is `‖u_ref × a‖/‖u_ref‖`, the sine of the stored seam's
+/// angle off the axis. At zero the seam runs along the axis and
+/// `u_ref` here is NaN: a caller decides `width` before it reads the
+/// seam.
+#[derive(Clone, Copy, Debug)]
+pub struct SquareFrame<T: Real> {
+    /// The unit axis.
+    pub axis: Vec3<T>,
+    /// The unit seam square to `axis`.
+    pub u_ref: Vec3<T>,
+    /// The sine of the stored seam's angle off the axis.
+    pub width: T,
+}
+
+/// [`SquareFrame`] of a stored `axis` and `u_ref`.
+#[must_use]
+pub fn square_frame<T: Real>(axis: Vec3<T>, u_ref: Vec3<T>) -> SquareFrame<T> {
+    let axis = axis / axis.norm();
+    let across = axis.cross(u_ref.cross(axis));
+    let len = across.norm();
+    SquareFrame {
+        axis,
+        u_ref: across / len,
+        width: len / u_ref.norm(),
+    }
+}
+
 /// Which quantity of a datum a convention constrains — the refusal's
 /// way of saying WHAT is wrong before it says which way.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

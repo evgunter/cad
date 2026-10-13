@@ -108,7 +108,7 @@
 //! them (the split/boolean lanes do, typed).
 
 use geom::Surface;
-use geom::{Curve3, EllipseInvalid, SpiricInvalid, SurfaceKind};
+use geom::{Curve3, EllipseInvalid, SpiricInvalid, SquareFrame, SurfaceKind, square_frame};
 use geom_core::{Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use crate::dihedral::{
@@ -2099,19 +2099,6 @@ pub enum PlaneConeSection<T: Real> {
     TiltedEllipse(Curve3<T>),
 }
 
-/// **The cone's seam square to its axis**: `u_ref` less its component
-/// along `a`, renormalised. Nothing holds a stored cone's `u_ref ⊥ axis`
-/// (`Surface::representability_margins` margins no cone frame), and the
-/// cone arms read `a` and the half-angle as the geometric cone, so the
-/// seam only fixes where azimuth zero lies. A tilt `τ = u_ref·a` read as
-/// given would lean each served generator's direction by `τ·sin α` and
-/// turn the line pair's azimuth by about `τ·|a·n|/‖a×n‖`; it would lift
-/// a served circle out of its plane by `τ` times its radius. After the
-/// projection the tilt is rounding: under `6u` (step 5 of [`pair_bound`]).
-fn square_seam<T: Real>(u_ref: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
-    (u_ref - a * a.dot(u_ref)).normalize()
-}
-
 /// Classifies and constructs the plane×cone section (spec §3.3): the
 /// apex-through degenerates, the axis-normal circle and the tilted
 /// ellipse. A parabolic or hyperbolic section refuses typed, naming its
@@ -2211,15 +2198,24 @@ pub fn plane_cone_section<T: Decide>(
     };
     let &Surface::Cone {
         apex,
-        axis: a,
+        axis,
         half_angle,
-        u_ref: cone_u,
+        u_ref,
     } = cone
     else {
         return Err(SectionError::WrongLane {
             expected: "plane×cone",
         });
     };
+    // The cone's frame, squared once: nothing holds a stored cone's axis
+    // unit or its seam square to it, and the arm reads the axis and
+    // half-angle as the geometric cone, so the seam only places azimuth
+    // zero ([`square_frame`]).
+    let SquareFrame {
+        axis: a,
+        u_ref: cone_u,
+        width: seam_width,
+    } = square_frame(axis, u_ref);
 
     let extent = reach.lever_from(apex);
     let (sin_a, cos_a) = half_angle.sin_cos();
@@ -2240,6 +2236,12 @@ pub fn plane_cone_section<T: Decide>(
             cos_a,
             "the cone's half-angle is not definitely under a right angle, so the \
              axis-normal circle's division by cos α is not decided",
+        ),
+        (
+            "pn_seam_off_axis",
+            seam_width,
+            "the cone's seam does not definitely leave its axis, so where its \
+             azimuth zero lies is not decided",
         ),
     ] {
         match decide(name, Margin::levered(margin, extent), band)
@@ -2294,10 +2296,14 @@ pub fn plane_cone_section<T: Decide>(
                 "pn_apex_pair_reach",
                 pair_bound(
                     reach,
-                    (apex, a, cos_a, sin_a),
+                    (apex, a, cos_a, sin_a, seam_width),
                     (discr, steep, s),
                     (apex_gap, gap_err),
-                    (c, rounding(a, n, T::from_f64(2.0 * f64::EPSILON))),
+                    (
+                        c,
+                        rounding(a, n, T::from_f64(2.0 * f64::EPSILON))
+                            + T::from_f64(0.5 * f64::EPSILON) * s,
+                    ),
                 ),
             ),
             Sign::Zero => (
@@ -2314,7 +2320,6 @@ pub fn plane_cone_section<T: Decide>(
             if verdict == Sign::Negative {
                 return Ok(PlaneConeSection::ApexPoint(apex));
             }
-            let cone_u = square_seam(cone_u, a);
             let v_ref = a.cross(cone_u);
             let (nu, nv) = (cone_u.dot(n), v_ref.dot(n));
             let phi = nv.atan2(nu);
@@ -2368,7 +2373,7 @@ pub fn plane_cone_section<T: Decide>(
             center: apex + a * t,
             axis: a,
             radius: rim_r,
-            u_ref: square_seam(cone_u, a),
+            u_ref: cone_u,
         })),
         Sign::Positive | Sign::Negative => {
             match decide("pn_conic_type", Margin::levered(discr, extent), band)
@@ -2451,27 +2456,30 @@ pub fn plane_cone_section<T: Decide>(
 ///    undecided both nappes take `|δ|/D`, which bounds either start
 ///    (`D ≤ M`), and step 3 holds for any `t₀` past the true start.
 /// 5. *The lines' own rounding*, which near tangency amplifies, read
-///    with `u` per operation on unit vectors: `ĉ` is `3u` off and `s`
-///    `4u` off, so `cos γ` is `3u·cot α/s + (4u/s + 6u)·|cos γ|` off;
-///    `acos` turns that by `s/σ` (`sin γ = σ/s`) and adds `2u`. `φ`, the
-///    `atan2` of the normal's two components across the axis, each `3u`
-///    off and together `s` long, is `5u/s` off, and the sum and its sine
-///    and cosine `12u`. The frame `φ` is read in is the cone's seam
-///    squared to the axis ([`square_seam`]): its projection's dot product
-///    (`3u`), difference and renormalisation (`u` each) leave a tilt
-///    `τ < 6u`, which turns `φ` by `τ·|c|/s < 6u/s` more and leans each
-///    direction by `τ·sin α`. A line turned `Δ` in azimuth moves
-///    `sin α·Δ` per unit of its distance from the apex, and its
-///    direction's own sum `3u`: so
-///    `u·((3·cos α + 4·sin α + 6s·sin α)/σ + 11·sin α/s + 18·sin α + 3)`
-///    per unit of the farthest consumed point's distance from the apex,
-///    `max(|lo|, |hi|)/cos α` over the window.
+///    with `u` per operation on unit vectors. The frame is the stored
+///    one squared ([`square_frame`]): its unit axis stands `u` off the
+///    stored axis' direction, and its seam `τ` off square to it, `τ < 6u`
+///    where the seam's `width ≥ 16u` and charged whole (`τ = 1`) below.
+///    `ĉ` is `3u` off and `s` `4u` off, each a further `u` for the axis,
+///    so `cos γ` is `4u·cot α/s + (5u/s + 6u)·|cos γ|` off; `acos` turns
+///    that by `s/σ` (`sin γ = σ/s`) and adds `2u`. `φ`, the `atan2` of
+///    the normal's two components across the axis, each `3u` off and
+///    together `s` long, is `5u/s` off, and the frame's lean off the
+///    stored axis turns it by `(u + τ)·|c|/s` more; the sum and its sine
+///    and cosine add `12u`. A line turned `Δ` in azimuth moves `sin α·Δ`
+///    per unit of its distance from the apex; its direction leans
+///    `τ·sin α` with the seam and `u·cos α` with the axis, and its own
+///    sum adds `3u`: so `u·((4·cos α + 5·sin α + 6s·sin α)/σ +
+///    (6 + τ/u)·sin α/s + (12 + τ/u)·sin α + 4)` per unit of the
+///    farthest consumed point's distance from the apex, `max(|lo|,
+///    |hi|)/cos α` over the window.
 /// 6. *The window's own rounding* is not charged. Each `(x − apex)·a`
 ///    is plain arithmetic, as is a caller's `below`/`above`, and is off
 ///    by about `3u·|x − apex|`. That moves `ρ`, and `start` through it,
 ///    by about `3u·|x − apex|/cos α`, which is `3u·ρ/cos²α` for a point
-///    on the cone. Step 5's term is at least `(18·sin α + 3)·u·ρ/cos α`,
-///    and it covers that up to `α ≈ 81°`.
+///    on the cone. Step 5's term less what it charges the frame, at
+///    least `(12·sin α + 3)·u·ρ/cos α`, covers that up to `α ≈ 78°`;
+///    the frame's terms charge errors the window rounding is not.
 ///
 /// `ρ` is the least `|(x − apex)·a|` over the reach's window along the
 /// axis ([`Reach::range_along`]) over `cos α`, zero where the window
@@ -2485,7 +2493,7 @@ pub fn plane_cone_section<T: Decide>(
 #[allow(clippy::many_single_char_names)] // the derivation's own symbols
 fn pair_bound<T: Real>(
     reach: &Reach<T>,
-    (apex, a, cos_a, sin_a): (Point3<T>, Vec3<T>, T, T),
+    (apex, a, cos_a, sin_a, seam_width): (Point3<T>, Vec3<T>, T, T, T),
     (d, m, s): (T, T, T),
     (gap, gap_err): (T, T),
     (c, c_err): (T, T),
@@ -2521,11 +2529,14 @@ fn pair_bound<T: Real>(
         size,
     )
     .value();
-    let turn = (T::from_f64(3.0) * cos_a + T::from_f64(4.0) * sin_a + T::from_f64(6.0) * s * sin_a)
+    // The seam's tilt `τ/u` (step 5): `6` where `width ≥ 16u`, else whole.
+    let tau = (seam_width - T::from_f64(8.0 * f64::EPSILON))
+        .select_le_zero(T::from_f64(2.0 / f64::EPSILON), T::from_f64(6.0));
+    let turn = (T::from_f64(4.0) * cos_a + T::from_f64(5.0) * sin_a + T::from_f64(6.0) * s * sin_a)
         / sigma_sq.sqrt()
-        + T::from_f64(11.0) * sin_a / s
-        + T::from_f64(18.0) * sin_a
-        + T::from_f64(3.0);
+        + (T::from_f64(6.0) + tau) * sin_a / s
+        + (T::from_f64(12.0) + tau) * sin_a
+        + T::from_f64(4.0);
     let azimuth = Margin::levered(
         T::from_f64(0.5 * f64::EPSILON) * turn,
         lo.abs().max(hi.abs()) / cos_a,
@@ -2576,7 +2587,9 @@ pub enum PlaneTorusSection<T: Real> {
     /// `h = (q − c)·a`): TWO concentric circles — radii
     /// `R ± √((r−|h|)(r+|h|))`, common centre `c + a·h` on the axis,
     /// carrier axis the torus axis, `u_ref` the torus's own seam
-    /// direction (⊥ the axis as stored — no tie-break is needed).
+    /// direction as stored: ⊥ the axis only to the torus's at-rest
+    /// frame margin (`Surface::representability_margins`, a tilt under
+    /// `ε/(R + r)`), so the circles stand within `ε` of their plane.
     /// Zero-residual-by-construction against both implicit forms in ℝ.
     ConcentricCircles {
         /// The outer circle, radius `R + √(r² − h²)`.
@@ -2870,7 +2883,7 @@ pub enum ConeCylinderSection<T: Real> {
     /// radius `R`, both centred on the shared axis at
     /// `apex ± axis·(R·cot α)`, carrier axis the CONE's axis and
     /// `u_ref` the cone's own seam direction, squared to the axis
-    /// (`square_seam`). Zero-residual-by-construction against
+    /// ([`geom::square_frame`]). Zero-residual-by-construction against
     /// both implicit forms in ℝ.
     ///
     /// The `+`/`−` assignment is the cone's own nappe convention, not a
@@ -2958,13 +2971,19 @@ pub fn cone_cylinder_section<T: Decide>(
     };
     let &Surface::Cone {
         apex,
-        axis: a,
+        axis,
         half_angle,
-        u_ref: cone_u,
+        u_ref,
     } = cone
     else {
         return Err(wrong());
     };
+    // The cone's frame, squared once ([`square_frame`]).
+    let SquareFrame {
+        axis: a,
+        u_ref: cone_u,
+        width: seam_width,
+    } = square_frame(axis, u_ref);
     let &Surface::Cylinder {
         origin: o,
         axis: b,
@@ -2992,13 +3011,14 @@ pub fn cone_cylinder_section<T: Decide>(
             });
         }
     }
-    // **These two are NOT the admission criterion**; `coc_station_reach`
+    // **These three are NOT the admission criterion**; `coc_station_reach`
     // below is. `coc_aperture_sin` exists because the station DIVIDES by
     // `sin α` and a division needs its divisor decided; `coc_aperture_cos`
     // because a half-angle at or past a right angle turns `cot α`'s sign
     // and with it the `c1`/`c2` nappe assignment this arm documents, so
     // it is the cone convention's own clause rather than a conditioning
-    // question. Both meter through the operand extent, the lever every
+    // question; `coc_seam_off_axis` because the circles' seam is the
+    // cone's squared to the axis. All three meter through the operand extent, the lever every
     // angular margin here takes.
     for (name, margin, what) in [
         (
@@ -3012,6 +3032,12 @@ pub fn cone_cylinder_section<T: Decide>(
             cos_a,
             "the cone's half-angle is not definitely under a right angle, so cot α's \
              sign — and with it which nappe each circle is on — is not decided",
+        ),
+        (
+            "coc_seam_off_axis",
+            seam_width,
+            "the cone's seam does not definitely leave its axis, so the circles' \
+             azimuth zero is not decided",
         ),
     ] {
         match decide(name, Margin::levered(margin, extent), band)
@@ -3095,7 +3121,7 @@ pub fn cone_cylinder_section<T: Decide>(
                 center,
                 axis: a,
                 radius: big_r,
-                u_ref: square_seam(cone_u, a),
+                u_ref: cone_u,
             };
             Ok(ConeCylinderSection::CoaxialCircles {
                 c1: circle_at(apex + a * station),

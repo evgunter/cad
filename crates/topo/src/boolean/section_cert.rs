@@ -1869,14 +1869,13 @@ struct Cone<T: Real> {
 
 impl<T: Real> Cone<T> {
     fn new(apex: Point3<T>, axis: Vec3<T>, alpha: T, u_ref: Vec3<T>) -> Self {
-        let a = unit(axis);
-        let (across, width) = perp_to(u_ref, a);
+        let frame = geom::square_frame(axis, u_ref);
         Self {
             apex,
-            a,
+            a: frame.axis,
             alpha,
             sc: alpha.sin_cos(),
-            u_ref: across / width,
+            u_ref: frame.u_ref,
         }
     }
 

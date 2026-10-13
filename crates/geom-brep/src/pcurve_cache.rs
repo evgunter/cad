@@ -4071,7 +4071,7 @@ fn periodic_envelope<T: Decide>(
     Ok(terms)
 }
 
-/// The chart with its frame made orthonormal by Gram–Schmidt:
+/// The chart with its frame made orthonormal ([`geom::square_frame`]):
 /// `n̂ = axis/‖axis‖`, and `ê₁` the part of `u_ref` normal to `n̂`,
 /// normalised (the map's `v_ref` is then `n̂ × ê₁`). In exact
 /// arithmetic it is the frame the lemma on
@@ -4079,9 +4079,8 @@ fn periodic_envelope<T: Decide>(
 /// unit frame is its own twin, and its twin's forms reduce to its own.
 fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
     let frame = |axis: Vec3<T>, u_ref: Vec3<T>| {
-        let n = axis / axis.norm();
-        let e1 = u_ref - n * n.dot(u_ref);
-        (n, e1 / e1.norm())
+        let f = geom::square_frame(axis, u_ref);
+        (f.axis, f.u_ref)
     };
     match *surface {
         Surface::Cylinder {
