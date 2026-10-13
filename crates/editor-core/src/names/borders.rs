@@ -167,9 +167,7 @@ impl<K: Ord + Clone> Obstacles<K> {
                     let (us, ws) = (settler.settle_cones(u)?, settler.settle_cones(w)?);
                     for (&u, &w) in us.iter().flat_map(|u| ws.iter().map(move |w| (u, w))) {
                         let between = match (u, w) {
-                            (Cell::Vertex(u), Cell::Vertex(w)) => {
-                                edges.get(&(u.min(w), u.max(w)))
-                            }
+                            (Cell::Vertex(u), Cell::Vertex(w)) => edges.get(&(u.min(w), u.max(w))),
                             // An end the join deleted lies inside the
                             // joined edge, and one the merge pruned inside
                             // the merged face: neither ends an edge, so the

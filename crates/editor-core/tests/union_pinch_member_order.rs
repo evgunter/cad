@@ -1235,12 +1235,17 @@ fn two_legs_on_the_plate_are_their_touch_in_every_member_order() {
 /// (`work/wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it.md`):
 /// the union's run is order-free, so what a subtract carries of it is
 /// too. Where a subtract holds the union's vertex as several vertices,
-/// the set of their names is compared. Three wedges, every order (four
-/// refuse P − U in some orders: the WIRE row); the union's and the
+/// the set of their names is compared. Three and four wedges, every
+/// order: four refused P − U in member order `[3, 2, 1, 0]` while a
+/// split per cone's copy of the union's vertex was read as no operand
+/// vertex (`BooleanNaming::cone_splits`). The union's and the
 /// subtracts' own ids, which the member order moves, are masked.
 #[test]
 fn a_subtract_against_the_wedges_union_names_their_meeting_alike_in_every_member_order() {
-    for (label, holes) in [("three wedges", three_wedges as fn() -> Vec<Hole>)] {
+    for (label, holes) in [
+        ("three wedges", three_wedges as fn() -> Vec<Hole>),
+        ("four wedges", four_wedges),
+    ] {
         let n = holes().len();
         let mut first: Option<[Vec<String>; 2]> = None;
         for order in orders(n) {

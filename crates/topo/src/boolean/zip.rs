@@ -419,8 +419,24 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     let mut a_sections: Vec<FaceKey> = seams.iter().map(|&(a, _)| a).collect();
     let mut b_sections: Vec<FaceKey> = seams.iter().map(|&(_, b)| b).collect();
     let mut splits = Vec::new();
-    split_side(body, &runs_a, &cone_a, &he_a, &mut a_sections, &mut splits, tol)?;
-    split_side(body, &runs_b, &cone_b, &he_b, &mut b_sections, &mut splits, tol)?;
+    split_side(
+        body,
+        &runs_a,
+        &cone_a,
+        &he_a,
+        &mut a_sections,
+        &mut splits,
+        tol,
+    )?;
+    split_side(
+        body,
+        &runs_b,
+        &cone_b,
+        &he_b,
+        &mut b_sections,
+        &mut splits,
+        tol,
+    )?;
     let moved = !splits.is_empty();
     let paired = if moved {
         repair(body, &pairs, &next, &a_sections, &b_sections)?

@@ -2154,21 +2154,14 @@ fn name_boolean_vertices<T: Decide>(
                             along,
                         )
                     }
-                    _ => {
-                        let name = canonical::minted(StableName {
-                            kind: EntityKind::Vertex,
-                            node,
-                            path: seam_lines
-                                .iter()
-                                .map(|(fa, fb)| RoleSeg::Seam {
-                                    a: fa.clone(),
-                                    b: fb.clone(),
-                                })
-                                .collect(),
-                        });
-                        put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
-                        continue;
+                    // One line meeting several faces of the other
+                    // operand, no edge of it: N2 has no pair spelling
+                    // for it, so it is a missing rule
+                    // (`work/emit/a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces.md`).
+                    ([_], []) | ([], [_]) => {
+                        return Err(NamingError::SeamVertexParentage { vertex: v });
                     }
+                    _ => return Err(bug("a seam vertex's operand edges hold no line")),
                 };
                 let slot = groups.entry(seg).or_insert((false, Vec::new()));
                 slot.0 |= from_tie;
@@ -2483,7 +2476,11 @@ fn operand_vertex_keys(
 ) -> Result<BTreeSet<(topo::Operand, VertexKey)>, NamingError> {
     let mut keys = BTreeSet::new();
     for &k in core::iter::once(&v).chain(fused.partners.get(&v).into_iter().flatten()) {
-        keys.insert(operand_key(naming, inv_vertices, fused.origin(k))?.0.of_operand());
+        keys.insert(
+            operand_key(naming, inv_vertices, fused.origin(k))?
+                .0
+                .of_operand(),
+        );
     }
     loop {
         let new: Vec<_> = fused
