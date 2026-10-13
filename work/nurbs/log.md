@@ -1300,3 +1300,13 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - Guarded by a counting row (one build per cell), with the removed memo as its named mutant.
     - It also sweeps 4954's other readers for the same build-per-call shape. Build A was told to check 4984 for it.
   - `enclose.rs` is ssiarith/ssiedge/ssimarch ground; seam notes go out when it lands.
+- 2026-10-13 17:00Z — **PR 4992 merged** (red-main fix) at `b13167f9`; sweep's tests compile on main again.
+  - **The enclose memo** (build C) is in progress, measured locally at `--test-threads 1`:
+
+    | Build | Shell test | `r1_lane0` |
+    |---|---|---|
+    | Before 4954 | 35.3 s | 12.6 s |
+    | 4954 | 1692 s | 608 s |
+    | With the whole-cell memo | 284 s | 193 s |
+
+  - The remaining 8–15× is in the cut nets, which build both axes per call. Next is a cut-net memo, or an additive per-axis entry point in `derivative.rs` (where it overlaps 4984). The target is within about 2× of before.
