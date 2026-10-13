@@ -608,9 +608,11 @@ number.
   **TAKEN (M10-9, 2026-09-06)**, on the family M10-7's census and
   M10-8's measurement showed: `geom_core::sym::Sym::register_equal`,
   a session-level record that two DAG NODES denote one function of the
-  parameters, made by the site that guarantees it, counted apart from
-  both theorem kinds (`SymCounts::registered`, the K token
-  `registered`). The numeric channel is untouched — a registration
+  parameters, made by the site that guarantees it. A zero through it
+  is counted with every other symbolic zero (`SymCounts::symbolic`,
+  the K token `symbolic_zero`), and what the registry buys a document
+  is the differential with the door shut (`SymRules::registered`).
+  The numeric channel is untouched — a registration
   reads no value except its own witness and writes none — and the
   numeric channel runs FIRST at every decide site, so no registration
   can turn a margin the enclosure proved non-zero into a `Zero`; where

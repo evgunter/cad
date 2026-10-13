@@ -2,7 +2,7 @@
 id: DECIDE-10
 kind: unit
 title: "delete the label kind: a symbolic discharge answers zero and nothing about how"
-status: dispatched
+status: review
 opened: 2026-10-06
 priority: P2
 cost: H

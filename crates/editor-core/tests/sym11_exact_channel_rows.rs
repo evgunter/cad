@@ -61,7 +61,7 @@ const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [1048, 654, 641]),
     ("r1_annulus", [566, 399, 828]),
     ("r2_link", [356, 259, 498]),
-    ("r2_filleted_bracket", [623, 464, 830]),
+    ("r2_filleted_bracket", [626, 464, 830]),
     ("r2_rounded_pad", [340, 277, 314]),
 ];
 

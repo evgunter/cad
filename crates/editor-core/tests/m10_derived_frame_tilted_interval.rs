@@ -1385,6 +1385,95 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
     }
 }
 
+/// **WHAT THE DECISION READ BUYS the tilted family**, as a
+/// differential in decisions and verdicts: each cap replayed whole at
+/// `half = 1e-3` with the read on (shipped) and shut
+/// (`SymRules::without_the_reads`). With the read on every one
+/// certifies. With it shut the end cap and its `FlipZ` twin refuse at
+/// `newell_plane_residual`, and the start cap certifies on the forms
+/// alone, every decision as it reads with the read on.
+#[test]
+fn m10_what_the_read_buys_on_the_tilted_caps() {
+    let doc_of = |base, place| r2_document(1.0e-3, base, place);
+    // `(name, base, place, read-on receipt, read-shut receipt, the
+    // predicate the read-shut replay refuses at)`, each receipt
+    // `(symbolic, numeric)`.
+    type Row = (
+        &'static str,
+        Base,
+        Place,
+        (u64, u64),
+        (u64, u64),
+        Option<&'static str>,
+    );
+    let rows: [Row; 3] = [
+        (
+            "tiltU end cap",
+            Base::TiltU,
+            Place::Derived(1),
+            (972, 514),
+            (573, 300),
+            Some("newell_plane_residual"),
+        ),
+        (
+            "flipZ derived",
+            Base::FlipZ,
+            Place::Derived(1),
+            (972, 514),
+            (573, 300),
+            Some("newell_plane_residual"),
+        ),
+        (
+            "tiltU start-cap",
+            Base::TiltU,
+            Place::DerivedStartCap,
+            (972, 514),
+            (972, 514),
+            None,
+        ),
+    ];
+    let mut got = Vec::new();
+    for (name, base, place, want_on, want_off, refuses_at) in rows {
+        let doc = doc_of(base, place);
+        let (on_fails, on) = sym(&doc, ProfileLift::Guided, SymRules::shipped(), budget());
+        let (off_fails, off) = sym(
+            &doc,
+            ProfileLift::Guided,
+            SymRules::without_the_reads(),
+            budget(),
+        );
+        println!("{name} read on: {on:?} {on_fails:?}\n{name} read shut: {off:?} {off_fails:?}");
+        assert!(
+            on_fails.is_empty(),
+            "{name}: certifies with the read on: {on_fails:?}"
+        );
+        match refuses_at {
+            Some(p) => assert!(
+                off_fails.len() == 1 && off_fails[0].contains(p),
+                "{name}: with the read shut it refuses at `{p}`: {off_fails:?}"
+            ),
+            None => assert!(
+                off_fails.is_empty(),
+                "{name}: with the read shut it still certifies: {off_fails:?}"
+            ),
+        }
+        got.push((
+            name,
+            (on.symbolic, on.numeric),
+            (off.symbolic, off.numeric),
+            want_on,
+            want_off,
+        ));
+    }
+    for (name, on, off, want_on, want_off) in got {
+        assert_eq!(
+            (on, off),
+            (want_on, want_off),
+            "{name}: (symbolic, numeric) with the read on and shut"
+        );
+    }
+}
+
 /// **SYM-12's reviews' two negative-`n.z` documents — rule F is inert on
 /// both.** Both carry the manifestly negative `n.z` of the start cap
 /// and `FlipZ`, through a different tilt: `FlipX` (`u` flipped instead

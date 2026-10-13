@@ -10119,7 +10119,7 @@ mod tests {
         });
         assert_eq!(theorems.0, (Sign::Zero, true), "held");
         assert_eq!(theorems.1.0, Sign::Zero, "frozen: Zero at the witness");
-        assert_eq!(theorems.1.1, false, "frozen: no proof over a frozen weight");
+        assert!(!theorems.1.1, "frozen: no proof over a frozen weight");
     }
 }
 
