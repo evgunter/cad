@@ -1032,3 +1032,19 @@ documents. CI is green at head `fa6911ecc5` except for main's known
 
 `form-mul-carries-the-gate-of-a-factor-a-zero-annihilates` is closed as
 moot. Spec deleted (`docs/doc-ledger/decide-10-spec.md`).
+
+## 2026-10-13 — DECIDE handed back `ready`, re-banded P1 → P2
+
+DECIDE-10 merged (#4929). Both P1 rows wait on other tracks:
+- the declared tangency is parked behind ROUND's fillet row;
+- the revolve carriers are deferred under E6.
+
+So the track's dispatchable spine is P2, and the program's band now
+says so:
+- A0's point-scalar fold, which may reach the coincidence replay's
+  verdicts, unshown;
+- rule G's sixteen on the link;
+- the exact quotient's re-keyed root.
+
+When either P1 unblocks, the band goes back to P1 with it. Handed
+back `ready`, with nobody on it.

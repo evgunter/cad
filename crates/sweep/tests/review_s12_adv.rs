@@ -59,9 +59,11 @@ fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
     .body
 }
 
-/// PROBE 1 (charter A3): a TORUS operand. Union has no per-class door;
-/// the gate must refuse it typed (never a number). If it answers, the
-/// answer is checked and a silent lie is flagged.
+/// PROBE 1 (charter A3): a TORUS operand, the slab `|z| ≤ 0.1` across
+/// the torus `R = 1.5`, `r = 0.4` about `y`, whose faces `z = ±0.1` cut it
+/// in spiric ovals. Every op is the truth (the volume the two share, by
+/// `germ_plane_torus_spiric`'s box oracle, and tier 3) or refuses typed;
+/// a body off the truth is a silent lie.
 #[test]
 fn probe_torus_union_is_never_silently_wrong() {
     // Circle profile centred (1.5, 0) radius 0.4, revolved about y.
@@ -85,7 +87,14 @@ fn probe_torus_union_is_never_silently_wrong() {
         brick((-3.0, 3.0), (-3.0, 3.0), (-0.1, 0.1), Tol::witness()),
         Tol::witness(),
     );
-    for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
+    let all = (-3.0, 3.0);
+    let meet = crate::germ_plane_torus_spiric::torus_in_box((1.5, 0.4), all, all, (-0.1, 0.1));
+    let (t, s) = (2.0 * PI * PI * 1.5 * 0.4 * 0.4, 36.0 * 0.2);
+    for (op, want) in [
+        (BooleanOp::Union, s + t - meet),
+        (BooleanOp::Subtract, s - meet),
+        (BooleanOp::Intersect, meet),
+    ] {
         match boolean_op_with(
             op,
             &slab,
@@ -96,8 +105,17 @@ fn probe_torus_union_is_never_silently_wrong() {
         ) {
             Err(e) => println!("torus {op:?}: typed refusal: {e:?}"),
             Ok(out) => {
-                let v = vol(&out.body().unwrap().body);
-                panic!("torus {op:?} ANSWERED: {v} — check for silence");
+                let b = &out.body().unwrap().body;
+                assert_eq!(
+                    topo::validate_geometric(b, Tol::witness()),
+                    Ok(()),
+                    "torus {op:?}: tier 3"
+                );
+                let v = vol(b);
+                assert!(
+                    (v - want).abs() <= crate::germ_plane_torus_chord::volume_tol(want),
+                    "torus {op:?} ANSWERED {v} against the truth {want}: a silent lie"
+                );
             }
         }
     }

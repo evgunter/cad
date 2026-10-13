@@ -208,6 +208,8 @@ mod pocket_ring_steep_ellipse;
 mod pocket_wall_crossing_a_side_face;
 #[path = "point_in_loop_arc_cap.rs"]
 mod point_in_loop_arc_cap;
+#[path = "point_touch_records.rs"]
+mod point_touch_records;
 #[path = "pole_slit_window.rs"]
 mod pole_slit_window;
 #[path = "r1_lane0_e2e.rs"]
@@ -799,6 +801,8 @@ mod germ_interior_saddle;
 mod germ_plane_torus_chord;
 #[path = "germ_plane_torus_frame.rs"]
 mod germ_plane_torus_frame;
+#[path = "germ_plane_torus_spiric.rs"]
+mod germ_plane_torus_spiric;
 #[path = "germ_radial_hole.rs"]
 mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]

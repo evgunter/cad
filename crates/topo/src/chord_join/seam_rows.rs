@@ -94,7 +94,14 @@ fn an_arc_near_a_minor_vertex_resolves_at_its_own_scale() {
     let (p1, p2) = (near_minor(-1e-3), near_minor(2e-3));
     for ccw in [true, false] {
         let (a, b) = if ccw { (p1, p2) } else { (p2, p1) };
-        let (carrier, t0, t1) = chord_arc(conic(), FaceKey::default(), a, Some(b), ccw).unwrap();
+        let (carrier, t0, t1) = chord_arc(
+            SectionCurve::Conic(conic()),
+            FaceKey::default(),
+            a,
+            Some(b),
+            ccw,
+        )
+        .unwrap();
         assert!(
             t0.abs() < 3e-3 && t1.abs() < 3e-3 && (t1 - t0 - 3e-3).abs() < 1e-12,
             "ccw {ccw}: the window [{t0}, {t1}]"

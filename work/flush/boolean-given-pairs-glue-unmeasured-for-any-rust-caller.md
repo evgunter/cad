@@ -1,11 +1,12 @@
 ---
 id: boolean-given-pairs-glue-unmeasured-for-any-rust-caller
 kind: issue
-title: "BooleanInputs::given is a public field: any Rust caller of boolean_op_with glues its pairs unmeasured"
-status: open
+title: BooleanInputs::given is a public field: any Rust caller of boolean_op_with glues its pairs unmeasured
+status: dispatched
 opened: 2026-10-11
 priority: P2
 cost: E
+branch: flush/given-gate
 ---
 
 ## What
