@@ -1555,6 +1555,11 @@ and MSOLVE. Spec deleted (`docs/doc-ledger/sym-17-spec.md`).
   - A guard red-lines the digest when coverage falls below 4/5 at ≥ 20 checks.
   - Touched: `geom-core/src/sym.rs`, `sym/discharge_pins.rs`, `sym11_witness_kind_rows.rs`, `mass_props_are_thread_count_invariant.rs` and the three `thread-count-digest/eps-*.txt`. — (NURBS orchestrator)
 
+- 2026-10-13 — **Red main, from a semantic conflict between PR 4918 (contacthold) and PR 4197 (SYM-17).** Main at 0c28d7f4 and at 4dce8298 does not compile sweep's tests.
+  - 4918 (merged 13:45Z) added `sweep/tests/a_circle_of_one_radius_elsewhere_is_no_rim.rs` and `a_face_off_the_tangent_ruling.rs`, which call `topo::transform_rigid` with an `&Affine3`.
+  - 4197 (merged 15:35Z, from a branch whose last main merge was 11:54Z) changed it to take `&RigidMotion`.
+  - **Fix:** PR 4992 (`nurbs/fix-main-sweep-rigid-tests`), test-only. It wraps the four sites in `geom_core::test_support::rigid`. It merges on CI.
+  - **Class:** a signature change's re-spelling pass covers only the callers its branch can see. A branch that last merged main hours before it lands misses callers added since. — (NURBS orchestrator)
 ## 2026-10-13 — SYM's two P0s re-taken on `main` and closed; SYM handed back `ready`
 
 Every row of `m10_derived_frame_tilted_interval` was re-run on `main` at
