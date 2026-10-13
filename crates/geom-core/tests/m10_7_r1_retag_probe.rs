@@ -1,7 +1,10 @@
 //! **M10-7 R1: the K re-tag door under a scalar that records nothing.**
-//! `Sym<Interval>` in a `probe` build calls `retag_symbolic_zero` on a
-//! symbolic Zero, but `Interval::sign_within` pushes no sample, so the
-//! re-tag lands on whatever sample is LAST in the sink.
+//! `Sym<Interval>` in a `probe` build re-tags a symbolic Zero's sample
+//! through `k_stats::retag_at`, but `Interval::sign_within` pushes no
+//! sample, so there is no sample of its own to re-tag. The first
+//! spelling (`sink.last_mut()`) landed on whatever sample was LAST in
+//! the sink; `retag_at` names the row by the index read before the base
+//! scalar ran, and this row pins that the foreign sample is untouched.
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -32,7 +35,7 @@ fn r1_a_symbolic_zero_at_sym_interval_retags_an_unrelated_probe_sample() {
         },
     );
     assert_eq!(out, Ok(Sign::Zero));
-    assert_eq!(counts.symbolic_zero, 1);
+    assert_eq!(counts.symbolic, 1);
     let samples = take_samples();
     assert_eq!(samples.len(), 1, "Interval records nothing: {samples:?}");
     println!("the unrelated sample now reads: {:?}", samples[0]);

@@ -200,3 +200,17 @@ this row's "what closes it" in two:
   `the-section-table-admits-a-curve-on-its-resolution`: the far-centre
   term it would refuse is removed by deriving the centre. The
   chart-image half stays this row's (PCERT's fixes).
+
+## Note from PCERT (2026-10-13)
+
+`focal-section-vertex-azimuth-is-read-off-a-cancelling-sum` is fixed
+(`pcert/focal-section-vertex-azimuth`): `chart_pcurve` reads the cone
+image's vertex azimuth off the major axis, and the skew-pose whole-turn
+miss drops 10–1000× to `u·A/k`. That narrows the chart-image half and
+does not close it: at unit scale, ε = 1e-9, the skew-pose cone still
+refuses at the image from about `k < 5e-3` (`β`'s own conditioning,
+`u·A/k`), and `α = 1.55` still misses by 8.8e-7 at `f = 0.9999`
+(`focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor`).
+The span envelope (`focal-section-envelope-bounds-the-whole-ellipse-not-the-span`)
+is untouched.
+
