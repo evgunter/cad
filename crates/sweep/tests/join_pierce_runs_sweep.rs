@@ -2948,3 +2948,537 @@ fn a_cube_less_a_pinched_operand_whose_splits_cross_the_seams_faces_builds() {
         assert_eq!(finding, Some(None), "{pose}: one vertex per cone, meshing");
     }
 }
+// PR 4823 review probes (flush/touch-key-review). Appended to
+// join_pierce_runs_sweep.rs on base and head alike.
+
+/// Two cubes touching at one corner, `v`, in opposite octants.
+fn rtk_kiss(seed: u32) -> (AtRestBody<f64>, AtRestBody<f64>, [f64; 3]) {
+    let v = notch343().v;
+    let s = f64::from(seed);
+    let d = unit([0.3 + 0.1 * s, 0.5 - 0.07 * s, 0.8]);
+    let fa = corner_diagonal_frame(d, 0.1 + 0.3 * s);
+    let fb = corner_diagonal_frame(d.map(|x| -x), 0.4 + 0.2 * s);
+    (
+        finished("a", cube_sized(v, fa, [0.0; 3], SIDE)),
+        finished("b", cube_sized(v, fb, [0.0; 3], SIDE)),
+        v,
+    )
+}
+
+fn rtk_keys_at(body: &Body<f64>, v: [f64; 3]) -> (usize, usize) {
+    let at = crate::common::pinch_cones::vertices_at(body, v);
+    let mut keys: Vec<_> = at.iter().map(|&w| body.get_vertex(w).unwrap().point).collect();
+    keys.sort();
+    keys.dedup();
+    (at.len(), keys.len())
+}
+
+/// P1: offset every chart of a corner-kiss union by `d`.
+#[test]
+#[ignore = "review probe"]
+fn rtk_offset_across_a_kiss() {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    for seed in 0..6 {
+        let (a, b, v) = rtk_kiss(seed);
+        let Ok(BooleanResult::Body(bb)) = topo::union(&a, &b, tol()) else {
+            println!("P1 seed={seed}: union not a body");
+            continue;
+        };
+        let body0 = bb.body.into_body();
+        let (n, k) = rtk_keys_at(&body0, v);
+        for d in [-0.05, 0.05, -0.3] {
+            let mut body = body0.clone();
+            let mut by: Vec<(topo::SurfaceKey, Vec<topo::FaceKey>)> = Vec::new();
+            for (f, data) in body.faces() {
+                match by.iter_mut().find(|(s, _)| *s == data.surface) {
+                    Some((_, fs)) => fs.push(f),
+                    None => by.push((data.surface, vec![f])),
+                }
+            }
+            let moves: Vec<topo::ChartMove<f64>> = by
+                .into_iter()
+                .map(|(_, faces)| topo::ChartMove { faces, distance: d })
+                .collect();
+            let r = topo::offset_planes_together(&mut body, &moves, band, tol());
+            let tail = match &r {
+                Ok(_) => format!(
+                    "OK vol={:.12} at_v={:?}",
+                    mass_properties(&body, tol()).map(|m| m.volume).unwrap_or(f64::NAN),
+                    rtk_keys_at(&body, v)
+                ),
+                Err(e) => format!("ERR {e:?}").chars().take(160).collect(),
+            };
+            println!("P1 seed={seed} d={d} verts@v={n} keys@v={k}: {tail}");
+        }
+    }
+}
+
+/// P2: a carried vertex-vertex record that names two vertices of one
+/// cube that are SIDE apart (a stale or fabricated record), through
+/// the public `boolean_op_with`.
+#[test]
+#[ignore = "review probe"]
+fn rtk_fabricated_carried_record() {
+    let (a, _, v) = rtk_kiss(0);
+    let far = notch343().v.map(|c| c + 50.0);
+    let b = finished("far", cube_sized(far, frame([0.0, 0.0, 1.0], 0.0), [0.0; 3], SIDE));
+    let mut vs: Vec<(topo::VertexKey, [f64; 3])> = a
+        .vertices()
+        .map(|(k, d)| {
+            let p = *a.get_point(d.point).unwrap();
+            (k, [p.x, p.y, p.z])
+        })
+        .collect();
+    vs.sort_by(|x, y| x.1.partial_cmp(&y.1).unwrap());
+    let (v0, v1) = (vs[0].0, vs[7].0);
+    let mut inputs = topo::BooleanInputs::default();
+    inputs.records_a.vv.push(topo::CarriedRecord {
+        contact: topo::VvContact { a: v0, b: v1 },
+        record: 0,
+    });
+    for op in [topo::BooleanOp::Union, topo::BooleanOp::Subtract] {
+        let r = topo::boolean_op_with(
+            op,
+            &a,
+            &b,
+            &inputs,
+            topo::SweepStrategy::Realized,
+            tol(),
+        );
+        match r {
+            Ok(BooleanResult::Body(bb)) => {
+                let vol = mass_properties(&bb.body, tol()).map(|m| m.volume);
+                let vv: Vec<_> = bb.contacts.vertex_vertex().collect();
+                let keys: Vec<_> = vv
+                    .iter()
+                    .map(|&(x, y)| {
+                        let px = *bb.body.get_point(bb.body.get_vertex(x).unwrap().point).unwrap();
+                        let py = *bb.body.get_point(bb.body.get_vertex(y).unwrap().point).unwrap();
+                        (
+                            bb.body.get_vertex(x).unwrap().point == bb.body.get_vertex(y).unwrap().point,
+                            (px - py).norm(),
+                        )
+                    })
+                    .collect();
+                let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol());
+                println!(
+                    "P2 {op:?}: OK vol={vol:?} vv={} shared/dist={keys:?} t3p={}",
+                    vv.len(),
+                    format!("{t3:?}").chars().take(200).collect::<String>()
+                );
+            }
+            Ok(other) => println!("P2 {op:?}: OK non-body {}", matches!(other, BooleanResult::Empty)),
+            Err(e) => println!("P2 {op:?}: ERR {}", format!("{e:?}").chars().take(200).collect::<String>()),
+        }
+    }
+    let _ = v;
+}
+/// P3: the `three i=4 j=3 k=1` notch ∪ pinch result: every face whose
+/// plane holds `v`, whether its loops hold a vertex at `v`, and where
+/// `v` falls in its outer loop (projected winding number, distance to
+/// its boundary).
+#[test]
+#[ignore = "review probe"]
+fn rtk_three_faces_through_v() {
+    let v = notch343().v;
+    let [p, q, _] = frame(direction(4, 3), 0.3 + 0.9);
+    let three: Vec<Frame> = (0..3)
+        .map(|t| {
+            let th = f64::from(t) * std::f64::consts::TAU / 3.0;
+            let d = [0, 1, 2].map(|c| th.cos() * p[c] + th.sin() * q[c]);
+            let [p, q, a] = frame(d, 0.0);
+            let s = (2.0f64 / 3.0).sqrt();
+            let e = |k: f64| {
+                let t = 0.2 + f64::from(t) + k * std::f64::consts::TAU / 3.0;
+                [0, 1, 2].map(|i| a[i] / 3f64.sqrt() + s * (t.cos() * p[i] + t.sin() * q[i]))
+            };
+            let (e0, e1, e2) = (e(0.0), e(1.0), e(2.0));
+            if dot(cross(e0, e1), e2) > 0.0 {
+                [e0, e1, e2]
+            } else {
+                [e1, e0, e2]
+            }
+        })
+        .collect();
+    let Some(pinch) = unite_all(three.iter().map(|&f| cube_sized(v, f, [0.0; 3], 2.0)).collect())
+    else {
+        println!("P3: the cubes do not unite");
+        return;
+    };
+    println!("P3 pinch: verts@v,keys@v = {:?}", rtk_keys_at(&pinch, v));
+    let c = notch343();
+    let notch = finished("the notch", fixtures::prism::<f64>(&c.profile, 1.0, tol()).body);
+    for (tag, x, y) in [("ab U", &notch, &pinch), ("ba U", &pinch, &notch)] {
+        let r = topo::union(x, y, tol());
+        let Ok(BooleanResult::Body(bb)) = r else {
+            println!("P3 {tag}: not a body");
+            continue;
+        };
+        let body = &bb.body;
+        println!("P3 {tag}: verts@v,keys@v = {:?}", rtk_keys_at(body, v));
+        let pt = |w: topo::VertexKey| {
+            let p = *body.get_point(body.get_vertex(w).unwrap().point).unwrap();
+            [p.x, p.y, p.z]
+        };
+        let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+        let norm = |a: [f64; 3]| dot(a, a).sqrt();
+        for (f, face) in body.faces() {
+            let cyc = |l: topo::LoopKey| -> Vec<topo::VertexKey> {
+                match body.get_loop(l).unwrap().boundary {
+                    topo::LoopBoundary::Cycle { .. } => {}
+                    _ => return Vec::new(),
+                }
+                let topo::LoopBoundary::Cycle { first: start } = body.get_loop(l).unwrap().boundary
+                else {
+                    unreachable!()
+                };
+                body.loop_cycle(start)
+                    .unwrap()
+                    .iter()
+                    .map(|&h| body.get_half_edge(h).unwrap().start)
+                    .collect()
+            };
+            let outer: Vec<[f64; 3]> = cyc(face.outer).into_iter().map(pt).collect();
+            if outer.len() < 3 {
+                continue;
+            }
+            // Newell normal.
+            let mut n = [0.0; 3];
+            for i in 0..outer.len() {
+                let (a, b) = (outer[i], outer[(i + 1) % outer.len()]);
+                n[0] += (a[1] - b[1]) * (a[2] + b[2]);
+                n[1] += (a[2] - b[2]) * (a[0] + b[0]);
+                n[2] += (a[0] - b[0]) * (a[1] + b[1]);
+            }
+            let nn = norm(n);
+            let n = n.map(|c| c / nn);
+            let dist = dot(n, sub(v, outer[0]));
+            if dist.abs() > 1e-9 {
+                continue;
+            }
+            let mut all: Vec<topo::VertexKey> = cyc(face.outer);
+            for &r in &face.rings {
+                all.extend(cyc(r));
+            }
+            let at_v: Vec<_> = all.iter().filter(|&&w| norm(sub(pt(w), v)) < 1e-9).collect();
+            // Winding of v in the outer polygon, projected.
+            let [u, w, _] = frame(n, 0.0);
+            let pr = |a: [f64; 3]| {
+                let d = sub(a, v);
+                (dot(d, u), dot(d, w))
+            };
+            let mut wind = 0.0;
+            let mut edge_d = f64::INFINITY;
+            for i in 0..outer.len() {
+                let (a, b) = (pr(outer[i]), pr(outer[(i + 1) % outer.len()]));
+                wind += (a.0 * b.1 - a.1 * b.0).atan2(a.0 * b.0 + a.1 * b.1);
+                let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+                let t = (-(a.0 * dx + a.1 * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
+                edge_d = edge_d.min(((a.0 + t * dx).powi(2) + (a.1 + t * dy).powi(2)).sqrt());
+            }
+            println!(
+                "P3 {tag}: face {f:?} solid {:?} n={} rings={} verts@v={:?} winding={:.3} boundary_dist={:.3e}",
+                body.solid_of_face(f),
+                outer.len(),
+                face.rings.len(),
+                at_v,
+                wind / std::f64::consts::TAU,
+                edge_d
+            );
+        }
+        let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol());
+        println!("P3 {tag}: t3p {}", format!("{t3:?}").chars().take(300).collect::<String>());
+    }
+}
+/// P4 (P3 + simplicity of every face loop): the `three i=4 j=3 k=1` notch ∪ pinch result: every face whose
+/// plane holds `v`, whether its loops hold a vertex at `v`, and where
+/// `v` falls in its outer loop (projected winding number, distance to
+/// its boundary).
+#[test]
+#[ignore = "review probe"]
+fn rtk_three_faces_simple() {
+    let v = notch343().v;
+    let [p, q, _] = frame(direction(4, 3), 0.3 + 0.9);
+    let three: Vec<Frame> = (0..3)
+        .map(|t| {
+            let th = f64::from(t) * std::f64::consts::TAU / 3.0;
+            let d = [0, 1, 2].map(|c| th.cos() * p[c] + th.sin() * q[c]);
+            let [p, q, a] = frame(d, 0.0);
+            let s = (2.0f64 / 3.0).sqrt();
+            let e = |k: f64| {
+                let t = 0.2 + f64::from(t) + k * std::f64::consts::TAU / 3.0;
+                [0, 1, 2].map(|i| a[i] / 3f64.sqrt() + s * (t.cos() * p[i] + t.sin() * q[i]))
+            };
+            let (e0, e1, e2) = (e(0.0), e(1.0), e(2.0));
+            if dot(cross(e0, e1), e2) > 0.0 {
+                [e0, e1, e2]
+            } else {
+                [e1, e0, e2]
+            }
+        })
+        .collect();
+    let Some(pinch) = unite_all(three.iter().map(|&f| cube_sized(v, f, [0.0; 3], 2.0)).collect())
+    else {
+        println!("P3: the cubes do not unite");
+        return;
+    };
+    println!("P4 pinch: verts@v,keys@v = {:?}", rtk_keys_at(&pinch, v));
+    let c = notch343();
+    let notch = finished("the notch", fixtures::prism::<f64>(&c.profile, 1.0, tol()).body);
+    for (tag, x, y) in [("ab U", &notch, &pinch), ("ba U", &pinch, &notch)] {
+        let r = topo::union(x, y, tol());
+        let Ok(BooleanResult::Body(bb)) = r else {
+            println!("P4 {tag}: not a body");
+            continue;
+        };
+        let body = &bb.body;
+        println!("P4 {tag}: verts@v,keys@v = {:?}", rtk_keys_at(body, v));
+        let pt = |w: topo::VertexKey| {
+            let p = *body.get_point(body.get_vertex(w).unwrap().point).unwrap();
+            [p.x, p.y, p.z]
+        };
+        let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+        let norm = |a: [f64; 3]| dot(a, a).sqrt();
+        for (f, face) in body.faces() {
+            let cyc = |l: topo::LoopKey| -> Vec<topo::VertexKey> {
+                match body.get_loop(l).unwrap().boundary {
+                    topo::LoopBoundary::Cycle { .. } => {}
+                    _ => return Vec::new(),
+                }
+                let topo::LoopBoundary::Cycle { first: start } = body.get_loop(l).unwrap().boundary
+                else {
+                    unreachable!()
+                };
+                body.loop_cycle(start)
+                    .unwrap()
+                    .iter()
+                    .map(|&h| body.get_half_edge(h).unwrap().start)
+                    .collect()
+            };
+            let outer: Vec<[f64; 3]> = cyc(face.outer).into_iter().map(pt).collect();
+            if outer.len() < 3 {
+                continue;
+            }
+            {
+                // P4: is the outer loop simple? (projected on its Newell plane)
+                let mut n = [0.0; 3];
+                for i in 0..outer.len() {
+                    let (a, b) = (outer[i], outer[(i + 1) % outer.len()]);
+                    n[0] += (a[1] - b[1]) * (a[2] + b[2]);
+                    n[1] += (a[2] - b[2]) * (a[0] + b[0]);
+                    n[2] += (a[0] - b[0]) * (a[1] + b[1]);
+                }
+                let nn = norm(n);
+                let n = n.map(|c| c / nn);
+                let [u, w, _] = frame(n, 0.0);
+                let q: Vec<(f64, f64)> = outer.iter().map(|&a| (dot(a, u), dot(a, w))).collect();
+                let m = q.len();
+                let orient = |a: (f64, f64), b: (f64, f64), c: (f64, f64)| (b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0);
+                let mut bad = Vec::new();
+                for i in 0..m {
+                    for j in i + 1..m {
+                        if j == i + 1 || (i == 0 && j == m - 1) { continue; }
+                        let (a, b, c, d) = (q[i], q[(i + 1) % m], q[j], q[(j + 1) % m]);
+                        let (o1, o2, o3, o4) = (orient(a, b, c), orient(a, b, d), orient(c, d, a), orient(c, d, b));
+                        if o1 * o2 < -1e-18 && o3 * o4 < -1e-18 { bad.push((i, j)); }
+                    }
+                }
+                let area: f64 = (0..m).map(|i| { let (a, b) = (q[i], q[(i + 1) % m]); a.0 * b.1 - a.1 * b.0 }).sum::<f64>() / 2.0;
+                if !bad.is_empty() {
+                    println!("P4 {tag}: face {f:?} solid {:?} n={m} SELF-CROSSING segment pairs {bad:?} signed_area={area:.4} pts={q:?}", body.solid_of_face(f));
+                }
+            }
+            // Newell normal.
+            let mut n = [0.0; 3];
+            for i in 0..outer.len() {
+                let (a, b) = (outer[i], outer[(i + 1) % outer.len()]);
+                n[0] += (a[1] - b[1]) * (a[2] + b[2]);
+                n[1] += (a[2] - b[2]) * (a[0] + b[0]);
+                n[2] += (a[0] - b[0]) * (a[1] + b[1]);
+            }
+            let nn = norm(n);
+            let n = n.map(|c| c / nn);
+            let dist = dot(n, sub(v, outer[0]));
+            if dist.abs() > 1e-9 {
+                continue;
+            }
+            let mut all: Vec<topo::VertexKey> = cyc(face.outer);
+            for &r in &face.rings {
+                all.extend(cyc(r));
+            }
+            let at_v: Vec<_> = all.iter().filter(|&&w| norm(sub(pt(w), v)) < 1e-9).collect();
+            // Winding of v in the outer polygon, projected.
+            let [u, w, _] = frame(n, 0.0);
+            let pr = |a: [f64; 3]| {
+                let d = sub(a, v);
+                (dot(d, u), dot(d, w))
+            };
+            let mut wind = 0.0;
+            let mut edge_d = f64::INFINITY;
+            for i in 0..outer.len() {
+                let (a, b) = (pr(outer[i]), pr(outer[(i + 1) % outer.len()]));
+                wind += (a.0 * b.1 - a.1 * b.0).atan2(a.0 * b.0 + a.1 * b.1);
+                let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+                let t = (-(a.0 * dx + a.1 * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
+                edge_d = edge_d.min(((a.0 + t * dx).powi(2) + (a.1 + t * dy).powi(2)).sqrt());
+            }
+            println!(
+                "P4f {tag}: face {f:?} solid {:?} n={} rings={} verts@v={:?} winding={:.3} boundary_dist={:.3e}",
+                body.solid_of_face(f),
+                outer.len(),
+                face.rings.len(),
+                at_v,
+                wind / std::f64::consts::TAU,
+                edge_d
+            );
+        }
+        let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol());
+        println!("P4 {tag}: t3p {}", format!("{t3:?}").chars().take(300).collect::<String>());
+    }
+}
+/// P5 (P3 + simplicity of every face loop): the `three i=4 j=3 k=1` notch ∪ pinch result: every face whose
+/// plane holds `v`, whether its loops hold a vertex at `v`, and where
+/// `v` falls in its outer loop (projected winding number, distance to
+/// its boundary).
+#[test]
+#[ignore = "review probe"]
+fn rtk_three_faces_dump() {
+    let v = notch343().v;
+    let [p, q, _] = frame(direction(4, 3), 0.3 + 0.9);
+    let three: Vec<Frame> = (0..3)
+        .map(|t| {
+            let th = f64::from(t) * std::f64::consts::TAU / 3.0;
+            let d = [0, 1, 2].map(|c| th.cos() * p[c] + th.sin() * q[c]);
+            let [p, q, a] = frame(d, 0.0);
+            let s = (2.0f64 / 3.0).sqrt();
+            let e = |k: f64| {
+                let t = 0.2 + f64::from(t) + k * std::f64::consts::TAU / 3.0;
+                [0, 1, 2].map(|i| a[i] / 3f64.sqrt() + s * (t.cos() * p[i] + t.sin() * q[i]))
+            };
+            let (e0, e1, e2) = (e(0.0), e(1.0), e(2.0));
+            if dot(cross(e0, e1), e2) > 0.0 {
+                [e0, e1, e2]
+            } else {
+                [e1, e0, e2]
+            }
+        })
+        .collect();
+    let Some(pinch) = unite_all(three.iter().map(|&f| cube_sized(v, f, [0.0; 3], 2.0)).collect())
+    else {
+        println!("P3: the cubes do not unite");
+        return;
+    };
+    println!("P5 pinch: verts@v,keys@v = {:?}", rtk_keys_at(&pinch, v));
+    let c = notch343();
+    let notch = finished("the notch", fixtures::prism::<f64>(&c.profile, 1.0, tol()).body);
+    for (tag, x, y) in [("ab U", &notch, &pinch), ("ba U", &pinch, &notch)] {
+        let r = topo::union(x, y, tol());
+        let Ok(BooleanResult::Body(bb)) = r else {
+            println!("P5 {tag}: not a body");
+            continue;
+        };
+        let body = &bb.body;
+        println!("P5 {tag}: verts@v,keys@v = {:?}", rtk_keys_at(body, v));
+        let pt = |w: topo::VertexKey| {
+            let p = *body.get_point(body.get_vertex(w).unwrap().point).unwrap();
+            [p.x, p.y, p.z]
+        };
+        let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+        let norm = |a: [f64; 3]| dot(a, a).sqrt();
+        for (f, face) in body.faces() {
+            let cyc = |l: topo::LoopKey| -> Vec<topo::VertexKey> {
+                match body.get_loop(l).unwrap().boundary {
+                    topo::LoopBoundary::Cycle { .. } => {}
+                    _ => return Vec::new(),
+                }
+                let topo::LoopBoundary::Cycle { first: start } = body.get_loop(l).unwrap().boundary
+                else {
+                    unreachable!()
+                };
+                body.loop_cycle(start)
+                    .unwrap()
+                    .iter()
+                    .map(|&h| body.get_half_edge(h).unwrap().start)
+                    .collect()
+            };
+            let outer: Vec<[f64; 3]> = cyc(face.outer).into_iter().map(pt).collect();
+            if outer.len() < 3 {
+                continue;
+            }
+            {
+                // P4: is the outer loop simple? (projected on its Newell plane)
+                let mut n = [0.0; 3];
+                for i in 0..outer.len() {
+                    let (a, b) = (outer[i], outer[(i + 1) % outer.len()]);
+                    n[0] += (a[1] - b[1]) * (a[2] + b[2]);
+                    n[1] += (a[2] - b[2]) * (a[0] + b[0]);
+                    n[2] += (a[0] - b[0]) * (a[1] + b[1]);
+                }
+                let nn = norm(n);
+                let n = n.map(|c| c / nn);
+                let [u, w, _] = frame(n, 0.0);
+                let q: Vec<(f64, f64)> = outer.iter().map(|&a| (dot(a, u), dot(a, w))).collect();
+                let m = q.len();
+                let orient = |a: (f64, f64), b: (f64, f64), c: (f64, f64)| (b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0);
+                let mut bad = Vec::new();
+                for i in 0..m {
+                    for j in i + 1..m {
+                        if j == i + 1 || (i == 0 && j == m - 1) { continue; }
+                        let (a, b, c, d) = (q[i], q[(i + 1) % m], q[j], q[(j + 1) % m]);
+                        let (o1, o2, o3, o4) = (orient(a, b, c), orient(a, b, d), orient(c, d, a), orient(c, d, b));
+                        if o1 * o2 < -1e-18 && o3 * o4 < -1e-18 { bad.push((i, j)); }
+                    }
+                }
+                let area: f64 = (0..m).map(|i| { let (a, b) = (q[i], q[(i + 1) % m]); a.0 * b.1 - a.1 * b.0 }).sum::<f64>() / 2.0;
+                if outer.iter().any(|&a| norm(sub(a, v)) < 1e-9) {
+                    println!("P5 {tag}: face {f:?} solid {:?} n={m} DUMP crossings {bad:?} signed_area={area:.4} pts={q:?}", body.solid_of_face(f));
+                }
+            }
+            // Newell normal.
+            let mut n = [0.0; 3];
+            for i in 0..outer.len() {
+                let (a, b) = (outer[i], outer[(i + 1) % outer.len()]);
+                n[0] += (a[1] - b[1]) * (a[2] + b[2]);
+                n[1] += (a[2] - b[2]) * (a[0] + b[0]);
+                n[2] += (a[0] - b[0]) * (a[1] + b[1]);
+            }
+            let nn = norm(n);
+            let n = n.map(|c| c / nn);
+            let dist = dot(n, sub(v, outer[0]));
+            if dist.abs() > 1e-9 {
+                continue;
+            }
+            let mut all: Vec<topo::VertexKey> = cyc(face.outer);
+            for &r in &face.rings {
+                all.extend(cyc(r));
+            }
+            let at_v: Vec<_> = all.iter().filter(|&&w| norm(sub(pt(w), v)) < 1e-9).collect();
+            // Winding of v in the outer polygon, projected.
+            let [u, w, _] = frame(n, 0.0);
+            let pr = |a: [f64; 3]| {
+                let d = sub(a, v);
+                (dot(d, u), dot(d, w))
+            };
+            let mut wind = 0.0;
+            let mut edge_d = f64::INFINITY;
+            for i in 0..outer.len() {
+                let (a, b) = (pr(outer[i]), pr(outer[(i + 1) % outer.len()]));
+                wind += (a.0 * b.1 - a.1 * b.0).atan2(a.0 * b.0 + a.1 * b.1);
+                let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+                let t = (-(a.0 * dx + a.1 * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
+                edge_d = edge_d.min(((a.0 + t * dx).powi(2) + (a.1 + t * dy).powi(2)).sqrt());
+            }
+            println!(
+                "P5f {tag}: face {f:?} solid {:?} n={} rings={} verts@v={:?} winding={:.3} boundary_dist={:.3e}",
+                body.solid_of_face(f),
+                outer.len(),
+                face.rings.len(),
+                at_v,
+                wind / std::f64::consts::TAU,
+                edge_d
+            );
+        }
+        let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol());
+        println!("P5 {tag}: t3p {}", format!("{t3:?}").chars().take(300).collect::<String>());
+    }
+}

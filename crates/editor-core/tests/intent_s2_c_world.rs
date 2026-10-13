@@ -960,3 +960,39 @@ fn a_measure_observes_a_world_copy_and_a_construction_does_not() {
         Ok(_) => panic!("a construction read a world copy"),
     }
 }
+
+/// Review probe (PR 4823): every document's product as its vertex
+/// count, point-key count and sorted distinct positions (bits).
+#[test]
+#[ignore = "review probe"]
+fn rtk_product_points() {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    for (name, doc) in documents() {
+        let ev = corpus::eval::<f64>(&doc);
+        match product(&doc, &ev, Tol::witness()) {
+            Ok(body) => {
+                let mut keys = BTreeSet::new();
+                let mut pos = BTreeSet::new();
+                let mut n = 0;
+                for (_, v) in body.vertices() {
+                    n += 1;
+                    keys.insert(v.point);
+                    let p = body.get_point(v.point).unwrap();
+                    pos.insert([p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]);
+                }
+                let mut h = DefaultHasher::new();
+                pos.hash(&mut h);
+                println!(
+                    "RTK {name}: verts={n} keys={} distinct_pos={} pos_hash={:016x} faces={} edges={}",
+                    keys.len(),
+                    pos.len(),
+                    h.finish(),
+                    body.faces().count(),
+                    body.edges().count()
+                );
+            }
+            Err(e) => println!("RTK {name}: refused {:?}", e.kind()),
+        }
+    }
+}
