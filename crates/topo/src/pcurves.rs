@@ -1552,18 +1552,18 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         {
             iso_schedule("pcurve_iso_line_rim")
         }
-        // A locus a surface PAIR names — the intersection, or the pair
-        // that under-determines it — carries no chart coordinates
-        // either, so both faces' rows come from the carrier through
-        // this one schedule, whichever face asks.
-        geom_brep::EdgeDescription::Intersection { .. }
-        | geom_brep::EdgeDescription::OnPair { .. } => iso_schedule("pcurve_iso_seam_column"),
-        geom_brep::EdgeDescription::TangentIntersection { .. }
+        geom_brep::EdgeDescription::Intersection { .. } => iso_schedule("pcurve_iso_seam_column"),
+        // An `OnPair` never names a spline chart: its incidence meter
+        // reads each surface's implicit form, which a spline lacks, so
+        // certification refuses one
+        // (`work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
+        geom_brep::EdgeDescription::OnPair { .. }
+        | geom_brep::EdgeDescription::TangentIntersection { .. }
         | geom_brep::EdgeDescription::Chart(_)
         | geom_brep::EdgeDescription::Scaffold(_) => Err(refuse(
             "no iso derivation for this locus on a NURBS chart — only chart images of \
              this chart, iso-line images of the neighbouring wall, boundary-iso \
-             seams a surface pair names, and LINE or CIRCLE cap rims have exact chart images \
+             Intersection seams, and LINE or CIRCLE cap rims have exact chart images \
              (the trimmed-NURBS pcurve lane is the cut-loft unit's)",
         )),
     }

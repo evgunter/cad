@@ -1184,10 +1184,13 @@ impl<T: Real> EdgeCurveSpec<T> {
                     wrap: already_wrap,
                     ..
                 } => *already == surface && *already_wrap == wrap,
-                _ => true,
+                EdgeDescriptionSpec::OnPair { .. } => false,
+                EdgeDescriptionSpec::Scaffold(_)
+                | EdgeDescriptionSpec::Intersection { .. }
+                | EdgeDescriptionSpec::TangentIntersection { .. } => true,
             },
-            "at_rest_in_chart on a spec that already names a chart discards both \
-             arguments; state the chart instead of re-asking the scaffolding door"
+            "at_rest_in_chart on a spec that already names a chart or a pair discards both \
+             arguments; state the description instead of re-asking the scaffolding door"
         );
         let description = match self.description {
             EdgeDescriptionSpec::Scaffold(mc) => {
@@ -5002,6 +5005,68 @@ mod tests {
         assert_eq!(
             EdgeCurve::certify(bad, p0, p1, &plookup, band()).unwrap_err(),
             CertifyError::WrapOnNonPeriodic
+        );
+    }
+
+    /// **`OnPair` meters incidence on both surfaces, and nothing about
+    /// how they meet.** A line in the floor `z = 0` along the generator
+    /// of a cylinder resting on it certifies as the pair (a tangency the
+    /// certificate does not judge); lifted off the cylinder by `1e-3` it
+    /// refuses on that surface's residual; one surface named twice is
+    /// no pair; and a spline carrier, whose between-sample bound only the
+    /// rung-3 lane states, refuses typed rather than certify on nine
+    /// samples.
+    #[test]
+    fn on_pair_meters_incidence_on_both_surfaces() {
+        let (keys, lookup) = table(vec![
+            Surface::Plane {
+                origin: Point3::origin(),
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 1.0),
+                axis: Vec3::unit_y(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+        ]);
+        let pair = SurfacePair::new(keys[0], keys[1]);
+        let (p0, p1) = (Point3::origin(), Point3::new(0.0, 2.0, 0.0));
+        let on = |p0, p1| EdgeCurveSpec {
+            description: EdgeDescriptionSpec::on_pair(pair),
+            ..line_spec(p0, p1)
+        };
+        let certified = EdgeCurve::certify(on(p0, p1), p0, p1, &lookup, band())
+            .expect("a generator on both surfaces certifies as their pair");
+        assert!(matches!(
+            certified.description(),
+            EdgeDescription::OnPair { pair: got } if *got == pair
+        ));
+        let lift = Vec3::new(0.0, 0.0, -1e-3);
+        let (q0, q1) = (p0 + lift, p1 + lift);
+        assert!(
+            matches!(
+                EdgeCurve::certify(on(q0, q1), q0, q1, &lookup, band()).unwrap_err(),
+                CertifyError::ResidualExceeded {
+                    check: CertCheck::SurfaceResidual { .. },
+                    ..
+                }
+            ),
+            "a carrier off a surface of the pair refuses on its residual"
+        );
+        let mut twice = on(p0, p1);
+        twice.description = EdgeDescriptionSpec::on_pair(SurfacePair::new(keys[0], keys[0]));
+        assert_eq!(
+            EdgeCurve::certify(twice, p0, p1, &lookup, band()).unwrap_err(),
+            CertifyError::IntersectionSameSurface { key: keys[0] }
+        );
+        let mut spline = on(p0, p1);
+        spline.carrier = Curve3::nurbs_placeholder();
+        assert_eq!(
+            EdgeCurve::certify(spline, p0, p1, &lookup, band()).unwrap_err(),
+            CertifyError::Unimplemented,
+            "a spline carrier on a pair refuses typed: no between-sample bound"
         );
     }
 

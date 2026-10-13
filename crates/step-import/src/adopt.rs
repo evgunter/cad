@@ -574,15 +574,16 @@ fn adopt_edges(
             // description becomes the authority record beside it
             // (U2 Q3).
             //
-            // A NURBS RIM is an image in the PLANE side of its own pair:
-            // the cap's boundary, a locus the cap's chart defines (the
-            // native loft's rims rest there too,
-            // `sweep::swept::describe_face_rim_at_rest`), and the pair
-            // cannot carry it — a spline wall has no implicit form to
-            // meter incidence on. The rung's gate (`nurbs_plane_pair`) is
-            // exactly "one described spline wall and one plane", so the
-            // plane is in hand, and certification's own `|C(t) − S(P(t))|`
-            // meters the rim onto it a moment later.
+            // A plane × spline edge is an image in the PLANE side of its
+            // pair, as the native loft's rims are
+            // (`sweep::swept::describe_face_rim_at_rest`): the pair cannot
+            // carry it, a spline wall having no implicit form to meter
+            // incidence on — a capability gap, not D2's classification
+            // (`work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
+            // The rung's gate (`nurbs_plane_pair`) is exactly "one
+            // described spline wall and one plane", so the plane is in
+            // hand, and certification's own `|C(t) − S(P(t))|` meters the
+            // edge onto it a moment later.
             let description = if nurbs_rim {
                 EdgeDescriptionSpec::chart(
                     plane_of_pair(body, fs_plus, fs_minus).unwrap_or(fs_plus),

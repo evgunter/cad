@@ -2649,13 +2649,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         },
                     )?
                 };
-                if reading == SeamReading::Corner {
-                    let spec = draft.into_spec(geom_brep::SurfacePair::new(s1, s2));
-                    let carrier = spec.carrier.kind();
-                    body.set_edge_curve(edge, spec, tol).map_err(|e| {
-                        of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, e)
-                    })?;
-                } else if reading == SeamReading::Intrinsic {
+                if reading == SeamReading::Intrinsic {
                     // Mint the intrinsic tangency on the existing
                     // carrier (U2: today's taxonomy, 1:1 onto
                     // (surface, exact-lane pcurve)) — this also
@@ -2785,10 +2779,10 @@ pub(super) fn seam_refusal(reading: DihedralReading, diag: Indeterminate) -> Boo
 ///   the seam is smooth at its witness and a corner elsewhere, so the
 ///   dihedral passes through the band at a point no station read, and
 ///   the seam is certifiable as neither (D2);
-/// - every station reads a corner ⇒ [`SeamReading::Corner`]: tier 3
-///   reads the seam at those stations, not at the witness, so it is
-///   described as the transverse `Intersection` it reads there, whose
-///   certification meters transversality at every sample;
+/// - every station a corner is unreachable: the witness is the
+///   carrier's midpoint, the schedule's middle station (`mid_param` both),
+///   read over the same extent, and one point cannot read definitely
+///   smooth and definitely a corner — the band lies between the two;
 /// - in band at a station ⇒ the typed escalation of the reading that
 ///   raised it: the seam's first-order arm or wedge, by rung, as
 ///   [`seam_class`] ends it, or its second-order bend
@@ -2830,8 +2824,6 @@ pub(super) enum SeamReading {
     Intrinsic,
     /// The conventional pair: the surfaces under-determine it.
     Conventional,
-    /// Every station reads a corner: the transverse intersection.
-    Corner,
 }
 
 /// [`seam_must_carry`]'s verdict, unworded.
@@ -2848,7 +2840,10 @@ fn must_carry_reading<T: Decide>(
     match geom_brep::must_carry_over_edge(surf1, surf2, carrier, t0, t1, extent, band) {
         MustCarryVerdict::JetDeterminate => Ok(SeamReading::Intrinsic),
         MustCarryVerdict::UnderDetermined => Ok(SeamReading::Conventional),
-        MustCarryVerdict::Transverse => Ok(SeamReading::Corner),
+        MustCarryVerdict::Transverse => unreachable!(
+            "a seam read smooth at its witness reads a corner at every station, the middle \
+             one included: the witness is the middle station, read over the same extent"
+        ),
         MustCarryVerdict::Mixed(stations) => Err(SeamRefusal::Mixed(stations)),
         MustCarryVerdict::InBand(escalation) => {
             let (reading, diag) = DihedralReading::of_must_carry(escalation);

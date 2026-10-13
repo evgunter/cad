@@ -34,15 +34,17 @@ Found by the EXCH-H1 lane (PR #1798); routed here by its fix pass.
 
 ## Closed
 
-Both halves of the path are gone. The channel guess is validated:
-the LINE arm takes the boundary-iso schedule
-(`topo::pcurves::nurbs_iso_derive`'s `iso_schedule`, since c6e5e0f89),
-which offers every boundary column and row in both directions and picks
-by the interior probe (`probe_pick`) against the carrier, so a
-u-column ruling can only win as a column. And the description route
-that handed it a two-surface ruling seam as a `Chart(plane)` is
-retired: a seam two distinct surfaces under-determine is
-`EdgeDescription::OnPair` (TANG, `tang/onpair-description`), and
-`nurbs_iso_derive` derives both faces' rows for it, as for an
-`Intersection`, through that one carrier-keyed arm, whichever face
-asks.
+Closed by c6e5e0f89 (already on main when TANG's `OnPair` PR landed):
+the LINE arm no longer guesses the fixed channel with `side_pick`. It
+takes the boundary-iso schedule (`topo::pcurves::nurbs_iso_derive`'s
+`iso_schedule`), which offers every boundary column and row in both
+directions and picks by the interior probe (`probe_pick`) against the
+carrier, so a u-column ruling can only win as a column, and a carrier
+no candidate holds takes its `General` image.
+
+The route that reached the arm is NOT gone: STEP adoption's
+conventional rung still states `Chart(plane)` for any plane ×
+described-NURBS edge (`step-import/src/adopt.rs`, `nurbs_rim`), the
+class `work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`
+tracks. It now reaches the probe-validated schedule rather than a
+guess.

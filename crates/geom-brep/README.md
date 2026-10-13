@@ -670,7 +670,11 @@ under-determines it). An edge whose stations read definitely
 transverse at one and definitely smooth at its neighbour brackets an
 unsampled in-band point and is refused (`MixedDihedral`, naming the two
 stations); `must_carry_over_edge` answers it `MustCarryVerdict::Mixed`,
-and every constructor refuses it typed. NURBS-
+and every constructor refuses it typed but one: the blend's contact
+edge, routed smooth by its carrier's construction, ends a mixed reading
+as `SurgeryInvariant`, the surgery contradicting its own routing, since
+the rolling ball's exact contact cannot read a corner anywhere along
+it. NURBS-
 and `Approx`-adjacent edges are exempt by kind (`Unmarked`). Curved
 contact census is CONTACT-DESIGN's, at `crates/topo/README.md`.
 

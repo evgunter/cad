@@ -105,4 +105,10 @@ boolean's `MixedSeam`, the offset doors' `MixedEdge`). The wedge
 shoulder's seam stores one description through the chord and through
 `split_edge`
 (`wedge_end_doors::the_shoulder_seam_stores_one_description_through_the_chord_and_split_edge`).
-Closed the P0 `nurbs-iso-derive-line-cap-arm-guesses-wrong-channel`.
+Every door that changes an `OnPair` edge's extent or pair asks the
+rule again (`geom_brep::reask_pair`). Closed the P0
+`nurbs-iso-derive-line-cap-arm-guesses-wrong-channel`, fixed by
+c6e5e0f89, with an accurate note. Filed the plane × spline exception
+(`onpair-has-no-incidence-lane-on-a-spline-adjacent-pair`), the spline
+carrier gap (`onpair-has-no-rung-3-lane-for-a-spline-carrier`) and, on
+CLEAVE, `a-plane-plane-pair-never-rejoins`.

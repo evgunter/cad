@@ -43,8 +43,10 @@
 //!   locus, so it does not decide the branch; the first of the two
 //!   charts (the plus face's, then the minus face's) on which both
 //!   carriers lie on one iso family does, regular at the vertex as
-//!   above. A seam on no family of either chart (two coincident planes'
-//!   chord) is not joined.
+//!   above. A pair on no family of either chart is not joined, nor is a
+//!   plane × plane pair, which the planar path takes and joins only as
+//!   an `Intersection`. The joined edge is asked the must-carry rule
+//!   again over its own span.
 //!
 //! Distinct components of one locus never share a point, and one iso
 //! family has one member through a regular point, so the vertex decides
