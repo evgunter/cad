@@ -1215,3 +1215,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-10-13 16:14 — **r4964b in**: 0 MAJOR, 1 MINOR (the torus judge reads the residual at the quartic's extremes, up to 5.1e-4 ε off), 2 NIT. The PR 4964 pair is complete: no MAJOR either side (tallied 0, major false). Coding byte 95, odd → A = r4964b.
   - r4964b reported that an over-broad pgrep showed it other lanes' process command lines, unused. Recorded as a fair-pair note.
   - Fix pass dispatched with the union (6 items): session_01Q2hRm8S7CHcofMgoWY7Lbm on germ/in-band-sweep-gap-miss. It tightens the Miss judges to Kε, adds a direct `extreme_sign` oracle row, makes the torus residual at its own extremes, and covers the replay and style items. Adjudication is in scratchpad/dr4964/adjudication.md.
+- 2026-10-13 16:50 — **PR 4927 (U-T4) merged** (`d44ee2f85f`).
+  - Verify: local on `d7f2e8b18e`, clippy plus topo (2 973) and the touched sweep rows (217) green at three ε; hosted CI fully green.
+  - Main was merged once more at `6cce20a416`, cleanly. The census rows (190) and the PR's sweep and editor-core binaries are green at the default ε and 1e-12.
+  - Main's sweep tests do not compile since PR 4197, which changed `transform_rigid` to take a `RigidMotion`. Fixes are open as 4992, 4993 and 4994, not ours. I patched the two files locally only for that run.
+  - Row `PR-4927.md` last: concurrent, H, tallied 0, major false. d4927 and the orchestrator's guard are noted in the fix-pass column.
+  - Worktree and target removed.
+  - **(b):** the torus spec does **not** retire yet. The c5 item still carries U-H1, held by D10, and the spec is its home. The item's `pr: 4927` / branch front matter is now stale; refresh it with the next GERM PR that touches `work/`.
+  - **Dispatched the ring-path far-frame item**: session_01BSMsJZ6mG5kL2NbMRNpAV5, branch germ/ring-path-far-frames.
