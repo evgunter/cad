@@ -231,7 +231,7 @@
 //! # Where it runs, and in what order
 //!
 //! At the NODE, in the early walk only (`super::combine`), so the
-//! plain form is untouched and a plain theorem is never re-labelled.
+//! plain form is untouched and nothing the plain walk proves is lost.
 //! The atom is not minted at all rather than folded afterwards, which
 //! is what keeps it out of every product above it.
 //!

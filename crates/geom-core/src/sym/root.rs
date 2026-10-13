@@ -513,7 +513,7 @@ fn split(arg: &Form, sess: &mut Session) -> Option<Form> {
 /// **The one door every `Sqrt` atom is minted through**: the canonical
 /// form under [`super::SymRules::canonical_root`], the opaque atom
 /// otherwise. Early-walk only, like every rule of the algebra — the
-/// plain form stays M10-7's and no theorem is ever re-labelled.
+/// plain form stays M10-7's and nothing it proves is lost.
 pub(super) fn mint(arg: Form, sess: &mut Session) -> Form {
     if sess.rules.canonical_root
         && let Some(f) = canonical(&arg, sess)

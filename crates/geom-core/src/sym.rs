@@ -1076,10 +1076,10 @@ pub mod revalue;
 /// split rests on.
 #[path = "sym/root.rs"]
 mod root;
-/// Rule C: the polynomial square root and the clause-3 fold, its value
-/// read (a parameter bracket in certification arithmetic), and the two
-/// certified reads that take its shape at the decision door and at
-/// `min`/`max`.
+/// The decision read — the one value the tier reads (a parameter
+/// bracket in certification arithmetic) and the arm it certifies at the
+/// decision door and at `min`/`max` — and the exact polynomial square
+/// root, which reads no value.
 #[path = "sym/signed.rs"]
 mod signed;
 /// Rule D: trig of `atan`, exact — the closed forms of `sin`/`cos` at
