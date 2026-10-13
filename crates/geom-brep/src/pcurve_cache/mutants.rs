@@ -19,7 +19,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 14] = [
+pub(super) const SITES: [&str; 15] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -34,6 +34,7 @@ pub(super) const SITES: [&str; 14] = [
     "cone-drift",
     "radial-amplitude",
     "frame",
+    "envelope-fit",
 ];
 
 fn on(site: &str) -> bool {
@@ -154,6 +155,12 @@ pub(super) fn radial_amplitude<T: Real>(a_r: Vec3<T>, b_r: Vec3<T>, l_r: Vec3<T>
 /// added.
 pub(super) fn frame<T: Real>(d_radial: T, d_axis: T) -> Option<T> {
     on("frame").then(|| d_radial + d_axis)
+}
+
+/// The envelope's refusal read as a miss, not a bound on one.
+pub(super) fn envelope_fit(check: super::PcurveCheck) -> Option<bool> {
+    let _ = check;
+    on("envelope-fit").then_some(false)
 }
 
 /// The variable names a site this crate or topo's `chord_join` hooks.

@@ -3171,6 +3171,8 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
     use crate::pcurves::PcurveMintError as M;
     use geom_brep::PcurveCertifyError as C;
     const WRONG: &str = "the stored boundary does not match the face";
+    const BOUND: &str = "the check's certified bound on how far the stored boundary strays from \
+                         the face exceeds the tolerance";
     const KIND: &str = "the kernel cannot yet map a boundary of this kind";
     const CLOSE: &str = geom_core::undecided!("the boundary");
     let (why, recourse) = match e {
@@ -3245,6 +3247,14 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                     REPARAMETERIZE,
                 ),
                 C::CarrierGrazesChart { grazer, .. } => (WRONG, grazer.recourse()),
+                C::ResidualExceeded { check, .. } if check.bounds_a_miss() => {
+                    (BOUND, geom_core::KERNEL_LIMIT_RECOURSE)
+                }
+                C::FittedCertificate {
+                    limb: Some(limb),
+                    magnitude: Some(geom_brep::pcurve_cache::FittedMagnitude::LimbResidual(_)),
+                    ..
+                } if limb.check().bounds_a_miss() => (BOUND, geom_core::KERNEL_LIMIT_RECOURSE),
                 C::ChartRow { .. }
                 | C::CarrierOffChart { .. }
                 | C::ImageMismatch { .. }
@@ -11814,6 +11824,61 @@ mod tests {
                     cause: in_band,
                 }),
                 KERNEL_LIMIT_RECOURSE.to_owned(),
+            ),
+            (
+                "pcurve map residual, definite",
+                pcurve(PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::MapResidual,
+                    sample: 3,
+                }),
+                format!("the stored boundary does not match the face. {DEFECT}"),
+            ),
+            (
+                "pcurve envelope, definite",
+                pcurve(PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::Envelope,
+                    sample: 0,
+                }),
+                format!(
+                    "the check's certified bound on how far the stored boundary strays from the \
+                     face exceeds the tolerance. {KERNEL_LIMIT_RECOURSE}"
+                ),
+            ),
+            (
+                "pcurve envelope term, definite",
+                pcurve(PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::EnvelopeTerm(geom_brep::EnvelopeTerm::Radius),
+                    sample: 0,
+                }),
+                format!(
+                    "the check's certified bound on how far the stored boundary strays from the \
+                     face exceeds the tolerance. {KERNEL_LIMIT_RECOURSE}"
+                ),
+            ),
+            (
+                "pcurve fitted hull limb, definite",
+                pcurve(PcurveCertifyError::FittedCertificate {
+                    limb: Some(geom_brep::SsiLimb::HullSup),
+                    what: "a certificate limb exceeded ε",
+                    magnitude: Some(geom_brep::pcurve_cache::FittedMagnitude::LimbResidual(
+                        MarginDiag::value(5e-8),
+                    )),
+                }),
+                format!(
+                    "the check's certified bound on how far the stored boundary strays from the \
+                     face exceeds the tolerance. {KERNEL_LIMIT_RECOURSE}"
+                ),
+            ),
+            (
+                "pcurve fitted on-locus limb, definite",
+                pcurve(PcurveCertifyError::FittedCertificate {
+                    limb: Some(geom_brep::SsiLimb::OnLocus),
+                    what: "a certificate limb exceeded ε",
+                    magnitude: Some(geom_brep::pcurve_cache::FittedMagnitude::LimbResidual(
+                        MarginDiag::value(5e-8),
+                    )),
+                }),
+                format!("the stored boundary does not match the face. {DEFECT}"),
             ),
             (
                 "pcurve azimuth past a period",

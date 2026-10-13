@@ -1882,12 +1882,19 @@ impl core::fmt::Display for PcurveCertifyError {
                  {MAX_BRANCH_PERIODS} periods from its carrier's — a winding no producer is \
                  known to mint, refused rather than searched for"
             ),
-            Self::ResidualExceeded { check, sample } => write!(
-                f,
-                "pcurve certification: {check:?} at sample {sample} definitely exceeds the \
-                 tolerance band — the pcurve does not represent the carrier through the \
-                 map (D4 ¶2; the residual is a 3-D displacement in metres)"
-            ),
+            Self::ResidualExceeded { check, sample } => {
+                let claim = if check.bounds_a_miss() {
+                    "the certificate cannot show the pcurve represents the carrier through the map"
+                } else {
+                    "the pcurve does not represent the carrier through the map"
+                };
+                write!(
+                    f,
+                    "pcurve certification: {check:?} at sample {sample} definitely exceeds the \
+                     tolerance band — {claim} (D4 ¶2; the residual is a 3-D displacement in \
+                     metres)"
+                )
+            }
             Self::Escalated {
                 check,
                 sample,
@@ -1924,6 +1931,19 @@ impl PcurveCertifyError {
             Self::FittedEscalated { decision, cause } => {
                 return Some(decision.ending(cause, reading));
             }
+            // A limb's decided refusal ends by the limb's own check, as it
+            // does at the SSI door.
+            Self::FittedCertificate {
+                limb: Some(limb),
+                magnitude: Some(FittedMagnitude::LimbResidual(margin)),
+                ..
+            } => {
+                return Some(crate::certify::recourse(
+                    limb.check(),
+                    RefusedArm::SignCertain(Some(*margin)),
+                    reading,
+                ));
+            }
             Self::UnsupportedChart { .. }
             | Self::CarrierOffChart { .. }
             | Self::CarrierGrazesChart { .. }
@@ -1958,13 +1978,30 @@ impl PcurveCheck {
             Self::ChartWinding | Self::ChartIncidence | Self::Sector => {
                 Unsized::Defect.recourse(arm, reading)
             }
-            // A map residual and its between-samples envelope are
-            // bounds on a fitted image as well as an exact one, and the
-            // routing reads the check alone.
+            // A sample's residual is the miss at that sample, on a
+            // fitted image as well as an exact one; the envelope bounds
+            // it between samples ([`PcurveCheck::bounds_a_miss`]).
             Self::MapResidual | Self::Envelope | Self::EnvelopeTerm(_) => {
-                Unsized::Fit.recourse(arm, reading)
+                if self.bounds_a_miss() {
+                    Unsized::Bound.recourse(arm, reading)
+                } else {
+                    Unsized::Fit.recourse(arm, reading)
+                }
             }
         }
+    }
+
+    /// Whether this check refuses on a certified upper bound on a miss
+    /// rather than on the miss: its refusal says only that the
+    /// certificate cannot show the image represents the carrier. The
+    /// envelope and each of its terms bound a part of the miss from
+    /// above, and the parts share `t`, so they can partly cancel.
+    #[must_use]
+    pub fn bounds_a_miss(self) -> bool {
+        let bound = matches!(self, Self::Envelope | Self::EnvelopeTerm(_));
+        #[cfg(test)]
+        let bound = mutants::envelope_fit(self).unwrap_or(bound);
+        bound
     }
 }
 
@@ -9091,6 +9128,43 @@ mod tests {
         terms
             .first_over(band())
             .unwrap_or_else(|| panic!("no term over the band alone: {:?}", terms.0))
+    }
+
+    /// **A refused envelope is a bound, read at rest as one.** Its
+    /// refusal, on the whole envelope or on one term, claims only that
+    /// the certificate cannot show the image, and at rest ends in the
+    /// kernel-limit recourse, where a definite sample residual, the
+    /// miss itself, ends in the defect ending.
+    #[test]
+    fn a_refused_envelope_reads_as_a_bound_at_rest() {
+        use crate::recourse::{Reading, defect_ending};
+        let refused = |check| PcurveCertifyError::ResidualExceeded { check, sample: 0 };
+        for check in [
+            PcurveCheck::Envelope,
+            PcurveCheck::EnvelopeTerm(EnvelopeTerm::Centre),
+            PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityU),
+        ] {
+            let refusal = refused(check);
+            assert_eq!(
+                refusal.ending(Reading::AtRest).as_deref(),
+                Some(geom_core::KERNEL_LIMIT_RECOURSE),
+                "{check:?}: a loose envelope contradicts nothing stored"
+            );
+            assert!(
+                refusal.to_string().contains("the certificate cannot show"),
+                "{check:?}: {refusal}"
+            );
+        }
+        let miss = refused(PcurveCheck::MapResidual);
+        assert_eq!(
+            miss.ending(Reading::AtRest).as_deref(),
+            Some(defect_ending(Reading::AtRest)),
+            "a sample's residual is the miss"
+        );
+        assert!(
+            miss.to_string().contains("the pcurve does not represent"),
+            "{miss}"
+        );
     }
 
     /// **A refused envelope names the incidence that failed.** Each row
