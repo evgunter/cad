@@ -198,6 +198,8 @@ mod pcurve_parameter_finding;
 mod pcurve_villarceau;
 #[path = "periodic_chart_closure.rs"]
 mod periodic_chart_closure;
+#[path = "review_4938_windings.rs"]
+mod review_4938_windings;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
 #[path = "r2_cert3_e2e.rs"]

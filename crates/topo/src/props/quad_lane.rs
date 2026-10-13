@@ -704,6 +704,26 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                            no ring of a trimmed torus face",
                 });
             }
+            // REVIEW 4938 probe: the reviewed head's spelling of a
+            // spiric wall's ends, compared against the fix's.
+            let spiric_image_ends = |e: &LoopEdge<T>, u0: T, v0: T, sense: T| {
+                let Curve3::Spiric {
+                    major_radius,
+                    minor_radius,
+                    offset,
+                    ..
+                } = e.carrier
+                else {
+                    return [(Interval::refused(), Interval::refused()); 2];
+                };
+                let at = |t: T| {
+                    let f =
+                        ((major_radius + minor_radius * t.cos()).powi(2) - offset.powi(2)).sqrt();
+                    (iv(u0 + sense * f.atan2(offset)), iv(v0 + sense * t))
+                };
+                let (a, b) = (at(e.t0), at(e.t1));
+                if e.forward { [a, b] } else { [b, a] }
+            };
             let lifted = crate::pcurves::lifted_images(body, hes);
             let mut halves = Vec::with_capacity(outer.len());
             for ((le, he), image) in outer.iter().zip(hes).zip(&lifted) {
@@ -742,7 +762,53 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                         }
                         _ => WallImage::Other,
                     },
-                    ends: if le.forward { [a, b] } else { [b, a] },
+                    ends: {
+                        let new = if le.forward { [a, b] } else { [b, a] };
+                        let old = match image {
+                            Pcurve::Spiric {
+                                image: SpiricImage::Wall { u0, v0, sense, .. },
+                                ..
+                            } => Some(spiric_image_ends(le, *u0, *v0, *sense)),
+                            Pcurve::Harmonic { p0, pl, .. } => {
+                                let (p0, pl) = (pair(*p0), vec(*pl));
+                                let at = |t: Interval| (p0.0 + pl.0 * t, p0.1 + pl.1 * t);
+                                let (x, y) = (at(iv(t0)), at(iv(t0) + (iv(t1) - iv(t0))));
+                                Some(if le.forward { [x, y] } else { [y, x] })
+                            }
+                            _ => None,
+                        };
+                        if let Some(path) = std::env::var_os("REVIEW4938_ENDS") {
+                            use std::io::Write as _;
+                            let who = std::env::var("NEXTEST_TEST_NAME").unwrap_or_else(|_| "?".into()).replace(' ', "_");
+                            let mut out = std::fs::OpenOptions::new().create(true).append(true).open(path).unwrap();
+                            let w = |x: Interval| x.hi() - x.lo();
+                            let d = |p: Interval, q: Interval| {
+                                (p.lo() - q.lo()).abs().max((p.hi() - q.hi()).abs())
+                            };
+                            let kind = match image {
+                                Pcurve::Spiric { .. } => "spiric",
+                                Pcurve::Harmonic { .. } => "harmonic",
+                                _ => "other",
+                            };
+                            let line = match old {
+                                Some(o) => format!(
+                                    "REVIEW4938_ENDS {who} {kind} fwd={} le_t=({:e},{:e}) pc_t=({:e},{:e}) new=[({:.17e},{:.17e}),({:.17e},{:.17e})] maxdiff={:e} oldwidth={:e}",
+                                    le.forward,
+                                    iv(le.t0).lo(), iv(le.t1).lo(), iv(t0).lo(), iv(t1).lo(),
+                                    new[0].0.lo(), new[0].1.lo(), new[1].0.lo(), new[1].1.lo(),
+                                    [d(new[0].0, o[0].0), d(new[0].1, o[0].1), d(new[1].0, o[1].0), d(new[1].1, o[1].1)].into_iter().fold(0.0, f64::max),
+                                    [w(o[0].0), w(o[0].1), w(o[1].0), w(o[1].1)].into_iter().fold(0.0, f64::max),
+                                ),
+                                None => format!("REVIEW4938_ENDS {who} {kind} (no old spelling)"),
+                            };
+                            let _ = out.write_all(format!("{line}\n").as_bytes());
+                        }
+                        if std::env::var_os("REVIEW4938_SWAP").is_some() {
+                            [new[1], new[0]]
+                        } else {
+                            new
+                        }
+                    },
                     env: iv(cache.certificate().envelope),
                     span: iv(t1) - iv(t0),
                 });

@@ -1338,6 +1338,123 @@ mod tests {
         }
     }
 
+    /// Reviewer probe (PR 4938 verify): a whole oval from `t0` closed by a
+    /// meridian back, the back set off by a true gap `g` (metres) in `u`
+    /// (at the junction's own `ρ = R + r·cos t0`) or in `v` (at `r`).
+    /// Expected: `g < S + ε = 4ε` measures, `4ε < g < 13ε` escalates,
+    /// `g > 13ε` refuses `ChartLoopOpen`.
+    #[test]
+    fn review_4938_junction_gap_sweep() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let eps = tol.eps();
+        let k = tol.k();
+        let mut bad = Vec::new();
+        let mut rows = 0;
+        let small = std::env::var_os("REVIEW4938_SMALL").is_some();
+        let rs: &[f64] = if small {
+            &[0.5, 0.6]
+        } else {
+            &[0.1, 0.3, 0.5, 0.6, 0.9]
+        };
+        let ts: &[f64] = if small {
+            &[PI, 0.0]
+        } else {
+            &[PI, 0.0, PI / 2.0, 2.0 * PI / 3.0, 0.9 * PI]
+        };
+        for &r in rs {
+            for &t0 in ts {
+                let rho = 1.0 + r * t0.cos();
+                for in_v in [false, true] {
+                    for g in [
+                        0.0,
+                        1.0,
+                        2.0,
+                        3.0,
+                        3.8,
+                        4.3,
+                        8.0,
+                        0.5 + 3.0 + k - 0.8,
+                        3.0 + k + 0.4,
+                        20.0,
+                    ] {
+                        let (e, _) = framed(
+                            (1.0, r, 0.05),
+                            [0.0, 0.0, 1.0],
+                            [1.0, 0.0, 0.0],
+                            [0.0; 3],
+                            [0.0; 3],
+                            (t0, t0 + 2.0 * PI),
+                            true,
+                        );
+                        let arc = SpiricEdgeQ {
+                            wall: Some(WallImageQ {
+                                sense: 1.0,
+                                v0: Interval::zero(),
+                                env: Interval::zero(),
+                            }),
+                            ..e
+                        };
+                        let oval = spiric_wall_ends(&arc, Interval::zero()).unwrap();
+                        let (du, dv) = if in_v {
+                            (Interval::zero(), pt(g * eps / r))
+                        } else {
+                            (pt(g * eps / rho), Interval::zero())
+                        };
+                        let back = ChartEndsQ {
+                            start: (oval.end.0 + du, oval.end.1 + dv),
+                            end: (oval.end.0 + du, oval.start.1 + dv),
+                            env: Interval::zero(),
+                        };
+                        let face = SpiricFaceQ {
+                            closed_va: [Interval::zero(); 3],
+                            spirics: vec![arc],
+                            lever: [Interval::zero(); 3],
+                            perimeter: 20.0,
+                            wall: Some(WallChartQ {
+                                major: pt(1.0),
+                                minor: pt(r),
+                                rims: vec![],
+                                meridians: vec![MeridianQ {
+                                    dv: oval.start.1 - oval.end.1,
+                                    env: Interval::zero(),
+                                }],
+                                ends: vec![oval, back],
+                            }),
+                        };
+                        let want = if g < 4.0 {
+                            "ok"
+                        } else if g < 3.0 + k {
+                            "esc"
+                        } else {
+                            "open"
+                        };
+                        let class = |x: &Result<RoundOutcome, PropsError>| match x {
+                            Ok(_) => "ok",
+                            Err(PropsError::Escalated { .. }) => "esc",
+                            Err(PropsError::ChartLoopOpen) => "open",
+                            Err(_) => "other",
+                        };
+                        let a = spiric_face_rounds::<f64>(&face, eps, band, RoundWindow::SCHEDULE);
+                        let b =
+                            spiric_face_rounds::<Interval>(&face, eps, band, RoundWindow::SCHEDULE);
+                        rows += 1;
+                        if class(&a) != want || class(&b) != want {
+                            bad.push(format!(
+                                "r={r} t0={t0:.3} in_v={in_v} g={g}ε want {want}: f64 {a:?} iv {b:?}"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!("REVIEW4938 sweep eps={eps} rows={rows} bad={}", bad.len());
+        for b in &bad {
+            eprintln!("REVIEW4938 {b}");
+        }
+        assert!(bad.is_empty());
+    }
+
     /// **A junction its gap's bounds cannot decide is never measured**:
     /// the meridian back's start held as a bracket `20ε/ρ` wide in `u`
     /// about the oval's end, so the gap's lower bound is within the slack
