@@ -793,12 +793,17 @@ impl fmt::Display for RevolveError {
             Self::SmoothJoinRefuted {
                 edge,
                 mixed: Some(stations),
-            } => write!(f, "along the join {edge:?}, {stations}"),
+            } => write!(
+                f,
+                "along the join {edge:?}, {stations}. Recourse: {}",
+                geom_core::COINCIDENCE_RECOURSE
+            ),
             Self::SmoothJoinRefuted { edge, mixed: None } => write!(
                 f,
                 "the join along {edge:?} classified definitely smooth at its witness but \
-                 definitely a corner at a certification station, so the construction \
-                 refuses rather than choose a description for it"
+                 definitely a corner at every certification station, so the construction \
+                 refuses rather than choose a description for it. Recourse: {}",
+                geom_core::COINCIDENCE_RECOURSE
             ),
             Self::PinnedRunStation {
                 loop_index,

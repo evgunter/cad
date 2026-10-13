@@ -105,7 +105,9 @@ pub(crate) fn re_ask_on_pair<T: Decide>(
     let chord = carrier.eval(t0).distance(carrier.eval(t1));
     geom_brep::reask_pair(surfaces, carrier, (t0, t1), chord, declared, band).map_err(|refusal| {
         match refusal {
-            geom_brep::PairRefusal::Mixed(stations) => ReplaceFaceError::MixedEdge { edge, stations },
+            geom_brep::PairRefusal::Mixed(stations) => {
+                ReplaceFaceError::MixedEdge { edge, stations }
+            }
             geom_brep::PairRefusal::InBand(escalation) => ReplaceFaceError::Escalated {
                 source: escalation.diag(),
             },

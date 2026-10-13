@@ -100,12 +100,12 @@ pub use description::{
 };
 pub use dihedral::{
     DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, DihedralReading, MATERIAL_PAIRING,
-    MATERIAL_PAIRING_CLAUSE, MIXED_JOIN_RECOURSE, MaterialPairing, MaterialWedge, MixedStations,
-    MustCarryDescription, MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, SecondOrder,
+    MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations, MustCarryDescription,
+    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, SecondOrder,
     SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral,
     classify_material_pairing, classify_material_pairing_as, folded_lever_arm, interior_stations,
-    material_kappa_rel, must_carry_description, must_carry_over_edge, reask_pair, second_order_walk,
-    tangent_second_order,
+    material_kappa_rel, must_carry_description, must_carry_over_edge, reask_pair,
+    second_order_walk, tangent_second_order,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,

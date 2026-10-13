@@ -823,6 +823,11 @@ impl DescribeRefusal {
     }
 }
 
+/// The recourse of the decision whether the faces at a kept face's
+/// boundary edge cross or meet smoothly, shared by its refused arms.
+const CROSS_OR_SMOOTH: &str =
+    "Recourse: move the geometry so the faces at that edge clearly cross or are clearly smooth";
+
 impl MergeCoplanarError {
     /// The door's refusal for `refusal` at one of `boundary`'s edges,
     /// naming the kept face it was walked from.
@@ -1271,8 +1276,6 @@ impl core::fmt::Display for MergeCoplanarError {
                 reading,
                 diag,
             } => {
-                const CROSS_OR_SMOOTH: &str = "Recourse: move the geometry so the faces at that \
-                                               edge clearly cross or are clearly smooth";
                 let (question, ending) = match reading {
                     DihedralReading::Lever(geom_brep::LeverRung::Arm) => (
                         concat!("whether the edge is ", geom_brep::dihedral_arm_clause!()),
@@ -1302,7 +1305,7 @@ impl core::fmt::Display for MergeCoplanarError {
             } => write!(
                 f,
                 "merge_coplanar_faces: along kept face {face:?}'s boundary edge {edge:?}, \
-                 {stations}"
+                 {stations}. {CROSS_OR_SMOOTH}"
             ),
         }
     }

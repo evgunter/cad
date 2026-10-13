@@ -1604,9 +1604,12 @@ impl EulerOpError {
             Self::SplitTangentRefuted {
                 mixed: Some(stations),
                 ..
-            } => format!("along a piece of a split tangent edge, {stations}"),
+            } => format!(
+                "along a piece of a split tangent edge, {stations}. Recourse: {}",
+                crate::split::TANGENT_PIECE_LEVER
+            ),
             Self::SplitTangentRefuted { mixed: None, .. } => format!(
-                "a piece of a split tangent edge reads a corner at a station along it, against \
+                "a piece of a split tangent edge reads a corner at every station along it, against \
                  the tangency the edge certified, so what that piece is cannot be said. \
                  Recourse: {}",
                 crate::split::TANGENT_PIECE_LEVER

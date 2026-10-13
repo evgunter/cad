@@ -859,7 +859,10 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                  drew. {NOT_YET_ENDING}"
             ),
             Self::MixedEdge { stations, .. } => {
-                write!(f, "along an edge the offset moves, {stations}")
+                write!(
+                    f,
+                    "along an edge the offset moves, {stations}. Recourse: {COINCIDENCE_RECOURSE}"
+                )
             }
             Self::ReanchorPastCarrierEnd { gap, .. } => write!(
                 f,

@@ -638,12 +638,13 @@ impl core::fmt::Display for SplitJoinError {
                 ..
             } => write!(
                 f,
-                "along a cut's tangent ruling of a curved face, {stations}"
+                "along a cut's tangent ruling of a curved face, {stations}. Recourse: \
+                 {JOIN_RECOURSE}"
             ),
             Self::TangentChordRefuted { mixed: None, .. } => write!(
                 f,
-                "a cut reads tangent to a curved face along a ruling but at a corner \
-                 elsewhere along it, so what that ruling is cannot be said. Recourse: \
+                "a cut reads tangent to a curved face along a ruling but a corner at every \
+                 station along it, so what that ruling is cannot be said. Recourse: \
                  {JOIN_RECOURSE}"
             ),
             Self::SectionCrossings { case, band, .. } => write!(

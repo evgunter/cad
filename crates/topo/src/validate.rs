@@ -3750,7 +3750,9 @@ impl fmt::Display for ValidationError {
             Self::SliverDihedral { check, cause, .. } => {
                 write!(f, "{}. {}", check.lead(), check.ending(cause))
             }
-            Self::MixedDihedral { stations, .. } => write!(f, "along an edge, {stations}"),
+            Self::MixedDihedral { stations, .. } => {
+                write!(f, "along an edge, {stations}. Recourse: {}", WEDGE.lever)
+            }
             Self::TransverseNotIntrinsic { .. } => write!(
                 f,
                 "an edge where two faces cross is stored as a conventional curve, though \

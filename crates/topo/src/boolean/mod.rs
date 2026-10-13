@@ -4142,7 +4142,11 @@ impl core::fmt::Display for BooleanError {
                 )
             }
             Self::MixedSeam { stations, .. } => {
-                write!(f, "along a seam of the result, {stations}")
+                write!(
+                    f,
+                    "along a seam of the result, {stations}. Recourse: {}",
+                    refusal_routes::SEAM_WEDGE.lever
+                )
             }
             Self::TornComponent { operand, shell } => write!(
                 f,

@@ -917,8 +917,9 @@ fn joined_spec<T: Decide>(
         geom_brep::EdgeDescription::OnPair { pair } => {
             let [ka, kb] = pair.keys();
             let surface = |k| {
-                body.get_surface(k)
-                    .ok_or(desync("a joined edge's pair names a surface the body lacks"))
+                body.get_surface(k).ok_or(desync(
+                    "a joined edge's pair names a surface the body lacks",
+                ))
             };
             let chord = carrier.eval(a).distance(carrier.eval(b));
             geom_brep::reask_pair(

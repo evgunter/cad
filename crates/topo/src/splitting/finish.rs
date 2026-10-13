@@ -566,13 +566,14 @@ impl core::fmt::Display for SplitFinishError {
                 ..
             } => write!(
                 f,
-                "along an edge the cut leaves between two faces, {stations}"
+                "along an edge the cut leaves between two faces, {stations}. Recourse: {}",
+                super::SPLIT_COINCIDENCE_RECOURSE
             ),
             Self::SmoothJoinRefuted { mixed: None, .. } => write!(
                 f,
                 "two faces along the cut meet smoothly at the middle of their shared edge \
-                 but at a corner elsewhere along it, so the split cannot say what that edge \
-                 is. Recourse: {}",
+                 but at a corner at every station along it, so the split cannot say what \
+                 that edge is. Recourse: {}",
                 super::SPLIT_COINCIDENCE_RECOURSE
             ),
             Self::SectionWindingUndecided {

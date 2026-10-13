@@ -299,9 +299,9 @@ impl<T: Decide> Body<T> {
                         edge,
                         diag: escalation.diag(),
                     },
-                    geom_brep::PairRefusal::InBand(geom_brep::MustCarryEscalation::SecondOrder(
-                        diag,
-                    )) => EulerOpError::SplitTangentBendEscalated { edge, diag },
+                    geom_brep::PairRefusal::InBand(
+                        geom_brep::MustCarryEscalation::SecondOrder(diag),
+                    ) => EulerOpError::SplitTangentBendEscalated { edge, diag },
                     geom_brep::PairRefusal::Mixed(stations) => EulerOpError::SplitTangentRefuted {
                         edge,
                         mixed: Some(stations),
