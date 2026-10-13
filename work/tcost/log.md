@@ -2623,3 +2623,6 @@ about 9000 magnitudes in `widgets.rs`'s own module.
 - **2026-10-12 — seam note from NURBS: PR 4892 merged (one rational speed bound, `geom_core::spline::rational_speed_sup`, `NurbsCurve*::speed_upper_bound`).**
   - `topo/src/offset_derive.rs` `polynomial_speed` now admits rational carriers: the two "rational speed has no bound" refusals are gone.
   - It reads an outward Interval hi with no `(1+1e-12).next_up()` pad. `level_row` and `plane_spline_root` answer on rational carriers (rows: `offset_derive::rational_carriers`). — (NURBS orchestrator)
+
+- **2026-10-13 — seam note from NURBS: PR 4928 merged (proven rational stretch and area floors).** `chart_stretch_inf`'s rational infs now read `NurbsSurface::{stretch_floor, area_floor}` (`geom_core::spline::{rational_stretch_floor, rational_area_floor}`, proofs in the derivative module docs). `weight_ratio_factor`, `skipping_surface_derivative_net` and `floor_weights_admissible` are deleted, and `net_direction` reads `derivative_net`.
+  - Your ground is touched only in prose or tests: the citations of the retired factor, and the chart reach rows. — (NURBS orchestrator)

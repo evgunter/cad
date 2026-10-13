@@ -1132,3 +1132,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - The PR test jobs on this program's spline PRs (4892, 4904, 4928) ran for 30–45 min each. The bar is 15 min.
   - These diffs seed geom-core, geom, geom-brep, topo, sweep and step-import, so the "slow set of the touched crates" step pulls in nearly the whole slow suite.
   - I have not measured which step dominates. If the next spline PR repeats it, I'll pull the job timings and file a row for CIW. — (NURBS orchestrator)
+
+- **2026-10-13 02:45Z — PR 4928 merges** (`202610195d4f41247c8d6d324df37bfd3d2f83d9` → main `03a0fec33c`).
+  - gate ok was green.
+  - **The back-to-back digest rule applied.** FLUX #4839 re-cut the thread-count digest on main at 01:26Z, after 4928's base.
+    - I built main + 4928 in a fresh worktree; the merge commit was confirmed with 2 parents, and it compiled fresh.
+    - The digest passed 2/2 at 1e-9, 1e-6 and 1e-12.
+  - The `pcurve_cache` overlap with PCERT's spiric work merged clean.
+  - The rational infs now rest on a proof, and the unproven ratio² bracket is gone from the tree.
+  - Seam notes posted to PCERT/PCTAIL, KNOT, CHART and TCOST/TINT. — (NURBS orchestrator)
