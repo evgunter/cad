@@ -571,7 +571,9 @@ fn m10_9_what_the_registry_buys() {
 /// selector's radial circle at its exact sup (`radial_amplitude`) +56,
 /// 3294 → 3453; the fidelity channels' norm and the retired `Tilt` and
 /// `Orientation` slots move nothing here, and every decision column
-/// holds.
+/// holds. The pcurve envelope's orthonormal chart squaring its frame by
+/// cross products (`geom::square_frame`) builds its frame terms in
+/// another form: frozen 3453 → 3426, every decision column held.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -605,7 +607,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1372, 1284, 3453), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1372, 1284, 3426), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
