@@ -106,9 +106,10 @@ crates/sweep/src/skin.rs	1	constant	k as f64 / steps	a sub-arc breakpoint k/m, s
 crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
 crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T
+crates/topo/src/bisect.rs	1	constant	escalate	the band's escalation width, a tolerance
 crates/topo/src/boolean/boxes.rs	1	constant	l as f64	a sample index
 crates/topo/src/boolean/boxes.rs	3	constant	k as f64	a sample index
-crates/topo/src/boolean/carrier_touch.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
+crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
 crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(POLE_CANDIDATES)	a candidate count
 crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(n)	a subdivision count
 crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(top)	a subdivision count
@@ -127,7 +128,6 @@ crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction o
 crates/topo/src/boolean/solid_contain.rs	1	constant	f64::from(k)	a decided whole-period count
 crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/boolean/sphere_region.rs	1	constant	share	a fixed split fraction
-crates/topo/src/census/curved.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
 crates/topo/src/chart_bound.rs	1	constant	<fn>	a fixed direction of the 2-D ray schedule (SCHEDULE_2D)
 crates/topo/src/chart_bound.rs	1	constant	k	a ring shift count (RING_SHIFTS)
 crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule

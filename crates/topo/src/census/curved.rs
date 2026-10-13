@@ -31,12 +31,10 @@
 //! distance's component along a unit `n` less each piece's run along `n`
 //! and its bend (`|n·C′|·h + |C″|·h²/2`), the second-order bound
 //! `boolean::carrier_touch` takes, read along the gap and across each
-//! piece's tangent. Pieces stop at the tangency floor
-//! `√(escalate/κ)/8`, `κ` the two carriers' summed curvature bound: two
-//! carriers tangent at a point stay within `escalate` of each other
-//! over a half-length of at least `√(2·escalate/κ)`, so the piece that
-//! holds the touch has its middle within `escalate/128` of the other.
-//! A spline bounds no acceleration here, so its pieces stop at the band
+//! piece's tangent. Pieces stop at [`crate::bisect::tangency_floor`] of
+//! `1/κ`, `κ` the two carriers' summed curvature bound
+//! ([`crate::carrier_speed::curvature_hi`]). A spline bounds neither
+//! acceleration nor curvature here, so its pieces stop at the band
 //! itself and a tangency of a spline runs past the budget and refuses
 //! typed. A pair that stops is polished toward the meeting and read.
 //! Every piece the search does not clear ends at such a pair, so no
@@ -63,6 +61,8 @@ struct Read<T: Real> {
     hi: SupSpeed<T>,
     /// A bound on `|C″|`, `None` on a spline.
     accel: Option<T>,
+    /// A bound on the curvature, `None` on a spline.
+    curvature: Option<T>,
 }
 
 /// A run `(a, b)` of a span, cut `depth` times.
@@ -89,7 +89,7 @@ impl<T: Real> Piece<T> {
 
     /// The most metres a point of the piece lies from its middle point.
     fn reach(self, hi: SupSpeed<T>) -> T {
-        Margin::metered_sup(self.half(), hi).value()
+        crate::bisect::reach(hi, (self.a, self.b))
     }
 
     /// The two halves, in order.
@@ -159,11 +159,13 @@ fn read<T: Decide>(
     let carrier = curve.carrier().clone();
     let (lo, hi) = crate::carrier_speed::speed_range(&carrier);
     let accel = crate::carrier_speed::accel_hi(&carrier);
+    let curvature = crate::carrier_speed::curvature_hi(&carrier);
     let span = curve.params();
-    if hi.get().is_poison() {
+    let reach = Margin::metered_sup((span.1 - span.0).abs(), hi);
+    if decided("pm_census_curved_speed_hi", reach, band, errors)? != Sign::Positive {
         refuse(
             edge,
-            "a record on a curved edge whose speed has no upper bound",
+            "a record on a curved edge whose speed bound meters no reach",
             errors,
         );
         return None;
@@ -184,28 +186,44 @@ fn read<T: Decide>(
         lo,
         hi,
         accel,
+        curvature,
     })
 }
 
-/// Gauss–Newton from `t` toward `r`'s foot of `q`, each step kept only
-/// while it moves the point less than `16·slack` metres along the
-/// carrier: the steps a foot in reach needs, and not a jump to a far
-/// branch.
+/// Whether a polish step that moves its point `moved` metres is kept:
+/// while it moves less than `bound` (the steps a foot in reach needs,
+/// and not a jump to a far branch), decided exactly. A singular step —
+/// a tangency's — comes out poison and is dropped with the rest, at
+/// every scalar.
+fn step_kept<T: Decide>(moved: T, bound: T) -> bool {
+    crate::splitting::order::exact_band().is_ok_and(|exact| {
+        surely(
+            "pm_census_curved_polish_step",
+            bound - moved,
+            exact,
+            Sign::Positive,
+        )
+    })
+}
+
+/// Gauss–Newton from `t` toward `r`'s foot of `q`, each step kept
+/// ([`step_kept`]) while it moves the point less than `16·slack` metres
+/// along the carrier.
 fn polish_foot<T: Decide>(r: &Read<T>, q: Point3<T>, mut t: T, slack: T) -> T {
     let bound = slack * T::from_f64(16.0);
     for _ in 0..POLISH_STEPS {
         let (p, d) = r.curve.ders1(t);
         let dt = T::zero() - (p - q).dot(d) / d.dot(d);
-        let keep = d.norm() * dt.abs() - bound;
-        t = keep.select_le_zero(t + dt, t);
+        if step_kept(d.norm() * dt.abs(), bound) {
+            t = t + dt;
+        }
     }
     t
 }
 
 /// Gauss–Newton from `(s, t)` toward where `a` and `b` meet, kept as
-/// [`polish_foot`]'s steps are. At a tangency the step is singular: a
-/// step that comes out poison ends the polish where it stands, and the
-/// feet that follow it in [`meet_at`] still land.
+/// [`polish_foot`]'s steps are; at a tangency the step is singular, and
+/// the feet that follow it in [`meet_at`] still land.
 fn polish_pair<T: Decide>(a: &Read<T>, b: &Read<T>, (mut s, mut t): (T, T), slack: T) -> (T, T) {
     let bound = slack * T::from_f64(16.0);
     for _ in 0..POLISH_STEPS {
@@ -216,12 +234,10 @@ fn polish_pair<T: Decide>(a: &Read<T>, b: &Read<T>, (mut s, mut t): (T, T), slac
         let (ad, bd) = (da.dot(d), db.dot(d));
         let det = aa * bb - ab.powi(2);
         let (ds, dt) = ((ab * bd - bb * ad) / det, (aa * bd - ab * ad) / det);
-        if ds.is_poison() || dt.is_poison() {
-            break;
+        if step_kept(da.norm() * ds.abs() + db.norm() * dt.abs(), bound) {
+            s = s + ds;
+            t = t + dt;
         }
-        let keep = da.norm() * ds.abs() + db.norm() * dt.abs() - bound;
-        s = keep.select_le_zero(s + ds, s);
-        t = keep.select_le_zero(t + dt, t);
     }
     (s, t)
 }
@@ -240,7 +256,7 @@ fn feet<T: Decide>(
         return Some(vec![polish_foot(r, q, t, slack)]);
     }
     let mut out = Vec::new();
-    let walk = bisect(Piece::whole(r.span), |p| {
+    let walk = bisect([Piece::whole(r.span)], |p| -> Step<Piece<T>, ()> {
         let (m, reach) = (p.mid(), p.reach(r.hi));
         let gap = (r.curve.eval(m) - q).norm();
         if surely(
@@ -342,10 +358,10 @@ fn interior_at<T: Decide>(
 /// Whether `q`, at parameter distance `m` inside the span from its end
 /// at `end`, is clear of that end (module docs). The parameter distance
 /// metered by the least speed understates the arc, so it decides clear
-/// and past; where it reads zero, the same distance metered by the
-/// greatest speed decides the side (past, or within the band of the
-/// end, is not inside), and on the inner side the point's distance
-/// from the end's point decides the rest.
+/// and past; where it reads zero or in its band, the same distance
+/// metered by the greatest speed decides the side (past, or within the
+/// band of the end, is not inside), and on the inner side the point's
+/// distance from the end's point decides the rest.
 fn clear_of_end<T: Decide>(
     r: &Read<T>,
     q: Point3<T>,
@@ -354,26 +370,22 @@ fn clear_of_end<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
+    match geom_core::k_stats::decide("pm_census_ve_curved_span", Margin::metered(m, r.lo), band) {
+        Ok(Sign::Positive) => return Some(true),
+        Ok(Sign::Negative) => return Some(false),
+        Ok(Sign::Zero) | Err(_) => {}
+    }
     match decided(
-        "pm_census_ve_curved_span",
-        Margin::metered(m, r.lo),
+        "pm_census_ve_curved_side",
+        Margin::metered_sup(m, r.hi),
         band,
         errors,
     )? {
-        Sign::Positive => Some(true),
-        Sign::Negative => Some(false),
-        Sign::Zero => match decided(
-            "pm_census_ve_curved_side",
-            Margin::metered_sup(m, r.hi),
-            band,
-            errors,
-        )? {
-            Sign::Negative | Sign::Zero => Some(false),
-            Sign::Positive => {
-                let chord = Margin::norm3(q - r.curve.eval(end));
-                gap_is_zero("pm_census_ve_curved_end", chord, band, errors).map(|at| !at)
-            }
-        },
+        Sign::Negative | Sign::Zero => Some(false),
+        Sign::Positive => {
+            let chord = Margin::norm3(q - r.curve.eval(end));
+            gap_is_zero("pm_census_ve_curved_end", chord, band, errors).map(|at| !at)
+        }
     }
 }
 
@@ -387,39 +399,49 @@ fn pieces_apart<T: Decide>(
     let ((qa, da), (qb, db)) = (a.curve.ders1(pa.mid()), b.curve.ders1(pb.mid()));
     let gap = qa - qb;
     let dist = gap.norm();
-    let mut bound = dist - pa.reach(a.hi) - pb.reach(b.hi);
-    if let (Some(acc_a), Some(acc_b)) = (a.accel, b.accel) {
-        let (ha, hb) = (pa.half(), pb.half());
-        let bend = (acc_a * ha.powi(2) + acc_b * hb.powi(2)) * T::from_f64(0.5);
-        // `|D| ≥ |n·D|` for every unit `n`: along the gap, and across
-        // each piece's tangent, where two near-parallel pieces read their
-        // separation rather than their offset along it.
-        let across = |d: Vec3<T>| gap - d * (gap.dot(d) / d.dot(d));
-        for n in [gap, across(da), across(db)] {
-            let n = n / n.norm();
-            let second = n.dot(gap).abs() - n.dot(da).abs() * ha - n.dot(db).abs() * hb - bend;
-            if !second.is_poison() {
-                bound = bound.max(second);
-            }
-        }
+    let clear = |bound: T| surely("pm_census_ee_curved_clear", bound, band, Sign::Positive);
+    if clear(dist - pa.reach(a.hi) - pb.reach(b.hi)) {
+        return true;
     }
-    surely("pm_census_ee_curved_clear", bound, band, Sign::Positive)
+    let (Some(acc_a), Some(acc_b)) = (a.accel, b.accel) else {
+        return false;
+    };
+    let (ha, hb) = (pa.half(), pb.half());
+    let bend = (acc_a * ha.powi(2) + acc_b * hb.powi(2)) * T::from_f64(0.5);
+    // `|D| ≥ |n·D|` for every unit `n`: along the gap, and across each
+    // piece's tangent, where two near-parallel pieces read their
+    // separation rather than their offset along it. A direction that
+    // comes out poison decides nothing.
+    let across = |d: Vec3<T>| gap - d * (gap.dot(d) / d.dot(d));
+    [gap, across(da), across(db)].into_iter().any(|n| {
+        let n = n / n.norm();
+        clear(n.dot(gap).abs() - n.dot(da).abs() * ha - n.dot(db).abs() * hb - bend)
+    })
 }
 
 /// The tangency floor of `a` against `b` in metres (module docs), or
-/// `None` where a carrier bounds no acceleration.
+/// `None` where a carrier bounds no curvature.
 fn floor<T: Decide>(a: &Read<T>, b: &Read<T>, band: Band) -> Option<T> {
-    let bend = |r: &Read<T>| r.accel.map(|acc| acc / r.lo.get().powi(2));
-    let kappa = bend(a)? + bend(b)?;
-    let escalate = T::from_f64(band.escalate());
-    Some((escalate / kappa).sqrt() * T::from_f64(0.125))
+    let kappa = a.curvature? + b.curvature?;
+    Some(crate::bisect::tangency_floor(
+        T::one() / kappa,
+        band.escalate(),
+    ))
 }
 
-/// Whether a piece of reach `reach` is small enough to stop at.
+/// Whether a piece of reach `reach` is small enough to stop at: within
+/// the floor, decided — an enclosure of the floor is read at its lower
+/// end, so a wide one halves on rather than stopping a long piece.
 fn stops<T: Decide>(reach: T, floor: Option<T>, band: Band) -> bool {
+    let within = |margin: T| {
+        matches!(
+            geom_core::k_stats::decide("pm_census_ee_curved_piece", Margin::of(margin), band),
+            Ok(Sign::Negative | Sign::Zero)
+        )
+    };
     match floor {
-        Some(f) => !surely("pm_census_ee_curved_piece", reach - f, band, Sign::Positive),
-        None => surely("pm_census_ee_curved_piece", reach, band, Sign::Zero),
+        Some(f) => within(reach - f),
+        None => within(reach),
     }
 }
 
@@ -494,21 +516,8 @@ fn reads_meet<T: Decide>(
         return Some(true);
     }
     let floor = floor(ra, rb, band);
-    // A floor that is poison or infinite (`0·f` poison), or zero (`0·(1/f)`
-    // poison) would stop every piece at the root or none: refuse rather
-    // than read the spans whole. One below the band stops pieces at the
-    // band, as no floor does.
-    let unread = |x: T| (x * T::zero()).is_poison();
-    if floor.is_some_and(|f| unread(f) || unread(T::one() / f)) {
-        let what =
-            "the census's tangency floor for two curved edges is not a finite positive length";
-        refuse(ra.edge, what, errors);
-        refuse(rb.edge, what, errors);
-        return None;
-    }
-    let mut met = false;
     let walk = bisect(
-        (Piece::whole(ra.span), Piece::whole(rb.span)),
+        [(Piece::whole(ra.span), Piece::whole(rb.span))],
         |(pa, pb)| {
             if pieces_apart((ra, pa), (rb, pb), band) {
                 return Step::Settled;
@@ -516,8 +525,11 @@ fn reads_meet<T: Decide>(
             let stop_a = stops(pa.reach(ra.hi), floor, band);
             let stop_b = stops(pb.reach(rb.hi), floor, band);
             if stop_a && stop_b {
-                met = meet_at(body, (ra, pa), (rb, pb), band, &mut held);
-                return if met { Step::Stop } else { Step::Settled };
+                return if meet_at(body, (ra, pa), (rb, pb), band, &mut held) {
+                    Step::Stop(())
+                } else {
+                    Step::Settled
+                };
             }
             if !stop_a && (stop_b || pa.depth <= pb.depth) {
                 Step::Halve(pa.halves().map(|h| (h, pb)))
@@ -526,14 +538,15 @@ fn reads_meet<T: Decide>(
             }
         },
     );
-    if met {
-        return Some(true);
-    }
-    if walk.is_err() {
-        let what = "the census's meeting search of two curved edges ran past its budget";
-        refuse(ra.edge, what, errors);
-        refuse(rb.edge, what, errors);
-        return None;
+    match walk {
+        Ok(Some(())) => return Some(true),
+        Ok(None) => {}
+        Err(_) => {
+            let what = "the census's meeting search of two curved edges ran past its budget";
+            refuse(ra.edge, what, errors);
+            refuse(rb.edge, what, errors);
+            return None;
+        }
     }
     if held.is_empty() {
         return Some(false);
@@ -607,6 +620,7 @@ mod tests {
     fn read(curve: Curve3<f64>, span: (f64, f64)) -> Read<f64> {
         let (lo, hi) = crate::carrier_speed::speed_range(&curve);
         let accel = crate::carrier_speed::accel_hi(&curve);
+        let curvature = crate::carrier_speed::curvature_hi(&curve);
         Read {
             edge: EdgeKey::default(),
             curve,
@@ -614,6 +628,7 @@ mod tests {
             lo,
             hi,
             accel,
+            curvature,
         }
     }
 
@@ -836,6 +851,75 @@ mod tests {
             meet(&thin, &crossing),
             (Some(false), vec![]),
             "the crossing reading"
+        );
+    }
+
+    /// **Near a fast end, a point's side and distance decide where the
+    /// metered span reads in its band.** On the `1 × 0.05` ellipse from
+    /// `π/2`, a point `k·ε` along the curve from the end, `k` from 20 to
+    /// 200, meters `0.05·k·ε` by the least speed: from ε to 10ε, the
+    /// span decision's band. Its side (speed 1 there) and its distance
+    /// from the end's point are `k·ε`, past the band: inside it is on
+    /// the arc, outside it is not, and a line crossing the ellipse there
+    /// meets the arc or does not alike. Outside, the crossing starts at
+    /// 50ε: nearer, the candidate halfway to the end lies within the
+    /// band of it and escalates. Red when the span decision's band
+    /// escalates rather than falling through to the side.
+    #[test]
+    fn near_a_fast_end_the_side_decides_where_the_span_reads_in_band() {
+        let eps = Tol::witness().eps();
+        assert!(band().escalate() < 20.0 * eps, "the row needs K < 20");
+        let t0 = core::f64::consts::FRAC_PI_2;
+        let r = read(ellipse(1.0, 0.05, Vec3::unit_x()), (t0, t0 + 1.0));
+        for k in [20.0, 50.0, 100.0, 200.0] {
+            for (sign, inside) in [(1.0, true), (-1.0, false)] {
+                let (q, d) = r.curve.ders1(t0 + sign * k * eps);
+                let mut errors = Vec::new();
+                let on = super::on_interior(&Body::new(), &r, q, band(), &mut errors);
+                assert_eq!(
+                    (on, errors),
+                    (Some(inside), vec![]),
+                    "the vertex {sign}·{k}ε"
+                );
+                if !inside && k < 50.0 {
+                    continue;
+                }
+                let across = Vec3::unit_z().cross(d).normalize();
+                let crossing = read(line(q - across * 0.1, across), (0.0, 0.2));
+                assert_eq!(
+                    meet(&r, &crossing),
+                    (Some(inside), vec![]),
+                    "the crossing {sign}·{k}ε"
+                );
+            }
+        }
+    }
+
+    /// **A piece stops only within the floor's lower end.** A floor
+    /// read as an enclosure `[0.01, ∞]` — a curvature bound whose lower
+    /// end is zero — stops no piece of reach 1, and stops one of reach
+    /// 0.005; a piece of reach 1 stops at a floor of 2. Red when a
+    /// piece stops wherever its reach does not decide past the floor,
+    /// which reads the enclosure's upper end and stops the walk at its
+    /// root.
+    #[test]
+    fn a_piece_stops_only_within_the_floors_lower_end() {
+        use geom_core::Interval;
+        let wide = Interval::from_bounds(0.01, f64::INFINITY);
+        let stops = |reach: f64, floor: Interval| {
+            super::stops(Interval::from_bounds(reach, reach), Some(floor), band())
+        };
+        assert!(
+            !stops(1.0, wide),
+            "a long piece against a wide floor halves on"
+        );
+        assert!(
+            stops(0.005, wide),
+            "a piece within the floor's lower end stops"
+        );
+        assert!(
+            stops(1.0, Interval::from_bounds(2.0, 2.0)),
+            "a piece within a point floor stops"
         );
     }
 

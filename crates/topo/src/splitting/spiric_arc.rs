@@ -21,12 +21,13 @@
 //!
 //! A piece that settles neither way is halved, until its ball is within
 //! the band's coincidence threshold (the boundary reading), a fixed
-//! depth, or a piece budget. A reading that runs out of depth or budget
+//! depth, or [`crate::bisect`]'s piece budget. A reading that runs out of depth or budget
 //! is not a reading in the band: the walk names it as the edge it could
 //! not cross ([`super::containment::Uncrossable`]).
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
+use crate::bisect::{Step, bisect};
 use crate::validate::{decide, definitely_positive as positive};
 
 /// The rows a caller reads a spiric edge's boundary under — its own, so
@@ -58,13 +59,6 @@ const CROSS_ADVANCE: &str = "point_in_arc_loop_spiric_advance";
 /// the oval; the boundary reading, whose pieces stop at the band, only
 /// on a carrier whose bounds outrun `2⁶⁰` band widths.
 const MAX_DEPTH: u32 = 60;
-
-/// How many pieces one reading visits before it gives up — a bound on
-/// the work. A reading that converges holds a handful of unsettled
-/// pieces per level, so it is reached only where many levels each hold
-/// many: a point that lies, to the band, along a long stretch of the
-/// oval's offset curve.
-const MAX_PIECES: usize = 4096;
 
 /// A spiric oval: [`geom::Curve3::Spiric`]'s data, named so that a
 /// [`SpiricArc`] can only be built from one.
@@ -141,21 +135,18 @@ impl<T: Decide> SpiricArc<T> {
         row: &'static str,
         band: Band,
     ) -> bool {
-        let mut stack = vec![self.root()];
-        let mut visits = 0;
-        while let Some(p) = stack.pop() {
-            visits += 1;
+        let walk = bisect([self.root()], |p| {
             let ball = self.bounds(&p);
             let gap = crate::sector_shape::point_segment_distance(a, b, ball.center);
             if positive(row, gap - ball.reach, band) {
-                continue;
+                return Step::Settled;
             }
-            if p.depth >= MAX_DEPTH || visits >= MAX_PIECES {
-                return false;
+            if p.depth >= MAX_DEPTH {
+                return Step::Stop(());
             }
-            self.split(p, &mut stack);
-        }
-        true
+            Step::Halve(self.halves(p))
+        });
+        matches!(walk, Ok(None))
     }
 
     /// The whole arc as one piece.
@@ -194,25 +185,27 @@ impl<T: Decide> SpiricArc<T> {
         }
     }
 
-    /// A piece's two halves, the half nearer `va` on top of the stack.
-    fn split(&self, p: Piece<T>, stack: &mut Vec<Piece<T>>) {
+    /// A piece's two halves, the half nearer `va` first.
+    fn halves(&self, p: Piece<T>) -> [Piece<T>; 2] {
         let vm = geom::mid_param(p.va, p.vb);
         let pm = self.point(vm);
         let depth = p.depth + 1;
-        stack.push(Piece {
-            va: vm,
-            vb: p.vb,
-            pa: pm,
-            pb: p.pb,
-            depth,
-        });
-        stack.push(Piece {
-            va: p.va,
-            vb: vm,
-            pa: p.pa,
-            pb: pm,
-            depth,
-        });
+        [
+            Piece {
+                va: p.va,
+                vb: vm,
+                pa: p.pa,
+                pb: pm,
+                depth,
+            },
+            Piece {
+                va: vm,
+                vb: p.vb,
+                pa: pm,
+                pb: p.pb,
+                depth,
+            },
+        ]
     }
 
     /// **Where `q` sits against the arc.** `End` within the band of an
@@ -238,19 +231,16 @@ impl<T: Decide> SpiricArc<T> {
                 return Ok(SpiricHit::End);
             }
         }
-        let mut stack = vec![self.root()];
-        let mut visits = 0;
         // The first leaf no reading settled, by the margin it was read
         // in the band on.
         let mut in_band: Option<Indeterminate> = None;
         let mut exhausted = false;
-        while let Some(p) = stack.pop() {
-            visits += 1;
+        let walk = bisect([self.root()], |p| {
             let b = self.bounds(&p);
             let gap = (q - b.center).norm();
             let mut read = None;
             match decide(rows.clear, Margin::of(gap - b.reach), band) {
-                Ok(Sign::Positive) => continue,
+                Ok(Sign::Positive) => return Step::Settled,
                 Ok(_) => {}
                 Err(diag) => read = Some(diag),
             }
@@ -258,7 +248,7 @@ impl<T: Decide> SpiricArc<T> {
                 Ok(geom_core::Decided {
                     sign: Sign::Zero,
                     margin,
-                }) => return Ok(SpiricHit::On(margin)),
+                }) => return Step::Stop(margin),
                 Ok(_) => {}
                 Err(diag) => read = Some(diag),
             }
@@ -269,16 +259,18 @@ impl<T: Decide> SpiricArc<T> {
                     }
                     None => exhausted = true,
                 }
-                continue;
+                return Step::Settled;
             }
-            if p.depth >= MAX_DEPTH || visits >= MAX_PIECES {
+            if p.depth >= MAX_DEPTH {
                 exhausted = true;
-                if visits >= MAX_PIECES {
-                    break;
-                }
-                continue;
+                return Step::Settled;
             }
-            self.split(p, &mut stack);
+            Step::Halve(self.halves(p))
+        });
+        match walk {
+            Ok(Some(margin)) => return Ok(SpiricHit::On(margin)),
+            Ok(None) => {}
+            Err(_) => exhausted = true,
         }
         if let Some(diag) = in_band {
             return Err(diag);
@@ -311,18 +303,15 @@ impl<T: Decide> SpiricArc<T> {
         side: Vec3<T>,
         band: Band,
     ) -> Option<usize> {
-        let mut stack = vec![self.root()];
-        let mut visits = 0;
         let mut count = 0;
-        while let Some(p) = stack.pop() {
-            visits += 1;
+        let walk = bisect([self.root()], |p| {
             let b = self.bounds(&p);
             let w = b.center - q;
             let (along, off) = (w.dot(d), w.dot(side));
             // The in-plane distance from the ball's centre to the ray.
             let nearest = (off.powi(2) + along.min(T::zero()).powi(2)).sqrt();
             if positive(CROSS_REACH, nearest - b.reach, band) {
-                continue;
+                return Step::Settled;
             }
             let (sa, sb) = ((p.pa - q).dot(side), (p.pb - q).dot(side));
             let ends = (
@@ -341,25 +330,25 @@ impl<T: Decide> SpiricArc<T> {
             ) = (monotone, ends.0, ends.1)
             {
                 if a == z {
-                    continue;
+                    return Step::Settled;
                 }
                 if positive(CROSS_ADVANCE, along - b.reach, band) {
                     count += 1;
-                    continue;
+                    return Step::Settled;
                 }
                 if matches!(
                     decide(CROSS_ADVANCE, Margin::of(along + b.reach), band),
                     Ok(Sign::Negative)
                 ) {
-                    continue;
+                    return Step::Settled;
                 }
             }
-            if p.depth >= MAX_DEPTH || visits >= MAX_PIECES {
-                return None;
+            if p.depth >= MAX_DEPTH {
+                return Step::Stop(());
             }
-            self.split(p, &mut stack);
-        }
-        Some(count)
+            Step::Halve(self.halves(p))
+        });
+        matches!(walk, Ok(None)).then_some(count)
     }
 }
 

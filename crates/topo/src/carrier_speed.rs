@@ -7,7 +7,7 @@
 //! callers read as a door that stays.
 
 use geom_brep::Conic;
-use geom_core::{InfSpeed, Real, SpanLocate, SupSpeed};
+use geom_core::{InfSpeed, Real, SpanLocate, SupSpeed, Vec3};
 
 /// The speed `|C′(t)|` at `t`: the bound itself where [`speed_range`]
 /// is exact (a line, a circle).
@@ -39,67 +39,93 @@ pub(crate) fn speed_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -> Option<T> {
 /// at `f64` they are the same expressions in round-to-nearest, not a
 /// bound at extreme weights.
 pub(crate) fn speed_range<T: SpanLocate>(carrier: &geom::Curve3<T>) -> (InfSpeed<T>, SupSpeed<T>) {
-    let (lo, hi) = match carrier {
-        geom::Curve3::Line { dir, .. } => (dir.norm(), dir.norm()),
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => {
-            let c = Conic::circle(*center, *axis, *radius, *u_ref);
-            (c.speed_lo(), c.speed_hi())
-        }
-        geom::Curve3::Ellipse {
-            center,
-            axis,
+    let (lo, hi) = match Kind::of(carrier) {
+        Kind::Line(dir) => (dir.norm(), dir.norm()),
+        Kind::Conic(c) => (c.speed_lo(), c.speed_hi()),
+        Kind::Spiric {
             major,
             minor,
-            u_ref,
-        } => {
-            let c = Conic {
-                center: *center,
-                axis: *axis,
-                u_ref: *u_ref,
-                major: *major,
-                minor: *minor,
-            };
-            (c.speed_lo(), c.speed_hi())
-        }
-        geom::Curve3::Spiric {
-            major_radius,
-            minor_radius,
             offset,
-            ..
         } => (
-            *minor_radius,
-            spiric_rates(*major_radius, *minor_radius, *offset).0,
+            minor,
+            geom::spiric_period_rate_bounds(major, minor, offset).0,
         ),
-        geom::Curve3::Nurbs(n) => return (n.speed_lower_bound(), n.speed_upper_bound()),
+        Kind::Nurbs(n) => return (n.speed_lower_bound(), n.speed_upper_bound()),
     };
     (InfSpeed::new(lo), SupSpeed::new(hi))
 }
 
 /// A bound on `|C″(t)|` over every `t`: zero on a line, a conic's
-/// larger semi-axis, a spiric's [`geom::spiric_rate_bounds`]; `None` on
-/// a spline, which has no bound here at every scalar.
+/// larger semi-axis, a spiric's [`geom::spiric_period_rate_bounds`];
+/// `None` on a spline, which has no bound here at every scalar.
 pub(crate) fn accel_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -> Option<T> {
-    match carrier {
-        geom::Curve3::Line { .. } => Some(T::zero()),
-        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
-            Some(speed_range(carrier).1.get())
-        }
-        geom::Curve3::Spiric {
-            major_radius,
-            minor_radius,
+    match Kind::of(carrier) {
+        Kind::Line(_) => Some(T::zero()),
+        Kind::Conic(c) => Some(c.speed_hi()),
+        Kind::Spiric {
+            major,
+            minor,
             offset,
-            ..
-        } => Some(spiric_rates(*major_radius, *minor_radius, *offset).1),
-        geom::Curve3::Nurbs(_) => None,
+        } => Some(geom::spiric_period_rate_bounds(major, minor, offset).1),
+        Kind::Nurbs(_) => None,
     }
 }
 
-/// [`geom::spiric_rate_bounds`] over a whole period.
-fn spiric_rates<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
-    geom::spiric_rate_bounds(minor, offset, (major - minor, major + minor), T::one())
+/// A bound on the carrier's curvature over every `t`: zero on a line,
+/// [`Conic::curvature_hi`] on a conic, and `|C″|/|C′|²` from
+/// [`accel_hi`] and the minor radius on a spiric (the curvature
+/// `|C′ × C″|/|C′|³` is at most that); `None` on a spline.
+pub(crate) fn curvature_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -> Option<T> {
+    match Kind::of(carrier) {
+        Kind::Line(_) => Some(T::zero()),
+        Kind::Conic(c) => Some(c.curvature_hi()),
+        Kind::Spiric { minor, .. } => Some(accel_hi(carrier)? / minor.powi(2)),
+        Kind::Nurbs(_) => None,
+    }
+}
+
+/// A carrier read by what bounds its rates: a conic by its frame.
+enum Kind<'a, T: Real> {
+    Line(Vec3<T>),
+    Conic(Conic<T>),
+    Spiric { major: T, minor: T, offset: T },
+    Nurbs(&'a geom::NurbsCurve3<T>),
+}
+
+impl<'a, T: Real> Kind<'a, T> {
+    fn of(carrier: &'a geom::Curve3<T>) -> Self {
+        match carrier {
+            geom::Curve3::Line { dir, .. } => Self::Line(*dir),
+            geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => Self::Conic(Conic::circle(*center, *axis, *radius, *u_ref)),
+            geom::Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => Self::Conic(Conic {
+                center: *center,
+                axis: *axis,
+                u_ref: *u_ref,
+                major: *major,
+                minor: *minor,
+            }),
+            geom::Curve3::Spiric {
+                major_radius,
+                minor_radius,
+                offset,
+                ..
+            } => Self::Spiric {
+                major: *major_radius,
+                minor: *minor_radius,
+                offset: *offset,
+            },
+            geom::Curve3::Nurbs(n) => Self::Nurbs(n),
+        }
+    }
 }

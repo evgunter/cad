@@ -43,7 +43,7 @@
 //! and a curve with no speed bound localize nothing, and the door stays.
 
 use geom_brep::implicit::Conic;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
 use super::BooleanError;
 use super::boxes;
@@ -193,24 +193,19 @@ fn clusters<T: Decide + Bounds>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Option<Vec<(T, T)>> {
-    // A curve tangent to the carrier stays within `escalate` of it over
-    // a half-length of about `√(2κ·escalate)`, and no bound clears a
-    // piece in there, so cutting finer only multiplies pieces. The floor
-    // keeps a cluster's pieces an eighth of that, so a cluster's
-    // half-length adds little to the ball it reads.
-    let floor = (kappa * T::from_f64(band.escalate())).sqrt().hi() / 8.0;
-    let half = T::from_f64(0.5);
+    // The carrier's reach is the radius its level sets part from a
+    // tangent curve over (module docs).
+    let floor = crate::bisect::tangency_floor(kappa, band.escalate()).hi();
     let mut out: Vec<(T, T)> = Vec::new();
     // Whether a cleared piece came after the last open one: the next open
     // piece starts a cluster.
     let mut broken = true;
-    let mut over = false;
-    let walk = crate::bisect::bisect((t0, t1), |(a, b)| {
+    let half = T::from_f64(0.5);
+    let walk = crate::bisect::bisect([(t0, t1)], |(a, b)| {
         let mid = (a + b) * half;
-        let ell = speed * (b - a).abs() * half;
+        let ell = crate::bisect::reach(SupSpeed::new(speed), (a, b));
         let Some((dist, _, normal)) = distance(surface, carrier.eval(mid)) else {
-            over = true;
-            return Step::Stop;
+            return Step::Stop(());
         };
         let tangent = carrier.deriv(mid);
         let slope = (normal.dot(tangent) / tangent.norm()).abs();
@@ -235,8 +230,7 @@ fn clusters<T: Decide + Bounds>(
             Some(last) if !broken => last.1 = b,
             _ => {
                 if out.len() == CLUSTER_BUDGET {
-                    over = true;
-                    return Step::Stop;
+                    return Step::Stop(());
                 }
                 out.push((a, b));
             }
@@ -244,10 +238,10 @@ fn clusters<T: Decide + Bounds>(
         broken = false;
         Step::Settled
     });
-    if walk.is_err() || over {
-        return None;
+    match walk {
+        Ok(None) => Some(out),
+        Ok(Some(())) | Err(_) => None,
     }
-    Some(out)
 }
 
 /// Whether the ball of `radius` about `foot`, on the carrier, holds no
