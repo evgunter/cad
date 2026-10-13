@@ -2035,11 +2035,7 @@ pub(super) fn projected_envelope<T: Decide>(
             // The slant direction's radial and axial components moved.
             let drift = harmonic_sup_scalar(sin - s, cos - c);
             #[cfg(test)]
-            let drift = if super::sum_mutant("cone-drift") {
-                (sin - s).abs() + (cos - c).abs()
-            } else {
-                drift
-            };
+            let drift = super::mutants::cone_drift(sin - s, cos - c).unwrap_or(drift);
             terms.add(EnvelopeTerm::FidelityV, drift * (v_reach + incidence + d));
         }
         (

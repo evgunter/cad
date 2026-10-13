@@ -1290,38 +1290,46 @@ pub enum PcurveCheck {
     Sector,
 }
 
-/// One term of check 4's envelope — the bound the lemmas on
+/// One term of check 4's envelope — a slot of the bound the lemmas on
 /// [`EnvelopeStatement::MapResidualClosedForm`] and
-/// [`EnvelopeStatement::MapResidualProjected`] state as their sum. The
-/// closed-form envelope reads `Frame`, five **incidence** terms (`Centre`
-/// to `Drift`: the carrier against the chart, read off the carrier's own
+/// [`EnvelopeStatement::MapResidualProjected`] state. The closed-form
+/// envelope reads `Frame`, four **incidence** terms (`Centre` to
+/// `Drift`: the carrier against the chart, read off the carrier's own
 /// coefficients and the chart's data, with no image involved) and two
 /// **fidelity** terms (`FidelityU`, `FidelityV`: the stored image
 /// against the one `certify` re-derives from the carrier). The projected
 /// envelope reads `Frame`, `Incidence`, `Fidelity` and the two channel
-/// fidelities. Both sum one array and name a refusal in one order.
+/// fidelities. Both keep one array and name a refusal in one order; the
+/// certified bound adds every slot except that the closed-form lane on
+/// a cylinder, sphere or torus reads the two channel fidelities as the
+/// legs of one displacement (`EnvelopeTerms::total`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EnvelopeTerm {
     /// The carrier's centre is off the chart's axis — off the sphere's
-    /// centre for a sphere meridian, off the spine for a torus
-    /// meridian.
+    /// centre for a sphere meridian, off the spine for a torus meridian
+    /// (its radial and axial parts as one vector). The torus parallel's
+    /// rides in `Radius`, read with its pair.
     Centre,
-    /// The carrier is not the class's circle or radius: a turning
-    /// class's `cos t`/`sin t` pair against the image's — its radius,
-    /// its winding and its plane read as one pair — and a meridian's
-    /// constant radial against the cylinder's radius or a cone
-    /// ruling's against `|h|·tan α`.
+    /// The carrier is not the class's circle or radius:
+    /// - a turning class's `cos t`/`sin t` pair against the image's —
+    ///   its radius, its winding and its plane read as one pair — on
+    ///   the cylinder, the cone rim, the sphere's parallel and meridian
+    ///   (a pole start's included) and the torus's meridian;
+    /// - the torus parallel's whole residual: its constant `−w_r +
+    ///   e·h·κ` read with its pair (`constant_and_pair`);
+    /// - a meridian's constant radial against the cylinder's radius,
+    ///   and a cone ruling's against `|h|·tan α`;
+    /// - a still class's (winding decided Zero) image constant at its
+    ///   full length: `ρ`, or the torus's `R + r` plus the tube gap.
     Radius,
-    /// A sphere meridian started at a pole turns against the winding
-    /// the derivation decided.
-    Orientation,
     /// A linear term the class has no room for: a cylinder line's
     /// radial direction, a cone ruling off its generator, any circle
     /// class's `l`.
     Line,
-    /// The radial motion a class admitted by its own decision: a
-    /// meridian whose radial amplitude decided Zero, a winding decided
-    /// Zero on a moving class, a sphere meridian started at a pole.
+    /// The motion a class admitted by its own decision: a cylinder
+    /// meridian's radial pair `σ(a_r, b_r)` (its radial amplitude
+    /// decided Zero), and a still class's whole pair `σ(a, b)`, axial
+    /// part included (its winding decided Zero).
     Drift,
     /// The stored image's azimuth channel against the re-derived one,
     /// up to a whole period, metered at the chart's azimuth arm.
@@ -1343,13 +1351,12 @@ pub enum EnvelopeTerm {
 }
 
 impl EnvelopeTerm {
-    /// Every term, in the order the envelope sums them and a refusal
-    /// is attributed.
-    const ALL: [EnvelopeTerm; 10] = [
+    /// Every term, in the order a refusal is attributed (and the slots
+    /// are added).
+    const ALL: [EnvelopeTerm; 9] = [
         EnvelopeTerm::Frame,
         EnvelopeTerm::Centre,
         EnvelopeTerm::Radius,
-        EnvelopeTerm::Orientation,
         EnvelopeTerm::Line,
         EnvelopeTerm::Drift,
         EnvelopeTerm::FidelityU,
@@ -1367,13 +1374,12 @@ impl EnvelopeTerm {
             EnvelopeTerm::Frame => 0,
             EnvelopeTerm::Centre => 1,
             EnvelopeTerm::Radius => 2,
-            EnvelopeTerm::Orientation => 3,
-            EnvelopeTerm::Line => 4,
-            EnvelopeTerm::Drift => 5,
-            EnvelopeTerm::FidelityU => 6,
-            EnvelopeTerm::FidelityV => 7,
-            EnvelopeTerm::Incidence => 8,
-            EnvelopeTerm::Fidelity => 9,
+            EnvelopeTerm::Line => 3,
+            EnvelopeTerm::Drift => 4,
+            EnvelopeTerm::FidelityU => 5,
+            EnvelopeTerm::FidelityV => 6,
+            EnvelopeTerm::Incidence => 7,
+            EnvelopeTerm::Fidelity => 8,
         }
     }
 }
@@ -2063,31 +2069,34 @@ pub enum EnvelopeStatement {
     /// - **Sphere, parallel** (`ρ = √(r² − h²)` is `r·cos asin(h/r)`):
     ///   the cone rim's form with `ρ`, `k` spelled over `r² − h² −
     ///   a_r·a_r` ⇒ **centre** + **radius** + **line**.
-    /// - **Sphere, meridian** (`δ = atan2(a·e, ‖a_r‖)`, so
-    ///   `r·(cos δ·â_r + sin δ·e) = r·â = a·(1 + k)`, and `r·Ĵa = Ja·(1 +
-    ///   k)` with `Ja = ‖a_r‖·e − (a·e)·â_r` the quarter turn of `a` in
-    ///   its meridian plane, `‖Ja‖ = ‖a‖`): `−w + k·a·cos t + (σ·Ja·(1 +
-    ///   k) − b)·sin t − l·t` ⇒ **centre** `‖w‖` + **radius** `σ(k·a,
-    ///   σ·Ja·(1 + k) − b)` + **line**. Started at a pole (`a_r` decided
-    ///   Zero, the azimuth read off `b_r`): the image turns `a' =
-    ///   ‖a_r‖·b̂_r + (a·e)·e` and `Ja' = ‖a_r‖·e − (a·e)·b̂_r`, so
-    ///   **radius** `|r − ‖a‖|`, **drift** `3·‖a_r‖` (`a' − a` and the
-    ///   axial `‖a_r‖` of `σ·Ja'`), and **orientation** `σ(b·e, σ·(a·e) +
-    ///   ‖b_r‖)`, the axial and radial parts of `σ·Ja' − b` less that
-    ///   drift.
+    /// - **Sphere, meridian** (`δ = atan2(a·e, ‖a_r‖)` and `d̂` the
+    ///   azimuth direction read, so `r·(cos δ·d̂ + sin δ·e) = a′·(1 + k)`
+    ///   and `r·(cos δ·e − sin δ·d̂) = b′·(1 + k)` with `a′ = ‖a_r‖·d̂ +
+    ///   (a·e)·e`, `b′ = ‖a_r‖·e − (a·e)·d̂`, `‖a′‖ = ‖b′‖ = ‖a‖`; `d̂ =
+    ///   â_r` gives `a′ = a` and `b′ = Ja`, the quarter turn of `a` in its
+    ///   meridian plane, and at a pole start (`a_r` decided Zero) `d̂ =
+    ///   b̂_r`): `−w + (a′·(1 + k) − a)·cos t + (σ·b′·(1 + k) − b)·sin t
+    ///   − l·t` ⇒ **centre** `‖w‖` + **radius** `σ(a′·(1 + k) − a,
+    ///   σ·b′·(1 + k) − b)` + **line** — the whole residual, the pole
+    ///   start's too.
     /// - **Torus, parallel** (`m = √(h² + (‖a_r‖ − R)²)`, the distance to
     ///   the tube's core; the image's radius and height are `R +
     ///   r·(‖a_r‖ − R)/m = ‖a_r‖ + (‖a_r‖ − R)·κ` and `h·(1 + κ)`, `κ =
     ///   r/m − 1 = (r² − m²)/((r + m)·m)`; `f = 1 + (‖a_r‖ − R)·κ/‖a_r‖`):
-    ///   `−w_r + e·h·κ + (a_r·f − a)·cos t + (β·e×a_r·f − b)·sin t − l·t`
-    ///   ⇒ **centre** `‖w_r‖` + **radius** `|h·κ| + σ(a_r·f − a,
-    ///   β·e×a_r·f − b)` + **line**.
+    ///   `C + A·cos t + B·sin t − l·t` with the constant `C = e·h·κ − w_r`
+    ///   and `(A, B) = (a_r·f − a, β·e×a_r·f − b)` ⇒ **radius** `√(‖C‖² +
+    ///   σ(A, B)² + 2·σ(C·A, C·B))` + **line**: `‖C + H(t)‖² = ‖C‖² +
+    ///   ‖H(t)‖² + 2·C·H(t)` and `C·H(t)` is the scalar pair `(C·A, C·B)`,
+    ///   so the bound holds at any tilt of the carrier's plane, and it is
+    ///   `√(‖C‖² + σ²)` where `C ⊥ A, B` (an untilted parallel: `C` axial
+    ///   up to the centre's offset, the pair radial).
     /// - **Torus, meridian** (`α` the azimuth of `w_r`; `x = a·ŵ_r`,
     ///   `n = √(x² + (a·e)²)`, `a* = x·ŵ_r + (a·e)·e`, `b* = σ·(x·e −
     ///   (a·e)·ŵ_r)`, `a* ⊥ b*`, both of norm `n`, so the image turns
     ///   `f·a*` and `f·b*` with `f = r/n`): `(R·ŵ_r − w) + (f·a* −
-    ///   a)·cos t + (f·b* − b)·sin t − l·t` ⇒ **centre** `|R − ‖w_r‖| +
-    ///   |h|` + **radius** `σ(f·a* − a, f·b* − b)` + **line**.
+    ///   a)·cos t + (f·b* − b)·sin t − l·t` ⇒ **centre** `σ(R − ‖w_r‖,
+    ///   h)`, the constant's radial and axial parts, + **radius** `σ(f·a*
+    ///   − a, f·b* − b)` + **line**.
     ///
     /// A winding decided Zero on a moving class (a carrier whose radial
     /// part does not turn — no carrier of the chart) takes the image's
@@ -2119,10 +2128,12 @@ pub enum EnvelopeStatement {
     /// unit frame the twin is the frame itself and the term is the zero
     /// form.
     ///
-    /// The terms are summed and decided once as `pcurve_envelope`; a
+    /// The terms combine as `EnvelopeTerms::total` (every slot added,
+    /// the two channel fidelities as legs where the chart is
+    /// orthogonal) and are decided once as `pcurve_envelope`; a
     /// refusal names the first term that is over the band on its own
     /// ([`EnvelopeTerm`]). `envelope_lemma_fuzz` sweeps every arm: the
-    /// sum dominates the sampled residual of carriers and images moved
+    /// total dominates the sampled residual of carriers and images moved
     /// off in one respect at a time, and on an exact carrier the
     /// closed-form tables compose back to the carrier.
     ///
@@ -3295,11 +3306,11 @@ struct Harmonic3<T: Real> {
 /// class could certify is read there.
 fn radial_amplitude<T: Real>(form: &Harmonic3<T>, axis: Vec3<T>) -> T {
     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
+    let (a_r, b_r, l_r) = (radial(form.a), radial(form.b), radial(form.l));
+    let amplitude = harmonic_sup(a_r, b_r) + l_r.norm();
     #[cfg(test)]
-    if sum_mutant("radial-amplitude") {
-        return radial(form.a).norm() + radial(form.b).norm() + radial(form.l).norm();
-    }
-    harmonic_sup(radial(form.a), radial(form.b)) + radial(form.l).norm()
+    let amplitude = mutants::radial_amplitude(a_r, b_r, l_r).unwrap_or(amplitude);
+    amplitude
 }
 
 /// The carrier in the certified basis. Total for the analytic kinds;
@@ -4015,25 +4026,46 @@ enum Derivation {
     FocalSection,
 }
 
+/// How [`EnvelopeTerms::total`] reads the two channel fidelities.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FidelityLegs {
+    /// `FidelityU` and `FidelityV` are `arm·sup|Δ|` of one chart
+    /// segment's two channels on a chart whose `S_u ⊥ S_v` everywhere
+    /// (the cylinder, the sphere, the torus): the segment's image is no
+    /// longer than `√(arm_u²·Δu² + arm_v²·Δv²)`, so they are read as the
+    /// two legs of one displacement.
+    Orthogonal,
+    /// They add: the cone's two legs are not orthogonal (`fidelity`),
+    /// and the projected envelope's `FidelityV` carries more than its
+    /// channel.
+    Summed,
+}
+
+impl FidelityLegs {
+    /// The legs of the closed-form lane's fidelity on `surface`, by its
+    /// kind alone.
+    fn of<T: Real>(surface: &Surface<T>) -> Self {
+        let legs = match surface {
+            Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => {
+                Self::Orthogonal
+            }
+            _ => Self::Summed,
+        };
+        #[cfg(test)]
+        let legs = mutants::fidelity_legs(surface, legs);
+        legs
+    }
+}
+
 /// Check 4's envelope on a periodic chart, one running sum per
-/// [`EnvelopeTerm`]; the certified bound is their total. The flag says
-/// the two channel fidelities meter displacements along orthogonal
-/// chart directions ([`EnvelopeTerms::orthogonal_fidelity`]), so the
-/// total reads them as the two legs of one displacement.
+/// [`EnvelopeTerm`] and how the two channel fidelities combine; the
+/// certified bound is [`EnvelopeTerms::total`].
 #[derive(Clone, Copy)]
-struct EnvelopeTerms<T: Real>([T; EnvelopeTerm::ALL.len()], bool);
+struct EnvelopeTerms<T: Real>([T; EnvelopeTerm::ALL.len()], FidelityLegs);
 
 impl<T: Decide> EnvelopeTerms<T> {
     fn new() -> Self {
-        Self([T::zero(); EnvelopeTerm::ALL.len()], false)
-    }
-
-    /// `FidelityU` and `FidelityV` are `arm·sup|Δ|` of one chart
-    /// segment's two channels on a chart whose `S_u ⊥ S_v` everywhere:
-    /// the segment's image is no longer than `√(arm_u²·Δu² +
-    /// arm_v²·Δv²)`, so the total reads the pair at its norm.
-    fn orthogonal_fidelity(&mut self) {
-        self.1 = true;
+        Self([T::zero(); EnvelopeTerm::ALL.len()], FidelityLegs::Summed)
     }
 
     fn add(&mut self, term: EnvelopeTerm, value: T) {
@@ -4041,26 +4073,29 @@ impl<T: Decide> EnvelopeTerms<T> {
         *slot = *slot + value;
     }
 
+    /// The certified bound: every slot added, except that
+    /// [`FidelityLegs::Orthogonal`] reads the two channel fidelities as
+    /// the legs of one displacement, `√(FidelityU² + FidelityV²)`.
     fn total(&self) -> T {
-        #[cfg(test)]
-        if sum_mutant("fidelity") {
-            return self.0.iter().fold(T::zero(), |sum, &term| sum + term);
-        }
         let (u, v) = (
             EnvelopeTerm::FidelityU.slot(),
             EnvelopeTerm::FidelityV.slot(),
         );
+        let legs = self.1 == FidelityLegs::Orthogonal;
         let rest = self
             .0
             .iter()
             .enumerate()
-            .filter(|&(slot, _)| !self.1 || (slot != u && slot != v))
+            .filter(|&(slot, _)| !legs || (slot != u && slot != v))
             .fold(T::zero(), |sum, (_, &term)| sum + term);
-        if self.1 {
+        let total = if legs {
             rest + harmonic_sup_scalar(self.0[u], self.0[v])
         } else {
             rest
-        }
+        };
+        #[cfg(test)]
+        let total = mutants::fidelity(&self.0).unwrap_or(total);
+        total
     }
 
     /// The first term, in [`EnvelopeTerm::ALL`]'s order, that does not
@@ -4298,6 +4333,17 @@ fn stretch<T: Real>(p: T, p_sq: T, q: Vec3<T>) -> T {
     (p_sq - q.dot(q)) / ((p + n) * n)
 }
 
+/// `sup_t ‖c + a·cos t + b·sin t‖`, bounded with no orthogonality
+/// assumed: `‖c + H(t)‖² = ‖c‖² + ‖H(t)‖² + 2·c·H(t)`, and `c·H(t)` is
+/// the scalar pair `(c·a, c·b)`, so the sup is at most `√(‖c‖² + σ(a,
+/// b)² + 2·σ(c·a, c·b))`. That is `√(‖c‖² + σ²)` where `c ⊥ a, b` and
+/// never over `‖c‖ + σ`, its value at the worst alignment.
+fn constant_and_pair<T: Real>(c: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
+    let two = T::one() + T::one();
+    let cross = harmonic_sup_scalar(c.dot(a), c.dot(b));
+    (c.norm_squared() + harmonic_sup(a, b).powi(2) + two * cross).sqrt()
+}
+
 /// A rim's or a parallel's **class circle** against the carrier's
 /// `(a, b)`: the image turns `ρ·â_r` at the decided winding, so its
 /// `cos t` and `sin t` coefficients are `a_r·(1 + k)` and
@@ -4329,46 +4375,20 @@ fn class_circle<T: Decide>(
         Winding::Pos | Winding::Neg => {
             let k = stretch(rho, rho_sq, a_r);
             let turn = axis.cross(a_r) * beta.value();
+            let pair = harmonic_sup(a_r * k - axis * aa, turn * k + (turn - b_r) - axis * bb);
             #[cfg(test)]
-            if sum_mutant("class-circle") {
-                terms.add(
-                    EnvelopeTerm::Radius,
-                    norm_gap(rho, rho_sq, a_r) + (b_r - turn).norm() + harmonic_sup_scalar(aa, bb),
-                );
-                return;
-            }
-            terms.add(
-                EnvelopeTerm::Radius,
-                harmonic_sup(a_r * k - axis * aa, turn * k + (turn - b_r) - axis * bb),
-            );
+            let pair =
+                mutants::class_circle((rho, rho_sq), a_r, b_r, turn, (aa, bb)).unwrap_or(pair);
+            terms.add(EnvelopeTerm::Radius, pair);
         }
         Winding::Zero => {
             terms.add(EnvelopeTerm::Radius, rho);
+            let drift = harmonic_sup(a, b);
             #[cfg(test)]
-            if sum_mutant("zero-winding") {
-                terms.add(
-                    EnvelopeTerm::Drift,
-                    harmonic_sup(a_r, b_r) + harmonic_sup_scalar(aa, bb),
-                );
-                return;
-            }
-            terms.add(EnvelopeTerm::Drift, harmonic_sup(a, b));
+            let drift = mutants::zero_winding(a_r, b_r, (aa, bb)).unwrap_or(drift);
+            terms.add(EnvelopeTerm::Drift, drift);
         }
     }
-}
-
-/// Whether a test build reads one of check 4's exact norms as the sum
-/// of its parts again: `PCERT_RADIAL_PAIR_MUTANT`, read at compile
-/// time, names the site (`class-circle`, `zero-winding`,
-/// `torus-parallel`, `sphere-meridian`, `torus-meridian`, `pole-start`,
-/// `fidelity`, `cone-drift`, `radial-amplitude`), or `fidelity-cone`
-/// reads the cone's two fidelity channels as orthogonal. The rows that
-/// refuse each are in `radial_pair_rows`. `option_env!` because
-/// `scripts/gates/no-ambient-env.sh` forbids a runtime read in
-/// `crates/*/src`.
-#[cfg(test)]
-fn sum_mutant(name: &str) -> bool {
-    option_env!("PCERT_RADIAL_PAIR_MUTANT") == Some(name)
 }
 
 /// Check 4's **incidence** terms: a bound on `sup |S(P_d(t)) − C(t)|`
@@ -4383,7 +4403,7 @@ fn incidence<T: Decide>(
     reach: T,
     terms: &mut EnvelopeTerms<T>,
 ) {
-    use EnvelopeTerm::{Centre, Drift, Line, Orientation, Radius};
+    use EnvelopeTerm::{Centre, Drift, Line, Radius};
     let Harmonic3 { c, a, b, l } = form;
     match (surface, derivation) {
         (
@@ -4474,7 +4494,7 @@ fn incidence<T: Decide>(
             let w = c - center;
             let (h, w_r) = (w.dot(axis), radial(w));
             let (a_r, b_r) = (radial(a), radial(b));
-            let (aa, bb) = (a.dot(axis), b.dot(axis));
+            let aa = a.dot(axis);
             terms.add(Line, l.norm() * reach);
             match derivation {
                 Derivation::SphereParallel { beta } => {
@@ -4483,39 +4503,38 @@ fn incidence<T: Decide>(
                     terms.add(Centre, w_r.norm());
                     class_circle(terms, beta, (rho, rho_sq), (a, b), axis, true);
                 }
-                Derivation::SphereMeridian { pole: false, sigma } => {
-                    // `J·a`: `a` turned a quarter in its meridian plane,
-                    // `(‖a_r‖·axis − aa·â_r)·‖a‖/‖a‖`.
-                    let ja = (axis * a_r.dot(a_r) - a_r * aa) / a_r.norm();
+                Derivation::SphereMeridian { pole, sigma } => {
+                    // The image turns `(1 + k)·(a′·cos t + σ·b′·sin t)` with
+                    // `a′ = ‖a_r‖·d̂ + (a·e)·e` and `b′ = ‖a_r‖·e − (a·e)·d̂`
+                    // (`‖a′‖ = ‖b′‖ = ‖a‖`), `d̂` the azimuth direction the
+                    // derivation read: `â_r`, where `a′ = a` and `b′ = J·a`, or
+                    // `b̂_r` at a pole start. A pole start with `b_r` zero too
+                    // is no circle; its `b̂_r` is NaN or an entire enclosure,
+                    // which refuses at the envelope's decision.
+                    let s_r = a_r.norm();
+                    let d = if pole { b_r / b_r.norm() } else { a_r / s_r };
+                    let jb = (axis * s_r - d * aa) * sigma.value();
                     let k = stretch(radius, radius.powi(2), a);
                     terms.add(Centre, w.norm());
+                    let cos_part = if pole {
+                        let ja = d * s_r + axis * aa;
+                        ja * k + (ja - a)
+                    } else {
+                        a * k
+                    };
+                    let pair = harmonic_sup(cos_part, jb * k + (jb - b));
                     #[cfg(test)]
-                    if sum_mutant("sphere-meridian") {
-                        let gap = norm_gap(radius, radius.powi(2), a);
-                        terms.add(Radius, gap + (ja * sigma.value() - b).norm());
-                        return;
-                    }
-                    terms.add(
-                        Radius,
-                        harmonic_sup(a * k, ja * k * sigma.value() + (ja * sigma.value() - b)),
-                    );
-                }
-                Derivation::SphereMeridian { pole: true, sigma } => {
-                    terms.add(Centre, w.norm());
-                    terms.add(Radius, norm_gap(radius, radius.powi(2), a));
-                    terms.add(Drift, a_r.norm() * T::from_f64(3.0));
-                    #[cfg(test)]
-                    if sum_mutant("pole-start") {
-                        terms.add(
-                            Orientation,
-                            bb.abs() + (aa * sigma.value() + b_r.norm()).abs(),
-                        );
-                        return;
-                    }
-                    terms.add(
-                        Orientation,
-                        harmonic_sup_scalar(bb, aa * sigma.value() + b_r.norm()),
-                    );
+                    let pair = mutants::sphere_meridian(
+                        pole,
+                        radius,
+                        (a, b),
+                        (a_r, b_r),
+                        (aa, b.dot(axis)),
+                        sigma,
+                        jb,
+                    )
+                    .unwrap_or(pair);
+                    terms.add(Radius, pair);
                 }
                 _ => unreachable!("incidence: the sphere arm matched its own derivations"),
             }
@@ -4543,41 +4562,37 @@ fn incidence<T: Decide>(
                     let core = rho - major_radius;
                     let m_sq = h.powi(2) + core.powi(2);
                     let m = m_sq.sqrt();
-                    terms.add(Centre, w_r.norm());
+                    let tube = (minor_sq - m_sq).abs() / (minor_radius + m);
+                    let (b_r, bb) = (radial(b), b.dot(axis));
                     match beta {
                         Winding::Pos | Winding::Neg => {
-                            // `r/m − 1`: the image's radius is `ρ + core·κ`,
-                            // its height `h·(1 + κ)`.
+                            // `κ = r/m − 1`: the image's radius is `ρ + core·κ`
+                            // and its height `h·(1 + κ)`, so its constant
+                            // stands `−w_r + e·h·κ` off the carrier's, one
+                            // vector read with the pair (`constant_and_pair`).
+                            // A carrier on the tube's core (`m = 0`) has no
+                            // image; `κ` is then NaN or an entire enclosure,
+                            // which refuses at the envelope's decision.
                             let kappa = (minor_sq - m_sq) / ((minor_radius + m) * m);
                             let k = core * kappa / rho;
-                            let b_r = radial(b);
                             let turn = axis.cross(a_r) * beta.value();
-                            #[cfg(test)]
-                            if sum_mutant("torus-parallel") {
-                                let tube = (minor_sq - m_sq).abs() / (minor_radius + m);
-                                let tilt = harmonic_sup_scalar(aa, b.dot(axis));
-                                terms.add(Radius, tube + (b_r - turn).norm() + tilt);
-                                return;
-                            }
-                            terms.add(
-                                Radius,
-                                (h * kappa).abs()
-                                    + harmonic_sup(
-                                        a_r * k - axis * aa,
-                                        turn * k + (turn - b_r) - axis * b.dot(axis),
-                                    ),
+                            let whole = constant_and_pair(
+                                axis * (h * kappa) - w_r,
+                                a_r * k - axis * aa,
+                                turn * k + (turn - b_r) - axis * bb,
                             );
+                            #[cfg(test)]
+                            let whole = mutants::torus_parallel(w_r, tube, b_r, turn, (aa, bb))
+                                .unwrap_or(whole);
+                            terms.add(Radius, whole);
                         }
                         Winding::Zero => {
-                            let tube = (minor_sq - m_sq).abs() / (minor_radius + m);
+                            terms.add(Centre, w_r.norm());
                             terms.add(Radius, tube + major_radius + minor_radius);
+                            let drift = harmonic_sup(a, b);
                             #[cfg(test)]
-                            if sum_mutant("zero-winding") {
-                                let tilt = harmonic_sup_scalar(aa, b.dot(axis));
-                                terms.add(Drift, harmonic_sup(a_r, radial(b)) + tilt);
-                                return;
-                            }
-                            terms.add(Drift, harmonic_sup(a, b));
+                            let drift = mutants::zero_winding(a_r, b_r, (aa, bb)).unwrap_or(drift);
+                            terms.add(Drift, drift);
                         }
                     }
                 }
@@ -4585,27 +4600,31 @@ fn incidence<T: Decide>(
                     let wr_sq = w_r.dot(w_r);
                     let aw = a.dot(w_r);
                     let n_sq = aw.powi(2) / wr_sq + aa.powi(2);
-                    terms.add(
-                        Centre,
-                        norm_gap(major_radius, major_radius.powi(2), w_r) + h.abs(),
-                    );
+                    // `R·ŵ_r − w`: its radial and axial parts, one vector.
+                    let spine = norm_gap(major_radius, major_radius.powi(2), w_r);
+                    let centre = harmonic_sup_scalar(spine, h);
+                    #[cfg(test)]
+                    let centre = mutants::torus_meridian_centre(spine, h).unwrap_or(centre);
+                    terms.add(Centre, centre);
                     // `a*` and `b*`, the image's `cos t` and `sin t`
-                    // coefficients up to the factor `r/n = 1 + k`.
+                    // coefficients up to the factor `r/n = 1 + k`. An `a`
+                    // with no part in the meridian plane (`n = 0`) has no
+                    // image; `k` is then NaN or an entire enclosure, which
+                    // refuses at the envelope's decision.
                     let n = n_sq.sqrt();
                     let k = (minor_sq - n_sq) / ((minor_radius + n) * n);
                     let a_star = w_r * (aw / wr_sq) + axis * aa;
                     let b_star = (axis * aw - w_r * aa) / wr_sq.sqrt() * sigma.value();
+                    let pair = harmonic_sup(a_star * k + (a_star - a), b_star * k + (b_star - b));
                     #[cfg(test)]
-                    if sum_mutant("torus-meridian") {
-                        let tube = (minor_sq - n_sq).abs() / (minor_radius + n);
-                        let tilt = (a_r - w_r * (aw / wr_sq)).norm();
-                        terms.add(Radius, tube + tilt + (b_star - b).norm());
-                        return;
-                    }
-                    terms.add(
-                        Radius,
-                        harmonic_sup(a_star * k + (a_star - a), b_star * k + (b_star - b)),
-                    );
+                    let pair = mutants::torus_meridian(
+                        (minor_radius, minor_sq),
+                        (n, n_sq),
+                        a_r - w_r * (aw / wr_sq),
+                        b_star - b,
+                    )
+                    .unwrap_or(pair);
+                    terms.add(Radius, pair);
                 }
                 _ => unreachable!("incidence: the torus arm matched its own derivations"),
             }
@@ -4765,20 +4784,16 @@ fn fidelity<T: Decide>(
     else {
         unreachable!("fidelity: check 4 compares two harmonic images")
     };
+    // The cone's two legs below are not orthogonal, so its channels add
+    // (`FidelityLegs::of`): with `v₁` the nearer slant and `θ` the
+    // azimuth gap, the chord `v₁·(g(u₂) − g(u₁))` and the ruling
+    // `(v₂ − v₁)·g(u₂)` meet with cross term `2·v₁·(v₂ − v₁)·sin²α·(1 −
+    // cos θ)`, which is `≥ 0` when the two slants share a nappe (`v₁`
+    // the nearer, so `v₁·(v₂ − v₁) ≥ 0`).
+    terms.1 = FidelityLegs::of(surface);
     let (arm_u, arm_v) = match chart_stretch_sup(surface) {
-        Ok(arms) => {
-            terms.orthogonal_fidelity();
-            arms
-        }
-        // The two legs below are not orthogonal, so the cone's channels
-        // add: with `v₁` the nearer slant and `θ` the azimuth gap, the
-        // chord `v₁·(g(u₂) − g(u₁))` and the ruling `(v₂ − v₁)·g(u₂)`
-        // meet with cross term `2·v₁·(v₂ − v₁)·sin²α·(1 − cos θ) ≥ 0`.
+        Ok(arms) => arms,
         Err(NoChartSup::ConeAzimuthGrowsWithV) => {
-            #[cfg(test)]
-            if sum_mutant("fidelity-cone") {
-                terms.orthogonal_fidelity();
-            }
             // `S(u, v) = apex + v·g(u)` with `|g(u₁) − g(u₂)| = sin α·
             // chord(u₁ − u₂)`, so `|S(u₁, v₁) − S(u₂, v₂)| ≤ |v₁ − v₂| +
             // min(|v₁|, |v₂|)·sin α·|u₁ − u₂|`: either image's slant
@@ -8523,6 +8538,8 @@ mod envelope_lemma_fuzz;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
+#[cfg(test)]
+mod mutants;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod radial_pair_rows;

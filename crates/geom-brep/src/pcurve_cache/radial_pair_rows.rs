@@ -171,24 +171,25 @@ fn a_leaning_meridian_on_a_torus_reads_its_deviation_once() {
     own_image_certifies("leaning torus meridian", &carrier, &ring_torus());
 }
 
-/// `pole-start`: the orientation of a meridian started at the pole, on
-/// a pair whose `sin t` coefficient's defect is `0.6·zero` axial and
-/// `0.6·zero` radial, reads its norm, `0.85·zero`, at `f64` and at
-/// `Interval`; the parts' sum reads `1.2·zero`. Read off `incidence`
+/// `pole-start`: a meridian started at the pole, on a pair whose `sin
+/// t` coefficient stands `0.6·zero` axial and `0.6·zero` radial off the
+/// image's, reads its whole residual as one pair, `0.85·zero`, at `f64`
+/// and at `Interval`; the old split (radius, drift `3·‖a_r‖`, and the
+/// orientation's two parts) reads `1.2·zero`. Read off `incidence`
 /// directly: the sphere's arm admits circles only, and a circle's
 /// radial part here, `‖b_r‖ − |a·e|`, is second order in the tilt that
 /// makes its axial part, so no carrier reaches this band position.
 #[test]
-fn a_pole_start_reads_its_orientation_defect_at_its_norm() {
+fn a_pole_start_reads_its_residual_as_one_pair() {
     let d = 0.6 * zero();
     let derivation = Derivation::SphereMeridian {
         pole: true,
         sigma: Winding::Neg,
     };
-    let orientation = |form: Harmonic3<f64>| -> f64 {
+    let incidence_of = |form: Harmonic3<f64>| -> f64 {
         let mut terms = EnvelopeTerms::new();
         incidence(form, &unit_sphere(), derivation, 1.0, &mut terms);
-        terms.0[EnvelopeTerm::Orientation.slot()]
+        terms.total()
     };
     let form = Harmonic3 {
         c: Point3::origin(),
@@ -215,9 +216,9 @@ fn a_pole_start_reads_its_orientation_defect_at_its_norm() {
     // `1 − d` rounds at the ulp of one, which the radial part carries.
     let (norm, slack) = (d * 2f64.sqrt(), 4.0 * f64::EPSILON);
     for (scalar, (lo, hi)) in [
-        ("f64", (orientation(form), orientation(form))),
+        ("f64", (incidence_of(form), incidence_of(form))),
         ("Interval", {
-            let o = terms_i.0[EnvelopeTerm::Orientation.slot()];
+            let o = terms_i.total();
             (o.lo(), o.hi())
         }),
     ] {
@@ -410,7 +411,11 @@ fn the_projected_envelope_sums_its_channels() {
         "both channels moved: FidelityU {u:e}, FidelityV {v:e}"
     );
     let sum = terms.0.iter().sum::<f64>();
-    assert!(!terms.1, "the projected envelope sets no orthogonality");
+    assert_eq!(
+        terms.1,
+        FidelityLegs::Summed,
+        "the projected envelope reads its channels added"
+    );
     assert_eq!(terms.total(), sum, "the projected envelope sums its terms");
 }
 
