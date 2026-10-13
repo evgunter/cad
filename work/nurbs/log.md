@@ -1255,3 +1255,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - the `build` step alone takes about 20 min (07:11→07:31, 08:04→08:23);
   - 4954's slow-set step took 55 min (07:58→08:53), against the 15-min whole-run bar, so a full `test` job ran 1 h 43 min.
   The slow set of geom-core is the likely cost on a diff that seeds geom-core. I have not filed a row yet; I'll file one once build D names what ran long.
+- 2026-10-13 09:45Z — **4954 status, and the digest interaction with 4944.**
+  - **4954's step-8 red** was BAND's `bounds_census` roster row. Main has carried its fix since PR 4959; build D merged main a5229515, giving head d7ae1e3f.
+  - **Fix pass verified:** m1 (per-axis floors to degree 28, M9 red), m2 (the flat-wall row asserts `BoundaryTangent` on the v-low side at 8e-9), m3, `QuotientPiece::new` private, and the degree ceilings.
+  - **Back-to-back digest on the merged tree:** I built local merge 94f5d3eb (d7ae1e3f + 4944's 0281ec6d) and resolved the conflicts in all three `eps-*.txt` sym-session blocks to 4944's lines exactly. `mass_props_are_thread_count_invariant` passes at 1e-9, 1e-6 and 1e-12, 4/4 each, with sweep compiled fresh.
+  - With bodies built in-session, 4954's `frozen` growth (×4.9 / ×3.6) is absent, and 4944's 4/5 guard holds.
+  - **Plan:** 4944 merges first. 4954 then merges main, takes main's digest lines, re-runs the digest, and corrects its PR body. It re-earns CI, because the digest goldens are test data.
