@@ -2,10 +2,12 @@
 id: the-sole-bracket-bound-roster-misses-reach-displaces
 kind: issue
 title: geom-core's bounds census is red on main: sweep blend reach.rs's displaces is a sole-bracket bound door with no roster line
-status: open
+status: closed
 opened: 2026-10-13
 priority: P1
 cost: E
+closed: 2026-10-13
+pr: 4959
 ---
 
 
