@@ -130,6 +130,7 @@ crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction o
 crates/topo/src/boolean/solid_contain.rs	1	constant	f64::from(k)	a decided whole-period count
 crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/boolean/sphere_region.rs	1	constant	share	a fixed split fraction
+crates/topo/src/census/curved.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
 crates/topo/src/chart_bound.rs	1	constant	<fn>	a fixed direction of the 2-D ray schedule (SCHEDULE_2D)
 crates/topo/src/chart_bound.rs	1	constant	k	a ring shift count (RING_SHIFTS)
 crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
