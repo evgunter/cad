@@ -1255,3 +1255,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - Since then the lane pushed `c053efaf55`, re-baselining editor-core's pad and bracket frozen receipts for the cross-product square, and merged main (`67d8b87742`). Waiting on its hosted run, then re-run editor-core and the PR rows on that head.
   - **4964**: hosted CI green on `6f8aea425f` (gate ok); local verify is next in the queue.
   - r5012 is still reviewing. Re-armed for 22:21.
+- 2026-10-13 22:00 — **PR 4964 merged** (`b6ef0ab7e0`); the P1 in-band sweep item closes.
+  - Verify: local on head + main, topo 2989 and sweep 2641 green at three ε. Hosted CI green.
+  - Main merged again at merge time (`c3ed92e31a`), clean. Main had touched `circle_roots.rs`, so I re-ran topo's boolean, census and reduce rows: 877 green at each of the three ε.
+  - Row `PR-4964.md` last: holdout, M, byte 96, coding byte 95 → A = r4964b, tallied 0, major false. r4964b's process-list glimpse is disclosed in the fair-pair column.
+  - **4966:** hosted CI green on `67d8b87742`, editor-core's re-baselined receipts included. Main (now with 4964) merged in a worktree as `cb3808807f`; the cone, section and pcurve rows are running at three ε before the row and merge.
