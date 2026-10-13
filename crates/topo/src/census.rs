@@ -12955,3 +12955,165 @@ mod point_touch {
         );
     }
 }
+
+/// REVIEW 4956 probe (review branch only): circle-on-plane against an
+/// independent closed-form oracle, three scales, three tilts, both
+/// operand orders.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_4956_point_probe {
+    use super::*;
+    use crate::boolean::Cell;
+    use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
+    use geom_core::Tol;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum R {
+        Met,
+        Stale,
+        Esc,
+        Unsup,
+        Other,
+    }
+
+    /// The rim at v = 0 of `frame` over `u`, against the brick face
+    /// x = `x` (the brick on +x of it when `plus`, else on −x), its
+    /// region y over `y`, z over `z`.
+    fn run(frame: CylFrame, u: (f64, f64), x: f64, plus: bool, y: (f64, f64), z: (f64, f64), swap: bool) -> R {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        cyl_wall_sheet(&mut body, frame, u, (0.0, frame.radius), tol);
+        let xyz = |p: Point3<f64>| [p.x, p.y, p.z];
+        let (p, q) = (xyz(frame.at(u.0, 0.0)), xyz(frame.at(u.1, 0.0)));
+        let at = |v: VertexKey| xyz(*body.get_point(body.get_vertex(v).unwrap().point).unwrap());
+        let Some(rim) = body
+            .edges()
+            .find(|(_, e)| {
+                let ends =
+                    [e.he_plus, e.he_minus].map(|h| at(body.get_half_edge(h).unwrap().start));
+                ends == [p, q] || ends == [q, p]
+            })
+            .map(|(k, _)| k)
+        else {
+            return R::Other;
+        };
+        let w = (y.1 - y.0).max(z.1 - z.0);
+        let xr = if plus { (x, x + w) } else { (x - w, x) };
+        let block = brick::<f64>(xr, y, z, tol);
+        let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
+        let side = block
+            .faces()
+            .find(|(_, f)| match block.get_surface(f.surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    normal.x.abs() > 0.5 && (origin.x - x).abs() <= 1e-15 * x.abs().max(1.0)
+                }
+                _ => false,
+            })
+            .and_then(|(k, _)| keys.face(k))
+            .expect("the face x = x");
+        let pair = if swap {
+            crate::Contact::new(&body, Cell::Face(side), Cell::Edge(rim))
+        } else {
+            crate::Contact::new(&body, Cell::Edge(rim), Cell::Face(side))
+        };
+        let Ok(pair) = pair else { return R::Other };
+        match RecordConfirm::of(&body, Band::linear(tol).unwrap(), None).meets(pair) {
+            Ok(true) => R::Met,
+            Ok(false) => R::Stale,
+            Err(ValidationError::CensusEscalated { .. }) => R::Esc,
+            Err(ValidationError::CensusUnsupported { .. }) => R::Unsup,
+            Err(e) => {
+                eprintln!("other: {e:?}");
+                R::Other
+            }
+        }
+    }
+
+    /// A frame tilted by `theta` about +y, centre `c`, radius `r`:
+    /// its rim's max-x point is at u = 0, `c + r·u_ref`, x = c.x + r·cosθ.
+    fn frame(c: Point3<f64>, r: f64, theta: f64) -> CylFrame {
+        let mut f = CylFrame::tilted(r, theta);
+        f.origin = c;
+        f
+    }
+
+    #[test]
+    #[ignore = "review probe"]
+    fn review_4956_circle_plane_matrix() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (eps, k) = (band.zero(), band.escalate() / band.zero());
+        eprintln!("R4956 eps={eps} k={k}");
+        let mut bad = 0;
+        for &s in &[0.01, 1.0, 100.0] {
+            for &theta in &[0.0, 0.7, 1.3] {
+                for &swap in &[false, true] {
+                    let c = Point3::new(0.3 * s, -0.2 * s, 0.1 * s);
+                    let r = s;
+                    let f = frame(c, r, theta);
+                    let tp = f.at::<f64>(0.0, 0.0);
+                    let xt = tp.x;
+                    let yb = (tp.y - 0.5 * s, tp.y + 0.5 * s);
+                    let zb = (tp.z - 0.5 * s, tp.z + 0.5 * s);
+                    // the rim's min-x point (u = π), touching a face from +x... use the
+                    // circle's far side: the face at the circle's min x, brick on −x.
+                    let xmin = f.at::<f64>(core::f64::consts::PI, 0.0);
+                    let du = |m: f64| m / r; // metres along the arc → radians
+                    let rows: Vec<(&str, (f64, f64), f64, bool, (f64, f64), (f64, f64), R)> = vec![
+                        ("touch, brick outside", (-0.5, 0.5), xt, true, yb, zb, R::Met),
+                        ("touch, brick on the circle's side", (-0.5, 0.5), xt, false, yb, zb, R::Met),
+                        ("apart 1e-3 s", (-0.5, 0.5), xt + 1e-3 * s, true, yb, zb, R::Stale),
+                        ("crossing 1e-3 s", (-0.5, 0.5), xt - 1e-3 * s, true, yb, zb, R::Stale),
+                        ("off 0.5 eps (coincident)", (-0.5, 0.5), xt + 0.5 * eps, true, yb, zb, R::Met),
+                        ("in band +3eps", (-0.5, 0.5), xt + 3.0 * eps, true, yb, zb, if k > 3.0 { R::Esc } else { R::Stale }),
+                        ("in band -3eps", (-0.5, 0.5), xt - 3.0 * eps, true, yb, zb, if k > 3.0 { R::Esc } else { R::Stale }),
+                        ("past band +2k eps", (-0.5, 0.5), xt + 2.0 * k * eps, true, yb, zb, R::Stale),
+                        ("past band -2k eps", (-0.5, 0.5), xt - 2.0 * k * eps, true, yb, zb, R::Stale),
+                        ("at arc end", (0.0, 0.5), xt, true, yb, zb, R::Stale),
+                        ("just past arc end", (du(2.0 * k * eps), 0.5), xt, true, yb, zb, R::Stale),
+                        ("arc end in band", (-du(3.0 * eps), 0.5), xt, true, yb, zb, if k > 3.0 { R::Esc } else { R::Met }),
+                        ("inside arc by 2k eps", (-du(2.0 * k * eps), 0.5), xt, true, yb, zb, R::Met),
+                        ("at face edge y", (-0.5, 0.5), xt, true, (tp.y, tp.y + s), zb, R::Stale),
+                        ("face edge y in band", (-0.5, 0.5), xt, true, (tp.y - 3.0 * eps, tp.y + s), zb, if k > 3.0 { R::Esc } else { R::Met }),
+                        ("inside face by 2k eps", (-0.5, 0.5), xt, true, (tp.y - 2.0 * k * eps, tp.y + s), zb, R::Met),
+                        ("past face edge 2k eps", (-0.5, 0.5), xt, true, (tp.y + 2.0 * k * eps, tp.y + s), zb, R::Stale),
+                        ("face corner at point", (-0.5, 0.5), xt, true, (tp.y, tp.y + s), (tp.z, tp.z + s), R::Stale),
+                        ("min-x side touch", (2.6, 3.6), xmin.x, false, (xmin.y - 0.5 * s, xmin.y + 0.5 * s), (xmin.z - 0.5 * s, xmin.z + 0.5 * s), R::Met),
+                    ];
+                    for (what, u, x, plus, y, z, want) in rows {
+                        let got = run(f, u, x, plus, y, z, swap);
+                        let ok = got == want;
+                        if !ok {
+                            bad += 1;
+                        }
+                        eprintln!(
+                            "R4956 {} s={s} th={theta} swap={swap} {what}: got {got:?} want {want:?}",
+                            if ok { "ok " } else { "BAD" }
+                        );
+                    }
+                }
+            }
+        }
+        // κ_rel near zero: θ near π/2, the circle nearly parallel to x = const.
+        for &(what, cos, off, want) in &[
+            ("kappa sagitta 0.5 eps, plane through centre", 0.5, Some(0.0), R::Unsup),
+            ("kappa sagitta 3 eps, touching", 3.0, None, R::Esc),
+            ("kappa sagitta 0.5 eps, 1 m off", 0.5, Some(1.0), R::Stale),
+            ("kappa sagitta 0.5 eps, 1.5k eps off centre", 0.5, Some(1.5 * k * eps), R::Stale),
+            ("kappa sagitta 2k eps, touching", 2.0 * k, None, R::Met),
+        ] {
+            // sagitta = r·cosθ/2 = cos·eps for r = 1.
+            let cth = 2.0 * cos * eps;
+            let theta = cth.acos();
+            let f = frame(Point3::new(0.0, 0.0, 0.0), 1.0, theta);
+            let tp = f.at::<f64>(0.0, 0.0);
+            let got = run(f, (-0.5, 0.5), off.unwrap_or(tp.x), true, (tp.y - 0.5, tp.y + 0.5), (tp.z - 0.5, tp.z + 0.5), false);
+            let ok = got == want;
+            if !ok {
+                bad += 1;
+            }
+            eprintln!("R4956 {} {what}: got {got:?} want {want:?}", if ok { "ok " } else { "BAD" });
+        }
+        eprintln!("R4956 bad = {bad}");
+    }
+}
