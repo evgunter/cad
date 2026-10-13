@@ -526,6 +526,12 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// Check 4 reading a `cos t`/`sin t` pair at its exact sup instead of
 /// its coefficient sum builds a longer form per envelope term: frozen
 /// 3280 → 3294, every decision column held.
+/// Check 4 reading one vector at its norm where it summed its parts,
+/// each site measured by reverting it alone: the turning cylinder's
+/// pair against its class circle +103 frozen and the cylinder class
+/// selector's radial circle at its exact sup (`radial_amplitude`) +56,
+/// 3294 → 3453; the fidelity channels' norm and the retired `Tilt` slot
+/// move nothing here, and every decision column holds.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -567,7 +573,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     }
     assert_eq!(
         got[0],
-        (1306, 2, 64, 1284, 3294),
+        (1306, 2, 64, 1284, 3453),
         "rule F shut: the pad's receipt"
     );
     assert_eq!(
