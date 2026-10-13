@@ -76,8 +76,8 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
-    CellAxis, CellBlock, CellQuotients, KnotVector, ParamRange, RingRefinement, Span, TensorNet,
-    cell_quotients, span_derivative_scale,
+    CellAxis, CellBlock, KnotVector, ParamRange, QuotientPiece, RingRefinement, Span, TensorNet,
+    cell_axis_quotients, span_derivative_scale,
 };
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
@@ -598,16 +598,16 @@ pub(crate) struct NurbsBoxes<'a, T: CertifiedBounds> {
     /// Each span cell's whole net, row-major by `(su, sv)` over the cell
     /// knots' span indices, built on its first read: a function of the
     /// cell alone, which every rectangle touching the cell reads whole.
-    nets: CellNets,
+    nets: CellNets<'a>,
 }
 
 /// [`NurbsBoxes`]'s whole-cell nets, `v`-span count wide.
-struct CellNets {
+struct CellNets<'a> {
     nv: usize,
-    cells: Vec<OnceCell<Option<CellNet>>>,
+    cells: Vec<OnceCell<Option<CellNet<'a>>>>,
 }
 
-impl CellNets {
+impl<'a> CellNets<'a> {
     fn over((ku, kv): (&KnotVector, &KnotVector)) -> Self {
         let (nu, nv) = (ku.knots().len(), kv.knots().len());
         Self {
@@ -620,8 +620,8 @@ impl CellNets {
     fn get(
         &self,
         (su, sv): (usize, usize),
-        build: impl FnOnce() -> Option<CellNet>,
-    ) -> Option<&CellNet> {
+        build: impl FnOnce() -> Option<CellNet<'a>>,
+    ) -> Option<&CellNet<'a>> {
         if sv >= self.nv {
             return None;
         }
@@ -669,7 +669,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// The control block of the cell at spans `(su, sv)`, with its two
     /// spans; `None` for an empty span (it covers no parameters) or a
     /// read that leaves the net.
-    fn cell(&self, su: usize, sv: usize) -> Option<(&CellNet, (Span<'a>, Span<'a>))> {
+    fn cell(&self, su: usize, sv: usize) -> Option<(&CellNet<'a>, (Span<'a>, Span<'a>))> {
         let (ku, kv) = self.cell_knots();
         let spans = (ku.span(su)?, kv.span(sv)?);
         let net = self.nets.get((su, sv), || match self.grid {
@@ -777,6 +777,19 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         self.deriv_hull(w, along_u, false)
     }
 
+    /// [`NurbsBoxes::deriv_box`] (`cut`) or [`NurbsBoxes::cell_deriv_box`]
+    /// along `u` and along `v`, each touched cell's net cut once for both.
+    pub(crate) fn deriv_boxes(&self, w: UvWindow, cut: bool) -> (Box3, Box3) {
+        self.fold_cells(
+            w,
+            cut,
+            |net| (net.derivative_box(true), net.derivative_box(false)),
+            |(a, b), (c, d)| (a.meet_enclosure(c), b.meet_enclosure(d)),
+            |(a, b), (c, d)| (a.hull(c), b.hull(d)),
+        )
+        .unwrap_or_else(|| (refused_box(), refused_box()))
+    }
+
     /// The derivative box over the rectangle, each touched cell's net cut
     /// to it or read whole.
     fn deriv_hull(&self, w: UvWindow, along_u: bool, cut: bool) -> Box3 {
@@ -845,7 +858,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         &self,
         w: UvWindow,
         cut: bool,
-        read: impl Fn(&CellNet) -> R,
+        read: impl Fn(&CellNet<'_>) -> R,
         meet: impl Fn(R, R) -> R,
         join: impl Fn(R, R) -> R,
     ) -> Option<R> {
@@ -1040,7 +1053,7 @@ impl CellGrid {
 /// fixed) and carried by a rotation to its image, so a rigid map moves a
 /// reading by its rounding width alone.
 #[derive(Debug)]
-struct CellNet {
+struct CellNet<'a> {
     nv: usize,
     pts: Vec<[Interval; 3]>,
     wts: Vec<Interval>,
@@ -1050,19 +1063,58 @@ struct CellNet {
     /// rather than multiplying a quotient by `w` again, which widens.
     /// `None` for the surface's own cells, whose points are exact.
     hom: Option<Vec<[Interval; 4]>>,
-    /// `S_u` and `S_v` on each of the block's [`BLOCK_PIECE_SPLITS`]²
-    /// dyadic pieces, `None` where the statement refused (every reading
-    /// then refuses).
-    quotients: Option<Vec<CellQuotients<Interval>>>,
+    /// What the quotients are read off, and along which axes.
+    source: QuotientSource<'a>,
+    /// `S_u` on each of the block's [`BLOCK_PIECE_SPLITS`]² dyadic
+    /// pieces, built on its first read; `None` where the statement
+    /// refused (every reading of it then refuses).
+    u: OnceCell<Option<Vec<QuotientPiece<Interval, 3>>>>,
+    /// `S_v`, as `u`.
+    v: OnceCell<Option<Vec<QuotientPiece<Interval, 3>>>>,
 }
 
-impl CellNet {
+/// A block's quotient statement before it is read: its axes, and its
+/// channels — the translated homogeneous ones, or (for the surface's own
+/// exact cells) the block's points and weights in the frame `origin`.
+#[derive(Debug)]
+struct QuotientSource<'a> {
+    axes: (BlockAxis<'a>, BlockAxis<'a>),
+    channels: Channels,
+}
+
+#[derive(Debug)]
+enum Channels {
+    Homogeneous(Vec<[Interval; 3]>, Vec<Interval>),
+    Points { origin: [Interval; 3] },
+}
+
+/// One axis of a block: a span's own window over its held knots, or a
+/// Bézier block of the span's degree over a cut.
+#[derive(Debug)]
+enum BlockAxis<'a> {
+    Span(Span<'a>, Vec<Interval>),
+    Bezier { degree: usize, scale: Interval },
+}
+
+impl BlockAxis<'_> {
+    fn cell_axis(&self) -> CellAxis<'_, Interval> {
+        match self {
+            Self::Span(span, held) => CellAxis::Span(*span, held),
+            Self::Bezier { degree, scale } => CellAxis::Bezier {
+                degree: *degree,
+                scale: *scale,
+            },
+        }
+    }
+}
+
+impl<'a> CellNet<'a> {
     /// The cell's own control block. `None` when a read leaves the net
     /// or the knots: the window's invariants (`index ≥ degree`,
     /// `index ≤ last_span()`) put every read in range, so this is the
     /// total spelling (D9: an out-of-range read is a refused box, never
     /// an index panic), not a refusal any input reaches.
-    fn of_cell<T: CertifiedBounds>(win: SurfaceWindow<'_, T>) -> Option<Self> {
+    fn of_cell<T: CertifiedBounds>(win: SurfaceWindow<'a, T>) -> Option<Self> {
         let s = win.surface();
         let (ctl, wts) = (s.control(), s.weights());
         Self::of_spans((win.span_u(), win.span_v()), win.stride(), |k| {
@@ -1084,7 +1136,7 @@ impl CellNet {
     /// grid) homogeneous channels read through `at` by flat index.
     /// `None` when a read leaves the net or the knots.
     fn of_spans(
-        (spu, spv): (Span<'_>, Span<'_>),
+        (spu, spv): (Span<'a>, Span<'a>),
         stride: usize,
         at: impl Fn(usize) -> Option<([Interval; 3], Interval, Option<[Interval; 4]>)>,
     ) -> Option<Self> {
@@ -1104,60 +1156,37 @@ impl CellNet {
                 });
             }
         }
-        let mut net = Self {
+        let (c, h) = translate(&pts, &ws, hom.as_deref())?;
+        // Exact points read off the points: the pair form reads equal
+        // points with equal weights as an exact zero, which differencing
+        // their translated channels would not.
+        let channels = if hom.is_some() {
+            homogeneous(&h)
+        } else {
+            Channels::Points { origin: c }
+        };
+        Some(Self {
             nv: pv + 1,
             pts,
             wts: ws,
             hom,
-            quotients: None,
-        };
-        let (c, h) = net.translated()?;
-        let (held_u, held_v) = (held(spu), held(spv));
-        let axes = (CellAxis::Span(spu, &held_u), CellAxis::Span(spv, &held_v));
-        net.quotients = if net.hom.is_some() {
-            quotients_of(&h, axes)
-        } else {
-            // Exact points: the pair form reads equal points with equal
-            // weights as an exact zero, which differencing their
-            // translated channels would not.
-            cell_quotients(
-                axes,
-                CellBlock::Points {
-                    points: &net.pts,
-                    weights: &net.wts,
-                    origin: c,
-                },
-                (BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS),
-                false,
-            )
-        };
-        Some(net)
+            source: QuotientSource {
+                axes: (
+                    BlockAxis::Span(spu, held(spu)),
+                    BlockAxis::Span(spv, held(spv)),
+                ),
+                channels,
+            },
+            u: OnceCell::new(),
+            v: OnceCell::new(),
+        })
     }
 
     /// The block's homogeneous channels in the frame of its first
     /// point's lower bracket end `c`: `(w·(P − c), w)`, from the
     /// homogeneous channels where the block holds them, and `c`.
     fn translated(&self) -> Option<([Interval; 3], Vec<[Interval; 4]>)> {
-        let c = self.pts.first()?.map(Interval::lo).map(Interval::point);
-        let h = match &self.hom {
-            Some(hom) => hom
-                .iter()
-                .map(|h| {
-                    let at = |k: usize| h[k] - c[k] * h[3];
-                    [at(0), at(1), at(2), h[3]]
-                })
-                .collect(),
-            None => self
-                .pts
-                .iter()
-                .zip(&self.wts)
-                .map(|(p, &w)| {
-                    let at = |k: usize| w * (p[k] - c[k]);
-                    [at(0), at(1), at(2), w]
-                })
-                .collect(),
-        };
-        Some((c, h))
+        translate(&self.pts, &self.wts, self.hom.as_deref())
     }
 
     /// This cell block cut to `wu × wv`: along each axis whose window
@@ -1178,7 +1207,7 @@ impl CellNet {
     /// on a window a few ulps wide the `degree / (b − a)` scale
     /// amplifies every ulp the blossom adds. So the caller meets the two
     /// ([`NurbsBoxes::deriv_box`]).
-    fn cut(&self, (span_u, span_v): (Span<'_>, Span<'_>), w: UvWindow) -> Option<Self> {
+    fn cut<'s>(&self, (span_u, span_v): (Span<'s>, Span<'s>), w: UvWindow) -> Option<CellNet<'s>> {
         let (cut_u, cut_v) = (inside(span_u, w.u), inside(span_v, w.v));
         if cut_u.is_none() && cut_v.is_none() {
             return None;
@@ -1201,15 +1230,9 @@ impl CellNet {
                 h[i * nv..(i + 1) * nv].copy_from_slice(&cut_line);
             }
         }
-        let (held_u, held_v) = (held(span_u), held(span_v));
-        let quotients = quotients_of(
-            &h,
-            (
-                cut_axis(span_u, cut_u, &held_u),
-                cut_axis(span_v, cut_v, &held_v),
-            ),
-        );
-        Some(Self {
+        #[cfg(test)]
+        tests::CUT_NETS.with(|n| n.set(n.get() + 1));
+        Some(CellNet {
             nv,
             pts: h
                 .iter()
@@ -1217,19 +1240,50 @@ impl CellNet {
                 .collect(),
             wts: h.iter().map(|c| c[3]).collect(),
             hom: None,
-            quotients,
+            source: QuotientSource {
+                axes: (cut_axis(span_u, cut_u), cut_axis(span_v, cut_v)),
+                channels: homogeneous(&h),
+            },
+            u: OnceCell::new(),
+            v: OnceCell::new(),
         })
+    }
+
+    /// `S_u`'s quotient on every piece when `along_u`, `S_v`'s
+    /// otherwise, built on the first read of that axis; `None` where
+    /// the statement refused.
+    fn quotients(&self, along_u: bool) -> Option<&[QuotientPiece<Interval, 3>]> {
+        let cell = if along_u { &self.u } else { &self.v };
+        cell.get_or_init(|| {
+            #[cfg(test)]
+            tests::AXIS_READS.with(|n| n.set(n.get() + 1));
+            let QuotientSource { axes, channels } = &self.source;
+            let axes = (axes.0.cell_axis(), axes.1.cell_axis());
+            let block = match channels {
+                Channels::Homogeneous(a, w) => CellBlock::Homogeneous { a, w },
+                Channels::Points { origin } => CellBlock::Points {
+                    points: &self.pts,
+                    weights: &self.wts,
+                    origin: *origin,
+                },
+            };
+            cell_axis_quotients(
+                axes,
+                block,
+                (BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS),
+                along_u,
+            )
+        })
+        .as_deref()
     }
 
     /// The coefficient ratios `a_k/b_k` of `S_u` (`along_u`) or `S_v`
     /// on every piece; `None` where the statement refused.
     fn ratios(&self, along_u: bool) -> Option<Vec<[Interval; 3]>> {
         Some(
-            self.quotients
-                .as_ref()?
+            self.quotients(along_u)?
                 .iter()
                 .flat_map(|q| {
-                    let q = if along_u { &q.u } else { &q.v };
                     q.numer()
                         .iter()
                         .zip(q.denom())
@@ -1277,19 +1331,19 @@ impl CellNet {
     /// `(ex·a_k + ey·a′_k)/b_k`, whose `n·` hull encloses it and whose
     /// largest norm bounds it.
     fn transverse_readings(&self, n: [Interval; 3], ex: Interval, ey: Interval) -> (Interval, f64) {
-        let Some(pieces) = self.quotients.as_ref() else {
+        let (Some(us), Some(vs)) = (self.quotients(true), self.quotients(false)) else {
             return (Interval::refused(), f64::NAN);
         };
         let mut ratios: Vec<[Interval; 3]> = Vec::new();
-        for q in pieces {
-            if q.u.denom().len() != q.v.denom().len() {
+        for (qu, qv) in us.iter().zip(vs) {
+            if qu.denom().len() != qv.denom().len() {
                 return (Interval::refused(), f64::NAN);
             }
             ratios.extend(
-                q.u.numer()
+                qu.numer()
                     .iter()
-                    .zip(q.v.numer())
-                    .zip(q.u.denom())
+                    .zip(qv.numer())
+                    .zip(qu.denom())
                     .map(|((a, b), w)| core::array::from_fn(|k| (a[k] * ex + b[k] * ey) / *w)),
             );
         }
@@ -1319,35 +1373,51 @@ impl CellNet {
 /// reading; the one-piece `5.3e-9` is this measurement's alone).
 const BLOCK_PIECE_SPLITS: usize = 2;
 
-/// The first-order quotients of a homogeneous block `h` along `axes`,
-/// on the block's pieces; `None` where the statement refuses.
-fn quotients_of(
-    h: &[[Interval; 4]],
-    axes: (CellAxis<'_, Interval>, CellAxis<'_, Interval>),
-) -> Option<Vec<CellQuotients<Interval>>> {
-    let a: Vec<[Interval; 3]> = h.iter().map(|c| [c[0], c[1], c[2]]).collect();
-    let w: Vec<Interval> = h.iter().map(|c| c[3]).collect();
-    cell_quotients(
-        axes,
-        CellBlock::Homogeneous { a: &a, w: &w },
-        (BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS),
-        false,
+/// [`CellNet::translated`] of a block's points, weights and (from a
+/// grid) homogeneous channels.
+fn translate(
+    pts: &[[Interval; 3]],
+    wts: &[Interval],
+    hom: Option<&[[Interval; 4]]>,
+) -> Option<([Interval; 3], Vec<[Interval; 4]>)> {
+    let c = pts.first()?.map(Interval::lo).map(Interval::point);
+    let h = match hom {
+        Some(hom) => hom
+            .iter()
+            .map(|h| {
+                let at = |k: usize| h[k] - c[k] * h[3];
+                [at(0), at(1), at(2), h[3]]
+            })
+            .collect(),
+        None => pts
+            .iter()
+            .zip(wts)
+            .map(|(p, &w)| {
+                let at = |k: usize| w * (p[k] - c[k]);
+                [at(0), at(1), at(2), w]
+            })
+            .collect(),
+    };
+    Some((c, h))
+}
+
+/// A translated homogeneous block's channels, `A` and `W` apart.
+fn homogeneous(h: &[[Interval; 4]]) -> Channels {
+    Channels::Homogeneous(
+        h.iter().map(|c| [c[0], c[1], c[2]]).collect(),
+        h.iter().map(|c| c[3]).collect(),
     )
 }
 
 /// The axis of a block cut to `cut` along `span`: a Bézier block of the
 /// span's degree over the cut, or the span's own window when uncut.
-fn cut_axis<'a>(
-    span: Span<'a>,
-    cut: Option<(f64, f64)>,
-    held: &'a [Interval],
-) -> CellAxis<'a, Interval> {
+fn cut_axis(span: Span<'_>, cut: Option<(f64, f64)>) -> BlockAxis<'_> {
     match cut {
-        Some((a, b)) => CellAxis::Bezier {
+        Some((a, b)) => BlockAxis::Bezier {
             degree: span.degree(),
             scale: span_derivative_scale(span.degree(), Interval::point(a), Interval::point(b)),
         },
-        None => CellAxis::Span(span, held),
+        None => BlockAxis::Span(span, held(span)),
     }
 }
 
@@ -1412,6 +1482,69 @@ mod tests {
     /// A test's window, ordered by construction.
     fn win((u0, u1, v0, v1): (f64, f64, f64, f64)) -> UvWindow {
         UvWindow::new(u0, u1, v0, v1).expect("an ordered window")
+    }
+
+    std::thread_local! {
+        /// Cut nets built on this thread ([`CellNet::cut`]).
+        pub(super) static CUT_NETS: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+        /// Axes whose quotients were formed on this thread
+        /// ([`CellNet::quotients`]).
+        pub(super) static AXIS_READS: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+    }
+
+    fn counted<R>(
+        counter: &'static std::thread::LocalKey<core::cell::Cell<usize>>,
+        f: impl FnOnce() -> R,
+    ) -> (R, usize) {
+        counter.with(|n| n.set(0));
+        let r = f();
+        (r, counter.with(core::cell::Cell::get))
+    }
+
+    fn box_bits(b: Box3) -> [(u64, u64, bool); 3] {
+        [b.x, b.y, b.z].map(|c| (c.lo().to_bits(), c.hi().to_bits(), c.is_certified()))
+    }
+
+    /// **A net forms the quotient of the axis it is asked for, once**:
+    /// reading `S_u` builds `S_u` alone, a second read builds nothing,
+    /// and `S_v` is built on its own first read.
+    #[test]
+    fn a_net_forms_the_axis_it_is_read_along_once() {
+        let s = multiplicity_2_patch();
+        let boxes = NurbsBoxes::new(&s);
+        let (net, _) = boxes.cell(2, 1).expect("the first cell");
+        let (_, u) = counted(&AXIS_READS, || net.derivative_box(true));
+        assert_eq!(u, 1, "reading S_u formed {u} axes");
+        let (_, again) = counted(&AXIS_READS, || net.derivative_box(true));
+        assert_eq!(again, 0, "a second read of S_u formed {again} axes");
+        let (_, v) = counted(&AXIS_READS, || net.derivative_box(false));
+        assert_eq!(v, 1, "reading S_v formed {v} axes");
+    }
+
+    /// **The Jacobian cuts each touched cell once for both of its
+    /// columns**, and reads them as the two one-axis boxes would, bit
+    /// for bit.
+    #[test]
+    fn the_jacobian_cuts_each_cell_once_for_both_columns() {
+        let s = multiplicity_2_patch();
+        let boxes = NurbsBoxes::new(&s);
+        // Strictly inside the first cell along both axes: one cut net.
+        let w = win((0.1, 0.3, 0.2, 0.6));
+        let ((u, v), cuts) = counted(&CUT_NETS, || boxes.deriv_boxes(w, true));
+        assert_eq!(cuts, 1, "the pair read cut {cuts} nets");
+        let (one_u, one_v) = (boxes.deriv_box(w, true), boxes.deriv_box(w, false));
+        assert_eq!(
+            (box_bits(u), box_bits(v)),
+            (box_bits(one_u), box_bits(one_v)),
+            "the pair read differs from the one-axis reads"
+        );
+        let pair = super::super::four::PairBoxes::new(&s, &s, [1.0; 4]);
+        let x = super::super::four::Box4([(0.1, 0.3), (0.2, 0.6), (0.1, 0.3), (0.2, 0.6)]);
+        let (_, cuts) = counted(&CUT_NETS, || pair.jacobian(x));
+        assert_eq!(
+            cuts, 2,
+            "the Jacobian cut {cuts} nets over two charts' one cell each"
+        );
     }
     use crate::implicit::{implicit_gradient, implicit_residual};
 

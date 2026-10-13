@@ -478,6 +478,7 @@ impl<T: Real, const D: usize> Grid<T, D> {
 
     /// The grid restricted to one piece: `bu` and `bv` are the piece's
     /// [`piece_weights`] blocks for this grid's degree along each axis.
+    #[cfg(test)]
     fn restrict(&self, bu: &[f64], bv: &[f64]) -> Option<Self> {
         self.map_u(|col| restrict(bu, col))?
             .map_v(|row| restrict(bv, row))
@@ -485,7 +486,9 @@ impl<T: Real, const D: usize> Grid<T, D> {
 
     /// The grid restricted to piece `(iu, iv)` of `counts` equal dyadic
     /// pieces per axis, by the exact [`piece_weights`] of its own
-    /// degree on each axis.
+    /// degree on each axis: the reference [`Self::cut`]'s shared tables
+    /// are checked against.
+    #[cfg(test)]
     fn on_piece(&self, (iu, iv): (usize, usize), counts: (usize, usize)) -> Option<Self> {
         let block = |deg: usize, count: usize, i: usize| -> Option<Vec<f64>> {
             let n = (deg + 1).pow(2);
@@ -546,30 +549,25 @@ fn product<T: Real, const A: usize, const B: usize, const C: usize>(
     if mu > QUOTIENT_MAX_DEGREE || mv > QUOTIENT_MAX_DEGREE {
         return None;
     }
+    let row = |m: usize| (0..=m).map(|i| binomial(m, i)).collect::<Vec<_>>();
+    let (ca, cb, da, db) = (row(ma), row(mb), row(na), row(nb));
     let mut acc: Vec<Option<Vector<T, C>>> = vec![None; (mu + 1) * (mv + 1)];
-    for i in 0..=ma {
-        for j in 0..=na {
-            let x = a.get(i, j)?.0;
-            for k in 0..=mb {
-                for l in 0..=nb {
-                    let term = Vector(mul(x, b.get(k, l)?.0))
-                        .times(binomial(ma, i) * binomial(mb, k))
-                        .times(binomial(na, j) * binomial(nb, l));
-                    let slot = acc.get_mut((i + k) * (mv + 1) + j + l)?;
+    for (i, (x_row, ci)) in a.c.chunks_exact(na + 1).zip(&ca).enumerate() {
+        for (j, (x, dj)) in x_row.iter().zip(&da).enumerate() {
+            for (k, (y_row, ck)) in b.c.chunks_exact(nb + 1).zip(&cb).enumerate() {
+                let slots = acc.get_mut((i + k) * (mv + 1) + j..)?;
+                for ((y, dl), slot) in y_row.iter().zip(&db).zip(slots) {
+                    let term = Vector(mul(x.0, y.0)).times(ci * ck).times(dj * dl);
                     *slot = Some(slot.map_or(term, |s| s + term));
                 }
             }
         }
     }
+    let (cu, cv) = (row(mu), row(mv));
     let c = acc
         .into_iter()
-        .enumerate()
-        .map(|(n, s)| {
-            Some(
-                s?.over(binomial(mu, n / (mv + 1)))
-                    .over(binomial(mv, n % (mv + 1))),
-            )
-        })
+        .zip(cu.iter().flat_map(|u| cv.iter().map(move |v| (u, v))))
+        .map(|(s, (u, v))| Some(s?.over(*u).over(*v)))
         .collect::<Option<Vec<_>>>()?;
     Grid::new(mv + 1, c)
 }
@@ -792,12 +790,50 @@ pub struct CellSecondQuotients<T> {
 }
 
 impl<T: Real> Homogeneous<T> {
-    /// The first-order grids restricted to piece `(iu, iv)` of `counts`
-    /// per axis (the second order is cut after it is formed:
-    /// [`SecondRaised::cut`]).
-    fn restrict(&self, at: (usize, usize), counts: (usize, usize)) -> Option<Self> {
-        let r3 = |g: &Grid<T, 3>| g.on_piece(at, counts);
-        let r1 = |g: &Grid<T, 1>| g.on_piece(at, counts);
+    /// The cut into `counts` pieces per axis with the table of every
+    /// degree the first-order grids carry, formed once for the cell.
+    fn first_cut(&self, counts: (usize, usize)) -> Option<Cut> {
+        let degrees = |pick: fn((usize, usize)) -> usize| {
+            let mut d: Vec<usize> = [
+                self.a.degree(),
+                self.w.degree(),
+                self.au.degree(),
+                self.wu.degree(),
+                self.av.degree(),
+                self.wv.degree(),
+            ]
+            .map(pick)
+            .to_vec();
+            d.sort_unstable();
+            d.dedup();
+            d
+        };
+        Cut::new(counts, (&degrees(|d| d.0), &degrees(|d| d.1)))
+    }
+
+    /// `S_u`'s quotient on piece `at` of `cut` when `along_u`, `S_v`'s
+    /// otherwise: [`Self::quotients`]' reading of that axis, alone.
+    fn axis_piece(
+        &self,
+        cut: &Cut,
+        at: (usize, usize),
+        along_u: bool,
+    ) -> Option<QuotientPiece<T, 3>> {
+        let (a, w) = (self.a.cut(cut, at)?, self.w.cut(cut, at)?);
+        let (d, dw) = if along_u {
+            (&self.au, &self.wu)
+        } else {
+            (&self.av, &self.wv)
+        };
+        let numer = first_numerator((&a, &w), (&d.cut(cut, at)?, &dw.cut(cut, at)?))?;
+        Raised::of(&numer, product(&w, &w, weight_times)?)?.piece()
+    }
+
+    /// The first-order grids restricted to piece `at` of `cut` (the
+    /// second order is cut after it is formed: [`SecondRaised::cut`]).
+    fn cut_first(&self, cut: &Cut, at: (usize, usize)) -> Option<Self> {
+        let r3 = |g: &Grid<T, 3>| g.cut(cut, at);
+        let r1 = |g: &Grid<T, 1>| g.cut(cut, at);
         Some(Self {
             a: r3(&self.a)?,
             w: r1(&self.w)?,
@@ -842,9 +878,7 @@ impl<T: Real> Homogeneous<T> {
 
     /// [`Self::quotients`] before it is cut.
     fn first_raised(&self, area: bool) -> Option<FirstRaised<T>> {
-        let first = |d: &Grid<T, 3>, dw: &Grid<T, 1>| -> Option<Grid<T, 3>> {
-            product(d, &self.w, by_weight)?.minus(&product(&self.a, dw, by_weight)?)
-        };
+        let first = |d: &Grid<T, 3>, dw: &Grid<T, 1>| first_numerator((&self.a, &self.w), (d, dw));
         let w2 = product(&self.w, &self.w, weight_times)?;
         let u = Raised::of(&first(&self.au, &self.wu)?, w2.clone())?;
         let v = Raised::of(&first(&self.av, &self.wv)?, w2.clone())?;
@@ -1067,6 +1101,15 @@ pub fn speed_pieces<T: Real, const D: usize>(
 
 /// `x·w` for a vector row `x` and a scalar row `w`: the bilinear map of
 /// a weight-scaled [`product`].
+/// The first-order numerator `D·W − A·D_W` of the derivative `(D, D_W)`
+/// of `(A, W)`.
+fn first_numerator<T: Real>(
+    (a, w): (&Grid<T, 3>, &Grid<T, 1>),
+    (d, dw): (&Grid<T, 3>, &Grid<T, 1>),
+) -> Option<Grid<T, 3>> {
+    product(d, w, by_weight)?.minus(&product(a, dw, by_weight)?)
+}
+
 fn by_weight<T: Real, const D: usize>(x: [T; D], w: [T; 1]) -> [T; D] {
     x.map(|c| c * w[0])
 }
@@ -1364,6 +1407,56 @@ fn cell_pieces<T: Real>(
     area: bool,
     second: bool,
 ) -> Option<CellPieces<T>> {
+    let ((p, q), whole) = cell_whole(axes, block, second)?;
+    if whole.second.is_some() {
+        // Both orders formed once over the cell and cut: the pieces are
+        // counted for the second-order quotients' degree `3p`, so every
+        // row cut is cut exactly. The area is formed whatever `area`
+        // asks: it shares `W³` with the second partials, and
+        // `CellSecondQuotients` readers take it beside them.
+        let (first, area) = (whole.first_raised(false)?, whole.area_raised()?);
+        let second = whole.second_raised()?;
+        let counts = (piece_count(3 * p, splits.0), piece_count(3 * q, splits.1));
+        let cut = Cut::new(counts, (&[2 * p, 3 * p], &[2 * q, 3 * q]))?;
+        return Some((counts, cut_both((&first, &area), &second, &cut, counts)?));
+    }
+    let counts = (piece_count(p, splits.0), piece_count(q, splits.1));
+    let cut = whole.first_cut(counts)?;
+    let mut out = Vec::with_capacity(counts.0 * counts.1);
+    for iu in 0..counts.0 {
+        for iv in 0..counts.1 {
+            out.push((whole.cut_first(&cut, (iu, iv))?.quotients(area)?, None));
+        }
+    }
+    Some((counts, out))
+}
+
+/// **One axis of [`cell_quotients`]**: on each of its pieces, in its
+/// order, `S_u`'s quotient when `along_u` and `S_v`'s otherwise, each
+/// bit for bit the one [`cell_quotients`] returns there, without
+/// forming the other. `None` as [`cell_quotients`].
+pub fn cell_axis_quotients<T: Real>(
+    axes: (CellAxis<'_, T>, CellAxis<'_, T>),
+    block: CellBlock<'_, T>,
+    splits: (usize, usize),
+    along_u: bool,
+) -> Option<Vec<QuotientPiece<T, 3>>> {
+    let ((p, q), whole) = cell_whole(axes, block, false)?;
+    let counts = (piece_count(p, splits.0), piece_count(q, splits.1));
+    let cut = whole.first_cut(counts)?;
+    (0..counts.0)
+        .flat_map(|iu| (0..counts.1).map(move |iv| (iu, iv)))
+        .map(|at| whole.axis_piece(&cut, at, along_u))
+        .collect()
+}
+
+/// A cell block's homogeneous grids over the whole cell, with the
+/// second derivatives when `second`, and the axes' degrees `(p, q)`.
+fn cell_whole<T: Real>(
+    axes: (CellAxis<'_, T>, CellAxis<'_, T>),
+    block: CellBlock<'_, T>,
+    second: bool,
+) -> Option<((usize, usize), Homogeneous<T>)> {
     let (au, av) = (Axis::of(axes.0)?, Axis::of(axes.1)?);
     let (p, q) = (au.p(), av.p());
     let count = (p + 1) * (q + 1);
@@ -1459,26 +1552,7 @@ fn cell_pieces<T: Real>(
         av: cell_grid(&av_w, (&au, 0), (&av, 1))?,
         wv: cell_grid(&wv_w, (&au, 0), (&av, 1))?,
     };
-    if whole.second.is_some() {
-        // Both orders formed once over the cell and cut: the pieces are
-        // counted for the second-order quotients' degree `3p`, so every
-        // row cut is cut exactly. The area is formed whatever `area`
-        // asks: it shares `W³` with the second partials, and
-        // `CellSecondQuotients` readers take it beside them.
-        let (first, area) = (whole.first_raised(false)?, whole.area_raised()?);
-        let second = whole.second_raised()?;
-        let counts = (piece_count(3 * p, splits.0), piece_count(3 * q, splits.1));
-        let cut = Cut::new(counts, (&[2 * p, 3 * p], &[2 * q, 3 * q]))?;
-        return Some((counts, cut_both((&first, &area), &second, &cut, counts)?));
-    }
-    let counts = (piece_count(p, splits.0), piece_count(q, splits.1));
-    let mut out = Vec::with_capacity(counts.0 * counts.1);
-    for iu in 0..counts.0 {
-        for iv in 0..counts.1 {
-            out.push((whole.restrict((iu, iv), counts)?.quotients(area)?, None));
-        }
-    }
-    Some((counts, out))
+    Some(((p, q), whole))
 }
 
 /// A cell's pieces per direction, and its pieces row-major in `u`
@@ -1533,7 +1607,7 @@ pub fn stretch_pieces<T: Real>(
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
+#[allow(clippy::cast_precision_loss, clippy::expect_used)]
 mod tests {
     use super::span_derivative_scale;
     use crate::Bounds;
@@ -1559,6 +1633,238 @@ mod tests {
         f64::MAX,
     ];
     const DEGREES: [usize; 5] = [1, 2, 3, 5, 7];
+
+    /// An interval's two ends and its certification, as bits.
+    fn bits(x: Interval) -> (u64, u64, bool) {
+        (x.lo().to_bits(), x.hi().to_bits(), x.is_certified())
+    }
+
+    /// A coefficient with a width, so every product rounds outward.
+    fn coefficient(rng: &mut test_utils::fuzz::Rng) -> Interval {
+        let lo = rng.range(-2.0, 2.0);
+        Interval::from_bounds(lo, lo + rng.range(0.0, 1e-9))
+    }
+
+    fn grid<const D: usize>(
+        rng: &mut test_utils::fuzz::Rng,
+        (m, n): (usize, usize),
+    ) -> super::Grid<Interval, D> {
+        let c = (0..(m + 1) * (n + 1))
+            .map(|_| super::Vector(core::array::from_fn(|_| coefficient(rng))))
+            .collect();
+        super::Grid::new(n + 1, c).expect("a nonempty grid")
+    }
+
+    fn grid_bits<const D: usize>(g: &super::Grid<Interval, D>) -> Vec<(u64, u64, bool)> {
+        g.c.iter().flat_map(|v| v.0.map(bits)).collect()
+    }
+
+    fn piece_bits(q: &super::QuotientPiece<Interval, 3>) -> Vec<(u64, u64, bool)> {
+        let numer = q.numer().iter().flat_map(|x| x.map(bits));
+        numer.chain(q.denom().iter().map(|&w| bits(w))).collect()
+    }
+
+    /// [`super::product`]'s fold before its binomials were tabled: the
+    /// association it keeps.
+    fn product_reference<const A: usize, const B: usize, const C: usize>(
+        a: &super::Grid<Interval, A>,
+        b: &super::Grid<Interval, B>,
+        mul: impl Fn([Interval; A], [Interval; B]) -> [Interval; C],
+    ) -> Option<super::Grid<Interval, C>> {
+        use super::{Vector, binomial};
+        let ((ma, na), (mb, nb)) = (a.degree(), b.degree());
+        let (mu, mv) = (ma + mb, na + nb);
+        let mut acc: Vec<Option<Vector<Interval, C>>> = vec![None; (mu + 1) * (mv + 1)];
+        for i in 0..=ma {
+            for j in 0..=na {
+                let x = a.get(i, j)?.0;
+                for k in 0..=mb {
+                    for l in 0..=nb {
+                        let term = Vector(mul(x, b.get(k, l)?.0))
+                            .times(binomial(ma, i) * binomial(mb, k))
+                            .times(binomial(na, j) * binomial(nb, l));
+                        let slot = acc.get_mut((i + k) * (mv + 1) + j + l)?;
+                        *slot = Some(slot.map_or(term, |s| s + term));
+                    }
+                }
+            }
+        }
+        let c = acc
+            .into_iter()
+            .enumerate()
+            .map(|(n, s)| {
+                Some(
+                    s?.over(binomial(mu, n / (mv + 1)))
+                        .over(binomial(mv, n % (mv + 1))),
+                )
+            })
+            .collect::<Option<Vec<_>>>()?;
+        super::Grid::new(mv + 1, c)
+    }
+
+    /// **The Bernstein product folds as it always did, bit for bit**:
+    /// the same terms, multiplied by the same binomials in the same
+    /// association, summed in the same order, at the interval scalar,
+    /// where any change of association or order moves an outward
+    /// rounding.
+    #[test]
+    fn the_product_folds_as_its_reference() {
+        let mut rng = test_utils::fuzz::start("derivative::product_reference");
+        for case in 0..test_utils::fuzz::scaled(40) {
+            let da = (rng.below(5), rng.below(5));
+            let db = (rng.below(5), rng.below(5));
+            let (a, b) = (grid::<3>(&mut rng, da), grid::<1>(&mut rng, db));
+            let got = super::product(&a, &b, super::by_weight).expect("in the ceiling");
+            let want = product_reference(&a, &b, super::by_weight).expect("in the ceiling");
+            assert_eq!(
+                grid_bits(&got),
+                grid_bits(&want),
+                "case {case}: {da:?} × {db:?} — {}",
+                test_utils::fuzz::replay()
+            );
+        }
+    }
+
+    /// A random homogeneous block of degrees `(p, q)` over Bézier axes.
+    fn block(
+        rng: &mut test_utils::fuzz::Rng,
+        (p, q): (usize, usize),
+    ) -> (Vec<[Interval; 3]>, Vec<Interval>) {
+        let n = (p + 1) * (q + 1);
+        let a = (0..n)
+            .map(|_| core::array::from_fn(|_| coefficient(rng)))
+            .collect();
+        let w = (0..n)
+            .map(|_| {
+                let lo = rng.range(0.5, 2.0);
+                Interval::from_bounds(lo, lo + rng.range(0.0, 1e-9))
+            })
+            .collect();
+        (a, w)
+    }
+
+    fn axes(
+        p: usize,
+        q: usize,
+    ) -> (
+        super::CellAxis<'static, Interval>,
+        super::CellAxis<'static, Interval>,
+    ) {
+        let scale = |d: usize| Interval::from_f64(d as f64) / Interval::from_f64(0.7);
+        (
+            super::CellAxis::Bezier {
+                degree: p,
+                scale: scale(p),
+            },
+            super::CellAxis::Bezier {
+                degree: q,
+                scale: scale(q),
+            },
+        )
+    }
+
+    /// **A cell's pieces are cut from one table per degree exactly as
+    /// each grid's own [`super::Grid::on_piece`] cuts them**: every
+    /// first-order quotient [`super::cell_quotients`] returns is, bit
+    /// for bit, the one formed from grids restricted one by one.
+    #[test]
+    fn the_shared_piece_tables_cut_as_each_grids_own() {
+        let mut rng = test_utils::fuzz::start("derivative::shared_piece_tables");
+        for case in 0..test_utils::fuzz::scaled(12) {
+            let (p, q) = (1 + rng.below(4), 1 + rng.below(4));
+            let (a, w) = block(&mut rng, (p, q));
+            let splits = (2, 2);
+            let got = super::cell_quotients(
+                axes(p, q),
+                super::CellBlock::Homogeneous { a: &a, w: &w },
+                splits,
+                true,
+            )
+            .expect("a block in the ceiling");
+            let ((p, q), whole) = super::cell_whole(
+                axes(p, q),
+                super::CellBlock::Homogeneous { a: &a, w: &w },
+                false,
+            )
+            .expect("a block in the ceiling");
+            let counts = (
+                super::piece_count(p, splits.0),
+                super::piece_count(q, splits.1),
+            );
+            let mut want = Vec::new();
+            for iu in 0..counts.0 {
+                for iv in 0..counts.1 {
+                    let r3 = |g: &super::Grid<Interval, 3>| {
+                        g.on_piece((iu, iv), counts).expect("a piece")
+                    };
+                    let r1 = |g: &super::Grid<Interval, 1>| {
+                        g.on_piece((iu, iv), counts).expect("a piece")
+                    };
+                    let piece = super::Homogeneous {
+                        a: r3(&whole.a),
+                        w: r1(&whole.w),
+                        au: r3(&whole.au),
+                        wu: r1(&whole.wu),
+                        av: r3(&whole.av),
+                        wv: r1(&whole.wv),
+                        second: None,
+                    };
+                    want.push(piece.quotients(true).expect("the piece's quotients"));
+                }
+            }
+            assert_eq!(got.len(), want.len(), "case {case}: piece count");
+            for (k, (g, w)) in got.iter().zip(&want).enumerate() {
+                let area = |c: &super::CellQuotients<Interval>| c.area.as_ref().map(piece_bits);
+                assert_eq!(
+                    (piece_bits(&g.u), piece_bits(&g.v), area(g)),
+                    (piece_bits(&w.u), piece_bits(&w.v), area(w)),
+                    "case {case}: ({p}, {q}) piece {k} — {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
+    }
+
+    /// **One axis read alone is that axis of both**: on every piece,
+    /// [`super::cell_axis_quotients`] returns bit for bit the `u` (or
+    /// `v`) quotient [`super::cell_quotients`] returns, for both kinds
+    /// of block.
+    #[test]
+    fn one_axis_read_alone_is_that_axis_of_both() {
+        let mut rng = test_utils::fuzz::start("derivative::one_axis_alone");
+        for case in 0..test_utils::fuzz::scaled(12) {
+            let (p, q) = (1 + rng.below(4), 1 + rng.below(4));
+            let (a, w) = block(&mut rng, (p, q));
+            let points: Vec<[Interval; 3]> = a.clone();
+            let origin = points[0];
+            let blocks = [
+                super::CellBlock::Homogeneous { a: &a, w: &w },
+                super::CellBlock::Points {
+                    points: &points,
+                    weights: &w,
+                    origin,
+                },
+            ];
+            for (kind, block) in blocks.into_iter().enumerate() {
+                let both = super::cell_quotients(axes(p, q), block, (2, 2), false).expect("both");
+                for along_u in [true, false] {
+                    let one = super::cell_axis_quotients(axes(p, q), block, (2, 2), along_u)
+                        .expect("one axis");
+                    let want: Vec<_> = both
+                        .iter()
+                        .map(|c| piece_bits(if along_u { &c.u } else { &c.v }))
+                        .collect();
+                    let got: Vec<_> = one.iter().map(piece_bits).collect();
+                    assert_eq!(
+                        got,
+                        want,
+                        "case {case}: ({p}, {q}) block kind {kind}, along_u {along_u} — {}",
+                        test_utils::fuzz::replay()
+                    );
+                }
+            }
+        }
+    }
 
     /// The spelling every routed site wrote before it called the helper.
     fn literal<T: Real>(p: usize, lo: T, hi: T) -> T {

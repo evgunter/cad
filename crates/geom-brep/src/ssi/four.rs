@@ -152,22 +152,11 @@ impl<'a, T: CertifiedBounds> PairBoxes<'a, T> {
                 b.z * Interval::point(s),
             ]
         };
-        let read = |n: &NurbsBoxes<'_, T>, w: Option<UvWindow>, u: bool| {
-            w.map_or_else(refused_box, |w| {
-                if cut {
-                    n.deriv_box(w, u)
-                } else {
-                    n.cell_deriv_box(w, u)
-                }
-            })
+        let read = |n: &NurbsBoxes<'_, T>, w: Option<UvWindow>| {
+            w.map_or_else(|| (refused_box(), refused_box()), |w| n.deriv_boxes(w, cut))
         };
-        let (wa, wb) = (x.window_a(), x.window_b());
-        let cols = [
-            col(read(&self.a, wa, true), 1.0),
-            col(read(&self.a, wa, false), 1.0),
-            col(read(&self.b, wb, true), -1.0),
-            col(read(&self.b, wb, false), -1.0),
-        ];
+        let ((au, av), (bu, bv)) = (read(&self.a, x.window_a()), read(&self.b, x.window_b()));
+        let cols = [col(au, 1.0), col(av, 1.0), col(bu, -1.0), col(bv, -1.0)];
         core::array::from_fn(|r| core::array::from_fn(|c| cols[c][r]))
     }
 
