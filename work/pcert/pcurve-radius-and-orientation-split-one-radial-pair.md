@@ -7,6 +7,7 @@ opened: 2026-10-12
 priority: P2
 cost: E
 branch: pcert/envelope-radial-pair-whole
+pr: 4952
 closed: 2026-10-13
 ---
 
@@ -50,7 +51,7 @@ well defined (`‖a_r‖` in the band) the class is a winding-Zero one and
 reads its drift instead. A row: the `ρ ± δ` ellipse at
 `δ ∈ (zero/3, zero)`, certifying at `f64` and `Interval`.
 
-## Closed (PR PRNUM, 2026-10-13)
+## Closed (PR 4952, 2026-10-13)
 
 Every turning class reads its pair against the image's whole: the
 image's `cos t`/`sin t` coefficients less the carrier's, one `σ`, in

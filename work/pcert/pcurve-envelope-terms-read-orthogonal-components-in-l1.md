@@ -7,6 +7,7 @@ opened: 2026-10-12
 priority: P3
 cost: E
 branch: pcert/envelope-radial-pair-whole
+pr: 4952
 closed: 2026-10-13
 ---
 
@@ -68,7 +69,7 @@ The PR's reviewers found more, each executed or read at its site:
   `u_ref` tilt toward the axis, an axial displacement in the same
   direction as `d_axis`'s, so the sum is not loose by `√2` in general.
 
-## Closed (PR PRNUM, 2026-10-13)
+## Closed (PR 4952, 2026-10-13)
 
 Each instance reads its vector at its norm (rows in
 `crates/geom-brep/src/pcurve_cache/radial_pair_rows.rs` and

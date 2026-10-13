@@ -7,6 +7,7 @@ opened: 2026-10-12
 priority: P3
 cost: E
 branch: pcert/envelope-radial-pair-whole
+pr: 4952
 closed: 2026-10-13
 ---
 
@@ -36,7 +37,7 @@ radius gap — reads its whole radius as drift and refuses. Whether
 that trade is right (both readings concern a cylinder thinner than the
 band) is the question, and it wants its own row.
 
-## Closed (PR PRNUM, 2026-10-13)
+## Closed (PR 4952, 2026-10-13)
 
 Changed: `radial_amplitude` is `σ(a_r, b_r) + ‖l_r‖`. **The premise
 above did not hold when measured.** A rim of a cylinder whose radius is
