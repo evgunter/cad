@@ -1900,3 +1900,42 @@ mod reversal_tests {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod memo_tests {
+    use super::*;
+    use geom_core::Sym;
+
+    /// A read inside a symbolic session leaves the floors memo empty, as
+    /// the curve's speed memo is left (`curves::nurbs`'s
+    /// `a_session_never_fills_the_speed_memo`); a read outside one fills
+    /// it.
+    #[test]
+    fn a_session_never_fills_the_floors_memo() {
+        use geom_core::SymBudget;
+        use geom_core::sym::with_session;
+        let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let s = NurbsSurface::new(
+            k(),
+            k(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 3.0, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
+                Point3::new(2.0, 3.0, 0.5),
+            ],
+            vec![1.0, 2.0, 1.5, 1.0],
+        )
+        .unwrap()
+        .map_scalar(Sym::<f64>::from_f64);
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let _ = with_session(budget, || s.stretch_floor(true));
+        assert!(s.floors.get().is_none(), "a session's read filled the memo");
+        let _ = s.stretch_floor(false);
+        assert!(s.floors.get().is_some(), "a read outside a session left the memo empty");
+    }
+}

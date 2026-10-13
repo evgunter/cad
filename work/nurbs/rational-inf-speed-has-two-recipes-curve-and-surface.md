@@ -2,11 +2,13 @@
 id: rational-inf-speed-has-two-recipes-curve-and-surface
 kind: issue
 title: The rational inf speed has two recipes: the curve's piece assembly and the surface's pair-term floor
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: M
 design: true
+branch: nurbs/quotient-bound
+closed: 2026-10-13
 ---
 
 ## What
@@ -34,3 +36,19 @@ apart is a reach question: neither is known to dominate. The two
 should be compared on the curve meter's frontier rows
 (`geom/tests/curves/m5_pr7_speed_meter.rs`,
 `geom/tests/curves/swaying_corner_meter.rs`) before anything moves.
+
+## Closed (2026-10-13)
+
+One statement now serves curves and surfaces, inf and sup:
+`geom_core::spline::QuotientPiece`'s `inf_norm` and `sup_norm`, built
+by `speed_pieces` (curves), and by `cell_quotients` and
+`stretch_pieces` (surfaces).
+
+- The curve meter's integral and rational piece readings are one call,
+  `NurbsCurve*::piece_floor`. At equal weights the derivative is read
+  over one, so every `b_k` is exactly `1`.
+- `speed_upper_bound` reads `sup_norm` on the same pieces.
+- `rational_piece_assembly`, its degree cap
+  (`RATIONAL_PIECE_MAX_DEGREE`) and the pair-term floors are gone. The
+  ceiling is now the statement's own `QUOTIENT_MAX_DEGREE` (56, from
+  exact binomials): a rational curve meters to degree 28.

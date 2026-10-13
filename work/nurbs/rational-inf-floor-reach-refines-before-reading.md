@@ -2,11 +2,13 @@
 id: rational-inf-floor-reach-refines-before-reading
 kind: issue
 title: The rational inf floors refuse nets whose weights spread past about 1.7× in a cell; a tighter floor would recover reach
-status: open
+status: closed
 opened: 2026-10-13
 priority: P2
 cost: M
 design: true
+branch: nurbs/quotient-bound
+closed: 2026-10-13
 ---
 
 ## What
@@ -53,3 +55,23 @@ floor. The question is which, if either, belongs in
 pair; the curve meter's piece assembly
 (`rational-inf-speed-has-two-recipes-curve-and-surface`) is the other
 data point on reach.
+
+## Closed (2026-10-13)
+
+Neither shape above: the ruling (`work/nurbs/log.md`, 2026-10-13
+03:00Z) put one Bernstein quotient bound in
+`crates/geom-core/src/spline/derivative.rs` (`QuotientPiece`), read on
+exact dyadic Bézier pieces of each cell. `N_u/W²` and `M̃/W³` are
+raised to one degree, and each piece floors along its own direction.
+
+- `NurbsSurface::stretch_floor` and `area_floor` are norm floors, and
+  `pcurve_cache::chart_stretch_inf` reads them clamped;
+  `net_direction` and `floor_along` are gone.
+- The surface piece constant is 2 per direction
+  (`crates/geom/src/surfaces/nurbs.rs` `STRETCH_PIECE_SPLITS`, the
+  measurement stated there). On the written nets every floor reads at
+  least `0.88` of the sampled truth at spreads `1.6×` to `16×`.
+- `sweep/tests/r2_probe_cert8.rs`
+  `probe_rational_charts_enter_at_wide_spreads` has the three rational
+  nets enter at `4×` and `8×`. `probe_a_folding_chart_refuses` replaces
+  the `1.8×` refusal row with a net whose true floor is zero.
