@@ -5,8 +5,9 @@ title: the plane x NURBS and NURBS x NURBS edge certificates refuse any non-spli
 status: open
 opened: 2026-10-12
 priority: P1
-cost: H
+cost: M
 design: true
+needs_ev: true
 ---
 
 
@@ -39,10 +40,18 @@ Whether the two lanes take a closed-form carrier, and how:
 
 - limbs 1–2 can read the carrier as the fitted row now does: a line as
   its exact degree-1 net, a conic or spiric enclosed per span;
-- the tube's chain (`ssi::certify::box_chain`, `probe_tube_chart`,
-  `probe_tube_pair`) is built from a control net, which a closed-form
-  carrier does not have. An enclosing net's span hulls would serve as
-  boxes, but that is a change to limb 3's construction.
+- limb 3 needs nothing new: on these two pairs the tube is the chart
+  tube (`probe_tube_chart`) or the two-chart tube (`probe_tube_pair`),
+  which read the pcurves (`edge_nurbs::chart_image`, a schedule over
+  the carrier's values) and the carrier's end points. Only the
+  analytic × analytic ℝ³ tube (`box_chain`) reads a control net, and no
+  spline pair uses it. So limb 2's composite `S(P(t)) − C(t)` is the
+  one place a net is owed, and `geom_brep::carrier_net` already
+  supplies it to the fitted row.
 
 D7 recognition's Line promotion lands on the same wall
 (`work/exch/d7-promotes-an-off-iso-straight-spline-the-intersection-rung-then-refuses.md`).
+
+A non-plane analytic surface paired with a spline refuses at `resolve`
+for spline carriers too, so it is its own gap:
+`analytic-by-spline-edges-refuse-as-unimplemented-at-resolve`.
