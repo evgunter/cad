@@ -67,9 +67,10 @@ fn an_offset_moving_a_kissing_corner_away_lands_the_kiss_unread() {
                 Some(topo::RegionLane::certified()),
             );
             let gap = (point(&moved, x) - point(&moved, y)).norm();
-            let rest = carried.as_ref().ok().map(|c| {
-                topo::validate_pseudomanifold(&moved, c, tol())
-            });
+            let rest = carried
+                .as_ref()
+                .ok()
+                .map(|c| topo::validate_pseudomanifold(&moved, c, tol()));
             eprintln!(
                 "face {face:?} d {d}: corners {:?} {:?} gap {gap}; carry {carried:?}; at rest {rest:?}",
                 point(&moved, x),

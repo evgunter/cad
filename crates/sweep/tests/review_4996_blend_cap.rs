@@ -43,7 +43,9 @@ fn the_cap_a_band_carves_is_kept() {
     let found = edges_with_corners(&body, |c| {
         near(c, Point3::new(0.0, 0.0, 0.0)) || near(c, Point3::new(1.0, 0.0, 0.0))
     });
-    let [edge] = found[..] else { panic!("{found:?}") };
+    let [edge] = found[..] else {
+        panic!("{found:?}")
+    };
     let out = fillet_edges(&body, &[edge], 0.1, tol()).expect("the fillet builds");
     let f = cap(&body);
     let before = sides(&body, f);
