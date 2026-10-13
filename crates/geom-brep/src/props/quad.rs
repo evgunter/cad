@@ -1063,58 +1063,24 @@ fn end_slack(e: &TrimEdgeQ, end: bool, radius: Interval) -> f64 {
     (1.5 * certified_hi(e.env) + speed * bracket.width() * 0.5) * (1.0 + 1e-12)
 }
 
-/// How far `gap` exceeds what `slack` allows: `0` within it, so a
-/// closed junction reads zero rather than a negative margin the band
-/// would hold as near; `NaN` stays `NaN`.
-fn excess(gap: f64, slack: f64) -> f64 {
-    let over = gap - slack;
-    if over > 0.0 || over.is_nan() {
-        over
-    } else {
-        0.0
-    }
-}
-
-/// Each carrier's end lies within the run's ε of the vertex it ends
-/// at, so two meet there within `2ε`: in the chart metric, `3ε`. The
-/// corpus needs it: on the geom-brep, topo and sweep suites at
-/// ε = 1e-12, 3428 junctions of real faces read up to `1.99ε` beyond
-/// their end slack alone.
-const VERTEX_SLACK: f64 = 3.0;
-
 /// **Every junction of every loop closes on the cylinder, and the
-/// loops wind it as a face's boundary does** (`props_quad_junction_closed`,
-/// `props_quad_junction_open`, [`PropsError::ChartLoopOpen`],
-/// [`PropsError::LoopsWindChart`]).
+/// loops wind it as a face's boundary does** — the periodic-chart
+/// closure decision ([`super::closure`]) on the quadrature's chart
+/// images.
 ///
 /// At each junction the edge before ends where the edge after starts:
 /// their chart points differ by a whole number `m` of turns in the
 /// azimuth and by nothing in the level. The gap left once `m` turns
 /// are taken off, `G = R·|Δu − 2πm| + |Δv|`, is an enclosure, each end
 /// read through its own vertex's trig bracket ([`chart_end`]), and the
-/// slack `S` is the two ends' [`end_slack`] plus [`VERTEX_SLACK`]·ε.
-/// What is decided, exactly, with the band `(ε, Kε)`:
-///
-/// - **closed** when the [`excess`] of `G`'s upper bound over `S` is
-///   under `ε` (`props_quad_junction_closed` Zero) — every gap the
-///   enclosure admits is within `S + ε`;
-/// - **open** ([`PropsError::ChartLoopOpen`]) when that excess is
-///   beyond `Kε` and so is the excess of `G`'s lower bound
-///   (`props_quad_junction_open`, through the funnel's positive gate) —
-///   no gap the enclosure admits is within `S + Kε`;
-/// - **escalated** otherwise: an upper excess in `[ε, Kε]`, or a lower
-///   excess not definitely beyond `Kε`. A junction the enclosure cannot
-///   decide is never measured.
+/// slack `S` is the two ends' [`end_slack`] plus
+/// [`VERTEX_SLACK`](super::closure::VERTEX_SLACK)`·ε`. The closed
+/// decision reads the [`excess`](super::closure::excess) of `G`'s upper bound over `S`, the
+/// open one that of its lower bound.
 ///
 /// `du` is a global 1-form on the cylinder, so a closed loop's `∮ du`
 /// is `2π` times the sum of its junctions' `m` — the loop's turns, an
 /// integer once every junction is decided closed.
-///
-/// A face's boundary is simple closed curves on the cylinder, so each
-/// loop winds it once at most, and the face's loops wind it zero times
-/// together: they bound it, and that is what makes
-/// `−Σ∮ (v − anchor) du` the same for every anchor. Both are integer
-/// facts here and decide nothing in the band.
 ///
 /// Returns, per loop, whether it winds.
 fn loop_windings<T: Decide>(
@@ -1128,8 +1094,7 @@ fn loop_windings<T: Decide>(
         pt(core::f64::consts::TAU),
         pt(core::f64::consts::TAU.next_up()),
     );
-    let mut total = 0i64;
-    let mut winds = Vec::with_capacity(loops.len());
+    let mut windings = Vec::with_capacity(loops.len());
     for edges in loops {
         let mut turns = 0i64;
         for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
@@ -1140,30 +1105,14 @@ fn loop_windings<T: Decide>(
             let gap = radius * (du - pt(m) * tau).abs_enclosure() + (v1 - v0).abs_enclosure();
             let slack = end_slack(e, true, radius)
                 + end_slack(next, false, radius)
-                + VERTEX_SLACK * band.zero();
-            if classify_len::<T>(
-                "props_quad_junction_closed",
-                Margin::of(excess(certified_hi(gap), slack)),
+                + super::closure::VERTEX_SLACK * band.zero();
+            super::closure::require_junction_closed(
+                super::closure::JunctionExcess {
+                    hi: Margin::of(super::closure::excess(certified_hi(gap), slack)).lift::<T>(),
+                    lo: Margin::of(super::closure::excess(lo_or_refuse(gap), slack)).lift::<T>(),
+                },
                 band,
-                PropsCheck::Inventory,
-            )? != Sign::Zero
-            {
-                // The gap may exceed the slack: open only where it
-                // definitely does, and no answer otherwise.
-                return Err(
-                    match geom_core::k_stats::decide_positive(
-                        "props_quad_junction_open",
-                        Margin::of(excess(lo_or_refuse(gap), slack)).lift::<T>(),
-                        band,
-                    ) {
-                        Ok(()) => PropsError::ChartLoopOpen,
-                        Err(cause) => PropsError::Escalated {
-                            cause,
-                            check: PropsCheck::Inventory,
-                        },
-                    },
-                );
-            }
+            )?;
             // `m` is finite here: a refused enclosure reads `NaN` in the
             // gap and escalates above. The cast saturates.
             #[allow(clippy::cast_possible_truncation)]
@@ -1171,16 +1120,10 @@ fn loop_windings<T: Decide>(
                 turns = turns.saturating_add(m as i64);
             }
         }
-        if turns.abs() > 1 {
-            return Err(PropsError::LoopsWindChart);
-        }
-        total = total.saturating_add(turns);
-        winds.push(turns != 0);
+        windings.push([turns]);
     }
-    if total != 0 {
-        return Err(PropsError::LoopsWindChart);
-    }
-    Ok(winds)
+    super::closure::require_boundary_windings(&windings)?;
+    Ok(windings.iter().map(|&[k]| k != 0).collect())
 }
 
 /// The level the Green form is taken about: the middle of the levels
@@ -6331,7 +6274,8 @@ mod tests {
         }
     }
 
-    /// **A junction open by the vertex tolerance closes** ([`VERTEX_SLACK`]).
+    /// **A junction open by the vertex tolerance closes**
+    /// ([`super::super::closure::VERTEX_SLACK`]).
     /// The rectangle with its top stored `2ε` above its sides' ends, every
     /// bracket thin: the gap is the two carriers' ends about their
     /// vertex, which the vertex term allows, so the face measures. Without

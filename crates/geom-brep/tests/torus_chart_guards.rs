@@ -1,4 +1,4 @@
-//! **The torus chart Green form's three refusals, each red on its own.**
+//! **The torus chart Green form's refusals, each red on its own.**
 //!
 //! `geom_brep::props::curved`'s torus arm integrates `−∮ F(v) du` over
 //! each loop's lift, read against an anchor at the middle of that
@@ -7,9 +7,11 @@
 //! face's: a single-rim loop that winds the torus contributes exactly
 //! zero (its one rim IS its anchor), so a seamless band would measure
 //! as nothing, silently. The rows below hand each guard a face only it
-//! can refuse, and pin the refusal by name, so removing any one of
-//! `props_torus_lift_closed_u`, `props_torus_lift_closed_v` or the
-//! torus `props_ring_winding` turns its row red.
+//! can refuse, and pin the refusal by kind: a loop winding the torus
+//! alone is no boundary ([`PropsError::LoopsWindChart`]), a seamless
+//! band is one this form does not fold
+//! ([`PropsError::NotIsoRectangle`]), and a ring wound with its face
+//! refuses (`props_ring_winding`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::point::{p3, v3};
@@ -73,22 +75,30 @@ fn band_area(du: f64, v0: f64, v1: f64) -> f64 {
     R0 * du * (RR * (v1 - v0) + R0 * (v1.sin() - v0.sin()))
 }
 
-fn assert_refused(row: &str, got: Result<impl std::fmt::Debug, PropsError>, what: &str) {
+fn assert_refused(row: &str, got: Result<impl std::fmt::Debug, PropsError>, want: &PropsError) {
     match got {
-        Err(PropsError::NotIsoRectangle { what: w }) if w == what => {}
-        other => panic!("{row}: must refuse by {what}: {other:?}"),
+        Err(e) if e == *want => {}
+        other => panic!("{row}: must refuse as {want:?}: {other:?}"),
     }
 }
 
-/// **A loop that winds the torus in `u` refuses
-/// (`props_torus_lift_closed_u`).** A staircase loop once round the
-/// axis: half a turn at `v = 0.2`, up a meridian, the other half at
-/// `v = 0.7`, and down the meridian it started on. It bounds no region
-/// of the chart, and its anchored sum would read a nonzero area that
-/// is no face's. The seamless band of two full parallels is the case a
-/// hand-built body would hand over: each rim is its own loop's anchor
-/// and reads zero, so without this guard the band refuses only by
-/// accident of its rings' zero sides, and by another name.
+/// The seamless band's refusal: a legal winding configuration the
+/// chart Green form does not fold.
+const BAND: PropsError = PropsError::NotIsoRectangle {
+    what: "a torus face whose loops wind the torus (a seamless band): its chart \
+           Green form folds no winding loop",
+};
+
+/// **A loop that winds the torus in `u` alone is no boundary
+/// ([`PropsError::LoopsWindChart`]); a seamless band of two is one this
+/// form does not fold.** A staircase loop once round the axis: half a
+/// turn at `v = 0.2`, up a meridian, the other half at `v = 0.7`, and
+/// down the meridian it started on. It bounds no region of the chart,
+/// and its anchored sum would read a nonzero area that is no face's.
+/// The seamless band of two full parallels is the case a hand-built
+/// body would hand over: each rim is its own loop's anchor and reads
+/// zero, so without the guard the band refuses only by accident of its
+/// rings' zero sides, and by another name.
 #[test]
 fn a_loop_winding_the_torus_in_u_refuses() {
     let (s, b) = (torus(), band());
@@ -98,36 +108,33 @@ fn a_loop_winding_the_torus_in_u_refuses() {
         rim(0.7, PI, TAU, 2, 3),
         mer(TAU, 0.7, 0.2, 3, 0),
     ];
-    assert_refused(
-        "staircase flux",
-        curved_face(&s, &stair, true, b),
-        "props_torus_lift_closed_u",
-    );
+    let winds = PropsError::LoopsWindChart;
+    assert_refused("staircase flux", curved_face(&s, &stair, true, b), &winds);
     assert_refused(
         "staircase side",
         boundary_material_sign(&s, &stair, b),
-        "props_torus_lift_closed_u",
+        &winds,
     );
     let lower = vec![rim(0.2, 0.0, TAU, 0, 0)];
     let upper = vec![rim(0.7, TAU, 0.0, 1, 1)];
     assert_refused(
         "seamless band flux",
         curved_face_loops(&s, &[&lower, &upper], true, b),
-        "props_torus_lift_closed_u",
+        &BAND,
     );
     assert_refused(
         "seamless band side",
         boundary_material_sign_loops(&s, &[&lower, &upper], b),
-        "props_torus_lift_closed_u",
+        &BAND,
     );
 }
 
-/// **A loop that winds the torus in `v` refuses
-/// (`props_torus_lift_closed_v`).** A staircase once round the tube:
+/// **A loop that winds the torus in `v` alone is no boundary
+/// ([`PropsError::LoopsWindChart`]).** A staircase once round the tube:
 /// up half a turn of the meridian at `u = 0.3`, back along a parallel,
 /// up the other half at `u = 0`, and back along the first parallel a
 /// period above where it began. Its `u`-steps close, so only the `v`
-/// guard can see it; unguarded it reads the area between its two
+/// winding can see it; unguarded it reads the area between its two
 /// parallels as if it bounded it.
 #[test]
 fn a_loop_winding_the_torus_in_v_refuses() {
@@ -139,15 +146,12 @@ fn a_loop_winding_the_torus_in_v_refuses() {
         rim(v1, 0.3, 0.0, 2, 3),
         mer(0.0, v1, v0 + TAU, 3, 0),
     ];
-    assert_refused(
-        "staircase flux",
-        curved_face(&s, &stair, true, b),
-        "props_torus_lift_closed_v",
-    );
+    let winds = PropsError::LoopsWindChart;
+    assert_refused("staircase flux", curved_face(&s, &stair, true, b), &winds);
     assert_refused(
         "staircase side",
         boundary_material_sign(&s, &stair, b),
-        "props_torus_lift_closed_v",
+        &winds,
     );
 }
 

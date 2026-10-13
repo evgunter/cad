@@ -632,6 +632,8 @@ fn spiric_edge_q(
 enum WallImage {
     /// A spiric's `SpiricImage::Wall` and the radii its image carries.
     Spiric {
+        /// Where the traversal starts and ends on the image, `(u, v)`.
+        ends: [(Interval, Interval); 2],
         v0: Interval,
         sense: Interval,
         torus: WallTorus,
@@ -650,6 +652,7 @@ struct WallHalf {
     edge: LoopEdge<Interval>,
     image: WallImage,
     env: Interval,
+    t0: Interval,
     span: Interval,
 }
 
@@ -702,6 +705,29 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                            no ring of a trimmed torus face",
                 });
             }
+            // A spiric wall edge's traversal ends on its image
+            // `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t`, evaluated on the
+            // lane and crossed into certification arithmetic. Any other
+            // carrier has none, and reads refused brackets the closure
+            // decision escalates on.
+            let spiric_image_ends = |e: &LoopEdge<T>, u0: T, v0: T, sense: T| {
+                let Curve3::Spiric {
+                    major_radius,
+                    minor_radius,
+                    offset,
+                    ..
+                } = e.carrier
+                else {
+                    return [(Interval::refused(), Interval::refused()); 2];
+                };
+                let at = |t: T| {
+                    let f =
+                        ((major_radius + minor_radius * t.cos()).powi(2) - offset.powi(2)).sqrt();
+                    (iv(u0 + sense * f.atan2(offset)), iv(v0 + sense * t))
+                };
+                let (a, b) = (at(e.t0), at(e.t1));
+                if e.forward { [a, b] } else { [b, a] }
+            };
             let lifted = crate::pcurves::lifted_images(body, hes);
             let mut halves = Vec::with_capacity(outer.len());
             for ((le, he), image) in outer.iter().zip(hes).zip(&lifted) {
@@ -722,10 +748,14 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                             minor,
                             image:
                                 SpiricImage::Wall {
-                                    v0, sense, torus, ..
+                                    u0,
+                                    v0,
+                                    sense,
+                                    torus,
                                 },
                             ..
                         } => WallImage::Spiric {
+                            ends: spiric_image_ends(le, *u0, *v0, *sense),
                             v0: iv(*v0),
                             sense: iv(*sense),
                             torus: *torus,
@@ -738,6 +768,7 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                         _ => WallImage::Other,
                     },
                     env: iv(cache.certificate().envelope),
+                    t0: iv(t0),
                     span: iv(t1) - iv(t0),
                 });
             }
@@ -821,6 +852,7 @@ fn spiric_wall(
         minor,
         rims: Vec::new(),
         meridians: Vec::new(),
+        ends: Vec::with_capacity(halves.len()),
     };
     let mut closed_va = [Interval::zero(); 3];
     let mut spirics = Vec::new();
@@ -832,6 +864,7 @@ fn spiric_wall(
         match (&h.image, &e.carrier) {
             (
                 WallImage::Spiric {
+                    ends: [start, end],
                     v0,
                     sense,
                     torus,
@@ -882,7 +915,15 @@ fn spiric_wall(
                     v0: *v0,
                     env: h.env,
                 };
-                spirics.extend(spiric_edge_q(e, c, Some(wall)));
+                let q = spiric_edge_q(e, c, Some(wall)).ok_or_else(|| {
+                    unsupported("a spiric wall image on an edge whose carrier is no spiric")
+                })?;
+                chart.ends.push(spiric::ChartEndsQ {
+                    start: *start,
+                    end: *end,
+                    env: h.env,
+                });
+                spirics.push(q);
                 continue;
             }
             (WallImage::Harmonic([p0, pa, pb, pl]), _) => {
@@ -893,6 +934,14 @@ fn spiric_wall(
                          line of its chart — the spiric lane reads rims and meridians",
                     ));
                 }
+                let at = |t: Interval| (p0.0 + pl.0 * t, p0.1 + pl.1 * t);
+                let (a, b) = (at(h.t0), at(h.t0 + h.span));
+                let (start, end) = if e.forward { (a, b) } else { (b, a) };
+                chart.ends.push(spiric::ChartEndsQ {
+                    start,
+                    end,
+                    env: h.env,
+                });
                 if zero(pl.1) {
                     chart.rims.push(spiric::RimQ {
                         v: p0.1,

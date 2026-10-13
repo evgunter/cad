@@ -112,13 +112,13 @@
 //! face measures and encodes its side as a rectangle does. [`boundary_material_sign_loops`] reads
 //! each kind's side off the quantity its flux integrates.
 //!
-//! Closure: the cylinder's and torus's Green forms check it on the
-//! traversed endpoints (`props_loop_closed`, and
-//! `props_chart_loops_closed` / `props_torus_lift_closed_u` and `_v`),
-//! the sphere's Gauss–Bonnet and the cone's vector area on every
-//! junction (`props_loop_closed`). No lane reads the loop-local vertex **tags**
+//! Closure: every lane on a cylinder or torus chart decides it one way,
+//! per junction on the chart with integer windings (`closure`); the
+//! sphere's Gauss–Bonnet and the cone's vector area on every junction
+//! in space (`props_loop_closed`). No lane reads the loop-local vertex **tags**
 //! ([`LoopEdge`]).
 
+mod closure;
 mod curved;
 mod loop_area;
 pub mod quad;
@@ -382,19 +382,22 @@ pub enum PropsError {
     /// wrong, whichever lane reads it: the closed forms' and the
     /// cylinder quadrature's one decision (`curved::require_holes_wound_against`).
     RingWoundWithFace,
-    /// **A loop's stored chart images do not close**
-    /// (`props_quad_junction_closed`): at one junction the edge after
+    /// **A loop does not close on its periodic chart**
+    /// (`props_chart_junction_open`): at one junction the edge after
     /// starts definitely farther from where the edge before ends than
-    /// their two ends' certified slack allows, once whole turns of the
-    /// azimuth are taken off. Stored data that is wrong: consecutive
-    /// edges of a loop meet at their shared vertex.
+    /// the junction's stated slack allows, once whole periods are taken
+    /// off. Stored data that is wrong: consecutive edges of a loop meet
+    /// at their shared vertex. Every lane on a cylinder or torus chart
+    /// decides it the one way (`closure::require_junction_closed`).
     ChartLoopOpen,
-    /// **A face's loops wind its cylinder as no face's boundary does**:
-    /// with every junction decided closed, one loop winds the cylinder
-    /// more than once, or the face's loops wind it a nonzero number of
-    /// times together, so they bound no region of it. Stored data that
-    /// is wrong: a face's boundary is simple closed curves that bound
-    /// it. A band's two rims, once each and opposite ways, are not this.
+    /// **A face's loops wind its periodic chart as no face's boundary
+    /// does**: with every junction decided closed, one loop winds the
+    /// chart more than once about one of its directions, or the face's
+    /// loops wind it a nonzero number of times together, so they bound
+    /// no region of it. Stored data that is wrong: a face's boundary is
+    /// simple closed curves that bound it. A band's two rims, once each
+    /// and opposite ways, are not this; a lane whose closed form cannot
+    /// fold such a band refuses it as its inventory.
     LoopsWindChart,
     /// A boundary edge's traversed **arc** leaves one branch of the
     /// chart, though its CARRIER is a certified iso curve: the arc's

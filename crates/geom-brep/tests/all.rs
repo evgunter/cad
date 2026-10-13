@@ -194,6 +194,8 @@ mod pcurve_p1b_r2_probes;
 mod pcurve_parameter_finding;
 #[path = "pcurve_villarceau.rs"]
 mod pcurve_villarceau;
+#[path = "periodic_chart_closure.rs"]
+mod periodic_chart_closure;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
 #[path = "r2_cert3_e2e.rs"]

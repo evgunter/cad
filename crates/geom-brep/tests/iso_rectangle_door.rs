@@ -340,7 +340,7 @@ fn a_meridian_in_pieces_folds_by_lineage_into_the_edge_it_came_from() {
 /// Green form reads each piece's own span, so the unfolded rectangle
 /// measures as the control does and encodes its side. A genuine corner
 /// — two arcs on different minor circles from two edges — leaves the
-/// loop open, and both refuse it as that (`props_loop_closed`).
+/// loop open, and both refuse it as that ([`PropsError::ChartLoopOpen`]).
 #[test]
 fn pieces_from_distinct_edges_never_fold() {
     let s = torus();
@@ -387,9 +387,7 @@ fn pieces_from_distinct_edges_never_fold() {
     // A corner: arcs on two minor circles from two edges.
     let mut corner = pieced(Some(1), Some(2));
     corner[2] = tmer(0.5, 0.7, V1, 2, 3, Some(9));
-    let open = PropsError::NotIsoRectangle {
-        what: "props_loop_closed",
-    };
+    let open = PropsError::ChartLoopOpen;
     assert_eq!(
         require_iso_rectangle(&s, &corner, band()),
         Err(rim_level),

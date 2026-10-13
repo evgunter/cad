@@ -17,7 +17,9 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_3, PI, TAU};
 use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
+use geom_brep::props::{
+    FaceContribution, LoopEdge, PropsError, curved_face, curved_face_loops, planar_face,
+};
 use geom_core::{Point3, Vec3};
 
 // ---------------------------------------------------------------------
@@ -679,16 +681,15 @@ fn out_of_inventory_boundaries_refuse_typed() {
         ),
         "line on sphere must refuse"
     );
-    // (e) torus face without a meridian (two full rims only — a
-    // full-period tube band: outside the M2 inventory reachable here).
+    // (e) torus face without a meridian (two full rims, each its own
+    // loop — a full-period tube band: outside the M2 inventory reachable
+    // here).
     let t = tor();
-    let rims = vec![
-        rim_edge(&t, 0.2, 0.0, TAU, true, (0, 0), false),
-        rim_edge(&t, 1.0, 0.0, TAU, false, (1, 1), false),
-    ];
+    let lower = [rim_edge(&t, 0.2, 0.0, TAU, true, (0, 0), false)];
+    let upper = [rim_edge(&t, 1.0, 0.0, TAU, false, (1, 1), false)];
     assert!(
         matches!(
-            curved_face(&t, &rims, true, b),
+            curved_face_loops(&t, &[&lower, &upper], true, b),
             Err(PropsError::NotIsoRectangle { .. })
         ),
         "torus without meridian must refuse"

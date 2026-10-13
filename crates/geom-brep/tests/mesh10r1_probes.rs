@@ -90,7 +90,7 @@ fn flux_bits(loop_: &[LoopEdge<f64>]) -> Result<(u64, u64), PropsError> {
 /// bitwise, and every chain whose pieces leave a parameter GAP or
 /// OVERLAP refuses `props_meridian_pieces_meet` at the door; the flux
 /// lane, a Green form over the pieces' geometry, refuses the loop that
-/// does not close (`props_loop_closed`).
+/// does not close ([`PropsError::ChartLoopOpen`]).
 #[test]
 fn a_gap_between_the_pieces_of_a_chain_refuses_typed() {
     let honest = flux_bits(&gapped(0.7, 0.7));
@@ -111,9 +111,7 @@ fn a_gap_between_the_pieces_of_a_chain_refuses_typed() {
     // The flux lane is the torus's chart Green form, which reads the
     // pieces' geometry: a parameter gap or overlap is a loop that does
     // not close.
-    let open = PropsError::NotIsoRectangle {
-        what: "props_loop_closed",
-    };
+    let open = PropsError::ChartLoopOpen;
     for (name, m0, m1) in [
         ("gap [0.5, 0.9]", 0.5, 0.9),
         ("gap [0.3, 1.1]", 0.3, 1.1),
@@ -136,7 +134,8 @@ fn a_gap_between_the_pieces_of_a_chain_refuses_typed() {
 /// verdict depended on the rotation the caller handed in. Inverted: a
 /// loop that is one full minor circle in pieces, with no rim, has no
 /// chain boundary, and every rotation refuses at the flux lane and at
-/// the door by the same name.
+/// the door by the same name. At the flux lane that name is the
+/// closure decision's: one loop winding the tube once bounds nothing.
 #[test]
 fn a_chain_that_closes_on_itself_refuses_by_one_name_at_every_rotation() {
     // One full minor circle at u = 0, in three pieces of one edge, all
@@ -154,9 +153,7 @@ fn a_chain_that_closes_on_itself_refuses_by_one_name_at_every_rotation() {
     let closed = PropsError::NotIsoRectangle {
         what: "torus meridian pieces close a loop with no rim",
     };
-    let rimless = PropsError::NotIsoRectangle {
-        what: "curved face without a rim (non-sphere)",
-    };
+    let rimless = PropsError::LoopsWindChart;
     for k in 0..3 {
         let got = curved_face(&torus(), &full(k), true, band())
             .map(|c| (c.flux.to_bits(), c.area.to_bits()));

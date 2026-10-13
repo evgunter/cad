@@ -135,7 +135,7 @@ fn a_rim_arc_split_within_epsilon_of_its_level_measures_at_its_own_level() {
 /// **The floor.** Ten times the run's own ESCALATE threshold off its
 /// level, the split arc's ends no longer meet its neighbours' at any ε
 /// and any K: the loop does not close, and the reader refuses it
-/// (`props_loop_closed`) rather than integrate a boundary that bounds
+/// ([`PropsError::ChartLoopOpen`]) rather than integrate a boundary that bounds
 /// nothing.
 #[test]
 fn a_rim_arc_well_outside_the_band_is_still_refused() {
@@ -144,9 +144,7 @@ fn a_rim_arc_well_outside_the_band_is_still_refused() {
     assert!(
         matches!(
             curved_face(&s, &edges, true, band),
-            Err(PropsError::NotIsoRectangle {
-                what: "props_loop_closed"
-            })
+            Err(PropsError::ChartLoopOpen)
         ),
         "a rim decisively off its level leaves the loop open"
     );

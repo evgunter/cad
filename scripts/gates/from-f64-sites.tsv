@@ -44,6 +44,7 @@ crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	nappe_sign(*nappe)	a c
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	s0	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	s1	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	launders(an-edges-parameter-ends-enter-a-carrier-piece-as-constants)	v	net_param: a parameter that is no net breakpoint: an edge enclosure's f64 end (a computed value, laundered), or a partition or halving break (a genuine constant)
+crates/geom-brep/src/props/closure.rs	1	constant	VERTEX_SLACK * band.zero()	the vertex slack, a multiple of the band's zero width: a tolerance
 crates/geom-brep/src/props/loop_area.rs	1	constant	*w	a Gauss weight
 crates/geom-brep/src/props/loop_area.rs	1	constant	*x	a Gauss node
 crates/geom-brep/src/ssi/certify.rs	1	constant	0.5 * (a + b)	a refined span's midpoint where the chain box's axis is read: a direction the certificate holds for whichever one it is handed

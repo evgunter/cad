@@ -57,10 +57,11 @@ fn voided_rod() -> Body<f64> {
 /// whichever rim the walk from `Cycle::first` meets first) and the
 /// iso-rectangle premises it rests on are not run on this body at all.
 /// What the Green form does run is its closure premise, which makes the
-/// sum anchor-free: every loop closes at each of its eight edge
-/// junctions (`props_loop_closed`), and each wall's loops wind the
-/// cylinder zero times (`props_chart_loops_closed`) — per-junction and
-/// per-face facts, whichever edge a walk starts at.
+/// sum anchor-free: every loop closes on the chart at each of its edge
+/// junctions (`props_chart_junction_closed`), and turns about the
+/// cylinder a whole number of times, here none
+/// (`props_chart_loop_turns` Positive: short of a half turn) —
+/// per-junction and per-loop facts, whichever edge a walk starts at.
 ///
 /// Each shell is read twice, so every `props_*` count is even: once at
 /// `f64` (`chk_shell_volume_sign`), and once re-derived at the interval
@@ -86,10 +87,10 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("chk_shell_volume_sign Positive", 1),
         ("chk_shell_volume_sign_enclosure Negative", 1),
         ("chk_shell_volume_sign_enclosure Positive", 1),
-        ("props_chart_loops_closed Zero", 4),
+        ("props_chart_junction_closed Zero", 16),
+        ("props_chart_loop_turns Positive", 4),
         ("props_circle_axis_class Positive", 8),
         ("props_face_extent Positive", 4),
-        ("props_loop_closed Zero", 16),
         ("props_meridian_axial Zero", 8),
         ("props_meridian_on_surface Zero", 8),
         ("props_rim_axis_parallel Zero", 8),
