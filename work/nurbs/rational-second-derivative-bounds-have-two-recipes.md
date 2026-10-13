@@ -2,10 +2,12 @@
 id: rational-second-derivative-bounds-have-two-recipes
 kind: issue
 title: Rational second-derivative bounds (chords' carrier M, patch_bound's rational cells) use the hull-quotient recipe, not the pair-term one order up
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: M
+branch: nurbs/quotient-second-order
+closed: 2026-10-13
 ---
 
 
@@ -55,3 +57,30 @@ chord counts move with it (re-baseline them, stating the reason).
 
 - **A third first-order inf recipe** reads the same cells: `geom-brep` `offset_meters` `cell_normal` / `patch_regularity` floors ‖S_u × S_v‖ by interval products of `patch_bound`'s refined cell enclosures. It moves with this row.
 - **The second-order statement follows the 2026-10-13 quotient ruling** (`work/nurbs/log.md`). `S_uu` and `S_uv` have the same numerator over a power of `W` form, so the quotient bound covers them. Build A's pair-term WIP (`nurbs/second-order-pair-term`, `f22f608d`) is not merged. Its rows and mutants carry over.
+
+## Closed (2026-10-13)
+
+The quotient ruling's second order, in
+`crates/geom-core/src/spline/derivative.rs` ("The second order"):
+`C″ = M/W³` with `M = A″W² − AW″W − 2A′WW′ + 2AW′²`, `S_uu`/`S_vv`
+likewise, and `S_uv` with
+`M_uv = A_uvW² − AW_uvW − A_uWW_v − A_vWW_u + 2AW_uW_v`, each read on
+the same exact dyadic pieces as the first order
+(`accel_pieces`, `cell_second_quotients`).
+
+- `geom-brep` `patch_bound` `rational_cells`: every cell is a piece,
+  and its `s_u`/`s_v`/`s_uu`/`s_uv`/`s_vv` boxes and its sups come
+  from quotient pieces (a coordinate range per box, the largest ratio
+  norm per sup), so each order has one recipe. The in-interval
+  refinement and the quotient-rule recurrences are gone.
+- `mesh` `chords` `rational_carrier_m_bound` reads
+  `NurbsCurve3::accel_upper_bound`; `patch_bound::rational_split_points`
+  is gone with the refinement it scheduled.
+- `geom-brep` `offset_meters` `cell_normal`: the floor is the new
+  `PatchCell::m_inf`, the area quotient's inf on both arms (the
+  integral arm at unit weights), replacing the three interval-product
+  assemblies. `nurbs_cert` `cell_readings` only reads cells and is
+  unchanged.
+- `geom` `second_derivative.rs` carries no rational recipe (it
+  refuses a weight other than `1`); its doc now names the quotient
+  bound.

@@ -2,10 +2,13 @@
 id: the-line-meter-fuzz-row-reds-at-interval-far-from-the-centre
 kind: issue
 title: sweep line_meter_fuzz: the Interval meter's low end is looser than its rounding claim far from the centre (seed 0xa9b25b00fc22acb2)
-status: open
+status: closed
 opened: 2026-10-12
 priority: P1
 cost: E
+pr: 5025
+branch: band/line-meter-fuzz-interval-far
+closed: 2026-10-13
 ---
 
 (Filed by PCERT from a review probe run on PR 4897, which does not touch
@@ -43,3 +46,13 @@ from the centre", is where the claim was made). Then either tighten
 that candidate, or show the claim's `1e-12` rate is wrong for segments
 like this one and restate it with its derivation. Pin the seed's case
 as a fixed row.
+
+## Closed
+
+PR 5025. The meter read `G` at each candidate through the point
+`q0 + e·s`, which carries `s` in both coordinates. A candidate's spread
+therefore lowered even a term flat along the segment by about that
+spread. Here the spread was a near-0/0 radial quotient, 10⁻⁷ wide. A
+second seed (`0x1281277f8dfa215d`) red the same way through a
+near-parallel floor pair. `g` now reads each term with `s` once, so the
+`1e-12` rate stands. Both cases are pinned in `end_face.rs`'s tests.
