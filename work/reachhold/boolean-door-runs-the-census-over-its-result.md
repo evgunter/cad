@@ -150,3 +150,7 @@ Its `UnrecordedContact` findings on results that carry records are the
 operands' own contacts, which a kernel op called without
 `BooleanInputs` records does not carry in. The two rows' closing notes
 carry the measurement.
+
+## The per-record confirm folds in here (2026-10-13)
+
+Ev on `[ev]` PR 4951: confirming each record an op mints (`confirm_records` over `BooleanBody::contacts`) is not a separate door step; it comes with un-parking this gate, whose job is "escalate or not". The point-touch reading (PR 4956) has to land before this gate, so that a body C7 calls valid (the rod-on-plate union) does not refuse on a record no reading covers. (CONTACTHOLD orchestrator)

@@ -350,17 +350,20 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
         // face.
         let upright = topo::transform_rigid(
             &ball,
-            &Affine3::rotation_about_axis(
-                Point3::new(0.0, 0.0, 0.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                core::f64::consts::FRAC_PI_2,
+            &geom_core::test_support::rigid(
+                &Affine3::rotation_about_axis(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                    core::f64::consts::FRAC_PI_2,
+                ),
+                Tol::witness(),
             ),
             Tol::witness(),
         )
         .expect("the ball stands up");
         topo::transform_rigid(
             &upright,
-            &Affine3::translation(Vec3::new(0.5, 0.5, l)),
+            &geom_core::RigidMotion::translation(Vec3::new(0.5, 0.5, l)).unwrap(),
             Tol::witness(),
         )
         .expect("the ball translates")

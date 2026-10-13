@@ -688,7 +688,7 @@ fn short(e: &TubeError) -> String {
 /// cavity insertion then carries as its containment evidence.
 ///
 /// The frame is not in this ordering and cannot be: the door takes an
-/// `OrthoFrame`, so a frame that is wrong refuses at its own mint,
+/// `RigidMotion`, so a frame that is wrong refuses at its own mint,
 /// before this door is called at all.
 #[test]
 fn r2_wall_verdicts_preempt_the_window_verdicts() {

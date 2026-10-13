@@ -151,12 +151,20 @@ pair is from the two cells' carriers:
 
 - A **curve touch** is certified by the jet schedule along its locus
   (coincidence within ε, normal opposition within ε·κ_rel, κ_rel
-  definitely positive, hull bounds between samples). For an edge–face
-  pair the locus is the edge's carrier; for a face–face pair on two
+  definitely positive, hull bounds between samples). For an edge lying
+  in a face the locus is the edge's carrier; for a face–face pair on two
   carriers the census derives it from the carriers, on the closed-form
   lane the deciding operation used, and refuses typed where no such lane
   exists. Its endpoints are bounded by vertex records or the locus's
   closure; an unbacked bound is `UnrecordedContact`.
+- A **point touch** is a pair of any two cells whose interiors meet at
+  isolated points without crossing (a circle on a plane, a sphere on a
+  plane, two circles kissing). The census finds each point on the
+  closed-form lane of the two carriers, refusing typed where none
+  exists, and certifies there coincidence within ε, the point strictly
+  inside both cells, and κ_rel definitely positive; in band escalates.
+  Whether the solids cross at the point is the touch analysis's
+  reading of the faces around it.
 - A **patch** is a face–face pair on one carrier, backed by a
   `SameOpposite` decision (for a mate's patch, the at-rest
   census's `CensusAtRest` row; the mate places and never checks):
