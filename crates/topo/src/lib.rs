@@ -131,6 +131,7 @@
 //! ```
 
 pub mod attach;
+pub(crate) mod bisect;
 pub mod body;
 pub mod boolean;
 pub(crate) mod carrier_speed;

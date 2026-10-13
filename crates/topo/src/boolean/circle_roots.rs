@@ -681,7 +681,10 @@ pub(super) fn certified_subdivision<T: Decide>(
     };
     let (first, first_side) = ends[0];
     ends.push((first + T::tau(), first_side));
-    // Popped left to right, so the roots come out in order.
+    // Popped left to right, so the bisection's raw midpoints come out in
+    // order; the reported roots do not, since one in the walk's tail past
+    // `mid + π` re-centres to the front. No reader relies on the order
+    // (the type is documented unordered).
     let mut pieces: Vec<((T, Sign), (T, Sign))> =
         ends.windows(2).rev().map(|w| (w[0], w[1])).collect();
     let mut roots: Vec<T> = Vec::new();
@@ -737,7 +740,13 @@ pub(super) fn certified_subdivision<T: Decide>(
             // are moved along their pieces, so the last piece runs past
             // the half-turn. Of the two adjacent scalars the bracket
             // closes on, a steep residual can read ON at one only, and
-            // their midpoint rounds onto either.
+            // their midpoint rounds onto either. Sound at every scalar by
+            // `ring_path::branch`'s window re-centring argument.
+            // `rows.side` reads the residual, which is periodic. The
+            // readers read an end of a whole-turn span alike: the wall
+            // crossing's `at_end`, and the ruling's fixed `(−π, π)`
+            // window, which re-sorts its roots. None reads the root as an
+            // identity.
             let mid = (t0 + t1) / two;
             let reported = |t: T| mid + (t - mid).reduce_periodic_centred(T::tau());
             let nearer = |(lo, hi): (T, T)| {
@@ -1004,6 +1013,13 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     // zero (module docs).
     let past = |near: T| two * (near.abs() / swing).sqrt().asin();
     let half_chord = (lo_value + hi_value).select_le_zero(past(hi_value), T::pi() - past(lo_value));
+    // The roots on the branch of the span's middle: sound at every scalar
+    // by `ring_path::branch`'s window re-centring argument. Its readers
+    // read an end of a whole-turn span alike: the wall crossing's
+    // `at_end`, the sphere cut-in's vertex lookup at either end, and
+    // `sphere_region`'s ray reading `sideless` at either end. None reads
+    // a root as an identity, which is why the floor stays: a structural
+    // pick would decide nothing a reader uses.
     let mid = (t0 + t1) / two;
     let near_mid = |raw: T| mid + (raw - mid).reduce_periodic_centred(T::tau());
     Ok(FirstHarmonicRoots::Certified([

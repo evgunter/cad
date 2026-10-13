@@ -392,7 +392,7 @@ fn the_conservative_frontier_is_stated_not_hidden() {
     // below refuses with a comfortably positive true minimum speed, so
     // what it pins is the schedules' conservatism, not a property of
     // the geometry — stated out loud so the frontier moves visibly if
-    // `RATIONAL_PIECE_SPLITS` is ever
+    // `SPEED_PIECE_SPLITS` is ever
     // revisited. Refusing is always sound; it is only ever a usability
     // cost.
     let sharp_turn = {
@@ -635,23 +635,31 @@ fn a_degree_two_net_the_refined_scan_read_higher_still_meters() {
 }
 
 /// **Past the rational meter's degree ceiling the meter refuses.** At
-/// degree 25, one past `RATIONAL_PIECE_MAX_DEGREE`, the piece assembly
-/// abstains and no other assembly stands behind it, at either scalar: the meter is poison
+/// degree 29 the quotient's common degree `2p = 58` passes
+/// `QUOTIENT_MAX_DEGREE` (56), the piece reading refuses and no other
+/// assembly stands behind it, at either scalar: the meter is poison
 /// (NaN), which every consumer's gate refuses, never a looser number.
+/// At degree 28, the last below the ceiling, the same net meters.
 #[test]
-fn a_rational_carrier_past_degree_24_refuses() {
-    let p = 25;
-    let knots: Vec<f64> = std::iter::repeat_n(0.0, p + 1)
-        .chain(std::iter::repeat_n(1.0, p + 1))
-        .collect();
-    let control = (0..=p)
-        .map(|i| Point3::new(i as f64, 0.1 * (i % 2) as f64, 0.0))
-        .collect();
-    let weights = (0..=p)
-        .map(|i| if i % 2 == 0 { 1.0 } else { 1.5 })
-        .collect();
-    let c =
-        NurbsCurve3::<f64>::new(KnotVector::clamped(knots, p).unwrap(), control, weights).unwrap();
+fn a_rational_carrier_past_degree_28_refuses() {
+    let net = |p: usize| {
+        let knots: Vec<f64> = std::iter::repeat_n(0.0, p + 1)
+            .chain(std::iter::repeat_n(1.0, p + 1))
+            .collect();
+        let control = (0..=p)
+            .map(|i| Point3::new(i as f64, 0.1 * (i % 2) as f64, 0.0))
+            .collect();
+        let weights = (0..=p)
+            .map(|i| if i % 2 == 0 { 1.0 } else { 1.5 })
+            .collect();
+        NurbsCurve3::<f64>::new(KnotVector::clamped(knots, p).unwrap(), control, weights).unwrap()
+    };
+    let below = net(28).speed_lower_bound().get();
+    assert!(
+        below.is_finite(),
+        "a degree-28 rational carrier metered {below}"
+    );
+    let c = net(29);
     let m = c.speed_lower_bound().get();
     let mi = c
         .map_scalar(<geom_core::Interval as geom_core::Real>::from_f64)
@@ -659,6 +667,6 @@ fn a_rational_carrier_past_degree_24_refuses() {
         .get();
     assert!(
         m.is_nan() && geom_core::Real::is_poison(mi),
-        "a degree-25 rational carrier metered {m} / {mi:?}"
+        "a degree-29 rational carrier metered {m} / {mi:?}"
     );
 }

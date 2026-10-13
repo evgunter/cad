@@ -1040,7 +1040,7 @@ fn bisect(
 
 /// A certified sup of a spline's speed, polynomial or rational: the
 /// curve's [`NurbsCurve3::speed_upper_bound`] read at `Interval`, whose
-/// upper end bounds the exact pair-term bound from above.
+/// upper end bounds the exact quotient bound from above.
 fn certified_speed(c: &NurbsCurve3<f64>) -> f64 {
     geom_core::Bounds::hi(
         c.map_scalar(<geom_core::Interval as geom_core::Real>::from_f64)
@@ -1299,7 +1299,7 @@ mod regions {
 /// **The spline lane reaches rational carriers.** Both doors that meter
 /// a spline's speed ([`certified_speed`]) answer on a rational one:
 /// `level_row`'s column and `plane_spline_root`'s edge each read the
-/// pair-term bound, where they refused before it.
+/// quotient bound, where they refused before it.
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod rational_carriers {

@@ -445,14 +445,40 @@ impl<T: Real> CircleArc<T> {
     }
 }
 
-/// `t` moved by whole turns to the branch of `span`'s middle.
+/// `t` moved by whole turns to the branch of `span`'s middle, into
+/// `(mid − τ/2, mid + τ/2]`.
 ///
-/// A raw pick, sound whichever way it falls: every span is shorter than a
-/// turn, so a parameter inside it lies within half a span of the middle
-/// and lands on its own branch. Only a parameter half a turn from the
-/// middle is in doubt, and that one is at least half a turn less half
-/// the span outside the span on either branch, which the in-span reading
-/// then decides, or puts in its band where the span nears a whole turn.
+/// **The window re-centring argument**, which the sites that re-centre
+/// a parameter on a span's middle and read it only against the span's
+/// ends cite. A raw pick, sound whichever way it falls. A parameter
+/// inside the span lies within half the span of the middle and lands on
+/// its own branch. Only a parameter half a turn from the middle is in
+/// doubt:
+/// - on a span shorter than a turn (a piece's), it is outside the span
+///   on either branch, by at least half the span's complement;
+/// - on a whole-turn span (a loop arc over a closed edge, or a
+///   self-loop chord's `ArcEnd::WholeTurn`), it IS the span's end, `lo`
+///   and `hi` being one point. This spelling lands it on `hi`, the
+///   `reduce_periodic_centred` spelling on `lo`, and every reader of an
+///   end reads `lo` and `hi` alike (here `in_span` decides Zero at
+///   either end and the path says nothing).
+///
+/// Over the scalars:
+/// - at `f64` the half-turn parameter is reached (adversarial path grids
+///   do) and lands as above;
+/// - at `Interval` an enclosure straddling it spans both branches and
+///   the in-span reading escalates or declines. On a closed circle a
+///   seam-vertex root escalates hard (`boolean::reduce`'s
+///   `bool_wall_root_in_span`);
+/// - at `Sym` the `floor` folds only where its argument's form is the
+///   zero polynomial, the exact tie, where the fold is the true `⌊0⌋`
+///   and agrees with `f64`. Elsewhere it is an atom keyed by its
+///   argument's form, so floors of form-equal arguments cancel, and a
+///   reading is numeric unless such a fold or cancellation makes it an
+///   identity.
+///
+/// No reader reads the pick as an identity: the parameter is compared
+/// only with span ends of another provenance.
 fn branch<T: Real>(t: T, (lo, hi): (T, T)) -> T {
     let mid = (lo + hi) * T::from_f64(0.5);
     let tau = T::tau();

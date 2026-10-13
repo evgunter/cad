@@ -2128,16 +2128,22 @@ mod tests {
                     "{label}: the refusal is on the frame's escalation log"
                 );
                 let text = err.to_string();
-                let lever = "Recourse: make the edges at the corner where the two faces meet \
-                             span clearly more than the tolerance";
-                let offer = band.offer_deciding(arm).filter(|_| class.is_some());
-                let ending = if let Some(offered) = offer {
-                    format!(
-                        "{lever}, or, if this length of the corner's shorter edge is intended, \
-                         tighten the tolerance below {offered:e} m"
-                    )
-                } else {
-                    lever.to_owned()
+                let lever = "make the edges at the corner where the two faces meet span clearly \
+                             more than the tolerance";
+                // The sized ending is the margin's own sentence for this
+                // decision's words; the moot declaration ends in the lever.
+                let ending = match class {
+                    None => format!("Recourse: {lever}"),
+                    Some(_) => geom_core::MarginDiag::value(arm).sized_recourse(
+                        band,
+                        geom_core::SizedWords {
+                            lever,
+                            size: "length of the corner's shorter edge",
+                            passes: geom_core::SizedPass::NonZero,
+                            no_size: None,
+                            unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+                        },
+                    ),
                 };
                 assert!(
                     !text.contains("declare") && text.ends_with(&ending),
