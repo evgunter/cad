@@ -2,12 +2,13 @@
 id: switch-profile-and-editor-core-onto-indeterminate-lever-ending
 kind: issue
 title: profile's validate::lever_ending and editor-core's composed LeverOnly re-spell geom-core Indeterminate::lever_ending
-status: review
+status: closed
 pr: 5003
 opened: 2026-10-13
 branch: encl/lever-ending-switch
 priority: P3
 cost: E
+closed: 2026-10-13
 ---
 
 
