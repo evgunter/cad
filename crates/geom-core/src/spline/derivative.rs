@@ -129,6 +129,12 @@
 //! weight spread of `10³`, growing with the spread. `Interval` is the
 //! certified lane.
 //!
+//! **The practical ceiling sits lower on a wide weight spread.** The
+//! weight power's coefficients are products of interval weights, and at
+//! degree 17 and above a spread near `10⁶` lets their enclosures reach
+//! zero: the ratios then do not certify and the reading is a refusal,
+//! not a bound. The second order (`3p`) meets it first.
+//!
 //! **No zero knot difference is reachable.** A span is walked only when
 //! it is nonempty, and its active pairs are `i ∈ [s − p, s − 1]`
 //! ([`Span::first_derived_window`], total): each pair's knot difference

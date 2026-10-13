@@ -1136,7 +1136,9 @@ macro_rules! nurbs_curve {
             /// order"). At `Interval` it is certified; at `f64` it is the
             /// same expression in round-to-nearest. Poison where the
             /// statement refuses (a degree above 18, where `3p` passes
-            /// the ceiling).
+            /// the ceiling); at `Interval`, uncertified where a degree of
+            /// 17 or more meets a weight spread near `1e6` (the module
+            /// docs' practical ceiling).
             pub fn accel_upper_bound(&self) -> T {
                 let points: Vec<[T; $dim]> = self.control.iter().map(|p| [$(p.$c),+]).collect();
                 spline::accel_pieces(&self.knots, &points, &self.weights, SPEED_PIECE_SPLITS)
