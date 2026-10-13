@@ -34,8 +34,10 @@ pub struct DiscardRow {
     pub face: FaceKey,
     /// Each stretch along which it bordered a face the result KEPT:
     /// the kept side's two end vertices, in result keys before the
-    /// zip's fusions and the output stage's join and merge (settle them
-    /// through `BooleanNaming::settler`). The result edge between the
+    /// zip's splits per cone, its fusions and the output stage's join and
+    /// merge (settle them through `BooleanNaming::settler`; an end the
+    /// zip split per cone lies at one of its copies, `Settler::settle_cones`).
+    /// The result edge between the
     /// two settled ends, or the joined edge holding one of them
     /// (`BooleanNaming::stretch_through_joins`), is where the kept face
     /// meets the region this face held; a stretch whose ends fuse, or

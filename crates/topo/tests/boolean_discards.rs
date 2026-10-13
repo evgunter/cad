@@ -22,7 +22,11 @@ pub(crate) type Stretch = Option<(EdgeKey, [FaceKey; 2])>;
 pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
     let body: &Body<f64> = &out.body;
     let settler = out.naming.settler(body);
-    let settle = |v: VertexKey| settler.settle(v).expect("every end settles on a live cell");
+    let settle = |v: VertexKey| {
+        settler
+            .settle_cones(v)
+            .expect("every end settles on a live cell")
+    };
     let face_of = |he| body.face_of_half_edge(he).unwrap();
     let mut by_ends: BTreeMap<(VertexKey, VertexKey), (EdgeKey, [FaceKey; 2])> = BTreeMap::new();
     for (k, e) in body.edges() {
@@ -40,18 +44,26 @@ pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
             d.bordered
                 .iter()
                 .map(|&(u, w)| {
-                    let (u, w) = (settle(u), settle(w));
-                    let between = match (u, w) {
-                        (Cell::Vertex(u), Cell::Vertex(w)) => by_ends.get(&(u.min(w), u.max(w))),
-                        // An end inside a joined edge or a merged face ends
-                        // no edge.
-                        _ => None,
-                    };
-                    between.copied().or_else(|| {
-                        let e = out.naming.stretch_through_joins(body, (u, w))?;
-                        let d = body.get_edge(e)?;
-                        Some((e, [face_of(d.he_plus), face_of(d.he_minus)]))
-                    })
+                    // An end the zip split per cone lies at one of its
+                    // copies.
+                    let (us, ws) = (settle(u), settle(w));
+                    us.iter()
+                        .flat_map(|&u| ws.iter().map(move |&w| (u, w)))
+                        .find_map(|(u, w)| {
+                            let between = match (u, w) {
+                                (Cell::Vertex(u), Cell::Vertex(w)) => {
+                                    by_ends.get(&(u.min(w), u.max(w)))
+                                }
+                                // An end inside a joined edge or a merged
+                                // face ends no edge.
+                                _ => None,
+                            };
+                            between.copied().or_else(|| {
+                                let e = out.naming.stretch_through_joins(body, (u, w))?;
+                                let d = body.get_edge(e)?;
+                                Some((e, [face_of(d.he_plus), face_of(d.he_minus)]))
+                            })
+                        })
                 })
                 .collect()
         })

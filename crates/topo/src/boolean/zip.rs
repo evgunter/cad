@@ -418,9 +418,10 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     let (cone_a, cone_b) = cones(&sigma_a, &sigma_b);
     let mut a_sections: Vec<FaceKey> = seams.iter().map(|&(a, _)| a).collect();
     let mut b_sections: Vec<FaceKey> = seams.iter().map(|&(_, b)| b).collect();
-    let moved_a = split_side(body, &runs_a, &cone_a, &he_a, &mut a_sections, tol)?;
-    let moved_b = split_side(body, &runs_b, &cone_b, &he_b, &mut b_sections, tol)?;
-    let moved = moved_a || moved_b;
+    let mut splits = Vec::new();
+    split_side(body, &runs_a, &cone_a, &he_a, &mut a_sections, &mut splits, tol)?;
+    split_side(body, &runs_b, &cone_b, &he_b, &mut b_sections, &mut splits, tol)?;
+    let moved = !splits.is_empty();
     let paired = if moved {
         repair(body, &pairs, &next, &a_sections, &b_sections)?
     } else {
@@ -450,13 +451,26 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
         }
         *vmap = rebuilt;
     }
-    Ok((paired, ConesSplit(())))
+    Ok((paired, ConesSplit { splits }))
 }
 
 /// **The seams were split per cone** ([`split_cones`]): a result built
 /// past it is one whose pinches the boolean's carry reads
 /// (`ops::Zipped`). Only [`split_cones`] builds one.
-pub(super) struct ConesSplit(());
+pub(super) struct ConesSplit {
+    /// Each split `(split, new)` in the order made, keys of the body
+    /// split: the vertex split and the vertex its moved cone now holds,
+    /// on the split vertex's point key
+    /// (`BooleanNaming::cone_splits`).
+    splits: Vec<(VertexKey, VertexKey)>,
+}
+
+impl ConesSplit {
+    /// The splits made, `(split, new)` in the order made.
+    pub(super) fn splits(&self) -> &[(VertexKey, VertexKey)] {
+        &self.splits
+    }
+}
 
 /// One side's `σ`: each pair's next section corner round its vertex, as
 /// a pair index, and each vertex's runs in orbit order. `he_of` reads a
@@ -523,7 +537,8 @@ fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
 
 /// Splits each of one side's vertices per cone, its first cone's runs
 /// staying, one cone at a time: a cone whose runs lie together round the
-/// vertex, first in orbit order; whether any vertex was split.
+/// vertex, first in orbit order. Each split is pushed to `splits` as
+/// `(split, new)`.
 ///
 /// The null edge each `mev_null` leaves lies between two section
 /// corners, on the section faces the zips consume, and is killed there:
@@ -546,9 +561,9 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
     cone_of: &[usize],
     he_of: &dyn Fn(usize) -> HalfEdgeKey,
     sections: &mut Vec<FaceKey>,
+    splits: &mut Vec<(VertexKey, VertexKey)>,
     tol: Tol,
-) -> Result<bool, BooleanError> {
-    let mut moved = false;
+) -> Result<(), BooleanError> {
     for at in runs.values() {
         let plan = peel(at, cone_of).ok_or(BooleanError::ZipCorrespondence {
             what: "a vertex's cones interleave round it",
@@ -561,7 +576,8 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
                 },
                 crate::NewVertexSide::Above,
             )?;
-            moved = true;
+            let split = proven(&body.half_edges, made.he_plus, EntityId::HalfEdge).start;
+            splits.push((split, made.vertex));
             let loop_of =
                 |he: HalfEdgeKey| proven(&body.half_edges, he, EntityId::HalfEdge).parent_loop;
             let (lp, lm) = (loop_of(made.he_plus), loop_of(made.he_minus));
@@ -574,7 +590,7 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
             }
         }
     }
-    Ok(moved)
+    Ok(())
 }
 
 /// One vertex's splits, read before any is written: each the first and
