@@ -1595,4 +1595,29 @@ mod tests {
             }
         }
     }
+
+    /// REVIEW 4938 probe: a junction open by `2ε` of true distance in the
+    /// azimuth, on a fat torus (`R ≤ 3r`), reads `(R + r)/(R − r)·2ε`
+    /// on the closed decision's upper meter: a legal junction escalates,
+    /// where the same true gap in the tube angle closes.
+    #[test]
+    fn review_4938_u_gap_on_a_fat_torus() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let eps = tol.eps();
+        for (big, r) in [(1.2, 0.275), (1.2, 0.5), (1.0, 0.6)] {
+            for (du, dv) in [(2.0 * eps / (big - r), 0.0), (2.0 * eps / (big + r), 0.0), (0.0, 2.0 * eps / r)] {
+                let v = core::f64::consts::PI; // inner equator
+                let ends = vec![
+                    ChartEndsQ { start: (pt(0.0), pt(v)), end: (pt(1.0), pt(v)), env: Interval::zero() },
+                    ChartEndsQ { start: (pt(1.0 + du), pt(v + dv)), end: (pt(0.0), pt(v)), env: Interval::zero() },
+                ];
+                let chart = WallChartQ { ends, major: pt(big), minor: pt(r), rims: vec![], meridians: vec![] };
+                let got = wall_windings::<f64>(&chart, band);
+                eprintln!("REVIEW4938 R={big} r={r} du={du:e} dv={dv:e}: {got:?}");
+                let gi = wall_windings::<Interval>(&chart, band);
+                eprintln!("REVIEW4938 iv R={big} r={r} du={du:e} dv={dv:e}: {gi:?}");
+            }
+        }
+    }
 }
