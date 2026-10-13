@@ -1139,3 +1139,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - 4910's fix pass is running mutants and writing the sweep row.
   - r4927a and r4927b are alive (58 target writes in 15 min; drafts at 01:39 and 01:18).
   - Re-armed for 02:55.
+- 2026-10-13 03:00 — The 4906 fix pass is done (head `cf2e6d9f`; hosted red only on the known `coincidence_door` row). Local verify is running in /home/user/v4906 (head + main, `a793610b4b`; scratchpad/v4906/summary.txt). The row is drafted (scratchpad/dr4906/row.md). 4886 and 4910 fix passes and the r4927 pair are still running.
