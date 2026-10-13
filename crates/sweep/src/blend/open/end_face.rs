@@ -48,9 +48,9 @@ use crate::blend::battery::{EndSection, cap_incidence};
 use crate::blend::naming::BlendNaming;
 use crate::blend::reach::{EDGE_SAMPLES, sure};
 use crate::blend::surgery::{
-    ContactCarrier, Piece, SourceFaces, SplitFragments, chord_site, face_of_half, halves_of,
-    not_intact, op, piece_along, piece_distance, point_of, retire_fragment, split_fragment,
-    split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out,
+    ContactCarrier, Piece, SourceFaces, SplitFragments, chord_site, disagrees, face_of_half,
+    halves_of, op, piece_along, piece_distance, point_of, retire_fragment, split_fragment,
+    split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out, unresolved,
 };
 use crate::blend::{BlendDecision, BlendError, BlendSite, classify};
 
@@ -132,15 +132,22 @@ impl<T: Decide + Bounds> EndCut<T> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
         // classification read the same one.
-        let Some(Surface::Plane {
+        let stored = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+            .ok_or_else(|| {
+                unresolved(
+                    EntityId::Face(face),
+                    "a cut-off's end face's stored surface",
+                )
+            })?;
+        let Surface::Plane {
             origin: po,
             normal: n,
             ..
-        }) = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
+        } = stored
         else {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Face(face),
                 "a cut-off's end face's stored surface is not a plane",
             ));
@@ -814,7 +821,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
         curve: &EndCurve<T>,
     ) -> Result<Self, BlendError> {
         let pv = point_of(body, vertex)
-            .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a cut-off's old vertex"))?;
+            .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a cut-off's old vertex"))?;
         let [(rim_a, foot_a), (rim_b, foot_b)] = rims;
         // The rims' pieces from their feet to the old vertex.
         let pieces = [
@@ -848,7 +855,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
                     }
                 };
                 let backward = || {
-                    not_intact(
+                    disagrees(
                         EntityId::Vertex(vertex),
                         "a cut-off's round end curve does not run forward from one foot to \
                          the other",
@@ -1031,7 +1038,7 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
         };
         let he_plus = body
             .get_edge(rim)
-            .ok_or_else(|| not_intact(EntityId::Edge(rim), "a shared rim"))?
+            .ok_or_else(|| unresolved(EntityId::Edge(rim), "a shared rim"))?
             .he_plus;
         // The stored window runs along `he_plus`, so the foot of the
         // cut-off at its start must come first.
@@ -1075,7 +1082,7 @@ fn rim_piece<T: Decide + Bounds>(
 ) -> Result<Piece<'_, T>, BlendError> {
     let he_plus = body
         .get_edge(rim)
-        .ok_or_else(|| not_intact(EntityId::Edge(rim), "an end face's rim"))?
+        .ok_or_else(|| unresolved(EntityId::Edge(rim), "an end face's rim"))?
         .he_plus;
     let Some((carrier, (t0, t1))) = stored_piece(body, rim)? else {
         return Err(unbuilt_geometry(
@@ -1089,7 +1096,7 @@ fn rim_piece<T: Decide + Bounds>(
     } else if body.half_edge_end(he_plus) == Some(vertex) {
         Ok((carrier, (t, t1)))
     } else {
-        Err(not_intact(
+        Err(disagrees(
             EntityId::Edge(rim),
             "an end face's rim does not end at the band's old vertex",
         ))
@@ -1118,7 +1125,7 @@ pub(in crate::blend) fn end_rims<T: Decide>(
     face_b: FaceKey,
 ) -> Result<(EdgeKey, EdgeKey, FaceKey), BlendError> {
     cap_incidence(body, vertex, crease, face_a, face_b).ok_or_else(|| {
-        not_intact(
+        disagrees(
             EntityId::Vertex(vertex),
             "a band's end is not the end face the verdict classified: its other two edges do \
              not each join one support to one shared end face",
@@ -1189,7 +1196,7 @@ pub(in crate::blend) fn cut_off<T: Decide + Bounds + topo::AtRestPolicy>(
     // split the rim this end shares with it.
     let (rim_a, rim_b, face) = end_rims(body, v, crease, face_a, face_b)?;
     if face != end.face {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Vertex(v),
             "a cut-off's end face is not the one the plan read",
         ));
@@ -1202,14 +1209,14 @@ pub(in crate::blend) fn cut_off<T: Decide + Bounds + topo::AtRestPolicy>(
     let ends_at_v = |body: &Body<T>, he: HalfEdgeKey| body.half_edge_end(he) == Some(v);
     let (he1, he2, x, y) = chord_site(body, end.face, |row| ends_at_v(body, row.0), 0, 2)?;
     if !((x == a.vertex && y == b.vertex) || (x == b.vertex && y == a.vertex)) {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Vertex(v),
             "an end face's cycle around the old vertex is not flanked by the two feet just split",
         ));
     }
     let (px, py) = (
-        point_of(body, x).ok_or_else(|| not_intact(EntityId::Vertex(x), "a foot"))?,
-        point_of(body, y).ok_or_else(|| not_intact(EntityId::Vertex(y), "a foot"))?,
+        point_of(body, x).ok_or_else(|| unresolved(EntityId::Vertex(x), "a foot"))?,
+        point_of(body, y).ok_or_else(|| unresolved(EntityId::Vertex(y), "a foot"))?,
     );
     let created = body
         .mef(
@@ -1242,7 +1249,7 @@ pub(in crate::blend) fn fold_sliver<T: Decide>(
     tol: Tol,
 ) -> Result<(), BlendError> {
     let (ahp, ahm) = halves_of(body, rims.a.near)
-        .ok_or_else(|| not_intact(EntityId::Edge(rims.a.near), "a split rim's near piece"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(rims.a.near), "a split rim's near piece"))?;
     // The sliver is on whichever side of the near piece is NOT the band.
     let dying = if face_of_half(body, ahp) == Some(band) {
         ahm
@@ -1251,7 +1258,7 @@ pub(in crate::blend) fn fold_sliver<T: Decide>(
     };
     sources.kef_minted(body, dying, "end sliver kef", tol)?;
     let (bhp, bhm) = halves_of(body, rims.b.near)
-        .ok_or_else(|| not_intact(EntityId::Edge(rims.b.near), "a split rim's near piece"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(rims.b.near), "a split rim's near piece"))?;
     let spur = if body.half_edge_end(bhm) == Some(vertex) {
         bhm
     } else {
