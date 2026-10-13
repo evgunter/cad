@@ -523,7 +523,7 @@ impl BlendDecision {
                 size,
                 passes,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             }
             .recourse(arm, Reading::Build),
             None => LeverOnly { lever }.recourse(arm, Reading::Build),

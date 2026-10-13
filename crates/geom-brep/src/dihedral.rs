@@ -94,7 +94,7 @@ use geom_core::k_stats::{Magnitude, NonzeroSign};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
-use crate::recourse::{AtZero, SizedDecision, SizedPass, StoredDefinite};
+use crate::recourse::{NoSize, SizedDecision, SizedPass, StoredDefinite};
 
 /// Whether the folded lever arm at a point of an edge is positive: the
 /// length the wedge between the edge's faces is metered over, the
@@ -114,7 +114,7 @@ pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
     size: "length or the gap its faces open",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Contradiction,
-    at_zero: Some(AtZero::same(
+    no_size: Some(NoSize::same(
         "an edge of no length, or a face curving to a point as a cone does, leaves no angle to \
          measure",
     )),
@@ -154,7 +154,7 @@ pub const MATERIAL_PAIRING: SizedDecision = SizedDecision {
     size: "length",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The question [`MATERIAL_PAIRING`] decides, of an edge: every door that

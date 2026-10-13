@@ -760,7 +760,7 @@ const fn proximity(passes: SizedPass) -> SizedDecision {
         size: "gap",
         passes,
         stored: StoredDefinite::Lever,
-        at_zero: None,
+        no_size: None,
     }
 }
 
@@ -827,7 +827,7 @@ const TANGENT_SIDE: SizedDecision = SizedDecision {
     size: "difference in bend",
     passes: SizedPass::AnySign,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Whether the faces at a seam edge cross or touch tangentially
@@ -840,7 +840,7 @@ const SEAM_WEDGE: SizedDecision = SizedDecision {
     size: "fold across the seam",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Whether a shell of the result bounds material or a cavity
@@ -851,7 +851,7 @@ const RESULT_SHELL: SizedDecision = SizedDecision {
     size: "thickness",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Whether the faces touching along a seam curve apart or share their
@@ -865,7 +865,7 @@ const SEAM_JET: SizedDecision = SizedDecision {
     size: "curvature difference across the seam",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// **The sense of two directions read parallel at a corner**: a
@@ -880,7 +880,7 @@ pub(crate) const CORNER_SENSE: SizedDecision = SizedDecision {
     size: "length of the corner's shorter edge",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The membership tie on plane flanks ([`Coincide::FlankSense`]): either
@@ -996,7 +996,7 @@ const SPHERE_AGAINST_PLANE: SizedDecision = SizedDecision {
     size: "gap",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Two spheres of the two solids ([`SphereQuestion::Apart`],
@@ -1011,7 +1011,7 @@ pub(crate) const SPHERES: SizedDecision = SizedDecision {
     size: "clearance",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The lever of [`SphereQuestion::CutIn`]: the circle's place on the
@@ -1177,7 +1177,7 @@ pub(crate) const PIERCE_CURVATURE: SizedDecision = SizedDecision {
     size: "departure beyond the bend",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Whether an arc that leaves a corner along a plane face bends off it
@@ -1191,7 +1191,7 @@ pub(crate) const CONIC_BEND: SizedDecision = SizedDecision {
     size: "lift beyond the residue",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Whether two neighbouring faces of one operand lie on one plane, as
@@ -1205,7 +1205,7 @@ pub(crate) const NEIGHBOUR_OFFSET: SizedDecision = SizedDecision {
     size: "offset between the two faces' planes",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The maximal-faces gate's ending for an offset in band: the lever,
@@ -1291,7 +1291,7 @@ const fn sized(lever: &'static str, size: &'static str, passes: SizedPass) -> En
         size,
         passes,
         stored: StoredDefinite::Lever,
-        at_zero: None,
+        no_size: None,
     })
 }
 

@@ -70,7 +70,7 @@ use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
 use crate::recourse::{
-    AtZero, Classified, ReadAt, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+    Classified, NoSize, ReadAt, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
     Unsized,
 };
 
@@ -850,7 +850,7 @@ impl CertCheck {
                 size: "length",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
-                at_zero: Some(AtZero {
+                no_size: Some(NoSize {
                     build: "an edge of no length, or a reversed one, is one no kernel construction \
                             mints, so this is a kernel defect worth reporting",
                     stored: "an edge of no length, or a reversed one, is one no kernel \
@@ -867,7 +867,7 @@ impl CertCheck {
                 size: "length",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: Some(AtZero::same(
+                no_size: Some(NoSize::same(
                     "a vanishing speed floor means the spline stalls or turns back, or that the \
                      floor has reached its limit, which is worth reporting",
                 )),
@@ -877,14 +877,14 @@ impl CertCheck {
                 size: "arc",
                 passes: SizedPass::NonNegative,
                 stored: StoredDefinite::Contradiction,
-                at_zero: None,
+                no_size: None,
             }),
             Self::Transversality => Ending::Sized(SizedDecision {
                 lever: "move the geometry so the surfaces cross at a clearer angle",
                 size: "angle",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
-                at_zero: None,
+                no_size: None,
             }),
             Self::TransversalityArm => Ending::Sized(crate::DIHEDRAL_ARM),
             Self::TangentPlanes => Ending::Undefined(TANGENT_PLANES_RECOURSE),
@@ -893,7 +893,7 @@ impl CertCheck {
                 size: "curvature difference",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
-                at_zero: None,
+                no_size: None,
             }),
             // The tube's margin is a conservative lower bound, so a
             // definite refusal of it is the certificate's limit, which
@@ -903,7 +903,7 @@ impl CertCheck {
                 size: "curvature difference",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             }),
             // Exact constructions: the endpoints and witness the kernel
             // placed, the seam and the declared source it restates, the
@@ -932,7 +932,7 @@ impl CertCheck {
                 size: "degenerate face",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             }),
             // An unbounded derivative is the face's scale: the lever is
             // the model's size.
@@ -942,7 +942,7 @@ impl CertCheck {
                 size: "scale",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             }),
             // Approximations: a fitted intersection carrier on its
             // surfaces, and the plane × NURBS lane's on-locus limb. The

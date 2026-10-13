@@ -153,7 +153,7 @@ use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 use crate::dihedral::decide_reported;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
 use crate::recourse::{
-    AtZero, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+    NoSize, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
 use crate::shape_operator::FundamentalForms;
 
@@ -213,7 +213,7 @@ impl Meter {
                 size: "thinness",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: Some(AtZero::same(
+                no_size: Some(NoSize::same(
                     "if it has none, this may indicate a kernel bug worth reporting",
                 )),
             },
@@ -222,7 +222,7 @@ impl Meter {
                 size: "clearance",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             },
         }
     }

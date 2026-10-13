@@ -809,7 +809,7 @@ impl SectionRadius {
             size: "radius",
             passes: SizedPass::Positive,
             stored: StoredDefinite::Lever,
-            at_zero: None,
+            no_size: None,
         }
     }
 }
