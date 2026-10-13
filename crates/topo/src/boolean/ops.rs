@@ -3595,8 +3595,8 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
 
 /// **The one carry, for the boolean** (D1): each operand's carried
 /// records ([`Ledger::carried`]) placed on the result through what the
-/// op made of each input cell ([`operand_fate`]), by the census's own
-/// record confirm ([`super::records::landings`]), each landing restated
+/// op made of each input cell ([`operand_fate`]), by the one carry's
+/// placement ([`super::records::landings`]), each landing restated
 /// in its operand's clone keys so the vertex groups read it as they
 /// read the reduction's records ([`carry_rows`]). Two cells the op
 /// minted on a record's two cells that meet at a point are decided at
@@ -4471,17 +4471,18 @@ fn carry_rows<T: Decide + AtRestPolicy>(
     Ok(out)
 }
 
-/// **A record's cells in result keys**: each chased through
-/// [`Descendants::live`]. A row of the reduction's own (`found`, its
-/// index in the working set) on a face the join divided after the row
-/// was written goes through the one carry ([`super::records::landings`]):
-/// the face is divided into its live pieces and the chords between them
-/// ([`face_pieces`]), its remainder removed where the op stated a piece's
-/// removal ([`stated_removed`]), and the row lands on every pair of
-/// images the census's record confirm reads as meeting; a row whose
-/// every pair is structure is consumed, as structural sharing needs no
-/// record (D1, [`crate::Lineage::glued`]). None where the other cell
-/// left the result: a row of the reduction's own leaves with its cell.
+/// **A record's cells in result keys**, placed by the one carry
+/// ([`super::records::landings`]): each cell chased through
+/// [`Descendants::live`] lands there by lineage, unread. A row of the
+/// reduction's own (`found`, its index in the working set) on a face the
+/// join divided after the row was written has that face divided into
+/// its live pieces and the chords between them ([`face_pieces`]), its
+/// remainder removed where the op stated a piece's removal
+/// ([`stated_removed`]), and lands on every pair of images the census's
+/// record confirm reads as meeting. A row whose every pair is structure
+/// is consumed, as structural sharing needs no record (D1,
+/// [`crate::Lineage::glued`]). None where the other cell left the
+/// result: a row of the reduction's own leaves with its cell.
 ///
 /// # Errors
 ///
@@ -4540,44 +4541,50 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
         let (side, cell) = ends[i];
         desc.live(body, side, views[at(side)], cell)
     };
-    let (Some((i, fate)), Some(row)) = (divided, found) else {
-        let (Some(x), Some(y)) = (live(0)?, live(1)?) else {
-            return Ok(Vec::new());
-        };
-        return Ok(vec![(x, y)]);
+    // The row in the keys the lineage reads: a divided cell in its
+    // operand's, a kept one as the result holds it.
+    let (row, lineage) = match divided {
+        None => {
+            let (Some(x), Some(y)) = (live(0)?, live(1)?) else {
+                return Ok(Vec::new());
+            };
+            ([x, y], crate::Lineage::new().glued())
+        }
+        Some((i, fate)) => {
+            let Some(other) = live(1 - i)? else {
+                return Ok(Vec::new());
+            };
+            let cells = ends.map(|(_, c)| c);
+            let lineage = crate::Lineage::new()
+                .glued()
+                .with(cells[i], fate)
+                .and_then(|l| {
+                    l.with(
+                        cells[1 - i],
+                        crate::Fate::Kept {
+                            at: other,
+                            copies: Vec::new(),
+                        },
+                    )
+                })
+                .map_err(|_| BooleanError::JoinDesync {
+                    what: "a row the reduction found names one cell twice",
+                })?;
+            (cells, lineage)
+        }
     };
-    let Some(other) = live(1 - i)? else {
-        return Ok(Vec::new());
+    let refused = |refusal: super::CarryRefusal| match found {
+        Some(row) => BooleanError::CarryRefused {
+            row: super::RefusedRow::Found,
+            refusal: refusal.renumbered(super::reduce::index(row)),
+        },
+        None => BooleanError::JoinDesync {
+            what: "the carry refused a row it places by lineage",
+        },
     };
-    let cells = ends.map(|(_, c)| c);
-    let lineage = crate::Lineage::new()
-        .glued()
-        .with(cells[i], fate)
-        .and_then(|l| {
-            l.with(
-                cells[1 - i],
-                crate::Fate::Kept {
-                    at: other,
-                    copies: Vec::new(),
-                },
-            )
-        })
-        .map_err(|_| BooleanError::JoinDesync {
-            what: "a row the reduction found names one cell twice",
-        })?;
-    let refused = |refusal: super::CarryRefusal| BooleanError::CarryRefused {
-        row: super::RefusedRow::Found,
-        refusal: refusal.renumbered(super::reduce::index(row)),
-    };
-    let landed = super::records::landings(
-        &[cells],
-        &lineage,
-        &[body],
-        confirms,
-        band,
-        T::region_lane(),
-    )
-    .map_err(refused)?;
+    let landed =
+        super::records::landings(&[row], &lineage, &[body], confirms, band, T::region_lane())
+            .map_err(refused)?;
     landed
         .into_iter()
         .map(|l| {

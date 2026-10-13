@@ -458,9 +458,9 @@ fn an_offset_doors_lineage_reads_through_its_join() {
 
 /// **A record at a conventional vertex is read on its closed edge.** A
 /// disc planted in a brick's top is bounded by one closed circle whose
-/// one vertex has no other edge; a record of that vertex is put to the
-/// census as the circle's, which the census has no lane to confirm
-/// against the bottom face. Red if the carry reads the vertex.
+/// one vertex has no other edge; a record of that vertex, carried
+/// through an op that keeps both cells, lands as the circle's. Red if
+/// the carry lands it on the vertex.
 #[test]
 fn a_record_at_a_conventional_vertex_is_read_on_its_closed_edge() {
     let mut body = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol());
@@ -478,11 +478,10 @@ fn a_record_at_a_conventional_vertex_is_read_on_its_closed_edge() {
     assert!(topo::is_conventional_vertex(&body, v));
     let records = one_record(&body, Cell::Vertex(v), Cell::Face(bottom));
     assert_eq!(
-        records.carried_through(0, &topo::Lineage::new(), &body, band(), region()),
-        Err(CarryRefusal::Unread {
-            record: 0,
-            cells: [Cell::Edge(disc.edge), Cell::Face(bottom)]
-        })
+        records
+            .carried_through(0, &topo::Lineage::new(), &body, band(), region())
+            .map(|r| r.cell_pairs().collect::<Vec<_>>()),
+        Ok(vec![(Cell::Edge(disc.edge), Cell::Face(bottom))])
     );
 }
 

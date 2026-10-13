@@ -1,7 +1,8 @@
-//! **One lineage, one carry** (D1, Ev's ruling on `[ev]` PR 4749): every
-//! op states what it made of each cell it touched, and one carry lands
-//! each record on every pair of its two cells' images the census
-//! confirms. Two cells a cut mints on a recorded touch, meeting at a
+//! **One lineage, one carry** (D1, Ev's rulings on `[ev]` PRs 4749 and
+//! 4951): every op states what it made of each cell it touched, and one
+//! carry lands each record on its cells' images by lineage where the op
+//! kept or substituted both, and otherwise on every pair of its two
+//! cells' images the census confirms. Two cells a cut mints on a recorded touch, meeting at a
 //! point, land citing the record alone where one plane made both.
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
@@ -194,14 +195,18 @@ fn vertex_at(body: &topo::Body<f64>, p: Point3<f64>) -> topo::VertexKey {
         .expect("a vertex there")
 }
 
-/// **A record no pair confirms, through an op that removed nothing,
-/// refuses `Stale`**: it is never dropped because no witness turned up
-/// (D1). Two cubes kissing at (1, 1, 1) carry their kiss; a second record
-/// (bookkeeping: the first cube's far corner against the second cube's
-/// far face, no touch) is carried through a merge that merges nothing.
-/// Red on the carry that keeps a record on its keys unread.
+/// **A record on cells the op kept lands unread; one on a cell the op
+/// divided that no pair confirms, with nothing removed, refuses
+/// `Stale`** (D1): the carry reads geometry only where an op divided a
+/// cell, and there a record is never dropped because no witness turned
+/// up. Two cubes kissing at (1, 1, 1) carry their kiss and a second
+/// record (bookkeeping: the first cube's far corner against the second
+/// cube's far face, no touch). A merge that merges nothing keeps both
+/// cells, and lands it; a split across the far face divides it, and
+/// refuses. Red on the carry that confirms kept pairs: the merge
+/// refused `Stale`.
 #[test]
-fn a_record_that_lands_nowhere_with_nothing_removed_refuses_stale() {
+fn a_record_lands_by_lineage_and_is_stale_only_on_a_divided_cell() {
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let b = box_of((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), "b");
     let base = union_of(&a, &b);
@@ -226,14 +231,27 @@ fn a_record_that_lands_nowhere_with_nothing_removed_refuses_stale() {
     let mut merged = topo::Body::clone(&base.body);
     let outcome = merged.merge_coplanar_faces(tol()).expect("the merge");
     assert!(outcome.groups.is_empty(), "nothing merges: {outcome:?}");
-    assert_eq!(
-        outcome.carry_contacts(
+    let kept = outcome
+        .carry_contacts(
             &records,
             &merged,
             band(),
-            Some(topo::RegionLane::certified())
+            Some(topo::RegionLane::certified()),
+        )
+        .expect("the merge keeps both cells");
+    assert!(
+        kept.cell_pairs()
+            .any(|p| p == (Cell::Vertex(corner), Cell::Face(far))),
+        "the merge lands the record on its keys: {kept:?}"
+    );
+    let plane = common::split_plane(Point3::new(0.0, 0.0, 1.5), Vec3::new(0.0, 0.0, 1.0), tol());
+    let split = topo::split(&base.body, &plane, tol()).expect("the kiss splits");
+    assert!(
+        matches!(
+            split.carry_contacts(&records, band(), Some(topo::RegionLane::certified())),
+            Err(topo::CarryRefusal::Stale { record: 1 })
         ),
-        Err(topo::CarryRefusal::Stale { record: 1 })
+        "the split divides the far face: the record is stale"
     );
 }
 
@@ -336,14 +354,14 @@ fn corner_on_slab() -> BooleanBody<f64> {
     base
 }
 
-/// **A carried record no pair of the boolean's result confirms, and on
-/// no cell it removed, refuses** (D1): never dropped because no witness
-/// turned up. The corner-on-slab body carries its rest and a second
-/// record (bookkeeping: the cube's corner against the slab's bottom, no
-/// touch) into a union with a box far from both. Red on the boolean's
-/// carry that keeps a record unread.
+/// **A carried record on cells the boolean keeps lands unread** (D1):
+/// the carry reads geometry only where an op divided a cell. The
+/// corner-on-slab body carries its rest and a second record
+/// (bookkeeping: the cube's corner against the slab's bottom, no touch)
+/// into a union with a box far from both, which keeps every cell. Red
+/// on the boolean's carry that confirms kept pairs: it refused `Stale`.
 #[test]
-fn a_carried_record_the_boolean_confirms_nowhere_refuses_stale() {
+fn a_carried_record_on_cells_the_boolean_keeps_lands_unread() {
     let mut base = corner_on_slab();
     let [corner, _] = base.contacts.rows()[0].cells();
     let bottom = base
@@ -363,17 +381,15 @@ fn a_carried_record_the_boolean_confirms_nowhere_refuses_stale() {
         topo::Cites::decided(0),
     )]);
     let far = box_of((10.0, 11.0), (10.0, 11.0), (0.0, 1.0), "far");
-    let got = carried_op(topo::BooleanOp::Union, &base, &far).map(|_| ());
-    assert!(
-        matches!(
-            got,
-            Err(topo::BooleanError::CarryRefused {
-                row: topo::RefusedRow::Carried(topo::Operand::A),
-                refusal: topo::CarryRefusal::Stale { record: 1 },
-            })
+    match carried_op(topo::BooleanOp::Union, &base, &far) {
+        Ok(BooleanResult::Body(out)) => assert_eq!(
+            out.contacts.vertex_face().count(),
+            2,
+            "both records land: {:?}",
+            out.contacts
         ),
-        "{got:?}"
-    );
+        other => panic!("the union builds: {:?}", other.map(|_| ())),
+    }
 }
 
 /// **A lineage gap on one cell refuses, whatever the other cell lost.**

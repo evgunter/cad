@@ -5,25 +5,22 @@
 //! record for each cap circle touching the plate's face at one point
 //! (`crates/topo/README.md` C7). The wire hands every record to the
 //! next boolean on the body (`ContactRecords::carried`), and the one
-//! carry reads each through the census's record confirm, which has no
-//! lane for a circle touching a plane at a point
-//! (`work/restread/an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane.md`):
-//! so a later op refuses `CarryRefused { Unread }` on that record even
-//! where it touches neither of its cells
+//! carry lands a record whose cells the op kept by lineage, unread: so a
+//! later op that touches neither cell answers with every record, none
+//! re-read
 //! (`work/contacthold/a-carried-edge-face-record-the-census-cannot-read-refuses-every-later-op.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, failure, run};
 use crate::fixture::{ang, frame, insert, len, len2};
 use editor_core::{
-    Bodies, BooleanValue, ExtrudeSide, LoopProgram, Node, NodeErrorKind, ProfileDoc,
-    ProfileProgram, ValuePayload,
+    Bodies, BooleanValue, ExtrudeSide, LoopProgram, Node, ProfileDoc, ProfileProgram, ValuePayload,
 };
 use geom_core::Tol;
 use topo::ContactKind;
 
 #[test]
-fn a_later_op_on_a_rod_resting_on_a_plate_refuses_on_its_unread_cap_record() {
+fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
     let doc = ProfileDoc::empty_derived("ff-touch-carry", Tol::witness());
     let (doc, plate) = block(doc, (-2.0, 2.0), (-2.0, 2.0), 0.0, 1.0);
     let (doc, plane) = insert(
@@ -78,17 +75,20 @@ fn a_later_op_on_a_rod_resting_on_a_plate_refuses_on_its_unread_cap_record() {
     else {
         panic!("plate ∪ rod: a boolean body")
     };
-    let mut kinds: Vec<_> = contacts
-        .kinds()
-        .map(|k| match k {
-            ContactKind::EdgeFace(..) => "edge–face",
-            ContactKind::FaceFace(..) => "face–face",
-            _ => "other",
-        })
-        .collect();
-    kinds.sort_unstable();
+    let kinds = |contacts: &topo::ContactRecords| {
+        let mut kinds: Vec<_> = contacts
+            .kinds()
+            .map(|k| match k {
+                ContactKind::EdgeFace(..) => "edge–face",
+                ContactKind::FaceFace(..) => "face–face",
+                _ => "other",
+            })
+            .collect();
+        kinds.sort_unstable();
+        kinds
+    };
     assert_eq!(
-        kinds,
+        kinds(contacts),
         ["edge–face", "edge–face", "face–face"],
         "plate ∪ rod: the wall's face–face record and the two cap circles' edge–face records"
     );
@@ -96,19 +96,15 @@ fn a_later_op_on_a_rod_resting_on_a_plate_refuses_on_its_unread_cap_record() {
         ("∪ a far block", joined),
         ("∖ a hole in the plate", drilled),
     ] {
-        assert!(
-            matches!(
-                failure(&ev, node),
-                Some(NodeErrorKind::Boolean(topo::BooleanError::CarryRefused {
-                    refusal: topo::CarryRefusal::Unread {
-                        cells: [topo::Cell::Edge(_), topo::Cell::Face(_)],
-                        ..
-                    },
-                    ..
-                }))
-            ),
-            "{what}: the carried cap circle's edge–face record is unread: {:?}",
-            failure(&ev, node)
+        let Some(ValuePayload::Boolean(BooleanValue::Body { contacts, .. })) =
+            ev.value(node).map(|v| &v.payload)
+        else {
+            panic!("{what}: a boolean body: {:?}", failure(&ev, node))
+        };
+        assert_eq!(
+            kinds(contacts),
+            ["edge–face", "edge–face", "face–face"],
+            "{what}: every record lands on the cells the op kept"
         );
     }
 }
