@@ -4864,6 +4864,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "normal_at_cone_apex",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
+            "partner_along_face",
             "pcurves",
             "pieces",
             "pinch_cones_on_separate_keys",
