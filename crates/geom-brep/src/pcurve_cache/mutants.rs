@@ -2,10 +2,12 @@
 //! at a time: a test build takes the sum in place of the norm at the
 //! site `PCERT_RADIAL_PAIR_MUTANT` names at compile time ([`SITES`]);
 //! `fidelity-cone` reads the cone's two fidelity channels as
-//! orthogonal, and `pole-start-under` under-reads the pole start. Each
-//! production site keeps a one-line hook that asks its own function
-//! here, which answers `None` unless its site is named. The rows that
-//! refuse each are in `radial_pair_rows`. `option_env!` because
+//! orthogonal, `pole-start-under` under-reads the pole start, and
+//! `envelope-fit` reads the envelope's refusal as a miss rather than a
+//! bound on one. Each production site keeps a one-line hook that asks
+//! its own function here, which answers `None` unless its site is
+//! named. The rows that refuse each are in `radial_pair_rows`, and
+//! `envelope-fit`'s is `a_refused_envelope_reads_as_a_bound_at_rest`. `option_env!` because
 //! `scripts/gates/no-ambient-env.sh` forbids a runtime read in
 //! `crates/*/src`.
 
@@ -158,8 +160,7 @@ pub(super) fn frame<T: Real>(d_radial: T, d_axis: T) -> Option<T> {
 }
 
 /// The envelope's refusal read as a miss, not a bound on one.
-pub(super) fn envelope_fit(check: super::PcurveCheck) -> Option<bool> {
-    let _ = check;
+pub(super) fn envelope_fit() -> Option<bool> {
     on("envelope-fit").then_some(false)
 }
 

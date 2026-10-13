@@ -2000,7 +2000,7 @@ impl PcurveCheck {
     pub fn bounds_a_miss(self) -> bool {
         let bound = matches!(self, Self::Envelope | Self::EnvelopeTerm(_));
         #[cfg(test)]
-        let bound = mutants::envelope_fit(self).unwrap_or(bound);
+        let bound = mutants::envelope_fit().unwrap_or(bound);
         bound
     }
 }
