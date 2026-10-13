@@ -12871,6 +12871,178 @@ mod two_carrier_records {
             "recorded, the record is refused: {recorded:?}"
         );
     }
+
+    /// Review probes for PR 5006 (`line_through_both_faces`): a plate
+    /// prism with top face z = 1 and outline `outline`, a cylinder sheet
+    /// resting on it along y = 0 over x in `wx`; the census of the
+    /// face-face record, in either cell order, at band `b`.
+    mod review_5006_probes {
+        use super::*;
+
+        fn rig(
+            outline: &[(f64, f64)],
+            wx: (f64, f64),
+            swap: bool,
+            b: Band,
+        ) -> (Vec<ValidationError>, FaceKey, FaceKey) {
+            let tol = Tol::witness();
+            let mut body = crate::test_support_fixtures::prism::<f64>(outline, 1.0, tol).body;
+            let top = body
+                .faces()
+                .find(|(_, f)| match body.get_surface(f.surface) {
+                    Some(geom::Surface::Plane { origin, normal, .. }) => {
+                        normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
+                    }
+                    _ => false,
+                })
+                .map(|(k, _)| k)
+                .unwrap();
+            let frame = CylFrame {
+                origin: geom_core::Point3::new(0.0, 0.0, 2.0),
+                axis: geom_core::Vec3::unit_x(),
+                radius: 1.0,
+                u_ref: -geom_core::Vec3::unit_z(),
+            };
+            let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), wx, tol);
+            body.get_face_mut(wall).unwrap().sense = true;
+            let rec = if swap {
+                one(&body, Cell::Face(top), Cell::Face(wall))
+            } else {
+                one(&body, Cell::Face(wall), Cell::Face(top))
+            };
+            let errors = census_and_certify(&body, &rec, b, tol, None);
+            (errors, wall, top)
+        }
+
+        fn bands() -> [Band; 3] {
+            [
+                Band::new(1e-10, 1e-9).unwrap(),
+                Band::linear(Tol::witness()).unwrap(),
+                Band::new(1e-6, 1e-5).unwrap(),
+            ]
+        }
+
+        /// A plate whose top face crosses y = 0 only over a tab
+        /// x in (lo, hi); everything else of the outline is y < -0.5.
+        fn tab(lo: f64, hi: f64) -> Vec<(f64, f64)> {
+            vec![
+                (0.0, -1.0),
+                (4.0, -1.0),
+                (4.0, -0.5),
+                (hi, -0.5),
+                (hi, 1.0),
+                (lo, 1.0),
+                (lo, -0.5),
+                (0.0, -0.5),
+            ]
+        }
+
+        fn report(tag: &str, outline: &[(f64, f64)], wx: (f64, f64)) -> Vec<String> {
+            let mut out = Vec::new();
+            for b in bands() {
+                for swap in [false, true] {
+                    let (errors, wall, top) = rig(outline, wx, swap, b);
+                    let stale = errors.iter().any(|e| {
+                        matches!(
+                            e,
+                            ValidationError::StaleContactDeclaration {
+                                declaration: StaleDeclaration::Patch { .. }
+                            }
+                        )
+                    });
+                    let line = format!(
+                        "{tag} band {:e} swap {swap}: named {} stale {stale} {errors:?}",
+                        b.escalate(),
+                        names(&errors, wall, top)
+                    );
+                    eprintln!("{line}");
+                    out.push(line);
+                }
+            }
+            out
+        }
+
+        /// Truth: the faces' interiors meet along x in (1.1, 1.4), a
+        /// 0.3 m run, strictly between stations 1.0 and 1.5 of the
+        /// overlap [0, 4] (vertex projections). The record is valid.
+        #[test]
+        fn p1_a_tab_between_stations() {
+            let rows = report("p1", &tab(1.1, 1.4), (-1.0, 5.0));
+            assert!(rows.iter().all(|r| r.contains("named false")), "{rows:#?}");
+        }
+
+        /// The tab holds station x = 1.0: confirmed.
+        #[test]
+        fn p2_a_tab_on_a_station() {
+            let rows = report("p2", &tab(0.9, 1.1), (-1.0, 5.0));
+            assert!(rows.iter().all(|r| r.contains("named false")), "{rows:#?}");
+        }
+
+        /// The line runs exactly along the plate's edge y = 0: no open
+        /// set of the line is inside the face; never confirmed.
+        #[test]
+        fn p3_the_line_along_the_face_edge() {
+            let rows = report(
+                "p3",
+                &[(0.0, 0.0), (4.0, 0.0), (4.0, 1.0), (0.0, 1.0)],
+                (0.5, 3.5),
+            );
+            assert!(rows.iter().all(|r| r.contains("named true")), "{rows:#?}");
+        }
+
+        /// The line grazes a reflex vertex: the outline's only point on
+        /// y >= 0 is the apex (2, 0) of a notch. Interiors meet nowhere.
+        #[test]
+        fn p4_the_line_grazing_a_vertex() {
+            let rows = report(
+                "p4",
+                &[(0.0, -1.0), (4.0, -1.0), (4.0, -0.5), (2.0, 0.0), (0.0, -0.5)],
+                (-1.0, 5.0),
+            );
+            assert!(rows.iter().all(|r| r.contains("named true")), "{rows:#?}");
+        }
+
+        /// The witness's notch, both orders and three bands.
+        #[test]
+        fn p5_the_notch_witness_all_rows() {
+            let notched = [
+                (0.0, -1.0),
+                (4.0, -1.0),
+                (4.0, 1.0),
+                (2.5, 1.0),
+                (2.5, -0.5),
+                (1.5, -0.5),
+                (1.5, 1.0),
+                (0.0, 1.0),
+            ];
+            let rows = report("p5", &notched, (0.5, 3.5));
+            assert!(rows.iter().all(|r| r.contains("named false")), "{rows:#?}");
+        }
+
+        /// A near-zero overlap: the sheet runs x in (3.9999, 5) over a
+        /// plain plate [0,4] x [-1,1]; the overlap is 1e-4 long, the
+        /// line inside the plate along it. Truth: interiors meet.
+        #[test]
+        fn p6_a_short_overlap() {
+            let rows = report(
+                "p6",
+                &[(0.0, -1.0), (4.0, -1.0), (4.0, 1.0), (0.0, 1.0)],
+                (3.9999, 5.0),
+            );
+            assert!(rows.iter().all(|r| r.contains("named false")), "{rows:#?}");
+        }
+
+        /// Two tabs; only the right one (3.1, 3.4) is held between
+        /// stations, the left one (0.4, 0.6) holds station 0.5: true.
+        #[test]
+        fn p7_hole_ring() {
+            // a plate with a hole straddling y = 0 over x in (0.6, 3.4):
+            // the line is in the face over (0, 0.6) and (3.4, 4).
+            let outline = [(0.0, -1.0), (4.0, -1.0), (4.0, 1.0), (0.0, 1.0)];
+            let rows = report("p7-plain", &outline, (0.5, 3.5));
+            assert!(rows.iter().all(|r| r.contains("named false")), "{rows:#?}");
+        }
+    }
 }
 
 /// **What the edge–face confirm reads off a line and a plane.**
