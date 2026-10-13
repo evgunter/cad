@@ -2,11 +2,12 @@
 id: import-door-sentence-says-does-not-state-it-at-an-apex
 kind: issue
 title: geom-core: the import door's 'the file does not state it' is false of a cone apex the file states exactly
-status: dispatched
+status: review
 opened: 2026-10-13
 priority: P3
 cost: E
 branch: encl/import-door-apex-sentence
+pr: 5029
 ---
 
 
