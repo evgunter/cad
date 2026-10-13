@@ -2,11 +2,12 @@
 id: cone-section-interval-mint-escalates-on-a-beta-enclosure-of-u-over-k-levered-near-a-parabola
 kind: issue
 title: chart_pcurve minted at the Interval scalar escalates on a near-parabola cone section, because beta encloses like u/k and the envelope levers it by about 1/k near |beta| -> 1
-status: open
+status: closed
 opened: 2026-10-13
 priority: P2
 cost: M
 refs: [focal-section-vertex-azimuth-is-read-off-a-cancelling-sum, conic-section-just-past-its-band-fails-certification-downstream]
+closed: 2026-10-13
 ---
 
 
@@ -67,3 +68,25 @@ widen like `u/k` near a parabola. For example, derive `√(1 − ecc²)` as
 `|rb|/|ra|`, the projected ellipse's axis ratio, rather than from
 `1 − ecc²`. Or state that the Interval image is the f64 mint lifted,
 and route every Interval caller through that.
+
+## Closed 2026-10-13
+
+Fixed on `pcert/cone-section-interval-beta`: the cone arm reads
+`√(1 − ecc²)` as the projection's axis ratio `|rb|/|ra|`. `β`'s
+enclosure is about 1.4e-14 at every `k` in the table, and each
+escalating row certifies minted at `Interval` (envelopes 9.8e-11,
+8.2e-10, 8.2e-11 and 7.8e-10 in table order). The rows are
+`beta_encloses_to_rounding_however_near_the_parabola` and
+`a_near_parabola_section_minted_at_interval_certifies`
+(`geom-brep/tests/pcurve_cone_section.rs`).
+
+The pose one step nearer the parabola at scale 1 (`f = 0.999999`,
+`k = 2.4e-3`) is refused before any image, at chart incidence: the
+carrier's own rounding (`u·A`, enclosure `[0, 1.9e-9]`) is past the
+band in this pose (the parent's probe pose at the same `α`, `f` and
+scale is admitted and certifies). That is the carrier half of
+`conic-section-just-past-its-band-fails-certification-downstream`
+(GERM), noted there; it is not this item's.
+
+The same read changes `β` at `f64`, for the better: see the parent's
+note.

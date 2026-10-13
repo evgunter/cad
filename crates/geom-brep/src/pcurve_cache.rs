@@ -7394,6 +7394,15 @@ fn derive_class<T: Decide>(
                     // that is no section of this cone yields a `β`
                     // the schedule and envelope refuse in metres.
                     let ecc = (T::zero() - r0.dot(ra)) / ra.dot(ra);
+                    // `√(1 − ecc²)` is the projection's axis ratio
+                    // `|rb|/|ra|`, read as such: the root of `1 − ecc²`
+                    // gains `1/k` on `ecc`'s rounding near a parabola.
+                    // `ra ⟂ rb` on a section, whose major axis lies in the
+                    // plane of the cone's axis with `e_v` normal to it. A
+                    // carrier admitted off the cone within the band has
+                    // `ra·rb` at the band's scale, which moves the ratio
+                    // at second order; the envelope measures the rest
+                    // against the carrier.
                     let beta = ecc / (T::one() + rb.norm() / ra.norm());
                     let orient = ra.cross(rb).dot(axis);
                     let sense = match decide(

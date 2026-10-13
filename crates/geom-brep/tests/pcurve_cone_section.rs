@@ -345,10 +345,8 @@ fn whole_turn_miss(image: &Pcurve<f64>, carrier: &Curve3<f64>, surface: &Surface
 /// only near that ε: at 1e-6 the arm's own band refuses it, and at 1e-12
 /// the carrier's rounding (`u·A ≈ 7e-12`) is past the chart's incidence
 /// band; the row says so, and is required to reach its verdicts at the
-/// default ε. (Minted AT `Interval` the image's `β` encloses like
-/// `u/k`, and the envelope levers it by about `1/k` near `|β| → 1`, so
-/// its own envelope escalates here:
-/// `cone-section-interval-mint-escalates-on-a-beta-enclosure-of-u-over-k-levered-near-a-parabola`.)
+/// default ε. (Minted AT `Interval` it certifies too:
+/// [`a_near_parabola_section_minted_at_interval_certifies`].)
 #[test]
 fn a_skew_section_near_the_parabola_certifies() {
     let at_default = eps() == geom_core::tolerance::DEFAULT_EPS;
@@ -501,8 +499,8 @@ fn a_near_circular_section_off_its_plane_misses_by_its_offset_not_twice() {
 /// at `f = 0.9999` the Interval mint escalated; read off `ra` it is
 /// about 4e-15 throughout and that mint certifies. Each `f` the arm
 /// reaches at this ε is asserted, and the default ε must reach
-/// `f = 0.9999`. (At 0.999999 the mint still escalates, through `β`:
-/// `cone-section-interval-mint-escalates-on-a-beta-enclosure-of-u-over-k-levered-near-a-parabola`.)
+/// `f = 0.9999`. (`β`'s enclosure:
+/// [`beta_encloses_to_rounding_however_near_the_parabola`].)
 #[test]
 fn a_skew_section_minted_at_interval_reads_a_tight_vertex_azimuth() {
     let lift = <Interval as Real>::from_f64;
@@ -539,5 +537,157 @@ fn a_skew_section_minted_at_interval_reads_a_tight_vertex_azimuth() {
     assert!(
         certified || !at_default,
         "f 0.9999 is unreached at the default ε"
+    );
+}
+
+/// The skew poses of [`skew_section`] the arm reaches at this ε, minted
+/// at `Interval` on the lifted carrier and chart, with what did not
+/// reach printed. The default ε must reach all of them.
+fn interval_mints(
+    poses: &[(f64, f64)],
+) -> Vec<(
+    f64,
+    f64,
+    f64,
+    Curve3<Interval>,
+    Surface<Interval>,
+    FocalImage<Interval>,
+)> {
+    let lift = <Interval as Real>::from_f64;
+    let at_default = eps() == geom_core::tolerance::DEFAULT_EPS;
+    let mut reached = Vec::new();
+    for &(scale, f) in poses {
+        let minted = skew_section(0.5_f64.atan(), scale, f).and_then(|(c, s, k)| {
+            let (lc, ls) = (c.map_scalar(lift), s.map_scalar(lift));
+            match chart_pcurve(&lc, &ls, band()) {
+                Ok(Pcurve::FocalSection(image)) => Ok((k, lc, ls, image)),
+                Ok(other) => Err(format!("the chart answers {other:?}")),
+                Err(e) => Err(format!("the chart answers {e}")),
+            }
+        });
+        match minted {
+            Ok((k, lc, ls, image)) => reached.push((scale, f, k, lc, ls, image)),
+            Err(why) => {
+                assert!(
+                    !at_default,
+                    "scale {scale}, f {f} is unreached at the default ε: {why}"
+                );
+                println!("SKIPPED scale {scale}, f {f} at ε {:e}: {why}", eps());
+            }
+        }
+    }
+    reached
+}
+
+/// **`β` is read off the projection's axis ratio.** `β = e/(1 + √(1 − e²))`
+/// with the root taken of `1 − e²` gains `1/k` on `e`'s rounding near a
+/// parabola (`k² = 1 − e²`): minted at `Interval` its enclosure was
+/// 5.3e-14 at `k = 0.23`, 6.1e-13 at 2.4e-2 and 5.7e-12 at 2.4e-3 on
+/// this pose. Read as `|rb|/|ra|` it is rounding-wide at every `k`.
+#[test]
+fn beta_encloses_to_rounding_however_near_the_parabola() {
+    let poses = [
+        (0.1, 0.99),
+        (0.1, 0.9999),
+        (1.0, 0.9999),
+        (1.0, 0.99999),
+        (0.1, 0.99999),
+        (0.1, 0.999_999),
+    ];
+    for (scale, f, k, _, _, image) in interval_mints(&poses) {
+        let width = image.beta.hi() - image.beta.lo();
+        assert!(
+            width < 128.0 * f64::EPSILON,
+            "scale {scale}, f {f}, k {k:e}: beta width {width:e}"
+        );
+    }
+}
+
+/// **Minted at `Interval`, a near-parabola section certifies.** With
+/// `β`'s enclosure widening like `u/k`, the envelope (which levers `β`
+/// by about `1/k` near `|β| → 1`) escalated at each of these poses:
+/// enclosures `[0, 2.7e-9]`, `[0, 6.8e-8]`, `[0, 6.5e-9]` and
+/// `[0, 2.0e-7]` in turn.
+#[test]
+fn a_near_parabola_section_minted_at_interval_certifies() {
+    let lift = <Interval as Real>::from_f64;
+    let poses = [
+        (1.0, 0.9999),
+        (1.0, 0.99999),
+        (0.1, 0.99999),
+        (0.1, 0.999_999),
+    ];
+    for (scale, f, k, lc, ls, image) in interval_mints(&poses) {
+        if let Err(e) = PcurveCache::certify(
+            Pcurve::FocalSection(image),
+            lift(-1.0),
+            lift(1.0),
+            &lc,
+            &ls,
+            band(),
+        ) {
+            panic!("scale {scale}, f {f}, k {k:e}: {e}");
+        }
+    }
+}
+
+/// **Off a section, the image misses by the carrier's own distance.** A
+/// carrier `cone_incidence_fuzz` admits (its centre, axes and frame
+/// perturbed together, 8.7e-10 off the cone): `|rb|/|ra|` and
+/// `√(1 − e²)` read off it differ by 4e-10. The image with `β` read off
+/// the axis ratio misses by 1.0e-9; with `β` read off `√(1 − e²)` it
+/// misses by 1.7e-9, twice the carrier's distance.
+#[test]
+fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
+    let half_angle = 0.5_f64;
+    let surface = Surface::Cone {
+        apex: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        half_angle,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let carrier = Curve3::Ellipse {
+        center: Point3::new(
+            -1.126_628_255_287_795_3,
+            2.820_706_427_674_058e-10,
+            2.622_026_259_816_683_7,
+        ),
+        axis: Vec3::new(
+            0.821_317_503_841_775_5,
+            2.191_440_285_974_831e-10,
+            0.570_471_347_118_429_1,
+        ),
+        major: 2.510_940_261_446_088,
+        minor: 0.884_609_702_539_610_8,
+        u_ref: Vec3::new(
+            0.570_471_347_118_429_1,
+            -1.028_029_997_851_775_2e-10,
+            -0.821_317_503_841_775_5,
+        ),
+    };
+    let off = (0..1024)
+        .map(|i| {
+            let p = carrier.eval(core::f64::consts::TAU * f64::from(i) / 1024.0);
+            (p.x.hypot(p.y) * half_angle.cos() - p.z * half_angle.sin()).abs()
+        })
+        .fold(0.0, f64::max);
+    let image = match chart_pcurve(&carrier, &surface, band()) {
+        Ok(image) => image,
+        Err(e) => {
+            assert!(
+                eps() != geom_core::tolerance::DEFAULT_EPS,
+                "refused at the default ε: {e}"
+            );
+            println!(
+                "SKIPPED at ε {:e}: a carrier {off:e} off the cone is refused ({e})",
+                eps()
+            );
+            return;
+        }
+    };
+    let miss = whole_turn_miss(&image, &carrier, &surface);
+    assert!(
+        miss < 1.25 * off,
+        "carrier {off:e} off the cone, image misses by {miss:e}"
     );
 }
