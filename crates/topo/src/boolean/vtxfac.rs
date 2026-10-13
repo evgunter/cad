@@ -287,9 +287,9 @@ pub(super) fn touch_classes<T: geom_core::Real>(
 /// the other or lies on the other's boundary, and some of it is held:
 /// an edge, or, where every edge lies on the other's faces (an island
 /// touching each face of its void), a direction strictly inside it
-/// ([`interior`]); where none reads, it refuses
-/// [`BooleanError::NestingUnread`], or escalates where the readings
-/// reach the band. An edge on two or more partners' boundaries reads
+/// ([`interior`]); where none reads before its steps reach the band,
+/// the corner is thinner than ε_input wherever probed, and it refuses
+/// [`BooleanError::NestingUnread`]. An edge on two or more partners' boundaries reads
 /// [`along_partners`]. The layering relies on cones that touch but
 /// never cross, as one solid's sheets at rest do: they nest or lie
 /// apart, so some cone is outermost, and outermost cones agree (a met
@@ -427,13 +427,16 @@ fn layered_alone<T: Decide>(
 /// where joined). The candidates are the link mean `c`
 /// ([`super::sectors::link_mean`]) and `−c`, which serve a convex or
 /// hollow corner, whose bounds lie on its cone's boundary; then, for a
-/// polygon cone whose mean may leave it, a direction just off each
-/// sector's middle to either side of its face, at a step that shrinks
-/// fivefold until a reading holds or the band takes it. Each is levered
-/// at the corner's shortest arm. `Err` with the first refusal met where
-/// none holds and some reading refused, an escalation where the steps
-/// reach the band; `None` where every reading was decided and none
-/// held.
+/// polygon cone whose mean may leave it, a direction off each sector's
+/// middle to either side of its face, a quarter of the middle's length
+/// off at first and a fifth of that at each next step, so a corner as
+/// thin as the band allows is reached. The steps stop where the band
+/// takes them: at the first step at which no candidate reads decidedly
+/// off its own face. Each is levered at the corner's shortest arm. A
+/// candidate read in band is passed over, since another may still read
+/// inside; any other refusal is the reading's own and is returned.
+/// `None` where no candidate holds before the band takes the steps:
+/// the corner is thinner than the band wherever it was probed.
 fn interior<T: Decide>(
     sectors: &[BoolSector<T>],
     band: Band,
@@ -442,36 +445,49 @@ fn interior<T: Decide>(
     else {
         return Ok(None);
     };
+    let reach = super::sectors::Reach::Extent(arm);
     let probe = |dir: Vec3<T>| BoolSector {
         start: dir,
         end: dir,
-        start_reach: super::sectors::Reach::Extent(arm),
-        end_reach: super::sectors::Reach::Extent(arm),
+        start_reach: reach,
+        end_reach: reach,
         ..first.clone()
     };
-    let fifth = T::from_f64(0.2);
-    let steps = std::iter::successors(Some(T::from_f64(0.25)), |&step| Some(step * fifth)).take(12);
-    let off_faces = steps.flat_map(|step| {
-        sectors.iter().flat_map(move |s| {
-            let middle = s.start + s.end;
-            let off = s.normal.vec() * (step * middle.norm());
-            [middle - off, middle + off]
-        })
-    });
-    let mut refused = None;
-    for dir in [mean, -mean].into_iter().chain(off_faces) {
+    let holds = |dir: Vec3<T>| -> Result<Option<BoolSector<T>>, BooleanError> {
         let candidate = probe(dir);
         match super::sectors::wedge_classes(std::slice::from_ref(&candidate), sectors, band) {
-            Ok(Some(r)) if r.rows.iter().all(|&(_, c)| held(c, r.met)) => {
-                return Ok(Some(candidate));
-            }
-            Ok(_) => {}
-            Err(e) => {
-                refused.get_or_insert(e);
-            }
+            Ok(Some(r)) if r.rows.iter().all(|&(_, c)| held(c, r.met)) => Ok(Some(candidate)),
+            Ok(_) | Err(BooleanError::Escalated { .. }) => Ok(None),
+            Err(e) => Err(e),
+        }
+    };
+    for dir in [mean, -mean] {
+        if let Some(candidate) = holds(dir)? {
+            return Ok(Some(candidate));
         }
     }
-    refused.map_or(Ok(None), Err)
+    let fifth = T::from_f64(0.2);
+    let mut step = T::from_f64(0.25);
+    loop {
+        let mut clear = false;
+        for s in sectors {
+            let middle = s.middle();
+            let off = s.normal.vec() * (step * middle.norm());
+            for dir in [middle - off, middle + off] {
+                clear |= matches!(
+                    super::sectors::plane_side_code(dir, reach, s.normal, band),
+                    Ok(SideCode::In | SideCode::Out)
+                );
+                if let Some(candidate) = holds(dir)? {
+                    return Ok(Some(candidate));
+                }
+            }
+        }
+        if !clear {
+            return Ok(None);
+        }
+        step = step * fifth;
+    }
 }
 
 /// **The class of an edge on two or more partners' boundaries** (`on`):

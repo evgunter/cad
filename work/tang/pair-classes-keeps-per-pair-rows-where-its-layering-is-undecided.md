@@ -106,14 +106,15 @@ reads nothing, and report any cell main built that would then refuse.
   Otherwise it refuses `Escalated` with
   `BooleanDecision::PartnerFaces` (flush or in band).
 - **The rest refuse.** The interior direction is the first held among
-  the link mean, its opposite, and directions just off each face's
-  middle at shrinking steps. Where none holds, it escalates once the
-  steps reach the band, and otherwise refuses
-  `BooleanError::NestingUnread`. Disagreement after that, no outermost
-  cone, or an edge some partner's rows miss are
-  `ClassificationInvariant`s. The reasons are that every pair reads
-  the vertex's one orbit, and that cones which touch but never cross
-  nest or lie apart.
+  the link mean, its opposite, and directions off each face's middle at
+  a fivefold-shrinking step. The steps stop where the band takes them:
+  at the first step at which no candidate reads decidedly off its own
+  face. Where none held by then, the corner is thinner than ε_input
+  wherever probed, and it refuses `BooleanError::NestingUnread`.
+  Disagreement after that, no outermost cone, or an edge some partner's
+  rows miss are `ClassificationInvariant`s. The reasons are that every
+  pair reads the vertex's one orbit, and that cones which touch but
+  never cross nest or lie apart.
 
 The flush refusal is filed as
 `pair-classes-refuses-partners-flush-along-an-edge`. The sweep filed

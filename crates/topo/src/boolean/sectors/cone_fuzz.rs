@@ -930,8 +930,10 @@ fn check_partners(
     counts: &mut PairCounts,
 ) -> Vec<String> {
     let both: Vec<Sector> = cone.iter().chain(partner).cloned().collect();
-    // Twelve quarterings leave the reference about 1e-9 inside a face,
-    // far above a rounding's sliver.
+    // Twelve tries, the step quartered from 1/64, leave the reference
+    // no deeper than 1/(64·4¹¹) ≈ 3.7e-9 inside a face: far above a
+    // rounding's sliver, so a face one rounding from the partner's is
+    // passed over for another.
     let Some(union) = Oracle::with_depth(&both, 12) else {
         counts.no_reference += 1;
         return Vec::new();
@@ -1143,6 +1145,16 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
             counts.unread,
             counts.refused
         );
+        // A union is skipped only where no face of the cone gives a
+        // reference clear of the partner within the depth; no draw has
+        // met one (none in 105 random seeds at each ε), so one that does
+        // is reported, not passed over.
+        if counts.no_reference > 0 {
+            wrong.push(format!(
+                "ε {eps:e}: {} placed pairs had no clear reference, and were not read",
+                counts.no_reference
+            ));
+        }
     }
     assert!(
         wrong.is_empty(),
@@ -1189,16 +1201,21 @@ fn cone_holding(ring: &[[f64; 3]], inside: [f64; 3], material: bool) -> Vec<Sect
 /// finds the island's inside. The octant's island is convex, so its
 /// link mean lies inside it; the review's pentagon in a chevron void
 /// shares the chevron's reflex edge, and its link mean lies outside
-/// it, so a direction off a face reads it. Red where the layering
-/// reads no direction inside the island ([`BooleanError::NestingUnread`]).
+/// it, so a direction off a face reads it. The review's thin V, its
+/// arms 1e-9 thick, read at ε 1e-12, is read by a direction off a face
+/// many steps down, where the band still decides it. Red where the
+/// layering reads no direction inside the island
+/// ([`BooleanError::NestingUnread`]).
 /// The probes come from a fixed seed: they are the fixture's, drawn
 /// about each cone as the fuzz draws them.
 #[test]
 fn islands_touching_every_face_of_their_voids_nest() {
     let band = Band::linear(Tol::witness()).unwrap();
+    let k = 1e-9;
     let scenes = [
         (
             "an octant's island",
+            band,
             vec![[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
             [1.0, 1.0, 1.0],
             vec![[1.0, 1.0, 0.0], [0.0, 1.0, 1.0], [1.0, 0.0, 1.0]],
@@ -1206,6 +1223,7 @@ fn islands_touching_every_face_of_their_voids_nest() {
         ),
         (
             "a pentagon in a chevron",
+            band,
             vec![
                 [-3.0, 2.0, 1.0],
                 [0.0, -1.0, 1.0],
@@ -1222,9 +1240,33 @@ fn islands_touching_every_face_of_their_voids_nest() {
             ],
             [0.0, -0.3, 1.0],
         ),
+        (
+            "a V 1e-9 thick in a V, at ε 1e-12",
+            Band::linear_at(Tol::witness(), 1e-12).unwrap(),
+            vec![
+                [-2.0, 2.0, 1.0],
+                [0.0, 0.0, 1.0],
+                [2.0, 2.0, 1.0],
+                [2.0 - k, 2.0, 1.0],
+                [0.0, k, 1.0],
+                [-2.0 + k, 2.0, 1.0],
+            ],
+            [1.0, 1.0 + k / 2.0, 1.0],
+            vec![
+                [0.0, 0.0, 1.0],
+                [2.0, 2.0, 1.0],
+                [2.0 - k / 2.0, 2.0, 1.0],
+                [1.8, 1.8 + k, 1.0],
+                [0.0, k, 1.0],
+                [-1.8, 1.8 + k, 1.0],
+                [-2.0 + k / 2.0, 2.0, 1.0],
+                [-2.0, 2.0, 1.0],
+            ],
+            [1.0, 1.0 + k / 2.0, 1.0],
+        ),
     ];
     let mut rng = Rng::from_seed(0x1514);
-    for (what, void, in_void, island, in_island) in scenes {
+    for (what, band, void, in_void, island, in_island) in scenes {
         let cone = cone_holding(&void, in_void, false);
         let partner = cone_holding(&island, in_island, true);
         let mut probes = probes_about(&mut rng, &cone);

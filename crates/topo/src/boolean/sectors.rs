@@ -196,6 +196,12 @@ impl<T: geom_core::Real> BoolSector<T> {
         ]
     }
 
+    /// The sector's middle direction, unnormalized: its bounds' sum,
+    /// inside the sector, which is convex.
+    pub(super) fn middle(&self) -> Vec3<T> {
+        self.start + self.end
+    }
+
     /// The farther of the sector's two bounds' reaches, in metres: how
     /// far from the base vertex the sector's own geometry is known.
     pub(super) fn span(&self) -> T {
@@ -1639,7 +1645,7 @@ fn sector_overlap<T: Decide>(
 
 /// A sector bound's side code against a face's PLANE ([`side_code`]
 /// with [`NO_CURVATURE`]): what the sector passes read a bound against.
-fn plane_side_code<T: Decide>(
+pub(super) fn plane_side_code<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
     face_normal: OutwardNormal<T>,
@@ -2045,7 +2051,7 @@ fn cone_side<T: Decide>(
     let mut escalation = None;
     'reference: for (s0, base) in other.iter().zip(&codes) {
         let Some(base) = *base else { continue };
-        let p = (s0.start + s0.end).normalize();
+        let p = s0.middle().normalize();
         let p_reach = Reach::Bisector(s0.arm);
         let mut held = base == SideCode::In;
         for (s, code) in other.iter().zip(&codes) {
@@ -2192,7 +2198,7 @@ fn in_sector<T: Decide>(
 ) -> Result<bool, BooleanError> {
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     let (d, n) = (dir.normalize(), s.normal.vec());
-    let sum = s.start + s.end;
+    let sum = s.middle();
     let middle = sum.normalize();
     let (one, l_start, l_end) = (
         T::from_f64(1.0),

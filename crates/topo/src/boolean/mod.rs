@@ -2478,10 +2478,11 @@ pub enum BooleanError {
     },
     /// A vertex of `operand` in pairs alone, where every edge of one
     /// partner's corner lies on another's faces, so which holds which
-    /// is read off a direction strictly inside the first, and no such
-    /// direction reads: every candidate `vtxfac::interior` tries is read
-    /// decidedly outside the corner (`vtxfac::pair_classes`). Where the
-    /// candidates reach the band first, the reading escalates instead.
+    /// is read off a direction strictly inside the first, and none
+    /// reads: the corner is thinner than the input tolerance (ε_input,
+    /// K·ε) wherever `vtxfac::interior` probes it, its candidates
+    /// reading on its faces or in band before any reads inside it
+    /// (`vtxfac::pair_classes`).
     NestingUnread {
         /// The operand whose vertex the partners pair with.
         operand: Operand,
@@ -3966,10 +3967,10 @@ impl core::fmt::Display for BooleanError {
             Self::NestingUnread { operand, .. } => write!(
                 f,
                 "a corner of the {} solid lands where corners of the other solid meet, one \
-                 lying along another's faces, and the Boolean found no direction inside it to \
-                 read which holds which; this may indicate a kernel bug worth reporting. \
-                 Recourse: move the parts so that corner lands clear of the point, or reshape \
-                 the other solid; as a last resort, loosen the tolerance",
+                 lying along another's faces and thinner than the input tolerance (ε_input, \
+                 K·ε) wherever it is read, so the Boolean cannot tell which holds which. \
+                 Recourse: move the parts so that corner lands clear of the point, or make \
+                 the other solid's corner there thicker than ε_input",
                 operand_word(*operand)
             ),
             Self::NonManifoldResult { .. } => write!(
