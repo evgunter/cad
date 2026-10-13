@@ -1339,6 +1339,7 @@ fn cylinder_windings<T: Decide>(
     spans: &[(usize, T)],
     band: Band,
 ) -> Result<Vec<[i64; 1]>, PropsError> {
+    closure::require_axis_inside(radius, band)?;
     let chart_loops: Vec<ChartLoop<T, 1>> = loops
         .iter()
         .enumerate()
@@ -1386,11 +1387,11 @@ fn cylinder_windings<T: Decide>(
 
 /// How much farther round the unit `axis` (through `origin`) the point
 /// `p` sits than round a circle's own centre `center`: the turn from
-/// `p − center` to `p − origin`. A circle certified within the band of
-/// its surface's axis is turned by it only slightly at any point, so it
-/// is read clear of the branch cut; a stored turn about the circle's
-/// centre plus its value at the end less its value at the start is the
-/// turn about the axis.
+/// `p − center` to `p − origin`. A stored turn about the circle's centre
+/// plus its value at the end less its value at the start is the turn
+/// about the axis. It is read clear of the branch cut while the axis
+/// passes inside the circle, less than a quarter turn from any point of
+/// it: decided for the face by [`closure::require_axis_inside`].
 fn about_axis<T: Real>(axis: Vec3<T>, center: Point3<T>, origin: Point3<T>, p: Point3<T>) -> T {
     turn_about(axis, p - center, p - origin)
 }
@@ -4149,6 +4150,7 @@ fn torus_chart<T: Decide>(
     };
     let mut per_loop: Vec<(T, T)> = Vec::with_capacity(loops.len());
     let mut loop_pieces: Vec<Vec<TorusPiece<T>>> = Vec::with_capacity(loops.len());
+    closure::require_axis_inside(minor, band)?;
     let mut chart_loops: Vec<ChartLoop<T, 2>> = Vec::with_capacity(loops.len());
     for edges in loops {
         // Every edge is certified rim or meridian first, so a face this
@@ -4194,7 +4196,7 @@ fn torus_chart<T: Decide>(
             });
         }
         chart_loops.push(torus_chart_loop(
-            center, axis, major, minor, edges, &pieces,
+            center, axis, major, minor, edges, &pieces, band,
         )?);
         loop_pieces.push(pieces);
     }
@@ -4299,6 +4301,7 @@ fn torus_chart_loop<T: Decide>(
     minor: T,
     edges: &[LoopEdge<T>],
     pieces: &[TorusPiece<T>],
+    band: Band,
 ) -> Result<ChartLoop<T, 2>, PropsError> {
     // A point's place on the tube: its distance out from the core
     // circle and its height, the tube angle's cosine and sine arms.
@@ -4329,17 +4332,26 @@ fn torus_chart_loop<T: Decide>(
     // carried to the core circle at each end, and its short azimuth turn.
     let sweep = pieces.iter().try_fold([T::zero(); 2], |[u, v], p| {
         let (a, b) = p.edge.traversal_ends();
-        let Curve3::Circle { center: centre, .. } = p.edge.carrier else {
+        let Curve3::Circle {
+            center: centre,
+            radius: r_c,
+            ..
+        } = p.edge.carrier
+        else {
             return Err(PropsError::NotIsoRectangle {
                 what: "a torus piece that is no circle",
             });
         };
         let (wa, wb) = (a - center, b - center);
         Ok(match p.step {
-            TorusStep::Rim { du, .. } => [
-                u + du + about_axis(axis, centre, center, b) - about_axis(axis, centre, center, a),
-                v + tube_turn(wa, wb),
-            ],
+            TorusStep::Rim { du, .. } => {
+                closure::require_axis_inside(r_c, band)?;
+                [
+                    u + du + about_axis(axis, centre, center, b)
+                        - about_axis(axis, centre, center, a),
+                    v + tube_turn(wa, wb),
+                ]
+            }
             TorusStep::Meridian { dv } => [
                 u + turn_about(axis, wa, wb),
                 v + dv + about_core(b - centre, wb) - about_core(a - centre, wa),

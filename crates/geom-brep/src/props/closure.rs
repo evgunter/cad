@@ -202,6 +202,37 @@ pub(super) struct ChartLoop<T, const N: usize> {
     pub(super) joints: Vec<Joint<T, N>>,
 }
 
+/// **A closed form's circle sits clear of the axis it is carried to**
+/// (`props_chart_axis_inside`): `radius`, the circle's radius about the
+/// axis (the core circle), exceeds `2ε`. The parse holds the circle's
+/// centre within `ε` of the axis (the core circle), so then the axis
+/// passes inside the circle: from any point of it the circle's centre
+/// and the axis are less than a quarter turn apart, and the turn
+/// carrying the circle's stored turn to the axis (`curved::about_axis`
+/// and the tube's analogue) is read clear of its branch cut. The
+/// cylinder decides it once at its radius, which every rim's is within
+/// `ε` of; the torus once at its minor radius, for its meridians, and
+/// at each parallel's own. A circle narrower than that is within its own
+/// band, and this closed form has no reading of it
+/// ([`PropsError::NotIsoRectangle`]).
+pub(super) fn require_axis_inside<T: Decide>(radius: T, band: Band) -> Result<(), PropsError> {
+    let eps = T::from_f64(band.zero());
+    if decide(
+        "props_chart_axis_inside",
+        Margin::of(radius - eps - eps),
+        band,
+    )
+    .map_err(escalated)?
+        == Sign::Positive
+    {
+        Ok(())
+    } else {
+        Err(PropsError::NotIsoRectangle {
+            what: "props_chart_axis_inside",
+        })
+    }
+}
+
 /// **A closed form's loops close and wind as a face's boundary does**,
 /// returning each loop's whole turns per periodic coordinate.
 ///
@@ -314,5 +345,58 @@ fn loop_turns<T: Decide>(w: T, lever: T, band: Band) -> Result<i64, PropsError> 
         Sign::Positive => Ok(k),
         Sign::Negative => Ok(-k),
         Sign::Zero => Err(PropsError::ChartLoopOpen),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use geom_core::{Interval, Tol};
+
+    /// One loop of one closed junction whose edges' sweep is `excess`
+    /// metres (at a radius of `1`) off no turn at all.
+    fn off_a_whole_turn<T: Decide>(excess: f64, band: Band) -> Result<Vec<[i64; 1]>, PropsError> {
+        let one = ChartLoop {
+            sweep: [T::from_f64(excess)],
+            joints: vec![Joint {
+                turn: [(T::zero(), T::one())],
+                flat: T::zero(),
+            }],
+        };
+        closed_form_windings(&[one], band)
+    }
+
+    /// **A loop whose total turn is off a whole number of turns refuses**
+    /// (`props_chart_loop_whole`), at `f64` and at the interval scalar:
+    /// within the loop's `3ε` it reads its turns; past it by `2Kε` it is
+    /// no boundary ([`PropsError::LoopsWindChart`]); past it by `2ε`, in
+    /// the band, it escalates.
+    #[test]
+    fn a_loop_off_a_whole_turn_refuses_and_in_the_band_escalates() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (zero, k) = (band.zero(), band.escalate() / band.zero());
+        let within = VERTEX_SLACK * zero - 0.5 * zero;
+        let past = VERTEX_SLACK * zero + 2.0 * k * zero;
+        let in_band = VERTEX_SLACK * zero + 2.0 * zero;
+        for (scalar, run) in [
+            ("f64", off_a_whole_turn::<f64> as fn(f64, Band) -> _),
+            ("interval", off_a_whole_turn::<Interval>),
+        ] {
+            assert_eq!(
+                run(within, band),
+                Ok(vec![[0]]),
+                "within the slack at {scalar}"
+            );
+            assert_eq!(
+                run(past, band),
+                Err(PropsError::LoopsWindChart),
+                "past the slack at {scalar}"
+            );
+            assert!(
+                matches!(run(in_band, band), Err(PropsError::Escalated { .. })),
+                "in the band at {scalar}"
+            );
+        }
     }
 }

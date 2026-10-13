@@ -546,3 +546,126 @@ fn a_seam_cut_wall_with_arcs_off_the_axis_measures() {
         }
     }
 }
+
+/// **A torus loop's turns count every meridian's own azimuth turn**, at
+/// `f64` and at the interval scalar. On a torus of radii `100ε` and
+/// `50ε`, a zig-zag of 400 meridian arcs between the outer equator and
+/// the top, each tipped about its own radial direction by `0.9ε` (under
+/// the meridians' `ε`), turns the axis by `≈ 3.6` rad between them, and
+/// a parallel on the outer equator swept back closes it: the loop turns
+/// zero times. Read with its meridians as no azimuth turn, it turned a
+/// whole turn back, and beside a whole parallel turning the other way
+/// the face measured. Counted whole, the zig-zag alone measures and with
+/// a whole parallel either way refuses ([`PropsError::LoopsWindChart`]).
+#[test]
+fn a_torus_loop_of_many_meridians_turns_by_their_own_turns() {
+    fn parallel<T: geom_core::Decide>(
+        rr: f64,
+        r0: f64,
+        v: f64,
+        (u0, u1): (f64, f64),
+    ) -> LoopEdge<T> {
+        edge(
+            Curve3::Circle {
+                center: p3(0.0, 0.0, r0 * v.sin()),
+                axis: v3(0.0, 0.0, 1.0),
+                radius: T::from_f64(rr + r0 * v.cos()),
+                u_ref: v3(1.0, 0.0, 0.0),
+            },
+            u0,
+            u1,
+            0,
+            0,
+        )
+    }
+    /// The meridian at azimuth `phi` tipped `alpha` about its radial
+    /// direction: `c + r·cos t·ρ̂ + r·sin t·(−cos α·ẑ + sin α·t̂)`.
+    fn meridian<T: geom_core::Decide>(
+        rr: f64,
+        r0: f64,
+        phi: f64,
+        alpha: f64,
+        (t0, t1): (f64, f64),
+    ) -> LoopEdge<T> {
+        let (s, c) = phi.sin_cos();
+        let (sa, ca) = alpha.sin_cos();
+        edge(
+            Curve3::Circle {
+                center: p3(rr * c, rr * s, 0.0),
+                axis: v3(-s * ca, c * ca, sa),
+                radius: T::from_f64(r0),
+                u_ref: v3(c, s, 0.0),
+            },
+            t0,
+            t1,
+            0,
+            0,
+        )
+    }
+    fn measure<T: geom_core::Decide>(with_parallel: Option<bool>) -> Result<(), PropsError> {
+        let (rr, r0) = (100.0 * eps(), 50.0 * eps());
+        let lateral = 0.9 * eps();
+        let alpha = (lateral / r0).asin();
+        let step = 2.0 * (lateral / rr).atan();
+        let mut zig: Vec<LoopEdge<T>> = Vec::new();
+        let mut phi = 0.0;
+        for _ in 0..200 {
+            // Up from the outer equator to the top, ending `lateral` on;
+            // then down from `lateral` back, ending on the next azimuth.
+            zig.push(meridian::<T>(
+                rr,
+                r0,
+                phi,
+                -alpha,
+                (0.0, -core::f64::consts::FRAC_PI_2),
+            ));
+            phi += step;
+            zig.push(meridian::<T>(
+                rr,
+                r0,
+                phi,
+                alpha,
+                (-core::f64::consts::FRAC_PI_2, 0.0),
+            ));
+        }
+        assert!(phi > 3.5, "the meridians turn {phi} rad between them");
+        zig.push(parallel::<T>(rr, r0, 0.0, (phi, 0.0)));
+        let s = Surface::Torus {
+            center: p3(0.0, 0.0, 0.0),
+            axis: v3(0.0, 0.0, 1.0),
+            major_radius: T::from_f64(rr),
+            minor_radius: T::from_f64(r0),
+            u_ref: v3(1.0, 0.0, 0.0),
+        };
+        let ends = if with_parallel == Some(true) {
+            (0.0, TAU)
+        } else {
+            (TAU, 0.0)
+        };
+        let whole = vec![parallel::<T>(rr, r0, -1.0, ends)];
+        let loops: Vec<&[LoopEdge<T>]> = if with_parallel.is_some() {
+            vec![&zig, &whole]
+        } else {
+            vec![&zig]
+        };
+        curved_face_loops(&s, &loops, true, band()).map(|_| ())
+    }
+    for up in [true, false] {
+        assert_eq!(
+            measure::<f64>(Some(up)),
+            Err(PropsError::LoopsWindChart),
+            "with a whole parallel (up: {up}) at f64"
+        );
+        assert_eq!(
+            measure::<geom_core::Interval>(Some(up)),
+            Err(PropsError::LoopsWindChart),
+            "with a whole parallel (up: {up}) at the interval scalar"
+        );
+    }
+    assert_eq!(measure::<f64>(None), Ok(()), "the zig-zag alone at f64");
+    assert_eq!(
+        measure::<geom_core::Interval>(None),
+        Ok(()),
+        "the zig-zag alone at the interval scalar"
+    );
+}

@@ -88,6 +88,7 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("chk_shell_volume_sign Positive", 1),
         ("chk_shell_volume_sign_enclosure Negative", 1),
         ("chk_shell_volume_sign_enclosure Positive", 1),
+        ("props_chart_axis_inside Positive", 4),
         ("props_chart_junction_closed Zero", 16),
         ("props_chart_loop_turns Positive", 4),
         ("props_chart_loop_whole Zero", 4),
