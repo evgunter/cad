@@ -1045,11 +1045,14 @@ pub(crate) fn unglued_coincidence(
 ///   ([`GluedPairs::door_refusal`]): one that decides Zero glues the
 ///   pair.
 ///
-/// Of those that offer a tolerance, the refusal quotes the one that
-/// binds first ([`MarginDiag::binds_before`]), so its offer clears
-/// both. Where neither offers one, the sector lies on the other carrier
-/// at every tolerance and only a glue clears the pair: the door's
-/// reading, where the door read the pair in band, else `corner`.
+/// Of those whose margin a smaller tolerance decides, the refusal quotes
+/// the one that binds first ([`MarginDiag::binds_before`]): the bounds'
+/// offer, where they bind, decides the door's reading too, and a door
+/// that binds first is named with its own recourse rather than an
+/// offer that leaves it in band. Where neither is decided by a
+/// tolerance, the sector lies on the other carrier at every tolerance
+/// and only a glue clears the pair: the door's reading, where the door
+/// read the pair in band, else `corner`.
 pub(crate) fn unglued_corner<T: Real>(
     declared: &GluedPairs<T>,
     pair: (Operand, FaceKey, Operand, FaceKey),

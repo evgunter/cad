@@ -78,3 +78,48 @@ tight block at 60° and 90° `bool_plane_reach` (`Undecided`, 1.30ε at
 60°). A rule keyed on the corner's margin being exactly Zero misses all
 but one of these. Quoting the smaller of the two offers would quote
 about 5e-27 m, which is true but useless.
+
+## Measured (`flush/corner-names-glue`, 2026-10-13, main at 4dce8298)
+
+Every witness refuses at an unglued corner that reads the pair one
+carrier, on the corner's own offset margin, which no tolerance clears:
+
+- **a7 ε/16** (`docm2_part_interval.rs`) refuses at `recl.rs`
+  `require_same` (`ReadOn::Faces`): the corner's offset is the enclosure
+  ±2.5e-10, its first sector's bounds read `[0, 2.5e-10]` off the
+  other's plane (no size), and the glue door read the cut faces'
+  `bool_plane_offset` at ±1.5e-9 (an enclosure across zero). The rung
+  that clears it is ε/32, where the door's enclosure falls in the zero
+  band and glues the pair.
+- **The 20 `k = 0.5` poses** (`wedge_flush_review_probes.rs`, θ =
+  5e-10) refuse at `vtxfac.rs`' coplanar lump: the sector's tilt reads
+  Zero at its span (1), so the carrier ladder reads one plane with the
+  offset a rounding residue (±1.1e-16, 5.2e-26, 0). The glue door reads
+  `bool_plane_parallel` 1.00 to 1.52e-9 (`bool_plane_reach` 1.30 to
+  1.34e-9 on the tight block at 60° and 90°). The sector's bounds stand
+  off the block's plane by θ·sin φ (1.745e-11, 4.358e-11, 1.710e-10,
+  4.330e-10, 5.000e-10 at φ = 2°, 5°, 20°, 60°, 90°).
+- **ε ladder** on all 20 (θ fixed at 5e-10; ε 2e-10 down to 5e-13): just
+  under the glue door's offer (1.2e-10) every op still refuses at the
+  corner, `Coincidence(Sectors)` on θ·sin φ; then `VertexOnFace` on the
+  same margin while ε > θ·sin φ / K; standing poses build once ε is
+  below θ·sin φ / K, sunk ones meet `CrossingInsertion` (and one sunk
+  90° op a `Merge`) with their own offers. So the binding reading is the
+  bounds', not the door's and not the corner's offset.
+- **The wedge-flush pin** (`the_in_band_wedge_is_in_band_at_the_glue_door`,
+  k = 2) already refuses on the bounds (its tilt is in band, PR 4709's
+  branch), and is unchanged.
+
+## Fix
+
+The glue door keeps what it read of each pair it leaves in band
+(`Glue::in_band`, `glue.rs`), and a corner that reads an unglued pair
+one carrier refuses through `boolean::unglued_corner` (`mod.rs`, called
+from `vtxfac.rs` and `recl.rs`): of the sector's bounds' reading
+(`BoolSector::bounds_off`, `sectors.rs`, the one home of the steeper
+bound's departure) and the door's in-band reading, the one a smaller
+tolerance decides and that binds first; where neither is decided by a
+tolerance, the door's reading, else the corner's own. a7 now names the
+door's `bool_plane_offset` (pin moved); the wedge poses name the bounds,
+and `offer_rows`' `flat_wedge_*` rows execute the offer (true at every
+opening, T1 standing, T2 sunk past a true `CrossingInsertion` offer).
