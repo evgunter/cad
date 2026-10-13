@@ -388,6 +388,8 @@ mod a_whole_spiric_oval_bounds_its_mirror_torus;
 mod a_whole_villarceau_circle_bounds_a_torus_face;
 #[path = "a_widened_rotation_moves_a_body.rs"]
 mod a_widened_rotation_moves_a_body;
+#[path = "review_sym17_delta_probes.rs"]
+mod review_sym17_delta_probes;
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
 #[path = "cleave_mint_doors.rs"]

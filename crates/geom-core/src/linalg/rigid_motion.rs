@@ -1547,3 +1547,129 @@ mod motion_rows {
         );
     }
 }
+
+/// SYM-17 delta review probes (probe branch only, not for merge).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod delta_probes {
+    use super::tests::band;
+    use super::*;
+    use crate::interval::Interval;
+    use crate::real::Bounds;
+
+    /// R2's probe, re-run at the fix head.
+    #[test]
+    fn r2_inverse_overflow_is_reachable() {
+        let m = RigidMotion::rotation_then_translation(
+            UnitVec3::exact_z(),
+            core::f64::consts::FRAC_PI_4,
+            Vec3::new(f64::MAX, f64::MAX, 0.0),
+        )
+        .unwrap();
+        assert!(matches!(
+            m.inverse(),
+            Err(RigidMotionError::NonFinite(MotionPart::Inverse))
+        ));
+    }
+
+    /// `is_bounded` at each scalar.
+    #[test]
+    fn delta_is_bounded_per_scalar() {
+        let unb = Interval::from_bounds(f64::MAX, f64::INFINITY);
+        assert!(!unb.is_bounded());
+        assert!(Interval::from_bounds(-1.0, 1.0).is_bounded());
+        assert!(!(Interval::from_f64(f64::MAX) * Interval::from_f64(2.0)).is_bounded());
+        // a Trv-decorated (out-of-domain) enclosure with finite ends
+        let trv = Real::sqrt(Interval::from_bounds(-1.0, 4.0));
+        eprintln!("DELTA sqrt([-1,4]) = {trv:?} bounded={} poison={}", trv.is_bounded(), Real::is_poison(trv));
+        // f64
+        assert!(1.0_f64.is_bounded() && !f64::INFINITY.is_bounded() && !f64::NAN.is_bounded());
+        // Dual: value channel only; an infinite tangent reads bounded
+        let d = crate::Dual64::new(1.0, f64::INFINITY);
+        eprintln!("DELTA Dual(1, inf).is_bounded = {}", d.is_bounded());
+        assert!(!crate::Dual64::constant(f64::INFINITY).is_bounded());
+        // Dual<Interval>
+        let di = crate::Dual::new(unb, Interval::from_f64(0.0));
+        assert!(!di.is_bounded());
+        // Sym<Interval>
+        let s = crate::sym::Sym::<Interval>::from_f64(f64::MAX) * crate::sym::Sym::<Interval>::from_f64(2.0);
+        assert!(!s.is_bounded(), "Sym<Interval> reads its interval value");
+        assert!(crate::sym::Sym::<Interval>::from_f64(3.0).is_bounded());
+    }
+
+    /// The decided door's translation probe at `Interval`: is an
+    /// unbounded translation enclosure refused, as the mints now do?
+    #[test]
+    fn delta_door_translation_unbounded_at_interval() {
+        let one = Interval::from_f64(1.0);
+        let zero = Interval::from_f64(0.0);
+        let id = Mat3::from_cols(
+            Vec3::new(one, zero, zero),
+            Vec3::new(zero, one, zero),
+            Vec3::new(zero, zero, one),
+        );
+        for t in [
+            Interval::from_bounds(f64::MAX, f64::INFINITY),
+            Interval::from_bounds(0.0, f64::INFINITY),
+            Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY),
+        ] {
+            let map = Affine3::from_parts(id, Vec3::new(t, zero, zero));
+            let got = RigidMotion::check_rigid(&map, band());
+            eprintln!("DELTA door, Interval translation {t:?}: {:?}", got.map(|m| m.origin().x));
+            let minted = RigidMotion::translation(Vec3::new(t, zero, zero));
+            eprintln!("DELTA mint, Interval translation {t:?}: {:?}", minted.map(|m| m.origin().x));
+        }
+        // the door at f64 for comparison
+        let map = Affine3::from_parts(Mat3::identity(), Vec3::new(f64::INFINITY, 0.0, 0.0));
+        eprintln!("DELTA door, f64 +inf: {:?}", RigidMotion::check_rigid(&map, band()).map(|_| ()));
+    }
+
+    /// The drift row's thresholds.
+    #[test]
+    fn delta_drift_thresholds() {
+        let (zero, escalate) = (band().zero(), band().escalate());
+        eprintln!("DELTA band zero {zero:e} escalate {escalate:e} ratio {}", escalate / zero);
+        // a factor at the edge of the band's zero
+        for frac in [0.4, 0.49, 0.4999] {
+            let s = 1.0 + frac * zero;
+            let near = Affine3::from_parts(
+                Mat3::from_cols(Vec3::new(s, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_z()),
+                Vec3::zero(),
+            );
+            let Ok(one) = RigidMotion::check_rigid(&near, band()) else {
+                eprintln!("DELTA frac {frac}: not admitted");
+                continue;
+            };
+            let mut product = one;
+            let mut worst: f64 = 0.0;
+            let mut first = None;
+            for k in 2..=200_u32 {
+                product = product.compose(one).unwrap();
+                let c0 = product.u().get();
+                let ratio = (c0.dot(c0) - 1.0).abs() / (f64::from(k) * zero);
+                worst = worst.max(ratio);
+                if first.is_none()
+                    && RigidMotion::check_rigid(&product.to_affine(), band()).is_err()
+                {
+                    first = Some(k);
+                }
+            }
+            eprintln!("DELTA frac {frac}: worst defect/(k·zero) {worst:.4}, first refused at k={first:?}");
+        }
+        // two shear factors: orthogonality defect
+        let e = 0.45 * band().zero();
+        let shear = Affine3::from_parts(
+            Mat3::from_cols(Vec3::new(1.0, 0.0, 0.0), Vec3::new(e, 1.0, 0.0), Vec3::unit_z()),
+            Vec3::zero(),
+        );
+        if let Ok(one) = RigidMotion::check_rigid(&shear, band()) {
+            let mut p = one;
+            for _ in 1..64 { p = p.compose(one).unwrap(); }
+            let (c0, c1) = (p.u().get(), p.v().get());
+            eprintln!("DELTA shear 64-fold: col01 {:e} = {:.3} zeros", c0.dot(c1), c0.dot(c1) / zero);
+        } else {
+            eprintln!("DELTA shear not admitted");
+        }
+        let _ = Interval::from_f64(0.0).lo();
+    }
+}

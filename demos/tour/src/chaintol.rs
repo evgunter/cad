@@ -739,6 +739,19 @@ fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f64)>
 mod tests {
     use super::*;
 
+    /// SYM-17 delta review probe (not for merge): the chain's rows at
+    /// the study's sigma, both lanes, one to four links, with counts.
+    #[test]
+    #[ignore]
+    fn delta_chain_rows_probe() {
+        let tol = Tol::witness();
+        for links in 1..=4 {
+            let built = chain(links, JOINT_SIGMA, POSITION_BOUND, tol);
+            print_row(&interval_leaf(links, &built.doc));
+            print_row(&sym_leaf(links, &built.doc));
+        }
+    }
+
     /// **The plain lane's reach, bisected** — the header's
     /// `σ = 6.49e-9` at one link and `6.73e-10` at four: one leaf over
     /// the whole box at plain `Interval`, bisected in `log10 σ` to 0.005
