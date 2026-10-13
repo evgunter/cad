@@ -1285,3 +1285,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Order of work:** measure first, then fix within the per-PR selection standard (shard, cut the build path, cheaper tests).
   - **Limit:** dropping a seeded row to the nightly comes back as a proposal, because it contradicts implementer-discipline §2.
   - The lane updates or closes CIW's open row `a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar`.
+- 2026-10-13 16:05Z — **Build C's first findings** (CI wall time).
+  - **(1) Red main.** Sweep's tests don't compile on main after a 4918/4197 semantic conflict. I fixed it in PR 4992 (test-only) and posted seam notes on sym and contacthold.
+  - **(2) PR 4954, our own merge, regressed hard.** Unit 1 took `shelling_the_curved_loft_refuses_at_a_walls_fit` from about 60 s to 1530–1926 s, `r1_lane0_e2e::the_f64_seam_answers_every_public_door` from about 17 s to 650–820 s, and the geom-brep slow rows to 470–1000 s each, roughly 30–50×. That, not CI shape, is what made 4954's slow-set step 55 min.
+    - **Missed:** neither the FULL review nor I measured run time.
+    - **Class:** a bound that swaps a cheap reading for a tighter, costlier one needs a wall-time row, or the slow rows' timings read before merge.
+    - **Next:** build C is profiling the cause. The 4984 reviewer has claim 8 (unit 2's added cost). Who lands the fix is decided once the cause is known.
