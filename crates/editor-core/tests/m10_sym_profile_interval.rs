@@ -564,11 +564,11 @@ const PLATE_MAX_TERMS: usize = 28;
 /// `Door/Assertion` line, 396 calls that built nothing, is gone. The
 /// slab's `Early/Assertion` digests move the same way at each ε row.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 15749 frozen 252 digest 066bebc5066c4c94ae93362a0873cb94\n\
-     Plain/Assertion calls 654 forms 4349 frozen 389 digest b82ea8fd0878e9410927c81ec1a03b95\n\
+     Plain/Decision calls 1048 forms 15763 frozen 252 digest 97c480a7089cd6ae60400034ee4932b5\n\
+     Plain/Assertion calls 654 forms 4349 frozen 389 digest c5d469c2b9439377f8b3f04d76687a02\n\
      Early/Decision calls 352 forms 8671 frozen 0 digest eeaf8b06f90df22e99214afb32688acd\n\
-     Early/Assertion calls 654 forms 5312 frozen 0 digest eb3ac4c74cf6d7fe35ef56941bc369ef\n\
-     Door/Decision calls 396 forms 7181 frozen 0 digest bd6bd2d2acc05f6f831f152ebeed7d11";
+     Early/Assertion calls 654 forms 5326 frozen 0 digest 6849e5a0cc92031485f25f48d97aab5f\n\
+     Door/Decision calls 396 forms 7195 frozen 0 digest a8e344b8edff883e214918d15c0909fe";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
