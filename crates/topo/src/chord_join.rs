@@ -2856,19 +2856,26 @@ fn nearest_branch<T: Decide>(
         what: "a divided face's chart is the placeholder — it has no lever to decide a branch by",
     })?;
     let arm = crate::pcurves::joint_arm(chart, vertex);
-    crate::pcurves::lever_periods("split_window_branch", arm, gap, T::tau(), false, band)
-        .map(|k| T::from_f64(f64::from(k)))
-        .map_err(|miss| match miss {
-            geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
-            geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach => {
-                SplitJoinError::SectionInvariant {
-                    face,
-                    what: "a run edge's chart entry sits half a period, or past the branch \
+    crate::pcurves::lever_periods(
+        "split_window_branch",
+        arm,
+        gap,
+        T::tau(),
+        crate::pcurves::PERIOD_ORBIT,
+        band,
+    )
+    .map(|k| T::from_f64(f64::from(k)))
+    .map_err(|miss| match miss {
+        geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
+        geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach => {
+            SplitJoinError::SectionInvariant {
+                face,
+                what: "a run edge's chart entry sits half a period, or past the branch \
                            reach, from the previous edge's exit — the two images name no \
                            common branch",
-                }
             }
-        })
+        }
+    })
 }
 
 /// `∫ (v − anchor) du` of a harmonic chart image from `t0` to `t1`, and
@@ -6637,12 +6644,28 @@ mod nearest_branch_rows {
                 Ok(Sign::Positive),
                 "d = {d:e}: the vertex is decided clear of the apex"
             );
+            let lever = d * alpha.sin();
             let got = nearest_branch(&cone, FaceKey::default(), vertex, 0.0, band);
             assert!(
                 matches!(got, Ok(k) if k == 0.0),
-                "d = {d:e} (lever {:e}): the continuous joint is its own branch: {got:?}",
-                d * alpha.sin()
+                "d = {d:e} (lever {lever:e}): the continuous joint is its own branch: {got:?}"
             );
+            // A whole turn's gap meets the image a period over; where a
+            // whole turn at the lever is itself within ε, every branch
+            // tried is, and the image itself is taken first.
+            let tau = core::f64::consts::TAU;
+            for turns in [1.0, -1.0] {
+                let want = if tau * lever < band.zero() {
+                    0.0
+                } else {
+                    turns
+                };
+                let got = nearest_branch(&cone, FaceKey::default(), vertex, turns * tau, band);
+                assert!(
+                    matches!(got, Ok(k) if k == want),
+                    "d = {d:e} (lever {lever:e}), gap {turns}·τ: the branch is {want}: {got:?}"
+                );
+            }
         }
     }
 }

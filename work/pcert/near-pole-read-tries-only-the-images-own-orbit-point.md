@@ -2,8 +2,10 @@
 id: near-pole-read-tries-only-the-images-own-orbit-point
 kind: issue
 title: The near-pole read tries only the image's own orbit point, so a continuous whole-turn joint at a band-sized lever misses as decided
-status: open
+status: closed
+branch: pcert/near-pole-read-orbit-offsets
 opened: 2026-10-13
+closed: 2026-10-13
 priority: P2
 cost: E
 ---
@@ -59,3 +61,29 @@ Probe (six crates, default ε): no suite joint reaches either. The 31
 cone joints whose marks missed at a lever with room were all gaps of
 exactly `±π` at levers of 0.5–1 m, in `site_rows`' walk, cleared by its
 designed fallback.
+
+## Closed
+
+`near_pole_gap_closes` and `lever_periods` take the orbit offsets
+tried, in place of `twin: bool`, and the caller names them:
+`PERIOD_ORBIT` (0, ±1 whole periods) where the image has no twin,
+`TWIN_ORBIT` (0, ±1, ±2 half periods) where it has one. Every offset
+tried is a lift of the one point: a whole period is a deck
+transformation, and a half step lands on the twin, which the caller's
+second-channel count then decides. `decide_joint` (both `Marks` and
+`MarksNearPole`, and so `turn_element`) passes the set its twin
+selects; `chord_join::nearest_branch` passes `PERIOD_ORBIT`.
+
+Both reaches now decide a lift:
+- `pcurves::stretch_meter::a_narrow_cone_loop_joint_clear_of_the_apex_takes_its_own_image`
+  requires the lift at gaps 0, 1e-3 and ±τ at every `d`, and on a
+  sphere within the band of a pole at 0 and ±τ (two half steps);
+- `pcurves::turn_miss::a_sub_band_turn_decides_the_lift_its_gap_meets`
+  (renamed from `a_turn_whose_joint_misses_refuses`): both
+  orientations decide `u = ∓1` from `0.17ε` to `10ε`, and `u = 0`
+  under `ε/τ`;
+- `chord_join::nearest_branch_rows::a_narrow_cone_joint_clear_of_the_apex_takes_its_own_image`
+  gains gaps ±τ.
+
+A mutant setting both sets to `{0}` turns all three red; `TWIN_ORBIT`
+back to `{0, ±1}` turns the sphere block red.

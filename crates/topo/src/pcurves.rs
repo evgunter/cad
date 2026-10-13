@@ -4107,8 +4107,8 @@ impl AzimuthRule {
 /// (the gap on it, or in its band), the orbit point the gap meets within
 /// ε at the vertex's lever is taken ([`lever_periods`]): at a sub-band
 /// lever every mark reads Zero, and a continuous joint still decides
-/// its own image. Only a gap off every orbit point at that lever refuses
-/// (on a mark) or escalates. No branch is ever decided that names a
+/// a lift of its own point. Only a gap off every orbit point the read
+/// tries at that lever refuses (on a mark) or escalates. No branch is ever decided that names a
 /// different point. What such a pick can move is the loop's winding by
 /// one orbit step, so a reader of the winding as a region checks each
 /// joint's room first: [`chart_boundary`] refuses a joint whose room is
@@ -4192,7 +4192,12 @@ fn decide_joint<T: Decide>(
         }
     });
     let gap = prev.x - image.eval(entry_t).x;
-    let marks = |s: T| lever_periods("pcurve_loop_branch", arm, gap, s, twin.is_some(), band);
+    let orbit = if twin.is_some() {
+        TWIN_ORBIT
+    } else {
+        PERIOD_ORBIT
+    };
+    let marks = |s: T| lever_periods("pcurve_loop_branch", arm, gap, s, orbit, band);
     let rule = AzimuthRule::of(step.is_some(), singular_at(chart, vertex, band), spline);
     let m = match (rule, step) {
         (AzimuthRule::Marks, Some(s)) => marks(s).map_err(PinMiss::from)?,
@@ -4258,8 +4263,8 @@ fn decide_joint<T: Decide>(
 /// Whether the ends meet escalated at `band` (`Some`, its cause), or
 /// they meet and the turn's joint decision there missed: it escalated
 /// (`Some`), or decided a miss (`None`) — the gap on a mark and off
-/// every orbit point at the vertex's lever, or periods past the branch
-/// reach. The ends are one point, so neither is "no turn"; a kill
+/// every orbit point the near-pole read tries at the vertex's lever, or
+/// periods past the branch reach. The ends are one point, so neither is "no turn"; a kill
 /// writes no element through any of them.
 ///
 /// # Panics
@@ -4319,17 +4324,29 @@ impl From<BranchMiss> for PinMiss {
     }
 }
 
+/// The orbit offsets the near-pole read tries without a twin
+/// ([`near_pole_gap_closes`]), in whole periods: the image itself, then
+/// the image one period either way round.
+pub(crate) const PERIOD_ORBIT: &[i32] = &[0, 1, -1];
+
+/// The orbit offsets the near-pole read tries where the image has a
+/// twin, in half periods: the image, the twin either way round, then
+/// the image one period either way round.
+pub(crate) const TWIN_ORBIT: &[i32] = &[0, 1, -1, 2, -2];
+
 /// The branch of a joint whose orbit's marks missed at a band-sized
 /// lever `arm` ([`lever_periods`]): the vertex sits within the band of
 /// a pole or an apex (its incidence undecided), or off a narrow cone's
 /// apex by more than the band while its lever `|p − apex|·sin α` is not,
-/// so no mark reads definitely. An orbit point is taken
-/// only where the gap to it, metered at that lever, is decided within ε
-/// (`pcurve_loop_pole_gap`): the image itself (`m = 0`) or, where the
-/// image has a twin, the twin either way round (`m = ±1`, a `step` of
-/// half a period off). The two chart points then agree in metres at the
-/// vertex, and no branch is asserted that a margin did not see. `None`
-/// otherwise; the caller escalates with the incidence's cause.
+/// so no mark reads definitely. The first offset `m` of `orbit`, in
+/// steps of `step` ([`PERIOD_ORBIT`], [`TWIN_ORBIT`]), whose gap,
+/// metered at that lever, is decided within ε (`pcurve_loop_pole_gap`)
+/// is taken. The two chart points then agree in metres at the vertex,
+/// and no branch is asserted that a margin did not see. Every offset
+/// tried is a lift of the one point: a whole period is a deck
+/// transformation of the chart, and a half step lands on the twin,
+/// which names the point once the caller's second-channel count on it
+/// decides. `None` otherwise; the caller answers with the marks' miss.
 ///
 /// A vertex ON the axis but off the surface (within the band of a pole)
 /// has lever 0, so any gap decides Zero there and the image itself is
@@ -4341,10 +4358,9 @@ fn near_pole_gap_closes<T: Decide>(
     arm: ChartArm<T>,
     gap: T,
     step: T,
-    twin: bool,
+    orbit: &[i32],
     band: Band,
 ) -> Option<i32> {
-    let orbit: &[i32] = if twin { &[0, 1, -1] } else { &[0] };
     orbit.iter().copied().find(|&m| {
         let off = gap - T::from_f64(f64::from(m)) * step;
         matches!(
@@ -4358,21 +4374,21 @@ fn near_pole_gap_closes<T: Decide>(
 /// read**: [`geom_brep::whole_period_count`] of `gap` in steps of
 /// `step`, metered at the vertex's lever `arm`. Where a mark misses
 /// (undecided, or the gap on it), an orbit point whose gap is decided
-/// within ε at that lever is taken ([`near_pole_gap_closes`]: the image
-/// itself, or with `twin` the twin either way round). A band-sized
+/// within ε at that lever is taken ([`near_pole_gap_closes`], trying
+/// `orbit` in order). A band-sized
 /// lever reads every mark as Zero: a vertex near a pole, and a vertex
 /// near a narrow cone's apex, whose incidence decides it OFF the apex
 /// ([`singular_at`] reads `|p − apex|`) while its lever `|p − apex|·sin α`
 /// is under the band. The two chart points then agree in metres at the
-/// vertex. Without `twin` the branch taken is a lift of the joint's own
-/// point; with it, a `±1` is a half step onto the twin, which names the
-/// joint's point only once the caller's second-channel count on the
-/// twin decides ([`decide_joint`]).
+/// vertex. A whole-period offset is a lift of the joint's own point;
+/// an odd offset of [`TWIN_ORBIT`] is a half step onto the twin, which
+/// names the joint's point only once the caller's second-channel count
+/// on the twin decides ([`decide_joint`]).
 ///
 /// At a lever with room nothing moves: the read is asked only where a
 /// mark missed, so where the gap is within the band of a mark, and a
 /// gap within ε of an orbit point is that near a mark only where half a
-/// step at the lever is itself band-sized.
+/// step at the lever is itself band-sized, whichever orbit point it is.
 ///
 /// # Errors
 ///
@@ -4382,12 +4398,12 @@ pub(crate) fn lever_periods<T: Decide>(
     arm: ChartArm<T>,
     gap: T,
     step: T,
-    twin: bool,
+    orbit: &[i32],
     band: Band,
 ) -> Result<i32, BranchMiss> {
     match whole_period_count(name, gap, step, |g| arm.meter(g), band) {
         Err(miss @ (BranchMiss::Undecided(_) | BranchMiss::OnMark)) => {
-            near_pole_gap_closes(arm, gap, step, twin, band).ok_or(miss)
+            near_pole_gap_closes(arm, gap, step, orbit, band).ok_or(miss)
         }
         decided => decided,
     }
@@ -5975,27 +5991,51 @@ mod stretch_meter {
         }
     }
 
-    /// **A narrow cone's joint clear of the apex takes its own image.**
-    /// At `α = 0.01` a vertex `d` from the apex is decided `Off` the
-    /// singular set from `d` past the band's escalate edge on, while its
-    /// lever is `d·sin α`, a hundredth of that: under the band until
-    /// `d` is a hundred times the edge. A continuous joint there (gap 0,
-    /// a thousandth of a radian) reads every mark Zero or in band, and
-    /// takes its own image by the near-pole read at that lever
-    /// ([`super::lever_periods`]). A gap of a whole turn takes a lift of
-    /// the one point where the marks decide; at a band-sized lever the
-    /// near-pole read tries only the image's own orbit point, so there
-    /// it may refuse (filed in
-    /// `work/pcert/near-pole-read-tries-only-the-images-own-orbit-point`),
-    /// but never takes a branch that names another point. The row does
-    /// not pin that refusal's kind: today it is a decided
-    /// `Discontinuity`, the wrong kind for a continuous joint, and the
-    /// filed item owns it.
+    /// **A joint clear of the apex, or within the band of a pole, takes
+    /// a lift of its own point at any gap on its orbit.** At `α = 0.01`
+    /// a vertex `d` from the apex is decided `Off` the singular set from
+    /// `d` past the band's escalate edge on, while its lever is `d·sin α`,
+    /// a hundredth of that: under the band until `d` is a hundred times
+    /// the edge. A continuous joint there (gap 0, a thousandth of a
+    /// radian, a whole turn) reads every mark Zero or in band, and takes
+    /// the orbit point its gap meets at that lever by the near-pole read
+    /// ([`super::lever_periods`]): the image itself, or the image a
+    /// period over. On a sphere, a vertex within the band of a pole reads
+    /// the same way in half periods, and a whole turn's gap meets the
+    /// image a period over, two half steps off.
     #[test]
     fn a_narrow_cone_loop_joint_clear_of_the_apex_takes_its_own_image() {
-        use super::{JointElement, decide_joint};
+        use super::{Deck, JointElement, decide_joint};
         use geom_brep::Pcurve;
         use geom_core::{Point2, Vec2};
+        let zero = Vec2::new(0.0, 0.0);
+        let tau = std::f64::consts::TAU;
+        let at_gap = |surface: &Surface<f64>, vertex, v: f64, gap: f64| {
+            let image = Pcurve::Harmonic {
+                p0: Point2::new(0.0, v),
+                pa: zero,
+                pb: zero,
+                pl: zero,
+            };
+            let prev = Point2::new(gap, v);
+            decide_joint(chart(surface), &image, 0.0, prev, vertex, Some(tau), band())
+        };
+        let read = |out: Result<JointElement, super::PinMiss>| match out {
+            Ok(element) => format!("{element:?}"),
+            Err(super::PinMiss::Discontinuity) => "Discontinuity".into(),
+            Err(super::PinMiss::Escalated(_)) => "Escalated".into(),
+            Err(super::PinMiss::OutOfReach) => "OutOfReach".into(),
+        };
+        let lift = |u| {
+            format!(
+                "{:?}",
+                JointElement::Shift(Deck {
+                    u,
+                    v: 0,
+                    twin: false,
+                })
+            )
+        };
         let alpha = 0.01f64;
         let cone: Surface<f64> = Surface::Cone {
             apex: Point3::new(0.0, 0.0, 0.0),
@@ -6003,44 +6043,42 @@ mod stretch_meter {
             half_angle: alpha,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let zero = Vec2::new(0.0, 0.0);
-        let tau = std::f64::consts::TAU;
         for d in [2.0, 5.0, 10.0, 100.0, 1000.0].map(|m| m * band().escalate()) {
             let vertex = Point3::new(d * alpha.sin(), 0.0, d * alpha.cos());
             assert!(
                 matches!(singular_at(chart(&cone), vertex, band()), Singular::Off),
                 "d = {d:e}: the vertex is decided clear of the apex"
             );
-            let marks_decide = d * alpha.sin() * std::f64::consts::PI > 2.0 * band().escalate();
-            for (gap, turns, must) in [
-                (0.0, [0, 0], true),
-                (1e-3, [0, 0], true),
-                (tau, [0, 1], marks_decide),
-            ] {
-                let at = Point2::new(0.0, d);
-                let image = Pcurve::Harmonic {
-                    p0: at,
-                    pa: zero,
-                    pb: zero,
-                    pl: zero,
-                };
-                let prev = Point2::new(gap, d);
-                let out = decide_joint(chart(&cone), &image, 0.0, prev, vertex, Some(tau), band());
-                let lift = matches!(out, Ok(JointElement::Shift(deck))
-                    if turns.contains(&deck.u) && deck.v == 0 && !deck.twin);
-                // Any refusal passes where the marks do not decide: its
-                // kind is the near-pole item's, not this row's.
-                assert!(
-                    lift || (!must && out.is_err()),
-                    "d = {d:e} (lever {:e}), gap {gap}: a lift of the joint's point, read {:?}",
-                    d * alpha.sin(),
-                    out.as_ref().map_err(|miss| match miss {
-                        super::PinMiss::Discontinuity => "Discontinuity",
-                        super::PinMiss::Escalated(_) => "Escalated",
-                        super::PinMiss::OutOfReach => "OutOfReach",
-                    })
+            for (gap, turns) in [(0.0, 0), (1e-3, 0), (tau, 1), (-tau, -1)] {
+                assert_eq!(
+                    read(at_gap(&cone, vertex, d, gap)),
+                    lift(turns),
+                    "d = {d:e} (lever {:e}), gap {gap}: the image {turns} periods over",
+                    d * alpha.sin()
                 );
             }
+        }
+        let sphere: Surface<f64> = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let near_pole = Point3::new(5e-9, 0.0, 2.0);
+        assert!(
+            matches!(
+                singular_at(chart(&sphere), near_pole, band()),
+                Singular::Undecided(_)
+            ),
+            "the vertex is within the band of the pole"
+        );
+        let v = (near_pole.z / 2.0).asin();
+        for (gap, turns) in [(0.0, 0), (tau, 1), (-tau, -1)] {
+            assert_eq!(
+                read(at_gap(&sphere, near_pole, v, gap)),
+                lift(turns),
+                "sphere near its pole, gap {gap}: the image {turns} periods over"
+            );
         }
     }
 
@@ -7158,41 +7196,29 @@ mod lift_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod turn_miss {
-    use super::turn_element;
+    use super::{Deck, JointElement, turn_element};
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use crate::{Body, LoopBoundary, MevSite, NewVertexSide};
     use geom::Surface;
     use geom_core::{Band, Tol};
 
-    /// **A turn whose ends meet but whose joint decision misses refuses;
-    /// it is not "no turn".** A null strut on a minted cylinder wall,
+    /// **A turn on a sub-band lever decides the lift its gap meets, in
+    /// both orientations.** A null strut on a minted cylinder wall,
     /// described as the wall's own circle once round, is a closed
-    /// carrier: its turn is a period. On a cylinder whose radius is a
-    /// fraction of ε, a radius whose marks' margins sit inside the band
-    /// escalates (`Err(Some)`, where it used to read `Ok(None)` right
-    /// after deciding that the ends meet). At a tenth of ε every mark
-    /// decides Zero, the gap on one; the period's gap is then itself
-    /// under ε at that lever, so the near-pole read
-    /// ([`super::lever_periods`]) takes the image's own orbit point, a
-    /// lift of the one point, and the turn decides, in both
-    /// orientations.
-    ///
-    /// The orientations part between. `he_plus` reads a gap of `−τ`,
-    /// whose first mark is `3π·r` off, so every mark it reads decides
-    /// Zero only where `τ·r` is under ε too and the near-pole read
-    /// closes: it escalates across `(ε/τ, ε]`. `he_minus` reads `+τ`,
-    /// whose first mark is `π·r` off: for `r` in `(ε/τ, ε/π]` that mark
-    /// decides Zero while `τ·r` is over ε, the near-pole read does not
-    /// close, and the turn misses as decided (`Err(None)`) on a
-    /// continuous joint. The row pins that as it is today; the
-    /// near-pole read trying only the image's own orbit point is filed
-    /// (`work/pcert/near-pole-read-tries-only-the-images-own-orbit-point.md`).
-    /// Through the doors no body reaches either, since every joint at
-    /// that vertex was decided at the same lever and margin when its
-    /// rows were minted, so the row shrinks the carrier's surface under
-    /// the stored rows.
+    /// carrier: its turn is a period, `−τ` read along `he_plus` and `+τ`
+    /// along `he_minus`. On a cylinder whose radius is a fraction of ε to
+    /// a few ε, the marks of that gap read Zero or in band, and the
+    /// near-pole read ([`super::lever_periods`]) takes the orbit point
+    /// the gap meets within ε at that lever: the image one period over
+    /// (`u = ∓1`), or under `ε/τ`, where every orbit point it tries is
+    /// within ε, the image itself (`u = 0`). Each is a lift of the one
+    /// point, so the turn decides rather than missing as a
+    /// discontinuity. Through the doors no body reaches either, since
+    /// every joint at that vertex was decided at the same lever and
+    /// margin when its rows were minted, so the row shrinks the
+    /// carrier's surface under the stored rows.
     #[test]
-    fn a_turn_whose_joint_misses_refuses() {
+    fn a_sub_band_turn_decides_the_lift_its_gap_meets() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let mut body = Body::<f64>::new();
@@ -7223,13 +7249,9 @@ mod turn_miss {
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle, t0, t0 + core::f64::consts::TAU)
             .unwrap();
         body.set_edge_curve(null.edge, spec, tol).unwrap();
-        let he = null.he_plus;
-        assert!(
-            matches!(turn_element(&body, he, band), Ok(Some(_))),
-            "the control: at the wall's own radius the turn is decided"
-        );
         let key = body.get_face(face).unwrap().surface;
-        let at_radius = |r: f64| {
+        let he_minus = body.get_edge(null.edge).unwrap().he_minus;
+        let at = |he, r: f64| {
             let mut shrunk = body.clone();
             let Some(Surface::Cylinder { radius, .. }) = shrunk.surfaces.get_mut(key) else {
                 panic!("the wall is a cylinder")
@@ -7237,49 +7259,37 @@ mod turn_miss {
             *radius = r;
             turn_element(&shrunk, he, band)
         };
-        let eps = band.zero();
-        assert!(
-            matches!(at_radius(0.1 * eps), Ok(Some(_))),
-            "a period's gap within ε at the lever is a lift of the one point"
-        );
-        for r in [0.2, 0.25, 0.5] {
-            assert!(
-                matches!(at_radius(r * eps), Err(Some(_))),
-                "r = {r}·ε: a period's gap in the band at the lever escalates"
-            );
-        }
-        assert!(
-            matches!(at_radius(eps), Err(Some(_))),
-            "a mark margin inside the band escalates"
-        );
-        // The reverse half's turn reads gap `+τ`, whose first mark
-        // sits at `(τ − π)·r = π·r`, so it decides Zero from `ε/π`
-        // down while the near-pole read closes only under `ε/τ`.
-        let he_minus = body.get_edge(null.edge).unwrap().he_minus;
-        let reverse_at = |r: f64| {
-            let mut shrunk = body.clone();
-            let Some(Surface::Cylinder { radius, .. }) = shrunk.surfaces.get_mut(key) else {
-                panic!("the wall is a cylinder")
-            };
-            *radius = r;
-            turn_element(&shrunk, he_minus, band)
+        let lift = |u| {
+            Some(JointElement::Shift(Deck {
+                u,
+                v: 0,
+                twin: false,
+            }))
         };
-        assert!(
-            matches!(reverse_at(0.1 * eps), Ok(Some(_))),
-            "the reverse half: a period's gap within ε at the lever is a lift of the one point"
+        let read = |out: Result<Option<JointElement>, Option<geom_core::Indeterminate>>| {
+            out.map_err(|cause| cause.is_some())
+        };
+        assert_eq!(
+            read(at(null.he_plus, frame.radius)),
+            Ok(lift(-1)),
+            "the control: at the wall's own radius the turn is a period"
         );
-        for r in [0.17, 0.2, 0.25, 0.3] {
-            assert!(
-                matches!(reverse_at(r * eps), Err(None)),
-                "r = {r}·ε: the reverse half's first mark decides Zero and the near-pole \
-                 read does not close, so the turn misses as decided (filed)"
-            );
-        }
-        for r in [0.5, 1.0] {
-            assert!(
-                matches!(reverse_at(r * eps), Err(Some(_))),
-                "r = {r}·ε: the reverse half's mark margin inside the band escalates"
-            );
+        let eps = band.zero();
+        for (he, turn, side) in [(null.he_plus, -1, "he_plus"), (he_minus, 1, "he_minus")] {
+            for r in [0.01, 0.1, 0.15] {
+                assert_eq!(
+                    read(at(he, r * eps)),
+                    Ok(lift(0)),
+                    "{side}, r = {r}·ε: under ε/τ every orbit point is within ε, the image itself"
+                );
+            }
+            for r in [0.17, 0.2, 0.25, 0.3, 0.5, 1.0, 3.0, 10.0] {
+                assert_eq!(
+                    read(at(he, r * eps)),
+                    Ok(lift(turn)),
+                    "{side}, r = {r}·ε: the image a period over"
+                );
+            }
         }
     }
 }
