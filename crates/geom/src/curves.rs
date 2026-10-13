@@ -260,32 +260,69 @@ pub enum CurveKind {
     Nurbs,
 }
 
-/// An ellipse's principal frame, the larger semi-axis first
-/// ([`Curve3::major_frame`]): the reading of which stored semi-axis is
-/// the major one, for a reader whose formula needs the major vertex (a
-/// focus on the major axis, a lever at the farthest reach along it).
+/// An ellipse's principal frame with a chosen principal direction first
+/// ([`Curve3::major_frame`], [`Curve3::section_frame`]): the reading of
+/// which stored semi-axis is the major one, for a reader whose formula
+/// needs the major vertex (a focus on the major axis, a lever at the
+/// farthest reach along it).
 #[derive(Clone, Copy, Debug)]
 pub struct MajorFrame<T: Real> {
-    /// The larger semi-axis in magnitude, signed as stored.
+    /// The semi-axis along `major_dir`, signed as stored.
     pub major: T,
-    /// The smaller semi-axis, signed as stored.
+    /// The semi-axis along `axis × major_dir`, signed as stored.
     pub minor: T,
-    /// The direction the major semi-axis is measured along: `u_ref`, or
-    /// `axis × u_ref`. The minor one is along `axis × major_dir`.
+    /// The principal direction read as the major one: `u_ref`, or
+    /// `axis × u_ref`.
     pub major_dir: Vec3<T>,
     /// The carrier parameter at `center + major_dir·major`: `0`, or
-    /// `π/2` where the seam is at a minor vertex.
+    /// `π/2` where `major_dir` is `axis × u_ref`.
     pub phase: T,
 }
 
 impl<T: Real> Curve3<T> {
-    /// An [`Curve3::Ellipse`]'s principal frame with the major semi-axis
-    /// first, whichever its seam is at; `None` for every other kind.
-    /// Read off the magnitudes without a branch: the frame turned a
-    /// quarter, `θ = s + π/2`, is `center + v_ref·(semi_v·cos s) +
-    /// (axis × v_ref)·(semi_u·sin s)`.
+    /// An [`Curve3::Ellipse`]'s principal frame with the larger
+    /// semi-axis in magnitude first, whichever its seam is at; `None`
+    /// for every other kind. A tie keeps the seam's own axis.
+    ///
+    /// Two semi-axes within rounding of each other carry no reading of
+    /// which is the major one; a reader that knows the geometry the
+    /// ellipse came from reads it there ([`Self::section_frame`]).
     #[must_use]
     pub fn major_frame(&self) -> Option<MajorFrame<T>> {
+        let &Self::Ellipse { semi_u, semi_v, .. } = self else {
+            return None;
+        };
+        self.frame_turned_where(semi_v.abs() - semi_u.abs())
+    }
+
+    /// **An [`Curve3::Ellipse`] read as a plane section of a surface of
+    /// revolution about `axis`** (a cylinder's or a cone's): its
+    /// principal frame with the direction of the larger component along
+    /// `axis` first; `None` for every other kind. Such a section's minor
+    /// axis is perpendicular to the axis of revolution, so in truth its
+    /// major direction is the one `axis` has a component along, and the
+    /// reading holds at a near-circle, where the semi-axes round past
+    /// each other and [`Self::major_frame`] has nothing to read. A tie
+    /// (a plane across the axis, whose section is a circle) keeps the
+    /// seam's own axis.
+    #[must_use]
+    pub fn section_frame(&self, axis: Vec3<T>) -> Option<MajorFrame<T>> {
+        let &Self::Ellipse {
+            axis: normal,
+            u_ref,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let v_ref = normal.cross(u_ref);
+        self.frame_turned_where(v_ref.dot(axis).abs() - u_ref.dot(axis).abs())
+    }
+
+    /// The ellipse's frame as stored where `turn ≤ 0`, else turned a
+    /// quarter, read without a branch: `θ = s + π/2` is
+    /// `center + v_ref·(semi_v·cos s) + (axis × v_ref)·(semi_u·sin s)`.
+    fn frame_turned_where(&self, turn: T) -> Option<MajorFrame<T>> {
         let &Self::Ellipse {
             axis,
             semi_u,
@@ -297,18 +334,16 @@ impl<T: Real> Curve3<T> {
             return None;
         };
         let v_ref = axis.cross(u_ref);
-        // ≤ 0 where the seam's semi-axis is the smaller.
-        let seam_minor = semi_u.abs() - semi_v.abs();
-        let pick = |a: T, b: T| seam_minor.select_le_zero(a, b);
+        let pick = |a: T, b: T| turn.select_le_zero(a, b);
         Some(MajorFrame {
-            major: pick(semi_v, semi_u),
-            minor: pick(semi_u, semi_v),
+            major: pick(semi_u, semi_v),
+            minor: pick(semi_v, semi_u),
             major_dir: Vec3::new(
-                pick(v_ref.x, u_ref.x),
-                pick(v_ref.y, u_ref.y),
-                pick(v_ref.z, u_ref.z),
+                pick(u_ref.x, v_ref.x),
+                pick(u_ref.y, v_ref.y),
+                pick(u_ref.z, v_ref.z),
             ),
-            phase: pick(T::pi() * T::from_f64(0.5), T::zero()),
+            phase: pick(T::zero(), T::pi() * T::from_f64(0.5)),
         })
     }
 }
@@ -1886,6 +1921,63 @@ mod tests {
             .major_frame()
             .is_none()
         );
+        // Equal semi-axes: the tie keeps the seam's own axis.
+        let tie = at(2.0, 2.0).major_frame().unwrap();
+        assert_eq!(
+            (tie.phase, (tie.major_dir - Vec3::unit_x()).norm()),
+            (0.0, 0.0)
+        );
+    }
+
+    /// **A section's major direction is read off the axis of
+    /// revolution, not off semi-axes that round past each other.** A
+    /// near-circle cut by a plane tilted 4e-11 about `y` stores its
+    /// semi-axis across the tilt one ulp the larger: its magnitudes read
+    /// `y` as the major direction, the axis reads `x`, the true one, at
+    /// either seam. A plane across the axis is a tie and keeps the seam.
+    #[test]
+    fn a_section_frame_is_read_off_the_axis_of_revolution() {
+        let tilt = 4e-11_f64;
+        let normal = Vec3::new(-tilt.sin(), 0.0, tilt.cos());
+        let along = Vec3::new(tilt.cos(), 0.0, tilt.sin());
+        let (semi_x, semi_y) = (0.999_999_999_999_999_8, 0.999_999_999_999_999_9);
+        let axis = Vec3::unit_z();
+        let at_x = Curve3::Ellipse {
+            center: Point3::origin(),
+            axis: normal,
+            semi_u: semi_x,
+            semi_v: semi_y,
+            u_ref: along,
+        };
+        let at_y = Curve3::Ellipse {
+            center: Point3::origin(),
+            axis: normal,
+            semi_u: semi_y,
+            semi_v: semi_x,
+            u_ref: -Vec3::unit_y(),
+        };
+        let by_size = at_x.major_frame().unwrap();
+        assert!((by_size.major_dir - Vec3::unit_y()).norm() < 1e-15);
+        for (e, phase) in [(&at_x, 0.0), (&at_y, core::f64::consts::FRAC_PI_2)] {
+            let f = e.section_frame(axis).unwrap();
+            assert!((f.major_dir - along).norm() < 1e-15, "{e:?}");
+            assert_eq!(
+                (f.major, f.minor, f.phase),
+                (semi_x, semi_y, phase),
+                "{e:?}"
+            );
+            let vertex = Point3::origin() + f.major_dir * f.major;
+            assert!(e.eval(f.phase).distance(vertex) < 1e-15, "{e:?}");
+        }
+        let across = Curve3::Ellipse {
+            center: Point3::origin(),
+            axis,
+            semi_u: 1.0,
+            semi_v: 2.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let f = across.section_frame(axis).unwrap();
+        assert_eq!((f.phase, (f.major_dir - Vec3::unit_x()).norm()), (0.0, 0.0));
     }
 
     /// The constructor trilean trios (M5 PR 5 acceptance: each named

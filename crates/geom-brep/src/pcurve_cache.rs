@@ -7375,8 +7375,12 @@ fn derive_class<T: Decide>(
                     }
                     // The image is read about the major vertex, where
                     // the focus is on the `t = t0` side: a carrier seamed
-                    // at a minor vertex is read a quarter turn on.
-                    let Some(frame) = carrier.major_frame() else {
+                    // at a minor vertex is read a quarter turn on. The
+                    // major direction is the principal one the cone's
+                    // axis has a component along (a section's minor axis
+                    // is perpendicular to it), which a near-circle's
+                    // semi-axes, rounding past each other, cannot say.
+                    let Some(frame) = carrier.section_frame(axis) else {
                         unreachable!("an Ellipse carrier has a major frame")
                     };
                     let (e_u, major, minor) = (frame.major_dir, frame.major, frame.minor);
