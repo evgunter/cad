@@ -1323,3 +1323,13 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - Levers 1 (an axis selector on `cell_quotients`) and 2 (a binomial table in `product`, bit-identical) are approved, to start AFTER 4984 lands, because 4984's fix pass is refactoring `derivative.rs`.
     - Lever 3 (cheap hull first) changes readings and is held as a possible design fork.
 - 2026-10-13 17:55Z — **Friction: CI queueing.** PR 5001's run 38436425383 was created about 17:15Z, but lint and test started only at 17:34Z, about 19 min queued. Earlier today every job started within 2 s. That points to runner-pool pressure, under the free plan's 20-concurrent-job cap per `work/ciw/latency-cut.md`. Passed to build C's CI wall-time measurements.
+- 2026-10-13 18:00Z — **Build C's CI-shape measurements, and my decisions.**
+  - **Measurements:**
+    - Cold build floor: 18m19s locally, 16–20 min hosted. Throughput-bound, with parallelism 3.5 on 4 cores; the tail runs topo → editor-core → editor-core `all`. topo's unit tests force a second full topo compile (531 cpu-s).
+    - Tour: release build 15m55s, 9.5 min of it the demo-tour crate's own codegen; tests 8 min.
+    - Queueing: up to 19 min, on #5001's run.
+  - **Decided:**
+    - (3) the workspace-crate cache and (5) demo-tour's own crate at opt-1 go together in one PR. The kernel stays at opt-3, and the tour's outputs must stay unchanged.
+    - (4) topo's unit-test recompile is filed on TOPO.
+    - (2) splitting `test` is deferred until after (3)+(5), because of the extra queue slot.
+    - **[ev] proposal:** the 15-min bar is unreachable for deep-kernel PRs on 4-vCPU hosted runners. Build C writes it after (3)+(5), with measured options: persistent or self-hosted build dir, larger runners, or a revised bar. It edits `memories/orchestration-model.md`.
