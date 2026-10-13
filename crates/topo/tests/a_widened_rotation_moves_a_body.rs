@@ -46,7 +46,8 @@ fn half_width() -> f64 {
 /// the mint): every moved vertex must enclose each sample's image of
 /// it, so a witness that moved the cube by the wrong motion, or by a
 /// box that misses part of its own, reds here and not only one that
-/// refused.
+/// refused; and each moved coordinate must be no wider than the box
+/// widens it, so a witness that widened its own box reds too.
 fn moves_where_its_entries_do_not_decide(
     motion: RigidMotion<Interval>,
     samples: &[Affine3<Interval>],
@@ -74,6 +75,16 @@ fn moves_where_its_entries_do_not_decide(
                 "{what}: vertex {k:?} moved to {q:?}, which misses a sample's image {want:?}"
             );
             read += 1;
+        }
+        // The box widens a corner by its distance from the axis times the
+        // box, about a hundredth of ε (the module doc; the widest row
+        // measures 0.027 ε at every ε row): a witness wider than it has to
+        // be passes the containment above, so its width is bounded too.
+        for c in [q.x, q.y, q.z] {
+            assert!(
+                c.hi() - c.lo() <= 0.04 * half_width(),
+                "{what}: vertex {k:?} moved to {q:?}, wider than the box widens it"
+            );
         }
     }
     assert_eq!(

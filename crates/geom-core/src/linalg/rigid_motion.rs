@@ -37,9 +37,10 @@
 //!   would refuse. `motion_rows`'s
 //!   `a_product_of_admitted_factors_drifts_by_a_band_a_factor` pins the
 //!   bound and the refusal past it.
-//! - The origin and every entry are finite numbers: each mint decides
-//!   it exactly at every scalar ([`Real::is_bounded`]: both endpoints
-//!   at an enclosure).
+//! - The origin and every entry are finite numbers: each mint and the
+//!   decided door ask it exactly at every scalar ([`Real::is_bounded`]:
+//!   both endpoints at an enclosure); a non-finite linear entry poisons
+//!   the door's margins.
 //!
 //! As for the direction witness, this is not a bit-for-bit claim that
 //! the three columns are exactly orthonormal — it is the claim that no
@@ -143,7 +144,7 @@
 //! restated here.
 
 use crate::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
-use crate::predicate::{Band, Decide, Indeterminate, Margin, Sign};
+use crate::predicate::{Band, Decide, Indeterminate, Sign};
 use crate::real::Real;
 
 /// **A motion that cannot be non-rigid.** An origin and a right-handed
@@ -359,8 +360,11 @@ fn rigid_defect(check: &str) -> &'static str {
     }
 }
 
-/// `Ok(x)` when the value channel reads every component of `p` as a
-/// finite number, `Err` naming `part` otherwise.
+/// `Ok(p)` when every component of `p` [`Real::is_bounded`] — a
+/// finite number at a point scalar, both endpoints finite at an
+/// enclosure, the value channel's reading at a carrier — `Err` naming
+/// `part` otherwise. The one spelling of the finiteness question: the
+/// mints and the decided door both ask it here.
 fn finite<T: Real>(p: Point3<T>, part: MotionPart) -> Result<Point3<T>, RigidMotionError> {
     if p.x.is_bounded() && p.y.is_bounded() && p.z.is_bounded() {
         Ok(p)
@@ -648,11 +652,12 @@ impl<T: Decide> RigidMotion<T> {
     /// the three pairwise orthogonalities, the determinant less one.
     /// A margin decided non-zero refuses [`RigidMotionError::NotRigid`];
     /// one the band cannot decide refuses [`RigidMotionError::Undecided`]
-    /// with the decision's own diagnostic. Then each translation
-    /// component's finiteness, as `0·tᵢ` through the levered door with
-    /// the zero dimensionless factor (the zero length exactly when the
-    /// component is finite, poison otherwise). A non-finite linear
-    /// entry needs no separate probe: it poisons the margins above.
+    /// with the decision's own diagnostic. Then the translation's
+    /// finiteness, asked exactly as the mints ask it
+    /// ([`Real::is_bounded`] of each component: both endpoints at an
+    /// enclosure), which is not a band decision and logs no row. A
+    /// non-finite linear entry needs no separate probe: it poisons the
+    /// margins above.
     ///
     /// The admitted motion carries the map's columns and translation
     /// verbatim, so [`Self::to_affine`] gives back `map`, bit for bit.
@@ -692,28 +697,8 @@ impl<T: Decide> RigidMotion<T> {
                 Err(source) => return Err(RigidMotionError::Undecided { check, source }),
             }
         }
-        let t = &map.translation;
-        let finite: [(&'static str, Margin<T>); 3] = [
-            (
-                "transform_rigid_trans_finite_x",
-                Margin::levered(T::zero(), t.x),
-            ),
-            (
-                "transform_rigid_trans_finite_y",
-                Margin::levered(T::zero(), t.y),
-            ),
-            (
-                "transform_rigid_trans_finite_z",
-                Margin::levered(T::zero(), t.z),
-            ),
-        ];
-        for (check, margin) in finite {
-            match crate::k_stats::decide(check, margin, band) {
-                Ok(Sign::Zero) => {}
-                _ => return Err(RigidMotionError::NonFinite(MotionPart::Translation)),
-            }
-        }
-        Ok(Self::from_linear(*l, at(*t)))
+        let origin = finite(at(map.translation), MotionPart::Translation)?;
+        Ok(Self::from_linear(*l, origin))
     }
 
     /// **The authored pair, orthonormalized** — Gram–Schmidt, with `u`
@@ -1489,6 +1474,49 @@ mod motion_rows {
         assert_eq!(
             far.compose(far).map(|_| ()),
             Err(RigidMotionError::NonFinite(MotionPart::Product))
+        );
+    }
+
+    /// **The decided door asks finiteness as the mints do**: at
+    /// `Interval` an unbounded translation enclosure refuses at the door
+    /// exactly where it refuses at `translation`, though `0·t` of each
+    /// is the finite `[0, 0]`. A finite one is admitted by both.
+    #[test]
+    fn the_door_refuses_an_unbounded_translation_as_the_mint_does() {
+        let one = Interval::from_f64(1.0);
+        let zero = Interval::from_f64(0.0);
+        let id = Mat3::from_cols(
+            Vec3::new(one, zero, zero),
+            Vec3::new(zero, one, zero),
+            Vec3::new(zero, zero, one),
+        );
+        let refused = Err(RigidMotionError::NonFinite(MotionPart::Translation));
+        for t in [
+            Interval::from_bounds(f64::MAX, f64::INFINITY),
+            Interval::from_bounds(0.0, f64::INFINITY),
+            Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY),
+        ] {
+            for at in [
+                Vec3::new(t, zero, zero),
+                Vec3::new(zero, t, zero),
+                Vec3::new(zero, zero, t),
+            ] {
+                let map = Affine3::from_parts(id, at);
+                assert_eq!(
+                    RigidMotion::check_rigid(&map, band()).map(|_| ()),
+                    refused,
+                    "{at:?}"
+                );
+                assert_eq!(RigidMotion::translation(at).map(|_| ()), refused, "{at:?}");
+            }
+        }
+        let far = Vec3::new(Interval::from_bounds(-f64::MAX, f64::MAX), zero, zero);
+        assert!(RigidMotion::check_rigid(&Affine3::from_parts(id, far), band()).is_ok());
+        assert!(RigidMotion::translation(far).is_ok());
+        let map = Affine3::from_parts(Mat3::identity(), Vec3::new(f64::INFINITY, 0.0, 0.0));
+        assert_eq!(
+            RigidMotion::check_rigid(&map, band()).map(|_| ()),
+            Err(RigidMotionError::NonFinite(MotionPart::Translation))
         );
     }
 

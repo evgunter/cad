@@ -64,7 +64,7 @@ use topo::{
 /// revolve's far copy the turn about the revolution axis.
 ///
 /// A point is placed and then turned on its offset from the axis
-/// ([`Affine3::rotate_point_about_axis`]'s spelling, W1 in
+/// ([`Affine3::rotate_point_about_unit_axis`]'s spelling, W1 in
 /// `crates/geom-core/README.md`). A description that carries a
 /// placement rather than a point carries [`Placing::map`], the turn
 /// composed into the placement once.

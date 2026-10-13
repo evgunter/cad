@@ -376,10 +376,13 @@ pub trait Real:
     /// through on purpose (an overflowed norm still ENCLOSES the true
     /// length); this one is for a value that must itself be finite to
     /// be what its type claims — a rigid motion's angle and
-    /// translation (`linalg::RigidMotion`'s mints).
-    fn is_bounded(self) -> bool {
-        is_finite_length(self)
-    }
+    /// translation (`linalg::RigidMotion`'s mints and decided door).
+    ///
+    /// Required, with no default: `is_finite_length` is the waving
+    /// answer at an enclosure, so a scalar that inherited it would
+    /// pass an unbounded enclosure silently. Each scalar states its
+    /// own reading.
+    fn is_bounded(self) -> bool;
 
     /// **The registered-identity door's hook** (M10-9; ERROR-DESIGN
     /// E12's "kept in reserve — discharge by provenance"): a
@@ -1844,6 +1847,11 @@ impl Real for f64 {
     /// `f64`'s one poison value is NaN.
     fn is_poison(self) -> bool {
         self.is_nan()
+    }
+
+    /// A point: the value is a finite number.
+    fn is_bounded(self) -> bool {
+        self.is_finite()
     }
 
     /// **The witness at a point** ([`Real::register_equal`]): `f64`

@@ -3032,9 +3032,8 @@ the printed output.
 ## The rigidity rows move to the decided door (SYM-17, 2026-10-12)
 
 `topo::transform_rigid` takes a `geom_core::RigidMotion` and decides
-nothing about rigidity. The ten `transform_rigid_*` names (seven
-margins under ledger row F10, three `transform_rigid_trans_finite_*`
-probes) keep their spellings and are now minted at one site,
+nothing about rigidity. The seven `transform_rigid_*` margins (ledger
+row F10) keep their spellings and are now minted at one site,
 `RigidMotion::check_rigid` (`crates/geom-core/src/linalg/rigid_motion.rs`,
 the same table-of-names loop, so a grep for a literal at the decide
 site still misses them). They are asked of a raw map only: a literal
@@ -3042,25 +3041,36 @@ placement frame, a STEP placement, a pose the mate solve composed, a
 library caller's matrix. A `Transform` step, a stepped pattern and a
 revolve's turn mint their motion by construction and ask none of them.
 
+**Three names retire**: `transform_rigid_trans_finite_{x,y,z}`, the
+`0·tᵢ` probes of the translation's finiteness. The door now asks it
+as the mints do, by `Real::is_bounded`, an exact fact about the
+representation that is not a band decision and logs no sample. The
+probe was the weaker question as well as a second spelling: at
+`Interval`, `0·[MAX, ∞]` is the finite `[0, 0]`, so it admitted an
+unbounded translation enclosure the mints refuse.
+
 **The population moves both ways**, measured on SYM-17's own pins:
 - It **shrinks** at minted placements: ten samples fewer per
   `Transform` node or pattern copy (`m10_6_certifying_keys`'s
   `min_clearance_neck` key moves; on the chain's symbolic lane
   `symbolic_zero` is 30 fewer at one link and 200 fewer at four).
-- It is **unchanged** at an instance placed by a literal offset: the
-  literal is decided once at the door (the group frame is read once a
-  node), where the composite was decided once at `transform_rigid`
-  (`asm2a_instantiate` and `kstats_bracket_rows` stay at 466 a
-  placing op, 922 nested).
+- It **shrinks by three** at an instance placed by a literal offset:
+  the literal is decided once at the door (the group frame is read
+  once a node), seven margins where the composite was decided once at
+  `transform_rigid`, ten names (`asm2a_instantiate` and
+  `kstats_bracket_rows` 466 → 463 a placing op, 922 → 919 nested).
 - It **grows** at a mate whose sides carry literal offset steps: each
-  side's literal is now admitted at the door, ten samples a side, where
-  nothing was asked before (`msolve11_mate_log`'s `OWN_FRAMES`, 2 → 22).
+  side's literal is now admitted at the door, seven samples a side,
+  where nothing was asked before (`msolve11_mate_log`'s `OWN_FRAMES`,
+  2 → 16).
 
-No gating rule reads the added samples: a literal frame admitted at the
-door decides every margin `Zero`, at rounding-sized margins (its
-entries were admitted at A6 against the same band), so they reach only
-rule 2's zero-arm tally, and only past `ε / 10²`, which a frame's
-rounding does not reach.
+No gating rule reads the added samples. A literal frame admitted at the
+door decides every margin `Zero`, so its samples reach only rule 2's
+zero arm, and that arm is a tally that fails nothing ("Rule 2's zero arm
+is a tally" above). The margins themselves need not be rounding-sized:
+a literal admitted at A6 against the same band may sit anywhere up to
+the band's zero, so a sample can land past `ε / 10²` and be counted
+there. It is counted, not gated.
 
 One name is added: **`revolve_placed_axis`** (`sweep`'s
 `revolve/axis.rs`), the placed revolve axis decided into a witness
