@@ -2,11 +2,12 @@
 id: iso-parse-refuses-a-circle-within-band-of-the-cone-as-off-surface
 kind: issue
 title: The cone and cylinder iso parses refuse as OffSurface a circle within band of the surface that is not the iso rim
-status: review
+status: closed
 pr: 4932
 opened: 2026-10-11
 priority: P3
 cost: E
+closed: 2026-10-13
 ---
 
 
