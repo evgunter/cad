@@ -85,9 +85,12 @@ fn recharted(
     out
 }
 
-/// The minted wall's rows, each as `(kind, p0, moving channel)`: the
-/// two seams are columns and the two rims are rows.
-fn stored_rows(body: &Body<f64>, wall: FaceKey) -> Vec<(&'static str, (f64, f64), (f64, f64))> {
+/// One stored wall row: its kind, its `p0`, and its moving channel.
+type Row = (&'static str, (f64, f64), (f64, f64));
+
+/// The minted wall's rows, sorted: the two seams are columns and the
+/// two rims are rows.
+fn stored_rows(body: &Body<f64>, wall: FaceKey) -> Vec<Row> {
     let mut rows: Vec<_> = wall_half_edges(body, wall)
         .into_iter()
         .map(|h| {

@@ -2,10 +2,12 @@
 id: the-wall-seam-arm-positions-its-column-off-the-start-foot
 kind: issue
 title: nurbs_iso_derive's wall-seam arm positions its column off the carrier's start alone, so a seam this chart does not share refuses at certification instead of taking its General image
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: E
+closed: 2026-10-13
+branch: pcert/wall-seam-column-pick
 ---
 
 
@@ -44,3 +46,23 @@ fall through to the schedule's `General` image, with an escalated
 candidate keeping its precedence over the derived image. This is the
 same pattern `pcert/off-iso-line-takes-its-general-row` gave the
 line-rim arm.
+
+## Closed
+
+`pcert/wall-seam-column-pick`. The arm offers the neighbour's stated
+`v` map, as a column at each chart boundary and then at the column
+the start's measured foot names, to `probe_pick` (judged a quarter span
+in, label `pcurve_iso_wall_seam`). Where none holds, the carrier takes
+the boundary-iso schedule an `Intersection` seam takes: its closed-form
+columns and rows in both directions, the measured map, then `General`,
+with a deferred escalation keeping its precedence. `side_pick` is gone.
+
+What moved:
+- a seam on a wall reversed in `v` (or in `u` and `v`) against its
+  neighbour now derives the column that runs the other way, and the
+  wall mints: `sweep`'s `a_wall_seam_takes_the_column_it_lies_on`;
+- a rim stated as a ROW in another chart used to derive a constant
+  image (`pl = (0, 0)`) that certification refused; it now derives its
+  own row: `verbs_offc_consumer::a_rim_stated_as_a_row_in_another_chart_takes_its_own_image`;
+- at a dual, the arm's no-lane refusal is the `General` route's
+  `FittedLaneUnsupported { scalar: "dual" }`.
