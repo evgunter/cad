@@ -920,3 +920,14 @@ seamed one-edge bore builds (one face, one cycle) while a seamless wall
 (two cycles) would have been admitted and then refused untyped, so `plan`
 now refuses faces with rings. Step 4 (planar band, concave fill, chamfer)
 has its owed list on the unit.
+
+## 2026-10-13 — the bounds roster line PR 4896 owed (`reach::displaces`)
+
+PR 4896 added `reach::displaces`, a sole-bracket bound door, with no
+`bounds_census` roster line; geom-core's census turned main red (filed
+three times: P0 by FLUX and TANG lanes, P1 by PCERT). The PR's own CI and
+the orchestrator's local gate (sweep + editor-core) never ran the census,
+which carries no `gated_to!` marker and so runs only when a diff seeds
+geom-core. The line's disposition is Selection, inheriting `Unclear`'s.
+Before merging a blend PR that adds a `Bounds` site, run
+`cargo nextest run -p geom-core -E 'test(bounds_census)'`.
