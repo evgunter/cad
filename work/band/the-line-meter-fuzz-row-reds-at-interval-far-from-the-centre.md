@@ -43,3 +43,13 @@ from the centre", is where the claim was made). Then either tighten
 that candidate, or show the claim's `1e-12` rate is wrong for segments
 like this one and restate it with its derivation. Pin the seed's case
 as a fixed row.
+
+## Another seed (2026-10-13)
+
+PR 5021's gate (default ε) reddened on `CAD_FUZZ_SEED=0x6dfbebef50fbfbba
+CAD_FUZZ_EFFORT=1`, reproduced on `origin/main`. It is a different shape from
+the seed above: a short segment near the centre, `case 236: (0.4676,
+0.2224) → (−1.2066, −2.2669)`. Interval reads `[−1.18e-11, 2.89e-15]` and
+f64 reads `1.1e-16`, while the least `G` is 0. So the tightness claim also
+fails at small `|a|` when the least value is exactly 0. The loose low end is
+not only a far-from-the-centre effect.
