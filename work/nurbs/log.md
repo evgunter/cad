@@ -1382,3 +1382,8 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - 2026-10-13 21:55Z — **Dispatched after 4984.**
   - **Build C:** cut-net levers 1+2 on `nurbs/cut-net-quotient-cost`, from 2639b944. It covers both perf rows (cut nets, and the face bound's per-piece restriction), bit-identical, with counting guards. The target is within about 2× of before 4954.
   - **Build A:** `other-rational-speed-readings-read-relaxed-quotient-recipes` on `nurbs/remaining-rational-readings`, with the tier decided at PR time.
+- 2026-10-13 22:40Z — **The quotient bound's cost cannot be closed without changing readings.**
+  - Build C's levers 1+2 are bit-identical and guarded. They take the shell test from 286 to 216 s and r1 from 183 to 113 s, still 6–9× the pre-4954 times. The face bound barely moves (0.96 → 0.93 s).
+  - The remainder is interval arithmetic in the O(n²) quotient products, against the old O(n) hull.
+  - (a) L1+L2 lands as its own PR. (b) The interval scale fast path, at most 25%, is filed, not done.
+  - (c) **Design fork dispatched:** "what the code should be given the quotient bound's per-call cost". Two designers, concurrent, same problem statement, no candidate options. The blinding record is on `analysis/design-fork/nurbs-quotient-cost`. A designer convergence needs no Ev; a split goes to an `[ev]` PR.
