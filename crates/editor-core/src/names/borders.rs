@@ -188,8 +188,13 @@ impl<K: Ord + Clone> Obstacles<K> {
                 (&row.bordered, &by_ends, true),
                 (&row.held, &any_by_ends, false),
             ] {
-                // An end the zip split per cone lies at one of its
-                // copies, so the stretch is read between each pair.
+                // An end the zip split per cone lies at each of its
+                // copies, so the stretch is read between every pair of
+                // copies, and every edge found is kept, not the first:
+                // each lies along the stretch's locus, where the discard's
+                // region meets it, so each is where its obstacle borders
+                // a piece (N2). `topo`'s `boolean_discards::bordered_edges`
+                // reads it alike.
                 for &(u, w) in stretches {
                     let (us, ws) = (settler.settle_cones(u)?, settler.settle_cones(w)?);
                     for (&u, &w) in us.iter().flat_map(|u| ws.iter().map(move |w| (u, w))) {
