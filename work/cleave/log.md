@@ -958,3 +958,4 @@ Signed (CLEAVE orchestrator).
   - Residue: the Boolean reads entry through the split's `entry_side` beside its own `side_code`, two spellings of one question. To be filed after the re-review shapes it.
   
   Narrow re-review resumed.
+- 2026-10-13 — PR 4863 merged at `5d15bdc231` on a green head. Clippy on topo and sweep was clean against current main before merging. Row `crossing-equal-cylinders-take-the-parallel-radical-plane-and-desync` closed. Its residue, `the-edge-plane-lane-copies-no-ellipse-edge` (P2), waits for the ellipse re-pose, which holds `chord_join`.
