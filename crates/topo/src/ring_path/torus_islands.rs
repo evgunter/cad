@@ -122,15 +122,23 @@ pub(crate) fn rectangle(f: Frame, (u0, u1): (f64, f64), (v0, v1): (f64, f64)) ->
 /// meridians' planes hold their partners across the axis inside the
 /// azimuths the island spans.
 pub(crate) fn islands(f: Frame) -> Vec<(&'static str, Island)> {
-    vec![
-        ("outer", rectangle(f, (-0.5, 0.6), (-0.4, 0.7))),
-        ("inner", rectangle(f, (-0.3, 0.8), (1.9, 2.5))),
-        ("over the top", rectangle(f, (-1.0, 0.2), (0.9, 2.2))),
-        (
-            "one plane's parallels",
-            rectangle(f, (0.3, 1.4), (0.6, PI - 0.6)),
-        ),
-        ("wide, inside", rectangle(f, (-1.6, 1.7), (2.3, 2.9))),
+    island_spans()
+        .into_iter()
+        .map(|(name, us, vs)| (name, rectangle(f, us, vs)))
+        .collect()
+}
+
+/// A named chart rectangle: its azimuths and its tube angles.
+pub(crate) type Span = (&'static str, (f64, f64), (f64, f64));
+
+/// [`islands`]' chart rectangles.
+pub(crate) fn island_spans() -> [Span; 5] {
+    [
+        ("outer", (-0.5, 0.6), (-0.4, 0.7)),
+        ("inner", (-0.3, 0.8), (1.9, 2.5)),
+        ("over the top", (-1.0, 0.2), (0.9, 2.2)),
+        ("one plane's parallels", (0.3, 1.4), (0.6, PI - 0.6)),
+        ("wide, inside", (-1.6, 1.7), (2.3, 2.9)),
     ]
 }
 

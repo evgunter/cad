@@ -8,23 +8,13 @@
 //! `mint_face` without deriving anything, so a stated
 //! `Pcurve::General` image reaches the fitted-grade certification
 //! (`PcurveCache::certify_general`) with no derivation in front of it
-//! — at a dual too. What the mint then answers is the fitted lane's
-//! four checks in their fixed order, and the order decides the
-//! verdict, not only its text:
-//!
-//! - a LINE carrier fails check 1 (`UnsupportedCarrier`: a line on a
-//!   spline chart has no fitted-grade class), which the mint reads as
-//!   "no lane covers this pair yet" and answers by leaving the face
-//!   uncached, `Ok`;
-//! - a spline carrier passes check 1 and fails on its missing mate
-//!   (`FittedMateMissing`), which propagates.
-//!
-//! Both hold at every scalar, a dual included: the fitted door's
-//! absence at a dual is check 4's refusal, and a row that fails an
-//! earlier check never reaches check 4. A mint that refused the
-//! absent door BEFORE check 1 would turn the dual's `Ok` into an
-//! error and its `FittedMateMissing` into `FittedLaneUnsupported`;
-//! the `Dual64` rows below are the ones that go red on that.
+//! — at a dual too. The fitted-grade row reads its carrier and chart
+//! alone, so the carrier's kind decides nothing: a LINE carrier and a
+//! spline one each certify against the identity chart and mint their
+//! rows at every scalar that holds the fitted door. At a dual the door
+//! is absent, so check 4 refuses `FittedLaneUnsupported` naming the
+//! scalar, and the mint leaves the faces uncached, since that scalar
+//! is owed no fitted row.
 //!
 //! The fixture is a unit-square lamina (`mvfs`, three `mev_line`s, one
 //! `mef_chord`) on a bilinear NURBS chart that is the identity map
@@ -181,87 +171,122 @@ fn lamina<T: AtRestPolicy>(carrier: Carrier) -> (Body<T>, [FaceKey; 2]) {
     (body, [seed.face, closed.face])
 }
 
-/// A LINE carrier fails the fitted lane's check 1, and the mint leaves
-/// the face uncached — through both entry points, and with no row
-/// stored on any half-edge.
-fn a_line_carrier_leaves_the_face_uncached<T: AtRestPolicy>() {
+/// Every half-edge of the lamina: both faces' four.
+const HALF_EDGES: usize = 8;
+
+/// At a scalar holding the fitted door, the stated `General` images
+/// certify over either carrier and the mint stores every row, through
+/// both entry points; tier 3 then finds nothing.
+fn certifies_and_mints_its_rows<T: AtRestPolicy>(carrier: Carrier) {
     let tol = Tol::witness();
-    let (mut body, faces) = lamina::<T>(Carrier::Line);
+    let band = geom_core::Band::linear(tol).unwrap();
+    let (mut body, faces) = lamina::<T>(carrier);
+    assert_eq!(
+        topo::mint_pcurves_of(&mut body, &faces, tol),
+        Ok(HALF_EDGES),
+        "{carrier:?}: the stated images certify and mint, at {}",
+        T::NAME
+    );
+    let (mut whole, _) = lamina::<T>(carrier);
+    assert_eq!(
+        topo::mint_pcurves(&mut whole, tol),
+        Ok(()),
+        "{carrier:?}: the whole-body mint answers as the per-face one, at {}",
+        T::NAME
+    );
+    for b in [&body, &whole] {
+        let rows: Vec<_> = b.half_edges().filter_map(|(he, _)| b.pcurve(he)).collect();
+        assert_eq!(
+            rows.len(),
+            HALF_EDGES,
+            "{carrier:?}: every half-edge, at {}",
+            T::NAME
+        );
+        assert!(
+            rows.iter()
+                .all(|r| matches!(r.pcurve(), Pcurve::General(_))),
+            "{carrier:?}: each row is the stated General image, at {}",
+            T::NAME
+        );
+        assert_eq!(
+            topo::pcurves::validate_pcurves(b, band),
+            Vec::new(),
+            "{carrier:?}: tier 3 re-certifies every row, at {}",
+            T::NAME
+        );
+    }
+}
+
+/// At a dual the door is absent: check 4 refuses naming the scalar,
+/// and the mint leaves the faces uncached, whose General images then
+/// have no certificate to read.
+fn refuses_at_check_4_without_the_door<T: AtRestPolicy>(carrier: Carrier) {
+    assert!(
+        T::fitted_lane().is_none(),
+        "{} holds no fitted door",
+        T::NAME
+    );
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let (mut body, faces) = lamina::<T>(carrier);
+    let edge = body.edges().next().map(|(_, e)| e.curve).unwrap();
+    let curve = body
+        .get_curve_geom(edge)
+        .and_then(|c| c.certified())
+        .unwrap();
+    let geom_brep::EdgeDescription::Chart(chart_curve) = curve.description() else {
+        panic!("the lamina's edges are chart images");
+    };
+    let Pcurve::General(image) = &chart_curve.pcurve else {
+        panic!("the lamina's images are General");
+    };
+    let surface = body.get_surface(chart_curve.surface).unwrap().clone();
+    let (t0, t1) = curve.params();
+    let got = geom_brep::PcurveCache::certify_general(
+        Arc::clone(image),
+        t0,
+        t1,
+        curve.carrier(),
+        &surface,
+        band,
+        T::fitted_lane(),
+    );
+    assert!(
+        matches!(
+            got,
+            Err(PcurveCertifyError::FittedLaneUnsupported { scalar }) if scalar == T::NAME
+        ),
+        "{carrier:?}: check 4 refuses naming the scalar, at {}: {got:?}",
+        T::NAME
+    );
     assert_eq!(
         topo::mint_pcurves_of(&mut body, &faces, tol),
         Ok(0),
-        "a stated General image over a line carrier is outside every route: the \
-         faces are left uncached, at {}",
+        "{carrier:?}: the mint leaves the faces uncached, at {}",
         T::NAME
     );
-    assert_eq!(
-        topo::mint_pcurves(&mut body, tol),
-        Ok(()),
-        "the whole-body mint answers as the per-face one, at {}",
-        T::NAME
-    );
-    let rows = body
-        .half_edges()
-        .filter(|(he, _)| body.pcurve(*he).is_some())
-        .count();
-    assert_eq!(rows, 0, "no half-edge carries a row, at {}", T::NAME);
-    // The face the mint legally left uncached has no certificate for
-    // its General images, so its description is not yet available —
-    // which is what `chart_boundary` says, rather than a defect.
-    let band = geom_core::Band::linear(tol).unwrap();
-    let chart = body
-        .get_surface(body.get_face(faces[0]).unwrap().surface)
-        .unwrap()
-        .clone();
-    let got = topo::pcurves::chart_boundary(&body, faces[0], &chart, band);
+    let got = topo::pcurves::chart_boundary(&body, faces[0], &surface, band);
     assert!(
         matches!(got, Err(PcurveMintError::UncertifiedImage { .. })),
-        "an uncached face's General images have no certificate, at {}: {:?}",
+        "{carrier:?}: an uncached face's General images have no certificate, at {}: {:?}",
         T::NAME,
         got.err()
     );
 }
 
-/// A spline carrier passes check 1 and refuses on its missing mate —
-/// the stated image names one chart, so there is no operand pair to
-/// state a tube about — through both entry points.
-fn a_spline_carrier_without_a_mate_refuses_on_the_pair<T: AtRestPolicy>() {
-    let tol = Tol::witness();
-    let (mut body, faces) = lamina::<T>(Carrier::Spline);
-    let missing = |got: Result<(), PcurveMintError>, door: &str| {
-        assert!(
-            matches!(
-                got,
-                Err(PcurveMintError::Certify {
-                    error: PcurveCertifyError::FittedMateMissing,
-                    ..
-                })
-            ),
-            "{door}: a stated General image over a spline carrier with no mate \
-             refuses on the pair, at {}: {got:?}",
-            T::NAME
-        );
-    };
-    missing(
-        topo::mint_pcurves_of(&mut body, &faces, tol).map(|_| ()),
-        "mint_pcurves_of",
-    );
-    missing(topo::mint_pcurves(&mut body, tol), "mint_pcurves");
-}
-
-/// One row per carrier at one scalar.
+/// One row per carrier at one scalar holding the door.
 macro_rules! rows_at {
     ($(#[$attr:meta])* $module:ident, $scalar:ty) => {
         $(#[$attr])*
         mod $module {
             #[test]
-            fn a_line_carrier_leaves_the_face_uncached() {
-                super::a_line_carrier_leaves_the_face_uncached::<$scalar>();
+            fn a_line_carrier_certifies_and_mints_its_rows() {
+                super::certifies_and_mints_its_rows::<$scalar>(super::Carrier::Line);
             }
 
             #[test]
-            fn a_spline_carrier_without_a_mate_refuses_on_the_pair() {
-                super::a_spline_carrier_without_a_mate_refuses_on_the_pair::<$scalar>();
+            fn a_spline_carrier_certifies_and_mints_its_rows() {
+                super::certifies_and_mints_its_rows::<$scalar>(super::Carrier::Spline);
             }
         }
     };
@@ -275,10 +300,19 @@ rows_at!(
     at_probe,
     geom_core::Probe
 );
-// The scalar with no fitted door: its verdicts are the certifying
-// scalars' verdicts, because both rows fail a check that runs before
-// the door is asked for.
-rows_at!(at_dual64, geom_core::Dual64);
+
+/// The scalar with no fitted door.
+mod at_dual64 {
+    #[test]
+    fn a_line_carrier_refuses_at_check_4() {
+        super::refuses_at_check_4_without_the_door::<geom_core::Dual64>(super::Carrier::Line);
+    }
+
+    #[test]
+    fn a_spline_carrier_refuses_at_check_4() {
+        super::refuses_at_check_4_without_the_door::<geom_core::Dual64>(super::Carrier::Spline);
+    }
+}
 
 /// **The fitted refusal's replay list is the policy's answer.**
 /// `geom_brep::FITTED_DOOR_HOLDERS` is what the refusal renders, and
