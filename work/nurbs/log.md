@@ -1317,3 +1317,8 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **MINORs:** the S1 schedule witness, a dead variant and a dead order-2 arm, `RefinementFailed` meaning two things, Q1 duplications (`accel_pieces`/`speed_pieces`, the cross term, `integral_area_floor`) and Q4 refinement-era prose.
   - **Fix pass dispatched to build A.** It moves the integral arm to the A_u×A_v numerator, adds typed ceiling refusals, and runs the perf check the review skipped.
   - **Class:** a touch list posted before the work is a prediction. Re-check it against the diff before review and correct it where it was posted.
+- 2026-10-13 17:15Z — **PR 5001** (enclose whole-cell memo, build C, head 019d3d3c).
+  - **Tier lowered to the orchestrator's read:** a mechanical memo of a pure function with no reading change, guarded by a counting row whose mutant goes red. I read the diff: correct, and empty cells are cached as `None`. It merges on green CI.
+  - **Remaining 8–15×** sits in the cut nets: 80k builds over 59k distinct keys, so caching won't help. Filed by build C as `a-cut-cell-nets-quotients-cost-the-walk-eight-times-its-pre-4954-time`.
+    - Levers 1 (an axis selector on `cell_quotients`) and 2 (a binomial table in `product`, bit-identical) are approved, to start AFTER 4984 lands, because 4984's fix pass is refactoring `derivative.rs`.
+    - Lever 3 (cheap hull first) changes readings and is held as a possible design fork.
