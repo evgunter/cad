@@ -905,10 +905,14 @@ const FLANK_SENSE: SizedDecision = SizedDecision {
 /// Whether two corners of one solid that meet along an edge of the
 /// other part around it ([`BooleanDecision::PartnerFaces`]): the chord
 /// between their faces' half-planes there levered at the farthest
-/// reach, a magnitude, so a definitely positive one alone passes.
+/// reach, a magnitude, so a definitely positive one alone passes. Both
+/// corners are one solid's, so moving the parts reaches the reading
+/// only by taking the other solid's corner off that point; reshaping
+/// the one solid parts its corners.
 const PARTNER_FACES: SizedDecision = SizedDecision {
-    lever: "move the parts so those corners clearly part around that edge",
-    size: "gap between those corners' faces",
+    lever: "move the parts so that edge's corner lands clear of them, or reshape that solid so \
+            they clearly part",
+    size: "gap between their faces",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
     at_zero: None,
@@ -1428,7 +1432,7 @@ impl BooleanDecision {
             }
             Self::BisectorSide => "which side of a face a corner's bisector leaves on",
             Self::PartnerFaces => {
-                "whether two corners of one solid along an edge of the other part around it"
+                "whether two corners of one solid part around an edge of the other"
             }
             Self::SeamWedge => {
                 "whether the two faces at a seam edge cross there or touch tangentially"
@@ -2187,9 +2191,10 @@ pub(in crate::boolean) mod tests {
                 Ending::Lever(LONGER),
             ),
             BooleanDecision::PartnerFaces => (
-                "whether two corners of one solid along an edge of the other part around it",
+                "whether two corners of one solid part around an edge of the other",
                 Ending::Sized(
-                    "Recourse: move the parts so those corners clearly part around that edge",
+                    "Recourse: move the parts so that edge's corner lands clear of them, or \
+                     reshape that solid so they clearly part",
                     SizedPass::Positive,
                 ),
             ),

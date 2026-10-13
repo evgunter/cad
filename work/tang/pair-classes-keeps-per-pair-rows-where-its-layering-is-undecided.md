@@ -90,21 +90,27 @@ reads nothing, and report any cell main built that would then refuse.
 
 ## Closed (2026-10-12)
 
-- **Outermost cones that disagree are now decided.** Every instance
-  measured was a met cone in a joined partner's void that touches the
-  void's boundary along a ray. The strict containment test missed
-  that, so both cones read as outermost. A cone now lies inside
-  another where the other holds one of its edges and every edge it
-  does not hold lies on its boundary.
+- **Outermost cones that disagree are now decided.** Each measured
+  case was a cone nested in another that the old containment test
+  missed: a met cone in a void touching it along a ray, or an island
+  whose every edge lies on the void's faces. The second shape is a
+  notched block with a tip touching the notch's three faces.
+
+  A cone now lies inside another where every edge of it is held by the
+  other or lies on the other's boundary, and some of it is held. That
+  is an edge, or, where every edge is on the other's faces, a
+  direction strictly inside it (`vtxfac::interior`).
 - **An edge on two or more partners' boundaries** reads
   `vtxfac::along_partners`. It is `On` where a half-plane one partner
   alone leaves the edge in is decidedly apart from every other's.
   Otherwise it refuses `Escalated` with
   `BooleanDecision::PartnerFaces` (flush or in band).
-- **Disagreement after that, no outermost cone, or an edge some
-  partner's rows miss** are `ClassificationInvariant`s. Every pair
-  reads the vertex's one orbit, and cones whose boundaries never cross
-  nest.
+- **The rest refuse.** A cone with no interior direction read refuses
+  as one that reads nothing (`VertexReadTwice`). Disagreement after
+  that, no outermost cone, or an edge some partner's rows miss are
+  `ClassificationInvariant`s. The reasons are that every pair reads
+  the vertex's one orbit, and that cones which touch but never cross
+  nest or lie apart.
 
 The flush refusal is filed as
 `pair-classes-refuses-partners-flush-along-an-edge`. The sweep filed

@@ -283,13 +283,17 @@ pub(super) fn touch_classes<T: geom_core::Real>(
 /// where they are met and inside it where they are joined. Which side
 /// of a link a partner calls its cone does not matter here: just beyond
 /// an outermost cone lies outside every cone, since no other holds its
-/// link. A cone lies inside another where the other holds an edge of
-/// it and every edge it does not hold lies on its boundary: cones that
-/// touch along a ray share that edge. An edge on two or more partners'
-/// boundaries reads [`along_partners`]. Outermost cones that disagree,
-/// or none outermost, break that nesting, as an edge some partner's
-/// rows miss breaks the reads (every pair reads the vertex's one
-/// orbit), so each refuses as an invariant.
+/// link. A cone lies inside another where every edge of it is held by
+/// the other or lies on the other's boundary, and some of it is held:
+/// an edge, or, where every edge lies on the other's faces (an island
+/// touching each face of its void), a direction strictly inside it
+/// ([`interior`]); a cone with no such direction refuses as one that
+/// reads nothing. Cones that touch but never cross nest or lie apart,
+/// so some cone is outermost, and outermost cones lie apart and agree:
+/// a met one beside a joined one would lie in its material. An edge
+/// on two or more partners' boundaries reads [`along_partners`]. Each
+/// of those, and an edge some partner's rows miss (every pair reads
+/// the vertex's one orbit), refuses as an invariant where it fails.
 ///
 /// A partner reads nothing (`sectors::wedge_classes`' `None`) where its
 /// sectors lie on fewer than two faces; where they lie on two with no
@@ -338,14 +342,25 @@ fn layered_alone<T: Decide>(
     refuse: impl Fn(usize, usize) -> BooleanError,
 ) -> Result<Vec<(HalfEdgeKey, SideCode)>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
-    // Partner `i`'s cone lies inside `j`'s where `j` holds an edge of
-    // `i` and every other lies on `j`'s boundary.
+    // Partner `i`'s cone lies inside `j`'s where every edge of `i` is
+    // held by `j` or on its boundary, and some of `i` lies inside `j`:
+    // a held edge, or, where every edge lies on `j`'s faces, a
+    // direction strictly inside `i`'s cone ([`interior`]).
     let inside = |i: usize, j: usize| -> Result<bool, BooleanError> {
         let read = super::sectors::wedge_classes(&pairs[i].sectors, &pairs[j].sectors, band)?
             .ok_or_else(|| refuse(j, i))?;
         let mut rows = read.rows.iter().map(|&(_, c)| c);
-        Ok(rows.clone().any(|c| held(c, read.met))
-            && rows.all(|c| c == SideCode::On || held(c, read.met)))
+        if !rows.clone().all(|c| c == SideCode::On || held(c, read.met)) {
+            return Ok(false);
+        }
+        if rows.any(|c| c != SideCode::On) {
+            return Ok(true);
+        }
+        let probe = interior(&pairs[i].sectors, band)?.ok_or_else(|| refuse(i, j))?;
+        let read =
+            super::sectors::wedge_classes(std::slice::from_ref(&probe), &pairs[j].sectors, band)?
+                .ok_or_else(|| refuse(j, i))?;
+        Ok(read.rows.iter().all(|&(_, c)| held(c, read.met)))
     };
     let mut base = None;
     for (i, read) in reads.iter().enumerate() {
@@ -395,6 +410,42 @@ fn layered_alone<T: Decide>(
             Ok((he, class))
         })
         .collect()
+}
+
+/// **A direction strictly inside a partner's cone**, as a probe edge
+/// read against other corners: the mean `c` of the corner's sector
+/// bounds, or `−c`, whichever the corner's own reading holds (inside
+/// its material where its cone is met, outside where joined), levered
+/// at its shortest arm. A convex or hollow corner's bounds lie on its
+/// cone's boundary, so `c` lies inside it. `None` where neither reads
+/// held.
+fn interior<T: Decide>(
+    sectors: &[BoolSector<T>],
+    band: Band,
+) -> Result<Option<BoolSector<T>>, BooleanError> {
+    let (Some(first), Some(arm)) = (
+        sectors.first(),
+        sectors.iter().map(|s| s.arm).reduce(|a, b| a.min(b)),
+    ) else {
+        return Ok(None);
+    };
+    let sum = sectors
+        .iter()
+        .fold(Vec3::zero(), |acc, s| acc + s.start + s.end);
+    for dir in [sum, -sum] {
+        let probe = BoolSector {
+            start: dir,
+            end: dir,
+            start_reach: super::sectors::Reach::Extent(arm),
+            end_reach: super::sectors::Reach::Extent(arm),
+            ..first.clone()
+        };
+        let read = super::sectors::wedge_classes(std::slice::from_ref(&probe), sectors, band)?;
+        if read.is_some_and(|r| r.rows.iter().all(|&(_, c)| held(c, r.met))) {
+            return Ok(Some(probe));
+        }
+    }
+    Ok(None)
 }
 
 /// **The class of an edge on two or more partners' boundaries** (`on`):

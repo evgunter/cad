@@ -38,5 +38,7 @@ and the material lies on opposite sides of each match: there the
 partners' materials cover the edge's neighbourhood, so it is `In`.
 Same-side matches overlap the materials, which a body at rest does not
 hold; that is an invariant. A curved face in a match keeps the refusal,
-or reads the bend. This needs the sector to carry its face's shape:
-`BoolSector` does not carry it today.
+or reads the bend. That needs each matched sector's face shape:
+`BoolSector` carries its `face` key, so the shape is a lookup on the
+body that holds it (`FaceShape::of`), which `pair_classes` does not
+take today.

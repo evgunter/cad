@@ -1278,6 +1278,30 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
     super::super::sectors::within(&s, dir, false, DeclarationRead::Moot, band()).map(|_| ())
 }
 
+/// **Corners flush along an edge refuse with the lever alone**: the
+/// decided zero of [`BooleanDecision::PartnerFaces`] refuses with its
+/// decided margin, as the in-band arm does, and offers no tolerance:
+/// no smaller one parts faces that lie on one half-plane.
+#[test]
+fn corners_flush_along_an_edge_refuse_with_the_lever_alone() {
+    let err = partners_along_x(0.0).expect_err("flush corners refuse");
+    assert!(
+        matches!(
+            err,
+            BooleanError::Escalated {
+                decision: BooleanDecision::PartnerFaces,
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+    let text = err.to_string();
+    assert!(
+        text.contains("lands clear of them") && !text.contains("tighten"),
+        "{text}"
+    );
+}
+
 /// An edge along x on the boundaries of two corners of one solid, each
 /// with one face leaving it: one in the plane z = 0, the other's turned
 /// `tilt` about x, so their half-planes part by `tilt` at the unit

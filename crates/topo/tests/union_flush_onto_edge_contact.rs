@@ -9,6 +9,7 @@ use crate::common;
 
 use common::{brick, finished};
 use geom_core::Tol;
+use topo::SideCode;
 use topo::{
     AtRestBody, Body, BooleanBody, BooleanError, BooleanInputs, BooleanOp, BooleanResult,
     mass_properties, subtract, union, validate_pseudomanifold,
@@ -73,25 +74,69 @@ fn members(c_span: (f64, f64), tol: Tol) -> [AtRestBody<f64>; 3] {
     ]
 }
 
-/// **Each edge piece the boolean classed beside a vertex reads one
-/// class**: a vertex in pairs alone layers its partners into one row
-/// per edge (`vtxfac::pair_classes`), never one per partner. Red when
-/// the layering keeps each pair's rows: an edge on two partners'
+/// **Each edge piece the boolean classed beside a vertex of its
+/// operand reads one class, its side of the other operand just along
+/// it**: the other operand's material at 1e-4 along the edge from the
+/// vertex (`topo::point_in_solid`), the vertex's cone there, `On` where
+/// the point lies on its boundary. Pieces at a vertex the boolean
+/// minted are not read. A vertex in pairs alone layers its partners
+/// into one row per edge (`vtxfac::pair_classes`). Red when the
+/// layering keeps each pair's rows: an edge on two partners'
 /// boundaries reads `On` and `Out`, and one in a void that holds an
 /// island touching it along a ray reads `In` and `Out`.
-fn assert_one_class_per_piece(naming: &topo::BooleanNaming, what: &str) {
+fn assert_classes(out: &BooleanBody<f64>, [a, b]: [&AtRestBody<f64>; 2], what: &str, tol: Tol) {
+    let band = geom_core::Band::linear(tol).expect("the band");
     let mut classes = std::collections::BTreeMap::new();
-    for row in &naming.edge_classes {
+    for row in &out.naming.edge_classes {
         classes
             .entry((row.operand, row.vertex, row.edge, row.starts))
-            .or_insert_with(std::collections::BTreeSet::new)
-            .insert(format!("{:?}", row.class));
+            .or_insert_with(Vec::new)
+            .push(row.class);
     }
-    let doubled: Vec<_> = classes.iter().filter(|(_, c)| c.len() > 1).collect();
-    assert!(
-        doubled.is_empty(),
-        "{what}: pieces classed twice: {doubled:?}"
-    );
+    for ((operand, vertex, edge, starts), got) in classes {
+        let (own, other) = match operand {
+            topo::Operand::A => (a, b),
+            topo::Operand::B => (b, a),
+        };
+        let Ok(p) = topo::readback::vertex_point(own, vertex) else {
+            continue;
+        };
+        let e = own.get_edge(edge).expect("a classed edge of the operand");
+        let plus = own.get_half_edge(e.he_plus).expect("its half-edge");
+        let next = own.get_half_edge(plus.next).expect("the next half-edge");
+        let (here, far) = if starts {
+            (plus.start, next.start)
+        } else {
+            (next.start, plus.start)
+        };
+        if here != vertex {
+            continue;
+        }
+        let d = topo::readback::vertex_point(own, far).expect("its far end") - p;
+        let q = p + d * (1e-4 / d.norm());
+        let want = match topo::point_in_solid(other, q, band, tol).expect("the point reads") {
+            topo::SolidContainment::In => SideCode::In,
+            topo::SolidContainment::Out => SideCode::Out,
+            topo::SolidContainment::OnBoundary => SideCode::On,
+        };
+        assert_eq!(
+            got,
+            vec![want],
+            "{what}: {operand:?}'s edge {edge:?} at {vertex:?} (starts {starts})"
+        );
+    }
+}
+
+/// The two operands of `op`, `"x ∘ y …"`, by name among `named`.
+fn operands<'a>(op: &str, named: &[(&str, &'a AtRestBody<f64>)]) -> [&'a AtRestBody<f64>; 2] {
+    let words: Vec<&str> = op.split_whitespace().collect();
+    [words[0], words[2]].map(|w| {
+        named
+            .iter()
+            .find(|(n, _)| *n == w)
+            .unwrap_or_else(|| panic!("{op}: no operand named {w}"))
+            .1
+    })
 }
 
 /// Folds `order`, each step, when `carry`, carrying the accumulator's own records in ([`carried_rows`]).
@@ -111,7 +156,12 @@ fn fold(
         }
         match union_in(acc, &bodies[next], &decls, tol).map_err(|e| (step + 1, Box::new(e)))? {
             BooleanResult::Body(out) => {
-                assert_one_class_per_piece(&out.naming, &format!("order {order:?}, step {step}"));
+                assert_classes(
+                    &out,
+                    [acc, &bodies[next]],
+                    &format!("order {order:?}, step {step}"),
+                    tol,
+                );
                 steps.push(out);
             }
             BooleanResult::Empty => panic!("a union of two bricks came back empty"),
@@ -436,7 +486,12 @@ fn every_op_builds(
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
-        assert_one_class_per_piece(&out.naming, op);
+        assert_classes(
+            &out,
+            operands(op, &[("pinch", pinch), ("cutter", cutter)]),
+            op,
+            tol,
+        );
         let volume = mass_properties(&out.body, tol).expect("mass").volume;
         assert!(
             (volume - want).abs() < 1e-9,
@@ -913,7 +968,19 @@ fn a_pinch_line_through_a_face_keeps_its_records_at_the_new_end() {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
-        assert_one_class_per_piece(&out.naming, op);
+        assert_classes(
+            &out,
+            operands(
+                op,
+                &[
+                    ("pinch", &pinch.body),
+                    ("cutter", &cutter),
+                    ("block", &block),
+                ],
+            ),
+            op,
+            tol,
+        );
         let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
         assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
         mass_properties(&out.body, tol).expect("mass").volume
@@ -1023,7 +1090,15 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
-        assert_one_class_per_piece(&out.naming, op);
+        assert_classes(
+            &out,
+            operands(
+                op,
+                &[("pinch", &pinch.body), ("upper", &upper), ("wall", &wall)],
+            ),
+            op,
+            tol,
+        );
         let volume = mass_properties(&out.body, tol).expect("mass").volume;
         assert!(
             (volume - want).abs() < 1e-9,
@@ -1104,11 +1179,7 @@ fn against_the_cube(
     carried: &topo::OperandRecords,
     tol: Tol,
 ) -> [(&'static str, BooleanOutcome); 6] {
-    let cube = finished(
-        "cube",
-        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
-        tol,
-    );
+    let cube = the_cube(tol);
     let ab = BooleanInputs {
         records_a: carried.clone(),
         ..BooleanInputs::default()
@@ -1130,6 +1201,15 @@ fn against_the_cube(
 }
 
 type BooleanOutcome = Result<BooleanResult<f64>, BooleanError>;
+
+/// The unit cube [`against_the_cube`] meets.
+fn the_cube(tol: Tol) -> AtRestBody<f64> {
+    finished(
+        "cube",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    )
+}
 
 /// **Two dangling null edges meeting on the pinch line.** The pinch
 /// against a prism along the diagonal x = y whose face in that plane
@@ -1245,7 +1325,12 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
-        assert_one_class_per_piece(&out.naming, &op);
+        assert_classes(
+            &out,
+            operands(&op, &[("pinch", &pinch.body), ("prism", &prism)]),
+            &op,
+            tol,
+        );
         let volume = mass_properties(&out.body, tol).expect("mass").volume;
         assert!(
             (volume - want).abs() < 1e-9,
@@ -1458,7 +1543,12 @@ fn pit_holding_spikes_built(
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
-        assert_one_class_per_piece(&out.naming, &op);
+        assert_classes(
+            &out,
+            operands(&op, &[("y", &y.body), ("cube", &the_cube(tol))]),
+            &op,
+            tol,
+        );
         let volume = mass_properties(&out.body, tol).expect("mass").volume;
         assert!(
             (volume - want).abs() < 1e-9,
@@ -1709,7 +1799,12 @@ fn lens_against_the_cube(
             Ok(BooleanResult::Body(out)) => out,
             Ok(_) => panic!("{op} came back empty"),
         };
-        assert_one_class_per_piece(&out.naming, &op);
+        assert_classes(
+            &out,
+            operands(&op, &[("y", &y.body), ("cube", &the_cube(tol))]),
+            &op,
+            tol,
+        );
         let got = mass_properties(&out.body, tol).expect("mass").volume;
         assert!(
             (got - volume).abs() < 1e-9,
@@ -1957,7 +2052,12 @@ fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
-        assert_one_class_per_piece(&out.naming, op);
+        assert_classes(
+            &out,
+            operands(op, &[("y", &band), ("cube", &the_cube(tol))]),
+            op,
+            tol,
+        );
         let volume = mass_properties(&out.body, tol).expect("mass").volume;
         assert!(
             (volume - want).abs() < 1e-9,
