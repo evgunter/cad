@@ -136,7 +136,7 @@ pub use crate::blend::reach::band_reach_for_tests as band_reach;
 pub use crate::blend::surgery::ring_clearance_for_tests as ring_clearance;
 use crate::skin::{Section, segment_curve};
 use crate::{Extrusion, Lofted, SketchSegment, extrude, sweep_body};
-use geom_core::Tol;
+use geom_core::{Interval, Tol};
 
 /// The cube side the in-crate pins build on, meters.
 pub const L: f64 = 1.0;
@@ -2200,4 +2200,85 @@ pub fn resolved_links(
 #[must_use]
 pub fn walked_links(links: Vec<Link<f64>>) -> Vec<Chain<f64>> {
     walk_chains(links)
+}
+
+/// **The two readings a turn's verdict decides** — the gap between the
+/// two bands' feet on the third edge, signed positive where `edges[0]`'s
+/// is further from their shared vertex, and each band's overrun chord
+/// were it the further — from the links `kind` resolves at `size`. The
+/// turn is the trivalent vertex the two edges share; its third edge is
+/// the vertex's other one.
+///
+/// # Panics
+///
+/// If the two edges share no vertex, the vertex is not trivalent, an
+/// edge does not resolve, or the readings do not.
+#[must_use]
+pub fn turn_readings(
+    body: &Body<f64>,
+    edges: [EdgeKey; 2],
+    size: f64,
+    kind: BlendKind,
+    tol: Tol,
+) -> (f64, [f64; 2]) {
+    let band = Band::linear(tol).expect("the run's band");
+    turn_readings_of(
+        body,
+        edges,
+        edges.map(|e| resolve_link(body, e, size, band, kind)),
+    )
+}
+
+/// [`turn_readings`] at the certified scalar.
+///
+/// # Panics
+///
+/// As [`turn_readings`].
+#[must_use]
+pub fn turn_readings_interval(
+    body: &Body<Interval>,
+    edges: [EdgeKey; 2],
+    size: Interval,
+    kind: BlendKind,
+    tol: Tol,
+) -> (Interval, [Interval; 2]) {
+    let band = Band::linear(tol).expect("the run's band");
+    turn_readings_of(
+        body,
+        edges,
+        edges.map(|e| resolve_link(body, e, size, band, kind)),
+    )
+}
+
+/// [`turn_readings`] on links already resolved, at a trivalent vertex.
+fn turn_readings_of<T: Decide>(
+    body: &Body<T>,
+    edges: [EdgeKey; 2],
+    links: [Result<Link<T>, crate::blend::BlendError>; 2],
+) -> (T, [T; 2]) {
+    let ends = |e: EdgeKey| {
+        let he = body.get_edge(e).expect("an edge").he_plus;
+        [
+            body.get_half_edge(he).expect("a half-edge").start,
+            body.half_edge_end(he).expect("an end"),
+        ]
+    };
+    let vertex = ends(edges[0])
+        .into_iter()
+        .find(|v| ends(edges[1]).contains(v))
+        .expect("the two edges share a vertex");
+    let thirds: Vec<EdgeKey> = topo::query::all_edges(body)
+        .into_iter()
+        .filter(|e| !edges.contains(e) && ends(*e).contains(&vertex))
+        .collect();
+    let [third] = thirds[..] else {
+        panic!(
+            "a turn is a trivalent vertex: {} edges besides the two requested",
+            thirds.len()
+        )
+    };
+    let links = links.map(|l| l.unwrap_or_else(|err| panic!("a turning edge resolves, got {err}")));
+    let reading = crate::blend::battery::turn_reading(body, vertex, [&links[0], &links[1]], third)
+        .unwrap_or_else(|err| panic!("the turn reads, got {err}"));
+    (reading.gap, reading.chords)
 }

@@ -2,10 +2,13 @@
 id: the-thread-count-digest-cannot-see-dispute-coverage
 kind: issue
 title: The thread-count digest cannot see dispute coverage: its Sym line prints neither theorems_disputed nor retried
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
+branch: nurbs/digest-dispute-coverage
+closed: 2026-10-12
+pr: 4887
 ---
 
 
@@ -31,3 +34,18 @@ Proposal: add `theorems_disputed` (and `retried`, which costs nothing
 more) to `counts_line`. Every `Sym` line of all three `eps-*.txt`
 files moves with it, so it lands as its own re-cut, with the PR
 4834 / 4869 baseline it reads stated beside it.
+
+## Closed (2026-10-12)
+
+`counts_line` prints `disp=` (`SymCounts::theorems_disputed`) on every
+`Sym` line; all three ε are re-cut and nothing else moved. It reads 0
+on all twelve lines. To settle the coverage question, the digest was
+also run with the meter's arm chosen on the weights' value channel, as
+before PR 4834: `frozen` reads 1062 / 1060 / 1061 (`sym_arc_loft`) and
+1178 / 1177 / 1177 (`sym_thin_strip`), and `disp` is still 0 at every
+ε. So the rational arm's extra freezes cost no dispute on these lofts.
+
+`retried` is not printed. The session block opens `with_session`,
+which installs no retry ladder, so the column would be zero by
+construction: an assertion no bug could break.
+

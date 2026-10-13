@@ -11,7 +11,9 @@
 //! derivatives at a generic scalar — is ring-ops-only generic code in
 //! [`basis`], with the span index passed in as structure. The
 //! [`locate`] seam is the one bridge: per-scalar span selection,
-//! sealed, with each instantiation's semantics documented there. No
+//! sealed, with each instantiation's semantics documented there. The
+//! derivative's coefficient factor and net, at a generic scalar, have
+//! their one home in [`derivative`]. No
 //! topology decision exists anywhere in this module (nothing routes
 //! through `k_stats`).
 //!
@@ -46,6 +48,7 @@ pub mod algebra;
 pub mod basis;
 pub mod blossom;
 pub mod compose;
+pub mod derivative;
 pub mod hull;
 pub mod knot_values;
 pub mod knots;
@@ -59,13 +62,17 @@ pub use blossom::{BlossomError, SpanRow, diagonal_in_span, restrict_bernstein, r
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
+pub use derivative::{
+    RationalPairTerm, derivative_net, rational_speed_sup, rational_stretch_sup,
+    span_derivative_scale,
+};
 pub use hull::{
     C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,
 };
 pub use knot_values::{KnotSpan, Knots};
 pub use knots::{
-    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
-    knot_difference,
+    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, check_weight_values,
+    derivative_knot_slice, knot_difference, weight_in_regime,
 };
 pub use locate::{SpanLocate, SpanSet, poison_from};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};

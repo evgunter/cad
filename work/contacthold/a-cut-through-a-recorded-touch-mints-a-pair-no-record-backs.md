@@ -2,12 +2,14 @@
 id: a-cut-through-a-recorded-touch-mints-a-pair-no-record-backs
 kind: issue
 title: A cut through a recorded touch mints a pair of cells at one point, and no decision backs it
-status: open
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
-design: true
 refs: [surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key]
+closed: 2026-10-12
+pr: 4809
+branch: contacthold/one-record-carry
 ---
 
 ## What
@@ -91,3 +93,12 @@ neither the shell's rim surgery nor a blend divides a cell into two
 live pieces that one touch spans (a hole's rim and the outer rim are
 parted by the opening; a blend's carved piece dies). Once this row
 backs the pair, the split's multi-pair landing gets its row.
+
+## Resolved (PR 4809)
+
+Ev ruled on `[ev]` PR 4749: the split's minted pair cites the carried
+record alone (one plane cut both), the boolean decides such a pair at
+its door, any other op refuses. The one carry lands it:
+`crates/topo/tests/one_record_carry.rs` rows the edge kiss and the
+ridge on a slab (the boolean writes both the edge–edge and the
+edge–face row), each side passing at rest.

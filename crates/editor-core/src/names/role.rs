@@ -1458,8 +1458,8 @@ pub enum RoleSeg {
         vertex: NameRef,
     },
     /// **Where a turn's unrequested edge now ends**: the mitre's lower
-    /// end, on that edge. One name whether the trihedron is isosceles or
-    /// not; the trimlines' crossing on the shared face is the turn's
+    /// end, on that edge. One name whether the two bands' feet on it
+    /// coincide or not; the trimlines' crossing on the shared face is the turn's
     /// [`RoleSeg::FootVertex`] on that face.
     TurnFoot {
         /// The source vertex the two bands turn at.

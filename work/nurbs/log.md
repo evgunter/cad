@@ -793,3 +793,295 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - This is the orchestrator's call: an internal meter trade with a dominant measurement, touching no ratified text.
   - Build C builds it with pin rows for degree 2 and degree 25, and re-cuts any golden that moves. Any other caller of the refinement plumbing gets its own cost row.
   - **Tier: single FULL.** — (NURBS orchestrator)
+- 2026-10-12 14:10Z — **PR 4851 merges (`46c91a67cb`).**
+  - **The change:** Div's point paths now share one dispatch and fold with `Mul`. `corner_bounds::<Op: CornerOp>` takes `Product` or `Quotient`, so a caller cannot swap the lo/hi pair (S1, S5). The trait form measured faster than an fn-pointer struct: 31.3 against 38.7 s on the digest row.
+  - **Cost:** the digest row is about 11% faster than main.
+  - **Checked since the reviewed head `ce1223dc`:** only `arith.rs`, with the dispatch moved into the helper. The rows still compare against the literal `four_corners` oracle.
+  - **CI:** the only red is editor-core's 1e-12 base row; the interval oracle job passed.
+- 2026-10-12 14:11Z — **Build B dispatched** on `the-span-derivative-scale-is-spelled-in-six-places` (P4, M), branch `nurbs/one-derivative-scale`.
+  - The scale and the net get one `T`-generic home in geom-core `spline`, and the zero-difference policy comes from the caller.
+  - The claim is bit-identical. A moved golden stops the lane rather than being re-cut.
+  - The sites span TOPO, geom-brep and geom-core ground, and the lane announces the seams.
+  - **Tier: single FULL.** — (NURBS orchestrator)
+- 2026-10-12 14:20Z — **PR 4860** (build C, drop the refined scan) is up at `51eec7dbd3`, and a single FULL reviewer is dispatched (session_01XyZf9FSjWdA4nhJroqtfua).
+  - **Meter cost:** 49.9 ms → 13.7 ms per call on a 40-point cubic. The 4803 harness goes 264 → 76 ms.
+  - **Deleted:** `SpanLocate::refine_homogeneous` / `refine_weights`.
+  - **Kept:** `RingRefinement`, which has other callers. Its quadratic plan chain is filed as `ring-refinement-inserts-one-point-per-plan-over-the-whole-net` (P4).
+  - **Side effect:** the equal-weight arm gap shrinks from 4.3% of nets (worst 4.6%) to 1.9% (worst 0.20%).
+- 2026-10-12 14:30Z — **Main's digest is green at all three ε.** Build A's status reported a suspected frozen-count rise from PR 4834, so I ran sweep's thread-count digest (both rows, golden walk included) on main `562f8e7f1d` at ε 1e-6, 1e-9 and 1e-12, on an isolated target. All pass. I asked build A to name what its rise is relative to. — (NURBS orchestrator)
+- 2026-10-12 14:33Z — **PR 4866** (build B, one span-derivative scale) is up at `2e53479560`.
+  - **Routed:** 5 sites, plus a seventh found by the shape sweep (`ssi/enclose.rs` `bezier_scales`).
+  - **Left on their own association:** `hull.rs` `deriv_coeff` and `offset_derive.rs`, which use `(Δ·p)/Δu`.
+  - The claim is bit-identical. The single FULL reviewer is session_01YM7Atx7n64oDJr2vgFucdD.
+  - Seam notes are on the PCERT, PCTAIL, SSIARITH, SSIEDGE, SSIMARCH, KNOT, SHELF and SHELL logs.
+- 2026-10-12 14:34Z — **Build C dispatched** on `the-integral-meters-piece-refinement-is-not-monotone` (P4, M), branch `nurbs/monotone-piece-refinement`.
+  - It measures both fixes first: sub-pieces trying the parent direction, and max of the two schedules.
+  - "Leave it, disclosed" is an acceptable answer. A trade stops for a ruling.
+  - **Tier: single FULL.** — (NURBS orchestrator)
+- 2026-10-12 14:35Z — **PR 4869** (build A, the memo invisible in Sym) is up at `afff68b0d8`.
+  - **The fix:** the memo serves only when no Sym session is installed (`sym::session_counts()`). A per-session key would thrash, and documenting the exception would leave a session's result depending on read history.
+  - **Row:** `a_meter_read_before_a_session_is_not_served_inside_it`, red on main.
+  - **Cost:** unchanged within noise.
+  - **Finding:** the `Sym` frozen counts rise to about 1915/2094, not back to 1060/1177.
+    - The memo had hidden PR 4834 (the `plain_constant` gate) from the digest. In-session, carriers whose weights are equal but non-literal now take the rational arm. Build A bisected merges 4803 → 4849 to pin it on 4834.
+    - Decisions, `sz`, `num` and the f64 rows are unchanged. The whole rise is contradiction checks on numerically decided signs (54 → 1848).
+    - **Orchestrator's position:** this is 4834's conservative gate measured honestly, and a baseline is no target. The reach it gives up belongs to INLANE's T-margin primitive, and the measurement is recorded on INLANE's held-value row.
+    - **My miss, second instance today:** 4834's digest check passed only because the memo hid the change. The 4803-miss class ("a meter change merged without the digest that reads it") has a sub-case: a digest that passes can still be masked by a cache.
+  - A single FULL reviewer is dispatched (session_01LtWLeFccm7GHfs9HZgQWtj). It also checks thread-sharing of the session check, and whether the frozen rise costs the session anything it can prove. — (NURBS orchestrator)
+- 2026-10-12 14:45Z — **Piece refinement that isn't monotone: build C measured and stopped.**
+  - **Reach** (6000 integral nets, degrees 2–10): plain 32 reads below 16 on 6.0% of nets, worst −44%.
+    - (a), letting a sub-piece also try its parent's direction, is provably monotone in ℝ, never lowers a reading, and dominates (b) on every net.
+    - (b) is the max of the 16- and 32-piece schedules.
+  - **Cost** on the 4803 harness: plain 32 is 12.6 ms, (a) 19.5 ms (+55%), (b) 17.2 ms (+37%).
+  - **Ruling, conditional and consistent with the refined-scan test** (reach that changes no decision is not worth its cost):
+    - if no decision flips, the row is deferred with (a) recorded as the fix;
+    - if any decision flips, build (a).
+  - The lane measures flips and consumer thresholds next. — (NURBS orchestrator)
+- 2026-10-12 14:50Z — **PR 4871 merges (`38d461e75f`, docs only).** `the-integral-meters-piece-refinement-is-not-monotone` is **deferred**.
+  - **Flips:** 0 of 9000 nets (degrees 2–13).
+  - **Consumer thresholds:** `Margin::metered` in certify, `topo::split` and `pcurve_cache` are each decided against the tolerance band. The least span·meter among the nets that lose reach is 0.07, so none crosses a band.
+  - **(a) is recorded as the fix** for when a consumer needs it: sub-pieces also try the parent direction. It is monotone by construction, dominates (b), and costs +55%.
+- 2026-10-12 14:51Z — **Build C on two measure-first rows:**
+  - `the-integral-arm-reads-below-the-rational-arm-on-an-equal-weight-net`: only degree elevation is left (1.9%, worst 0.20%). Defer if there are no flips.
+  - `ring-refinement-inserts-one-point-per-plan-over-the-whole-net`: measure its real callers' share (`net.rs`, `compose.rs`). Build the linear form if the share is visible, otherwise defer. — (NURBS orchestrator)
+- 2026-10-12 14:53Z — **PR 4860 review** (drop the refined scan). Tier single FULL, reviewer session_01XyZf9FSjWdA4nhJroqtfua at `51eec7dbd3`. Verdict APPROVE-WITH-FIXES, no MAJOR.
+  - **Executed:**
+    - Interval: 0 violations over 2500 nets (degrees 1–25 × 5 weight regimes);
+    - 0 decision flips against main to degree 24;
+    - rational goldens unchanged under the default profile;
+    - the demos are clean;
+    - cost 44 → 13 ms reproduced.
+  - **MINORs:**
+    - orphaned API left by the deletion (`apply_homogeneous_in`, `source_count`, `plans`);
+    - a gate-script census naming a deleted function;
+    - the ring-refinement row names the wrong callers (the real ones are in geom-brep: SSI, quadrature, `patch_bound`);
+    - the f64 rounding-posture sentence is false by about 10⁷. The reviewer measured about 3e8 ulps at 1e±6 weights against exact arithmetic. It was pre-existing, but this diff restated it.
+  - **Class line:** a deletion's orphan sweep must grep the callers of every kept and helper symbol, not only the deleted ones. The fix pass re-greps.
+  - The fix pass goes to build C ahead of its measure-first rows. — (NURBS orchestrator)
+- 2026-10-12 15:10Z — **PR 4869 review** (memo invisible in Sym). Tier single FULL, reviewer session_01LtWLeFccm7GHfs9HZgQWtj at `afff68b0d8`. Verdict APPROVE-WITH-FIXES, no MAJOR.
+  - **Executed:**
+    - history runs, each worktree with its own target, which pin the rise exactly: the 4834 merge with only the arm choice reverted reads 1060/1177;
+    - `SESSION` is thread-local, so invisibility holds across the 4-thread walk;
+    - mutants: no bypass and read-only-in-session are red, fill-in-session survives;
+    - the golden at 1e-9 passes on the head.
+  - **NOTE-4, the proof-power question:**
+    - No decision changes.
+    - The rise is entirely `Origin::Assertion`: the contradiction checks on numerically decided signs. Beyond the 32/4 budget, about 1.8k check sites per validation freeze.
+    - So 4834's conservative gate costs **dispute-detection coverage, not proof**. The digest prints no `theorems_disputed`, so it cannot show whether that loss ever matters. That is filed as a guard gap via the fix pass.
+  - The fix pass covers the stale uncached doc, a row pinning that a session never fills the memo, one named door for "a session is installed", and the `OperandAxes` disposition. — (NURBS orchestrator)
+- 2026-10-12 15:12Z — **PR 4866 review** (one span-derivative scale). Tier single FULL, reviewer session_01YM7Atx7n64oDJr2vgFucdD at `2e53479560`. Verdict APPROVE-WITH-FIXES.
+  - **Bits identical:** a 2M-input differential at f64, Interval and Dual found 0 mismatches. The left-out sites really do differ in association.
+  - **Hit-list claim falsified:**
+    - `step-import/src/recognize.rs` `derivative_sup` has two routable sites;
+    - `props/quad.rs` `raw_deriv` is a third own-association site, misfiled.
+  - **Goldens don't pin the association:** a `p·(1/Δu)` mutant stays green everywhere, so a differential unit test will be committed.
+  - **Fresh instance:** a private surface `derivative_net` in `pcurve_cache.rs`, with the opposite zero policy to the new public one.
+  - **Class (P1 by band):** three rational speed-bound recipes, in `shell.rs` `spline_speed`, `recognize.rs` `derivative_sup` and `pcurve_cache.rs` `curve_rate_bound`, with two different rational extensions between them. Build B is filing it as a P1 design row.
+  - The fix pass is sent to build B. — (NURBS orchestrator)
+- 2026-10-12 15:13Z — **PR 4873** (build C, docs only, stacked on 4860; build C first misreported it as 4872) defers two rows.
+  - `the-integral-arm-reads-below-the-rational-arm-on-an-equal-weight-net`: over 4796 nets at Interval, 0 flips; the least span·meter among the 95 that read higher is 0.043. Degree elevation is recorded as the fix.
+  - `ring-refinement-inserts-one-point-per-plan-over-the-whole-net`: at most 0.7% of wall time on its real callers (the digest walk, the m8_4 NURBS SSI, m8_3 rational mass props). Per-span linear refinement is recorded as the fix.
+  - It merges after 4860. 4860's fix pass (sent 14:53Z) was re-sent as an interrupt: the third late delivery to build C today. — (NURBS orchestrator)
+- 2026-10-12 15:22Z — **Friction, now a dropped message, not a late one.** My 14:53Z fix-pass message for PR 4860 never reached build C; only the 15:13Z interrupt resummary did. Earlier today two sends to build C arrived about 40 min late (10:16Z and 12:48Z). Working rule from here: every dispatch or fix pass to a lane asks for an acknowledgement, and an unacknowledged send is re-sent as an interrupt at the next check-in. Whether to bring this to META as a finding about the cross-session channel is the next orchestrator's call, if it recurs. — (NURBS orchestrator)
+- 2026-10-12 16:00Z — **PR 4860 merges (`564664c8a7`).** The rational speed meter is now its piece assembly alone.
+  - **Fix pass `bcf5c77099`, verified:**
+    - orphans deleted (`apply_homogeneous_in`, `source_count`; `plans` is test-only), and none of the deleted symbols is referenced anywhere;
+    - the gate census is fixed;
+    - the RingRefinement callers are corrected (geom-brep quad and SSI);
+    - the f64 posture is restated truthfully: not a bound, up to about 3e8 ulps at 1e±6 weights;
+    - `RATIONAL_PIECE_MAX_DEGREE` is one const;
+    - the degree-2 row pins its reading in a band, with a rigorous Interval ceiling;
+    - the degree-25 row checks both lanes.
+  - CI green.
+- 2026-10-12 16:01Z — **PR 4873 merges (docs only).** Two rows are deferred:
+  - the integral-below-rational gap: 0 flips at Interval over 4796 nets;
+  - the RingRefinement quadratic: at most 0.7% of wall time on its real callers.
+  - A note is on CHORD's log: `C23`'s geom side is gone with `RATIONAL_METER_SPLITS`. — (NURBS orchestrator)
+- 2026-10-12 16:10Z — **PR 4869 merges (`8fc1358437`).** The speed-meter memo serves and fills only outside a Sym session.
+  - **Fix pass `b513295e`, verified:**
+    - `geom_core::sym::session_installed()` is the one door, used at three sites;
+    - row `a_session_never_fills_the_speed_memo` is red under the fill-in-session mutant;
+    - the non-discriminating asserts are cut;
+    - `OperandAxes<T>` is dispositioned (it lives inside one op, and no shipped path calls `with_session`);
+    - `the-thread-count-digest-cannot-see-dispute-coverage` is filed (P3, E).
+  - CI green. The `Sym` frozen re-cut (about 1915/2094) is attributed to PR 4834's `plain_constant` gate. No decision moved; the change costs dispute-check coverage, not proof.
+  - The SYM/DECIDE seam is noted on their logs.
+  - Build A is dispatched on the dispute-coverage row (`nurbs/digest-dispute-coverage`). Tier: single STYLE.
+  - I'm running the digest on main myself, because 4860 and 4869 landed back to back. — (NURBS orchestrator)
+- 2026-10-12 16:20Z — **Main red, caused by NURBS: a semantic conflict between PRs 4860 and 4869.** The sweep thread-count digest fails on main `8fc1358437` at all three ε. Only the `Sym` `validate_geometric` frozen counts moved (arc 1914 → 1540, strip 2094 → 1656 at 1e-9). Decisions, `sz`, `num` and every f64 row are unchanged.
+  - **Cause:**
+    - 4860 removed the rational refined scan. Its digest check passed only because the pre-4869 memo hid in-session meter work.
+    - 4869's re-cut was measured before 4860 landed.
+    - Together, the in-session rational arm is cheaper and freezes less.
+  - **Orchestrator's miss (third today, same class):** I merged two digest-touching PRs back to back and ran the digest only after the second.
+  - **Rule from here:** when two merges in a row touch the same meter or the same digest, re-run the digest on main between them, or merge the second only after its CI has run on a base that contains the first.
+  - The fix is dispatched to build A as a small re-cut PR. — (NURBS orchestrator)
+- 2026-10-12 16:32Z — **Main is green again: PR 4879 merges (`535cb17594`).** It re-cuts only the six `Sym` `validate_geometric` frozen values, to 1542/1657, 1540/1656 and 1541/1656 at ε 1e-6, 1e-9 and 1e-12, plus a re-cut-log comment.
+  - I merged it ahead of hosted CI as a red-main data fix. The values match my own measurement on main `8fc1358437`, and the author's run on the same base and its head read green at all three ε. A PR comment records the basis.
+  - The red lasted about 20 min (16:10–16:32Z).
+- 2026-10-12 16:33Z — **PR 4866 conflicts with main** in `from-f64-sites.tsv`: 4860 deleted rows that 4866 edits.
+  - Build B is merging main in and will re-run the gates and the digest on the merged tree. Its CI on the merged head is the base-containing-the-fix check that the new back-to-back rule asks for.
+  - My first local digest attempt was void: the merge into my worktree had silently failed on this conflict, so the run tested 4866's own tip. **Lesson:** confirm `git log` shows the merge commit before trusting a merged-tree run. — (NURBS orchestrator)
+- 2026-10-12 17:24Z — **PR 4866 merges (`d5c5f5bbf4`).** The span-derivative scale and net have one home in `geom_core::spline::derivative`.
+  - **Routed:** 7 sites, including step-import's `recognize.rs`.
+  - **Left on their own association, with reasons:** `hull.rs`, `offset_derive.rs` and `quad.rs` `raw_deriv`.
+  - The association is pinned bitwise at f64, Interval and Dual.
+  - The private surface net is renamed `skipping_surface_derivative_net`.
+  - The P1 design row `rational-speed-bounds-have-two-recipes-across-four-sites` is filed.
+  - CI ran on a base containing the 4879 fix, and the merged-tree digest passes at all three ε.
+- 2026-10-12 17:24Z — **Design fork dispatched:** the rational derivative bound (P1, `design: true`).
+  - Two designers were dispatched together under `docs/prompts/designer.md`, with the same problem statement and no candidate solutions.
+  - Blinding was done per `docs/DESIGN-FORK-PROTOCOL.md` (protocol `5dedb0a41a`); the mapping is on `analysis/design-fork/nurbs-rational-speed-bound`.
+  - If the reports agree and it is not Ev's fork, the orchestrator rules. Otherwise it goes to an `[ev]` PR with A/B unlabelled.
+  - Tracker PR 4884 merged. — (NURBS orchestrator)
+- 2026-10-12 17:40Z — **PR 4887** (build A, the digest dispute column) is up and green at `8d260be3`.
+  - **The change:** `counts_line` prints `disp=` (`theorems_disputed`). It reads 0 on all twelve Sym lines at all three ε.
+  - **Answer to 4869's NOTE-4:** a probe with 4834's arm choice reverted also reads `disp` 0. So the roughly 1.8k extra frozen check sites cost no dispute detection on these lofts.
+  - **Not added:** `retried`, because it is zero by construction (the digest's `with_session` has no retry ladder). This is better than the brief.
+  - Single STYLE reviewer: session_012pqiv3hQFynNCn6ToMCDZw.
+- 2026-10-12 17:31Z — **Design fork, rational derivative bound: A's first report is recorded** (blinded; B is pending).
+  - **Recommendation:** one bound, the per-span quotient-term bound, as one geom-core door with `speed_upper_bound`/`SupSpeed` twins; the weight-ratio recipe is retired on the sup side.
+  - **Zero-span predicate:** none needed, because walking nonempty spans makes every active pair's difference positive.
+  - **Premise corrected:** three recipes at six sites, not two at four.
+  - **Measured:** the per-span bound's median is 1.26× the true sup, against 19.7× for the weight-ratio recipe.
+  - **Off-question:** `chart_stretch_inf`'s rational lower bound rests on an unproven B-spline extension of Floater. — (NURBS orchestrator)
+- 2026-10-12 17:45Z — **Rational derivative bound ruled; the designers converged.** B's first report (17:41Z) agrees with A on substance.
+  - **The bound:** one per-span pair-term bound. It is proven, needs no centre, and is tightest on every curve measured. Its geometric mean is 4.0× the true sup against 46.5× for ratio²; over 1600 curves, A measured a median of 1.26.
+  - **Retire ratio² on the sup side:** Floater's theorem is for rational Bézier curves, and nothing proves its extension to B-splines.
+  - **No zero-span predicate:** a zero or NaN knot gap is unrepresentable on a `KnotVector`, so all four spellings are dead.
+  - **The premise was too narrow:** there are three recipes at six or seven sites, including `enclose.rs` and `mesh`'s `patch_bound`.
+  - **The only difference was the home**, geom-core window versus geom. A's typed-window door answers B's raw-slice objection.
+  - **Ruled by the orchestrator, no `[ev]` PR:** the designers agree and no ratified text is touched. The blinding record is on the analysis branch; this is not a DESIGN-FORK-LOG row, since only forks that go to Ev are logged there.
+  - **Build C is dispatched** on `nurbs/one-rational-speed-bound`: the pair term stated once in geom-core, `speed_upper_bound`/`stretch_sup` in geom, every sup site routed, ratio² retired on the sup side, and the dead predicates removed. Tier single FULL per PR, with up to two stacked PRs.
+  - **To be filed in that PR:**
+    - `chart_stretch_inf`'s unproven rational inf (P2), with B's proven twin;
+    - `mesh` recipe-A cells (P3). — (NURBS orchestrator)
+- 2026-10-12 17:45Z — **A reviewer failed to start (my miss).** The PR 4887 STYLE reviewer was created with the short SHA `8d260be3`. Cloud sessions need the full 40-character SHA, and it failed `ref_not_found` with no notice to me; Ev caught it. I archived it and re-dispatched with `8d260be354a74038d4e111b449ad232e86dc13e3` (session_01Sk84Fad117KcnbGXLiqba5, connected). All other dispatches today used full SHAs. **Rule:** run `git rev-parse` on the head before every `create_session`, and confirm the session is connected after dispatch. — (NURBS orchestrator)
+- 2026-10-12 17:50Z — **PR 4887 STYLE review** (session_01Sk84Fad117KcnbGXLiqba5): mergeable.
+  - `disp` is a live assertion: `count_theorem_disputed` fires on contradiction checks.
+  - The re-cut is exactly 12 lines, inserting `disp=0` only.
+  - The `retried` omission is right.
+  - **Class findings, to be filed via build A:**
+    - the `expected()` re-cut log has accreted about 25 dated entries, a changelog in a doc comment (Q8);
+    - `disp=0` is monotone in the wrong direction: freezes starve dispute recording.
+  - A comment-and-docs-only commit (trimming the off-tree probe and moving the `retried` reason to `counts_line`) then merges on the green head. — (NURBS orchestrator)
+- 2026-10-12 18:16Z — **PR 4887 merges (`c1514de8c7`).** The digest gains a `disp=` column, which reads 0 on all Sym lines.
+  - The style pass is comments only: the off-tree probe is trimmed and the `retried` reason sits at `counts_line`.
+  - **Filed:**
+    - `the-thread-count-digests-re-cut-log-is-a-changelog` (P4, E);
+    - `disp-zero-can-be-satisfied-by-freezes` (P4, M; a SYM/DECIDE seam when built).
+  - Build A is dispatched on the changelog trim (`nurbs/digest-log-trim`). Tier: orchestrator's read. It lands before build C's rational-bound re-cut, to keep their conflict small. — (NURBS orchestrator)
+
+- **2026-10-12 18:40Z — PR 4892 (rational speed bound, part 1) FULL reviewer dispatched.**
+  - Session: session_01L9BiRwMrCxHYyp24sk3b5t, at `d7484a0edcd8d7358a44fd88270c05c1e649dc0e`. The full SHA came from `git rev-parse`, and the session is confirmed connected.
+  - Tier: single FULL.
+  - Claims to falsify:
+    - door soundness at f64 and Interval, swept against a sampled sup;
+    - the window variant;
+    - the NaN poison and the Sym memo rule;
+    - the routed sites (shell, offset_derive, pcurve_cache) keep their guarantees;
+    - the tests go red under three mutants;
+    - the digest is unchanged;
+    - deletion completeness. — (NURBS orchestrator)
+
+- **2026-10-12 19:20Z — PR 4892 FULL review: APPROVE-WITH-FIXES, no MAJOR.**
+  - **The bound holds.** The reviewer ran its own sweep:
+    - 1500 rational curves, degree 1–6, weight spreads up to 10^±3, against a certified Interval floor of ‖C′‖;
+    - 5432 windows;
+    - all were bounded, with a worst ratio of 0.9999999999999983.
+    - The suites gave 5652/5652, and the 1e-9 digest was green.
+  - **Fix pass sent to build C:**
+    - delete `speed_upper_bound_on`: it has no caller and a std min/max that drops NaN;
+    - delete the unreachable weight-poison arm (construction already refuses);
+    - pin a carrier whose max sits at j ≠ i, since 80√5 survives the drop-Δw and pairs-only mutants;
+    - add a locality row, since the sound-but-global mutant survived everything because "≤ recipe A" is monotone the wrong way;
+    - add a rational-carrier row in offset_derive for the refusals turned into answers;
+    - un-`pub` the unpaired `rational_span_speed_sup`.
+  - **Class:** the issue's four-site census, a hand-written list, missed `mesh` chords `rational_carrier_m_bound` (recipe A on C′), plus `patch_bound` `rational_cells` and `offset_fit` `m_tilde_sup`. Part 2 takes them or files a row for each, with a hit list in its body.
+  - **Brief correction (mine):** `weight_ratio_factor` is not inf-only until part 2 (pcurve_cache `nurbs_stretch_bounds` is a surface sup). — (NURBS orchestrator)
+
+- **2026-10-12 20:08Z — 4892 fix pass read (head `48801e68342514cb2ee8e16f307c0366b3f30589`).** All 7 items landed:
+  - `speed_upper_bound_on` deleted;
+  - weight arm deleted;
+  - pin at j outside the pair (14 exactly; the mutants read 2 and 8);
+  - locality row;
+  - rational offset_derive rows reaching `level_row` and `plane_spline_root`;
+  - `rational_span_speed_sup` private;
+  - one `session_memo` helper.
+  - "Lift once" is declined (perf only, needs a caller-side cache).
+  - `offset_fit` `m_tilde_sup` is accepted as out of class: a polynomial product, no quotient.
+  - **Build C corrected the reviewer:** the weight arm was not unreachable. Knot insertion can round a subnormal weight to 0, and `from_validated_parts` admits it. The bound reads non-finite there (pinned), so deleting the arm stays sound. The admission itself is a latent invariant breach. Build C files `knot-insertion-can-round-a-weight-to-zero` (P3) in this PR, and I post a seam note on KNOT (co-owner of `algebra.rs`). — (NURBS orchestrator)
+
+- **2026-10-12 20:40Z — PR 4904 (rational surface bound, part 2, stacked on 4892) up; single FULL reviewer dispatched.**
+  - The reviewer is session_01TTzHgrMCC5fMeXpHU6eyTA at `b56fe691f1b831b13034a76f4ccbae1f903e39d0`, confirmed connected.
+  - Tier FULL, because the surface twin of a soundness bound carries its own index arithmetic.
+  - Claims to falsify: surface soundness per direction; the routed sites (recognize, the pcurve sups, enclose bit-identical); the six-cell `frozen=` digest re-cut with disp=0; red-under-mutation including locality; the dispositions of patch_bound/chords (filed) and offset_fit (out of class).
+  - **4892 harness red explained:** `lo + (hi−lo)·n/n` rounded one ulp past the domain. The bound was not unsound there. The clamp is in 0e26675ae0.
+  - **4892 merge waits on one push:** main merged (contacthold 4809 and 4820 also touch `topo/src/shell.rs`) plus the zero-weight row. — (NURBS orchestrator)
+
+- **2026-10-12 21:00Z — PR 4904 FULL review: APPROVE-WITH-FIXES.**
+  - **What holds:**
+    - the surface statement is sound per direction (hand-checked, plus a 300-surface sweep, 0 failures);
+    - enclose is bit-identical (200k Interval cases, to_bits);
+    - the recognize None arms were dead;
+    - the digest re-cut reproduces at 1e-9 with disp=0.
+  - **The finding that matters:** the "j over the pair's own points only" mutant is UNSOUND (the true sup is up to 136× above it, on a coincident pair with a large weight step), and NO row catches it: not fuzz, not the named carriers, not recognize. This also refutes part 1's "no cubic Bézier beats pairs-only" search. Part 1's j-outside-the-pair pin catches it on curves by value only.
+  - **Class, logged as a rule I will brief from now on:** for a soundness bound, random fuzz does not witness each clause. Every clause whose removal is unsound owes a named witness row that goes red under the mutant that drops it, and every locality clause owes a row that goes red when the bound degrades.
+  - **Fix pass sent to build C:**
+    - the witness row (surface, plus a curve twin);
+    - a locality row;
+    - the stale "sup multiplies by the weight ratio" prose (a class: sweep `ratio`/`Floater`);
+    - `offset_meters` `patch_regularity` and mesh `nurbs_cert` `cell_readings` read patch_bound's recipe-A first-order sup → named in row (b) or routed;
+    - enclose `about` restates `RationalPairTerm::at` (a fresh copy of the duplication the PR closes);
+    - one per-pair builder;
+    - the tautological `the_two_doors_report_one_sup`;
+    - widen the fuzz;
+    - correct "fewer frozen ⇒ tighter".
+  - **Handed to build B's P2 floor row:** the inf side's `skipping_surface_derivative_net` with its own `denom == 0` skip. — (NURBS orchestrator)
+
+- **2026-10-12 21:50Z — PR 4892 merges** (`47226e9fb248e5c78a2a1e7cbe3273d39b248ac4` → main `9c414f94e8`).
+  - Its gate ok was green on a base containing contacthold 4809 and 4820 (which touch `shell.rs`).
+  - Main took 4831 and germ/conic after that run. I checked: no shared files, `merge-tree` clean, and none of main's new code calls an API 4892 removed. I merged rather than re-run.
+  - Seam notes are posted to SHELF/SHELL, PCERT/PCTAIL, TCOST/TINT and KNOT.
+  - Build C merges main into 4904 before its fix pass. — (NURBS orchestrator)
+
+- **2026-10-12 22:25Z — PR 4904 fix pass pushed** (head `064fcbb6fce841007133fdf468340051449110ee`; base is now main).
+  - The pair-only counterexample is pinned on the surface and on the curve. `check` asserts bound ≥ sampled floor, so it is red under the j-over-pair mutant.
+  - Part 1's search had drawn weights from {0.25…8} only. That was the blind spot.
+  - Also landed:
+    - a locality row;
+    - the stale ratio prose (m9_2 re-measured);
+    - row (b) names `patch_regularity` and `cell_readings`;
+    - `RationalPairTerm::about` as the one spelling, with private fields;
+    - one `pair_scale`;
+    - the tautological test deleted;
+    - the fuzz widened (degree 1–5, 10^±3, `expect` on KnotVector);
+    - the body corrected on `frozen`.
+  - Tier for the fix pass: orchestrator's read. Every item answers a named finding, and the refactors are covered by the rows that pinned the review's mutants.
+  - It merges on green. — (NURBS orchestrator)
+
+- **2026-10-12 23:10Z — PR 4904 merges** (`064fcbb6fce841007133fdf468340051449110ee` → main `51d913c3ca`).
+  - gate ok was green on a base containing main with 4892. Main's later drift shares no file with it, and no new main code reads a symbol it changed.
+  - The digest's six `frozen=` cells moved with it, and no other digest-touching merge is in between.
+  - The rational sup is now one statement for curves and surfaces. The design row `rational-speed-bounds-have-two-recipes-across-four-sites` is closed in the PR.
+  - Seam notes are posted to PCERT/PCTAIL, SSIARITH/SSIEDGE/SSIMARCH, EXCH and KNOT.
+  - Next: build B on the P2 inf floor. Build C is archived: its context was at about 700k, and its unit is done. — (NURBS orchestrator)
+
+- **2026-10-12 23:10Z — friction (message delivery).** Build C reports that six of my messages queued between 18:19Z and 21:49Z reached it only at about 23:09Z, up to five hours late.
+  - Its work kept pace only because I re-sent each ask as a `now` interrupt.
+  - The acknowledge-and-interrupt rule is what made the lane workable. A `next`-priority send to a lane polling CI in a long tool loop can sit for hours.
+  - From now on, the default for any ask that gates a merge is `now`. — (NURBS orchestrator)
+
+- **2026-10-12 23:15Z — build A dispatched on `knot-insertion-can-round-a-weight-to-zero`** (`nurbs/insert-weight-collapse`).
+  - Tier: single STYLE. It is a guard with one shared check, and the witness rows carry its correctness.
+  - Scope:
+    - every weight writer (insert, refine, elevate, surface twins) refuses with `WeightCollapse` through one shared check;
+    - the existing pin becomes the refusal;
+    - the hit list of weight-writing plans goes in the body.
+  - It does not collide with build B's `pcurve_cache` work. The KNOT seam is announced in the PR. — (NURBS orchestrator)
+
+- **2026-10-12 23:56Z — PR 4923 (zero-weight writer guard, build A) green-ready.**
+  - One shared admission, `written_weight`, guards insertion, refinement, elevation, removal and the surface twins.
+  - Plan, curve and surface rows each go red with a guard removed.
+  - The old pin is deleted; it read a curve that can no longer be built.
+  - Single STYLE reviewer session_01RSRJMupUMGh3L6aJcd1hrJ is dispatched at `c147c29b52181564f85f03a7f4a14fad4c3124f1`, confirmed connected. — (NURBS orchestrator)

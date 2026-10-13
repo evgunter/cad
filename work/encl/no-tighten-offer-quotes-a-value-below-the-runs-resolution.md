@@ -2,11 +2,11 @@
 id: no-tighten-offer-quotes-a-value-below-the-runs-resolution
 kind: issue
 title: A zero-band margin's tighten offer quotes a value far below anything a run can resolve ("tighten the tolerance below 2.71e-28 m"), at a build and at rest
-status: open
+status: dispatched
 opened: 2026-10-08
 priority: P3
 cost: M
-design: true
+branch: encl/eps-floor
 ---
 
 
@@ -32,3 +32,21 @@ So the offer is a number, not a recourse. The margin is rounding noise of an exa
 ## Repair shape
 
 Withhold the offer where the value it quotes lies below what any admissible ε could resolve. That needs a resolution floor named once in geom-core, from D4 ¶4's size range and the f64 headroom, and it has to stay a sentence choice inside `sized_recourse`, within the reporting-margin fence (`real.rs`'s `Bounds` clause 2). The floor's definition is a design question, so weigh it before implementing.
+
+## Ruled (Ev, PR 4836, 2026-10-12: "this sounds good!")
+
+D4 ¶4 now states the session box: 1 km, with no coordinate larger in magnitude. ε has a floor, ε_min = 1 km · 2⁻⁵² ≈ 2.2e-13 m, which two places read:
+- `Tolerance` refuses a run's ε below ε_min. The "no further restriction" sentence in `tolerance.rs` retires.
+- `MarginDiag::tightens_below` withholds any offer below ε_min. The ending then falls to the lever plus the decision's `at_zero`/`otherwise` note.
+
+ε_min is defined once, in geom-core `tolerance`.
+
+Known moves:
+- `ftc11_uref_off`'s two pinned offers (2.71e-28 m and 1.62e-17 m) become the lever alone.
+- Two import-door pins re-baseline.
+- `sweep/tests/offd_r1_probes.rs`'s documented `CAD_TOLERANCE_EPS=1e-14` run is refused, and its doc changes.
+- At CI's 1e-12 band, some offers fall below ε_min and are withheld.
+
+To file once this lands:
+- D4 ¶4's "rejected at construction" is unimplemented;
+- two SSI levers cite "the model's size range" with no number.

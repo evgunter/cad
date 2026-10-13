@@ -2684,8 +2684,7 @@ pub fn mint_pcurves_of<T: AtRestPolicy>(
 /// refusal, or a panic on a torn record, leaves the body as found.
 ///
 /// A face whose rows are not owed ([`not_owed`]: a pair the chart can
-/// hold but no route covers yet — a spline carrier on an analytic
-/// chart, a mirror-torus spiric, a line, ellipse or spiric offered a
+/// hold but no route covers yet — a line, ellipse or spiric offered a
 /// fitted image — or a fitted face at a scalar with no fitted door; the
 /// at-rest pass excuses exactly these, by the same predicate)
 /// contributes the rows it held, carried ([`carry_rows`]), so the mint
@@ -4079,7 +4078,10 @@ fn singular_at<T: Decide>(
 /// point rather than from a stored latitude. On a plane or a spline
 /// chart the first channel is not an angle, and the arm is
 /// [`chart_u_arm`]'s rate.
-fn joint_arm<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point3<T>) -> ChartArm<T> {
+pub(crate) fn joint_arm<T: Real>(
+    chart: DescribedChart<'_, T>,
+    vertex: geom_core::Point3<T>,
+) -> ChartArm<T> {
     let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
         let w = vertex - origin;
         (w - axis * w.dot(axis)).norm()
@@ -4429,6 +4431,54 @@ fn near_pole_gap_closes<T: Decide>(
     })
 }
 
+/// **A joint's whole periods by the marks, with the near-pole read**:
+/// [`geom_brep::whole_period_count`] metered at the vertex's lever `arm`.
+/// Where a mark misses (undecided, or the gap on it), the unshifted gap
+/// decided within ε at that lever takes the image itself
+/// ([`near_pole_gap_closes`]): a band-sized lever (a vertex near a
+/// narrow cone's apex, whose incidence can decide it off the apex while
+/// its lever `d·sin α` is under the band) reads every mark as Zero, and
+/// the two chart points then agree in metres at the vertex.
+///
+/// # Errors
+///
+/// The marks' [`BranchMiss`] where the near-pole read does not close.
+pub(crate) fn lever_periods<T: Decide>(
+    name: &'static str,
+    arm: ChartArm<T>,
+    gap: T,
+    period: T,
+    band: Band,
+) -> Result<i32, BranchMiss> {
+    match whole_period_count(name, gap, period, |g| arm.meter(g), band) {
+        Err(miss @ (BranchMiss::Undecided(_) | BranchMiss::OnMark)) => {
+            near_pole_gap_closes(arm, gap, period, false, band).ok_or(miss)
+        }
+        decided => decided,
+    }
+}
+
+/// **The two branches astride a half-period mark**: where `gap` sits on
+/// or near the mark between `j` and `j + 1` periods, `[j, j + 1]`, with
+/// `j` decided by the marks of `gap` less half a period, which then sits
+/// near `j` periods, half a period from either of its own marks. A caller
+/// whose marks missed asks its question on both and keeps an answer only
+/// where the two agree.
+///
+/// # Errors
+///
+/// [`BranchMiss`] where `j`'s own marks miss.
+pub(crate) fn branches_astride<T: Decide>(
+    name: &'static str,
+    gap: T,
+    period: T,
+    meter: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<[i32; 2], BranchMiss> {
+    let j = whole_period_count(name, gap - period * T::from_f64(0.5), period, meter, band)?;
+    Ok([j, j + 1])
+}
+
 /// **A spline chart's joint gap**: the entry `entry` and the
 /// predecessor's exit `prev` agree within ε through the chart's sup
 /// stretch on each channel ([`chart_u_arm`], [`v_meter`]). A net can
@@ -4562,7 +4612,7 @@ fn chart_edge<T: Decide>(
             matches!(chart, Surface::Plane { .. })
                 && matches!(walked.carrier, geom::Curve3::Line { .. })
         }
-        // A spiric image is curved on BOTH charts it lives on — the
+        // A spiric image is curved on EVERY chart it lives on — the
         // cap's `pm·f(t) + pa·sin t` and the wall's `atan2(f, d)`
         // azimuth — so it takes the envelope door below, which the
         // `_` arm there already answers from `eval` over the span
@@ -6155,6 +6205,33 @@ mod recourse_tests {
             }
         }
     }
+
+    /// A fitted-lane limb-3 escalation, rendered through the mint's
+    /// `Certify` arm, ends in the tube's own labelled recourse at a
+    /// build: the transversality lever and its tighten offer.
+    #[test]
+    fn a_fitted_tube_escalation_renders_its_own_recourse_through_the_mint() {
+        let finding = PcurveMintError::Certify {
+            half_edge: HalfEdgeKey::default(),
+            error: PcurveCertifyError::FittedEscalated {
+                decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::Tube),
+                cause: Indeterminate {
+                    margin: MarginDiag::value(5e-9),
+                    band: Band::new(1e-9, 1e-8).unwrap(),
+                    predicate: Some("ssi_tube_transversality"),
+                    terminal_sliver: false,
+                },
+            },
+        };
+        assert_eq!(
+            finding.to_string(),
+            "the pcurve of half-edge HalfEdgeKey(null) failed certification: pcurve \
+             certification: the fitted lane's certificate escalated — whether the fitted carrier \
+             passes limb 3 (uniqueness tube) is undecided: margin 5e-9 lies inside the ambiguity \
+             band (1e-9, 1e-8). Recourse: move the geometry so the surfaces cross at a clearer \
+             angle, or, if this angle is intended, tighten the tolerance below 5e-10 m"
+        );
+    }
 }
 
 /// **The fitted refusal raised before any check.** The mint's
@@ -6222,7 +6299,7 @@ mod derive_without_a_door {
 #[allow(clippy::unwrap_used, clippy::float_cmp, clippy::panic)]
 mod polar_shift_tests {
     use super::shift_polar_branch;
-    use geom_brep::{Pcurve, SpiricImage};
+    use geom_brep::{Pcurve, SpiricImage, WallTorus};
     use geom_core::{Point2, Vec2};
 
     /// **The meridional branch shift, at its own door.** A body cannot
@@ -6244,13 +6321,20 @@ mod polar_shift_tests {
                 u0: 0.25,
                 v0: 0.5,
                 sense: -1.0,
+                torus: WallTorus::Mirror,
             },
         };
         let Pcurve::Spiric {
             major,
             minor,
             offset,
-            image: SpiricImage::Wall { u0, v0, sense },
+            image:
+                SpiricImage::Wall {
+                    u0,
+                    v0,
+                    sense,
+                    torus,
+                },
         } = shift_polar_branch(&wall, 3.0, period)
         else {
             panic!("the wall arm keeps its variant and its image kind");
@@ -6258,6 +6342,7 @@ mod polar_shift_tests {
         assert_eq!(v0, 0.5 + 3.0 * period, "v0 takes the whole-period shift");
         assert_eq!(u0, 0.25, "the azimuth constant is the other door's");
         assert_eq!(sense, -1.0, "the sign is not a branch");
+        assert_eq!(torus, WallTorus::Mirror, "nor is the torus");
         assert_eq!((major, minor, offset), (0.09375, 0.0703125, 0.0078125));
 
         // A cap lives on a plane chart, where no joint decides a

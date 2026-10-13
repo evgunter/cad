@@ -66,6 +66,7 @@ pub mod extent;
 pub mod fitted_lane;
 #[cfg(test)]
 mod grid_offsets;
+pub(crate) mod harmonic;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
@@ -97,11 +98,12 @@ pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE,
-    MaterialPairing, MaterialWedge, MustCarryDescription, MustCarryEscalation, MustCarryRefusal,
-    MustCarryVerdict, SecondOrder, SecondOrderWalk, Station, StationHook, classify_dihedral,
-    classify_material_pairing, classify_material_pairing_as, folded_lever_arm, interior_stations,
-    material_kappa_rel, must_carry_over_edge, second_order_walk, tangent_second_order,
+    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, DihedralReading, MATERIAL_PAIRING,
+    MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MustCarryDescription,
+    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder, SecondOrderWalk,
+    SmoothJoin, Station, StationHook, classify_dihedral, classify_material_pairing,
+    classify_material_pairing_as, folded_lever_arm, interior_stations, material_kappa_rel,
+    must_carry_description, must_carry_over_edge, second_order_walk, tangent_second_order,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
@@ -162,8 +164,8 @@ pub use pcurve_cache::{
     FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS,
     NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
     PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, UncoveredClass,
-    chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, whole_period_count, whole_periods,
+    WallTorus, chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf,
+    chart_stretch_sup, chart_stretch_sup_v, whole_period_count, whole_periods,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
@@ -174,10 +176,10 @@ pub use ssi::{
     ChartSide, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
     ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, PlaneSection, ReachBound,
     SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionReading, SectionRoot,
-    SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb,
-    SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision, TubeDegeneracy,
-    boundary_section, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
-    trace_plane_nurbs_uncertified,
+    SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
+    SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision,
+    TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3,
+    plane_nurbs_ssi, trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

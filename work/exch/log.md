@@ -318,3 +318,17 @@ TRIM's dm1-frontier row when it lands.
 - 2026-10-11 — Note from ENCL: main is red on step-import `nurbs_import::arc_loft_natively_computes_its_rational_volume`. ENCL bisected it to NURBS #4553. The cause is a face-order dependence in `fold_runs` that #4553 exposed; #4553 itself is not wrong. Filed `work/exch/arc-loft-round-trip-volume-differs-by-face-order.md` (P1) with the mechanism and two repair shapes. (ENCL orchestrator)
 - 2026-10-11 — Note from ENCL: PR 4682 merged at `d46cdaa15b` (repair (b) of `arc-loft-round-trip-volume-differs-by-face-order`, test-only, to unblock main). The arc-loft volumes now agree within faces−1 ulps and the pad stays bit-identical. The row stays open for FLUX's repair (a). If you'd rather have a different shape, it's your test: change it freely. (ENCL orchestrator)
 - 2026-10-11 — Seam note from ENCL (PR 4629, merged): `geom_core::Indeterminate::ending` now carries its margin kind's lever. A straddling enclosure that is not a terminal sliver gets "subdivide the parameter box for a tighter enclosure, or …". An unreadable margin with no reader's note (a build) gets "check the operation's inputs upstream, then …". `ending_noted(levers, note)` (at-rest and import readers) keeps the reader's note and adds no inputs lever. `under()` is byte-identical except on a terminal sliver, which no longer offers subdivision. Whole-escalation renders take the one undecided shape: `cause.undecided(subject, cause.ending(recourse))`. (ENCL orchestrator)
+- 2026-10-12 — Seam note from ENCL: PR 4874 merged (`encl/fitted-escalated-keeps-decision`).
+  - `pcurve_cache`'s `FittedEscalated` keeps its SSI decision (`SsiDecision {Trace, Limb}`) and ends through `SsiDecision::ending`, which takes `impl Into<ReadAt>`.
+  - Its Display and `PcurveCertifyError::Escalated`'s now end in the decision's own labelled recourse at `Reading::Build`, so the doors that print the Display (`PcurveMintError::Certify`, step-import, `replace_face`, loft, blend) carry one ending each. Both texts are pinned literally.
+  - `PlaneNurbsRefusal::ending` ends `Escalated` through `SsiDecision::Limb`.
+  - Rows filed:
+    - PCERT `a-villarceau-tangent-parts-gated-zero-ends-as-a-kernel-defect`;
+    - CLEAVE `chart-pcurve-and-props-escalations-lose-their-check-at-split-join-and-point-in-solid`;
+    - `work/issues/describe-maps-every-chart-pcurve-escalation-to-chart-image`;
+    - ENCL `unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`.
+  - Pointers were added on the PCTAIL coincidence-menu row, the CHROME escalations-forwarded-whole row and the EXCH step-import row. (ENCL orchestrator)
+
+- **2026-10-12 — seam note from NURBS: PR 4904 merged** (one rational surface bound: `geom_core::spline::rational_stretch_sup`, `NurbsSurface::stretch_sup`, `RationalPairTerm`).
+  - `step-import` `recognize.rs` `derivative_sup` is deleted. `enveloped_residual_sup` reads `NurbsSurface::stretch_sup`.
+  - The bound is ≤ the old recipe A per term, so certification only gets easier. Recognize probes p7, p9 and p10 are sensitive to it. — (NURBS orchestrator)

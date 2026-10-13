@@ -2,11 +2,14 @@
 id: a-divided-faces-holder-drops-a-record-whose-vertex-is-on-a-piece-boundary
 kind: issue
 title: The boolean's divided-face holder drops a vertex-face record whose vertex lies on a piece's boundary
-status: open
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: E
 refs: [a-cut-through-a-recorded-touch-mints-a-pair-no-record-backs]
+closed: 2026-10-12
+pr: 4820
+branch: contacthold/one-record-carry-boolean
 ---
 
 
@@ -26,3 +29,13 @@ the code, not measured: build a fixture (a cube resting a corner on a
 face the boolean then divides through that corner) before fixing. If
 PR 4749 is ratified, this retires with `holder` into the one carry; the
 fixture is owed either way.
+
+## Resolved (PR 4820)
+
+`holder` retired into the one carry: a divided face reads as its pieces
+and the chords between them, so a vertex on the chord lands on the chord
+(`ops::found_on_a_divided_face::a_rest_on_the_dividing_chord_lands_on_the_chord`,
+red on main, where it dropped). The integration fixture the row asked
+for is not reachable today: each pose of a corner resting on a face a
+boolean divides through that corner refused first `VertexReadTwice`
+(the cutter's edge or corner on the resting corner).

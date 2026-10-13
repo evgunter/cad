@@ -114,7 +114,10 @@ and the tube over the same interval, or over the whole carrier where
 the carrier is rational with unequal weights (no piece of it has `f64`
 weights at an enclosure scalar). A door that holds no lane certifies
 no such edge: it refuses `CertifyError::NurbsLaneNotSupplied`, as it
-refuses a plane × NURBS one. Each box, cut to the wall's knot rectangle (and to the
+refuses a plane × NURBS one. An edge with an operand outside the
+tube's enclosure roster (`ssi::enclose::has_implicit_enclosure`) refuses
+the tube by naming that operand (`AnalyticRung3Refusal::NoTubeEnclosure`)
+once limb 2 holds. Each box, cut to the wall's knot rectangle (and to the
 ℝ³ slab where a search clips to one), holds exactly one piece: two
 simple solutions on its boundary, or a stretch of its boundary on a
 side of the wall's domain that the boundary pass reads within ε of the
@@ -542,7 +545,8 @@ reaches a pole) refuses at the producer like any other refusal: the
 exemption excuses only a class no route reaches, and a scalar that holds
 no certified lane, at which a net's projected row cannot read its hull. The
 lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
-plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
+plane-cap and torus-wall images of a `Curve3::Spiric`, on its own torus
+and on that torus's mirror through the cutting plane, data-free and
 closed from the carrier's own parameter), `FocalSection` (a conic
 whose projection onto the plane normal to the chart's axis has its
 focus on the axis, in two instances: a tilted plane×cone ellipse on its

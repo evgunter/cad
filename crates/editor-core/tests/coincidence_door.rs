@@ -423,6 +423,7 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
 fn edge_named(ev: &Evaluation<f64>, node: RecipeNodeId, a: [f64; 3], b: [f64; 3]) -> StableName {
     let body = match &ev.value(node).expect("the node evaluated").payload {
         ValuePayload::Body(b) => b.clone(),
+        ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => body.clone(),
         other => panic!("expected a body, got {other:?}"),
     };
     let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
@@ -446,11 +447,11 @@ fn edge_named(ev: &Evaluation<f64>, node: RecipeNodeId, a: [f64; 3], b: [f64; 3]
 
 /// **The mitre leaves the battery** (§11 row 5). A box with both rims
 /// filleted turns at its eight corners: the fillet holds eight
-/// `EqualAngles` rows, each naming the two rim edges that turn there
+/// `CommonFoot` rows, each naming the two rim edges that turn there
 /// by the box's own names, and each is unproven: the two edges are two
-/// constructions, and replayed with every variable a symbol the turn's
-/// angle term is the zero polynomial but the distance between its two
-/// bands' feet is not reduced to it
+/// constructions, and replayed with every variable a symbol neither of
+/// the turn's readings — the gap between its two bands' feet and the
+/// overrun chord — is reduced to the zero polynomial
 /// (`work/sym/the-mitres-feet-distance-freezes-at-sym.md`).
 #[test]
 fn a_filleted_box_records_one_unproven_turn_per_corner() {
@@ -474,7 +475,7 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
     for row in &got {
         assert_eq!(
             (row.relation, row.site),
-            (Relation::EqualAngles, DecisionSite::BatteryTurn)
+            (Relation::CommonFoot, DecisionSite::BatteryTurn)
         );
         for cell in &row.cells {
             let NamedCell::Entity { input, name } = cell else {
@@ -504,72 +505,73 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
     assert_eq!(unproven(&doc, &ev).len(), 8);
 }
 
-/// **The half of the mitre the algebra closes.** Replayed with every
-/// variable a symbol, a box mitre's margin
-/// `max(|cos₁ − cos₂|·arm, |y₂ − y₁|)` reduces to `max(0, …)`: the
-/// angle term is the zero polynomial, so the isosceles fact itself is
-/// an identity of the output definitions, and the distance between the
-/// two bands' feet is what freezes
+/// **A supplementary chamfer's turn reaches the door unproven.** The
+/// sheared box `{0 ≤ z ≤ 1, s z ≤ x ≤ 2 + s z, s z ≤ y ≤ 1.5 + s z}`,
+/// two sheared prisms intersected, has a top corner `(2 + s, s, 1)`
+/// whose two top edges make supplementary angles with its lateral edge:
+/// the chamfer's feet on that edge are one point, so its two top edges
+/// chamfered mitre and record one `CommonFoot` row, which the door takes
+/// and does not prove — the same freeze as the box's
 /// (`work/sym/the-mitres-feet-distance-freezes-at-sym.md`).
 #[test]
-fn a_box_mitres_angle_term_is_the_zero_polynomial() {
-    let doc = ProfileDoc::empty_derived("coincide-mitre", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 0.0, 1.0);
-    let ev = run(&doc);
-    let (doc, fillet) = insert(
+fn a_supplementary_chamfer_turn_is_recorded_unproven() {
+    let s = 0.3;
+    let (z0, z1) = (-0.5, 1.5);
+    let doc = ProfileDoc::empty_derived("coincide-supplementary", Tol::witness());
+    let (doc, along_y) = on_frame(
         doc,
-        Node::fillet(
-            the_box,
-            len(0.1),
-            vec![
-                edge_named(&ev, the_box, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
-                edge_named(&ev, the_box, [2.0, 0.0, 1.0], [2.0, 1.5, 1.0]),
-            ],
-        ),
+        [0.0, 3.5, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0 + s, 1.0), (s, 1.0)]],
     );
-    let form = turn_form(&doc, fillet);
-    assert!(
-        form.starts_with("1·max(0, "),
-        "the angle term is identically zero, the feet distance is what freezes: {form}"
+    let (doc, along_x) = on_frame(
+        doc,
+        [3.5, 0.0, 0.0],
+        [0.0, -1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        vec![vec![
+            (-1.5 - s * z0, z0),
+            (-s * z0, z0),
+            (-s * z1, z1),
+            (-1.5 - s * z1, z1),
+        ]],
     );
-}
-
-/// `node`'s first row's deciding margin, replayed with every variable
-/// a symbol and rendered with the tier's rules applied per node, at
-/// the drive's budget.
-fn turn_form(doc: &ProfileDoc, node: RecipeNodeId) -> String {
-    use geom_core::sym::deferred;
-    use geom_core::{Sym, SymBudget, SymRules};
-    let opts = editor_core::EvalOptions {
-        symbols: true,
-        profile_lift: editor_core::ProfileLift::Guided,
-        ..editor_core::EvalOptions::default()
+    let extrude = |profile: RecipeNodeId| Node::Extrude {
+        profile: profile.into(),
+        distance: len(5.0),
+        side: editor_core::ExtrudeSide::Along,
     };
-    let budget = SymBudget {
-        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
-        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
-    };
-    deferred::with_deferred_session(
-        budget,
-        SymRules::shipped(),
-        geom_core::SymRetry::none(),
-        || {
-            let ev: Evaluation<Sym<f64>> = editor_core::evaluate(
-                doc,
-                None,
-                &editor_core::CancelToken::new(),
-                &opts,
-                Tol::witness(),
-            );
-            ev.value(node)
-                .expect("the node replays")
-                .coincidences
-                .iter()
-                .flat_map(|r| deferred::render(r.margin))
-                .collect()
+    let (doc, y) = insert(doc, extrude(along_y));
+    let (doc, x) = insert(doc, extrude(along_x));
+    let (doc, sheared) = insert(
+        doc,
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![y.into(), x.into()]),
         },
-    )
-    .0
+    );
+    let ev = run(&doc);
+    let w = [2.0 + s, s, 1.0];
+    let edges = vec![
+        edge_named(&ev, sheared, w, [s, s, 1.0]),
+        edge_named(&ev, sheared, w, [2.0 + s, 1.5 + s, 1.0]),
+    ];
+    let (doc, chamfer) = insert(doc, Node::chamfer(sheared, len(0.1), edges));
+    let ev = run(&doc);
+    let got = rows(&ev, chamfer);
+    let [row] = &got[..] else {
+        panic!("one turn, one row: {got:?}")
+    };
+    assert_eq!(
+        (row.relation, row.site),
+        (Relation::CommonFoot, DecisionSite::BatteryTurn)
+    );
+    let proved = proofs(&doc, chamfer, &got);
+    assert!(
+        matches!(proved[..], [Proof::Unproven { .. }]),
+        "the door takes the supplementary turn and does not prove it: {proved:?}"
+    );
+    assert_eq!(unproven(&doc, &ev).len(), 1);
 }
 
 /// `profile` extruded one unit and split by the plane `y = at`.

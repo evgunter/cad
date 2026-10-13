@@ -1620,7 +1620,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::ContactContradicted => "contact_contradicted",
         BooleanErrorKind::ContinuationContradicted => "continuation_contradicted",
         BooleanErrorKind::UnsupportedDeclarationClass => "unsupported_declaration_class",
-        BooleanErrorKind::SeamContradicted => "seam_contradicted",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
         BooleanErrorKind::TangentSlitArmUnbuilt => "tangent_slit_arm_unbuilt",
         BooleanErrorKind::InvalidInput => "invalid_input",
@@ -1646,7 +1645,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::JoinUndecided => "join_undecided",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
         BooleanErrorKind::RestPieceUnread => "rest_piece_unread",
+        BooleanErrorKind::CarryRefused => "carry_refused",
         BooleanErrorKind::JoinDesync => "join_desync",
+        BooleanErrorKind::LineageRow => "lineage_row",
         BooleanErrorKind::EdgeUndescribed => "edge_undescribed",
         BooleanErrorKind::TornComponent => "torn_component",
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
@@ -1758,7 +1759,6 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::Emission { .. } => "emission",
         NamingError::SplitLineage(_) => "split_lineage_cycle",
         NamingError::Settle(_) => "unsettled_vertex",
-        NamingError::FragmentLineage { .. } => "fragment_lineage_cycle",
         // The MISSING-RULE arms, tagged apart from "emission": a caller
         // branching on this word is deciding whether to report a kernel
         // bug, and these are not one.
@@ -2970,11 +2970,10 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::SameOriented => "same_oriented",
         R::SameOpposite => "same_opposite",
         R::OnCarrier => "on_carrier",
-        R::EqualAngles => "equal_angles",
+        R::CommonFoot => "common_foot",
         R::Tangent { aligned: true } => "tangent",
         R::Tangent { aligned: false } => "cusp",
-        R::TangentContact { seam: false } => "tangent_contact",
-        R::TangentContact { seam: true } => "seam",
+        R::SurfaceTangent => "surface_tangent",
         R::Coaxial => "coaxial",
         R::CoRuled => "co_ruled",
     }

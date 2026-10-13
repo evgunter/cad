@@ -557,6 +557,9 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             operand: geom::SurfaceKind::Cone,
             why: geom_brep::SectorChannel::Lever.describe(),
         },
+        A::NoTubeEnclosure {
+            operand: geom::SurfaceKind::Torus,
+        },
         A::TubeStraddles {
             verdict: Refused::Zero(Classified {
                 margin: MarginDiag::value(0.0),
@@ -619,7 +622,10 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             }),
         },
         PcurveCertifyError::CarrierDomain(carrier_domain_collapsed()),
-        PcurveCertifyError::FittedEscalated { cause: diag() },
+        PcurveCertifyError::FittedEscalated {
+            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::Tube),
+            cause: diag(),
+        },
         PcurveCertifyError::IntervalNotForward,
         PcurveCertifyError::ChartWindingUnsupported,
         PcurveCertifyError::PlaceholderChart,
@@ -701,7 +707,8 @@ fn props_errors() -> Vec<PropsError> {
         PropsError::SenseContradicted,
         PropsError::SenseInverted,
         PropsError::RingWoundWithFace,
-        PropsError::ChartPeriodJump,
+        PropsError::ChartLoopOpen,
+        PropsError::LoopsWindChart,
         PropsError::NotOneChartBranch {
             edge: 2,
             what: "the edge crosses the seam",
