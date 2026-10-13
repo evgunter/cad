@@ -182,10 +182,15 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
         Vec3::new(1.0, 0.0, 0.0),
         -PI / 2.0,
     );
-    let log1 = topo::transform_rigid(&log0, &rot, Tol::witness()).unwrap();
+    let log1 = topo::transform_rigid(
+        &log0,
+        &geom_core::test_support::rigid(&rot, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     let log = topo::transform_rigid(
         &log1,
-        &Affine3::translation(Vec3::new(2.0, 0.5, 0.5)),
+        &geom_core::RigidMotion::translation(Vec3::new(2.0, 0.5, 0.5)).unwrap(),
         Tol::witness(),
     )
     .unwrap();
@@ -248,7 +253,7 @@ fn probe_contained_cylinder_reaches_the_fallback_soundly() {
     let b = disc2(0.3, 0.0, 0.3, 0.4); // wholly interior at (0,0)?? centred origin — move it
     let b = topo::transform_rigid(
         &b,
-        &Affine3::translation(Vec3::new(1.5, 1.5, 0.0)),
+        &geom_core::RigidMotion::translation(Vec3::new(1.5, 1.5, 0.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap();

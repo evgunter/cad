@@ -79,8 +79,12 @@ fn the_f64_seam_answers_every_public_door() {
         }
     }
 
-    let moved = topo::transform_rigid(&body, &rigid_f64(), Tol::witness())
-        .expect("a rigid map of a certified fit re-certifies at the run's ε");
+    let moved = topo::transform_rigid(
+        &body,
+        &geom_core::test_support::rigid(&rigid_f64(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("a rigid map of a certified fit re-certifies at the run's ε");
     let Some(Surface::Approx(m)) = moved.get_surface(moved.get_face(face).unwrap().surface) else {
         panic!("the mapped cap is still approximating");
     };
@@ -251,7 +255,7 @@ fn the_interval_seam_refuses_at_every_public_door() {
 
     match topo::transform_rigid(
         &body,
-        &Affine3::translation(v3(1.0, 0.0, 0.0)),
+        &geom_core::RigidMotion::translation(v3(1.0, 0.0, 0.0)).unwrap(),
         Tol::witness(),
     ) {
         Err(topo::TransformError::ApproxLaneUnsupported { scalar }) => {
@@ -359,11 +363,12 @@ fn the_probe_seam_refuses_at_the_map_and_the_mint() {
 
     match topo::transform_rigid(
         &body,
-        &Affine3::translation(geom_core::Vec3::new(
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(
             Probe::from_f64(1.0),
             Probe::zero(),
             Probe::zero(),
-        )),
+        ))
+        .unwrap(),
         Tol::witness(),
     ) {
         Err(topo::TransformError::ApproxLaneUnsupported { scalar }) => {

@@ -61,9 +61,9 @@ perpendicularity is free and the magnitude is not.
 It is reachable: the two supports of a corner link are distinct faces
 but nothing here refuses them being coplanar-parallel. Taking it wants
 `UnitVec3::new` under a name BLEND owns, or
-`OrthoFrame::from_axis_and_reference` if the triple is what the caller
+`RigidMotion::from_axis_and_reference` if the triple is what the caller
 actually wants — the second is now one call
-(`crates/geom-core/src/linalg/ortho_frame.rs`).
+(`crates/geom-core/src/linalg/rigid_motion.rs`).
 
 Found by FRAME-WITNESS's review sweep, whose pattern (a doc-word match
 plus a `Vec3` parameter) could not see it: the premise is in the

@@ -10,14 +10,20 @@
 //! bulging across the axis).
 
 use geom_core::{
-    Affine3, Arc2, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3, is_finite_length,
-    is_underflowed_length,
+    Affine3, Arc2, Band, Decide, Margin, Point2, Point3, Real, Sign, UnitVec3, Vec2, Vec3,
+    is_finite_length, is_underflowed_length,
 };
 use profile::ValidatedProfile;
 
 use super::{RevolveAxis, RevolveError, SweptSeg};
 use crate::swept::{arc_span, decide};
 use profile::SegmentKind;
+
+/// The K funnel name of the placed revolve axis's length: the sketch
+/// axis decided in the plane, carried through the sketch placement,
+/// and decided again as a direction in space before the revolve turns
+/// about it.
+pub(super) const REVOLVE_PLACED_AXIS: &str = "revolve_placed_axis";
 
 /// The classified axis in both coordinate systems: the sketch-plane
 /// line plus its placed 3-D frame. `a3`/`u3` are the **shared
@@ -34,8 +40,12 @@ pub(super) struct AxisFrame<T: Real> {
     pub(super) place: Affine3<T>,
     /// Placed axis origin.
     pub(super) o3: Point3<T>,
-    /// Placed unit axis direction (the rotation axis).
+    /// Placed unit axis direction.
     pub(super) a3: Vec3<T>,
+    /// [`Self::a3`] decided into a witness: the axis the revolve turns
+    /// about. The placement is a general map, so `a3` is unit only by
+    /// convention until this decision.
+    pub(super) axis: UnitVec3<T>,
     /// Placed unit radial direction (the seam meridian; `u_ref` of
     /// every revolution surface).
     pub(super) u3: Vec3<T>,
@@ -128,12 +138,15 @@ impl<T: Decide> AxisFrame<T> {
         let o3 = place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero()));
         let a3 = place.linear * Vec3::new(dir_sk.x, dir_sk.y, T::zero());
         let u3 = place.linear * Vec3::new(e_r.x, e_r.y, T::zero());
+        let turn_axis = UnitVec3::new(a3, REVOLVE_PLACED_AXIS, band)
+            .map_err(|error| RevolveError::PlacedAxis { error })?;
         Ok(Self {
             origin_sk: axis.origin,
             dir_sk,
             place,
             o3,
             a3,
+            axis: turn_axis,
             u3,
             n3: place.linear.c2,
         })

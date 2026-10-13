@@ -64,7 +64,7 @@ fn assert_result_sound<T: Decide + geom_core::CertifiedBounds + topo::AtRestPoli
     let f = T::from_f64;
     let moved = topo::transform_rigid(
         &out.body,
-        &geom_core::Affine3::translation(geom_core::Vec3::new(f(1.0), f(2.0), f(3.0))),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(f(1.0), f(2.0), f(3.0))).unwrap(),
         Tol::witness(),
     )
     .expect("transform of the double-subtract result");

@@ -402,7 +402,9 @@ fn a_cap_line_a_hair_off_the_sweeps_v_axis_never_refuses_at_the_join() {
     let eps = tol().eps();
     for d in [0.0, 26.0, -26.0, 30.0, -30.0].map(|k| k * eps * t.sin()) {
         let map = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), d);
-        let posed = topo::transform_rigid(&body, &map, tol()).unwrap();
+        let posed =
+            topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol())
+                .unwrap();
         let posed = sweep::test_support::finished("the posed", posed, tol());
         for flip in [true, false] {
             let what = format!("lean {d:e}, flipped {flip}");
@@ -556,8 +558,12 @@ fn a_bore_cut_out_through_both_caps_pairs_its_crossings_along_its_ellipse() {
     let a = 0.4;
     for (outer_phi, turn) in [(0.0, FRAC_PI_2 + 0.05), (0.0, FRAC_PI_2 - 0.05), (0.3, 1.0)] {
         let map = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), turn);
-        let tube =
-            topo::transform_rigid(&bored_cylinder(a, 0.0, outer_phi, tol()), &map, tol()).unwrap();
+        let tube = topo::transform_rigid(
+            &bored_cylinder(a, 0.0, outer_phi, tol()),
+            &geom_core::test_support::rigid(&map, tol()),
+            tol(),
+        )
+        .unwrap();
         for flip in [false, true] {
             let plane = tilted(0.5, 1.1, flip);
             let what = format!("tube with its bore seams at {turn}, flipped {flip}");
