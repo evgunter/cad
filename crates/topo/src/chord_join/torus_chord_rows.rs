@@ -69,7 +69,7 @@ fn clone(c: &SectionConic<f64>) -> SectionConic<f64> {
     SectionConic {
         center: c.center,
         normal: c.normal,
-        major: c.major,
+        seam: c.seam,
         sa: c.sa,
         sb: c.sb,
         carrier: c.carrier.clone(),

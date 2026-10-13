@@ -420,7 +420,12 @@ fn cone_family(no_split: bool) {
                 let tag = format!("cone a{alpha:.4} S{scale:e} f{f}");
                 match plane_cone_section(&plane, &cone, &reach, band()) {
                     Ok(PlaneConeSection::TiltedEllipse(e)) => {
-                        let Curve3::Ellipse { semi_u: major, semi_v: minor, .. } = e else {
+                        let Curve3::Ellipse {
+                            semi_u: major,
+                            semi_v: minor,
+                            ..
+                        } = e
+                        else {
                             unreachable!()
                         };
                         let arcs = arcs(&e, |p| (p - o_frame).dot(y_frame), 0.0, h);
@@ -496,7 +501,12 @@ fn cyl_family(no_split: bool) {
             let k = phi.cos();
             match plane_cylinder_section(&plane, &cyl, &reach, band()) {
                 Ok(PlaneCylinderSection::TiltedEllipse(e)) => {
-                    let Curve3::Ellipse { semi_u: major, semi_v: minor, .. } = e else {
+                    let Curve3::Ellipse {
+                        semi_u: major,
+                        semi_v: minor,
+                        ..
+                    } = e
+                    else {
                         unreachable!()
                     };
                     let arcs = arcs(&e, |p| (p - o).dot(axis), 0.0, scale);
