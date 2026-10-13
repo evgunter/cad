@@ -251,7 +251,7 @@ pub(crate) const fn placement_sized(
         size,
         passes,
         stored: StoredDefinite::Lever,
-        at_zero: None,
+        no_size: None,
     }
 }
 

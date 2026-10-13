@@ -926,7 +926,6 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::Crossing {
             edge: x, face: y, ..
         }
-        | RoleSeg::EdgeCrossing { a: x, b: y, .. }
         | RoleSeg::TrimEdge {
             edge: x,
             support: y,
@@ -937,6 +936,7 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         }
         | RoleSeg::EndArc { vertex: x, edge: y } => under(x) || under(y),
         // A set.
+        RoleSeg::EdgeCrossing(run) => run.iter().any(|l| under(&l.line)),
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().any(under),
         // A source edge (derivation) and the band that crossed or slit
         // it (a discriminator, like a piece's wall).

@@ -210,9 +210,12 @@ fn nurbs_chord_count(
     let rational = n.weights().iter().any(|w| *w != 1.0);
     // The convex-combination licence (the surface arm's rule): every
     // hull fact below needs strictly positive finite weights.
-    // `!(w > 0.0)` catches NaN.
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if rational && n.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+    if rational
+        && !n
+            .weights()
+            .iter()
+            .all(|w| geom_core::spline::weight_in_regime(*w))
+    {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
             note: "rational B-spline carrier with a non-positive or non-finite weight — \
@@ -321,11 +324,10 @@ fn rational_carrier_m_bound(
         })?;
     // Positivity survives insertion in ℝ; re-checked on the refined
     // weights because this code may not assume floating point did.
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if refined
+    if !refined
         .weights()
         .iter()
-        .any(|w| !(*w > 0.0) || !w.is_finite())
+        .all(|w| geom_core::spline::weight_in_regime(*w))
     {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
@@ -577,8 +579,8 @@ fn nurbs_tighten(
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,
                     note: "NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
-                           chart images live on its own cutting plane and its own \
-                           torus, so no spline chart mints one",
+                           chart images live on its own cutting plane and the two tori \
+                           that hold it, so no spline chart mints one",
                 });
             }
             // As the spiric: a focal-section image certifies on a cone

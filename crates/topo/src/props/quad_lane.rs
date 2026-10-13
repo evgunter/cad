@@ -3,7 +3,7 @@ use geom_brep::props::quad::{
 };
 use geom_brep::props::spiric;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
-use geom_brep::{Pcurve, SpiricImage};
+use geom_brep::{Pcurve, SpiricImage, WallTorus};
 use geom_core::Tol;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
@@ -463,7 +463,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         return nurbs_face(body, payload, outer, hes, band, tol, window, centre);
     }
     // A spiric bounds a plane cap or a torus wall and nothing else
-    // (`Pcurve::Spiric` certifies on those two charts only); the face
+    // (`Pcurve::Spiric` certifies on those two chart kinds only); the face
     // walk routes a plane here only when a spiric is on its boundary.
     let (outer, hes) = &loops[0];
     if matches!(surface, Surface::Plane { .. })
@@ -542,6 +542,8 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
             // traversal end when reversed (`he_plus` start either way).
             let p_start = start_point(body, *he, le.forward)?;
             let trig0 = trig_at_start(&le.carrier, p_start, eps)?;
+            let p_end = start_point(body, *he, !le.forward)?;
+            let trig1 = Some(trig_at_start(&le.carrier, p_end, eps)?);
             edges.push(TrimEdgeQ {
                 u: chan(p0.x, pa.x, pb.x, pl.x)?,
                 v: chan(p0.y, pa.y, pb.y, pl.y)?,
@@ -549,6 +551,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
                 t1: Interval::from_certified(t1),
                 forward: le.forward,
                 trig0,
+                trig1,
                 env: Interval::from_certified(cache.certificate().envelope),
             });
         }
@@ -633,6 +636,7 @@ enum WallImage {
     Spiric {
         v0: Interval,
         sense: Interval,
+        torus: WallTorus,
         major: Interval,
         minor: Interval,
     },
@@ -718,11 +722,15 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                         Pcurve::Spiric {
                             major,
                             minor,
-                            image: SpiricImage::Wall { v0, sense, .. },
+                            image:
+                                SpiricImage::Wall {
+                                    v0, sense, torus, ..
+                                },
                             ..
                         } => WallImage::Spiric {
                             v0: iv(*v0),
                             sense: iv(*sense),
+                            torus: *torus,
                             major: iv(*major),
                             minor: iv(*minor),
                         },
@@ -828,6 +836,7 @@ fn spiric_wall(
                 WallImage::Spiric {
                     v0,
                     sense,
+                    torus,
                     major: image_major,
                     minor: image_minor,
                 },
@@ -849,6 +858,17 @@ fn spiric_wall(
                     return Err(unsupported(
                         "a spiric wall edge whose carrier or image radii are not exactly \
                          its torus's",
+                    ));
+                }
+                // The wall terms (`spiric::WallImageQ`) read the
+                // carrier's OWN torus; a wall on its mirror through the
+                // cutting plane refuses typed until they read both
+                // (FLUX's `the-spiric-wall-quadrature-lane-reads-only-
+                // the-own-torus`).
+                if *torus == WallTorus::Mirror {
+                    return Err(unsupported(
+                        "a spiric wall image on the carrier's mirror torus — the wall \
+                         terms read the carrier's own torus",
                     ));
                 }
                 let sense = match exact(*sense) {
@@ -1245,15 +1265,15 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
             }
             // Same ground as the harmonic arm, one kind over: a
             // spiric image certifies on its own cutting plane and
-            // its own torus and on no spline chart at all, so a
+            // the two tori that hold it and on no spline chart at all, so a
             // cache that reached this lane is a corrupt one. Named
             // rather than folded in, because the two refusals name
             // two different classes.
             Pcurve::Spiric { .. } => {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
-                           chart images live on its own cutting plane and its own \
-                           torus, and this chart is a spline patch",
+                           chart images live on its own cutting plane and the two tori \
+                           that hold it, and this chart is a spline patch",
                 });
             }
             Pcurve::FocalSection(_) => {

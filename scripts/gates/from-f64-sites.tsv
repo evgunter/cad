@@ -19,6 +19,14 @@ crates/editor-core/src/mate/solve.rs	3	constant	<fn>	the identity's and the oppo
 crates/editor-core/src/placement.rs	1	constant	<fn>	a frame's stored coordinates, carried exactly (f64 by type in the document)
 crates/editor-core/src/ratio.rs	1	constant	self.den as f64	an authored ratio's denominator
 crates/editor-core/src/ratio.rs	1	constant	self.num as f64	an authored ratio's numerator
+crates/geom-brep/src/carrier_net.rs	1	constant	a	a span's start break, f64 structure, entered at the concrete Interval (never Sym)
+crates/geom-brep/src/carrier_net.rs	1	constant	b	a span's end break, f64 structure, entered at the concrete Interval (never Sym)
+crates/geom-brep/src/carrier_net.rs	1	constant	m	a span's Taylor node, a selection: the expansion is exact about whichever point it is handed
+crates/geom-brep/src/carrier_net.rs	1	constant	t	a line net's break, f64 structure, entered at the concrete Interval (never Sym)
+crates/geom-brep/src/carrier_net.rs	1	constant	j as f64	a factorial's integer factor
+crates/geom-brep/src/carrier_net.rs	1	constant	binom(j, k)	a binomial coefficient, an exact small integer
+crates/geom-brep/src/carrier_net.rs	1	constant	binom(i, k)	a binomial coefficient, an exact small integer
+crates/geom-brep/src/carrier_net.rs	1	constant	binom(n, k)	a binomial coefficient, an exact small integer
 crates/geom-brep/src/certify.rs	1	constant	f	a sample schedule's fraction
 crates/geom-brep/src/certify.rs	1	constant	schedule_param(domain.0, domain.1, i, samples)	held_station: an interior station of a fixed sample schedule, a point the schedule chose (the ends are the carrier's held ends)
 crates/geom-brep/src/certify.rs	2	constant	schedule_fraction(i, CERT_SAMPLES)	a sample schedule's fraction
@@ -35,7 +43,7 @@ crates/geom-brep/src/pcurve_cache.rs	1	constant	f64::from(i) / n	a sample schedu
 crates/geom-brep/src/pcurve_cache.rs	2	constant	k as f64	a chart-hat span index, and an arc rim's sub-arc index
 crates/geom-brep/src/pcurve_cache.rs	1	constant	span.saturating_sub(degree) as f64	a span index
 crates/geom-brep/src/pcurve_cache.rs	2	constant	f64::from(k)	a decided whole-period count
-crates/geom-brep/src/pcurve_cache.rs	3	constant	p as f64	the degree: a derivative net's factor over the held knots, and the Greville average's count
+crates/geom-brep/src/pcurve_cache.rs	1	constant	p as f64	the Greville average's count
 crates/geom-brep/src/pcurve_cache.rs	3	constant	spans as f64	a span count
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	0.5 * f64::from(m)	a quarter-turn count
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	a	a circle image's partition break on its unit piece parameter, a point the partition chose
@@ -59,25 +67,20 @@ crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interva
 crates/geom-core/src/spline/algebra.rs	1	constant	a	apply_rational: degree elevation's binomial ratio i/(p + 1), a constant of the operation
 crates/geom-core/src/spline/basis.rs	1	constant	factor	a falling factorial of the degree, a count
 crates/geom-core/src/spline/basis.rs	1	constant	self.0.knots().knots()[i]	the lifted basis over a bare KnotVector, which holds no value in a scalar: its one production caller is geom's f64 fit, where from_f64 is the identity; a carrier's evaluation reads basis_funs_in over its held knots. KNOWN GAP: pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
+crates/geom-core/src/spline/derivative.rs	1	constant	p as f64	the degree, a derivative coefficient's factor over the held knots
+crates/geom-core/src/spline/derivative.rs	2	constant	k	an exact binomial integer (the quotient bound's Bernstein product and elevation weights; QUOTIENT_MAX_DEGREE keeps every one below 2^53)
 crates/geom-core/src/spline/knot_values.rs	1	constant	hi	Knots::on_domain: the re-expression's upper end, the caller's f64 parameter
 crates/geom-core/src/spline/knot_values.rs	1	constant	lo	Knots::on_domain: the re-expression's lower end, the caller's f64 parameter
 crates/geom-core/src/spline/knots.rs	1	constant	hi	knot_difference: a knot of a bare KnotVector, which holds no value in a scalar (callers: the certification ring's hull over the value channel, and Knots::on_domain's caller-given ends). KNOWN GAP: the function is pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
 crates/geom-core/src/spline/knots.rs	1	constant	lo	knot_difference: a knot of a bare KnotVector, which holds no value in a scalar (callers: the certification ring's hull over the value channel, and Knots::on_domain's caller-given ends). KNOWN GAP: the function is pub and generic, so a future caller passing a carrier's channel knots at Sym adds no gate site
-crates/geom-core/src/spline/locate.rs	1	constant	<fn>	SpanLocate::refine_homogeneous' default: a point the refinement schedule inserts, carried by Knots::restructure
-crates/geom-core/src/spline/projective.rs	1	constant	v	apply_homogeneous_in: a knot the refinement brings in, a point of its schedule
+crates/geom-core/src/spline/pieces.rs	1	constant	*wj	a piece-restriction weight (piece_weights: exact de Casteljau ratios of a dyadic piece schedule)
 crates/geom-core/src/sym.rs	1	constant	x	the Real impl's own door: Sym::from_f64 is the Lit
 crates/geom/src/convention.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/geom/src/curves/banded.rs	1	constant	l	a dropped term's structural zero, signed as its pivot
 crates/geom/src/curves/fit.rs	1	constant	degree as f64	the fit degree, a count
 crates/geom/src/curves/nurbs.rs	1	constant	binom	a binomial coefficient
-crates/geom/src/curves/nurbs.rs	2	constant	*wj	a piece-restriction weight sum (piece_weights: exact de Casteljau ratios of the meter's piece schedule)
 crates/geom/src/curves/nurbs.rs	1	constant	v	a value a knot operation brings in at the caller's f64 parameter (inserted)
-crates/geom/src/curves/nurbs.rs	1	constant	wj	a piece-restriction weight sum (piece_weights: exact de Casteljau ratios of the meter's piece schedule)
-crates/geom/src/curves/nurbs.rs	1	constant	p as f64	the degree
-crates/geom/src/curves/nurbs.rs	2	constant	<fn>	the placeholder's unit knots (Knots::lift), and a meter schedule point the refinement inserts (Knots::restructure)
-crates/geom/src/curves/nurbs.rs	1	constant	binomial(m, k)	a binomial coefficient (the rational piece assembly's product denominator)
-crates/geom/src/curves/nurbs.rs	1	constant	binomial(q, a) * binomial(p, b)	a product of binomial coefficients, an exact integer (the rational piece assembly's product weights)
-crates/geom/src/curves/nurbs.rs	1	constant	pts.len() as f64	a count of a span's active control points (span_centroid)
+crates/geom/src/curves/nurbs.rs	1	constant	<fn>	the placeholder's unit knots (Knots::lift)
 crates/geom/src/surfaces/nurbs.rs	1	constant	v	a removal's reinsertion of a knot the surface does not hold: the caller's f64 parameter (unreachable: the removal took it from the surface)
 crates/geom/src/surfaces/nurbs.rs	3	constant	<fn>	the placeholder's unit knots, and a knot a column's plan inserts at the caller's f64 parameter (Column::through's fresh entry, twice)
 crates/geom/src/test_support/held_arc.rs	1	constant	m as f64	a sub-arc count
@@ -112,23 +115,30 @@ crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(top)	a subdivision 
 crates/topo/src/boolean/circle_roots.rs	2	constant	share	a fixed split fraction (SPLITS)
 crates/topo/src/boolean/circle_roots.rs	3	constant	f64::from(k)	a subdivision index
 crates/topo/src/boolean/join.rs	1	constant	band.zero()	the band's zero width, a tolerance
+crates/topo/src/boolean/mod.rs	1	constant	boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/boolean/rim_wedge.rs	1	constant	k	a fixed wrap count
 crates/topo/src/boolean/rim_wedge.rs	1	constant	phase(i)	a fixed station of the sample schedule
 crates/topo/src/boolean/rim_wedge.rs	1	constant	sgn	a root's sign, ±1
 crates/topo/src/boolean/section_cert/ruling.rs	1	constant	<block> if charged	the band's zero width or zero, a tolerance (the reader cuts the argument at its brace)
 crates/topo/src/boolean/section_cert/ruling.rs	2	constant	f64::from(k)	an eighth-turn sample index
-crates/topo/src/boolean/sectors.rs	1	constant	2.0 * other.len() as f64	a count
+crates/topo/src/boolean/sectors.rs	1	constant	2.0 * sectors.len() as f64	a count
 crates/topo/src/boolean/separating.rs	1	constant	2.0 * pad	the band's sweep pad, a tolerance
 crates/topo/src/boolean/separating.rs	1	constant	f64::from(n)	a count
 crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction of the schedule
+crates/topo/src/boolean/solid_contain.rs	1	constant	f64::from(k)	a decided whole-period count
 crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/boolean/sphere_region.rs	1	constant	share	a fixed split fraction
+crates/topo/src/census/curved.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
 crates/topo/src/chart_bound.rs	1	constant	<fn>	a fixed direction of the 2-D ray schedule (SCHEDULE_2D)
 crates/topo/src/chart_bound.rs	1	constant	k	a ring shift count (RING_SHIFTS)
 crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/chart_region.rs	1	constant	n as f64	a count
+crates/topo/src/chart_region.rs	1	constant	f64::from(k)	a decided whole-period count
+crates/topo/src/chord_join.rs	1	constant	f64::from(k)	a decided whole-period count
 crates/topo/src/joint.rs	1	constant	f64::from(self.u)	the element's integer period count
 crates/topo/src/joint.rs	1	constant	f64::from(self.v)	the element's integer polar-branch count
+crates/topo/src/offset_axial.rs	1	constant	f64::from(k)	a decided whole-period count
+crates/topo/src/offset_derive.rs	1	constant	<fn>	certified_speed: an f64 carrier's stored net lifted to Interval (map_scalar) to read its certified speed bound
 crates/topo/src/pcurves.rs	1	constant	2.0 * band.zero()	the band's zero width, a tolerance
 crates/topo/src/pcurves.rs	1	constant	f64::from(k)	a whole-period count
 crates/topo/src/pcurves.rs	1	constant	f64::from(m)	a decided step count
@@ -137,7 +147,6 @@ crates/topo/src/replace_face.rs	1	constant	(v0 + v1) * 0.5	mid_domain_normal: th
 crates/topo/src/replace_face.rs	1	constant	tol.eps()	the run's tolerance
 crates/topo/src/shell.rs	1	constant	2.0 * band.escalate()	the band's escalation width, a tolerance
 crates/topo/src/shell.rs	1	constant	n as f64	a count
-crates/topo/src/shell.rs	1	constant	p as f64	the degree, a derivative coefficient's factor over the held knots
 crates/topo/src/shell.rs	1	constant	points.len() as f64	a point count
 crates/topo/src/shell.rs	1	constant	us.len() as f64	a sample count
 crates/topo/src/splitting/classify.rs	1	constant	crate::boolean::boxes::sweep_pad(band)	the band's sweep pad, a tolerance

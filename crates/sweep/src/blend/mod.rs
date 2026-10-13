@@ -110,7 +110,7 @@
 //! the end by how many of the vertex's three edges it names — all three,
 //! the corner patch (a sphere octant resting inside the material or in
 //! the void with its ball, or the chamfer's flat patch); two, the MITRE
-//! where the trihedron is isosceles about the third edge
+//! where the two bands' feet on the third edge are one point
 //! ([`CornerConfig::Turn`], [`RunOutPolicy::Mitre`]): the bands meet
 //! along their intersection, a line for a chamfer and a planar ellipse
 //! for a fillet, down to the third edge; one, the
@@ -132,7 +132,8 @@
 //! whose configuration is the supported one but whose shape the cut-off
 //! does not build — a curved end face, a foot off its rim's span
 //! (landing inside a support), two band ends' feet crossing on the one
-//! rim they share, a turn whose trihedron is not isosceles — is a
+//! rim they share, a turn whose bands' feet on its third edge stand
+//! apart (the overrun) — is a
 //! **run-out**, and refuses as
 //! [`BlendError::UnsupportedRunOut`] before any mutation.
 
@@ -140,6 +141,7 @@ mod admit;
 pub mod arms;
 pub mod battery;
 pub mod build;
+mod consume;
 pub mod naming;
 mod open;
 pub(crate) mod reach;
@@ -156,7 +158,8 @@ use topo::{DihedralReading, EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
-    BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, Turn, run_battery, run_battery_for,
+    BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, Overrun, Turn, TurnRunOut,
+    run_battery, run_battery_for,
 };
 pub use build::{Blended, Chamfered, Filleted, chamfer_edges, fillet_edges};
 pub use naming::{BlendNaming, RimSide};
@@ -292,11 +295,19 @@ pub enum BlendDecision {
     /// put their feet on it in order and definitely apart, so the
     /// second split lands on the piece the first leaves.
     CutOffFeet,
-    /// `fillet3_turn_isosceles`: at a turn, the two requested edges make
-    /// equal angles with the unrequested one — the trihedron is
-    /// isosceles about it — and the two bands' feet on it agree, so the
-    /// mitre lands on it. Passes only at zero.
-    TurnIsosceles,
+    /// `fillet3_turn_feet_gap`: at a turn, how far apart the two bands'
+    /// feet on the unrequested edge stand, signed by which is further.
+    /// Zero (with the chord) lands the mitre on that edge; definite
+    /// (with the chord) is the overrun.
+    TurnFeetGap,
+    /// `fillet3_turn_overrun_chord`: at a turn, the overrun's one new
+    /// short edge, from the mitre's end on the near band's trimline to
+    /// the far band's foot, signed as the gap.
+    TurnOverrunChord,
+    /// `fillet3_turn_feet`: a turn's gap and chord decided on different
+    /// sides of the band — the two feet neither one point nor clearly
+    /// apart. Reported through the straddle door, never decided itself.
+    TurnFeet,
     /// `cylinder_cylinder_section`: a filleted turn's two cylinders
     /// meet in the two ellipses whose one in the trihedron's plane of
     /// symmetry is the mitre. Decided in `geom-brep` (the radii equal,
@@ -308,7 +319,7 @@ pub enum BlendDecision {
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 19] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
@@ -324,7 +335,9 @@ impl BlendDecision {
         Self::CapTransverse,
         Self::CapEllipse,
         Self::CutOffFeet,
-        Self::TurnIsosceles,
+        Self::TurnFeetGap,
+        Self::TurnOverrunChord,
+        Self::TurnFeet,
         Self::MitreSection,
     ];
 
@@ -358,7 +371,9 @@ impl BlendDecision {
             Self::CapTransverse => "fillet3_cap_transverse",
             Self::CapEllipse => "ellipse_axes_distinct",
             Self::CutOffFeet => "fillet3_cut_off_feet",
-            Self::TurnIsosceles => "fillet3_turn_isosceles",
+            Self::TurnFeetGap => "fillet3_turn_feet_gap",
+            Self::TurnOverrunChord => "fillet3_turn_overrun_chord",
+            Self::TurnFeet => "fillet3_turn_feet",
             Self::MitreSection => "cylinder_cylinder_section",
         }
     }
@@ -403,11 +418,20 @@ impl BlendDecision {
             Self::CutOffFeet => {
                 "whether two cut-offs' feet on the rim they share stand definitely apart"
             }
-            Self::TurnIsosceles => {
-                "whether two requested edges turning at a vertex make equal angles with its \
-                 third edge, the faces being symmetric about it (the margin is the difference \
-                 of the angles' cosines, levered at the longer edge, or the distance between \
-                 the two bands' feet on the third edge, whichever is larger)"
+            Self::TurnFeetGap => {
+                "whether the two bands turning at a vertex meet its third edge at one point \
+                 (the margin is the distance between their feet on it, signed by which is \
+                 further)"
+            }
+            Self::TurnOverrunChord => {
+                "whether the band reaching further down a turn's third edge runs on past the \
+                 mitre (the margin is the overrun's chord, from the mitre's end to that band's \
+                 foot, signed by which foot is further)"
+            }
+            Self::TurnFeet => {
+                "whether a turn's two bands meet its third edge at one point or clearly apart \
+                 (the distance between their feet and the overrun's chord read on different \
+                 sides of the band)"
             }
             Self::MitreSection => {
                 "whether a filleted turn's two bands meet in an ellipse (the margin is the \
@@ -439,7 +463,9 @@ impl BlendDecision {
             Self::CapTransverse => FILLET3_CAP_TILT_RECOURSE,
             Self::CapEllipse => FILLET3_CAP_ELLIPSE_RECOURSE,
             Self::CutOffFeet => FILLET3_CORNER_RECOURSE,
-            Self::TurnIsosceles | Self::MitreSection => FILLET3_TURN_RECOURSE,
+            Self::TurnFeetGap | Self::TurnOverrunChord | Self::TurnFeet | Self::MitreSection => {
+                FILLET3_TURN_RECOURSE
+            }
         }
     }
 
@@ -466,7 +492,9 @@ impl BlendDecision {
             | Self::SupportCoaxiality
             | Self::ContactWedge
             | Self::CapTransverse
-            | Self::TurnIsosceles
+            | Self::TurnFeetGap
+            | Self::TurnOverrunChord
+            | Self::TurnFeet
             | Self::MitreSection => None,
             // `geom_brep::DIHEDRAL_ARM`'s offer is withheld: a tolerance
             // that decides the arm decides the wedge it meters too
@@ -497,7 +525,7 @@ impl BlendDecision {
                 size,
                 passes,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             }
             .recourse(arm, Reading::Build),
             None => LeverOnly { lever }.recourse(arm, Reading::Build),
@@ -537,6 +565,26 @@ pub(crate) fn classify_reported<T: Decide>(
             source,
         }
     })
+}
+
+/// **Two readings of one decision that disagree**: `lower` decided
+/// below `upper`, Zero against a definite sign or the two definite
+/// signs apart. Neither answers, so the pair escalates at `site` as
+/// `decision`, its margin their hull, through the funnel's straddle door
+/// ([`geom_core::k_stats::straddle`]), which records it on the frame
+/// under `decision`'s own name.
+pub(crate) fn straddle(
+    site: BlendSite,
+    decision: BlendDecision,
+    lower: geom_core::Decided,
+    upper: geom_core::Decided,
+    band: Band,
+) -> BlendError {
+    BlendError::Escalated {
+        site,
+        decision,
+        source: geom_core::k_stats::straddle(decision.predicate(), lower, upper, band),
+    }
 }
 
 /// [`classify`] gated on a definitely positive margin
@@ -735,9 +783,10 @@ pub enum RunOutPolicy {
     /// **Each band is cut off by the other's support and the two meet
     /// along their intersection** — the policy of a
     /// [`CornerConfig::Turn`]: the end where two edges of the vertex
-    /// are requested. Built where the trihedron is isosceles about the
-    /// third edge, the mitre running down to it and the third edge
-    /// ending there; a turn that is not isosceles is not built.
+    /// are requested. Built where the two bands' feet on the third edge
+    /// are one point, the mitre running down to it and the third edge
+    /// ending there; a turn whose feet stand apart overruns, and is not
+    /// built.
     Mitre,
 }
 
@@ -757,7 +806,7 @@ impl fmt::Display for RunOutPolicy {
 /// The corner-configuration tags C8's scope box enumerates. Three are
 /// constructible — [`CornerConfig::ThreeConvexEdges`] with independent
 /// support normals (the corner patch), [`CornerConfig::EndFace`] (the
-/// cut-off) and the isosceles [`CornerConfig::Turn`] (the mitre); the
+/// cut-off) and the [`CornerConfig::Turn`] whose feet meet (the mitre); the
 /// rest are the refusal taxonomy, each pinned by a
 /// fixture that reaches it.
 ///
@@ -837,9 +886,10 @@ pub enum CornerConfig {
     /// the chain turns a definite corner there: each band is cut off by
     /// the other's support and meets it along their intersection
     /// ([`RunOutPolicy::Mitre`]). IN SCOPE for both verbs on either
-    /// side where `fillet3_turn_isosceles` decides the trihedron
-    /// isosceles about the third edge; any other turn refuses as a
-    /// run-out. A configuration tag, as [`Self::EndFace`] is: no
+    /// side where the two bands' feet on the third edge are decided one
+    /// point (`fillet3_turn_feet_gap` and `fillet3_turn_overrun_chord`
+    /// both Zero); a turn whose feet stand clearly apart overruns, and
+    /// refuses as a run-out. A configuration tag, as [`Self::EndFace`] is: no
     /// refusal carries it, and C8 names it beside the policy it takes.
     Turn,
     /// A vertex reached with an in-band or poisoned configuration
@@ -923,7 +973,7 @@ impl fmt::Display for CornerConfig {
             Self::Turn => write!(
                 f,
                 "a turn: two of the vertex's three edges are requested, which the mitre \
-                 joins (built where the faces are symmetric about the third)"
+                 joins (built where the two bands' feet on the third edge meet)"
             ),
             Self::Indeterminate => write!(f, "a vertex whose configuration did not classify"),
         }
@@ -1063,13 +1113,20 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 pub const FILLET3_CORNER_RECOURSE: &str = "end chains at trivalent vertices of one convexity \
      between planes, whatever is requested: all three edges, two symmetric about the third, or one \
      cut off in a plane end face, in one call";
-/// The lever of `fillet3_turn_isosceles`: in band, the turn is neither
-/// decided symmetric nor decided not, so the way out is a symmetric
-/// vertex, or the corner patch, which the third edge requested
-/// alongside builds. A clearly asymmetric vertex is no way out: it
-/// refuses too.
-pub const FILLET3_TURN_RECOURSE: &str = "make the faces at the vertex symmetric about its third \
-     edge, where the two bands meet on it, or request that edge too, which builds the corner patch";
+/// The lever of a turn's two readings (`fillet3_turn_feet_gap`,
+/// `fillet3_turn_overrun_chord`, and their straddle
+/// `fillet3_turn_feet`): in band, the two bands' feet on the third
+/// edge are neither one point nor clearly apart, so the way out is one
+/// point, clearly apart, or the corner patch, which the third edge
+/// requested alongside builds. A chamfer's foot stands `d / sin φ` down
+/// the third edge, so its feet also meet at supplementary face angles.
+/// Feet clearly apart are a way out for a chamfer alone, whose overrun
+/// builds; a fillet's refuses ([`battery::TURN_OVERRUN`]). Held to it by
+/// `blend_recourse_followability::the_turn_recourse_builds_at_each_end_it_names`.
+pub const FILLET3_TURN_RECOURSE: &str = "make the two bands' feet on the vertex's third edge meet \
+     (equal face angles beside that edge, or for a chamfer supplementary ones), for a chamfer move \
+     them clearly apart (a larger setback, or a more asymmetric corner), or request that edge too, \
+     which builds the corner patch";
 /// The lever of `fillet3_cap_transverse`: its in-band arm is the one
 /// refusal, between the two kinds it builds, so the way out is either
 /// kind, plainly.
@@ -1596,8 +1653,8 @@ pub enum BlendError {
     /// configuration a band builds, but in a shape its end does not —
     /// a run-out: a curved end face, a foot off its rim's span (inside a
     /// face rather than on the end face's rim), two cut-offs' feet that
-    /// cross on one shared rim, a turn whose trihedron is not isosceles
-    /// (its two requested edges at different angles to the third).
+    /// cross on one shared rim, a turn whose two bands' feet on its third
+    /// edge stand apart (the overrun past the mitre).
     ///
     /// This is deliberately *not* [`BlendError::UnsupportedCorner`],
     /// which is the OQ6 vocabulary for what a vertex's own
@@ -1752,8 +1809,9 @@ pub enum BlendError {
     /// crossing anywhere refuses as a crossing, and a face or cycle
     /// certified none of the three refuses as a bound. The feature goes
     /// with that material, as a feature wholly inside a Boolean's tool
-    /// goes with the tool (C8). That carve is not built, so the request
-    /// refuses.
+    /// goes with the tool (C8). The carve takes a through-feature
+    /// between a convex ruled band's two caps (`blend::consume`); a
+    /// request whose inside readings are anything else refuses.
     WhollyInside {
         /// The face wholly inside a band's reach, or the cycle of a
         /// cut-off's end face (a ring) wholly inside the sliver, that is

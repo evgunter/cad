@@ -369,61 +369,16 @@ pub(crate) fn runs_in(
     }
 }
 
-/// **The cases that refuse in some member orders and publish in others**,
-/// pinned: `(label, union, orders refusing, each refusal variant with its
-/// count of orders)`. Each is a real order dependence, owned by
-/// `work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`
-/// and the rows it cites; a change here is a change to that row, measured.
-/// `cross` refuses the held-edge residue
-/// (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
-const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[("cross", "U", 10, "Naming:10")];
-
-/// **The cases whose fused orders publish different name sets**, pinned:
-/// `(label, union, (order, name) absences, their digest)`. The digest is
-/// [`fnv1a`] over the sorted `"<label> <union> <order>: <name>"` lines, so
-/// a change in WHICH names are missing turns the row red even where the
-/// count holds; the failure prints the new digest. In `cross` and
-/// `r1three`, whose flush contacts glue, the vertex where a member's face
-/// crosses a seam of two others, the seam edge's pieces it ends and, in
-/// `cross`, the merged faces those pieces bound are spelled by member
-/// order;
-/// `work/emit/a-crossing-of-a-union-seam-is-spelled-by-member-order.md`
-/// owns it. A vertex where two member edges meet is named from the
-/// finished body (`emit_union::Flush::edge_crossing`), so `r5poke` and
-/// `r5pokehi` publish one table.
-const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("cross", "U", 140, 4903466734301499407),
-    ("r1three", "U", 480, 7402196657749732725),
-];
-
-/// One fused order and every entity it publishes, as sorted geometry.
-type OrderGeometry = (String, Vec<String>);
-
-/// FNV-1a over `lines` in order, each followed by a newline: a digest
-/// that is the same on every platform and toolchain.
-fn fnv1a<'a>(lines: impl IntoIterator<Item = &'a String>) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for line in lines {
-        for b in line.bytes().chain(core::iter::once(b'\n')) {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x0000_0100_0000_01b3);
-        }
-    }
-    h
-}
-
 /// **No name rebinds across member orders, and no order refuses what
 /// another publishes.** Over every case and every pair of fused orders, a
 /// name both tables publish denotes the same thing ([`signature`]: points
 /// to 1e-9, shells told apart, ties compared) — for a nested case, in the
 /// inner union and in the outer one. A case whose orders do not all
-/// publish reds, unless it is one of [`KNOWN_MIXED`] exactly as pinned
-/// there (`work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`).
+/// publish reds.
 ///
 /// A name one fused order publishes and another does not fails the row,
 /// whatever it names: a vertex, a piece of a member edge, a face or a
-/// seam edge, unless its case's count of such absences is pinned in
-/// [`KNOWN_ABSENT`]. Each is named for what the finished body holds — a face
+/// seam edge. Each is named for what the finished body holds — a face
 /// for its parent and the parents across its dividing seams, a seam edge
 /// for the parents it lies between (N2, N3) — so it is the same in every
 /// order.
@@ -436,10 +391,7 @@ fn fnv1a<'a>(lines: impl IntoIterator<Item = &'a String>) -> u64 {
 fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
     let mut compared = 0;
     let mut mixed = Vec::new();
-    let mut absent: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
-    // (case, union) of KNOWN_ABSENT → (order, every published entity's
-    // geometry, sorted): the whole-table guard the one-table row skips.
-    let mut geometries: BTreeMap<(String, String), Vec<OrderGeometry>> = BTreeMap::new();
+    let mut absent: Vec<String> = Vec::new();
     for case in cases() {
         let mut seen: BTreeMap<(String, StableName), (String, String)> = BTreeMap::new();
         // tag → (order, refusal or None, published names)
@@ -464,17 +416,6 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
                     continue;
                 }
                 let sigs = signature(ev, union);
-                if KNOWN_ABSENT
-                    .iter()
-                    .any(|&(label, t, ..)| label == case.label && t == tag)
-                {
-                    let mut all: Vec<String> = sigs.values().cloned().collect();
-                    all.sort();
-                    geometries
-                        .entry((case.label.clone(), tag.to_string()))
-                        .or_default()
-                        .push((at.to_string(), all));
-                }
                 outcomes.entry(tag.to_string()).or_default().push((
                     at.to_string(),
                     None,
@@ -532,56 +473,20 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
                     if ns.contains(name) {
                         continue;
                     }
-                    absent
-                        .entry((case.label.clone(), tag.clone()))
-                        .or_default()
-                        .push(format!("{} {tag} {at}: {name:?}", case.label));
+                    absent.push(format!("{} {tag} {at}: {name:?}", case.label));
                 }
             }
         }
     }
-    let counted: Vec<(String, String, usize, u64)> = absent
-        .iter_mut()
-        .map(|((label, tag), names)| {
-            names.sort();
-            (label.clone(), tag.clone(), names.len(), fnv1a(names.iter()))
-        })
-        .collect();
-    let pinned: Vec<(String, String, usize, u64)> = KNOWN_ABSENT
-        .iter()
-        .map(|&(label, tag, n, digest)| (label.to_string(), tag.to_string(), n, digest))
-        .collect();
-    assert_eq!(
-        counted,
-        pinned,
-        "the names published in one fused order and absent in another changed; the first: {:?}",
-        absent.values().flatten().next()
+    assert!(
+        absent.is_empty(),
+        "{} names published in one fused order and absent in another; the first: {:?}",
+        absent.len(),
+        absent.first()
     );
-    assert_eq!(
-        geometries.len(),
-        KNOWN_ABSENT.len(),
-        "every KNOWN_ABSENT union publishes in some order"
-    );
-    for ((label, tag), published) in &geometries {
-        let ((first_at, first), rest) = published
-            .split_first()
-            .expect("an entry is only made with an order in it");
-        assert!(!rest.is_empty(), "{label} {tag}: only {first_at} fuses");
-        for (at, all) in rest {
-            assert_eq!(
-                first, all,
-                "{label} {tag}: {first_at} and {at} publish different geometry, \
-                 not only different names for it"
-            );
-        }
-    }
-    let known: Vec<String> = KNOWN_MIXED
-        .iter()
-        .map(|(label, tag, n, kinds)| format!("{label} {tag}: {n} {kinds}"))
-        .collect();
-    assert_eq!(
-        mixed, known,
-        "the cases that refuse in some orders and publish in others changed"
+    assert!(
+        mixed.is_empty(),
+        "cases refuse in some orders and publish in others: {mixed:?}"
     );
     assert!(
         compared > 1000,
@@ -633,8 +538,6 @@ type Signatures = BTreeMap<StableName, String>;
 /// three members each flush with the other two; a member another
 /// covers, wholly or on one face; a member merged and then swallowed; a
 /// member touching another along a line; a union nested in another.
-/// A union of [`KNOWN_ABSENT`] is compared on the names every one of its
-/// fused orders publishes: its tables differ by the names pinned there.
 #[test]
 fn a_flush_union_publishes_one_table_in_every_member_order() {
     let mut checked = 0;
@@ -651,21 +554,7 @@ fn a_flush_union_publishes_one_table_in_every_member_order() {
                 }
             }
         });
-        for (tag, mut published) in tables {
-            if KNOWN_ABSENT
-                .iter()
-                .any(|&(label, t, ..)| label == case.label && t == tag)
-            {
-                let everywhere: Vec<StableName> = published[0]
-                    .1
-                    .keys()
-                    .filter(|n| published.iter().all(|(_, t)| t.contains_key(*n)))
-                    .cloned()
-                    .collect();
-                for (_, table) in &mut published {
-                    table.retain(|n, _| everywhere.contains(n));
-                }
-            }
+        for (tag, published) in tables {
             let [(first_at, first), rest @ ..] = published.as_slice() else {
                 continue;
             };
@@ -828,15 +717,17 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
                     };
                     let p = point(body, v);
                     for seg in &name.path {
-                        let (RoleSeg::Seam { a, b }
-                        | RoleSeg::EdgeCrossing { a, b, .. }
-                        | RoleSeg::Crossing {
-                            edge: a, face: b, ..
-                        }) = seg
-                        else {
-                            continue;
+                        let sides: Vec<&StableName> = match seg {
+                            RoleSeg::Seam { a, b }
+                            | RoleSeg::Crossing {
+                                edge: a, face: b, ..
+                            } => vec![a.name(), b.name()],
+                            RoleSeg::EdgeCrossing(run) => {
+                                run.iter().map(|l| l.line.name()).collect()
+                            }
+                            _ => continue,
                         };
-                        for side in [a.name(), b.name()] {
+                        for side in sides {
                             if side.kind != EntityKind::Edge || side.node != union {
                                 continue;
                             }
@@ -1026,19 +917,22 @@ fn a_covered_contact_decides_alike_in_every_order() {
     }
 }
 
-/// **The covered-contact row itself: `{a, b, h}`.** Every order fuses,
-/// and the orders where `a` and `h` meet first publish the table of
-/// those that fold `h` before `a` or `b`. The two that fold `h` last
-/// publish another: `a`'s two top rims along `y`, each a whole member
-/// edge, as pieces of themselves
-/// (`work/emit/a-whole-member-rim-is-published-as-a-piece-of-itself-in-some-member-orders.md`).
+/// **The covered-contact row itself: `{a, b, h}`.** Every order fuses
+/// and publishes one table: `a`'s two top rims along `x`, which `h`'s
+/// wall cuts from `b`'s, are each a whole member edge and take the bare
+/// name, though the orders that fold `a` and `b` first meet them as
+/// pieces of the rim the two members' flush walls joined.
 #[test]
 fn a_contact_b_covers_decides_in_every_order() {
     assert_eq!(
         tables_by_order("{a, b, h}", &[A, B, H], &[0, 1, 2]),
-        [
-            vec![vec![0, 1, 2], vec![1, 0, 2]],
-            vec![vec![0, 2, 1], vec![1, 2, 0], vec![2, 0, 1], vec![2, 1, 0]],
-        ]
+        [vec![
+            vec![0, 1, 2],
+            vec![0, 2, 1],
+            vec![1, 0, 2],
+            vec![1, 2, 0],
+            vec![2, 0, 1],
+            vec![2, 1, 0],
+        ]]
     );
 }

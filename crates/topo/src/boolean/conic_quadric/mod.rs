@@ -275,11 +275,11 @@ pub(super) fn conic_quadric_roots<T: Decide>(
         |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
         frame,
         &ladder_rows(decision),
-        Some(&RootSlack {
+        &RootSlack {
             row: LADDER_ROOT_SLACK,
             residual: &|theta| geom_brep::conic_quadric_residual(&conic, quadric, theta),
             f_per_metre_hi: T::one(),
-        }),
+        },
         band,
     )
 }
@@ -438,7 +438,7 @@ fn cone_roots<T: Decide>(
             |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
             ladder_frame(conic, (t0, t1), noise, h.floor),
             &ladder_rows(BooleanDecision::ArcConeRoots),
-            Some(&meter),
+            &meter,
             band,
         )?
     };

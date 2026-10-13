@@ -11,17 +11,19 @@ refs: [surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key
 
 ## What
 
-`Shelled::carry_contacts` reads `RimNaming::seam_pieces` as division
-rows (`crates/topo/src/shell.rs`), so a record on the seam of a
-designated chart that wraps between two boundaries lands on the seam
-piece whose interior still meets its other cell. No test reaches that
-arm: a record needs another body resting on a cylinder-like chart's
-seam line, built by a union, and the boolean's support for a vertex or
-edge resting on a curved face's seam was not measured. The arm shares
-its code with the split's edge pieces and the shell's hole rims
-(`ContactRecords::carried_through_pieces` over `Divisions`), which are
-rowed (`crates/topo/tests/divided_cell_carry.rs`), so what is untested
-is only that the seam rows are the right rows.
+`Shelled::lineage` (`crates/topo/src/shell.rs`) divides a divided seam
+(`RimNaming::seam_pieces`) into its pieces and the ring corners they
+end on, its span across the opening removed, so a record on the seam
+of a designated chart that wraps between two boundaries lands on the
+seam piece (or the corner) whose interior still meets its other cell.
+No test reaches that arm: a record needs another body resting on a
+cylinder-like chart's seam line, built by a union, and the boolean's
+support for a vertex or edge resting on a curved face's seam was not
+measured. The carry itself is the one carry every op shares
+(`ContactRecords::carried_through` over a `topo::Lineage`), which is
+rowed (`crates/topo/tests/one_record_carry.rs`,
+`crates/topo/tests/surgery_carries_records.rs`), so what is untested is
+only that the seam's fate is the right one.
 
 ## Fix
 

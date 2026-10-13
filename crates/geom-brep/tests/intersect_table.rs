@@ -2229,7 +2229,7 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
     };
     assert_eq!(diag.predicate, Some("pt_axis_plane_gap"));
     // In-band on `pt_axis_normal`: normal 3ε/R of a radian off the
-    // axis (sine levered at R = 0.75 ⇒ margin 3ε).
+    // axis (sine levered at R + r ⇒ margin 3ε·(1 + r/R)).
     let t = 3.0 * eps() / 0.75;
     let almost_normal = Surface::Plane {
         origin: Point3::new(1.0, 2.0, 3.0),
@@ -2408,8 +2408,9 @@ fn plane_torus_levers_are_live_at_non_unit_arms() {
         matches!(m, PlaneTorusSection::MeridianCircles { .. }),
         "extent 0.01 puts a 3ε sine inside Zero: got {m:?}"
     );
-    // `pt_axis_normal` — its arm is `R`, not the extent — at R = 0.2:
-    // levered margin 0.6ε ⇒ Zero, and the cap classification proceeds.
+    // `pt_axis_normal` — its arm is `R + r`, not the extent — at
+    // R + r = 0.25: levered margin 0.75ε ⇒ Zero, and the cap
+    // classification proceeds.
     // Delevered, the raw 3ε sine would escalate.
     let small = torus_y(0.2, 0.05);
     let almost_normal = Surface::Plane {
@@ -2420,7 +2421,7 @@ fn plane_torus_levers_are_live_at_non_unit_arms() {
     let c = plane_torus_section(&almost_normal, &small, 1.0, band()).unwrap();
     assert!(
         matches!(c, PlaneTorusSection::ConcentricCircles { .. }),
-        "R = 0.2 puts a 3ε sine inside Zero: got {c:?}"
+        "R + r = 0.25 puts a 3ε sine inside Zero: got {c:?}"
     );
 }
 

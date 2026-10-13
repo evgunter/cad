@@ -2184,3 +2184,95 @@ That merge deleted the seam-vertex partner arms, so
 `the-seam-vertex-contact-partner-arms-have-no-planar-witness-under-maximal-edges`
 is closed as moot.
 - 2026-10-12 — Seam note from ENCL (PR 4811, merged at `abff76bb25`): editor-core's undecided sentences render through `Indeterminate::undecided`. Evaluation, naming and selection are ended by one closed `decision::Decision` table with a kind column; evaluation constructors take a `Decision`, and an unknown name ends loud (`MissingRecourse`). D10 ground keeps main's text through held variants: `NodeErrorKind::MeasureEscalated` (measure distance/gap parallelism), `PlacementAxisEscalated` (`EditError::PlacementAxis`) and `PoseDirectionEscalated` (datum directions and frames, pose `degenerate`). All three classify as Escalated, and pncad-py `tags.rs` and viewer `tree.rs` gained arms. Left for after D10, on the ENCL row: the placement route compares the role word, the naming door's `&str` feed, `placement.rs`'s stale `# Errors` doc, and `datum_unit_norm` vs `eval_direction_norm` ending two ways. (ENCL orchestrator)
+
+## 2026-10-12 — the junction / corner-tie fork goes to Ev
+
+One designer pair weighed both design rows: the PR 4284 residue (three or
+more members at one point) and the corner the result holds as several
+vertices. It took three reconciliation rounds; the pair crossed twice on
+whether a face through the point belongs in the name. They converged:
+- a non-corner vertex is the run of lines through it;
+- each sense is read against what the name cites;
+- a corner's copies are `Fragment(Borders)` fragments of it.
+
+Fork-log row 124; the `[ev]` PR states it in N2.
+
+## 2026-10-12 — PR 4881 ruled
+
+Ev approved the converged recommendation. Ev asked two follow-up questions:
+- whether senses are inconsistent today (no: only a seam line's sense would be new);
+- whether that sense is meaningful.
+
+Then Ev ruled to leave the seam sense out while ranking is the easier route. Two vertices
+with one seam run rank along a straight seam they share. The two rows are
+now build rows, with `design` and `needs_ev` cleared; the fork-log row was renumbered to 124
+at merge.
+
+## 2026-10-13 — PRs 4916 and 4922: the 4881 ruling built
+
+**PR 4916: a corner held as several result vertices is a
+`Fragment(Borders)` at each copy.**
+- All 36 formerly tied groups separate.
+- The wall reading is now one rule (`borders::walls`), shared by faces and corners. An empty wall set refuses on both paths.
+- The obstacle linking now joins two discards that both bounded an edge which died with them. That is N2's "connected part of the parent's region".
+
+Closed `a-corner-held-as-several-result-vertices-ties`. Filed
+`a-face-whose-discarded-fragments-share-a-chord-has-no-fixture`.
+
+**PR 4922: a non-corner vertex is the run of lines through it.**
+- `EdgeCrossing(Vec<RunLine>)`; seams in a run carry no sense.
+- The union reads every non-corner vertex from the finished body (`Flush::meeting`). Senses come from the pairwise judgements.
+- The junction, the four silent fallbacks and the fold-carried senses are retired.
+
+What moved:
+- Two wedges + plate: 3 names → 1 in every order.
+- The cut-seam fixtures publish one table in every order.
+- `KNOWN_ABSENT`: r1three 480 → 0, cross 140 → 28 (a face residue, filed).
+- The corpus moved spelling only.
+
+Closed `a-meeting-of-three-members-at-one-point-has-no-order-free-sense` and
+`a-crossing-of-a-union-seam-is-spelled-by-member-order`. WIRE's
+`a-pinch-vertex-is-named-by-the-fold-step-that-mints-it` was closed, then
+reopened in the fold with new evidence: P − U's own junction carries an
+order-dependent face piece, and four wedges P − U refuses in one order, as
+on main.
+
+Filed:
+- `a-merged-face-pieces-borders-in-a-union-depend-on-member-order`;
+- `a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical`;
+- `a-pair-boolean-names-an-edge-bearing-meeting-as-a-seam-junction` (a conversion was built and reverted: it fired only in union fold steps and added a refusal);
+- `a-unions-flush-reading-is-straight-only`;
+- `a-unions-member-lookups-skip-a-non-unique-row-silently`.
+
+## 2026-10-13 — PRs 4949 and 4958: member-order freedom and the pair boolean's meetings
+
+**PR 4949: union member-order freedom.**
+- The `Borders` chase now follows the output stage's `EdgeJoin` and each step's split lineage. In `cross` the 28 order-dependent names go to 0, the 10 orders that refused `Emission` fuse, and all 24 orders publish one table. `emit_shared_rim_several` fuses 282 of 282 cells.
+- A member rim the finished body holds whole keeps its bare name however the fold spelled it.
+- Closed: `a-merged-face-pieces-borders-in-a-union-depend-on-member-order`, `a-whole-member-rim-is-published-as-a-piece-of-itself-in-some-member-orders`.
+- Filed from the review: `a-borders-join-can-link-two-obstacles-that-meet-only-at-a-notch-apex`, `a-booleans-same-step-split-and-join-loses-the-childs-lineage`, `borders-records-a-join-twice-and-reads-lineage-three-ways`.
+- WIRE's seam-vertex parentage residue row gained a section: the probe corpus no longer reaches it.
+
+**PR 4958: the pair boolean names an edge-bearing meeting by its lines.**
+- The refusal that made PR 4922 revert this conversion was a missing topo record. The zip's per-cone pinch copies had no origin. `BooleanNaming::cone_splits` now records them (record only), and the emitter reads a copy as the vertex it copies.
+- That one cause also explains WIRE's four-wedge P − U refusal.
+- Measured: 124 vertices take the new arm, all `Crossing`, and no golden moved. P − U and U − P carry the union's name at the wedges' meeting in every order of three and four wedges.
+- One line meeting several faces is now the typed `SeamVertexParentage` in both emitters. No test reaches it.
+- Closed:
+  - `a-pair-boolean-names-an-edge-bearing-meeting-as-a-seam-junction`;
+  - WIRE's `a-pinch-vertex-is-named-by-the-fold-step-that-mints-it`;
+  - the P1 `a-second-crossing-by-one-face-renames-the-first-and-its-pieces`. Neither remaining test row can be built: the kernel refuses the geometry, and a union no longer reaches a member edge's end-touch.
+- Filed:
+  - `a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces` (design);
+  - `a-union-edge-in-a-face-whose-member-face-glued-is-a-seam-not-a-member-edge-piece` (design);
+  - `the-cone-split-relation-has-two-homes-and-the-vertex-pass-two-ladders` (P4).
+
+## 2026-10-13 — the glued-rim fork goes to Ev
+
+A designer pair weighed whether a union edge lying on a member edge whose own face was glued away is a seam or a piece of that rim. They also weighed the unspelled pair-boolean shape of one line meeting several faces.
+
+The pair converged after one round:
+- the glued-rim edge is a seam, and the README defines "lies within" by the two-face test, with no code change;
+- the one-line shape moves to the `Emission` residue, and its row closes as unreached.
+
+This is fork-log row 131 (renumbered at merge; Ev: "sounds good!"). Also filed: `a-run-of-seams-says-every-seam-after-the-first-as-an-edge`.

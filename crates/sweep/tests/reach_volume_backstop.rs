@@ -18,12 +18,10 @@
 use core::f64::consts::PI;
 
 use crate::common::three_arc;
-use geom_core::{Point2, Point3, Tol, Vec3, tolerance::DEFAULT_EPS};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, extruded, finished, sketch_from_axes};
-use topo::{
-    AtRestBody, AtRestOutcome, Body, BooleanError, BooleanErrorKind, BooleanOp, MassPropsError,
-};
+use topo::{AtRestBody, AtRestOutcome, Body, BooleanError, BooleanErrorKind, BooleanOp};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -152,56 +150,23 @@ fn a_tilted_boss_unions_onto_a_box() {
     }
 }
 
-/// **The quadrature's convergence gap at 0.5 rad.** At the default ε the
-/// penetrating boss refuses in both operand orders: the quadrature's own
-/// convergence test on a wall face lands inside its band and escalates,
-/// so the backstop cannot measure the result
-/// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining`).
-/// Pinned at that outcome; the refusal says what ran out, and offers no
-/// coincidence to declare. Where that margin lands is a matter of ε and
-/// of the carrier's parameterization: at 1e-6 and 1e-12 it lands outside
-/// the band and both orders measure.
+/// **A boss at half a radian measures in either operand order.** The
+/// penetrating boss at 0.5 rad is one solid as `boss ∪ base` and as
+/// `base ∪ boss`, in a different arena order, and both measure at its
+/// analytic volume.
 #[test]
-fn a_boss_at_half_a_radian_meets_the_convergence_gap_at_the_default_eps() {
+fn a_boss_at_half_a_radian_measures_in_either_operand_order() {
     let theta = 0.5f64;
-    for (order, got) in [
-        (
-            "boss ∪ base",
-            topo::union(&boss(theta, 0.5), &base(), tol()),
-        ),
-        (
-            "base ∪ boss",
-            topo::union(&base(), &boss(theta, 0.5), tol()),
-        ),
-    ] {
-        let what = format!("{order} at 0.5 rad");
-        if tol().eps() != DEFAULT_EPS {
-            assert_sound(got, penetrating_union(theta, BOSS_R), &what);
-            continue;
-        }
-        let err = got.expect_err("the known gap");
-        let BooleanError::VolumeUnmeasured {
-            operand: None,
-            source:
-                MassPropsError::Face {
-                    source: geom_brep::props::PropsError::Escalated { cause, .. },
-                    ..
-                },
-        } = &err
-        else {
-            panic!("{what}: {err:?}");
-        };
-        assert_eq!(
-            cause.predicate,
-            Some("props_quad_converged"),
-            "{what}: {err:?}"
-        );
-        let text = err.to_string();
-        assert!(
-            text.contains("converged") && !text.contains("declare"),
-            "{what}: the refusal names the quadrature's convergence and no coincidence: {text}"
-        );
-    }
+    assert_sound(
+        topo::union(&boss(theta, 0.5), &base(), tol()),
+        penetrating_union(theta, BOSS_R),
+        "boss ∪ base at 0.5 rad",
+    );
+    assert_sound(
+        topo::union(&base(), &boss(theta, 0.5), tol()),
+        penetrating_union(theta, BOSS_R),
+        "base ∪ boss at 0.5 rad",
+    );
 }
 
 /// The rod: `r = 0.5` about the vertical through `(x0, 0)`, over
@@ -341,13 +306,14 @@ fn planted(
 /// **What the last round leaves open on the oblique rod pair**, metered:
 /// the boundary displacement a zero margin between two such bodies at
 /// scale `s` stays open by once every face has run its last round.
-/// Measured at scale 1: each body's last-round half-width is ≈ 2.2e-10
-/// m³ of rule remainder whatever ε, plus ≈ 0.55·ε m³; two of them over
-/// the pair's ≈ 25 m² of boundary meter ≈ 1.8e-11 m (the ε share,
-/// ≈ 0.04·ε, is left out). The remainder scales with the volume and the
-/// lever with the area, so the range grows linearly with `s`.
+/// Measured as where the right answer (`planted(A ∖ B = A)`) stops
+/// deciding: between `s = 3e12·ε` and `4e12·ε`, at every ε of the
+/// matrix, against the band's escalation edge `K·ε`, so `≈ 2.9e-12·s`.
+/// The rule remainder scales with the volume and the lever with the
+/// area, so the range grows linearly with `s`; the pads' ε share is
+/// below the measurement's resolution.
 fn last_round_open(s: f64) -> f64 {
-    1.8e-11 * s
+    2.9e-12 * s
 }
 
 /// Whether the backstop's last round decides a zero margin on the pair
@@ -359,15 +325,18 @@ fn last_round_decides(s: f64) -> bool {
 
 /// **Wrong results planted on quadrature-measured bodies.** `A` is the
 /// oblique rod; a subtraction's "result" that is the same rod fattened
-/// by a relative `δ` is too big by `≈ 5.5·δ` m³, a boundary displacement
-/// of `δ·r`, so `δ` is spelled in ε. A fattening refuses — by refinement
+/// by a relative `δ` is too big by `≈ 5.5·δ` m³, over the pair's
+/// `≈ 25` m² of boundary a displacement of `≈ 0.22·δ`, so `δ` is spelled
+/// in ε. A fattening refuses — by refinement
 /// past the reporting target where the reporting enclosures alone
 /// cannot decide — down to the open range the last round every lane
-/// runs leaves, about `4.5e-10 + 1.1·ε` m³ on this pair: `100·ε` clears
-/// it at every ε, and `ε` does where the range meters inside the band.
-/// There a fattening below it, and the right answer with it, is below
-/// the model's resolution and is accepted. Where the range meters
-/// beyond the band (ε = 1e-12, [`last_round_decides`]) the gate cannot
+/// runs leaves ([`last_round_open`]): `100·ε` clears it at every ε, and
+/// `ε` does where `0.22·ε` exceeds it (ε = 1e-9 and 1e-6; at 1e-12 the
+/// flip sits near `13·ε`). A fattening
+/// below it, and the right answer with it, is below the model's
+/// resolution and is accepted where the range meters inside the band
+/// ([`last_round_decides`]; at ε = 1e-12 the `ε` plant is such a
+/// fattening). Where the range meters beyond the band the gate cannot
 /// tell the right answer from a fattening the model resolves, and every
 /// plant below the range refuses `VolumeUndecided`.
 #[test]
@@ -401,11 +370,19 @@ fn planted_subtraction_results_refuse_down_to_the_stated_resolution() {
             Ok(AtRestOutcome::Validated),
             "the right answer passes"
         );
-        assert_eq!(
-            eps_fat,
-            Err(BooleanErrorKind::ResultVolumeImplausible),
-            "a result fattened by δ = ε refuses"
-        );
+        if 0.22 * eps > last_round_open(1.0) {
+            assert_eq!(
+                eps_fat,
+                Err(BooleanErrorKind::ResultVolumeImplausible),
+                "a result fattened by δ = ε refuses"
+            );
+        } else {
+            assert_eq!(
+                eps_fat,
+                Ok(AtRestOutcome::Validated),
+                "a fattening by δ = ε is below the last round's open range"
+            );
+        }
         assert_eq!(
             below,
             Ok(AtRestOutcome::Validated),
@@ -597,30 +574,31 @@ fn scaled_cutter(s: f64) -> AtRestBody<f64> {
 /// **The last round fails loud.** What the last round leaves open grows
 /// with the body ([`last_round_open`]), so on a large enough body it is
 /// larger than the model's resolution. The scales are spelled in ε so
-/// each is the same model at every ε: `10¹³·ε` (10⁴ at the default ε,
-/// the rod 40 km tall) and `10¹²·ε`. At the first, a result fattened by
-/// δ = 1e-11 is too big by a `0.22·δ·s` = 22ε boundary displacement and
-/// its sign is still open at the last round: the backstop refuses
-/// `VolumeUndecided` rather than accept it. The same holds of a CORRECT
-/// result at the second, whose open range meters 18ε, beyond the band
-/// too: the gate cannot tell it from a wrong one, and says so
+/// each is the same model at every ε: `10¹⁴·ε` (10⁵ at the default ε)
+/// and `10¹³·ε`. At the first, a result fattened by δ = 1e-12 is too
+/// big by a `0.22·δ·s` = 22ε boundary displacement and its sign is still
+/// open at the last round, which leaves `≈ 290ε` open: the backstop
+/// refuses `VolumeUndecided` rather than accept it. The same holds of a
+/// CORRECT result at the second, whose open range meters `≈ 29ε`,
+/// beyond the band too: the gate cannot tell it from a wrong one, and
+/// says so
 /// (`work/quad/quadrature-interval-floor-grows-with-the-body-past-the-band`).
 #[test]
 fn an_open_sign_beyond_the_band_at_the_last_round_refuses() {
     let eps = tol().eps();
-    let s = 1e13 * eps;
+    let s = 1e14 * eps;
     let (a, b) = (scaled_oblique_rod(s, 0.5), scaled_cutter(s));
     assert_eq!(
         planted(
             BooleanOp::Subtract,
             &a,
             &b,
-            &scaled_oblique_rod(s, 0.5 * (1.0 + 1e-11))
+            &scaled_oblique_rod(s, 0.5 * (1.0 + 1e-12))
         ),
         Err(BooleanErrorKind::VolumeUndecided),
         "22ε too big at scale {s:e}"
     );
-    let s = 1e12 * eps;
+    let s = 1e13 * eps;
     let (a, b) = (scaled_oblique_rod(s, 0.5), scaled_cutter(s));
     assert_eq!(
         planted(BooleanOp::Subtract, &a, &b, &a),

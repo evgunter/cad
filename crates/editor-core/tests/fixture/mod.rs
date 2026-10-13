@@ -1020,7 +1020,7 @@ pub fn plane_of(doc: &editor_core::ProfileDoc, plane: RecipeNodeId) -> profile::
     };
     let (o, u, v) = (read(origin), read(u), read(v));
     profile::SketchPlane::from_frame(
-        geom_core::OrthoFrame::gram_schmidt(
+        geom_core::RigidMotion::gram_schmidt(
             geom_core::Point3::new(o.x, o.y, o.z),
             u,
             v,
@@ -2139,7 +2139,6 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Crossing {
             edge: x, face: y, ..
         }
-        | RoleSeg::EdgeCrossing { a: x, b: y, .. }
         | RoleSeg::TrimEdge {
             edge: x,
             support: y,
@@ -2149,6 +2148,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
             support: y,
         }
         | RoleSeg::EndArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
+        RoleSeg::EdgeCrossing(run) => run.iter().map(|l| l.line.as_ref()).collect(),
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().collect(),
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             std::iter::once(edge.as_ref()).chain(band).collect()

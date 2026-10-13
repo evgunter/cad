@@ -1480,6 +1480,10 @@ pub enum NodeErrorKind {
     Boolean(BooleanError),
     /// The rigid-transform op refused.
     Transform(TransformError),
+    /// A placement's rigid motion was not minted (a part of it is not
+    /// a finite number) or not admitted (a literal frame, or a map the
+    /// mate solve composed, that the decided door refuses).
+    Motion(geom_core::RigidMotionError),
     /// The §10.3/§10.4 construction refused (M5 PR 10 §2's typed
     /// compatibility door): section shapes that do not correspond,
     /// open/closed mixing, degenerate sections, an unusable v-degree,
@@ -2195,6 +2199,7 @@ impl crate::spoken::Say for NodeErrorKind {
             // own, and a coincidence refusal carries its own recourse.
             Self::Boolean(e) => write!(f, "the Boolean op refused: {e}"),
             Self::Transform(e) => write!(f, "the transform op refused: {e}"),
+            Self::Motion(e) => write!(f, "the placement's motion refused: {e}"),
             Self::Skin(e) => write!(f, "the skin construction refused: {e}"),
             Self::Loft(e) => write!(f, "the loft assembly refused: {e}"),
             Self::CurvedSolidFrontier { what } => write!(f, "not yet buildable: {what}"),
@@ -4111,9 +4116,8 @@ where
     if let Some(&(group, cause)) = op_env.across.get(&id) {
         return fail(bracket, NodeErrorKind::Unplaced { group, cause });
     }
-    // An instance's group frame, in this lane: read before the key,
-    // which it feeds, and again by the op (the profile program's
-    // precedent below says why twice is right).
+    // An instance's group frame, in this lane: read once, before the
+    // key, which it feeds, and handed to the op.
     let group_frame = match wire::instance_frame(doc, id, op_env.poses, env, tol) {
         Ok(frame) => frame,
         Err(kind) => return fail(bracket, kind),
@@ -4336,6 +4340,7 @@ where
         &slot_values,
         payload.as_ref(),
         profile_pre.as_ref(),
+        group_frame,
         op_env,
         tol,
     );
@@ -4982,6 +4987,10 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
         frame_bits(h, &pose.right);
         match frame {
             crate::placement::Motion::Identity => h.write_tag(tag::presence::ABSENT),
+            crate::placement::Motion::Rigid(rigid) => {
+                h.write_tag(tag::presence::PRESENT);
+                frame_bits(h, &rigid.to_affine());
+            }
             crate::placement::Motion::Map(map) => {
                 h.write_tag(tag::presence::PRESENT);
                 frame_bits(h, &map);
@@ -6339,13 +6348,15 @@ fn extrude_side_tag(side: crate::node::ExtrudeSide) -> u8 {
     }
 }
 
-fn sense_tag(sense: crate::names::Sense) -> u8 {
+/// A crossing sense's key tag: a run line with no sense (a seam) is 0.
+fn sense_tag(sense: Option<crate::names::Sense>) -> u8 {
     use crate::names::Sense;
     match sense {
-        Sense::Enters => 1,
-        Sense::Leaves => 2,
-        Sense::Outside => 3,
-        Sense::Inside => 4,
+        None => 0,
+        Some(Sense::Enters) => 1,
+        Some(Sense::Leaves) => 2,
+        Some(Sense::Outside) => 3,
+        Some(Sense::Inside) => 4,
     }
 }
 
@@ -6597,18 +6608,14 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::Crossing { edge, face, sense } => {
             h.name(edge);
             h.name(face);
-            h.write_tag(sense_tag(*sense));
+            h.write_tag(sense_tag(Some(*sense)));
         }
-        RoleSeg::EdgeCrossing {
-            a,
-            a_sense,
-            b,
-            b_sense,
-        } => {
-            h.name(a);
-            h.write_tag(sense_tag(*a_sense));
-            h.name(b);
-            h.write_tag(sense_tag(*b_sense));
+        RoleSeg::EdgeCrossing(run) => {
+            h.write_u64(run.len() as u64);
+            for l in run {
+                h.name(&l.line);
+                h.write_tag(sense_tag(l.sense));
+            }
         }
         RoleSeg::Merged(names) => {
             h.write_u64(names.len() as u64);
@@ -6637,7 +6644,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::CrossingVertex { side, edge, sense } => {
             h.write_tag(half(*side));
             h.name(edge);
-            h.write_tag(sense_tag(*sense));
+            h.write_tag(sense_tag(Some(*sense)));
         }
         RoleSeg::OnToolVertex { side, of } => {
             h.write_tag(half(*side));

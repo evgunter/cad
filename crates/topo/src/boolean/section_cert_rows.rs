@@ -1261,7 +1261,12 @@ pub(super) fn scan(
 pub(super) fn tilted_slab() -> Body<f64> {
     let b = brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (-0.1, 0.1), Tol::witness());
     let tilt = geom_core::Affine3::rotation_about_axis(p(0.0, 0.0, 0.0), Vec3::unit_y(), 0.2);
-    crate::transform::transform_rigid(&b, &tilt, Tol::witness()).unwrap()
+    crate::transform::transform_rigid(
+        &b,
+        &geom_core::test_support::rigid(&tilt, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// **W2 reads `chart_boundary` per face, never the kind.** A seamless
@@ -1600,7 +1605,7 @@ fn a_glued_pair_exempts_itself_only() {
         pairs: vec![GluedPair {
             a: fa[0],
             b: fb[0],
-            class: crate::contact::GlueClass::REST,
+            class: crate::contact::GlueClass::Rest,
         }],
         ..Glue::default()
     };

@@ -5102,3 +5102,70 @@ mod remap_moves_the_step {
         );
     }
 }
+
+/// **A ranked edge-crossing run whose least line a remap changes is
+/// carried uncanonical** — the reproduction of
+/// `work/emit/a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical.md`.
+///
+/// A pair boolean ranks several vertices of one run along the run's
+/// least line (N2). A split's id map need not keep id order, so the two
+/// lines can swap places; the rank was measured along the line that is no
+/// longer least, and no name says where it lies along the other, so
+/// `canonical::rewritten` carries the name exactly as the segment rewrite
+/// left it: its run out of order, which no emitter mints.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod remap_a_ranked_run {
+    use super::{NodeMap, ReadMap, StepMap, remap_name};
+    use crate::names::{NameRef, Qualifier, RoleSeg, RunLine, Sense, StableName};
+    use crate::node::RecipeNodeId;
+    use crate::{CapEnd, EntityKind};
+
+    fn edge(node: u64) -> NameRef {
+        NameRef::new(StableName {
+            kind: EntityKind::Edge,
+            node: RecipeNodeId::new(0, node),
+            path: vec![RoleSeg::Cap(CapEnd::Start)],
+        })
+    }
+
+    fn ranked(lines: [u64; 2]) -> StableName {
+        StableName {
+            kind: EntityKind::Vertex,
+            node: RecipeNodeId::new(0, 5),
+            path: vec![
+                RoleSeg::EdgeCrossing(
+                    lines
+                        .into_iter()
+                        .map(|n| RunLine {
+                            line: edge(n),
+                            sense: Some(Sense::Outside),
+                        })
+                        .collect(),
+                ),
+                RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
+            ],
+        }
+    }
+
+    #[test]
+    fn a_remap_that_swaps_a_ranked_runs_lines_leaves_it_out_of_order() {
+        let map: NodeMap = [(1, 20), (2, 10), (5, 15)]
+            .into_iter()
+            .map(|(a, b)| (RecipeNodeId::new(0, a), RecipeNodeId::new(0, b)))
+            .collect();
+        let was = ranked([1, 2]);
+        let RoleSeg::EdgeCrossing(run) = &was.path[0] else {
+            panic!("a run")
+        };
+        assert!(run[0].line < run[1].line, "the fixture is canonical");
+        let out = remap_name(&was, &map, &StepMap::new(), &ReadMap::new()).expect("covered");
+        let RoleSeg::EdgeCrossing(run) = &out.path[0] else {
+            panic!("a run: {out:?}")
+        };
+        assert!(
+            run[0].line > run[1].line,
+            "the swapped run is carried out of order, a name no emitter mints: {out:?}"
+        );
+    }
+}

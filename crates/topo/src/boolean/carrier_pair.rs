@@ -303,7 +303,7 @@ pub fn carrier_pair_verdict<T: Decide>(
 /// a coincidence: the reading the coincidence door runs on two cells'
 /// carriers in a replay at `Sym`, where the margin says whether the
 /// symbolic tier proved every Zero the verdict stands on
-/// ([`geom_core::MarginDiag::theorem`]). `None` beside `Distinct`.
+/// ([`geom_core::MarginDiag::proven`]). `None` beside `Distinct`.
 ///
 /// # Errors
 ///

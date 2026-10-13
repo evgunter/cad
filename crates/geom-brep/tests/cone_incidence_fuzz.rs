@@ -18,7 +18,7 @@ test_utils::gated_to![
 
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
-use geom_brep::{PcurveCertifyError, chart_pcurve};
+use geom_brep::chart_pcurve;
 use geom_core::{Point3, Tol, Vec3};
 use test_utils::fuzz;
 
@@ -110,10 +110,7 @@ fn an_uncovered_perturbed_section_lies_within_the_sliver() {
             // places the draw at its target.
             let per_unit = centre_reading(make(1e-7), alpha) / 1e-7;
             let c = ellipse(make(0.9 * e / per_unit));
-            if matches!(
-                chart_pcurve(&c, &cone(alpha), band()),
-                Ok(_) | Err(PcurveCertifyError::UnsupportedCarrier { .. })
-            ) {
+            if chart_pcurve(&c, &cone(alpha), band()).is_ok() {
                 let d = off_cone(&c, alpha);
                 assert!(
                     d < k * e,

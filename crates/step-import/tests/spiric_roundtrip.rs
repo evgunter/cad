@@ -119,13 +119,14 @@ fn vessel_cavity() -> topo::Body<f64> {
 /// The import stops earlier, at adoption. The rim comes back as a
 /// spline, the export's sagitta-bounded stand-in for the spiric
 /// (uncertainty 1e-4 m), and its `Intersection` reading is a rung-3
-/// carrier between two analytic faces. The edge certificate checks that
-/// carrier's uniqueness tube (C2's limb 3), and the tube does not
-/// certify (`CertifyError::AnalyticRung3`). Before the tube lived in the
-/// edge certificate, the reading adopted on its samples alone and the
-/// trip reached tier 3's quadrature lane at the torus wall. Whether the
-/// refusal is the geometry's or the tube's scale is
-/// `work/pcert/a-reimported-spiric-rim-refuses-at-the-edge-tube.md`.
+/// carrier between the plane and the torus. Limb 2 holds against both
+/// (the spline lies within about 3e-13 m of the torus), and the edge
+/// certificate's uniqueness tube (C2's limb 3) has no enclosure of the
+/// torus's gradient, so the reading refuses naming the torus. Until the
+/// tube has a torus arm
+/// (`work/chart/torus-certificate-runs-root-free-through-its-quartic.md`)
+/// no spline on a torus wall adopts as an `Intersection`, however close
+/// it lies.
 #[test]
 fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
     let native = vessel_cavity();
@@ -171,10 +172,15 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
             Some(step_import::AdoptionAttempt {
                 candidate: step_import::AdoptionCandidate::Intersection,
                 refusal: topo::EulerOpError::Certification {
-                    error: geom_brep::CertifyError::AnalyticRung3(_),
+                    error: geom_brep::CertifyError::AnalyticRung3(
+                        geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
+                            operand: geom::SurfaceKind::Torus,
+                        }
+                    ),
                 },
             })
         ),
-        "the spline's Intersection reading refuses at the edge's uniqueness tube, got {attempts:?}"
+        "the spline's Intersection reading refuses at the tube for want of a torus enclosure, \
+         got {attempts:?}"
     );
 }

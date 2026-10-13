@@ -50,9 +50,9 @@ use geom_core::{SymRules, Tol};
 
 use crate::m10_8_harness::{dials, split_at_the_nominal, whole_box_leaf};
 
-fn leaf(doc: &ProfileDoc, rules: SymRules, tol: Tol) -> [u64; 4] {
+fn leaf(doc: &ProfileDoc, rules: SymRules, tol: Tol) -> [u64; 2] {
     let (_, c) = whole_box_leaf(doc, dials(rules), tol);
-    [c.symbolic_zero, c.sign_gated, c.registered, c.numeric]
+    [c.symbolic, c.numeric]
 }
 
 /// The rule sets each replay is timed under, unprofiled: the shipped
@@ -89,7 +89,7 @@ fn columns() -> [(&'static str, SymRules); 5] {
 fn decide_7_where_rule_gs_time_goes() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    type Replay<'a> = (&'static str, Box<dyn Fn(SymRules) -> [u64; 4] + 'a>);
+    type Replay<'a> = (&'static str, Box<dyn Fn(SymRules) -> [u64; 2] + 'a>);
     let replays: Vec<Replay<'_>> = vec![
         (
             "link_leaf",

@@ -191,6 +191,19 @@ impl PendingRow {
             margin,
         }
     }
+
+    /// Face `a` of A tangent to face `b` of B, decided by `margin`
+    /// (the glue door's tangency, [`super::tangent_row`]'s decision).
+    pub(crate) fn tangent(a: FaceKey, b: FaceKey, margin: MarginDiag) -> Self {
+        Self {
+            cells: [
+                (Operand::A, super::Cell::Face(a)),
+                (Operand::B, super::Cell::Face(b)),
+            ],
+            relation: crate::Relation::SurfaceTangent,
+            margin: Some(margin),
+        }
+    }
 }
 
 impl ContactAcc {
@@ -4616,21 +4629,21 @@ mod declaration_order_rows {
                 true,
                 Some(true),
                 Coincide::VertexOnCoveredFace,
-                DeclarationRead::Spent(GlueClass::REST),
+                DeclarationRead::Spent(GlueClass::Rest),
             ),
             (
                 Some(ContactClass::Rest),
                 false,
                 Some(true),
                 uncovered,
-                DeclarationRead::Spent(GlueClass::REST),
+                DeclarationRead::Spent(GlueClass::Rest),
             ),
             (
                 Some(ContactClass::Tangent),
                 false,
                 Some(false),
                 uncovered,
-                DeclarationRead::Spent(GlueClass::TANGENT),
+                DeclarationRead::Spent(GlueClass::Tangent),
             ),
         ];
         for (class, one, door, which, read) in postures {
@@ -4855,7 +4868,7 @@ mod declaration_order_rows {
     /// with the block's top and aligned with it. The sector names the
     /// one-carrier class the senses make the pair (`Rest` opposed, a
     /// continuation aligned), and its recourse is the geometry or the
-    /// tolerance.
+    /// tolerance, where that lies above `EPS_MIN` (D4 ¶4).
     #[test]
     fn a_coplanar_sectors_in_band_parallelism_refuses_on_the_sector() {
         use crate::test_support_fixtures::{brick, mapped_cube};
@@ -4880,7 +4893,7 @@ mod declaration_order_rows {
                     move |u, v, w| p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, w),
                     tol,
                 ),
-                GlueClass::REST,
+                GlueClass::Rest,
             ),
             (
                 "sunk into the block",
@@ -4904,15 +4917,26 @@ mod declaration_order_rows {
                 ),
                 "{label}: the sector names {class:?}, as the senses make the pair: {got:?}"
             );
+            let Err(BooleanError::Escalated { diag, .. }) = &got else {
+                panic!("{label}: an escalation: {got:?}");
+            };
+            let m = diag
+                .margin
+                .diagnostic_f64_for_error_text()
+                .value()
+                .expect("a point margin");
+            let offers = band.offer_deciding(m).is_some();
             let text = got.expect_err("it refuses").to_string();
             assert!(
                 text.starts_with("how two corners of the two solids overlap where they meet is ")
                     && text.contains(
                         "Recourse: move the parts so they clearly meet or clearly stand apart \
-                         there, or, if this gap is intended, tighten the tolerance below "
+                         there"
                     )
+                    && text.contains(", or, if this gap is intended, tighten the tolerance below ")
+                        == offers
                     && !text.contains("declare"),
-                "{label}: {text}"
+                "{label}: offered exactly above EPS_MIN ({offers}): {text}"
             );
         }
     }

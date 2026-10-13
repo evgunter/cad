@@ -6,7 +6,7 @@
 
 use crate::common;
 use common::{brick, describe_as_intersections, finished, geometric_cube, line};
-use geom_core::{Affine3, Point3, Tol, Vec3};
+use geom_core::{Point3, Tol, Vec3};
 use topo::{
     AtRestBody, Backing, Body, BooleanBody, BooleanResult, CarryRefusal, Cell, Cited, Cites,
     Contact, ContactRecords, FaceKey, FaceSurface, MefSite, Surface, ValidationError, union,
@@ -15,6 +15,14 @@ use topo::{
 
 fn tol() -> Tol {
     Tol::witness()
+}
+
+fn band() -> geom_core::Band {
+    geom_core::Band::linear(tol()).unwrap()
+}
+
+fn region() -> Option<topo::RegionLane<f64>> {
+    Some(topo::RegionLane::certified())
 }
 
 fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody<f64> {
@@ -87,7 +95,7 @@ fn every_surgery_verb_carries_a_corner_kiss() {
     // Key-stable: every cell is itself.
     let moved = topo::transform_rigid(
         &base.body,
-        &Affine3::translation(Vec3::new(0.3, 0.2, 0.1)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.3, 0.2, 0.1)).unwrap(),
         tol(),
     )
     .expect("a rigid move");
@@ -127,7 +135,9 @@ fn every_surgery_verb_carries_a_corner_kiss() {
     carries_the_kiss(
         "replace_face_offset",
         &offset,
-        &outcome.carry_contacts(&base.contacts, &offset).unwrap(),
+        &outcome
+            .carry_contacts(&base.contacts, &offset, band(), region())
+            .unwrap(),
     );
 
     let mut merged = Body::clone(&base.body);
@@ -135,7 +145,9 @@ fn every_surgery_verb_carries_a_corner_kiss() {
     carries_the_kiss(
         "merge_coplanar_faces",
         &merged,
-        &outcome.carry_contacts(&base.contacts, &merged).unwrap(),
+        &outcome
+            .carry_contacts(&base.contacts, &merged, band(), region())
+            .unwrap(),
     );
 
     // The cut at x = 1/2 leaves the kiss whole on the side above it.
@@ -185,17 +197,16 @@ fn a_record_the_cut_parts_is_refused() {
     );
 }
 
-/// **A merge carries a record through what it kills.** The cube's top is
-/// cut on its diagonal and its bottom edge split, so the merge glues the
-/// top back (killing the diagonal and absorbing one triangle) and joins
-/// the split vertex away. Each record naming a killed cell lands on the
-/// cell holding it now: the vertex on the joined edge, the diagonal and
-/// the absorbed triangle on the kept top, and two records landing on one
-/// pair are one record citing both. Red if any is dropped or kept on its
-/// dead key; the identity carry over the same lineage is refused, typed,
-/// at the dead vertex.
+/// **A merge's lineage names what it made of every cell it kills.** The
+/// cube's top is cut on its diagonal and its bottom edge split, so the
+/// merge glues the top back (killing the diagonal and absorbing one
+/// triangle) and joins the split vertex away. The vertex's image is the
+/// joined edge, and the diagonal's and both triangles' the kept top. Red
+/// if any is kept on its dead key. The identity lineage, which keeps
+/// every cell, does not cover the dead vertex, and the carry refuses
+/// it, typed.
 #[test]
-fn a_merge_carries_records_onto_what_it_made_of_their_cells() {
+fn a_merges_lineage_names_what_it_made_of_the_cells_it_kills() {
     let mut cube = geometric_cube::<f64>(tol());
     describe_as_intersections(&mut cube.body, tol());
     let bottom = cube.mefs[0].face;
@@ -254,30 +265,18 @@ fn a_merge_carries_records_onto_what_it_made_of_their_cells() {
     let kept = outcome.groups[0].kept;
     let joined = Cell::Edge(topo::joined_edge(&outcome.joins, outcome.joins[0].kept));
 
-    let carried = outcome.carry_contacts(&records, &cube.body).unwrap();
-    let rows: Vec<([Cell; 2], Vec<Backing>)> = carried
-        .rows()
-        .iter()
-        .map(|r| (r.cells(), r.cites.iter().collect()))
-        .collect();
-    let carried_from = |record| Backing::Carried { input: 0, record };
-    assert_eq!(
-        rows,
-        [
-            (
-                pair(&cube.body, joined, Cell::Face(kept)).cells(),
-                vec![carried_from(0), carried_from(2)]
-            ),
-            (
-                pair(&cube.body, Cell::Face(kept), Cell::Face(bottom)).cells(),
-                vec![carried_from(1)]
-            ),
-        ],
-        "each record on the cell that holds its own now"
-    );
+    let lineage = outcome.lineage();
+    for (what, cell, image) in [
+        ("the split vertex", v, joined),
+        ("the diagonal", Cell::Edge(diagonal.edge), Cell::Face(kept)),
+        ("one triangle", Cell::Face(t1), Cell::Face(kept)),
+        ("the other", Cell::Face(t2), Cell::Face(kept)),
+    ] {
+        assert_eq!(lineage.images(cell), [image], "{what}");
+    }
 
     assert_eq!(
-        records.carried_through(0, &cube.body, Some),
+        records.carried_through(0, &topo::Lineage::new(), &cube.body, band(), region()),
         Err(CarryRefusal::Unmapped { record: 0, cell: v }),
         "the identity carry refuses the joined-away vertex"
     );
@@ -299,7 +298,9 @@ fn a_touch_the_verb_creates_is_refused_at_rest() {
     let mut moved = Body::clone(&apart.body);
     let wall = face_at_x(&moved, 1.0);
     let outcome = topo::replace_face_offset(&mut moved, wall, 0.1, tol()).expect("an offset");
-    let carried = outcome.carry_contacts(&apart.contacts, &moved).unwrap();
+    let carried = outcome
+        .carry_contacts(&apart.contacts, &moved, band(), region())
+        .unwrap();
     assert!(carried.is_empty(), "{carried:?}");
     let refused = validate_pseudomanifold(&moved, &carried, tol()).expect_err("a new touch");
     assert!(
@@ -310,28 +311,50 @@ fn a_touch_the_verb_creates_is_refused_at_rest() {
     );
 }
 
-/// **A rim that opens under a resting corner leaves its record stale,
-/// loudly.** A cube balanced on one corner on a slab's top carries one
-/// vertex–face record; opening that top as a rim keeps the face's key on
-/// the annulus, so the record carries by key, and the census refuses it
-/// stale, because the corner now points into the opening. Whether such a
-/// record is consumed instead is undecided
-/// (`work/contacthold/a-blend-or-shell-that-consumes-a-recorded-cell-refuses-the-record.md`).
-/// Red if the carry drops the record or the census blesses it.
+/// **A rim that opens under a resting corner consumes its record.** A
+/// cube balanced on one corner on a slab's top carries one vertex–face
+/// record; opening that top as a rim divides the face into the annulus,
+/// its key kept there, and removes the opening, where the corner now
+/// points. The record lands on no pair, and the shell's lineage states
+/// the removal, so it is consumed (D1): the two solids touch nothing,
+/// and the result passes at rest with no record. Red on the carry that
+/// keeps the record on the face's key, which the census refuses stale.
 #[test]
-fn a_rim_that_opens_under_a_resting_corner_leaves_its_record_stale() {
+fn a_rim_that_opens_under_a_resting_corner_consumes_its_record() {
+    let (base, top) = a_corner_resting_on_a_slab(2.0, 2.0);
+    assert_eq!(
+        base.contacts.vertex_face().count(),
+        1,
+        "{:?}",
+        base.contacts
+    );
+    let opened = topo::shell_open(&base.body, 0.1, &[top], tol()).expect("the slab opens");
+    let carried = opened
+        .carry_contacts(&base.contacts, band(), region())
+        .unwrap();
+    assert!(carried.is_empty(), "the record is consumed: {carried:?}");
+    assert_eq!(
+        validate_pseudomanifold(&opened.body, &carried, tol()),
+        Ok(()),
+        "the corner touches nothing now"
+    );
+}
+
+/// A cube balanced on one corner at `(x, y, 1)` on the slab
+/// `[0, 4]² × [0, 1]`, and the slab's top face.
+fn a_corner_resting_on_a_slab(x: f64, y: f64) -> (BooleanBody<f64>, FaceKey) {
     let slab = box_of((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), "slab");
+    let (e1, e2, e3) = (
+        Vec3::new(0.9, 0.1, 0.3),
+        Vec3::new(-0.2, 0.8, 0.45),
+        Vec3::new(-0.3, -0.4, 0.85),
+    );
     let tilted = common::mapped_cube(
-        |x, y, z| {
-            let (e1, e2, e3) = (
-                Vec3::new(0.9, 0.1, 0.3),
-                Vec3::new(-0.2, 0.8, 0.45),
-                Vec3::new(-0.3, -0.4, 0.85),
-            );
+        |u, v, w| {
             Point3::new(
-                2.0 + x * e1.x + y * e2.x + z * e3.x,
-                2.0 + x * e1.y + y * e2.y + z * e3.y,
-                1.0 + x * e1.z + y * e2.z + z * e3.z,
+                x + u * e1.x + v * e2.x + w * e3.x,
+                y + u * e1.y + v * e2.y + w * e3.y,
+                1.0 + u * e1.z + v * e2.z + w * e3.z,
             )
         },
         tol(),
@@ -341,44 +364,44 @@ fn a_rim_that_opens_under_a_resting_corner_leaves_its_record_stale() {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the union builds: {other:?}"),
     };
-    assert_eq!(
-        base.contacts.vertex_face().count(),
-        1,
-        "{:?}",
-        base.contacts
-    );
-    assert_eq!(base.contacts.len(), 1, "{:?}", base.contacts);
-    let top = base
-        .body
-        .faces()
-        .find(|(_, f)| {
-            matches!(
-                base.body.get_surface(f.surface),
-                Some(Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() == 1.0 && origin.z == 1.0
-            )
-        })
-        .map(|(k, _)| k)
-        .unwrap();
+    assert_eq!(base.contacts.len(), 1, "one rest: {:?}", base.contacts);
+    let top = face_at_z(&base.body, 1.0);
+    (base, top)
+}
+
+/// **A rest on the opening's boundary lands on the ring the rim minted.**
+/// The corner rests at `(0.1, 2, 1)`; opening the slab's top at
+/// thickness 0.1 puts the rim's inner edge, the ring, through that
+/// point. The ring is minted in the top's interior, so the vertex–face
+/// record lands on (corner, ring edge) and the result passes at rest.
+/// Red when the shell's division names no minted cell: the record then
+/// lands on no pair, is consumed under the removed opening, and the
+/// census finds the corner on the ring unrecorded.
+#[test]
+fn a_rest_on_the_openings_boundary_lands_on_the_ring() {
+    let (base, top) = a_corner_resting_on_a_slab(0.1, 2.0);
     let opened = topo::shell_open(&base.body, 0.1, &[top], tol()).expect("the slab opens");
     let carried = opened
-        .carry_contacts(
-            &base.contacts,
-            geom_core::Band::linear(tol()).unwrap(),
-            Some(topo::RegionLane::certified()),
-        )
+        .carry_contacts(&base.contacts, band(), region())
         .unwrap();
+    let on_ring: Vec<_> = carried
+        .rows()
+        .iter()
+        .filter(|r| matches!(r.cells(), [Cell::Vertex(_), Cell::Edge(_)]))
+        .collect();
+    assert_eq!(on_ring.len(), 1, "the rest lands on the ring: {carried:?}");
     assert_eq!(
-        carried.vertex_face().collect::<Vec<_>>(),
-        base.contacts.vertex_face().collect::<Vec<_>>(),
-        "the record carries by key"
+        on_ring[0].cites.iter().collect::<Vec<_>>(),
+        vec![Backing::Carried {
+            input: 0,
+            record: 0
+        }],
+        "citing the rest"
     );
-    let refused = validate_pseudomanifold(&opened.body, &carried, tol()).expect_err("stale");
-    assert!(
-        refused
-            .iter()
-            .all(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
-        "the corner touches nothing now: {refused:?}"
+    assert_eq!(
+        validate_pseudomanifold(&opened.body, &carried, tol()),
+        Ok(()),
+        "the corner on the ring is recorded"
     );
 }
 
@@ -392,15 +415,13 @@ fn one_record(body: &Body<f64>, x: Cell, y: Cell) -> ContactRecords {
     .collect()
 }
 
-/// **An offset door's join carries a record onto the edge it makes.** A
-/// brick with one edge split: its two faces stay put and every other
-/// face moves in, so the door ends by joining the split vertex away.
-/// Records on the vertex and on the split-off piece land on the joined
-/// edge, one record citing both. Red if the carry skips the join: the
-/// vertex and the piece are dead.
+/// **An offset door's lineage reads through its join.** A brick with one
+/// edge split: its two faces stay put and every other face moves in, so
+/// the door ends by joining the split vertex away. The vertex's and the
+/// split-off piece's image is the joined edge. Red if the lineage skips
+/// the join: the vertex and the piece are dead.
 #[test]
-fn an_offset_door_carries_a_record_through_its_join() {
-    let band = geom_core::Band::linear(tol()).unwrap();
+fn an_offset_doors_lineage_reads_through_its_join() {
     let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
     let e = body.edges().next().unwrap().0;
     let still: Vec<FaceKey> = {
@@ -416,17 +437,6 @@ fn an_offset_door_carries_a_record_through_its_join() {
         .unwrap()
         .params();
     let split = body.split_edge(e, 0.5 * (t0 + t1), tol()).unwrap();
-    let far = body
-        .faces()
-        .map(|(f, _)| f)
-        .find(|f| !still.contains(f))
-        .unwrap();
-    let mut records = one_record(&body, Cell::Vertex(split.vertex), Cell::Face(far));
-    records.extend(
-        one_record(&body, Cell::Edge(split.new_edge), Cell::Face(far))
-            .rows()
-            .to_vec(),
-    );
     let moves: Vec<topo::ChartMove<f64>> = body
         .faces()
         .map(|(f, _)| topo::ChartMove {
@@ -434,40 +444,25 @@ fn an_offset_door_carries_a_record_through_its_join() {
             distance: if still.contains(&f) { 0.0 } else { -0.1 },
         })
         .collect();
-    let out = topo::offset_planes_together(&mut body, &moves, band, tol()).unwrap();
+    let out = topo::offset_planes_together(&mut body, &moves, band(), tol()).unwrap();
     assert_eq!(out.joins.len(), 1, "{:?}", out.joins);
     let joined = Cell::Edge(topo::joined_edge(&out.joins, out.joins[0].kept));
-    let carried = out.carry_contacts(&records, &body).unwrap();
-    let rows: Vec<([Cell; 2], Vec<Backing>)> = carried
-        .rows()
-        .iter()
-        .map(|r| (r.cells(), r.cites.iter().collect()))
-        .collect();
-    assert_eq!(
-        rows,
-        [(
-            Contact::new(&body, joined, Cell::Face(far))
-                .unwrap()
-                .cells(),
-            vec![
-                Backing::Carried {
-                    input: 0,
-                    record: 0
-                },
-                Backing::Carried {
-                    input: 0,
-                    record: 1
-                }
-            ]
-        )]
-    );
+    let lineage = out.lineage();
+    for (what, cell) in [
+        ("the split vertex", Cell::Vertex(split.vertex)),
+        ("the split-off piece", Cell::Edge(split.new_edge)),
+    ] {
+        assert_eq!(lineage.images(cell), [joined], "{what}");
+    }
 }
 
-/// **A record at a conventional vertex is a record on its closed edge.**
-/// A disc planted in a brick's top is bounded by one closed circle whose
-/// one vertex has no other edge. Red if the carry keeps the vertex.
+/// **A record at a conventional vertex is read on its closed edge.** A
+/// disc planted in a brick's top is bounded by one closed circle whose
+/// one vertex has no other edge; a record of that vertex is put to the
+/// census as the circle's, which the census has no lane to confirm
+/// against the bottom face. Red if the carry reads the vertex.
 #[test]
-fn a_record_at_a_conventional_vertex_lands_on_its_closed_edge() {
+fn a_record_at_a_conventional_vertex_is_read_on_its_closed_edge() {
     let mut body = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol());
     let top = face_at_z(&body, 1.0);
     let bottom = face_at_z(&body, 0.0);
@@ -482,10 +477,12 @@ fn a_record_at_a_conventional_vertex_lands_on_its_closed_edge() {
         .start;
     assert!(topo::is_conventional_vertex(&body, v));
     let records = one_record(&body, Cell::Vertex(v), Cell::Face(bottom));
-    let carried = records.carried_through(0, &body, Some).unwrap();
     assert_eq!(
-        carried.cell_pairs().collect::<Vec<_>>(),
-        [(Cell::Edge(disc.edge), Cell::Face(bottom))]
+        records.carried_through(0, &topo::Lineage::new(), &body, band(), region()),
+        Err(CarryRefusal::Unread {
+            record: 0,
+            cells: [Cell::Edge(disc.edge), Cell::Face(bottom)]
+        })
     );
 }
 
@@ -499,7 +496,15 @@ fn a_record_whose_cells_map_to_one_cell_is_consumed() {
     let [a, b] = base.contacts.rows()[0].cells();
     let carried = base
         .contacts
-        .carried_through(0, &base.body, |c| Some(if c == b { a } else { c }))
+        .carried_through(
+            0,
+            &topo::Lineage::new()
+                .with(b, topo::Fate::Substituted(a))
+                .unwrap(),
+            &base.body,
+            band(),
+            region(),
+        )
         .unwrap();
     assert!(carried.is_empty(), "{carried:?}");
 
@@ -507,11 +512,15 @@ fn a_record_whose_cells_map_to_one_cell_is_consumed() {
     let (fa, fb) = (face_at_x(&base.body, 0.0), face_at_x(&base.body, 2.0));
     let faces = one_record(&base.body, Cell::Face(fa), Cell::Face(fb));
     assert_eq!(
-        faces.carried_through(0, &base.body, |c| Some(if c == Cell::Face(fb) {
-            Cell::Face(fa)
-        } else {
-            c
-        })),
+        faces.carried_through(
+            0,
+            &topo::Lineage::new()
+                .with(Cell::Face(fb), topo::Fate::Substituted(Cell::Face(fa)))
+                .unwrap(),
+            &base.body,
+            band(),
+            region(),
+        ),
         Err(CarryRefusal::Pair {
             record: 0,
             error: topo::ContactPairError::OneCell(Cell::Face(fa))

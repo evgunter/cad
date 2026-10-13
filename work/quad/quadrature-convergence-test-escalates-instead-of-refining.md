@@ -2,8 +2,10 @@
 id: quadrature-convergence-test-escalates-instead-of-refining
 kind: issue
 title: the quadrature lanes escalate an in-band convergence test instead of refining another round, so a face measures in one boolean operand order and not the other
-status: open
+status: closed
+pr: 4839
 opened: 2026-10-01
+closed: 2026-10-13
 ---
 
 
@@ -35,13 +37,9 @@ Measured (REACH, branch `reach/volume-backstop`, 2026-10-01):
   refuses through the same arm on its subtraction (margin −1.85e-9).
 
 Both orders are pinned by `crates/sweep/tests/reach_volume_backstop.rs`
-`a_boss_at_half_a_radian_meets_the_convergence_gap_at_the_default_eps`.
-Since CLEAVE's `a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex`
-seamed each section chord at the principal vertex nearest its arc,
-`union(boss, base)` refuses through the same arm too (face `5v1`, margin
-3.057633286600975e-9); `union(base, boss)` reads 3.1273351765955398e-9.
-Both orders still measure at 1e-6 and 1e-12. The pin goes red when this
-lands, and both orders should then build at `penetrating_union(0.5)`.
+`a_boss_at_half_a_radian_measures_in_one_operand_order`. The refusing
+order goes red when this lands, and should then build at
+`penetrating_union(0.5)`.
 
 ## The shape of a fix
 
@@ -284,3 +282,51 @@ On the one-segment form every other op of those poses builds at its
 closed-form volume. A ∩ B and B − A keep the same wall face, in
 opposite senses, and it measures in one of them and not the other.
 The test accepts this refusal by name and cites this row.
+
+## 2026-10-12 — the CLEAVE witness no longer escalates (FLUX)
+
+Once the cylinder quadrature read `−∮ (v − v_a) du`
+(`flux/cylinder-band-quad`), `rehome_rings_lune`'s lower piece finishes at
+`CAD_TOLERANCE_EPS=1e-6` for all three bore poses, and the second split
+is asserted there again. The pin `QUAD_ESCALATES_AT` is gone with it.
+This is not a fix of the defect: the enclosure is narrower, so this
+face's convergence margin no longer lands in the band. The convergence
+test still escalates rather than refines on whichever face's margin does.
+
+## 2026-10-12 — witnesses moved by the cylinder lane's new form (FLUX)
+
+`flux/cylinder-band-quad` narrowed the cylinder lane's enclosures, so
+the round at which each face first meets the target moved, and with it
+which faces land in band:
+
+- **No longer escalating.** `reach_volume_backstop`'s half-radian boss
+  measures in both operand orders at every ε (the row is now
+  `a_boss_at_half_a_radian_measures_in_either_operand_order`).
+  `band_planar_oblique_fillet::a_brick_through_a_steep_elliptic_end_builds_in_every_op`
+  builds and is consistent at 1e-12.
+- **Newly in band, and measured once the fix below landed.**
+  `reach_volume_backstop::a_tilted_boss_unions_onto_a_box`'s 1 rad
+  penetrating union at 1e-12 (margin −2.88e-12 in (1e-12, 1e-11)), and
+  `far_thin_disc_sign`'s `h 1e-5, tilt 0.3, 5e3 m, turned 0.7` at 1e-12,
+  upright and inside out (margin −4.14e-12). Both measure on main.
+
+## Fixed by FLUX PR 4839
+
+The cylinder lane's new form reshuffled which faces land in band, and the
+tour's cutaway scene was one at 1e-12 (margin +7.5e-12 on the
+`demo-tour` eps row). The fix is the one stated above, landed once, with one correction.
+`quad::converged` reads `props_quad_converged`, and at a round with a
+successor it treats an escalation (on that finite margin it can only be
+the band) as not converged, so the round refines. At the schedule's
+last round, and in the exact per-span lane, which has no rounds, the
+escalation stands. There the width may sit under the target, and a
+`QuadratureBudget` would carry a width that did not miss: the first cut
+of this fix did exactly that, and `cert5_r2_probes`' payload check
+caught it. All six convergence sites (the five lanes in `quad.rs` and
+the spiric lane's) go through the one helper. The two escalation pins
+`flux/cylinder-band-quad` had added are gone with it, and
+`tcost_k1_budget_exit`'s last-round escalation row stands as it was.
+
+Four rows tolerate the escalation and do not require it, so they were
+left as they were; tightening them is its own row,
+`work/quad/the-escalation-tolerating-rows-can-assert-their-answers-now.md`.
