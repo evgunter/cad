@@ -786,3 +786,11 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **What PR 4893 was:** the point-based `holder(face, rest)` with an `at_rest` guard. It had been reviewed (both lanes plus a delta check) and was ready to merge when the conflict showed.
   - **Ruled (orchestrator):** take main's carry wholesale and drop 4893's code, since a second, point-based door beside the confirm would be the defect the unit closes. 4893 shrinks to the tracker plus its dead-vertex rows ported onto main's carry. A ported row that fails on main is filed on CONTACTHOLD's slate as a witness.
   - **Kept as a finding:** `share_points` classes are a transitive closure. A class of three or more keys can span past the zero band; there were 36 such classes per eps in the ci suites, though none reached it.
+- 2026-10-13 — PR 4893 lands, slimmed onto 4820's one carry.
+  - **What it lands:**
+    - one test: a taken vertex's row on a divided face lands on the piece its edge lies in, killed by a by-key mutant;
+    - the rows closed against 4820 and PR 4650.
+  - **Green on its first CI run.**
+- 2026-10-13 — Two things are dispatched.
+  - **`fuse/carry-rows-after-4820`, a tracker re-measure:** the lane re-runs every carry-class row (several were parked behind INTENT stage 4, now open) against main after 4820, then closes, re-scopes or moves each to CONTACTHOLD.
+  - **The sliver-arc fork:** `a-sliver-arc-beside-a-joinable-vertex-refuses-the-boolean` (P1, design) goes to an Opus and a Fable designer, concurrently, with the same problem statement and no candidates.
