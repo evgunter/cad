@@ -9,13 +9,15 @@
 //! another outside ([`BlendError::FaceClearance`], `bounded: false`),
 //! which would need the band trimmed by the face; or wholly inside such
 //! a region, every cell of the face's box that may hold a point of its
-//! surface inside it ([`BlendError::WhollyInside`]), where the face goes
-//! with the material and that carve is not built. A face certified none
-//! of the three refuses [`BlendError::FaceClearance`] with
-//! `bounded: true`. The readings make one verdict for the request with
-//! a cut-off's end-face meter's ([`Unclear`]): a crossing anywhere wins,
-//! then a bound, so the request reads wholly inside only when every face
-//! and end-face cycle not clear does.
+//! surface inside it, or inside the prism a convex ruled band removes
+//! over the cycles its caps read inside ([`prism_inside`]), where the
+//! face goes with the material ([`Consumed`]; elsewhere that carve is
+//! not built, and the request refuses [`BlendError::WhollyInside`]). A
+//! face certified none of the three refuses [`BlendError::FaceClearance`]
+//! with `bounded: true`. The readings make one verdict for the request
+//! with a cut-off's end-face meter's ([`Unclear`]): a crossing anywhere
+//! wins, then a bound, so the request reads wholly inside only when
+//! every face and end-face cycle not clear does.
 //!
 //! # The region
 //!
@@ -76,13 +78,13 @@ use std::collections::VecDeque;
 
 use geom::{Curve3, Surface};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
-use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, SurfaceKey, VertexKey};
+use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, LoopKey, SurfaceKey, VertexKey};
 
 use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{
     Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
 };
-use super::surgery::not_intact;
+use super::surgery::{loop_walk, not_intact};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
 /// How many cells one face may be cut into against one reach before it
@@ -738,6 +740,9 @@ struct Reach<T: Real> {
     /// The cross-section's reach from its spine point: the scale a
     /// sheet bound's slack is weighed against ([`metered`]).
     width: T,
+    /// A straight link's edge and unit spine direction, which its
+    /// prism reading takes ([`prism_inside`]).
+    spine: Option<(EdgeKey, Vec3<T>)>,
 }
 
 impl<T: Real> Reach<T> {
@@ -1168,6 +1173,7 @@ fn straight_reach<T: Decide + Bounds>(
         chains: vec![chain],
         skip,
         width: reach,
+        spine: Some((link.edge, tau)),
     })
 }
 
@@ -1301,6 +1307,7 @@ fn circular_reach<T: Decide + Bounds>(
         chains: vec![chain],
         skip: Vec::new(),
         width: reach,
+        spine: None,
     })
 }
 
@@ -1473,6 +1480,7 @@ fn corner_reach<T: Decide + Bounds>(
                 at_v
             },
             width: far,
+            spine: None,
         },
         anchors,
     )))
@@ -1988,6 +1996,101 @@ fn boundary_reading<T: Decide>(
     Ok(reading)
 }
 
+/// **How surely a face lies wholly inside the prism a convex ruled band
+/// removes**, read through the cycles its caps' meter read inside the
+/// sliver (`rings`, this link's): positive when it certainly does, and
+/// then a lower bound on how far inside; `None` when the face is not of
+/// the shape the reading takes.
+///
+/// The band's material `M` is the prism over its cross-section `S⊥`
+/// along the spine `τ` (both supports and the band are ruled along `τ`),
+/// between the two cap planes; its slice in a cap's plane is the sliver
+/// `S` the cap's meter reads, bounded by the end curve and the two rim
+/// pieces. A face is read on a surface ruled along a direction `a` (a
+/// cylinder's axis, or a plane's direction nearest `τ`, for which
+/// `|a × τ| = |n·τ|` with `n` the plane's unit normal, any direction of
+/// a plane normal to `τ` included), and only when
+/// every edge of its boundary is an edge of one of `rings` or a line
+/// between two of their vertices. Then each point `x` of the face lies on
+/// an `a`-line between two points of its boundary (the ends of that
+/// line's piece through `x` in the face), and each of those within
+/// `|w − u|·|d × τ|` of the projection of a vertex of `rings` (a line
+/// edge `u → w` along `d`) or on a ring. A ring at depth `δ` in a cap of
+/// normal `n` has its projection along `τ` at depth at least
+/// `δ·|n·τ|` in `S⊥`, so `x` projects into `S⊥` when that least depth
+/// exceeds the lines' slack plus the face's extent along its `a`-lines
+/// (its box's diagonal) times `|a × τ|`; and it lies between the cap
+/// planes, being a convex combination of boundary points that do. The
+/// reading is that excess.
+fn prism_inside<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    surface: &Surface<T>,
+    (flo, fhi): ([f64; 3], [f64; 3]),
+    tau: Vec3<T>,
+    rings: &[CapRing<T>],
+) -> Result<Option<T>, BlendError> {
+    if rings.is_empty() || flo.iter().chain(&fhi).any(|x| !x.is_finite()) {
+        return Ok(None);
+    }
+    let tilt = match surface {
+        Surface::Cylinder { axis, .. } => axis.normalize().cross(tau).norm(),
+        Surface::Plane { normal, .. } => normal.normalize().dot(tau).abs(),
+        _ => return Ok(None),
+    };
+    let mut ring_edges: Vec<EdgeKey> = Vec::new();
+    let mut ring_vertices: Vec<VertexKey> = Vec::new();
+    let mut least: Option<T> = None;
+    for r in rings {
+        let Surface::Plane { normal, .. } = surface_of(body, r.cap)? else {
+            return Ok(None);
+        };
+        let deep = (T::zero() - r.depth) * normal.normalize().dot(tau).abs();
+        least = Some(least.map_or(deep, |l| l.min(deep)));
+        let Some(walk) = loop_walk(body, r.ring) else {
+            return Ok(None);
+        };
+        for (_, start, edge) in walk {
+            ring_edges.push(edge);
+            ring_vertices.push(start);
+        }
+    }
+    let Some(least) = least else {
+        return Ok(None);
+    };
+    let f = body
+        .get_face(face)
+        .ok_or_else(|| not_intact(EntityId::Face(face), "a face the band reach reads"))?;
+    let mut slack = T::zero();
+    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let Some(walk) = loop_walk(body, lp) else {
+            return Ok(None);
+        };
+        for (he, u, edge) in walk {
+            if ring_edges.contains(&edge) {
+                continue;
+            }
+            let w = body
+                .half_edge_end(he)
+                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a face edge's end"))?;
+            let Some((Curve3::Line { dir, .. }, _, _)) = carrier_of(body, edge) else {
+                return Ok(None);
+            };
+            if !ring_vertices.contains(&u) || !ring_vertices.contains(&w) {
+                return Ok(None);
+            }
+            let run = (point_of(body, w)? - point_of(body, u)?).norm();
+            slack = slack.max(run * dir.normalize().cross(tau).norm());
+        }
+    }
+    let corner = |v: [f64; 3]| {
+        let [x, y, z] = v.map(T::from_computed);
+        Point3::new(x, y, z)
+    };
+    let diagonal = (corner(fhi) - corner(flo)).norm();
+    Ok(Some(least - slack - diagonal * tilt))
+}
+
 /// **The request's three-way verdict**, over every face and end-face
 /// cycle that predicate 2's reach and a cut-off's end-face meter read
 /// not clear. A crossing refuses at once, nothing outranking it; a bound
@@ -1995,10 +2098,94 @@ fn boundary_reading<T: Decide>(
 /// when every reading that is not clear does, whatever order the faces
 /// and cycles are read in. Of several bounds it names the least margin,
 /// and of several inside readings the shallowest, which bounds the depth
-/// of every one.
+/// of every one; a tie on the margin's upper end names the least entity
+/// ([`entity_order`]), so the refusal is the same in every read order.
+///
+/// An inside reading the carve consumes is one on a convex ruled band's
+/// cap ([`CapRing`]) or a face of the prism over such rings
+/// ([`prism_inside`]): only when every inside reading is one does the
+/// request build ([`Consumed`]); otherwise it refuses `WhollyInside`.
 pub(crate) struct Unclear<T> {
     bound: Option<(T, BlendError)>,
     inside: Option<(T, BlendError)>,
+    rings: Vec<CapRing<T>>,
+    faces: Vec<FaceKey>,
+    unconsumed: bool,
+}
+
+/// **A cycle of a convex ruled band's cap read wholly inside its
+/// sliver**: the crease whose band removes it, the cap, the cycle, and
+/// its depth (negative; its size a lower bound on the cycle's distance
+/// from the sliver's boundary in the cap's plane).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CapRing<T> {
+    pub(crate) crease: EdgeKey,
+    pub(crate) cap: FaceKey,
+    pub(crate) ring: LoopKey,
+    pub(crate) depth: T,
+}
+
+/// **What a request whose verdict is inside consumes**: the cap cycles
+/// and the faces read wholly inside the material a convex ruled band
+/// removes, and the refusal they would owe were the carve not to take
+/// them ([`BlendError::WhollyInside`], the shallowest).
+pub(crate) struct Consumed<T> {
+    pub(crate) rings: Vec<CapRing<T>>,
+    pub(crate) faces: Vec<FaceKey>,
+    pub(crate) refusal: BlendError,
+}
+
+/// A total order on the entities refusals name: by kind, then by key.
+fn entity_order(a: EntityId, b: EntityId) -> core::cmp::Ordering {
+    use EntityId as E;
+    let kind = |x: EntityId| match x {
+        E::Solid(_) => 0,
+        E::Shell(_) => 1,
+        E::Face(_) => 2,
+        E::Loop(_) => 3,
+        E::HalfEdge(_) => 4,
+        E::Edge(_) => 5,
+        E::Vertex(_) => 6,
+    };
+    match (a, b) {
+        (E::Solid(x), E::Solid(y)) => x.cmp(&y),
+        (E::Shell(x), E::Shell(y)) => x.cmp(&y),
+        (E::Face(x), E::Face(y)) => x.cmp(&y),
+        (E::Loop(x), E::Loop(y)) => x.cmp(&y),
+        (E::HalfEdge(x), E::HalfEdge(y)) => x.cmp(&y),
+        (E::Edge(x), E::Edge(y)) => x.cmp(&y),
+        (E::Vertex(x), E::Vertex(y)) => x.cmp(&y),
+        _ => kind(a).cmp(&kind(b)),
+    }
+}
+
+/// The entity a reach or end-face refusal names.
+fn named(e: &BlendError) -> Option<EntityId> {
+    match *e {
+        BlendError::FaceClearance { at, .. } | BlendError::WhollyInside { at, .. } => Some(at),
+        BlendError::RingClearance { face, .. } => Some(EntityId::Face(face)),
+        _ => None,
+    }
+}
+
+/// Whether `(margin, refusal)` takes the place of `held`: its margin's
+/// upper end on the `better` side, or equal and naming a lesser entity.
+fn displaces<T: Bounds>(
+    held: Option<&(T, BlendError)>,
+    margin: T,
+    refusal: &BlendError,
+    better: core::cmp::Ordering,
+) -> bool {
+    let Some((m, r)) = held else {
+        return true;
+    };
+    match margin.hi().total_cmp(&m.hi()) {
+        core::cmp::Ordering::Equal => match (named(refusal), named(r)) {
+            (Some(a), Some(b)) => entity_order(a, b).is_lt(),
+            _ => false,
+        },
+        o => o == better,
+    }
 }
 
 impl<T: Bounds> Unclear<T> {
@@ -2007,41 +2194,88 @@ impl<T: Bounds> Unclear<T> {
         Self {
             bound: None,
             inside: None,
+            rings: Vec::new(),
+            faces: Vec::new(),
+            unconsumed: false,
         }
     }
 
     /// A reading certified neither clear, nor inside, nor crossing, its
     /// margin `margin`.
     pub(crate) fn bound(&mut self, margin: T, refusal: BlendError) {
-        if self
-            .bound
-            .as_ref()
-            .is_none_or(|(m, _)| margin.hi() < m.hi())
-        {
+        if displaces(
+            self.bound.as_ref(),
+            margin,
+            &refusal,
+            core::cmp::Ordering::Less,
+        ) {
             self.bound = Some((margin, refusal));
         }
     }
 
-    /// A reading certified wholly inside, `margin` its (negative) depth.
-    pub(crate) fn inside(&mut self, margin: T, refusal: BlendError) {
-        if self
-            .inside
-            .as_ref()
-            .is_none_or(|(m, _)| margin.hi() > m.hi())
-        {
+    /// A reading certified wholly inside, `margin` its (negative) depth,
+    /// that the carve does not consume.
+    pub(crate) fn unconsumed_inside(&mut self, margin: T, refusal: BlendError) {
+        self.unconsumed = true;
+        self.deepen(margin, refusal);
+    }
+
+    /// A cap cycle certified wholly inside a convex ruled band's sliver,
+    /// which the carve consumes with the feature it bounds.
+    pub(crate) fn cap_ring(&mut self, ring: CapRing<T>, refusal: BlendError) {
+        self.rings.push(ring);
+        self.deepen(ring.depth, refusal);
+    }
+
+    /// A face certified wholly inside the prism a convex ruled band
+    /// removes ([`prism_inside`]), which the carve consumes.
+    fn prism_face(&mut self, face: FaceKey, depth: T, refusal: BlendError) {
+        if !self.faces.contains(&face) {
+            self.faces.push(face);
+        }
+        self.deepen(depth, refusal);
+    }
+
+    /// The cycles read inside a convex ruled band's caps so far.
+    fn cap_rings(&self) -> &[CapRing<T>] {
+        &self.rings
+    }
+
+    fn deepen(&mut self, margin: T, refusal: BlendError) {
+        if displaces(
+            self.inside.as_ref(),
+            margin,
+            &refusal,
+            core::cmp::Ordering::Greater,
+        ) {
             self.inside = Some((margin, refusal));
         }
     }
 
-    /// The request's refusal: a bound if any, else wholly inside if any.
+    /// The request's refusal — a bound if any, else wholly inside where
+    /// an inside reading is one the carve does not consume — or what it
+    /// consumes (`None` where no reading was inside: every consumed
+    /// reading is an inside one).
     ///
     /// # Errors
     ///
     /// That refusal.
-    pub(crate) fn verdict(self) -> Result<(), BlendError> {
-        match self.bound.or(self.inside) {
-            Some((_, refusal)) => Err(refusal),
-            None => Ok(()),
+    pub(crate) fn verdict(self) -> Result<Option<Consumed<T>>, BlendError> {
+        if let Some((_, refusal)) = self.bound {
+            return Err(refusal);
+        }
+        match self.inside {
+            None => Ok(None),
+            Some((_, refusal)) if self.unconsumed => Err(refusal),
+            Some((_, refusal)) => {
+                let mut faces = self.faces;
+                faces.sort_unstable();
+                Ok(Some(Consumed {
+                    rings: self.rings,
+                    faces,
+                    refusal,
+                }))
+            }
         }
     }
 }
@@ -2065,7 +2299,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
     kind: BlendKind,
     band: Band,
     mut unclear: Unclear<T>,
-) -> Result<(), BlendError> {
+) -> Result<Option<Consumed<T>>, BlendError> {
     let all: Vec<(usize, &Link<T>)> = chains
         .iter()
         .enumerate()
@@ -2238,7 +2472,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             });
             if let Some((exact, deep)) = inside {
                 let sign = classify_bound(deep)?;
-                unclear.inside(
+                unclear.unconsumed_inside(
                     deep,
                     BlendError::WhollyInside {
                         at: EntityId::Face(face),
@@ -2247,6 +2481,31 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                     },
                 );
                 continue;
+            }
+            // Inside the prism a convex ruled band removes, read through
+            // the cycles its caps' meter read inside the sliver.
+            if let Some((edge, tau)) = reach.spine.filter(|_| !supports_a_band) {
+                let mine: Vec<CapRing<T>> = unclear
+                    .cap_rings()
+                    .iter()
+                    .filter(|r| r.crease == edge)
+                    .copied()
+                    .collect();
+                let reading = prism_inside(body, face, &surface, fbox, tau, &mine)?;
+                if let Some(excess) = reading.filter(|x| sure(*x, band)) {
+                    let deep = T::zero() - excess;
+                    let sign = classify_bound(deep)?;
+                    unclear.prism_face(
+                        face,
+                        deep,
+                        BlendError::WhollyInside {
+                            at: EntityId::Face(face),
+                            chain: chains[reach.chain].first().convexity,
+                            margin: classified(decision, deep, band, sign),
+                        },
+                    );
+                    continue;
+                }
             }
             unclear.bound(
                 bound,
@@ -2426,6 +2685,7 @@ pub fn band_reach_for_tests<T: Decide + Bounds>(
         band,
         Unclear::new(),
     )
+    .map(|_| ())
 }
 
 #[cfg(test)]
@@ -2436,7 +2696,58 @@ mod tests {
 
     use geom_core::{Point3, Vec3};
 
-    use super::{Bound, Cell, SheetFn};
+    use super::{Bound, Cell, SheetFn, Unclear};
+
+    /// **A tie on the margin names the least entity, in every read
+    /// order**: two faces read inside at one depth, and two read as
+    /// bounds at one margin, refuse naming the lesser key whichever is
+    /// read first.
+    #[test]
+    #[allow(clippy::expect_used, clippy::panic)]
+    fn a_margin_tie_names_the_least_entity_in_either_order() {
+        use super::super::{BlendDecision, BlendError, Convexity, battery::classified};
+        use geom_core::{Band, Sign, Tol};
+        use topo::{EntityId, FaceKey};
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let body = crate::test_support::cube::<f64>(1.0, Tol::witness());
+        let mut faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        faces.sort_unstable();
+        let (lo, hi) = (faces[0], faces[1]);
+        let at = |e: &BlendError| match e {
+            BlendError::WhollyInside { at, .. } | BlendError::FaceClearance { at, .. } => *at,
+            other => panic!("not a reach refusal: {other:?}"),
+        };
+        let decision = BlendDecision::FaceClearance;
+        let inside = |f: FaceKey| BlendError::WhollyInside {
+            at: EntityId::Face(f),
+            chain: Convexity::Convex,
+            margin: classified(decision, -0.25, band, Sign::Negative),
+        };
+        let bound = |f: FaceKey| BlendError::FaceClearance {
+            at: EntityId::Face(f),
+            chain: Convexity::Convex,
+            margin: classified(decision, -0.25, band, Sign::Negative),
+            bounded: true,
+        };
+        for order in [[lo, hi], [hi, lo]] {
+            let mut u = Unclear::<f64>::new();
+            for f in order {
+                u.unconsumed_inside(-0.25, inside(f));
+            }
+            let Err(e) = u.verdict() else {
+                panic!("two inside readings the carve does not take refuse")
+            };
+            assert_eq!(at(&e), EntityId::Face(lo), "inside, read {order:?}");
+            let mut u = Unclear::<f64>::new();
+            for f in order {
+                u.bound(-0.25, bound(f));
+            }
+            let Err(e) = u.verdict() else {
+                panic!("two bounds refuse")
+            };
+            assert_eq!(at(&e), EntityId::Face(lo), "bound, read {order:?}");
+        }
+    }
 
     /// **A cell's corners are computed values**: box arithmetic over the
     /// faces' certified boxes produced them in `f64`, so at `Sym` each
