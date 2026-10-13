@@ -90,7 +90,7 @@ fn r2_identities_by_different_routes_decide_zero_at_every_width() {
             );
         }
         assert_eq!(
-            counts.symbolic_zero,
+            counts.symbolic,
             out.len() as u64,
             "half-width {half}: every one of these must be a SYMBOLIC zero, \
              not a numeric one that happened to be tight"
@@ -126,7 +126,7 @@ fn r2_a_nominal_coincidence_never_decides_symbolically_and_widens() {
             geom_core::Bounds::hi(m) - geom_core::Bounds::lo(m)
         });
         assert_eq!(
-            counts.symbolic_zero, 0,
+            counts.symbolic, 0,
             "half-width {half}: a coincidence produced a symbolic zero"
         );
         widths.push(w);
@@ -150,7 +150,7 @@ fn r2_collinear_only_at_the_nominal_is_never_a_theorem() {
             sign_of(perp)
         });
         assert_eq!(
-            counts.symbolic_zero, 0,
+            counts.symbolic, 0,
             "half-width {half}: a nominal collinearity decided symbolically ({s:?})"
         );
     }
@@ -168,7 +168,7 @@ fn r2_a_domain_violation_never_certifies_symbolically() {
         sign_of(r)
     });
     assert!(s.is_err(), "sqrt of a negative box decided {s:?}");
-    assert_eq!(counts.symbolic_zero, 0);
+    assert_eq!(counts.symbolic, 0);
 }
 
 /// **`0 · (1/y)` where `y` reaches zero.** The numerator's form is the
@@ -186,7 +186,7 @@ fn r2_a_zero_numerator_over_a_zero_reaching_denominator_is_refused() {
         s.is_err(),
         "a division whose denominator reaches zero decided {s:?} — clause 1 did not hold"
     );
-    assert_eq!(counts.symbolic_zero, 0);
+    assert_eq!(counts.symbolic, 0);
 }
 
 /// The same shape with a denominator that does NOT reach zero: the
@@ -199,7 +199,7 @@ fn r2_a_zero_numerator_over_a_safe_denominator_is_a_theorem() {
         sign_of((x - x) / y)
     });
     assert_eq!(s, Ok(Sign::Zero));
-    assert_eq!(counts.symbolic_zero, 1);
+    assert_eq!(counts.symbolic, 1);
 }
 
 /// **`(a/b)·b − a` is NOT folded** (the documented limit) — and where
@@ -229,7 +229,7 @@ fn r2_the_reciprocal_is_opaque_in_both_directions() {
         sign_of((a / b) * b - a)
     });
     assert_ne!(unsafe_, Ok(Sign::Zero));
-    assert_eq!(counts.symbolic_zero, 0);
+    assert_eq!(counts.symbolic, 0);
 }
 
 /// **The atom-at-zero folds are the function's true value at zero.**
@@ -303,23 +303,21 @@ fn r2_the_kink_atoms_never_claim_a_cancellation() {
     // conservative miss this row is about: the sign bit of `x` is not
     // a fact of the form.
     assert_eq!(
-        (counts.symbolic_zero, counts.sign_gated),
-        (2, 0),
-        "min and max of one form are theorems and nothing here is a READ, among {out:?}"
+        counts.symbolic, 2,
+        "min and max of one form are proven, and nothing else here is, among {out:?}"
     );
     // `abs(x) − abs(−x)` IS a theorem, and it is not a value read:
     // `|Y|` and `|−Y|` name one magnitude, so DECIDE-3's rule G keys
     // them as one atom and the residual is the zero FORM. This row's
     // claim — the tier never claims a cancellation it cannot prove
-    // without reading a value — stands: the proof is the KEY, and
-    // `symbolic_zero` is where the receipt records it.
+    // without reading a value — stands: the proof is the KEY.
     for (lo, hi) in [(1.0, 2.0), (-1.0, 2.0)] {
         let (s, counts) = with_session(budget(), || {
             let x = p("x", lo, hi);
             sign_of(x.abs() - (-x).abs())
         });
         assert_eq!(s, Ok(Sign::Zero), "|x| and |−x| are one magnitude");
-        assert_eq!(counts.sign_gated, 0, "and no value was read: {counts:?}");
+        assert_eq!(counts.symbolic, 1, "and the tier proves it: {counts:?}");
     }
     // A kink pair that is NOT an identity stays opaque, which is what
     // the row above used to carry: `|x| − |x + 1|` and `|x| − x` are
@@ -340,11 +338,7 @@ fn r2_the_kink_atoms_never_claim_a_cancellation() {
                 "{name} over [{lo}, {hi}] is no identity of reals"
             );
         }
-        assert_eq!(
-            counts.sign_gated + counts.symbolic_zero,
-            0,
-            "and nothing was claimed: {counts:?}"
-        );
+        assert_eq!(counts.symbolic, 0, "and nothing was claimed: {counts:?}");
     }
     // The one fold these DO license: min/max/copysign of zero forms.
     let (folds, _) = with_session(budget(), || {
@@ -428,10 +422,7 @@ fn r2_a_zero_budget_reproduces_the_numeric_only_lane() {
         let x = p("x", 0.0, 1.0);
         sign_of(x - x)
     });
-    assert_eq!(
-        counts.symbolic_zero, 0,
-        "a zero budget answered symbolically"
-    );
+    assert_eq!(counts.symbolic, 0, "a zero budget answered symbolically");
     assert_eq!(
         counts.frozen, 0,
         "a zero budget should not even build a form"
@@ -509,7 +500,7 @@ fn r2_outside_a_session_the_tier_is_wholly_off() {
         "EXPECTED-DOC-DEFECT ROW: a node minted before the session was \
          installed decided {s:?}"
     );
-    assert_eq!(counts.symbolic_zero, 1);
+    assert_eq!(counts.symbolic, 1);
     assert!(
         counts.frozen > 0,
         "the missing node did not freeze: {counts:?}"
@@ -530,19 +521,19 @@ fn r2_a_symbolic_zero_retags_rather_than_double_counting() {
     });
     let s = take_samples();
     assert_eq!(s.len(), 2, "expected exactly two samples, got {s:?}");
-    assert_eq!(s[0].outcome, SampleOutcome::SymbolicZero);
+    assert_eq!(s[0].outcome, SampleOutcome::Symbolic);
     assert_eq!(s[0].margin, 0.0, "the re-tagged sample lost its margin");
     assert_eq!(s[1].outcome, SampleOutcome::Definite(Sign::Positive));
-    assert_eq!(counts.symbolic_zero, 1);
+    assert_eq!(counts.symbolic, 1);
     assert_eq!(counts.numeric, 1);
 }
 
 /// **THE RE-TAG IS ADDRESSED TO ITS OWN SAMPLE**, and this row is what
 /// says so.
 ///
-/// It was an EXPECTED-DEFECT row. `retag_symbolic_zero` rewrote whatever
-/// sat LAST in the thread-local sink, and the base scalar of the
-/// driver's own replay lane (`Sym<Interval>`) records nothing at all —
+/// It was an EXPECTED-DEFECT row. The re-tag's first spelling, before
+/// `k_stats::retag_at`, rewrote whatever sat LAST in the thread-local
+/// sink, and the base scalar of the driver's own replay lane (`Sym<Interval>`) records nothing at all —
 /// so a sample pushed by an earlier `Probe` decision on the same thread
 /// was re-labelled by a decision that had nothing to do with it,
 /// including an `Indeterminate` sample, which is exactly the population
@@ -638,7 +629,7 @@ fn r2_two_distinct_opaque_values_cancel_to_a_false_theorem() {
          cancellation the tier has no argument for"
     );
     assert_eq!(
-        counts.symbolic_zero, 0,
+        counts.symbolic, 0,
         "and the tier answered NOTHING here: with distinct unknowns there is no \
          identity to discharge, so the decision is numeric"
     );
@@ -676,7 +667,7 @@ fn r2_an_opaque_value_equals_every_other_opaque_value() {
         );
     }
     assert_eq!(
-        counts.symbolic_zero, 2,
+        counts.symbolic, 2,
         "exactly the two rows that ARE identities were answered symbolically"
     );
 }

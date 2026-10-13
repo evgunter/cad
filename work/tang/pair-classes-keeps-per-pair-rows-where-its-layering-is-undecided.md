@@ -2,8 +2,10 @@
 id: pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided
 kind: issue
 title: A vertex in pairs alone whose layering leaves an edge undecided, or whose outermost cones disagree, keeps each pair's rows, silently
-status: open
+status: closed
+closed: 2026-10-12
 opened: 2026-10-08
+branch: tang/pair-classes-undecided-layering
 priority: P2
 cost: M
 refs: [pair-classes-falls-back-to-per-pair-rows-beside-a-partner-that-reads-none]
@@ -85,3 +87,36 @@ agree. Outermost cones that disagree are a met and a joined cone side
 by side, whose material between them a reading of both would decide.
 Refuse typed for what no reading decides, as beside a partner that
 reads nothing, and report any cell main built that would then refuse.
+
+## Closed (2026-10-12)
+
+- **Outermost cones that disagree are now decided.** Each measured
+  case was a cone nested in another that the old containment test
+  missed: a met cone in a void touching it along a ray, or an island
+  whose every edge lies on the void's faces. The second shape is a
+  notched block with a tip touching the notch's three faces.
+
+  A cone now lies inside another where every edge of it is held by the
+  other or lies on the other's boundary, and some of it is held. That
+  is an edge, or, where every edge is on the other's faces, a
+  direction strictly inside it (`vtxfac::interior`).
+- **An edge on two or more partners' boundaries** reads
+  `vtxfac::along_partners`. It is `On` where a half-plane one partner
+  alone leaves the edge in is decidedly apart from every other's.
+  Otherwise it refuses `Escalated` with
+  `BooleanDecision::PartnerFaces` (flush or in band).
+- **The rest refuse.** The interior direction is the first held among
+  the link mean, its opposite, and directions off each face's middle at
+  a fivefold-shrinking step. The steps stop where the band takes them:
+  at the first step at which no candidate reads decidedly off its own
+  face. Where none held by then, the corner is thinner than ε_input
+  wherever probed, and it refuses `BooleanError::NestingUnread`.
+  Disagreement after that, no outermost cone, or an edge some partner's
+  rows miss are `ClassificationInvariant`s. The reasons are that every
+  pair reads the vertex's one orbit, and that cones which touch but
+  never cross nest or lie apart.
+
+The flush refusal is filed as
+`pair-classes-refuses-partners-flush-along-an-edge`. The sweep filed
+`a-touching-vertex-refuses-an-edge-on-two-partners-boundaries` and
+`a-lone-unread-partner-leaves-its-vertex-edges-unclassed`.

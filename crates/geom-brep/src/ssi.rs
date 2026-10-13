@@ -1882,7 +1882,7 @@ const GRAZE: SizedDecision = SizedDecision {
     size: "crossing angle",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// What [`graze_recourse`] replaces with the side's name.
@@ -1911,7 +1911,7 @@ const fn short_branch(lever: &'static str) -> SizedDecision {
         size: "branch length",
         passes: SizedPass::Positive,
         stored: StoredDefinite::Lever,
-        at_zero: None,
+        no_size: None,
     }
 }
 
@@ -1924,7 +1924,7 @@ const MARCH_STEP_BEND: SizedDecision = SizedDecision {
     size: "bend",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// A short branch the wall bounds.
@@ -2019,7 +2019,7 @@ const TUBE_EXTENT: SizedDecision = SizedDecision {
     size: "feature extent",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// [`SsiError::PairBoundaryUnresolved`]'s ending: the section touches
@@ -2282,7 +2282,7 @@ const DOMAIN_SCALE: SizedDecision = SizedDecision {
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The ℝ³ open end (`ssi_branch_open_end`), refused only where a
@@ -2295,7 +2295,7 @@ const OPEN_END: SizedDecision = SizedDecision {
     size: "boundary distance",
     passes: SizedPass::AnySign,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Limb 3's one-arc decision at a search ([`SsiError::TubeNotOneArc`]):
@@ -2310,7 +2310,7 @@ const TUBE_ONE_ARC: SizedDecision = SizedDecision {
     size: "clearance",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Limb 3's one-arc decision at rest
@@ -2322,7 +2322,7 @@ const REST_ONE_ARC: SizedDecision = SizedDecision {
     size: "clearance",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Where limb 3's one-arc proof refused: the door decides the lever.
@@ -2370,7 +2370,7 @@ const SELF_CROSSING: SizedDecision = SizedDecision {
     size: "closure angle",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The stepper's step against the operands and the caller's domain
@@ -2386,7 +2386,7 @@ const STEP_SCALE: SizedDecision = SizedDecision {
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The cylinder × sphere tangency decision (`ssi_cs_tangency`): the
@@ -2396,7 +2396,7 @@ const PAIR_TANGENCY: SizedDecision = SizedDecision {
     size: "near-tangency",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// `surface`, the door's `operand`, refused when one of its stored data

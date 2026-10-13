@@ -94,7 +94,7 @@ fn r2_rule_a_never_folds_a_sqrt_that_has_no_real_value() {
         "a sqrt with no real value must not decide Zero"
     );
     assert_eq!(
-        counts.symbolic_zero, 0,
+        counts.symbolic, 0,
         "clause 1 refuses before the identity test: {counts:?}"
     );
 
@@ -107,7 +107,7 @@ fn r2_rule_a_never_folds_a_sqrt_that_has_no_real_value() {
         sign_of(s * s - x)
     });
     assert_ne!(out, Ok(Sign::Zero), "a straddling sqrt must not fold");
-    assert_eq!(counts.symbolic_zero, 0, "{counts:?}");
+    assert_eq!(counts.symbolic, 0, "{counts:?}");
 }
 
 /// **`sqrt(x − x)` — the argument is the ZERO FORM** — folds to 0 by
@@ -124,10 +124,7 @@ fn r2_a_sqrt_of_the_zero_form_answers_the_same_with_the_rules_on() {
     let (on, c_on) = ruled(case);
     let (off, c_off) = with_session_rules(budget(), SymRules::none(), case);
     assert_eq!(on, off, "rule A moved a decision the plain form made");
-    assert_eq!(
-        c_on.symbolic_zero, c_off.symbolic_zero,
-        "{c_on:?} vs {c_off:?}"
-    );
+    assert_eq!(c_on.symbolic, c_off.symbolic, "{c_on:?} vs {c_off:?}");
 }
 
 /// **An ODD power of a `sqrt` atom is not its argument.** `sqrt(X)³ −
@@ -143,7 +140,7 @@ fn r2_rule_a_leaves_the_odd_factor_alone() {
         sign_of(s * s * s - x)
     });
     assert_ne!(out, Ok(Sign::Zero), "X^{{3/2}} − X is not an identity");
-    assert_eq!(counts.symbolic_zero, 0, "{counts:?}");
+    assert_eq!(counts.symbolic, 0, "{counts:?}");
     // The true identity one power up IS reached, so the row above is
     // not passing because the rule is inert.
     let (ok, counts) = ruled(|| {
@@ -152,7 +149,7 @@ fn r2_rule_a_leaves_the_odd_factor_alone() {
         sign_of(s * s * s - x * s) == Ok(Sign::Zero)
     });
     assert!(ok, "sqrt(X)³ − X·sqrt(X) is an identity rule A reaches");
-    assert_eq!(counts.symbolic_zero, 1, "{counts:?}");
+    assert_eq!(counts.symbolic, 1, "{counts:?}");
 }
 
 // ------------------------------------------ claim 3: rule B's argument
@@ -172,7 +169,7 @@ fn r2_rule_b_never_pairs_two_different_arguments() {
             sign_of(sa * sa + cb * cb - lit(1.0))
         });
         assert_eq!(
-            counts.symbolic_zero, 0,
+            counts.symbolic, 0,
             "two arguments were paired over [{lo}, {hi}]: {counts:?} ({out:?})"
         );
     }
@@ -186,7 +183,7 @@ fn r2_rule_b_never_pairs_two_different_arguments() {
         sign_of(s * s + c * c - lit(1.0)) == Ok(Sign::Zero)
     });
     assert!(ok, "θ+θ and 2·θ are one argument form");
-    assert_eq!(counts.symbolic_zero, 1, "{counts:?}");
+    assert_eq!(counts.symbolic, 1, "{counts:?}");
 }
 
 /// **The Pythagorean pair is a theorem at EVERY width**, including a
@@ -201,7 +198,7 @@ fn r2_rule_b_holds_at_every_width() {
             sign_of(s * s + c * c - lit(1.0))
         });
         assert_eq!(out, Ok(Sign::Zero), "half-width {half}");
-        assert_eq!(counts.symbolic_zero, 1, "half-width {half}: {counts:?}");
+        assert_eq!(counts.symbolic, 1, "half-width {half}: {counts:?}");
     }
 }
 
@@ -225,7 +222,7 @@ fn r2_the_unsuffixed_session_door_is_the_shipped_rule_set() {
     assert_eq!(plain_out, doored_out);
     assert_eq!(plain, doored, "one default: the door runs the shipped tier");
     let (_, all) = with_session_rules(budget(), SymRules::all(), case);
-    assert_eq!(all.symbolic_zero, 1, "and the full set proves it: {all:?}");
+    assert_eq!(all.symbolic, 1, "and the full set proves it: {all:?}");
 }
 
 // ------------------------- evidence: the bounded early reduction (claim 2)
@@ -264,7 +261,7 @@ fn r2_the_normalize_shape_under_each_rule_set() {
         });
         println!(
             "   n={n}: A+B {out:?} symbolic={} frozen={} | none symbolic={} frozen={}",
-            counts.symbolic_zero, counts.frozen, plain.symbolic_zero, plain.frozen
+            counts.symbolic, counts.frozen, plain.symbolic, plain.frozen
         );
     }
 }
@@ -282,9 +279,8 @@ fn r2_the_bounded_early_reduction_on_the_normalize_shape() {
             sign_of(normalized_self_dot(n))
         });
         println!(
-            "   cap={cap} n={n}: {out:?} symbolic={} early={} frozen={} in {:?}",
-            counts.symbolic_zero,
-            counts.sign_gated,
+            "   cap={cap} n={n}: {out:?} symbolic={} frozen={} in {:?}",
+            counts.symbolic,
             counts.frozen,
             start.elapsed()
         );
