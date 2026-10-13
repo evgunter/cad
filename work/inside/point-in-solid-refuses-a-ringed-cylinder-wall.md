@@ -52,3 +52,15 @@ ray is blocked or grazes. `reach_slab_cut_sector_side`'s boss now builds
 in all six member orders at its closed-form volume
 (`a_slab_across_a_round_boss_builds_in_every_order`). The ringed wall
 itself is still unread.
+
+## Another pose (GERM, torus-lens design fork, 2026-10-12)
+
+While measuring the fat corner bar's lens, GERM's design-fork designer
+built a seam-turned cylinder pose: an edge dipping into the cylinder
+wall with both ends on it. The bodies' volumes were right, but
+`point_in_solid` on them refused `WallOutlineUnsupported`. It refused
+at 42 of 358 probe points on the union and at 278 of 358 on one
+of the differences. This is the same family as this item: a ringed or
+seam-turned cylinder wall that the outline does not read. The probe
+was a scratch test, never committed.
+

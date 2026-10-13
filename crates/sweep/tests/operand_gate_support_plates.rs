@@ -78,7 +78,7 @@ fn pose(s: f64, seed: u64) -> Affine3<f64> {
 /// skips: the question is the boolean's, not the move's).
 fn posed(body: &Body<f64>, map: &Affine3<f64>) -> Option<AtRestBody<f64>> {
     use topo::AtRestPolicy;
-    let b = topo::transform_rigid(body, map, tol()).ok()?;
+    let b = topo::transform_rigid(body, &geom_core::test_support::rigid(map, tol()), tol()).ok()?;
     f64::gate_at_rest_kept(b, tol()).ok()
 }
 
@@ -242,10 +242,13 @@ fn plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op() 
                         (-0.15 * s, 0.15 * s),
                         tol(),
                     );
-                    let Some(b) = topo::transform_rigid(&plate, &m, tol())
-                        .ok()
-                        .and_then(|plate| posed(&plate, &pose))
-                    else {
+                    let Some(b) = topo::transform_rigid(
+                        &plate,
+                        &geom_core::test_support::rigid(&m, tol()),
+                        tol(),
+                    )
+                    .ok()
+                    .and_then(|plate| posed(&plate, &pose)) else {
                         skipped += 1;
                         continue;
                     };

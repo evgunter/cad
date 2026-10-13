@@ -12,13 +12,12 @@
 //!
 //! # Why this is a measurement and not a demonstration
 //!
-//! A widened ROTATION ANGLE has never been carried on this lane. The
-//! one widened `Node::Transform` in the tree
+//! The one other widened `Node::Transform` in the tree
 //! (`editor-core/tests/m10_derived_frame_interval.rs`) widens the
-//! TRANSLATION and pins `rotation_angle` at exactly zero, so interval
-//! `sin`/`cos` of a parameter has never reached a rigid map. This cell
-//! is the first document that does it, and the table below is the
-//! answer either way: the walls it finds are filed, not fixed here.
+//! TRANSLATION and pins `rotation_angle` at exactly zero, so this cell
+//! is the document where interval `sin`/`cos` of a parameter reach a
+//! rigid map, and the table below is the answer either way: the walls
+//! it finds are filed, not fixed here.
 //!
 //! # The table, measured (σ = 0.01 rad at every joint, release)
 //!
@@ -33,11 +32,11 @@
 //!
 //! | links | lane | | first refusal OVER THE WHOLE STUDY | cost |
 //! |---|---|---|---|---|
-//! | 1–4 | `Interval` | refuses | `transform_rigid_col0_unit` | <0.01 s |
-//! | 1 | `Sym<Interval>` | **CERTIFIES** | — | 0.16 s |
-//! | 2 | `Sym<Interval>` | refuses | `dihedral_wedge`: no tangent plane | 0.31 s |
-//! | 3 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.51 s |
-//! | 4 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.64 s |
+//! | 1–4 | `Interval` | refuses | `carrier_endpoint_start`, `[0, 9.0e-5]` | <0.01 s |
+//! | 1 | `Sym<Interval>` | **CERTIFIES** | — | 0.13 s |
+//! | 2 | `Sym<Interval>` | refuses | `dihedral_wedge`: no tangent plane | 0.22 s |
+//! | 3 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.33 s |
+//! | 4 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.42 s |
 //!
 //! **That column is the first refusal at the WHOLE study, which is a
 //! different question from what bounds the certifiable box.**
@@ -50,13 +49,25 @@
 //! refusal that is first only over the whole study
 //! (`work/sym/a-chain-of-three-joints-straddles-dihedral-arm`).
 //!
-//! **The plain interval lane does not carry a widened rotation angle
-//! at all.** `Mat3::rotation_about` builds its columns out of
-//! `cos(angle)` and `sin(angle)`; on an interval angle those are two
-//! independent brackets, `cos² + sin²` is a bracket AROUND 1, and the
-//! rigid map's own column-unit check is what notices. The symbolic
-//! tier discharges exactly that identity, which is the whole
-//! difference between the two lanes here.
+//! **The plain interval lane carries the widened rotation, and stops
+//! one step later.** Each joint's rotation is a rigid motion by
+//! construction (`RigidMotion`), so nothing re-derives its rigidity
+//! from `cos` and `sin` of the angle box, two independent brackets
+//! whose entries no band could decide orthonormal. What refuses is the
+//! first transform's re-certification of a moved edge: its endpoint and
+//! its carrier are mapped and enclosed APART, so the endpoint's
+//! residual on its carrier encloses `[0, 9.0e-5]`
+//! (`work/shelf/transform-rigid-recertifies-images-enclosed-apart`).
+//! Bisected on one leaf, the plain lane certifies the whole box up to
+//! `σ = 6.49e-9` rad at one link and `6.73e-10` at four, where the
+//! moved pcurve's envelope (`pcurve_envelope`, `FidelityU`) refuses
+//! first. Those two numbers are a measurement and not a pin: the
+//! `#[ignore]`d `the_plain_lanes_reach_is_bisected` re-takes them, and
+//! no gate runs it: the bracket's last digits move with any rounding on
+//! the moved edge's path, so a pin would red on changes that are not
+//! about the plain lane's reach. What the cell does gate is the refusal
+//! at the study's σ (`assert_row`). The symbolic tier holds the images' correlation, which is the
+//! whole difference between the two lanes here.
 //!
 //! # The widest box that certifies whole, and what sets it
 //!
@@ -91,7 +102,7 @@
 //!   with "the surfaces' tangent planes at sample 4 are undefined". The
 //!   box where that happens does not move with ε. It is set by the
 //!   transform enclosing the two images apart
-//!   (`work/shell/transform-rigid-recertifies-images-enclosed-apart`),
+//!   (`work/shelf/transform-rigid-recertifies-images-enclosed-apart`),
 //!   and at the default ε it is the wall, so the tip's certified box is
 //!   half the pin radius.
 //! - **The straddle, before it.** `sin θ = ‖n1 × n2‖/(‖n1‖·‖n2‖)`
@@ -431,13 +442,12 @@ pub fn narration(tol: Tol) {
 /// the kernel stops doing what it narrates.
 ///
 /// The plain interval lane refuses at EVERY link count, at the FIRST
-/// transform, on the rigid map's own isometry check: an interval
-/// `cos`/`sin` makes `cos² + sin²` a bracket around 1 rather than 1,
-/// and the column-unit predicate is what notices. The symbolic tier
-/// discharges that identity, so the ONE-link chain certifies whole over
-/// the study a user actually has — and the wall MOVES rather than going
-/// away: from two links on it is a transversality margin during the
-/// mapped edge's re-certification, not the isometry. The table names
+/// transform, re-certifying a moved edge whose endpoint and carrier
+/// are enclosed apart: `carrier_endpoint_start` is what notices. The
+/// symbolic tier holds that correlation, so the ONE-link chain
+/// certifies whole over the study a user actually has — and the wall
+/// MOVES rather than going away: from two links on it is a
+/// transversality margin during the mapped edge's re-certification. The table names
 /// WHICH predicate per link count, so that is what is asserted, not
 /// merely that some dihedral refused: the two are different predicates
 /// with different answers, and the header once said the wrong one.
@@ -452,12 +462,12 @@ fn assert_row(row: &Row) {
         (Lane::Interval, _) => {
             assert!(
                 !row.certifies,
-                "the header says a widened rotation angle does not survive the plain \
-                 interval lane at any link count; {links} link(s) certified"
+                "the header says the plain interval lane does not certify the study at any \
+                 link count; {links} link(s) certified"
             );
             assert!(
-                first().contains("transform_rigid_col0_unit"),
-                "the header names `transform_rigid_col0_unit` as the plain lane's wall; at \
+                first().contains("predicate: Some(\"carrier_endpoint_start\")"),
+                "the header names `carrier_endpoint_start` as the plain lane's wall; at \
                  {links} link(s) the first refusal was: {}",
                 first()
             );
@@ -485,12 +495,6 @@ fn assert_row(row: &Row) {
                 !row.certifies,
                 "the header says the symbolic tier stops at two links over the whole \
                  study; {links} link(s) certified"
-            );
-            assert!(
-                !first().contains("transform_rigid_col0_unit"),
-                "the header says the isometry wall is GONE on the symbolic lane; at \
-                 {links} link(s) it was still the first refusal: {}",
-                first()
             );
             // The predicate's exact name, as the refusal's diagnostics
             // spell it: `dihedral_arm` is a prefix of `dihedral_arm_wedge`,
@@ -734,6 +738,54 @@ fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f64)>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// **The plain lane's reach, bisected** — the header's
+    /// `σ = 6.49e-9` at one link and `6.73e-10` at four: one leaf over
+    /// the whole box at plain `Interval`, bisected in `log10 σ` to 0.005
+    /// between a certifying and a refusing σ, printing the bracket and
+    /// the refusal just above it, and the first refusal at the study's
+    /// σ. `#[ignore]`d, and why at the header's claim. Run from
+    /// `demos/tour`: `cargo test --release --bins
+    /// the_plain_lanes_reach_is_bisected -- --ignored --nocapture`
+    /// (`CHAIN_REACH_LINKS=1,4` is the default).
+    #[test]
+    #[ignore]
+    fn the_plain_lanes_reach_is_bisected() {
+        let tol = Tol::witness();
+        let links_list: Vec<usize> = std::env::var("CHAIN_REACH_LINKS")
+            .map(|v| v.split(',').map(|x| x.parse().unwrap()).collect())
+            .unwrap_or_else(|_| vec![1, 4]);
+        let leaf = |links: usize, sigma: f64| {
+            let built = chain(links, sigma, POSITION_BOUND, tol);
+            interval_leaf(links, &built.doc)
+        };
+        for links in links_list {
+            let at = leaf(links, JOINT_SIGMA);
+            println!(
+                "{links} link(s) at σ = {JOINT_SIGMA:e}: certifies={} refused={} first={:?}",
+                at.certifies, at.refused, at.first
+            );
+            let (mut lo, mut hi) = (-14.0_f64, JOINT_SIGMA.log10());
+            assert!(
+                leaf(links, 10f64.powf(lo)).certifies,
+                "the lower end of the bisection must certify"
+            );
+            while hi - lo >= 0.005 {
+                let mid = 0.5 * (lo + hi);
+                if leaf(links, 10f64.powf(mid)).certifies {
+                    lo = mid;
+                } else {
+                    hi = mid;
+                }
+            }
+            println!(
+                "{links} link(s): certifies at σ = {:.4e}, refuses at {:.4e}: {:?}",
+                10f64.powf(lo),
+                10f64.powf(hi),
+                leaf(links, 10f64.powf(hi)).first
+            );
+        }
+    }
 
     /// **What BOUNDS the certifiable box is `dihedral_wedge`.**
     ///

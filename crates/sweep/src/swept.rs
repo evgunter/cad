@@ -51,7 +51,8 @@ use geom_brep::{
     newell_plane,
 };
 use geom_core::{
-    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
+    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, RigidMotion,
+    RigidMotionError, Sign, Tol, UnitVec3, Vec3,
 };
 use profile::SegmentKind;
 use topo::{
@@ -63,14 +64,27 @@ use topo::{
 /// revolve's far copy the turn about the revolution axis.
 ///
 /// A point is placed and then turned on its offset from the axis
-/// ([`Affine3::rotate_point_about_axis`], W1 in
+/// ([`Affine3::rotate_point_about_unit_axis`]'s spelling, W1 in
 /// `crates/geom-core/README.md`). A description that carries a
 /// placement rather than a point carries [`Placing::map`], the turn
 /// composed into the placement once.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Placing<T: Real> {
     place: Affine3<T>,
-    turn: Option<(Point3<T>, Vec3<T>, T)>,
+    turn: Option<Turn<T>>,
+}
+
+/// A revolve's turn: the axis point, the axis witness and the angle a
+/// point and a direction are turned by
+/// ([`Affine3::rotate_point_about_unit_axis`], W1's spelling), and the
+/// same rotation minted anchored at the axis point, which turns a
+/// placement.
+#[derive(Clone, Copy, Debug)]
+struct Turn<T: Real> {
+    origin: Point3<T>,
+    axis: UnitVec3<T>,
+    angle: T,
+    anchored: RigidMotion<T>,
 }
 
 impl<T: Real> From<Affine3<T>> for Placing<T> {
@@ -81,12 +95,32 @@ impl<T: Real> From<Affine3<T>> for Placing<T> {
 
 impl<T: Real> Placing<T> {
     /// `place`, then the turn by `angle` about the axis through
-    /// `origin` along `dir`.
-    pub(crate) fn turned(place: Affine3<T>, origin: Point3<T>, dir: Vec3<T>, angle: T) -> Self {
-        Placing {
+    /// `origin` along `dir`, both rigid motions by construction.
+    ///
+    /// # Errors
+    ///
+    /// The mint's refusal of an angle or axis point that is not a
+    /// finite number.
+    pub(crate) fn turned(
+        place: Affine3<T>,
+        origin: Point3<T>,
+        dir: UnitVec3<T>,
+        angle: T,
+    ) -> Result<Self, RigidMotionError> {
+        Ok(Placing {
             place,
-            turn: Some((origin, dir, angle)),
-        }
+            turn: Some(Turn {
+                origin,
+                axis: dir,
+                angle,
+                anchored: RigidMotion::rotation_about_axis(origin, dir, angle)?,
+            }),
+        })
+    }
+
+    /// A direction turned by the turn, `None` when there is none.
+    pub(crate) fn turn_vec(self, v: Vec3<T>) -> Option<Vec3<T>> {
+        self.turn.map(|turn| turn.anchored.transform_vec(v))
     }
 
     /// Whether a turn follows the placement.
@@ -99,9 +133,7 @@ impl<T: Real> Placing<T> {
     pub(crate) fn map(self) -> Affine3<T> {
         match self.turn {
             None => self.place,
-            Some((origin, dir, angle)) => {
-                Affine3::rotation_about_axis(origin, dir, angle) * self.place
-            }
+            Some(turn) => turn.anchored.to_affine() * self.place,
         }
     }
 
@@ -110,8 +142,8 @@ impl<T: Real> Placing<T> {
         let placed = self.place.transform_point(Point3::new(p.x, p.y, T::zero()));
         match self.turn {
             None => placed,
-            Some((origin, dir, angle)) => {
-                Affine3::rotate_point_about_axis(origin, dir, angle, placed)
+            Some(turn) => {
+                Affine3::rotate_point_about_unit_axis(turn.origin, turn.axis, turn.angle, placed)
             }
         }
     }
@@ -757,10 +789,11 @@ impl core::fmt::Display for CapPlaneError {
             Self::Newell(e) => write!(f, "a cap is not planar: {e}"),
             Self::Orientation(cause) => write!(
                 f,
-                "whether a cap's plane faces along the profile's winding or against it could \
-                 not be decided: {}. {}",
-                cause.payload(),
-                geom_core::KERNEL_DEFECT_ENDING
+                "{}",
+                cause.undecided(
+                    "whether a cap's plane faces along the profile's winding or against it",
+                    geom_core::KERNEL_DEFECT_ENDING,
+                )
             ),
             Self::EdgeOn => write!(
                 f,
@@ -1428,6 +1461,23 @@ mod tests {
     use geom_core::sym::{session_counts, with_session_rules};
     use geom_core::{Bounds, Interval, ParamSymbol, Sym, SymBudget};
 
+    /// **A cap's undecided orientation ends in the defect ending on every
+    /// reading**: a validated profile never reaches it.
+    #[test]
+    fn a_caps_undecided_orientation_ends_as_a_defect() {
+        let defect = "There is no way through: this is a kernel defect; report it";
+        let texts = undecided_fixtures::expected(
+            "whether a cap's plane faces along the profile's winding or against it",
+            [defect; 3],
+        );
+        for (cause, text) in undecided_fixtures::readings("cap_plane_orientation")
+            .into_iter()
+            .zip(texts)
+        {
+            assert_eq!(CapPlaneError::Orientation(cause).to_string(), text);
+        }
+    }
+
     /// **A must-carry escalation keeps which question escalated**: the
     /// first-order arm and wedge by rung, the second-order sagitta as the
     /// bend, each with its own diagnostics.
@@ -1952,5 +2002,75 @@ pub(crate) mod must_carry_fixtures {
             origin: Point3::new(0.0, 0.0, 0.0),
             dir: Vec3::new(0.0, 0.0, 1.0),
         }
+    }
+}
+
+/// The readings an undecided refusal's pins render, one escalation per
+/// kind of margin it can carry, and the literal text each ending class
+/// gives them.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+pub(crate) mod undecided_fixtures {
+    use geom_core::{Band, Decided, Indeterminate, MarginDiag, Sign};
+
+    /// The three readings an escalation of `name` can carry against
+    /// `(1e-9, 1e-8)`: a value in the band, a straddle of the band, and
+    /// a margin nobody could read.
+    pub(crate) fn readings(name: &'static str) -> [Indeterminate; 3] {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let value = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band,
+            predicate: Some(name),
+            terminal_sliver: false,
+        };
+        let straddle = geom_core::k_stats::straddle(
+            name,
+            Decided {
+                sign: Sign::Zero,
+                margin: MarginDiag::value(0.5e-9),
+            },
+            Decided {
+                sign: Sign::Positive,
+                margin: MarginDiag::value(3e-8),
+            },
+            band,
+        );
+        let poison = Indeterminate {
+            margin: MarginDiag::INVALID,
+            ..value
+        };
+        [value, straddle, poison]
+    }
+
+    /// The payload of each of [`readings`].
+    const PAYLOADS: [&str; 3] = [
+        "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). ",
+        "enclosure [5e-10, 3e-8] cannot be classified against the ambiguity band (1e-9, 1e-8). ",
+        "margin is invalid (NaN or a refused enclosure) against the ambiguity band (1e-9, 1e-8). ",
+    ];
+
+    /// A size's ending on each of [`readings`]: the tolerance a value
+    /// gives, the subdividable enclosure, the inputs and the note.
+    pub(crate) const SIZED: [&str; 3] = [
+        "Recourse: move the geometry, or, if this size is intended, tighten the tolerance below \
+         5e-10 m",
+        "Recourse: subdivide the parameter box for a tighter enclosure, or move the geometry, or, \
+         if this size is intended, tighten the tolerance below 5e-11 m",
+        "Recourse: check the operation's inputs upstream, then move the geometry; an unreadable \
+         margin may indicate a kernel bug worth reporting",
+    ];
+
+    /// The lever-only ending on each of [`readings`].
+    pub(crate) const LEVER: [&str; 3] = [
+        "Recourse: move the geometry",
+        "Recourse: move the geometry",
+        "Recourse: move the geometry; an unreadable margin may indicate a kernel bug worth \
+         reporting",
+    ];
+
+    /// The sentence `subject` gives each of [`readings`] under `endings`.
+    pub(crate) fn expected(subject: &str, endings: [&str; 3]) -> [String; 3] {
+        [0, 1, 2].map(|k| format!("{subject} is undecided: {}{}", PAYLOADS[k], endings[k]))
     }
 }
