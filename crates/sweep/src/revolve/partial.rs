@@ -545,7 +545,7 @@ pub(super) fn sweep_loop<T: Decide + topo::AtRestPolicy>(
         let k_prev = face_surface_key(body, fp);
         let k_next = face_surface_key(body, fnx);
         if k_prev == k_next {
-            body.describe_at_rest(strut.edge, k_prev, tol)?;
+            body.describe_at_rest(strut.edge, tol)?;
             continue;
         }
         let vertex_index = segs[j].canonical_vertex;

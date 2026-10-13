@@ -2490,6 +2490,7 @@ pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
             decision: BooleanDecision::EdgeOnFaces,
             diag,
         },
+        DescribeRefusal::Mixed { edge, stations } => BooleanError::MixedSeam { edge, stations },
     }
 }
 
@@ -2527,8 +2528,9 @@ pub(super) fn of_merge(refusal: crate::merge_faces::MergeCoplanarError) -> Boole
 /// the chord-midpoint witness; definitely smooth ⇒ the must-carry rule
 /// over the edge ([`must_carry_reading`]) — the intrinsic
 /// `TangentIntersection` where the surfaces determine the locus, else
-/// the conventional description (D2's split); an undecided reading
-/// refuses typed. `skipped` is the merge stage's record of the groups
+/// the conventional description (D2's split); an undecided reading,
+/// or a seam a corner at one station and smooth at another, refuses
+/// typed. `skipped` is the merge stage's record of the groups
 /// it left unglued. The boolean's minted edges and the merge door's
 /// kept boundaries are both described here, and each door words the
 /// refusal as its own.
@@ -2605,7 +2607,8 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                 // surfaces under-determine the locus (D2's split).
                 let stale = match existing.as_ref().ok_or_else(corrupt)?.description() {
                     geom_brep::EdgeDescription::Intersection { pair, .. }
-                    | geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
+                    | geom_brep::EdgeDescription::TangentIntersection { pair, .. }
+                    | geom_brep::EdgeDescription::OnPair { pair } => {
                         *pair != geom_brep::SurfacePair::new(s1, s2)
                     }
                     // A chart image cites ONE adjacent surface (its
@@ -2628,16 +2631,31 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                 // The D6 smooth ladder (M9-3): a definitely-smooth
                 // seam descends one order through the must-carry rule
                 // over the edge, at the stations tier 3's must-carry arm
-                // re-reads (`must_carry_reading`).
-                let mint_intrinsic = {
+                // re-reads (`must_carry_reading`). A seam that reads a
+                // corner at some station and smooth at another is
+                // certifiable as neither, and refuses (D2).
+                let reading = {
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
                     let (_, [sa, sb]) = geom_brep::SurfacePair::sorted(s1, surf1, s2, surf2);
                     must_carry_reading(sa, sb, c.carrier(), t0, t1, extent, band).map_err(
-                        |(reading, diag)| DescribeRefusal::undecided(edge, reading, diag),
+                        |refusal| match refusal {
+                            SeamRefusal::Undecided(reading, diag) => {
+                                DescribeRefusal::undecided(edge, reading, diag)
+                            }
+                            SeamRefusal::Mixed(stations) => {
+                                DescribeRefusal::Mixed { edge, stations }
+                            }
+                        },
                     )?
                 };
-                if mint_intrinsic {
+                if reading == SeamReading::Corner {
+                    let spec = draft.into_spec(geom_brep::SurfacePair::new(s1, s2));
+                    let carrier = spec.carrier.kind();
+                    body.set_edge_curve(edge, spec, tol).map_err(|e| {
+                        of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, e)
+                    })?;
+                } else if reading == SeamReading::Intrinsic {
                     // Mint the intrinsic tangency on the existing
                     // carrier (U2: today's taxonomy, 1:1 onto
                     // (surface, exact-lane pcurve)) — this also
@@ -2658,17 +2676,24 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         of_attachment(edge, EdgeDescribeFailure::Tangency, c.carrier().kind(), e)
                     })?;
                 } else if stale {
+                    // The edge comes to REST here, so it is described
+                    // where it rests (D3's transience fence): a pair
+                    // the two distinct surfaces under-determine, or an
+                    // image in the chart of the one surface both faces
+                    // lie on. The pushforward that used to BE the
+                    // description is recorded as the authority beside
+                    // it.
+                    let at_rest = |spec: geom_brep::EdgeCurveSpec<T>| {
+                        if s1 == s2 {
+                            spec.at_rest_in_chart(s1, false)
+                        } else {
+                            spec.at_rest_on_pair(geom_brep::SurfacePair::new(s1, s2))
+                        }
+                    };
                     if curved {
-                        // The conventional re-description for an arc
-                        // the adjacent surfaces under-determine, on the
-                        // UNCHANGED carrier (no silent geometric
-                        // rewrite — only the description moves). The
-                        // edge comes to REST here, so it is described
-                        // where it rests — as an image in `s1`'s own
-                        // chart (D3's transience fence) — and the arc
-                        // pushforward that used to BE the description
-                        // is recorded as the authority beside it.
-                        // Carrier kinds with no conventional
+                        // An arc, on the UNCHANGED carrier (no silent
+                        // geometric rewrite — only the description
+                        // moves). Carrier kinds with no conventional
                         // pushforward keep the typed refusal.
                         let c = existing.as_ref().ok_or_else(corrupt)?;
                         let (t0, t1) = c.params();
@@ -2680,17 +2705,15 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                                 EdgeDescribeFailure::NoConventionalLane,
                             ));
                         };
-                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|e| {
-                                of_attachment(edge, EdgeDescribeFailure::Arc, c.carrier().kind(), e)
-                            })?;
+                        body.set_edge_curve(edge, at_rest(spec), tol).map_err(|e| {
+                            of_attachment(edge, EdgeDescribeFailure::Arc, c.carrier().kind(), e)
+                        })?;
                     } else {
                         let spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
                         let carrier = spec.carrier.kind();
-                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
-                            .map_err(|e| {
-                                of_attachment(edge, EdgeDescribeFailure::Line, carrier, e)
-                            })?;
+                        body.set_edge_curve(edge, at_rest(spec), tol).map_err(|e| {
+                            of_attachment(edge, EdgeDescribeFailure::Line, carrier, e)
+                        })?;
                     }
                 }
             }
@@ -2757,9 +2780,15 @@ pub(super) fn seam_refusal(reading: DihedralReading, diag: Indeterminate) -> Boo
 /// - under-determined ⇒ `false`: the conventional description is the
 ///   honest one (coplanar planes' exact-zero jet lands here, so a planar
 ///   split keeps its chord description);
-/// - a station that reads the seam a corner ⇒ `false`: the seam is
-///   smooth at its witness and transverse elsewhere, an edge tier 3
-///   holds to neither description, so it keeps the conventional one;
+/// - a station that reads the seam a corner ⇒
+///   [`BooleanError::MixedSeam`] with the two stations that disagree:
+///   the seam is smooth at its witness and a corner elsewhere, so the
+///   dihedral passes through the band at a point no station read, and
+///   the seam is certifiable as neither (D2);
+/// - every station reads a corner ⇒ [`SeamReading::Corner`]: tier 3
+///   reads the seam at those stations, not at the witness, so it is
+///   described as the transverse `Intersection` it reads there, whose
+///   certification meters transversality at every sample;
 /// - in band at a station ⇒ the typed escalation of the reading that
 ///   raised it: the seam's first-order arm or wedge, by rung, as
 ///   [`seam_class`] ends it, or its second-order bend
@@ -2774,13 +2803,38 @@ pub(super) fn seam_must_carry<T: Decide>(
     t1: T,
     extent: T,
     band: Band,
-) -> Result<bool, BooleanError> {
-    must_carry_reading(surf1, surf2, carrier, t0, t1, extent, band)
-        .map_err(|(reading, diag)| seam_refusal(reading, diag))
+) -> Result<SeamReading, BooleanError> {
+    must_carry_reading(surf1, surf2, carrier, t0, t1, extent, band).map_err(|refusal| match refusal
+    {
+        SeamRefusal::Undecided(reading, diag) => seam_refusal(reading, diag),
+        SeamRefusal::Mixed(stations) => BooleanError::MixedSeam {
+            edge: crate::entity::EdgeKey::default(),
+            stations,
+        },
+    })
 }
 
-/// [`seam_must_carry`]'s verdict, unworded: an undecided station
-/// returns the reading that raised it and its diagnostics.
+/// Why a seam smooth at its witness has no description: a station
+/// undecided, with the reading that raised it and its diagnostics, or
+/// one that reads a corner ([`seam_must_carry`]).
+#[derive(Clone, Copy, Debug)]
+enum SeamRefusal {
+    Undecided(DihedralReading, Indeterminate),
+    Mixed(geom_brep::MixedStations),
+}
+
+/// What a seam smooth at its witness stores ([`seam_must_carry`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SeamReading {
+    /// The intrinsic tangency: the surfaces determine the locus.
+    Intrinsic,
+    /// The conventional pair: the surfaces under-determine it.
+    Conventional,
+    /// Every station reads a corner: the transverse intersection.
+    Corner,
+}
+
+/// [`seam_must_carry`]'s verdict, unworded.
 fn must_carry_reading<T: Decide>(
     surf1: &geom::Surface<T>,
     surf2: &geom::Surface<T>,
@@ -2789,12 +2843,17 @@ fn must_carry_reading<T: Decide>(
     t1: T,
     extent: T,
     band: Band,
-) -> Result<bool, (DihedralReading, Indeterminate)> {
+) -> Result<SeamReading, SeamRefusal> {
     use geom_brep::MustCarryVerdict;
     match geom_brep::must_carry_over_edge(surf1, surf2, carrier, t0, t1, extent, band) {
-        MustCarryVerdict::JetDeterminate => Ok(true),
-        MustCarryVerdict::UnderDetermined | MustCarryVerdict::Transverse => Ok(false),
-        MustCarryVerdict::InBand(escalation) => Err(DihedralReading::of_must_carry(escalation)),
+        MustCarryVerdict::JetDeterminate => Ok(SeamReading::Intrinsic),
+        MustCarryVerdict::UnderDetermined => Ok(SeamReading::Conventional),
+        MustCarryVerdict::Transverse => Ok(SeamReading::Corner),
+        MustCarryVerdict::Mixed(stations) => Err(SeamRefusal::Mixed(stations)),
+        MustCarryVerdict::InBand(escalation) => {
+            let (reading, diag) = DihedralReading::of_must_carry(escalation);
+            Err(SeamRefusal::Undecided(reading, diag))
+        }
     }
 }
 
@@ -5064,6 +5123,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBandShell> {
         | V::PlanarFaceEscalated { .. }
         | V::PlanarBoundaryEscalated { .. }
         | V::SliverDihedral { .. }
+        | V::MixedDihedral { .. }
         | V::JoinUndecidedAtRest { .. }
         | V::VolumeSignUnresolved { .. }
         | V::RingContactEscalated { .. }
@@ -8422,7 +8482,7 @@ mod tests {
         carrier: &geom::Curve3<f64>,
         (t0, t1): (f64, f64),
         extent: f64,
-    ) -> [Result<bool, BooleanError>; 2] {
+    ) -> [Result<super::SeamReading, BooleanError>; 2] {
         let witness = carrier.eval((t0 + t1) / 2.0);
         [(s1, s2), (s2, s1)].map(|(a, b)| {
             assert!(
@@ -8499,7 +8559,7 @@ mod tests {
             .enumerate()
         {
             assert!(
-                matches!(got, Ok(true)),
+                matches!(got, Ok(super::SeamReading::Intrinsic)),
                 "order {order}: a definite bend demands the intrinsic tangency, got {got:?}"
             );
         }
@@ -8513,7 +8573,7 @@ mod tests {
             .enumerate()
         {
             assert!(
-                matches!(got, Ok(false)),
+                matches!(got, Ok(super::SeamReading::Conventional)),
                 "order {order}: coplanar planes keep the conventional chord, got {got:?}"
             );
         }
@@ -8558,17 +8618,17 @@ mod tests {
         (torus, bitangent, circle)
     }
 
-    /// **A seam smooth at its witness and a corner at a station keeps
-    /// the conventional posture, in both orders**, on [`villarceau`]'s
-    /// arc a radian either side of the tangency. Each station's jet read
-    /// off a smooth join measures a transverse direction tangent to the
-    /// first surface alone, so the per-station sagitta reads definitely
+    /// **A seam smooth at its witness and a corner at a station refuses
+    /// as a mixed seam, in both orders**, on [`villarceau`]'s arc a
+    /// radian either side of the tangency. Each station's jet read off a
+    /// smooth join measures a transverse direction tangent to the first
+    /// surface alone, so the per-station sagitta reads definitely
     /// positive in both orders here, at values that differ with the
-    /// order; the rule reads the corner first-order instead, and tier 3
-    /// holds an edge that is not smooth throughout to neither
-    /// description, so no intrinsic tangency is demanded of it.
+    /// order; the rule reads the corner first-order instead, and the
+    /// stations disagreeing bracket a point no station read in band, so
+    /// the seam is certifiable as neither (D2).
     #[test]
-    fn a_seam_smooth_at_its_witness_and_a_corner_at_a_station_stays_conventional() {
+    fn a_seam_smooth_at_its_witness_and_a_corner_at_a_station_refuses_as_mixed() {
         let (torus, bitangent, arc) = villarceau();
         let span = (-1.0, 1.0);
         assert!(
@@ -8581,8 +8641,11 @@ mod tests {
         for (a, b) in [(&torus, &bitangent), (&bitangent, &torus)] {
             assert_eq!(
                 geom_brep::must_carry_over_edge(a, b, &arc, span.0, span.1, 1.0, band()),
-                geom_brep::MustCarryVerdict::Transverse,
-                "a station reads the seam a corner"
+                geom_brep::MustCarryVerdict::Mixed(geom_brep::MixedStations {
+                    transverse: 3,
+                    smooth: 4
+                }),
+                "the stations beside the tangency read a corner, the one at it smooth"
             );
         }
         for (order, got) in both_orders(&torus, &bitangent, &arc, span, 1.0)
@@ -8590,9 +8653,17 @@ mod tests {
             .enumerate()
         {
             assert!(
-                matches!(got, Ok(false)),
-                "order {order}: a seam that is a corner somewhere keeps the conventional \
-                 description, got {got:?}"
+                matches!(
+                    got,
+                    Err(BooleanError::MixedSeam {
+                        stations: geom_brep::MixedStations {
+                            transverse: 3,
+                            smooth: 4
+                        },
+                        ..
+                    })
+                ),
+                "order {order}: a seam that is a corner somewhere refuses as mixed, got {got:?}"
             );
         }
     }

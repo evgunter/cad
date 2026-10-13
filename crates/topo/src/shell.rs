@@ -3669,6 +3669,7 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::TogetherAxialEdge { edge, .. }
         | ReplaceFaceError::EdgeSection { edge, .. }
         | ReplaceFaceError::DeclaredEdgeTilted { edge }
+        | ReplaceFaceError::MixedEdge { edge, .. }
         | ReplaceFaceError::ReanchorPastCarrierEnd { edge, .. }
         | ReplaceFaceError::ReanchorCollapse { edge, .. }
         | ReplaceFaceError::ReanchorInconclusive { edge, .. }

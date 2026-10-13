@@ -480,6 +480,17 @@ pub enum ReplaceFaceError<T: Real> {
         /// The scaffolded edge.
         edge: EdgeKey,
     },
+    /// **A moved edge the pair it lies on under-determined reads its
+    /// two moved faces at a corner at one station and smoothly at its
+    /// neighbour**, re-asked the must-carry rule after the move: the
+    /// two bracket an in-band point the schedule did not sample, so the
+    /// edge is certifiable as neither (D2's mixed edge).
+    MixedEdge {
+        /// The moved edge.
+        edge: EdgeKey,
+        /// The two neighbouring stations that disagree.
+        stations: geom_brep::MixedStations,
+    },
     /// **A moved vertex ran past the end of a spline carrier.** Newton's
     /// foot on an untouched edge from the endpoint's old parameter is
     /// stopped by the domain clamp at the carrier's end, `gap` from the
@@ -847,6 +858,9 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                  offset tilts it against, so the moved edge is no longer the curve its sketch \
                  drew. {NOT_YET_ENDING}"
             ),
+            Self::MixedEdge { stations, .. } => {
+                write!(f, "along an edge the offset moves, {stations}")
+            }
             Self::ReanchorPastCarrierEnd { gap, .. } => write!(
                 f,
                 "a corner of the face moves {gap:?} m past the end of the curve of an edge \
@@ -2464,7 +2478,8 @@ fn plan_edge<T: Decide>(
             EdgeDescription::Scaffold(_) => Some("a curve still under construction"),
             EdgeDescription::Chart(_)
             | EdgeDescription::Intersection { .. }
-            | EdgeDescription::TangentIntersection { .. } => {
+            | EdgeDescription::TangentIntersection { .. }
+            | EdgeDescription::OnPair { .. } => {
                 (sides[0] == sides[1]).then_some("a seam the fitted face shares with itself")
             }
         };
@@ -2646,6 +2661,24 @@ fn plan_edge<T: Decide>(
             wrap: false,
             declared: carried_declaration()?,
         },
+        // A pair the two surfaces under-determined: the moved edge lies
+        // on the moved surface and on its held neighbour, which the move
+        // carries onto itself, and the rule is asked of the pair as it
+        // now stands.
+        EdgeDescription::OnPair { pair } if let Some(other) = pair.other(old_key) => {
+            neighbour_section(other)?;
+            let held = body.get_surface(other).unwrap_or_else(|| {
+                dangling_link(EntityId::Edge(edge), "description", GeomRef::Surface(other))
+            });
+            crate::offset_restate::re_ask_on_pair(
+                edge,
+                [(old_key, new_surface), (other, held)],
+                &carrier,
+                (t0, t1),
+                carried_declaration()?,
+                band,
+            )?
+        }
         EdgeDescription::Intersection { pair, .. }
         | EdgeDescription::TangentIntersection { pair, .. }
             if let Some(other) = pair.other(old_key) =>
@@ -2731,6 +2764,10 @@ fn plan_edge<T: Decide>(
         EdgeDescription::TangentIntersection { pair, witness } => {
             EdgeDescriptionSpec::TangentIntersection { pair, witness }
         }
+        EdgeDescription::OnPair { pair } => EdgeDescriptionSpec::OnPair {
+            pair,
+            declared: carried_declaration()?,
+        },
     };
 
     Ok(EdgePlan {
@@ -2804,6 +2841,16 @@ fn plan_between_moved<T: Decide>(
             true,
             mid,
             carried,
+            |declared| {
+                crate::offset_restate::re_ask_on_pair(
+                    edge,
+                    [(a.old_key, &a.new_surface), (b.old_key, &b.new_surface)],
+                    &carrier,
+                    (t0, t1),
+                    declared,
+                    band,
+                )
+            },
         )?;
         return Ok(EdgePlan {
             edge,
@@ -2903,7 +2950,9 @@ fn untilted<T: Real>(
 /// section, nearest the old carrier and
 /// running with it, stated as their `Intersection` with any sketch
 /// record beside it dropped — the moved edge is not the curve a sketch
-/// drew. Its ends are its corners', read once those are solved.
+/// drew — or, for a pair that under-determined the old edge, as the
+/// must-carry rule reads the section ([`crate::offset_restate::re_ask_on_pair`]).
+/// Its ends are its corners', read once those are solved.
 #[allow(clippy::type_complexity)]
 fn derive_edge<T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
@@ -3026,13 +3075,27 @@ fn derive_edge<T: Decide>(
         _ => (t0, t1),
     };
     let witness = carrier.mid_point(t0, t1);
+    // A pair the two surfaces under-determined is re-asked the rule over
+    // the section: the moved pair may now cross, touch determinately or
+    // still under-determine it.
+    let description = match (description, &refused) {
+        (EdgeDescription::OnPair { .. }, None) => crate::offset_restate::re_ask_on_pair(
+            edge,
+            [(old_key, new_surface), (other_key, neighbour)],
+            &carrier,
+            (t0, t1),
+            None,
+            band,
+        )?,
+        _ => EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(old_key, other_key),
+            witness,
+        },
+    };
     Ok(EdgePlan {
         edge,
         spec: EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                pair: SurfacePair::new(old_key, other_key),
-                witness,
-            },
+            description,
             carrier,
             param_start: t0,
             param_end: t1,
@@ -3255,6 +3318,10 @@ pub(crate) fn remap_description<T: Real>(
                 witness,
             }
         }
+        EdgeDescriptionSpec::OnPair { pair, declared } => EdgeDescriptionSpec::OnPair {
+            pair: pair.map(map),
+            declared,
+        },
         EdgeDescriptionSpec::Chart {
             surface,
             image,
@@ -3530,7 +3597,17 @@ fn plan_reanchors<T: Decide>(
                     wrap,
                     declared: Some(restate(mc)?),
                 },
-                other => other,
+                EdgeDescriptionSpec::OnPair {
+                    pair,
+                    declared: Some(mc),
+                } => EdgeDescriptionSpec::OnPair {
+                    pair,
+                    declared: Some(restate(mc)?),
+                },
+                other @ (EdgeDescriptionSpec::Intersection { .. }
+                | EdgeDescriptionSpec::TangentIntersection { .. }
+                | EdgeDescriptionSpec::OnPair { declared: None, .. }
+                | EdgeDescriptionSpec::Chart { declared: None, .. }) => other,
             };
             if is_start {
                 t0 = t_new;
@@ -3553,7 +3630,9 @@ fn plan_reanchors<T: Decide>(
             EdgeDescriptionSpec::TangentIntersection { pair, .. } => {
                 EdgeDescriptionSpec::TangentIntersection { pair, witness: mid }
             }
-            other => other,
+            other @ (EdgeDescriptionSpec::OnPair { .. }
+            | EdgeDescriptionSpec::Chart { .. }
+            | EdgeDescriptionSpec::Scaffold(_)) => other,
         };
         // A line or a clamped spline has no turn to choose, so a span
         // that stops being forward on it is the move's length alone.
@@ -4193,9 +4272,14 @@ fn read_ends<T: Decide>(
         }
         EdgeDescriptionSpec::Chart {
             declared: Some(mc), ..
+        }
+        | EdgeDescriptionSpec::OnPair {
+            declared: Some(mc), ..
         } => *mc = restated(*mc)?,
         EdgeDescriptionSpec::Scaffold(mc) => *mc = restated(*mc)?,
-        _ => {}
+        EdgeDescriptionSpec::TangentIntersection { .. }
+        | EdgeDescriptionSpec::OnPair { declared: None, .. }
+        | EdgeDescriptionSpec::Chart { declared: None, .. } => {}
     }
     plan.ends = Some((p_start, p_end));
     Ok(())

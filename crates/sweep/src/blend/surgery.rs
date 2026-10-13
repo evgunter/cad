@@ -5358,10 +5358,10 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // certification schedule's interior stations and the verdict,
         // in their one home). The rule decides; this site does not
         // argue. Jet-determinate stores the intrinsic tangency,
-        // under-determined the conventional chart image, in-band
-        // refuses typed at the door (D4 ¶3) — never silently either
-        // side — and a transverse station refutes this branch's
-        // smooth premise, refused as the invariant it breaks.
+        // under-determined the conventional pair, in-band refuses
+        // typed at the door (D4 ¶3) — never silently either side — and
+        // a transverse station refutes this branch's smooth premise,
+        // refused as the invariant it breaks.
         let witness = curve.mid_point(t0, t1);
         let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
             return Err(not_intact(
@@ -5396,44 +5396,29 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                 witness,
             },
             band,
-            // No intrinsic tangency is demanded (a zero-side
-            // station, or an all-positive pair outside the
-            // certificate's lane), so the description stays
-            // CONVENTIONAL: an image in a chart,
-            // derived by the certification door from the exact carrier
-            // above. `he_plus`'s chart: the locus lies exactly in both
-            // surfaces, so either is a legitimate home — the argument
-            // is the extrude strut arm's (`sweep_loop`, the `k_prev`
-            // paragraph), stated once there — and the edge's own
-            // orientation names this one. Not `Body::describe_at_rest`:
-            // that restates the STORED carrier, and what the `mef`
-            // stored is the chord scaffold, which for an arc is not the
-            // locus.
-            //
-            // Reached where the jet is under-determined on a pair the
-            // lane admits: a corner arc on a slim wedge, whose extent
-            // is the folded lever arm, or any band under a run with
-            // `K < 2`. A pair the lane REFUSES lands here too once
-            // every station has read smooth first-order and the
-            // second-order walk has not escalated, including when every
-            // station reads positive (a crossing or an in-band station
-            // out of lane refuses above, as in lane): the
-            // certificate cannot store an intrinsic tangency there, so
-            // the conventional image is the honest description, and
-            // the door derives it — `geom_brep::chart_pcurve` images a
-            // ruling `Line` in a `Cone`'s chart as readily as in a
-            // plane's. No arm the battery admits mints such a pair.
-            || s1,
+            // No intrinsic tangency demanded (a zero-side station, or an
+            // all-positive pair outside the certificate's lane) states
+            // the conventional pair over the exact carrier above. Not
+            // `Body::describe_at_rest`: that restates the STORED
+            // carrier, and what the `mef` stored is the chord scaffold,
+            // which for an arc is not the locus.
             escalated,
             escalated,
-            || BlendError::SurgeryInvariant {
+            |mixed| BlendError::SurgeryInvariant {
                 at: EntityId::Edge(edge),
-                detail: "a contact edge routed as a smooth join reads definitely transverse at \
-                         a certification station",
+                detail: match mixed {
+                    None => {
+                        "a contact edge routed as a smooth join reads definitely transverse at \
+                         every certification station"
+                    }
+                    Some(_) => {
+                        "a contact edge routed as a smooth join reads definitely transverse at \
+                         one certification station and smooth at its neighbour"
+                    }
+                },
             },
-            |chart| unreachable!("{chart:?} is `he_plus`'s surface, one of the edge's pair"),
         )?
-        .spec()
+        .spec(SurfacePair::new(s1, s2))
     };
     body.set_edge_curve(
         edge,

@@ -613,6 +613,10 @@ pub enum RevolveError {
     SmoothJoinRefuted {
         /// The edge whose station refuted the smooth premise.
         edge: EdgeKey,
+        /// The two neighbouring stations that disagree, where one reads
+        /// smooth ([`geom_brep::MustCarryRefusal::Mixed`]); `None` where
+        /// every station reads a corner.
+        mixed: Option<geom_brep::MixedStations>,
     },
     /// A station INSIDE a run of walls (two segments one carrier
     /// holds) sits pinned on the axis (defense-in-depth, the `CapPlane`
@@ -786,7 +790,11 @@ impl fmt::Display for RevolveError {
                 let rim = format!("the cap rim at loop {loop_index} segment {segment_index}");
                 crate::swept::sliver_text(f, &rim, *reading, source)
             }
-            Self::SmoothJoinRefuted { edge } => write!(
+            Self::SmoothJoinRefuted {
+                edge,
+                mixed: Some(stations),
+            } => write!(f, "along the join {edge:?}, {stations}"),
+            Self::SmoothJoinRefuted { edge, mixed: None } => write!(
                 f,
                 "the join along {edge:?} classified definitely smooth at its witness but \
                  definitely a corner at a certification station, so the construction \

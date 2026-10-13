@@ -38,6 +38,13 @@
 //! - **an iso family of one chart**: both faces on one surface key,
 //!   both edges `Chart` images in it on one iso family, and the chart
 //!   regular at the vertex.
+//! - **an iso family of one of the pair's charts**: both edges `OnPair`
+//!   citing the faces' two surface keys. The pair under-determines the
+//!   locus, so it does not decide the branch; the first of the two
+//!   charts (the plus face's, then the minus face's) on which both
+//!   carriers lie on one iso family does, regular at the vertex as
+//!   above. A seam on no family of either chart (two coincident planes'
+//!   chord) is not joined.
 //!
 //! Distinct components of one locus never share a point, and one iso
 //! family has one member through a regular point, so the vertex decides
@@ -297,13 +304,16 @@ impl Pass {
 }
 
 /// The structural carrier a curved edge's description names on a face
-/// pair: a locus of the surface pair (transverse or tangent), or an iso
-/// family of one surface's chart.
+/// pair: a locus of the surface pair (transverse or tangent), an iso
+/// family of one surface's chart, or, for a locus the pair
+/// under-determines, an iso family of one of its two charts (`false`
+/// the plus face's, `true` the minus face's).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Locus {
     Transverse,
     Tangent,
     Iso(geom_brep::IsoFamily),
+    PairIso(bool, geom_brep::IsoFamily),
 }
 
 /// Whether `s`'s chart is singular at its point `p`: a cone's apex, a
@@ -442,7 +452,25 @@ fn joinable<T: Decide>(
                     .map_err(|e| undecided(JoinReading::ChartClass(e)))?
                     .map(Locus::Iso)
             }
-            _ => None,
+            geom_brep::EdgeDescription::OnPair { pair }
+                if sf != sg && *pair == geom_brep::SurfacePair::new(sf, sg) =>
+            {
+                let mut found = None;
+                for (minus, s) in [(false, surf_f), (true, surf_g)] {
+                    if let Some(family) = geom_brep::chart_iso_family(c.carrier(), s, band)
+                        .map_err(|e| undecided(JoinReading::ChartClass(e)))?
+                    {
+                        found = Some(Locus::PairIso(minus, family));
+                        break;
+                    }
+                }
+                found
+            }
+            geom_brep::EdgeDescription::Intersection { .. }
+            | geom_brep::EdgeDescription::TangentIntersection { .. }
+            | geom_brep::EdgeDescription::OnPair { .. }
+            | geom_brep::EdgeDescription::Chart(_)
+            | geom_brep::EdgeDescription::Scaffold(_) => None,
         })
     };
     let Some(locus) = locus_of(e1, d1)? else {
@@ -458,7 +486,7 @@ fn joinable<T: Decide>(
             return Ok(None);
         }
     }
-    if matches!(locus, Locus::Iso(_)) {
+    if matches!(locus, Locus::Iso(_) | Locus::PairIso(..)) {
         return Ok(Some(join(false)));
     }
     // The pair's reading at `w`, levered over the scale of the edge the
@@ -872,6 +900,16 @@ fn joined_spec<T: Decide>(
                 witness: carrier.mid_point(a, b),
             }
         }
+        geom_brep::EdgeDescription::OnPair { pair } => geom_brep::EdgeDescriptionSpec::OnPair {
+            pair: *pair,
+            declared: match kept.authority() {
+                geom_brep::EdgeAuthority::Declared(mc) => {
+                    let span = t1 - t0;
+                    Some(mc.restrict((a - t0) / span, (b - t0) / span))
+                }
+                geom_brep::EdgeAuthority::Derived => None,
+            },
+        },
         geom_brep::EdgeDescription::Chart(c) => geom_brep::EdgeDescriptionSpec::Chart {
             surface: c.surface,
             image: if c.wrap { None } else { Some(c.pcurve.clone()) },

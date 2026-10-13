@@ -403,8 +403,9 @@ pub enum CertifyError {
     /// own refusal. It is raised before any other check of the edge
     /// runs, so it says nothing about the edge's geometry.
     NurbsLaneNotSupplied,
-    /// An `Intersection` description names one surface twice — a locus
-    /// on one surface is an image in its chart, never an intersection.
+    /// A two-surface description (`Intersection`, `TangentIntersection`,
+    /// `OnPair`) names one surface twice — a locus on one surface is an
+    /// image in its chart, never a pair's.
     IntersectionSameSurface {
         /// The doubly-named key.
         key: SurfaceKey,
@@ -596,8 +597,8 @@ impl core::fmt::Display for CertifyError {
             ),
             Self::IntersectionSameSurface { key } => write!(
                 f,
-                "Intersection names surface {key:?} twice (a locus on one \
-                 surface is an image in its chart)"
+                "a two-surface description names surface {key:?} twice (a locus \
+                 on one surface is an image in its chart)"
             ),
             Self::WrapOnNonPeriodic => write!(
                 f,
@@ -1205,6 +1206,39 @@ impl<T: Real> EdgeCurveSpec<T> {
         }
     }
 
+    /// [`EdgeCurveSpec::at_rest_in_chart`]'s twin for an edge at rest
+    /// between two DISTINCT surfaces that under-determine its locus: a
+    /// SCAFFOLDING description re-stated as
+    /// [`EdgeDescriptionSpec::OnPair`] over `pair`, the pushforward kept
+    /// as the authority record. Carrier and interval are untouched.
+    ///
+    /// The same conversion and nothing else: every other spec returns
+    /// unchanged, and one naming a chart or another pair is a caller
+    /// asking the scaffolding door to re-home a described edge, which
+    /// the `debug_assert` turns into a panic.
+    #[must_use]
+    pub fn at_rest_on_pair(self, pair: SurfacePair) -> Self {
+        debug_assert!(
+            match &self.description {
+                EdgeDescriptionSpec::Scaffold(_)
+                | EdgeDescriptionSpec::Intersection { .. }
+                | EdgeDescriptionSpec::TangentIntersection { .. } => true,
+                EdgeDescriptionSpec::OnPair { pair: already, .. } => *already == pair,
+                EdgeDescriptionSpec::Chart { .. } => false,
+            },
+            "at_rest_on_pair re-states a scaffold; state the description instead of \
+             re-asking the scaffolding door"
+        );
+        let description = match self.description {
+            EdgeDescriptionSpec::Scaffold(mc) => EdgeDescriptionSpec::on_pair(pair).declared_by(mc),
+            other => other,
+        };
+        Self {
+            description,
+            ..self
+        }
+    }
+
     /// The canonical full-period self-loop spec at `p`: a unit circle
     /// through `p` (center `p + x̂`, axis `ẑ`, parameters `0 … τ`),
     /// described as `p`'s trajectory under a full revolution about
@@ -1777,6 +1811,9 @@ impl<T: Real> EdgeCurve<T> {
                     witness,
                 }
             }
+            EdgeDescription::OnPair { pair } => EdgeDescription::OnPair {
+                pair: pair.try_map(|k| remap(k).ok_or(())).ok()?,
+            },
             // The chart IMAGE travels verbatim, because it is geometry
             // stated in chart COORDINATES, which a bitwise re-creation
             // of the surface leaves untouched. Only the handle moves.
@@ -1835,7 +1872,10 @@ impl<T: Real> EdgeCurve<T> {
                 pcurve: c.pcurve.mirror_v()?,
                 wrap: c.wrap,
             }),
-            ref other => other.clone(),
+            ref other @ (EdgeDescription::Intersection { .. }
+            | EdgeDescription::TangentIntersection { .. }
+            | EdgeDescription::OnPair { .. }
+            | EdgeDescription::Scaffold(_)) => other.clone(),
         };
         Some(Self {
             description,
@@ -1912,6 +1952,15 @@ impl<T: SpanLocate> EdgeCurve<T> {
                     }
                 }
                 EdgeDescription::Scaffold(mc) => EdgeDescriptionSpec::Scaffold(mc.restrict(s0, s1)),
+                // The pair is the whole description: each child lies on
+                // both surfaces as its parent did.
+                EdgeDescription::OnPair { pair } => EdgeDescriptionSpec::OnPair {
+                    pair,
+                    declared: match self.authority {
+                        EdgeAuthority::Declared(mc) => Some(mc.restrict(s0, s1)),
+                        EdgeAuthority::Derived => None,
+                    },
+                },
                 // A chart image is a function of the CARRIER's own
                 // parameter, and splitting an edge changes the
                 // interval, not the carrier — so the child's image is
@@ -1984,6 +2033,7 @@ impl<T: Real> EdgeCurve<T> {
             EdgeDescription::TangentIntersection { pair, witness } => {
                 EdgeDescriptionSpec::TangentIntersection { pair, witness }
             }
+            EdgeDescription::OnPair { pair } => EdgeDescriptionSpec::OnPair { pair, declared },
             EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
                 surface: c.surface,
                 image: Some(c.pcurve.clone()),
@@ -2453,6 +2503,13 @@ fn run_checks<T: Decide>(
             surfs: [(SurfaceKey, Surface<T>); 2],
             witness: Point3<T>,
         },
+        /// D2's conventional pair: incidence on both surfaces, metered
+        /// as `Intersection` meters it, and the declaration's meter as
+        /// on [`Resolved::Chart`].
+        OnPair {
+            surfs: [(SurfaceKey, Surface<T>); 2],
+            declared: Option<crate::mapped::MappedCurve<T>>,
+        },
         /// D3's fenced scaffolding door: a pushforward standing in
         /// as a description while the edge is TRANSIENT.
         Scaffold(crate::mapped::MappedCurve<T>),
@@ -2565,6 +2622,17 @@ fn run_checks<T: Decide>(
             Resolved::Tangent {
                 surfs: [(k1, resolve(k1)?), (k2, resolve(k2)?)],
                 witness,
+            }
+        }
+        EdgeDescriptionSpec::OnPair { pair, declared } => {
+            // One surface on both sides is a chart's locus, not a pair's.
+            let [k1, k2] = pair.keys();
+            if k1 == k2 {
+                return Err(CertifyError::IntersectionSameSurface { key: k1 });
+            }
+            Resolved::OnPair {
+                surfs: [(k1, resolve(k1)?), (k2, resolve(k2)?)],
+                declared,
             }
         }
         EdgeDescriptionSpec::Scaffold(mc) => Resolved::Scaffold(mc),
@@ -2769,6 +2837,12 @@ fn run_checks<T: Decide>(
             EdgeDescription::TangentIntersection { pair, witness }
         }
         Resolved::Scaffold(mc) => EdgeDescription::Scaffold(mc),
+        Resolved::OnPair { .. } => {
+            let EdgeDescriptionSpec::OnPair { pair, .. } = spec.description else {
+                return Err(CertifyError::Unimplemented);
+            };
+            EdgeDescription::OnPair { pair }
+        }
         Resolved::Chart {
             ref surface,
             key,
@@ -3147,6 +3221,42 @@ fn run_checks<T: Decide>(
                 // the wall's old radius, and an offset lane that
                 // dropped it. Both would have been caught here rather
                 // than by a row someone thought to write.
+                if let Some(mc) = declared {
+                    let frac = T::from_f64(schedule_fraction(i, CERT_SAMPLES));
+                    check_residual(
+                        "carrier_matches_mapped_source",
+                        CertCheck::MappedSource,
+                        i,
+                        Margin::of(p.distance(mc.eval(frac))),
+                        band,
+                        &mut max_residual,
+                    )?;
+                }
+            }
+            // Incidence on both surfaces, as `Intersection` meters it,
+            // and nothing about how they meet: admissibility is tier
+            // 3's must-carry predicate.
+            Resolved::OnPair {
+                surfs: [(k1, surf1), (k2, surf2)],
+                declared,
+            } => {
+                let p = spec.carrier.eval(t);
+                check_residual(
+                    "carrier_on_surface_1",
+                    CertCheck::SurfaceResidual { surface: *k1 },
+                    i,
+                    Margin::of(implicit_residual(surf1, p)),
+                    band,
+                    &mut max_residual,
+                )?;
+                check_residual(
+                    "carrier_on_surface_2",
+                    CertCheck::SurfaceResidual { surface: *k2 },
+                    i,
+                    Margin::of(implicit_residual(surf2, p)),
+                    band,
+                    &mut max_residual,
+                )?;
                 if let Some(mc) = declared {
                     let frac = T::from_f64(schedule_fraction(i, CERT_SAMPLES));
                     check_residual(

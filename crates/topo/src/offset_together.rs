@@ -393,6 +393,32 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
                     slides,
                     mid,
                     carried,
+                    |declared| {
+                        let moved = |p: &MovedPlane<T>| match body.get_surface(p.old_key) {
+                            Some(&Surface::Plane {
+                                origin,
+                                normal,
+                                u_ref,
+                            }) => Surface::Plane {
+                                origin: origin + p.delta,
+                                normal,
+                                u_ref,
+                            },
+                            _ => unreachable!(
+                                "{:?} was read a plane in this call's plan phase",
+                                p.old_key
+                            ),
+                        };
+                        let (sa, sb) = (moved(pa), moved(pb));
+                        crate::offset_restate::re_ask_on_pair(
+                            edge,
+                            [(pa.old_key, &sa), (pb.old_key, &sb)],
+                            &carrier,
+                            (t0, t1),
+                            declared,
+                            band,
+                        )
+                    },
                 )?,
                 carrier,
                 param_start: t0,

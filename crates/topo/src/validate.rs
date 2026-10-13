@@ -1056,7 +1056,7 @@ pub enum ValidationError {
         error: CertifyError,
     },
     /// Tier 3: an edge's description is incoherent with the faces it
-    /// bounds (D2 adjacency coherence): an intersection's surface keys
+    /// bounds (D2 adjacency coherence): a two-surface description's keys
     /// are not its two faces' surfaces, a chart image names neither, a
     /// wrap edge's two halves bound two faces, or an edge that is not a
     /// wrap edge has both halves on one face (D1: a wrap edge is where
@@ -1129,23 +1129,32 @@ pub enum ValidationError {
         cause: Indeterminate,
     },
     /// Tier 3: a **definitely-transverse** edge carries a conventional
-    /// (`MappedCurve`) description at rest — the prefer-intrinsic rule
-    /// with teeth (D2; ratified with Ev 2026-07-19, M2 PR 4 fix
-    /// pass). Enforced only when the dihedral pass classified **every**
-    /// interior sample definitely Transverse: definitely-smooth edges
-    /// keep their conventional descriptions (the D2 conventional
-    /// split), `Seam` edges are exempt by kind, and escalated dihedrals
-    /// already report [`ValidationError::SliverDihedral`] — so
-    /// ε-tightening can escalate an edge but never flips a valid body
-    /// to invalid through this check. (A mixed transverse/smooth sample
-    /// set — a tangency-crossing edge — is neither definitely
-    /// transverse nor definitely smooth as a whole, so it takes
-    /// `ContactMark::Unmarked` and NEITHER must-carry attaches: an
-    /// exemption by the predicate, like every other one here.)
+    /// description at rest — a declared locus, or an `OnPair` — the
+    /// prefer-intrinsic rule with teeth (D2; ratified with Ev
+    /// 2026-07-19, M2 PR 4 fix pass). Enforced only when the dihedral
+    /// pass classified **every** interior sample definitely Transverse:
+    /// definitely-smooth edges keep their conventional descriptions (the
+    /// D2 conventional split), `Seam` edges are exempt by kind, and
+    /// escalated dihedrals already report
+    /// [`ValidationError::SliverDihedral`] — so ε-tightening can
+    /// escalate an edge but never flips a valid body to invalid through
+    /// this check. A sample set that is neither is
+    /// [`ValidationError::MixedDihedral`].
     TransverseNotIntrinsic {
-        /// The definitely-transverse edge whose locus the modeler
-        /// declared.
+        /// The definitely-transverse edge.
         edge: EdgeKey,
+    },
+    /// Tier 3, check 4: an edge's two faces read definitely transverse
+    /// at one interior station and definitely smooth at its neighbour
+    /// (D2's mixed edge). The dihedral is continuous along the edge, so
+    /// the two bracket an in-band point the schedule did not sample:
+    /// the edge is certifiable as neither a corner nor a smooth join,
+    /// whatever its description.
+    MixedDihedral {
+        /// The mixed edge.
+        edge: EdgeKey,
+        /// The two neighbouring stations that disagree.
+        stations: geom_brep::MixedStations,
     },
     /// Tier 3, **the transience fence** (U2's Q2 as corrected by Ev
     /// 2026-08-27): a body at rest carries an edge still described by
@@ -3741,10 +3750,11 @@ impl fmt::Display for ValidationError {
             Self::SliverDihedral { check, cause, .. } => {
                 write!(f, "{}. {}", check.lead(), check.ending(cause))
             }
+            Self::MixedDihedral { stations, .. } => write!(f, "along an edge, {stations}"),
             Self::TransverseNotIntrinsic { .. } => write!(
                 f,
-                "an edge where two faces cross is stored as a sketch curve, though their \
-                 surfaces determine it. {DEFECT}"
+                "an edge where two faces cross is stored as a conventional curve, though \
+                 their surfaces determine it. {DEFECT}"
             ),
             // The finding never asserts that a chart image exists: a
             // fillet strut on a curved support and a diagonal chord
@@ -3780,8 +3790,8 @@ impl fmt::Display for ValidationError {
             },
             Self::TangentNotIntrinsic { .. } => write!(
                 f,
-                "an edge where two faces meet tangentially is stored as a sketch curve, \
-                 though their surfaces determine it. {DEFECT}"
+                "an edge where two faces meet tangentially is stored as a conventional \
+                 curve, though their surfaces determine it. {DEFECT}"
             ),
             Self::NoDihedralArm { verdict, .. } => write!(
                 f,
@@ -4689,9 +4699,10 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    fixed schedule, transversality for `Intersection` — with the same
 ///    deterministic sampling as at attachment
 ///    ([`ValidationError::EdgeCertification`]); then the
-///    **description-adjacency coherence** check: an `Intersection`
-///    description's surfaces must be exactly the edge's two faces'
-///    surfaces, a chart image must name one of them, and an edge's two
+///    **description-adjacency coherence** check: a two-surface
+///    description's surfaces (`Intersection`, `TangentIntersection`,
+///    `OnPair`) must be exactly the edge's two faces' surfaces, a chart
+///    image must name one of them, and an edge's two
 ///    halves bound one face exactly when it is a wrap edge
 ///    ([`ValidationError::DescriptionNotAdjacent`]).
 /// 3. **Planar-face residuals** (faces, arena order; per face the outer
@@ -4719,7 +4730,9 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    `Intersection` description
 ///    ([`ValidationError::TransverseNotIntrinsic`]); definitely-smooth
 ///    edges keep conventional descriptions, `Seam` edges are exempt by
-///    kind, and escalated edges report only their `SliverDihedral`.
+///    kind, and escalated edges report only their `SliverDihedral`. An
+///    edge transverse at one station and smooth at its neighbour is
+///    refused ([`ValidationError::MixedDihedral`]).
 ///    **The material arm** (D1's ratified wedge table, the #131
 ///    second-order ruling) signs that classification with the faces'
 ///    material sides on the same samples: outward normals aligned is
@@ -6750,7 +6763,8 @@ pub(crate) fn tier3_local_checks_marked<
         let one_face = f_plus == f_minus;
         let adjacent = match curve.description() {
             geom_brep::EdgeDescription::Intersection { pair, .. }
-            | geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
+            | geom_brep::EdgeDescription::TangentIntersection { pair, .. }
+            | geom_brep::EdgeDescription::OnPair { pair } => {
                 !one_face && *pair == geom_brep::SurfacePair::new(fs_plus, fs_minus)
             }
             // Chart adjacency (M6-3, the M5-LOG item 6(iii) rule): the
@@ -6908,11 +6922,11 @@ pub(crate) fn tier3_local_checks_marked<
         // classifications (never classifying twice), an edge whose
         // every interior sample is definitely Transverse must carry an
         // `Intersection` description at rest. `Seam` is exempt by
-        // kind, definitely-smooth keeps `MappedCurve` (the D2
-        // conventional split), an escalation reports `SliverDihedral`
-        // and exempts the edge (ε-tightening escalates, it never flips
-        // valid → invalid), and a mixed sample set is enforced as
-        // neither.
+        // kind, definitely-smooth keeps its conventional description
+        // (the D2 conventional split), an escalation reports
+        // `SliverDihedral` and exempts the edge (ε-tightening escalates,
+        // it never flips valid → invalid), and a mixed sample set is
+        // refused (`MixedDihedral`).
         //
         // **Nurbs-adjacent edges are exempt BY KIND** (M6-3 flip B —
         // the `Seam` exemption idiom, one shelf over): implicit-form
@@ -6933,13 +6947,19 @@ pub(crate) fn tier3_local_checks_marked<
         // the fit) is its own conversation, not smuggled in here.
         let nurbs_adjacent = s_plus.spline_chart().is_some() || s_minus.spline_chart().is_some();
         let mut escalated = false;
-        let mut all_transverse = true;
-        let mut all_smooth = true;
+        let mut readings = Vec::with_capacity(samples.len());
+        // An `OnPair` description claims the pair under-determines the
+        // locus, which tier 3's must-carry predicate decides whatever
+        // the authority record says.
+        let on_pair = matches!(
+            curve.description(),
+            geom_brep::EdgeDescription::OnPair { .. }
+        );
         if !nurbs_adjacent {
             for &(p, _) in &samples {
                 match classify_dihedral(s_plus, s_minus, p, extent, band) {
-                    Ok(DihedralClass::Transverse) => all_smooth = false,
-                    Ok(DihedralClass::Smooth) => all_transverse = false,
+                    Ok(DihedralClass::Transverse) => readings.push(true),
+                    Ok(DihedralClass::Smooth) => readings.push(false),
                     Err(escalation) => {
                         errors.push(dihedral_finding(edge_key, escalation));
                         escalated = true;
@@ -6947,13 +6967,27 @@ pub(crate) fn tier3_local_checks_marked<
                     }
                 }
             }
+        }
+        let read = !nurbs_adjacent && !escalated;
+        let all_transverse = read && readings.iter().all(|&t| t);
+        let all_smooth = read && !readings.contains(&true);
+        if read {
             // The prefer-intrinsic rule reads the AUTHORITY record
             // (U2 Q3), not the description's shape: since the
             // conventional forms collapsed there is no shape left that
             // means "the modeler declared this locus", so the
             // declaration is the datum it always was.
-            if !escalated && all_transverse && curve.authority().is_declared() {
+            if all_transverse && (on_pair || curve.authority().is_declared()) {
                 errors.push(ValidationError::TransverseNotIntrinsic { edge: edge_key });
+            }
+            // A mixed edge (D2): the dihedral is continuous along it,
+            // so neighbouring stations that disagree bracket an in-band
+            // point no station read.
+            if let Some(stations) = geom_brep::MixedStations::bracketing(&readings) {
+                errors.push(ValidationError::MixedDihedral {
+                    edge: edge_key,
+                    stations,
+                });
             }
         }
         // The contact MARK (OQ7 level (i), M5 PR 9) and the symmetric
@@ -7093,7 +7127,7 @@ pub(crate) fn tier3_local_checks_marked<
             errors.push(error);
         }
         if mark == ContactMark::Tangent
-            && curve.authority().is_declared()
+            && (on_pair || curve.authority().is_declared())
             && geom_brep::tangent_certificate_lane(curve.carrier(), s_plus, s_minus)
         {
             // The lane condition IS the jet certificate's per-class

@@ -632,7 +632,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         let k_prev = face_surface_key(&body, faces[i - 1]);
         let k_next = face_surface_key(&body, faces[i]);
         if k_prev == k_next {
-            body.describe_at_rest(strut.edge, k_prev, tol)?;
+            body.describe_at_rest(strut.edge, tol)?;
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
@@ -722,7 +722,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         let k_prev = face_surface_key(&body, band2_faces[i - 1]);
         let k_next = face_surface_key(&body, band2_faces[i]);
         if k_prev == k_next {
-            body.describe_at_rest(rim2, k_prev, tol)?;
+            body.describe_at_rest(rim2, tol)?;
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
@@ -800,7 +800,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         let edge = he_edge(&body, hes[i]);
         upgrade_meridian_wrap(&mut body, edge, wall, tol)?;
         if body.get_edge(tops[i]).is_some() {
-            body.describe_at_rest(tops[i], wall, tol)?;
+            body.describe_at_rest(tops[i], tol)?;
         }
     }
 

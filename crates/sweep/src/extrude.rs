@@ -460,6 +460,10 @@ pub enum ExtrudeError {
     SmoothJoinRefuted {
         /// The strut or rim edge whose station refuted the smooth premise.
         edge: EdgeKey,
+        /// The two neighbouring stations that disagree, where one reads
+        /// smooth ([`geom_brep::MustCarryRefusal::Mixed`]); `None` where
+        /// every station reads a corner.
+        mixed: Option<geom_brep::MixedStations>,
     },
     /// A cap plane could not be certified or oriented (non-planar or
     /// degenerate loop data — unreachable for validated profiles,
@@ -551,7 +555,11 @@ impl fmt::Display for ExtrudeError {
                 );
                 swept::sliver_text(f, &rim, *reading, source)
             }
-            Self::SmoothJoinRefuted { edge } => write!(
+            Self::SmoothJoinRefuted {
+                edge,
+                mixed: Some(stations),
+            } => write!(f, "along the join {edge:?}, {stations}"),
+            Self::SmoothJoinRefuted { edge, mixed: None } => write!(
                 f,
                 "the join along {edge:?} classified definitely smooth at its witness \
                  but definitely a corner at a certification station, so the construction \
@@ -1213,7 +1221,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
             // which silently moves the geometry in a pass whose whole
             // contract is that only the DESCRIPTION moves. The edge's
             // own certified curve is the only honest source.
-            body.describe_at_rest(strut.edge, k_prev, tol)?;
+            body.describe_at_rest(strut.edge, tol)?;
             continue;
         }
         let s_next = body
@@ -1272,14 +1280,11 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         witness: mid,
                     },
                     band,
-                    || k_prev,
                     sliver,
                     sliver,
-                    || ExtrudeError::SmoothJoinRefuted { edge: strut.edge },
-                    |chart| {
-                        unreachable!(
-                            "{chart:?} is the previous wall's surface, one of the strut's pair"
-                        )
+                    |mixed| ExtrudeError::SmoothJoinRefuted {
+                        edge: strut.edge,
+                        mixed,
                     },
                 )? {
                     geom_brep::MustCarryDescription::Intrinsic(description) => {
@@ -1291,58 +1296,20 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                         };
                         body.set_edge_curve(strut.edge, spec, tol)?;
                     }
-                    geom_brep::MustCarryDescription::Conventional(chart) => {
+                    geom_brep::MustCarryDescription::Conventional => {
                         // No intrinsic tangency is demanded: a station
                         // read the second order zero-side (the surfaces
                         // under-determine the locus), or every station
                         // read it positive on a pair outside the
                         // certificate's lane, which cannot store one —
-                        // so the strut keeps the conventional
-                        // description.
-                        // The conventional form is a chart IMAGE, not
-                        // the scaffolding the mint left (D3's
-                        // transience fence), so spelling that sentence
-                        // means saying which chart.
+                        // so the strut is the pair's conventional
+                        // locus, where it rests rather than the
+                        // scaffolding the mint left (D3's transience
+                        // fence).
                         // `review_m2_pr4::survives_dihedral_band_sweep_at_the_strut_arm`
                         // is the row, on two DISTINCT planes, so the
                         // same-key lane above never sees it.
-                        //
-                        // **Why `k_prev`, and why the pick is free.**
-                        // The same-key lane has no choice; this one
-                        // does, so the choice is argued rather than
-                        // taken. An extruded wall is the sweep of its
-                        // profile segment along `w`, hence RULED in
-                        // `w`; the strut is [`strut_carrier`]
-                        // — the ruling through the vertex the two
-                        // segments SHARE. That ruling lies in both
-                        // walls exactly, so either chart is a
-                        // legitimate home and neither is a better
-                        // statement about the locus.
-                        // `review_m2_pr4::survives_dihedral_band_sweep_at_the_strut_arm`
-                        // demonstrates it rather than trusting this
-                        // paragraph: it re-describes the same strut in
-                        // the OTHER wall's chart and watches that
-                        // certify and validate too.
-                        //
-                        // The contrast worth naming, because the word
-                        // is the same: a FILLET strut (#1116) is a
-                        // chord between a support boundary vertex and
-                        // its foot, and on a curved support a chord is
-                        // a SECANT — it lies in neither adjacent
-                        // surface, so no chart image describes it and
-                        // the conversion there is refused, correctly.
-                        // The difference is containment, not the name.
-                        //
-                        // The asymmetry is real even so, and stated
-                        // plainly: certification meters
-                        // `|C(t) − S(P(t))|` against the NAMED chart
-                        // only, and tier 3's chart adjacency accepts
-                        // either adjacent surface. So `k_prev` is
-                        // load-bearing — the meter never checks the
-                        // strut against `k_next` — and it is benign
-                        // here only because of the ruling argument
-                        // above.
-                        body.describe_at_rest(strut.edge, chart, tol)?;
+                        body.describe_at_rest(strut.edge, tol)?;
                     }
                 }
             }
@@ -1638,11 +1605,9 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
         //
         // So the pairs that arrive are plane pairs over a line rim,
         // whose `κ_rel` is identically zero: the rule reads them
-        // under-determined, and the conventional image rests in the
-        // WALL's chart — the chart swept from the rim's own carrier
-        // (the cap plane certifies too; `fillet_h6_cap_rim` pins the
-        // choice). The at-rest gate then refuses the body, because a
-        // smooth cap–wall pair has no material side.
+        // under-determined, and the rim rests as the pair's
+        // conventional locus. The at-rest gate then refuses the body,
+        // because a smooth cap–wall pair has no material side.
         Ok(DihedralClass::Smooth) => {
             let sliver = |reading, source| ExtrudeError::SliverRim {
                 loop_index,
@@ -1659,11 +1624,9 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
                     witness,
                 },
                 band,
-                || wall,
                 sliver,
                 sliver,
-                || ExtrudeError::SmoothJoinRefuted { edge },
-                |chart| unreachable!("{chart:?} is the wall's surface, one of the rim's pair"),
+                |mixed| ExtrudeError::SmoothJoinRefuted { edge, mixed },
             )? {
                 geom_brep::MustCarryDescription::Intrinsic(description) => {
                     let spec = EdgeCurveSpec {
@@ -1674,8 +1637,8 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
                     };
                     body.set_edge_curve(edge, spec, tol)?;
                 }
-                geom_brep::MustCarryDescription::Conventional(chart) => {
-                    body.describe_at_rest(edge, chart, tol)?;
+                geom_brep::MustCarryDescription::Conventional => {
+                    body.describe_at_rest(edge, tol)?;
                 }
             }
             Ok(())

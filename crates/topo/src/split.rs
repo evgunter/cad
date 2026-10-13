@@ -255,21 +255,14 @@ impl<T: Decide> Body<T> {
     /// under-determined, or in band, where its parent was
     /// jet-determinate.
     ///
-    /// Under-determined stores an image the door derives from the
-    /// carrier, in the chart of the face `he_plus` bounds. The locus
-    /// lies exactly in both adjacent charts, so either certifies; the
-    /// edge's own orientation names one, as it does for a blend's
-    /// contact edge, and both children's plus halves lie in that face.
-    /// A parent whose tangency names a pair that face's surface is not
-    /// in is incoherent with its faces, and refuses
-    /// [`EulerOpError::DescriptionNotAdjacent`] rather than rest there.
+    /// Under-determined stores the conventional pair over the parent's
+    /// pair ([`geom_brep::EdgeDescriptionSpec::OnPair`]).
     ///
     /// The pair's keys are links of the parent's certified description,
     /// so a key that does not resolve is a torn body, not a refusal.
     fn tangent_piece(
         &self,
         edge: EdgeKey,
-        he_plus: HalfEdgeKey,
         spec: EdgeCurveSpec<T>,
         [p0, p1]: [Point3<T>; 2],
         band: Band,
@@ -298,13 +291,11 @@ impl<T: Decide> Body<T> {
                 witness,
             },
             band,
-            || crate::pcurves::half_edge_face(self, he_plus).1.surface,
             |_, diag| EulerOpError::SplitTangentEscalated { edge, diag },
             |_, diag| EulerOpError::SplitTangentBendEscalated { edge, diag },
-            || EulerOpError::SplitTangentRefuted { edge },
-            |_| EulerOpError::DescriptionNotAdjacent { edge: Some(edge) },
+            |mixed| EulerOpError::SplitTangentRefuted { edge, mixed },
         )?
-        .spec();
+        .spec(pair);
         Ok(EdgeCurveSpec {
             description,
             ..spec
@@ -408,8 +399,8 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): both children must
         // certify against their own endpoints.
         let (spec1, spec2) = curve.split_specs(t);
-        let spec1 = self.tangent_piece(edge, hp.key(), spec1, [p_u, p_new], band)?;
-        let spec2 = self.tangent_piece(edge, hp.key(), spec2, [p_new, p_v], band)?;
+        let spec1 = self.tangent_piece(edge, spec1, [p_u, p_new], band)?;
+        let spec2 = self.tangent_piece(edge, spec2, [p_new, p_v], band)?;
         let cert1 = self.certify_edge_spec(Some(edge), spec1, p_u, p_new, tol)?;
         let cert2 = self.certify_edge_spec(Some(edge), spec2, p_new, p_v, tol)?;
         // ---- Pcurve gate (still no mutation): each parent half-edge's

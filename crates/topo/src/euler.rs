@@ -1272,6 +1272,10 @@ pub enum EulerOpError {
     SplitTangentRefuted {
         /// The edge being split.
         edge: EdgeKey,
+        /// The two neighbouring stations that disagree, where a child
+        /// reads smooth at one ([`geom_brep::MustCarryRefusal::Mixed`]);
+        /// `None` where every station reads a corner.
+        mixed: Option<geom_brep::MixedStations>,
     },
     /// [`Body::split_edge`] could not carry a parent half-edge's stored
     /// **pcurve row** across the split: the parent's chart image,
@@ -1597,7 +1601,11 @@ impl EulerOpError {
                     diag.ending(crate::split::TANGENT_PIECE_LEVER),
                 )
                 .to_string(),
-            Self::SplitTangentRefuted { .. } => format!(
+            Self::SplitTangentRefuted {
+                mixed: Some(stations),
+                ..
+            } => format!("along a piece of a split tangent edge, {stations}"),
+            Self::SplitTangentRefuted { mixed: None, .. } => format!(
                 "a piece of a split tangent edge reads a corner at a station along it, against \
                  the tangency the edge certified, so what that piece is cannot be said. \
                  Recourse: {}",
@@ -1904,7 +1912,13 @@ pub(crate) fn every_euler_op_error_once()
                 terminal_sliver: false,
             },
         },
-        EulerOpError::SplitTangentRefuted { edge: ek },
+        EulerOpError::SplitTangentRefuted {
+            edge: ek,
+            mixed: Some(geom_brep::MixedStations {
+                transverse: 3,
+                smooth: 4,
+            }),
+        },
         EulerOpError::SplitJointUndecided {
             edge: ek,
             half_edge: he,

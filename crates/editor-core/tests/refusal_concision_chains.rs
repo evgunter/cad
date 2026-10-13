@@ -1781,7 +1781,16 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 "TangentChordBendEscalated",
                 J::TangentChordBendEscalated { face, diag: diag() },
             ),
-            ("TangentChordRefuted", J::TangentChordRefuted { face }),
+            (
+                "TangentChordRefuted",
+                J::TangentChordRefuted {
+                    face,
+                    mixed: Some(geom_brep::MixedStations {
+                        transverse: 3,
+                        smooth: 4,
+                    }),
+                },
+            ),
             (
                 "SectionCrossings",
                 J::SectionCrossings {
@@ -1832,7 +1841,16 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "EdgeOnFacesEscalated",
             F::EdgeOnFacesEscalated { edge, diag: diag() },
         ),
-        ("SmoothJoinRefuted", F::SmoothJoinRefuted { edge }),
+        (
+            "SmoothJoinRefuted",
+            F::SmoothJoinRefuted {
+                edge,
+                mixed: Some(geom_brep::MixedStations {
+                    transverse: 3,
+                    smooth: 4,
+                }),
+            },
+        ),
         (
             "KnifeEdge",
             F::KnifeEdge(topo::KnifeEdge {
@@ -4394,6 +4412,16 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
             ),
             ("DeclaredEdgeTilted", R::DeclaredEdgeTilted { edge }),
             (
+                "MixedEdge",
+                R::MixedEdge {
+                    edge,
+                    stations: geom_brep::MixedStations {
+                        transverse: 3,
+                        smooth: 4,
+                    },
+                },
+            ),
+            (
                 "ReanchorPastCarrierEnd",
                 R::ReanchorPastCarrierEnd { edge, gap: 0.25 },
             ),
@@ -4542,6 +4570,7 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
         R::EdgeSection { .. } => "EdgeSection",
         R::CornerSection { .. } => "CornerSection",
         R::DeclaredEdgeTilted { .. } => "DeclaredEdgeTilted",
+        R::MixedEdge { .. } => "MixedEdge",
         R::ReanchorPastCarrierEnd { .. } => "ReanchorPastCarrierEnd",
         R::ReanchorCollapse { .. } => "ReanchorCollapse",
         R::ReanchorInconclusive { .. } => "ReanchorInconclusive",
@@ -4566,7 +4595,7 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
 
 /// Every `ReplaceFaceError` variant, in declaration order: the names
 /// [`replace_face_arm`] answers.
-const REPLACE_FACE_ARMS: [&str; 41] = [
+const REPLACE_FACE_ARMS: [&str; 42] = [
     "Band",
     "StaleFace",
     "Offset",
@@ -4589,6 +4618,7 @@ const REPLACE_FACE_ARMS: [&str; 41] = [
     "EdgeSection",
     "CornerSection",
     "DeclaredEdgeTilted",
+    "MixedEdge",
     "ReanchorPastCarrierEnd",
     "ReanchorCollapse",
     "ReanchorInconclusive",

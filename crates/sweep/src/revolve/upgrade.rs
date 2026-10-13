@@ -158,11 +158,9 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                     witness: data.witness,
                 },
                 band,
-                || s1,
                 &sliver,
                 &sliver,
-                || RevolveError::SmoothJoinRefuted { edge },
-                |chart| unreachable!("{chart:?} is `s1`, one of the join's pair"),
+                |mixed| RevolveError::SmoothJoinRefuted { edge, mixed },
             )? {
                 MustCarryDescription::Intrinsic(description) => {
                     let spec = EdgeCurveSpec {
@@ -173,18 +171,16 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                     };
                     body.set_edge_curve(edge, spec, tol)?;
                 }
-                MustCarryDescription::Conventional(chart) => {
+                MustCarryDescription::Conventional => {
                     // No intrinsic tangency is demanded (a zero-side
                     // station, or an all-positive pair outside the
                     // certificate's lane), so the description stays
-                    // CONVENTIONAL — but the edge is
-                    // at rest between two faces now, so it says where
-                    // it rests: an image in `s1`'s chart (D3's
-                    // transience fence). The pushforward it was
-                    // scaffolded from stays beside it as the authority
-                    // record, which is what keeps tier 3's
-                    // prefer-intrinsic reading unchanged.
-                    body.describe_at_rest(edge, chart, tol)?;
+                    // CONVENTIONAL — but the edge is at rest between
+                    // two faces now, so it says where it rests: the
+                    // pair it lies on (D3's transience fence). The
+                    // pushforward it was scaffolded from stays beside
+                    // it as the authority record.
+                    body.describe_at_rest(edge, tol)?;
                 }
             }
             Ok(())
@@ -227,7 +223,7 @@ pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
         // surfaces do not exist yet (D3's transience fence). So it is
         // described where it rests, as an ordinary chart image owing
         // the one meter.
-        body.describe_at_rest(edge, wall, tol)?;
+        body.describe_at_rest(edge, tol)?;
         return Ok(());
     }
     crate::swept::describe_wrap_edge(body, edge, wall, tol)?;

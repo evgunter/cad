@@ -566,42 +566,35 @@ fn adopt_edges(
             && let Some(mapped) =
                 mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1, nurbs_rim)
         {
-            // The conventional rung, since U2 collapsed the forms: a
-            // locus two COINCIDENT faces under-determine is an image
-            // in the chart they share, and the rung's own gate has
-            // just metered the carrier onto that chart
-            // (`carrier_on_surface`), so the image exists. The
-            // pushforward that used to BE the description becomes the
-            // authority record beside it (U2 Q3), which is what keeps
-            // tier 3's prefer-intrinsic reading of this edge unchanged.
+            // The conventional rung (D2): a locus two COINCIDENT
+            // surface records under-determine is the pair itself, and
+            // the rung's own gate has just metered the carrier onto it
+            // (`carrier_on_surface`); one surface on both sides is an
+            // image in its chart. The pushforward that used to BE the
+            // description becomes the authority record beside it
+            // (U2 Q3).
             //
-            // A NURBS RIM takes the PLANE side of its own pair. The
-            // rung's gate (`nurbs_plane_pair`) is exactly "one
-            // described spline wall and one plane", so an analytic
-            // chart is always in hand — and it is the RIGHT one: the
-            // rim is the cap's boundary and lies in the cap's plane by
-            // construction, where the derived image is exact. The
-            // spline wall's own image of the same rim exists too, but
-            // it is a stored CACHE (`topo`'s `nurbs_iso_derive`), not
-            // something a construction can state, and it is not needed
-            // — a chart image names ONE of the edge's two adjacent
-            // surfaces, and either is admissible (tier 3's chart
-            // adjacency, the M5-LOG item 6(iii) rule).
-            //
-            // No gate is skipped by preferring the plane: the rim is
-            // not METERED onto the cap here the way the coincident
-            // rung meters its carrier, but certification's own
-            // `|C(t) − S(P(t))|` does exactly that a moment later, so
-            // a rim that does not lie in the cap refuses loudly rather
-            // than adopting a description of the wrong locus.
-            let chart = if nurbs_rim {
-                plane_of_pair(body, fs_plus, fs_minus).unwrap_or(fs_plus)
+            // A NURBS RIM is an image in the PLANE side of its own pair:
+            // the cap's boundary, a locus the cap's chart defines (the
+            // native loft's rims rest there too,
+            // `sweep::swept::describe_face_rim_at_rest`), and the pair
+            // cannot carry it — a spline wall has no implicit form to
+            // meter incidence on. The rung's gate (`nurbs_plane_pair`) is
+            // exactly "one described spline wall and one plane", so the
+            // plane is in hand, and certification's own `|C(t) − S(P(t))|`
+            // meters the rim onto it a moment later.
+            let description = if nurbs_rim {
+                EdgeDescriptionSpec::chart(
+                    plane_of_pair(body, fs_plus, fs_minus).unwrap_or(fs_plus),
+                )
+            } else if fs_plus == fs_minus {
+                EdgeDescriptionSpec::chart(fs_plus)
             } else {
-                fs_plus
+                EdgeDescriptionSpec::on_pair(SurfacePair::new(fs_plus, fs_minus))
             };
             candidates.push((
                 AdoptionCandidate::MappedCurve,
-                EdgeDescriptionSpec::chart(chart).declared_by(mapped),
+                description.declared_by(mapped),
             ));
         }
 

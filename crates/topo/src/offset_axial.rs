@@ -704,6 +704,16 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                     true,
                     mid,
                     |mc| reauthor(mc, &carrier, (p_start, p_end), edge, band),
+                    |declared| {
+                        crate::offset_restate::re_ask_on_pair(
+                            edge,
+                            [(ca.old_key, &ca.new), (cb.old_key, &cb.new)],
+                            &carrier,
+                            (t0, t1),
+                            declared,
+                            band,
+                        )
+                    },
                 )?,
                 carrier,
                 param_start: t0,

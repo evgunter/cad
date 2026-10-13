@@ -489,7 +489,7 @@ fn latitude_arc(
         )
         .expect("the latitude splits the wall")
         .edge;
-    body.describe_at_rest(edge, surface, tol)
+    body.describe_at_rest(edge, tol)
         .expect("the latitude rests in the wall's chart");
     edge
 }

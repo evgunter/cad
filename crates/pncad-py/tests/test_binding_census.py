@@ -4024,6 +4024,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::SliverDihedral": "ValidationFinding.variant",
     "ValidationError::NoDihedralArm": "ValidationFinding.variant",
     "ValidationError::TransverseNotIntrinsic": "ValidationFinding.variant",
+    "ValidationError::MixedDihedral": "ValidationFinding.variant",
     "ValidationError::ScaffoldAtRest": "ValidationFinding.variant",
     "ValidationError::JoinableVertexAtRest": "ValidationFinding.variant",
     "ValidationError::JoinUndecidedAtRest": "ValidationFinding.variant",

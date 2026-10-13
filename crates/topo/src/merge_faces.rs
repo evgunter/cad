@@ -552,6 +552,17 @@ pub enum MergeCoplanarError {
         /// ([`undescribed_ending`]).
         fitted: bool,
     },
+    /// A kept face's boundary edge reads its two faces meeting at a
+    /// corner at one station and smoothly at its neighbour, so it is
+    /// certifiable as neither (D2's mixed edge). Refused, never guessed.
+    KeptBoundaryMixed {
+        /// The kept face.
+        face: FaceKey,
+        /// Its boundary edge.
+        edge: EdgeKey,
+        /// The two stations that disagree.
+        stations: geom_brep::MixedStations,
+    },
     /// Whether a kept face's boundary edge lies on both faces it bounds
     /// could not be decided at this tolerance: its line chord reads
     /// within the band of one of their surfaces and not clearly on it
@@ -601,11 +612,11 @@ pub enum EdgeDescribeFailure {
     Intersection,
     /// Their tangency does not certify on the edge's carrier.
     Tangency,
-    /// The carrier has no conventional description in a chart.
+    /// The carrier has no conventional description for its kind.
     NoConventionalLane,
-    /// The arc's image in its face's chart does not certify.
+    /// The arc does not certify as described where it rests.
     Arc,
-    /// The line's image in its face's chart does not certify.
+    /// The line does not certify as described where it rests.
     Line,
 }
 
@@ -618,11 +629,9 @@ impl EdgeDescribeFailure {
             }
             Self::Intersection => "its two faces' intersection does not certify on its curve",
             Self::Tangency => "its two faces' tangency does not certify on its curve",
-            Self::NoConventionalLane => {
-                "its curve has no description in a face's chart for its kind"
-            }
-            Self::Arc => "its arc does not certify as an image in its face's chart",
-            Self::Line => "its line does not certify as an image in its face's chart",
+            Self::NoConventionalLane => "its curve has no conventional description for its kind",
+            Self::Arc => "its arc does not certify as described where it rests",
+            Self::Line => "its line does not certify as described where it rests",
         }
     }
 }
@@ -652,6 +661,12 @@ pub(crate) enum DescribeRefusal {
     /// Its line chord reads within the band of one of its two faces'
     /// surfaces, and not clearly on it ([`edge_on_faces_reading`]).
     OffFace { edge: EdgeKey, diag: Indeterminate },
+    /// Its faces meet at a corner at one station and smoothly at its
+    /// neighbour ([`geom_brep::MustCarryVerdict::Mixed`]).
+    Mixed {
+        edge: EdgeKey,
+        stations: geom_brep::MixedStations,
+    },
 }
 
 /// The question an edge read in band of a face it bounds asks, about
@@ -802,7 +817,8 @@ impl DescribeRefusal {
         match *self {
             Self::Failed { edge, .. }
             | Self::Undecided { edge, .. }
-            | Self::OffFace { edge, .. } => edge,
+            | Self::OffFace { edge, .. }
+            | Self::Mixed { edge, .. } => edge,
         }
     }
 }
@@ -847,6 +863,11 @@ impl MergeCoplanarError {
             DescribeRefusal::OffFace { edge, diag } => {
                 Self::KeptBoundaryOffFace { face, edge, diag }
             }
+            DescribeRefusal::Mixed { edge, stations } => Self::KeptBoundaryMixed {
+                face,
+                edge,
+                stations,
+            },
         }
     }
 
@@ -875,6 +896,10 @@ impl MergeCoplanarError {
             Self::KeptBoundaryOffFace { edge, diag, .. } => {
                 Some(DescribeRefusal::off_face(*edge, *diag))
             }
+            Self::KeptBoundaryMixed { edge, stations, .. } => Some(DescribeRefusal::Mixed {
+                edge: *edge,
+                stations: *stations,
+            }),
             _ => None,
         }
     }
@@ -1270,6 +1295,15 @@ impl core::fmt::Display for MergeCoplanarError {
                     diag.undecided(question, ending)
                 )
             }
+            Self::KeptBoundaryMixed {
+                face,
+                edge,
+                stations,
+            } => write!(
+                f,
+                "merge_coplanar_faces: along kept face {face:?}'s boundary edge {edge:?}, \
+                 {stations}"
+            ),
         }
     }
 }
@@ -1751,7 +1785,8 @@ impl<T: Decide> Body<T> {
     /// faces — certified in `Band::linear(tol)`, so no such edge comes
     /// back with tier 3's `DescriptionNotAdjacent`. An edge it cannot
     /// describe refuses ([`MergeCoplanarError::KeptBoundaryUndescribed`],
-    /// [`MergeCoplanarError::KeptBoundaryUndecided`]).
+    /// [`MergeCoplanarError::KeptBoundaryUndecided`],
+    /// [`MergeCoplanarError::KeptBoundaryMixed`]).
     ///
     /// **Atomic and deterministic (D9)**: the op stages on a clone —
     /// on any refusal `self` is untouched; on success the staged body

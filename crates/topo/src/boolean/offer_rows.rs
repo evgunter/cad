@@ -2363,6 +2363,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::LineageRow
         | BooleanErrorKind::EdgeUndescribed
+        | BooleanErrorKind::MixedSeam
         | BooleanErrorKind::JoinCarrierUnsupported
         | BooleanErrorKind::TornComponent
         | BooleanErrorKind::ShellWitnessExhausted

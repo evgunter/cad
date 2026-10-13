@@ -2958,6 +2958,17 @@ pub enum BooleanError {
         /// carrier.
         fitted: bool,
     },
+    /// A seam of the result reads its two faces meeting at a corner at
+    /// one station and smoothly at its neighbour: the dihedral passes
+    /// through the ambiguous band between them, at a point no station
+    /// read, so the seam is certifiable as neither a corner nor a smooth
+    /// join (D2's mixed edge).
+    MixedSeam {
+        /// The seam, diagnostic only: the result is never returned.
+        edge: EdgeKey,
+        /// The two stations that disagree.
+        stations: geom_brep::MixedStations,
+    },
     /// One distributed component carries section faces of both sides
     /// (kernel bug, loudly).
     TornComponent {
@@ -3258,6 +3269,8 @@ pub enum BooleanErrorKind {
     LineageRow,
     /// [`BooleanError::EdgeUndescribed`].
     EdgeUndescribed,
+    /// [`BooleanError::MixedSeam`].
+    MixedSeam,
     /// [`BooleanError::TornComponent`].
     TornComponent,
     /// [`BooleanError::ShellWitnessExhausted`].
@@ -3480,6 +3493,7 @@ impl BooleanError {
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
             Self::EdgeUndescribed { .. } => BooleanErrorKind::EdgeUndescribed,
+            Self::MixedSeam { .. } => BooleanErrorKind::MixedSeam,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
             Self::CoincidentShell { .. } => BooleanErrorKind::CoincidentShell,
@@ -4126,6 +4140,9 @@ impl core::fmt::Display for BooleanError {
                     ". {}",
                     crate::merge_faces::undescribed_ending(cause.as_deref(), *fitted)
                 )
+            }
+            Self::MixedSeam { stations, .. } => {
+                write!(f, "along a seam of the result, {stations}")
             }
             Self::TornComponent { operand, shell } => write!(
                 f,
@@ -7411,6 +7428,13 @@ mod tests {
                 cause: None,
                 fitted: false,
             },
+            BooleanError::MixedSeam {
+                edge: EdgeKey::default(),
+                stations: geom_brep::MixedStations {
+                    transverse: 3,
+                    smooth: 4,
+                },
+            },
             BooleanError::TornComponent {
                 operand: Operand::A,
                 shell: ShellKey::default(),
@@ -7545,6 +7569,7 @@ mod tests {
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::LineageRow => "LineageRow",
                 BooleanErrorKind::EdgeUndescribed => "EdgeUndescribed",
+                BooleanErrorKind::MixedSeam => "MixedSeam",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
                 BooleanErrorKind::CoincidentShell => "CoincidentShell",

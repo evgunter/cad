@@ -688,6 +688,17 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
                     witness: carrier.mid_point(param_start, param_end),
                 }
             }
+            // The pair's keys are stable; the declaration maps as a
+            // chart image's does.
+            EdgeDescription::OnPair { pair } => {
+                let on_pair = EdgeDescriptionSpec::on_pair(*pair);
+                match old.authority() {
+                    geom_brep::EdgeAuthority::Declared(mc) => {
+                        on_pair.declared_by(map_mapped_curve(map, &mc))
+                    }
+                    geom_brep::EdgeAuthority::Derived => on_pair,
+                }
+            }
             // A chart image is a PARAMETER-SPACE fact, invariant under
             // a rigid map: the mapped SURFACE carries the whole map,
             // and the image on it is the image it always was (M6-3;

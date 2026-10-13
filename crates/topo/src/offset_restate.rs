@@ -38,6 +38,11 @@ pub(crate) fn chart_moves<T: Decide>(distance: T, band: Band) -> Result<bool, Re
 ///   derive it) when the edge `slides` within its chart, and kept when
 ///   it does not — the chart moves rigidly with the edge, or neither
 ///   moves;
+/// - a **pair** the two surfaces under-determined is re-asked the
+///   must-carry rule against the moved pair through `re_ask`
+///   ([`re_ask_on_pair`]), which the door supplies with the edge's two
+///   sides' moved surfaces and its moved carrier, handed the
+///   declaration;
 /// - a **declaration** or a **scaffold** is 3-space sketch data, and
 ///   rides `carried`.
 ///
@@ -51,6 +56,7 @@ pub(crate) fn restate<T: Real>(
     slides: bool,
     mid: Point3<T>,
     carried: impl Fn(MappedCurve<T>) -> Result<MappedCurve<T>, ReplaceFaceError<T>>,
+    re_ask: impl FnOnce(Option<MappedCurve<T>>) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>>,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
     let declared = match authority {
         EdgeAuthority::Derived => None,
@@ -63,6 +69,7 @@ pub(crate) fn restate<T: Real>(
         EdgeDescription::TangentIntersection { pair, .. } => {
             EdgeDescriptionSpec::TangentIntersection { pair, witness: mid }
         }
+        EdgeDescription::OnPair { .. } => re_ask(declared)?,
         EdgeDescription::Chart(c) => match beside_moving(c.surface, sides) {
             Some(moving) => held_neighbour_image(moving, c.surface, declared, mid),
             None => EdgeDescriptionSpec::Chart {
@@ -74,6 +81,49 @@ pub(crate) fn restate<T: Real>(
         },
         EdgeDescription::Scaffold(m) => EdgeDescriptionSpec::Scaffold(carried(m)?),
     })
+}
+
+/// **An `OnPair` edge moved onto `carrier`**, re-asked the must-carry
+/// rule against the pair as it now stands (D2): `surfaces` are the
+/// pair's two surfaces after the move, each with the key the edge's
+/// description names. The pair may now determine the locus — a corner
+/// (`Intersection`) or a jet-determinate tangency
+/// (`TangentIntersection`), each witnessed at the carrier's middle and
+/// derived, so a declaration does not ride it — or still
+/// under-determine it, when it stays `OnPair` with its declaration.
+///
+/// # Errors
+///
+/// [`ReplaceFaceError::MixedEdge`] where the moved edge reads a corner
+/// at one station and smooth at its neighbour;
+/// [`ReplaceFaceError::Escalated`] where a station is in band.
+pub(crate) fn re_ask_on_pair<T: Decide>(
+    edge: crate::entity::EdgeKey,
+    surfaces: [(SurfaceKey, &geom::Surface<T>); 2],
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    declared: Option<MappedCurve<T>>,
+    band: Band,
+) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
+    use geom_brep::MustCarryVerdict as V;
+    let [(ka, a), (kb, b)] = surfaces;
+    let (pair, [sa, sb]) = SurfacePair::sorted(ka, a, kb, b);
+    let witness = carrier.mid_point(t0, t1);
+    let extent =
+        geom_brep::edge_extent(carrier, t0, t1, carrier.eval(t0).distance(carrier.eval(t1)));
+    Ok(
+        match geom_brep::must_carry_over_edge(sa, sb, carrier, t0, t1, extent, band) {
+            V::Transverse => EdgeDescriptionSpec::Intersection { pair, witness },
+            V::JetDeterminate => EdgeDescriptionSpec::TangentIntersection { pair, witness },
+            V::UnderDetermined => EdgeDescriptionSpec::OnPair { pair, declared },
+            V::Mixed(stations) => return Err(ReplaceFaceError::MixedEdge { edge, stations }),
+            V::InBand(escalation) => {
+                return Err(ReplaceFaceError::Escalated {
+                    source: escalation.diag(),
+                });
+            }
+        },
+    )
 }
 
 /// An edge whose description is an image in `held`'s chart, `held`

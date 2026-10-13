@@ -348,6 +348,7 @@ fn fold_replace_face_error<T: Real>(
             verdict: fold_corner_verdict(verdict, end),
         },
         R::DeclaredEdgeTilted { edge } => R::DeclaredEdgeTilted { edge },
+        R::MixedEdge { edge, stations } => R::MixedEdge { edge, stations },
         R::ReanchorPastCarrierEnd { edge, gap } => R::ReanchorPastCarrierEnd {
             edge,
             gap: end(gap, Supremum),

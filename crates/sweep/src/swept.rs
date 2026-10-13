@@ -1416,7 +1416,15 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
         if !scaffolded {
             continue;
         }
-        body.describe_at_rest(edge, chart, tol)?;
+        // The rim is the cap's own profile, the plane fitted through it:
+        // a locus that face's chart defines, whatever wall it bounds.
+        let spec = body
+            .get_curve_geom(curve_key)
+            .and_then(topo::CurveGeom::certified)
+            .unwrap_or_else(|| unreachable!("{edge:?} was read scaffolded just above"))
+            .restated_spec()
+            .at_rest_in_chart(chart, false);
+        body.set_edge_curve(edge, spec, tol)?;
     }
     Ok(())
 }
