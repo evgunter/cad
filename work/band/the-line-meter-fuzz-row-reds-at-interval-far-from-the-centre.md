@@ -43,3 +43,5 @@ from the centre", is where the claim was made). Then either tighten
 that candidate, or show the claim's `1e-12` rate is wrong for segments
 like this one and restate it with its derivation. Pin the seed's case
 as a fixed row.
+
+- 2026-10-13 (ENCL implementer, `encl/definite-arm-one-story`, which does not touch `blend`): it went red again in a local `--profile ci` run at the default ε, case 97, with Interval lo -5.10e-12 against least G -7.6e-17. Reproduce with `CAD_FUZZ_SEED=0xf5b2ff6b2132b401 CAD_FUZZ_EFFORT=1`.
