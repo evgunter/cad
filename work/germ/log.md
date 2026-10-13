@@ -1176,3 +1176,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **d4886 delta review:** APPROVE-WITH-FIXES, 0 MAJOR. The re-close and witness polish were sound by execution and 1,200 fresh seeds were clean. Its MINOR, a NaN through the polish guard on a line through the apex, I fixed directly with `is_poison()` keeping the closed-form root, plus the meter-doc NIT. Then fmt, clippy on topo, and the 204 section-cert/ruling/root-walk rows at three ε.
   - Row `PR-4886.md` last: concurrent, H, tallied 0, major false. d4886 is noted as an orchestrator check, not tallied.
   - **Known reds:** the topo `cone_pair_search` ~1%-of-seeds row should now stop reddening other PRs; drop it from the known-reds list.
+- 2026-10-13 09:06 — Check-in. 4927's fix pass merged main again and is polling hosted CI on `23f3adef`. Lanes were free, so I dispatched the two fuzz items that red unrelated PRs at random, neither of which had an owner:
+  - the P1 in-band sweep `Miss` inside the escalation gap: session_01VFpKYy9ZPP2syxqS7FXz62, branch germ/in-band-sweep-gap-miss;
+  - the plane×cone apex reach contradiction at pico-ε (no priority line; P1 by its effect): session_01KjnMSjzMzojvvQbXrkKSwh, branch germ/pn-apex-reach-pico-eps. It also checks the P2 sibling (cone frame `u_ref⊥axis` unchecked) as a possible root.
+  - Review arms are drawn at review. Re-armed for 10:04.
