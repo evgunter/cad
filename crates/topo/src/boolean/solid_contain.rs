@@ -6482,7 +6482,7 @@ mod joint_branch_rows {
                 "k = {k}: the walk meets across the joint: {out:?}"
             );
             assert_eq!(
-                counts.symbolic_zero, 2,
+                counts.symbolic, 2,
                 "k = {k}: each channel's closure is the zero polynomial"
             );
         }
