@@ -17,7 +17,7 @@
 use core::f64::consts::PI;
 
 use pncad::authoring::{p3, v3};
-use pncad::geom_core::{Affine3, Vec3};
+use pncad::geom_core::{RigidMotion, Vec3};
 use pncad::topo::splitting::{PlaneSide, SplitPart, SplitPlane, plane_section, split};
 
 use crate::SceneBody;
@@ -192,10 +192,12 @@ pub(crate) fn build<S: Scalar>(
     // Pull the halves apart along the section normal: rigid
     // transforms re-mint every moved witness (#84).
     let n = plane.normal.get() * S::from_f64(PULL);
-    let moved_above = pncad::topo::transform_rigid(above, &Affine3::translation(n), tol)
-        .expect("translate above half");
-    let moved_below = pncad::topo::transform_rigid(below, &Affine3::translation(-n), tol)
-        .expect("translate below half");
+    let pull = RigidMotion::translation(n).expect("a finite pull");
+    let push = RigidMotion::translation(-n).expect("a finite pull");
+    let moved_above =
+        pncad::topo::transform_rigid(above, &pull, tol).expect("translate above half");
+    let moved_below =
+        pncad::topo::transform_rigid(below, &push, tol).expect("translate below half");
     (
         (moved_above, moved_below),
         SectionNumbers {
@@ -311,9 +313,9 @@ pub(crate) fn sectioned_beside(
     else {
         panic!("the section plane passes over the spring: all of it is below");
     };
-    let spring_below =
-        pncad::topo::transform_rigid(spring_below, &Affine3::translation(n.below_pull), tol)
-            .expect("pull the spring with the below half");
+    let pull = RigidMotion::translation(n.below_pull).expect("a finite pull");
+    let spring_below = pncad::topo::transform_rigid(spring_below, &pull, tol)
+        .expect("pull the spring with the below half");
     let reading = read_section(boxbody, (n.area, n.area_pad), tol);
     let note = format!(
         "first `topo::split` in the tour, ON a 15-op boolean result; section plane \
@@ -339,7 +341,8 @@ pub(crate) fn sectioned_beside(
         v_box = n.v_box,
         gap = n.gap,
     );
-    let aside = Affine3::translation(Vec3::new(SECTION_GAP, 0.0, 0.0));
+    let aside =
+        RigidMotion::translation(Vec3::new(SECTION_GAP, 0.0, 0.0)).expect("a finite offset");
     let above = pncad::topo::transform_rigid(&moved_above, &aside, tol)
         .expect("place the above half beside the box");
     let below = pncad::topo::transform_rigid(&moved_below, &aside, tol)

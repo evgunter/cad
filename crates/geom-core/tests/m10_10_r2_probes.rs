@@ -6,7 +6,7 @@
 //! `f64` VALUE at a point where the plain-`f64` evaluation is exact
 //! enough to see a wrong fold — a fold that decides `Zero` on a
 //! residual that is not numerically zero is the one defect these rows
-//! exist to catch, and a `theorem` label alone would not see it.
+//! exist to catch, and a `proven` label alone would not see it.
 //!
 //! Rows marked EVIDENCE print and assert only soundness (never a false
 //! theorem); the rest gate.
@@ -48,8 +48,8 @@ fn p(name: &str, v: f64) -> Sym<f64> {
 }
 
 /// How the tier answered the margin `build` makes inside a FRESH
-/// session, and the margin's `f64` value: `theorem` / `registered` /
-/// `sign_gated` / `numeric <sign>` / `refused`.
+/// session, and the margin's `f64` value: `proven` / `numeric <sign>` /
+/// `refused`.
 fn how_f64(build: impl FnOnce() -> Sym<f64>) -> (String, f64) {
     let ((out, value), counts) = with_session(budget(), || {
         let m = build();
@@ -59,9 +59,7 @@ fn how_f64(build: impl FnOnce() -> Sym<f64>) -> (String, f64) {
         )
     });
     let label = match out {
-        Ok(Sign::Zero) if counts.symbolic_zero == 1 => "theorem".to_owned(),
-        Ok(Sign::Zero) if counts.registered == 1 => "registered".to_owned(),
-        Ok(Sign::Zero) if counts.sign_gated == 1 => "sign_gated".to_owned(),
+        Ok(Sign::Zero) if counts.symbolic == 1 => "proven".to_owned(),
         Ok(s) => format!("numeric {s:?}"),
         Err(e) => format!("refused {:?}", e.margin),
     };
@@ -71,7 +69,7 @@ fn how_f64(build: impl FnOnce() -> Sym<f64>) -> (String, f64) {
 /// A theorem whose value at the point is zero to `f64` accuracy — the
 /// soundness check a label cannot make.
 fn assert_sound_theorem(what: &str, (label, value): (String, f64), tol: f64) {
-    assert_eq!(label, "theorem", "{what}: expected a theorem, got {label}");
+    assert_eq!(label, "proven", "{what}: expected a theorem, got {label}");
     assert!(
         value.abs() <= tol,
         "{what}: the form says identically zero but the value at the point is {value:e} \
@@ -89,10 +87,10 @@ fn assert_sound(what: &str, (label, value): (String, f64), tol: f64) -> bool {
         "{what}: value at the point is {value:e} (> {tol:e}) under label {label}"
     );
     assert!(
-        label == "theorem" || label == "numeric Zero",
+        label == "proven" || label == "numeric Zero",
         "{what}: a true identity answered {label}"
     );
-    label == "theorem"
+    label == "proven"
 }
 
 /// `cos(φ/2ʲ)`, `sin(φ/2ʲ)` spelled by hand through `sqrt` and
@@ -217,7 +215,7 @@ fn r2_rule_d_with_x_a_form_carrying_atoms() {
             println!(
                 "   {what}: {}",
                 if theorem {
-                    "theorem"
+                    "proven"
                 } else {
                     "numeric zero (the fold's atoms do not meet the by-hand ones)"
                 }
@@ -366,7 +364,7 @@ fn r2_zero_normalization_is_poisoned_through_the_zero_polynomial() {
         q - q
     });
     assert!(
-        !label.starts_with("theorem"),
+        !label.starts_with("proven"),
         "0/0 − 0/0 has no value and must not be a theorem: {label}"
     );
 }
@@ -452,10 +450,7 @@ fn r2_evidence_a_residual_past_the_step_cap_is_answered_soundly() {
         });
         println!("   {n} atoms: {label}, value {value:e}");
         assert!(value.abs() < 1.0e-9);
-        assert!(
-            label == "theorem" || label.starts_with("numeric"),
-            "{label}"
-        );
+        assert!(label == "proven" || label.starts_with("numeric"), "{label}");
     }
 }
 
@@ -482,8 +477,7 @@ mod over_boxes {
             geom_core::k_stats::decide("r2_probe_interval", Margin::of(build()), band())
         });
         match out {
-            Ok(Sign::Zero) if counts.symbolic_zero == 1 => "theorem".to_owned(),
-            Ok(Sign::Zero) if counts.registered == 1 => "registered".to_owned(),
+            Ok(Sign::Zero) if counts.symbolic == 1 => "proven".to_owned(),
             Ok(s) => format!("numeric {s:?}"),
             Err(e) => format!("refused {:?}", e.margin),
         }
@@ -538,7 +532,7 @@ mod over_boxes {
                 if k <= 4 && m <= 2 && !(lo < 0.0 && hi > 0.0) {
                     assert_eq!(
                         plain,
-                        "theorem",
+                        "proven",
                         "X over [{lo}, {hi}], q = {k}/{}",
                         1u32 << m
                     );
@@ -564,7 +558,7 @@ mod over_boxes {
                 if m <= 2 {
                     assert_eq!(
                         added,
-                        "theorem",
+                        "proven",
                         "by addition, X over [{lo}, {hi}], q = {k}/{}",
                         1u32 << m
                     );
@@ -588,7 +582,7 @@ mod over_boxes {
                     // See the `f64` row: two `sqrt(1 + X²)` atoms when
                     // `X` carries a `sqrt` atom — never a wrong answer.
                     assert!(
-                        with_atoms == "theorem"
+                        with_atoms == "proven"
                             || with_atoms.starts_with("numeric Zero")
                             || with_atoms.starts_with("refused"),
                         "X = sqrt(x) − y, x over [{lo}, {hi}], q = {k}/{}: {with_atoms}",
@@ -670,7 +664,7 @@ mod over_boxes {
             }),
         ];
         for (name, mk) in folds {
-            assert_eq!(how(mk), "theorem", "{name}");
+            assert_eq!(how(mk), "proven", "{name}");
         }
         // EVIDENCE: `1 + x²` over a straddling `x` — true value ≥ 1, but
         // the enclosure of `x·x` over `[−1, 1]` decides whether clause 1
@@ -693,12 +687,12 @@ mod over_boxes {
             (x - y).atan2(over("z", 0.5, 1.0).sqrt())
         });
         assert_ne!(
-            coincidence, "theorem",
+            coincidence, "proven",
             "x − y at equal boxes is a coincidence"
         );
         let plain = how(|| Sym::zero().atan2(over("x", 0.5, 1.0)));
         assert_ne!(
-            plain, "theorem",
+            plain, "proven",
             "a plain parameter has no sign the form knows"
         );
     }
@@ -741,7 +735,7 @@ mod over_boxes {
             );
             (x - x) / d + z - z
         });
-        assert_eq!(ok, "theorem");
+        assert_eq!(ok, "proven");
     }
 
     /// **A/B per node where the shared denominator vanishes on part of
@@ -760,6 +754,6 @@ mod over_boxes {
             let r = (a / b).sqrt();
             r * r * r - (a / b) * r
         });
-        assert_eq!(ok, "theorem");
+        assert_eq!(ok, "proven");
     }
 }

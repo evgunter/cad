@@ -265,9 +265,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    refuses (`LaminaWedge`). The
    arm admits no laminae, so zero-volume bodies stay geometric defects.
    A doubled cusp (two material wedges on one tangent line) is the
-   coincident-distinct-edges class, each edge classifying separately.
-   Consumers with no wedge-0/2π answer (fillet, offset, mesh sizing,
-   sector classification) refuse typed at the consumer.
+   coincident-distinct-edges class, each edge classifying separately;
+   where no edge lies on the line, the two wedges are a touch between
+   faces, recorded like any touch, and no op cuts edges to make a
+   junction of it. Consumers with no wedge-0/2π answer (fillet, offset,
+   mesh sizing, sector classification), and none for a body's
+   curve-touch records, refuse typed at the consumer.
    Also at tier 3: **maximal edges** (a joinable vertex at rest is a
    construction that stopped half-way, `JoinableVertexAtRest`; a
    vertex whose regularity reading lands in the sliver band, so that
@@ -346,7 +349,7 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      original's point, as it hands a cut face's fragments one surface.
    - A contact record is a pair of cells, one from each touching
      shell (or each side of a shell's pinch, whose two sides touch
-     within one shell), whose interiors meet, plus its backing: a
+     within one shell, recorded as between shells), whose interiors meet, plus its backing: a
      coincidence an op decided Zero, recorded (D10). The record is
      that pair and nothing else: an unordered pair of the body's own
      cells, in canonical order, in one list a citation addresses by
@@ -371,9 +374,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      face, a join's edge, a seam); divided, into its pieces and the
      cells the op minted between them, the division exhaustive or with
      its remainder removed; or removed. One carry, for the boolean and
-     every surgery verb alike, puts each pair drawn from a record's two
-     cells' images to the census's record confirm, and the record lands
-     on every pair whose interiors meet, each landing citing it. Two
+     every surgery verb alike, lands a record whose two cells the op kept
+     or substituted on their images by lineage, unread, their geometry
+     unchanged and the record read where it was minted; it puts each
+     pair drawn from a divided cell's images to the census's record
+     confirm, and the record lands on every such pair whose interiors
+     meet, each landing citing it. Two
      cells an op minted on a record's two cells and that meet at a point
      meet where the record puts them when one cut made both, as the
      split's one plane does, and the landing cites the record alone; an
@@ -636,9 +642,11 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   Villarceau circle and a cone's tilted section mint their exact image
   (`Pcurve::FocalSection`), and a circle within the band of a cone or
   torus that is none of its circles refuses as a defect
-  (`CarrierGrazesChart`). C4's exemption, a face left uncached until
-  its class's route lands, covers the mirror-torus spiric and
-  no-fitted classes, on their PCERT row.
+  (`CarrierGrazesChart`); a spiric on its torus's mirror through the
+  cutting plane mints the wall image with its azimuth sign opposed
+  (`SpiricImage::Wall`, tagged `WallTorus::Mirror`). Every class an
+  analytic chart can hold has a route, so C4's exemption excuses no
+  class; a face is left uncached only at a scalar with no fitted door.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Projected` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
@@ -695,19 +703,33 @@ EdgeDescription =
                                              -- `pair` is the set {S₁, S₂}, unordered
   | TangentIntersection { pair, witness }    -- tangential contact locus; same
                                              -- shape, margin one order up
-  | Chart(ChartCurve)                        -- a curve the surface UNDER-determines:
+  | OnPair              { pair }             -- a curve two distinct surfaces
+                                             -- UNDER-determine: the carrier is the
+                                             -- defining data, lying on both
+                                             -- (smooth joins the must-carry rule
+                                             -- reads under-determined)
+  | Chart(ChartCurve)                        -- a curve ONE surface's chart defines:
                                              -- (surface, Pcurve) with a `wrap` flag
-                                             -- (iso-lines, seams, user splits)
+                                             -- (iso-lines, seams, same-surface splits)
   | Scaffold(MappedCurve)                    -- construction-time pushforward of a
                                              -- lower-dim entity; never at rest
 ```
 
 The intrinsic variants describe loci determined by their surfaces; the
-conventional form carries the defining data for loci the surfaces
-*under*-determine (parameterization seams — infinite-order contact, the
-seam's position pure convention; face splits at smooth profile joins,
-where at a G2 join even `TangentIntersection` fails its margin, and
-rightly; user splits). One (surface, `Pcurve`) form covers all of them
+conventional forms carry the defining data for loci the surfaces
+*under*-determine. A locus on two distinct surfaces that they do not
+select — a face split at a smooth profile join, where at a G2 join even
+`TangentIntersection` fails its margin, and rightly, or a tangent piece
+shorter than the second order resolves — is `OnPair { pair }`: the
+carrier is the defining data, its certificate is incidence on both
+surfaces, and no door chooses a chart, since a chart key there records
+nothing about the locus and each face's pcurve is its own derived
+cache. Whether the pair is smooth along it is not the certificate's
+claim; tier 3's must-carry predicate admits the arm exactly where it
+reads the join under-determined. A locus one chart defines
+(parameterization seams — infinite-order contact, the seam's position
+pure convention; iso-lines; splits whose two faces share one surface)
+is `Chart`: one (surface, `Pcurve`) form covers all of them
 (PCURVE-UNIFY-DESIGN); the exact classes stay as certification lanes,
 not variants. A `MappedCurve` survives as the `Scaffold` payload and as
 the `EdgeAuthority` record — one authoritative source, never two peer
@@ -746,7 +768,11 @@ generalize the same way (three surfaces / endpoint of a locus, with a
 witness). A locus in the ambiguous band — a dihedral within a few
 derived angular thresholds of tangent, certifiable as neither — fails
 loudly at construction exactly as at import; a conventional description
-is not an escape hatch from ill-conditioned geometry.
+is not an escape hatch from ill-conditioned geometry. An edge whose
+stations read definitely transverse at some and definitely smooth at
+others is such a locus: the dihedral is continuous along it, so the two
+readings bracket an in-band point the schedule did not sample, and it
+refuses typed, naming the two stations.
 
 **Prefer-intrinsic rule, tier-3-enforced.** Wherever an intrinsic
 description is certifiable, it *is* the stored description — including
@@ -949,9 +975,13 @@ Five commitments:
    Geometry that can't meet ε almost always indicates a modeling
    mistake; surfacing it beats absorbing it.
 4. **Fixed internal units — meters and radians — with a documented
-   model size range**; geometry outside the range is rejected at
-   construction. User-facing units are typed newtypes at the API
-   boundary only (D6).
+   model size range**: the session box is 1 km, no coordinate larger
+   in magnitude; geometry outside the range is rejected at
+   construction. The box fixes the smallest admissible ε, ε_min =
+   1 km · 2⁻⁵² ≈ 2.2e-13 m, the length f64 resolves at the box's
+   edge: a run's ε below ε_min is refused, and no refusal offers to
+   tighten the tolerance below it. User-facing units are typed
+   newtypes at the API boundary only (D6).
 5. **Strictness is enforced at the boundary, not relaxed inside**: STEP
    import is an adoption stage (D7) that brings external geometry up to
    kernel invariants *before* it becomes a kernel body; entities that

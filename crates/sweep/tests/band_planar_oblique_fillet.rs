@@ -17,7 +17,7 @@ use sweep::test_support::{
     assert_naming_totality, block, brick, finished, prism, prism_on, realized, sketch_from_axes,
 };
 use topo::boolean::BooleanOp;
-use topo::{Body, BooleanError, EdgeKey, mass_properties, query, validate_geometric};
+use topo::{Body, EdgeKey, mass_properties, query, validate_geometric};
 
 use crate::band_planar_cut_off::{
     D, Verb, carve, edge, midpoint_tol, pad_ceiling, tol, volume, volume_enclosure,
@@ -523,10 +523,11 @@ fn a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall() 
 
 /// **The square wall's mid-sliver hole is a bound under both verbs,
 /// never inside nor a crossing**: the fillet's round end reads its ring
-/// inside the sliver, and the chamfer's chord end, which has only the
-/// enclosing region, reads it as a bound; under either verb the reach
-/// reads the hole's wall, which meets the window's end plane, as a
-/// bound, and a bound outranks an inside reading.
+/// inside the sliver, and the chamfer's chord end inside its triangle;
+/// but the hole is blind, its floor neither a cap's cycle nor a line
+/// between two, so under either verb the reach reads its wall, which
+/// meets the window's end plane, as a bound, and a bound outranks an
+/// inside reading.
 #[test]
 fn a_hole_in_a_square_walls_sliver_refuses_as_a_bound_under_both_verbs() {
     let body = drilled(0.0, 0.04, 0.015, 0.004);
@@ -563,12 +564,7 @@ fn a_steep_drilled_wall_keeps_its_bottom_edge_clear() {
 
 /// **A brick through a steep elliptic end**: on the `s = 3` filleted
 /// parallelogram a brick crossing the band's end arc builds in every op
-/// at the default and coarse ε, consistent with itself
-/// (`S + I = V`, `U − S = brick`). At ε = 1e-12 the subtract and the
-/// union refuse to measure their result — the quadrature cannot decide
-/// its convergence
-/// (`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`)
-/// — pinned so the row reds when that lands.
+/// at every ε, consistent with itself (`S + I = V`, `U − S = brick`).
 #[test]
 fn a_brick_through_a_steep_elliptic_end_builds_in_every_op() {
     let body = leaning(3.0);
@@ -576,31 +572,6 @@ fn a_brick_through_a_steep_elliptic_end_builds_in_every_op() {
     let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[e], D, tol())
         .expect("the s = 3 fillet builds");
     let cutter = brick((-0.5, 0.15), (-0.5, 0.05), (0.92, 1.5), tol());
-    let operand = finished("the filleted parallelogram", out.body.clone(), tol());
-    let tool = finished("the brick", cutter.clone(), tol());
-    let run = |op| {
-        topo::boolean::boolean_op_with(
-            op,
-            &operand,
-            &tool,
-            &topo::BooleanInputs::default(),
-            topo::boolean::SweepStrategy::Realized,
-            tol(),
-        )
-    };
-    if tol().eps() < 1e-10 {
-        for op in [BooleanOp::Subtract, BooleanOp::Union] {
-            match run(op) {
-                Err(BooleanError::VolumeUnmeasured { .. }) => {}
-                other => panic!(
-                    "{op:?} at ε = {}: the result's volume is unmeasured, got {:?}",
-                    tol().eps(),
-                    other.map(|_| ())
-                ),
-            }
-        }
-        return;
-    }
     let (v, _) = volume_enclosure(&out.body);
     let (b, _) = volume_enclosure(&cutter);
     let mut got = [0.0; 3];

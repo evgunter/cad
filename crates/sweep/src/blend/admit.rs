@@ -559,7 +559,9 @@ pub(super) enum StationKind {
     /// their trimlines cross.
     Mitre,
     /// A turn, on one of the third edge's two faces: the foot is on
-    /// that edge, which the carve splits there.
+    /// that edge, which the carve splits there — or, on the near band's
+    /// face at an overrun, the mitre's end, at the far band's cut-off
+    /// from that split.
     TurnFoot,
 }
 
@@ -567,7 +569,8 @@ impl StationKind {
     /// Whether the carve spins a STRUT out to the foot — at a corner, a
     /// joint or a turn's shared face, whose foot lies inside the face —
     /// rather than finding it already on a split edge, at a cut-off or
-    /// a turn's foot.
+    /// a turn's foot (or at the end of an overrun's cut-off, which the
+    /// turn's own carve spins from that foot).
     pub(super) fn spins_a_strut(self) -> bool {
         match self {
             Self::Corner | Self::Joint | Self::Mitre => true,
@@ -681,9 +684,7 @@ impl<T: Decide> RequestedBoundary<T> {
                 if t.shared == face {
                     Some((t.crossing, StationKind::Mitre))
                 } else {
-                    t.others
-                        .contains(&face)
-                        .then_some((t.foot, StationKind::TurnFoot))
+                    t.foot_on(face).map(|p| (p, StationKind::TurnFoot))
                 }
             });
             // A corner and a joint END a band and run through it, and a

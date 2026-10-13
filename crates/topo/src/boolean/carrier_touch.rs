@@ -49,22 +49,11 @@ use super::BooleanError;
 use super::boxes;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment};
 use super::{BooleanDecision, reduce};
+use crate::bisect::Step;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 use crate::live::BoundaryMember;
 use crate::validate::decide;
-
-/// The most pieces a span is cut into before the localization gives up:
-/// a bound on the walk (D9), the same as the crossing layer's other
-/// bisections (`circle_roots::SUBDIVISION_BUDGET`,
-/// `splitting::spiric_arc::MAX_PIECES`). Away from a meeting the
-/// second-order bound clears a piece in proportion to its distance from
-/// it, so each level of the bisection keeps a few open pieces per
-/// meeting, down to the floor `log₂(span / floor)` levels below. The
-/// rows here (`pierce_tangent_off_face`) spend 70 to 150 pieces a
-/// meeting across ε 1e-6 to 1e-12, so [`CLUSTER_BUDGET`] meetings fit
-/// with room to spare.
-const PIECE_BUDGET: usize = 4096;
 
 /// The most clusters a span may localize into: the most meetings a span
 /// of these curves has with these carriers. A conic against a torus is
@@ -131,7 +120,7 @@ fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
 /// Bounds on the curve's speed, metres per unit of its parameter
 /// ([`crate::carrier_speed::speed_hi`]), and on its curvature, a conic's
 /// from [`Conic`].
-fn speed_bound<T: Real>(carrier: &geom::Curve3<T>) -> Option<(T, T)> {
+fn speed_bound<T: Decide>(carrier: &geom::Curve3<T>) -> Option<(T, T)> {
     let speed = crate::carrier_speed::speed_hi(carrier)?;
     match *carrier {
         geom::Curve3::Line { .. } => Some((speed, T::zero())),
@@ -215,17 +204,14 @@ fn clusters<T: Decide + Bounds>(
     // Whether a cleared piece came after the last open one: the next open
     // piece starts a cluster.
     let mut broken = true;
-    // Depth first, left before right, so the pieces leave in order.
-    let mut stack = vec![(t0, t1)];
-    let mut cut = 0;
-    while let Some((a, b)) = stack.pop() {
-        cut += 1;
-        if cut > PIECE_BUDGET {
-            return None;
-        }
+    let mut over = false;
+    let walk = crate::bisect::bisect((t0, t1), |(a, b)| {
         let mid = (a + b) * half;
         let ell = speed * (b - a).abs() * half;
-        let (dist, _, normal) = distance(surface, carrier.eval(mid))?;
+        let Some((dist, _, normal)) = distance(surface, carrier.eval(mid)) else {
+            over = true;
+            return Step::Stop;
+        };
         let tangent = carrier.deriv(mid);
         let slope = (normal.dot(tangent) / tangent.norm()).abs();
         let lipschitz = dist.abs() - ell;
@@ -240,23 +226,26 @@ fn clusters<T: Decide + Bounds>(
         };
         if let Ok(Sign::Positive) = decide("bool_touch_piece_clear", Margin::of(bound), band) {
             broken = true;
-            continue;
+            return Step::Settled;
         }
         if ell.hi() > floor {
-            stack.push((mid, b));
-            stack.push((a, mid));
-            continue;
+            return Step::Halve([(a, mid), (mid, b)]);
         }
         match out.last_mut() {
             Some(last) if !broken => last.1 = b,
             _ => {
                 if out.len() == CLUSTER_BUDGET {
-                    return None;
+                    over = true;
+                    return Step::Stop;
                 }
                 out.push((a, b));
             }
         }
         broken = false;
+        Step::Settled
+    });
+    if walk.is_err() || over {
+        return None;
     }
     Some(out)
 }

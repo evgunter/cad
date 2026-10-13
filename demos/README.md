@@ -44,7 +44,7 @@ page is mostly about.
 
 | scene | what it shows |
 | --- | --- |
-| `bracket` | an L with one inner fillet, written in the PATHS lattice and lifted into a recipe document (`LoopProgram::from_recorded` → `Node::Profile` → `Node::Extrude`), held to its closed-form volume. Its wall: `Node::Split` across both legs partitions the body and names the corner piece's four cap chords by their ends, and `Node::Chamfer` over those names refuses `UnsupportedRunOut` — a plane–plane chamfer cannot end at a corner whose other edges are unrequested (`work/band/a-plane-plane-blend-cannot-end-at-an-unrequested-corner.md`) |
+| `bracket` | an L with one inner fillet, written in the PATHS lattice and lifted into a recipe document (`LoopProgram::from_recorded` → `Node::Profile` → `Node::Extrude`), held to its closed-form volume. `Node::Split` across both legs partitions the body and names the corner piece's four cap chords by their ends; `Node::Chamfer` and `Node::Fillet` over those names build, each band cut off in its leg's side walls, and the scene renders the corner piece with both section faces' whole rims chamfered, each corner a turn whose far band runs past the mitre (the overrun), all held to closed-form volumes |
 | `spacer` | machined spacer with every edge broken — `chamfer_edges` over all twelve edges at one setback: 12 flat strips + 8 flat corner patches. Off the sheet since the montage-v3 curation, which gave the chamfer verb's cell to `diechamfer` (a better part, and the same size as `diefillet`'s radius so the two panels compare verbs) |
 | `plate` | extrude with two circular holes — genus 2, ring loops in both caps |
 | `vase` | full revolve, axis-touching profile: sphere-zone belly + cone lip |

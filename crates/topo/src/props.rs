@@ -2966,7 +2966,7 @@ pub const SHELL_ROLE: SizedDecision = SizedDecision {
     size: "thickness",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// What a [`ShellClassifyError`] found, without the shell's key or a
@@ -3516,6 +3516,13 @@ impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
     }
 }
 
+impl<T: Decide> QuadLane<T> {
+    /// A value of the walk's scalar as the interval holding it.
+    pub(crate) fn lift(self, x: T) -> Interval {
+        (self.lift)(x)
+    }
+}
+
 /// **The shell's op door**, as a value the passes take rather than a
 /// trait a scalar implements.
 ///
@@ -3645,6 +3652,35 @@ mod wiring_rows {
             return Err("open is not `shell_open`");
         }
         Ok(())
+    }
+
+    /// Each certifying scalar's region lane is the certified doors
+    /// ([`crate::RegionLane::certified`]); a dual's is absent
+    /// (`dual_gate_is_absent_not_a_verdict`).
+    #[test]
+    fn every_certifying_scalar_is_wired_to_the_certified_region_lane() {
+        assert!(
+            <f64 as AtRestPolicy>::region_lane().is_some_and(|l| l.is_certified()),
+            "f64"
+        );
+        assert!(
+            <geom_core::Sym<f64> as AtRestPolicy>::region_lane().is_some_and(|l| l.is_certified()),
+            "Sym<f64>"
+        );
+        assert!(
+            <geom_core::interval::Interval as AtRestPolicy>::region_lane()
+                .is_some_and(|l| l.is_certified()),
+            "Interval"
+        );
+    }
+
+    #[cfg(feature = "probe")]
+    #[test]
+    fn probe_is_wired_to_the_certified_region_lane() {
+        assert!(
+            <geom_core::Probe as AtRestPolicy>::region_lane().is_some_and(|l| l.is_certified()),
+            "Probe"
+        );
     }
 
     #[test]
@@ -3893,6 +3929,14 @@ pub trait AtRestPolicy: Decide {
     /// only.
     fn quad_lane() -> Option<QuadLane<Self>>;
 
+    /// **This scalar's chart-region doors, or `None` where they may not
+    /// certify** — what an op that confirms a record outside the
+    /// census's own doors reads a face–face pair through
+    /// ([`crate::census`]'s record confirm, run by the boolean's carry),
+    /// as `validate_pseudomanifold` hands the census at a certifying
+    /// scalar. `None` leaves a face–face pair unread.
+    fn region_lane() -> Option<crate::RegionLane<Self>>;
+
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
     /// which).
@@ -3998,6 +4042,10 @@ impl AtRestPolicy for f64 {
         Some(QuadLane::certified())
     }
 
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -4070,6 +4118,10 @@ impl AtRestPolicy for geom_core::Probe {
         Some(QuadLane::certified())
     }
 
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -4136,6 +4188,10 @@ impl AtRestPolicy for geom_core::interval::Interval {
 
     fn quad_lane() -> Option<QuadLane<Self>> {
         Some(QuadLane::certified())
+    }
+
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -4217,6 +4273,10 @@ where
 
     fn quad_lane() -> Option<QuadLane<Self>> {
         Some(QuadLane::certified())
+    }
+
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
+        Some(crate::RegionLane::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -4305,6 +4365,10 @@ where
     }
 
     fn quad_lane() -> Option<QuadLane<Self>> {
+        None
+    }
+
+    fn region_lane() -> Option<crate::RegionLane<Self>> {
         None
     }
 
@@ -4567,6 +4631,10 @@ mod at_rest_policy_tests {
         assert!(
             <geom_core::Dual64 as AtRestPolicy>::nurbs_lane().is_none(),
             "a dual may not certify, so it holds no plane x NURBS lane"
+        );
+        assert!(
+            <geom_core::Dual64 as AtRestPolicy>::region_lane().is_none(),
+            "a dual may not certify, so it holds no region lane"
         );
     }
 }

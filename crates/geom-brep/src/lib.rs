@@ -53,6 +53,7 @@
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
+mod carrier_net;
 pub mod certify;
 pub mod conic_bend;
 pub(crate) mod descent;
@@ -66,6 +67,7 @@ pub mod extent;
 pub mod fitted_lane;
 #[cfg(test)]
 mod grid_offsets;
+pub(crate) mod harmonic;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
@@ -97,11 +99,12 @@ pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE,
-    MaterialPairing, MaterialWedge, MustCarryDescription, MustCarryEscalation, MustCarryRefusal,
-    MustCarryVerdict, SecondOrder, SecondOrderWalk, Station, StationHook, classify_dihedral,
-    classify_material_pairing, classify_material_pairing_as, folded_lever_arm, interior_stations,
-    material_kappa_rel, must_carry_over_edge, second_order_walk, tangent_second_order,
+    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, DihedralReading, MATERIAL_PAIRING,
+    MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MustCarryDescription,
+    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, SecondOrder, SecondOrderWalk,
+    SmoothJoin, Station, StationHook, classify_dihedral, classify_material_pairing,
+    classify_material_pairing_as, folded_lever_arm, interior_stations, material_kappa_rel,
+    must_carry_description, must_carry_over_edge, second_order_walk, tangent_second_order,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
@@ -139,7 +142,7 @@ pub use intersect::{
     sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
-pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
+pub use locus::{TangentLocus, TangentLocusError, tangent_locus, tangent_locus_of_faces};
 pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{
@@ -161,7 +164,7 @@ pub use pcurve_cache::{
     BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage,
     FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS,
     NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
-    PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, UncoveredClass,
+    PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WallTorus,
     chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
     chart_stretch_sup_v, whole_period_count, whole_periods,
 };
@@ -174,10 +177,10 @@ pub use ssi::{
     ChartSide, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
     ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, PlaneSection, ReachBound,
     SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionReading, SectionRoot,
-    SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb,
-    SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision, TubeDegeneracy,
-    boundary_section, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
-    trace_plane_nurbs_uncertified,
+    SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
+    SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TraceDecision,
+    TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi, idealized_trace_r3,
+    plane_nurbs_ssi, trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

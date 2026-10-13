@@ -528,13 +528,20 @@ const ON_A_BISECTOR: &str = "a contact line's ray holds a subdivision bisector (
 /// 0.4 at 350°, its side through the line in no other face's plane.
 /// Folded last onto the plate, the third and the 120° prism, the 0°
 /// prism meets a contact line whose ray holds the third's subdivision
-/// bisector, and refuses typed (unbuilt). Nine orders refuse at a step
-/// that meets one edge of the line in the third's face,
-/// `ResultInvalid { RingMeetsRing }` or `VertexReadTwice`, as on main
-/// (`work/tang/an-edge-lying-in-a-face-at-a-pierce-refuses-ring-meets-ring.md`). The other twelve build,
-/// and pass tier 3′ against the last step's records whichever member
-/// folds last: the step that folds the third last records the others'
-/// corners resting on its face on the piece of it that holds them.
+/// bisector, and refuses typed (unbuilt), in six orders. The other
+/// eighteen build. Where the plate joins a body holding the third and
+/// the 120° prism, the 120° prism's edge pierces the plate's top inside
+/// the third's face, whose section passes the point, so the top's
+/// section is one ring through the point twice. They pass tier 3′
+/// against the last step's records whichever member folds last: the
+/// step that folds the third last records the others' corners resting
+/// on its face on the piece of it that holds them, and the plate folded
+/// last drops the 120° prism's edge in the third's face and its corner
+/// at the edge's top end, which no step but the one that joined them
+/// reads. In three orders a step reads the line's foot touching the top
+/// beside a partner whose link runs along it (`vtxfac::partner_side`),
+/// the second, which builds sound: [3, 2, 1, 0] and [2, 3, 1, 0] then
+/// build, and [2, 0, 3, 1] refuses at the bisector.
 #[test]
 fn a_prism_whose_face_holds_the_line_builds_or_refuses_typed() {
     let face = Prism {
@@ -549,21 +556,212 @@ fn a_prism_whose_face_holds_the_line_builds_or_refuses_typed() {
         face,
     ];
     let refuses = |order: &[usize]| match order {
-        [3, 0, 2, 1] | [0, 3, 2, 1] | [0, 2, 3, 1] => Some(ON_A_BISECTOR),
-        [3, 2, 1, 0] | [2, 3, 1, 0] | [2, 0, 3, 1] => Some("VertexReadTwice"),
-        [2, 1, 3, 0] | [3, 1, 2, 0] | [1, 3, 2, 0] | [1, 2, 3, 0] | [3, 2, 0, 1] | [2, 3, 0, 1] => {
-            Some("RingMeetsRing")
+        [3, 0, 2, 1] | [0, 3, 2, 1] | [0, 2, 3, 1] | [2, 0, 3, 1] | [3, 2, 0, 1] | [2, 3, 0, 1] => {
+            Some(ON_A_BISECTOR)
         }
         _ => None,
     };
+    // The orders whose pair beside a partner along the top is read, the
+    // step that reads it, sound, and what the fold does after.
+    let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
+    let mut members = vec![finished("the plate", p, t())];
+    members.extend(prisms.iter().map(Prism::body));
+    let probes = probes();
+    for (order, step, after) in [
+        ([3, 2, 1, 0], 2, None),
+        ([2, 3, 1, 0], 2, None),
+        ([2, 0, 3, 1], 2, Some(ON_A_BISECTOR)),
+    ] {
+        let what = format!("a face through the line, member order {order:?}");
+        match (fold(&members, &order), after) {
+            (Err((k, e)), Some(want)) => assert!(
+                k == step + 1 && format!("{e:?}").contains(want),
+                "{what}: refuses {want} at step {}, got step {k}: {e:?}",
+                step + 1
+            ),
+            (Ok(_), None) => {}
+            (Ok(_), Some(want)) => panic!("{what}: built where it refuses {want}"),
+            (Err((k, e)), None) => panic!("{what}: step {k} refused: {e:?}"),
+        }
+        let r = fold(&members, &order[..=step])
+            .unwrap_or_else(|(k, e)| panic!("{what}: step {k} refused: {e:?}"));
+        assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
+        let plate = order[..=step].contains(&0);
+        let held: Vec<Prism> = order[..=step]
+            .iter()
+            .filter(|&&i| i > 0)
+            .map(|&i| prisms[i - 1])
+            .collect();
+        let v = topo::mass_properties(&r.body, t()).unwrap().volume;
+        let want_v = union_volume(&held, plate);
+        assert!(
+            (v - want_v).abs() < 1e-9,
+            "{what}: step {step}, volume {v}, closed form {want_v}"
+        );
+        let holds = |q| (plate && in_plate(q)) || held.iter().any(|p| p.holds(q));
+        let mut read = 0;
+        for &q in &probes {
+            if let Some(got) = inside_of(&r.body, q) {
+                assert_eq!(got, holds(q), "{what}: step {step}, material at {q:?}");
+                read += 1;
+            }
+        }
+        assert!(
+            read * 100 >= 99 * probes.len(),
+            "{what}: step {step}, {read} probes read"
+        );
+    }
     every_order(
         "a face through the line",
         &prisms,
         true,
         [20, 47, 30],
-        &[0; 4],
+        &[2, 0, 0, 0],
         &refuses,
     );
+}
+
+/// **The plate joins a body whose one lump's edge lies in the other's
+/// face** as one body: the 120° prism touching the row above's third
+/// prism along the line, its edge piercing the plate's top inside the
+/// third's side face. The top's section is one ring through the point
+/// twice, so tier 3 passes, with one vertex there and the closed-form
+/// volume.
+#[test]
+fn the_plate_joins_an_edge_lying_in_a_face_as_one_body() {
+    let prisms = [
+        Prism::on_line(120.0, 170.0, (0.47, 1.7)),
+        Prism {
+            foot: [bearing(80.0, 0.3), bearing(260.0, 0.3), bearing(350.0, 0.4)],
+            z: (0.44, 1.81),
+            moved: 0.0,
+            tilt: (0.0, 0.0),
+        },
+    ];
+    let body = match union(&prisms[0].body(), &prisms[1].body(), t()) {
+        Ok(BooleanResult::Body(r)) => r.body,
+        other => panic!("the two prisms: {other:?}"),
+    };
+    let plate = finished(
+        "the plate",
+        common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+        t(),
+    );
+    let r = match union(&body, &plate, t()) {
+        Ok(BooleanResult::Body(r)) => r.body,
+        other => panic!("body ∪ plate: {other:?}"),
+    };
+    assert_eq!(validate_geometric(&r, t()), Ok(()), "tier 3");
+    let c = at(Point3::new(MEET[0], MEET[1], MEET[2]));
+    let at_c = r
+        .vertices()
+        .filter(|&(k, _)| at(topo::readback::vertex_point(&r, k).unwrap()) == c)
+        .count();
+    assert_eq!(at_c, 1, "vertices at MEET");
+    let v = topo::mass_properties(&r, t()).unwrap().volume;
+    let volume = union_volume(&prisms, true);
+    assert!(
+        (v - volume).abs() < 1e-9,
+        "volume {v}, closed form {volume}"
+    );
+}
+
+/// **The plate against a body whose one lump's edge lies in the other's
+/// face builds in every op**: the third prism of the row above united
+/// with the 120° prism, which touches its side face along the line,
+/// and the plate, whose top that edge pierces inside that face. Each
+/// op, either way round, is sound by tier 3, its closed-form volume and
+/// its material at the probes against the members' closed forms.
+#[test]
+fn the_plate_against_an_edge_lying_in_a_face_builds_in_every_op() {
+    let prisms = [
+        Prism::on_line(120.0, 170.0, (0.47, 1.7)),
+        Prism {
+            foot: [bearing(80.0, 0.3), bearing(260.0, 0.3), bearing(350.0, 0.4)],
+            z: (0.44, 1.81),
+            moved: 0.0,
+            tilt: (0.0, 0.0),
+        },
+    ];
+    let body = match union(&prisms[0].body(), &prisms[1].body(), t()) {
+        Ok(BooleanResult::Body(r)) => r.body,
+        other => panic!("the two prisms: {other:?}"),
+    };
+    let plate = finished(
+        "the plate",
+        common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+        t(),
+    );
+    // The prisms meet along the line alone, and each crosses the
+    // plate's top.
+    let solid: f64 = prisms
+        .iter()
+        .map(|p| area(&p.footprint()) * (p.z.1 - p.z.0))
+        .sum();
+    let common: f64 = prisms
+        .iter()
+        .map(|p| area(&p.footprint()) * (PLATE[2].1 - p.z.0))
+        .sum();
+    let in_prisms = |q: [f64; 3]| prisms.iter().any(|p| p.holds(q));
+    type Op =
+        fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
+    // Each op, whether the plate is its first operand, its closed-form
+    // volume and its material.
+    type Row<'a> = (&'a str, Op, bool, f64, &'a dyn Fn([f64; 3]) -> bool);
+    let rows: [Row; 6] = [
+        ("body ∪ plate", union, false, solid + 6.0 - common, &|q| {
+            in_prisms(q) || in_plate(q)
+        }),
+        ("plate ∪ body", union, true, solid + 6.0 - common, &|q| {
+            in_prisms(q) || in_plate(q)
+        }),
+        ("body ∩ plate", topo::intersect, false, common, &|q| {
+            in_prisms(q) && in_plate(q)
+        }),
+        ("plate ∩ body", topo::intersect, true, common, &|q| {
+            in_prisms(q) && in_plate(q)
+        }),
+        (
+            "body ∖ plate",
+            topo::subtract,
+            false,
+            solid - common,
+            &|q| in_prisms(q) && !in_plate(q),
+        ),
+        ("plate ∖ body", topo::subtract, true, 6.0 - common, &|q| {
+            in_plate(q) && !in_prisms(q)
+        }),
+    ];
+    let probes = probes();
+    for (what, op, plate_first, volume, holds) in rows {
+        let (x, y) = if plate_first {
+            (&plate, &body)
+        } else {
+            (&body, &plate)
+        };
+        let r = match op(x, y, t()) {
+            Ok(BooleanResult::Body(r)) => r.body,
+            other => panic!("{what}: {other:?}"),
+        };
+        assert_eq!(validate_geometric(&r, t()), Ok(()), "{what}: tier 3");
+        let v = topo::mass_properties(&r, t()).unwrap().volume;
+        assert!(
+            (v - volume).abs() < 1e-9,
+            "{what}: volume {v}, closed form {volume}"
+        );
+        let mut read = 0;
+        for &q in &probes {
+            if let Some(got) = inside_of(&r, q) {
+                assert_eq!(got, holds(q), "{what}: material at {q:?}");
+                read += 1;
+            }
+        }
+        assert!(
+            read * 100 >= 99 * probes.len(),
+            "{what}: {read} of {} probes read",
+            probes.len()
+        );
+    }
 }
 
 /// **A prism's corner moved off the line builds or escalates typed in
@@ -675,7 +873,7 @@ fn three_prisms_flush_along_one_line_build_undeclared_in_every_member_order() {
 
 /// **The carried fold serves the uncarried fold's body and passes 3′
 /// (D10)**: every member order of the 50° fixture, of four prisms, and
-/// of the 50° fixture with a corner moved 0.1ε, each step carrying the
+/// of the 50° fixture with a corner moved 0.1ε and 0.5ε, each step carrying the
 /// records the step before it returned. Where each step carries the
 /// last one's records nothing on the line is dropped, so the result
 /// passes 3′ with no finding: the `dropped` counts [`every_order`] pins
@@ -689,6 +887,7 @@ fn the_carried_fold_passes_three_prime_in_every_member_order() {
         ("three", three()),
         ("four", four()),
         ("three, one moved 0.1ε", three_off(0.1 * eps)),
+        ("three, one moved 0.5ε", three_off(0.5 * eps)),
     ] {
         let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
         let mut members = vec![finished("the plate", p, t())];

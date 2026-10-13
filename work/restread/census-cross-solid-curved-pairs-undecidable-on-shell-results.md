@@ -51,9 +51,15 @@ curved face in reach of the other piece lands in this class as well:
 the "same geometry passes as shells of one solid" asymmetry above is
 gone from the verbs' outputs, which no longer put two pieces under one
 solid. Measured on PR 3891's branch with a box declared `Tangent` to a
-plate's fillet (two solids, tier 3 green, 3′ `CensusUndecidable` alone);
-main has since refused that union (`TangentSlitArmUnbuilt`), so no row
-pins it today.
+plate's fillet (two solids, tier 3 green, 3′ `CensusUndecidable` alone).
+Main refused that union for a while (`TangentSlitArmUnbuilt`); it answers
+again since `contacthold/face-face-touch-row` (PR 4921), two solids with
+the face–face record of the box's wall and the fillet
+(`reach_continuation::a_tangent_beside_a_fillet_builds_every_op_in_either_order`,
+which does not run 3′). The like rod resting on a plate
+(`face_face_touch::a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it`)
+refuses 3′ `CensusUndecidable` on the rod's wall and a plate face,
+measured on PR 4921's review; no row pins that verdict.
 
 ## 2026-10-03 — 38 boolean results on main (REACH, `boolean-door-adopts-the-finished-body-type`)
 

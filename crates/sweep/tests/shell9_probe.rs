@@ -37,9 +37,9 @@ use sweep::test_support::finished;
 /// latitude ring — the only `Chart` images on the PLANE with a
 /// non-zero `v` channel, and the two edges that refused `ChartResidual`
 /// at sample 1 while the reversal left them unmirrored — carry the
-/// mirrored image now, so the void door, which re-runs the same meter
-/// on the graft, takes the cavity. The plane edges are four: the two
-/// radial lines and the ring's two halves.
+/// mirrored image now, and the void door, which carries each
+/// certificate through the graft verbatim, takes the cavity. The plane
+/// edges are four: the two radial lines and the ring's two halves.
 #[test]
 fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
     let t = 0.05;

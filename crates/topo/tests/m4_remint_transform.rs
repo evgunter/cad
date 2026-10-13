@@ -51,7 +51,12 @@ fn witnesses_are_construction_fresh_bits() {
     let topo::BooleanResult::Body(bb) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("overlapping union is a body")
     };
-    let out = transform_rigid(&bb.body, &rot_trans(), Tol::witness()).unwrap();
+    let out = transform_rigid(
+        &bb.body,
+        &geom_core::test_support::rigid(&rot_trans(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     let mid = (CERT_SAMPLES - 1) / 2;
     let mut checked = 0usize;
     for (_k, e) in out.edges() {
@@ -88,8 +93,12 @@ fn transform_chain_stays_fresh() {
     };
     let mut cur = bb.body.into_body();
     for i in 1..=5 {
-        cur = transform_rigid(&cur, &rot_trans(), Tol::witness())
-            .unwrap_or_else(|e| panic!("chain step {i} refused: {e:?}"));
+        cur = transform_rigid(
+            &cur,
+            &geom_core::test_support::rigid(&rot_trans(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("chain step {i} refused: {e:?}"));
     }
     let mid = (CERT_SAMPLES - 1) / 2;
     for (_k, e) in cur.edges() {
@@ -113,7 +122,17 @@ fn remint_is_deterministic() {
     let topo::BooleanResult::Body(bb) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("overlapping union is a body")
     };
-    let o1 = transform_rigid(&bb.body, &rot_trans(), Tol::witness()).unwrap();
-    let o2 = transform_rigid(&bb.body, &rot_trans(), Tol::witness()).unwrap();
+    let o1 = transform_rigid(
+        &bb.body,
+        &geom_core::test_support::rigid(&rot_trans(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
+    let o2 = transform_rigid(
+        &bb.body,
+        &geom_core::test_support::rigid(&rot_trans(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(format!("{o1:?}"), format!("{o2:?}"));
 }

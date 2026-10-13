@@ -1,7 +1,7 @@
 ---
 id: chart-image-unavailable-folds-uncovered-and-off-chart
 kind: issue
-title: EdgeCurve certification folds chart_pcurve's uncovered and off-chart refusals into one ChartImageUnavailable worded 'wrong locus'
+title: EdgeCurve certification folds every chart_pcurve refusal into one ChartImageUnavailable worded 'wrong locus' and drops its why
 status: open
 opened: 2026-10-01
 ---
@@ -55,5 +55,20 @@ its sphere is no longer uncovered at this door either. `chart_pcurve`
 images it as `Pcurve::Projected` and certifies it at every `Decide`
 scalar, because a circle's incidence is the closed-form
 `off_sphere_sup` and its envelope needs no fitted door. Of the
-uncovered classes the fold can still meet, only `NoFittedClass`,
-`MirrorTorusSpiric` and `FittedLaneUnsupported` remain.
+uncovered classes the fold could still meet, `MirrorTorusSpiric` was
+routed on `pcert/mint-routes-spiric-nofitted` (PR 4897) and
+`NoFittedClass` on `pcert/fitted-row-reads-carrier-and-chart` (PR
+4900, both 2026-10-12). PR 4900 then deleted `UncoveredClass` and
+`PcurveCertifyError::UnsupportedCarrier`.
+
+**What remains (2026-10-12).** The uncovered-versus-off-chart half of
+this item is gone, because `chart_pcurve` no longer raises an
+uncovered refusal. Its non-escalated refusals are now
+`CarrierOffChart` (wrong locus, which the text says correctly, though
+its `why` is still dropped), `CarrierGrazesChart` (a circle within the
+band of a cone or torus that is none of its circles, a defect the text
+also fits), `UnsupportedChart` (a spline chart, which this arm should
+not reach for a conventional description) and the projected lane's own
+refusals. Still owed: carry `why`, or nest the whole
+`PcurveCertifyError`, and re-check the routing each arm gets in
+`decision()`.

@@ -2,11 +2,11 @@
 id: a-torus-seam-graze-needs-the-rim-root-deflated
 kind: issue
 title: A G1 torus chain declared a Seam stops at the graze of an edge leaving the rim: a torus×torus seam certifies no side
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [a-torus-meridian-rims-span-bound-is-wider-than-the-band]
+blocked_on: [a-torus-meridian-rims-span-bound-is-wider-than-the-band, intent-stage4-is-built]
 ---
 
 
@@ -73,3 +73,6 @@ the graze, in both orders. The test is re-pinned as
 Reaching the graze again waits on
 `a-torus-meridian-rims-span-bound-is-wider-than-the-band`.
 
+## Parked on INTENT stage 4 (2026-10-12)
+
+This row acts on declared contacts: a declared `Seam` / `Rest` pair, or a declared tangency. D10's stage 4 retires the declared pairs, the undeclared refusals and the stored tangent-joint flags, so widening it now would widen a path D10 is removing. It is parked on `intent-stage4-is-built` and is re-read against the built code when that row closes (TANG orchestrator).

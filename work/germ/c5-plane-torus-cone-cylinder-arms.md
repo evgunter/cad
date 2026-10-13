@@ -9,8 +9,8 @@ refs: [VERBS-C5ARMS, 1048]
 priority: P1
 cost: H
 design: true
-branch: germ/plane-torus-join-dispatch
-pr: 4743
+branch: germ/plane-torus-chord-spiric
+pr: 4927
 ---
 
 ## From GitHub issue 1057
@@ -148,3 +148,44 @@ sphere's and the cone's, reading meridian and parallel loop arcs. It
 refuses a spiric one until U-T4, and the tube's top and bottom circles
 (the parallels of radius `R`, whose plane touches the torus) until
 U-T3.
+
+## U-T3, the plane × torus chord for the circles (GERM, 2026-10-12)
+
+On `germ/plane-torus-chord-circles` (PR 4847). The chord layer's torus arm takes an
+arc of the meridian or concentric circle the chord's two sites lie on,
+picked by the join's own loop split; every pose whose plane holds the
+axis or stands square to it builds its true body in all six ops, on the
+donut, the one-face torus and the seamed torus, and so does TANG's tube.
+Spiric sections keep the typed refusal (U-T4's). The ring lane reads the
+tube's top and bottom circles across the cylinder `ρ = R`. The lily now
+stops past the join, at the interior-loop guard on its two tube walls
+(`work/orbit/the-lilys-stem-and-arch-walls-have-no-certificate-arm.md`).
+
+## The corner bar's lens (Ev, PR 4895, 2026-10-12)
+
+The torus spec's Q1 is answered: the fat corner bar's lens is traced
+through the chord's existing arc rule (`arc_leaving`, `oriented_arc`),
+with U-T4's row 3 as its pin and no guard in any layer. On main the
+matcher already pairs B5's corners on one oval, and the same class
+builds true bodies on the sphere, cylinder and cone; a rule refusing
+vertex-only components would refuse up to 634 six-op runs that build
+today. U-T4 is unblocked.
+
+## U-T4, the plane × torus chord for the spiric ovals (GERM, 2026-10-12)
+
+On `germ/plane-torus-chord-spiric` (PR 4927). The chord layer's torus arm takes an
+arc of the spiric oval the chord's sites lie on, on the oval's own
+parameter, through the arc rule every curved chord uses; the torus
+face's ring lane reads oval arcs as it reads meridians, and the plane
+face's winding sum takes a spiric term (a bounded quadrature). S1, M3
+and P4 build their true bodies in all six ops on the donut, and on the
+one-face and seamed tori where their rings allow. B1, B2, the box
+between two ovals' planes and the fat corner bar's lens (Q1) build or
+stop past the join at two doors filed on their owners
+(`work/inside/point-in-solid-refuses-an-l-shaped-torus-face.md`,
+`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`); no op
+returns a wrong body. An oval pinched near the inner equator refuses its
+island's winding
+(`work/germ/a-planar-island-on-a-pinched-oval-refuses-its-winding.md`).
+What this row still carries is U-H1, held by D10.
+

@@ -2,11 +2,13 @@
 id: a-kissing-convex-corner-result-ships-an-undeclared-vertex-on-face
 kind: issue
 title: A convex corner kissing a cube's face ships results with an undeclared vertex-on-face (8 runs, identical on main)
-status: open
+status: closed
 opened: 2026-10-04
 priority: P1
 cost: M
 refs: [a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms]
+closed: 2026-10-13
+pr: 4820
 ---
 
 
@@ -54,9 +56,35 @@ whichever it is. FLUSH's
 face, with the plain booleans and no declaration) reads a record's face
 through the face's division rows (the join's and the welds' fragment
 logs) and lands it on the piece whose interior holds the vertex, or
-drops it where no live piece does (`boolean::ops::Descendants::holder`).
+drops it where no live piece does (then `Descendants::holder`; since
+PR 4820 the one carry's placement, `boolean::ops::place_found` over
+`records::landings`, which lands it on every piece or chord the census
+confirms).
 On that branch the line-kiss poses of
 `rest_zip_admission.rs` (`a_line_kiss_beside_a_tangent_site_records_its_contact`)
 pass tier 3′. The `Lcvx` battery (`join_pierce_r2_probes.rs`, branch
 `join/pierce-two-out-runs-review-r2`) was not re-run: whether its eight
 runs share the cause is unmeasured. Re-run it before closing.
+
+## 2026-10-13, closed: fixed by PRs 4650 and 4820 (FUSE, carry-rows-after-4820)
+
+Measured on main `0d2117d0` with a temporary probe (never committed)
+in `boolean_op_with` that ran `validate_pseudomanifold(body, contacts)`
+on every body the door ships, over the topo, sweep and editor-core `ci`
+suites (8,390 tests, about 18,000 results). Across all of it there is no
+`StaleContactDeclaration`.
+
+- **The battery this row cites** (`join_pierce_r2_probes.rs`, branch
+  `join/pierce-two-out-runs-review-r2`) was re-run in a scratch copy
+  adapted to the current API. Shape `Lcvx`, its eight poses (`g4.6`,
+  `g4.7`, `g5.7`, `g5.8`, `nf0_1e-2k0s1`, `g16.3`, `g17.2`, `g17.3`),
+  every op in both orders: **48/48 pass tier 3′**.
+- **The line-kiss pin**
+  (`rest_zip_admission::a_line_kiss_beside_a_tangent_site_records_its_contact`):
+  40/40 pass.
+
+The cause was the one this row's last note named: a vertex-on-face
+record whose face the section divided, read by key. FLUSH's PR 4650
+(`Descendants::holder`) fixed it, and CONTACTHOLD's PR 4820 (the one
+carry: `boolean::ops::place_found` over `records::landings`) carries
+the fix.

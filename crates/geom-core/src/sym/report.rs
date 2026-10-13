@@ -20,22 +20,15 @@ use std::collections::BTreeMap;
 use super::form::{Form, Poly};
 use super::rational::Rat;
 use super::{
-    Discharge, INDET_PI, ParamSymbol, SESSION, Session, SymId, SymOp, early_form, indet_param,
-    plain_form,
+    INDET_PI, ParamSymbol, SESSION, Session, SymId, SymOp, early_form, indet_param, plain_form,
 };
 use crate::predicate::{Decided, Indeterminate, Sign};
 
 /// How one decision at the symbolic scalar came out.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShapeOutcome {
-    /// A symbolic `Zero` with no value read.
-    Theorem,
-    /// A symbolic `Zero` through a clause-3 fold.
-    SignGated,
-    /// A `Zero` through a REGISTERED IDENTITY — an axiom a constructor
-    /// stated about what it built (`Sym::register_equal`), not a
-    /// theorem the tier proved.
-    Registered,
+    /// A symbolic `Zero`: the tier proved the margin zero.
+    Symbolic,
     /// The numeric channel certified a definite non-zero sign; the
     /// form was never built.
     Definite(Sign),
@@ -152,12 +145,11 @@ pub(super) fn active() -> bool {
     ACTIVE.get()
 }
 
-/// Records one decision, if the report is installed. `symbolic` is how
-/// the tier answered it, if it did: an unconditional theorem, or one
-/// gated on a clause-3 sign read (rule C).
+/// Records one decision, if the report is installed. `symbolic` is
+/// whether the tier proved it zero.
 pub(super) fn record(
     numeric: &Result<Decided, Indeterminate>,
-    symbolic: Option<Discharge>,
+    symbolic: bool,
     rendered: Option<Rendered>,
     enclosure: Option<(f64, f64)>,
 ) {
@@ -165,18 +157,16 @@ pub(super) fn record(
         return;
     }
     let outcome = match (symbolic, numeric) {
-        (Some(Discharge::Theorem), _) => ShapeOutcome::Theorem,
-        (Some(Discharge::SignGated), _) => ShapeOutcome::SignGated,
-        (Some(Discharge::Registered), _) => ShapeOutcome::Registered,
+        (true, _) => ShapeOutcome::Symbolic,
         (
-            None,
+            false,
             Ok(Decided {
                 sign: Sign::Zero, ..
             }),
         ) => ShapeOutcome::NumericZero,
-        (None, Ok(Decided { sign, .. })) => ShapeOutcome::Definite(*sign),
-        (None, Err(e)) if e.margin.is_invalid() => ShapeOutcome::Invalid,
-        (None, Err(_)) => ShapeOutcome::Indeterminate,
+        (false, Ok(Decided { sign, .. })) => ShapeOutcome::Definite(*sign),
+        (false, Err(e)) if e.margin.is_invalid() => ShapeOutcome::Invalid,
+        (false, Err(_)) => ShapeOutcome::Indeterminate,
     };
     let (form, early_form, sizes, explain) = match rendered {
         Some(r) => (Some(r.plain), r.early, Some(r.sizes), r.explain),

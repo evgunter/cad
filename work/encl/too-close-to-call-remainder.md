@@ -2,9 +2,10 @@
 id: too-close-to-call-remainder
 kind: issue
 title: the 'too close to call' sentences outside the folded family still spell the undecided verdict their own way
-status: dispatched
+status: closed
 branch: encl/undecided-sweep
 opened: 2026-10-09
+closed: 2026-10-13
 ---
 
 
@@ -96,10 +97,9 @@ caller's, per `Reading`. Three render the whole escalation
 junction arm and both fall-through arms, `validate.rs`'s
 `ProfileError::Escalated`, now "{site}, {subject} is undecided: …").
 Both doors end a name by its row in `validate::DECISION_ENDINGS`
-(`EndingKind::Sized` or `Lever(lever)`), one row per decided name, held
-both ways against `src`; a name with no row names its hole at both.
-`validate::lever_ending` switches to geom-core's
-`Indeterminate::lever_ending` once PR 4766 lands.
+(geom-core's `EndingKind::Sized` or `Lever(lever)`), one row per decided
+name, held both ways against `src`; a name with no row names its hole at
+both. The ending is `Indeterminate::ending_by` (PR 5003).
 
 - Skipped: nothing on D10 ground in the slice.
 - Left: the hand-spelled decision-specific verdicts in `path.rs`'s
@@ -123,9 +123,8 @@ escalations are built from a `Decision`, and a name with no row ends
 sized plus `geom_core::MissingRecourse`. Lever: `eval_direction_norm` (a
 gauge), the angles, and `name_frag_order_along` (a curve parameter).
 Sized: the pattern spacing, naming's three distances and
-`sel_datum_distance`. The lever ending is composed through
-`geom_brep::recourse::LeverOnly`; it moves to
-`Indeterminate::lever_ending` once PR 4766 lands.
+`sel_datum_distance`. The ending is `Indeterminate::ending_by` over the
+decision's `geom_core::EndingKind` (PR 5003).
 
 - Skipped, held under D10. Each keeps its old sentence through a held
   arm at its door, pinned through that door:
@@ -155,6 +154,26 @@ Sized: the pattern spacing, naming's three distances and
   - `placement.rs`'s `# Errors` doc for `Frame::rotate_then_translate`
     still names `NodeErrorKind::Escalated`, in a held file;
   - `DECISION_PHRASES` keeps "too close to call" for the held sites.
+
+**Done: the sweep slice, in PR 4766** (eleven sentences: the ten
+above and `CapPlaneError::Orientation`, which keeps its defect
+ending). Each renders through `Indeterminate::undecided`, with the
+lever `COINCIDENCE_RECOURSE`.
+
+- `ending(..)`: extrude's normal and obliquity, loft's stacking, the
+  clearance's arc apex and arc clearance, the tube's wall, bore and gap.
+- `Indeterminate::lever_ending`: the revolve angle and headroom, the axis
+  direction's length (a gauge), both cosurface decisions, and the
+  clearance's line runs, arc centre and arc span.
+- `RevolveError::SliverAxisClearance` and `TubeError::Escalated` carry
+  closed decisions (`ClearanceDecision`, `TubeDecision`) that name
+  their predicate and their kind.
+- Skipped, carvetail's (`carve-refusals-short-of-the-shape-guard`):
+  `swept::sliver_text`'s `Lever` arm, and `RevolveError::SliverRadius`,
+  an escalation rendered as "sits a sliver away from the revolve axis:
+  {source}".
+- Left: a sized straddle reads as a subdividable enclosure through
+  `ending(..)`, as on the cleave row.
 
 ## Repair shape
 

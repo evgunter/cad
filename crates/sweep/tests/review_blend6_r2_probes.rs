@@ -342,11 +342,11 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
             .expect_err("a curved end face is a run-out")
             .error,
     ));
-    let (leaning, turn) = crate::common::operands::leaning_turn(0.5);
+    let (leaning, turn) = crate::common::operands::leaning_turn_in_band(t);
     out.push((
         "turn",
         chamfer_edges(&sweep::test_support::at_rest(&leaning, t), &turn, D, t)
-            .expect_err("a turn whose faces are not symmetric overruns its mitre")
+            .expect_err("a turn read in band escalates")
             .error,
     ));
     out.push((
@@ -377,15 +377,15 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
             .error,
     ));
 
-    let (mut two, corner_pair) = crate::common::operands::leaning_turn(0.5);
+    let (mut two, corner_pair) = crate::common::operands::leaning_turn_in_band(t);
     let other = cube(L, Tol::witness());
     topo::instance::graft_disjoint_all(&mut two, &other).expect("a disjoint graft");
-    // The leaning prism's asymmetric turn, beside a cube: the overrun,
-    // refused inside the shell it lies in.
+    // The leaning prism's turn read in band, beside a cube: escalated
+    // inside the shell it lies in.
     out.push((
         "two-solid body",
         chamfer_edges(&sweep::test_support::at_rest(&two, t), &corner_pair, D, t)
-            .expect_err("an asymmetric turn overruns its mitre, in either solid")
+            .expect_err("a turn read in band escalates, in either solid")
             .error,
     ));
 

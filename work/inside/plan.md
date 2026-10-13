@@ -15,6 +15,7 @@ points against 30 with its P0 units landed or parked (PRs 4363, 4368,
 |---|---|---|---|
 | P1 | `revolved-tube-wall-refuses-bool-wall-trim-period` | D | point_in_solid refuses most probes of a fully revolved tube: bool_wall_trim_period escalates Invalid on a wall face |
 | P1 | `two-copies-of-a-pierce-carry-edges-that-run-within-the-band` | M | A near-tangent two-run pierce leaves its copies apart on one point, and the two edges leaving them run within the band for a stretch the census passes, at 89 poses main refused |
+| P2 | `point-in-solid-refuses-an-l-shaped-torus-face` | M | point_in_solid refuses a body whose torus wall is L-shaped in the chart, which the plane x torus boolean now mints |
 | P2 | `a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone` | M | A solid touching itself at a point reads its touch star from its vertex there alone, so a second solid resting at that point refuses MixedTouch |
 | P2 | `a-touch-at-a-saddle-corner-refuses-unanalysed` | D | A touch at a saddle corner (an L's inner corner) that no plane separates refuses TouchUnanalysed, so a block seated in that corner on the floor cannot certify |
 | P2 | `census-containment-escalation-drops-its-decision` | M | topo: four doors drop or ignore the containment decision a refusal carries (census, ring re-homing, rim wedge, sphere region) |

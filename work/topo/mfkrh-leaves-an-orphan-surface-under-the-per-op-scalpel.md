@@ -42,6 +42,10 @@ A local `cargo nextest run --profile ci --all-features` over geom-core, geom-bre
 
 `topo::all offset_together::scope_walks::the_door_panics_on_an_out_of_scope_malformed_solid` hit the same panic and passed, being a `should_panic` row. The same run also failed one predicate-count row, `topo::all rim_dim_review_probes::silent_fixed_predicates_scale_linearly` (`rim_dim_review_probes.rs:168`, "undeclared flush must refuse"), which may be a different cause; it was not investigated.
 
+## Still on main (2026-10-12)
+
+The same fourteen sweep rows, and no others, fail under `--all-features` on main `a1a1bcec43` (`cargo nextest run --profile ci -p geom-brep -p topo -p sweep -p step-import --all-features`; PCERT, PR 4846).
+
 ## Related
 
 - `work/ciw/no-ci-row-runs-topo-under-the-per-op-postcondition-scalpel.md`: no CI row runs the scalpel, which is why this is invisible to CI.

@@ -37,7 +37,7 @@ use std::sync::Arc;
 
 use geom_brep::OutwardNormal;
 use geom_core::{
-    Affine3, Band, Decide, Mat3, OrthoAxis, OrthoFrame, Point2, Point3, Sign, Tol, UnitVec3,
+    Affine3, Band, Decide, OrthoAxis, Point2, Point3, RigidMotion, Sign, Tol, UnitVec3,
     UnitVec3Error, Vec2, Vec3,
 };
 use sweep::{Revolution, RevolveAxis};
@@ -207,8 +207,11 @@ pub(crate) struct OpEnv<'a, T: Decide> {
 /// slots, emitting the node's name table alongside the payload.
 /// `profile_pre` is the profile node's f64 precompute (present exactly
 /// for `Node::Profile` — computed in `eval_node`'s resolution stage,
-/// inside the node's verdict frame and ahead of this op).
-#[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness, not a duty of its own
+/// inside the node's verdict frame and ahead of this op). `frame` is
+/// an instance's group frame ([`instance_frame`]), read there once for
+/// the content key and reused here, so its literal steps are decided
+/// once a node.
+#[allow(clippy::too_many_arguments)] // the run-tolerance witness and the pre-key reads are not duties of their own
 pub(crate) fn run_op<T>(
     id: RecipeNodeId,
     node: &Node<ProfileProgram>,
@@ -217,6 +220,7 @@ pub(crate) fn run_op<T>(
     vals: &SlotValues<T>,
     payload: Option<&super::Payload<T>>,
     profile_pre: Option<&ProfilePre>,
+    frame: Option<crate::placement::Motion<T>>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T>
@@ -434,13 +438,12 @@ where
             if let Some(fault) = env.poses.fault(id) {
                 return Err(NodeErrorKind::Mate(Box::new(fault.clone())));
             }
-            let frame = instance_frame(doc, id, env.poses, env.lane.params, tol)?
-                .unwrap_or(crate::placement::Motion::Identity);
+            let frame = frame.unwrap_or(crate::placement::Motion::Identity);
             let pose = env
                 .poses
                 .pose(id)
                 .unwrap_or_else(crate::mate::solve::Pose::identity);
-            let map = pose.compose_around(frame).non_identity();
+            let map = pose.compose_around(frame).rigid(band(tol)?)?;
             wire_instantiate_part(id, doc_ref, interface, map, env, tol)
         }
         // A gauge DENOTES NO BODY (A11 (2)): its slots evaluated above,
@@ -514,7 +517,7 @@ fn wire_instantiate_part<T>(
     id: RecipeNodeId,
     doc_ref: &crate::ident::DocRef,
     interface: &crate::node::InterfaceRecord,
-    map: Option<geom_core::Affine3<T>>,
+    map: Option<RigidMotion<T>>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T>
@@ -633,7 +636,7 @@ where
 /// [`NodeErrorKind::Transform`].
 fn place<T: Decide + topo::AtRestPolicy>(
     body: &Body<T>,
-    map: Option<&Affine3<T>>,
+    map: Option<&RigidMotion<T>>,
     tol: Tol,
 ) -> Result<Body<T>, NodeErrorKind> {
     match map {
@@ -646,7 +649,7 @@ fn place<T: Decide + topo::AtRestPolicy>(
 /// order: one placement of a pattern's master.
 fn place_each<T: Decide + topo::AtRestPolicy>(
     bodies: &[Arc<Body<T>>],
-    map: &Affine3<T>,
+    map: &RigidMotion<T>,
     tol: Tol,
 ) -> Result<Vec<Arc<Body<T>>>, NodeErrorKind> {
     bodies
@@ -1060,7 +1063,7 @@ fn datum_unit<T: Decide>(
 /// carries it ([`FramePlacement::Unreadable`]).
 enum FrameRead<T: geom_core::Real> {
     /// The orthonormal frame.
-    Frame(OrthoFrame<T>),
+    Frame(RigidMotion<T>),
     /// The direction door refused `u`, or `v`'s residual.
     NoDirection(DirectionRefusal),
 }
@@ -1257,7 +1260,7 @@ fn frame_pose<T: Decide>(
     frame: crate::VarId,
     env: &crate::expr::VarEnv<T>,
     tol: Tol,
-) -> Result<OrthoFrame<T>, NodeErrorKind> {
+) -> Result<RigidMotion<T>, NodeErrorKind> {
     match pose::eval_pose(doc, results, crate::OperandSlot::Frame, frame, env, tol)? {
         PoseValue::Frame(f) => Ok(f),
         other => unreachable!(
@@ -1281,8 +1284,8 @@ pub(crate) fn frame_axes<T: Decide>(
     u_raw: Vec3<T>,
     v_raw: Vec3<T>,
     band: Band,
-) -> Result<OrthoFrame<T>, DirectionRefusal> {
-    OrthoFrame::gram_schmidt(origin, u_raw, v_raw, DATUM_UNIT_NORM, band).map_err(|e| {
+) -> Result<RigidMotion<T>, DirectionRefusal> {
+    RigidMotion::gram_schmidt(origin, u_raw, v_raw, DATUM_UNIT_NORM, band).map_err(|e| {
         DirectionRefusal {
             role: match e.axis {
                 OrthoAxis::U => FRAME_X_ROLE,
@@ -1706,14 +1709,14 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// frame datum's, and the window and wall verdicts stay the door's
 /// own; a check here would be a weaker second opinion.
 struct TubeArgs<T: geom_core::Real> {
-    frame: geom_core::OrthoFrame<T>,
+    frame: geom_core::RigidMotion<T>,
     major_radius: T,
     window: sweep::TubeWindow<T>,
     minor_radius: T,
 }
 
 fn tube_args<T: Decide>(
-    frame: OrthoFrame<T>,
+    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
 ) -> Result<TubeArgs<T>, NodeErrorKind> {
@@ -1747,7 +1750,7 @@ fn tube_args<T: Decide>(
 /// section's structural locators ([`tube_pieces`]).
 fn wire_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    frame: OrthoFrame<T>,
+    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -1786,7 +1789,7 @@ fn tube_pieces<T: Decide>(
 /// hole-loop vocabulary.
 fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    frame: OrthoFrame<T>,
+    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -2918,7 +2921,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let mut acc_table = Arc::clone(&views[0]);
     // Contact is judged here, pairwise, and nowhere else (DM4). Each
     // member's box is the separation certificate's hull, read through
-    // the certificate's one box door; a judged pair's body is discarded.
+    // the certificate's one box door; a judged pair's body is read only
+    // for where its classified edge pieces lie ([`names::UnionLinks`]).
     let hulls = members
         .iter()
         .map(|m| {
@@ -2972,7 +2976,9 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .map_err(NodeErrorKind::Naming)?;
             let verdicts = pair_verdicts(p, q, &out.coincidences);
             match out.record {
-                verbs::VerbRecord::Boolean { naming, .. } => Ok(Some((naming, rows, verdicts))),
+                verbs::VerbRecord::Boolean { naming, .. } => {
+                    Ok(Some(((naming, out.body), rows, verdicts)))
+                }
                 _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: verb.foreign_record,
                 })),
@@ -3058,7 +3064,9 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         },
                     )
                     .map_err(NodeErrorKind::Naming)?;
-                    links.judged(0, 1, &naming).map_err(NodeErrorKind::Naming)?;
+                    links
+                        .judged(0, 1, &naming, &out.body)
+                        .map_err(NodeErrorKind::Naming)?;
                 }
                 // The step's records in the node's terms: a row the step
                 // decided is a fold row, named in the node's own space
@@ -3147,7 +3155,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     tol,
                 )
                 .map_err(NodeErrorKind::Naming)?;
-                fold.step(step + 1, &naming, &out.body, &emitted.senses)
+                fold.step(step + 1, &naming, &out.body)
                     .map_err(NodeErrorKind::Naming)?;
                 acc_table = emitted.table;
                 step_groups.push(emitted.groups);
@@ -3293,14 +3301,14 @@ const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
 /// one verdict per pair ([`PairVerdict`]). `None` where a judged
 /// intersection is empty.
 #[allow(clippy::type_complexity)] // the judge's one record, or none for an empty intersection
-fn judge_pairwise_contact(
+fn judge_pairwise_contact<T: Decide>(
     hulls: &[bvh::Aabb],
     mut judge: impl FnMut(
         usize,
         usize,
     ) -> Result<
         Option<(
-            topo::BooleanNaming,
+            (topo::BooleanNaming, topo::AtRestBody<T>),
             Vec<crate::coincide::NamedCoincidence>,
             Vec<PairVerdict>,
         )>,
@@ -3308,7 +3316,7 @@ fn judge_pairwise_contact(
     >,
 ) -> Result<
     Option<(
-        names::UnionLinks,
+        names::UnionLinks<T>,
         Vec<crate::coincide::NamedCoincidence>,
         Vec<PairVerdict>,
     )>,
@@ -3324,10 +3332,12 @@ fn judge_pairwise_contact(
             if !hulls[p].overlaps(&hulls[q]) {
                 continue;
             }
-            let Some((naming, judged, glued)) = judge(p, q)? else {
+            let Some(((naming, body), judged, glued)) = judge(p, q)? else {
                 return Ok(None);
             };
-            links.judged(p, q, &naming).map_err(NodeErrorKind::Naming)?;
+            links
+                .judged(p, q, &naming, &body)
+                .map_err(NodeErrorKind::Naming)?;
             rows.extend(judged);
             verdicts.extend(glued);
         }
@@ -3502,14 +3512,20 @@ pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
 /// by the same arithmetic.
 ///
 /// Rotate about the axis THROUGH THE WORLD ORIGIN by `angle`, then
-/// translate. [`Mat3::rotation_about`] re-normalizes the already-unit
-/// axis, which on a unit input changes no bit the format holds exactly.
+/// translate: a rigid motion by construction
+/// ([`RigidMotion::rotation_then_translation`]), so an angle widened to
+/// a box is carried rather than re-decided from the entries.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::Motion`] naming an angle or translation that is
+/// not a finite number.
 pub(crate) fn transform_map<T: Decide>(
     translation: Vec3<T>,
     axis: UnitVec3<T>,
     angle: T,
-) -> Affine3<T> {
-    Affine3::from_parts(Mat3::rotation_about(axis.get(), angle), translation)
+) -> Result<RigidMotion<T>, NodeErrorKind> {
+    RigidMotion::rotation_then_translation(axis, angle, translation).map_err(NodeErrorKind::Motion)
 }
 
 /// **The transform node**: ONE rigid map, its placement's motion
@@ -3530,7 +3546,11 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let value = value_of(results, input)?;
     let placeable = placeable_operand(value, input)?;
-    let map = placement.motion(vals, band(tol)?)?;
+    let band = band(tol)?;
+    let map = placement
+        .motion_kept(vals, band)?
+        .rigid(band)?
+        .unwrap_or_else(RigidMotion::identity);
     let payload = placeable.map(|body, _| place(body, Some(&map), tol))?;
     Ok(OpOut::plain(payload, Arc::clone(&value.name_table)).carrying(value.parts))
 }
@@ -3593,7 +3613,8 @@ fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
         .name_table
         .project(index)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-    let map = pose.motion_kept(vals, band(tol)?)?.non_identity();
+    let band = band(tol)?;
+    let map = pose.motion_kept(vals, band)?.rigid(band)?;
     let placed = place(&body, map.as_ref(), tol)?;
     let table = names::name_placed(id, &table, &placed).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut {
@@ -3672,7 +3693,7 @@ fn stepped_map<T: Decide>(
     i: i64,
     vals: &SlotValues<T>,
     tol: Tol,
-) -> Result<Affine3<T>, NodeErrorKind> {
+) -> Result<RigidMotion<T>, NodeErrorKind> {
     let ops = match kind {
         // An explicit rule's frames ARE the maps.
         PatternKind::Explicit(_) => {
@@ -3680,7 +3701,7 @@ fn stepped_map<T: Decide>(
                 crate::node::PlacementRuleFault::CountSpelling { shape: listed },
             ));
         }
-        _ if i == 0 => return Ok(Affine3::identity()),
+        _ if i == 0 => return Ok(RigidMotion::identity()),
         PatternKind::Linear { .. } => SteppedOperands::linear(
             need_vec3(vals, SlotId::Direction)?,
             need_scalar(vals, SlotId::Spacing)?,
@@ -3708,7 +3729,7 @@ fn stepped_map<T: Decide>(
             )?
         }
     };
-    Ok(stepped_rule_map(&ops, i))
+    stepped_rule_map(&ops, i)
 }
 
 /// **The pattern node**: a stepped rule over its input's value,
@@ -3796,8 +3817,18 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let body = body_operand(results, input)?;
-    let maps: Vec<Affine3<T>> = match kind.placements() {
-        Some(frames) => frames.iter().map(|f| f.affine::<T>()).collect(),
+    let maps: Vec<RigidMotion<T>> = match kind.placements() {
+        // Listed frames are literal: each is admitted at the decided
+        // door.
+        Some(frames) => {
+            let band = band(tol)?;
+            frames
+                .iter()
+                .map(|f| {
+                    RigidMotion::check_rigid(&f.affine::<T>(), band).map_err(NodeErrorKind::Motion)
+                })
+                .collect::<Result<_, _>>()?
+        }
         None => {
             let n = slots::count(vals, SlotId::Count).ok_or(NodeErrorKind::MissingSlot {
                 slot: SlotId::Count,
@@ -3819,9 +3850,10 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 .collect::<Result<_, _>>()?
         }
     };
+    let affines: Vec<Affine3<T>> = maps.iter().map(|m| m.to_affine()).collect();
     topo::Separation::of(body.as_ref(), tol)
         .map_err(NodeErrorKind::Boolean)?
-        .certify(&maps)
+        .certify(&affines)
         .map_err(|topo::PlacementsMeet { i, j }| NodeErrorKind::PlacementsUncertified { i, j })?;
     let mut fused = topo::Body::new();
     let mut bridges: Vec<topo::GraftKeys> = Vec::with_capacity(maps.len());
@@ -4022,7 +4054,12 @@ mod stepped_operand_tests {
             for i in 1..6 {
                 assert_eq!(
                     bits(mirrored(i).components()),
-                    bits(stepped_rule_map(&followed, i).components()),
+                    bits(
+                        stepped_rule_map(&followed, i)
+                            .unwrap()
+                            .to_affine()
+                            .components()
+                    ),
                     "copy {i} of {reversed:?} lands where the negative spacing put it"
                 );
             }

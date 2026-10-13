@@ -70,7 +70,7 @@ use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
 use crate::recourse::{
-    AtZero, Classified, ReadAt, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+    Classified, NoSize, ReadAt, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
     Unsized,
 };
 
@@ -469,8 +469,9 @@ pub enum CertifyError {
         /// door's words on a definite miss.
         margin: MarginDiag,
     },
-    /// `Intersection` only: the tangent planes coincide at a sample —
-    /// the transversality precondition fails, so the locus is not an
+    /// `Intersection` only: the levered angle between the tangent planes
+    /// did not classify positive at a sample — the transversality
+    /// precondition fails, so the locus is not an
     /// `Intersection` (a tangential contact is `TangentIntersection`
     /// territory; a seam is `Seam`).
     NotTransverse {
@@ -498,8 +499,8 @@ pub enum CertifyError {
     },
     /// `TangentIntersection` only: the second-order margin (relative
     /// transverse normal curvature, metered at the folded lever arm)
-    /// is exactly zero at a sample — the surfaces under-determine the
-    /// locus there (a G2 conventional join's zero-side margin, or an
+    /// did not classify positive at a sample — the surfaces
+    /// under-determine the locus there (a G2 conventional join's zero-side margin, or an
     /// osculating patch), so the intrinsic tangent description is not
     /// certifiable; the honest description is conventional
     /// (`MappedCurve`), exactly D2's G2-join split. The **definite**
@@ -605,11 +606,10 @@ impl core::fmt::Display for CertifyError {
                  chart closes in no direction)"
             ),
             Self::IntervalNotForward {
-                verdict: Refused::Zero(_),
+                verdict: Refused::Zero(Classified { margin, .. }),
             } => write!(
                 f,
-                "the stored parameter interval spans no length at this tolerance — a \
-                 degenerate zero-span interval, which the forward gate refuses"
+                "the stored parameter interval is not shown to run forward (margin {margin:e} m)"
             ),
             Self::IntervalNotForward {
                 verdict: Refused::Negative { .. },
@@ -618,15 +618,18 @@ impl core::fmt::Display for CertifyError {
                 "the stored parameter interval runs backwards — increasing parameter must \
                  run from the edge's start vertex to its end vertex"
             ),
-            Self::SpanMeterCollapsed { .. } => write!(
+            Self::SpanMeterCollapsed { verdict } => write!(
                 f,
                 "the spline carrier's knot domain, metered at its certified speed floor, is not \
-                 above zero at this tolerance, so its stored interval cannot be measured in metres"
+                 shown above zero (margin {:e} m), so its stored interval has no certified \
+                 metre scale",
+                verdict.margin()
             ),
-            Self::ArmCollapsed { sample, .. } => write!(
+            Self::ArmCollapsed { sample, verdict } => write!(
                 f,
-                "at sample {sample} the edge is not {}",
-                crate::DIHEDRAL_ARM_CLAUSE
+                "at sample {sample} the edge is not shown {} (margin {:e} m)",
+                crate::DIHEDRAL_ARM_CLAUSE,
+                verdict.margin()
             ),
             Self::WindingExceeded => write!(
                 f,
@@ -659,33 +662,45 @@ impl core::fmt::Display for CertifyError {
                 f,
                 "the analytic Intersection's rung-3 certificate refused — {refusal}"
             ),
-            Self::NotTransverse { sample, lever, .. } => {
-                write!(f, "the faces meet tangentially at sample {sample}")?;
+            Self::NotTransverse {
+                sample,
+                lever,
+                verdict,
+            } => {
+                write!(
+                    f,
+                    "at sample {sample} the faces are not shown to cross (margin {:e} m",
+                    verdict.margin()
+                )?;
                 if let Some(lever) = lever {
                     write!(f, ", their angle levered by {lever}")?;
                 }
-                write!(f, ", where the edge's description says they cross")
+                write!(f, "), where the edge's description says they cross")
             }
-            Self::NotSecondOrderSeparated { sample, .. } => write!(
+            Self::NotSecondOrderSeparated { sample, verdict } => write!(
                 f,
-                "the faces agree to second order at sample {sample}, so they \
-                 do not fix where the edge runs, which its description says they do"
+                "at sample {sample} the faces are not shown to curve apart at second order \
+                 (margin {:e} m), so they are not shown to fix where the edge runs, which its \
+                 description says they do",
+                verdict.margin()
             ),
             Self::TubeNotSeparated {
-                verdict: Refused::Zero(_),
+                verdict: verdict @ Refused::Zero(_),
             } => write!(
                 f,
                 "the certified lower bound on how far the faces curve apart along the edge \
-                 is zero at this tolerance, so the certificate cannot prove they fix where \
-                 the edge runs, which its description says they do"
+                 is not shown above zero (margin {:e} m), so the certificate cannot prove they \
+                 fix where the edge runs, which its description says they do",
+                verdict.margin()
             ),
             Self::TubeNotSeparated {
-                verdict: Refused::Negative { .. },
+                verdict: verdict @ Refused::Negative { .. },
             } => write!(
                 f,
                 "the certified lower bound on how far the faces curve apart along the edge \
-                 is below zero, so the certificate cannot prove they fix where the edge \
-                 runs, which its description says they do"
+                 is below zero (margin {:e} m), so the certificate cannot prove they fix where \
+                 the edge runs, which its description says they do",
+                verdict.margin()
             ),
             Self::TangentCertificateUnsupported => write!(
                 f,
@@ -850,7 +865,7 @@ impl CertCheck {
                 size: "length",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
-                at_zero: Some(AtZero {
+                no_size: Some(NoSize {
                     build: "an edge of no length, or a reversed one, is one no kernel construction \
                             mints, so this is a kernel defect worth reporting",
                     stored: "an edge of no length, or a reversed one, is one no kernel \
@@ -867,7 +882,7 @@ impl CertCheck {
                 size: "length",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: Some(AtZero::same(
+                no_size: Some(NoSize::same(
                     "a vanishing speed floor means the spline stalls or turns back, or that the \
                      floor has reached its limit, which is worth reporting",
                 )),
@@ -877,14 +892,14 @@ impl CertCheck {
                 size: "arc",
                 passes: SizedPass::NonNegative,
                 stored: StoredDefinite::Contradiction,
-                at_zero: None,
+                no_size: None,
             }),
             Self::Transversality => Ending::Sized(SizedDecision {
                 lever: "move the geometry so the surfaces cross at a clearer angle",
                 size: "angle",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
-                at_zero: None,
+                no_size: None,
             }),
             Self::TransversalityArm => Ending::Sized(crate::DIHEDRAL_ARM),
             Self::TangentPlanes => Ending::Undefined(TANGENT_PLANES_RECOURSE),
@@ -893,7 +908,7 @@ impl CertCheck {
                 size: "curvature difference",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
-                at_zero: None,
+                no_size: None,
             }),
             // The tube's margin is a conservative lower bound, so a
             // definite refusal of it is the certificate's limit, which
@@ -903,7 +918,7 @@ impl CertCheck {
                 size: "curvature difference",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             }),
             // Exact constructions: the endpoints and witness the kernel
             // placed, the seam and the declared source it restates, the
@@ -932,7 +947,7 @@ impl CertCheck {
                 size: "degenerate face",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             }),
             // An unbounded derivative is the face's scale: the lever is
             // the model's size.
@@ -942,7 +957,7 @@ impl CertCheck {
                 size: "scale",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             }),
             // Approximations: a fitted intersection carrier on its
             // surfaces, and the plane × NURBS lane's on-locus limb. The
@@ -5169,7 +5184,9 @@ mod tests {
     /// reading. A span a smaller tolerance decides forward quotes it; a
     /// span of no length ends in the lever and the note that no
     /// construction mints one, a kernel defect at a build and a kernel or
-    /// file defect over stored geometry; a reversed span and the winding
+    /// file defect over stored geometry, and an enclosure across zero,
+    /// which shows neither a size nor its absence, the lever alone; a
+    /// reversed span and the winding
     /// bound's only refusal are stored contradictions (the lever at a
     /// build, the file's defect ending over stored geometry). The
     /// tangent tube's Zero is band-decided and its Negative the
@@ -5218,7 +5235,9 @@ mod tests {
             let rows = [
                 (forward(zero(5e-10)), tightened(span, "length", "5e-11")),
                 (forward(zero(0.0)), no_span.clone()),
-                (forward(zero(-5e-10)), no_span.clone()),
+                (forward(zero(-5e-10)), no_span),
+                // An enclosure across zero shows no size, nor that there
+                // is none: the lever alone, its payload printing it.
                 (
                     CertifyError::IntervalNotForward {
                         verdict: Refused::Zero(Classified {
@@ -5226,7 +5245,7 @@ mod tests {
                             band,
                         }),
                     },
-                    no_span,
+                    span.to_owned(),
                 ),
                 (forward(negative(-1e-3)), definite(span)),
                 (CertifyError::WindingExceeded, definite(winding)),
@@ -5398,10 +5417,11 @@ mod tests {
     /// decision gives, pinned whole:
     /// - a sized decision (the span, the winding headroom) names its own
     ///   lever, and the tolerance below `m/K` only where the margin lies
-    ///   on the side the decision accepts; a margin on the refused side
-    ///   or a straddling enclosure, which no smaller tolerance passes,
-    ///   names the lever alone; a margin that could not be read keeps
-    ///   the lever and says what it may mean;
+    ///   on the side the decision accepts; a margin at zero or on the
+    ///   refused side shows no size and adds the decision's note where it
+    ///   has one, whichever arm routed it; an enclosure touching or
+    ///   straddling zero names the lever alone; a margin that could not be read keeps the lever
+    ///   and says what it may mean;
     /// - an exact residual (the endpoints, the chart image) ends in the
     ///   kernel-defect ending, the file's too at rest, and its definite
     ///   refusal ends the same;
@@ -5424,6 +5444,9 @@ mod tests {
         let straddle = MarginDiag::enclosure(-2.0e-9, 4.0e-9);
         let inside = MarginDiag::enclosure(2.0e-9, 4.0e-9);
         let below = MarginDiag::enclosure(-4.0e-9, -2.0e-9);
+        let no_span = "Recourse: move the geometry so this edge is not vanishingly short; an edge \
+                       of no length, or a reversed one, is one no kernel construction mints, so \
+                       this is a kernel defect worth reporting";
         let rows = [
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(5e-9)),
@@ -5432,7 +5455,7 @@ mod tests {
             ),
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(-5e-9)),
-                "Recourse: move the geometry so this edge is not vanishingly short",
+                no_span,
             ),
             (
                 undecided(CertCheck::ParamWinding, inside),
@@ -5482,13 +5505,14 @@ mod tests {
             ),
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(0.0)),
-                "Recourse: move the geometry so this edge is not vanishingly short",
+                no_span,
             ),
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(-0.0)),
-                "Recourse: move the geometry so this edge is not vanishingly short",
+                no_span,
             ),
             (
+                // Touching zero, its sign unresolved: the lever alone.
                 undecided(CertCheck::ParamWinding, MarginDiag::enclosure(0.0, 4.0e-9)),
                 "Recourse: move the geometry so this arc stays clearly short of a full turn",
             ),
@@ -5572,13 +5596,67 @@ mod tests {
         );
     }
 
+    /// **The floor's sentence is said once on the undecided route**: an
+    /// escalation of the span whose positive size only a tolerance at or
+    /// below `EPS_MIN` decides — a gate's rejected Zero, and an in-band
+    /// reading at a run near the floor — renders its payload and its
+    /// ending with the floor's sentence once, and neither the span's
+    /// no-length note nor an offer, at a build and at rest. Red if the
+    /// payload word says it again, or the note or an offer returns.
+    #[test]
+    fn the_floor_sentence_is_said_once_on_the_undecided_route() {
+        use geom_core::k_stats::decide_positive;
+        use geom_core::tolerance::EPS_MIN;
+        use geom_core::{Margin, floor_note};
+
+        let floor = floor_note("length");
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let rejected =
+            decide_positive("interval_span_forward", Margin::of(2e-12), band).unwrap_err();
+        let in_band = Indeterminate {
+            margin: MarginDiag::value(3.0 * EPS_MIN),
+            band: Band::new(2.0 * EPS_MIN, 20.0 * EPS_MIN).unwrap(),
+            predicate: Some("interval_span_forward"),
+            terminal_sliver: false,
+        };
+        assert_eq!(
+            CertifyError::Escalated {
+                check: CertCheck::ParamSpan,
+                sample: 0,
+                cause: rejected,
+            }
+            .render(Reading::Build),
+            "the stored interval's span at sample 0 escalated: margin 2e-12 lies within the zero \
+             band (±1e-9). Recourse: move the geometry so this edge is not vanishingly short; no \
+             tolerance a run admits decides this length",
+            "the whole sentence, so a second statement of the floor goes red"
+        );
+        for cause in [rejected, in_band] {
+            let error = CertifyError::Escalated {
+                check: CertCheck::ParamSpan,
+                sample: 0,
+                cause,
+            };
+            for reading in [Reading::Build, Reading::AtRest] {
+                let text = error.render(reading);
+                assert_eq!(text.matches(&floor).count(), 1, "{reading:?}: {text}");
+                assert!(
+                    !text.contains("no kernel construction mints") && !text.contains("tighten"),
+                    "{reading:?}: {text}"
+                );
+            }
+        }
+    }
+
     /// **The import door reads certification as at rest, with its ε_in
     /// words** (D4 ¶1), over every check and every arm: the door's ending
     /// is the at-rest one, except that a band-decided arm of a sized
     /// decision whose margin's nearer end lies at or below ε_in ends in
     /// one sentence, whichever arm the run's band placed it on: the file
     /// does not state the size, and keeping it takes declaring the file's
-    /// uncertainty below it and tightening, together — and a residual's
+    /// uncertainty below it and tightening, together, or else the lever
+    /// alone, with no decision's note, an enclosure across zero's
+    /// included — and a residual's
     /// miss within ε_in but beyond ε, or a certified bound on it wholly
     /// within ε_in, names setting ε to ε_in as a stopgap. An ε_in below every margin leaves every ending at rest
     /// but a reading at zero's. No ending at the door blames the kernel
@@ -5617,12 +5695,15 @@ mod tests {
             // ε_in: it ends at rest.
             arms.push((RefusedArm::SignCertain(None), false));
             arms.push((RefusedArm::SignCertain(Some(MarginDiag::value(5e-9))), true));
-            for m in [5e-10, 0.0, -5e-10] {
-                let zero = Classified {
-                    margin: MarginDiag::value(m),
-                    band,
-                };
-                arms.push((RefusedArm::Zero(zero), false));
+            // The Interval lane's zero verdicts too: one across zero, as
+            // a sub-ε_in span's enclosure reads.
+            for margin in [
+                MarginDiag::value(5e-10),
+                MarginDiag::value(0.0),
+                MarginDiag::value(-5e-10),
+                MarginDiag::enclosure(-2e-12, 6e-12),
+            ] {
+                arms.push((RefusedArm::Zero(Classified { margin, band }), false));
             }
             for (arm, miss) in arms {
                 let at_rest = recourse(check, arm, Reading::AtRest);
@@ -5634,9 +5715,9 @@ mod tests {
                 // A reading at or across zero has its nearer end below
                 // every ε_in, so even the narrow one reads it in the door's
                 // sentence: "is below" where the whole reading is, "may lie
-                // below" where only that end is, then the at-rest ending.
-                // Its `at_zero` note there is the open question of
-                // `work/encl/import-door-appends-a-defect-note-to-a-sub-eps-in-zero-span.md`.
+                // below" where only that end is, then the lever alone. The
+                // door cannot tell a zero the file stores from a rounded
+                // one, so no decision's note rides there.
                 let reaches_zero = match banded.map(MarginDiag::diagnostic_f64_for_error_text) {
                     Some(geom_core::ErrorTextReading::Value(0.0)) => Some(0.0),
                     Some(geom_core::ErrorTextReading::Enclosure { lo, hi })
@@ -5660,9 +5741,10 @@ mod tests {
                             narrow_door,
                             format!(
                                 "This {} {lies} the file's declared coincidence distance ε_in = \
-                                 {:e} m, so the file {states} it. {at_rest}",
+                                 {:e} m, so the file {states} it. Recourse: {}",
                                 sized.size,
-                                narrow.eps_in()
+                                narrow.eps_in(),
+                                sized.lever
                             ),
                             "{check:?} {arm:?}: a reading at zero lies below every ε_in"
                         );
@@ -5701,7 +5783,10 @@ mod tests {
                                 "{check:?} {arm:?}: {door}"
                             );
                         } else {
-                            assert!(door.ends_with(&at_rest), "{check:?} {arm:?}: {door}");
+                            assert!(
+                                door.ends_with(&format!("Recourse: {}", sized.lever)),
+                                "{check:?} {arm:?}: {door}"
+                            );
                         }
                     }
                     // A bound wholly within ε_in names itself, on its
@@ -6026,11 +6111,166 @@ mod tests {
         let text = err.render(Reading::Build);
         assert_eq!(
             text,
-            "at sample 4 the edge is not long enough, for how its faces curve, to measure their \
-             angle. Recourse: move the geometry so that edge is clearly longer and no face curves \
-             tightly there; an edge of no length, or a face curving to a point as a cone does, \
-             leaves no angle to measure",
+            "at sample 4 the edge is not shown long enough, for how its faces curve, to measure \
+             their angle (margin 0e0 m). Recourse: move the geometry so that edge is clearly \
+             longer and no face curves tightly there; an edge of no length, or a face curving to \
+             a point as a cone does, leaves no angle to measure",
         );
+    }
+
+    /// **A zero verdict's payload prints its reading and claims no size**:
+    /// whether the reading shows none is the ending's to say, from the
+    /// reading's class, so a positive span and an enclosure across zero
+    /// render no such claim anywhere, and a reading that does show none
+    /// says so once, in the ending. Each payload says "not shown" of its
+    /// reading, which holds of every class a zero verdict carries — a
+    /// symbolic-tier proved zero whose rounded number lies outside the
+    /// zero band included — and prints it as `(margin … m)`.
+    #[test]
+    fn each_zero_arm_payload_prints_its_reading_and_claims_no_size() {
+        use geom_core::sym::with_session;
+        use geom_core::{Margin, ParamSymbol, Sym, SymBudget};
+
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let zero = |margin| Refused::Zero(Classified { margin, band });
+        let (sized, across, none) = (
+            MarginDiag::value(5e-10),
+            MarginDiag::enclosure(-2e-10, 3e-10),
+            MarginDiag::value(0.0),
+        );
+        // `x·3/3 − x` at this `x` rounds to 3.7e-9 m, past the zero
+        // band's 1e-9 m; the symbolic tier proves it zero.
+        let (proved, _) = with_session(
+            SymBudget {
+                max_terms: 64,
+                max_degree: 8,
+            },
+            || {
+                let x = Sym::param(ParamSymbol::new(0xa8), 23_456_789.1_f64);
+                let three = Sym::from_f64(3.0);
+                crate::dihedral::decide_positive("pin", Margin::of(x * three / three - x), band)
+                    .unwrap_err()
+            },
+        );
+        let proved = Refused::rejected(&proved).unwrap();
+        assert!(
+            matches!(proved, Refused::Zero(Classified { margin, .. }) if margin.proven()),
+            "the fixture is a proved zero: {proved:?}"
+        );
+        let forward = |verdict| CertifyError::IntervalNotForward { verdict };
+        let meter = |verdict| CertifyError::SpanMeterCollapsed { verdict };
+        let arm = |verdict| CertifyError::ArmCollapsed { sample: 4, verdict };
+        let crossing = |lever, verdict| CertifyError::NotTransverse {
+            sample: 4,
+            lever,
+            verdict,
+        };
+        let second = |verdict| CertifyError::NotSecondOrderSeparated { sample: 4, verdict };
+        let tube = |verdict| CertifyError::TubeNotSeparated { verdict };
+        let below = Refused::Negative {
+            margin: MarginDiag::value(-5e-9),
+        };
+        let rows = [
+            (
+                forward(zero(sized)),
+                "the stored parameter interval is not shown to run forward (margin 5e-10 m)",
+            ),
+            (
+                forward(zero(across)),
+                "the stored parameter interval is not shown to run forward (margin [-2e-10, \
+                 3e-10] m)",
+            ),
+            (
+                forward(proved),
+                "the stored parameter interval is not shown to run forward (margin \
+                 3.725290298461914e-9 m)",
+            ),
+            (
+                meter(zero(sized)),
+                "the spline carrier's knot domain, metered at its certified speed floor, is not \
+                 shown above zero (margin 5e-10 m), so its stored interval has no certified \
+                 metre scale",
+            ),
+            (
+                arm(zero(across)),
+                "at sample 4 the edge is not shown long enough, for how its faces curve, to \
+                 measure their angle (margin [-2e-10, 3e-10] m)",
+            ),
+            (
+                crossing(None, zero(sized)),
+                "at sample 4 the faces are not shown to cross (margin 5e-10 m), where the edge's \
+                 description says they cross",
+            ),
+            (
+                crossing(Some(crate::ssi::PointLever::Extent), zero(sized)),
+                "at sample 4 the faces are not shown to cross (margin 5e-10 m, their angle \
+                 levered by the feature extent), where the edge's description says they cross",
+            ),
+            (
+                crossing(None, below),
+                "at sample 4 the faces are not shown to cross (margin -5e-9 m), where the edge's \
+                 description says they cross",
+            ),
+            (
+                second(zero(sized)),
+                "at sample 4 the faces are not shown to curve apart at second order (margin \
+                 5e-10 m), so they are not shown to fix where the edge runs, which its \
+                 description says they do",
+            ),
+            (
+                tube(zero(sized)),
+                "the certified lower bound on how far the faces curve apart along the edge is \
+                 not shown above zero (margin 5e-10 m), so the certificate cannot prove they \
+                 fix where the edge runs, which its description says they do",
+            ),
+            (
+                tube(below),
+                "the certified lower bound on how far the faces curve apart along the edge is \
+                 below zero (margin -5e-9 m), so the certificate cannot prove they fix where the \
+                 edge runs, which its description says they do",
+            ),
+        ];
+        let claims = [
+            "no length",
+            "not long enough",
+            "not above zero",
+            "spans no",
+            "is zero",
+            "within the tolerance",
+        ];
+        for (error, payload) in rows {
+            assert_eq!(error.to_string(), payload, "{error:?}");
+            // A proved zero shows no size, so its ending says so.
+            if matches!(error, CertifyError::IntervalNotForward { verdict } if verdict == proved) {
+                continue;
+            }
+            for reading in [Reading::Build, Reading::AtRest] {
+                let text = error.render(reading);
+                for claim in claims {
+                    assert!(
+                        !text.contains(claim),
+                        "{reading:?} claims {claim:?}: {text}"
+                    );
+                }
+            }
+        }
+        for (error, note) in [
+            (forward(zero(none)), "an edge of no length"),
+            (meter(zero(none)), "a vanishing speed floor"),
+            (arm(zero(none)), "an edge of no length"),
+        ] {
+            let text = error.render(Reading::Build);
+            assert!(
+                error.to_string().contains("(margin 0e0 m)"),
+                "the payload prints its zero: {text}"
+            );
+            assert_eq!(
+                text.matches(note).count(),
+                1,
+                "a reading of no size says so once, in its ending: {text}"
+            );
+            assert!(!error.to_string().contains(note), "{text}");
+        }
     }
 
     /// **An undecided arm stays undecided when the wedge it quotes reads

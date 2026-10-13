@@ -51,7 +51,7 @@ fn case(
     let u2 = w(Vec3::new(0.0, beta.cos(), beta.sin()));
     let pi = core::f64::consts::PI;
     let arcs = vec![
-        LoopArc::Conic {
+        LoopArc::Conic(Conic {
             centre,
             axis: x,
             u_ref: u1,
@@ -59,8 +59,8 @@ fn case(
             b: a,
             span: (sv - pi, sv),
             own: None,
-        },
-        LoopArc::Conic {
+        }),
+        LoopArc::Conic(Conic {
             centre: centre + jitter.0 * jitter.1,
             axis: (x + jitter.0.cross(x) * (jitter.1 / r)).normalize(),
             u_ref: u2,
@@ -68,7 +68,7 @@ fn case(
             b: a,
             span: (sv - beta, sv - beta + pi),
             own: None,
-        },
+        }),
     ];
     (path, arcs)
 }
@@ -393,7 +393,7 @@ fn split_ellipse(
     };
     let pi = core::f64::consts::PI;
     [
-        LoopArc::Conic {
+        LoopArc::Conic(Conic {
             centre: center,
             axis,
             u_ref,
@@ -401,8 +401,8 @@ fn split_ellipse(
             b: minor,
             span: (v - pi, v),
             own: None,
-        },
-        LoopArc::Conic {
+        }),
+        LoopArc::Conic(Conic {
             centre: center + dir * jitter,
             axis: (axis + dir.cross(axis) * (jitter / size)).normalize(),
             u_ref,
@@ -410,7 +410,7 @@ fn split_ellipse(
             b: minor,
             span: (v, v + pi),
             own: None,
-        },
+        }),
     ]
 }
 
