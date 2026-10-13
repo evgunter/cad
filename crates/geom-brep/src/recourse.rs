@@ -873,6 +873,11 @@ mod tests {
             for margin in margins() {
                 let want = if margin.is_invalid() { &noted } else { &plain };
                 let undecided = cause(margin);
+                // geom-core's build-reading spelling of the undecided arm
+                // says the same bytes.
+                if reading == Reading::Build {
+                    assert_eq!(&undecided.lever_ending("L"), want, "{margin:?}");
+                }
                 for arm in [RefusedArm::Undecided(&undecided), zero(margin)] {
                     assert_eq!(
                         &lever.recourse(arm, reading),
