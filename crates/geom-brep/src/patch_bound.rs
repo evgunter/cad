@@ -20,9 +20,9 @@
 //!
 //! Every cell reports **signed componentwise enclosures**
 //! ([`PatchCell::s_u`] … [`PatchCell::s_vv`]) of the DESCRIBED patch
-//! — on both arms and with no carve-out, because the refinement an arm
-//! performs is itself part of the enclosure ([`PatchCell`], "What the
-//! enclosure encloses"). An inf-side consumer
+//! — on both arms and with no carve-out, because the cut or the
+//! refinement an arm performs is itself part of the enclosure
+//! ([`PatchCell`], "What the enclosure encloses"). An inf-side consumer
 //! needs them as such — a magnitude sup cannot bound `‖S_u × S_v‖`
 //! from below, because the cross product's sign structure is exactly
 //! the information a magnitude throws away — and a sup-side consumer
@@ -64,7 +64,8 @@
 //! described patch; there is no refined net on this arm. A
 //! direction of degree above 18 puts the second order over
 //! [`geom_core::spline::QUOTIENT_MAX_DEGREE`], and the arm refuses
-//! ([`PatchBoundError::RefinementFailed`]).
+//! typed ([`PatchBoundError::DegreeAboveCeiling`]; module docs,
+//! "Refusal").
 //!
 //! # Conservatism
 //!
@@ -78,6 +79,22 @@
 //! Structural refusals are typed ([`PatchBoundError`]); arithmetic
 //! failures are refusals, and a refused hull fails every `≤ ε`
 //! comparison it reaches.
+//!
+//! **The degree ceilings.** Every quotient here is an exact Bernstein
+//! product of degree at most [`QUOTIENT_MAX_DEGREE`] (`56`) per
+//! direction. The rational arm reads its second partials at `3p`, so a
+//! rational direction of degree above 18 refuses typed
+//! ([`PatchBoundError::DegreeAboveCeiling`]). The integral arm needs a
+//! quotient only for its area floor, `A_u × A_v` at `2p − 1`, so it
+//! certifies to degree 28 with a floor and past that with the
+//! conservative floor `0.0` ([`PatchCell::m_inf`]).
+//!
+//! **The practical ceiling is lower on a wide weight spread.** The
+//! weight power's coefficients are interval enclosures, and at degree
+//! 17 and above a spread near `1e6` lets the rounding of their
+//! products reach zero: the quotient then does not certify, its sups
+//! read `NaN` and its boxes refused, and every consumer's `≤ ε` check
+//! refuses the face.
 
 use geom_core::Bounds;
 use std::ops::RangeInclusive;
@@ -277,10 +294,12 @@ pub struct PatchCell {
     pub m_sup: f64,
     /// Certified LOWER bound on `‖S_u × S_v‖` over the cell: the area
     /// quotient's own floor ([`QuotientPiece::inf_norm`], read from
-    /// below), on the rational arm over `W³` and on the integral arm
-    /// over unit weights, one piece per span cell. `0.0` — the floor's
-    /// conservative answer — when the reading does not certify or
-    /// separates nothing from zero.
+    /// below), on the rational arm `M̃/W³` on the piece and on the
+    /// integral arm `A_u × A_v` over one, one piece per span cell
+    /// ([`polynomial_area_pieces`]). `0.0` — the floor's conservative
+    /// answer — when the reading does not certify, separates nothing
+    /// from zero, or is past the integral arm's degree 28 (module docs,
+    /// "Refusal").
     pub m_inf: f64,
 }
 
@@ -294,14 +313,16 @@ pub fn is_rational(n: &NurbsSurface<f64>) -> bool {
 /// first and second partials (module docs).
 ///
 /// Cell granularity is the arm's own: the integral arm reports the
-/// raw knot-span cells, the rational arm the cells of the fixed
-/// [`RATIONAL_CERT_SPLITS`] refinement.
+/// raw knot-span cells, the rational arm each span cell's exact dyadic
+/// pieces, [`RATIONAL_CERT_SPLITS`] per direction at most (module docs,
+/// "The rational arm").
 ///
 /// # Errors
 ///
 /// [`PatchBoundError`] — a C⁰-creased or degree-0 direction, an
-/// illegal rational description, or a refinement/derived-knot
-/// construction that fails to materialise.
+/// illegal rational description, a rational direction of degree above
+/// 18 ([`PatchBoundError::DegreeAboveCeiling`], module docs "Refusal"),
+/// or a derived-knot construction that fails to materialise.
 pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
     check_direction(n.knots_u())?;
     check_direction(n.knots_v())?;
@@ -312,9 +333,11 @@ pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundEr
     }
 }
 
-/// [`patch_cells`] on an EXPLICIT refinement schedule: every nonempty
-/// span of every direction is cut into `splits` equal pieces first,
-/// in **both** arms.
+/// [`patch_cells`] on an EXPLICIT schedule, in **both** arms: the
+/// integral arm refines every nonempty span of every direction into
+/// `splits` equal pieces first, and the rational arm reads `splits`
+/// exact dyadic pieces per span direction (rounded down to a count
+/// exact at degree `3p`, module docs).
 ///
 /// Why a consumer would ask for more than [`patch_cells`] gives: a
 /// cell's enclosure is as wide as its coefficients spread — on the
@@ -329,11 +352,13 @@ pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundEr
 /// `[−0.094, 0.094]` on its widest cell, and the certified curvature
 /// range `[−0.75, −0.27]` is about as wide as the surface's single
 /// value `−0.5`.
-/// Refinement is exact in ℝ, so this buys tightness and nothing else.
+/// Refinement and cutting are exact in ℝ, so this buys tightness and
+/// nothing else.
 ///
 /// # Errors
 ///
-/// As [`patch_cells`], plus [`PatchBoundError::RefinementFailed`].
+/// As [`patch_cells`], plus [`PatchBoundError::RefinementFailed`] (the
+/// integral arm's insertion chain).
 pub fn patch_cells_refined(
     n: &NurbsSurface<f64>,
     splits: usize,

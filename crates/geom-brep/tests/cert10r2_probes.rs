@@ -1,7 +1,7 @@
 //! CERT-10 R2 blinded-review probes (reviewer-local, branch
 //! cert/10r2-probes — NOT for merge into the unit branch).
 //!
-//! 1. `probe1_*`: the signed quotient-rule reading is a genuine
+//! 1. `probe1_*`: the signed quotient reading is a genuine
 //!    ENCLOSURE — per-cell, per-channel, SIGNED containment of densely
 //!    sampled true partials on adversarial rational patches (extreme
 //!    weight ratios, sign-alternating nets), plus a randomized sweep.
@@ -57,12 +57,13 @@ fn least(iv: Interval) -> f64 {
 ///   f64 `ders()` carries its own rounding, which on a structural zero
 ///   (quarter_cylinder's `s_uv`, whose quotient reading is exact) sits
 ///   above a sup that is itself right;
-/// - the SIGNED-enclosure claim as the field docs state it: containment
-///   violations are measured and must stay at insertion-rounding dust
-///   scale (the rational arm encloses the REFINED f64 net's surface,
-///   not the described one — found by this probe on quarter_cylinder,
-///   where s_vv's z enclosure is [-4.1e-15, -3.4e-15] but true
-///   S_vv == 0).
+/// - the SIGNED-enclosure claim as the field docs state it: the cells
+///   enclose the DESCRIBED patch, so a violation of the sampled f64
+///   jet is that jet's own rounding, and must stay at dust scale. (This
+///   probe first found the rational arm enclosing a refined `f64` net
+///   rather than the described one — quarter_cylinder's `s_vv.z` read
+///   `[-4.1e-15, -3.4e-15]` where `S_vv == 0`; the arm now reads the
+///   described net's quotient, and that `s_vv` is the exact zero.)
 fn assert_cells_enclose(name: &str, s: &NurbsSurface<f64>, cells: &[PatchCell], m: usize) {
     let lifted = s.map_scalar(<Interval as geom_core::Real>::from_f64);
     let mut checked = 0usize;
@@ -123,8 +124,8 @@ fn assert_cells_enclose(name: &str, s: &NurbsSurface<f64>, cells: &[PatchCell], 
          {worst_gap:.3e} (rel {worst_rel:.3e})",
         cells.len()
     );
-    // Dust scale: the documented f64/insertion-rounding slack lives
-    // well under 1e-12 relative; anything larger is a real hole.
+    // Dust scale: the sampled jet's f64 rounding lives well under
+    // 1e-12 relative; anything larger is a real hole.
     assert!(
         worst_rel < 1e-12,
         "{name}: signed containment violated beyond rounding dust (rel {worst_rel:.3e})"

@@ -44,7 +44,7 @@
 //! **refuse a regular patch it failed to certify; it can never accept a
 //! degenerate one**. It collapses to zero — the loud answer — as soon
 //! as a piece is coarse enough that the normal turns through a right
-//! angle inside it, which is why the rational arm's fixed refinement
+//! angle inside it, which is why the rational arm's piece count
 //! ([`crate::patch_bound::RATIONAL_CERT_SPLITS`]) matters here more
 //! than it does for a sup bound.
 //!

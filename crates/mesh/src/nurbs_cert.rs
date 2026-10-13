@@ -19,9 +19,9 @@
 //! for edge carriers, lifted to the surface. Componentwise hulls give
 //! `sup‖S_uu‖ ≤ √(Σ_c sup²)` = [`NurbsFaceBound::muu`], and likewise
 //! `muv`, `mvv`. Rounding: interval (ring) arithmetic end to end —
-//! including the rational arm's knot refinement, which is performed on
-//! certification enclosures of the described net rather than in `f64` — with a
-//! final `next_up` on the square root.
+//! including the rational arm's pieces, which are cut from
+//! certification enclosures of the described net rather than in `f64` —
+//! with a final `next_up` on the square root.
 //!
 //! # The per-triangle certificate
 //!
@@ -188,21 +188,18 @@ pub(crate) struct NurbsFaceBound {
     /// selection's degenerate-direction predicates are decided on the
     /// value rather than on a threshold ([`cell_component`]).
     ///
-    /// **On the rational arm the exact zero needs a constant weight
-    /// NET.** A degree-1 direction's `Ã_uu` and `w_uu` are exact zeros
-    /// but the cross term `S_u·w_u` is not (module docs). Where every
-    /// weight is the same, the refinement holds each one exactly (each
-    /// insertion step is met with the hull of its two sources), `w_u`
-    /// and `w_v` are exact zeros, and so are `muu` and `mvv` — the
-    /// assembly proved it, and the degenerate arms are taken as for the
-    /// integral face it equals. A weight column constant only ALONG the
-    /// direction is not enough: refinement across it leaves its weights
-    /// as intervals, and the difference of two equal intervals is an
-    /// interval about zero, not zero. The quarter cylinder, whose
-    /// weights are constant along `v`, certifies `mvv` at about 2e-13
+    /// **On the rational arm the exact zero is the quotient's.** A
+    /// degree-1 direction's numerator `M = A″W² − AW″W − 2A′WW′ + 2AW′²`
+    /// keeps its doubled cross term (module docs), which vanishes where
+    /// the weights are constant along the direction and the points
+    /// affine in it: the direction is then affine in ℝ, every
+    /// coefficient of `M` comes out an exact zero, and `muu` (or `mvv`)
+    /// is the proved `0.0`, so the degenerate arms are taken on a
+    /// direction the bound proved. The quarter cylinder, whose weights
+    /// are constant along `v`, certifies `mvv = 0.0`; a degree-1
+    /// direction whose weights vary along it (a Möbius ruling) reports
+    /// its genuine curvature in parameter
     /// (`rational_degree_one_direction_is_not_taken_as_degenerate`).
-    /// Every rational degree-1 direction short of a constant net
-    /// reports positive dust.
     pub muu: f64,
     /// `sup ‖S_uv‖`.
     pub muv: f64,
@@ -4023,14 +4020,14 @@ pub(crate) mod tests {
     /// `#[ignore]`d: a measurement, not an assertion.
     ///
     /// **The `mvv` entries are NOT pinned digits.** On these ruled
-    /// (degree-1 in `v`) faces the true `S_vv` is identically zero,
-    /// and what the assembly reports is the rational arm's
-    /// knot-insertion rounding — see `PatchCell`'s field docs, "the
-    /// refined net is what is enclosed". Pinning that to sixteen
-    /// digits would pin a rounding artifact, so the entries below
-    /// carry the retired reading's ORDER of magnitude and their
-    /// provenance instead; nothing in this harness is sensitive to
-    /// them (a `mvv` of 1e-15 and one of 5e-15 size the same grid).
+    /// (degree-1 in `v`) faces the true `S_vv` is identically zero.
+    /// The entries below carry the retired reading's ORDER of magnitude
+    /// and their provenance: that reading enclosed a refined net and
+    /// reported its insertion rounding, where the quotient reading now
+    /// proves the zero on a face whose weights are constant along `v`
+    /// (`NurbsFaceBound::muu`'s docs). Nothing in this harness is
+    /// sensitive to them (a `mvv` of 0, 1e-15 or 5e-15 sizes the same
+    /// grid).
     #[test]
     #[ignore = "measurement harness: prints the rational-face grid re-sizing"]
     fn cert10_rational_grid_resizing() {

@@ -1314,15 +1314,14 @@ mod tests {
         }
     }
 
-    /// The row that pins the deletion of the two runtime refusals
-    /// [`rational_carrier_m_bound`]'s span loop used to carry ("NURBS
-    /// span below its degree", "NURBS span beyond its control net").
-    /// The bound's span loop draws each window from a `Span`, which
-    /// makes both unrepresentable, so the loop head's ONLY remaining
-    /// exit is the empty-span skip — and an interior knot of
-    /// multiplicity ≥ 2 is exactly what produces one
-    /// (`knots[s] == knots[s+1]` for an `s` inside
-    /// `[first_span, last_span]`).
+    /// **A rational carrier with an empty span is bounded.** The
+    /// quotient's span loop ([`geom_core::spline::accel_pieces`]) draws
+    /// each window from a `Span`, so a window past the net or below the
+    /// degree is unrepresentable and the loop's only exit is the
+    /// empty-span skip — which an interior knot of multiplicity ≥ 2
+    /// produces (`knots[s] == knots[s+1]` for an `s` inside
+    /// `[first_span, last_span]`). The fixture's bound and chords are
+    /// checked as every carrier's are.
     ///
     /// The `any(span(s).is_none())` assertion is the anti-slack guard:
     /// it fails loudly if the fixture ever stops presenting an empty
@@ -1330,11 +1329,9 @@ mod tests {
     ///
     /// Multiplicity `p` itself is checked too, and it is a REFUSAL, not
     /// a bound: a C⁰ kink leaves the certified inventory at the
-    /// degree/kink gate, well before the span loop. That exit is
-    /// `UnsupportedCurve` and always was — the deleted `MissingEntity`
-    /// refusals never guarded it.
+    /// degree/kink gate, before any span is read.
     #[test]
-    fn empty_spans_survive_the_deleted_window_guards() {
+    fn a_rational_carrier_with_an_empty_span_is_bounded() {
         // p − 1 = 2: inside the inventory, and it presents an empty span.
         let n = mult_cubic(2);
         let kv = n.knots();
