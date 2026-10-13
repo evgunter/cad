@@ -116,6 +116,14 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// on, not as a junction of seam lines. The longer sentences are the
 /// right names, not a regression. The percentiles, the maxima and the
 /// scoped row held.
+///
+/// The full total fell by 102 and its p99 by one with the vertex run
+/// (N2: an `EdgeCrossing` is a run of lines): each edge of a run is said
+/// against "the rest", where a pair was said "the other body" and "the
+/// first", in `corner_table`'s and `crossing_slots`' edge × edge vertices
+/// and the pieces whose ends cite them. No name moved: read as a set of
+/// (line, sense), every run is the pair it replaced. The maxima and the
+/// scoped row held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 43, 57, 55_705]),
     ("full", [19, 122, 196, 411_498]),
@@ -181,6 +189,12 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// `crossing_slots`, a rim piece named as a seam, two floor corners and
 /// the pieces ending at them say other words. No other document's words
 /// moved (`lib_g16_corpus_name_digests` moved that row alone).
+///
+/// Re-pinned for the vertex run: the words that moved are an
+/// `EdgeCrossing`'s, each line now "… the rest" where the pair said "…
+/// the other body and … the first", in `corner_table` and
+/// `crossing_slots`, the two documents whose pair booleans meet edge to
+/// edge (`lib_g16_corpus_name_digests` moved those two rows alone).
 const SAID_DIGEST: u64 = 0x825d_ab47_ca34_6a4c;
 
 /// The tables an evaluation answers for a name it does not hold: a

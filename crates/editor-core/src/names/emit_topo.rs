@@ -2074,14 +2074,27 @@ fn name_boolean_vertices<T: Decide>(
             ([], [be]) if a_faces.len() == 1 => (a_faces[0].clone(), be.clone()),
             // A seam JUNCTION (M4 PR 5: declared merges can consume
             // every operand-descended edge at a crossing): the vertex
-            // where k ≥ 2 seam LINES meet and no operand edge does. N2
-            // counts a seam as a line of a vertex's name only at a union,
-            // so here no line is an edge and the name is the path of the
+            // where k ≥ 2 seam LINES meet. Its name is the path of the
             // lines' Seam segments, in the canonical form's order —
             // deterministic, and unique per line set (straight lines
-            // meet once).
-            ([], []) if seam_lines.len() >= 2 => {
-                eprintln!("JCTPAIRJUNCTION no edge at node {node:?}");
+            // meet once). A pinch is one too: several edges of one
+            // operand pierce a face of the other at one vertex, so no
+            // single edge is its parent; and so is a point edges of both
+            // operands run through, one of them on one side, where no
+            // edge pair is. Those two N2 names by their lines, as a
+            // `Crossing` or an `EdgeCrossing` run; the pair boolean does
+            // not yet, because a line there can have no piece the
+            // boolean classified, so no sense to carry
+            // (`work/emit/a-pair-boolean-names-an-edge-bearing-meeting-as-a-seam-junction.md`).
+            (aes, bes)
+                if seam_lines.len() >= 2
+                    && match (aes.len(), bes.len()) {
+                        (0, 0) => true,
+                        (n, 0) | (0, n) => n >= 2,
+                        (1, _) | (_, 1) => true,
+                        _ => false,
+                    } =>
+            {
                 let name = canonical::minted(StableName {
                     kind: EntityKind::Vertex,
                     node,
@@ -2094,94 +2107,6 @@ fn name_boolean_vertices<T: Decide>(
                         .collect(),
                 });
                 put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
-                continue;
-            }
-            // Operand edges where seam lines meet, no one edge pair being
-            // the parentage: a pinch, where several edges of one operand
-            // pierce a face of the other, or a point edges of both
-            // operands run through, one of them on one side. N2 names it
-            // by its lines: each side's edges, those on one straight line
-            // once as the least ([`flush_lines`]). One line and one face
-            // of the other operand is that line's `Crossing`; two or more
-            // lines are their run.
-            (aes, bes)
-                if seam_lines.len() >= 2
-                    && match (aes.len(), bes.len()) {
-                        (n, 0) | (0, n) => n >= 1,
-                        (1, _) | (_, 1) => true,
-                        _ => false,
-                    } =>
-            {
-                eprintln!("JCTPAIRJUNCTION converted {} {} at node {node:?}", aes.len(), bes.len());
-                let a_lines = flush_lines(aes, a, bnd)?;
-                let b_lines = flush_lines(bes, b, bnd)?;
-                let sense = |side, edge: &NameRef| sense_of(&at_v, side, edge);
-                let (seg, along) = match (a_lines.as_slice(), b_lines.as_slice()) {
-                    ([ae], []) if b_faces.len() == 1 => (
-                        RoleSeg::Crossing {
-                            edge: edge_line(ae),
-                            sense: sense(topo::Operand::A, ae)?,
-                            face: b_faces[0].clone(),
-                        },
-                        Along::A(ae.clone()),
-                    ),
-                    ([], [be]) if a_faces.len() == 1 => (
-                        RoleSeg::Crossing {
-                            edge: edge_line(be),
-                            sense: sense(topo::Operand::B, be)?,
-                            face: a_faces[0].clone(),
-                        },
-                        Along::B(be.clone()),
-                    ),
-                    (al, bl) if al.len() + bl.len() >= 2 => {
-                        let mut lines = Vec::with_capacity(al.len() + bl.len());
-                        for (side, edges) in [(topo::Operand::A, al), (topo::Operand::B, bl)] {
-                            for e in edges {
-                                let along = match side {
-                                    topo::Operand::A => Along::A(e.clone()),
-                                    topo::Operand::B => Along::B(e.clone()),
-                                };
-                                let line = RunLine {
-                                    line: edge_line(e),
-                                    sense: Some(sense(side, e)?),
-                                };
-                                lines.push((line, along));
-                            }
-                        }
-                        lines.sort_by(|x, y| x.0.cmp(&y.0));
-                        let along = lines.first().map(|(_, a)| a.clone()).ok_or(bug(
-                            "a seam vertex's run holds no line",
-                        ))?;
-                        (
-                            RoleSeg::EdgeCrossing(lines.into_iter().map(|(l, _)| l).collect()),
-                            along,
-                        )
-                    }
-                    // One line meeting several faces of the other operand
-                    // and no edge of it: N2 gives a pair boolean no
-                    // spelling (its seams are lines only at a union), so
-                    // the seam lines' junction names the point
-                    // (`work/emit/a-pair-booleans-line-meeting-several-faces-has-no-n2-spelling.md`).
-                    _ => {
-                        eprintln!("JCTPAIRJUNCTION one line, several faces at node {node:?}");
-                        let name = canonical::minted(StableName {
-                            kind: EntityKind::Vertex,
-                            node,
-                            path: seam_lines
-                                .iter()
-                                .map(|(fa, fb)| RoleSeg::Seam {
-                                    a: fa.clone(),
-                                    b: fb.clone(),
-                                })
-                                .collect(),
-                        });
-                        put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
-                        continue;
-                    }
-                };
-                let slot = groups.entry(seg).or_insert((false, Vec::new()));
-                slot.0 |= from_tie;
-                slot.1.push((v, along));
                 continue;
             }
             // Written to a witness: an ordinary declared union reached
@@ -2350,47 +2275,8 @@ fn name_boolean_vertices<T: Decide>(
     Ok(())
 }
 
-/// **The lines of one operand's edges at a seam vertex** (N2), least
-/// first: each edge, except one lying on the straight line of a lesser
-/// one, which runs flush with it there and is that line. An edge whose
-/// table does not name it once, or that is not straight, is a line of
-/// its own.
-fn flush_lines<T: Decide>(
-    edges: &[NameRef],
-    op: &OperandCtx<'_, T>,
-    bnd: geom_core::Band,
-) -> Result<Vec<NameRef>, NamingError> {
-    let mut kept: Vec<(NameRef, Option<Segment<T>>)> = Vec::with_capacity(edges.len());
-    let mut sorted: Vec<&NameRef> = edges.iter().collect();
-    sorted.sort();
-    for e in sorted {
-        let seg = match crossed_edge(e, op.table) {
-            Some(k)
-                if topo::query::edge_carrier_kind(op.body, k)
-                    == Some(topo::query::CurveKind::Line) =>
-            {
-                Some(Segment::of_edge(op.body, k)?)
-            }
-            _ => None,
-        };
-        let mut flush = false;
-        if let Some(seg) = &seg {
-            for (_, on) in &kept {
-                if let Some(on) = on {
-                    flush |= on.runs_with(seg, ON_MEMBER_EDGE, bnd)?.is_some();
-                }
-            }
-        }
-        if !flush {
-            kept.push((e.clone(), seg));
-        }
-    }
-    Ok(kept.into_iter().map(|(e, _)| e).collect())
-}
-
 /// The edge a seam vertex is ranked along: an A-side edge, a B-side
 /// one, or none, for a point on a seam line.
-#[derive(Clone)]
 enum Along {
     A(NameRef),
     B(NameRef),

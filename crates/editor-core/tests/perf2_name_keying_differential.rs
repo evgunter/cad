@@ -168,6 +168,13 @@ fn sans_epsilon(t: &str) -> String {
 /// junction of three seam lines to a crossing of the rim, and one from
 /// a face crossing to the seam vertex of two edges that touch. Every
 /// other document held its word.
+///
+/// **Re-pinned for the vertex run** (N2: an `EdgeCrossing` is a run of
+/// (line, sense) in name order): `corner_table` and `crossing_slots`,
+/// the two documents whose pair booleans meet edge to edge. Their
+/// tables are the old ones with each edge × edge vertex re-spelled: read
+/// as a set of (line, sense), every run is the pair it replaced, and no
+/// other row moved; the persisted text did not move.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xd72f039cbf03dff5, 0xc4419fe7887fa041),
     ("corner_table", 0x9ea78d8780a1cd68, 0xcc1c35defda29f84),

@@ -2,9 +2,8 @@
 id: a-pinch-vertex-is-named-by-the-fold-step-that-mints-it
 kind: issue
 title: A union's pinch vertex is named by the fold step that mints it, so its name depends on the member order
-status: closed
+status: open
 opened: 2026-10-06
-closed: 2026-10-12
 priority: P1
 cost: M
 ---
@@ -67,14 +66,34 @@ main): two members' edges meeting on a third member's face. It is
 filed with the touch ruling's residue as
 `work/emit/a-meeting-of-three-members-at-one-point-has-no-order-free-sense.md`.
 
-## Closed (branch `emit/vertex-run`, 2026-10-12)
+## Since the vertex-run build (branch `emit/vertex-run`, 2026-10-12)
 
-The residue, two wedges with the plate, is one name in all 6 member
-orders: the union names every non-corner vertex by the lines through it
-in the finished body (`emit_union::Flush::meeting`, names README N2), so
-the meeting point is the run of the two legs, each `Outside`, whichever
-step minted it. Three and four wedges, with and without the plate, are
-one run of their legs in every order. Pinned by
+The union's own names are order-free. Two wedges with the plate are
+one name in all 6 member orders: the union names every non-corner
+vertex by the lines through it in the finished body
+(`emit_union::Flush::meeting`, names README N2), so the meeting point
+is the run of the two legs, each `Outside`, whichever step minted it.
+Three and four wedges, with and without the plate, are one run of
+their legs in every order. Pinned by
 `union_pinch_member_order::two_legs_on_the_plate_are_their_touch_in_every_member_order`
-and `the_junction_where_the_wedges_meet_has_one_name_in_every_member_order`;
-the build is `work/emit/a-meeting-of-three-members-at-one-point-has-no-order-free-sense.md`.
+and `the_junction_where_the_wedges_meet_has_one_name_in_every_member_order`.
+
+**What is left: the subtracts against the wedges' union** (this row's
+"P − U and U − P against the plate inherit the divergence"), measured
+over every member order of the union in
+`union_pinch_member_order::a_subtract_against_the_wedges_union_names_their_meeting_alike_in_every_member_order`:
+
+- **Three wedges.** The names P − U and U − P carry from the union's
+  vertex (`From { read: U, of: <the run> }`) are one set in all 6
+  orders, which the test pins. P − U's own seam junction at the point
+  is not: it cites a wedge's lateral face, which is a union face piece
+  `+ Fragment(Borders(…))` in some orders and bare in others. That is
+  the class in
+  `work/emit/a-merged-face-pieces-borders-in-a-union-depend-on-member-order.md`.
+  The junction itself is
+  `work/emit/a-pair-boolean-names-an-edge-bearing-meeting-as-a-seam-junction.md`.
+- **Four wedges.** P − U refuses in member order `[3, 2, 1, 0]`
+  (`Naming(Emission { "a crossing's edge has no piece the boolean
+  classified at the crossing" })`), on main as well as on the branch,
+  so a pair boolean's refusal depends on the union's member order.
+  The test leaves four wedges out until this is fixed.

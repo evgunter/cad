@@ -195,7 +195,11 @@ fn a_rim_on_the_other_cavitys_floor_touches_its_wall_from_inside() {
             (false, true) => (y, x),
             _ => panic!("one line of each operand at {p:?}: {run:?}"),
         };
-        assert_eq!(slot.sense, Some(Sense::Inside), "the slot's rim at {p:?}: {run:?}");
+        assert_eq!(
+            slot.sense,
+            Some(Sense::Inside),
+            "the slot's rim at {p:?}: {run:?}"
+        );
         assert!(
             cavity.sense.is_some_and(Sense::crosses) && (p.z - 0.5).abs() < 1e-12,
             "the cavity's rim crosses the slot on the floor at {p:?}: {run:?}"
@@ -310,7 +314,14 @@ fn an_edge_through_a_seam_is_read_against_the_seams_members() {
         within([0.0, 0.0, 0.0], [2.0, 2.0, 1.0]) || within([1.0, 0.0, 0.5], [3.0, 2.0, 1.5])
     };
     let mut first: Option<StableName> = None;
-    for order in [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]] {
+    for order in [
+        [0, 1, 2],
+        [0, 2, 1],
+        [1, 0, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+        [2, 1, 0],
+    ] {
         let doc = ProfileDoc::empty_derived("edge-through-seam", Tol::witness());
         let (doc, y) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
         let (doc, z) = block(doc, (1.0, 3.0), (0.0, 2.0), 0.5, 1.0);
@@ -332,7 +343,11 @@ fn an_edge_through_a_seam_is_read_against_the_seams_members() {
         let m = [y, z, x];
         let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| m[i]));
         let ev = run(&doc);
-        assert!(failure(&ev, u).is_none(), "{order:?}: {:?}", failure(&ev, u));
+        assert!(
+            failure(&ev, u).is_none(),
+            "{order:?}: {:?}",
+            failure(&ev, u)
+        );
         let names = names_at(&ev, u, meet);
         let [name] = names.as_slice() else {
             panic!("{order:?}: one name at the meeting point: {names:?}");
@@ -352,7 +367,11 @@ fn an_edge_through_a_seam_is_read_against_the_seams_members() {
         let [RoleSeg::From { read, of }] = edge.line.path.as_slice() else {
             panic!("{order:?}: the edge is a member's: {name:?}");
         };
-        assert_eq!(*read, crate::fixture::out(&doc, x), "{order:?}: the prism's edge");
+        assert_eq!(
+            *read,
+            crate::fixture::out(&doc, x),
+            "{order:?}: the prism's edge"
+        );
         let Some(Entry::Unique(r)) = table(&ev, x).lookup(of) else {
             panic!("{of:?} names one edge of the prism");
         };
