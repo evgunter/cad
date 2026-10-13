@@ -1520,9 +1520,73 @@ Spec `docs/SYM-17-SPEC.md`. Branch `sym/17-rotation-readout` from `main`.
 - 2026-10-12 — Ev answered SYM-17's `[ev]` question: a rigid-motion witness merged with `OrthoFrame` and closed under the rigid group's action (the item's "Question, and Ev's answer"). Phase 2 is re-specced on it.
 - 2026-10-12 — SYM-17 Phase 2 specced on Ev's answer (`docs/SYM-17-SPEC.md` §Phase 2): `RigidMotion<T>` replaces `OrthoFrame`, with mints by construction, one decided door and the action on `UnitVec3`, and `transform_rigid` takes it. Cost M → H. **Review tier: dual, concurrent arm (difficulty H).** It is a new core type replacing another, and it changes a door's signature across geom-core, topo, editor-core, sweep, step-import and the demos: an architectural change of broad reach. Phase 2 continues on `sym/17-rotation-readout` (draft PR 4197). Seams: FLUX (linalg), SHELF/SHELL/OFFSET (`transform.rs`), WIRE (`eval/wire`), MSOLVE/INTENT (the mate solve, within the stop rule), and the sweep owners.
 
+## 2026-10-13 — SYM-17 merged (#4197): `RigidMotion<T>` replaces `OrthoFrame`
+
+On Ev's answer, `RigidMotion<T>` replaces `OrthoFrame`:
+- it is minted rigid by construction (the half-turns, the Rodrigues
+  rotations and the translations);
+- it has one decided door, `check_rigid`, for a literal map;
+- it is closed under compose and inverse;
+- `topo::transform_rigid` takes it;
+- the plain `Interval` lane now certifies the chain: at one link up to
+  6.49e-9, at four up to 6.73e-10.
+
+**Review.** The concurrent dual review (difficulty H) ran on
+`a89f7a54eb`; both reviews were APPROVE-WITH-FIXES. The guide doctests'
+red was a bilateral MAJOR. The fix pass took the doctests, the
+compounding bound (filed P3), the interval finiteness at the mints, the
+test gaps, the K-REPORT and the stale prose. The delta review on
+`1355348da2` came back MERGEABLE-WITH-NITS, with one MINOR: the decided
+door admitted an unbounded `Interval` translation. The final pass made
+the door ask `Real::is_bounded` as the mints do, and made `is_bounded` a
+required method.
+
+**Re-baselines.** The door's three translation decisions retire, so:
+- `asm2a` goes 466 → 463, and `kstats_bracket_rows` 922 → 919;
+- `OWN_FRAMES` goes 2 → 16.
+
+CI is green at `22c2a3550a` except for main's known ε = 1e-12 ring row
+(FLUSH). The sweep's `x − x` / `0·x` siblings are filed on INTENT, BOXES
+and MSOLVE. Spec deleted (`docs/doc-ledger/sym-17-spec.md`).
 - 2026-10-13 — **Seam note from NURBS: PR 4944 merged** (`89f044e92e`).
   - `SymCounts` gains `checks_expanded` and `checks_frozen`, and the digest prints them as `chk=expanded/total`.
   - `Session::free` names the free indeterminates the session minted, and `any_indet` is the one shared walker.
   - The digest bodies are now built inside the session, and the door is receipted on its own. The sym-session lines moved, e.g. arc `chk=103/110`, strip `104/116`, `disp=0` unchanged.
   - A guard red-lines the digest when coverage falls below 4/5 at ≥ 20 checks.
   - Touched: `geom-core/src/sym.rs`, `sym/discharge_pins.rs`, `sym11_witness_kind_rows.rs`, `mass_props_are_thread_count_invariant.rs` and the three `thread-count-digest/eps-*.txt`. — (NURBS orchestrator)
+
+- 2026-10-13 — **Red main, from a semantic conflict between PR 4918 (contacthold) and PR 4197 (SYM-17).** Main at 0c28d7f4 and at 4dce8298 does not compile sweep's tests.
+  - 4918 (merged 13:45Z) added `sweep/tests/a_circle_of_one_radius_elsewhere_is_no_rim.rs` and `a_face_off_the_tangent_ruling.rs`, which call `topo::transform_rigid` with an `&Affine3`.
+  - 4197 (merged 15:35Z, from a branch whose last main merge was 11:54Z) changed it to take `&RigidMotion`.
+  - **Fix:** PR 4992 (`nurbs/fix-main-sweep-rigid-tests`), test-only. It wraps the four sites in `geom_core::test_support::rigid`. It merges on CI.
+  - **Class:** a signature change's re-spelling pass covers only the callers its branch can see. A branch that last merged main hours before it lands misses callers added since. — (NURBS orchestrator)
+## 2026-10-13 — SYM's two P0s re-taken on `main` and closed; SYM handed back `ready`
+
+Every row of `m10_derived_frame_tilted_interval` was re-run on `main` at
+`621e036e19` (release, ε default, ignored rows included; 18/18 pass).
+- `derived-frame-placement-freezes-on-the-symbolic-lane` **closes**.
+  The document it was filed on, the tilt-`u` family and `tiltNZ` all
+  certify, and the degree freeze it named no longer refuses anything.
+- `a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity`
+  **closes**. The revolve no longer refuses, since PCERT retired its
+  predicate, and what is left is the boss's attachment-gate refusal,
+  which the tier now moves (4 → 1 with rule E on).
+
+The successors:
+- `derived-frame-spin-documents-stopped-certifying-under-guided` (P1).
+  The spin and half-spin documents certified at SYM-5 and refuse on
+  `main` at the wall join. This is unattributed, and nothing went red
+  because the row is evidence-only. Next comes a bisect and a gating
+  row.
+- `derived-frame-guided-boss-residue-after-rules-e-and-f` (P2): tilt-UV,
+  the stacked pair, and the revolved cap's boss.
+
+**SYM is handed back `ready` at P1**, with nobody on it. Its
+dispatchable spine is P1:
+- the spin regression;
+- the chain's arm straddle;
+- the mitre freeze;
+- the chain's self-intersection, whose Phase 1 only can run until
+  CLEAR's engine lands.
+
+The order in `plan.md` is unchanged past the closed rows.

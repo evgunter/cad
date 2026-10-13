@@ -50,3 +50,14 @@ The class is every ending rendered from a `Reading` on an undecided
 Both SYM-17 designers, independently (2026-10-12). Neither ran
 anything; the citations above were re-read on `main` by the
 orchestrator.
+
+## Measured under the witness (SYM-17 Phase 2, PR #4197)
+
+The prediction above holds. With `topo::transform_rigid` taking a
+`RigidMotion`, the chain's plain-lane one-leaf row
+(`demos/tour/src/chaintol.rs`, σ = 0.01 rad, default ε) refuses at
+the first transform with this ending, at one link and at four: the
+start-endpoint residual of `EdgeKey(1v1)` encloses `[0, 8.9988e-5]`
+(`carrier_endpoint_start`), "There is no way through: this is a kernel
+defect; report it". The cause is SHELF's
+`transform-rigid-recertifies-images-enclosed-apart`, not a defect.

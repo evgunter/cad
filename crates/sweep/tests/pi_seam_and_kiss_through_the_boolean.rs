@@ -118,9 +118,14 @@ fn cap_on_the_tube(profile: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
 fn placed_on_the_tube(at0: Body<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
-    let turned = topo::transform_rigid(&at0, &turn, tol).unwrap();
-    let mut cap =
-        topo::transform_rigid(&turned, &Affine3::translation(Vec3::new(0.0, 0.0, H)), tol).unwrap();
+    let turned =
+        topo::transform_rigid(&at0, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
+    let mut cap = topo::transform_rigid(
+        &turned,
+        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, H)).unwrap(),
+        tol,
+    )
+    .unwrap();
     cap.merge_coplanar_faces(tol).unwrap();
     finished("the cap", cap, tol)
 }
@@ -292,7 +297,7 @@ fn turned(body: &AtRestBody<f64>, deg: f64) -> AtRestBody<f64> {
     let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), deg.to_radians());
     finished(
         "the turned operand",
-        topo::transform_rigid(body, &spin, tol).unwrap(),
+        topo::transform_rigid(body, &geom_core::test_support::rigid(&spin, tol), tol).unwrap(),
         tol,
     )
 }
@@ -400,8 +405,10 @@ fn the_sphere_capped_tube_builds_with_its_hemisphere_turned() {
 
 /// **Turned within a hair of aligned**, the sphere-capped tube answers
 /// by how far its rim vertices sit apart. Inside the zero band it is the
-/// aligned body. From the sliver band to about `√(70·ε·R)` apart, the
-/// tube's seam ruling, whose top
+/// aligned body. Where the rim vertices sit in the sliver band apart,
+/// the glue door reads the shared rim and escalates the seam cover's
+/// order there, in both operand orders. From there to about
+/// `√(70·ε·R)` apart, the tube's seam ruling, whose top
 /// end lies on the hemisphere's rim just outside one sphere face, keeps
 /// the covered line rung's door against that face
 /// (`a-covered-line-ending-just-off-the-face-keeps-the-door`): the
@@ -413,10 +420,8 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     enum Expect {
         Builds((usize, usize, usize, usize)),
         RulingDoor,
-        /// The ruling door with the tube as operand A; with the cap as
-        /// operand A, the containment of a contact vertex escalates
-        /// (`work/tang/a-near-aligned-capped-tube-refuses-by-operand-order.md`).
-        RulingDoorTubeFirst,
+        /// The glue door's rim routing escalates.
+        RimDoor,
     }
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
@@ -429,7 +434,7 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     // side.
     for (apart, expect) in [
         (0.01 * zero, Expect::Builds((5, 8, 5, 1))),
-        (2.0 * (zero * escalate).sqrt(), Expect::RulingDoorTubeFirst),
+        (2.0 * (zero * escalate).sqrt(), Expect::RimDoor),
         (5.0 * escalate, Expect::RulingDoor),
         ((R * escalate).sqrt(), Expect::RulingDoor),
         (-(R * escalate).sqrt(), Expect::RulingDoor),
@@ -455,17 +460,17 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
                     );
                     assert_eq!(c, rims, "{label}: F, E, V, shells");
                 }
-                Expect::RulingDoorTubeFirst if tube_is == topo::Operand::B => {
+                Expect::RimDoor => {
                     let Err(BooleanError::Escalated { diag, .. }) = &r else {
-                        panic!("{label}: the contact vertex's containment escalates: {r:?}");
+                        panic!("{label}: the rim routing escalates: {r:?}");
                     };
                     assert_eq!(
                         diag.predicate,
-                        Some("bool_contact_vertex"),
-                        "{label}: the contact vertex's containment: {r:?}"
+                        Some("seam_cover_order"),
+                        "{label}: the seam cover's order: {r:?}"
                     );
                 }
-                Expect::RulingDoor | Expect::RulingDoorTubeFirst => {
+                Expect::RulingDoor => {
                     let Err(BooleanError::CurvedPierceUnsupported { operand, edge, .. }) = r else {
                         panic!("{label}: the covered line rung's door: {r:?}");
                     };
@@ -527,7 +532,7 @@ fn a_dome_abutting_on_the_rim_at_a_transverse_corner_builds() {
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), PI / 6.0);
     let turned = finished(
         "the turned dome",
-        topo::transform_rigid(&dome, &turn, tol).unwrap(),
+        topo::transform_rigid(&dome, &geom_core::test_support::rigid(&turn, tol), tol).unwrap(),
         tol,
     );
     // The same tube revolved: its wall's seam is a meridian ruling.
@@ -624,7 +629,7 @@ fn a_lens_of_two_domes_builds() {
         let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), angle);
         let turned = finished(
             "the turned dome",
-            topo::transform_rigid(&dome, &turn, tol).unwrap(),
+            topo::transform_rigid(&dome, &geom_core::test_support::rigid(&turn, tol), tol).unwrap(),
             tol,
         );
         for (order, r) in unions_both_ways(&bowl, &turned).into_iter().enumerate() {
@@ -657,7 +662,8 @@ fn a_rim_inside_the_partners_face_passes_the_crossing_layer() {
         tol,
     );
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
-    let mut torus = topo::transform_rigid(&at0, &turn, tol).unwrap();
+    let mut torus =
+        topo::transform_rigid(&at0, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
     torus.merge_coplanar_faces(tol).unwrap();
     let torus = finished("the torus", torus, tol);
     let s = core::f64::consts::FRAC_1_SQRT_2;
@@ -1036,7 +1042,8 @@ fn a_puck_and_its_rounding_ring_build_as_a_seam() {
         tol,
     );
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
-    let mut ring = topo::transform_rigid(&ring, &turn, tol).unwrap();
+    let mut ring =
+        topo::transform_rigid(&ring, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
     ring.merge_coplanar_faces(tol).unwrap();
     let ring = finished("the ring", ring, tol);
     let puck = rod_z(a, 0.0, r);
@@ -1095,7 +1102,7 @@ fn a_rod_in_a_bore_refuses_at_the_crossing_layer() {
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
     let tube = finished(
         "the tube",
-        topo::transform_rigid(&tube, &turn, tol).unwrap(),
+        topo::transform_rigid(&tube, &geom_core::test_support::rigid(&turn, tol), tol).unwrap(),
         tol,
     );
     let mut kinds: std::collections::BTreeMap<String, usize> = Default::default();
@@ -1104,7 +1111,12 @@ fn a_rod_in_a_bore_refuses_at_the_crossing_layer() {
         let at = Affine3::translation(Vec3::new(0.5 * th.cos(), 0.5 * th.sin(), 0.0));
         let rod = finished(
             "the rod",
-            topo::transform_rigid(&rod_z(0.5, -0.5, 1.0), &at, tol).unwrap(),
+            topo::transform_rigid(
+                &rod_z(0.5, -0.5, 1.0),
+                &geom_core::test_support::rigid(&at, tol),
+                tol,
+            )
+            .unwrap(),
             tol,
         );
         let key = match topo::union(&tube, &rod, tol) {
@@ -1237,7 +1249,12 @@ fn a_dome_sunk_into_the_tube_builds_undeclared() {
         let lift = Affine3::translation(Vec3::new(0.0, 0.0, dz));
         let dome = finished(
             "the sunk dome",
-            topo::transform_rigid(&dome_on_the_cap(), &lift, tol).unwrap(),
+            topo::transform_rigid(
+                &dome_on_the_cap(),
+                &geom_core::test_support::rigid(&lift, tol),
+                tol,
+            )
+            .unwrap(),
             tol,
         );
         let want = PI * R * R * H + cap_volume(rho, rho - R + dz);
@@ -1349,13 +1366,19 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
         let inside = cap_volume(rho, rho - R) - above;
         let t = PI * R * R * H;
         let lift = Affine3::translation(Vec3::new(0.0, 0.0, dz));
-        let sunk = topo::transform_rigid(&dome_on_the_cap(), &lift, tol).unwrap();
+        let sunk = topo::transform_rigid(
+            &dome_on_the_cap(),
+            &geom_core::test_support::rigid(&lift, tol),
+            tol,
+        )
+        .unwrap();
         for (walls, tube, turn, (census, [vv, vf, ve, ee])) in rows {
             let spin =
                 Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 2.0 * PI * turn);
             let d = finished(
                 "the turned dome",
-                topo::transform_rigid(&sunk, &spin, tol).unwrap(),
+                topo::transform_rigid(&sunk, &geom_core::test_support::rigid(&spin, tol), tol)
+                    .unwrap(),
                 tol,
             );
             for (op, r, want, census, contacts) in [
@@ -1521,7 +1544,8 @@ fn a_g1_joint_authored_inside_one_profile_is_the_seams_union() {
         .unwrap()
         .body;
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
-    let mut capsule = topo::transform_rigid(&at0, &turn, tol).unwrap();
+    let mut capsule =
+        topo::transform_rigid(&at0, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
     capsule.merge_coplanar_faces(tol).unwrap();
     topo::validate_geometric(&capsule, tol).unwrap_or_else(|e| panic!("tier 3: {e:?}"));
     let v = topo::mass_properties(&capsule, tol).unwrap().volume;
@@ -1682,7 +1706,8 @@ fn narrow_review_dome_battery() {
             );
             let tdome = finished(
                 "the turned dome",
-                topo::transform_rigid(&dome, &turn, tol).unwrap(),
+                topo::transform_rigid(&dome, &geom_core::test_support::rigid(&turn, tol), tol)
+                    .unwrap(),
                 tol,
             );
             for (plabel, partner) in [
@@ -1865,14 +1890,18 @@ fn slanted_tube() -> AtRestBody<f64> {
     let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -(0.2_f64).atan());
     let under = topo::transform_rigid(
         &brick((-3.0, 3.0), (-3.0, 3.0), (-5.0, 0.0), tol),
-        &tilt,
+        &geom_core::test_support::rigid(&tilt, tol),
         tol,
     )
     .unwrap();
     let under = finished(
         "the slab under the plane",
-        topo::transform_rigid(&under, &Affine3::translation(Vec3::new(0.0, 0.0, 0.5)), tol)
-            .unwrap(),
+        topo::transform_rigid(
+            &under,
+            &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 0.5)).unwrap(),
+            tol,
+        )
+        .unwrap(),
         tol,
     );
     match topo::subtract(&tube, &under, tol) {
@@ -1904,13 +1933,19 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
         let above = cap_volume(rho, rho - R + dz);
         let inside = cap_volume(rho, rho - R) - above;
         let lift = Affine3::translation(Vec3::new(0.0, 0.0, dz));
-        let sunk = topo::transform_rigid(&dome_on_the_cap(), &lift, tol).unwrap();
+        let sunk = topo::transform_rigid(
+            &dome_on_the_cap(),
+            &geom_core::test_support::rigid(&lift, tol),
+            tol,
+        )
+        .unwrap();
         for turn in [1.0 / 12.0, 1.0 / 5.0] {
             let spin =
                 Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 2.0 * PI * turn);
             let d = finished(
                 "the turned dome",
-                topo::transform_rigid(&sunk, &spin, tol).unwrap(),
+                topo::transform_rigid(&sunk, &geom_core::test_support::rigid(&spin, tol), tol)
+                    .unwrap(),
                 tol,
             );
             let (whole, common) = ((6, 10, 7, 1), (4, 6, 4, 1));
@@ -2017,7 +2052,8 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
             Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), theta.to_radians()),
             Affine3::translation(Vec3::new(0.0, 0.0, H - R)),
         ] {
-            rod = topo::transform_rigid(&rod, &m, tol).unwrap();
+            rod =
+                topo::transform_rigid(&rod, &geom_core::test_support::rigid(&m, tol), tol).unwrap();
         }
         let a = finished("the tilted rod", rod, tol);
         let i = PI * r * r * (h0 - 1.0 / alpha.to_radians().cos());

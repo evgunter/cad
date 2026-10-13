@@ -19,6 +19,9 @@ lanes in flight are expected to close more, so the track is not split.
 | pri | item | cost | title |
 |---|---|---|---|
 | P2 | `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys` | M | a pinch whose keys no seam ties keeps its cones on separate point keys |
+| P2 | `boolean-given-pairs-glue-unmeasured-for-any-rust-caller` | E | `BooleanInputs::given` glues its pairs unmeasured for any Rust caller (dispatched 2026-10-13, `flush/given-gate`) |
+| P2 | `an-in-band-glue-verdict-is-refused-as-the-corner-arms-unglued-coincidence` | M | an in-band glue verdict is refused as the corner arm's unglued coincidence (dispatched 2026-10-13, `flush/corner-names-glue`) |
+| P2 | `check-10-reads-a-cavitys-role-from-its-volume-sign` | M | check 10 reads a cavity's role from its V/A (asks Ev: `[ev]` PR 4990, the shell-role fork) |
 
 Parked, and not counted:
 
@@ -54,7 +57,7 @@ Parked, and not counted:
    step 2's measuring lane), then the pinch rows:
    `the-pre-zip-pinch-weld-retires-…` and `a-hole-weld-cannot-tell-…` (done,
    PR 4728); `a-pinch-the-seams-do-not-link-…` (vertex-vertex pinches with
-   no pierce; ruling A, fork-log row 121: two parts' value-decided
+   no pierce; ruling A, fork-log row 133: two parts' value-decided
    coincident vertices share one point key, building on `flush/touch-key`),
    `a-cube-less-a-pinched-operand-…` and `a-curved-notch-at-a-corner-pinch-refuses-join-desync-…`
    (done, PR 4777).

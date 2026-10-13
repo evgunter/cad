@@ -30,7 +30,7 @@ use core::f64::consts::PI;
 use pncad::document::ExtrudeSide;
 
 use pncad::authoring::{p2, p3, polygon, v3, validated};
-use pncad::geom_core::{OrthoFrame, Tol};
+use pncad::geom_core::{RigidMotion, Tol};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, Profile, SketchPlane, ValidatedProfile};
 use pncad::sweep::{Extrusion, extrude};
@@ -193,7 +193,7 @@ fn tool<S: Scalar>(plane: SketchPlane<S>, outline: ConstructedLoop<S>, tol: Tol)
 
 /// The xy sketch plane at height `z`.
 fn level<S: Scalar>(z: f64) -> SketchPlane<S> {
-    SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z)))
+    SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z)))
 }
 
 /// The scene's bodies.

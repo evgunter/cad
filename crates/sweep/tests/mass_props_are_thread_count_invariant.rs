@@ -215,12 +215,10 @@ fn sym_thin_strip() -> Body<Sym<f64>> {
 /// which installs no retry ladder, so it would read zero by construction.
 fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usize) -> String {
     format!(
-        "{name} {door} {} decisions={} sz={} sg={} reg={} rref={} rcon={} num={} disp={} chk={}/{} frozen={} shapes={}",
+        "{name} {door} {} decisions={} sym={} rref={} rcon={} num={} disp={} chk={}/{} frozen={} shapes={}",
         if refused { "REFUSED" } else { "OK" },
         c.decisions(),
-        c.symbolic_zero,
-        c.sign_gated,
-        c.registered,
+        c.symbolic,
         c.registrations_refused,
         c.registrations_contradicted,
         c.numeric,
@@ -309,9 +307,7 @@ fn read_door(body: &Body<Sym<f64>>, door: &str) -> bool {
 /// plain walk's freezes included.
 fn since(end: SymCounts, start: SymCounts) -> SymCounts {
     let SymCounts {
-        symbolic_zero,
-        sign_gated,
-        registered,
+        symbolic,
         registrations_refused,
         registrations_contradicted,
         theorems_disputed,
@@ -322,9 +318,7 @@ fn since(end: SymCounts, start: SymCounts) -> SymCounts {
         frozen,
     } = end;
     SymCounts {
-        symbolic_zero: symbolic_zero - start.symbolic_zero,
-        sign_gated: sign_gated - start.sign_gated,
-        registered: registered - start.registered,
+        symbolic: symbolic - start.symbolic,
         registrations_refused: registrations_refused - start.registrations_refused,
         registrations_contradicted: registrations_contradicted - start.registrations_contradicted,
         theorems_disputed: theorems_disputed - start.theorems_disputed,
@@ -354,10 +348,10 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 /// escalation channels' counts and hashes. The `# sym-session` block is
 /// one line per `Sym` body and door ([`counts_line`]), each the DOOR's
 /// receipt over a body the same session built ([`receipts`]): by
-/// outcome (`sz`, `sg`, `reg`, `rref`, `rcon`, `num`), its disputes
-/// (`disp`), its contradiction checks as the ones that saw a whole form
-/// over all of them (`chk`), the nodes its plain walks froze
-/// (`frozen`) and the shape report's length. Every receipt also clears
+/// outcome (`sym`, `rref`, `rcon`, `num`), its disputes (`disp`), its
+/// contradiction checks as the ones that saw a whole form over all of
+/// them (`chk`), the nodes its plain walks froze (`frozen`) and the
+/// shape report's length. Every receipt also clears
 /// [`dispute_coverage`] before the table is read.
 ///
 /// **When a lane may re-cut here instead, and what licenses it.** The

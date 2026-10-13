@@ -1020,7 +1020,7 @@ pub fn plane_of(doc: &editor_core::ProfileDoc, plane: RecipeNodeId) -> profile::
     };
     let (o, u, v) = (read(origin), read(u), read(v));
     profile::SketchPlane::from_frame(
-        geom_core::OrthoFrame::gram_schmidt(
+        geom_core::RigidMotion::gram_schmidt(
             geom_core::Point3::new(o.x, o.y, o.z),
             u,
             v,

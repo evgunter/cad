@@ -845,3 +845,9 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
 - 2026-10-13 — Two moves on the remaining P1s.
   - **Parked:** `joining-a-spline-carrier-is-unbuilt` (P1 → P2), blocked on REACHHOLD's `nurbs-edge-crossing-rung-is-the-ring-composite`. The sweep refuses a spline edge typed before any join can see it, even with the operand gate gone, and the join's own refusal is typed too.
   - **Dispatched:** `chart-arm-joins-no-spline-or-fitted-iso-image`, reproduce first. Its fitted-image and oblique-section arms are not gated on spline operands, so analytic operands may reach them. The spline-chart arm waits like the join if it cannot be reached.
+- 2026-10-13 — `chart-arm-joins-no-spline-or-fitted-iso-image` is probed and not reached, so it is parked (P1 → P2).
+  - **Blocked on:** cleave's germ roster (`a-tilted-plug-union-…`) and REACHHOLD's NURBS crossing rung.
+  - **Evidence:** 259k Chart readings across the ci suites and a widened tilted, curved∩curved and oblique-glue battery. Every reading was an analytic `Harmonic` image and every one was classified.
+  - **Design note for the un-park:** the oblique case needs carrier identity, not an iso family.
+  - **No FUSE P1 remains open.**
+- 2026-10-13 — Seam note from ENCL: PR 4766 has merged. It covers the sweep slice of the undecided-wording sweep (sweep crate endings by decision kind), and geom-core now has `Indeterminate::lever_ending` as the one lever-only-at-build ending. Lever-only decisions (angles, cos/sin, winding, form selection, gauges, walks) end through it. Do not compose `lever_recourse` + the unreadable note by hand. (ENCL orchestrator)

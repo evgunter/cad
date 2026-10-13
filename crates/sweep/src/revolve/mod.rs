@@ -451,6 +451,18 @@ pub enum RevolveError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
+    /// The sketch axis, carried into space by the sketch placement, has
+    /// no decided direction there: the placement collapsed it, or its
+    /// length is not a finite number. A different decision from the
+    /// sketch axis's own ([`RevolveError::DegenerateAxis`] and its
+    /// siblings), which the sketch pair passed.
+    PlacedAxis {
+        /// The direction door's refusal, unaltered.
+        error: geom_core::UnitVec3Error,
+    },
+    /// The turn about the placed axis was not minted as a rigid
+    /// motion: its angle or axis point is not a finite number.
+    Turn(geom_core::RigidMotionError),
     /// The revolve angle is definitely degenerate: zero (or sliver) at
     /// tolerance, metered at the profile's maximum radial extent.
     DegenerateAngle,
@@ -490,14 +502,17 @@ pub enum RevolveError {
         /// Canonical index of the segment.
         segment_index: usize,
     },
-    /// A segment's axis-clearance classification escalated (a line's
-    /// radial/axial delta, or an arc's span/apex/center-radius margin,
-    /// in the sliver band or poisoned).
+    /// A segment's axis-clearance classification escalated: its margin
+    /// landed in the sliver band or was poisoned. The revolve builds it
+    /// only where it meters `decision` under its own name, so `source`
+    /// carries `decision.predicate()`.
     SliverAxisClearance {
         /// Canonical index of the loop.
         loop_index: usize,
         /// Canonical index of the segment.
         segment_index: usize,
+        /// The classification that escalated.
+        decision: ClearanceDecision,
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
@@ -644,6 +659,86 @@ pub enum RevolveError {
     Pcurve(topo::PcurveMintError),
 }
 
+/// The classifications that place a profile segment against the revolve
+/// axis, each a [`RevolveError::SliverAxisClearance`] when it escalates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClearanceDecision {
+    /// A line's radial run: zero makes its wall a cylinder.
+    LineRadial,
+    /// A line's axial run: zero makes its wall a plane annulus.
+    LineAxial,
+    /// An arc centre's distance from the axis: zero makes a sphere, a
+    /// positive distance a torus.
+    ArcCenter,
+    /// A sphere-class arc's span short of a half turn, at its radius.
+    ArcSpan,
+    /// A sphere-class arc's apex distance from the axis.
+    ArcApex,
+    /// A torus-class arc's clearance of the axis: its centre's distance
+    /// less its radius.
+    ArcClearance,
+}
+
+impl ClearanceDecision {
+    /// Every clearance decision.
+    pub const ALL: [Self; 6] = [
+        Self::LineRadial,
+        Self::LineAxial,
+        Self::ArcCenter,
+        Self::ArcSpan,
+        Self::ArcApex,
+        Self::ArcClearance,
+    ];
+
+    /// The `k_stats` name the decision is metered under.
+    #[must_use]
+    pub const fn predicate(self) -> &'static str {
+        match self {
+            Self::LineRadial => "axis_line_radial",
+            Self::LineAxial => "axis_line_axial",
+            Self::ArcCenter => "axis_arc_center",
+            Self::ArcSpan => "axis_arc_span",
+            Self::ArcApex => "axis_arc_apex",
+            Self::ArcClearance => "axis_arc_clearance",
+        }
+    }
+
+    /// Whether the margin is a size the user chose. The span is an
+    /// angle. The line runs select the wall's form (zero a cylinder or a
+    /// plane annulus, either sign a cone), passing on any definite sign;
+    /// the centre's distance selects sphere (zero) or torus (positive),
+    /// and a negative one is refused. The apex and the clearance are
+    /// distances the profile must keep from the axis.
+    #[must_use]
+    pub const fn sized(self) -> bool {
+        matches!(self, Self::ArcApex | Self::ArcClearance)
+    }
+
+    /// What the decision asks of the segment, as the noun it is about
+    /// and the clause after "at loop {i} segment {j}".
+    const fn question(self) -> (&'static str, &'static str) {
+        match self {
+            Self::LineRadial => ("the line", "runs parallel to the revolve axis"),
+            Self::LineAxial => ("the line", "runs square to the revolve axis"),
+            Self::ArcCenter => ("the centre of the arc", "lies on the revolve axis"),
+            Self::ArcSpan => ("the arc", "spans no more than a half turn"),
+            Self::ArcApex => ("the arc", "stays off the revolve axis at its apex"),
+            Self::ArcClearance => ("the arc", "clears the revolve axis"),
+        }
+    }
+
+    /// The ending of this decision's escalation: a size's tolerance
+    /// where [`Self::sized`], the lever alone otherwise (D4 ¶1 (i)).
+    #[must_use]
+    pub fn ending(self, diag: &Indeterminate) -> String {
+        if self.sized() {
+            diag.ending(geom_core::COINCIDENCE_RECOURSE)
+        } else {
+            diag.lever_ending(geom_core::COINCIDENCE_RECOURSE)
+        }
+    }
+}
+
 impl fmt::Display for RevolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -668,8 +763,17 @@ impl fmt::Display for RevolveError {
             ),
             Self::AxisEscalated { source } => write!(
                 f,
-                "whether the revolve axis has a length is too close to call: {source}"
+                "{}",
+                source.undecided(
+                    "whether the revolve axis has a length",
+                    source.lever_ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
+            Self::PlacedAxis { error } => write!(
+                f,
+                "the revolve axis, carried into space by the sketch placement: {error}"
+            ),
+            Self::Turn(e) => write!(f, "the revolve's turn: {e}"),
             Self::DegenerateAngle => write!(
                 f,
                 "the revolve angle is zero at tolerance (measured at the profile's widest \
@@ -680,9 +784,14 @@ impl fmt::Display for RevolveError {
                 "the partial revolve angle reaches a full turn at tolerance; an exactly \
                  full revolve uses Revolution::Full",
             ),
-            Self::AngleEscalated { source } => {
-                write!(f, "the revolve angle is too close to call: {source}")
-            }
+            Self::AngleEscalated { source } => write!(
+                f,
+                "{}",
+                source.undecided(
+                    "the revolve angle",
+                    source.lever_ending(geom_core::COINCIDENCE_RECOURSE)
+                )
+            ),
             // Definite at ANY magnitude (r = -0.5 fires this same arm),
             // so the coincidence levers are offered conditionally — the
             // unconditional fix is to move the profile off the negative
@@ -718,12 +827,21 @@ impl fmt::Display for RevolveError {
             Self::SliverAxisClearance {
                 loop_index,
                 segment_index,
+                decision,
                 source,
-            } => write!(
-                f,
-                "whether the arc at loop {loop_index} segment {segment_index} clears the \
-                 revolve axis is too close to call: {source}"
-            ),
+            } => {
+                let (noun, clause) = decision.question();
+                write!(
+                    f,
+                    "{}",
+                    source.undecided(
+                        format_args!(
+                            "whether {noun} at loop {loop_index} segment {segment_index} {clause}"
+                        ),
+                        decision.ending(source),
+                    )
+                )
+            }
             Self::UnsupportedToroid {
                 loop_index,
                 segment_index,
@@ -765,8 +883,14 @@ impl fmt::Display for RevolveError {
                 source,
             } => write!(
                 f,
-                "whether the walls meeting at loop {loop_index} vertex {vertex_index} share \
-                 one surface is too close to call: {source}"
+                "{}",
+                source.undecided(
+                    format_args!(
+                        "whether the walls meeting at loop {loop_index} vertex {vertex_index} \
+                         share one surface"
+                    ),
+                    source.lever_ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
             Self::SliverJoin {
                 loop_index,
@@ -912,6 +1036,103 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// **A revolve escalation ends by its decision's kind.** The angle
+    /// and the arc span are angles, the axis direction's length is a
+    /// gauge, and the line runs, the arc centre and the cosurface
+    /// distance select a form: each ends in the lever alone on every
+    /// reading. The arc's apex and clearance are distances the profile
+    /// keeps from the axis, and offer the tolerance a value gives.
+    #[test]
+    fn a_revolve_escalation_ends_by_its_decisions_kind() {
+        use crate::swept::undecided_fixtures::{LEVER, SIZED, expected, readings};
+        let clearances = [
+            (
+                ClearanceDecision::LineRadial,
+                "whether the line at loop 0 segment 2 runs parallel to the revolve axis",
+                LEVER,
+            ),
+            (
+                ClearanceDecision::LineAxial,
+                "whether the line at loop 0 segment 2 runs square to the revolve axis",
+                LEVER,
+            ),
+            (
+                ClearanceDecision::ArcCenter,
+                "whether the centre of the arc at loop 0 segment 2 lies on the revolve axis",
+                LEVER,
+            ),
+            (
+                ClearanceDecision::ArcSpan,
+                "whether the arc at loop 0 segment 2 spans no more than a half turn",
+                LEVER,
+            ),
+            (
+                ClearanceDecision::ArcApex,
+                "whether the arc at loop 0 segment 2 stays off the revolve axis at its apex",
+                SIZED,
+            ),
+            (
+                ClearanceDecision::ArcClearance,
+                "whether the arc at loop 0 segment 2 clears the revolve axis",
+                SIZED,
+            ),
+        ];
+        assert_eq!(clearances.map(|(d, ..)| d), ClearanceDecision::ALL);
+        type Build = fn(Indeterminate) -> RevolveError;
+        let cases: [(&'static str, &str, [&str; 3], Build); 4] = [
+            ("revolve_angle", "the revolve angle", LEVER, |source| {
+                RevolveError::AngleEscalated { source }
+            }),
+            (
+                "revolve_angle_headroom",
+                "the revolve angle",
+                LEVER,
+                |source| RevolveError::AngleEscalated { source },
+            ),
+            (
+                "revolve_axis_direction",
+                "whether the revolve axis has a length",
+                LEVER,
+                |source| RevolveError::AxisEscalated { source },
+            ),
+            (
+                "wall_lines_cosurface",
+                "whether the walls meeting at loop 1 vertex 3 share one surface",
+                LEVER,
+                |source| RevolveError::CosurfaceEscalated {
+                    loop_index: 1,
+                    vertex_index: 3,
+                    source,
+                },
+            ),
+        ];
+        let mut built: Vec<(String, RevolveError)> = Vec::new();
+        for (name, subject, endings, build) in cases {
+            for (source, text) in readings(name).into_iter().zip(expected(subject, endings)) {
+                built.push((text, build(source)));
+            }
+        }
+        for (decision, subject, endings) in clearances {
+            for (source, text) in readings(decision.predicate())
+                .into_iter()
+                .zip(expected(subject, endings))
+            {
+                built.push((
+                    text,
+                    RevolveError::SliverAxisClearance {
+                        loop_index: 0,
+                        segment_index: 2,
+                        decision,
+                        source,
+                    },
+                ));
+            }
+        }
+        for (text, err) in built {
+            assert_eq!(err.to_string(), text, "{err:?}");
+        }
+    }
 
     /// **A smooth latitude join or cap rim's must-carry escalation says which question
     /// escalated**: a first-order station is the sliver, neither corner
