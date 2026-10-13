@@ -6843,8 +6843,8 @@ fn seam_envelope<T: Decide>(
 /// enclosure to a full period even though every consumer reads
 /// azimuth mod τ. On a definitely-negative-x frame the same angle is
 /// `atan2(−y, −x) + π`. The frame trilean chooses between two
-/// identical formulas; degenerate and in-band arms keep the direct
-/// one (tie-break, D9).
+/// formulas identical mod τ (the negative-`y` side differs by 2π);
+/// degenerate and in-band arms keep the direct one (tie-break, D9).
 fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
     match decide("pcurve_chart_azimuth_frame", Margin::of(x), band) {
         Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
@@ -7414,7 +7414,14 @@ fn derive_class<T: Decide>(
                             ));
                         }
                     };
-                    let start = (r0 + ra) * ns;
+                    // The vertex at `t = 0` lies along `ra` from the axis:
+                    // `r0 = −e·ra` (the focus), so `r0 + ra = (1 − e)·ra`,
+                    // and `1 − e > 0` because this arm takes only a
+                    // `Curve3::Ellipse` (`|e| < 1`). Its azimuth is read
+                    // off `ra` alone, because the sum cancels to `A·k²/2`
+                    // near a parabola and would turn any off-plane
+                    // rounding in the centre by `1/k²`.
+                    let start = ra * ns;
                     Ok((
                         Pcurve::FocalSection(FocalImage {
                             u0: stable_azimuth(start.dot(cv), start.dot(u_ref), band),
@@ -7479,14 +7486,7 @@ fn derive_class<T: Decide>(
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let (a_r, b_r, w_r) = (radial(form.a), radial(form.b), radial(w));
             let esc = winding_escalated;
-            // Branch-stabilized azimuth (M5 S13): atan2's cut sits on
-            // the negative-x axis, and an interval y touching zero
-            // there (a seam meridian's angle-π copy) explodes the
-            // enclosure to a full period even though every consumer
-            // reads azimuth mod τ. On a definitely-negative-x frame
-            // the same angle is atan2(−y, −x) + π. The frame trilean
-            // chooses between two identical formulas; degenerate and
-            // in-band arms keep the direct one (tie-break, D9).
+            // Branch-stabilized azimuth: see `stable_azimuth`.
             let stable_az = |y: T, x: T| -> T { stable_azimuth(y, x, band) };
             // Which class: does the carrier plane contain the polar
             // axis' direction? (Metered in meters at the chart radius.)

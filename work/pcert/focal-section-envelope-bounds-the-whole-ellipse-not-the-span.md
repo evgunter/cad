@@ -50,3 +50,5 @@ coefficient comparison with the deviation's harmonic bounded over
 `[t0, t1]` rather than its amplitude), or a statement that the
 whole-ellipse bound is the contract and a consumer that needs a short
 arc of a long ellipse refuses upstream.
+
+**Not touched by the vertex-azimuth fix** (`focal-section-vertex-azimuth-is-read-off-a-cancelling-sum`, closed 2026-10-13): the table above is axis-aligned, where the off-plane error that fix removes is exactly zero, so its rows do not move; the question about the envelope statement stands.
