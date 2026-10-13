@@ -57,12 +57,20 @@ use crate::m10_9_pins_interval::measured_studies;
 /// extrude's dihedral in builder order: symmetric in value up to sign
 /// but not in form, so a document that reads one edge's wedge in both
 /// orientations builds two hash-consed forms where it built one.
+///
+/// Check 4 reading one vector at its norm where it summed its parts
+/// moves only `frozen` again, each site measured by reverting it alone:
+/// the turning cylinder's pair against its class circle +56, +76, +28,
+/// +76, +28, and the cylinder class selector's radial circle at its
+/// exact sup (`radial_amplitude`) +16, +24, +8, +24, +8; together
+/// 641 → 713, 828 → 928, 498 → 534, 830 → 930, 314 → 350. The fidelity
+/// channels' norm and the retired `Tilt` slot move no column here.
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
-    ("two_hole_plate", [1048, 0, 654, 641]),
-    ("r1_annulus", [566, 0, 399, 828]),
-    ("r2_link", [347, 9, 259, 498]),
-    ("r2_filleted_bracket", [623, 0, 464, 830]),
-    ("r2_rounded_pad", [340, 0, 277, 314]),
+    ("two_hole_plate", [1048, 0, 654, 713]),
+    ("r1_annulus", [566, 0, 399, 928]),
+    ("r2_link", [347, 9, 259, 534]),
+    ("r2_filleted_bracket", [623, 0, 464, 930]),
+    ("r2_rounded_pad", [340, 0, 277, 350]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

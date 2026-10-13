@@ -416,8 +416,13 @@ const SLAB_LEDGER: [&str; 3] = [
 /// and 372 → 360, `Early/Decision` 9399 → 9117 and 8 → 0,
 /// `Early/Assertion` 4860 → 4831; every digest but `Door/Assertion`'s
 /// and the `Report` lines' moves. The slab, a polygon, does not move.
+///
+/// **When check 4 read a turning cylinder carrier's pair against its
+/// class circle whole** (`σ(k·a_r, β·e×a_r·(1 + k) − b_r)` for the
+/// radius and orientation terms' sum), the plate's largest form went
+/// 28 → 29 terms.
 const SLAB_MAX_TERMS: usize = 6;
-const PLATE_MAX_TERMS: usize = 28;
+const PLATE_MAX_TERMS: usize = 29;
 
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
@@ -550,6 +555,28 @@ const PLATE_MAX_TERMS: usize = 28;
 /// every decision tally hold (`m10_10_pins_interval` reads the pair's
 /// sum unchanged).
 ///
+/// Check 4 reading one vector at its norm where it summed its parts,
+/// each measured by reverting it alone on the tree holding the rest:
+/// - the turning cylinder's class circle (one `σ` for the radius and
+///   orientation terms): `Plain/Decision` +360 forms and +56 frozen,
+///   `Early/Decision` +360;
+/// - the cylinder class selector's radial circle at its exact sup
+///   (`radial_amplitude`, read at the door and on both walks):
+///   `Plain/Decision` +12, `Plain/Assertion` +193 forms and +16 frozen,
+///   `Early/Decision` +12, `Early/Assertion` +193, `Door/Decision`
+///   +196;
+/// - the two fidelity channels read as one displacement's legs (`√(u² +
+///   v²)` in the envelope's total): `Plain/Decision` and
+///   `Early/Decision` +36 each;
+/// - `EnvelopeTerm::Tilt` retired, one zero summand fewer per envelope:
+///   `Plain/Decision` and `Early/Decision` −12 each.
+///
+/// Together `Plain/Decision` 15749/252 → 16145/308, `Plain/Assertion`
+/// 4349/389 → 4542/405, `Early/Decision` 8671 → 9067, `Early/Assertion`
+/// 5312 → 5505, `Door/Decision` 7181 → 7377, and every digest of those
+/// lines; calls and every decision tally hold, and the slab does not
+/// move.
+///
 /// Check 4 reading a `cos t`/`sin t` pair at its exact sup
 /// (`√(m + √(q² + (a·b)²))`, `√(a² + b²)`) instead of the sum of its
 /// coefficients' norms: a longer expression per envelope term, so
@@ -557,11 +584,11 @@ const PLATE_MAX_TERMS: usize = 28;
 /// (+14 forms each) and those lines' digests; calls, freezes and every
 /// other line hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 15749 frozen 252 digest 066bebc5066c4c94ae93362a0873cb94\n\
-     Plain/Assertion calls 654 forms 4349 frozen 389 digest b82ea8fd0878e9410927c81ec1a03b95\n\
-     Early/Decision calls 352 forms 8671 frozen 0 digest eeaf8b06f90df22e99214afb32688acd\n\
-     Early/Assertion calls 654 forms 5312 frozen 0 digest ba87a0aca9ba1283a9177f2602626bdd\n\
-     Door/Decision calls 396 forms 7181 frozen 0 digest 188fd982307faf268e6444b8ea1c82bb\n\
+     Plain/Decision calls 1048 forms 16145 frozen 308 digest 35888f45a7aa40fcb094e1bdb9e5d15e\n\
+     Plain/Assertion calls 654 forms 4542 frozen 405 digest 3c4fc6a4bbbcee24d316349a6cc2996f\n\
+     Early/Decision calls 352 forms 9067 frozen 0 digest 6b308da3fe55dc5c74c8e6ca577d36d3\n\
+     Early/Assertion calls 654 forms 5505 frozen 0 digest f269ea0d98b363db1a637afa17caf594\n\
+     Door/Decision calls 396 forms 7377 frozen 0 digest a8da80a66f4d786105cc71ef44022df3\n\
      Door/Assertion calls 396 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
