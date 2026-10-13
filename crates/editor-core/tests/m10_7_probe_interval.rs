@@ -121,7 +121,7 @@ fn probe_the_budget_the_slab_needs() {
                 .count();
             println!(
                 "degree={max_degree:>4} terms={max_terms:>5} failed={failed} sym={} num={} frozen={}",
-                counts.symbolic_zero, counts.numeric, counts.frozen
+                counts.symbolic, counts.numeric, counts.frozen
             );
         }
     }

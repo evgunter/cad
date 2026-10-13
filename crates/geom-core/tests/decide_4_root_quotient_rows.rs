@@ -72,9 +72,7 @@ fn over(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
 /// declining: the value channel could not classify the residual.
 fn label(out: Result<Sign, geom_core::predicate::Indeterminate>, c: SymCounts) -> String {
     match out {
-        Ok(Sign::Zero) if c.symbolic_zero > 0 => "theorem".to_owned(),
-        Ok(Sign::Zero) if c.registered > 0 => "registered".to_owned(),
-        Ok(Sign::Zero) if c.sign_gated > 0 => "sign_gated".to_owned(),
+        Ok(Sign::Zero) if c.symbolic > 0 => "proven".to_owned(),
         Ok(s) => format!("numeric {s:?}"),
         Err(_) => "refused".to_owned(),
     }
@@ -125,7 +123,7 @@ fn decide_under(what: &str, budget: SymBudget, rules: SymRules, shape: Shape) ->
     });
     let l = label(out, counts);
     println!("  {what}: {l}");
-    if matches!(l.as_str(), "theorem" | "sign_gated" | "registered") {
+    if l == "proven" {
         assert_zero_pointwise(what, shape);
     }
     l
@@ -146,15 +144,15 @@ fn both(what: &str, shape: Shape) -> (String, String) {
 /// A fold: a theorem with the dial on, and not with it off.
 fn assert_folds(what: &str, shape: Shape) {
     let (on, off) = both(what, shape);
-    assert_eq!(on, "theorem", "{what}: the exact quotient takes it");
-    assert_ne!(off, "theorem", "{what}: without the quotient it stands");
+    assert_eq!(on, "proven", "{what}: the exact quotient takes it");
+    assert_ne!(off, "proven", "{what}: without the quotient it stands");
 }
 
 /// A decline: the same answer with the dial on and off, and no theorem.
 fn assert_declines(what: &str, shape: Shape) {
     let (on, off) = both(what, shape);
     assert_eq!(on, off, "{what}: not the rewrite's");
-    assert_ne!(on, "theorem", "{what}: nothing may be claimed");
+    assert_ne!(on, "proven", "{what}: nothing may be claimed");
 }
 
 // ------------------------------------------------------------ 1. folds
@@ -441,7 +439,7 @@ fn a_division_at_the_step_cap_answers_no_partial_quotient() {
             ((x.powi(4) - lit(1.0)) / (x - lit(1.0))).sqrt() - (x.powi(3) + x.powi(2) + x).sqrt()
         },
     );
-    assert_ne!(l, "theorem", "the partial quotient is not the quotient");
+    assert_ne!(l, "proven", "the partial quotient is not the quotient");
 }
 
 // ------------------------------------------------ 3. the negative rows
@@ -510,7 +508,7 @@ fn a_sign_carrying_quotient_root_stays_a_magnitude() {
             SymRules::shipped(),
             magnitude,
         );
-        assert_eq!(l, "theorem", "{what}: the quotient's root is |R|");
+        assert_eq!(l, "proven", "{what}: the quotient's root is |R|");
     }
 }
 
@@ -553,7 +551,7 @@ fn the_split_spelling_is_what_the_quotient_trades() {
     ];
     for (what, shape) in rows {
         let (on, off) = both(what, shape);
-        assert_eq!(off, "theorem", "{what}: the split meets it");
+        assert_eq!(off, "proven", "{what}: the split meets it");
         assert_eq!(
             on, "refused",
             "{what}: the quotient re-keys the root away from it"
@@ -597,5 +595,5 @@ fn the_quotient_without_rule_g_is_inert() {
         shape,
     );
     assert_eq!(lone, shut);
-    assert_ne!(lone, "theorem");
+    assert_ne!(lone, "proven");
 }

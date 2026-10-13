@@ -417,10 +417,13 @@ fn a_tilted_through_slot_crossing_the_band_refuses_as_a_crossing() {
     let slot = sweep::test_support::brick::<f64>((-1.0, 5.0), (0.03, 0.08), (0.03, 0.08), t);
     let slot = topo::transform_rigid(
         &slot,
-        &geom_core::Affine3::rotation_about_axis(
-            Point3::new(0.0, 0.0, 0.055),
-            Vec3::new(0.0, 1.0, 0.0),
-            -(0.3f64 / 4.0).atan(),
+        &geom_core::test_support::rigid(
+            &geom_core::Affine3::rotation_about_axis(
+                Point3::new(0.0, 0.0, 0.055),
+                Vec3::new(0.0, 1.0, 0.0),
+                -(0.3f64 / 4.0).atan(),
+            ),
+            t,
         ),
         t,
     )

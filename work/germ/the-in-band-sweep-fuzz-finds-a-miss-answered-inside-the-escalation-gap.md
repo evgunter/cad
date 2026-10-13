@@ -114,6 +114,7 @@ escalation gap, the same shape as the first seed. Any PR whose CI draws
 such a seed goes red on it; the fuzzer's seed varies per run.
 
 - 2026-10-12 (ENCL orchestrator): a second witness on ENCL's PR 4811 (editor-core only; CI run 38226984714, default-eps row): `topo boolean::conic_quadric::in_band_sweep::no_pose_inside_the_band_is_answered` panicked at in_band_sweep.rs:160, '1 in-band poses answered'. Internal row ε 1e-6, true depth 9.894e-6 (inside the <10ε escalation gap, r≈37.55 region), answered Ok(Miss). Replay: `CAD_FUZZ_SEED=0x67e238e4dd9155cf CAD_FUZZ_EFFORT=1`. The fuzz draws a fresh seed per run, so it reddens random PRs.
+- 2026-10-13 (TANG, PR 4413, local debug run at the default ε, head 6e7f07bcd, main merged at 95d344176): `CAD_FUZZ_SEED=0x100c76901b4364a8 CAD_FUZZ_EFFORT=1` replays it deterministically. Internal row ε 1e-6, drawn depth −9.507e-6 (true 9.507e-6, 0 true roots), answered `Ok(Miss)`, so a circle clear of the wall by about 9.5ε, the same shape again. Circle centre (58.7466, 0.011136, −0.0042817), axis (−0.84551, −0.49839, 0.19163), radius 0.014111.
 
 ## Three more seeds at effort 10 (GERM, PR 4886's review, 2026-10-12)
 

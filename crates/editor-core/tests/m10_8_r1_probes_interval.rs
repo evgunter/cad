@@ -44,8 +44,8 @@ use crate::m10_8_harness::{ceiling, dials, nominal_box};
 
 /// The variants, named. `none` is M10-7's tier; `A_top` the unit's
 /// first cut (rule A over the top residual); `A0` R1's constant fold;
-/// `AB_early` R1's bounded per-node A/B alongside; the `C_early` rows
-/// the fix pass's rule C in the early walk; `shipped` what ships.
+/// `AB_early` R1's bounded per-node A/B alongside; `shipped` what
+/// ships.
 fn variants() -> Vec<(&'static str, SymRules)> {
     let n = SymRules::none();
     vec![
@@ -68,26 +68,6 @@ fn variants() -> Vec<(&'static str, SymRules)> {
             "A0+AB_top",
             SymRules {
                 const_fold: true,
-                sqrt_square: true,
-                pythagoras: true,
-                ..n
-            },
-        ),
-        (
-            "A0+C_early",
-            SymRules {
-                const_fold: true,
-                early: true,
-                signed_root: true,
-                ..n
-            },
-        ),
-        (
-            "A0+C_early+AB_top",
-            SymRules {
-                const_fold: true,
-                early: true,
-                signed_root: true,
                 sqrt_square: true,
                 pythagoras: true,
                 ..n
@@ -123,7 +103,7 @@ fn theorems_by_predicate(shapes: &[DecisionShape]) -> BTreeMap<&'static str, (u6
     for s in shapes {
         let e = out.entry(s.predicate).or_default();
         match s.outcome {
-            ShapeOutcome::Theorem | ShapeOutcome::SignGated => e.0 += 1,
+            ShapeOutcome::Symbolic => e.0 += 1,
             _ => e.1 += 1,
         }
     }
@@ -178,7 +158,7 @@ fn r1_variants_whole_box_and_nominal_split() {
             let dt = t.elapsed().as_secs_f64();
             let th: u64 = shapes
                 .iter()
-                .filter(|s| matches!(s.outcome, ShapeOutcome::Theorem))
+                .filter(|s| matches!(s.outcome, ShapeOutcome::Symbolic))
                 .count() as u64;
             println!(
                 "   {label:<12} {dt:>7.2}s counts={counts:?} theorems(report)={th}; first refusal: {}",

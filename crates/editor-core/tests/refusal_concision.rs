@@ -610,11 +610,29 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "HeldPierceUnbuilt",
+            BooleanError::HeldPierceUnbuilt {
+                operand: Operand::A,
+                face: topo::FaceKey::default(),
+                pierced: topo::FaceKey::default(),
+                kind: SurfaceKind::Cylinder,
+                pierced_kind: SurfaceKind::Plane,
+                placed: false,
+            },
+        ),
+        (
             "SharedVertexCrossings",
             BooleanError::SharedVertexCrossings {
                 operand: Operand::B,
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
+            },
+        ),
+        (
+            "CrossingsAlongAContactLine",
+            BooleanError::CrossingsAlongAContactLine {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
             },
         ),
         (
@@ -640,6 +658,16 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                     SectorRead::Pierce(FaceKey::default()),
                     SectorRead::Pair(VertexKey::default()),
                 ],
+            },
+        ),
+        (
+            "PartnerAlongFace",
+            BooleanError::PartnerAlongFace {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                face: FaceKey::default(),
+                partner: VertexKey::default(),
+                along: topo::AlongFace::FacesInOnePlane,
             },
         ),
         (

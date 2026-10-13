@@ -3444,7 +3444,7 @@ mod keep_turn_rows {
                 "k = {k}: the kept sweep is the old one: {out:?}"
             );
             assert_eq!(
-                counts.symbolic_zero, 1,
+                counts.symbolic, 1,
                 "k = {k}: the kept sweep less the old one is the zero polynomial"
             );
         }
@@ -3490,7 +3490,7 @@ mod keep_turn_rows {
             // theorem too; elsewhere it is the definite constant `−kτ`.
             let want = if k == 0.0 { 2 } else { 1 };
             assert_eq!(
-                counts.symbolic_zero, want,
+                counts.symbolic, want,
                 "k = {k}: the kept window less the old span is the zero polynomial"
             );
         }

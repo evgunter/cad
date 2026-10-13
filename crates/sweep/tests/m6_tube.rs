@@ -166,7 +166,7 @@ fn tube_donut_volume_is_pappus_exact() {
 /// full-range window doors refuse typed.
 ///
 /// The door has no frame refusals left: the spine frame arrives as an
-/// `OrthoFrame`, decided at its mint, so a non-unit axis and a
+/// `RigidMotion`, decided at its mint, so a non-unit axis and a
 /// reference off perpendicular are no longer refusals at all — the
 /// two rows below say what the mint does with each instead.
 #[test]
@@ -227,7 +227,7 @@ fn tube_window_and_refusal_doors() {
     // radial — and it refuses at the FRAME MINT, under the direction
     // door's own vocabulary, before the tube door is reached.
     assert_eq!(
-        geom_core::OrthoFrame::from_axis_and_reference(
+        geom_core::RigidMotion::from_axis_and_reference(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::unit_y(),
             Vec3::unit_y(),
@@ -235,7 +235,7 @@ fn tube_window_and_refusal_doors() {
             geom_core::Band::linear(Tol::witness()).expect("the witness band"),
         )
         .unwrap_err(),
-        geom_core::OrthoFrameError {
+        geom_core::OrthonormalizeError {
             axis: geom_core::OrthoAxis::V,
             error: geom_core::UnitVec3Error::Degenerate,
         }

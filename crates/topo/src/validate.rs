@@ -7225,8 +7225,9 @@ pub(crate) fn tier3_local_checks_marked<
             } else {
                 Sign::Positive
             };
-            // Line, Circle and Ellipse carriers (banner); an empty
-            // ring and a loop riding a spiric or NURBS edge are not
+            // Line, Circle, Ellipse and Spiric carriers (banner); an
+            // empty ring and a loop the sum does not wind (a NURBS edge,
+            // or a spiric at a scalar that does not certify) are not
             // asked. Tier 3 runs on a body tier 1 cleared.
             let Some(winding) = body.planar_loop_winding(l, outward, band) else {
                 continue;
@@ -11768,8 +11769,9 @@ mod tests {
                         band,
                     }),
                 },
-                "a torus face's tube radius equals its ring radius at this tolerance (a horn \
-                 torus). Recourse: make the tube radius clearly smaller than the ring radius"
+                "a torus face's tube radius is not shown smaller than its ring radius \
+                 (margin 0e0 m). Recourse: make the tube radius clearly smaller than \
+                 the ring radius"
                     .to_owned(),
             ),
             (

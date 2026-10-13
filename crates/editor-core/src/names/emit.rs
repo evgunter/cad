@@ -1137,7 +1137,7 @@ mod pattern_tests {
     use std::collections::BTreeSet;
     use std::sync::Arc;
 
-    use geom_core::{Affine3, Vec3};
+    use geom_core::Vec3;
     use topo::Body;
 
     use super::*;
@@ -1149,7 +1149,7 @@ mod pattern_tests {
 
     /// A unit cube at `dx`, with its extrude's own name table.
     fn cube(node: RecipeNodeId, dx: f64) -> (Body<f64>, Arc<NameTable>) {
-        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
+        let plane = profile::SketchPlane::from_frame(geom_core::RigidMotion::axes_xy(
             geom_core::Point3::new(dx, 0.0, 0.0),
         ));
         let square = profile::ProfileLoop::polygon(
@@ -1262,7 +1262,8 @@ mod pattern_tests {
                 } else {
                     topo::transform_rigid(
                         master,
-                        &Affine3::translation(Vec3::new(0.0, 0.0, step * i as f64)),
+                        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, step * i as f64))
+                            .unwrap(),
                         Tol::witness(),
                     )
                     .unwrap()
@@ -1416,7 +1417,8 @@ mod pattern_tests {
                 } else {
                     topo::transform_rigid(
                         body,
-                        &Affine3::translation(Vec3::new(0.0, 0.0, step * j as f64)),
+                        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, step * j as f64))
+                            .unwrap(),
                         Tol::witness(),
                     )
                     .unwrap()
@@ -2028,7 +2030,7 @@ mod walk_tests {
     pub(super) fn cube() -> sweep::Extruded<f64> {
         use geom_core::Point2;
         use profile::RawLoop;
-        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
+        let plane = profile::SketchPlane::from_frame(geom_core::RigidMotion::axes_xy(
             geom_core::Point3::new(0.0, 0.0, 0.0),
         ));
         let square = profile::ProfileLoop::polygon(

@@ -9762,7 +9762,7 @@ mod tests {
         use geom::test_support::held_arc::HeldArc;
         use geom_core::Point3;
         use geom_core::sym::with_session;
-        use geom_core::{ParamSymbol, Sym, SymBudget, Theorem};
+        use geom_core::{ParamSymbol, Sym, SymBudget};
         type S = Sym<f64>;
         let budget = SymBudget {
             max_terms: 4096,
@@ -9798,20 +9798,13 @@ mod tests {
                     band(),
                 )
                 .unwrap();
-                (d.sign, d.margin.theorem())
+                (d.sign, d.margin.proven())
             };
             (theorem(&held), theorem(&frozen))
         });
-        assert_eq!(
-            theorems.0,
-            (Sign::Zero, Some(Theorem::SymbolicZero)),
-            "held"
-        );
+        assert_eq!(theorems.0, (Sign::Zero, true), "held");
         assert_eq!(theorems.1.0, Sign::Zero, "frozen: Zero at the witness");
-        assert_eq!(
-            theorems.1.1, None,
-            "frozen: no theorem over a frozen weight"
-        );
+        assert!(!theorems.1.1, "frozen: no proof over a frozen weight");
     }
 }
 

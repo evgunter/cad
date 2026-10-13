@@ -56,8 +56,12 @@ mod mate2_common;
 mod revolve_common;
 mod seam_region_common;
 
+#[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
+mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_curved_keel_in_the_plane.rs"]
 mod a_curved_keel_in_the_plane;
+#[path = "a_face_off_the_tangent_ruling.rs"]
+mod a_face_off_the_tangent_ruling;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
 mod a_flank_touch_at_a_shared_corner;
 #[path = "a_flipped_shallow_dimple.rs"]
@@ -206,6 +210,8 @@ mod pocket_ring_steep_ellipse;
 mod pocket_wall_crossing_a_side_face;
 #[path = "point_in_loop_arc_cap.rs"]
 mod point_in_loop_arc_cap;
+#[path = "point_touch_records.rs"]
+mod point_touch_records;
 #[path = "pole_slit_window.rs"]
 mod pole_slit_window;
 #[path = "r1_lane0_e2e.rs"]
@@ -291,6 +297,8 @@ mod axis_lap;
 mod band_annulus_host_boundary;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
+#[path = "band_planar_consume.rs"]
+mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]
 mod band_planar_cut_off;
 #[path = "band_planar_cut_off_interval.rs"]
@@ -795,6 +803,8 @@ mod germ_interior_saddle;
 mod germ_plane_torus_chord;
 #[path = "germ_plane_torus_frame.rs"]
 mod germ_plane_torus_frame;
+#[path = "germ_plane_torus_spiric.rs"]
+mod germ_plane_torus_spiric;
 #[path = "germ_radial_hole.rs"]
 mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]
