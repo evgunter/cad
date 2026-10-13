@@ -44,6 +44,16 @@ other slot refuses typed goes undetected in this one. Without the 120°
 prism every op builds sound, and so does the 0° prism, which lies
 inside the third's half-turn.
 
+The same blindness can occur at a single vertex. `recl_edges` gathers a
+solid's wedges about the ray from its mentions: its bounds read On.
+Where that solid holds a real edge on the ray and also a face sector
+the ray runs inside, with no bisector there, the face is no mention.
+The event then reads as a lone edge-edge pair that cannot see the face.
+At the plate's top in this row the third's face is parted along the
+ray by its bisector (the plate's top meets it at right angles), so the
+arm sees it. A plate whose top slants across the line would leave the
+ray inside one sector of that face. That case is not yet measured.
+
 ## The shape to give
 
 At minimum, the double read should refuse alike in both slots and every
