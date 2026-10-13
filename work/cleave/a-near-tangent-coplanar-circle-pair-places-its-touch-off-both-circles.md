@@ -1,11 +1,11 @@
 ---
 id: a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles
 kind: issue
-title: carrier_cross::parallel_circles places a near-tangent coplanar circle pair's touch by the generic radical-line foot, 0.1 m off both circles: the boolean's crossing layer silently misses the meeting
+title: carrier_cross misplaces circle-pair candidates near the band (common_line for planes tilted under ~3e-4 rad; parallel_circles' touch arm at d ≈ Kε), so boundary_crossing reads Clear where the edges cross
 status: open
 opened: 2026-10-13
 priority: P1
-cost: E
+cost: M
 ---
 
 
@@ -30,3 +30,30 @@ The same probe found no drift in the two-crossing arm (residuals ≤ 5e-13 over 
 Place a candidate admitted under a `Zero` reading with the exactly degenerate formula, not the generic one: `foot = c1 + e·r1` when `apart == Zero`, and `c1 + e·r1·sign(r1 − r2)` when `nested == Zero`. That point lies exactly on the first circle and within the residue of the second. A ci row should pin the reproduction above.
 
 Sweep the other closed-form arms for the same class: a generic formula evaluated at data a `Zero` reading has just called degenerate. The class is also a contract clause in the FUSE curve-meeting design (`two-curve-curve-meeting-finders`).
+
+## A second measurement: `common_line` and the coplanar crossing arm
+
+A second designer lane ran its own probe, also never committed: 2000 random pairs per row at ε = 1e-9, Kε = 1e-8. Its results widen the row above.
+
+- **Tilted planes (`common_line`).** Two circles cut from one sphere, centred at (3.7, −2.1, 0.4), with their planes tilted by θ. For each θ: the worst distance from a candidate to a circle, and how many of the 2000 candidates sit more than ε off.
+
+  | θ (rad) | worst candidate distance | candidates > ε off |
+  |---|---|---|
+  | 1e-5 | 1.8e-6 | 1980 |
+  | 1e-6 | 3.3e-4 | 2000 |
+  | 1e-7 | 2.3e-2 | 2000 |
+
+  - The cause is that `common_line` divides by sin²θ after a subtraction that cancels.
+  - On the same pairs, `splitting::conic_plane_candidates`, which solves in the circle's angle, stays within about 1e-9.
+  - A candidate that misses its meeting fails the boundary pre-pass, so `boundary_crossing` answers **`Clear` while the edges cross: silent**. A sphere or cone with two cuts tilted less than a milliradian apart reaches this.
+- **Coplanar crossing pairs (`parallel_circles`).** At d = 1e-8 = Kε, 92 of the 2000 definite answers are wrong.
+  - Example: d = 1e-8, Δr = 0.9·d. The circles cross at (−0.9, ±0.436). `nested` = d − |Δr| reads Zero, so the arm returns one "touch" at (−0.9, 0), 0.44 m from both crossings.
+  - Near-concentric circles stay within d + |Δr| of each other all the way round, so a centre-line margin that reads in band does not tell where they touch.
+  - Above d = 3e-8 every definite answer is exact, to about 1e-15.
+
+**What the fix needs, revised:**
+- Route the conic×plane arms through the harmonic form in the conic's own angle. `conic_plane_candidates` already does this to about 1e-15.
+- Decide a double root by the gap between its two roots along the curve, in metres, not by a centre-line margin.
+- Rows: one red-then-green row per reproduction above.
+
+FUSE's curve-meeting design (`work/fuse/two-curve-curve-meeting-finders.md`, now with Ev) would absorb these arms. **This defect is silent today, so fix it now, independently of that design.**
