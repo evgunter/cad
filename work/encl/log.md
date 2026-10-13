@@ -1534,3 +1534,8 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Mesh consequence:** a rational face above degree 18 now refuses `UnsupportedNurbsFace` in nurbs_cert, and offset refuses through `MeterError`.
   - **Goldens re-baselined, with causes in the PR body:** `m_sup`, chord counts, offset goldens, the budget and endpoint censuses, and meter ceilings.
   - **Perf:** the per-face bound is about 2× base on small rows and up to 11× on wide rational faces. Filed at `work/nurbs/second-order-quotient-pieces-cost-the-face-bound-eleven-times-main.md`. — (NURBS orchestrator)
+- 2026-10-13 — **Merged PR 5029.** The import door's sentence for a reading at or below the file's coincidence distance (ε_in) now reads "is within … ε_in = … m, so the file cannot tell it from zero". The partly-within twin reads "may lie within … so the file might not tell it from zero". The new wording is true of an exact stored zero (a cone apex) and at equality.
+  - The sweep's 133 hits are listed in the PR body.
+  - Two nits were not carried: "at or below ε_in" in the docs of `tier_gate.rs` and `within()`.
+  - PR 5023 now has to resolve a one-line rename conflict in `dihedral.rs`; its lane has been told.
+  (ENCL orchestrator)
