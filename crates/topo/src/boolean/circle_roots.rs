@@ -586,8 +586,10 @@ const BISECTIONS: u32 = 64;
 /// band of the true root, and a pair inside the band of a true graze
 /// can stand for none. No answer rests on such roots: every door that
 /// answers meters its walk ([`half_angle_roots`] takes its meter by
-/// type), and the meterless walks are the ruling charts' uncharged
-/// reading, which only chooses a refusal's row, and the rows.
+/// type; `ellipse_torus`'s `torus_walk` takes an `Option` that only its
+/// own rows pass as `None`), and the meterless walks are the ruling
+/// charts' uncharged reading, which only chooses a refusal's row, and
+/// the rows.
 #[allow(clippy::too_many_lines)] // one walk: the cut, the pieces, the bisection
 pub(super) fn certified_subdivision<T: Decide>(
     f: &TrigPoly<T>,

@@ -762,7 +762,13 @@ fn reading<T: Decide>(
             let step = (level / slope).max(T::zero() - reach).min(reach);
             let next = t - step;
             let after = partner.level(b + w * next, w).0;
-            t = (after.abs() - level.abs()).select_le_zero(next, t);
+            // A step through the partner's axis (its apex, for a cone)
+            // reads a 0/0 slope; a poisoned comparison keeps the
+            // closed-form root rather than passing NaN on.
+            let gain = after.abs() - level.abs();
+            if !gain.is_poison() {
+                t = gain.select_le_zero(next, t);
+            }
         }
         b + w * t
     };
