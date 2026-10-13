@@ -2,7 +2,8 @@
 id: a-second-crossing-by-one-face-renames-the-first-and-its-pieces
 kind: issue
 title: The crossing ordinal is not local: a second crossing of an edge by a face that already crosses it renames the first crossing and every piece whose Ends cite it
-status: open
+status: closed
+closed: 2026-10-13
 opened: 2026-10-01
 priority: P1
 cost: M
@@ -104,3 +105,39 @@ suite holds yet:
   (`emit_topo::crossings_rank_along_the_line`, PR 4228): crossings on two
   pieces of one line rank by the line's own parameter, whichever piece is
   named least.
+
+## Closed
+
+Re-measured on branch `emit/pair-meeting-run`, 2026-10-13. Neither
+remaining test row can be built from geometry the kernel names today.
+
+**A same-sense group.** The kernel still refuses every pair that would
+build one. A tilted cylinder through an upright cylinder's top rim circle,
+crossing the rim four times, refuses `GermFrameCylinderPinch` under
+union, subtract and intersect at radius/tilt 0.6/60°, 0.5/70° and 0.7/50°
+(today's refusal for a non-parallel cylinder pair; the row named
+`GermFrameUnsupported`). The other carriers are refused too. A plane
+across a NURBS edge three times is refused by both the split and the
+boolean (`CurvedEdgeUnsupported`, as `emit_topo::nurbs_crossings_rank_by_parameter`
+records). A plane or a parallel cylinder crosses a line with alternating
+senses. The ranking is pinned at the helper:
+`emit_topo::crossings_rank_along_the_line` on real pieces of a 270° rim,
+and `emit_topo::nurbs_crossings_rank_by_parameter`, whose first and third
+crossings share a sense.
+
+**The in-face union vertices (an end-touch).** The row's fixture
+publishes none. In all 6 member orders of `wire_legal_union_refusals`'s
+area-overlap fixture, the finished body has no vertex at (0.2 | 0.4,
+0 | 1, 0.8). Since PR 4922 a union names every non-corner vertex from
+the finished body's lines, each member edge's sense taken from the
+members' pairwise judgements. A member edge ends only at its own vertex,
+which N2 names as that corner, so a union reaches no end-touch of a
+member edge. The in-face vertex a union does publish is the end of an
+edge whose member face was glued away. One example is `b`'s bottom rim
+on `a`'s top, cut by `c`'s wall. The emitter names that edge a seam, so
+the vertex is a run of seams with no sense to pin. It is the same in
+every member order. Whether that edge should be the member rim's piece
+is filed as
+`a-union-edge-in-a-face-whose-member-face-glued-is-a-seam-not-a-member-edge-piece`
+(design). The pair boolean's end-touch witness stays with
+`an-end-touch-crossing-has-no-witness-once-edges-join`.

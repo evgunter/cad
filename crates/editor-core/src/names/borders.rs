@@ -51,7 +51,11 @@ struct Discard {
     /// the parent across one of them — a fragment of the same face
     /// across a chord, or of another of a corner's faces across the edge
     /// between them — is region of the parent joined to this one there.
-    bounds: Vec<EdgeKey>,
+    /// Each is the edge in its operand's clone keys, with the boolean
+    /// that recorded it and the operand: B's died before the graft, so
+    /// the result has no key for them, and only two discards of one
+    /// operand in one boolean can share one.
+    bounds: Vec<(usize, topo::Operand, EdgeKey)>,
 }
 
 /// The discards of one boolean, or of each step of a union's fold.
@@ -68,6 +72,8 @@ pub(crate) struct Obstacles<K> {
     /// Edge → the edges an output stage's join made it out of, besides
     /// itself.
     joined_from: BTreeMap<EdgeKey, Vec<EdgeKey>>,
+    /// The booleans recorded so far.
+    records: usize,
 }
 
 /// The emission error this module refuses with.
@@ -82,6 +88,7 @@ impl<K: Ord + Clone> Obstacles<K> {
             by_parent: BTreeMap::new(),
             split_from: BTreeMap::new(),
             joined_from: BTreeMap::new(),
+            records: 0,
         }
     }
 
@@ -181,24 +188,33 @@ impl<K: Ord + Clone> Obstacles<K> {
                 (&row.bordered, &by_ends, true),
                 (&row.held, &any_by_ends, false),
             ] {
+                // An end the zip split per cone lies at each of its
+                // copies, so the stretch is read between every pair of
+                // copies, and every edge found is kept, not the first:
+                // each lies along the stretch's locus, where the discard's
+                // region meets it, so each is where its obstacle borders
+                // a piece (N2). `topo`'s `boolean_discards::bordered_edges`
+                // reads it alike.
                 for &(u, w) in stretches {
-                    let (u, w) = (settler.settle(u)?, settler.settle(w)?);
-                    let between = match (u, w) {
-                        (Cell::Vertex(u), Cell::Vertex(w)) => edges.get(&(u.min(w), u.max(w))),
-                        // An end the join deleted lies inside the joined
-                        // edge, and one the merge pruned inside the merged
-                        // face: neither ends an edge, so the stretch is
-                        // read through the joins or lies along none.
-                        (Cell::Edge(_) | Cell::Face(_), _) | (_, Cell::Edge(_) | Cell::Face(_)) => {
-                            None
+                    let (us, ws) = (settler.settle_cones(u)?, settler.settle_cones(w)?);
+                    for (&u, &w) in us.iter().flat_map(|u| ws.iter().map(move |w| (u, w))) {
+                        let between = match (u, w) {
+                            (Cell::Vertex(u), Cell::Vertex(w)) => edges.get(&(u.min(w), u.max(w))),
+                            // An end the join deleted lies inside the
+                            // joined edge, and one the merge pruned inside
+                            // the merged face: neither ends an edge, so the
+                            // stretch is read through the joins or lies
+                            // along none.
+                            (Cell::Edge(_) | Cell::Face(_), _)
+                            | (_, Cell::Edge(_) | Cell::Face(_)) => None,
+                        };
+                        if let Some(es) = between {
+                            seams.extend(es.iter().copied());
+                        } else if let Some(e) = naming.stretch_through_joins(body, (u, w))
+                            && (!seam_only || seam_edges.contains(&e))
+                        {
+                            seams.push(e);
                         }
-                    };
-                    if let Some(es) = between {
-                        seams.extend(es.iter().copied());
-                    } else if let Some(e) = naming.stretch_through_joins(body, (u, w))
-                        && (!seam_only || seam_edges.contains(&e))
-                    {
-                        seams.push(e);
                     }
                 }
             }
@@ -220,13 +236,19 @@ impl<K: Ord + Clone> Obstacles<K> {
                     .or_default()
                     .push(self.discards.len());
             }
-            let bounds = chains.iter().filter_map(|c| c.first().copied()).collect();
+            let bounds = row
+                .boundary_chains
+                .iter()
+                .filter_map(|c| c.first().copied())
+                .map(|k| (self.records, row.operand, k))
+                .collect();
             self.discards.push(Discard {
                 seams,
                 touches,
                 bounds,
             });
         }
+        self.records += 1;
         Ok(())
     }
 
@@ -365,7 +387,7 @@ impl<K: Ord + Clone> Obstacles<K> {
         // Two discards that both bounded an edge which died with them
         // are one connected part of the parent's lost region (N2's
         // obstacle).
-        let mut bound_of: BTreeMap<EdgeKey, Vec<usize>> = BTreeMap::new();
+        let mut bound_of: BTreeMap<(usize, topo::Operand, EdgeKey), Vec<usize>> = BTreeMap::new();
         for &i in &mine {
             for &k in &self.discards[i].bounds {
                 bound_of.entry(k).or_default().push(i);

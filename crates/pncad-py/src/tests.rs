@@ -4857,6 +4857,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_undecided",
             "lineage_row",
             "merge",
+            "nesting_unread",
             "non_finite_sector_chord",
             "non_manifold_result",
             "non_maximal_faces",
