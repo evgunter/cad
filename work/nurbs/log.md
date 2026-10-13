@@ -1265,6 +1265,14 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - The only red was step 9's FLUSH 1e-12 `coincidence_door` ring P1, which reproduces on main a5229515. Build B's PR comment names it.
   - Seam notes are posted on sym, decide, tcost and tint.
   - Build D was told to bring main into 4954 and take main's digest lines.
+- **2026-10-13 — unit 2 (build A): what it touches in `patch_bound.rs`, ahead of ENCL #4891's re-scope.** On `nurbs/quotient-second-order` from main `092b3022`. As of this note there is no ENCL reply on #4891 or `work/encl/log.md`.
+  - **Touches:** `rational_cells` (its whole body), the rational arm's module-doc section, the rational halves of the `PatchCell` field docs, and `RATIONAL_CERT_SPLITS`' doc.
+    - Each cell's boxes and sups, first and second order, come from `geom_core::spline::derivative`'s quotient pieces on the original cells' exact dyadic pieces: `S_u`, `S_v`, `S_u×S_v`, `S_uu`, `S_uv`, `S_vv`.
+    - The arm's interval refinement and the recentred hulls it fed are deleted: `window_tilde_hull`, `tilde_entry`, and the rational use of `refine_split`.
+    - `rational_split_points` goes once mesh chords stops refining.
+  - **Does not touch:** the integral arm (`integral_cells*`, `DNets`, `comp_nets`); the unit-arm helpers #4891 reworks (`vectors_norm_sup`, `window_norm_sup`, `cross_norm_sup`, `centre`, `coordinate_hull`); `PatchCell`'s layout; `PatchBoundError`.
+  - The rational arm stops calling the unit-arm helpers. #4891's re-scope keeps them for the integral arm.
+  - Also touched, outside `patch_bound`: mesh chords' `rational_carrier_m_bound`, `offset_meters`' cell inf (the area-floor quotient), and `geom_core::spline::derivative`, which gains the second-order statement. — (NURBS, build A)
 - 2026-10-13 11:30Z — **PR 4954 merged** (quotient bound, unit 1) at `092b30227f` on head d6bb50c4.
   - CI was fully green, with no FLUSH red on this head. The `test` job took 80 min, which adds to the CI friction already logged.
   - Before merging I commented on #4891 (comment 6144508945). ENCL did not answer between 06:21Z and 11:28Z, so the ruling stands and #4891 re-scopes.
@@ -1346,3 +1354,31 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - `a_part_carried_below_the_normal_range_screens_soundly`.
   - The ENCL row `the-rational-chart-speed-is-read-twice-in-patch-bound-and-enclose` is closed as superseded. — (ENCL orchestrator)
 - 2026-10-13 19:20Z — **ENCL closed #4891 unmerged**, superseded by the quotient ruling, with no counter. Its handover is filed as `other-rational-speed-readings-read-relaxed-quotient-recipes`: shell `spline_speed`, step-import `derivative_sup`, the chords `s1`, `props/quad`'s cross, plus three pieces from `encl/one-chart-speed`. It is picked up after 4984. **Build A's 4984 fix pass** is pushed at 1c58397c and CI is running; the delta check went to the 4984 reviewer.
+- 2026-10-13 19:40Z — **PR 4984 delta check: MERGEABLE** (on 1c58397c).
+  - Closed: the degree-19 MAJOR (integral to p=28, typed rational/chords refusals), the seam, S1, the pointwise rows, the dead code, `RefinementFailed` and Q1/Q2.
+  - Perf against base c16eaf57: the nurbs_cert row is 2.3×, `budget_faces` is 1.0×, and the m_inf soundness sweep is unchanged.
+  - **Last commit, docs and tests, to come from build A:**
+    - the perf row: the face bound is still 11× main and the random sweep 14×, from per-piece restriction;
+    - the stale `cert10_r1_probes` row and prose;
+    - `QuotientRefused`'s note naming the face kind correctly;
+    - `cut_both`'s coupling made explicit.
+  - Merge after CI on that head.
+- 2026-10-13 19:45Z — **Build C's final CI wall-time report.**
+  - A deep, geom-brep-seeded PR's test job went from 37–103 min to **21 min** (#5001). The 55-min run was 4954's own regression, not CI shape.
+  - The build floor is 13–20 min hosted, throughput-bound.
+  - Declined: the workspace-crate cache. Deferred: the test-job split.
+  - **#5010:** the opt-1 tour change saved only about 45 s hosted, under the 3-min bar, so I asked for it to be dropped. The CIW row (with `needs_ev`) and the topo row stay.
+  - **#5011 `[ev]`:** the CI bar question.
+    - Recommended: 15 min, or 25 min for PRs that seed geom-core, geom, geom-brep or topo, with queue time excluded.
+    - Alternatives: larger runners (B) or a self-hosted incremental build (C).
+    - Before Ev reads it, I asked build C to measure (C)'s incremental rebuild and update the body in place.
+- 2026-10-13 21:52Z — **PR 4984 merged** (unit 2, second-order quotient) at `2639b944`, on head 3d23bdcc. CI was green; the FULL review and its delta check were mergeable, and the delta MINORs are folded in.
+  - Seam notes are posted on chord, tess, encl, offset, shell, guard, knot, tcost and tint.
+  - `rational-second-derivative-bounds-have-two-recipes` is closed by the PR.
+  - **Next:**
+    - build C on cut-net levers 1+2;
+    - `other-rational-speed-readings-read-relaxed-quotient-recipes` (ENCL's handover) goes to build A next;
+    - the perf row `second-order-quotient-pieces-cost-the-face-bound-eleven-times-main` is shared with build C's levers.
+- 2026-10-13 21:55Z — **Dispatched after 4984.**
+  - **Build C:** cut-net levers 1+2 on `nurbs/cut-net-quotient-cost`, from 2639b944. It covers both perf rows (cut nets, and the face bound's per-piece restriction), bit-identical, with counting guards. The target is within about 2× of before 4954.
+  - **Build A:** `other-rational-speed-readings-read-relaxed-quotient-recipes` on `nurbs/remaining-rational-readings`, with the tier decided at PR time.

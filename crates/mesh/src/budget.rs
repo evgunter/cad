@@ -166,7 +166,7 @@ pub struct FaceMeasure {
     /// The whole-patch bound's `(h_u, h_v)` at `delta_s`.
     pub patch_steps: (f64, f64),
     /// The analysis cells the per-cell bound reported (knot spans for
-    /// the integral arm, refined cells for the rational one), in the
+    /// the integral arm, exact dyadic pieces for the rational one), in the
     /// order the assembly emits them.
     pub cells: Vec<CellMeasure>,
     /// The largest per-triangle certificate of the attempt the face
