@@ -1572,7 +1572,9 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 /// Mints each such ring vertex and its run's strut in `piercing_body`
 /// and returns them with the pierce's half of its ring. A plane face is
 /// read where the point is on its plane or in band of it, a curved face
-/// where `box_holds` says its box holds the point. The vertex is built on two planes
+/// that `may_hold` says can hold the point: its box holds it, and its
+/// carrier is none of the piercing vertex's own faces', whose siblings
+/// on one carrier a valid body never lets overlap. The vertex is built on two planes
 /// only: a curved face that holds the point, or whose trim cannot say
 /// whether it does, and a plane face holding it over a curved pierced
 /// face, refuse [`BooleanError::HeldPierceUnbuilt`] before anything is
@@ -1589,7 +1591,12 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
     piercing_body: &mut Body<T>,
     pierced_body: &Body<T>,
-    box_holds: &dyn Fn(crate::entity::FaceKey, geom_core::Point3<T>) -> bool,
+    may_hold: &dyn Fn(
+        &Body<T>,
+        crate::entity::FaceKey,
+        &[crate::entity::FaceKey],
+        geom_core::Point3<T>,
+    ) -> bool,
     plan: &RingPlan<T>,
     band: Band,
     tol: Tol,
@@ -1619,11 +1626,39 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         pierced_kind: kind_of(pierced_body, pierced),
         placed,
     };
+    // The faces the piercing vertex bounds hold the point on their
+    // boundary, and are not read.
+    let own: Vec<_> = piercing_body
+        .vertex_orbit_linked(plan.contact.vertex)
+        .into_iter()
+        .map(|he| piercing_body.face_of_linked(he))
+        .collect();
     for face in faces {
+        if own.contains(&face) {
+            continue;
+        }
         let Some(plane) = face_plane(piercing_body, face) else {
             // A curved face is read only where its box can hold the
             // point, as a plane is only where the point is on it.
-            if !box_holds(face, p) {
+            if !may_hold(piercing_body, face, &own, p) {
+                continue;
+            }
+            // Off the carrier, the face holds nothing: decided first, as
+            // the plane arm decides its plane first. A spline face has no
+            // residual, and its trim is asked.
+            let surface = piercing_body
+                .face_surface_linked(face, proven(&piercing_body.faces, face, EntityId::Face));
+            if !matches!(
+                surface.kind(),
+                geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx
+            ) && matches!(
+                decide(
+                    "bool_curved_contain_carrier",
+                    Margin::of(geom_brep::implicit_residual(surface, p)),
+                    band,
+                ),
+                Ok(Sign::Positive | Sign::Negative)
+            ) {
                 continue;
             }
             let (placement, _) =
