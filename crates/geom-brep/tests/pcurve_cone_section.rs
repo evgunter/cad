@@ -540,19 +540,21 @@ fn a_skew_section_minted_at_interval_reads_a_tight_vertex_azimuth() {
     );
 }
 
-/// The skew poses of [`skew_section`] the arm reaches at this ε, minted
-/// at `Interval` on the lifted carrier and chart, with what did not
-/// reach printed. The default ε must reach all of them.
-fn interval_mints(
-    poses: &[(f64, f64)],
-) -> Vec<(
+/// A pose `(scale, f, k)`, its lifted carrier and chart, and the image
+/// minted at `Interval` on them.
+type IntervalMint = (
     f64,
     f64,
     f64,
     Curve3<Interval>,
     Surface<Interval>,
     FocalImage<Interval>,
-)> {
+);
+
+/// The skew poses of [`skew_section`] the arm reaches at this ε, minted
+/// at `Interval` on the lifted carrier and chart, with what did not
+/// reach printed. The default ε must reach all of them.
+fn interval_mints(poses: &[(f64, f64)]) -> Vec<IntervalMint> {
     let lift = <Interval as Real>::from_f64;
     let at_default = eps() == geom_core::tolerance::DEFAULT_EPS;
     let mut reached = Vec::new();
