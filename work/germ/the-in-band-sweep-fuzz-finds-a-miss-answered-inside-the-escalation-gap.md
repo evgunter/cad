@@ -127,7 +127,16 @@ CAD_FUZZ_SEED=11 CAD_FUZZ_EFFORT=10 …
 CAD_FUZZ_SEED=18 CAD_FUZZ_EFFORT=10 …
 ```
 
-PR 4886 does not touch `conic_quadric`. Its change to
-`certified_subdivision` (a bisected root is the bracket end nearer the
-surface) is on this row's walk, and the reds are the same with and
-without it.
+Replayed on PR 4886's branch (fix-pass head), each answers `Miss` at
+ε 1e-6 for a circle clear of the wall inside the `< 10ε` gap, with no
+true roots:
+
+| seed | depth (true) |
+|---|---|
+| `11` | 9.176e-6 |
+| `18` | 1.000e-5 (9.99977e-6 read) |
+| `0x883d9762675a3ba8` | 9.999e-6 (9.99946e-6 read) |
+
+PR 4886 does not touch `conic_quadric`. Its changes to
+`certified_subdivision` act only on a bracketed root, and a `Miss` has
+none; the reviewers saw the same reds on main.
