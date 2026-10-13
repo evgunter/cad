@@ -70,3 +70,22 @@ whole ships them unread (PR 4921's review probe
   at a point, so the confirm reads these records. Both clauses then
   hold as written. RESTREAD's row already holds this, and it calls what
   the lane certifies "a design question".
+
+## 2026-10-13 — the point-touch reading lands (`contacthold/point-touch-reading`)
+
+The census now reads the cap circles' edge–face records as point
+touches (`census::point`), so the table's first two rows answer: ∪ a
+far brick and ∖ a hole in the plate, carrying `carried()`, keep all
+three records (`editor-core`
+`face_face_touch_carry::a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records`);
+the bridge carrying every record answers one solid, its face–face and
+bottom cap records landed, 3′ Ok; a step dividing the bottom cap's
+circle lands the record on the piece holding the touch point. 3′ still
+reads the far ops' bodies `CensusUndecidable` (the cross-solid curved
+search, RESTREAD's row), as with the face–face record alone.
+
+The `Found` row case moved rather than cleared: the four ops that
+refused on a cap record now refuse `CarryRefused { Found, Unread }` on a
+face–face pair the two-carrier confirm reads `Contradicted`
+(`a-two-carrier-face-pair-off-its-tangent-line-reads-contradicted-not-stale`).
+The mint-time confirm and the lineage carry stay Ev's (`[ev]` PR 4951).
