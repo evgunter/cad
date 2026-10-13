@@ -2,7 +2,8 @@
 id: zero-arm-payloads-overclaim-and-print-no-margin
 kind: issue
 title: geom-brep: the Zero-arm payload Displays say 'no length' or 'not long enough' whatever the reading shows, and most print no margin
-status: dispatched
+status: review
+pr: 4976
 opened: 2026-10-13
 priority: P3
 cost: M
