@@ -186,8 +186,9 @@ fn restated_edges_keep_carrier_bits() {
         else {
             continue;
         };
-        // Only edges restated to a chart image by the split's smooth arm.
-        if !matches!(c.description(), EdgeDescription::Chart(_)) {
+        // Only edges restated to the conventional pair by the split's
+        // smooth arm.
+        if !matches!(c.description(), EdgeDescription::OnPair { .. }) {
             continue;
         }
         let Some((_, carrier0, t0, t1)) = before.iter().find(|(bk, ..)| *bk == k) else {

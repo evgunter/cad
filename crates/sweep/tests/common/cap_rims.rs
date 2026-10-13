@@ -87,22 +87,24 @@ pub fn cap_rims(built: &Extruded<f64>) -> Vec<CapRim> {
 }
 
 /// Over every cap rim: how many carry a description other than
-/// `Intersection`, and of those how many are a non-seam chart image in
-/// the WALL's chart and how many in the CAP's.
+/// `Intersection`, and of those how many are the cap–wall pair
+/// (`OnPair`) and how many name a chart.
 pub fn chart_counts(built: &Extruded<f64>) -> (usize, usize, usize) {
-    let (mut conventional, mut wall_chart, mut cap_chart) = (0usize, 0usize, 0usize);
+    let (mut conventional, mut pair, mut chart) = (0usize, 0usize, 0usize);
     for rim in cap_rims(built) {
         if matches!(rim.description, EdgeDescription::Intersection { .. }) {
             continue;
         }
         conventional += 1;
-        if let EdgeDescription::Chart(c) = &rim.description {
-            if c.wrap {
-                continue;
+        match &rim.description {
+            EdgeDescription::OnPair { pair: named } => {
+                pair += usize::from(*named == geom_brep::SurfacePair::new(rim.wall, rim.cap));
             }
-            wall_chart += usize::from(c.surface == rim.wall);
-            cap_chart += usize::from(c.surface == rim.cap);
+            EdgeDescription::Chart(_) => chart += 1,
+            EdgeDescription::Intersection { .. }
+            | EdgeDescription::TangentIntersection { .. }
+            | EdgeDescription::Scaffold(_) => {}
         }
     }
-    (conventional, wall_chart, cap_chart)
+    (conventional, pair, chart)
 }

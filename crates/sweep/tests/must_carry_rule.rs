@@ -6,7 +6,7 @@
 //! then second-order — and answer
 //! jet-determinate where the jet certificate's lane admits the pair
 //! (store the intrinsic `TangentIntersection`),
-//! under-determined (store the conventional chart image), in-band
+//! under-determined (store the conventional pair, `OnPair`), in-band
 //! (refuse TYPED) or transverse (the join is a corner, not the smooth
 //! join the caller took it for). These rows hold
 //! the extrude strut arm and the revolve latitude join to that ONE
@@ -193,14 +193,13 @@ const SMOOTH_LATITUDE_JOINS: usize = 1;
 // Reading a body back.
 // ---------------------------------------------------------------
 
-/// The conventional chart images among the edges `pick` selects — a
-/// COUNT OVER A NAMED SET, never over the whole body: a body's cap
-/// rims are chart images too, so `chart_images(body) >= n` is met by
-/// edges that have nothing to do with the rule and rises on its own
+/// The conventional pairs among the edges `pick` selects — a COUNT OVER
+/// A NAMED SET, never over the whole body: a count over the body is met
+/// by edges that have nothing to do with the rule and rises on its own
 /// whenever a fixture grows.
-fn chart_images_among(body: &Body<f64>, pick: impl Fn(&Curve3<f64>) -> bool) -> (usize, usize) {
+fn pairs_among(body: &Body<f64>, pick: impl Fn(&Curve3<f64>) -> bool) -> (usize, usize) {
     let mut selected = 0usize;
-    let mut charts = 0usize;
+    let mut pairs = 0usize;
     for (_, e) in body.edges() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
@@ -209,11 +208,11 @@ fn chart_images_among(body: &Body<f64>, pick: impl Fn(&Curve3<f64>) -> bool) -> 
             continue;
         }
         selected += 1;
-        if matches!(c.description(), EdgeDescription::Chart(_)) {
-            charts += 1;
+        if matches!(c.description(), EdgeDescription::OnPair { .. }) {
+            pairs += 1;
         }
     }
-    (selected, charts)
+    (selected, pairs)
 }
 
 /// The filleted block's STRUTS: the only edges whose carrier is a line
@@ -270,8 +269,8 @@ fn an_extrude_strut_with_a_definite_positive_margin_stores_the_intrinsic_tangenc
 }
 
 /// Definitely zero: the surfaces under-determine the locus, so each
-/// strut keeps the conventional description — an image at rest in the
-/// previous wall's chart — and NO strut stores the intrinsic tangency.
+/// strut keeps the conventional description — the pair of its two
+/// walls — and NO strut stores the intrinsic tangency.
 #[test]
 fn an_extrude_strut_with_a_definite_zero_margin_stores_the_conventional_description() {
     let body = filleted_block(free_length_for(definite_zero_margin()))
@@ -281,14 +280,14 @@ fn an_extrude_strut_with_a_definite_zero_margin_stores_the_conventional_descript
         0,
         "an under-determined join stores no intrinsic tangency"
     );
-    let (struts, charts) = chart_images_among(&body, is_strut);
+    let (struts, pairs) = pairs_among(&body, is_strut);
     assert_eq!(
         struts, SMOOTH_STRUTS,
         "the fixture's eight struts are the edges this row is about"
     );
     assert_eq!(
-        charts, SMOOTH_STRUTS,
-        "every under-determined STRUT rests in a chart — not merely some edge of the body"
+        pairs, SMOOTH_STRUTS,
+        "every under-determined STRUT is the conventional pair — not merely some edge of the body"
     );
 }
 
@@ -339,14 +338,14 @@ fn a_revolve_latitude_join_with_a_definite_zero_margin_stores_the_conventional_d
         0,
         "an under-determined join stores no intrinsic tangency"
     );
-    let (bore_circles, charts) = chart_images_among(&body, is_bore_circle(r_bore));
+    let (bore_circles, pairs) = pairs_among(&body, is_bore_circle(r_bore));
     assert_eq!(
         bore_circles, 2,
         "the bore cylinder's two latitude circles — the smooth join and the base rim"
     );
     assert_eq!(
-        charts, SMOOTH_LATITUDE_JOINS,
-        "the smooth latitude JOIN rests in a chart; the base rim is transverse and \
+        pairs, SMOOTH_LATITUDE_JOINS,
+        "the smooth latitude JOIN is the conventional pair; the base rim is transverse and \
          stores the plain intersection"
     );
 }
@@ -411,7 +410,7 @@ fn a_smooth_out_of_lane_pair_is_under_determined() {
 /// Line carrier on a (Plane, Cone) pair is outside the lane: the rule
 /// answers `Transverse` in both surface orders, exactly as it does for
 /// a crossing in lane, rather than the conventional `UnderDetermined`
-/// that would let a caller store a chart image for an edge whose
+/// that would let a caller store the conventional pair for an edge whose
 /// honest description is `Intersection`.
 #[test]
 fn a_transverse_out_of_lane_pair_reads_transverse_in_both_orders() {

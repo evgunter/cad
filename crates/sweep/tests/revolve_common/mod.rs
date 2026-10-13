@@ -110,6 +110,24 @@ pub fn assert_declared_image_in(body: &Body<f64>, edge: EdgeKey, chart: topo::Su
     );
 }
 
+/// **A smooth join the revolve DECLARED between two distinct surfaces**:
+/// the conventional pair of `surfaces`, naming no chart, carrying the
+/// profile entity's pushforward as its authority.
+pub fn assert_declared_pair(body: &Body<f64>, edge: EdgeKey, surfaces: [topo::SurfaceKey; 2]) {
+    match description(body, edge) {
+        EdgeDescription::OnPair { pair } => assert_eq!(
+            pair,
+            geom_brep::SurfacePair::new(surfaces[0], surfaces[1]),
+            "the pair must be {surfaces:?}"
+        ),
+        other => panic!("expected the conventional pair, got {other:?}"),
+    }
+    assert!(
+        authority(body, edge).is_declared(),
+        "a sketch entity under the sweep map determined this locus"
+    );
+}
+
 /// **The chart's own parameterization seam**: derived by the kernel
 /// (no declaring sketch entity) and carrying D1's seam obligation.
 /// The post-collapse spelling of "this edge re-describes as `Seam`".

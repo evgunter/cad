@@ -303,9 +303,9 @@ fn shoulder_cut() -> topo::SplitPlane<f64> {
 /// rule meters the sagitta `h²/2` against the run's band `(ε, K·ε)`:
 ///
 /// - `h²/2 ≤ ε` — under-determined: the surfaces do not determine the
-///   locus over so short a ruling, so the seam is an image in the
-///   section's chart, and both pieces are tier-3 valid with their
-///   closed-form volumes;
+///   locus over so short a ruling, so the seam is the pair's
+///   conventional locus (`OnPair` over the wall and the section), and
+///   both pieces are tier-3 valid with their closed-form volumes;
 /// - in band — the rule's own typed refusal, naming the sagitta;
 /// - beyond `K·ε` — jet-determinate: the intrinsic tangency.
 ///
@@ -384,10 +384,6 @@ fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
                 {
                     continue;
                 }
-                let section = pair[kinds
-                    .iter()
-                    .position(|k| *k == geom::SurfaceKind::Plane)
-                    .unwrap()];
                 let description = piece
                     .get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
@@ -397,11 +393,12 @@ fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
                     geom_brep::EdgeDescription::TangentIntersection { .. } => {
                         assert!(c * c >= k, "{label}: {side} stores the intrinsic tangency");
                     }
-                    geom_brep::EdgeDescription::Chart(chart) => {
-                        assert!(c * c <= 1.0, "{label}: {side} stores {chart:?}");
+                    geom_brep::EdgeDescription::OnPair { pair: named } => {
+                        assert!(c * c <= 1.0, "{label}: {side} stores {named:?}");
                         assert_eq!(
-                            chart.surface, section,
-                            "{label}: {side}'s image is the section's"
+                            *named,
+                            geom_brep::SurfacePair::new(pair[0], pair[1]),
+                            "{label}: {side}'s seam names the wall and the section"
                         );
                     }
                     other => panic!("{label}: {side}'s seam stores {other:?}"),
@@ -420,10 +417,10 @@ fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
 /// `z = d`, so the seam splits into a long piece and one of length `d`,
 /// over which the rule meters the sagitta `d²/2`:
 ///
-/// - `d²/2 ≤ ε` — under-determined: the short piece stores an image in
-///   the chart of the face its `he_plus` bounds, derived (no
-///   declaration), and lying on the ruling to within ε; both pieces are
-///   tier-3 valid with their closed-form volumes;
+/// - `d²/2 ≤ ε` — under-determined: the short piece stores the pair's
+///   conventional locus (`OnPair` over its two faces), derived (no
+///   declaration), its carrier on the ruling to within ε; both pieces
+///   are tier-3 valid with their closed-form volumes;
 /// - in band — the split refuses with the rule's own typed sagitta;
 /// - beyond `K·ε` — both pieces keep the intrinsic tangency.
 ///
@@ -546,31 +543,30 @@ fn a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule() {
                             "{label}: the tangency names the seam's faces"
                         );
                     }
-                    geom_brep::EdgeDescription::Chart(chart) => {
+                    geom_brep::EdgeDescription::OnPair { pair } => {
                         assert!(
                             height < 0.5 && c * c <= 1.0,
-                            "{label}: the {height:e} piece stores {chart:?}"
+                            "{label}: the {height:e} piece stores {pair:?}"
                         );
                         assert_eq!(
-                            chart.surface, faces[0],
-                            "{label}: the image rests in the chart of the face `he_plus` bounds"
+                            *pair,
+                            geom_brep::SurfacePair::new(faces[0], faces[1]),
+                            "{label}: the pair is the seam's faces"
                         );
                         assert!(
                             matches!(curve.authority(), geom_brep::EdgeAuthority::Derived),
-                            "{label}: the image is derived, never declared"
+                            "{label}: the locus is derived, never declared"
                         );
-                        // The oracle: the image mapped through its chart
-                        // lies on the true ruling, inside the piece.
-                        let surface = piece.get_surface(chart.surface).unwrap();
+                        // The oracle: the carrier lies on the true
+                        // ruling, inside the piece.
                         let (t0, t1) = curve.params();
                         let (lo, hi) = if height == z { (0.0, z) } else { (z, 1.0) };
                         for i in 0..=8 {
                             let t = t0 + (t1 - t0) * f64::from(i) / 8.0;
-                            let uv = chart.pcurve.eval(t);
-                            let p = surface.eval(uv.x, uv.y);
+                            let p = curve.carrier().eval(t);
                             assert!(
                                 on_the_ruling(p) && p.z >= lo - eps && p.z <= hi + eps,
-                                "{label}: the image at t = {t} maps to {p:?}, off the ruling"
+                                "{label}: the carrier at t = {t} is {p:?}, off the ruling"
                             );
                         }
                         short += 1;
@@ -581,10 +577,87 @@ fn a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule() {
             assert_eq!(
                 short,
                 usize::from(c * c <= 1.0),
-                "{label}: only an under-determined piece stores an image"
+                "{label}: only an under-determined piece stores the pair"
             );
         }
     }
+}
+
+/// The shoulder seam a piece holds: its description's arm, and the kinds
+/// of the surfaces it names, in sorted order.
+fn shoulder_seam(piece: &Body<f64>) -> (&'static str, Vec<geom::SurfaceKind>) {
+    let eps = tol().eps();
+    let on_the_ruling = |p: Point3<f64>| p.x.abs() <= eps && (p.y - 1.0).abs() <= eps;
+    let point = |v| *piece.get_point(piece.get_vertex(v).unwrap().point).unwrap();
+    let kind = |s| piece.get_surface(s).unwrap().kind();
+    let seams: Vec<_> = piece
+        .edges()
+        .filter(|(_, e)| {
+            let start = piece.get_half_edge(e.he_plus).unwrap().start;
+            let end = piece.half_edge_end(e.he_plus).unwrap();
+            on_the_ruling(point(start)) && on_the_ruling(point(end))
+        })
+        .collect();
+    let [(_, seam)] = seams[..] else {
+        panic!("one seam on the ruling, got {}", seams.len())
+    };
+    let curve = piece
+        .get_curve_geom(seam.curve)
+        .and_then(|g| g.certified())
+        .expect("the seam is described");
+    let (arm, mut kinds) = match curve.description() {
+        geom_brep::EdgeDescription::OnPair { pair } => ("OnPair", pair.keys().map(kind).to_vec()),
+        geom_brep::EdgeDescription::Chart(chart) => ("Chart", vec![kind(chart.surface)]),
+        geom_brep::EdgeDescription::Intersection { pair, .. } => {
+            ("Intersection", pair.keys().map(kind).to_vec())
+        }
+        geom_brep::EdgeDescription::TangentIntersection { pair, .. } => {
+            ("TangentIntersection", pair.keys().map(kind).to_vec())
+        }
+        geom_brep::EdgeDescription::Scaffold(_) => ("Scaffold", Vec::new()),
+    };
+    kinds.sort_by_key(|k| format!("{k:?}"));
+    (arm, kinds)
+}
+
+/// **One locus, one description, whichever door made it.** The thin
+/// shoulder's seam the chord mints (a cut at depth `h = ½√(2ε)`, the
+/// rule under-determined over the whole ruling) and the short piece
+/// `split_edge` leaves of the deep shoulder's tangent seam (a cut at
+/// `z = d`, `d = ½√(2ε)`) are the same geometric locus — a short ruling
+/// of the unit cylinder against its tangent plane — and both store it as
+/// the pair of those two surfaces, naming no chart: before `OnPair`, the
+/// chord stored the section's chart and `split_edge` the wall's.
+#[test]
+fn the_shoulder_seam_stores_one_description_through_the_chord_and_split_edge() {
+    let short = 0.5 * (2.0 * tol().eps()).sqrt();
+    let chord = topo::split(&shoulder(short), &shoulder_cut(), tol())
+        .expect("the thin shoulder cuts at its seam");
+    let topo::SplitPart::Body(wall) = topo::split(&shoulder(1.0), &shoulder_cut(), tol())
+        .expect("the shoulder cuts at its seam")
+        .above
+    else {
+        panic!("material on the wall's side of the seam")
+    };
+    let wall = finished("the wall's piece", wall, tol());
+    let plane =
+        topo::test_support::split_plane(Point3::new(0.0, 0.0, short), Vec3::unit_z(), tol());
+    let pieces = topo::split(&wall, &plane, tol()).expect("the seam cuts short");
+    let by_split_edge = pieces.below.body().expect("the short piece");
+    let want = (
+        "OnPair",
+        vec![geom::SurfaceKind::Cylinder, geom::SurfaceKind::Plane],
+    );
+    assert_eq!(
+        shoulder_seam(chord.above.body().expect("material above")),
+        want,
+        "the chord's seam is the pair"
+    );
+    assert_eq!(
+        shoulder_seam(by_split_edge),
+        want,
+        "split_edge's short piece is the same pair"
+    );
 }
 
 /// **A cut turned about the tangent ruling refuses before the chord's

@@ -2,8 +2,9 @@
 id: nurbs-iso-derive-line-cap-arm-guesses-wrong-channel
 kind: issue
 title: nurbs_iso_derive's LINE cap-rim arm mints a v-row image for a u-column ruling
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-10-13
 priority: P0
 cost: H
 ---
@@ -30,3 +31,18 @@ the image; a `decide`-doored channel check (or a typed refusal when
 the mapped endpoints disagree with the guessed channel) closes it.
 
 Found by the EXCH-H1 lane (PR #1798); routed here by its fix pass.
+
+## Closed
+
+Both halves of the path are gone. The channel guess is validated:
+the LINE arm takes the boundary-iso schedule
+(`topo::pcurves::nurbs_iso_derive`'s `iso_schedule`, since c6e5e0f89),
+which offers every boundary column and row in both directions and picks
+by the interior probe (`probe_pick`) against the carrier, so a
+u-column ruling can only win as a column. And the description route
+that handed it a two-surface ruling seam as a `Chart(plane)` is
+retired: a seam two distinct surfaces under-determine is
+`EdgeDescription::OnPair` (TANG, `tang/onpair-description`), and
+`nurbs_iso_derive` derives both faces' rows for it, as for an
+`Intersection`, through that one carrier-keyed arm, whichever face
+asks.

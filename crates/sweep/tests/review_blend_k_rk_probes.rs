@@ -89,10 +89,10 @@ fn print_rk_probe() {
     match extrude(&rect(plane, 2.0, short), Extrusion::Vector(w), tol) {
         Ok(built) => {
             println!("RKPROBE extrude=Ok");
-            let (conventional, wall_chart, cap_chart) = chart_counts(&built);
+            let (conventional, pair, chart) = chart_counts(&built);
             println!("RKPROBE non_intersection_rims={conventional}");
-            println!("RKPROBE wall_chart_rims={wall_chart}");
-            println!("RKPROBE cap_chart_rims={cap_chart}");
+            println!("RKPROBE pair_rims={pair}");
+            println!("RKPROBE chart_rims={chart}");
             match validate_geometric(&built.body, tol) {
                 Ok(()) => println!("RKPROBE tier3=Ok"),
                 Err(errs) => {
@@ -134,8 +134,8 @@ fn assert_smooth_built_and_refused_at_rest(text: &str, label: &str) {
     for needle in [
         "RKPROBE extrude=Ok",
         "RKPROBE non_intersection_rims=4",
-        "RKPROBE wall_chart_rims=4",
-        "RKPROBE cap_chart_rims=0",
+        "RKPROBE pair_rims=4",
+        "RKPROBE chart_rims=0",
         "RKPROBE tier3=Err n=4",
     ] {
         assert!(

@@ -228,8 +228,8 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
         .unwrap();
     assert!(
         msg.starts_with(
-            "an edge where two faces meet tangentially is stored as a sketch curve, though \
-             their surfaces determine it."
+            "an edge where two faces meet tangentially is stored as a conventional curve, \
+             though their surfaces determine it."
         ),
         "{msg}"
     );

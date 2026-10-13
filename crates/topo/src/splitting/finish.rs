@@ -1802,8 +1802,8 @@ mod smooth_arm_rows {
     /// current pair (the neighbour a cylinder ALONG the edge, κ_rel =
     /// 1), then the neighbour's surface becomes the section plane
     /// itself: the citation still names the current pair, but the rule
-    /// now answers under-determined, so the edge is restated as an
-    /// image in the section chart rather than kept.
+    /// now answers under-determined, so the edge is restated as the
+    /// conventional pair rather than kept.
     #[test]
     fn a_coherent_tangency_on_an_under_determined_edge_is_restated_conventionally() {
         let SectionEdge {
@@ -1848,9 +1848,11 @@ mod smooth_arm_rows {
         let curve = body.get_edge(edge).unwrap().curve;
         let stored = body.get_curve_geom(curve).unwrap().certified().unwrap();
         match stored.description() {
-            geom_brep::EdgeDescription::Chart(c) => {
-                assert_eq!(c.surface, s_self, "restated in the section chart");
-            }
+            geom_brep::EdgeDescription::OnPair { pair } => assert_eq!(
+                *pair,
+                geom_brep::SurfacePair::new(s_self, s_other),
+                "restated as the pair of the section and its neighbour"
+            ),
             other => panic!("an under-determined edge keeps no tangency, got {other:?}"),
         }
     }
