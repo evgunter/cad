@@ -593,6 +593,16 @@ an edge's carrier lies within `2ε / sin θ` of the described section
 along the wall, `θ` the angle between the plane and the wall, the same
 conditioning every certified `Intersection` edge already has; that is
 stated here and not enforced.
+The same rule governs curve pairs. Two carrier spans (a carrier and a
+parameter interval) meet through one exhaustive `(CurveKind, CurveKind)`
+table, and every candidate it proposes is settled by one point-on-span
+reading (`Off`, `Carrier`, `On`, `End`). Line, circle and ellipse pairs
+are closed forms that solve in one conic's angle and measure in metres; a
+pair with a spiric or spline side is the certified bisection walk, which
+is also the closed forms' differential test oracle. A candidate generator's
+in-band decision escalates and never prunes, and a candidate admitted under
+a `Zero` reading is placed by the exactly degenerate formula, never by the
+generic one.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (all but the parabola and hyperbola),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
