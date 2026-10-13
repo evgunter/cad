@@ -693,3 +693,75 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
         "carrier {off:e} off the cone, image misses by {miss:e}"
     );
 }
+
+/// REVIEW PROBE (5004): perturb near-parabola sections within the band,
+/// compare the new β's miss with the old β's, and look for a certified
+/// image whose dense residual exceeds ε.
+#[test]
+fn review_5004_probe_off_section_worst_carrier() {
+    use geom_core::Vec3;
+    fn old_beta(c: &Curve3<f64>, s: &Surface<f64>) -> f64 {
+        let (&Curve3::Ellipse { center, major, u_ref: e_u, .. }, &Surface::Cone { apex, axis, .. }) = (c, s) else { unreachable!() };
+        let radial = |v: Vec3<f64>| v - axis * v.dot(axis);
+        let (r0, ra) = (radial(center - apex), radial(e_u * major));
+        let ecc = -r0.dot(ra) / ra.dot(ra);
+        ecc / (1.0 + (1.0 - ecc * ecc).sqrt())
+    }
+    fn dense(image: &Pcurve<f64>, carrier: &Curve3<f64>, surface: &Surface<f64>) -> f64 {
+        (0..8192).map(|i| {
+            let t = core::f64::consts::TAU * f64::from(i) / 8192.0;
+            let uv = image.eval(t);
+            surface.eval(uv.x, uv.y).distance(carrier.eval(t))
+        }).fold(0.0, f64::max)
+    }
+    let ep = eps();
+    let lift = <Interval as Real>::from_f64;
+    let mut worst_ratio = 0.0_f64;
+    let mut worst_old_new = 0.0_f64;
+    let mut bad = Vec::new();
+    for &(alpha, scale, f) in &[(0.5_f64.atan(), 1.0, 0.999), (0.5_f64.atan(), 1.0, 0.9999), (0.5_f64.atan(), 0.1, 0.99999), (1.0, 1.0, 0.99999), (0.2, 1.0, 0.99999), (1.3, 1.0, 0.9999), (0.5_f64.atan(), 1.0, 0.9)] {
+        let Ok((c, s, k)) = skew_section(alpha, scale, f) else { continue };
+        let Curve3::Ellipse { center, axis, major, minor, u_ref } = c else { unreachable!() };
+        let ev = axis.cross(u_ref);
+        let rot = |v: Vec3<f64>, w: Vec3<f64>, th: f64| (v * th.cos() + w.cross(v) * th.sin() + w * w.dot(v) * (1.0 - th.cos())).normalize();
+        for kind in 0..9 {
+            for &mul in &[0.25, 0.5, 0.9, 1.0, 1.5, 2.0, 3.0, -0.5, -1.0, -2.0] {
+                let d = mul * ep;
+                let pert = match kind {
+                    0 => Curve3::Ellipse { center: center + u_ref * d, axis, major, minor, u_ref },
+                    1 => Curve3::Ellipse { center: center + ev * d, axis, major, minor, u_ref },
+                    2 => Curve3::Ellipse { center: center + axis * d, axis, major, minor, u_ref },
+                    3 => Curve3::Ellipse { center, axis, major: major + d, minor, u_ref },
+                    4 => Curve3::Ellipse { center, axis, major, minor: minor + d, u_ref },
+                    5 => { let th = d / major; Curve3::Ellipse { center, axis: rot(axis, ev, th), major, minor, u_ref: rot(u_ref, ev, th) } }
+                    6 => { let th = d / major; Curve3::Ellipse { center, axis: rot(axis, u_ref, th), major, minor, u_ref } }
+                    7 => { let th = d / major; Curve3::Ellipse { center, axis, major, minor, u_ref: rot(u_ref, axis, th) }.clone() }
+                    _ => Curve3::Ellipse { center: center + u_ref * d, axis, major, minor: minor - d, u_ref },
+                };
+                // kind 7 rotates u_ref in-plane (keeps it ⟂ axis)
+                let Ok(img) = chart_pcurve(&pert, &s, band()) else { continue };
+                let Pcurve::FocalSection(fi) = img else { continue };
+                let off = (0..8192).map(|i| {
+                    let p = pert.eval(core::f64::consts::TAU * f64::from(i) / 8192.0);
+                    let Surface::Cone { apex, axis: ca, half_angle, .. } = s else { unreachable!() };
+                    let w = p - apex; let h = w.dot(ca); let r = (w - ca * h).norm();
+                    (r * half_angle.cos() - h * half_angle.sin()).abs()
+                }).fold(0.0, f64::max);
+                let ob = old_beta(&pert, &s);
+                let old_img = Pcurve::FocalSection(FocalImage { beta: ob, ..fi });
+                let (mn, mo) = (dense(&img, &pert, &s), dense(&old_img, &pert, &s));
+                worst_ratio = worst_ratio.max(mn / off.max(1e-300));
+                worst_old_new = worst_old_new.max((ob - fi.beta).abs());
+                let cert = PcurveCache::certify(img.clone(), -core::f64::consts::PI, core::f64::consts::PI, &pert, &s, band());
+                let icert = chart_pcurve(&pert.map_scalar(lift), &s.map_scalar(lift), band()).ok().map(|ii| {
+                    let ok = PcurveCache::certify(ii, lift(-core::f64::consts::PI), lift(core::f64::consts::PI), &pert.map_scalar(lift), &s.map_scalar(lift), band()).is_ok();
+                    ok
+                });
+                println!("a {alpha:.3} sc {scale} f {f} k {k:.2e} kind {kind} d {d:.1e}: off {off:.2e} new {mn:.2e} old {mo:.2e} dβ {:.1e} cert64 {} certI {:?}", (ob-fi.beta).abs(), cert.is_ok(), icert);
+                if (cert.is_ok() || icert == Some(true)) && mn > ep { bad.push(format!("a {alpha} f {f} kind {kind} d {d:e}: miss {mn:e}")); }
+            }
+        }
+    }
+    println!("worst new-miss/off {worst_ratio:.3}, worst |Δβ| {worst_old_new:e}");
+    assert!(bad.is_empty(), "certified past ε: {bad:#?}");
+}
