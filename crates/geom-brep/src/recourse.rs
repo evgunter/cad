@@ -662,13 +662,13 @@ mod tests {
                 eps_in,
             )
         };
-        let unstated = "This thickness is below the file's declared coincidence distance \
+        let untold = "This thickness is within the file's declared coincidence distance \
                         ε_in = 1e-8 m, so the file cannot tell it from zero. Recourse: L, or, if \
                         this thickness is intended, re-export the file with its uncertainty \
                         declared below 5e-9 m and tighten the tolerance below 5e-10 m";
         assert_eq!(
             zero_in_file(1e-8),
-            unstated,
+            untold,
             "a zero within ε_in reads as the in-band arm does at the import door"
         );
         assert_eq!(
@@ -676,7 +676,7 @@ mod tests {
                 RefusedArm::Undecided(&cause(MarginDiag::value(-5e-9))),
                 1e-8
             ),
-            unstated,
+            untold,
             "an undecided size within ε_in names both steps that keep it"
         );
         assert_eq!(
@@ -687,7 +687,7 @@ mod tests {
                 }),
                 1e-8
             ),
-            "This thickness is below the file's declared coincidence distance ε_in = 1e-8 m, so \
+            "This thickness is within the file's declared coincidence distance ε_in = 1e-8 m, so \
              the file cannot tell it from zero. Recourse: L",
             "a zero of no size at the import door names the lever and no decision's note"
         );

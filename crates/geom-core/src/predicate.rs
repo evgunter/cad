@@ -1785,22 +1785,22 @@ impl MarginDiag {
     }
 
     /// **The sized recourse read at the import door** (D4 ¶1, D7): a size
-    /// at or below ε_in is not one the file can tell from zero, so no
-    /// refusal offers to keep it by tightening alone. One sentence for
-    /// every band-decided arm whose margin's nearer end lies at or below
-    /// ε_in, whichever arm the run's own band placed it on: it says the file cannot tell the
-    /// size from zero (or, where the farther end lies past ε_in, that the
-    /// size may lie below it and the file may not tell it from zero),
-    /// which is true of a zero the file stores exactly too, then names the
-    /// lever, and — where a tolerance a run admits decides the margin
-    /// passing — "or, if this {size} is intended, re-export the file with
-    /// its uncertainty declared below {near} m and tighten the tolerance
-    /// below {near/K} m", both steps together, since neither alone keeps
-    /// the size; where only a tolerance at or below [`EPS_MIN`] decides
-    /// it, [`floor_note`], true of the number whatever the file stores. No
-    /// decision's note rides there: the door cannot tell a zero the file
-    /// stores exactly from a rounded one, and one message serves every
-    /// reading below ε_in (D4 ¶1 (i), (iii)).
+    /// within ε_in is not one the file can tell from zero, so no refusal
+    /// offers to keep it by tightening alone. One sentence for every
+    /// band-decided arm whose margin's nearer end lies within ε_in,
+    /// whichever arm the run's own band placed it on: it says the file
+    /// cannot tell the size from zero (or, where the farther end lies past
+    /// ε_in, that the size may lie within it and the file might not tell
+    /// it from zero), then names the lever, and — where a tolerance a run
+    /// admits decides the margin passing — "or, if this {size} is
+    /// intended, re-export the file with its uncertainty declared below
+    /// {near} m and tighten the tolerance below {near/K} m", both steps
+    /// together, since neither alone keeps the size; where only a
+    /// tolerance at or below [`EPS_MIN`] decides it, [`floor_note`], true
+    /// of the number whatever the file stores. No decision's note rides
+    /// there: the door cannot tell a zero the file stores exactly from a
+    /// rounded one, and one message serves every reading within ε_in
+    /// (D4 ¶1 (i), (iii)).
     ///
     /// A nearer end past ε_in, and a poisoned margin, end as
     /// [`MarginDiag::sized_recourse`] ends them. The comparison picks the
@@ -1826,12 +1826,12 @@ impl MarginDiag {
         };
         let untold = match within {
             Within::Wholly => format!(
-                "This {size} is below the file's declared coincidence distance ε_in = \
+                "This {size} is within the file's declared coincidence distance ε_in = \
                  {eps_in:e} m, so the file cannot tell it from zero."
             ),
             Within::Partly => format!(
-                "This {size} may lie below the file's declared coincidence distance ε_in = \
-                 {eps_in:e} m, so the file may not tell it from zero."
+                "This {size} may lie within the file's declared coincidence distance ε_in = \
+                 {eps_in:e} m, so the file might not tell it from zero."
             ),
         };
         match self.shows(band, passes) {
@@ -2995,7 +2995,7 @@ mod tests {
         );
         let above = at_floor.next_up();
         let file = FileCoincidence::new(1e-8);
-        let head = "This length is below the file's declared coincidence distance ε_in = 1e-8 m, \
+        let head = "This length is within the file's declared coincidence distance ε_in = 1e-8 m, \
                     so the file cannot tell it from zero. Recourse: L";
         for margin in [
             MarginDiag::value(2.71e-27),
@@ -3114,7 +3114,7 @@ mod tests {
             unreadable: "u",
         };
         let file = FileCoincidence::new(1e-8);
-        let head = "This length is below the file's declared coincidence distance ε_in = 1e-8 m, \
+        let head = "This length is within the file's declared coincidence distance ε_in = 1e-8 m, \
                     so the file cannot tell it from zero. Recourse: L";
         let rejected = |margin: MarginDiag| Indeterminate {
             margin: margin.rejected_by(Sign::Zero, SizedPass::Positive),
@@ -3193,11 +3193,11 @@ mod tests {
 
     /// **No offer at the import door keeps a size the file cannot tell
     /// from zero by tightening alone** (D4 ¶1), keyed on the margin's
-    /// nearer end and nothing else: past ε_in, the at-rest sentence; at or
-    /// below it, one sentence saying the file cannot tell the size from
-    /// zero, an exact zero's included, with
-    /// both steps that keep it where a smaller tolerance decides it, and
-    /// the lever alone where none does.
+    /// nearer end and nothing else: past ε_in, the at-rest sentence;
+    /// within it, one sentence saying the file cannot tell the size from
+    /// zero, an exact zero's included, with both steps that keep it where
+    /// a smaller tolerance decides it, and the lever alone where none
+    /// does.
     #[test]
     fn the_import_door_withholds_the_offer_for_a_size_within_eps_in() {
         let band = band_1e9();
@@ -3209,13 +3209,13 @@ mod tests {
             unreadable: "u",
         };
         let at = |eps_in| FileCoincidence::new(eps_in);
-        // Wholly at or below ε_in, the size is one the file cannot tell
-        // from zero; with only its nearer end there, one it may not.
+        // Wholly within ε_in, the size is one the file cannot tell from
+        // zero; with only its nearer end there, one it might not.
         let head = |eps_in: f64, partly: bool| {
             let (lies, tells) = if partly {
-                ("may lie below", "may not tell")
+                ("may lie within", "might not tell")
             } else {
-                ("is below", "cannot tell")
+                ("is within", "cannot tell")
             };
             format!(
                 "This length {lies} the file's declared coincidence distance ε_in = {eps_in:e} m, \
@@ -3237,7 +3237,7 @@ mod tests {
                 MarginDiag::value(5e-9),
                 at(1e-8),
                 Some(
-                    "This length is below the file's declared coincidence distance ε_in = \
+                    "This length is within the file's declared coincidence distance ε_in = \
                      1e-8 m, so the file cannot tell it from zero. Recourse: L, or, if this \
                      length is intended, re-export the file with its uncertainty declared below \
                      5e-9 m and tighten the tolerance below 5e-10 m"
@@ -3249,12 +3249,19 @@ mod tests {
             // own placement picks no other words.
             (MarginDiag::value(5e-10), at(1e-9), Some(both(1e-9, 5e-10))),
             // The nearer end decides that the sentence is read, the
-            // farther whether the size is below ε_in or only may be: an
-            // enclosure reaching past ε_in may hold sizes the file states.
+            // farther whether the size is within ε_in or only may be: an
+            // enclosure reaching past ε_in may hold sizes the file tells
+            // from zero. One such row whole, too.
             (
                 MarginDiag::enclosure(4e-10, 2e-9),
                 at(1e-9),
-                Some(offer(1e-9, 4e-10, true)),
+                Some(
+                    "This length may lie within the file's declared coincidence distance \
+                     ε_in = 1e-9 m, so the file might not tell it from zero. Recourse: L, or, \
+                     if this length is intended, re-export the file with its uncertainty \
+                     declared below 4e-10 m and tighten the tolerance below 4e-11 m"
+                        .to_owned(),
+                ),
             ),
             (
                 MarginDiag::enclosure(2e-9, 2e-6),
@@ -3270,7 +3277,8 @@ mod tests {
                 at(1e-9),
                 Some(head(1e-9, false)),
             ),
-            // Past ε_in: the file states the size, so the offer stands.
+            // Past ε_in: the file tells the size from zero, so the offer
+            // stands.
             (MarginDiag::value(5e-9), at(4e-9), None),
             (MarginDiag::value(5e-10), at(4e-10), None),
             (MarginDiag::enclosure(2e-9, 8e-9), at(1e-9), None),

@@ -1728,7 +1728,7 @@ mod tests {
         let within = refusal(5e-9).ending(file(1e-6)).unwrap();
         assert!(
             within.starts_with(
-                "This clearance is below the file's declared coincidence distance ε_in = 1e-6 \
+                "This clearance is within the file's declared coincidence distance ε_in = 1e-6 \
                  m, so the file cannot tell it from zero. Recourse: store the edge's curve"
             ) && within.ends_with(
                 ", or, if this clearance is intended, re-export the file with its uncertainty \

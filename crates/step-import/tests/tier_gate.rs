@@ -347,28 +347,18 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
         "file",
         Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
     ),
-    (POLEBAND, 1e-6, "file", Refused(POLEBAND_ZERO_SPAN_STATED)),
+    (POLEBAND, 1e-6, "file", Refused(POLEBAND_ZERO_SPAN_TOLD)),
     (POLEBAND, 1e-12, "file", Refused(TANGENT_SECOND_ORDER_ZERO)),
     // The ε-relative sibling's cells mirror the twins' one band down:
     // its 5.65e-12 m span escalates exactly where the band is 1e-12
     // and certifies ZERO at both coarser bands.
-    (
-        POLEBAND12,
-        1e-9,
-        "file",
-        Refused(INTERVAL_ZERO_SPAN_UNSTATED),
-    ),
-    (
-        POLEBAND12,
-        1e-6,
-        "file",
-        Refused(INTERVAL_ZERO_SPAN_UNSTATED),
-    ),
+    (POLEBAND12, 1e-9, "file", Refused(INTERVAL_ZERO_SPAN_UNTOLD)),
+    (POLEBAND12, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN_UNTOLD)),
     (
         POLEBAND12,
         1e-12,
         "file",
-        Escalated(PARAM_SPAN_UNSTATED, PARAM_SPAN_ESCALATED.1),
+        Escalated(PARAM_SPAN_UNTOLD, PARAM_SPAN_ESCALATED.1),
     ),
     (
         POLEFRUSTUM,
@@ -380,7 +370,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
         POLEFRUSTUM,
         1e-6,
         "file",
-        Refused(POLEFRUSTUM_ZERO_SPAN_STATED),
+        Refused(POLEFRUSTUM_ZERO_SPAN_TOLD),
     ),
     (
         POLEFRUSTUM,
@@ -410,15 +400,16 @@ const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
 /// span is a real edge shorter than the tolerance, a band-decided arm
 /// like every sized decision's, and certification at adoption reads as
 /// at rest (D4 ¶1): each twin's span lies past its file's ε_in
-/// (1e-10 m), so the offer to tighten stands, valued — the value is the
-/// span over K, so it pins the span. A span of no length ends in the
-/// lever and a note instead, which the offer's words cannot match.
-const POLEBAND_ZERO_SPAN_STATED: &str = "the stored parameter interval is not shown to run \
+/// (1e-10 m), so the file tells it from zero and the offer to tighten
+/// stands, valued — the value is the span over K, so it pins the span.
+/// A span of no length ends in the lever and a note instead, which the
+/// offer's words cannot match.
+const POLEBAND_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not shown to run \
      forward (margin 5.654866773844621e-9 m). Recourse: move the geometry so this \
      edge is not vanishingly short, or, if this length is intended, tighten the tolerance below \
      5.654866773844621e-10 m";
-/// [`POLEBAND_ZERO_SPAN_STATED`], for the frustum twin's shorter span.
-const POLEFRUSTUM_ZERO_SPAN_STATED: &str = "the stored parameter interval is not shown to run \
+/// [`POLEBAND_ZERO_SPAN_TOLD`], for the frustum twin's shorter span.
+const POLEFRUSTUM_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not shown to run \
      forward (margin 1.799999999166981e-9 m). Recourse: move the geometry so this \
      edge is not vanishingly short, or, if this length is intended, tighten the tolerance below \
      1.799999999166981e-10 m";
@@ -426,19 +417,19 @@ const POLEFRUSTUM_ZERO_SPAN_STATED: &str = "the stored parameter interval is not
 /// file's ε_in (1e-10 m), so the file cannot tell it from zero, and the
 /// import door ends it in one sentence whether the run's band reads it as
 /// zero (the coarse bands, this fragment) or in band (the fine one,
-/// [`PARAM_SPAN_UNSTATED`]): the lever, or both steps that keep the
+/// [`PARAM_SPAN_UNTOLD`]): the lever, or both steps that keep the
 /// span together — declare the file's uncertainty below it, and tighten
 /// below it over K (D4 ¶1). The values pin the span.
-const INTERVAL_ZERO_SPAN_UNSTATED: &str = "the stored parameter interval is not shown to run \
-     forward (margin 5.65487109168879e-12 m). This length is below the file's \
+const INTERVAL_ZERO_SPAN_UNTOLD: &str = "the stored parameter interval is not shown to run \
+     forward (margin 5.65487109168879e-12 m). This length is within the file's \
      declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it from zero. \
      Recourse: move the geometry so this edge is not vanishingly short, or, if this length is \
      intended, re-export the file with its uncertainty declared below 5.65487109168879e-12 m and \
      tighten the tolerance below 5.65487109168879e-13 m";
-/// [`INTERVAL_ZERO_SPAN_UNSTATED`]'s sentence on the fine band's
+/// [`INTERVAL_ZERO_SPAN_UNTOLD`]'s sentence on the fine band's
 /// escalation of the same span.
-const PARAM_SPAN_UNSTATED: &str = "lies inside the ambiguity band (1e-12, 1e-11). This length is \
-     below the file's declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it \
+const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). This length is \
+     within the file's declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it \
      from zero. Recourse: move the geometry so this edge is not vanishingly short, or, if this \
      length is intended, re-export the file with its uncertainty declared below \
      5.65487109168879e-12 m and tighten the tolerance below 5.65487109168879e-13 m";
@@ -451,7 +442,7 @@ const PARAM_SPAN_UNSTATED: &str = "lies inside the ambiguity band (1e-12, 1e-11)
 /// `EPS_MIN`, so the ending is the lever alone (D4 ¶4).
 const TANGENT_SECOND_ORDER_ZERO: &str = "at sample 1 the faces are not shown to curve apart at \
      second order (margin 1.6199999985005657e-16 m), so they are not shown to fix \
-     where the edge runs, which its description says they do. This curvature difference is below \
+     where the edge runs, which its description says they do. This curvature difference is within \
      the file's declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it from \
      zero. Recourse: move the geometry so the faces curve apart more clearly where they touch";
 /// dm1's former coarse-band sub-reason: the convergence predicate
@@ -1204,7 +1195,9 @@ fn assert_adoption_reading(who: &str, e: &StepImportError, exposure: &mut Exposu
     exposure.add(
         WITHHELD,
         msg.matches("so the file cannot tell it from zero").count()
-            + msg.matches("so the file may not tell it from zero").count(),
+            + msg
+                .matches("so the file might not tell it from zero")
+                .count(),
     );
 }
 
