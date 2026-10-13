@@ -2,11 +2,12 @@
 id: a-widened-rotation-angle-refuses-on-the-plain-interval-lane
 kind: issue
 title: a widened rotation angle refuses on the plain Interval lane at the first Node::Transform: cos^2+sin^2 is a bracket around 1 and transform_rigid_col0_unit is what notices
-status: dispatched
+status: closed
 opened: 2026-09-22
 priority: P1
 cost: D
 refs: [SYM-14]
+closed: 2026-10-13
 ---
 
 
@@ -318,3 +319,5 @@ is `work/issues/an-undecided-margin-over-an-interval-box-ends-as-a-kernel-defect
 The mate solve's representatives and inverses are INTENT's
 `the-mate-solve-s-representatives-and-inverses-mint-the-rigid-motion`
 (the stop rule applied: stage 3 B is rewriting `mate/`).
+
+Closed by SYM-17 Phase 2 (PR #4197), 2026-10-13.
