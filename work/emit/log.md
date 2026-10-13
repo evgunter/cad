@@ -2276,3 +2276,12 @@ The pair converged after one round:
 - the one-line shape moves to the `Emission` residue, and its row closes as unreached.
 
 This is fork-log row 131 (renumbered at merge; Ev: "sounds good!"). Also filed: `a-run-of-seams-says-every-seam-after-the-first-as-an-edge`.
+
+## 2026-10-13 — the glued-rim ruling built (branch `emit/glued-rim-build`)
+
+- The three-block glued-rim fixture is pinned over all 6 member orders, along with its sunk and lifted variants. Glued and sunk publish the same seam and seam-run names. Lifted names the edge as a piece of `b`'s rim.
+- One line meeting several faces is now an `Emission` refusal in both emitters, with the planar link argument beside each. `SeamVertexParentage` keeps one raiser, the pair emitter's A-side lone-edge arm, and its doc and message now describe that arm.
+- Closed:
+  - `a-union-edge-in-a-face-whose-member-face-glued-is-a-seam-not-a-member-edge-piece`;
+  - `a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces` (unreached).
+- Filed on CIW: `the-ci-slow-set-names-tests-that-no-longer-exist`.
