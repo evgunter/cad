@@ -2,8 +2,9 @@
 id: a-crossing-of-a-union-seam-is-spelled-by-member-order
 kind: issue
 title: A union vertex where a member's face crosses a seam of two others, and the seam pieces it ends, are spelled by member order
-status: open
+status: closed
 opened: 2026-10-12
+closed: 2026-10-12
 priority: P2
 cost: M
 ---
@@ -38,4 +39,22 @@ holds every name two orders both publish to one geometry.
 
 Find which field moves between orders: the sense, the rank, or the
 side order of the cited seam. Then name the vertex from the finished
-body, as `emit_union::Flush::crossing` does for a member edge.
+body, as `emit_union::Flush::meeting` does for a member edge.
+
+## Closed (branch `emit/vertex-run`, 2026-10-12)
+
+The vertex and the seam pieces it ends are order-free. The union names
+every non-corner vertex from the finished body
+(`emit_union::Flush::meeting`, N2): a point where a member's face
+crosses a seam of two others is named by the lines through it, the
+seams carrying no sense, and the seam pieces take their ends from it.
+
+**Measured** (`emit_union_rim_piece_ranks`'s `KNOWN_ABSENT`):
+- `r1three`: 480 absences on main, 0 now.
+- `cross`: 140 absences on main, 28 now, all merged face pieces whose
+  `Borders` set differs by order. That is a face-naming question, filed
+  as `work/emit/a-merged-face-pieces-borders-in-a-union-depend-on-member-order.md`.
+- `emit_union_member_order`'s cut-seam fixtures (`slab_rib_cutall`,
+  `_far`, `_two`; 6, 24 and 24 orders) publish one identical table in
+  every order, which the row now asserts
+  (`every_member_order_of_a_cut_seam_union_publishes_one_table`).
