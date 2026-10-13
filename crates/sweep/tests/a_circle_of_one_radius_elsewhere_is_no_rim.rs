@@ -57,7 +57,8 @@ fn answers(x: topo::Body<f64>, y: topo::Body<f64>) -> Vec<String> {
 /// whose hole has radius `0.3 + 5.5·ε`, centred 1.4 m off the frustum's
 /// axis: the cone face's top circle and the hole's circle have radii in
 /// band and centres far apart, and the faces cross. Every op builds,
-/// as it does where the radii differ definitely.
+/// as it does where the radii differ definitely, with no rim reading
+/// left on the escalation log.
 #[test]
 fn a_frustum_through_a_plate_with_a_hole_of_its_top_radius_builds() {
     let profile = vec![
@@ -77,8 +78,25 @@ fn a_frustum_through_a_plate_with_a_hole_of_its_top_radius_builds() {
         let rod = at_rest(about_y((0.0, 0.3 + delta), (0.4, 0.7), 1.4));
         let plate = topo::subtract(&slab, &rod, tol()).expect("the hole drills");
         let plate = plate.body().expect("a plate").body.clone().into_body();
+        let bracket = geom_core::k_stats::Bracket::open();
         let got = answers(frustum, plate);
+        let log = bracket.finish();
         assert!(got.iter().all(|r| r == "Ok"), "{why}: {got:?}");
+        // The centres decide the circles apart, so the in-band radius
+        // is no reading the answer rests on.
+        let rim: Vec<_> = log
+            .escalations
+            .iter()
+            .filter(|e| {
+                e.source
+                    .predicate
+                    .is_some_and(|p| p.starts_with("rim_circle"))
+            })
+            .collect();
+        assert!(
+            rim.is_empty(),
+            "{why}: every op built, yet the log holds {rim:?}"
+        );
     }
 }
 

@@ -362,6 +362,7 @@ pub(crate) fn tangent_locus_reading<T: Decide>(
         Claim::Contact,
         band,
     )
+    .map_err(ContactRefusal::from)
 }
 
 /// **The boolean glue door's tangency**: the C4 `Tangent` table along
@@ -386,7 +387,7 @@ pub(crate) fn tangency_reading<T: Decide>(
     t0: T,
     t1: T,
     band: Band,
-) -> Result<geom_core::MarginDiag, ContactRefusal> {
+) -> Result<geom_core::MarginDiag, TableRefusal> {
     tangent_table(
         s1,
         sense1,
@@ -420,7 +421,7 @@ enum Claim {
 /// keep their verdicts and drop their escalations
 /// (`k_stats::splice_superseded`). Past that the bound refuses: an
 /// in-band one escalates on its reading, and one beyond the band is
-/// the certificate not reaching the span ([`SAG_UNREACHED`]).
+/// the certificate not reaching the span ([`TableRefusal::SagUnreached`]).
 #[allow(clippy::too_many_arguments)]
 fn tangent_table<T: Decide>(
     s1: &geom::Surface<T>,
@@ -433,16 +434,16 @@ fn tangent_table<T: Decide>(
     declared: bool,
     claim: Claim,
     band: Band,
-) -> Result<(ContactVerdict, geom_core::MarginDiag), ContactRefusal> {
+) -> Result<(ContactVerdict, geom_core::MarginDiag), TableRefusal> {
     // The lane gate FIRST: the demanded set is the certifiable set,
     // so a configuration whose span bounds do not exist gets no
     // per-sample verdict either — refusing here is the order-k
     // boundary, not a missing feature.
     if !tangent_certificate_lane(carrier, s1, s2) {
-        return Err(ContactRefusal::NotCertifiable {
+        return Err(TableRefusal::Refused(ContactRefusal::NotCertifiable {
             what: "the (carrier kind, surface-kind pair) triple is outside the jet \
                    certificate's span-bound lane (the order-k boundary)",
-        });
+        }));
     }
     // The locus's honest spatial extent, capping every lever arm the
     // schedule uses — the same `edge_extent` cap the edge certifier
@@ -460,9 +461,9 @@ fn tangent_table<T: Decide>(
         // span bounds every one.
         let span_end = schedule_param(t0, t1, CERT_SAMPLES - 1, samples);
         let bounds = tangent_span_bounds(s1, s2, carrier, t0, span_end).ok_or(
-            ContactRefusal::NotCertifiable {
+            TableRefusal::Refused(ContactRefusal::NotCertifiable {
                 what: "the jet schedule's span bounds are unavailable for this configuration",
-            },
+            }),
         )?;
         let mut sag_logs = Vec::new();
         let (pass, log) = geom_core::k_stats::detached(|| {
@@ -494,13 +495,13 @@ fn tangent_table<T: Decide>(
             }
             Err(Unsettled::Sag(reading)) => {
                 geom_core::k_stats::splice(log);
-                return Err(
-                    reading.map_or(SAG_UNREACHED, |diag| ContactRefusal::Escalated { diag })
-                );
+                return Err(reading.map_or(TableRefusal::SagUnreached, |diag| {
+                    TableRefusal::Refused(ContactRefusal::Escalated { diag })
+                }));
             }
             Err(Unsettled::Refused(refusal)) => {
                 geom_core::k_stats::splice(log);
-                return Err(refusal);
+                return Err(TableRefusal::Refused(refusal));
             }
             Ok(read) => {
                 geom_core::k_stats::splice(log);
@@ -942,22 +943,38 @@ fn on_surface<T: Decide>(
     }
 }
 
-/// A span the jet schedule's sag does not reach on the finest schedule
-/// [`tangent_table`] reads: every sample decided, and only the bound
-/// between them beyond the band.
-const SAG_UNREACHED: ContactRefusal = ContactRefusal::NotCertifiable {
-    what: SAG_UNREACHED_WHAT,
-};
+/// Why the C4 `Tangent` table refused a span.
+#[derive(Clone, Debug)]
+pub(crate) enum TableRefusal {
+    /// A refusal of the contact's own vocabulary.
+    Refused(ContactRefusal),
+    /// The pair is in the lane and every reading decided, and only a
+    /// span bound between samples (the witness's sag, the touch's, the
+    /// drift of `κ_rel`) stands beyond the band on the finest schedule
+    /// [`tangent_table`] reads: the certificate does not reach the span.
+    SagUnreached,
+}
 
-/// [`SAG_UNREACHED`]'s text.
-const SAG_UNREACHED_WHAT: &str = "the jet schedule's span sag does not reach: every sample is \
-                                  decided, and the bound between them stands beyond the band";
+impl From<ContactRefusal> for TableRefusal {
+    fn from(refusal: ContactRefusal) -> Self {
+        Self::Refused(refusal)
+    }
+}
 
-/// Whether `refusal` is [`SAG_UNREACHED`]: a pair the lane holds whose
-/// span bound alone the finest schedule leaves past the band, as
-/// opposed to a configuration outside the lane.
-pub(crate) fn sag_unreached(refusal: &ContactRefusal) -> bool {
-    matches!(refusal, ContactRefusal::NotCertifiable { what } if *what == SAG_UNREACHED_WHAT)
+/// A span bound the certificate does not reach is `NotCertifiable` to a
+/// contact's reader.
+impl From<TableRefusal> for ContactRefusal {
+    fn from(refusal: TableRefusal) -> Self {
+        match refusal {
+            TableRefusal::Refused(refusal) => refusal,
+            TableRefusal::SagUnreached => Self::NotCertifiable {
+                what: "the jet schedule's span bounds do not reach: every sample is decided, \
+                       and a bound between them (the witness's or the touch's sag, or the \
+                       drift of the relative curvature) stands beyond the band on the finest \
+                       schedule",
+            },
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1324,14 +1341,25 @@ mod tests {
             "the finest schedule's sag stands past the band: {finest:e}"
         );
         let span = tangency_reading(&near, true, &far, true, &meridian, -0.5 * arc, 0.5 * arc, b);
-        match span {
-            Err(ContactRefusal::NotCertifiable { what }) => {
-                assert!(what.contains("span sag does not reach"), "{what}");
-            }
-            other => panic!("the arc about the equator is past the finest schedule: {other:?}"),
-        }
+        assert!(
+            matches!(span, Err(TableRefusal::SagUnreached)),
+            "the arc about the equator is past the finest schedule: {span:?}"
+        );
+        // The lane's other `NotCertifiable` is the contact's own refusal,
+        // not the span bound's: a carrier outside the lane.
+        let outside = geom::Curve3::Line {
+            origin: Point3::new(1.1, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        };
+        assert!(
+            matches!(
+                tangency_reading(&near, true, &far, true, &outside, 0.0, 0.1, b),
+                Err(TableRefusal::Refused(ContactRefusal::NotCertifiable { .. }))
+            ),
+            "a line on two tori is outside the lane"
+        );
         match read(tau) {
-            Err(ContactRefusal::Escalated { diag }) => {
+            Err(TableRefusal::Refused(ContactRefusal::Escalated { diag })) => {
                 assert_eq!(diag.predicate, Some("contact_tangent_second_order"));
             }
             other => panic!("the whole circle osculates at the poles: {other:?}"),
@@ -1585,7 +1613,7 @@ mod tests {
                     1.0,
                     b
                 ),
-                Err(ContactRefusal::Contradicted { .. })
+                Err(TableRefusal::Refused(ContactRefusal::Contradicted { .. }))
             ),
             "discs a gap apart: the line is off one of them"
         );
@@ -1601,7 +1629,7 @@ mod tests {
                     1.0,
                     b
                 ),
-                Err(ContactRefusal::Contradicted { .. })
+                Err(TableRefusal::Refused(ContactRefusal::Contradicted { .. }))
             ),
             "overlapping discs: the line is off one of them"
         );

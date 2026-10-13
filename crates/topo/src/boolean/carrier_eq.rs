@@ -1103,24 +1103,43 @@ pub(crate) fn identity_data<T: Decide>(
     // An unreadable datum is a limit no tolerance moves, ranked before an
     // in-band one by the walk's one ranking.
     let mut kept = crate::ray_walk::Evidence::default();
+    // The kept readings' runs: a later datum decided apart supersedes
+    // them, since the answer does not rest on them.
+    let mut kept_logs = Vec::new();
     for (name, margin) in data {
-        match CoincidenceMeasure::decide(name, margin, band) {
+        let (read, log) =
+            geom_core::k_stats::detached(|| CoincidenceMeasure::decide(name, margin, band));
+        match read {
             Ok(Decided {
                 sign: Sign::Positive | Sign::Negative,
                 ..
-            }) => return IdentityData::Distinct,
+            }) => {
+                kept_logs
+                    .into_iter()
+                    .for_each(geom_core::k_stats::splice_superseded);
+                geom_core::k_stats::splice(log);
+                return IdentityData::Distinct;
+            }
             Ok(Decided {
                 sign: Sign::Zero,
                 margin,
             }) => {
+                geom_core::k_stats::splice(log);
                 first_zero = Some(
                     first_zero.map_or(margin, |first: geom_core::MarginDiag| first.jointly(margin)),
                 );
             }
-            Err(unread @ CoincidenceMeasure::Unreadable(_)) => kept.blocked(unread),
-            Err(in_band) => kept.in_band(in_band),
+            Err(unread @ CoincidenceMeasure::Unreadable(_)) => {
+                kept_logs.push(log);
+                kept.blocked(unread);
+            }
+            Err(in_band) => {
+                kept_logs.push(log);
+                kept.in_band(in_band);
+            }
         }
     }
+    kept_logs.into_iter().for_each(geom_core::k_stats::splice);
     match kept.ranked() {
         crate::ray_walk::Ranked::Blocked(coincidence)
         | crate::ray_walk::Ranked::InBand(coincidence) => IdentityData::Undecided(coincidence),

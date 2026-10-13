@@ -5991,22 +5991,23 @@ fn verify_tangency<T: Decide>(
             }
         };
     // 3. The tangency table along the witness.
+    use crate::contact::ContactRefusal;
+    use contact_verify::TableRefusal as Table;
     let margin = match contact_verify::tangency_reading(
         &sa, sense_a, &sb, sense_b, &carrier, t0, t1, band,
     ) {
         // The reading is the touch's; it is a theorem only where the
         // locus it was read along is one too.
         Ok(touch) => touch.jointly(located),
-        Err(crate::contact::ContactRefusal::Contradicted { diag, .. }) => {
+        Err(Table::Refused(ContactRefusal::Contradicted { diag, .. })) => {
             return Err(Contradicted {
                 fact: None,
                 margin: diag,
             });
         }
-        Err(
-            crate::contact::ContactRefusal::Escalated { diag }
-            | crate::contact::ContactRefusal::Undeclared { diag },
-        ) => {
+        Err(Table::Refused(
+            ContactRefusal::Escalated { diag } | ContactRefusal::Undeclared { diag },
+        )) => {
             return Err(Refused(BooleanError::coincidence(
                 Coincide::Contact,
                 read,
@@ -6016,12 +6017,12 @@ fn verify_tangency<T: Decide>(
         // A pair in the lane whose span bound alone the finest schedule
         // leaves past the band is the lane's to refuse, typed, rather
         // than no tangency: it never meets a later stage unglued (C8).
-        Err(refusal) if contact_verify::sag_unreached(&refusal) => {
+        Err(Table::SagUnreached) => {
             return Err(Refused(BooleanError::UnsupportedDeclarationClass {
                 class: GlueClass::Tangent,
             }));
         }
-        Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => return Err(Unsupported),
+        Err(Table::Refused(ContactRefusal::NotCertifiable { .. })) => return Err(Unsupported),
     };
     let interiors = match overlap {
         Some(both) => locus_through_both_faces(

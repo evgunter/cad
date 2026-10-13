@@ -145,17 +145,29 @@ pub(crate) fn shared_rim<T: Decide>(
     // A pair decided one answers whatever another pair read; an
     // undecided pair refuses only where none is.
     let mut undecided = None;
+    let mut undecided_logs = Vec::new();
     for ra in face_boundary_circles(a, fa) {
         for rb in face_boundary_circles(b, fb) {
-            match same_circle(ra, rb, band) {
-                Ok(Some(margin)) => return Ok(Some((ra, margin))),
-                Ok(None) => {}
+            let (read, log) = geom_core::k_stats::detached(|| same_circle(ra, rb, band));
+            match read {
+                Ok(Some(margin)) => {
+                    undecided_logs
+                        .into_iter()
+                        .for_each(geom_core::k_stats::splice_superseded);
+                    geom_core::k_stats::splice(log);
+                    return Ok(Some((ra, margin)));
+                }
+                Ok(None) => geom_core::k_stats::splice(log),
                 Err(diag) => {
+                    undecided_logs.push(log);
                     undecided.get_or_insert(diag);
                 }
             }
         }
     }
+    undecided_logs
+        .into_iter()
+        .for_each(geom_core::k_stats::splice);
     undecided.map_or(Ok(None), Err)
 }
 
