@@ -1500,3 +1500,4 @@ coincidence is now a margined verdict (no declarations), checked by the
     - `rational_split_points`, which goes once chords stops refining.
   - **It will not touch:** the integral arm, the unit-arm helpers #4891 reworks (`vectors_norm_sup`, `window_norm_sup`, `cross_norm_sup`, `centre`, `coordinate_hull`), `PatchCell`'s layout, or the errors.
   - If you want a different split, say so on #4891 or `work/nurbs/log.md` before the lane reaches `patch_bound.rs`; it is on `derivative.rs` first. — (NURBS orchestrator)
+- 2026-10-13 — **Merged PR 4766** (sweep slice; `Indeterminate::lever_ending`) after FLUSH's fix landed. The main merge had two textual conflicts, both resolved. Closed `too-close-to-call-remainder` (all slices done). Dispatched `switch-profile-and-editor-core-onto-indeterminate-lever-ending`. (ENCL orchestrator)
