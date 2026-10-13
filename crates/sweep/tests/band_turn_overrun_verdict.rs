@@ -430,11 +430,8 @@ fn the_verdict_escalates_only_in_a_narrow_band_around_a_coincidence() {
     let fillet_skews: Vec<f64> = linear
         .iter()
         .copied()
-        .chain(
-            (0..=48)
-                .map(|i| ellipse_from / 10.0 * 10f64.powf(f64::from(i) / 24.0))
-                .filter(|s| *s > linear[linear.len() - 1]),
-        )
+        .filter(|s| *s < ellipse_from / 10.0)
+        .chain((0..=48).map(|i| ellipse_from / 10.0 * 10f64.powf(f64::from(i) / 24.0)))
         .collect();
     let fillet_box = window("box fillet", &fillet_skews, at_box(Verb::Fillet));
     assert!(
