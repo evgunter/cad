@@ -294,3 +294,15 @@ definite finding): `0 3 2 ba S`, `1 6 0 ba S`, `3 1 0 ba S`,
 `6 1 0 ab I`, `6 1 0 ba S`. Replay with `CURVED_POSE="i j k order op"
 cargo test -p sweep --release --test all curved_notch_pinch_one --
 --ignored --nocapture`.
+
+## 2026-10-13 — a rod flush with a plate's height (CONTACTHOLD)
+
+Measured on `contacthold/fold-step-face-face-row`: a rod (r 0.5,
+vertices off the ruling) resting on a plate's side face over the
+plate's full height, z 0 to 1, unions into two solids carrying the
+face–face record of the plate's face and the rod's wall and two
+edge–edge records where the rod's cap circles touch the plate's top and
+bottom edges. Its 3′ refuses `CensusUndecidable` on the rod's wall
+against a plate face that it meets only at a cap circle's recorded
+edge–edge point. The n-ary union row that uses it
+(`editor_core` `union_fold_face_face_touch`) does not run 3′.

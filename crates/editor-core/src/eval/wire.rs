@@ -2971,7 +2971,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 },
             )
             .map_err(NodeErrorKind::Naming)?;
-            let verdicts = pair_verdicts(p, q, &out.coincidences);
+            let verdicts = pair_verdicts(p, q, &judged);
             match out.record {
                 verbs::VerbRecord::Boolean { naming, .. } => {
                     Ok(Some(((naming, out.body), rows, verdicts)))
@@ -3065,24 +3065,30 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         .judged(0, 1, &naming, &out.body)
                         .map_err(NodeErrorKind::Naming)?;
                 }
-                // The step's records in the node's terms: a row the step
-                // decided is a fold row, named in the node's own space
-                // (#4323: a fold row is published where a record cites
-                // it); an accumulation record stands for what it cited;
-                // the joining member's is that member's.
+                // The step's records in the node's terms: a row restating
+                // a given verdict stands for the pass's rows that decided
+                // it; a row the step decided is a fold row, named in the
+                // node's own space and numbered after the pass's (#4323:
+                // a fold row is published where a record cites it); an
+                // accumulation record stands for what it cited; the
+                // joining member's is that member's.
                 let base = fold_rows.len();
                 let used = contacts.decided();
+                let mut restated = Vec::with_capacity(used.len());
                 if pairwise {
-                    let cited =
-                        used.iter()
-                            .map(|&k| {
-                                out.coincidences.get(k as usize).copied().ok_or(
-                                    NodeErrorKind::Naming(names::NamingError::Emission {
-                                        what: UNION_STEP_UNDECIDED_CITE,
-                                    }),
-                                )
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
+                    let mut cited = Vec::with_capacity(used.len());
+                    for &k in &used {
+                        let row = out.coincidences.get(k as usize).copied().ok_or(
+                            NodeErrorKind::Naming(names::NamingError::Emission {
+                                what: UNION_STEP_UNDECIDED_CITE,
+                            }),
+                        )?;
+                        let given = given_rows(&verdicts, step + 1, &fold, &row);
+                        if given.is_none() {
+                            cited.push(row);
+                        }
+                        restated.push(given);
+                    }
                     let acc_view =
                         names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
                     fold_rows.extend(
@@ -3099,17 +3105,26 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 }
                 let member = u32::try_from(step + 1).unwrap_or(u32::MAX);
                 let held = Arc::clone(&acc_records);
+                let pass = coincidences.len();
                 let contacts = contacts
                     .recited(|b| match b {
-                        topo::Backing::Decided(k) if pairwise => used
-                            .binary_search(&k)
-                            .map(|rank| {
-                                topo::Backing::Decided(
-                                    u32::try_from(base + rank).unwrap_or(u32::MAX),
-                                )
-                            })
-                            .into_iter()
-                            .collect(),
+                        topo::Backing::Decided(k) if pairwise => {
+                            let Ok(rank) = used.binary_search(&k) else {
+                                return Vec::new();
+                            };
+                            match &restated[rank] {
+                                Some(rows) => {
+                                    rows.iter().map(|&r| topo::Backing::Decided(r)).collect()
+                                }
+                                None => {
+                                    let fold =
+                                        restated[..rank].iter().filter(|r| r.is_none()).count();
+                                    vec![topo::Backing::Decided(
+                                        u32::try_from(pass + base + fold).unwrap_or(u32::MAX),
+                                    )]
+                                }
+                            }
+                        }
                         decided @ topo::Backing::Decided(_) => vec![decided],
                         topo::Backing::Carried { input: 0, record } => held
                             .rows()
@@ -3182,35 +3197,42 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         }));
     };
     // The fold rows the node's records cite are published after the
-    // pairwise judgement's, the records renumbered onto them.
-    let contacts =
-        if pairwise {
-            let used = contacts.decided();
-            let base = coincidences.len();
-            for &k in &used {
-                coincidences.push(fold_rows.get(k as usize).cloned().ok_or(
+    // pairwise judgement's, the records renumbered onto them; a citation
+    // of the pass's own row stands.
+    let contacts = if pairwise {
+        let pass = u32::try_from(coincidences.len()).unwrap_or(u32::MAX);
+        let used: Vec<u32> = contacts
+            .decided()
+            .into_iter()
+            .filter(|&k| k >= pass)
+            .collect();
+        for &k in &used {
+            coincidences.push(fold_rows.get((k - pass) as usize).cloned().ok_or(
+                NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: UNION_STEP_UNDECIDED_CITE,
+                }),
+            )?);
+        }
+        Arc::new(
+            (*contacts)
+                .clone()
+                .renumbered(|k| {
+                    if k < pass {
+                        return Some(k);
+                    }
+                    used.binary_search(&k)
+                        .ok()
+                        .map(|rank| pass.saturating_add(u32::try_from(rank).unwrap_or(u32::MAX)))
+                })
+                .map_err(|_| {
                     NodeErrorKind::Naming(names::NamingError::Emission {
-                        what: UNION_STEP_UNDECIDED_CITE,
-                    }),
-                )?);
-            }
-            Arc::new(
-                (*contacts)
-                    .clone()
-                    .renumbered(|k| {
-                        used.binary_search(&k)
-                            .ok()
-                            .map(|rank| u32::try_from(base + rank).unwrap_or(u32::MAX))
+                        what: UNION_CARRY_UNCITED,
                     })
-                    .map_err(|_| {
-                        NodeErrorKind::Naming(names::NamingError::Emission {
-                            what: UNION_CARRY_UNCITED,
-                        })
-                    })?,
-            )
-        } else {
-            contacts
-        };
+                })?,
+        )
+    } else {
+        contacts
+    };
     Ok(OpOut::plain(
         ValuePayload::Boolean(BooleanValue::Body {
             body: Arc::new(body),
@@ -3335,8 +3357,11 @@ fn judge_pairwise_contact<T: Decide>(
             links
                 .judged(p, q, &naming, &body)
                 .map_err(NodeErrorKind::Naming)?;
+            verdicts.extend(glued.into_iter().map(|v| PairVerdict {
+                row: v.row + u32::try_from(rows.len()).unwrap_or(u32::MAX),
+                ..v
+            }));
             rows.extend(judged);
-            verdicts.extend(glued);
         }
     }
     Ok(Some((links, rows, verdicts)))
@@ -3354,14 +3379,20 @@ struct PairVerdict {
     b: (usize, topo::FaceKey),
     /// The relation the judgement decided.
     relation: topo::Relation,
+    /// The margin it read.
+    margin: geom_core::MarginDiag,
+    /// The row recording the decision, in the node's coincidences.
+    row: u32,
 }
 
 /// The carrier pairs the judgement of members `p` (operand A) and `q`
 /// (operand B) glued, read off its rows: each face pair of the two
-/// operands a row relates as one carrier or a tangency.
+/// operands a row relates as one carrier or a tangency, its row by its
+/// index in `rows`.
 fn pair_verdicts(p: usize, q: usize, rows: &[topo::Coincidence]) -> Vec<PairVerdict> {
     rows.iter()
-        .filter_map(|row| {
+        .enumerate()
+        .filter_map(|(i, row)| {
             let [
                 topo::RowCell::Input {
                     input: topo::Operand::A,
@@ -3380,6 +3411,8 @@ fn pair_verdicts(p: usize, q: usize, rows: &[topo::Coincidence]) -> Vec<PairVerd
                 a: (p, fa),
                 b: (q, fb),
                 relation: row.relation,
+                margin: row.margin,
+                row: u32::try_from(i).unwrap_or(u32::MAX),
             })
         })
         .collect()
@@ -3389,7 +3422,7 @@ fn pair_verdicts(p: usize, q: usize, rows: &[topo::Coincidence]) -> Vec<PairVerd
 /// `member`**, the step's given pairs ([`BooleanInputs::given`]): each
 /// verdict whose second face is `member`'s, between that face and
 /// every accumulation face whose lineage holds the verdict's first
-/// face.
+/// face, on the margin of the first such verdict.
 ///
 /// # Errors
 ///
@@ -3403,8 +3436,10 @@ fn given_pairs<T: Decide>(
     acc: &topo::Body<T>,
 ) -> Result<Vec<topo::GivenPair>, NodeErrorKind> {
     let bug = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
-    let mut given: std::collections::BTreeMap<(topo::FaceKey, topo::FaceKey), topo::Relation> =
-        std::collections::BTreeMap::new();
+    let mut given: std::collections::BTreeMap<
+        (topo::FaceKey, topo::FaceKey),
+        (topo::Relation, geom_core::MarginDiag),
+    > = std::collections::BTreeMap::new();
     for (f, _) in acc.faces() {
         let parents = fold.member_faces(f).ok_or(bug(UNION_FACE_NO_LINEAGE))?;
         for v in verdicts.iter().filter(|v| v.b.0 == member) {
@@ -3413,10 +3448,10 @@ fn given_pairs<T: Decide>(
             }
             match given.entry((f, v.b.1)) {
                 std::collections::btree_map::Entry::Vacant(slot) => {
-                    slot.insert(v.relation);
+                    slot.insert((v.relation, v.margin));
                 }
                 std::collections::btree_map::Entry::Occupied(held) => {
-                    if *held.get() != v.relation {
+                    if held.get().0 != v.relation {
                         return Err(bug(UNION_VERDICTS_DISAGREE));
                     }
                 }
@@ -3425,20 +3460,61 @@ fn given_pairs<T: Decide>(
     }
     Ok(given
         .into_iter()
-        .map(|((a, b), relation)| topo::GivenPair { a, b, relation })
+        .map(|((a, b), (relation, margin))| topo::GivenPair {
+            a,
+            b,
+            relation,
+            margin,
+        })
         .collect())
 }
 
-/// **A fold step records no face-pair row** (DM4, the fold re-glues no
-/// carrier pair): the verdict reuse, asserted where the step's rows come
-/// back. A step seeds its glue from its given pairs unmeasured, so the
-/// pairwise pass's rows are the union's and the step adds none; a
-/// face-pair row from a step is a carrier pair judged again at the
-/// piece's extent, whether a given pair re-verified or a fresh glue a
-/// door that ignored the given verdicts added. Readings that record no
-/// row are outside it: the merge's continuation reading, the
-/// maximal-faces gate and the join's coaxial frame read a step's
-/// carriers by their margins, as the pairwise pass read the members'.
+/// **The pass's rows a fold step's row restates**, where it is a face
+/// pair's row restating a given verdict (a tangency whose line runs
+/// through both faces' interiors, which a face–face record cites): the
+/// row of each verdict [`given_pairs`] handed the step for that pair,
+/// read through the same lineage. `None` for a row the step decided.
+fn given_rows(
+    verdicts: &[PairVerdict],
+    member: usize,
+    fold: &names::UnionFold,
+    row: &topo::Coincidence,
+) -> Option<Vec<u32>> {
+    let [
+        topo::RowCell::Input {
+            input: topo::Operand::A,
+            cell: topo::Cell::Face(fa),
+        },
+        topo::RowCell::Input {
+            input: topo::Operand::B,
+            cell: topo::Cell::Face(fb),
+        },
+    ] = row.cells
+    else {
+        return None;
+    };
+    let parents = fold.member_faces(fa)?;
+    let rows: Vec<u32> = verdicts
+        .iter()
+        .filter(|v| v.b == (member, fb) && v.relation == row.relation && parents.contains(&v.a))
+        .map(|v| v.row)
+        .collect();
+    (!rows.is_empty()).then_some(rows)
+}
+
+/// **A fold step records no face-pair row of its own** (DM4, the fold
+/// re-glues no carrier pair): the verdict reuse, asserted where the
+/// step's rows come back. A step seeds its glue from its given pairs
+/// unmeasured, so the pairwise pass's rows are the union's and the step
+/// adds none; the one face-pair row it returns restates a given pair on
+/// its decision, for a face–face record to cite. Any other face-pair row
+/// from a step is a carrier pair judged again at the piece's extent,
+/// whether a given pair re-verified or a fresh glue a door that ignored
+/// the given verdicts added. Readings that record no row are outside
+/// it: the merge's continuation reading, the maximal-faces gate, the
+/// join's coaxial frame and a given tangency's line read against its
+/// faces read a step's carriers by their margins, as the pairwise pass
+/// read the members'.
 fn debug_assert_given(rows: &[topo::Coincidence], inputs: &BooleanInputs) {
     if cfg!(debug_assertions) && inputs.given.is_some() {
         for row in rows {
@@ -3453,8 +3529,11 @@ fn debug_assert_given(rows: &[topo::Coincidence], inputs: &BooleanInputs) {
                 },
             ] = row.cells
             {
+                let restates = inputs.given.iter().flatten().any(|g| {
+                    (g.a, g.b, g.relation, g.margin) == (fa, fb, row.relation, row.margin)
+                });
                 debug_assert!(
-                    false,
+                    restates,
                     "a union fold step judged the carrier pair {fa:?}/{fb:?} itself: its \
                      verdict is the pairwise judgement's, read through lineage"
                 );

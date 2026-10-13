@@ -70,3 +70,15 @@ whole ships them unread (PR 4921's review probe
   at a point, so the confirm reads these records. Both clauses then
   hold as written. RESTREAD's row already holds this, and it calls what
   the lane certifies "a design question".
+
+## 2026-10-13 — an n-ary union's next fold step refuses it too (CONTACTHOLD)
+
+Measured on `contacthold/fold-step-face-face-row`: the rod of
+`face_face_touch` (z 0.25 to 0.75) on the plate, unioned through
+`editor_core` with a block apart from both, members in the order plate,
+rod, block, refuses `UnionFoldStep { member: 2, refusal:
+CarryRefused { row: Carried(A), refusal: Unread { cells: [Edge, Face] } } }`:
+the step folding in the block carries the first step's cap-circle
+edge–face record and cannot read it. The fold-step witness of that
+branch uses a rod of the plate's height instead, whose ends are
+edge–edge records the carry reads.

@@ -621,6 +621,8 @@ mod trim_3_windows_interval;
 mod u8a_parse;
 #[path = "union_flush_onto_edge_contact.rs"]
 mod union_flush_onto_edge_contact;
+#[path = "union_fold_face_face_touch.rs"]
+mod union_fold_face_face_touch;
 #[path = "union_pinch_member_order.rs"]
 mod union_pinch_member_order;
 #[path = "unreadable_by_this_build.rs"]
