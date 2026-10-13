@@ -1345,3 +1345,4 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - the unit-arm `screened_max`/`vectors_sup` f64 screen, about 5% cheaper on the integral arm, with its fuzz;
     - `a_part_carried_below_the_normal_range_screens_soundly`.
   - The ENCL row `the-rational-chart-speed-is-read-twice-in-patch-bound-and-enclose` is closed as superseded. — (ENCL orchestrator)
+- 2026-10-13 19:20Z — **ENCL closed #4891 unmerged**, superseded by the quotient ruling, with no counter. Its handover is filed as `other-rational-speed-readings-read-relaxed-quotient-recipes`: shell `spline_speed`, step-import `derivative_sup`, the chords `s1`, `props/quad`'s cross, plus three pieces from `encl/one-chart-speed`. It is picked up after 4984. **Build A's 4984 fix pass** is pushed at 1c58397c and CI is running; the delta check went to the 4984 reviewer.
