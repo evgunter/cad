@@ -14,8 +14,7 @@ and P1 rows; its P2, P3 and unbanded rows went to RULES
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P0 | `a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity` | H | A boss on a FaceFrame taken from a revolved body's cap refuses on pcurve_loop_continuity at every symbolic dial |
-| P0 | `derived-frame-placement-freezes-on-the-symbolic-lane` | H | A profile placed on a derived frame whose AXES carry a widened parameter does not certify on the symbolic lane |
+| P1 | `derived-frame-spin-documents-stopped-certifying-under-guided` | M | the in-plane spin and half-spin derived-frame documents certified under Guided at SYM-5 and refuse on main at the wall join, unattributed |
 | P1 | `a-chain-of-three-joints-straddles-dihedral-arm` | D | a chain of three or more joints straddles dihedral_arm on a mapped edge's re-certification |
 | P1 | `the-chain-demo-detects-no-self-intersection` | H | the chain demo detects no self-intersection (its certified half waits on CLEAR's `symbolic-tier-and-clearance-engine`) |
 
@@ -41,16 +40,19 @@ certified half blocked on CLEAR's `symbolic-tier-and-clearance-engine`).
 The 2026-10-02 triage (`work/sym/log.md`) set the order, and SYM-15
 (#3804) and SYM-16 took its first two rows. What remains:
 1. ~~the rotation-angle readout~~: SYM-17, merged 2026-10-13 (#4197);
-2. a re-take of `derived-frame-placement-freezes-on-the-symbolic-lane`
-   on `main`, which may close it;
+2. ~~a re-take of `derived-frame-placement-freezes-on-the-symbolic-lane`~~:
+   re-taken 2026-10-13 and closed, with the revolved-cap P0. Its
+   successors are the spin regression (P1, next: a bisect) and the
+   Guided residue (P2);
 3. the arm straddle (`a-chain-of-three-joints-straddles-dihedral-arm`),
    now that SYM-15 has named the wedge wall in front of it;
 4. the chain's self-intersection, Phase 1 only until CLEAR's engine
    lands.
 
-`a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity` is
-P0 but mostly not the tier's: its refusal is the pcurve loop check, so
-it is offered to that check's owner before SYM takes it.
+`a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity`
+closed 2026-10-13. PCERT retired the pcurve loop check it refused on,
+and the boss refusal left behind is the tier's, in the Guided residue
+row.
 
 ## Review posture
 
