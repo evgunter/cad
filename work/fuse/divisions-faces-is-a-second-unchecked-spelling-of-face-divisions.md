@@ -2,10 +2,12 @@
 id: divisions-faces-is-a-second-unchecked-spelling-of-face-divisions
 kind: issue
 title: lineage::Divisions.faces is a second, unchecked spelling of face division rows beside FaceDivisions
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
+pr: 4809
+closed: 2026-10-12
 refs: [face-lineage-rows-are-checked-by-their-readers-not-where-they-are-added, 4868]
 ---
 
@@ -41,3 +43,16 @@ What is owed: decide whether `Divisions.faces` becomes a
 `FaceDivisions`, measuring first whether `shell.rs` ever writes a
 self-row or names a hole face twice, and give `CarryRefusal` its arm if
 it does.
+
+## Closed
+
+`lineage::Divisions` is gone: CONTACTHOLD's PR 4809 retires it with
+the carry it fed (`carried_through_pieces`). A surgery verb now states
+each cell's fate in a `topo::Lineage`, and the split reads its face
+divisions straight off `SplitNaming::face_fragments`, the checked
+`FaceDivisions` (`SplitResult::lineage`, through `FaceDivisions::rows`).
+The shell states each opened face's division as a `Fate::Divided`, not
+as `(hole, rim)` rows, so no unchecked spelling of face division rows
+is left for a `FaceDivisions` to replace. The visited-set walk
+(`Lineage::of` on main, `lineage::Descent` here) is the one reader
+and stays total.

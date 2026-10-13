@@ -70,3 +70,16 @@ rule share is ≈ 2.2e-10 m³ at every ε. So:
 The fix shapes above (compensated sums, a face-local origin) target
 rounding. Measure them against the round cap and the ε share before
 building either.
+
+## A seamless pipe a kilometre out (FLUX, PR 4839, 2026-10-12)
+
+`topo/tests/a_seamless_pipe_cut_by_an_oblique_plane_measures.rs`, the
+Interval row: the pipe in the frame at `(1e3, −7e2, 4e2)` with axis
+`(0.3, −0.2, 0.9)`, its floor 100 m up the axis, runs its wall out of
+budget at `CAD_TOLERANCE_EPS=1e-12` only: `QuadratureBudget { width_len
+3.33e-9, target_len 1.024e-9, rounds 13 }`. The same pose converges at
+`f64` and in the world frame at `Interval`, and every other pose and
+frame converges at all three ε. Which term holds the width is not
+measured; the position term `o·A⃗`, read at the interval scalar a
+kilometre out, is the candidate. The row pins it by type
+(`runs_out_of_budget_at_interval`).

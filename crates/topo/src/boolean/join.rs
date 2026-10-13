@@ -895,6 +895,10 @@ pub(super) struct Connected {
     pub completed: Vec<CompletedPolygonPair>,
     pub a_fragments: crate::lineage::FaceDivisions,
     pub b_fragments: crate::lineage::FaceDivisions,
+    /// Each operand's faces the join killed, `(killed face, face holding
+    /// its region)` in that operand's clone keys, A's then B's
+    /// (`ChordJoiner::take_absorbed`).
+    pub absorbed: [crate::lineage::Substitutions<FaceKey>; 2],
     /// Each operand's chords along its own edges, `(edge, chord)` in
     /// that operand's clone keys, A's then B's: every chord a segment
     /// whose locus on that operand is an edge minted runs along that
@@ -927,7 +931,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // Still-loose halves (choose_roles' separation constraint —
         // a role order must not wall a pending half off from its match
         // partner). The chosen halves themselves are being consumed.
-        let (mut a_loose, mut b_loose) = loose_partners(&open, red, &sa.sides, &sb.sides, band)?;
+        let (mut a_loose, mut b_loose) =
+            loose_partners(&open, &segments, red, &sa.sides, &sb.sides, band)?;
         a_loose.remove(ea);
         a_loose.remove(ra);
         b_loose.remove(eb);
@@ -1408,6 +1413,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         completed,
         a_fragments: sa.joiner.take_fragments(),
         b_fragments: sb.joiner.take_fragments(),
+        absorbed: [sa.joiner.take_absorbed(), sb.joiner.take_absorbed()],
         along: [sa.along, sb.along],
     })
 }
@@ -1936,17 +1942,17 @@ fn first_pair<T: Decide>(
     Ok(best.map(|(_, m)| m))
 }
 
-/// **Whether two unused germ slots are match partners** — the one
-/// criterion [`find_match`] pairs on and [`loose_partners`] counts
-/// partners with, so the separation constraint sees the partners the
-/// matcher will take: the A germs carry the SAME loci, each `OnEdge`
-/// locus at its own site ([`locus_at_site`]); the two halves' senses
-/// oppose in A; the sites are distinct (`bool_join_chord`) and FACE
-/// each other along the germ line (the locus-aware facing); and the B
-/// germs at the same slots mirror them — same loci, opposed senses —
-/// or the join has desynced. `Some(reach)` when they are partners — how
-/// far the partner is along the germ's line ([`Reach`]). Two slots
-/// of one record never are.
+/// **Whether two unused germ slots are match partners** — the
+/// criterion [`find_match`] pairs on, and the one [`loose_partners`]
+/// pairs two records' halves by, so the separation constraint sees the
+/// partners the matcher will take: the A germs carry the SAME loci,
+/// each `OnEdge` locus at its own site ([`locus_at_site`]); the two
+/// halves' senses oppose in A; the sites are distinct
+/// (`bool_join_chord`) and FACE each other along the germ line (the
+/// locus-aware facing); and the B germs at the same slots mirror them —
+/// same loci, opposed senses — or the join has desynced. `Some(reach)`
+/// when they are partners — how far the partner is along the germ's
+/// line ([`Reach`]). Two slots of one record never are.
 fn partners<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
@@ -3526,11 +3532,14 @@ type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
 /// static in the germ geometry, which [`capture_rank`] reads to rank
 /// what a chord arc captures. Germ meta is shared between the solids,
 /// so the (record, slot) partner relation is computed once (A-clone
-/// points — coincident copies) and translated per solid. A loose half
-/// with no partner maps to `None` (conservatively separated wherever
-/// captured).
+/// points — coincident copies) and translated per solid. A one-site
+/// loop's two halves, which [`partners`] never pairs (they are one
+/// record's), are each other's: its segment ([`wrap_site_segments`])
+/// runs from one round the loop to the other. A loose half with no
+/// partner maps to `None` (conservatively separated wherever captured).
 fn loose_partners<T: Decide>(
     open: &[OpenRecord<T>],
+    segments: &[SectionSegment<T>],
     red: &BooleanReduction<T>,
     sa: &Sides,
     sb: &Sides,
@@ -3546,9 +3555,9 @@ fn loose_partners<T: Decide>(
     for &(i, s) in &loose {
         let mut best: Option<(Reach<T>, (usize, usize))> = None;
         for &(j, t) in &loose {
-            // The matcher's own criterion ([`partners`]): the separation
-            // constraint must count partners with the matcher's eyes or
-            // roles get walled off wrongly.
+            // Across records, the matcher's own criterion ([`partners`]):
+            // the separation constraint must see the pairs the matcher
+            // will take, or roles get walled off wrongly.
             let Some(reach) = partners(open, red, sa, sb, (i, s), (j, t), band)? else {
                 continue;
             };
@@ -3557,6 +3566,20 @@ fn loose_partners<T: Decide>(
         let partner = best.map(|(_, jt)| jt);
         a_map.insert(open[i].a[s].0.he, partner.map(|(j, t)| open[j].a[t].0.he));
         b_map.insert(open[i].b[s].0.he, partner.map(|(j, t)| open[j].b[t].0.he));
+    }
+    for seg in segments {
+        let [(r, s), (q, t)] = seg.ends;
+        // Defence in depth, unreachable in effect: a one-site record's
+        // two slots are consumed together and `bool_connect` cuts it at
+        // once, so a consumed pair's halves are keys no live loop holds.
+        // The guard keeps the map's domain to unused halves.
+        if r != q || open[r].a[s].1 {
+            continue;
+        }
+        for (map, side) in [(&mut a_map, &open[r].a), (&mut b_map, &open[r].b)] {
+            map.insert(side[s].0.he, Some(side[t].0.he));
+            map.insert(side[t].0.he, Some(side[s].0.he));
+        }
     }
     Ok((a_map, b_map))
 }

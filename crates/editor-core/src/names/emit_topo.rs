@@ -22,10 +22,10 @@ use super::emit::{
     Incidence, NamingError, Rim, RimShare, edge_ends, ent, face_half_edges, name1, rim_between,
     rims_between, vertex_point,
 };
-use super::groups::{CrossingSenses, Emitted, GroupRecord, Parent};
+use super::groups::{Emitted, GroupRecord, Parent};
 use super::merged::{self, NESTED_MERGED};
 use super::role::{
-    EntityKind, NameRef, Qualifier, RoleSeg, Sense, SplitHalf, StableName, edge_line,
+    EntityKind, NameRef, Qualifier, RoleSeg, RunLine, Sense, SplitHalf, StableName, edge_line,
 };
 use super::seam_pair;
 use super::table::{EntityKey, Entry, NameTable};
@@ -772,7 +772,8 @@ fn oriented<T: geom_core::Real>(
 
 /// A crossed seam edge with no first side: neither way along it is a
 /// fact of the names, so neither is a crossing's sense.
-const UNORIENTED: &str = "a crossed seam edge has no first side to orient its crossings by";
+pub(super) const UNORIENTED: &str =
+    "a crossed seam edge has no first side to orient its crossings by";
 
 /// One boolean operand under naming.
 pub(crate) struct OperandCtx<'a, T: Decide> {
@@ -1213,6 +1214,23 @@ pub(crate) fn name_boolean<T: Decide>(
         )?;
     }
     tie.flush(&mut t)?;
+    // An operand corner the result holds as several vertices: each
+    // copy's divider walls (N2), read through the faces' obstacles. The
+    // corner's faces are its parent, and its pieces are the faces that
+    // hold part of them (`held_by`).
+    let corner_walls = |sides: &BTreeSet<OpSide<VertexKey>>, copies: &[VertexKey]| {
+        let mut parent: BTreeSet<OpSide<FaceKey>> = BTreeSet::new();
+        for &side in sides {
+            let (op, k) = side.of(a, b);
+            let faces = op
+                .body
+                .faces_of_vertex(k)
+                .ok_or_else(|| bug("an operand corner's star does not resolve"))?;
+            parent.extend(faces.into_iter().map(|f| side.with(f)));
+        }
+        let pieces: BTreeSet<FaceKey> = parent.iter().flat_map(&held_by).collect();
+        obstacles.split_corner(body, &parent, copies, &pieces, &wall)
+    };
 
     let edge_groups = name_boolean_edges(
         node,
@@ -1231,7 +1249,7 @@ pub(crate) fn name_boolean<T: Decide>(
         &merged_descents,
         bnd,
     )?;
-    let senses = name_boolean_vertices(
+    name_boolean_vertices(
         node,
         &mut t,
         &mut tie,
@@ -1243,6 +1261,7 @@ pub(crate) fn name_boolean<T: Decide>(
         b,
         &inc,
         &edge_groups,
+        &corner_walls,
         bnd,
     )?;
     tie.flush(&mut t)?;
@@ -1262,7 +1281,7 @@ pub(crate) fn name_boolean<T: Decide>(
     tie.flush(&mut t)?;
 
     super::emit::check_total(&t, body, 0)?;
-    Ok(Emitted::new(t, rec).with_senses(senses))
+    Ok(Emitted::new(t, rec))
 }
 
 /// A merged parent in a pair boolean: its `Merged` name, the faces it
@@ -1837,13 +1856,13 @@ struct EdgeGroup {
     lone: Lone,
 }
 
-/// Boolean vertices: operand pass-downs (`From`), and seam
+/// Boolean vertices: operand pass-downs (`From`, + `Fragment(Borders)`
+/// at each of several vertices one corner is held as), and seam
 /// (crossing/fused) vertices named by the operand entities whose
 /// crossing minted them — derived from the already-named incident edges
 /// (combinatorial wiring facts) — and, where an edge crosses, by its
 /// sense ([`senses_at`]): `Crossing`, `EdgeCrossing`, or `Seam` for
-/// every other meeting. Returns the senses read at each seam vertex, for
-/// a union's fold ([`CrossingSenses`]).
+/// every other meeting.
 #[allow(clippy::too_many_arguments)]
 fn name_boolean_vertices<T: Decide>(
     node: RecipeNodeId,
@@ -1857,8 +1876,12 @@ fn name_boolean_vertices<T: Decide>(
     b: &OperandCtx<'_, T>,
     inc: &Incidence,
     edge_groups: &[EdgeGroup],
+    corner_walls: &impl Fn(
+        &BTreeSet<OpSide<VertexKey>>,
+        &[VertexKey],
+    ) -> Result<BTreeMap<Vec<StableName>, Vec<VertexKey>>, NamingError>,
     bnd: geom_core::Band,
-) -> Result<CrossingSenses, NamingError> {
+) -> Result<(), NamingError> {
     let bug = |what| NamingError::Emission { what };
     // Each edge's parent, the head a vertex cites it by, and whether
     // that descends from a tie.
@@ -1918,18 +1941,18 @@ fn name_boolean_vertices<T: Decide>(
             name1(EntityKind::Vertex, node, side.wrap(a, b, u.name)),
             u.tied,
             parent,
+            side,
         )
     };
     // Candidate seam-vertex names, grouped for multiplicity: the key
     // is the (A, B) parent pair, the value (descends-from-a-tie,
     // vertices).
-    let mut senses = CrossingSenses::new();
     let mut groups: BTreeMap<RoleSeg, (bool, Vec<(VertexKey, Along)>)> = BTreeMap::new();
-    // Operand vertices → the result vertices that are each of them:
-    // several where the boolean leaves several at one corner (null
-    // copies), a tie, as nothing tells them apart.
-    let mut corners: BTreeMap<StableName, (bool, Parent, Vec<super::table::EntityRef>)> =
-        BTreeMap::new();
+    // Operand vertices → the operand keys read there and the result
+    // vertices that are each of them: several where the boolean leaves
+    // several at one corner (null copies).
+    type Corner = (bool, Parent, BTreeSet<OpSide<VertexKey>>, Vec<VertexKey>);
+    let mut corners: BTreeMap<StableName, Corner> = BTreeMap::new();
     for (v, _) in body.vertices() {
         // A vertex that is one of an operand's own vertices is that
         // vertex (N2), read at every operand key the boolean leaves at
@@ -1959,26 +1982,18 @@ fn name_boolean_vertices<T: Decide>(
         {
             identity = Some(identity_of(side, u));
         }
-        if let Some((name, from_tie, parent)) = identity {
+        if let Some((name, from_tie, parent, side)) = identity {
             let at = corners
                 .entry(name)
-                .or_insert((from_tie, parent, Vec::new()));
+                .or_insert((from_tie, parent, BTreeSet::new(), Vec::new()));
             at.0 |= from_tie;
-            at.2.push(ent(0, EntityKey::Vertex(v)));
+            at.2.insert(side);
+            at.3.push(v);
             continue;
         }
         // What the boolean classified here: the senses a crossing is
-        // named by, and the evidence a union reads for a vertex its fold
-        // names some other way (`CrossingSenses`).
+        // named by.
         let at_v = senses_at(naming, &keys, a, b)?;
-        let crossed: Vec<(StableName, Sense)> = at_v
-            .iter()
-            .filter(|s| !(s.unoriented && s.sense.crosses()))
-            .map(|s| (s.name.clone(), s.sense))
-            .collect();
-        if !crossed.is_empty() {
-            senses.insert(v, crossed);
-        }
         // Seam vertex: parents from incident edges' names.
         let edges = inc
             .vertex_edges
@@ -2066,7 +2081,11 @@ fn name_boolean_vertices<T: Decide>(
             // operand pierce a face of the other at one vertex, so no
             // single edge is its parent; and so is a point edges of both
             // operands run through, one of them on one side, where no
-            // edge pair is.
+            // edge pair is. Those two N2 names by their lines, as a
+            // `Crossing` or an `EdgeCrossing` run; the pair boolean does
+            // not yet, because a line there can have no piece the
+            // boolean classified, so no sense to carry
+            // (`work/emit/a-pair-boolean-names-an-edge-bearing-meeting-as-a-seam-junction.md`).
             (aes, bes)
                 if seam_lines.len() >= 2
                     && match (aes.len(), bes.len()) {
@@ -2155,15 +2174,26 @@ fn name_boolean_vertices<T: Decide>(
                 },
                 Along::B(pb),
             ),
-            (EntityKind::Edge, EntityKind::Edge) => (
-                RoleSeg::EdgeCrossing {
-                    a: edge_line(&pa),
-                    a_sense: sense(topo::Operand::A, &pa)?,
-                    b: edge_line(&pb),
-                    b_sense: sense(topo::Operand::B, &pb)?,
-                },
-                Along::A(pa),
-            ),
+            // Two edges: the k = 2 run, in name order, ranked along its
+            // least line.
+            (EntityKind::Edge, EntityKind::Edge) => {
+                let la = RunLine {
+                    line: edge_line(&pa),
+                    sense: Some(sense(topo::Operand::A, &pa)?),
+                };
+                let lb = RunLine {
+                    line: edge_line(&pb),
+                    sense: Some(sense(topo::Operand::B, &pb)?),
+                };
+                let along = if la.line <= lb.line {
+                    Along::A(pa)
+                } else {
+                    Along::B(pb)
+                };
+                let mut run = vec![la, lb];
+                run.sort();
+                (RoleSeg::EdgeCrossing(run), along)
+            }
             (EntityKind::Face, EntityKind::Face) => {
                 (RoleSeg::Seam { a: pa, b: pb }, Along::Nowhere)
             }
@@ -2175,9 +2205,23 @@ fn name_boolean_vertices<T: Decide>(
         slot.0 |= from_tie;
         slot.1.push((v, along));
     }
-    for (name, (from_tie, parent, ents)) in corners {
-        rec.record(&name, ents.clone(), parent);
-        mint_candidates(t, tie, from_tie, name, ents)?;
+    // A corner held as one vertex is that corner; one held as several
+    // is fragments of it, `Fragment(Borders)` over each copy's divider
+    // walls (N2), and copies with equal sets tie.
+    for (name, (from_tie, parent, sides, copies)) in corners {
+        let ents = |vs: &[VertexKey]| vs.iter().map(|&v| ent(0, EntityKey::Vertex(v))).collect();
+        rec.record(&name, ents(&copies), parent);
+        if let [one] = copies[..] {
+            put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(one)))?;
+            continue;
+        }
+        for (walls, vs) in corner_walls(&sides, &copies)? {
+            let mut piece = name.clone();
+            piece
+                .path
+                .push(RoleSeg::Fragment(Qualifier::Borders(walls)));
+            mint_candidates(t, tie, from_tie, canonical::minted(piece), ents(&vs))?;
+        }
     }
     for (seg, (from_tie, verts)) in groups {
         let base = name1(EntityKind::Vertex, node, seg);
@@ -2228,7 +2272,7 @@ fn name_boolean_vertices<T: Decide>(
         }
         rank_crossings(t, tie, from_tie, &base, &crossings, bnd)?;
     }
-    Ok(senses)
+    Ok(())
 }
 
 /// The edge a seam vertex is ranked along: an A-side edge, a B-side
@@ -5785,11 +5829,25 @@ mod touch_reread_rows {
         t
     }
 
-    /// Names every op on `(x, y)` in both orders; returns how many built.
-    fn names(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) -> usize {
+    /// What naming the ops of one scene found.
+    #[derive(Default)]
+    struct Named {
+        /// Ops that built.
+        built: usize,
+        /// Operand corners named as fragments (several result vertices).
+        fragmented: usize,
+        /// Corner names, bare or fragment, that tie.
+        tied_corners: usize,
+    }
+
+    /// Names every op on `(x, y)` in both orders.
+    fn names(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) -> Named {
+        use crate::names::role::Qualifier;
+        use crate::names::table::Entry;
+        use std::collections::BTreeSet;
         let (xn, yn) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
         let (xt, yt) = (table(x, xn), table(y, yn));
-        let mut named = 0;
+        let mut named = Named::default();
         for (what, (a, an, at), (b, bn, bt), r) in [
             ("x − y", (x, xn, &xt), (y, yn, &yt), subtract(x, y, t())),
             ("y − x", (y, yn, &yt), (x, xn, &xt), subtract(y, x, t())),
@@ -5813,22 +5871,44 @@ mod touch_reread_rows {
                 table: bt,
                 body: b,
             };
-            match name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t()) {
-                Ok(_) => named += 1,
+            let table = match name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t())
+            {
+                Ok(e) => e.table,
                 Err(e) => panic!("{label}, {}, {what}: names, got {e:?}", pose.label),
+            };
+            named.built += 1;
+            let mut fragmented = BTreeSet::new();
+            for (n, e) in table.iter().filter(|(n, _)| n.kind == EntityKind::Vertex) {
+                let corner = match n.path.as_slice() {
+                    [c @ RoleSeg::From { .. }] => c,
+                    [
+                        c @ RoleSeg::From { .. },
+                        RoleSeg::Fragment(Qualifier::Borders(_)),
+                    ] => {
+                        fragmented.insert(c.clone());
+                        c
+                    }
+                    _ => continue,
+                };
+                if matches!(e, Entry::Tied(_)) {
+                    eprintln!("{label}, {}, {what}: {corner:?} ties", pose.label);
+                    named.tied_corners += 1;
+                }
             }
+            named.fragmented += fragmented.len();
         }
         named
     }
 
-    /// **A corner the result holds as several vertices is one tied name
-    /// over them** (N2: each is that corner, and nothing tells them
-    /// apart): "over a void in the bare arch", `x − y` at rest, leaves
-    /// `x`'s apex at the plate's top as several result vertices, each a
-    /// null copy of it, and names them all `x`'s corner, tied
-    /// (`work/emit/a-corner-held-as-several-result-vertices-ties.md`).
+    /// **A corner the result holds as several vertices is a fragment
+    /// of it at each** (N2): "over a void in the bare arch", `x − y` at
+    /// rest, leaves `x`'s apex at the plate's top as two result
+    /// vertices, each a null copy of it, and each is `x`'s corner +
+    /// `Fragment(Borders)` over the walls of `y` that divide the corner
+    /// there, the two sets apart.
     #[test]
-    fn a_corner_held_as_several_result_vertices_is_one_tied_name() {
+    fn a_corner_held_as_several_result_vertices_is_a_fragment_at_each() {
+        use crate::names::role::Qualifier;
         use crate::names::table::Entry;
         let pose = &poses()[0];
         let p = |b: [[f64; 3]; 3]| apex_pyramid(&b, pose, t());
@@ -5854,43 +5934,81 @@ mod touch_reread_rows {
         };
         let named = name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t())
             .expect("x − y names");
-        let ties: Vec<(&crate::names::StableName, usize)> = named
+        let ties: Vec<&crate::names::StableName> = named
             .table
             .iter()
-            .filter_map(|(n, e)| match e {
-                Entry::Tied(rs) if n.kind == EntityKind::Vertex => Some((n, rs.len())),
+            .filter(|(n, e)| n.kind == EntityKind::Vertex && matches!(e, Entry::Tied(_)))
+            .map(|(n, _)| n)
+            .collect();
+        assert!(ties.is_empty(), "no vertex name ties: {ties:?}");
+        let corner_of_x = |seg: &RoleSeg| {
+            matches!(seg, RoleSeg::From { read, of }
+                if *read == crate::names::FOLD_A
+                    && matches!(of.path.as_slice(), [RoleSeg::CapVertex(..)]))
+        };
+        let fragments: Vec<(&RoleSeg, &Vec<crate::names::StableName>)> = named
+            .table
+            .iter()
+            .filter(|(n, _)| n.kind == EntityKind::Vertex)
+            .filter_map(|(n, _)| match n.path.as_slice() {
+                [corner, RoleSeg::Fragment(Qualifier::Borders(walls))] if corner_of_x(corner) => {
+                    Some((corner, walls))
+                }
                 _ => None,
             })
             .collect();
-        let [(name, n)] = ties.as_slice() else {
-            panic!("one tied vertex name: {ties:?}");
+        let [(corner, one), (also, other)] = fragments.as_slice() else {
+            panic!("two fragments of x's corner: {fragments:?}");
         };
-        assert_eq!(*n, 2, "{name:?}: the two vertices at the corner");
-        assert!(
-            matches!(
-                name.path.as_slice(),
-                [RoleSeg::From { read, of }]
-                    if *read == crate::names::FOLD_A
-                        && matches!(of.path.as_slice(), [RoleSeg::CapVertex(..)])
-            ),
-            "the tie is x's own corner: {name:?}"
-        );
+        assert_eq!(corner, also, "both fragments are of one corner");
+        assert_ne!(one, other, "the two copies' walls tell them apart");
+        for walls in [one, other] {
+            assert!(
+                !walls.is_empty()
+                    && walls
+                        .iter()
+                        .all(|w| w.kind == EntityKind::Face && w.node == yn),
+                "each copy's walls are y's faces: {walls:?}"
+            );
+        }
+        let bare = named
+            .table
+            .iter()
+            .any(|(n, _)| n.kind == EntityKind::Vertex && n.path == [(*corner).clone()]);
+        assert!(!bare, "a corner held as several vertices has no bare name");
     }
 
-    /// At rest, every scene.
+    /// At rest, every scene: seven operand corners are held as several
+    /// result vertices, and each copy's walls tell it apart. They are
+    /// `x`'s apex, where `y`'s void meets it, in `x − y` over a void in
+    /// the arch, the bare arch, the quad arch and the bare quad arch and
+    /// over the void with the island in it, and in `x ∩ y` crossing the
+    /// island in the void and hanging across the near-flat quad void.
     #[test]
     fn a_vertex_read_twice_names_its_result_in_every_op() {
-        assert!(every_scene(&poses()[..1]) > 0, "cells built");
+        let named = every_scene(&poses()[..1]);
+        assert!(named.built > 0, "cells built");
+        assert_eq!(named.fragmented, 7, "corners held as several vertices");
+        assert_eq!(named.tied_corners, 0, "corner names that tie");
     }
 
-    /// The other poses, every scene.
+    /// The other poses, every scene: the same seven corners at each, as
+    /// a pose moves no scene's topology.
     #[test]
     fn a_vertex_read_twice_names_its_result_in_every_op_at_every_pose() {
-        assert!(every_scene(&poses()[1..]) > 0, "cells built");
+        let rest = &poses()[1..];
+        let named = every_scene(rest);
+        assert!(named.built > 0, "cells built");
+        assert_eq!(
+            named.fragmented,
+            7 * rest.len(),
+            "corners held as several vertices"
+        );
+        assert_eq!(named.tied_corners, 0, "corner names that tie");
     }
 
-    fn every_scene(poses: &[Pose]) -> usize {
-        let mut named = 0;
+    fn every_scene(poses: &[Pose]) -> Named {
+        let mut named = Named::default();
         for pose in poses {
             let p = |b: [[f64; 3]; 3]| apex_pyramid(&b, pose, t());
             let plate = posed_box("the plate", PLATE, pose, t());
@@ -6046,7 +6164,10 @@ mod touch_reread_rows {
                     &flat_island,
                 ),
             ] {
-                named += names(label, x, y, pose);
+                let n = names(label, x, y, pose);
+                named.built += n.built;
+                named.fragmented += n.fragmented;
+                named.tied_corners += n.tied_corners;
             }
             // A pyramid lying on the top, its ray along it, and the
             // pyramids beside it and beside that ray.

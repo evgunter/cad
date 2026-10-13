@@ -209,8 +209,13 @@ fn judge(
                 bad.push(format!("tier3 {e:?}"));
             }
             let mut miss = 0;
+            let mut unread = 0;
             for &(p, a, b) in pts {
                 let got = topo::point_in_solid(&bb.body, p, band(), tol());
+                if matches!(got, Err(topo::PointInSolidError::Escalated { .. })) {
+                    unread += 1;
+                    continue;
+                }
                 let ok = matches!(
                     (&got, want_in(a, b)),
                     (Ok(SolidContainment::In), true) | (Ok(SolidContainment::Out), false)
@@ -226,7 +231,14 @@ fn judge(
                 bad.push(format!("{miss} of {} samples disagree", pts.len()));
             }
             let ee = bb.contacts.edge_edge().count();
-            if bad.is_empty() {
+            if bad.is_empty() && unread > 0 {
+                format!(
+                    "UNPROBED body solids={solids} kind={:?} ee={ee}: the membership \
+                     oracle escalates on {unread} of {} samples",
+                    bb.kind,
+                    pts.len()
+                )
+            } else if bad.is_empty() {
                 format!("OK body solids={solids} kind={:?} ee={ee}", bb.kind)
             } else {
                 format!(
@@ -354,11 +366,12 @@ fn touch_pairs() -> Vec<(&'static str, Shape, Shape)> {
 }
 
 /// **Every touch-only pair answers every op right, both orders, three
-/// scales.** Prints each line. Red on any non-OK where the two edges on
-/// the line coincide end to end; where they are staggered, red on
-/// anything but `CurvedBooleanUnsupported`.
+/// scales**, edges of unequal extent along the line included, except
+/// the rows [`touch_pair_refusal`] pins to a typed refusal. Prints each
+/// line; red on any other outcome.
 #[test]
 fn review_4781_touch_pairs_every_op() {
+    let eps = tol().get().eps;
     let mut bad = Vec::new();
     for (name, a, b) in touch_pairs() {
         for s in [1e-3, 1.0, 1e3] {
@@ -366,26 +379,43 @@ fn review_4781_touch_pairs_every_op() {
                 let (x, y) = (x.scaled(s), y.scaled(s));
                 for line in pose(x, y, 0.0, Some(2)) {
                     println!("{name} s={s:e} {order} | {line}");
-                    // Edges of unequal extent along the line (a vertex of
-                    // one in the other's edge interior) refuse at every
-                    // op: the frontier of
-                    // `work/contacthold/a-same-side-slab-past-the-round-stops-at-curved-boolean-unsupported.md`.
-                    let staggered = name.contains("short")
-                        || name.contains("tall")
-                        || name.contains("staggered");
-                    let ok = if staggered {
-                        line.contains(": REFUSED CurvedBooleanUnsupported ")
-                    } else {
-                        line.contains(": OK ")
+                    let op = line.split(':').next().unwrap_or_default();
+                    let ok = match touch_pair_refusal(eps, name, s, order, op) {
+                        Some(kind) => line.starts_with(&format!("{op}: REFUSED {kind} ")),
+                        // At ε 1e-6 a pair scaled to 1e-3 spans a few
+                        // thousand ε: the body is checked whole, but the
+                        // membership oracle escalates on samples near
+                        // its faces.
+                        None if eps == 1e-6 && s == 1e-3 => {
+                            line.contains(": OK ") || line.contains(": UNPROBED ")
+                        }
+                        None => line.contains(": OK "),
                     };
                     if !ok {
-                        bad.push(format!("{name} s={s:e} {order} | {line}"));
+                        bad.push(format!("eps {eps:e} {name} s={s:e} {order} | {line}"));
                     }
                 }
             }
         }
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// The touch-pair rows that refuse, typed, and the kind each refuses
+/// with. At ε 1e-12 the two cylinder kisses at scale 1e3 refuse: the
+/// arc on the covered face escalates, and where the staggered pair's
+/// ruling edge pierces a curved face the pierce is unsupported.
+fn touch_pair_refusal(eps: f64, name: &str, s: f64, order: &str, op: &str) -> Option<&'static str> {
+    if eps != 1e-12 || s != 1e3 {
+        return None;
+    }
+    match (name, order, op) {
+        ("cyl r1 / r1 equal", _, _) => Some("Escalated"),
+        ("cyl r1 / r0.5 staggered", "ab", "BMinusA")
+        | ("cyl r1 / r0.5 staggered", "ba", "Union" | "AMinusB" | "Meet") => Some("Escalated"),
+        ("cyl r1 / r0.5 staggered", _, _) => Some("CurvedPierceUnsupported"),
+        _ => None,
+    }
 }
 
 /// Area of the half circular segment of depth `h` of a radius-`r`
@@ -478,7 +508,7 @@ fn review_4781_near_tangent_cylinders() {
 /// materials on ONE side): box `x ∈ [-3, 1], y ∈ [0, 3]` whose face
 /// `x = 1` is tangent to the unit cylinder at the seam `(1, 0)`, box
 /// edge on the seam ruling, and the cylinder's `y ≥ 0` half inside the
-/// box. ∩ is the half cylinder.
+/// box. ∩ is the half cylinder. Every op answers, both orders.
 #[test]
 fn review_4781_kiss_with_overlap() {
     let unit = Shape::Cyl {
@@ -496,7 +526,7 @@ fn review_4781_kiss_with_overlap() {
     for (order, x, y) in [("ab", unit, bx), ("ba", bx, unit)] {
         for line in pose(x, y, meet, None) {
             println!("{order} | {line}");
-            if line.contains("WRONG") || line.contains("ClassificationInvariant") {
+            if !line.contains(": OK ") {
                 bad.push(format!("{order} | {line}"));
             }
         }

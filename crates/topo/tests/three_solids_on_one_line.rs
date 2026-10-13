@@ -732,7 +732,7 @@ fn three_prisms_flush_along_one_line_build_undeclared_in_every_member_order() {
 
 /// **The carried fold serves the uncarried fold's body and passes 3′
 /// (D10)**: every member order of the 50° fixture, of four prisms, and
-/// of the 50° fixture with a corner moved 0.1ε, each step carrying the
+/// of the 50° fixture with a corner moved 0.1ε and 0.5ε, each step carrying the
 /// records the step before it returned. Where each step carries the
 /// last one's records nothing on the line is dropped, so the result
 /// passes 3′ with no finding: the `dropped` counts [`every_order`] pins
@@ -746,6 +746,7 @@ fn the_carried_fold_passes_three_prime_in_every_member_order() {
         ("three", three()),
         ("four", four()),
         ("three, one moved 0.1ε", three_off(0.1 * eps)),
+        ("three, one moved 0.5ε", three_off(0.5 * eps)),
     ] {
         let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
         let mut members = vec![finished("the plate", p, t())];

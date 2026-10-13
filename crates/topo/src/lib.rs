@@ -846,7 +846,7 @@ pub use boolean::{
     GivenPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
     LeverArm, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite,
     PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
-    PlaneRung, PointInSolidError, ReductionContacts, SectorRead, SectorRung, SelfCheck,
+    PlaneRung, PointInSolidError, ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck,
     SettleError, Settler, Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces,
     SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact,
     VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
@@ -857,7 +857,10 @@ pub use boolean::{
     tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
-pub use lineage::{Divisions, FaceDivisions, LineageRows, RowDefect, RowRefusal, Substitutions};
+pub use lineage::{
+    Division, FaceDivisions, Fate, Lineage, LineageError, LineageRows, Remainder, RowDefect,
+    RowRefusal, Substitutions,
+};
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
@@ -880,7 +883,7 @@ pub use census::{census_traces, census_traces_planted};
 pub use contact::{
     CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactClass, ContactFinding,
     ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL, FIT_DEFERRAL_FOR_USERS,
-    GlueClass, SEAM_STEER,
+    GlueClass,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,

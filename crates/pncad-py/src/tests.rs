@@ -3507,7 +3507,9 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::CapTransverse,
         BlendDecision::CapEllipse,
         BlendDecision::CutOffFeet,
-        BlendDecision::TurnIsosceles,
+        BlendDecision::TurnFeetGap,
+        BlendDecision::TurnOverrunChord,
+        BlendDecision::TurnFeet,
         BlendDecision::MitreSection,
     ] {
         let refused = BlendError::Escalated {
@@ -4820,6 +4822,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "arc_loop_containment_unsupported",
             "band",
+            "carry_refused",
             "classification_invariant",
             "coincident_shell",
             "contact_contradicted",
@@ -4873,7 +4876,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "result_volume_implausible",
             "rim_cusp_arm_unbuilt",
             "scaffolding_operand",
-            "seam_contradicted",
             "seam_orientation",
             "shared_vertex_crossings",
             "shell_witness_exhausted",
@@ -4970,14 +4972,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "co_ruled",
             "coaxial",
+            "common_foot",
             "cusp",
-            "equal_angles",
             "on_carrier",
             "same_opposite",
             "same_oriented",
-            "seam",
+            "surface_tangent",
             "tangent",
-            "tangent_contact",
         ],
         delegates: &[],
     },

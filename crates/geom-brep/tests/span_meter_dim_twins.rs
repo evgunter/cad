@@ -29,11 +29,13 @@
 //! length escalates it, and the row is sized in units of the run's own
 //! ε so its posture is the same at every ε in the hosted matrix.
 //!
-//! **CI EXECUTES THIS SUITE.** It is rostered in
-//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
-//! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
-//! by `--check-executed`, so every assertion below is a gate and a red here
-//! fails the merge. By hand:
+//! **The nightly executes this suite; the PR gate only builds it.** It is
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! under the DEFAULT selection by `scripts/k_probe_sweep.sh` in the
+//! nightly's dev-probe row, whose tally is floored by `--check-executed`,
+//! so a red here reds the nightly. The PR gate compiles it (`clippy
+//! --all-features`) and runs none of it, so a PR can merge green over a red
+//! here. By hand:
 //! `cargo test -p geom-brep --features probe --test all -- span_meter_dim_twins::`.
 
 #![cfg(feature = "probe")]
@@ -44,7 +46,9 @@ use crate::shared::tol::band;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::keys::SurfaceKey;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+use geom_brep::{
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane, SurfacePair,
+};
 use geom_core::Sign;
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
@@ -85,10 +89,12 @@ fn axis_segment(length: f64, domain: f64) -> Curve3<Probe> {
     Curve3::Nurbs(std::sync::Arc::new(n))
 }
 
-/// Certifies the segment against the axis planes and returns the
-/// `nurbs_span_meter` sample (outcome and margin) alongside the
-/// certification's own verdict. Exactly one such sample fires per
-/// certification — the row asserts that too.
+/// Certifies the segment against the axis planes through `Probe`'s
+/// certified NURBS lane (the door a spline carrier between two
+/// analytic surfaces needs) and returns the `nurbs_span_meter` sample
+/// (outcome and margin) alongside the certification's own verdict.
+/// Exactly one such sample fires per certification — the row asserts
+/// that too.
 fn span_meter_sample(
     length: f64,
     domain: f64,
@@ -110,7 +116,14 @@ fn span_meter_sample(
         param_end: Probe(domain),
     };
     k_stats::start_recording();
-    let got = EdgeCurve::certify(spec, start, end, |k| arena.get(k).cloned(), band());
+    let got = EdgeCurve::certify_via(
+        spec,
+        start,
+        end,
+        |k| arena.get(k).cloned(),
+        band(),
+        Some(NurbsLane::certified()),
+    );
     let samples = k_stats::take_samples();
     let mut hits: Vec<(SampleOutcome, f64)> = samples
         .iter()

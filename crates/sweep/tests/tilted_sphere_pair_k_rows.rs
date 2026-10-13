@@ -19,9 +19,10 @@
 //! from zero, and the clearance is still asked of the arcs it can
 //! decide.
 //!
-//! **CI EXECUTES THIS SUITE**: it is rostered in
-//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and runs under the
-//! default selection of `scripts/k_probe_sweep.sh`.
+//! **The nightly executes this suite; the PR gate only builds it**: it is
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and runs
+//! under the default selection of `scripts/k_probe_sweep.sh` in the
+//! nightly's dev-probe row.
 
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
