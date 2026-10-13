@@ -41,7 +41,13 @@ fn unproven(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<editor_core::CheckFin
 /// The rows `node` decided.
 fn rows(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
     ev.value(node)
-        .unwrap_or_else(|| panic!("{node:?} evaluated: {:?}", failure(ev, node)))
+        .unwrap_or_else(|| {
+            let root = match ev.nodes.get(&node) {
+                Some(editor_core::NodeResult::Poisoned { through }) => *through,
+                _ => node,
+            };
+            panic!("{node:?} evaluated: {root:?} {:?}", failure(ev, root))
+        })
         .coincidences
         .to_vec()
 }
@@ -1697,6 +1703,15 @@ fn ring_pinch(dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, plate, blocks)
 }
 
+/// The x offset of `ring_pinch`'s second block for a fusion: 1e-13,
+/// or ε/100 where that is smaller, so the blocks' union reads the gap
+/// inside its zero band at every ε. The union's sector test reads it
+/// about 17 times over (1.7e-12 for 1e-13), which at ε 1e-12 is in the
+/// escalate band, and the union refuses.
+fn pierce_gap() -> f64 {
+    (Tol::witness().eps() / 100.0).min(1e-13)
+}
+
 /// The `VertexFusion` rows among `node`'s.
 fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
     rows(ev, node)
@@ -1707,13 +1722,13 @@ fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 
 /// **Two pierces one ring serves are an unproven vertex fusion.** The
 /// blocks' touching edges pierce the plate's top at (1.5, 1, 1), the
-/// second block's 1e-13 off the first's along x: two vertices of the
+/// second block's [`pierce_gap`] off the first's along x: two vertices of the
 /// blocks' union on two point keys, one point by `bool_contact_vertex`
 /// and not bit for bit. The plate's top mints one ring for both
 /// (`topo` `vtxfac::mint_ring`), and the intersection keeps both pierces
 /// as two vertices. It records the decision: one `VertexFusion`
 /// `OnCarrier` row, its two cells the two blocks' edges as the union
-/// names them, its margin the 1e-13 gap. The door leaves it unproven
+/// names them, its margin the gap. The door leaves it unproven
 /// with the one-construction recourse, and the check reports it. Red if
 /// the ring glues the two by a shared point key alone, which records
 /// nothing.
@@ -1727,7 +1742,7 @@ fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 /// and the check reports nothing of the kind there.
 #[test]
 fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
-    let (doc, plate, blocks) = ring_pinch(1e-13);
+    let (doc, plate, blocks) = ring_pinch(pierce_gap());
     let (doc, common) = insert(
         doc,
         Node::Intersect {
