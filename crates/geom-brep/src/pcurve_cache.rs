@@ -4241,7 +4241,10 @@ impl<T: Decide> EnvelopeTerms<T> {
         if sum_mutant("fidelity") {
             return self.0.iter().fold(T::zero(), |sum, &term| sum + term);
         }
-        let (u, v) = (EnvelopeTerm::FidelityU.slot(), EnvelopeTerm::FidelityV.slot());
+        let (u, v) = (
+            EnvelopeTerm::FidelityU.slot(),
+            EnvelopeTerm::FidelityV.slot(),
+        );
         let rest = self
             .0
             .iter()
@@ -4521,7 +4524,10 @@ fn class_circle<T: Decide>(
                 );
                 return;
             }
-            terms.add(EnvelopeTerm::Radius, harmonic_sup(a_r * f - a, turn * f - b));
+            terms.add(
+                EnvelopeTerm::Radius,
+                harmonic_sup(a_r * f - a, turn * f - b),
+            );
         }
         Winding::Zero => {
             terms.add(EnvelopeTerm::Radius, rho);
@@ -4681,7 +4687,10 @@ fn incidence<T: Decide>(
                     terms.add(Drift, a_r.norm() * T::from_f64(3.0));
                     #[cfg(test)]
                     if sum_mutant("pole-start") {
-                        terms.add(Orientation, bb.abs() + (aa * sigma.value() + b_r.norm()).abs());
+                        terms.add(
+                            Orientation,
+                            bb.abs() + (aa * sigma.value() + b_r.norm()).abs(),
+                        );
                         return;
                     }
                     terms.add(

@@ -128,7 +128,12 @@ pub(super) fn covers(
     );
 }
 
-pub(super) fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
+pub(super) fn circle(
+    center: Point3<f64>,
+    axis: Vec3<f64>,
+    radius: f64,
+    u_ref: Vec3<f64>,
+) -> Curve3<f64> {
     Curve3::Circle {
         center,
         axis,

@@ -85,9 +85,16 @@ fn the_axial_travel_bound_reads_the_pair_at_its_sup() {
     let (_, at_f64) = chart_v_du(face, &image, (0.0, TAU), 0.0, 0.5, band())
         .unwrap()
         .unwrap();
-    let (_, at_interval) = chart_v_du(face, &lift(&image), (f(0.0), f(TAU)), f(0.0), f(0.5), band())
-        .unwrap()
-        .unwrap();
+    let (_, at_interval) = chart_v_du(
+        face,
+        &lift(&image),
+        (f(0.0), f(TAU)),
+        f(0.0),
+        f(0.5),
+        band(),
+    )
+    .unwrap()
+    .unwrap();
     let slack = 1e-12;
     for (scalar, lo, hi) in [
         ("f64", at_f64, at_f64),

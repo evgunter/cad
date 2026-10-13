@@ -20,9 +20,7 @@ use std::sync::Arc;
 use geom::NurbsCurve3;
 use geom_core::spline::KnotVector;
 
-use super::harmonic_sup_rows::{
-    band, certifies, circle, covers, lift_pcurve, tilted_circle, zero,
-};
+use super::harmonic_sup_rows::{band, certifies, circle, covers, lift_pcurve, tilted_circle, zero};
 use super::*;
 
 fn ellipse(
@@ -110,7 +108,13 @@ fn own_image_certifies(what: &str, carrier: &Curve3<f64>, surface: &Surface<f64>
 #[test]
 fn a_cylinder_ellipse_reads_its_deviation_once() {
     let (r, d) = (0.5, 0.6 * zero());
-    let carrier = ellipse(Point3::origin(), Vec3::unit_z(), r + d, r - d, Vec3::unit_x());
+    let carrier = ellipse(
+        Point3::origin(),
+        Vec3::unit_z(),
+        r + d,
+        r - d,
+        Vec3::unit_x(),
+    );
     own_image_certifies("cylinder ellipse", &carrier, &cylinder(r));
 }
 
@@ -201,7 +205,13 @@ fn a_pole_start_reads_its_orientation_defect_at_its_norm() {
         l: lift(form.l),
     };
     let mut terms_i = EnvelopeTerms::new();
-    incidence(form_i, &unit_sphere().map_scalar(f), derivation, f(1.0), &mut terms_i);
+    incidence(
+        form_i,
+        &unit_sphere().map_scalar(f),
+        derivation,
+        f(1.0),
+        &mut terms_i,
+    );
     // `1 − d` rounds at the ulp of one, which the radial part carries.
     let (norm, slack) = (d * 2f64.sqrt(), 4.0 * f64::EPSILON);
     for (scalar, (lo, hi)) in [
@@ -265,7 +275,15 @@ fn a_still_parallel_reads_its_pair_whole() {
     .unwrap()
     .total()
     .hi();
-    covers("still parallel", &image, span, &carrier, &sphere, at_f64, at_interval);
+    covers(
+        "still parallel",
+        &image,
+        span,
+        &carrier,
+        &sphere,
+        at_f64,
+        at_interval,
+    );
 }
 
 /// `fidelity`: a cylinder rim's stored image moved `0.6·zero` along
@@ -276,7 +294,12 @@ fn a_still_parallel_reads_its_pair_whole() {
 fn a_stored_image_moved_in_both_channels_reads_one_displacement() {
     let r = 0.5;
     let cyl = cylinder(r);
-    let carrier = circle(Point3::new(0.0, 0.0, 0.3), Vec3::unit_z(), r, Vec3::unit_x());
+    let carrier = circle(
+        Point3::new(0.0, 0.0, 0.3),
+        Vec3::unit_z(),
+        r,
+        Vec3::unit_x(),
+    );
     let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap() else {
         panic!("a rim images harmonic")
     };
@@ -287,7 +310,13 @@ fn a_stored_image_moved_in_both_channels_reads_one_displacement() {
         pb,
         pl,
     };
-    certifies("fidelity, both channels", &stored, (0.0, TAU), &carrier, &cyl);
+    certifies(
+        "fidelity, both channels",
+        &stored,
+        (0.0, TAU),
+        &carrier,
+        &cyl,
+    );
 }
 
 /// `fidelity-cone`: **the cone's channels add.** A 45° cone's rim at
@@ -407,11 +436,10 @@ fn a_projected_cone_reads_its_half_angle_drift_at_its_norm() {
     };
     let (sin, cos) = drifted(sin, cos);
     image.chart = projected::ProjectedChart::Cone { sin, cos, nappe };
-    let envelope =
-        PcurveCache::certify_projected(image, t0, t1, &carrier, &surface, band(), lane)
-            .unwrap_or_else(|e| panic!("certifies at f64: {e:?}"))
-            .certificate()
-            .envelope;
+    let envelope = PcurveCache::certify_projected(image, t0, t1, &carrier, &surface, band(), lane)
+        .unwrap_or_else(|e| panic!("certifies at f64: {e:?}"))
+        .certificate()
+        .envelope;
     assert!(
         envelope > zero() / 2.0 && envelope < zero(),
         "the f64 envelope {envelope:e} reads the drift once, in the band"
@@ -442,10 +470,18 @@ fn a_projected_cone_reads_its_half_angle_drift_at_its_norm() {
 fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
     let r = 0.7 * band().escalate();
     let surface = cylinder(r);
-    let carrier = circle(Point3::new(0.0, 0.0, 0.25), Vec3::unit_z(), r, Vec3::unit_x());
+    let carrier = circle(
+        Point3::new(0.0, 0.0, 0.25),
+        Vec3::unit_z(),
+        r,
+        Vec3::unit_x(),
+    );
     let f = Interval::from_f64;
     for (scalar, derived) in [
-        ("f64", derive_harmonic(&carrier, &surface, band()).map(|(_, d)| d)),
+        (
+            "f64",
+            derive_harmonic(&carrier, &surface, band()).map(|(_, d)| d),
+        ),
         (
             "Interval",
             derive_harmonic(&carrier.map_scalar(f), &surface.map_scalar(f), band()).map(|(_, d)| d),
