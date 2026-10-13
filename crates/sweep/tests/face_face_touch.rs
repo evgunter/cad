@@ -42,6 +42,11 @@ fn ext(what: &str, loops: Vec<ProfileLoop<f64>>, z0: f64, h: f64) -> AtRestBody<
     finished(what, body, tol())
 }
 
+fn point(body: &Body<f64>, v: topo::VertexKey) -> [f64; 3] {
+    let (_, p) = body.vertex_points().find(|(k, _)| *k == v).unwrap();
+    [p.x, p.y, p.z]
+}
+
 /// Each record's two cells' carrier kinds, faces only.
 fn face_pairs(r: &topo::BooleanBody<f64>) -> Vec<(SurfaceKind, SurfaceKind)> {
     let kind = |f: topo::FaceKey| {
@@ -123,6 +128,75 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
         [(SurfaceKind::Plane, SurfaceKind::Cylinder)],
         "plate ∪ rod: the face–face record of the plate's face and the rod's wall"
     );
+    let (side, _) = u.contacts.face_face().next().unwrap();
+    let plane = |f: topo::FaceKey| {
+        let face = u.body.get_face(f).unwrap();
+        u.body.get_surface(face.surface).unwrap().kind() == SurfaceKind::Plane
+    };
+    let side = if plane(side) {
+        side
+    } else {
+        u.contacts.face_face().next().unwrap().1
+    };
+    // Each cap circle touches the plate's face at one point inside its
+    // arc: an edge–face record of the circle and that face.
+    let ef: Vec<_> = u.contacts.edge_face().collect();
+    let heights: Vec<f64> = ef
+        .iter()
+        .map(|&(e, f)| {
+            assert_eq!(f, side, "plate ∪ rod: a cap record names the plate's face");
+            let zs: Vec<f64> = u
+                .body
+                .half_edges()
+                .filter(|(_, h)| h.edge == e)
+                .map(|(_, h)| point(&u.body, h.start)[2])
+                .collect();
+            assert!(
+                zs.windows(2).all(|w| w[0] == w[1]),
+                "plate ∪ rod: a cap record's edge lies at one height: {zs:?}"
+            );
+            zs[0]
+        })
+        .collect();
+    assert_eq!(
+        heights,
+        [0.25, 0.75],
+        "plate ∪ rod: the bottom and top cap circles' edge–face records"
+    );
+    // The face–face record cites the one row the glue door recorded for
+    // its tangency.
+    let tangent: Vec<usize> = u
+        .coincidences
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| c.relation == topo::Relation::SurfaceTangent)
+        .map(|(i, _)| i)
+        .collect();
+    assert_eq!(
+        tangent.len(),
+        1,
+        "plate ∪ rod: one tangency row: {:?}",
+        u.coincidences
+    );
+    assert_eq!(
+        u.coincidences[tangent[0]].site,
+        topo::DecisionSite::TangentWitness,
+        "plate ∪ rod: the tangency row is the glue door's"
+    );
+    let cites: Vec<_> = u
+        .contacts
+        .rows()
+        .iter()
+        .find(|r| matches!(r.kind(), topo::ContactKind::FaceFace(..)))
+        .unwrap()
+        .cites
+        .iter()
+        .collect();
+    assert_eq!(
+        cites,
+        [topo::Backing::Decided(u32::try_from(tangent[0]).unwrap())],
+        "plate ∪ rod: the face–face record cites the tangency row"
+    );
     let bridge = finished(
         "bridge",
         brick::<f64>((-1.0, 1.0), (1.0, 2.5), (0.6, 1.6), tol()),
@@ -174,4 +248,88 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
         ),
         "∪ bridge carrying every record: the cap circle's edge–face record is unread"
     );
+}
+
+/// **A carried edge–face or face–face row is validated at the door**,
+/// as its siblings are: a key that does not resolve, a face–face row
+/// naming one face twice, and an edge–face row whose edge bounds its
+/// face (no record: their interiors cannot meet) each refuse there.
+#[test]
+fn a_carried_curve_touch_row_with_a_bad_key_refuses_at_the_door() {
+    let plate = finished(
+        "plate",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.25, 0.5);
+    let u = match topo::union(&plate, &rod, tol()) {
+        Ok(BooleanResult::Body(u)) => u,
+        other => panic!("plate ∪ rod: {:?}", other.map(|_| ())),
+    };
+    let far = finished(
+        "far",
+        brick::<f64>((10.0, 11.0), (10.0, 11.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let (edge, face) = u.contacts.edge_face().next().unwrap();
+    let (fa, _) = u.contacts.face_face().next().unwrap();
+    let rim = u
+        .body
+        .half_edges()
+        .find(|&(he, _)| u.body.face_of_half_edge(he) == Some(face))
+        .map(|(_, h)| h.edge)
+        .unwrap();
+    let ef = |edge, face| topo::OperandRecords {
+        ef: vec![topo::CarriedRecord {
+            contact: topo::EfContact { edge, face },
+            record: 0,
+        }],
+        ..topo::OperandRecords::default()
+    };
+    let ff = |a, b| topo::OperandRecords {
+        ff: vec![topo::CarriedRecord {
+            contact: topo::FfContact { a, b },
+            record: 0,
+        }],
+        ..topo::OperandRecords::default()
+    };
+    for (records_a, what) in [
+        (
+            ef(topo::EdgeKey::default(), face),
+            "carried e-f edge key does not resolve",
+        ),
+        (
+            ef(edge, topo::FaceKey::default()),
+            "carried e-f face key does not resolve",
+        ),
+        (ef(rim, face), "carried e-f edge bounds its face"),
+        (
+            ff(fa, topo::FaceKey::default()),
+            "carried f-f face key does not resolve",
+        ),
+        (ff(fa, fa), "carried f-f pair names one face twice"),
+    ] {
+        let got = topo::boolean_op_with(
+            topo::BooleanOp::Union,
+            &u.body,
+            &far,
+            &topo::BooleanInputs {
+                records_a,
+                ..topo::BooleanInputs::default()
+            },
+            topo::SweepStrategy::Realized,
+            tol(),
+        )
+        .map(|_| ());
+        assert!(
+            matches!(
+                got,
+                Err(topo::BooleanError::InvalidInput {
+                    operand: topo::Operand::A,
+                    what: w,
+                }) if w == what
+            ),
+            "{what}: {got:?}"
+        );
+    }
 }

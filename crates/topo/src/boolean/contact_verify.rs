@@ -1265,5 +1265,39 @@ mod tests {
             read(&cyl(0.0, 1.0), true, &cyl(2.0, 1.0), true, &at_one),
             "the kissing discs: opposed, the crescent void"
         );
+        // The same reading refuses what is no tangency, so the three
+        // above are its verdicts and not a door left open.
+        assert!(
+            matches!(
+                tangency_reading(
+                    &cyl(0.0, 1.0),
+                    true,
+                    &cyl(2.5, 1.0),
+                    true,
+                    &at_one,
+                    0.0,
+                    1.0,
+                    b
+                ),
+                Err(ContactRefusal::Contradicted { .. })
+            ),
+            "discs a gap apart: the line is off one of them"
+        );
+        assert!(
+            matches!(
+                tangency_reading(
+                    &cyl(0.0, 1.0),
+                    true,
+                    &cyl(1.5, 1.0),
+                    true,
+                    &at_one,
+                    0.0,
+                    1.0,
+                    b
+                ),
+                Err(ContactRefusal::Contradicted { .. })
+            ),
+            "overlapping discs: the line is off one of them"
+        );
     }
 }

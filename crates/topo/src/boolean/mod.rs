@@ -1181,14 +1181,26 @@ pub(crate) struct VerifiedGlue {
     /// of each.
     pub(crate) tangent: std::collections::BTreeMap<(FaceKey, FaceKey), TangentCert>,
     /// The verified tangencies whose line locus runs through both faces'
-    /// interiors, each with the margin that decided it: the reduction's
-    /// face–face rows ([`ReductionContacts::ff`]).
-    pub(crate) touches: Vec<(FaceKey, FaceKey, MarginDiag)>,
+    /// interiors: the reduction's face–face rows
+    /// ([`ReductionContacts::ff`]).
+    pub(crate) touches: Vec<GluedTouch>,
     /// The one-carrier pairs a margin decided, one row each in
     /// declaration order: a declaration's verification is a value
     /// decision, so its glue is recorded like any other
     /// ([`crate::coincidence`]).
     pub(crate) coincidences: Vec<crate::Coincidence>,
+}
+
+/// A glued tangency through both faces' interiors
+/// ([`VerifiedGlue::touches`]): its faces, the margin that decided it,
+/// and the index of the row recording that decision in
+/// [`VerifiedGlue::coincidences`], which the face–face record cites.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct GluedTouch {
+    pub(crate) a: FaceKey,
+    pub(crate) b: FaceKey,
+    pub(crate) margin: MarginDiag,
+    pub(crate) row: usize,
 }
 
 impl<T: Decide> GluedPairs<T> {
@@ -1786,6 +1798,10 @@ pub struct BooleanReduction<T: Real> {
     /// record citing them survives or at a pinch the op made
     /// ([`reduce::PendingRow`]).
     pub(crate) pending: Vec<reduce::PendingRow>,
+    /// Each face–face row's decision in [`Self::pending`], with the
+    /// index in [`Self::coincidences`] of the row the glue door
+    /// recorded for it: one decision, one row.
+    pub(crate) glued: Vec<(u32, u32)>,
     /// Each pair of pierces one ring serves, decided one point
     /// ([`RingTie`]).
     pub(crate) ring_ties: Vec<RingTie>,
@@ -4608,10 +4624,18 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     )?;
     let edge_splits = core::mem::take(&mut acc.splits);
     let (mut contacts, mut pending) = acc.finish();
-    for &(fa, fb, margin) in &declared.verified.touches {
-        let k = reduce::pend(&mut pending, reduce::PendingRow::tangent(fa, fb, margin));
+    let mut glued = Vec::with_capacity(declared.verified.touches.len());
+    for touch in &declared.verified.touches {
+        let k = reduce::pend(
+            &mut pending,
+            reduce::PendingRow::tangent(touch.a, touch.b, touch.margin),
+        );
+        glued.push((reduce::index(k), touch.row));
         contacts.ff.push(Cited::new(
-            FfContact { a: fa, b: fb },
+            FfContact {
+                a: touch.a,
+                b: touch.b,
+            },
             Cites::decided(reduce::index(k)),
         ));
     }
@@ -4921,12 +4945,28 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     a.sweep_and_close();
     b.sweep_and_close();
     let edge_classes = with_copies(edge_classes, &null_edges);
-    let coincidences = glue::touched(
+    let kept = glue::touched(
         &declared.verified.coincidences,
         &pending,
         &edge_splits,
         [a_operand, b_operand],
     );
+    let coincidences = kept
+        .iter()
+        .map(|&i| declared.verified.coincidences[i])
+        .collect();
+    // A face–face row's tangency meets on the faces it names, so its
+    // row is kept.
+    let glued = glued
+        .into_iter()
+        .map(|(k, row)| {
+            kept.binary_search(&row)
+                .map(|at| (k, reduce::index(at)))
+                .map_err(|_| BooleanError::JoinDesync {
+                    what: "a face–face record's tangency row is not among the op's coincidences",
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(BooleanReduction {
         op,
         a: carved_a,
@@ -4948,6 +4988,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         edge_classes,
         hung,
         coincidences,
+        glued,
         pending,
     })
 }
@@ -5245,12 +5286,17 @@ fn verify_declared_contacts<T: Decide>(
                 // the same reading.
                 let spent = DeclarationRead::Spent(GlueClass::Tangent);
                 let tangency = glued_tangency(a, fa, b, fb, spent, band)?;
+                if tangency.interiors? {
+                    verified.touches.push(GluedTouch {
+                        a: fa,
+                        b: fb,
+                        margin: tangency.margin,
+                        row: verified.coincidences.len(),
+                    });
+                }
                 verified
                     .coincidences
                     .push(tangent_row(fa, fb, tangency.margin));
-                if tangency.interiors? {
-                    verified.touches.push((fa, fb, tangency.margin));
-                }
                 verified.tangent.insert(
                     (fa, fb),
                     TangentCert {
@@ -6226,6 +6272,10 @@ fn validate_declarations<T: Decide>(
         inventory_face(a, fa, Operand::A)?;
         inventory_face(b, fb, Operand::B)?;
     }
+    // A record's two cells' interiors meet, so neither bounds the other.
+    let bounds = |body: &Body<T>, x, y| {
+        matches!(Contact::new(body, x, y), Err(ContactPairError::Incident(_)))
+    };
     let carried = |body: &Body<T>, c: &OperandRecords, operand| -> Result<(), BooleanError> {
         for carried in &c.vv {
             let pair = carried.contact;
@@ -6244,6 +6294,9 @@ fn validate_declarations<T: Decide>(
             if body.get_face(rest.face).is_none() {
                 return Err(bad(operand, "carried v-on-f face key does not resolve"));
             }
+            if bounds(body, Cell::Vertex(rest.vertex), Cell::Face(rest.face)) {
+                return Err(bad(operand, "carried v-on-f vertex bounds its face"));
+            }
         }
         for CarriedRecord { contact: rest, .. } in &c.ve {
             if body.get_vertex(rest.vertex).is_none() {
@@ -6251,6 +6304,9 @@ fn validate_declarations<T: Decide>(
             }
             if body.get_edge(rest.edge).is_none() {
                 return Err(bad(operand, "carried v-on-e edge key does not resolve"));
+            }
+            if bounds(body, Cell::Vertex(rest.vertex), Cell::Edge(rest.edge)) {
+                return Err(bad(operand, "carried v-on-e vertex bounds its edge"));
             }
         }
         for CarriedRecord { contact: touch, .. } in &c.ee {
@@ -6269,6 +6325,9 @@ fn validate_declarations<T: Decide>(
             }
             if body.get_face(touch.face).is_none() {
                 return Err(bad(operand, "carried e-f face key does not resolve"));
+            }
+            if bounds(body, Cell::Edge(touch.edge), Cell::Face(touch.face)) {
+                return Err(bad(operand, "carried e-f edge bounds its face"));
             }
         }
         for CarriedRecord { contact: touch, .. } in &c.ff {
@@ -6317,6 +6376,57 @@ impl From<crate::lineage::RowRefusal> for BooleanError {
 mod tests {
     use super::*;
     use geom_core::COINCIDENCE_RECOURSE;
+
+    /// **The interiors read places the line on each face whatever its
+    /// carrier** ([`locus_through_both_faces`]): two cylinder sheets
+    /// tangent from outside along the ruling `x = 1, y = 0`. Where both
+    /// sheets' trims hold that ruling the line runs through both
+    /// interiors; where one sheet's trim stops short of it, or the line
+    /// is off one sheet's carrier, it does not. A read of plane faces
+    /// alone answers `false` for the first.
+    #[test]
+    fn the_interiors_read_places_a_tangent_line_on_two_curved_faces() {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+        use geom_core::Vec3;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        // `u = π/2` of each frame is the side facing the other cylinder.
+        let sheet = |origin: Point3<f64>, u_ref: Vec3<f64>, u: (f64, f64)| {
+            let mut body = Body::<f64>::new();
+            let frame = CylFrame {
+                origin,
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref,
+            };
+            let face = cyl_wall_sheet(&mut body, frame, u, (0.0, 1.0), tol);
+            (body, face)
+        };
+        let near = (1.0, 2.1);
+        let a = sheet(Point3::origin(), -Vec3::unit_y(), near);
+        let b_in = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), near);
+        let b_short = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), (2.2, 3.0));
+        let b_apart = sheet(Point3::new(2.5, 0.0, 0.0), Vec3::unit_y(), near);
+        let line = geom::Curve3::Line {
+            origin: Point3::new(1.0, 0.0, 0.0),
+            dir: Vec3::unit_z(),
+        };
+        let kind = geom::SurfaceKind::Cylinder;
+        for (what, b, want) in [
+            ("both trims hold the ruling", &b_in, true),
+            ("B's trim stops short of it", &b_short, false),
+            ("the line is off B's carrier", &b_apart, false),
+        ] {
+            let got = locus_through_both_faces(
+                [(&a.0, a.1, Operand::A, kind), (&b.0, b.1, Operand::B, kind)],
+                &line,
+                (0.2, 0.8),
+                DeclarationRead::Moot,
+                band,
+            );
+            assert_eq!(got.ok(), Some(want), "{what}");
+        }
+    }
 
     /// **A tangency along a curve gives cover only where it is a global
     /// side** ([`tangency_certifies_side`], shared by the strut and
