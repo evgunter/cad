@@ -58,15 +58,14 @@ fn ball_top(r: f64, c: Vec3<f64>) -> Body<f64> {
     let ball = ball_at(r, Vec3::new(0.0, 0.0, 0.0));
     let rot = topo::transform_rigid(
         &ball,
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(
                 geom_core::Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(1.0, 0.0, 0.0),
                 PI / 2.0,
             ),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap();
@@ -528,15 +527,14 @@ fn p5_seam_azimuth_rotation_certifies_identically() {
         let ball0 = ball_top(PIP_R, c);
         let ball = topo::transform_rigid(
             &ball0,
-            &geom_core::RigidMotion::check_rigid(
+            &geom_core::test_support::rigid(
                 &Affine3::rotation_about_axis(
                     geom_core::Point3::new(0.5, 0.5, 0.0),
                     Vec3::new(0.0, 0.0, 1.0),
                     theta,
                 ),
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+                Tol::witness(),
+            ),
             Tol::witness(),
         )
         .unwrap();

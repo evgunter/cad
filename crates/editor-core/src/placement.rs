@@ -94,7 +94,8 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// A placement and a modeled transform of the same part agree BIT FOR
 /// BIT: [`Frame::rotate_then_translate`] is the `Transform` node's own
 /// composition order (D9) built from the same expressions, down to
-/// normalizing the axis on this side because that node does.
+/// deciding the axis into a witness on this side and rotating about it
+/// as given ([`Mat3::rotation_about_unit`]), because that node does.
 ///
 /// Every claim above is guarded, and each guard names the claim it
 /// keeps rather than being listed here: one row per claim in this
@@ -344,9 +345,7 @@ impl Frame {
             ) => Some(FrameFault::NotRigid { check }),
             // The door's other refusals are about finiteness, and the
             // frame's coordinates were decided finite above.
-            Err(RigidMotionError::NonFiniteTranslation { .. } | RigidMotionError::NonFinite(_)) => {
-                Some(FrameFault::NonFinite)
-            }
+            Err(RigidMotionError::NonFinite(_)) => Some(FrameFault::NonFinite),
         }
     }
 

@@ -38,15 +38,14 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
 fn turned() -> Body<f64> {
     topo::transform_rigid(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(1.0, 0.0, 0.0),
                 PI / 2.0,
             ),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
@@ -138,15 +137,14 @@ fn r2_the_steinmetz_fold_numbers_rederive_exactly() {
 fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
     let spun = topo::transform_rigid(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),
                 PI / 4.0,
             ),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap();

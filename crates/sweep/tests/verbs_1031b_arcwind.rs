@@ -194,15 +194,14 @@ fn the_re_posed_cup_is_the_same_cup() {
     let tol = Tol::witness();
     let turned = topo::transform_rigid(
         &teapot_cup(tol),
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(
                 Point3::new(0.013, -0.007, 0.021),
                 Vec3::new(1.0, 2.0, 3.0),
                 0.7,
             ),
-            geom_core::Band::linear(tol).unwrap(),
-        )
-        .unwrap(),
+            tol,
+        ),
         tol,
     )
     .expect("a rigid pose is a rigid pose");

@@ -408,11 +408,7 @@ fn a_rigid_transform_re_derives_the_caches() {
     let map = geom_core::Affine3::translation(Vec3::new(1.0, -2.0, 0.5));
     let moved = topo::transform::transform_rigid(
         &above,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();

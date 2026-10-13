@@ -590,11 +590,7 @@ fn a_spun_snowman_builds_under_every_boolean() {
             "the spun ball",
             topo::transform_rigid(
                 &ball(R2, D),
-                &geom_core::RigidMotion::check_rigid(
-                    &spin,
-                    geom_core::Band::linear(Tol::witness()).unwrap(),
-                )
-                .unwrap(),
+                &geom_core::test_support::rigid(&spin, Tol::witness()),
                 Tol::witness(),
             )
             .unwrap(),
@@ -897,11 +893,7 @@ fn tilted_slab_about(axis: geom_core::Vec3<f64>, tilt: f64, s: f64) -> AtRestBod
         sweep::test_support::brick((-3.0, 3.0), (0.0, 1.0), (-3.0, 3.0), Tol::witness());
     let slab = topo::transform_rigid(
         &slab,
-        &geom_core::RigidMotion::check_rigid(
-            &(Affine3::translation(n * s) * rot),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&(Affine3::translation(n * s) * rot), Tol::witness()),
         Tol::witness(),
     )
     .unwrap();
@@ -966,11 +958,7 @@ fn brick_toward(n: geom_core::Vec3<f64>, s: f64, w: f64, t: f64) -> AtRestBody<f
     let brick: Body<f64> = sweep::test_support::brick((-w, w), (0.0, t), (-w, w), tol);
     let brick = topo::transform_rigid(
         &brick,
-        &geom_core::RigidMotion::check_rigid(
-            &(Affine3::translation(n * s) * rot),
-            geom_core::Band::linear(tol).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&(Affine3::translation(n * s) * rot), tol),
         tol,
     )
     .unwrap();
@@ -1192,11 +1180,7 @@ fn two_cut_ins_on_one_face_build_in_either_order() {
             "the cube",
             topo::transform_rigid(
                 &cube,
-                &geom_core::RigidMotion::check_rigid(
-                    &spin,
-                    geom_core::Band::linear(Tol::witness()).unwrap(),
-                )
-                .unwrap(),
+                &geom_core::test_support::rigid(&spin, Tol::witness()),
                 Tol::witness(),
             )
             .unwrap(),
@@ -1295,8 +1279,7 @@ fn a_millimetre_lens_inside_a_ball_builds_at_every_tolerance() {
         "the shifted ball",
         topo::transform_rigid(
             &ball(0.9 * k, 0.0),
-            &geom_core::RigidMotion::check_rigid(&shift, geom_core::Band::linear(tol).unwrap())
-                .unwrap(),
+            &geom_core::test_support::rigid(&shift, tol),
             tol,
         )
         .unwrap(),
@@ -1537,13 +1520,8 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
         let place = Affine3::translation(p - Point3::origin()) * aim;
         let cube = finished(
             "the cube",
-            topo::transform_rigid(
-                &cube,
-                &geom_core::RigidMotion::check_rigid(&place, geom_core::Band::linear(tol).unwrap())
-                    .unwrap(),
-                tol,
-            )
-            .unwrap(),
+            topo::transform_rigid(&cube, &geom_core::test_support::rigid(&place, tol), tol)
+                .unwrap(),
             tol,
         );
         for (order, r) in [

@@ -616,11 +616,10 @@ pub fn die_pips() -> Body<f64> {
             } else {
                 topo::transform_rigid(
                     &b,
-                    &geom_core::RigidMotion::check_rigid(
+                    &geom_core::test_support::rigid(
                         &Affine3::rotation_about_axis(origin, Vec3::new(1.0, 0.0, 0.0), PI),
-                        geom_core::Band::linear(Tol::witness()).unwrap(),
-                    )
-                    .unwrap(),
+                        Tol::witness(),
+                    ),
                     Tol::witness(),
                 )
                 .unwrap()
@@ -628,15 +627,14 @@ pub fn die_pips() -> Body<f64> {
         } else {
             topo::transform_rigid(
                 &b,
-                &geom_core::RigidMotion::check_rigid(
+                &geom_core::test_support::rigid(
                     &Affine3::rotation_about_axis(
                         origin,
                         axis.normalize(),
                         y.dot(pole).clamp(-1.0, 1.0).acos(),
                     ),
-                    geom_core::Band::linear(Tol::witness()).unwrap(),
-                )
-                .unwrap(),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
             )
             .unwrap()

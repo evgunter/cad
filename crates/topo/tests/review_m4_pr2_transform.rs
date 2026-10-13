@@ -29,19 +29,10 @@ fn tiers_ok(b: &Body<f64>) {
 #[test]
 fn non_finite_translation_is_refused_not_laundered() {
     let band = Band::linear(Tol::witness()).unwrap();
-    for (t, check) in [
-        (
-            Vec3::new(f64::NAN, 0.0, 0.0),
-            "transform_rigid_trans_finite_x",
-        ),
-        (
-            Vec3::new(0.0, f64::INFINITY, 0.0),
-            "transform_rigid_trans_finite_y",
-        ),
-        (
-            Vec3::new(0.0, 0.0, f64::NEG_INFINITY),
-            "transform_rigid_trans_finite_z",
-        ),
+    for t in [
+        Vec3::new(f64::NAN, 0.0, 0.0),
+        Vec3::new(0.0, f64::INFINITY, 0.0),
+        Vec3::new(0.0, 0.0, f64::NEG_INFINITY),
     ] {
         assert_eq!(
             RigidMotion::translation(t).map(|_| ()),
@@ -50,8 +41,8 @@ fn non_finite_translation_is_refused_not_laundered() {
         );
         assert_eq!(
             RigidMotion::check_rigid(&Affine3::translation(t), band).map(|_| ()),
-            Err(RigidMotionError::NonFiniteTranslation { check }),
-            "the decided door names the component of {t:?}"
+            Err(RigidMotionError::NonFinite(MotionPart::Translation)),
+            "the decided door names the translation {t:?}"
         );
     }
 }
@@ -124,21 +115,13 @@ fn transform_is_bit_deterministic() {
     );
     let t1 = transform_rigid(
         &b,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();
     let t2 = transform_rigid(
         &b,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();
@@ -175,11 +158,7 @@ fn rotation_composition_keeps_witness_residuals_honest() {
         );
         cur = match transform_rigid(
             &cur,
-            &geom_core::RigidMotion::check_rigid(
-                &map,
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&map, Tol::witness()),
             Tol::witness(),
         ) {
             Ok(t) => t,
@@ -212,11 +191,7 @@ fn long_thin_feature_transform_is_honest_either_way() {
     );
     match transform_rigid(
         &b,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     ) {
         Ok(t) => {
@@ -253,11 +228,7 @@ fn extreme_scale_fires_the_certify_door_or_stays_valid() {
     );
     match transform_rigid(
         &b,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     ) {
         Ok(t) => {
@@ -307,11 +278,7 @@ fn keys_and_topology_are_bit_stable_under_rotation() {
     );
     let t = transform_rigid(
         &b,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();

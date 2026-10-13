@@ -74,14 +74,16 @@ pub(crate) struct Placing<T: Real> {
     turn: Option<Turn<T>>,
 }
 
-/// A revolve's turn, minted once: the axis point, the rotation about
-/// the axis through the coordinate origin (which turns an offset from
-/// the axis point, and a direction), and the same rotation anchored
-/// at the axis point (which turns a placement).
+/// A revolve's turn: the axis point, the axis witness and the angle a
+/// point and a direction are turned by
+/// ([`Affine3::rotate_point_about_unit_axis`], W1's spelling), and the
+/// same rotation minted anchored at the axis point, which turns a
+/// placement.
 #[derive(Clone, Copy, Debug)]
 struct Turn<T: Real> {
     origin: Point3<T>,
-    pivot: RigidMotion<T>,
+    axis: UnitVec3<T>,
+    angle: T,
     anchored: RigidMotion<T>,
 }
 
@@ -109,7 +111,8 @@ impl<T: Real> Placing<T> {
             place,
             turn: Some(Turn {
                 origin,
-                pivot: RigidMotion::rotation(dir, angle)?,
+                axis: dir,
+                angle,
                 anchored: RigidMotion::rotation_about_axis(origin, dir, angle)?,
             }),
         })
@@ -117,7 +120,7 @@ impl<T: Real> Placing<T> {
 
     /// A direction turned by the turn, `None` when there is none.
     pub(crate) fn turn_vec(self, v: Vec3<T>) -> Option<Vec3<T>> {
-        self.turn.map(|turn| turn.pivot.transform_vec(v))
+        self.turn.map(|turn| turn.anchored.transform_vec(v))
     }
 
     /// Whether a turn follows the placement.
@@ -139,7 +142,9 @@ impl<T: Real> Placing<T> {
         let placed = self.place.transform_point(Point3::new(p.x, p.y, T::zero()));
         match self.turn {
             None => placed,
-            Some(turn) => turn.origin + turn.pivot.transform_vec(placed - turn.origin),
+            Some(turn) => {
+                Affine3::rotate_point_about_unit_axis(turn.origin, turn.axis, turn.angle, placed)
+            }
         }
     }
 }

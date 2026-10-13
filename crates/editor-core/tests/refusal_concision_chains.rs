@@ -1967,12 +1967,6 @@ fn motion() -> Vec<(String, NodeErrorKind)> {
                 },
             },
         ),
-        (
-            "NonFiniteTranslation",
-            E::NonFiniteTranslation {
-                check: "transform_rigid_trans_finite_y",
-            },
-        ),
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Motion/{n}"), NodeErrorKind::Motion(e)))

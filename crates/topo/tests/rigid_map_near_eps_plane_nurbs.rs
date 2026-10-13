@@ -245,11 +245,7 @@ fn every_rotation_moves_an_edge_certified_near_eps() {
     for (name, map) in rotations() {
         topo::transform_rigid(
             &body,
-            &geom_core::RigidMotion::check_rigid(
-                &map,
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&map, Tol::witness()),
             Tol::witness(),
         )
         .unwrap_or_else(|e| panic!("{name}: the image of an edge certified near ε moves: {e}"));

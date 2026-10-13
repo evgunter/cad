@@ -10,8 +10,8 @@
 //! bulging across the axis).
 
 use geom_core::{
-    Affine3, Arc2, Band, Decide, Margin, Point2, Point3, Real, Sign, UnitVec3, UnitVec3Error, Vec2,
-    Vec3, is_finite_length, is_underflowed_length,
+    Affine3, Arc2, Band, Decide, Margin, Point2, Point3, Real, Sign, UnitVec3, Vec2, Vec3,
+    is_finite_length, is_underflowed_length,
 };
 use profile::ValidatedProfile;
 
@@ -138,12 +138,8 @@ impl<T: Decide> AxisFrame<T> {
         let o3 = place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero()));
         let a3 = place.linear * Vec3::new(dir_sk.x, dir_sk.y, T::zero());
         let u3 = place.linear * Vec3::new(e_r.x, e_r.y, T::zero());
-        let turn_axis = UnitVec3::new(a3, REVOLVE_PLACED_AXIS, band).map_err(|e| match e {
-            UnitVec3Error::NonFiniteLength => RevolveError::NonFiniteAxis,
-            UnitVec3Error::UnderflowedLength => RevolveError::UnderflowedAxis,
-            UnitVec3Error::Degenerate => RevolveError::DegenerateAxis,
-            UnitVec3Error::Escalated(source) => RevolveError::AxisEscalated { source },
-        })?;
+        let turn_axis = UnitVec3::new(a3, REVOLVE_PLACED_AXIS, band)
+            .map_err(|error| RevolveError::PlacedAxis { error })?;
         Ok(Self {
             origin_sk: axis.origin,
             dir_sk,

@@ -49,12 +49,7 @@ fn ext<T: geom_core::Decide + AtRestPolicy>(loops: Vec<Loop>, z0: f64, h: f64) -
     .unwrap()
     .body;
     let up = Affine3::translation(Vec3::new(0.0, 0.0, z0).map(T::from_f64));
-    topo::transform_rigid(
-        &b,
-        &geom_core::RigidMotion::check_rigid(&up, geom_core::Band::linear(tol).unwrap()).unwrap(),
-        tol,
-    )
-    .unwrap()
+    topo::transform_rigid(&b, &geom_core::test_support::rigid(&up, tol), tol).unwrap()
 }
 
 fn plate<T: geom_core::Decide + AtRestPolicy>() -> Body<T> {

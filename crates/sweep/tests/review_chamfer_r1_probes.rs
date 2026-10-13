@@ -350,15 +350,14 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
         // face.
         let upright = topo::transform_rigid(
             &ball,
-            &geom_core::RigidMotion::check_rigid(
+            &geom_core::test_support::rigid(
                 &Affine3::rotation_about_axis(
                     Point3::new(0.0, 0.0, 0.0),
                     Vec3::new(1.0, 0.0, 0.0),
                     core::f64::consts::FRAC_PI_2,
                 ),
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+                Tol::witness(),
+            ),
             Tol::witness(),
         )
         .expect("the ball stands up");

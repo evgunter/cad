@@ -558,15 +558,14 @@ pub fn ball_poled_z(r: f64, c: Vec3<f64>, tol: Tol) -> Body<f64> {
 pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: Tol) -> Body<T> {
     let poled = topo::transform_rigid(
         &ball_about_origin(r, tol),
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(
                 Point3::new(T::zero(), T::zero(), T::zero()),
                 Vec3::new(T::one(), T::zero(), T::zero()),
                 T::from_f64(core::f64::consts::FRAC_PI_2),
             ),
-            geom_core::Band::linear(tol).unwrap(),
-        )
-        .unwrap(),
+            tol,
+        ),
         tol,
     )
     .unwrap();
@@ -598,15 +597,14 @@ pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> 
         } else {
             topo::transform_rigid(
                 &ball,
-                &geom_core::RigidMotion::check_rigid(
+                &geom_core::test_support::rigid(
                     &Affine3::rotation_about_axis(
                         Point3::new(0.0, 0.0, 0.0),
                         Vec3::new(1.0, 0.0, 0.0),
                         core::f64::consts::PI,
                     ),
-                    geom_core::Band::linear(tol).unwrap(),
-                )
-                .unwrap(),
+                    tol,
+                ),
                 tol,
             )
             .unwrap()
@@ -614,15 +612,14 @@ pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> 
     } else {
         topo::transform_rigid(
             &ball,
-            &geom_core::RigidMotion::check_rigid(
+            &geom_core::test_support::rigid(
                 &Affine3::rotation_about_axis(
                     Point3::new(0.0, 0.0, 0.0),
                     axis.normalize(),
                     y.dot(pole).clamp(-1.0, 1.0).acos(),
                 ),
-                geom_core::Band::linear(tol).unwrap(),
-            )
-            .unwrap(),
+                tol,
+            ),
             tol,
         )
         .unwrap()

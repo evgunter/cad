@@ -2103,7 +2103,7 @@ impl SketchPlane {
             band,
         )
         .map(|frame| Self(pncad::profile::SketchPlane::from_frame(frame)))
-        .map_err(|e| super::place::ortho_frame_err(py, &e))
+        .map_err(|e| super::place::orthonormalize_err(py, &e))
     }
 
     /// The plane's origin — sketch (0, 0) in world space.

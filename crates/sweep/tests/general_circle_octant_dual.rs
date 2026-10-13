@@ -52,15 +52,14 @@ fn oblique_clip() -> Body<Dual64> {
     .unwrap();
     let c2 = topo::transform_rigid(
         &c2,
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(
                 Point3::new(lift(1.0), lift(1.0), lift(1.0)),
                 v(1.0, -1.0, 0.0).normalize(),
                 lift(0.4),
             ),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap();

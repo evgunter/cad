@@ -71,12 +71,7 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, z0: f64, h: f64) -> Body<f64> {
     };
     let body = extrude(&profile, depth, tol()).unwrap().body;
     let up = Affine3::translation(Vec3::new(0.0, 0.0, z0));
-    topo::transform_rigid(
-        &body,
-        &geom_core::RigidMotion::check_rigid(&up, geom_core::Band::linear(tol()).unwrap()).unwrap(),
-        tol(),
-    )
-    .unwrap()
+    topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol()), tol()).unwrap()
 }
 
 /// The one-segment circle of radius 1 about the z axis, its vertex at
@@ -105,8 +100,7 @@ fn below(at: Point3<f64>, turn: Affine3<f64>) -> Body<f64> {
     let to = Affine3::translation(at - Point3::origin());
     topo::transform_rigid(
         &raw,
-        &geom_core::RigidMotion::check_rigid(&(to * turn), geom_core::Band::linear(tol()).unwrap())
-            .unwrap(),
+        &geom_core::test_support::rigid(&(to * turn), tol()),
         tol(),
     )
     .unwrap()

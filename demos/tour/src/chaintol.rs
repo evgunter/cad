@@ -61,7 +61,12 @@
 //! Bisected on one leaf, the plain lane certifies the whole box up to
 //! `σ = 6.49e-9` rad at one link and `6.73e-10` at four, where the
 //! moved pcurve's envelope (`pcurve_envelope`, `FidelityU`) refuses
-//! first. The symbolic tier holds the images' correlation, which is the
+//! first. Those two numbers are a measurement and not a pin: the
+//! `#[ignore]`d `the_plain_lanes_reach_is_bisected` re-takes them, and
+//! no gate runs it: the bracket's last digits move with any rounding on
+//! the moved edge's path, so a pin would red on changes that are not
+//! about the plain lane's reach. What the cell does gate is the refusal
+//! at the study's σ (`assert_row`). The symbolic tier holds the images' correlation, which is the
 //! whole difference between the two lanes here.
 //!
 //! # The widest box that certifies whole, and what sets it
@@ -733,6 +738,54 @@ fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f64)>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// **The plain lane's reach, bisected** — the header's
+    /// `σ = 6.49e-9` at one link and `6.73e-10` at four: one leaf over
+    /// the whole box at plain `Interval`, bisected in `log10 σ` to 0.005
+    /// between a certifying and a refusing σ, printing the bracket and
+    /// the refusal just above it, and the first refusal at the study's
+    /// σ. `#[ignore]`d, and why at the header's claim. Run from
+    /// `demos/tour`: `cargo test --release --bins
+    /// the_plain_lanes_reach_is_bisected -- --ignored --nocapture`
+    /// (`CHAIN_REACH_LINKS=1,4` is the default).
+    #[test]
+    #[ignore]
+    fn the_plain_lanes_reach_is_bisected() {
+        let tol = Tol::witness();
+        let links_list: Vec<usize> = std::env::var("CHAIN_REACH_LINKS")
+            .map(|v| v.split(',').map(|x| x.parse().unwrap()).collect())
+            .unwrap_or_else(|_| vec![1, 4]);
+        let leaf = |links: usize, sigma: f64| {
+            let built = chain(links, sigma, POSITION_BOUND, tol);
+            interval_leaf(links, &built.doc)
+        };
+        for links in links_list {
+            let at = leaf(links, JOINT_SIGMA);
+            println!(
+                "{links} link(s) at σ = {JOINT_SIGMA:e}: certifies={} refused={} first={:?}",
+                at.certifies, at.refused, at.first
+            );
+            let (mut lo, mut hi) = (-14.0_f64, JOINT_SIGMA.log10());
+            assert!(
+                leaf(links, 10f64.powf(lo)).certifies,
+                "the lower end of the bisection must certify"
+            );
+            while hi - lo >= 0.005 {
+                let mid = 0.5 * (lo + hi);
+                if leaf(links, 10f64.powf(mid)).certifies {
+                    lo = mid;
+                } else {
+                    hi = mid;
+                }
+            }
+            println!(
+                "{links} link(s): certifies at σ = {:.4e}, refuses at {:.4e}: {:?}",
+                10f64.powf(lo),
+                10f64.powf(hi),
+                leaf(links, 10f64.powf(hi)).first
+            );
+        }
+    }
 
     /// **What BOUNDS the certifiable box is `dihedral_wedge`.**
     ///

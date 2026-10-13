@@ -526,11 +526,7 @@ fn probe_c_oblique_trihedron() {
         "the turned slab",
         topo::transform_rigid(
             &c2,
-            &geom_core::RigidMotion::check_rigid(
-                &rot,
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&rot, Tol::witness()),
             Tol::witness(),
         )
         .unwrap(),

@@ -78,11 +78,7 @@ fn tilt(b: &Body<f64>, deg: f64) -> Body<f64> {
     );
     topo::transform_rigid(
         b,
-        &geom_core::RigidMotion::check_rigid(
-            &turn,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&turn, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()
@@ -252,11 +248,7 @@ fn a_tilted_rod_through_a_rim_reaches_the_germ_frame() {
     );
     let rod = topo::transform_rigid(
         &cyl(0.0, 0.0, 0.3, -1.5, 1.5),
-        &geom_core::RigidMotion::check_rigid(
-            &turn,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&turn, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();

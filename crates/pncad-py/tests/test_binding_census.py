@@ -2970,7 +2970,7 @@ NOT_BOUND = {
     # `Node.hollow_tube` take the spine datum and a reference triple
     # and mint it at `evaluate`, and a placement's steps are minted or
     # decided at `evaluate`. What crosses is the refusal when the pair
-    # spans no plane (`FrameError.variant`, `ortho_frame_error_tag` /
+    # spans no plane (`FrameError.variant`, `orthonormalize_error_tag` /
     # `degenerate_direction`), a placement's motion refusal (`motion`),
     # and the placement the frame becomes (`SketchPlane`'s four
     # accessors) — never the witness itself.

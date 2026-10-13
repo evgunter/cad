@@ -39,11 +39,7 @@ fn two_cubes(dx: f64) -> topo::Body<f64> {
     let map = Affine3::translation(Vec3::new(dx, 0.0, 0.0));
     let placed = topo::transform_rigid(
         &src,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .expect("a rigid map");
@@ -60,11 +56,7 @@ fn three_cubes() -> topo::Body<f64> {
     let map = Affine3::translation(Vec3::new(20.0, 0.0, 0.0));
     let placed = topo::transform_rigid(
         &src,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .expect("a rigid map");

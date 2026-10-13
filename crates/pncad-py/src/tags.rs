@@ -889,7 +889,7 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
 /// help. The escalated arm carries the classifier payload on the
 /// exception's own fields rather than in the word, exactly as
 /// [`frame_error_tag`]'s degenerate arm does.
-pub fn ortho_frame_error_tag(err: &OrthonormalizeError) -> &'static str {
+pub fn orthonormalize_error_tag(err: &OrthonormalizeError) -> &'static str {
     match (err.axis, err.error) {
         (OrthoAxis::U, UnitVec3Error::Degenerate) => "degenerate_u_axis",
         (OrthoAxis::V, UnitVec3Error::Degenerate) => "degenerate_v_axis",
@@ -1460,6 +1460,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::UnderflowedAxis => "underflowed_axis",
         RevolveError::DegenerateAxis => "degenerate_axis",
         RevolveError::AxisEscalated { .. } => "axis_escalated",
+        RevolveError::PlacedAxis { .. } => "placed_axis",
         RevolveError::Turn(_) => "turn",
         RevolveError::DegenerateAngle => "degenerate_angle",
         RevolveError::FullRangeAngle => "full_range_angle",
@@ -1694,7 +1695,6 @@ pub fn rigid_motion_error_tag(err: &pncad::geom_core::RigidMotionError) -> &'sta
         E::NonFinite(_) => "non_finite",
         E::NotRigid { .. } => "not_rigid",
         E::Undecided { .. } => "undecided",
-        E::NonFiniteTranslation { .. } => "non_finite_translation",
     }
 }
 

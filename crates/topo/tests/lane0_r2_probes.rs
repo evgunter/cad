@@ -118,11 +118,7 @@ fn doors_at<T: geom_core::Bounds + topo::AtRestPolicy>(label: &str, lane: Option
     // The transform door DOES reach the seam.
     match topo::transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &turned::<T>(),
-            geom_core::Band::linear(tol()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&turned::<T>(), tol()),
         tol(),
     ) {
         Ok(_) => assert!(

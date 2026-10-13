@@ -1263,11 +1263,7 @@ pub(super) fn tilted_slab() -> Body<f64> {
     let tilt = geom_core::Affine3::rotation_about_axis(p(0.0, 0.0, 0.0), Vec3::unit_y(), 0.2);
     crate::transform::transform_rigid(
         &b,
-        &geom_core::RigidMotion::check_rigid(
-            &tilt,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&tilt, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()

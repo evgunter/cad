@@ -152,9 +152,7 @@ fn rot() -> Affine3<f64> {
 
 fn moved(body: Body<f64>) -> Body<f64> {
     if std::env::var("ROT").is_ok() {
-        let band = Band::linear(tol()).unwrap();
-        let motion = geom_core::RigidMotion::check_rigid(&rot(), band).unwrap();
-        topo::transform_rigid(&body, &motion, tol()).unwrap()
+        topo::transform_rigid(&body, &geom_core::test_support::rigid(&rot(), tol()), tol()).unwrap()
     } else {
         body
     }

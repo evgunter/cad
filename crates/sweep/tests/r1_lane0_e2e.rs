@@ -81,11 +81,7 @@ fn the_f64_seam_answers_every_public_door() {
 
     let moved = topo::transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &rigid_f64(),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&rigid_f64(), Tol::witness()),
         Tol::witness(),
     )
     .expect("a rigid map of a certified fit re-certifies at the run's ε");

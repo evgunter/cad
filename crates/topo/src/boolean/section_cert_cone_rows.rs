@@ -494,11 +494,7 @@ fn slab(z0: f64, tilt: f64) -> Body<f64> {
     let turn = geom_core::Affine3::rotation_about_axis(p(0.0, 0.0, z0), Vec3::unit_y(), tilt);
     crate::transform::transform_rigid(
         &b,
-        &geom_core::RigidMotion::check_rigid(
-            &turn,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&turn, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()

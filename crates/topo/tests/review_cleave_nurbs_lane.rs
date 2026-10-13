@@ -25,11 +25,7 @@ fn the_m7_8_cube_turns_about_a_skew_axis_and_back_at_f64() {
     );
     let moved = transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .expect("an M7-8 body turns at f64");
@@ -37,11 +33,7 @@ fn the_m7_8_cube_turns_about_a_skew_axis_and_back_at_f64() {
     assert_eq!(edge_findings(&moved), 0, "check 2 is clean after the turn");
     let back = transform_rigid(
         &moved,
-        &geom_core::RigidMotion::check_rigid(
-            &map.inverse(),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map.inverse(), Tol::witness()),
         Tol::witness(),
     )
     .expect("and turns back");
@@ -90,11 +82,7 @@ where
     let map = Affine3::translation(Vec3::new(0.25, -1.5, 8.0)).map(T::from_f64);
     let moved = transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .expect("an M7-8 body moves");
@@ -127,21 +115,13 @@ fn a_dual_brick_moves_bit_for_bit_with_its_f64_twin() {
     let d = common::brick::<Dual64>((0.0, 2.0), (0.0, 1.0), (0.0, 0.5), Tol::witness());
     let fm = transform_rigid(
         &f,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .expect("f64 brick turns");
     let dm = transform_rigid(
         &d,
-        &geom_core::RigidMotion::check_rigid(
-            &map.map(Dual64::from_f64),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map.map(Dual64::from_f64), Tol::witness()),
         Tol::witness(),
     )
     .expect("dual brick turns");
@@ -181,11 +161,7 @@ where
     let map = Affine3::translation(Vec3::new(0.25, -1.5, 8.0)).map(T::from_f64);
     let moved = transform_rigid(
         &dst,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .expect("the voided body moves");

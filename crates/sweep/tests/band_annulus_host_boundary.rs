@@ -41,12 +41,8 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 }
 
 fn moved(b: &Body<f64>, m: &Affine3<f64>) -> Body<f64> {
-    topo::transform_rigid(
-        b,
-        &geom_core::RigidMotion::check_rigid(m, geom_core::Band::linear(tol()).unwrap()).unwrap(),
-        tol(),
-    )
-    .expect("a rigid motion")
+    topo::transform_rigid(b, &geom_core::test_support::rigid(m, tol()), tol())
+        .expect("a rigid motion")
 }
 
 /// The notch's tangential half-width, meters.

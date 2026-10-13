@@ -76,11 +76,7 @@ fn ball_poled_z(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     let turn = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::unit_x(), PI / 2.0);
     let placed = topo::transform_rigid(
         &ball,
-        &geom_core::RigidMotion::check_rigid(
-            &turn,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&turn, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();

@@ -1037,13 +1037,13 @@ new frame mint carries the caller's name.** `sweep`'s tube door used to
 decide its own frame — `tube_frame_unit` (the axis's and the reference
 direction's length against 1, `Margin::levered` on `major + minor`) and
 `tube_frame_orthogonal` (their dot product on the same lever). Both are
-gone: the door takes a `geom_core::OrthoFrame`, whose axes were decided
+gone: the door takes a `geom_core::RigidMotion`, whose axes were decided
 at whichever mint built it, so the two names are no longer emitted by
 anything and drop out of the roster. Neither was ever recorded here —
 both were bare literals at their `decide` sites — so this paragraph is
 the record of their retirement rather than a deletion from a table.
 
-What replaces them is not a name of the kernel's: `OrthoFrame`'s mints
+What replaces them is not a name of the kernel's: `RigidMotion`'s mints
 take the funnel site as a PARAMETER, exactly as `decide_unit_direction`
 does and for the same reason (the name belongs to the layer that owns
 the value). The names that reach the funnel through them today:
@@ -3041,8 +3041,26 @@ site still misses them). They are asked of a raw map only: a literal
 placement frame, a STEP placement, a pose the mate solve composed, a
 library caller's matrix. A `Transform` step, a stepped pattern and a
 revolve's turn mint their motion by construction and ask none of them.
-So the population shrinks by ten samples per such map, and no rule
-can fire on a population that only shrinks.
+
+**The population moves both ways**, measured on SYM-17's own pins:
+- It **shrinks** at minted placements: ten samples fewer per
+  `Transform` node or pattern copy (`m10_6_certifying_keys`'s
+  `min_clearance_neck` key moves; on the chain's symbolic lane
+  `symbolic_zero` is 30 fewer at one link and 200 fewer at four).
+- It is **unchanged** at an instance placed by a literal offset: the
+  literal is decided once at the door (the group frame is read once a
+  node), where the composite was decided once at `transform_rigid`
+  (`asm2a_instantiate` and `kstats_bracket_rows` stay at 466 a
+  placing op, 922 nested).
+- It **grows** at a mate whose sides carry literal offset steps: each
+  side's literal is now admitted at the door, ten samples a side, where
+  nothing was asked before (`msolve11_mate_log`'s `OWN_FRAMES`, 2 → 22).
+
+No gating rule reads the added samples: a literal frame admitted at the
+door decides every margin `Zero`, at rounding-sized margins (its
+entries were admitted at A6 against the same band), so they reach only
+rule 2's zero-arm tally, and only past `ε / 10²`, which a frame's
+rounding does not reach.
 
 One name is added: **`revolve_placed_axis`** (`sweep`'s
 `revolve/axis.rs`), the placed revolve axis decided into a witness

@@ -5204,6 +5204,10 @@ impl<T: Real> Real for Sym<T> {
         self.value.is_poison()
     }
 
+    fn is_bounded(self) -> bool {
+        self.value.is_bounded()
+    }
+
     /// **The one scalar that RECORDS** rather than only witnessing —
     /// the door itself ([`Sym::register_equal`], which carries the
     /// whole of the contract).

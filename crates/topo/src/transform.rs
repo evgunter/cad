@@ -14,7 +14,10 @@
 //! about it. A uniform scale is affinely self-consistent on planar
 //! bodies, so re-certification alone would NOT catch one while it
 //! silently broke every unit-vector convention downstream; the type is
-//! what keeps one out. On top of that, every edge
+//! what keeps one out, to the type's own standard: a minted motion is
+//! rigid up to rounding, a door-admitted factor within the band, and a
+//! product of `k` admitted factors — not decided again — within about
+//! `k` bands (`RigidMotion`'s module docs). On top of that, every edge
 //! carrier is **re-certified** against the mapped geometry through
 //! [`geom_brep::EdgeCurve::certify_via`] — with the plane × NURBS lane the
 //! scalar's policy holds ([`crate::AtRestPolicy::nurbs_lane`]) — so a

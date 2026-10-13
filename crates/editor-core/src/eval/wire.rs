@@ -207,8 +207,11 @@ pub(crate) struct OpEnv<'a, T: Decide> {
 /// slots, emitting the node's name table alongside the payload.
 /// `profile_pre` is the profile node's f64 precompute (present exactly
 /// for `Node::Profile` — computed in `eval_node`'s resolution stage,
-/// inside the node's verdict frame and ahead of this op).
-#[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness, not a duty of its own
+/// inside the node's verdict frame and ahead of this op). `frame` is
+/// an instance's group frame ([`instance_frame`]), read there once for
+/// the content key and reused here, so its literal steps are decided
+/// once a node.
+#[allow(clippy::too_many_arguments)] // the run-tolerance witness and the pre-key reads are not duties of their own
 pub(crate) fn run_op<T>(
     id: RecipeNodeId,
     node: &Node<ProfileProgram>,
@@ -217,6 +220,7 @@ pub(crate) fn run_op<T>(
     vals: &SlotValues<T>,
     payload: Option<&super::Payload<T>>,
     profile_pre: Option<&ProfilePre>,
+    frame: Option<crate::placement::Motion<T>>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T>
@@ -434,8 +438,7 @@ where
             if let Some(fault) = env.poses.fault(id) {
                 return Err(NodeErrorKind::Mate(Box::new(fault.clone())));
             }
-            let frame = instance_frame(doc, id, env.poses, env.lane.params, tol)?
-                .unwrap_or(crate::placement::Motion::Identity);
+            let frame = frame.unwrap_or(crate::placement::Motion::Identity);
             let pose = env
                 .poses
                 .pose(id)

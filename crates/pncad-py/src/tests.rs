@@ -5708,7 +5708,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "ortho_frame_error_tag",
+        function: "orthonormalize_error_tag",
         values: &[
             "degenerate_u_axis",
             "degenerate_v_axis",
@@ -5984,6 +5984,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "op",
             "pcurve",
             "pinned_run_station",
+            "placed_axis",
             "sliver_axis_clearance",
             "sliver_join",
             "sliver_radius",
@@ -5999,12 +6000,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "rigid_motion_error_tag",
-        values: &[
-            "non_finite",
-            "non_finite_translation",
-            "not_rigid",
-            "undecided",
-        ],
+        values: &["non_finite", "not_rigid", "undecided"],
         delegates: &[],
     },
     TagEntry {

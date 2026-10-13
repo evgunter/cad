@@ -78,11 +78,7 @@ fn donut(big: f64, small: f64, c: Vec3<f64>, axis: Vec3<f64>) -> Body<f64> {
         );
         topo::transform_rigid(
             &at_origin,
-            &geom_core::RigidMotion::check_rigid(
-                &turn,
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&turn, Tol::witness()),
             Tol::witness(),
         )
         .expect("a rotation is rigid")

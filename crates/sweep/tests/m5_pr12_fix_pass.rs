@@ -227,15 +227,14 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
     .unwrap();
     let c2 = topo::transform_rigid(
         &c2,
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(
                 Point3::new(1.0, 1.0, 1.0),
                 Vec3::new(1.0, -1.0, 0.0).normalize(),
                 0.4,
             ),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap();

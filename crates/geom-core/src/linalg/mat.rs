@@ -198,8 +198,10 @@ impl<T: Real> Mat3<T> {
         Self::rodrigues(axis.get(), angle)
     }
 
-    /// The Rodrigues entries over `n` as given.
-    fn rodrigues(n: Vec3<T>, angle: T) -> Self {
+    /// The Rodrigues entries over `n` as given: the one body of both
+    /// rotation constructors, which differ only in whether they
+    /// normalize the axis first.
+    pub(in crate::linalg) fn rodrigues(n: Vec3<T>, angle: T) -> Self {
         let (s, c) = angle.sin_cos();
         let t = T::one() - c;
         let (x, y, z) = (n.x, n.y, n.z);

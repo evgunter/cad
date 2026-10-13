@@ -153,11 +153,7 @@ fn a_described_nurbs_walled_body_maps_to_its_exact_image() {
 
     let moved = topo::transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .expect("a described-NURBS-walled body is movable");
@@ -199,11 +195,7 @@ fn a_rational_walled_body_maps_to_its_exact_image() {
 
     let moved = topo::transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .expect("a rational-walled body is movable");
@@ -226,11 +218,7 @@ fn a_nurbs_carrier_maps_to_its_exact_image() {
     let map = quarter_turn_aside();
     let moved = topo::transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .expect("a described-NURBS-walled body is movable");

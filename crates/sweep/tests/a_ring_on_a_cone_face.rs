@@ -48,11 +48,7 @@ pub(crate) fn cone(pose: Affine3<f64>) -> AtRestBody<f64> {
         "the cone",
         topo::transform_rigid(
             &body,
-            &geom_core::RigidMotion::check_rigid(
-                &(pose * spin),
-                geom_core::Band::linear(tol).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&(pose * spin), tol),
             tol,
         )
         .unwrap(),
@@ -83,11 +79,7 @@ pub(crate) fn wedge(s: f64, pose: Affine3<f64>) -> AtRestBody<f64> {
         "the box",
         topo::transform_rigid(
             &raw,
-            &geom_core::RigidMotion::check_rigid(
-                &(pose * to * turn),
-                geom_core::Band::linear(tol).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&(pose * to * turn), tol),
             tol,
         )
         .unwrap(),
@@ -369,13 +361,7 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
     let spin = Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), iv(FRAC_PI_2));
     let c = finished(
         "the cone",
-        topo::transform_rigid(
-            &raw,
-            &geom_core::RigidMotion::check_rigid(&spin, geom_core::Band::linear(tol).unwrap())
-                .unwrap(),
-            tol,
-        )
-        .unwrap(),
+        topo::transform_rigid(&raw, &geom_core::test_support::rigid(&spin, tol), tol).unwrap(),
         tol,
     );
     let e = edge_point(0.6);
@@ -390,11 +376,7 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
         "the box",
         topo::transform_rigid(
             &raw,
-            &geom_core::RigidMotion::check_rigid(
-                &(to * turn),
-                geom_core::Band::linear(tol).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&(to * turn), tol),
             tol,
         )
         .unwrap(),

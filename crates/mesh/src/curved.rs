@@ -1553,11 +1553,7 @@ mod tests {
             }
             match topo::transform_rigid(
                 &b,
-                &geom_core::RigidMotion::check_rigid(
-                    &placement,
-                    geom_core::Band::linear(Tol::witness()).unwrap(),
-                )
-                .unwrap(),
+                &geom_core::test_support::rigid(&placement, Tol::witness()),
                 Tol::witness(),
             ) {
                 Ok(placed) => out.push((i, placed)),
@@ -2200,11 +2196,7 @@ mod tests {
         );
         topo::transform_rigid(
             &body,
-            &geom_core::RigidMotion::check_rigid(
-                &placement,
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&placement, Tol::witness()),
             Tol::witness(),
         )
         .unwrap()

@@ -259,11 +259,7 @@ impl Pose {
             );
             let turned = topo::transform_rigid(
                 &b,
-                &geom_core::RigidMotion::check_rigid(
-                    &turn,
-                    geom_core::Band::linear(Tol::witness()).unwrap(),
-                )
-                .unwrap(),
+                &geom_core::test_support::rigid(&turn, Tol::witness()),
                 Tol::witness(),
             )
             .unwrap();

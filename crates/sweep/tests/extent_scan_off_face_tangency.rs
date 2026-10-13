@@ -81,11 +81,7 @@ fn rod_x(r: f64, (y, z): (f64, f64), (x0, x1): (f64, f64), seams_beside: bool) -
     );
     topo::transform_rigid(
         &rod_z(r, (-z, y), (x0, x1)),
-        &geom_core::RigidMotion::check_rigid(
-            &(quarter * own),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&(quarter * own), Tol::witness()),
         Tol::witness(),
     )
     .unwrap()
@@ -399,11 +395,7 @@ fn the_off_face_touches_build_in_a_tilted_frame() {
     let tilt = |b: &Body<f64>| {
         topo::transform_rigid(
             b,
-            &geom_core::RigidMotion::check_rigid(
-                &turn,
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&turn, Tol::witness()),
             Tol::witness(),
         )
         .unwrap()

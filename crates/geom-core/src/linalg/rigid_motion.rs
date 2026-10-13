@@ -17,7 +17,9 @@
 //!   and right-handed by construction — produced by a decision, by a
 //!   product that is exact in the reals, or by a rigid motion acting
 //!   on a witness — never by a caller asserting that three vectors it
-//!   held happened to be orthonormal. Read per scalar:
+//!   held happened to be orthonormal. For a motion MINTED by
+//!   construction, and products and inverses of minted motions, read
+//!   per scalar:
 //!   - at `f64`, rigid up to rounding;
 //!   - at `Interval`, an enclosure of ONE rigid motion per point of
 //!     the box its inputs enclose: the entries are wide, and what is
@@ -25,10 +27,19 @@
 //!   - at `Sym`, the same, with the expressions carried;
 //!   - at `Dual`, a rigid value channel with the tangent the
 //!     construction's own arithmetic transports.
-//! - The origin is finite, and so is every entry, as far as the
-//!   scalar's value channel can tell ([`is_finite_length`]: it bites
-//!   at the point scalars and waves an enclosure through, which stays
-//!   sound and refuses later).
+//! - **A motion ADMITTED at the decided door is rigid within the
+//!   band**, not up to rounding: [`RigidMotion::check_rigid`] admits a
+//!   map whose seven rigidity margins decide `Zero`, so each may be off
+//!   by up to the band's zero, a dimensionless `ε`. Products are not
+//!   decided again, so a product of `k` admitted factors is rigid only
+//!   within about `k` bands (each factor's defect adds to the next's to
+//!   first order), and enough of them make a product the door itself
+//!   would refuse. `motion_rows`'s
+//!   `a_product_of_admitted_factors_drifts_by_a_band_a_factor` pins the
+//!   bound and the refusal past it.
+//! - The origin and every entry are finite numbers: each mint decides
+//!   it exactly at every scalar ([`Real::is_bounded`]: both endpoints
+//!   at an enclosure).
 //!
 //! As for the direction witness, this is not a bit-for-bit claim that
 //! the three columns are exactly orthonormal — it is the claim that no
@@ -78,15 +89,6 @@
 //!   the axis is RAW: the axis is decided first and kept as `w`, the
 //!   reference yields to it.
 //!
-//! - `RigidMotion::turned_between` and `RigidMotion::translated` —
-//!   a rigid motion of a frame already held: the minimal rotation
-//!   carrying one unit tangent onto another (the Rodrigues form
-//!   `I + [k]× + [k]×²/(1 + a·b)`, `k = a × b`, no normalized axis),
-//!   and a translation. A rotation exact in the reals only rounds, as
-//!   the cross product does, so it cannot unmake orthonormality; its
-//!   one decision is `1 + a·b > 0`, the anti-parallel edge, under the
-//!   caller's funnel name.
-//!
 //! Which product `w` is depends on the mint: the Gram–Schmidt mint and
 //! the exact world frames build `w = u × v` (at `f64` the rounded
 //! cross product, at `Interval` an enclosure of it), while the aim
@@ -94,17 +96,16 @@
 //! so there `u × v` equals `w` only up to the last bit.
 //! [`RigidMotion::to_affine`] uses the stored `w`, whichever it is.
 //!
-//! # Crossing scalars
+//! # Not built yet
 //!
-//! A frame crosses scalars through two exact, closure-free doors, and
-//! no other: `RigidMotion::embed` (`f64` to any scalar, every
-//! component through `Real::from_f64`, whose contract is exactness)
-//! and `RigidMotion::pin` (a lane scalar back to `f64`, refusing on
-//! the analysis scalars). An embedded frame witnesses at its scalar
-//! the `f64` decision, carried — not one made at that scalar: at
-//! `Interval` its axes are point intervals of the `f64` columns. A
-//! frame the lane needs decided at its own scalar is minted there,
-//! from the frame's lane-evaluated inputs.
+//! Four doors were decided with the sketch plane's frame (the `[ev]`
+//! commit `e7ad119a8e`) and are scheduled on PATHS'
+//! `work/paths/the-sketch-plane-is-its-frame.md`; none exists:
+//! `turned_between` (the minimal rotation carrying one unit tangent
+//! onto another, deciding only `1 + a·b > 0`), `translated`, and the
+//! exact scalar crossings `embed` (`f64` to any scalar through
+//! `Real::from_f64`) and `pin` (back to `f64`, refusing on the
+//! analysis scalars).
 //!
 //! # The decided door
 //!
@@ -143,7 +144,7 @@
 
 use crate::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
 use crate::predicate::{Band, Decide, Indeterminate, Margin, Sign};
-use crate::real::{Real, is_finite_length};
+use crate::real::Real;
 
 /// **A motion that cannot be non-rigid.** An origin and a right-handed
 /// orthonormal triple; the only spellings are the mints the
@@ -275,8 +276,10 @@ impl MotionPart {
 /// (closed enum, D4 ¶3).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RigidMotionError {
-    /// A mint by construction found a part that is not a finite
-    /// number.
+    /// A part that is not a finite number: a mint by construction's
+    /// input or product, or the translation of a map the decided door
+    /// was handed ([`MotionPart::Translation`], after its finiteness
+    /// probes).
     NonFinite(MotionPart),
     /// [`RigidMotion::check_rigid`] decided a rigidity margin NON-zero:
     /// the map scales an axis, shears, or mirrors at tolerance.
@@ -294,12 +297,6 @@ pub enum RigidMotionError {
         check: &'static str,
         /// The decision's own diagnostic, unaltered.
         source: Indeterminate,
-    },
-    /// [`RigidMotion::check_rigid`]'s translation probe: a component
-    /// that is not a finite number.
-    NonFiniteTranslation {
-        /// The named finiteness predicate that refused.
-        check: &'static str,
     },
 }
 
@@ -326,18 +323,6 @@ impl core::fmt::Display for RigidMotionError {
                     format_args!("Recourse: {RIGID_RECOURSE}"),
                 )
                 .fmt(f),
-            Self::NonFiniteTranslation { check } => {
-                let axis = match *check {
-                    "transform_rigid_trans_finite_x" => "x",
-                    "transform_rigid_trans_finite_y" => "y",
-                    _ => "z",
-                };
-                write!(
-                    f,
-                    "the translation's {axis} component is not a finite number. Recourse: give \
-                     the translation finite values"
-                )
-            }
         }
     }
 }
@@ -349,7 +334,9 @@ impl std::error::Error for RigidMotionError {}
 /// that did NOT decide `Zero`, whether it decided a defect or could
 /// not decide, so the reading says what the check found possible, not
 /// a verdict. The checks run in order: the mirror check is reached
-/// only by columns decided orthonormal.
+/// only by columns decided orthonormal, and a linear entry that is not
+/// a finite number poisons the first margin, which then reads
+/// undecided — so the first check's reading names that case too.
 #[must_use]
 pub fn not_rigid_reading(check: &str) -> &'static str {
     match check {
@@ -357,7 +344,7 @@ pub fn not_rigid_reading(check: &str) -> &'static str {
         | "transform_rigid_col12_orth"
         | "transform_rigid_col02_orth" => "it may shear",
         "transform_rigid_det_plus_one" => "it may mirror",
-        _ => "it may scale an axis, or hold a number that is not finite",
+        _ => "it may scale an axis, or an entry is not a finite number, which no margin decides",
     }
 }
 
@@ -375,7 +362,7 @@ fn rigid_defect(check: &str) -> &'static str {
 /// `Ok(x)` when the value channel reads every component of `p` as a
 /// finite number, `Err` naming `part` otherwise.
 fn finite<T: Real>(p: Point3<T>, part: MotionPart) -> Result<Point3<T>, RigidMotionError> {
-    if is_finite_length(p.x) && is_finite_length(p.y) && is_finite_length(p.z) {
+    if p.x.is_bounded() && p.y.is_bounded() && p.z.is_bounded() {
         Ok(p)
     } else {
         Err(RigidMotionError::NonFinite(part))
@@ -574,7 +561,7 @@ impl<T: Real> RigidMotion<T> {
         angle: T,
         t: Vec3<T>,
     ) -> Result<Self, RigidMotionError> {
-        if !is_finite_length(angle) {
+        if !angle.is_bounded() {
             return Err(RigidMotionError::NonFinite(MotionPart::Angle));
         }
         let origin = finite(at(t), MotionPart::Translation)?;
@@ -600,15 +587,14 @@ impl<T: Real> RigidMotion<T> {
         axis: UnitVec3<T>,
         angle: T,
     ) -> Result<Self, RigidMotionError> {
-        if !is_finite_length(angle) {
+        if !angle.is_bounded() {
             return Err(RigidMotionError::NonFinite(MotionPart::Angle));
         }
         let q = finite(point, MotionPart::Anchor)? - Point3::origin();
-        let n = axis.get();
-        let origin = at(Mat3::identity_minus_rodrigues(n, angle) * q);
+        let map = Affine3::anchored_rotation(q, axis.get(), angle);
         Ok(Self::from_linear(
-            Mat3::rotation_about_unit(axis, angle),
-            finite(origin, MotionPart::Anchor)?,
+            map.linear,
+            finite(at(map.translation), MotionPart::Anchor)?,
         ))
     }
 
@@ -673,9 +659,9 @@ impl<T: Decide> RigidMotion<T> {
     ///
     /// # Errors
     ///
-    /// [`RigidMotionError::NotRigid`], [`RigidMotionError::Undecided`]
-    /// or [`RigidMotionError::NonFiniteTranslation`], each naming its
-    /// check.
+    /// [`RigidMotionError::NotRigid`] or [`RigidMotionError::Undecided`]
+    /// naming the check, or [`RigidMotionError::NonFinite`] naming
+    /// [`MotionPart::Translation`].
     pub fn check_rigid(map: &Affine3<T>, band: Band) -> Result<Self, RigidMotionError> {
         let l = &map.linear;
         let one = T::one();
@@ -724,7 +710,7 @@ impl<T: Decide> RigidMotion<T> {
         for (check, margin) in finite {
             match crate::k_stats::decide(check, margin, band) {
                 Ok(Sign::Zero) => {}
-                _ => return Err(RigidMotionError::NonFiniteTranslation { check }),
+                _ => return Err(RigidMotionError::NonFinite(MotionPart::Translation)),
             }
         }
         Ok(Self::from_linear(*l, at(*t)))
@@ -903,29 +889,18 @@ mod tests {
     use super::*;
     use crate::tolerance::Tol;
 
-    const SITE: &str = "rigid_motion_test_axis";
+    pub(super) const SITE: &str = "rigid_motion_test_axis";
 
-    fn band() -> Band {
+    /// The witness tolerance's linear band, shared by this module's
+    /// rows and `motion_rows`.
+    pub(super) fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    fn bits12(a: &Affine3<f64>) -> [u64; 12] {
-        let l = a.linear;
-        [
-            l.c0.x,
-            l.c0.y,
-            l.c0.z,
-            l.c1.x,
-            l.c1.y,
-            l.c1.z,
-            l.c2.x,
-            l.c2.y,
-            l.c2.z,
-            a.translation.x,
-            a.translation.y,
-            a.translation.z,
-        ]
-        .map(f64::to_bits)
+    /// A map's twelve components' bits, in [`Affine3::components`]'s
+    /// order.
+    pub(super) fn bits12(a: &Affine3<f64>) -> [u64; 12] {
+        a.components().map(f64::to_bits)
     }
 
     fn cols(f: RigidMotion<f64>) -> [Vec3<f64>; 3] {
@@ -1190,21 +1165,13 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod motion_rows {
+    use super::tests::{SITE, band, bits12};
     use super::*;
     use crate::interval::Interval;
     use crate::real::Bounds;
-    use crate::tolerance::Tol;
-
-    fn band() -> Band {
-        Band::linear(Tol::witness()).unwrap()
-    }
-
-    fn bits12(a: &Affine3<f64>) -> [u64; 12] {
-        a.components().map(f64::to_bits)
-    }
 
     fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
-        UnitVec3::new(v, "rigid_motion_test_axis", band()).unwrap()
+        UnitVec3::new(v, SITE, band()).unwrap()
     }
 
     /// **A composition is `Affine3`'s product, bit for bit**, so a
@@ -1289,7 +1256,40 @@ mod motion_rows {
             angle,
         )
         .unwrap();
-        let back = m.compose(m.inverse().unwrap()).unwrap().to_affine();
+        let inverse = m.inverse().unwrap();
+        // The transpose is field shuffling: the inverse's linear part is
+        // the operand's, transposed, bound for bound — no wider.
+        let ends = |x: Interval| (x.lo().to_bits(), x.hi().to_bits());
+        let (got, want) = (inverse.linear(), m.linear().transpose());
+        for (k, (g, w)) in got.cols().iter().zip(want.cols()).enumerate() {
+            assert_eq!(
+                [g.x, g.y, g.z].map(ends),
+                [w.x, w.y, w.z].map(ends),
+                "column {k} of the inverse is the operand's row, bound for bound"
+            );
+        }
+        let width = |x: Interval| x.hi() - x.lo();
+        let widest = m
+            .linear()
+            .cols()
+            .iter()
+            .flat_map(|c| [c.x, c.y, c.z])
+            .map(width)
+            .fold(0.0_f64, f64::max);
+        let back = m.compose(inverse).unwrap().to_affine();
+        for (k, got) in back
+            .linear
+            .cols()
+            .iter()
+            .flat_map(|c| [c.x, c.y, c.z])
+            .enumerate()
+        {
+            assert!(
+                width(got) <= 8.0 * widest,
+                "entry {k} of m ∘ m⁻¹ is {} wide, past eight times m's widest entry {widest}",
+                width(got)
+            );
+        }
         for (k, (got, want)) in back
             .components()
             .into_iter()
@@ -1423,6 +1423,114 @@ mod motion_rows {
         );
         let far = RigidMotion::translation(Vec3::new(f64::MAX, 0.0, 0.0)).unwrap();
         assert_eq!(nonfinite(far.compose(far)), MotionPart::Product);
+    }
+
+    /// **Each mint decides its own parts**, one row a mint, so a check
+    /// dropped from any one of them reds here and not only through a
+    /// sibling that shares its body.
+    #[test]
+    fn each_mint_names_its_own_non_finite_part() {
+        let z = unit(Vec3::unit_z());
+        let nonfinite = |r: Result<RigidMotion<f64>, RigidMotionError>| match r {
+            Err(RigidMotionError::NonFinite(part)) => part,
+            other => panic!("a non-finite part must refuse: {other:?}"),
+        };
+        assert_eq!(
+            nonfinite(RigidMotion::rotation_then_translation(
+                z,
+                f64::NAN,
+                Vec3::zero()
+            )),
+            MotionPart::Angle,
+            "rotation_then_translation's angle"
+        );
+        assert_eq!(
+            nonfinite(RigidMotion::rotation_then_translation(
+                z,
+                1.0,
+                Vec3::new(f64::INFINITY, 0.0, 0.0)
+            )),
+            MotionPart::Translation,
+            "rotation_then_translation's translation"
+        );
+        assert_eq!(
+            nonfinite(RigidMotion::rotation_about_axis(
+                Point3::origin(),
+                z,
+                f64::NAN
+            )),
+            MotionPart::Angle,
+            "rotation_about_axis's angle"
+        );
+        // A finite turn and a finite translation whose transposed
+        // product overflows: `Rᵀ·t` sums two components near `MAX`.
+        let m = RigidMotion::rotation_then_translation(
+            z,
+            core::f64::consts::FRAC_PI_4,
+            Vec3::new(f64::MAX, f64::MAX, 0.0),
+        )
+        .unwrap();
+        assert_eq!(nonfinite(m.inverse()), MotionPart::Inverse, "the inverse");
+    }
+
+    /// **At `Interval` the mints decide finiteness of the enclosure**:
+    /// an overflow to `[MAX, ∞]` refuses at the mint, naming the part,
+    /// rather than reaching the body door as an unbounded witness.
+    #[test]
+    fn an_interval_overflow_refuses_at_the_mint() {
+        let zero = Interval::from_f64(0.0);
+        let unbounded = Interval::from_bounds(f64::MAX, f64::INFINITY);
+        assert_eq!(
+            RigidMotion::translation(Vec3::new(unbounded, zero, zero)).map(|_| ()),
+            Err(RigidMotionError::NonFinite(MotionPart::Translation))
+        );
+        let far = RigidMotion::translation(Vec3::new(Interval::from_f64(f64::MAX), zero, zero))
+            .expect("a finite translation");
+        assert_eq!(
+            far.compose(far).map(|_| ()),
+            Err(RigidMotionError::NonFinite(MotionPart::Product))
+        );
+    }
+
+    /// **A product of door-admitted factors is rigid within about one
+    /// band a factor**, and is not decided again: a stretch whose column
+    /// margin is `0.8` of the band's zero is admitted, the `k`-fold
+    /// product's margin stays within `k` zeros, and past the band's
+    /// escalation the door refuses the product it never asked about.
+    #[test]
+    fn a_product_of_admitted_factors_drifts_by_a_band_a_factor() {
+        let (zero, escalate) = (band().zero(), band().escalate());
+        let s = 1.0 + 0.4 * zero;
+        let near = Affine3::from_parts(
+            Mat3::from_cols(Vec3::new(s, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_z()),
+            Vec3::zero(),
+        );
+        let one = RigidMotion::check_rigid(&near, band()).expect("inside the band: admitted");
+        let mut product = one;
+        let mut refused_from = None;
+        for k in 2..=64_u32 {
+            product = product.compose(one).unwrap();
+            let c0 = product.u().get();
+            let defect = (c0.dot(c0) - 1.0).abs();
+            assert!(
+                defect <= f64::from(k) * zero,
+                "the {k}-fold product's column margin {defect:e} is past {k} zeros"
+            );
+            let refused = matches!(
+                RigidMotion::check_rigid(&product.to_affine(), band()),
+                Err(RigidMotionError::NotRigid {
+                    check: "transform_rigid_col0_unit"
+                })
+            );
+            if refused && refused_from.is_none() {
+                refused_from = Some(k);
+            }
+        }
+        let k = refused_from.expect("past the escalation the door refuses the product");
+        assert!(
+            0.8 * f64::from(k) * zero >= 0.9 * escalate,
+            "the door refuses the {k}-fold product only once its margin nears the escalation"
+        );
     }
 
     /// **The action on a direction is the linear part on its vector**,

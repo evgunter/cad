@@ -39,11 +39,10 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
 fn turned(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
     topo::transform_rigid(
         b,
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()

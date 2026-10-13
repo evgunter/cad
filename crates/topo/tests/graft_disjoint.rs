@@ -31,11 +31,7 @@ fn a_placed_copy_grafts_and_the_union_certifies() {
     let map = Affine3::translation(Vec3::new(10.0, 0.0, 0.0));
     let placed = topo::transform_rigid(
         &src,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .expect("a rigid map");

@@ -302,8 +302,7 @@ fn a_side_holding_two_fragments_lands_the_record_on_the_one_holding_the_corner()
         "the shifted tilted cube",
         topo::transform_rigid(
             &tilted_cube(),
-            &geom_core::RigidMotion::check_rigid(&shift, geom_core::Band::linear(tol()).unwrap())
-                .unwrap(),
+            &geom_core::test_support::rigid(&shift, tol()),
             tol(),
         )
         .expect("a rigid move"),

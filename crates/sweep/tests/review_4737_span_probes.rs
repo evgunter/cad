@@ -132,11 +132,7 @@ fn turned(b: &topo::Body<f64>, angle: f64) -> AtRestBody<f64> {
     } else {
         topo::transform_rigid(
             b,
-            &geom_core::RigidMotion::check_rigid(
-                &rot(angle),
-                geom_core::Band::linear(tol()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&rot(angle), tol()),
             tol(),
         )
         .unwrap()

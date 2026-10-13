@@ -213,11 +213,10 @@ fn an_oblique_rod_bites_one_loop_interior_to_both_faces() {
     let cone = cone();
     let along_x = topo::transform_rigid(
         &pin(0.3, 0.0, -2.0, 2.0),
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), -PI / 2.0),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap();
@@ -262,11 +261,10 @@ fn an_oblique_rod_bites_one_loop_interior_to_both_faces() {
 fn a_tilted_slab_cuts_ellipses_cleared_by_w2() {
     let slab = topo::transform_rigid(
         &brick::<f64>((-2.0, 2.0), (0.2, 0.3), (-2.0, 2.0), Tol::witness()),
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(Point3::new(0.0, 0.25, 0.0), Vec3::unit_z(), 0.2),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap();

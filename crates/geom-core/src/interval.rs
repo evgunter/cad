@@ -572,6 +572,15 @@ impl Real for Interval {
         self.0.is_nai() || self.0.is_empty()
     }
 
+    /// Both endpoints finite, and not poison: `[MAX, ∞]` from an
+    /// overflow is unbounded, where [`is_finite_length`]'s `x − x`
+    /// reads the entire line and not poison.
+    ///
+    /// [`is_finite_length`]: crate::real::is_finite_length
+    fn is_bounded(self) -> bool {
+        !Real::is_poison(self) && self.0.lo().is_finite() && self.0.hi().is_finite()
+    }
+
     /// The hull `[⌊lo⌋, ⌊hi⌋]` — floor spans integers ⇒ the hull is the
     /// honest enclosure (containment is the contract; a step function
     /// has no tighter interval image). Decoration per IEEE 1788: a box

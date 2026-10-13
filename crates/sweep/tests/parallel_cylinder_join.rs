@@ -109,11 +109,7 @@ fn turned(mut pose: Pose, axis: Vec3<f64>, angle: f64) -> Pose {
             "the turned operand",
             topo::transform_rigid(
                 b,
-                &geom_core::RigidMotion::check_rigid(
-                    &m,
-                    geom_core::Band::linear(Tol::witness()).unwrap(),
-                )
-                .unwrap(),
+                &geom_core::test_support::rigid(&m, Tol::witness()),
                 Tol::witness(),
             )
             .unwrap(),
@@ -344,13 +340,7 @@ fn tipped(r: f64, c: f64, half: f64, theta: f64) -> Pose {
         a: rod(0.5, (0.0, 0.0), (-half - 1.0, half + 1.0)),
         b: finished(
             "the tipped rod",
-            topo::transform_rigid(
-                &rod_b,
-                &geom_core::RigidMotion::check_rigid(&m, geom_core::Band::linear(tol).unwrap())
-                    .unwrap(),
-                tol,
-            )
-            .unwrap(),
+            topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
             tol,
         ),
         va: PI * 0.25 * (2.0 * half + 2.0),
@@ -417,13 +407,7 @@ fn cut_and_tipped(
     );
     finished(
         "the tipped rod",
-        topo::transform_rigid(
-            &cut.body,
-            &geom_core::RigidMotion::check_rigid(&m, geom_core::Band::linear(tol).unwrap())
-                .unwrap(),
-            tol,
-        )
-        .unwrap(),
+        topo::transform_rigid(&cut.body, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
         tol,
     )
 }

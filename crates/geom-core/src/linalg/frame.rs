@@ -761,7 +761,8 @@ mod tests {
         .map(f64::to_bits)
     }
 
-    /// The seven rigidity residuals `transform_rigid` decides on
+    /// The seven rigidity residuals `RigidMotion::check_rigid` decides
+    /// on
     /// (columns unit, columns mutually orthogonal, `det = +1`), as raw
     /// numbers: a frame constructor that returns a non-rigid map is a
     /// bug here, not downstream.

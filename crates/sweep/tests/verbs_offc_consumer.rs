@@ -334,11 +334,7 @@ fn an_approx_faced_body_moves_under_a_rigid_map() {
         let (body, face) = box_with_approx_cap(d, MINT_TARGET);
         let moved = topo::transform_rigid(
             &body,
-            &geom_core::RigidMotion::check_rigid(
-                &map,
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&map, Tol::witness()),
             Tol::witness(),
         )
         .unwrap_or_else(|e| panic!("d = {d}: an Approx-faced body must move: {e}"));
@@ -417,11 +413,7 @@ fn the_props_lanes_verdict_is_the_same_either_side_of_the_map() {
     let (body, _) = box_with_approx_cap(0.05, MINT_TARGET);
     let moved = topo::transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &rigid(),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
         Tol::witness(),
     )
     .expect("the body moves");
@@ -472,11 +464,7 @@ fn the_mapped_face_is_a_certified_fit_of_the_mapped_description() {
         let (body, face) = box_with_approx_cap(d, MINT_TARGET);
         let moved = topo::transform_rigid(
             &body,
-            &geom_core::RigidMotion::check_rigid(
-                &rigid(),
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&rigid(), Tol::witness()),
             Tol::witness(),
         )
         .expect("the body moves");
@@ -547,11 +535,7 @@ fn a_degraded_fit_does_not_survive_the_map() {
 
     let e = topo::transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &rigid(),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
         Tol::witness(),
     )
     .expect_err("a degraded fit must not move");
@@ -587,11 +571,7 @@ fn the_pcurve_pass_reaches_the_same_charts_either_side_of_the_map() {
     let (mut body, _) = box_with_approx_cap(0.05, MINT_TARGET);
     let mut moved = topo::transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &rigid(),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
         Tol::witness(),
     )
     .expect("the body moves");
@@ -664,11 +644,7 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
     // The map.
     let e = topo::transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &rigid(),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
         Tol::witness(),
     )
     .expect_err("a narrowed window is a claim nothing proved");
@@ -735,11 +711,7 @@ fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
     .unwrap();
     let e = topo::transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &rigid(),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
         Tol::witness(),
     )
     .expect_err("an edit of ten times ε does not certify at ε");
@@ -794,11 +766,7 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
     .unwrap();
     let moved = topo::transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &rigid(),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
         Tol::witness(),
     )
     .expect("a good pair moves");
@@ -936,11 +904,7 @@ fn the_walls_a_placed_approx_capped_part_still_meets() {
     let (body, _) = box_with_approx_cap(0.05, MINT_TARGET);
     let placed = topo::transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &rigid(),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
         Tol::witness(),
     )
     .expect("the part places");

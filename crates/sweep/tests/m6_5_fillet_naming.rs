@@ -57,15 +57,14 @@ fn ball_poled_z(r: f64, c: Vec3<f64>) -> Body<f64> {
     let ball = ball_at(r, Vec3::new(0.0, 0.0, 0.0));
     let placed = topo::transform_rigid(
         &ball,
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(1.0, 0.0, 0.0),
                 core::f64::consts::FRAC_PI_2,
             ),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap();

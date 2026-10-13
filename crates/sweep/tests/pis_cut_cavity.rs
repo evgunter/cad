@@ -276,16 +276,9 @@ fn every_cut_through_a_bore_reads_its_truth_at_every_pose() {
             );
             let (mut answered, mut escalated) = (0, 0);
             for (pose, map) in poses() {
-                let posed = transform_rigid(
-                    &body,
-                    &geom_core::RigidMotion::check_rigid(
-                        &map,
-                        geom_core::Band::linear(tol()).unwrap(),
-                    )
-                    .unwrap(),
-                    tol(),
-                )
-                .unwrap();
+                let posed =
+                    transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol())
+                        .unwrap();
                 for &(p, inside) in &probes {
                     let want = if inside {
                         SolidContainment::In

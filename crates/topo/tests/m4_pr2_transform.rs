@@ -53,11 +53,7 @@ fn zero_angle_rotation_is_exact_identity() {
         Affine3::rotation_about_axis(Point3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 1.0), 0.0);
     let t = transform_rigid(
         &b,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();
@@ -80,11 +76,7 @@ fn quarter_turn_recertifies_and_preserves_mass_properties_close() {
     );
     let t = transform_rigid(
         &b,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();
@@ -116,11 +108,7 @@ fn transformed_tool_subtracts_exactly() {
     let map = Affine3::translation(Vec3::new(1.0, 1.0, 1.75));
     let placed = transform_rigid(
         &tool,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();
@@ -198,11 +186,7 @@ fn the_m7_8_cubes_carriers_certify_at_rest_before_and_after_a_move() {
     let map = Affine3::translation(Vec3::new(0.25, -1.5, 8.0));
     let moved = transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .expect("an M7-8 body moves at a scalar that holds the lane");

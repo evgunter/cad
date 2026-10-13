@@ -40,10 +40,11 @@
 //!   in the reals by construction — they exist so
 //!   [`RigidMotion`](super::RigidMotion) can build its axes and act on
 //!   a direction, and they are documented on their own doors.
-//! - `UnitVec3::embed` and `UnitVec3::pin` — the exact crossings
-//!   between `f64` and the other scalars, as
-//!   [`RigidMotion`](super::RigidMotion)'s module docs state them: an
-//!   embedded direction witnesses the `f64` decision, carried.
+//!
+//! The exact crossings `UnitVec3::embed` and `UnitVec3::pin` are not
+//! built; they are scheduled with the frame's own on PATHS'
+//! `work/paths/the-sketch-plane-is-its-frame.md`
+//! ([`RigidMotion`](super::RigidMotion)'s "Not built yet").
 //!
 //! The deciding ladders in [`frame`](super::frame) mint through the
 //! constructor under their own funnel names and map its refusals onto

@@ -337,11 +337,7 @@ fn a_cut_into_the_faces_window_refuses_at_the_gate() {
         for (pose, map) in poses(s) {
             let posed = transform_rigid(
                 &body,
-                &geom_core::RigidMotion::check_rigid(
-                    &map,
-                    geom_core::Band::linear(Tol::witness()).unwrap(),
-                )
-                .unwrap(),
+                &geom_core::test_support::rigid(&map, Tol::witness()),
                 Tol::witness(),
             )
             .unwrap();
@@ -408,11 +404,7 @@ fn a_cut_clear_of_the_faces_window_splits() {
         for (pose, map) in poses(s) {
             let posed = transform_rigid(
                 &body,
-                &geom_core::RigidMotion::check_rigid(
-                    &map,
-                    geom_core::Band::linear(Tol::witness()).unwrap(),
-                )
-                .unwrap(),
+                &geom_core::test_support::rigid(&map, Tol::witness()),
                 Tol::witness(),
             )
             .unwrap();

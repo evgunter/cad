@@ -89,12 +89,7 @@ fn tube(c: (f64, f64), rings: &[Ring], z: (f64, f64)) -> Body<f64> {
     };
     let body = extrude(&profile, depth, tol()).unwrap().body;
     let up = Affine3::translation(Vec3::new(0.0, 0.0, z.0));
-    topo::transform_rigid(
-        &body,
-        &geom_core::RigidMotion::check_rigid(&up, geom_core::Band::linear(tol()).unwrap()).unwrap(),
-        tol(),
-    )
-    .unwrap()
+    topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol()), tol()).unwrap()
 }
 
 fn plate() -> Body<f64> {

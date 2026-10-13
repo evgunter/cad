@@ -38,12 +38,7 @@ use Want::{Draws, Lumps, Refuses, Tilted};
 fn placed(r: f64, turn: Affine3<f64>, c: Vec3<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let at = ball_poled_y(r, Vec3::new(0.0, 0.0, 0.0), tol);
-    let at = topo::transform_rigid(
-        &at,
-        &geom_core::RigidMotion::check_rigid(&turn, geom_core::Band::linear(tol).unwrap()).unwrap(),
-        tol,
-    )
-    .unwrap();
+    let at = topo::transform_rigid(&at, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
     let moved =
         topo::transform_rigid(&at, &geom_core::RigidMotion::translation(c).unwrap(), tol).unwrap();
     finished("the ball", moved, tol)

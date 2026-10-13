@@ -220,11 +220,7 @@ fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> AtRestBody<f64
     let cube = brick((0.0, l), (0.0, l), (0.0, l), tol);
     let cube = topo::transform_rigid(
         &cube,
-        &geom_core::RigidMotion::check_rigid(
-            &Affine3::from_parts(m, p - Point3::origin()),
-            geom_core::Band::linear(tol).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&Affine3::from_parts(m, p - Point3::origin()), tol),
         tol,
     )
     .expect("the cube moves");

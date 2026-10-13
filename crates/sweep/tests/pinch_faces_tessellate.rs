@@ -155,13 +155,8 @@ fn cylinder(v: V3, m: V3, psi: f64) -> AtRestBody<f64> {
     );
     finished(
         "the cylinder",
-        topo::transform_rigid(
-            &raw,
-            &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
-                .unwrap(),
-            tol(),
-        )
-        .expect("a rigid map"),
+        topo::transform_rigid(&raw, &geom_core::test_support::rigid(&map, tol()), tol())
+            .expect("a rigid map"),
     )
 }
 

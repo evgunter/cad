@@ -77,8 +77,7 @@ pub(crate) fn ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
     let to = Affine3::translation(Vec3::new(c[0], c[1], c[2]));
     let ball = topo::transform_rigid(
         &at_origin,
-        &geom_core::RigidMotion::check_rigid(&to, geom_core::Band::linear(Tol::witness()).unwrap())
-            .unwrap(),
+        &geom_core::test_support::rigid(&to, Tol::witness()),
         Tol::witness(),
     )
     .expect("a translation is rigid");
@@ -92,11 +91,7 @@ fn polar_ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
     let turn = Affine3::rotation_about_axis(Point3::from_array(c), k, core::f64::consts::FRAC_PI_2);
     let ball = topo::transform_rigid(
         &ball(r, c),
-        &geom_core::RigidMotion::check_rigid(
-            &turn,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&turn, Tol::witness()),
         Tol::witness(),
     )
     .expect("a rotation is rigid");

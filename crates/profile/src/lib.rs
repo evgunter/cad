@@ -97,7 +97,7 @@
 //!   sweep door that takes the plane reads a witnessed normal. No door
 //!   takes a bare [`geom_core::Affine3`]; the plane crosses scalars only
 //!   through the frame's exact crossings (geom-core's
-//!   `linalg::rigid_motion`, "Crossing scalars"). Validation is purely
+//!   `linalg::rigid_motion`, "Not built yet"). Validation is purely
 //!   2-D (the plane is passed through untouched).
 //!
 //! # Validation and canonical form

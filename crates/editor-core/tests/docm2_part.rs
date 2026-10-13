@@ -293,11 +293,7 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
         );
         let placed = transform_rigid(
             side,
-            &geom_core::RigidMotion::check_rigid(
-                &map,
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&map, Tol::witness()),
             Tol::witness(),
         )
         .expect("a rigid placement");

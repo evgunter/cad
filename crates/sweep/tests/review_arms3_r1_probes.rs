@@ -180,8 +180,7 @@ fn a_reposed_lentil_fillets_in_its_own_frame() {
         Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.7);
     let posed = transform_rigid(
         &symmetric_lentil(),
-        &geom_core::RigidMotion::check_rigid(&map, geom_core::Band::linear(tol()).unwrap())
-            .unwrap(),
+        &geom_core::test_support::rigid(&map, tol()),
         tol(),
     )
     .unwrap();

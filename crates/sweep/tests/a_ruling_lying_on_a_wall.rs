@@ -68,7 +68,7 @@ fn cut_below(rod: &AtRestBody<f64>, slope: f64, c: f64) -> AtRestBody<f64> {
     let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -slope.atan());
     let under = topo::transform_rigid(
         &brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol),
-        &geom_core::RigidMotion::check_rigid(&tilt, geom_core::Band::linear(tol).unwrap()).unwrap(),
+        &geom_core::test_support::rigid(&tilt, tol),
         tol,
     )
     .unwrap();
@@ -286,11 +286,7 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
                     "the moved prism",
                     topo::transform_rigid(
                         &square(turn, z0, h),
-                        &geom_core::RigidMotion::check_rigid(
-                            &xf,
-                            geom_core::Band::linear(tol).unwrap(),
-                        )
-                        .unwrap(),
+                        &geom_core::test_support::rigid(&xf, tol),
                         tol,
                     )
                     .unwrap(),
@@ -316,11 +312,7 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
                 "the leaned prism",
                 topo::transform_rigid(
                     &square(turn, z0, h),
-                    &geom_core::RigidMotion::check_rigid(
-                        &lean(d),
-                        geom_core::Band::linear(tol).unwrap(),
-                    )
-                    .unwrap(),
+                    &geom_core::test_support::rigid(&lean(d), tol),
                     tol,
                 )
                 .unwrap(),
@@ -426,8 +418,7 @@ fn a_continuation_on_a_wall_bounded_by_an_ellipse_builds_every_op() {
         "the rod",
         topo::transform_rigid(
             &rod_z(1.0, H),
-            &geom_core::RigidMotion::check_rigid(&spin, geom_core::Band::linear(tol).unwrap())
-                .unwrap(),
+            &geom_core::test_support::rigid(&spin, tol),
             tol,
         )
         .unwrap(),
@@ -492,8 +483,7 @@ fn a_rim_across_a_walls_ellipse_builds_every_op_but_one_union_order() {
             "the rod",
             topo::transform_rigid(
                 &rod_z(0.5, H),
-                &geom_core::RigidMotion::check_rigid(&spin, geom_core::Band::linear(tol).unwrap())
-                    .unwrap(),
+                &geom_core::test_support::rigid(&spin, tol),
                 tol,
             )
             .unwrap(),

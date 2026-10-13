@@ -55,8 +55,7 @@ fn ball(r: f64, y: f64) -> Body<f64> {
 fn moved(b: &Body<f64>, m: &Affine3<f64>) -> Body<f64> {
     topo::transform_rigid(
         b,
-        &geom_core::RigidMotion::check_rigid(m, geom_core::Band::linear(Tol::witness()).unwrap())
-            .unwrap(),
+        &geom_core::test_support::rigid(m, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()

@@ -948,8 +948,7 @@ fn a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order() {
         let shift = geom_core::Affine3::translation(geom_core::Vec3::new(dx, dy, 0.0));
         let moved = topo::transform_rigid(
             &plate(sharp(), 1.0),
-            &geom_core::RigidMotion::check_rigid(&shift, geom_core::Band::linear(tol()).unwrap())
-                .unwrap(),
+            &geom_core::test_support::rigid(&shift, tol()),
             tol(),
         )
         .unwrap();

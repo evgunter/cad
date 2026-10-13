@@ -170,11 +170,10 @@ fn a_tilted_cylinder_saddle_behind_a_pin_refuses_every_op() {
     let a = cyl(1.0, 2.0);
     let b = topo::transform_rigid(
         &arc_bracket(),
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), 0.15),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .expect("the bracket tilts");
@@ -190,7 +189,7 @@ fn the_saddle_without_a_pin_refuses_at_the_fallback() {
     let a = cyl(1.0, 2.0);
     let rod = topo::transform_rigid(
         &cyl(0.5, 3.0),
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::from_parts(
                 Affine3::rotation_about_axis(
                     Point3::origin(),
@@ -200,9 +199,8 @@ fn the_saddle_without_a_pin_refuses_at_the_fallback() {
                 .linear,
                 Vec3::new(0.0, 1.3, 0.0),
             ),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .expect("the rod moves");
@@ -277,11 +275,10 @@ fn cylinder_faces(b: &Body<f64>) -> Vec<topo::FaceKey> {
 fn the_saddle_is_a_certified_interior_loop_naming_both_walls() {
     let tilted = topo::transform_rigid(
         &arc_bracket(),
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), 0.15),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .expect("the bracket tilts");

@@ -852,11 +852,10 @@ fn raw_cylinder(r: f64, h: f64) -> Body<f64> {
 fn raw_spin(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
     topo::transform_rigid(
         b,
-        &geom_core::RigidMotion::check_rigid(
+        &geom_core::test_support::rigid(
             &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
-            geom_core::Band::linear(tol()).unwrap(),
-        )
-        .unwrap(),
+            tol(),
+        ),
         tol(),
     )
     .unwrap()

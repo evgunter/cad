@@ -43,11 +43,7 @@ fn rot_x_about(body: &Body<f64>, pivot: Vec3<f64>, theta: f64) -> Body<f64> {
     let map = Affine3::from_parts(linear, pivot - linear * pivot);
     topo::transform_rigid(
         body,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()
@@ -64,11 +60,7 @@ fn rot_y_about(body: &Body<f64>, pivot: Vec3<f64>, theta: f64) -> Body<f64> {
     let map = Affine3::from_parts(linear, pivot - linear * pivot);
     topo::transform_rigid(
         body,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()

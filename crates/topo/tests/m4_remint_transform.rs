@@ -53,11 +53,7 @@ fn witnesses_are_construction_fresh_bits() {
     };
     let out = transform_rigid(
         &bb.body,
-        &geom_core::RigidMotion::check_rigid(
-            &rot_trans(),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&rot_trans(), Tol::witness()),
         Tol::witness(),
     )
     .unwrap();
@@ -99,11 +95,7 @@ fn transform_chain_stays_fresh() {
     for i in 1..=5 {
         cur = transform_rigid(
             &cur,
-            &geom_core::RigidMotion::check_rigid(
-                &rot_trans(),
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&rot_trans(), Tol::witness()),
             Tol::witness(),
         )
         .unwrap_or_else(|e| panic!("chain step {i} refused: {e:?}"));
@@ -132,21 +124,13 @@ fn remint_is_deterministic() {
     };
     let o1 = transform_rigid(
         &bb.body,
-        &geom_core::RigidMotion::check_rigid(
-            &rot_trans(),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&rot_trans(), Tol::witness()),
         Tol::witness(),
     )
     .unwrap();
     let o2 = transform_rigid(
         &bb.body,
-        &geom_core::RigidMotion::check_rigid(
-            &rot_trans(),
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&rot_trans(), Tol::witness()),
         Tol::witness(),
     )
     .unwrap();

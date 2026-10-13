@@ -166,11 +166,7 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
     );
     let log1 = topo::transform_rigid(
         &log0,
-        &geom_core::RigidMotion::check_rigid(
-            &rot,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&rot, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();

@@ -372,11 +372,7 @@ fn r2_a_rigid_transform_preserves_every_authority() {
         );
         let moved = topo::transform_rigid(
             &base,
-            &geom_core::RigidMotion::check_rigid(
-                &map,
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&map, Tol::witness()),
             Tol::witness(),
         )
         .unwrap_or_else(|e| panic!("{name} transforms: {e:?}"));

@@ -95,8 +95,7 @@ pub fn onto_y(body: &Body<f64>) -> Body<f64> {
     );
     topo::transform_rigid(
         body,
-        &geom_core::RigidMotion::check_rigid(&up, geom_core::Band::linear(Tol::witness()).unwrap())
-            .unwrap(),
+        &geom_core::test_support::rigid(&up, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()

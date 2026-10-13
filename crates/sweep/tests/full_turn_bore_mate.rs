@@ -59,11 +59,7 @@ fn shaft(deg: f64, y0: f64, h: f64) -> Body<f64> {
 fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> AtRestBody<f64> {
     let moved = topo::transform_rigid(
         b,
-        &geom_core::RigidMotion::check_rigid(
-            pose,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(pose, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();

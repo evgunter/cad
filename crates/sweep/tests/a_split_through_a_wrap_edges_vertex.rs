@@ -490,16 +490,8 @@ fn a_boolean_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round() 
             }
             let a = topo::test_support::finished(
                 "the tilted cylinder",
-                topo::transform_rigid(
-                    &cyl,
-                    &geom_core::RigidMotion::check_rigid(
-                        &turn,
-                        geom_core::Band::linear(tol()).unwrap(),
-                    )
+                topo::transform_rigid(&cyl, &geom_core::test_support::rigid(&turn, tol()), tol())
                     .unwrap(),
-                    tol(),
-                )
-                .unwrap(),
                 tol(),
             );
             for offset in offsets() {

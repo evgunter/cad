@@ -471,11 +471,7 @@ fn rigid_transform_preserves_the_authority_census() {
         * Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), PI / 2.0);
     let moved = topo::transform_rigid(
         &body,
-        &geom_core::RigidMotion::check_rigid(
-            &map,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&map, Tol::witness()),
         Tol::witness(),
     )
     .expect("the vessel transforms");

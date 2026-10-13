@@ -251,11 +251,7 @@ fn diagonal_cube(s: f64, c: [f64; 3]) -> AtRestBody<f64> {
     );
     let b = topo::transform_rigid(
         &b,
-        &geom_core::RigidMotion::check_rigid(
-            &turn,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&turn, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();
@@ -264,11 +260,7 @@ fn diagonal_cube(s: f64, c: [f64; 3]) -> AtRestBody<f64> {
         "the cube",
         topo::transform_rigid(
             &b,
-            &geom_core::RigidMotion::check_rigid(
-                &to,
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&to, Tol::witness()),
             Tol::witness(),
         )
         .unwrap(),
@@ -293,19 +285,14 @@ fn rod(r: f64, h: f64, tilt: f64, c: [f64; 3]) -> AtRestBody<f64> {
     );
     let b = topo::transform_rigid(
         &b,
-        &geom_core::RigidMotion::check_rigid(
-            &onto_y,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap(),
+        &geom_core::test_support::rigid(&onto_y, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();
     let t = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), tilt);
     let b = topo::transform_rigid(
         &b,
-        &geom_core::RigidMotion::check_rigid(&t, geom_core::Band::linear(Tol::witness()).unwrap())
-            .unwrap(),
+        &geom_core::test_support::rigid(&t, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();
@@ -314,11 +301,7 @@ fn rod(r: f64, h: f64, tilt: f64, c: [f64; 3]) -> AtRestBody<f64> {
         "the rod",
         topo::transform_rigid(
             &b,
-            &geom_core::RigidMotion::check_rigid(
-                &to,
-                geom_core::Band::linear(Tol::witness()).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&to, Tol::witness()),
             Tol::witness(),
         )
         .unwrap(),
@@ -635,11 +618,7 @@ fn a_ring_on_a_cone_wall_whose_winding_sums_to_rounding_answers() {
         "the cube",
         topo::transform_rigid(
             &raw,
-            &geom_core::RigidMotion::check_rigid(
-                &(to * turn),
-                geom_core::Band::linear(tol).unwrap(),
-            )
-            .unwrap(),
+            &geom_core::test_support::rigid(&(to * turn), tol),
             tol,
         )
         .unwrap(),

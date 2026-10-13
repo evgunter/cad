@@ -4116,9 +4116,8 @@ where
     if let Some(&(group, cause)) = op_env.across.get(&id) {
         return fail(bracket, NodeErrorKind::Unplaced { group, cause });
     }
-    // An instance's group frame, in this lane: read before the key,
-    // which it feeds, and again by the op (the profile program's
-    // precedent below says why twice is right).
+    // An instance's group frame, in this lane: read once, before the
+    // key, which it feeds, and handed to the op.
     let group_frame = match wire::instance_frame(doc, id, op_env.poses, env, tol) {
         Ok(frame) => frame,
         Err(kind) => return fail(bracket, kind),
@@ -4341,6 +4340,7 @@ where
         &slot_values,
         payload.as_ref(),
         profile_pre.as_ref(),
+        group_frame,
         op_env,
         tol,
     );
