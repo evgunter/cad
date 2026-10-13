@@ -198,7 +198,7 @@ fn theorems(
     };
     let (_, before) = session(false);
     let (sign, after) = session(true);
-    (sign, after.symbolic_zero - before.symbolic_zero)
+    (sign, after.symbolic - before.symbolic)
 }
 
 /// Row 13's symbolic half: two revolves each written `turn/4` store,

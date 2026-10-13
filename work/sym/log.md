@@ -1519,3 +1519,38 @@ Spec `docs/SYM-17-SPEC.md`. Branch `sym/17-rotation-readout` from `main`.
 - 2026-10-12 — SYM-17 re-routed to Ev the way the protocol asks: the (c) / (a′) choice had been put to Ev in chat only. Two designers weighed it (blinding on `analysis/design-fork/sym-17-widened-rotation`) and converged after one round: a `Rigid3<T>` rigid-motion witness that `transform_rigid` takes, landing alone, and no scope statement. The question is in the item's "Question" and on its `[ev]` PR. Phase 2 waits for Ev.
 - 2026-10-12 — Ev answered SYM-17's `[ev]` question: a rigid-motion witness merged with `OrthoFrame` and closed under the rigid group's action (the item's "Question, and Ev's answer"). Phase 2 is re-specced on it.
 - 2026-10-12 — SYM-17 Phase 2 specced on Ev's answer (`docs/SYM-17-SPEC.md` §Phase 2): `RigidMotion<T>` replaces `OrthoFrame`, with mints by construction, one decided door and the action on `UnitVec3`, and `transform_rigid` takes it. Cost M → H. **Review tier: dual, concurrent arm (difficulty H).** It is a new core type replacing another, and it changes a door's signature across geom-core, topo, editor-core, sweep, step-import and the demos: an architectural change of broad reach. Phase 2 continues on `sym/17-rotation-readout` (draft PR 4197). Seams: FLUX (linalg), SHELF/SHELL/OFFSET (`transform.rs`), WIRE (`eval/wire`), MSOLVE/INTENT (the mate solve, within the stop rule), and the sweep owners.
+
+## 2026-10-13 — SYM-17 merged (#4197): `RigidMotion<T>` replaces `OrthoFrame`
+
+On Ev's answer, `RigidMotion<T>` replaces `OrthoFrame`:
+- it is minted rigid by construction (the half-turns, the Rodrigues
+  rotations and the translations);
+- it has one decided door, `check_rigid`, for a literal map;
+- it is closed under compose and inverse;
+- `topo::transform_rigid` takes it;
+- the plain `Interval` lane now certifies the chain: at one link up to
+  6.49e-9, at four up to 6.73e-10.
+
+**Review.** The concurrent dual review (difficulty H) ran on
+`a89f7a54eb`; both reviews were APPROVE-WITH-FIXES. The guide doctests'
+red was a bilateral MAJOR. The fix pass took the doctests, the
+compounding bound (filed P3), the interval finiteness at the mints, the
+test gaps, the K-REPORT and the stale prose. The delta review on
+`1355348da2` came back MERGEABLE-WITH-NITS, with one MINOR: the decided
+door admitted an unbounded `Interval` translation. The final pass made
+the door ask `Real::is_bounded` as the mints do, and made `is_bounded` a
+required method.
+
+**Re-baselines.** The door's three translation decisions retire, so:
+- `asm2a` goes 466 → 463, and `kstats_bracket_rows` 922 → 919;
+- `OWN_FRAMES` goes 2 → 16.
+
+CI is green at `22c2a3550a` except for main's known ε = 1e-12 ring row
+(FLUSH). The sweep's `x − x` / `0·x` siblings are filed on INTENT, BOXES
+and MSOLVE. Spec deleted (`docs/doc-ledger/sym-17-spec.md`).
+- 2026-10-13 — **Seam note from NURBS: PR 4944 merged** (`89f044e92e`).
+  - `SymCounts` gains `checks_expanded` and `checks_frozen`, and the digest prints them as `chk=expanded/total`.
+  - `Session::free` names the free indeterminates the session minted, and `any_indet` is the one shared walker.
+  - The digest bodies are now built inside the session, and the door is receipted on its own. The sym-session lines moved, e.g. arc `chk=103/110`, strip `104/116`, `disp=0` unchanged.
+  - A guard red-lines the digest when coverage falls below 4/5 at ≥ 20 checks.
+  - Touched: `geom-core/src/sym.rs`, `sym/discharge_pins.rs`, `sym11_witness_kind_rows.rs`, `mass_props_are_thread_count_invariant.rs` and the three `thread-count-digest/eps-*.txt`. — (NURBS orchestrator)

@@ -451,6 +451,18 @@ pub enum RevolveError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
+    /// The sketch axis, carried into space by the sketch placement, has
+    /// no decided direction there: the placement collapsed it, or its
+    /// length is not a finite number. A different decision from the
+    /// sketch axis's own ([`RevolveError::DegenerateAxis`] and its
+    /// siblings), which the sketch pair passed.
+    PlacedAxis {
+        /// The direction door's refusal, unaltered.
+        error: geom_core::UnitVec3Error,
+    },
+    /// The turn about the placed axis was not minted as a rigid
+    /// motion: its angle or axis point is not a finite number.
+    Turn(geom_core::RigidMotionError),
     /// The revolve angle is definitely degenerate: zero (or sliver) at
     /// tolerance, metered at the profile's maximum radial extent.
     DegenerateAngle,
@@ -670,6 +682,11 @@ impl fmt::Display for RevolveError {
                 f,
                 "whether the revolve axis has a length is too close to call: {source}"
             ),
+            Self::PlacedAxis { error } => write!(
+                f,
+                "the revolve axis, carried into space by the sketch placement: {error}"
+            ),
+            Self::Turn(e) => write!(f, "the revolve's turn: {e}"),
             Self::DegenerateAngle => write!(
                 f,
                 "the revolve angle is zero at tolerance (measured at the profile's widest \

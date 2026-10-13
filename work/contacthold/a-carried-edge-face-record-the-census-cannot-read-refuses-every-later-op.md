@@ -71,6 +71,12 @@ whole ships them unread (PR 4921's review probe
   hold as written. RESTREAD's row already holds this, and it calls what
   the lane certifies "a design question".
 
+## Weighed (2026-10-13)
+
+A designer pair (fork log row 132) converged in two rounds: a point-touch reading in the census for any cell pair (C3); every door that mints a record reads it with the census's record confirm and refuses typed one no reading covers, the search for unrecorded touches staying parked (D1 tier 3); the carry lands a record whose cells the op kept or substituted by lineage, unread, and confirms only pairs drawn from a divided cell (D1's carry clause). `[ev]` PR for the D1/C3 text. Sequencing either way: the point-touch reading lands before the mint-time confirm, so the rod-on-plate union never refuses in between.
+
+Ev on `[ev]` PR 4951 (2026-10-13): the point-touch reading and the carry by lineage, confirming only on division, as recommended; the mint-time per-record confirm is not built now but folds into un-parking the door's result gate (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`), since its job there is "escalate or not". Owed: the lineage carry (D1's carry clause as PR 4951 left it). The point-touch reading is PR 4956.
+
 ## 2026-10-13 — the point-touch reading lands (`contacthold/point-touch-reading`)
 
 The census now reads the cap circles' edge–face records as point
@@ -88,4 +94,5 @@ The `Found` row case moved rather than cleared: the four ops that
 refused on a cap record now refuse `CarryRefused { Found, Unread }` on a
 face–face pair the two-carrier confirm reads `Contradicted`
 (`a-two-carrier-face-pair-off-its-tangent-line-reads-contradicted-not-stale`).
-The mint-time confirm and the lineage carry stay Ev's (`[ev]` PR 4951).
+The mint-time confirm and the lineage carry are not this unit (Ev on
+`[ev]` PR 4951, above).

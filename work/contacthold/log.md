@@ -328,4 +328,7 @@ the text-only option's wording. Both found
 - 2026-10-12 The self-touch fork (the bridge row) went to a designer pair (byte 70), who converged on the record form in one round: `[ev]` PR for the D1/C7 wording, fork log row 129. The face–face row build is dispatched.
 - 2026-10-12 Ev took the self-touch record form on `[ev]` PR 4914 ("sounds good!"); fork row 129 filled.
 - 2026-10-12 The self-touch fork row is 129 (main took 127 and 128 while PR 4914 waited).
+- 2026-10-13 The carried-unread-record fork converged on read-at-mint, carry-by-lineage and a point-touch reading; `[ev]` PR for the D1/C3 text, fork log row 132.
 - 2026-10-13 PR 4921 merged (the face–face touch row, the carried ef/ff kinds); the bridge row closed. The carried-unread-record fork went to a designer pair (byte 127), who converged in two rounds.
+- 2026-10-13 PR 4918 merged (the glue door escalates in-band tangencies typed; the identity ladder's one home): its row, the sag-route row and TANG's capped-tube row closed.
+- 2026-10-13 Ev on `[ev]` PR 4951: point-touch reading and lineage carry as recommended; the mint-time confirm folds into un-parking the door's result gate. Fork log row 132.

@@ -22,7 +22,7 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
-use super::curved::{self, Carrier, decided};
+use super::curved::{self, decided};
 use super::{CensusSubject, CensusUnsupportedCause, FaceContainment, ValidationError, face_holds};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
@@ -258,15 +258,16 @@ pub(super) fn edge_face<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Read {
     let subject = CensusSubject::Entity(EntityId::Edge(edge));
-    let Some(curve) = curved::carrier(body, edge, errors) else {
+    let Some(curve) = curved::carrier(body, edge, band, errors) else {
         return Read::Pushed;
     };
     let touch = match (curve, surface(body, face)) {
         (
-            Carrier::Circle {
+            geom::Curve3::Circle {
                 center,
-                normal: axis,
+                axis,
                 radius,
+                ..
             },
             Some(Surface::Plane { origin, normal }),
         ) => match circle_plane((center, axis, radius), (origin, normal), band, errors) {
@@ -281,7 +282,7 @@ pub(super) fn edge_face<T: Decide>(
                 return Read::Pushed;
             }
         },
-        (Carrier::Line { origin, dir }, Some(Surface::Sphere { center, radius })) => {
+        (geom::Curve3::Line { origin, dir }, Some(Surface::Sphere { center, radius })) => {
             let foot = origin + dir * dir.dot(center - origin);
             on_sphere((center, radius), foot, band, errors)
         }
