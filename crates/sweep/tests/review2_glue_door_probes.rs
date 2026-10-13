@@ -299,3 +299,42 @@ fn r2_a_frustum_through_a_plate_with_a_hole_of_its_top_radius() {
         );
     }
 }
+
+/// Delta probe: the frustum/plate pose answers `Ok` now; is the rim
+/// row's in-band radius left on the escalation log beside it?
+#[test]
+fn r2_the_rim_ladders_in_band_radius_stays_off_the_log() {
+    let b = band();
+    let profile = vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(0.5, 0.0), 0.0),
+        (Point2::new(0.3, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ];
+    let frustum = at_rest(revolved_about_y(profile, sweep::Revolution::Full, tol()));
+    let slab = at_rest(brick((-1.0, 2.0), (0.5, 0.6), (-1.0, 1.0)));
+    let rod = at_rest(about_y(
+        (0.0, 0.3 + 5.5 * b.zero()),
+        (0.4, 0.7),
+        None,
+        0.0,
+        1.4,
+    ));
+    let plate = topo::subtract(&slab, &rod, tol()).expect("the hole drills");
+    let plate = at_rest(plate.body().expect("a plate").body.clone().into_body());
+    let bracket = geom_core::k_stats::Bracket::open();
+    let out = topo::union(&frustum, &plate, tol()).map(|_| ());
+    let log = bracket.finish();
+    let rim: Vec<_> = log
+        .escalations
+        .iter()
+        .filter(|e| {
+            e.source
+                .predicate
+                .is_some_and(|p| p.starts_with("rim_circle"))
+        })
+        .collect();
+    println!("{out:?}; rim escalations {rim:?}");
+    assert!(out.is_ok(), "{out:?}");
+    assert!(rim.is_empty(), "the op built, yet the log holds {rim:?}");
+}
