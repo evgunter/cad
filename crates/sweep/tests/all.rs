@@ -106,6 +106,8 @@ mod a_thin_cap_keeps_its_digits;
 mod a_tube_ending_on_a_ball;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
+mod an_arc_rim_picks_the_row_it_lies_on;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
 mod an_arc_tangent_at_a_boolean_vertex;
 #[path = "an_inside_out_thin_tube_operand.rs"]
@@ -317,6 +319,10 @@ mod band_ruled_cap_ring;
 mod band_ruled_d_hole;
 #[path = "band_turn_overrun_chamfer.rs"]
 mod band_turn_overrun_chamfer;
+#[path = "band_turn_overrun_fillet.rs"]
+mod band_turn_overrun_fillet;
+#[path = "band_turn_overrun_fillet_model.rs"]
+mod band_turn_overrun_fillet_model;
 #[path = "band_turn_overrun_oracles.rs"]
 mod band_turn_overrun_oracles;
 #[path = "band_turn_overrun_probe.rs"]

@@ -2,7 +2,10 @@
 id: the-census-curved-span-decision-escalates-near-a-fast-end
 kind: issue
 title: The census's curved span decision escalates clearly decided points near a fast end, and gates numerics on is_poison
-status: open
+status: closed
+branch: fuse/the-localization-core
+pr: 4980
+closed: 2026-10-13
 opened: 2026-10-13
 priority: P3
 cost: E
@@ -25,3 +28,12 @@ From the PR 4946 round-2 re-review. Both parts fail loud; neither is a wrong rea
 
 - Let a grey span decision fall through to the side and chord checks.
 - Make the poison gates decisions (or typed refusals) that hold at every scalar, and spell the dropped singular step once.
+
+## 2026-10-13, closed: PR 4980
+
+A grey `m·lo` falls through to the side and chord; the 1 × 0.05 window
+(±20ε to ±200ε) decides, vertex and crossing alike
+(`near_a_fast_end_the_side_decides_where_the_span_reads_in_band`). The
+poison gates are decisions; `stops` reads a floor's enclosure at its
+lower end (the round-2 `x·0` refusal is gone); one `step_kept` decides
+a polish step on the exact-order band.

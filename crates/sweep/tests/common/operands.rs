@@ -270,16 +270,17 @@ pub fn half_round_end() -> (Body<f64>, EdgeKey) {
 /// and the two top edges that turn at `(s, 0, 1)` — along `x` over the
 /// square end face `y = 0`, and along `y` over the leaning wall. The
 /// two bands' feet on the lateral edge meet only at `s = 0`, so at a
-/// definite lean both verbs overrun: the chamfer builds it, the fillet
-/// refuses (`blend::battery::TURN_OVERRUN`).
+/// definite lean both verbs build the overrun.
 pub fn leaning_turn(s: f64) -> (Body<f64>, [EdgeKey; 2]) {
     leaning_turn_at(s)
 }
 
 /// [`leaning_turn`] at [`lean_in_band`], where its chamfer turn
 /// escalates. A fillet's gap is linear in the lean, so the same lean is
-/// far outside its band: the fillet refuses its overrun
-/// (`blend::battery::TURN_OVERRUN`).
+/// far outside its band, but its overrun is the far band's cut-off at a
+/// face tilted by the lean off its axis, whose ellipse's axes are still
+/// too close to tell from a circle: the fillet escalates there too
+/// (`ellipse_axes_distinct`).
 pub fn leaning_turn_in_band(tol: Tol) -> (Body<f64>, [EdgeKey; 2]) {
     leaning_turn(lean_in_band(tol))
 }
