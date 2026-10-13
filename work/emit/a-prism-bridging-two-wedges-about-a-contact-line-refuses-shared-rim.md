@@ -30,7 +30,7 @@ arm). Topo builds those orders sound
 `a_third_prism_crossing_the_wedges_about_the_line_builds_or_refuses_typed`,
 "both wedges crossed": 3/3′, closed-form volume, the analytic
 oracle). The orders folding the bridging prism last refuse in topo
-first (`work/tang/an-edge-crossing-two-wedges-about-a-contact-line-refuses.md`);
+first (`work/tang/an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt.md`);
 the other 16 (4) build through editor-core.
 
 Unmeasured: which face pair the refusal names and why it shares no

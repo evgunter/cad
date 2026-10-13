@@ -4832,6 +4832,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "crossing_at_cone_apex",
             "crossing_carrier_unsupported",
             "crossing_insertion",
+            "crossings_along_a_contact_line",
             "curved_boolean_unsupported",
             "curved_edge_unsupported",
             "curved_pair_unsupported",

@@ -2447,6 +2447,19 @@ pub enum BooleanError {
         /// copy, as `vertex` is.
         partners: [VertexKey; 2],
     },
+    /// An edge runs along a line where the other operand holds two
+    /// coincident edges, two of its pieces touching along it (a contact
+    /// line), and its wedge crosses both of theirs: two edge-edge germs
+    /// along one ray of one vertex pair (`recl::recl_edges`), whose two
+    /// sections along the edge the insertion does not yet place apart.
+    /// The operation applied to the pieces before they are joined meets
+    /// no contact line there.
+    CrossingsAlongAContactLine {
+        /// A's vertex on the line: a key of A's working copy.
+        a_vertex: VertexKey,
+        /// B's vertex there: a key of B's working copy.
+        b_vertex: VertexKey,
+    },
     /// Cones of one operand that touch along a ray lying in the other's
     /// face: the pierces of that face at one point read germs along one
     /// direction in a way the ring cannot order (`vtxfac::germ_order`):
@@ -3210,6 +3223,8 @@ pub enum BooleanErrorKind {
     PinchConesOnSeparateKeys,
     /// [`BooleanError::PinchRaysInAFace`].
     PinchRaysInAFace,
+    /// [`BooleanError::CrossingsAlongAContactLine`].
+    CrossingsAlongAContactLine,
     /// [`BooleanError::VertexReadTwice`].
     VertexReadTwice,
     /// [`BooleanError::PartnerAlongFace`].
@@ -3454,6 +3469,7 @@ impl BooleanError {
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PinchConesOnSeparateKeys { .. } => BooleanErrorKind::PinchConesOnSeparateKeys,
             Self::PinchRaysInAFace { .. } => BooleanErrorKind::PinchRaysInAFace,
+            Self::CrossingsAlongAContactLine { .. } => BooleanErrorKind::CrossingsAlongAContactLine,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::PartnerAlongFace { .. } => BooleanErrorKind::PartnerAlongFace,
             Self::NestingUnread { .. } => BooleanErrorKind::NestingUnread,
@@ -3968,6 +3984,14 @@ impl core::fmt::Display for BooleanError {
                  the other solid, in a way the Boolean cannot yet join. There is no \
                  way through this in the kernel yet",
                 operand_word(*operand)
+            ),
+            Self::CrossingsAlongAContactLine { .. } => write!(
+                f,
+                "one solid holds two pieces touching along a line, and an edge of the \
+                 other runs along that line and cuts into both pieces, which the Boolean \
+                 cannot yet join. Recourse: apply the operation to the pieces before \
+                 they are joined to each other, or move the other solid so its edge \
+                 leaves the line"
             ),
             Self::PinchConesOnSeparateKeys { operand, .. } => write!(
                 f,
@@ -7302,6 +7326,10 @@ mod tests {
                 operand: Operand::A,
                 face,
             },
+            BooleanError::CrossingsAlongAContactLine {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+            },
             BooleanError::VertexReadTwice {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
@@ -7521,6 +7549,7 @@ mod tests {
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PinchConesOnSeparateKeys => "PinchConesOnSeparateKeys",
                 BooleanErrorKind::PinchRaysInAFace => "PinchRaysInAFace",
+                BooleanErrorKind::CrossingsAlongAContactLine => "CrossingsAlongAContactLine",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::PartnerAlongFace => "PartnerAlongFace",
                 BooleanErrorKind::NestingUnread => "NestingUnread",

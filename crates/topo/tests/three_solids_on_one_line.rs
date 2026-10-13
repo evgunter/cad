@@ -14,6 +14,9 @@
 //! - three prisms over 50° sectors, with the plate and alone;
 //! - four prisms over 50° sectors;
 //! - a third prism crossing one wedge about the line, or both;
+//! - the third crossing both against the other members joined, in
+//!   every op and either operand slot, and the recourse its refusal
+//!   names;
 //! - one prism tilted about the line within the zero;
 //! - a prism whose side face holds the line;
 //! - the review's hunt seeds whose pierces meet at one point of the top;
@@ -217,9 +220,8 @@ fn on_the_line(witness: &str) -> bool {
     matches!(n[..], [x, y, _] if (x - MEET[0]).hypot(y - MEET[1]) < 1e-6)
 }
 
-/// The refusal of an edge that crosses two wedges about a contact line
-/// (`work/tang/an-edge-crossing-two-wedges-about-a-contact-line-refuses.md`).
-const TWO_GERMS: &str = "an edge crosses two wedges about a contact line on one ray (unbuilt)";
+/// The refusal of an edge that crosses two wedges about a contact line.
+const TWO_GERMS: &str = "CrossingsAlongAContactLine";
 
 /// No order refuses.
 fn none(_: &[usize]) -> Option<&'static str> {
@@ -488,6 +490,89 @@ fn a_third_prism_crossing_the_wedges_about_the_line_builds_or_refuses_typed() {
         &[0; 4],
         &|order| (order[3] == 3).then_some(TWO_GERMS),
     );
+}
+
+/// **An edge crossing both wedges about a contact line refuses typed in
+/// every op, and the recourse it names builds**: the plate and the two
+/// prisms touching along the line, folded in each order, against the
+/// bridging prism (both wedges crossed), in either operand slot, refuse
+/// [`TWO_GERMS`] by union, intersection and subtraction. Applying the
+/// intersection or subtraction to each piece before the pieces are
+/// joined builds sound against the analytic oracle; the union's
+/// recourse orders are the row above.
+#[test]
+fn an_edge_crossing_both_wedges_refuses_typed_in_every_op_and_its_recourse_builds() {
+    let prisms = [
+        Prism::on_line(0.0, 50.0, (0.5, 2.0)),
+        Prism::on_line(120.0, 170.0, (0.47, 1.7)),
+        Prism::on_line(30.0, 140.0, (0.44, 1.81)),
+    ];
+    let mut members = vec![finished(
+        "the plate",
+        common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+        t(),
+    )];
+    members.extend(prisms.iter().map(Prism::body));
+    let bridge = &members[3];
+    type Op =
+        fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
+    let ops: [(&str, Op); 3] = [
+        ("union", union),
+        ("intersection", topo::intersect),
+        ("subtraction", topo::subtract),
+    ];
+    for order in orders(3) {
+        let line = fold(&members, &order).unwrap().body;
+        for (name, op) in ops {
+            for (x, y, slot) in [(&line, bridge, "B"), (bridge, &line, "A")] {
+                let r = op(x, y, t());
+                assert!(
+                    matches!(r, Err(BooleanError::CrossingsAlongAContactLine { .. })),
+                    "{name} of the line from {order:?}, the bridge as {slot}: {:?}",
+                    r.map(|_| ())
+                );
+            }
+        }
+    }
+    let line = |q| in_plate(q) || prisms[0].holds(q) || prisms[1].holds(q);
+    let piece = |body: Result<BooleanResult<f64>, BooleanError>| match body {
+        Ok(BooleanResult::Body(r)) => r.body,
+        other => panic!("a piece of the recourse: {:?}", other.map(|_| ())),
+    };
+    for (name, op, holds) in [
+        (
+            "intersection",
+            ops[1].1,
+            (|l, b| l && b) as fn(bool, bool) -> bool,
+        ),
+        ("subtraction", ops[2].1, |l, b| l && !b),
+    ] {
+        for (joined, other) in [([0, 1], 2), ([0, 2], 1)] {
+            let what = format!("{name} of {joined:?} and of {other} with the bridge, joined");
+            let base = fold(&members, &joined).unwrap().body;
+            let x = piece(op(&base, bridge, t()));
+            let y = piece(op(&members[other], bridge, t()));
+            let body = piece(union(&x, &y, t()));
+            assert_eq!(validate_geometric(&body, t()), Ok(()), "{what}: tier 3");
+            let probes = probes();
+            let mut read = 0;
+            for &q in &probes {
+                if let Some(got) = inside_of(&body, q) {
+                    assert_eq!(
+                        got,
+                        holds(line(q), prisms[2].holds(q)),
+                        "{what}: material at {q:?}"
+                    );
+                    read += 1;
+                }
+            }
+            assert!(
+                read * 100 >= 99 * probes.len(),
+                "{what}: {read} of {} probes read",
+                probes.len()
+            );
+        }
+    }
 }
 
 /// **A prism tilted within the zero about the line builds as the
