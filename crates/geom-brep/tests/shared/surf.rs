@@ -107,7 +107,7 @@ pub(crate) fn off_cone(carrier: &geom::Curve3<f64>, cone: &Surface<f64>) -> f64 
         ..
     } = cone
     else {
-        panic!("off_cone: a cone chart");
+        unreachable!("off_cone measures against a cone chart")
     };
     (0..4096)
         .map(|i| {
