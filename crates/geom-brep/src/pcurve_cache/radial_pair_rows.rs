@@ -1,16 +1,16 @@
 //! Check 4's terms that read one vector at its norm rather than its
 //! parts' sum: a turning class's pair against the image's (radius,
-//! winding and plane at one `σ`), a pole start's orientation, the
-//! projected cone's slant drift, the two fidelity channels on an
-//! orthogonal chart, and the cylinder's class selector. Each row stands
-//! at its site's band position — the true deviation in the band, the
-//! parts' sum over it — and certifies at `f64` and at `Interval`.
+//! winding and plane at one `σ`, a pole start's included), the torus's
+//! constants, the sphere's and torus tube's frame defects, the projected
+//! cone's slant drift, the two fidelity channels on an orthogonal chart,
+//! and the cylinder's class selector. Each row stands at its site's
+//! band position — the true deviation in the band, the parts' sum over
+//! it — and certifies at `f64` and at `Interval`.
 //!
 //! Built with `PCERT_RADIAL_PAIR_MUTANT` naming a site
-//! ([`super::sum_mutant`]), that site reads the sum again and its row
+//! (`super::mutants::SITES`), that site reads the sum again and its row
 //! refuses; `fidelity-cone` reads the cone's channels as orthogonal,
 //! and the cone's row then finds its envelope under the residual.
-
 use core::f64::consts::{FRAC_PI_4, TAU};
 
 use geom_core::{Bounds, Interval};
@@ -294,7 +294,8 @@ fn a_pole_start_reads_its_residual_as_one_pair() {
 /// pair's radial half has sup `0.6·zero` and its axial half `0.42·zero`,
 /// which together read `1.02·zero` where the circle stands `0.6·zero`
 /// off the pole. Its envelope covers that at `f64` and at `Interval`,
-/// inside the band. (Not certified whole: an edge this short is under
+/// and `covers` asserts it inside the band, which is what refuses the
+/// sum (`1.02·zero`). (Not certified whole: an edge this short is under
 /// check 2's span band, as no carrier of a still class is a chart's.)
 #[test]
 fn a_still_parallel_reads_its_pair_whole() {
