@@ -961,6 +961,35 @@ pub(super) fn traced_mismatches(
     })
 }
 
+/// Whether every witness can take a component of its own from its
+/// `candidates`, no two the same (augmenting paths).
+fn matched(candidates: &[Vec<usize>]) -> bool {
+    fn augment(
+        w: usize,
+        candidates: &[Vec<usize>],
+        owner: &mut std::collections::BTreeMap<usize, usize>,
+        tried: &mut Vec<usize>,
+    ) -> bool {
+        for &c in &candidates[w] {
+            if tried.contains(&c) {
+                continue;
+            }
+            tried.push(c);
+            let free = match owner.get(&c) {
+                None => true,
+                Some(&other) => augment(other, candidates, owner, tried),
+            };
+            if free {
+                owner.insert(c, w);
+                return true;
+            }
+        }
+        false
+    }
+    let mut owner = std::collections::BTreeMap::new();
+    (0..candidates.len()).all(|w| augment(w, candidates, &mut owner, &mut Vec::new()))
+}
+
 /// The mismatches between `parts` and the traced section; `None` where
 /// no grid within [`GRID_BUDGET`] resolves a chart.
 fn against_the_trace(
@@ -991,7 +1020,10 @@ fn against_the_trace(
                 "on the {side}'s chart traced {want:?}, classified {got:?}"
             ));
         }
-        let mut seen = Vec::new();
+        // Each witness's traced components of its part's class, matched
+        // one to one: two components can pass within a cell of one
+        // witness.
+        let mut near = Vec::new();
         for p in parts {
             let Some(w) = p.witness else {
                 continue;
@@ -1007,13 +1039,17 @@ fn against_the_trace(
             let on: Vec<usize> = traced
                 .near(u, psi)
                 .into_iter()
-                .filter(|&i| traced.traced.classes[i] == want && !seen.contains(&i))
+                .filter(|&i| traced.traced.classes[i] == want)
                 .collect();
-            match on.first() {
-                Some(&i) => seen.push(i),
-                None => bad.push(format!(
-                    "on the {side}'s chart the witness {w:?} of a {want:?} part is on no such traced component"
-                )),
+            near.push((w, want, on));
+        }
+        let candidates: Vec<Vec<usize>> = near.iter().map(|(_, _, on)| on.clone()).collect();
+        if !matched(&candidates) {
+            for (w, want, on) in &near {
+                bad.push(format!(
+                    "on the {side}'s chart the witness {w:?} of a {want:?} part is on \
+                     traced components {on:?}, not each on its own"
+                ));
             }
         }
     }
@@ -1920,4 +1956,30 @@ fn a_root_past_the_half_turn_of_a_wide_cone_is_read_where_it_is_reported() {
             margin: Some(0.16306054356518696),
         },
     );
+}
+
+/// A wide cone (α 1.45) through a wall of radius 830 at scale 757: on
+/// the wall's chart the section is two essential loops, and they pass
+/// within a cell of each other where the first witness stands. Each
+/// witness is on a component of its own, though one of them is near
+/// both. Seed `0x6dd3eb9ff55f6ca3` at effort 1. Traced at the default ε.
+#[test]
+fn two_wall_loops_passing_within_a_cell_each_hold_a_witness() {
+    let k = frame(
+        Point3::new(140.09499842738194, 387.52215537341806, 444.1330514363964),
+        Vec3::new(
+            -0.8802943420054558,
+            0.44248548073086597,
+            -0.1711387471484936,
+        ),
+        1.4466280477228333,
+        756.9589479493708,
+    );
+    let partner = cylinder(
+        Point3::new(761.1434654670526, -420.1760074350959, 787.5225453895903),
+        Vec3::new(-0.9000764236478213, 0.24009220903110304, 0.363618155151682),
+        830.5208006897169,
+        k.scale,
+    );
+    answers_or_stands_down(&k, &generic("oblique cylinder (0x6dd3…)", partner));
 }
