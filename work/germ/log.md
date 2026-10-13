@@ -1151,3 +1151,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **MINORs:** the pinched-oval refusal covers the fat torus at every stand-off, not just near the equator, and the filed residue understates it. The winding term folds `Indeterminate` into 'unbuilt lane'.
   - **Style:** `spiric_segment_term` duplicates `geom_brep::props::spiric::spiric_vector_area`, a certified enclosure.
   - Waiting on r4927a.
+- 2026-10-13 04:45 — **PR 4910 merged** (`0c3d17eabe`).
+  - Local verify on head + main: fmt; topo ring-lane rows (31) and touched sweep rows (75) green at three ε.
+  - Row `PR-4910.md` last: sequential, M, byte 221, tallied 0, major false.
+  - U-T4 (PR 4927) now has to reconcile its `ring_path` with 4910's `Conic`/`param`/`span_readings` homes. The 4910 lane wrote the recipe in its PR body: `Self::Conic { .. }` becomes `Self::Conic(c)`, and `param_at` becomes `c.param(x)`. Put it in 4927's fix-pass brief.
