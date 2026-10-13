@@ -385,6 +385,8 @@ mod euler_site_rows_equal_the_pass;
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
 mod extrude_interval;
+#[path = "face_face_touch.rs"]
+mod face_face_touch;
 #[path = "issue93_az_intersect.rs"]
 mod issue93_az_intersect;
 #[path = "join1_r2_probes.rs"]

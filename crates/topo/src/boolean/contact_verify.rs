@@ -18,9 +18,7 @@
 //! claims opposed senses and a void crescent, and is read declared
 //! (bridging the second-order residue) or undeclared
 //! ([`tangent_locus_relation`]'s `declared`); the glue door's tangency
-//! ([`tangency_reading`]) claims neither, is always undeclared, and
-//! hands the senses and the crescent's undecided margins back
-//! ([`Posture`]).
+//! ([`tangency_reading`]) claims neither and is always undeclared.
 //!
 //! **The Tangent lane reuses the jet machinery, it does not restate
 //! it.** `tangent_jet`, `tangent_certificate_lane`,
@@ -360,7 +358,6 @@ pub(crate) fn tangent_locus_reading<T: Decide>(
         Claim::Contact,
         band,
     )
-    .map(|(verdict, touch, _)| (verdict, touch))
 }
 
 /// **The boolean glue door's tangency**: the C4 `Tangent` table along
@@ -369,10 +366,8 @@ pub(crate) fn tangent_locus_reading<T: Decide>(
 /// second-order margin, which must be DEFINITE (jet-determinate: no
 /// declaration stands behind the pair to bridge an in-band or exactly
 /// zero `κ_rel`). The outward normals may agree or oppose, and the
-/// crescent between the sheets may be void or shared. The senses are
-/// reported and the crescent's margins kept unread ([`Posture`]), so
-/// neither contradicts and the crescent is decided only where a consumer
-/// reads it ([`Posture::void`]).
+/// crescent between the sheets may be void or shared: neither
+/// contradicts.
 ///
 /// # Errors
 ///
@@ -387,7 +382,7 @@ pub(crate) fn tangency_reading<T: Decide>(
     t0: T,
     t1: T,
     band: Band,
-) -> Result<(geom_core::MarginDiag, Posture<T>), ContactRefusal> {
+) -> Result<geom_core::MarginDiag, ContactRefusal> {
     tangent_table(
         s1,
         sense1,
@@ -400,41 +395,7 @@ pub(crate) fn tangency_reading<T: Decide>(
         Claim::Tangency,
         band,
     )
-    .map(|(_, touch, posture)| (touch, posture))
-}
-
-/// What a tangency reading saw of the two faces' senses along the locus,
-/// read off every sample.
-#[derive(Clone, Debug)]
-pub(crate) struct Posture<T> {
-    /// The outward normals agree along the locus.
-    pub(crate) aligned: bool,
-    /// Where they oppose, each sample's crescent between the sheets
-    /// (`material_kappa_rel` as a sagitta at the sample's arm), undecided.
-    crescents: Vec<Margin<T>>,
-}
-
-impl<T: Decide> Posture<T> {
-    /// **Whether two materials touch from outside**: the normals oppose
-    /// and the crescent between the sheets is void at every sample
-    /// (`contact_tangent_overlap`, decided here and only for a consumer
-    /// that reads it).
-    ///
-    /// # Errors
-    ///
-    /// The first sample's [`Indeterminate`] whose crescent is in band.
-    pub(crate) fn void(&self, band: Band) -> Result<bool, Indeterminate> {
-        if self.aligned {
-            return Ok(false);
-        }
-        for &crescent in &self.crescents {
-            match crate::validate::decide("contact_tangent_overlap", crescent, band)? {
-                Sign::Negative => {}
-                Sign::Positive | Sign::Zero => return Ok(false),
-            }
-        }
-        Ok(!self.crescents.is_empty())
-    }
+    .map(|(_, touch)| touch)
 }
 
 /// What the table is asked to verify.
@@ -447,7 +408,7 @@ enum Claim {
 }
 
 /// The C4 `Tangent` table along `carrier` under `claim`, with the
-/// touch's margin and the senses' posture.
+/// touch's margin.
 ///
 /// A pass whose only unsettled reading is a span bound ([`Unsettled::Sag`])
 /// is read again on a schedule twice as fine, its sag a quarter as
@@ -468,7 +429,7 @@ fn tangent_table<T: Decide>(
     declared: bool,
     claim: Claim,
     band: Band,
-) -> Result<(ContactVerdict, geom_core::MarginDiag, Posture<T>), ContactRefusal> {
+) -> Result<(ContactVerdict, geom_core::MarginDiag), ContactRefusal> {
     // The lane gate FIRST: the demanded set is the certifiable set,
     // so a configuration whose span bounds do not exist gets no
     // per-sample verdict either — refusing here is the order-k
@@ -561,11 +522,10 @@ fn tangent_pass<T: Decide>(
     extent: T,
     (declared, claim): (bool, Claim),
     band: Band,
-) -> Result<(ContactVerdict, geom_core::MarginDiag, Posture<T>), Unsettled> {
+) -> Result<(ContactVerdict, geom_core::MarginDiag), Unsettled> {
     let mut bridged = false;
     let mut gap_max = T::zero();
     let mut aligned = None;
-    let mut crescents = Vec::new();
     for i in 0..samples {
         let t = schedule_param(t0, t1, i, samples);
         let (p, tau) = carrier.ders1(t);
@@ -735,14 +695,7 @@ fn tangent_pass<T: Decide>(
                     }
                 }
             }
-            Ok(Sign::Positive) => {
-                if aligned == Some(false) {
-                    crescents.push(Margin::sagitta(
-                        geom_brep::material_kappa_rel(jet.kappa_rel, sense1),
-                        arm,
-                    ));
-                }
-            }
+            Ok(Sign::Positive) => {}
             residue => {
                 if !declared {
                     return Err(Unsettled::Refused(ContactRefusal::Escalated {
@@ -764,11 +717,7 @@ fn tangent_pass<T: Decide>(
     } else {
         ContactVerdict::Definite
     };
-    let posture = Posture {
-        aligned: aligned == Some(true),
-        crescents,
-    };
-    Ok((verdict, touch, posture))
+    Ok((verdict, touch))
 }
 
 /// A tangency whose outward normals agree at one sample and oppose at
@@ -1450,8 +1399,8 @@ mod tests {
 
     /// **The glue door's tangency claims neither sense nor crescent**:
     /// three tangencies along the z-line through `(2, 0)` (or `(1, 0)`),
-    /// each read by [`tangency_reading`], and the contact table's verdict
-    /// beside it where the two differ. A disc of radius 1 inside one of
+    /// each verified by [`tangency_reading`], and the contact table's
+    /// verdict beside it where the two differ. A disc of radius 1 inside one of
     /// radius 2 has its outward normals aligned; a bore of radius 1 in a
     /// disc of radius 2 has them opposed with the crescent shared by both
     /// materials; two unit discs kissing have them opposed with the
@@ -1468,12 +1417,10 @@ mod tests {
         let (fat, small) = (cyl(0.0, 2.0), cyl(1.0, 1.0));
         let at_two = line([2.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         let read = |s1, sense1, s2, sense2, along| {
-            tangency_reading(s1, sense1, s2, sense2, along, 0.0, 1.0, b)
-                .map(|(_, posture)| (posture.aligned, posture.void(b)))
+            tangency_reading(s1, sense1, s2, sense2, along, 0.0, 1.0, b).is_ok()
         };
-        assert_eq!(
+        assert!(
             read(&fat, true, &small, true, &at_two),
-            Ok((true, Ok(false))),
             "the nested discs: aligned"
         );
         assert!(
@@ -1484,9 +1431,8 @@ mod tests {
             ),
             "the nested discs as a contact: contradicted on the senses"
         );
-        assert_eq!(
+        assert!(
             read(&fat, true, &small, false, &at_two),
-            Ok((false, Ok(false))),
             "the bore in the disc: opposed, the crescent shared"
         );
         assert!(
@@ -1498,10 +1444,43 @@ mod tests {
             "the bore in the disc as a contact: contradicted on the crescent"
         );
         let at_one = line([1.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-        assert_eq!(
+        assert!(
             read(&cyl(0.0, 1.0), true, &cyl(2.0, 1.0), true, &at_one),
-            Ok((false, Ok(true))),
             "the kissing discs: opposed, the crescent void"
+        );
+        // The same reading refuses what is no tangency, so the three
+        // above are its verdicts and not a door left open.
+        assert!(
+            matches!(
+                tangency_reading(
+                    &cyl(0.0, 1.0),
+                    true,
+                    &cyl(2.5, 1.0),
+                    true,
+                    &at_one,
+                    0.0,
+                    1.0,
+                    b
+                ),
+                Err(ContactRefusal::Contradicted { .. })
+            ),
+            "discs a gap apart: the line is off one of them"
+        );
+        assert!(
+            matches!(
+                tangency_reading(
+                    &cyl(0.0, 1.0),
+                    true,
+                    &cyl(1.5, 1.0),
+                    true,
+                    &at_one,
+                    0.0,
+                    1.0,
+                    b
+                ),
+                Err(ContactRefusal::Contradicted { .. })
+            ),
+            "overlapping discs: the line is off one of them"
         );
     }
 }

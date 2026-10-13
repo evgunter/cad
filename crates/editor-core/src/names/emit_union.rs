@@ -361,7 +361,13 @@ fn group_member_edges<T: geom_core::Decide>(
                 (Some(Along::One(least)), whole)
             }
             (Some((member, edge, _)), _) => (Some(Along::One((member, edge))), false),
-            (None, [k]) => (flush.least_within(*k).map(Along::One), false),
+            (None, [k]) => match flush.least_within(*k) {
+                Some(least) => {
+                    let whole = flush.holds_whole(*k, &least)?;
+                    (Some(Along::One(least)), whole)
+                }
+                None => (None, false),
+            },
             (None, _) => (None, false),
         };
         match key {
