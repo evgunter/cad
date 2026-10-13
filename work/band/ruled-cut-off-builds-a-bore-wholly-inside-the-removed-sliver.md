@@ -358,3 +358,133 @@ membership test (4).
     (`Unclear::cap_rings`). That depends on `ring_clearance_pass`
     running before `band_reach` in `blend_surgery`, and nothing but call
     order holds it.
+
+## Findings (step 4: the planar band, the chamfer; the concave fill stopped at a question)
+
+- **(a) The planar band, built.** The plane–plane band's convex cut-off
+  now carries its crease into the cap meter, as the ruled one does
+  (`surgery.rs`, the `CapMeter` list), so a cycle read inside its sliver
+  is a `CapRing` and the prism reading (`reach::prism_inside`) reads the
+  feature's walls through it. Nothing else was needed: the band's
+  material is the prism over its section along the spine between the
+  cap planes (both supports and the band are ruled along it), the
+  prism's slice in a cap's plane is the cap meter's sliver, and the
+  carve (`consume.rs`) is the ruled one's. The exact core's boundary
+  reading still runs first, so a wall with a sampled point in kept
+  material refuses as a crossing before the prism reading is asked.
+  Rows (`crates/sweep/tests/band_planar_consume.rs`): a bore at scales
+  `1e-2`, `1`, `1e2`; a square slot (plane walls, lines between ring
+  vertices); leans `s = 0, 0.3, ±1` (elliptic rings on oblique caps); the
+  certified scalar; all at `ΔV = −(A − A_feature)·L`, tiers 3 and 3′,
+  naming totality, walls in `BlendNaming::dead`, genus 0. Crossings: a
+  hair short of the arc and on it refuse `RingClearance` measured, a
+  hair past it goes; a blind bore refuses as a bound; a tilted bore
+  inside at both caps whose wall dips `a` into the ball mid-length, its
+  seams kept in the sliver so the exact core samples no crossing,
+  refuses as a bound, and builds with the line slack and the
+  `diagonal·|a × τ|` term deleted (checked by deleting them).
+- **(c) The chamfer, built.** A chord end's sliver is the triangle of
+  the old vertex and the two feet (the rims are lines; a chord end whose
+  rims are not reads as before). `CapSliver` reads it through its three
+  sides: a point's depth is its least distance inside them, a point past
+  one is an outside witness, and a cycle is inside when each piece's
+  least reach along each side's inward normal (`piece_along`) is
+  positive, the least of those its depth — exact for a convex region,
+  where the sliver meter's round end needs the first-point and
+  rim-clearance argument (unit row
+  `end_face::tests::a_chord_end_reads_a_cycle_through_its_triangle`).
+  The chamfer's material is a triangular prism, convex, so the prism
+  reading owes no slack there (`prism_inside`'s `convex`): every point
+  of a qualifying wall is a convex combination of boundary points whose
+  projections lie at least the least depth inside the triangle, and the
+  distance from a convex region's boundary is concave inside it. That
+  takes the tilt conservatism for the chamfer: the fillet row's tilted
+  bore, inside the chamfer's triangle at both caps with a lateral run
+  twenty times its depth, goes at `ΔV = −(2A − π·a²·ℓ)`
+  (`band_planar_consume::a_tilted_bore_inside_the_chamfers_prism_goes_with_it`).
+  No crossing can be built for a chamfer from rings inside at both caps,
+  by the same convexity. The rows above run under both verbs; the hair
+  rows have a chord twin. One existing row moved:
+  `band_planar_cut_off_meters::a_hole_in_the_end_face_sliver_refuses_on_either_side`'s
+  chamfer reads each hole's ring inside the triangle now (the convex
+  hole is blind, the concave one runs into the die), so both refuse as
+  a bound at the hole's wall (`FaceClearance { bounded: true }`) rather
+  than `RingClearance`; still refusals.
+- **Naming.** `editor-core` `edit_planar_carve`: a bore clear of a
+  `0.005` blend is carried through, and after a size edit to `0.1` its
+  wall's name resolves `Vanished { PredicateFlip { …, Positive →
+  Negative } }`, under `fillet3_face_clearance` for the fillet and
+  `fillet3_ring_clearance` for the chamfer (both are the consumption's
+  logged verdicts; N5's population diff nets the flip it reports).
+- **(b) The concave fill: stopped, a question first.** What the
+  ruling's concave half can apply to is not the brief's picture of "a
+  pocket or bore in the filled region". The filled region `F` is air in
+  the source, so it holds no pocket or bore. Two shapes meet it:
+  - **A feature whose mouth the fill seals.** On the concave side the
+    end face loses its sliver under the fill, so a cycle there wholly
+    inside the sliver is the mouth of a feature running into the
+    material behind the end face: a blind hole, or a hole through to a
+    face the fill does not cover. The cap reads the mouth inside (under
+    both verbs now; checked), but the feature's faces lie behind the
+    end face, not in `F`, and its wall meets the end face's plane, so
+    the reach reads it as a bound and the request refuses
+    (`band_planar_consume::a_hole_whose_mouth_lies_inside_a_concave_sliver_refuses_as_a_bound`,
+    and `band_planar_cut_off_meters::a_hole_in_the_end_face_sliver_refuses_on_either_side`'s
+    concave chamfer). It is not wholly inside the material the band
+    adds, nor does it cross it; it touches it at its mouth, which the
+    ruling does not decide. If built, the fill would seal the mouth: the
+    cycle becomes a plug face in the end face's plane (`mfkrh`), a
+    through-hole becomes blind, and a blind hole a closed void, a new
+    inner shell. Nothing is filled in: the fill adds only `F`.
+  - **An island wholly inside `F`**: material standing free in the
+    region — another solid of the body, or a lump in a cavity's fill.
+    The exact core reads it inside
+    (`band_reads_three_ways::an_island_wholly_inside_a_concave_bands_fill_refuses_wholly_inside_under_both_verbs`).
+    Its convex mirror is a void wholly inside the material a convex band
+    removes
+    (`…::a_void_wholly_inside_a_convex_bands_material_refuses_wholly_inside_under_both_verbs`),
+    under any straight band. Both need one new carve, killing a whole
+    shell: merge its faces across their edges (`kef`) to one face whose
+    edges are a tree, retire the tree (`kev`) to a lone vertex; a void's
+    skeleton then `kfmrh`s into a face of the outer shell as a
+    lone-vertex ring and goes as `consume` ends (`mekr` strut, `kev`);
+    an island's solid goes by `kvfs`. `plan` would admit a feature that
+    is a whole shell with every face read inside, and `Retired` would
+    need shell and solid channels. Absorbing an island joins another
+    solid to the blended one, a Boolean union's effect.
+  - **Options.** For the sealed mouth: **(S1)** keep refusing (today, a
+    bound); **(S2)** seal it, the feature surviving closed off. For the
+    island and the void: **(I1)** build the shell kill for both;
+    **(I2)** for voids only (one solid, nothing joined), islands keep
+    refusing `WhollyInside`; **(I3)** keep both refusing.
+    **Recommendation: S1 and I2.** A sealed mouth leaves a hidden void
+    or turns a through-hole blind without a word, the silent outcome
+    fail-loud exists to prevent, and the ruling does not reach it. A
+    void is squarely inside the ruling and changes nothing but the void.
+    Whether a blend may join solids the ruling answers by analogy, not
+    by example; the orchestrator should weigh it (two designers if it is
+    a fork) before it is built.
+- **The step-4 owed list, as taken.**
+  - *Tilt conservatism*: taken for the chamfer (above). Not for the
+    fillet: its section is not convex, and a per-station reading along
+    each line would be the refinement; sound as it stands.
+  - *Tilted caps / the oblique-cap factor*: the lean rows exercise the
+    `|n·τ|` factor at `s = 0.3, ±1` under both verbs. No crossing row can
+    pin it: a wall that dips into the kept ball between rings at
+    projected depth `δ⊥` needs a lateral run of at least
+    `2·√(2rδ⊥)`, which the line slack already charges, and of a chord's
+    two ends one lies towards each support, so the least ring depth over
+    the crease has one end whose nearest boundary the cap's tilt does
+    not stretch. The factor is the derivation's soundness term, and is
+    kept without a red row.
+  - *The off-spine plane term*: the square slot's walls lie along the
+    spine (`|n·τ| = 0`); an off-spine plane wall is a tilted slot, whose
+    line slack dominates as the bore's does. Not separately pinned.
+  - *The escalate-zone margin* and *the tie-break's non-entity fields*:
+    untouched by these readings, still open as written above.
+  - *The prism reading reads the cap cycles found so far*: unchanged —
+    the planar cut-off's cap meter runs in the same `ring_clearance_pass`
+    before `band_reach`.
+- **Still open:** (b) above, and inside-the-union-of-bands at mitres and
+  corners. The concave twin of the mitre void and island rows in
+  `band_planar_mitre` is unchanged.

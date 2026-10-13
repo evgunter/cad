@@ -9,8 +9,8 @@
 //! another outside ([`BlendError::FaceClearance`], `bounded: false`),
 //! which would need the band trimmed by the face; or wholly inside such
 //! a region, every cell of the face's box that may hold a point of its
-//! surface inside it, or inside the prism a convex ruled band removes
-//! over the cycles its caps read inside ([`prism_inside`]), where the
+//! surface inside it, or inside the prism a convex straight band
+//! removes over the cycles its caps read inside ([`prism_inside`]), where the
 //! face goes with the material ([`Consumed`]; elsewhere that carve is
 //! not built, and the request refuses [`BlendError::WhollyInside`]). A
 //! face certified none of the three refuses [`BlendError::FaceClearance`]
@@ -1996,8 +1996,8 @@ fn boundary_reading<T: Decide>(
     Ok(reading)
 }
 
-/// **How surely a face lies wholly inside the prism a convex ruled band
-/// removes**, read through the cycles its caps' meter read inside the
+/// **How surely a face lies wholly inside the prism a convex straight
+/// band removes**, read through the cycles its caps' meter read inside the
 /// sliver (`rings`, this link's): positive when it certainly does, and
 /// then a lower bound on how far inside; `None` when the face is not of
 /// the shape the reading takes.
@@ -2022,6 +2022,12 @@ fn boundary_reading<T: Decide>(
 /// (its box's diagonal) times `|a × τ|`; and it lies between the cap
 /// planes, being a convex combination of boundary points that do. The
 /// reading is that excess.
+///
+/// Where `S⊥` is `convex` (the chamfer's triangle) neither term is owed:
+/// a line's points and a face's are convex combinations of boundary
+/// points whose projections lie at least the least depth inside `S⊥`,
+/// and the distance from a convex set's boundary is concave inside it,
+/// so the reading is that least depth.
 fn prism_inside<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -2029,6 +2035,7 @@ fn prism_inside<T: Decide>(
     (flo, fhi): ([f64; 3], [f64; 3]),
     tau: Vec3<T>,
     rings: &[CapRing<T>],
+    convex: bool,
 ) -> Result<Option<T>, BlendError> {
     if rings.is_empty() || flo.iter().chain(&fhi).any(|x| !x.is_finite()) {
         return Ok(None);
@@ -2087,6 +2094,9 @@ fn prism_inside<T: Decide>(
         let [x, y, z] = v.map(T::from_computed);
         Point3::new(x, y, z)
     };
+    if convex {
+        return Ok(Some(least));
+    }
     let diagonal = (corner(fhi) - corner(flo)).norm();
     Ok(Some(least - slack - diagonal * tilt))
 }
@@ -2101,8 +2111,8 @@ fn prism_inside<T: Decide>(
 /// of every one; a tie on the margin's upper end names the least entity
 /// ([`entity_order`]), so the refusal is the same in every read order.
 ///
-/// An inside reading the carve consumes is one on a convex ruled band's
-/// cap ([`CapRing`]) or a face of the prism over such rings
+/// An inside reading the carve consumes is one on a convex straight
+/// band's cap ([`CapRing`]) or a face of the prism over such rings
 /// ([`prism_inside`]): only when every inside reading is one does the
 /// request build ([`Consumed`]); otherwise it refuses `WhollyInside`.
 pub(crate) struct Unclear<T> {
@@ -2113,7 +2123,7 @@ pub(crate) struct Unclear<T> {
     unconsumed: bool,
 }
 
-/// **A cycle of a convex ruled band's cap read wholly inside its
+/// **A cycle of a convex straight band's cap read wholly inside its
 /// sliver**: the crease whose band removes it, the cap, the cycle, and
 /// its depth (negative; its size a lower bound on the cycle's distance
 /// from the sliver's boundary in the cap's plane).
@@ -2126,8 +2136,8 @@ pub(crate) struct CapRing<T> {
 }
 
 /// **What a request whose verdict is inside consumes**: the cap cycles
-/// and the faces read wholly inside the material a convex ruled band
-/// removes, and the refusal they would owe were the carve not to take
+/// and the faces read wholly inside the material a convex straight
+/// band removes, and the refusal they would owe were the carve not to take
 /// them ([`BlendError::WhollyInside`], the shallowest).
 pub(crate) struct Consumed<T> {
     pub(crate) rings: Vec<CapRing<T>>,
@@ -2220,14 +2230,14 @@ impl<T: Bounds> Unclear<T> {
         self.deepen(margin, refusal);
     }
 
-    /// A cap cycle certified wholly inside a convex ruled band's sliver,
+    /// A cap cycle certified wholly inside a convex straight band's sliver,
     /// which the carve consumes with the feature it bounds.
     pub(crate) fn cap_ring(&mut self, ring: CapRing<T>, refusal: BlendError) {
         self.rings.push(ring);
         self.deepen(ring.depth, refusal);
     }
 
-    /// A face certified wholly inside the prism a convex ruled band
+    /// A face certified wholly inside the prism a convex straight band
     /// removes ([`prism_inside`]), which the carve consumes.
     fn prism_face(&mut self, face: FaceKey, depth: T, refusal: BlendError) {
         if !self.faces.contains(&face) {
@@ -2236,7 +2246,7 @@ impl<T: Bounds> Unclear<T> {
         self.deepen(depth, refusal);
     }
 
-    /// The cycles read inside a convex ruled band's caps so far.
+    /// The cycles read inside a convex straight band's caps so far.
     fn cap_rings(&self) -> &[CapRing<T>] {
         &self.rings
     }
@@ -2482,7 +2492,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                 );
                 continue;
             }
-            // Inside the prism a convex ruled band removes, read through
+            // Inside the prism a convex straight band removes, read through
             // the cycles its caps' meter read inside the sliver.
             if let Some((edge, tau)) = reach.spine.filter(|_| !supports_a_band) {
                 let mine: Vec<CapRing<T>> = unclear
@@ -2491,7 +2501,8 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                     .filter(|r| r.crease == edge)
                     .copied()
                     .collect();
-                let reading = prism_inside(body, face, &surface, fbox, tau, &mine)?;
+                let convex = kind == BlendKind::Chamfer;
+                let reading = prism_inside(body, face, &surface, fbox, tau, &mine, convex)?;
                 if let Some(excess) = reading.filter(|x| sure(*x, band)) {
                     let deep = T::zero() - excess;
                     let sign = classify_bound(deep)?;

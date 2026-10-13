@@ -35,7 +35,7 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 | Assembly front doors, `Blended` result type, octant charts | `crates/sweep/src/blend/build.rs` |
 | In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams) | `crates/sweep/src/blend/surgery.rs` |
 | Predicate 2's reach: every band against every face of the body that is not a support of its chain, in any shell, before any mutation | `crates/sweep/src/blend/reach.rs` |
-| The carve that takes a feature wholly inside a convex ruled band's material: the grouping into features, and the walk that removes one | `crates/sweep/src/blend/consume.rs` |
+| The carve that takes a feature wholly inside a convex straight band's material: the grouping into features, and the walk that removes one | `crates/sweep/src/blend/consume.rs` |
 | The open bands: the plane–plane band with its trihedral corners, the ruled band with its transverse cut-off | `crates/sweep/src/blend/open/planar.rs`, `crates/sweep/src/blend/open/ruled.rs` |
 | Birth records (`BlendNaming`) the document layer turns into names | `crates/sweep/src/blend/naming.rs` |
 
@@ -51,10 +51,12 @@ with the tool: the carve that consumes it takes its faces, edges and
 rings, and the verdict is logged in the blend node's verdict log (under
 `fillet3_face_clearance` and `fillet3_ring_clearance`), so that a later
 reader of one of its names resolves `Vanished` with the blend's verdict
-as the cause (`PredicateFlip`). The carve is built at a convex ruled
-band's cut-off (below); a request that reads inside anywhere else — the
-planar band, a concave fill, the chamfer — refuses
-`BlendError::WhollyInside`. A face crossing the
+as the cause (`PredicateFlip`). The carve is built at a convex
+straight band's cut-off: the ruled fillet's, and the plane–plane
+fillet's and chamfer's (below). A request whose inside readings lie
+anywhere else — a void or an island with no cap cycle, a hole whose
+mouth a concave fill covers — refuses: `BlendError::WhollyInside`, or a
+bound where the feature's wall meets the end face's plane. A face crossing the
 reach would need the band trimmed by it, which the surgery has no step
 for, and refuses. The supports' own
 boundary features are judged first, by the battery's screen and the
@@ -75,8 +77,9 @@ every face and end-face cycle not clear is read wholly inside refuses
 refusal is the same in every read order). The cell walk never reads
 inside a face that touches the region's boundary, so on an exact core a
 through-feature's wall, which meets the window's end plane, reads as a
-bound whatever its rings read at the cap. A convex ruled band's reach
-reads such a wall through its caps instead: a face on a surface ruled
+bound whatever its rings read at the cap. A convex straight band's
+reach (the ruled band's, or the plane–plane band's past its exact
+core) reads such a wall through its caps instead: a face on a surface ruled
 near the spine (a cylinder's axis, a plane's direction nearest it),
 every edge of which is an edge of a cap cycle read inside the sliver or
 a line between two of their vertices, lies inside the prism the band
@@ -347,7 +350,21 @@ link. The planar band carves locally, as the ruled band does: the end
 face's rim edges split at the feet, the end curve `mef`'d across it, one
 trimline per support; at a turn, L split at its foot, a strut out to the
 trimlines' crossing on the shared face, and the mitre `mef`'d across one
-band, the triangle it cuts off folded into the other.
+band, the triangle it cuts off folded into the other. A convex
+cut-off takes a through-feature wholly inside the material it
+removes, between its two end faces, as the ruled cut-off does
+(predicate 2, above, and the ruled cut-off, below), under both verbs.
+The fillet's sliver is the ruled cut-off's, between the arc and the
+old vertex; the chamfer's is the triangle of the old vertex and the
+two feet, and a cycle lies inside it when each of its edges stays
+inside each of the three sides, its depth the least of those
+clearances (`CapSliver`'s triangle; a point past a side is a witness
+outside it). A bore or a square slot along the edge whose rings lie
+inside each end face's sliver goes at `ΔV = −(A − A_feature)·L`, at a
+perpendicular end face and at oblique ones, and its wall's name
+resolves `Vanished` on the blend's clearance flip after a size edit
+puts it inside (`crates/sweep/tests/band_planar_consume.rs`,
+`editor-core` `edit_planar_carve`).
 
 The battery's other Zero verdicts are coincidences decided from values
 too, and record the same way: a junction chain G1 reads tangent is a
@@ -451,14 +468,13 @@ The meter is
 the same ring carry-through pass under the same
 `fillet3_ring_clearance`. The region contains the sliver, so it answers
 only "clear": a cycle with an edge not definitely clear of it is read
-against the sliver itself, bounded by the arc and the two rim pieces,
-on a round end. A cycle with a sampled point certainly inside and
+against the sliver itself, bounded by the arc and the two rim pieces
+(on the plane–plane chamfer's chord end, the triangle, above). A cycle with a sampled point certainly inside and
 another certainly outside crosses, and refuses `RingClearance` as a
 measurement, the inside point's depth (the cut cycle always has points
 outside, its rims running on past the feet). A cycle other than the cut
 one that misses the arc and has a point inside lies wholly inside, as
-predicate 2's verdict reads it; anything else, and every chord end, is
-a bound, `RingClearance` with `bounded: true`
+predicate 2's verdict reads it; anything else is a bound, `RingClearance` with `bounded: true`
 (`crates/sweep/tests/band_ruled_cap_ring.rs`). A bore wholly inside the
 D-rod's sliver, or a keyhole crease's, goes with it at
 `ΔV = −2·A·L + π·a²·L`

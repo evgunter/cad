@@ -1,5 +1,7 @@
-//! **The carve that takes a feature wholly inside a convex ruled band's
-//! material** — predicate 2's inside verdict (`reach::Consumed`), built.
+//! **The carve that takes a feature wholly inside a convex straight
+//! band's material** — the ruled band's or the plane–plane band's, cut
+//! off at its two end faces: predicate 2's inside verdict
+//! (`reach::Consumed`), built.
 //!
 //! A feature is a connected set of faces, joined by the edges they
 //! share. The carve takes each whole, as a Boolean takes a feature

@@ -1275,7 +1275,7 @@ pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes (and, f
      than before it";
 /// The recourse for a ring or edge in the part of a face the blend
 /// replaces — a support's strip between its edge and the trimline,
-/// or the corner a convex ruled cut-off removes from a cap (the
+/// or the corner a convex cut-off removes from a cap (the
 /// surgery's ring carry-through check). It names neither material
 /// side, because the check refuses on both
 /// ([`BlendError::RingClearance`]'s `chain` says which, and its
@@ -1808,7 +1808,7 @@ pub enum BlendError {
     /// certified none of the three refuses as a bound. The feature goes
     /// with that material, as a feature wholly inside a Boolean's tool
     /// goes with the tool (C8). The carve takes a through-feature
-    /// between a convex ruled band's two caps (`blend::consume`); a
+    /// between a convex straight band's two caps (`blend::consume`); a
     /// request whose inside readings are anything else refuses.
     WhollyInside {
         /// The face wholly inside a band's reach, or the cycle of a

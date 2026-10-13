@@ -523,10 +523,11 @@ fn a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall() 
 
 /// **The square wall's mid-sliver hole is a bound under both verbs,
 /// never inside nor a crossing**: the fillet's round end reads its ring
-/// inside the sliver, and the chamfer's chord end, which has only the
-/// enclosing region, reads it as a bound; under either verb the reach
-/// reads the hole's wall, which meets the window's end plane, as a
-/// bound, and a bound outranks an inside reading.
+/// inside the sliver, and the chamfer's chord end inside its triangle;
+/// but the hole is blind, its floor neither a cap's cycle nor a line
+/// between two, so under either verb the reach reads its wall, which
+/// meets the window's end plane, as a bound, and a bound outranks an
+/// inside reading.
 #[test]
 fn a_hole_in_a_square_walls_sliver_refuses_as_a_bound_under_both_verbs() {
     let body = drilled(0.0, 0.04, 0.015, 0.004);

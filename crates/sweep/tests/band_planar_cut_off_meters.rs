@@ -48,9 +48,14 @@ fn pin(origin: Point3<f64>, r: f64, h: f64) -> Body<f64> {
 /// cut-off's old vertex; the concave row drills the pocketed die's end
 /// wall beside a floor edge's old vertex, where the band's fill would
 /// cover the hole's mouth. Both inputs are tier-3 valid, and each hole
-/// lies inside the sliver triangle of side `d`, so the end face would
-/// lose part of the hole's ring: both refuse `RingClearance` at that
-/// end face.
+/// lies inside the sliver triangle of side `d`. The fillet's arc crosses
+/// each hole's ring, which refuses `RingClearance` at the end face as a
+/// measurement. The chamfer's chord does not: each ring lies wholly
+/// inside the triangle it cuts off, but neither hole is a through-feature
+/// between two caps — the convex one is blind, the concave one runs into
+/// the die behind the wall the fill covers — so the reach reads its
+/// wall, which meets the end face's plane, as a bound:
+/// `FaceClearance { bounded: true }`.
 #[test]
 fn a_hole_in_the_end_face_sliver_refuses_on_either_side() {
     let convex = realized(
@@ -73,10 +78,16 @@ fn a_hole_in_the_end_face_sliver_refuses_on_either_side() {
             .unwrap_or_else(|e| panic!("{what}: the drilled input is tier-3 valid, got {e:?}"));
         let e = edge(body, a, b);
         for verb in [Verb::Chamfer, Verb::Fillet] {
-            match verb.run(body, &[e]) {
-                Err(BlendError::RingClearance { .. }) => {}
-                Err(other) => panic!("{what} ({verb:?}): refuses at the sliver, got {other}"),
-                Ok(out) => panic!(
+            match (verb, verb.run(body, &[e])) {
+                (Verb::Chamfer, Err(BlendError::FaceClearance { bounded: true, .. })) => {}
+                (Verb::Chamfer, Err(other)) => {
+                    panic!("{what} (Chamfer): a bound at the hole's wall, got {other}")
+                }
+                (Verb::Fillet, Err(BlendError::RingClearance { bounded: false, .. })) => {}
+                (_, Err(other)) => {
+                    panic!("{what} ({verb:?}): refuses at the sliver, got {other}")
+                }
+                (_, Ok(out)) => panic!(
                     "{what} ({verb:?}): a hole in the sliver must refuse, built one whose tier 3 \
                      reads {:?}",
                     validate_geometric(&out.body, tol())
