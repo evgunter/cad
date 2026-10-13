@@ -1155,3 +1155,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Local verify on head + main: fmt; topo ring-lane rows (31) and touched sweep rows (75) green at three ε.
   - Row `PR-4910.md` last: sequential, M, byte 221, tallied 0, major false.
   - U-T4 (PR 4927) now has to reconcile its `ring_path` with 4910's `Conic`/`param`/`span_readings` homes. The 4910 lane wrote the recipe in its PR body: `Self::Conic { .. }` becomes `Self::Conic(c)`, and `param_at` becomes `c.param(x)`. Put it in 4927's fix-pass brief.
+- 2026-10-13 04:58 — Check-in. r4927a is alive (60 writes in 15 min). 4886's fix pass is on hunt round 3 plus the mutant table; it reports 1e-12 reds on 4 rows that it is working through. Nothing ready to merge. Re-armed for 05:58.
