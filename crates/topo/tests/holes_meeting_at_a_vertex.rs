@@ -599,3 +599,46 @@ fn every_root_of_the_ring_builds_in_every_op() {
         }
     }
 }
+
+/// **The zip records each split per cone** (`BooleanNaming::cone_splits`):
+/// the plate less the union of three wedges meets the union's vertex at
+/// `MEET` with several cones, and the zip splits it, so some member
+/// order records splits. Each row's `new` is another vertex than `split`,
+/// and both settle on live vertices at `split`'s point, `MEET`. The plate
+/// less one wedge meets no vertex in several cones, and records none.
+#[test]
+fn the_plate_less_the_wedges_union_records_its_splits_per_cone() {
+    let rest = Pose::rest();
+    let plate = posed_box("the plate", PLATE, &rest, t());
+    let holes = three_wedges();
+    let c = at(Point3::new(MEET[0], MEET[1], MEET[2]));
+    let mut split = 0;
+    for order in orders(holes.len()) {
+        let what = format!("member order {order:?}");
+        let mut u = posed_prism(&holes[order[0]], &rest, t());
+        for &i in &order[1..] {
+            u = body(&what, union(&u, &posed_prism(&holes[i], &rest, t()), t()));
+        }
+        let r = built(&what, topo::subtract(&plate, &u, t()));
+        let settler = r.naming.settler(&r.body);
+        let point = |v| match settler.settle(v) {
+            Ok(topo::Cell::Vertex(k)) => at(topo::readback::vertex_point(&r.body, k).unwrap()),
+            other => panic!("{what}: {v:?} settles on {other:?}"),
+        };
+        for &(from, new) in &r.naming.cone_splits {
+            assert_ne!(from, new, "{what}: a split's copy is a new vertex");
+            assert!(point(new) == c, "{what}: the copy lies at MEET");
+            assert!(point(from) == c, "{what}: the split vertex lies at MEET");
+        }
+        split += r.naming.cone_splits.len();
+    }
+    assert!(
+        split > 0,
+        "some member order splits the union's vertex per cone"
+    );
+    let one = built(
+        "the plate less one wedge",
+        topo::subtract(&plate, &posed_prism(&holes[0], &rest, t()), t()),
+    );
+    assert_eq!(one.naming.cone_splits, [], "no vertex in several cones");
+}
