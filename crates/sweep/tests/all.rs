@@ -839,6 +839,8 @@ mod pierce_tangent_off_face;
 mod snowman;
 #[path = "tang_circle_cylinder.rs"]
 mod tang_circle_cylinder;
+#[path = "tang_mixed_seam_census.rs"]
+mod tang_mixed_seam_census;
 #[path = "torus_touch_off_faces.rs"]
 mod torus_touch_off_faces;
 
