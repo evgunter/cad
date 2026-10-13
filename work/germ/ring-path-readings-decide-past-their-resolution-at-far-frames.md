@@ -2,7 +2,8 @@
 id: ring-path-readings-decide-past-their-resolution-at-far-frames
 kind: issue
 title: The ring lane's plane readings decide past their resolution at far frames (ε = 1e-12, origins ~1e6)
-status: open
+status: review
+branch: germ/ring-path-far-frames
 opened: 2026-10-13
 ---
 
@@ -61,3 +62,45 @@ Charge the same `resolution` to `split_ring_path_meets_plane`'s gap,
 the segment sides and the in-span readings. Then a reading that cannot
 resolve the band stands down, or escalates, instead of deciding. Pin
 it with the far frame above, holding 0 wrong at ε = 1e-12.
+
+## Findings (germ/ring-path-far-frames)
+
+Reproduced on main at d44ee2f: **442 wrong of 92 654 decided**. The
+item's own grid adds 2.2 to the cone row's heights, both nappes. The
+counts differ from the item's 440 / 92 408 because PR 4927 landed
+between the two runs. The torus islands from their arcs' carriers and
+planes, in the same far frame, read **5270 wrong of 598 847** on main.
+
+The fix charges the coordinates' `resolution` to every reading between
+points stored in the frame, shrinking each margin toward zero by it
+(`charge`, `crates/topo/src/ring_path.rs`). In `path_parity` the slack
+is `path_resolution`: of every piece's ends and centre and every arc's
+centre.
+
+- `plane_roots`, **`split_ring_path_meets_plane`** (:1506): charged.
+- `span_readings`, **`split_ring_path_in_span`** (:1344): charged, by
+  `slack / arm` in the parameter. `misses_in_plane`'s span widening
+  becomes this same charge.
+- **`split_ring_path_segment_side`** (:1219), **`split_ring_path_torus_loop`**
+  (`ArcLoop::read`, :825), **`split_ring_path_crest_graze`** (:1120),
+  **`split_ring_path_crest_side`** (:1181) and **`split_ring_path_rulings_apart`**
+  (:1268): charged.
+- `Quadric::paths`: **`split_ring_path_span`**, **`_nappe`**, **`_rise`**
+  and **`_off_core`** are charged, and so is `Quadric::off_apex`
+  (**`split_ring_path_off_apex`**). On main, `_rise` decided on rounding
+  for two ends at one height in the far frame. It offered a second path
+  with an arbitrary arrival direction: 94 638 paths asked, against
+  91 776 at the origin. Charged, the far frame offers exactly the
+  origin's paths.
+- Not charged: **`split_ring_path_line_across`** reads two stored
+  directions. **`split_ring_path_lead_point`** and
+  **`split_ring_path_same_circle`** decide by a zero that hands the
+  case to charged readings, so a charge would only widen it. The four
+  `torus_circle_arc` classifications are filed as
+  `torus-circle-arc-classifies-far-frame-carriers-uncharged`.
+
+Rows: `ring_path::far_frame_rows` (cone, torus, and one unit row per
+charged reading). Each is red on main. After the fix there are 0 wrong
+at every ε. Paths decided at ordinary frames, and at far frames at
+ε unset and 1e-6, are unchanged to the path.
+
