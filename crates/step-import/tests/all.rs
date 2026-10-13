@@ -79,6 +79,8 @@ mod meridian_free_cap;
 mod mesh8r2_probes;
 #[path = "nurbs_import.rs"]
 mod nurbs_import;
+#[path = "off_iso_line_on_a_bspline_wall.rs"]
+mod off_iso_line_on_a_bspline_wall;
 #[path = "onb_wild_normal_census.rs"]
 mod onb_wild_normal_census;
 #[path = "p1b_r1_import_scan.rs"]

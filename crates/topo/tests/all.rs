@@ -205,6 +205,8 @@ mod mesh8_coherence;
 mod missed_ray_side;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
+#[path = "off_iso_line_general_row.rs"]
+mod off_iso_line_general_row;
 #[path = "offset_doors_read_charts_not_material.rs"]
 mod offset_doors_read_charts_not_material;
 #[path = "on_verdict.rs"]

@@ -1213,6 +1213,24 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
              iso of this face's chart",
         )
     };
+    // **The `General` fall-through**, once no exact candidate holds:
+    // the image the wall's foot schedule derives, stored at the honest
+    // Fitted grade (U2). An escalated candidate still outranks a
+    // derivation refusal, and outranks the image too: a candidate that
+    // escalates today keeps escalating, and the derived image only
+    // ever speaks on a DEFINITE fall-through.
+    let general_or = |deferred: Option<Indeterminate>| -> Result<Pcurve<T>, PcurveMintError> {
+        let Some(wall) = surface.spline_chart() else {
+            unreachable!(
+                "nurbs_iso_derive: both callers route only a chart with a spline payload here"
+            )
+        };
+        let image = derive_general_image(&carrier, (t0, t1), wall, half_edge);
+        match (deferred, image) {
+            (Some(cause), _) => Err(PcurveMintError::Escalated { half_edge, cause }),
+            (None, image) => Ok(Pcurve::General(std::sync::Arc::new(image?))),
+        }
+    };
     // The ARC-RIM class: a circle on one of the chart's boundary rows,
     // its image the row on the chart's own rational-quadratic parameter
     // (`Pcurve::IsoArc`). An IsoUnsupported refusal says this carrier
@@ -1365,46 +1383,93 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
             if matches!(carrier, geom::Curve3::Line { .. }) =>
         {
-            // The closed form: the rim spans the chart's whole `u`
-            // domain, which is true for every wall the kernel BUILT.
-            let plx = (cu1 - cu0) / span;
-            let p0x = cu0 - (cu1 - cu0) * t0 / span;
-            let row = |p0x: T, plx: T| move |cand: T| surface.eval(p0x + plx * t0, cand);
-            match side_pick(&row(p0x, plx), &[cv0, cv1])? {
-                Some(v) => Ok(Pcurve::IsoLine {
-                    p0: Point2::new(p0x, v),
-                    pl: Vec2::new(plx, T::zero()),
-                }),
-                // **The rim does not span this chart.** Same cause as
-                // the wall-seam arm above: a chart wider than the face
-                // it trims. The `u` MAP is what the closed form got
-                // wrong (the `v` side is still a boundary), so measure
-                // the rim's two endpoints and build the map from them.
-                // Same certified foot producer, same metre-valued check
-                // on the `v` side, and the full iso certification still
-                // follows every derivation.
-                None => {
-                    let (f0, f1) = (
+
+            let census_old = (|| -> Result<Pcurve<T>, PcurveMintError> {
+                let plx = (cu1 - cu0) / span;
+                let p0x = cu0 - (cu1 - cu0) * t0 / span;
+                let row = |p0x: T, plx: T| move |cand: T| surface.eval(p0x + plx * t0, cand);
+                if let Some(v) = side_pick(&row(p0x, plx), &[cv0, cv1])? {
+                    return Ok(Pcurve::IsoLine { p0: Point2::new(p0x, v), pl: Vec2::new(plx, T::zero()) });
+                }
+                let (f0, f1) = (
+                    derive_chart_foot(carrier.eval(t0), surface, half_edge)?,
+                    derive_chart_foot(carrier.eval(t1), surface, half_edge)?,
+                );
+                let (Some(f0), Some(f1)) = (f0, f1) else { return Err(no_boundary()); };
+                let (f0, f1) = (computed_foot::<T>(f0), computed_foot::<T>(f1));
+                let plx = (f1.x - f0.x) / span;
+                let p0x = f0.x - plx * t0;
+                let v = side_pick(&row(p0x, plx), &[cv0, cv1, f0.y])?.ok_or_else(no_boundary)?;
+                Ok(Pcurve::IsoLine { p0: Point2::new(p0x, v), pl: Vec2::new(plx, T::zero()) })
+            })();
+            let census_new = (|| -> Result<Pcurve<T>, PcurveMintError> {
+                let rows = |p0x: T, plx: T, vs: &[T]| -> Vec<Pcurve<T>> {
+                    vs.iter()
+                        .map(|&v| Pcurve::IsoLine {
+                            p0: Point2::new(p0x, v),
+                            pl: Vec2::new(plx, T::zero()),
+                        })
+                        .collect()
+                };
+                // The closed form: the rim spans the chart's whole `u`
+                // domain, which is true for every wall the kernel BUILT.
+                let iso = |p0: (T, T), pl: (T, T)| Pcurve::IsoLine { p0: Point2::new(p0.0, p0.1), pl: Vec2::new(pl.0, pl.1) };
+                let mut closed = Vec::new();
+                for (a, b) in [(cu0, cu1), (cu1, cu0)] {
+                    let s = (b - a) / span;
+                    for y in [cv0, cv1] { closed.push(iso((a - s * t0, y), (s, T::zero()))); }
+                }
+                for (a, b) in [(cv0, cv1), (cv1, cv0)] {
+                    let s = (b - a) / span;
+                    for x in [cu0, cu1] { closed.push(iso((x, a - s * t0), (T::zero(), s))); }
+                }
+                let mut deferred =
+                    match probe_pick("pcurve_iso_line_rim", &carrier, (t0, t1), surface, band, closed) {
+                        Ok(Some(cand)) => return Ok(cand),
+                        Ok(None) => None,
+                        Err(cause) => Some(cause),
+                    };
+                // **The rim does not span this chart**, a chart wider than
+                // the face it trims: the `u` map is the one the carrier's
+                // two end feet measure, and the row a boundary one or the
+                // row the start's foot measures (a cap rim an offset moved
+                // into the chart's interior).
+                if deferred.is_none()
+                    && let (Some(f0), Some(f1)) = (
                         derive_chart_foot(carrier.eval(t0), surface, half_edge)?,
                         derive_chart_foot(carrier.eval(t1), surface, half_edge)?,
-                    );
-                    let (Some(f0), Some(f1)) = (f0, f1) else {
-                        return Err(no_boundary());
-                    };
+                    )
+                {
                     let (f0, f1) = (computed_foot::<T>(f0), computed_foot::<T>(f1));
                     let plx = (f1.x - f0.x) / span;
                     let p0x = f0.x - plx * t0;
-                    // The row: a boundary one where it is definitely that,
-                    // else the row the start's foot measures — a cap rim
-                    // an offset moved into the chart's interior.
-                    let v =
-                        side_pick(&row(p0x, plx), &[cv0, cv1, f0.y])?.ok_or_else(no_boundary)?;
-                    Ok(Pcurve::IsoLine {
-                        p0: Point2::new(p0x, v),
-                        pl: Vec2::new(plx, T::zero()),
-                    })
+                    let mut measured = rows(p0x, plx, &[cv0, cv1, f0.y]);
+                    let plv = (f1.y - f0.y) / span;
+                    for x in [cu0, cu1, f0.x] { measured.push(iso((x, f0.y - plv * t0), (T::zero(), plv))); }
+                    match probe_pick("pcurve_iso_line_rim", &carrier, (t0, t1), surface, band, measured) {
+                        Ok(Some(cand)) => return Ok(cand),
+                        Ok(None) => {}
+                        Err(cause) => deferred = Some(cause),
+                    }
+                }
+                // No row holds: an off-iso line, whose image is `General`.
+                general_or(deferred)
+            })();
+            if let Ok(path) = std::env::var("CAD_LINE_RIM_CENSUS") {
+                let k = |r: &Result<Pcurve<T>, PcurveMintError>| match r {
+                    Ok(Pcurve::IsoLine { p0, pl }) => format!("IsoLine({p0:?},{pl:?})").chars().take(160).collect::<String>(),
+                    Ok(Pcurve::General(_)) => "General".to_string(),
+                    Ok(_) => "other".to_string(),
+                    Err(e) => format!("Err({})", format!("{e:?}").chars().take(60).collect::<String>()),
+                };
+                let (o, n) = (k(&census_old), k(&census_new));
+                let line = format!("{}\t{}\t{}\t{}\t{}\n", T::NAME, if o == n { "same" } else { "MOVED" }, o, n, std::thread::current().name().unwrap_or("?"));
+                use std::io::Write as _;
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                    let _ = f.write_all(line.as_bytes());
                 }
             }
+            census_new
         }
         // **The boundary-iso INTERSECTION arm.** The same wall–wall
         // seam the `IsoCurve` arm maps, stated INTRINSICALLY: the locus
@@ -1576,17 +1641,6 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                     found => return found,
                 }
             }
-            let image = match derive_general_image(&carrier, (t0, t1), wall, half_edge) {
-                Ok(image) => image,
-                // An escalated candidate still outranks a derivation
-                // refusal: a row that escalates today keeps escalating,
-                // and the new path only ever speaks on a DEFINITE
-                // fall-through.
-                Err(e) => match deferred {
-                    Some(cause) => return Err(PcurveMintError::Escalated { half_edge, cause }),
-                    None => return Err(e),
-                },
-            };
             // **No re-offer of the exact class here, and the spec was
             // wrong to ask for one.** Item 7 read "a partial or
             // reparameterized restatement of a column" off the refusal
@@ -1608,10 +1662,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             // boundary-row hypothesis to violate. `General` is
             // not a downgrade for these loci; it is the only grade that
             // can state anything true about them.
-            match deferred {
-                Some(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
-                None => Ok(Pcurve::General(std::sync::Arc::new(image))),
-            }
+            general_or(deferred)
         }
         _ => Err(refuse(
             "no iso derivation for this locus on a NURBS chart — only chart images of \
@@ -1620,6 +1671,41 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
              (the trimmed-NURBS pcurve lane is the cut-loft unit's)",
         )),
     }
+}
+
+/// **The interior probe**: the first candidate image that holds the
+/// carrier a quarter of the edge's span in, metered in METRES against
+/// the chart at the image's own point (D4 ¶1). The ends cannot decide
+/// a pick: every candidate the arms build passes through the carrier's
+/// start foot (or a chart corner), and a quarter span in is where the
+/// candidates separate. A SELECTION, checked: the full certification
+/// follows every derivation.
+///
+/// Escalations are DEFERRED per candidate: an indeterminate candidate
+/// must not rob the rest of their turn, and is answered only once none
+/// holds.
+fn probe_pick<T: AtRestPolicy>(
+    what: &'static str,
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    surface: &Surface<T>,
+    band: Band,
+    candidates: impl IntoIterator<Item = Pcurve<T>>,
+) -> Result<Option<Pcurve<T>>, Indeterminate> {
+    let probe_t = t0 + (t1 - t0) * T::from_f64(0.25);
+    let probe = carrier.eval(probe_t);
+    let mut deferred = None;
+    for cand in candidates {
+        let uv = cand.eval(probe_t);
+        match decide(what, Margin::of(probe.distance(surface.eval(uv.x, uv.y))), band) {
+            Ok(Sign::Zero) => return Ok(Some(cand)),
+            Ok(Sign::Positive | Sign::Negative) => {}
+            Err(cause) => {
+                deferred.get_or_insert(cause);
+            }
+        }
+    }
+    deferred.map_or(Ok(None), Err)
 }
 
 /// The **general curve-in-UV image** of a carrier on this face's own
