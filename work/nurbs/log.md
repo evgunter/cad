@@ -1159,3 +1159,27 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - patch_bound and chords both read it. The rational sups and m_sup are tighter, so the offset goldens fell.
     - The digest is unchanged.
   - It resumes or redirects once the fork is ruled. — (NURBS orchestrator)
+
+- **2026-10-13 03:00Z — RULING: one Bernstein quotient bound for every rational derivative bound** (fork `nurbs-rational-inf-floor`; designers A and B convergent; no Ev needed).
+  - **Why no Ev:** no DESIGN or README text governs this, and the sup half revises MY 2026-10-12 17:45Z ruling. Both designers confirmed that.
+  - **The statement.** It lives in `geom_core::spline::derivative`.
+    - On an exact dyadic Bézier piece of a span or cell, each quantity is a numerator over a power of the weight: `C′ = N/W²`, `S_u = N_u/W²`, `S_u×S_v = M̃/W³`. Second order has the same form.
+    - Raise the numerator and the weight power to one degree.
+    - Then `inf (·)·d ≥ min_k (a_k·d)/b_k` and `sup ‖·‖ ≤ max_k ‖a_k‖/b_k`.
+    - It has no weight range, no sign split and no hull. It needs only positive weights.
+  - **Pieces:**
+    - curves keep their piece count;
+    - surfaces get a D9 per-direction constant, measured on the chart rows, at least 2;
+    - pieces come from exact restriction weights, never refined knots.
+  - **Ruled details:**
+    1. **Per-piece direction: yes.** The doors return norm floors (`inf ‖S_u‖`, `inf ‖S_u×S_v‖`) like the curve. `net_direction` and `floor_along` retire.
+       - Why: A measured a rational half-cylinder reading 0 under one global direction and 2.0 with per-piece directions. B leaned the same way. The doors keep their names.
+    2. **`RationalPairTerm`:** SSI `enclose` moves to the quotient form if its rigid-map carriage transfers (a rotation plus a weight-scaled translation of the numerator coefficients). Otherwise it stays, scoped to enclose only, with a row filed. No bound door may read it.
+    3. **Second order** follows the same statement. Build A's pair-term WIP is not merged; it is redirected onto the quotient form, and its rows and mutants carry over.
+    4. **`offset_meters`** is the third inf recipe. It goes with the second-order unit, where its cells also live.
+    5. **Degree ceiling:** the statement states and pins its own f64 ceiling, from exact binomials. Interval is outward.
+  - **Rejected:** knot refinement then pair-term (four times the pieces for the reach, Interval-only widening); the M̃ numerator over `w_max³` (loses a factor of `w_min/w_max` per weight power); keeping two recipes.
+  - **Build plan:**
+    1. **Unit 1 (build A, FULL):** the statement plus the first-order readers. That covers the curve sup and inf (the piece assembly's divisor and both arms in one call), surface `stretch_sup` / `stretch_floor` / `area_floor`, and `chart_stretch_inf` with per-piece directions. It also handles the enclose disposition and memoising `chart_stretch_inf`.
+    2. **Unit 2 (build A):** second order plus `offset_meters`, on the quotient form.
+  - The witness rule binds both. — (NURBS orchestrator)
