@@ -1150,3 +1150,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - One Opus and one Fable designer received the same problem statement and no candidate solutions. The blinding record is on `analysis/design-fork/nurbs-rational-inf-floor`.
   - A log row is owed only if the fork goes to Ev.
 - **Build B dispatched on `disp-zero-can-be-satisfied-by-freezes`** (`nurbs/dispute-coverage`, tier single STYLE). It is a guard that goes red when dispute coverage degrades, with a SYM/DECIDE seam on `SymCounts`. — (NURBS orchestrator)
+
+- **2026-10-13 02:57Z — build A paused on `nurbs/second-order-pair-term`** (WIP at `f22f608d`, no PR).
+  - **Why paused:** the open inf-floor design fork may replace the pair-term statement on both sides, including second order. Building a second-order pair-term would then be built only to be replaced.
+  - **Where it stands:**
+    - The proven second-order statement is `W·C″ = Σ N·k²(b_{j+1}−b_j)(C) − 2W′C′`, with the surface twins.
+    - 12 of 12 mutants go red.
+    - patch_bound and chords both read it. The rational sups and m_sup are tighter, so the offset goldens fell.
+    - The digest is unchanged.
+  - It resumes or redirects once the fork is ruled. — (NURBS orchestrator)
