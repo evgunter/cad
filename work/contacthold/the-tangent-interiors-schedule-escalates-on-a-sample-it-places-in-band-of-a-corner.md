@@ -4,6 +4,7 @@ kind: issue
 title: The glue door's tangent-interiors schedule escalates on a sample it places in band of a face corner
 status: review
 branch: contacthold/one-tangent-interiors-reading
+pr: 5006
 opened: 2026-10-13
 ---
 

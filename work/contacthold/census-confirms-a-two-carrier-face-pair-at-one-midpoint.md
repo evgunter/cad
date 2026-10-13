@@ -4,6 +4,7 @@ kind: issue
 title: The census confirms a two-carrier face–face record by placing the tangent line's overlap midpoint in both faces, one point: a trim the line enters only elsewhere reads stale
 status: review
 branch: contacthold/one-tangent-interiors-reading
+pr: 5006
 opened: 2026-10-12
 priority: P2
 ---
