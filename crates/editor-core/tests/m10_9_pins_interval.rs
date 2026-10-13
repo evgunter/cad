@@ -128,13 +128,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refuses_at: Some(3.030e2),
             refused_by: None,
             // Door shut, the extrude's rim (half-edge 24v1) refuses at
-            // check 4. Its refusal names the first term over the band on
-            // its own, deciding the terms in order: `Radius`, which
-            // reads the class circle's radius and orientation as one
-            // pair, is over alone where no term was when they were two,
-            // so the walk decides 3 of the envelope's 9 terms, not all
-            // 11 (`Tilt` and `Orientation` retired), on each of its two
-            // reads: 831 → 815 theorems.
+            // check 4. The refusal decides the terms in order up to the
+            // first one over the band alone, `Radius` (the class
+            // circle's radius and orientation read as one pair), so it
+            // decides 3 of the envelope's 9 terms on each of its two
+            // reads.
             without_the_registry: Some(((815, 712), Some("pcurve_envelope"))),
             symbolic: [862, 862, 862],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
