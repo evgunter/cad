@@ -412,3 +412,7 @@ mod split_through_an_apex;
 mod tangent_touch_charges_both_sags;
 #[path = "three_solids_on_one_line.rs"]
 mod three_solids_on_one_line;
+#[path = "review_pipe_probe.rs"]
+mod review_pipe_probe;
+#[path = "review_4839_pipe_sweep.rs"]
+mod review_4839_pipe_sweep;

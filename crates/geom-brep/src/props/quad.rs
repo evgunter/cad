@@ -1141,6 +1141,32 @@ fn loop_windings<T: Decide>(
             let slack = end_slack(e, true, radius)
                 + end_slack(next, false, radius)
                 + VERTEX_SLACK * band.zero();
+            if let Some(path) = std::env::var_os("PROBE_JUNCTION_LOG") {
+                use std::io::Write as _;
+                let ends = end_slack(e, true, radius) + end_slack(next, false, radius);
+                let eps = band.zero();
+                // trig1 against the start bracket carried through the span.
+                let tr = |x: &TrimEdgeQ| -> f64 {
+                    let Some(t1) = x.trig1 else { return f64::NAN };
+                    let (a, b) = x.limits();
+                    let c = trig_at(x.trig0, b - a);
+                    let t = if x.forward { b } else { a };
+                    if x.forward {
+                        let p1 = (x.u.eval(t1.0, t1.1, pt(t)), x.v.eval(t1.0, t1.1, pt(t)));
+                        let p2 = (x.u.eval(c.0, c.1, pt(t)), x.v.eval(c.0, c.1, pt(t)));
+                        let d = radius * (p1.0 - p2.0).abs_enclosure() + (p1.1 - p2.1).abs_enclosure();
+                        (d.lo() - end_slack(x, true, radius)) / eps
+                    } else { f64::NAN }
+                };
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                    let line = format!(
+                        "J eps={eps:e} lo_over_ends_eps={:.6} hi_over_ends_eps={:.6} gapw_eps={:.6} ends_eps={:.6} m={m} vmag={:e} trig1_vs_carried_lo_eps={:.6}\n",
+                        (gap.lo() - ends) / eps, (gap.hi() - ends) / eps, gap.width() / eps, ends / eps,
+                        mid(v1).abs().max(mid(u1).abs()), tr(e),
+                    );
+                    let _ = f.write_all(line.as_bytes());
+                }
+            }
             if classify_len::<T>(
                 "props_quad_junction_closed",
                 Margin::of(excess(certified_hi(gap), slack)),
@@ -8704,3 +8730,13 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "quad_verify_probes.rs"]
+mod verify_probes;
+#[cfg(test)]
+#[path = "quad_r1_probes.rs"]
+mod r1_probes;
+#[cfg(test)]
+#[path = "quad_review_probes.rs"]
+mod r2_probes;
