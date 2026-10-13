@@ -603,7 +603,7 @@ impl<T: Real> NurbsSurface<T> {
     /// [`crate::curves::NurbsCurve3::speed_upper_bound`] is.
     pub fn stretch_sup(&self) -> (geom_core::SupSpeed<T>, geom_core::SupSpeed<T>) {
         crate::curves::nurbs::session_memo(&self.stretch, || {
-            let points: Vec<[T; 3]> = self.control.iter().map(|p| [p.x, p.y, p.z]).collect();
+            let points = self.point_rows();
             let side = |along_u| {
                 geom_core::SupSpeed::new(geom_core::spline::rational_stretch_sup(
                     (&self.knots_u, &self.knots_v),
@@ -614,6 +614,39 @@ impl<T: Real> NurbsSurface<T> {
             };
             (side(true), side(false))
         })
+    }
+
+    /// A lower bound on `S_u·d` (`along_u`) or `S_v·d` over the whole
+    /// domain, for any `d`, signed:
+    /// [`geom_core::spline::rational_stretch_floor`], the min over the
+    /// nonempty cells. Clamped at zero it floors `‖S_u‖·‖d‖`. At unit
+    /// weights it is the polynomial derivative net's floor; poison when a
+    /// control point is.
+    pub fn stretch_floor(&self, along_u: bool, d: Vec3<T>) -> T {
+        geom_core::spline::rational_stretch_floor(
+            (&self.knots_u, &self.knots_v),
+            &self.point_rows(),
+            &self.weights,
+            along_u,
+            [d.x, d.y, d.z],
+        )
+    }
+
+    /// A lower bound on `(S_u × S_v)·d` over the whole domain, for any
+    /// `d`, signed: [`geom_core::spline::rational_area_floor`], the min
+    /// over the nonempty cells. Clamped at zero it floors the area
+    /// element `‖S_u × S_v‖·‖d‖`; poison as [`Self::stretch_floor`].
+    pub fn area_floor(&self, d: Vec3<T>) -> T {
+        geom_core::spline::rational_area_floor(
+            (&self.knots_u, &self.knots_v),
+            &self.point_rows(),
+            &self.weights,
+            [d.x, d.y, d.z],
+        )
+    }
+
+    fn point_rows(&self) -> Vec<[T; 3]> {
+        self.control.iter().map(|p| [p.x, p.y, p.z]).collect()
     }
 
     /// The "no description yet" placeholder payload for
