@@ -673,7 +673,11 @@ impl<T: Real> NurbsSurface<T> {
             [
                 least(|c| c.u.inf_norm()),
                 least(|c| c.v.inf_norm()),
-                least(|c| c.area.as_ref().map_or_else(|| T::from_f64(f64::NAN), |a| a.inf_norm())),
+                least(|c| {
+                    c.area
+                        .as_ref()
+                        .map_or_else(|| T::from_f64(f64::NAN), |a| a.inf_norm())
+                }),
             ]
         })
     }

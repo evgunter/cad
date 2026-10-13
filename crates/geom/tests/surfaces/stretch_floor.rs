@@ -176,7 +176,11 @@ fn a_unit_weight_rectangle_reads_its_exact_floors() {
         vec![1.0; 4],
     );
     assert_eq!(
-        (s.stretch_floor(true), s.stretch_floor(false), s.area_floor()),
+        (
+            s.stretch_floor(true),
+            s.stretch_floor(false),
+            s.area_floor()
+        ),
         (2.0, 3.0, 6.0)
     );
 }
@@ -206,7 +210,11 @@ fn each_ratio_divides_by_its_own_weight_power() {
 #[test]
 fn uniformly_scaled_weights_read_the_same_floors() {
     let base = arc(0.3, 0.6, 2);
-    let f0 = [base.stretch_floor(true), base.stretch_floor(false), base.area_floor()];
+    let f0 = [
+        base.stretch_floor(true),
+        base.stretch_floor(false),
+        base.area_floor(),
+    ];
     for k in [1e-3, 1e3] {
         let s = NurbsSurface::new(
             base.knots_u().clone(),
@@ -215,7 +223,11 @@ fn uniformly_scaled_weights_read_the_same_floors() {
             base.weights().iter().map(|w| w * k).collect(),
         )
         .unwrap();
-        let f = [s.stretch_floor(true), s.stretch_floor(false), s.area_floor()];
+        let f = [
+            s.stretch_floor(true),
+            s.stretch_floor(false),
+            s.area_floor(),
+        ];
         for (which, (a, b)) in ["u", "v", "area"].iter().zip(f.iter().zip(&f0)) {
             assert!(
                 (a - b).abs() <= 1e-12 * b.abs(),
@@ -255,7 +267,12 @@ fn a_rational_half_cylinder_reads_positive() {
 #[test]
 fn the_piece_schedule_reaches_a_wide_arc() {
     let s = arc(0.0, 85f64.to_radians(), 1);
-    floor_holds("S_u", s.stretch_floor(true), sampled_stretch(&s, true), Some(0.8));
+    floor_holds(
+        "S_u",
+        s.stretch_floor(true),
+        sampled_stretch(&s, true),
+        Some(0.8),
+    );
     floor_holds("area", s.area_floor(), sampled_area(&s), Some(0.8));
 }
 
@@ -275,32 +292,59 @@ fn the_floors_hold_on_curved_rational_nets() {
     };
     let nets = [
         ("rising", rising()),
-        ("quadratic", ruled(vec![0.0, 1.0], 2, &[0.0, 1.0, 1.2], &[1.0, 3.0, 9.0])),
-        ("two cells, own weights", ruled(vec![0.0, 1.0, 2.0], 1, &[0.0, 2.0, 6.0], &[1.0, 1.0, 4.0])),
-        ("two cells, own points", ruled(vec![0.0, 1.0, 2.0], 1, &[0.0, 2.0, 6.0], &[4.0, 4.0, 1.0])),
+        (
+            "quadratic",
+            ruled(vec![0.0, 1.0], 2, &[0.0, 1.0, 1.2], &[1.0, 3.0, 9.0]),
+        ),
+        (
+            "two cells, own weights",
+            ruled(vec![0.0, 1.0, 2.0], 1, &[0.0, 2.0, 6.0], &[1.0, 1.0, 4.0]),
+        ),
+        (
+            "two cells, own points",
+            ruled(vec![0.0, 1.0, 2.0], 1, &[0.0, 2.0, 6.0], &[4.0, 4.0, 1.0]),
+        ),
         ("quarter arcs", arc(0.2, 0.4, 3)),
         (
             "bilinear, v side",
             bilinear(
                 [
-                    [0.05115414404285357, 0.04020158133436242, 0.21194913761987055],
+                    [
+                        0.05115414404285357,
+                        0.04020158133436242,
+                        0.21194913761987055,
+                    ],
                     [0.13212597668765905, 1.0265534146353426, 0.13013743691059915],
                     [1.1637266203245495, 0.20790745013085654, 0.3805128156857206],
                     [1.1766205467159978, 1.0392927022611977, 0.4327114026119544],
                 ],
-                [1.419592622849598, 2.3982519986774027, 1.363705211963951, 2.671366776744994],
+                [
+                    1.419592622849598,
+                    2.3982519986774027,
+                    1.363705211963951,
+                    2.671366776744994,
+                ],
             ),
         ),
         (
             "bilinear, u side",
             bilinear(
                 [
-                    [0.0007061127840568227, 0.017130348865978882, 0.3848033683622043],
+                    [
+                        0.0007061127840568227,
+                        0.017130348865978882,
+                        0.3848033683622043,
+                    ],
                     [0.14647573952206644, 1.1149017961519276, 0.21109946641136085],
                     [1.1758969642004764, 0.010161451808882194, 0.3828131654380899],
                     [1.235183960617558, 1.1958826043902469, 0.39393879758853545],
                 ],
-                [3.4566489259400695, 2.858855350262942, 2.5153666820030725, 2.6793620497527],
+                [
+                    3.4566489259400695,
+                    2.858855350262942,
+                    2.5153666820030725,
+                    2.6793620497527,
+                ],
             ),
         ),
     ];

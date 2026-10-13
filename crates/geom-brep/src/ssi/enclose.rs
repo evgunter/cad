@@ -74,8 +74,8 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
-    CellAxis, CellBlock, CellQuotients, KnotVector, ParamRange, RingRefinement, Span,
-    TensorNet, cell_quotients, span_derivative_scale,
+    CellAxis, CellBlock, CellQuotients, KnotVector, ParamRange, RingRefinement, Span, TensorNet,
+    cell_quotients, span_derivative_scale,
 };
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
@@ -1068,10 +1068,7 @@ impl CellNet {
         };
         let (c, h) = net.translated()?;
         let (held_u, held_v) = (held(spu), held(spv));
-        let axes = (
-            CellAxis::Span(spu, &held_u),
-            CellAxis::Span(spv, &held_v),
-        );
+        let axes = (CellAxis::Span(spu, &held_u), CellAxis::Span(spv, &held_v));
         net.quotients = if net.hom.is_some() {
             quotients_of(&h, axes)
         } else {
@@ -1309,7 +1306,11 @@ fn cut_axis<'a>(
 
 /// A span's knot vector held as points.
 fn held(span: Span<'_>) -> Vec<Interval> {
-    span.knots().knots().iter().map(|&k| Interval::point(k)).collect()
+    span.knots()
+        .knots()
+        .iter()
+        .map(|&k| Interval::point(k))
+        .collect()
 }
 
 /// The part of `span`'s knot interval inside `w`, when it is a
@@ -1880,6 +1881,41 @@ mod tests {
                 varied_net(4, quartic, 1, linear, 0.6),
             ),
         ]
+    }
+
+    /// **A block is read on its pieces.** The flat wall `z = 1e-6·x` of
+    /// `m5_pr7_ssi`'s bent chart path (`x` quadratic in `u`, its `v`
+    /// slope `α·x_v` running from `−1.6e-8` to `−8e-9` across the
+    /// `v = 0` side): over the strip `v ∈ [0, 10⁻³]` the box's `z` is the
+    /// true range to rounding. Read as one piece the strip keeps the
+    /// degree-elevated hull of `x_v`'s `u` coefficients and its upper end
+    /// sits at `−5.3e-9`, which the boundary pass reads as a slope inside
+    /// the band at `ε = 1e-9`.
+    #[test]
+    fn a_block_is_read_on_its_pieces() {
+        let (alpha, width, kappa, mu) = (1e-6, 0.01, 0.8, 0.2);
+        let (lin, square, hump) = ([-0.5, 0.0, 0.5], [0.25, -0.25, 0.25], [0.0, 2.0, 0.0]);
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let mut control = Vec::new();
+        for i in 0..3 {
+            for (j, h) in hump.iter().enumerate() {
+                let x = width * (lin[i] - kappa * square[i] * h - mu * h);
+                control.push(Point3::new(x, 0.25 * j as f64, alpha * x));
+            }
+        }
+        let s = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap();
+        let z = NurbsBoxes::new(&s)
+            .deriv_box(win((0.0, 1.0, 0.0, 1e-3)), false)
+            .z;
+        // The true range: `α·width·4·(1 − 2v)·(−κ(u − ½)² − μ)` at
+        // `v ∈ [0, 10⁻³]`.
+        let (lo, hi) = (-1.6e-8, -7.984e-9);
+        assert!(
+            z.lo() <= lo && hi <= z.hi() && z.lo() >= lo - 1e-22 && z.hi() <= hi + 1e-20,
+            "the strip's z box [{:e}, {:e}] against the true [{lo:e}, {hi:e}]",
+            z.lo(),
+            z.hi()
+        );
     }
 
     /// **Each cell's derivative box holds the true derivative.** The box

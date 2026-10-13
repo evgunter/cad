@@ -655,7 +655,10 @@ fn a_rational_carrier_past_degree_28_refuses() {
         NurbsCurve3::<f64>::new(KnotVector::clamped(knots, p).unwrap(), control, weights).unwrap()
     };
     let below = net(28).speed_lower_bound().get();
-    assert!(below.is_finite(), "a degree-28 rational carrier metered {below}");
+    assert!(
+        below.is_finite(),
+        "a degree-28 rational carrier metered {below}"
+    );
     let c = net(29);
     let m = c.speed_lower_bound().get();
     let mi = c

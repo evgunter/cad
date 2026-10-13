@@ -209,16 +209,19 @@ impl<T: Real, const D: usize> QuotientPiece<T, D> {
     /// on `d` over the piece; for a unit `d`, on its norm.
     #[must_use]
     pub fn floor_along(&self, d: [T; D]) -> T {
-        self.ratios(|a| dot(a, d)).reduce(T::min).unwrap_or_else(poison)
+        self.ratios(|a| dot(a, d))
+            .reduce(T::min)
+            .unwrap_or_else(poison)
     }
 
     /// The piece's own direction: `Σ_k a_k` over its norm, poison when
     /// the sum is zero.
     #[must_use]
     pub fn direction(&self) -> [T; D] {
-        let sum = self.numer.iter().fold([T::zero(); D], |s, a| {
-            core::array::from_fn(|c| s[c] + a[c])
-        });
+        let sum = self
+            .numer
+            .iter()
+            .fold([T::zero(); D], |s, a| core::array::from_fn(|c| s[c] + a[c]));
         let n = norm(sum);
         sum.map(|x| x / n)
     }
@@ -233,7 +236,10 @@ impl<T: Real, const D: usize> QuotientPiece<T, D> {
     }
 
     fn ratios<'a>(&'a self, f: impl Fn([T; D]) -> T + 'a) -> impl Iterator<Item = T> + 'a {
-        self.numer.iter().zip(&self.denom).map(move |(a, b)| f(*a) / *b)
+        self.numer
+            .iter()
+            .zip(&self.denom)
+            .map(move |(a, b)| f(*a) / *b)
     }
 }
 
@@ -278,7 +284,11 @@ impl<T: Real, const D: usize> Mul<T> for Vector<T, D> {
 impl<T: Real, const D: usize> Vector<T, D> {
     /// The vector times the exact integer `k`, skipped at one.
     fn times(self, k: f64) -> Self {
-        if k == 1.0 { self } else { self * T::from_f64(k) }
+        if k == 1.0 {
+            self
+        } else {
+            self * T::from_f64(k)
+        }
     }
 
     /// The vector over the exact integer `k`, skipped at one.
@@ -304,7 +314,7 @@ impl<T: Real, const D: usize> Grid<T, D> {
     /// The grid from its row-major coefficients, `None` unless `nv`
     /// divides a nonempty count.
     fn new(nv: usize, c: Vec<Vector<T, D>>) -> Option<Self> {
-        (nv > 0 && !c.is_empty() && c.len() % nv == 0).then_some(Self { nv, c })
+        (nv > 0 && !c.is_empty() && c.len().is_multiple_of(nv)).then_some(Self { nv, c })
     }
 
     /// A column of `n` coefficients.
@@ -352,15 +362,21 @@ impl<T: Real, const D: usize> Grid<T, D> {
 
     /// Every column mapped by `f` (along `u`).
     fn map_u(&self, f: impl Fn(&[Vector<T, D>]) -> Option<Vec<Vector<T, D>>>) -> Option<Self> {
-        let cols: Vec<Vec<Vector<T, D>>> =
-            self.columns()?.iter().map(|c| f(c)).collect::<Option<_>>()?;
+        let cols: Vec<Vec<Vector<T, D>>> = self
+            .columns()?
+            .iter()
+            .map(|c| f(c))
+            .collect::<Option<_>>()?;
         Self::from_columns(&cols)
     }
 
     /// Every row mapped by `f` (along `v`).
     fn map_v(&self, f: impl Fn(&[Vector<T, D>]) -> Option<Vec<Vector<T, D>>>) -> Option<Self> {
-        let rows: Vec<Vec<Vector<T, D>>> =
-            self.c.chunks_exact(self.nv).map(&f).collect::<Option<_>>()?;
+        let rows: Vec<Vec<Vector<T, D>>> = self
+            .c
+            .chunks_exact(self.nv)
+            .map(&f)
+            .collect::<Option<_>>()?;
         Self::from_rows(&rows)
     }
 
@@ -429,7 +445,12 @@ fn product<T: Real, const A: usize, const B: usize, const C: usize>(
     let c = acc
         .into_iter()
         .enumerate()
-        .map(|(n, s)| Some(s?.over(binomial(mu, n / (mv + 1))).over(binomial(mv, n % (mv + 1)))))
+        .map(|(n, s)| {
+            Some(
+                s?.over(binomial(mu, n / (mv + 1)))
+                    .over(binomial(mv, n % (mv + 1))),
+            )
+        })
         .collect::<Option<Vec<_>>>()?;
     Grid::new(mv + 1, c)
 }
@@ -598,7 +619,9 @@ impl<T: Real> Homogeneous<T> {
     fn restrict(&self, (iu, iv): (usize, usize), counts: (usize, usize)) -> Option<Self> {
         let block = |deg: usize, count: usize, i: usize| -> Option<Vec<f64>> {
             let n = (deg + 1).pow(2);
-            piece_weights(deg, count)?.get(i * n..(i + 1) * n).map(<[f64]>::to_vec)
+            piece_weights(deg, count)?
+                .get(i * n..(i + 1) * n)
+                .map(<[f64]>::to_vec)
         };
         let on = |g: (usize, usize)| -> Option<(Vec<f64>, Vec<f64>)> {
             Some((block(g.0, counts.0, iu)?, block(g.1, counts.1, iv)?))
@@ -625,8 +648,11 @@ impl<T: Real> Homogeneous<T> {
     /// and `N_v` over `W²`, and `M̃` over `W³`.
     fn quotients(&self, area: bool) -> Option<CellQuotients<T>> {
         let first = |d: &Grid<T, 3>, dw: &Grid<T, 1>| -> Option<Grid<T, 3>> {
-            product(d, &self.w, |x, w| (Vector(x) * w[0]).0)?
-                .minus(&product(&self.a, dw, |x, w| (Vector(x) * w[0]).0)?)
+            product(d, &self.w, |x, w| (Vector(x) * w[0]).0)?.minus(&product(
+                &self.a,
+                dw,
+                |x, w| (Vector(x) * w[0]).0,
+            )?)
         };
         let w2 = product(&self.w, &self.w, |x, y| [x[0] * y[0]])?;
         let u = quotient(&first(&self.au, &self.wu)?, &w2)?;
@@ -671,14 +697,21 @@ pub fn speed_pieces<T: Real, const D: usize>(
         if p == 0 {
             return None;
         }
-        let pts: Vec<Vector<T, D>> = points.get(span.window())?.iter().map(|x| Vector(*x)).collect();
+        let pts: Vec<Vector<T, D>> = points
+            .get(span.window())?
+            .iter()
+            .map(|x| Vector(*x))
+            .collect();
         match weights {
             None => {
                 let row = axis.row(&axis.derive(&pts)?, true)?;
                 let count = piece_count(p - 1, splits);
-                for block in piece_weights(p - 1, count)?.chunks_exact(p * p) {
+                for block in piece_weights(p - 1, count)?.chunks_exact(p.pow(2)) {
                     let numer = Grid::column(restrict(block, &row)?)?;
-                    out.push(quotient(&numer, &Grid::column(vec![Vector([T::one()]); p])?)?);
+                    out.push(quotient(
+                        &numer,
+                        &Grid::column(vec![Vector([T::one()]); p])?,
+                    )?);
                 }
             }
             Some(ws) => {
@@ -688,8 +721,11 @@ pub fn speed_pieces<T: Real, const D: usize>(
                     .map(|w| Vector([w]))
                     .collect();
                 let c = *pts.first()?;
-                let a: Vec<Vector<T, D>> =
-                    pts.iter().zip(&ws).map(|(x, w)| scale_by(*x - c, *w)).collect();
+                let a: Vec<Vector<T, D>> = pts
+                    .iter()
+                    .zip(&ws)
+                    .map(|(x, w)| scale_by(*x - c, *w))
+                    .collect();
                 let (da, dw) = axis.derive_pairs(&pts, &ws, c)?;
                 let rows = (
                     axis.row(&a, false)?,
@@ -699,7 +735,7 @@ pub fn speed_pieces<T: Real, const D: usize>(
                 );
                 let count = piece_count(p, splits);
                 let (wp, wq) = (piece_weights(p, count)?, piece_weights(p - 1, count)?);
-                for (bp, bq) in wp.chunks_exact((p + 1).pow(2)).zip(wq.chunks_exact(p * p)) {
+                for (bp, bq) in wp.chunks_exact((p + 1).pow(2)).zip(wq.chunks_exact(p.pow(2))) {
                     let a = Grid::column(restrict(bp, &rows.0)?)?;
                     let w = Grid::column(restrict(bp, &rows.1)?)?;
                     let da = Grid::column(restrict(bq, &rows.2)?)?;
@@ -767,10 +803,17 @@ pub fn cell_quotients<T: Real>(
             if points.len() != count || weights.len() != count {
                 return None;
             }
-            let (pg, wg, c) = (grid3(points)?, grid1(&normalised(weights)?.0)?, Vector(origin));
+            let (pg, wg, c) = (
+                grid3(points)?,
+                grid1(&normalised(weights)?.0)?,
+                Vector(origin),
+            );
             let a = Grid::new(
                 q + 1,
-                pg.c.iter().zip(&wg.c).map(|(x, w)| scale_by(*x - c, *w)).collect(),
+                pg.c.iter()
+                    .zip(&wg.c)
+                    .map(|(x, w)| scale_by(*x - c, *w))
+                    .collect(),
             )?;
             let (pc, wc) = (pg.columns()?, wg.columns()?);
             let along_u = pc
@@ -778,12 +821,11 @@ pub fn cell_quotients<T: Real>(
                 .zip(&wc)
                 .map(|(x, w)| au.derive_pairs(x, w, c))
                 .collect::<Option<Vec<_>>>()?;
-            let along_v = pg
-                .c
-                .chunks_exact(q + 1)
-                .zip(wg.c.chunks_exact(q + 1))
-                .map(|(x, w)| av.derive_pairs(x, w, c))
-                .collect::<Option<Vec<_>>>()?;
+            let along_v =
+                pg.c.chunks_exact(q + 1)
+                    .zip(wg.c.chunks_exact(q + 1))
+                    .map(|(x, w)| av.derive_pairs(x, w, c))
+                    .collect::<Option<Vec<_>>>()?;
             let (ua, uw): (Vec<_>, Vec<_>) = along_u.into_iter().unzip();
             let (va, vw): (Vec<_>, Vec<_>) = along_v.into_iter().unzip();
             (

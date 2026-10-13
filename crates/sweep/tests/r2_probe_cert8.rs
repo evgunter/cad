@@ -376,9 +376,11 @@ fn probe_written_charts_never_break_the_certified_arms() {
 /// with `k` the factor that puts the greatest weight `spread` times the
 /// least. Every weight stays positive at any spread.
 fn spread_to(w: &[f64; 9], spread: f64) -> [f64; 9] {
-    let (lo, hi) = w.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), x| {
-        (a.min(x - 1.0), b.max(x - 1.0))
-    });
+    let (lo, hi) = w
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), x| {
+            (a.min(x - 1.0), b.max(x - 1.0))
+        });
     let k = (spread - 1.0) / (hi - spread * lo);
     w.map(|x| 1.0 + k * (x - 1.0))
 }
@@ -401,7 +403,10 @@ fn probe_rational_charts_enter_at_wide_spreads() {
                     .unwrap(),
                 geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
                     .unwrap(),
-                ctl.iter().copied().map(geom_core::Point3::from_array).collect(),
+                ctl.iter()
+                    .copied()
+                    .map(geom_core::Point3::from_array)
+                    .collect(),
                 w.to_vec(),
             )
             .unwrap_or_else(|e| panic!("{note}: the net must build: {e:?}"));
@@ -436,7 +441,10 @@ fn probe_a_folding_chart_refuses() {
     let surf = geom::NurbsSurface::new(
         geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
         geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
-        ctl.iter().copied().map(geom_core::Point3::from_array).collect(),
+        ctl.iter()
+            .copied()
+            .map(geom_core::Point3::from_array)
+            .collect(),
         w.to_vec(),
     )
     .unwrap();
