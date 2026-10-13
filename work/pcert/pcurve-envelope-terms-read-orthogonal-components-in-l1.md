@@ -2,10 +2,12 @@
 id: pcurve-envelope-terms-read-orthogonal-components-in-l1
 kind: issue
 title: pcurve envelope: terms that sum orthogonal components (the sphere pole meridian, the projected cone's drift, the parallels' radial and axial halves, fidelity's channels), a lever up to √2
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
+branch: pcert/envelope-radial-pair-whole
+closed: 2026-10-13
 ---
 
 
@@ -65,3 +67,36 @@ The PR's reviewers found more, each executed or read at its site:
   asked). Its two defects are not orthogonal: `d_radial` carries the
   `u_ref` tilt toward the axis, an axial displacement in the same
   direction as `d_axis`'s, so the sum is not loose by `√2` in general.
+
+## Closed (PR PRNUM, 2026-10-13)
+
+Each instance reads its vector at its norm (rows in
+`crates/geom-brep/src/pcurve_cache/radial_pair_rows.rs` and
+`crates/topo/src/chord_join/v_du_rows.rs`, each killed-mutant named in
+the PR body):
+
+- the pole start's orientation: `σ(b·e, σ·(a·e) + ‖b_r‖)`. No circle
+  reaches its band position (a circle's radial part there is second
+  order in its tilt), so its row reads `incidence` directly;
+- the projected cone's drift: `σ(sin − s, cos − c)`;
+- the parallels' radial and axial halves: one `σ` with the radial
+  pair (closed with `pcurve-radius-and-orientation-split-one-radial-pair`),
+  and the still (zero-winding) classes' `Drift + Tilt` as `σ(a, b)` —
+  a sweep hit;
+- fidelity: `EnvelopeTerms::total` reads `√(FidelityU² + FidelityV²)`
+  where `chart_stretch_sup` answers (cylinder, sphere, torus:
+  `S_u ⊥ S_v`); the cone keeps the sum, argued at the site (its chord
+  and ruling legs meet with a non-negative cross term), and the
+  projected envelope never sets the flag, each with a row;
+- topo's `split_chart_azimuth_linear` gate: `√(pa.x² + pb.x²)`, spelled
+  locally (`geom_brep::harmonic` stays crate-private), and, a sweep
+  hit in the same function, `chart_v_du`'s `∫ |dv|` bound
+  `√(pa.y² + pb.y²) + |pl.y|`.
+
+Not instances: `frame_defect`'s cone term (as this item said), topo's
+ring length `r·|Δu| + v_var` (an upper bound on `∫ √(r²u′² + v′²)` needs
+the ℓ1), the spiric `f_drift` and cap (a scalar triangle; `f` is not
+harmonic), and the focal-section envelope's torus `meridional + phase`
+(the meridional chord lies in `span(ρ̂, n̂)` and the phase remainder
+along `ρ̂`, so they are not orthogonal; each already reads its own pair
+exactly).

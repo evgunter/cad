@@ -2,10 +2,12 @@
 id: pcurve-radius-and-orientation-split-one-radial-pair
 kind: issue
 title: pcurve envelope: the moving and meridian classes read one radial pair as Radius plus Orientation, a lever up to 3
-status: open
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: E
+branch: pcert/envelope-radial-pair-whole
+closed: 2026-10-13
 ---
 
 (PCERT implementer, from review 4842's first reviewer, who executed
@@ -47,3 +49,28 @@ in place of the two slots, and restate the lemma text on
 well defined (`‖a_r‖` in the band) the class is a winding-Zero one and
 reads its drift instead. A row: the `ρ ± δ` ellipse at
 `δ ∈ (zero/3, zero)`, certifying at `f64` and `Interval`.
+
+## Closed (PR PRNUM, 2026-10-13)
+
+Every turning class reads its pair against the image's whole: the
+image's `cos t`/`sin t` coefficients less the carrier's, one `σ`, in
+`EnvelopeTerm::Radius` (`incidence`, `class_circle` in
+`crates/geom-brep/src/pcurve_cache.rs`). The radial of length `ρ` along
+`a_r` is spelled `a_r·(1 + k)` with `k = (ρ² − a_r·a_r)/((ρ + ‖a_r‖)·‖a_r‖)`
+(`stretch`), so the numerator stays `norm_gap`'s polynomial. Sites: the
+cylinder's moving class, the cone rim, the sphere and torus parallels
+(their axial pair rides in the same `σ`, closing the parallels' half of
+`pcurve-envelope-terms-read-orthogonal-components-in-l1`), the sphere
+meridian, and — the sweep's hit, same shape — the torus meridian
+(radius + tilt + orientation). The lemma text on
+`EnvelopeStatement::MapResidualClosedForm` is restated per arm, and
+`EnvelopeTerm::Tilt` is retired (no arm adds it; nothing outside
+geom-brep named it).
+
+The lever 3 is reachable only on the cylinder (and the cone), whose
+arms admit ellipses: the `ρ ± δ` ellipse at `δ = 0.6·zero` now
+certifies at `f64` and `Interval` (`radial_pair_rows`). The sphere and
+torus arms admit circles only, where the split costs `√2`; their rows
+are a meridian circle leaning out of its plane and a tilted parallel.
+Each site's sum mutant (`PCERT_RADIAL_PAIR_MUTANT`) is killed by its
+own row.

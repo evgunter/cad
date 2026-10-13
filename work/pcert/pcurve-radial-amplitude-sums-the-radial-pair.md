@@ -2,10 +2,12 @@
 id: pcurve-radial-amplitude-sums-the-radial-pair
 kind: issue
 title: pcurve chart: radial_amplitude reads a radial circle of radius δ as 2δ, so a sub-escalation circle is decided moving
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
+branch: pcert/envelope-radial-pair-whole
+closed: 2026-10-13
 ---
 
 
@@ -33,3 +35,18 @@ escalation band — today certified on the moving class with a zero
 radius gap — reads its whole radius as drift and refuses. Whether
 that trade is right (both readings concern a cylinder thinner than the
 band) is the question, and it wants its own row.
+
+## Closed (PR PRNUM, 2026-10-13)
+
+Changed: `radial_amplitude` is `σ(a_r, b_r) + ‖l_r‖`. **The premise
+above did not hold when measured.** A rim of a cylinder whose radius is
+under the escalation band was never certified on the moving class:
+the moving class's winding gate reads `‖a_r × b_r‖/R`, which is the
+radius itself for a carrier on the chart, so it escalates for every
+carrier in the window `[escalate/2, escalate)`. Probed at 0.3, 0.45,
+0.55, 0.7, 0.9 and 1.1·escalate at `f64` and `Interval`: both readings
+refuse below the band with the same check (`ChartWinding`, escalated)
+and certify at 1.1·escalate; on the six crates the change moves no
+fixture (only the Sym ledger counts, attributed in the PR). Row: the
+0.7·escalate rim derives `CylinderMeridian` at both scalars; the sum
+mutant derives the winding escalation.
