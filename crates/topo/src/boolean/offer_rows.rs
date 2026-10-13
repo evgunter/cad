@@ -1148,7 +1148,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
 /// flankers' arm `arm`: the membership tie on a curved flank (the
 /// review's probe, undeclared).
 fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
-    use super::super::recl::resolve_edge_edge;
+    use super::super::recl::{Wedge, resolve_edge_edge};
     use super::super::sectors::BoolSector;
     let tol = Tol::witness();
     let o = Point3::new(0.0, 0.0, 0.0);
@@ -1195,16 +1195,18 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
     };
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
+    let (sa, sb) = (corner(fca), corner(fcb));
     resolve_edge_edge(
-        &corner(fca),
-        &corner(fcb),
+        &sa,
+        &sb,
         &ca,
         &cb,
         super::super::BooleanOp::Union,
         &declared,
         band(),
-        0,
-        0,
+        Wedge::at_bound(&sa, 0),
+        Wedge::at_bound(&sb, 0),
+        None,
     )
     .map(|_| ())
 }
@@ -1690,7 +1692,7 @@ fn planar_flank_membership(against: bool, rest: bool) -> Result<(), BooleanError
 
 /// [`planar_flank_membership`] at the flankers' arm `arm`.
 fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(), BooleanError> {
-    use super::super::recl::resolve_edge_edge;
+    use super::super::recl::{Wedge, resolve_edge_edge};
     use super::super::sectors::BoolSector;
     let tol = Tol::witness();
     let o = Point3::new(0.0, 0.0, 0.0);
@@ -1730,16 +1732,19 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     };
     let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
     let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, band())?;
+    let sa = [sector(z, x, fa), sector(x, z, fa)];
+    let sb = [sector(z, flank, fb), sector(flank, z, fb)];
     resolve_edge_edge(
-        &[sector(z, x, fa), sector(x, z, fa)],
-        &[sector(z, flank, fb), sector(flank, z, fb)],
+        &sa,
+        &sb,
         &pa.body,
         &pb.body,
         super::super::BooleanOp::Union,
         &declared,
         band(),
-        0,
-        0,
+        Wedge::at_bound(&sa, 0),
+        Wedge::at_bound(&sb, 0),
+        None,
     )
     .map(|_| ())
 }
@@ -2755,9 +2760,14 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("recl.rs", "flank_rep", "Coincide::Sectors", 1),
     ("recl.rs", "parallel_same_dir", "Coincide::EdgeOnEdge", 1),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
-    ("recl.rs", "read_edge_edge", "Coincide::CurvedFlankSense", 1),
-    ("recl.rs", "read_edge_edge", "Coincide::FlankSense", 1),
-    ("recl.rs", "read_edge_edge", "Coincide::TangentSide", 1),
+    (
+        "recl.rs",
+        "resolve_edge_edge",
+        "Coincide::CurvedFlankSense",
+        1,
+    ),
+    ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
+    ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
     ("recl.rs", "resolve_edge_sector", "Coincide::TangentSide", 1),
     ("recl.rs", "unglued_tilt", "Coincide::Sectors", 2),
     ("recl.rs", "wedge_is_reflex", "Coincide::Sectors", 1),
