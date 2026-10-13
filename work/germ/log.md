@@ -1199,3 +1199,13 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The four holdout reviewers are all writing. Re-armed for 13:07.
 - 2026-10-13 13:10 — Check-in. All five reviews are still running: d4927 wrote at 13:08, and its item-3 sweep of 456 op-results has 0 wrong; r4964a at 12:33, r4964b at 12:01, r4966a at 12:33, r4966b at 12:56. Nothing to merge. Re-armed for 14:09.
 - 2026-10-13 14:11 — Check-in. All five reviews are still running and alive (files written within the last 20 minutes; the shared build slot serialises them). Nothing to merge. Re-armed for 15:11.
+- 2026-10-13 15:13 — Check-in.
+  - **d4927 delta review in**: 0 MAJOR; 456 op-results and 1 777 windings, 0 wrong.
+    - MINOR 1, fail-silent: a spiric arc with no enclosure was wound as its chord. I fixed it myself in `b1f0c19ba3`: it now reads `Unwound::Uncertified`. Row `a_spiric_arc_with_no_enclosure_has_no_winding`, red without the guard. topo 2953 at three ε, clippy clean.
+    - MINOR 2, the pinch lever: filed as `the-spiric-winding-lever-decides-real-pinched-loops-zero` (P3).
+    - MINOR 3, the witness: no wrong body to show it red. Disclosed already in the PR; no action.
+  - Item (c)'s evidence is added to INSIDE's ringed-wall item.
+  - Merged main again (`d7f2e8b18e`, pushed). It carried DECIDE-10; the only conflict was nextest, resolved per binary. Re-verifying clippy plus topo and the touched sweep rows at three ε.
+  - **r4964a in** (0 MAJOR). MINOR: the ellipse Miss judges accept a pose past ε rather than past Kε, so the fuzz is a weak guard and the pinned rows carry it.
+  - **r4966a in** (0 MAJOR). MINORs: τ<6u holds only for a near-square seam; the coverage slack is reused. Off-target find: TiltedEllipse serves ellipses far off flat cones on main.
+  - r4964b and r4966b are still writing. Re-armed for 16:13.
