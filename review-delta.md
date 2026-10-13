@@ -62,7 +62,7 @@
 - The committed `#[ignore]` bisection row (release) re-takes the body's numbers exactly. At one link it certifies at 6.4938e-9 and refuses at 6.5378e-9 (`pcurve_envelope` `FidelityU`). At four it certifies at 6.7317e-10 and refuses at 6.7773e-10. At σ = 0.01 the first refusal is `carrier_endpoint_start` `[0, 8.9988e-5]`, with 8/15/24/35 refused.
 
 ## Probe commit
-PROBE on `sym/17-review-delta`. Not for merge:
+`404fb52c18` on `sym/17-review-delta`. Not for merge:
 - `rigid_motion.rs`'s `delta_probes`;
 - `topo/tests/review_sym17_delta_probes.rs`;
 - `chaintol.rs`'s `delta_chain_rows_probe`.
