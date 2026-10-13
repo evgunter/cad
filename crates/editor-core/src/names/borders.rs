@@ -11,10 +11,10 @@
 //! one face across a chord that cut it, or two of a corner's faces
 //! across an edge between them. Each piece edge is chased to the
 //! stretch a discard recorded along it, through the edge's split
-//! lineage, the lineage the discards themselves carry for edges that
-//! died with them, and the edges a later step's join made it of, and so
-//! to its obstacle; discards one edge reaches are one obstacle. A face discarded where a
-//! coincident kept face holds part of its region borders that face
+//! lineage (kept across the steps that killed its ancestors) and the
+//! edges a later step's join made it of, and so to its obstacle;
+//! discards one edge reaches are one obstacle. A face discarded where
+//! a coincident kept face holds part of its region borders that face
 //! where the held part ends (`topo::DiscardRow::held`). An obstacle that borders two
 //! or more pieces DIVIDES the face; a piece's qualifier is the set of
 //! walls — the faces across its edges — along which it meets a divider,
@@ -60,9 +60,11 @@ pub(crate) struct Obstacles<K> {
     /// Parent key → the discards descending from it (what the caller's
     /// `parents_of` named each a fragment of).
     by_parent: BTreeMap<K, Vec<usize>>,
-    /// Edge → the edge it was split from, for edges that died with a
-    /// discarded face and so left the result's own provenance.
-    dead_split: BTreeMap<EdgeKey, EdgeKey>,
+    /// Edge → the edge it was split from, as each recorded result's
+    /// provenance and each discard's chains state it, so an edge a later
+    /// step killed — with a discarded face, or by joining it into
+    /// another — still leads to its parent.
+    split_from: BTreeMap<EdgeKey, EdgeKey>,
     /// Edge → the edges an output stage's join made it out of, besides
     /// itself.
     joined_from: BTreeMap<EdgeKey, Vec<EdgeKey>>,
@@ -78,7 +80,7 @@ impl<K: Ord + Clone> Obstacles<K> {
         Self {
             discards: Vec::new(),
             by_parent: BTreeMap::new(),
-            dead_split: BTreeMap::new(),
+            split_from: BTreeMap::new(),
             joined_from: BTreeMap::new(),
         }
     }
@@ -130,6 +132,11 @@ impl<K: Ord + Clone> Obstacles<K> {
         }
         for j in &naming.edge_joins {
             self.joined_from.entry(j.kept).or_default().push(j.gone);
+        }
+        for (k, _) in body.edges() {
+            if let Some(Provenance::SplitEdge { edge }) = body.edge_provenance_of(k) {
+                self.split_from.insert(k, *edge);
+            }
         }
         let earlier: BTreeSet<EdgeKey> = self
             .discards
@@ -197,7 +204,7 @@ impl<K: Ord + Clone> Obstacles<K> {
             }
             for chain in &chains {
                 for w in chain.windows(2) {
-                    self.dead_split.insert(w[0], w[1]);
+                    self.split_from.insert(w[0], w[1]);
                 }
             }
             let touches = chains
@@ -402,7 +409,7 @@ impl<K: Ord + Clone> Obstacles<K> {
                     e = match body.edge_provenance_of(e) {
                         Some(Provenance::SplitEdge { edge }) => *edge,
                         Some(_) => continue 'chain,
-                        None => match self.dead_split.get(&e) {
+                        None => match self.split_from.get(&e) {
                             Some(&up) => up,
                             None => continue 'chain,
                         },
