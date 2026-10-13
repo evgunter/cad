@@ -1700,6 +1700,10 @@ mod pair_contact_tests {
     /// escalated on.
     type Read = Result<usize, Option<&'static str>>;
 
+    /// What a pair read, kind by kind: its contacts' kinds, or the
+    /// predicate it escalated on or that refused to build an arc.
+    type KindsRead = Result<Vec<CKind>, Option<&'static str>>;
+
     fn pt<T: Real>((x, y): (f64, f64)) -> Point2<T> {
         Point2::new(T::from_f64(x), T::from_f64(y))
     }
@@ -2176,7 +2180,7 @@ mod pair_contact_tests {
     /// What each [`UNEQUAL_RADII`] pair reads, both ways round: its
     /// contact count, the predicate it escalated on, or the predicate
     /// that refused to build an arc.
-    fn unequal_radii_reads<T: Decide>() -> Vec<(String, Read)> {
+    fn unequal_radii_reads<T: Decide>() -> Vec<(String, KindsRead)> {
         let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("band: {e}"));
         let build = |(c, r, start, sweep): ((f64, f64), f64, f64, f64)| {
             let at = |t: f64| (c.0 + r * t.cos(), c.1 + r * t.sin());
@@ -2200,8 +2204,10 @@ mod pair_contact_tests {
                 let read = build(p).and_then(|p| {
                     let q = build(q)?;
                     match pair_contacts(&p, &q, band) {
-                        Ok(PairOutcome::Contacts(contacts)) => Ok(contacts.len()),
-                        Ok(PairOutcome::Overlap) => Ok(1),
+                        Ok(PairOutcome::Contacts(contacts)) => {
+                            Ok(contacts.iter().map(|c| c.kind).collect())
+                        }
+                        Ok(PairOutcome::Overlap) => Err(Some("overlap")),
                         Err(source) => Err(source.predicate),
                     }
                 });
@@ -2212,22 +2218,64 @@ mod pair_contact_tests {
     }
 
     /// **Arcs that cross read a contact at any ratio of their radii**,
-    /// at `f64` and at `Interval` ([`UNEQUAL_RADII`]): never no contact.
+    /// at `f64` and at `Interval` ([`UNEQUAL_RADII`]), and at each ε row
+    /// exactly what [`unequal_radii_want`] says: never no contact, never
+    /// an escalation, never a second crossing.
     #[test]
     fn arcs_crossing_at_unequal_radii_never_read_no_contact() {
-        let wrong_reads: Vec<String> = [
+        let eps = Tol::witness().eps();
+        let want = unequal_radii_want(eps);
+        let mut wrong_reads = Vec::new();
+        for (scalar, reads) in [
             ("f64", unequal_radii_reads::<f64>()),
             ("Interval", unequal_radii_reads::<Interval>()),
-        ]
-        .into_iter()
-        .flat_map(|(scalar, reads)| {
-            reads
-                .into_iter()
-                .filter(|(_, read)| *read == Ok(0))
-                .map(move |(name, _)| format!("{scalar}: {name}: read no contact"))
-        })
-        .collect();
+        ] {
+            for (i, (name, read)) in reads.into_iter().enumerate() {
+                let bad = match &want {
+                    Some(want) => read != want[i],
+                    None => read.as_ref().is_ok_and(Vec::is_empty),
+                };
+                if bad {
+                    wrong_reads.push(format!("{scalar}: {name} at eps {eps:e}: got {read:?}"));
+                }
+            }
+        }
         assert!(wrong_reads.is_empty(), "{}", wrong_reads.join("\n"));
+        if want.is_none() {
+            test_utils::vacuity::stood_down(
+                "unequal-radii reads",
+                &format!(
+                    "no pinned reads at eps {eps:e}; asserted only that no pair reads no contact"
+                ),
+            );
+        } else if eps >= 1e-6 {
+            test_utils::vacuity::stood_down(
+                "unequal-radii reads",
+                "the r = 62.76 x 1.28e-7 pair's small arc is sub-eps and refuses to build, \
+                 so only the r = 80.44 x 0.0317 pair asserts a crossing here",
+            );
+        }
+    }
+
+    /// The reads [`unequal_radii_reads`] gives at the ε rows the suite
+    /// runs, in its order. The first pair's small arc spans about
+    /// 4.9e-7, so at 1e-6 its ends stand within ε and it refuses to
+    /// build. The second pair crosses 2.0e-11 inside the large arc's
+    /// end: within ε of it at 1e-9 and 1e-6, where the crossing reads
+    /// at that end, a touch, and the end touches again; 20ε inside it at
+    /// 1e-12, a crossing.
+    fn unequal_radii_want(eps: f64) -> Option<[KindsRead; 4]> {
+        use CKind::{Crossing, Touch};
+        let (small, large): (KindsRead, KindsRead) = if eps == 1e-6 {
+            (Err(Some("vertex_separation")), Ok(vec![Touch, Touch]))
+        } else if eps == 1e-9 {
+            (Ok(vec![Crossing]), Ok(vec![Touch, Touch]))
+        } else if eps == 1e-12 {
+            (Ok(vec![Crossing]), Ok(vec![Crossing]))
+        } else {
+            return None;
+        };
+        Some([small.clone(), small, large.clone(), large])
     }
 
     fn wrong<N: std::fmt::Display>(scalar: &str, rows: Vec<(N, Read, Read)>) -> Vec<String> {
