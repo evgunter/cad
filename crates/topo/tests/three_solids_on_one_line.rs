@@ -572,6 +572,51 @@ fn a_prism_whose_face_holds_the_line_builds_or_refuses_typed() {
     );
 }
 
+/// **The plate joins a body whose one lump's edge lies in the other's
+/// face** as one body: the 120° prism touching the row above's third
+/// prism along the line, its edge piercing the plate's top inside the
+/// third's side face. The top's section is one ring through the point
+/// twice, so tier 3 passes, with one vertex there and the closed-form
+/// volume.
+#[test]
+fn the_plate_joins_an_edge_lying_in_a_face_as_one_body() {
+    let prisms = [
+        Prism::on_line(120.0, 170.0, (0.47, 1.7)),
+        Prism {
+            foot: [bearing(80.0, 0.3), bearing(260.0, 0.3), bearing(350.0, 0.4)],
+            z: (0.44, 1.81),
+            moved: 0.0,
+            tilt: (0.0, 0.0),
+        },
+    ];
+    let body = match union(&prisms[0].body(), &prisms[1].body(), t()) {
+        Ok(BooleanResult::Body(r)) => r.body,
+        other => panic!("the two prisms: {other:?}"),
+    };
+    let plate = finished(
+        "the plate",
+        common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+        t(),
+    );
+    let r = match union(&body, &plate, t()) {
+        Ok(BooleanResult::Body(r)) => r.body,
+        other => panic!("body ∪ plate: {other:?}"),
+    };
+    assert_eq!(validate_geometric(&r, t()), Ok(()), "tier 3");
+    let c = at(Point3::new(MEET[0], MEET[1], MEET[2]));
+    let at_c = r
+        .vertices()
+        .filter(|&(k, _)| at(topo::readback::vertex_point(&r, k).unwrap()) == c)
+        .count();
+    assert_eq!(at_c, 1, "vertices at MEET");
+    let v = topo::mass_properties(&r, t()).unwrap().volume;
+    let volume = union_volume(&prisms, true);
+    assert!(
+        (v - volume).abs() < 1e-9,
+        "volume {v}, closed form {volume}"
+    );
+}
+
 /// **The plate against a body whose one lump's edge lies in the other's
 /// face builds in every op**: the third prism of the row above united
 /// with the 120° prism, which touches its side face along the line,

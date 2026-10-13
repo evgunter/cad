@@ -62,7 +62,8 @@ Four of the six orders now build: [2, 1, 3, 0], [3, 1, 2, 0],
 building order. The other two, [3, 2, 0, 1] and [2, 3, 0, 1], now build
 step 2 and refuse step 3 `VertexReadTwice`
 (`a-touching-vertex-beside-a-partner-along-the-face-refuses`). A point
-inside a curved face of the piercing operand, or a plane face holding
-it over a curved pierced face, refuses typed (unbuilt)
+inside a curved face of the piercing operand, one whose trim cannot be
+read there, or a plane face holding it over a curved pierced face,
+refuses `BooleanError::HeldPierceUnbuilt` before anything is built
 (`a-pierce-point-inside-a-curved-face-of-the-piercing-operand-refuses-unbuilt`).
 

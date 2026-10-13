@@ -4849,6 +4849,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "germ_section_outside_inventory",
             "germ_section_spiric",
             "graft_recertify",
+            "held_pierce_unbuilt",
             "inside_out_operand",
             "invalid_input",
             "join",

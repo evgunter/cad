@@ -2379,6 +2379,29 @@ pub enum BooleanError {
         /// geometry.
         wedge: geom_brep::MaterialWedge,
     },
+    /// **A pierce point inside a face of the piercing operand that the
+    /// Boolean cannot yet build a vertex in** (`vtxfac::faces_holding_pierce`).
+    /// An operand whose solids touch, one's edge lying in another's face,
+    /// pierces the other operand's face where that face crosses its own,
+    /// and the section of the two passes the point. The vertex that needs
+    /// is built where both faces are planes; here one is curved, or the
+    /// curved face's trim could not say whether it holds the point.
+    /// Refused before anything is built.
+    HeldPierceUnbuilt {
+        /// The piercing operand, whose face holds the point.
+        operand: Operand,
+        /// The face that holds the point.
+        face: FaceKey,
+        /// The other operand's face the point pierces.
+        pierced: FaceKey,
+        /// The holding face's surface kind.
+        kind: geom::SurfaceKind,
+        /// The pierced face's surface kind.
+        pierced_kind: geom::SurfaceKind,
+        /// Whether the holding face's trim placed the point inside it:
+        /// `false` where it could not read its trim there.
+        placed: bool,
+    },
     /// A boolean's input ([`BooleanInputs`]) references an entity that
     /// does not resolve in its operand (stale/foreign key, or a
     /// non-planar given face), or gives a pair a relation that does not
@@ -3164,6 +3187,8 @@ pub enum BooleanErrorKind {
     UnsupportedDeclarationClass,
     /// [`BooleanError::RimCuspArmUnbuilt`].
     RimCuspArmUnbuilt,
+    /// [`BooleanError::HeldPierceUnbuilt`].
+    HeldPierceUnbuilt,
     /// [`BooleanError::InvalidInput`].
     InvalidInput,
     /// [`BooleanError::PairingMismatch`].
@@ -3411,6 +3436,7 @@ impl BooleanError {
                 BooleanErrorKind::UnsupportedDeclarationClass
             }
             Self::RimCuspArmUnbuilt { .. } => BooleanErrorKind::RimCuspArmUnbuilt,
+            Self::HeldPierceUnbuilt { .. } => BooleanErrorKind::HeldPierceUnbuilt,
             Self::InvalidInput { .. } => BooleanErrorKind::InvalidInput,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
@@ -3902,6 +3928,28 @@ impl core::fmt::Display for BooleanError {
                  tangent locus for these two surfaces. There is no way through this in \
                  the kernel yet",
                 pair.class.name()
+            ),
+            Self::HeldPierceUnbuilt {
+                operand,
+                kind,
+                pierced_kind,
+                placed,
+                ..
+            } => write!(
+                f,
+                "a solid of the {} operand has an edge lying in a {} face of another of its \
+                 solids, and a {} face of the other operand crosses both there{}; the Boolean \
+                 builds that only on two planes. Recourse: join the \
+                 solid holding that face to the other operand first, or move the edge off the \
+                 face",
+                operand_word(*operand),
+                kind_word(*kind),
+                kind_word(*pierced_kind),
+                if *placed {
+                    ""
+                } else {
+                    " (or may: its outline is unread there)"
+                },
             ),
             Self::InvalidInput { operand, what } => write!(
                 f,
@@ -4744,11 +4792,30 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             Operand::B => (&mut b, &a),
         };
         let mut held = Vec::new();
+        // Each curved face's box, read once: a pierce point is placed
+        // in a curved face only where its box holds the point.
+        let mut curved_boxes = std::collections::BTreeMap::new();
+        if minted.iter().any(|(_, plan)| plan.is_some()) {
+            let pad = boxes::sweep_pad(band);
+            let curved: Vec<FaceKey> = piercing_body
+                .faces()
+                .map(|(k, _)| k)
+                .filter(|&k| reduce::face_plane(piercing_body, k).is_none())
+                .collect();
+            for face in curved {
+                curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band)?);
+            }
+        }
+        let box_holds = |face: FaceKey, p: Point3<T>| {
+            let point = bvh::Aabb::from_points([p]).unwrap_or_else(bvh::Aabb::poison);
+            curved_boxes.get(&face).is_none_or(|b| b.overlaps(&point))
+        };
         for (_, plan) in &minted {
             if let Some(plan) = plan {
                 held.extend(vtxfac::faces_holding_pierce(
                     piercing_body,
                     pierced_body,
+                    &box_holds,
                     plan,
                     band,
                     tol,
@@ -4774,15 +4841,18 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         let mut rings = std::collections::BTreeMap::new();
         let (groups, ties) = vtxfac::ring_groups(&only, band)?;
         // A held pierce stands at its pierce's point because the point
-        // lies on its face: that decision is the tie's.
+        // lies on its face, so a tie to one cites that decision. Held
+        // pierces follow every pierce the sweep found, and a tie's `j`
+        // follows its `i`, so a tie holds one at `j` wherever it holds
+        // one, and two held pierces tie by the later's.
         ring_ties.extend(ties.into_iter().map(|(i, j, margin)| {
             RingTie {
                 operand,
                 a: only[i].contact.vertex,
                 b: only[j].contact.vertex,
-                margin: [i, j]
-                    .iter()
-                    .find_map(|&k| held_on.get(&only[k].contact.vertex).copied())
+                margin: held_on
+                    .get(&only[j].contact.vertex)
+                    .copied()
                     .unwrap_or(margin),
             }
         }));
@@ -7434,6 +7504,7 @@ mod tests {
                 BooleanErrorKind::ContinuationContradicted => "ContinuationContradicted",
                 BooleanErrorKind::UnsupportedDeclarationClass => "UnsupportedDeclarationClass",
                 BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",
+                BooleanErrorKind::HeldPierceUnbuilt => "HeldPierceUnbuilt",
                 BooleanErrorKind::InvalidInput => "InvalidInput",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",

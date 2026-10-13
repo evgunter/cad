@@ -610,6 +610,17 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "HeldPierceUnbuilt",
+            BooleanError::HeldPierceUnbuilt {
+                operand: Operand::A,
+                face: topo::FaceKey::default(),
+                pierced: topo::FaceKey::default(),
+                kind: SurfaceKind::Cylinder,
+                pierced_kind: SurfaceKind::Plane,
+                placed: false,
+            },
+        ),
+        (
             "SharedVertexCrossings",
             BooleanError::SharedVertexCrossings {
                 operand: Operand::B,
