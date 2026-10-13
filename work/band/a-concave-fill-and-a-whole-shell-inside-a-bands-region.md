@@ -48,10 +48,13 @@ The class varies by side (convex hole, concave protrusion), host face
 **I. A closed shell wholly inside the region.** A void of the blended
 solid inside the material a convex band removes, or an island (a second
 solid of the same body) inside the material a concave band fills.
-- **I1** both go, through one shell-removal door in `topo` beside
-  `insert_void`.
+The void is the ruling's convex side ("goes with that material") and
+is owed, not open; it refuses `WhollyInside` today only because the
+shell-removal door is unbuilt. What is open is the island, whose
+absorption joins two solids, and the door's shape:
+- **I1** the island goes too, through one shell-removal door in `topo`
+  beside `insert_void` that serves both.
 - **I2** the void goes; an island refuses.
-- **I3** both refuse.
 
 A blend's operand is always one part: `body_operand`
 (`crates/editor-core/src/eval/wire.rs`) refuses a value of several parts
@@ -67,7 +70,9 @@ absorbing it is the union the author already wrote.
   hole's mouth and the face the fill would seal, with the recourse
   "blend before drilling it, or remove or move the hole". Today it
   refuses as a bound at the hole's wall, which tells the user the kernel
-  could not measure when it did. S2 would turn a through-hole blind or a
+  could not measure when it did. S1 departs from the Boolean analogy
+  the ruling leans on (a union covering a hole's mouth seals it); it
+  rests on fail-loud, not on the ruling's letter. S2 would turn a through-hole blind or a
   blind hole into a hidden void with no name vanishing (so neither N5 nor
   the consumption lint sees it), would make the blend a fourth birthplace
   of cavities against `docs/DESIGN.md`'s void-insertion convention, and
