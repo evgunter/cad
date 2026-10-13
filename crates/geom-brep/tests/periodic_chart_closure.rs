@@ -245,3 +245,100 @@ fn four_winding_rims_bound_no_single_face() {
         );
     }
 }
+
+/// **A loop's turns count every edge's own turn** (`props_chart_loop_whole`),
+/// at `f64` and at the interval scalar. On a cylinder of radius `100ε`, a
+/// zig-zag of 400 rulings, each certified axial (`0.9ε` sideways, under
+/// `ε`), turns the axis by `3.6` rad between them, and a rim swept back
+/// closes it: the loop turns zero times. Read with its rulings as no
+/// turn, it turned `−3.6` rad, a whole turn back by the half-turn
+/// thresholds, so with one whole rim turning the other way beside it
+/// the face measured. Counted
+/// whole, the zig-zag alone measures and with the rim refuses
+/// ([`PropsError::LoopsWindChart`]). With the rulings' turns read as
+/// none, the loop's residual from a whole turn, `≈ 268ε`, is past its
+/// slack and the face still refuses rather than measures.
+#[test]
+fn a_loop_of_many_rulings_turns_by_their_own_turns() {
+    fn zig<T: geom_core::Decide>(radius: f64) -> (Vec<LoopEdge<T>>, f64) {
+        let (n, h) = (400usize, 0.01);
+        let delta = 2.0 * (0.45 * eps() / radius).asin();
+        let at = |u: f64, z: f64| [radius * u.cos(), radius * u.sin(), z];
+        let mut loop_ = Vec::with_capacity(n + 1);
+        let mut u = 0.0;
+        for i in 0..n {
+            let (z0, z1) = if i % 2 == 0 { (0.0, h) } else { (h, 0.0) };
+            let (a, b) = (at(u, z0), at(u + delta, z1));
+            let d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+            let len = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+            loop_.push(edge(
+                Curve3::Line {
+                    origin: p3(a[0], a[1], a[2]),
+                    dir: v3(d[0] / len, d[1] / len, d[2] / len),
+                },
+                0.0,
+                len,
+                0,
+                0,
+            ));
+            u += delta;
+        }
+        loop_.push(rim::<T>(radius, 0.0, u, 0.0));
+        (loop_, u)
+    }
+    fn rim<T: geom_core::Decide>(radius: f64, z: f64, u0: f64, u1: f64) -> LoopEdge<T> {
+        edge(
+            Curve3::Circle {
+                center: p3(0.0, 0.0, z),
+                axis: v3(0.0, 0.0, 1.0),
+                radius: T::from_f64(radius),
+                u_ref: v3(1.0, 0.0, 0.0),
+            },
+            u0,
+            u1,
+            0,
+            0,
+        )
+    }
+    fn measure<T: geom_core::Decide>(with_rim: Option<bool>) -> Result<(), PropsError> {
+        let radius = 100.0 * eps();
+        let (zig, turned) = zig::<T>(radius);
+        assert!(turned > 3.5, "the rulings turn {turned} rad between them");
+        let s = Surface::Cylinder {
+            origin: p3(0.0, 0.0, 0.0),
+            axis: v3(0.0, 0.0, 1.0),
+            radius: T::from_f64(radius),
+            u_ref: v3(1.0, 0.0, 0.0),
+        };
+        let (u0, u1) = if with_rim == Some(true) {
+            (0.0, TAU)
+        } else {
+            (TAU, 0.0)
+        };
+        let whole = vec![rim::<T>(radius, 1.0, u0, u1)];
+        let loops: Vec<&[LoopEdge<T>]> = if with_rim.is_some() {
+            vec![&zig, &whole]
+        } else {
+            vec![&zig]
+        };
+        curved_face_loops(&s, &loops, true, band()).map(|_| ())
+    }
+    for up in [true, false] {
+        assert_eq!(
+            measure::<f64>(Some(up)),
+            Err(PropsError::LoopsWindChart),
+            "with a whole rim (up: {up}) at f64"
+        );
+        assert_eq!(
+            measure::<geom_core::Interval>(Some(up)),
+            Err(PropsError::LoopsWindChart),
+            "with a whole rim (up: {up}) at the interval scalar"
+        );
+    }
+    assert_eq!(measure::<f64>(None), Ok(()), "the zig-zag alone at f64");
+    assert_eq!(
+        measure::<geom_core::Interval>(None),
+        Ok(()),
+        "the zig-zag alone at the interval scalar"
+    );
+}

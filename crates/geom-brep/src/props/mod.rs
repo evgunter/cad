@@ -122,6 +122,7 @@
 //! in space (`props_loop_closed`). No lane reads the loop-local vertex **tags**
 //! ([`LoopEdge`]).
 
+mod bracket;
 mod closure;
 mod curved;
 mod loop_area;

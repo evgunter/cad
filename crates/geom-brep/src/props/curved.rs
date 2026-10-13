@@ -1327,7 +1327,7 @@ fn cylinder_chart<T: Decide>(
 
 /// **A cylinder face's loops close on its chart and wind it as a face's
 /// boundary does** ([`closure::closed_form_windings`]): per loop, the
-/// azimuth its rims sweep, and at each junction the turn about the axis
+/// azimuth its rims and rulings turn, and at each junction the turn about the axis
 /// from the edge before's end to the edge after's start, metered at the
 /// radius, beside the gap in level. Returns each loop's turns.
 fn cylinder_windings<T: Decide>(
@@ -1345,9 +1345,18 @@ fn cylinder_windings<T: Decide>(
         .map(|(i, edges)| {
             let start = spans[i].0;
             let end = spans.get(i + 1).map_or(rims.len(), |&(next, _)| next);
+            // The rims' stored turns, and each ruling's own turn between
+            // its ends: certified axial, it may still turn by `ε/R`.
             let sweep = rims[start..end]
                 .iter()
-                .fold(T::zero(), |acc, &(_, du)| acc + du);
+                .fold(T::zero(), |acc, &(_, du)| acc + du)
+                + edges
+                    .iter()
+                    .filter(|e| matches!(e.carrier, Curve3::Line { .. }))
+                    .fold(T::zero(), |acc, e| {
+                        let (a, b) = e.traversal_ends();
+                        acc + turn_about(axis, a - origin, b - origin)
+                    });
             let joints = edges
                 .iter()
                 .zip(edges.iter().cycle().skip(1))
@@ -4259,7 +4268,7 @@ fn torus_chart<T: Decide>(
 }
 
 /// One torus loop for the closure decision ([`closure::closed_form_windings`]):
-/// the azimuth its rims sweep and the tube angle its meridians sweep,
+/// the azimuth and the tube angle each piece turns between its ends,
 /// and at each junction the turn about the axis from the edge before's
 /// end to the edge after's start, metered at the after's distance from
 /// the axis, beside the turn about the tube, metered at the minor
@@ -4272,29 +4281,38 @@ fn torus_chart_loop<T: Decide>(
     edges: &[LoopEdge<T>],
     pieces: &[TorusPiece<T>],
 ) -> ChartLoop<T, 2> {
-    let sweep = pieces
-        .iter()
-        .fold([T::zero(); 2], |[u, v], p| match p.step {
-            TorusStep::Rim { du, .. } => [u + du, v],
-            TorusStep::Meridian { dv } => [u, v + dv],
-        });
     // A point's place on the tube: its distance out from the core
     // circle and its height, the tube angle's cosine and sine arms.
     let tube = |w: Vec3<T>| {
         let h = w.dot(axis);
         ((w - axis * h).norm() - major, h)
     };
+    // The signed tube angle from `a` to `b`, the short way round.
+    let tube_turn = |a: Vec3<T>, b: Vec3<T>| {
+        let ((xa, ya), (xb, yb)) = (tube(a), tube(b));
+        (xa * yb - ya * xb).atan2(xa * xb + ya * yb)
+    };
+    // Each piece's stored turn, and its own turn between its ends in the
+    // coordinate it nominally holds fixed: a parallel's tube angle, a
+    // meridian's azimuth.
+    let sweep = pieces.iter().fold([T::zero(); 2], |[u, v], p| {
+        let (a, b) = p.edge.traversal_ends();
+        let (a, b) = (a - center, b - center);
+        match p.step {
+            TorusStep::Rim { du, .. } => [u + du, v + tube_turn(a, b)],
+            TorusStep::Meridian { dv } => [u + turn_about(axis, a, b), v + dv],
+        }
+    });
     let joints = edges
         .iter()
         .zip(edges.iter().cycle().skip(1))
         .map(|(e, next)| {
             let a = e.traversal_ends().1 - center;
             let b = next.traversal_ends().0 - center;
-            let ((xa, ya), (xb, yb)) = (tube(a), tube(b));
             Joint {
                 turn: [
                     (turn_about(axis, a, b), (b - axis * b.dot(axis)).norm()),
-                    ((xa * yb - ya * xb).atan2(xa * xb + ya * yb), minor),
+                    (tube_turn(a, b), minor),
                 ],
                 flat: T::zero(),
             }

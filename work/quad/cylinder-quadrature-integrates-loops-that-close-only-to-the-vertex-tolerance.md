@@ -88,7 +88,8 @@ no pad for its connector, in:
 
 - the cylinder quadrature (`quad::loop_windings`, as before);
 - the cylinder closed form (`curved::cylinder_windings`): `S = 3ε`, the
-  connector term `−(v − v_a)·turn` per junction;
+  connector term `−(v − v_m)·turn` per junction (`v_m`, the closed
+  form's `anchor`, the middle of the face's level range);
 - the torus closed form (`curved::torus_chart_loop`): `S = 3ε`, the
   connectors `−(F(v) − F(v_m))·turn` and `−(G(v) − G(v_m))·turn`;
 - the spiric wall (`spiric::wall_windings`): `S` the two images'

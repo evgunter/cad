@@ -312,14 +312,16 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          that `run_fitted_checks` re-checks with the original parameters",
     ),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
+    ("crates/geom-brep/src/props/bracket.rs", 4, 4, ""),
     (
         "crates/geom-brep/src/props/quad.rs",
-        11,
-        6,
+        7,
+        2,
         "the remaining 5 are safe by construction: `cos_step`/`sin_step` and the two \
          half-angle clamps build from `pt` of a finite f64 with nonzero exact divisors, \
          so no operand can leave a domain (argued at each). Every other read goes \
-         through `lo_or_refuse`/`certified_hi`/`mid`, which are the guarded ones",
+         through `lo_or_refuse`/`certified_hi`/`mid` (`props/bracket.rs`), which are \
+         the guarded ones",
     ),
     (
         "crates/geom-brep/src/props/spiric.rs",

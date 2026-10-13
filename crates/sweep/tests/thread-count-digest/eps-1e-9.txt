@@ -1,7 +1,7 @@
 # f64
 quintic_prism v=3f8b436424c44653 a=3fd89d360a67b427 vpad=3e66df15efe80000 apad=3f69215a38e8c080 | verdicts n=32 h=f73b74c08fd0b2f9 esc n=0 h=cbf29ce484222325
 tilted_cut_upper v=3fd921fb54442d17 a=40096d2e7648c6c9 vpad=3e812c48b1faaaab apad=3ea9c26d0af80000 | verdicts n=16 h=9cbe8481270ba515 esc n=0 h=cbf29ce484222325
-bulged_extrusion v=4022487ed5110b46 a=403995a0313fde5c vpad=0000000000000000 apad=0000000000000000 | verdicts n=26 h=1ea51bbef58359fd esc n=0 h=cbf29ce484222325
+bulged_extrusion v=4022487ed5110b46 a=403995a0313fde5c vpad=0000000000000000 apad=0000000000000000 | verdicts n=27 h=33425742a66d5840 esc n=0 h=cbf29ce484222325
 loft_prism v=4022000000000000 a=4039524a6c672fe1 vpad=3d07800000000000 apad=3fc84532b9a1b030 | verdicts n=8 h=682f20aee17acb35 esc n=0 h=cbf29ce484222325
 arc_loft_1e11eps REFUSED at FaceKey(4v1): a face's share of the volume and surface area cannot be computed: a face's certified contribution stayed 1.105e-5 m wide after 1 refinement round(s), above the 1.024e-6 m this tolerance targets. Recourse: loosen the tolerance to 1.079e-8 m or more, as a last resort; this refusal may indicate a kernel bug worth reporting | verdicts n=4 h=77e953f037b0ae42 esc n=0 h=cbf29ce484222325
 arc_loft_1e9eps v=4022487ed6a9d8a3 a=403995a3b53c3c40 vpad=3eb0783411700000 apad=3fb5fb0bfc1217c0 | verdicts n=15 h=fb22889cccf6acbb esc n=0 h=cbf29ce484222325

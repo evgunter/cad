@@ -171,6 +171,7 @@ use geom_core::spline::{
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
+use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
 use super::{PropsCheck, PropsError};
 use crate::offset_meters::mig;
 
@@ -375,20 +376,6 @@ impl TrimEdgeQ {
 // ---------------------------------------------------------------------
 // Transcendental-free trig enclosures (module docs)
 // ---------------------------------------------------------------------
-
-/// Shorthand: a point bracket.
-pub(super) fn pt(x: f64) -> Interval {
-    Interval::point(x)
-}
-
-/// `τ` as a bracket: it lies between the `f64` nearest it, which rounds
-/// below, and that value's successor.
-pub(super) fn tau_bracket() -> Interval {
-    Interval::hull(
-        pt(core::f64::consts::TAU),
-        pt(core::f64::consts::TAU.next_up()),
-    )
-}
 
 /// Enclosure of `cos s` for an EXACT step `s`, |s| ≤ 1.5, by the
 /// degree-8 alternating-series pair
@@ -633,50 +620,6 @@ fn edge_metric_length(e: &TrimEdgeQ, radius: Interval) -> f64 {
         + dv.eval(c_all, s_all, t_all).abs_enclosure())
         * pt(span))
     .mag()
-}
-
-/// One side of an enclosure, **keeping the refusal**: `NaN` whenever
-/// the enclosure may not certify.
-///
-/// Interval arithmetic carries its refusal in the decoration, so a refused
-/// bracket's endpoints are ordinary numbers and a bare `.lo()`/`.hi()`
-/// hands a consumer a plausible bound with nothing behind it. `NaN` is
-/// what every consumer on these paths already reads as "no bound" —
-/// the `is_finite` tests, the margin classifiers, the gauges and the
-/// knot-collapse windows all refuse on it — so this is the one door
-/// that turns the decoration back into the value those readers expect.
-pub(super) fn lo_or_refuse(x: Interval) -> f64 {
-    if !x.is_certified() { f64::NAN } else { x.lo() }
-}
-
-/// Midpoint of a bracket (structure selection for integration limits;
-/// the bracket's width is repaid by the endpoint pad). A refused
-/// bracket has no midpoint, and says so.
-pub(super) fn mid(x: Interval) -> f64 {
-    if !x.is_certified() {
-        return f64::NAN;
-    }
-    (x.lo() + x.hi()) * 0.5
-}
-
-/// Interval absolute value: `|x|` as an enclosure.
-pub(super) trait AbsEnclosure {
-    fn abs_enclosure(self) -> Interval;
-}
-
-impl AbsEnclosure for Interval {
-    fn abs_enclosure(self) -> Interval {
-        if !self.is_certified() {
-            return self;
-        }
-        if self.lo() >= 0.0 {
-            self
-        } else if self.hi() <= 0.0 {
-            -self
-        } else {
-            Interval::from_bounds(0.0, self.mag())
-        }
-    }
 }
 
 // ---------------------------------------------------------------------

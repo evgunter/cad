@@ -16,9 +16,9 @@
 //!   the sum of the whole periods each junction's gap is nearest
 //!   ([`interval_loop_turns`]);
 //! - a closed form holds its carriers, and reads a loop's total angle —
-//!   its edges' sweeps and its junctions' short turns, a whole number of
-//!   turns by construction — at half-turn thresholds
-//!   ([`closed_form_windings`]).
+//!   its edges' end-to-end turns and its junctions' short turns — at
+//!   half-turn thresholds, then decides it a whole number of turns
+//!   within its stated slack ([`closed_form_windings`]).
 //!
 //! A face's boundary is simple closed curves that bound one connected
 //! region, so each loop turns at most once about each direction, the
@@ -33,7 +33,7 @@
 use geom_core::interval::{Interval, certified_hi};
 use geom_core::{Band, Decide, Margin, Sign};
 
-use super::quad::{AbsEnclosure, lo_or_refuse, mid, pt, tau_bracket};
+use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt, tau_bracket};
 use super::{PropsCheck, PropsError};
 use crate::dihedral::decide;
 
@@ -210,19 +210,29 @@ pub(super) struct ChartLoop<T, const N: usize> {
 /// `Σ lever·|turn| + |flat|`.
 ///
 /// A loop's total angle about a direction is `W = sweep + Σ turn`: its
-/// edges' sweeps and the short turns across its junctions. That is the
-/// total turn of a closed path — edges, then the short way across each
-/// junction — and so a whole number of turns `k·τ`, **assumed of the
-/// sweeps and guaranteed upstream**: each rim's sweep is the angle
-/// between its own two ends, both evaluated at the stored span it is
-/// read from, and an edge that sweeps nothing in a coordinate (a
-/// ruling, a meridian's azimuth, a parallel's tube angle) is certified
-/// so by the lane's parse within the band. So `W` lies within a few `ε`
-/// per edge of `k·τ`, far inside the half-turn thresholds
-/// [`loop_turns`] reads `k` at, and nothing is decided of the residual.
+/// edges' sweeps and the short turns across its junctions. The caller's
+/// sweep is each edge's turn between its own two ends — a rim's from
+/// the stored span both its ends are evaluated at, and every other
+/// edge's (a ruling, a meridian's azimuth, a parallel's tube angle) the
+/// short turn between its ends, never a nominal zero: a ruling certified
+/// axial may still turn by `ε/R`, and a loop may hold any number of
+/// them. So `W` is the total turn of a closed path — edges, then the
+/// short way across each junction — a whole number of turns up to
+/// rounding. [`loop_turns`] reads the whole number `k` at half-turn
+/// thresholds, and the residual is then decided
+/// (`props_chart_loop_whole`): `|W − k·τ|` metered at the loop's
+/// largest junction radius, against [`VERTEX_SLACK`]`·ε` for the loop.
+/// Every turn in `W` is read off the edges' own ends, so the residual is
+/// rounding alone, whatever the junction gaps and however many edges; a
+/// residual past the slack is a sweep that disagrees with its edge's
+/// ends ([`PropsError::LoopsWindChart`]), and in the band it escalates.
 ///
-/// The thresholds are metered at the loop's largest junction radius;
-/// they are clear by `π` times any radius.
+/// The thresholds are metered at that radius too; they are clear by `π`
+/// times any radius.
+///
+/// The interval lanes ([`interval_loop_turns`]) read each edge's own
+/// chart ends, so their turns are exact by construction and ask no such
+/// question.
 pub(super) fn closed_form_windings<T: Decide, const N: usize>(
     loops: &[ChartLoop<T, N>],
     band: Band,
@@ -247,6 +257,24 @@ pub(super) fn closed_form_windings<T: Decide, const N: usize>(
         let mut k = [0i64; N];
         for c in 0..N {
             k[c] = loop_turns(w[c], lever[c], band)?;
+            let whole = match k[c] {
+                0 => T::zero(),
+                1 => T::tau(),
+                -1 => T::zero() - T::tau(),
+                // Past one turn: refused below as no boundary's.
+                _ => continue,
+            };
+            let residual = (w[c] - whole).abs() * lever[c];
+            if decide(
+                "props_chart_loop_whole",
+                Margin::of(excess(residual, slack)),
+                band,
+            )
+            .map_err(escalated)?
+                != Sign::Zero
+            {
+                return Err(PropsError::LoopsWindChart);
+            }
         }
         windings.push(k);
     }
@@ -259,8 +287,8 @@ pub(super) fn closed_form_windings<T: Decide, const N: usize>(
 /// `0` when `|W|` is short of a half turn, `±1` when it is past one and
 /// short of three, `±2` for any more. A whole number of turns is clear of
 /// each threshold by `π·lever`; a `W` in the band of one is no whole
-/// number, so the loop does not close. That `W` is a whole number of
-/// turns is the caller's ([`closed_form_windings`]).
+/// number, so the loop does not close. Whether `W` is that whole number
+/// is the caller's decision ([`closed_form_windings`]).
 fn loop_turns<T: Decide>(w: T, lever: T, band: Band) -> Result<i64, PropsError> {
     let classify = |name, margin| decide(name, margin, band).map_err(escalated);
     let half = |halves: T| Margin::levered(T::pi() * halves - w.abs(), lever);

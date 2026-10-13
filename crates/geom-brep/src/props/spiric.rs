@@ -81,11 +81,12 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::{Band, Bounds, Decide, Margin, Sign};
 
+use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
 use super::closure::{IntervalJunction, interval_loop_turns, require_boundary_windings};
 use super::quad::{
-    AbsEnclosure, FaceCutBounds, QUAD_INIT_PIECES, QUAD_MAX_ROUNDS, QUAD_TARGET_LEN_FACTOR, RVec3,
-    RoundOutcome, RoundWindow, classify_len, lo_or_refuse, mean_boundary_displacement, mid, pt,
-    rotate, round_exit, spread_cos, spread_sin, trig_at,
+    FaceCutBounds, QUAD_INIT_PIECES, QUAD_MAX_ROUNDS, QUAD_TARGET_LEN_FACTOR, RVec3, RoundOutcome,
+    RoundWindow, classify_len, mean_boundary_displacement, rotate, round_exit, spread_cos,
+    spread_sin, trig_at,
 };
 use super::{PropsCheck, PropsError};
 
@@ -580,8 +581,10 @@ fn face_bounds(
 /// At each junction the azimuth's gap is metered at the junction's own
 /// distance from the axis, `ρ = R + r·cos v`, enclosed over the after
 /// edge's start, and the tube angle's at `r`; the slack is the two
-/// images' envelopes. A wall carries one loop, so its turns must be
-/// zero.
+/// images' envelopes. Reading `ρ` at one end is sound: the two ends'
+/// `ρ` differ by at most `r·|Δv|`, so the azimuth term moves by at most
+/// `r·|Δv|·|Δu|`, second order in a gap the decision admits. A wall
+/// carries one loop, so its turns must be zero.
 fn wall_windings<T: Decide>(chart: &WallChartQ, band: Band) -> Result<(), PropsError> {
     if chart.ends.is_empty() {
         return Err(PropsError::QuadratureUnsupported {

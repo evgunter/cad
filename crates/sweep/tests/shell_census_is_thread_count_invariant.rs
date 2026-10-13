@@ -60,7 +60,8 @@ fn voided_rod() -> Body<f64> {
 /// sum anchor-free: every loop closes on the chart at each of its edge
 /// junctions (`props_chart_junction_closed`), and turns about the
 /// cylinder a whole number of times, here none
-/// (`props_chart_loop_turns` Positive: short of a half turn) —
+/// (`props_chart_loop_turns` Positive: short of a half turn, and
+/// `props_chart_loop_whole` Zero: within the slack of none) —
 /// per-junction and per-loop facts, whichever edge a walk starts at.
 ///
 /// Each shell is read twice, so every `props_*` count is even: once at
@@ -89,6 +90,7 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("chk_shell_volume_sign_enclosure Positive", 1),
         ("props_chart_junction_closed Zero", 16),
         ("props_chart_loop_turns Positive", 4),
+        ("props_chart_loop_whole Zero", 4),
         ("props_circle_axis_class Positive", 8),
         ("props_cylinder_circle_off_axis Zero", 8),
         ("props_cylinder_circle_tilt Zero", 8),
