@@ -453,6 +453,17 @@ The merged head reads bracket `[1390,58,1008,1865]` (whole) and pad
 `[1248,69,1159,2914]` (`pcurve_envelope`). Main between #4591 and #4700
 (`fbee5ef1ac`..`59833a173e`) did not compile `sweep`; those merges were
 read with #4700's fix applied.
+Merging `main` (`b2333f2120`) again took the row to three columns,
+`[symbolic, numeric, frozen]`: #4929 (`ee5c82a643`, DECIDE-10) deleted
+the label kind, so a registered discharge now counts in `symbolic`
+(main's link `[347,9,…]` → `[356,…]`), and moved main's own bracket
+prefix 623 → 626. The merged head reads bracket `[1453,1008,1869]`
+(whole) and pad `[1319,1159,2916]` (`pcurve_envelope`), identical at
+ε = 1e-6, 1e-9 and 1e-12 (release). The fold accounts for bracket 1448
+and pad 1317; the rest (bracket `symbolic` +5, `frozen` +4; pad
+`symbolic` +2, `frozen` +2) moved in main's merges and was not bisected
+merge by merge. With `crates/profile/src/seg.rs` reverted to main's on
+that tree, the row reads main's `[626,464,830]` and `[340,277,314]`.
 
 ## Closed (SYM-16, PR #4155, 2026-10-06)
 

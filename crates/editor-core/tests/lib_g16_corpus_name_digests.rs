@@ -175,11 +175,18 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// junction of three seam lines to a crossing of the rim, and one from
 /// a face crossing to the seam vertex of two edges that touch. Every
 /// other document held its word.
+///
+/// **Re-pinned for the vertex run** (N2: an `EdgeCrossing` is a run of
+/// (line, sense) in name order): `corner_table` and `crossing_slots`,
+/// the two documents whose pair booleans meet edge to edge. Their
+/// tables are the old ones with each edge × edge vertex re-spelled: read
+/// as a set of (line, sense), every run is the pair it replaced, and no
+/// other row moved.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xa5e9e0fd2bbaebcf),
-    ("corner_table", 0x2da74bb6e496b7ae),
+    ("corner_table", 0x37758803526e4b40),
     ("heat_sink", 0xaa9e6024a43311a1),
-    ("crossing_slots", 0x0f52b7fab759cd1f),
+    ("crossing_slots", 0x30b0c4518dffbfa1),
     ("nested_islands_105", 0x8ab7c6f45f60f9dd),
     ("nested_islands_106_depth1", 0x2ba81ab7b5c23ae0),
     ("nested_islands_106_depth2", 0x4c2246499d325098),

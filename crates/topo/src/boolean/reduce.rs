@@ -191,6 +191,19 @@ impl PendingRow {
             margin,
         }
     }
+
+    /// Face `a` of A tangent to face `b` of B, decided by `margin`
+    /// (the glue door's tangency, [`super::tangent_row`]'s decision).
+    pub(crate) fn tangent(a: FaceKey, b: FaceKey, margin: MarginDiag) -> Self {
+        Self {
+            cells: [
+                (Operand::A, super::Cell::Face(a)),
+                (Operand::B, super::Cell::Face(b)),
+            ],
+            relation: crate::Relation::SurfaceTangent,
+            margin: Some(margin),
+        }
+    }
 }
 
 impl ContactAcc {
@@ -607,7 +620,7 @@ fn gate_sliver_orientation<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let solids: Vec<crate::entity::SolidKey> = match body.outcome() {
-        crate::AtRestOutcome::Validated => body.slivers().iter().map(|s| s.solid).collect(),
+        crate::AtRestOutcome::Validated => body.slivers().to_vec(),
         crate::AtRestOutcome::NotRunAtThisScalar => body.solids().map(|(k, _)| k).collect(),
     };
     for solid in solids {
@@ -2365,10 +2378,10 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   lies on the carrier, so the ends decide under the same rule.
         //   Neither end can place on this face against the verdict (the
         //   mixed-sign arm above says why).
-        // - **`LiesOn`: an arc lying on the carrier**, exactly on by the
-        //   circle root door; **`Constant`: a ruling lying on a wall**,
-        //   its residual decided Zero at both ends and its distance from
-        //   the axis constant over the span. Either is an ON event (C4's
+        // - **`LiesOn`: a circle or ellipse arc lying on the carrier**,
+        //   exactly on by the conic root doors; **`Constant`: a ruling
+        //   lying on a wall**, its residual decided Zero at both ends and
+        //   its distance from the axis constant over the span. Either is an ON event (C4's
         //   one-sided cover, narrowed to touches) when every surface of a
         //   face it bounds is decided distinct from `face`'s by the
         //   carrier ladder: the edge is then a curve where two different
@@ -2714,12 +2727,11 @@ impl<T: geom_core::Real> Interior<T> {
     }
 }
 
-/// The declared arms' interior question, asked only of an edge the
-/// carrier-identity rung puts ON `face`'s carrier (`on_carrier`): where
-/// it crosses `face`'s boundary strictly inside its span
-/// ([`super::carrier_cross`]), over line and circle boundary edges only:
-/// an ellipse on the boundary keeps the frontier door, as does any other
-/// carrier pair with no closed form.
+/// The interior question, asked only of an edge the carrier-identity
+/// rung puts ON `face`'s carrier (`on_carrier`): where it crosses
+/// `face`'s boundary strictly inside its span
+/// ([`super::carrier_cross`]); a carrier pair that module has no closed
+/// form for keeps the frontier door.
 fn interior<T: Decide>(
     on_carrier: bool,
     y: &Body<T>,
@@ -2729,20 +2741,11 @@ fn interior<T: Decide>(
     band: Band,
     frontier: impl Fn() -> BooleanError,
 ) -> Result<Interior<T>, BooleanError> {
-    use super::carrier_cross::{BoundaryCrossing, BoundaryReads, boundary_crossing};
+    use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
     if !on_carrier {
         return Ok(Interior::Unseen);
     }
-    let reads = BoundaryReads::LinesAndCircles;
-    match boundary_crossing(
-        y,
-        x_is.other(),
-        face,
-        curve.carrier(),
-        curve.params(),
-        reads,
-        band,
-    )? {
+    match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
         BoundaryCrossing::At { t, p, at, margin } => Ok(Interior::Crossing(CurvedEvent::Pierce {
             t,
             p,
@@ -2767,11 +2770,11 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
     tol: Tol,
 }
 
-/// **An arc or a ruling lying on `face`'s carrier, its parents distinct
-/// from it:** the endpoint records, once its interior is certified to
-/// cross `face`'s boundary nowhere, or a split where it crosses it.
-/// Three readings for an arc, in order, and the last alone for a
-/// ruling; anything else keeps the door (`None`):
+/// **An arc, an ellipse or a ruling lying on `face`'s carrier, its
+/// parents distinct from it:** the endpoint records, once its interior
+/// is certified to cross `face`'s boundary nowhere, or a split where it
+/// crosses it. Three readings for an arc, in order, and the last alone
+/// for an ellipse or a ruling; anything else keeps the door (`None`):
 ///
 /// - **off the boundary but at its ends**: the face's boundary meets the
 ///   arc's own circle nowhere but at the vertices of `y` the arc's ends
@@ -2785,22 +2788,20 @@ struct ArcOnCarrier<'a, T: geom_core::Real> {
 ///   each leaving along this arc's tangent where it starts
 ///   ([`super::arcs::arcs_along`]) and arriving at a point decided on
 ///   this arc's circle. A circle through two points with a given tangent
-///   at one is unique (this arc is a circle: an ellipse answers `LiesOn`
-///   too, and keeps the door below), so the chain IS this arc, and edges of a valid body
-///   cross no face's interior: the end records, with the chain's inner
+///   at one is unique, so the chain IS this arc, and edges of a valid
+///   body cross no face's interior: the end records, with the chain's inner
 ///   vertices that the other direction's sweep records on this arc, are
 ///   every incidence it has.
 /// - **the interior question**: where the span meets the face's
-///   boundary strictly inside it ([`super::carrier_cross`]: any line,
-///   circle or ellipse boundary edge, or a boundary vertex). A meeting
+///   boundary strictly inside it ([`super::carrier_cross`]). A meeting
 ///   is a `Pierce` the caller splits both edges at, as at a wall pierce
 ///   landing on the boundary, and each fragment is read again here; a
 ///   certified absence is (a)'s conclusion. A seam ruling a rim crosses
 ///   mid-arc is such a meeting: (a) reads the whole circle, which the
 ///   ruling meets wherever the rim is turned, and (b) has no chain.
 ///
-/// Over line, circle and ellipse boundaries (a) is a fast path: what it
-/// certifies the interior question would too. It still decides alone
+/// Where the interior question reads the boundary, (a) is a fast path:
+/// what it certifies the interior question would too. It still decides alone
 /// where a boundary ellipse lies in the arc's own plane, which (a) reads
 /// through its plane crossings and the interior question leaves unread.
 ///
@@ -2847,7 +2848,7 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
         .get_curve_geom(e.curve)
         .and_then(CurveGeom::certified)
         .ok_or_else(|| lost("an arc on a carrier: the edge's curve is lost"))?;
-    // A ruling of a wall has no circle for (a) and (b) to read: the
+    // A ruling or an ellipse has no circle for (a) and (b) to read: the
     // interior question alone decides it.
     let circle = match *curve.carrier() {
         geom::Curve3::Circle {
@@ -2856,7 +2857,7 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
             radius,
             ..
         } => Some((center, axis, radius)),
-        geom::Curve3::Line { .. } => None,
+        geom::Curve3::Line { .. } | geom::Curve3::Ellipse { .. } => None,
         _ => return Ok(None),
     };
     let mut placed = [(Placement::Undecided, None); 2];
@@ -2901,18 +2902,9 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
             }
         }
     }
-    use super::carrier_cross::{BoundaryCrossing, BoundaryReads, boundary_crossing};
-    let reads = BoundaryReads::WithEllipses;
+    use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
     Ok(
-        match boundary_crossing(
-            y,
-            x_is.other(),
-            face,
-            curve.carrier(),
-            curve.params(),
-            reads,
-            band,
-        )? {
+        match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
             BoundaryCrossing::At { t, p, at, margin } => Some(CurvedEvent::Pierce {
                 t,
                 p,
@@ -3286,14 +3278,10 @@ fn wall_crossing<T: Decide + Bounds>(
     // read for reach here, and an ellipse whose frame cannot be read is
     // a kernel bug, refused — never a zero speed that would read every
     // root as at the span's end.
-    let speed_at = |t: T| match *carrier {
-        geom::Curve3::Line { dir, .. } => Ok(dir.norm()),
-        geom::Curve3::Circle { radius, .. } => Ok(radius),
-        _ => geom_brep::Conic::of(carrier).map(|c| c.speed_at(t)).ok_or(
-            BooleanError::ClassificationInvariant {
-                what: "a wall root's carrier is neither a line nor a conic",
-            },
-        ),
+    let speed_at = |t: T| {
+        crate::carrier_speed::speed_at(carrier, t).ok_or(BooleanError::ClassificationInvariant {
+            what: "a wall root's carrier is neither a line nor a conic",
+        })
     };
     let (count, roots) = match found {
         CircleRoots::Certified { count, thetas } => (count, thetas),
@@ -4090,30 +4078,28 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
 /// joins (an existing vertex, or the piercing edge's split at `p`)
 /// reads one point whichever operand's point the merge keeps.
 ///
-/// Two carriers have an exact point parameter and both are taken:
+/// The parameter is [`geom::Curve3::param_near`] anchored at the span's
+/// MIDPOINT: a line's projection `t = (p − origin)·dir`, a circle's
+/// azimuth, an ellipse's eccentric anomaly, a spiric's tube angle. That
+/// function carries the derivations and the reason an anchored read
+/// needs no branch selection; the midpoint is this site's anchor because
+/// the parameter wanted is the one INSIDE the stored span, and within a
+/// period the nearest branch to the midpoint is exactly that one. Where
+/// an interval enclosure of it is too wide to place `t` strictly inside
+/// the span, `split_edge`'s own interiority trilean escalates.
 ///
-/// - **`Line`**: the projection `t = (p − origin)·dir`.
-/// - **`Circle`**: the azimuth anchored at the span's MIDPOINT. Both
-///   are [`geom::Curve3::param_near`], which carries the derivation and
-///   the reason an anchored read needs no branch selection; the
-///   midpoint is this site's anchor because the parameter wanted is the
-///   one INSIDE the stored span, and under the period guard below the
-///   nearest branch to the midpoint is exactly that one. Where an
-///   interval enclosure of it is too wide to place `t` strictly inside
-///   the span, `split_edge`'s own interiority trilean escalates.
+/// On a circle, `p` must lie ON the carrier for the azimuth to name the
+/// event: the distance from `p` to the circle (radial and axial misses
+/// folded, the exact hypotenuse) is classified on `bool_contact_arc` —
+/// the same row the boundary pre-pass uses for the same quantity —
+/// before the parameter is taken, and the span is checked to be at most
+/// a period. The angular half of "on the ARC" is not repeated here:
+/// `split_edge`'s interiority gate is exactly that question, metered in
+/// metres at the radius.
 ///
-/// `p` must lie ON the carrier for the azimuth to name the event: the
-/// distance from `p` to the circle (radial and axial misses folded, the
-/// exact hypotenuse) is classified on `bool_contact_arc` — the same row
-/// the boundary pre-pass uses for the same quantity — before
-/// the parameter is taken. The angular half of "on the ARC" is not
-/// repeated here: `split_edge`'s interiority gate is exactly that
-/// question, metered in metres at the radius.
-///
-/// `Ellipse` and `Nurbs` carriers keep the typed refusal
+/// A `Nurbs` carrier has no point parameter and keeps the typed refusal
 /// [`BooleanError::PointSplitCarrierUnsupported`], its own variant
-/// because this precondition is NOT the operand gate's — the gate
-/// admits `Ellipse` and this lane cannot take it.
+/// because this precondition is NOT the operand gate's.
 fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     y: &mut Body<T>,
     y_is: Operand,
@@ -4643,21 +4629,21 @@ mod declaration_order_rows {
                 true,
                 Some(true),
                 Coincide::VertexOnCoveredFace,
-                DeclarationRead::Spent(GlueClass::REST),
+                DeclarationRead::Spent(GlueClass::Rest),
             ),
             (
                 Some(ContactClass::Rest),
                 false,
                 Some(true),
                 uncovered,
-                DeclarationRead::Spent(GlueClass::REST),
+                DeclarationRead::Spent(GlueClass::Rest),
             ),
             (
                 Some(ContactClass::Tangent),
                 false,
                 Some(false),
                 uncovered,
-                DeclarationRead::Spent(GlueClass::TANGENT),
+                DeclarationRead::Spent(GlueClass::Tangent),
             ),
         ];
         for (class, one, door, which, read) in postures {
@@ -4882,7 +4868,7 @@ mod declaration_order_rows {
     /// with the block's top and aligned with it. The sector names the
     /// one-carrier class the senses make the pair (`Rest` opposed, a
     /// continuation aligned), and its recourse is the geometry or the
-    /// tolerance.
+    /// tolerance, where that lies above `EPS_MIN` (D4 ¶4).
     #[test]
     fn a_coplanar_sectors_in_band_parallelism_refuses_on_the_sector() {
         use crate::test_support_fixtures::{brick, mapped_cube};
@@ -4907,7 +4893,7 @@ mod declaration_order_rows {
                     move |u, v, w| p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, w),
                     tol,
                 ),
-                GlueClass::REST,
+                GlueClass::Rest,
             ),
             (
                 "sunk into the block",
@@ -4931,15 +4917,26 @@ mod declaration_order_rows {
                 ),
                 "{label}: the sector names {class:?}, as the senses make the pair: {got:?}"
             );
+            let Err(BooleanError::Escalated { diag, .. }) = &got else {
+                panic!("{label}: an escalation: {got:?}");
+            };
+            let m = diag
+                .margin
+                .diagnostic_f64_for_error_text()
+                .value()
+                .expect("a point margin");
+            let offers = band.offer_deciding(m).is_some();
             let text = got.expect_err("it refuses").to_string();
             assert!(
                 text.starts_with("how two corners of the two solids overlap where they meet is ")
                     && text.contains(
                         "Recourse: move the parts so they clearly meet or clearly stand apart \
-                         there, or, if this gap is intended, tighten the tolerance below "
+                         there"
                     )
+                    && text.contains(", or, if this gap is intended, tighten the tolerance below ")
+                        == offers
                     && !text.contains("declare"),
-                "{label}: {text}"
+                "{label}: offered exactly above EPS_MIN ({offers}): {text}"
             );
         }
     }

@@ -1,6 +1,7 @@
-//! Review probes for PR 4737 (`record_spans`, `ee_lineage`): poses that
-//! stress a span's bounds, printed one line per run so base and head
-//! diff. Run with `--ignored --nocapture`.
+//! Review probes for `record_spans` and the carry of an edge-edge record
+//! onto the reduction's split pieces (`ops::carried`): poses that stress
+//! a span's bounds, printed one line per run so base and head diff. Run
+//! with `--ignored --nocapture`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

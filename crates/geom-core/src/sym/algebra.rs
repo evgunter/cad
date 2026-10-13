@@ -18,10 +18,7 @@
 //! square for squares of strictly older atoms, and the DAG is finite; a
 //! step cap and the size budget stand behind that argument.
 //!
-//! Neither rule reads a value. Rule C (`sqrt(X) = R` by a certified
-//! sign of `R`, clause 3) is the one rule that does, and it lives in
-//! its own module (`super::signed`) with the one door the
-//! value comes through.
+//! Neither rule reads a value.
 //!
 //! # Two places the rewrite runs
 //!
@@ -208,11 +205,7 @@ fn poly_subst_square(poly: &Poly, id: u128, repl: &Form, budget: SymBudget) -> O
         site!("the running sum");
         acc = acc.add(&product)?;
     }
-    let out = Form::quotient(acc, dens.into_iter().nth(h as usize)?);
-    Some(Form {
-        gated: repl.gated,
-        ..out
-    })
+    Some(Form::quotient(acc, dens.into_iter().nth(h as usize)?))
 }
 
 /// Applies one square reduction: substitute in numerator and
@@ -221,11 +214,7 @@ fn apply(f: &Form, sq: &Square, budget: SymBudget) -> Option<Form> {
     let num = poly_subst_square(&f.num, sq.id, &sq.x, budget)?;
     let den = poly_subst_square(&f.den, sq.id, &sq.x, budget)?;
     site!("the quotient's product");
-    let out = num.mul(&den.recip()?, budget)?;
-    Some(Form {
-        gated: out.gated || f.gated,
-        ..out
-    })
+    num.mul(&den.recip()?, budget)
 }
 
 /// The most substitutions `reduce` takes before it FREEZES. Each step

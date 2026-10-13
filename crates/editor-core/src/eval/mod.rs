@@ -29,7 +29,9 @@ pub use parts::PartFault;
 pub(crate) mod schedule;
 pub(crate) mod slots;
 mod wire;
-pub(crate) use wire::decision_words;
+pub(crate) use wire::{
+    DECISION_WORDS, EVAL_DIRECTION_NORM, PATTERN_SPACING, PATTERN_STEP, PATTERN_STEP_TURN,
+};
 
 pub(crate) use wire::{
     DATUM_AXIS_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar, need_vec3,
@@ -1711,6 +1713,36 @@ pub enum NodeErrorKind {
         /// The escalation, unaltered.
         source: Indeterminate,
     },
+    /// **A measurement's parallelism read escalated** (D10's Measure
+    /// ground): the measure door's own sentence, which [`Self::Escalated`]'s
+    /// does not speak for. Its class is [`NodeErrorClass::Escalated`].
+    MeasureEscalated {
+        /// The named predicate.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: Indeterminate,
+    },
+    /// **A placement frame's rotation axis escalated** (D10's placement
+    /// ground): the sentence `EditError::PlacementAxis` carries, which
+    /// [`Self::Escalated`]'s does not speak for. Its class is
+    /// [`NodeErrorClass::Escalated`].
+    PlacementAxisEscalated {
+        /// The named predicate.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: Indeterminate,
+    },
+    /// **A pose's or datum's direction escalated** (D10's pose ground):
+    /// a datum's axis, normal or frame axis, or a pose construction's
+    /// direction, in the sentence [`Self::FrameDirection`] also carries,
+    /// which [`Self::Escalated`]'s does not speak for. Its class is
+    /// [`NodeErrorClass::Escalated`].
+    PoseDirectionEscalated {
+        /// The named predicate.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: Indeterminate,
+    },
     /// **A pose read off geometry found none of its kind** (D10): a
     /// face read as a plane on a curved carrier (DM1b), an axis read
     /// off a carrier that has no axis (a plane, a sphere), a point read
@@ -2317,6 +2349,16 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::Escalated { predicate, source } => {
                 // What the decision was deciding, in words; the name is
                 // routing and rides `Debug`.
+                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
+                write!(
+                    f,
+                    "{}",
+                    source.undecided(what, crate::decision::ending(predicate, source))
+                )
+            }
+            Self::MeasureEscalated { predicate, source }
+            | Self::PlacementAxisEscalated { predicate, source }
+            | Self::PoseDirectionEscalated { predicate, source } => {
                 let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(f, "{what} is too close to call: {source}")
             }
@@ -6297,11 +6339,15 @@ fn extrude_side_tag(side: crate::node::ExtrudeSide) -> u8 {
     }
 }
 
-fn sense_tag(sense: crate::names::Sense) -> u8 {
+/// A crossing sense's key tag: a run line with no sense (a seam) is 0.
+fn sense_tag(sense: Option<crate::names::Sense>) -> u8 {
     use crate::names::Sense;
     match sense {
-        Sense::Enters => 1,
-        Sense::Leaves => 2,
+        None => 0,
+        Some(Sense::Enters) => 1,
+        Some(Sense::Leaves) => 2,
+        Some(Sense::Outside) => 3,
+        Some(Sense::Inside) => 4,
     }
 }
 
@@ -6553,18 +6599,14 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::Crossing { edge, face, sense } => {
             h.name(edge);
             h.name(face);
-            h.write_tag(sense_tag(*sense));
+            h.write_tag(sense_tag(Some(*sense)));
         }
-        RoleSeg::EdgeCrossing {
-            a,
-            a_sense,
-            b,
-            b_sense,
-        } => {
-            h.name(a);
-            h.write_tag(sense_tag(*a_sense));
-            h.name(b);
-            h.write_tag(sense_tag(*b_sense));
+        RoleSeg::EdgeCrossing(run) => {
+            h.write_u64(run.len() as u64);
+            for l in run {
+                h.name(&l.line);
+                h.write_tag(sense_tag(l.sense));
+            }
         }
         RoleSeg::Merged(names) => {
             h.write_u64(names.len() as u64);
@@ -6593,7 +6635,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::CrossingVertex { side, edge, sense } => {
             h.write_tag(half(*side));
             h.name(edge);
-            h.write_tag(sense_tag(*sense));
+            h.write_tag(sense_tag(Some(*sense)));
         }
         RoleSeg::OnToolVertex { side, of } => {
             h.write_tag(half(*side));

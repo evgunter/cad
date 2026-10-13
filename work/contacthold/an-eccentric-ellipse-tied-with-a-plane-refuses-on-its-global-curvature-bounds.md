@@ -26,3 +26,14 @@ the reading reads, from the base vertex to `l`. Bounding `κ` over that
 parameter interval (the ellipse's curvature is monotone between axis
 ends) would certify the same arcs as a circle of comparable bend.
 Reachability by a modelled body is unshown.
+
+**Both lanes now.** The splitting lane reads an in-plane conic
+departure through the same `geom_brep::conic_bend_side`
+(`two-second-order-conic-readers-certify-one-fact-differently`), so
+an eccentric ellipse departing in a split plane refuses `SliverSector`
+on `conic_bend` where the old bare sagitta answered. A semi-axis ratio
+of 5 still reads its bend in the split
+(`crates/sweep/tests/a_plane_along_an_elliptic_cut.rs`,
+`a_plane_tangent_along_the_ruling_reads_the_elliptic_edges_by_their_bend`).
+The bounds live once, in `ConicBend::of`
+(`crates/geom-brep/src/conic_bend.rs`).

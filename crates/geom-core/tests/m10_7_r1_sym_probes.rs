@@ -38,7 +38,7 @@ fn zero(m: Sym<f64>) -> bool {
 /// Runs `f` in a fresh session and answers (decided zero?, symbolic count).
 fn sym(f: impl FnOnce() -> Sym<f64>) -> (bool, u64, u64) {
     let (out, counts) = with_session(budget(), || zero(f()));
-    (out, counts.symbolic_zero, counts.frozen)
+    (out, counts.symbolic, counts.frozen)
 }
 
 // ------------------------------------------------------- claim 2: identities
@@ -133,27 +133,24 @@ fn r1_the_nested_arc_endpoint_residual_is_not_reached_pinned() {
     let (ok, counts) = with_session(budget(), || zero(family()));
     assert!(ok, "at a point the numeric channel answers Zero");
     assert_eq!(
-        counts.sign_gated + counts.symbolic_zero,
-        0,
+        counts.symbolic, 0,
         "the nested radius sqrt is buried in the outer sqrt's argument, \
          out of the top-residual fold's reach: {counts:?}"
     );
 }
 
-/// `sqrt(r·r) − r` where the argument's FORM is exactly `r²`: rule C
-/// (`sqrt(Q²)=Q` by a certified sign) would discharge it, but rule C is
-/// FILED UNBUILT — reading `r`'s sign at the lane scalar conflicts with
-/// the bit-identity discipline — so the atom stays opaque and the
-/// decision is numeric. Pinned so the day rule C is built is a visible
-/// move (sign_gated goes from 0 to 1).
+/// `sqrt(r·r) − r` where the argument's FORM is exactly `r²`: it is
+/// zero only where `r ≥ 0`, which is a sign of `r` and not a decision
+/// the construction took, so the tier claims nothing and the decision
+/// is numeric.
 #[test]
-fn r1_sqrt_of_r_squared_stays_numeric_rule_c_is_filed() {
+fn r1_sqrt_of_r_squared_stays_numeric() {
     let (ok, counts) = with_session(budget(), || {
         let r = p("r", 2.0);
         zero((r * r).sqrt() - r)
     });
     assert!(ok, "numerically zero at the point");
-    assert_eq!(counts.sign_gated + counts.symbolic_zero, 0, "{counts:?}");
+    assert_eq!(counts.symbolic, 0, "{counts:?}");
 }
 
 // --------------------------------------------- claim 2: the quotient (D1)
@@ -297,10 +294,9 @@ fn r1_atoms_over_the_zero_form_fold_to_their_values() {
 /// moved to [`r1_min_and_max_of_one_form_are_that_form`] below.
 ///
 /// `abs(x) − abs(−x)` was the fourth case here and is one no longer.
-/// It was pinned as rule C's second shape (`|x| = ±x` by a certified
-/// SIGN) with rule C dial-off, so a fold could only have come from a
-/// value read — but the residual is an identity of reals that needs no
-/// sign at all, and DECIDE-3's rule G reaches it by KEYING: `|Y|` and
+/// `|x| − |−x|` was a case here, and the residual is an identity of
+/// reals that needs no sign at all: DECIDE-3's rule G reaches it by
+/// KEYING: `|Y|` and
 /// `|−Y|` name one magnitude, so they are one atom and the difference
 /// is the zero form. It has moved to
 /// [`r1_the_two_spellings_of_one_magnitude_are_one_atom`] below, which
@@ -325,8 +321,7 @@ fn r1_argument_keyed_atoms_stay_conservative() {
     for (i, f) in cases.into_iter().enumerate() {
         let (_, counts) = with_session(budget(), || zero(f()));
         assert_eq!(
-            counts.symbolic_zero + counts.sign_gated,
-            0,
+            counts.symbolic, 0,
             "case {i} decided symbolically: {counts:?}"
         );
     }
@@ -350,14 +345,11 @@ fn r1_min_and_max_of_one_form_are_that_form() {
         },
     ] {
         let (_, on) = with_session_rules(budget(), SymRules::shipped(), || zero(build()));
-        assert_eq!(
-            (on.symbolic_zero, on.sign_gated),
-            (1, 0),
-            "a fact of the FORM, not of the box: {on:?}"
-        );
-        // With A0 shut the certified READ can still answer it, and
-        // that is the point: the same fact comes back GATED — a claim
-        // conditional on the leaf's box — where A0 makes it a theorem.
+        assert_eq!(on.symbolic, 1, "a fact of the FORM: {on:?}");
+        // With A0 shut, at this POINT scalar nothing answers it: the
+        // decision read declines at an inexact witness
+        // (DECIDE-10's fix pass), even where, as here, both arms are
+        // one form. At an exact witness it answers — the row below.
         let (_, read_only) = with_session_rules(
             budget(),
             SymRules {
@@ -367,9 +359,8 @@ fn r1_min_and_max_of_one_form_are_that_form() {
             || zero(build()),
         );
         assert_eq!(
-            (read_only.symbolic_zero, read_only.sign_gated),
-            (0, 1),
-            "A0 is the dial that makes it a theorem rather than a read: {read_only:?}"
+            read_only.symbolic, 0,
+            "the read declines at a point scalar: {read_only:?}"
         );
         let (_, neither) = with_session_rules(
             budget(),
@@ -381,9 +372,59 @@ fn r1_min_and_max_of_one_form_are_that_form() {
             || zero(build()),
         );
         assert_eq!(
-            neither.symbolic_zero + neither.sign_gated,
-            0,
+            neither.symbolic, 0,
             "and with both shut the atom is opaque: {neither:?}"
+        );
+    }
+}
+
+/// [`r1_min_and_max_of_one_form_are_that_form`] at an EXACT witness
+/// (`Sym<Interval>` over a box): with A0 shut the certified READ still
+/// answers it — the same zero, reached through the arm — and with both
+/// shut the atom is opaque.
+#[test]
+fn r1_min_and_max_of_one_form_at_an_exact_witness_are_the_reads_with_a0_shut() {
+    use geom_core::Interval;
+    fn x() -> Sym<Interval> {
+        Sym::param_over(
+            ParamSymbol::new(test_utils::symbol_id("x")),
+            Interval::from_bounds(0.3, 0.5),
+            0.3,
+            0.5,
+        )
+    }
+    let decided = |m: Sym<Interval>| decide("r1_probe", Margin::of(m), band()) == Ok(Sign::Zero);
+    for (what, build) in [
+        (
+            "min(x, x) - x",
+            (|| x().min(x()) - x()) as fn() -> Sym<Interval>,
+        ),
+        ("max(x, x) - x", || x().max(x()) - x()),
+    ] {
+        let (_, read_only) = with_session_rules(
+            budget(),
+            SymRules {
+                const_fold: false,
+                ..SymRules::shipped()
+            },
+            || decided(build()),
+        );
+        assert_eq!(
+            read_only.symbolic, 1,
+            "{what}: the read answers what A0 does not: {read_only:?}"
+        );
+        let (_, neither) = with_session_rules(
+            budget(),
+            SymRules {
+                const_fold: false,
+                decision_read: false,
+                ..SymRules::shipped()
+            },
+            || decided(build()),
+        );
+        assert_eq!(
+            neither.symbolic, 0,
+            "{what}: with both shut the atom is opaque: {neither:?}"
         );
     }
 }
@@ -391,7 +432,7 @@ fn r1_min_and_max_of_one_form_are_that_form() {
 /// **`|x|` and `|−x|` are one atom** (DECIDE-3's rule G): the magnitude
 /// door keys an `Abs` atom on the sign-normalised argument, so the two
 /// spellings of one magnitude are one indeterminate and the residual is
-/// the zero FORM — a theorem, no value read, rule C still dial-off.
+/// the zero FORM — a theorem, no value read.
 /// With rule G shut the two are two atoms again and the tier is
 /// conservative, which is what says the theorem is the rule's and not
 /// something the walk did anyway.
@@ -403,16 +444,14 @@ fn r1_the_two_spellings_of_one_magnitude_are_one_atom() {
     };
     let (_, on) = with_session_rules(budget(), SymRules::shipped(), || zero(residual()));
     assert_eq!(
-        (on.symbolic_zero, on.sign_gated),
-        (1, 0),
-        "an identity of reals reached by the KEY, not by a read: {on:?}"
+        on.symbolic, 1,
+        "an identity of reals reached by the KEY: {on:?}"
     );
     let (_, off) = with_session_rules(budget(), SymRules::without_canonical_root(), || {
         zero(residual())
     });
     assert_eq!(
-        off.symbolic_zero + off.sign_gated,
-        0,
+        off.symbolic, 0,
         "and with rule G shut the two spellings are two atoms: {off:?}"
     );
 }
@@ -430,14 +469,12 @@ fn r1_copysign_of_a_manifestly_positive_sign_is_the_magnitude() {
     };
     let (_, counts) = with_session_rules(budget(), SymRules::shipped(), || zero(resid()));
     assert_eq!(
-        counts.symbolic_zero, 1,
+        counts.symbolic, 1,
         "copysign(x, 1) − |x| is a theorem: {counts:?}"
     );
-    assert_eq!(counts.sign_gated, 0, "it reads no value: {counts:?}");
     let (_, shut) = with_session_rules(budget(), SymRules::without_rule_f(), || zero(resid()));
     assert_eq!(
-        shut.symbolic_zero + shut.sign_gated,
-        0,
+        shut.symbolic, 0,
         "with rule F shut the copysign stays opaque: {shut:?}"
     );
 }
@@ -544,7 +581,7 @@ fn r1_zero_budget_is_the_tier_off() {
         zero(x - x)
     });
     assert!(ok, "f64 answers zero at the point");
-    assert_eq!((counts.symbolic_zero, counts.frozen), (0, 0));
+    assert_eq!((counts.symbolic, counts.frozen), (0, 0));
 }
 
 /// Deep products over budget: `(x+y+z)^40` at degree budget 16 freezes

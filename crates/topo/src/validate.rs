@@ -2525,7 +2525,7 @@ const WEDGE: SizedDecision = SizedDecision {
     size: "angle",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// On a smooth edge, the faces' second-order separation: passes when
@@ -2537,7 +2537,7 @@ const SEPARATION: SizedDecision = SizedDecision {
     size: "curvature difference",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The ending a kernel defect gets: nothing the user can change in
@@ -2546,8 +2546,11 @@ const SEPARATION: SizedDecision = SizedDecision {
 /// is the shared ending that names the file too.
 const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 
-/// The recourse for a tolerance that forms no usable band.
-const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
+/// The recourse for a tolerance that forms no usable band. A run's ε
+/// is finite and at least `EPS_MIN` (D4 ¶4), so the one way it fails to
+/// form a band is K·ε overflowing: the repair is a smaller ε.
+const TOLERANCE: &str = "Recourse: set a smaller tolerance, so that K times it stays finite; a \
+                         run admits none below the floor its session box sets";
 
 /// The recourse for a curve whose parameter range its image on a
 /// spline face cannot be expressed on — the lane's own.
@@ -2756,6 +2759,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its curve's distance from a face has no certified bound (it reaches a cone's \
              apex height or the other nappe)"
         }
+        CertifyError::AnalyticRung3(A::NoTubeEnclosure { .. }) => {
+            "its curve lies within the tolerance of both faces, but the check cannot yet \
+             enclose one face's gradient, so it cannot prove the curve is their one crossing"
+        }
         CertifyError::IntervalNotForward {
             verdict: Refused::Zero(_),
         } => "its length is within the tolerance of zero",
@@ -2825,9 +2832,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
             | CertifyError::PlaneNurbs(P::FootPointInconclusive { .. } | P::Unsupported { .. })
-            | CertifyError::AnalyticRung3(A::NoOffsetBound { .. } | A::Unsupported { .. }) => {
-                NOT_YET_ENDING
-            }
+            | CertifyError::AnalyticRung3(
+                A::NoOffsetBound { .. } | A::NoTubeEnclosure { .. } | A::Unsupported { .. },
+            ) => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::NurbsLaneNotSupplied => {
                 "Recourse: check the body through a door that holds the NURBS lane, \
@@ -3128,8 +3135,13 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 DEFECT.into(),
                 true,
             ),
-            P::ChartPeriodJump => reading(
-                "a face's stored boundary images do not meet on its chart",
+            P::ChartLoopOpen => reading(
+                "a face's stored boundary does not close on its surface",
+                DEFECT.into(),
+                true,
+            ),
+            P::LoopsWindChart => reading(
+                "a face's stored boundary loops wind around its surface as no boundary does",
                 DEFECT.into(),
                 true,
             ),
@@ -3211,11 +3223,9 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         M::Certify { error, .. } => {
             let (why, own) = match error {
                 C::UnsupportedChart { .. }
-                | C::UnsupportedCarrier { .. }
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
-                | C::BranchOutOfReach
-                | C::FittedMateMissing => (KIND, NOT_YET_ENDING),
+                | C::BranchOutOfReach => (KIND, NOT_YET_ENDING),
                 C::PlaceholderChart => (
                     geom::PLACEHOLDER_SURFACE,
                     crate::pcurves::PLACEHOLDER_RECOURSE,
@@ -5018,14 +5028,13 @@ pub fn validate_geometric_certificate<
 }
 
 /// [`validate_geometric_certificate`], with the one-shell solids its
-/// check 7 passed as slivers, each its solid's only shell
-/// ([`InBandShell`]).
+/// check 7 passed as slivers ([`AtRestBody::slivers`]).
 fn validate_geometric_kept<
     T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(
     body: &Body<T>,
     tol: Tol,
-) -> Result<(crate::props::SignCertificate<'_, T>, Vec<InBandShell>), Vec<ValidationError>> {
+) -> Result<(crate::props::SignCertificate<'_, T>, Vec<SolidKey>), Vec<ValidationError>> {
     // The structural phase runs WITH check 2's NURBS lane injected,
     // which is what keeps this composed door re-deriving the lane's
     // certificate classes at rest; the public structural door,
@@ -5085,7 +5094,10 @@ fn validate_geometric_kept<
 /// unbounded. **Check 2 makes no claim about an edge whose
 /// certificate needs the NURBS lane** ([`geom_brep::CertifyError::NurbsLaneNotSupplied`] lists the classes): such an
 /// edge re-derives only through that lane, which this door does not
-/// hold.
+/// hold. Nor does check 8 make it: a fitted row's check 4 bounds its
+/// image against its own chart alone, so neither a spline carrier's
+/// incidence with its mate (limbs 1 and 2) nor the uniqueness tube is
+/// re-derived here.
 /// Check 10 (shell winding) reads each shell's role off the same sums,
 /// and refuses a several-shell solid one of whose shells needed the
 /// quadrature or reads no role ([`ValidationError::ShellRoleUndecided`]).
@@ -5200,7 +5212,7 @@ fn validate_geometric_certified<
 >(
     body: &Body<T>,
     tol: Tol,
-) -> Result<(crate::props::SignCertificate<'_, T>, Vec<InBandShell>), Vec<ValidationError>> {
+) -> Result<(crate::props::SignCertificate<'_, T>, Vec<SolidKey>), Vec<ValidationError>> {
     let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
@@ -5258,19 +5270,18 @@ fn validate_geometric_certified<
 /// asserts — and `Err` is check 7's verdicts, never empty (it is built
 /// only when one was pushed). There is no state where the check came
 /// back clean without a certificate to hand on. Beside it, `Ok` lists
-/// the shells it passed as slivers, each its solid's only one
-/// ([`InBandShell`]).
+/// the one-shell solids it passed as slivers.
 fn plus_v_by_sign<'b, T: geom_core::Decide>(
     body: &'b Body<T>,
     band: Band,
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
-) -> Result<(crate::props::SignCertificate<'b, T>, Vec<InBandShell>), Vec<ValidationError>> {
+) -> Result<(crate::props::SignCertificate<'b, T>, Vec<SolidKey>), Vec<ValidationError>> {
     let mut errors = Vec::new();
     let mut parts = Vec::new();
     let mut slivers = Vec::new();
     for (solid, faces) in check7_subjects(body) {
-        let last = core::cell::Cell::new(OpenRound::AboutTheBody(None));
+        let last = core::cell::Cell::new(OpenRound::AboutTheBody { sliver: false });
         match crate::props::sign_walk(
             body,
             &faces,
@@ -5282,17 +5293,13 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
             |refusal| plus_v_at_target(refusal, last.get()),
         ) {
             Ok((verdict, certificate)) => {
-                if let (PlusVVerdict::Sliver(sliver), Some([shell])) = (
+                if let (PlusVVerdict::Sliver, Some([_])) = (
                     &verdict,
                     body.solids
                         .get(solid)
                         .map(|record| record.shells.as_slice()),
                 ) {
-                    slivers.push(InBandShell {
-                        solid,
-                        shell: *shell,
-                        sliver: *sliver,
-                    });
+                    slivers.push(solid);
                 }
                 errors.extend(plus_v_errors(solid, &verdict));
                 parts.push(certificate);
@@ -5736,8 +5743,9 @@ pub(crate) enum PlusVVerdict {
     Unresolved,
     /// The certified reading lies wholly inside one sliver band: the
     /// invariant exempts it and the solid passes, a sliver at this
-    /// tolerance. A boolean may not return it ([`InBandShell`]).
-    Sliver(crate::props::CertifiedSliver),
+    /// tolerance whose orientation the sign did not read
+    /// ([`AtRestBody::slivers`]).
+    Sliver,
 }
 
 /// **How check 7's last open round left the sign**, for
@@ -5745,21 +5753,16 @@ pub(crate) enum PlusVVerdict {
 #[derive(Clone, Copy, Debug)]
 enum OpenRound {
     /// Taken about the body ([`Certified::Open`]): in band, or straddling
-    /// zero by the body's own rounding; with the certified sliver where
-    /// the reading lies wholly in band.
-    AboutTheBody(Option<crate::props::CertifiedSliver>),
+    /// zero by the body's own rounding; `sliver` where the certified
+    /// reading lies wholly in band.
+    AboutTheBody { sliver: bool },
     /// Straddling zero at a face's world-origin width.
     Unresolved,
 }
 
-/// **A shell certified wholly in band**, which a boolean's result may
-/// not hold (D10, Booleans): check 10's role read of a shell of a
-/// solid of several ([`ValidationError::ShellRoleUndecided`]), or check
-/// 7's of a solid's only shell ([`AtRestBody::slivers`]), which the
-/// at-rest invariant passes. A solid of several shells whose total is
-/// in band while each shell's role decides is neither, and nothing
-/// refuses it
-/// (`work/flush/a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses.md`).
+/// **An in-band shell**, which a boolean's result may not hold (D10,
+/// Booleans): a shell of a solid of several whose role check 10
+/// certified wholly in band ([`ValidationError::ShellRoleUndecided`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct InBandShell {
     /// Its solid.
@@ -5809,8 +5812,8 @@ fn plus_v_at_target(
     match (refusal, last) {
         (Some(source), _) => PlusVVerdict::Uncomputable(source),
         (None, OpenRound::Unresolved) => PlusVVerdict::Unresolved,
-        (None, OpenRound::AboutTheBody(Some(sliver))) => PlusVVerdict::Sliver(sliver),
-        (None, OpenRound::AboutTheBody(None)) => PlusVVerdict::Pass,
+        (None, OpenRound::AboutTheBody { sliver: true }) => PlusVVerdict::Sliver,
+        (None, OpenRound::AboutTheBody { sliver: false }) => PlusVVerdict::Pass,
     }
 }
 
@@ -5823,7 +5826,9 @@ fn plus_v_round(certified: Certified, last: &core::cell::Cell<OpenRound>) -> Opt
         Certified::Role(crate::props::ShellRole::Outer) => Some(PlusVVerdict::Pass),
         Certified::Role(crate::props::ShellRole::Void) => Some(PlusVVerdict::Refuse),
         Certified::Open(unread) => {
-            last.set(OpenRound::AboutTheBody(unread.sliver()));
+            last.set(OpenRound::AboutTheBody {
+                sliver: unread.sliver().is_some(),
+            });
             None
         }
         Certified::Unresolved(_) => {
@@ -5837,7 +5842,7 @@ fn plus_v_round(certified: Certified, last: &core::cell::Cell<OpenRound>) -> Opt
 /// Check 7's verdict as the tier's error vector.
 fn plus_v_errors(solid: SolidKey, verdict: &PlusVVerdict) -> Vec<ValidationError> {
     match verdict {
-        PlusVVerdict::Pass | PlusVVerdict::Sliver(_) => Vec::new(),
+        PlusVVerdict::Pass | PlusVVerdict::Sliver => Vec::new(),
         PlusVVerdict::Refuse => vec![ValidationError::NegativeVolume { solid }],
         PlusVVerdict::Uncomputable(source) => vec![ValidationError::VolumeUncomputable {
             solid,
@@ -9243,7 +9248,7 @@ pub struct AtRestBody<T: Real> {
     body: Body<T>,
     outcome: AtRestOutcome,
     /// The one-shell solids check 7 passed as slivers.
-    slivers: Vec<InBandShell>,
+    slivers: Vec<SolidKey>,
 }
 
 impl<T: Real> AtRestBody<T> {
@@ -9277,11 +9282,11 @@ impl<T: Real> AtRestBody<T> {
         }
     }
 
-    /// The shells the gate passed as slivers, each its solid's only
-    /// shell: check 7 certified each one's volume sign wholly in band,
-    /// which the invariant exempts at rest. Empty where the gate did
-    /// not run.
-    pub(crate) fn slivers(&self) -> &[InBandShell] {
+    /// The one-shell solids the gate passed as slivers: check 7
+    /// certified each one's volume sign wholly in band, which the
+    /// invariant exempts at rest, so it did not read the solid's
+    /// orientation. Empty where the gate did not run.
+    pub(crate) fn slivers(&self) -> &[SolidKey] {
         &self.slivers
     }
 
@@ -10439,7 +10444,7 @@ mod tests {
         };
         let solid = SolidKey::default();
         let at_target = |certified| {
-            let last = core::cell::Cell::new(OpenRound::AboutTheBody(None));
+            let last = core::cell::Cell::new(OpenRound::AboutTheBody { sliver: false });
             assert!(
                 plus_v_round(certified, &last).is_none(),
                 "an open round decides nothing"
@@ -11848,9 +11853,14 @@ mod tests {
                 ),
             ),
             (
-                "pcurve fitted certificate, in band",
-                pcurve(PcurveCertifyError::FittedEscalated { cause: in_band }),
-                KERNEL_LIMIT_RECOURSE.to_owned(),
+                "pcurve fitted certificate's hull, in band",
+                pcurve(PcurveCertifyError::FittedEscalated {
+                    decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
+                    cause: in_band,
+                }),
+                "Recourse: loosen the tolerance, as a last resort; this refusal may indicate a \
+                 kernel bug worth reporting"
+                    .to_owned(),
             ),
         ];
         for (row, error, ending) in rows {

@@ -70,3 +70,34 @@ corpus document needed. It also blocks any fixture that wants a building union
 whose admission rests on a pair the fold never meets (a contact a third member
 covers), which is how both reviewers tried to exercise the pairwise verdicts.
 Worth re-weighing the priority.
+
+## `cross` no longer reaches it; the three-box reproducer still does (branch `emit/union-order`, 2026-10-13)
+
+`cross`'s 10 refusing orders were not this residue. They were a chase
+that stopped at a seam a later fold step had joined away: the join was
+not followed, and the joined-away edge's split lineage had left the
+finished body. `Obstacles` now follows both
+(`work/emit/a-merged-face-pieces-borders-in-a-union-depend-on-member-order.md`,
+closed). All 24 orders of `cross` fuse and publish one table, and the
+corpus pins (`emit_shared_rim_several`'s `RESIDUES`,
+`emit_union_flush_names`'s `KNOWN_REFUSING`,
+`union_member_orders_decide_alike`'s `EMIT_RESIDUES`) are gone. No
+corpus case reaches this row now.
+
+The three-box reproducer is unchanged on that branch. `[a, m, c]`,
+`[c, m, a]`, `[m, a, c]` and `[m, c, a]` still refuse "a piece of a
+face held as several borders...", and `[a, c, m]` and `[c, a, m]`
+build. Read in `[a, m, c]`, the parent is `a`'s top merged with `c`'s.
+The pairwise judgement of `a` and `c` links them. The fold loses the
+parent's region to two discards:
+- `a`'s top over x 0.5..1, discarded when `m` folds in;
+- `c`'s top over x 1..1.5, discarded when `c` folds in.
+
+The two meet along x = 1. Each dies with its own member's rim there,
+`a`'s and `c`'s, two distinct edges that no step ever glued, because
+`m` covered the contact before `c` arrived. Nothing in the rows joins
+the two discards. Each borders one piece, so neither divides.
+Linking them needs a reading of coincidence that the fold never
+performs: the `(a, c)` judgement's glue of those rims, or geometry.
+That choice is this row's open question.
+

@@ -1170,7 +1170,10 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // The escalation's payload is a MARGIN and a band, not an arm;
         // the predicate that escalated is a name the kernel mints and
         // the message carries.
-        NodeErrorKind::Escalated { .. } => None,
+        NodeErrorKind::Escalated { .. }
+        | NodeErrorKind::MeasureEscalated { .. }
+        | NodeErrorKind::PlacementAxisEscalated { .. }
+        | NodeErrorKind::PoseDirectionEscalated { .. } => None,
         NodeErrorKind::PoseRead { fault, .. } => Some(pose_read_fault_tag(fault)),
         NodeErrorKind::PoseDegenerate { construction } => Some(match construction {
             pncad::document::pose::PoseConstruction::Through => "through",
@@ -1564,6 +1567,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::UnjoinedOperand { .. } => "unjoined_operand",
         BlendError::SurgeryInvariant { .. } => "surgery_invariant",
         BlendError::RingClearance { .. } => "ring_clearance",
+        BlendError::WhollyInside { .. } => "wholly_inside",
         BlendError::Certify { .. } => "certify",
         BlendError::Op { .. } => "op",
         BlendError::Join { refusal } => join_refusal_tag(refusal),
@@ -1616,15 +1620,15 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::ContactContradicted => "contact_contradicted",
         BooleanErrorKind::ContinuationContradicted => "continuation_contradicted",
         BooleanErrorKind::UnsupportedDeclarationClass => "unsupported_declaration_class",
-        BooleanErrorKind::SeamContradicted => "seam_contradicted",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
-        BooleanErrorKind::TangentSlitArmUnbuilt => "tangent_slit_arm_unbuilt",
         BooleanErrorKind::InvalidInput => "invalid_input",
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::PinchConesOnSeparateKeys => "pinch_cones_on_separate_keys",
         BooleanErrorKind::PinchRaysInAFace => "pinch_rays_in_a_face",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
+        BooleanErrorKind::PartnerAlongFace => "partner_along_face",
+        BooleanErrorKind::NestingUnread => "nesting_unread",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
@@ -1642,7 +1646,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::JoinUndecided => "join_undecided",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
         BooleanErrorKind::RestPieceUnread => "rest_piece_unread",
+        BooleanErrorKind::CarryRefused => "carry_refused",
         BooleanErrorKind::JoinDesync => "join_desync",
+        BooleanErrorKind::LineageRow => "lineage_row",
         BooleanErrorKind::EdgeUndescribed => "edge_undescribed",
         BooleanErrorKind::TornComponent => "torn_component",
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
@@ -1754,7 +1760,6 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::Emission { .. } => "emission",
         NamingError::SplitLineage(_) => "split_lineage_cycle",
         NamingError::Settle(_) => "unsettled_vertex",
-        NamingError::FragmentLineage { .. } => "fragment_lineage_cycle",
         // The MISSING-RULE arms, tagged apart from "emission": a caller
         // branching on this word is deciding whether to report a kernel
         // bug, and these are not one.
@@ -2966,11 +2971,10 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::SameOriented => "same_oriented",
         R::SameOpposite => "same_opposite",
         R::OnCarrier => "on_carrier",
-        R::EqualAngles => "equal_angles",
+        R::CommonFoot => "common_foot",
         R::Tangent { aligned: true } => "tangent",
         R::Tangent { aligned: false } => "cusp",
-        R::TangentContact { seam: false } => "tangent_contact",
-        R::TangentContact { seam: true } => "seam",
+        R::SurfaceTangent => "surface_tangent",
         R::Coaxial => "coaxial",
         R::CoRuled => "co_ruled",
     }
@@ -3000,8 +3004,8 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
 pub fn coincidence_rung_tag(rung: pncad::document::Rung) -> &'static str {
     match rung {
         pncad::document::Rung::SameConstruction => "same_construction",
-        pncad::document::Rung::CarrierVerdict(_) => "carrier_verdict",
-        pncad::document::Rung::MarginIdentity(_) => "margin_identity",
+        pncad::document::Rung::CarrierVerdict => "carrier_verdict",
+        pncad::document::Rung::MarginIdentity => "margin_identity",
     }
 }
 

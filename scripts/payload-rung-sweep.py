@@ -151,10 +151,19 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # `BooleanError::EdgeUndescribed`'s failure, a kernel-defect refusal.
     "EdgeDescribeFailure": ("argued", "non-carriage with its falsifier, beside the "
                             "declaration in crates/topo/src/merge_faces.rs"),
+    # `BooleanError::LineageRow`'s two closed words: a kernel defect, so
+    # nothing branches on them.
+    "LineageRows": ("argued", "non-carriage with its falsifier, beside the declaration "
+                    "in crates/topo/src/lineage.rs"),
+    "RowDefect": ("argued", "non-carriage with its falsifier, beside the declaration "
+                  "in crates/topo/src/lineage.rs"),
     # `BooleanError::GermSectionSpiric`'s loops: `WedgeCheck`'s shape,
     # argued beside the declaration.
     "SpiricLoops": ("argued", "non-carriage with its falsifier, beside the declaration "
                     "in crates/topo/src/boolean/mod.rs"),
+    # `BooleanError::CarryRefused`'s `row`: whose record the carry refused.
+    "RefusedRow": ("argued", "non-carriage with its falsifier, beside the declaration "
+                   "in crates/topo/src/boolean/mod.rs"),
     # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed
     # decision types. The row also holds the two types nested one rung
     # further down (`SectorRung`, `CrossingDecision`), which this sweep
@@ -167,6 +176,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # carrier, the same row.
     "SectorRead": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                    "boolean-error.md"),
+    # `BooleanError::PartnerAlongFace`'s discriminant (PR 4413): the
+    # same carrier, the same row.
+    "AlongFace": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                  "boolean-error.md"),
     # `BooleanError`'s `DeclarationRead`: the glue a read pair held.
     "GlueClass": ("argued", "non-carriage with its falsifier, beside the declaration "
                   "in crates/topo/src/contact.rs"),
