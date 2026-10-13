@@ -196,6 +196,12 @@ impl<T: geom_core::Real> BoolSector<T> {
         ]
     }
 
+    /// The sector's middle direction, unnormalized: its bounds' sum,
+    /// inside the sector, which is convex.
+    pub(super) fn middle(&self) -> Vec3<T> {
+        self.start + self.end
+    }
+
     /// The farther of the sector's two bounds' reaches, in metres: how
     /// far from the base vertex the sector's own geometry is known.
     pub(super) fn span(&self) -> T {
@@ -1096,16 +1102,63 @@ pub(super) fn within<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
-    let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
-    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, read, diag);
-    let t1 = decide("bool_sector_within", c1, band).map_err(escalate)?;
-    let t2 = decide("bool_sector_within", c2, band).map_err(escalate)?;
+    let (t1, t2) = within_signs(s, dir, read, band)?;
     Ok(if strict {
         t1 == Sign::Positive && t2 == Sign::Positive
     } else {
         t1 != Sign::Negative && t2 != Sign::Negative
     })
+}
+
+/// [`within`]'s two readings of `dir` against `s`'s bounds: which side
+/// of `start`, then of `end`, it lies on, `Positive` toward the other.
+fn within_signs<T: Decide>(
+    s: &BoolSector<T>,
+    dir: Vec3<T>,
+    read: DeclarationRead,
+    band: Band,
+) -> Result<(Sign, Sign), BooleanError> {
+    let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
+    let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
+    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, read, diag);
+    Ok((
+        decide("bool_sector_within", c1, band).map_err(escalate)?,
+        decide("bool_sector_within", c2, band).map_err(escalate)?,
+    ))
+}
+
+/// **The half-planes `other`'s faces leave `dir` in**, where `dir` lies
+/// on the boundary of `other`'s corner: for each sector whose face's
+/// plane holds `dir` and whose closure holds it, the unit direction
+/// square to `dir` into the face, on each side of `dir` the sector lies
+/// — one side where `dir` runs along a bound, both where it runs inside.
+/// Around `dir`, the corner's material changes side at exactly these.
+pub(super) fn half_planes<T: Decide>(
+    dir: Vec3<T>,
+    reach: Reach<T>,
+    other: &[BoolSector<T>],
+    band: Band,
+) -> Result<Vec<Vec3<T>>, BooleanError> {
+    let mut out = Vec::new();
+    for s in other {
+        if plane_side_code(dir, reach, s.normal, band)? != SideCode::On {
+            continue;
+        }
+        // CCW about the normal from `start` to `end` (module docs), so
+        // the face lies ahead of `start` and behind `end`.
+        let ahead = s.normal.vec().cross(dir).normalize();
+        match within_signs(s, dir, DeclarationRead::Moot, band)? {
+            (Sign::Positive, Sign::Positive) => out.extend([ahead, -ahead]),
+            (Sign::Zero, Sign::Positive) if direction_sense(s.start, dir, s.arm, band)? => {
+                out.push(ahead);
+            }
+            (Sign::Positive, Sign::Zero) if direction_sense(s.end, dir, s.arm, band)? => {
+                out.push(-ahead);
+            }
+            _ => {}
+        }
+    }
+    Ok(out)
 }
 
 /// The sector's bounds that are edges of its face, with their unit
@@ -1597,7 +1650,7 @@ fn sector_overlap<T: Decide>(
 
 /// A sector bound's side code against a face's PLANE ([`side_code`]
 /// with [`NO_CURVATURE`]): what the sector passes read a bound against.
-fn plane_side_code<T: Decide>(
+pub(super) fn plane_side_code<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
     face_normal: OutwardNormal<T>,
@@ -1878,6 +1931,17 @@ pub(super) fn wedge_classes<T: Decide>(
     }))
 }
 
+/// **A corner's link mean** `c`: the mean of its sectors' unit bounds,
+/// with its shortest arm, the lever a reading of `c` is metered over.
+/// `None` for a corner with no sectors.
+pub(super) fn link_mean<T: Decide>(sectors: &[BoolSector<T>]) -> Option<(Vec3<T>, T)> {
+    let arm = sectors.iter().map(|s| s.arm).reduce(|a, b| a.min(b))?;
+    let sum = sectors
+        .iter()
+        .fold(Vec3::zero(), |acc, s| acc + s.start + s.end);
+    Some((sum / T::from_f64(2.0 * sectors.len() as f64), arm))
+}
+
 /// **Each edge of `own`'s orbit against `other`'s corner read as a
 /// polygon cone**: the corner's faces bound its material whatever its
 /// shape, a dart's apex (a reflex edge) or a saddle as much as a convex
@@ -1910,13 +1974,9 @@ pub(super) fn cone_read<T: Decide>(
             None => return Ok(None),
         }
     }
-    let Some(arm) = other.iter().map(|s| s.arm).reduce(|a, b| a.min(b)) else {
+    let Some((mean, arm)) = link_mean(other) else {
         return Ok(None);
     };
-    let sum = other
-        .iter()
-        .fold(Vec3::zero(), |acc, s| acc + s.start + s.end);
-    let mean = sum / T::from_f64(2.0 * other.len() as f64);
     let away = match decide("bool_cone_pointed", Margin::levered(mean.norm(), arm), band) {
         // An in-band `−c` labels nothing, as no side read does: the cone
         // is the material.
@@ -1996,7 +2056,7 @@ fn cone_side<T: Decide>(
     let mut escalation = None;
     'reference: for (s0, base) in other.iter().zip(&codes) {
         let Some(base) = *base else { continue };
-        let p = (s0.start + s0.end).normalize();
+        let p = s0.middle().normalize();
         let p_reach = Reach::Bisector(s0.arm);
         let mut held = base == SideCode::In;
         for (s, code) in other.iter().zip(&codes) {
@@ -2143,7 +2203,7 @@ fn in_sector<T: Decide>(
 ) -> Result<bool, BooleanError> {
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     let (d, n) = (dir.normalize(), s.normal.vec());
-    let sum = s.start + s.end;
+    let sum = s.middle();
     let middle = sum.normalize();
     let (one, l_start, l_end) = (
         T::from_f64(1.0),

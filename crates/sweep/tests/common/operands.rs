@@ -270,10 +270,27 @@ pub fn half_round_end() -> (Body<f64>, EdgeKey) {
 /// and the two top edges that turn at `(s, 0, 1)` — along `x` over the
 /// square end face `y = 0`, and along `y` over the leaning wall. The
 /// two bands' feet on the lateral edge meet only at `s = 0`, so at a
-/// definite lean both verbs overrun, which refuses
-/// (`blend::battery::TURN_OVERRUN`).
+/// definite lean both verbs overrun: the chamfer builds it, the fillet
+/// refuses (`blend::battery::TURN_OVERRUN`).
 pub fn leaning_turn(s: f64) -> (Body<f64>, [EdgeKey; 2]) {
     leaning_turn_at(s)
+}
+
+/// [`leaning_turn`] at [`lean_in_band`], where its chamfer turn
+/// escalates. A fillet's gap is linear in the lean, so the same lean is
+/// far outside its band: the fillet refuses its overrun
+/// (`blend::battery::TURN_OVERRUN`).
+pub fn leaning_turn_in_band(tol: Tol) -> (Body<f64>, [EdgeKey; 2]) {
+    leaning_turn(lean_in_band(tol))
+}
+
+/// The lean `s` at which [`leaning_turn`]'s chamfer turn at setback
+/// `0.1` reads in `tol`'s band (`band_turn_overrun_verdict`'s window:
+/// `0.015°` at the default band, scaling as the square root of its
+/// zero, as the chamfer's gap does at a box corner).
+pub fn lean_in_band(tol: Tol) -> f64 {
+    let r = (geom_core::Band::linear(tol).expect("a band").zero() / 1e-9).sqrt();
+    (0.015 * r).to_radians().tan()
 }
 
 /// [`leaning_turn`] at the scalar `T`: its corners read from `f64`.

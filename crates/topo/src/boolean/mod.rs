@@ -2511,6 +2511,22 @@ pub enum BooleanError {
         /// How the partner meets the face.
         along: AlongFace,
     },
+    /// A vertex of `operand` in pairs alone, where every edge of one
+    /// partner's corner lies on another's faces, so which holds which
+    /// is read off a direction strictly inside the first, and none
+    /// reads: the corner is thinner than the input tolerance (ε_input,
+    /// K·ε) wherever `vtxfac::interior` probes it, its candidates
+    /// reading on its faces or in band before any reads inside it
+    /// (`vtxfac::pair_classes`).
+    NestingUnread {
+        /// The operand whose vertex the partners pair with.
+        operand: Operand,
+        /// That vertex: a key of the operand's working copy.
+        vertex: VertexKey,
+        /// The other solid's corners, as keys of its working copy: the
+        /// one no direction inside reads, then the one its edges lie on.
+        partners: [VertexKey; 2],
+    },
     /// The result would hold a non-manifold vertex: both operands hold
     /// several vertices at one point, and A's crosses into two of B's
     /// (two crossing pairs share both their vertices). Each solid's
@@ -3197,6 +3213,8 @@ pub enum BooleanErrorKind {
     VertexReadTwice,
     /// [`BooleanError::PartnerAlongFace`].
     PartnerAlongFace,
+    /// [`BooleanError::NestingUnread`].
+    NestingUnread,
     /// [`BooleanError::NonManifoldResult`].
     NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
@@ -3437,6 +3455,7 @@ impl BooleanError {
             Self::PinchRaysInAFace { .. } => BooleanErrorKind::PinchRaysInAFace,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::PartnerAlongFace { .. } => BooleanErrorKind::PartnerAlongFace,
+            Self::NestingUnread { .. } => BooleanErrorKind::NestingUnread,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -3996,6 +4015,15 @@ impl core::fmt::Display for BooleanError {
                     AlongFace::Flush => "a face of the first corner on that face",
                     AlongFace::FacesInOnePlane => "a face of each corner in one plane",
                 }
+            ),
+            Self::NestingUnread { operand, .. } => write!(
+                f,
+                "a corner of the {} solid lands where corners of the other solid meet, one \
+                 lying along another's faces and thinner than the input tolerance (ε_input, \
+                 K·ε) wherever it is read, so the Boolean cannot tell which holds which. \
+                 Recourse: move the parts so that corner lands clear of the point, or make \
+                 the other solid's corner there thicker than ε_input",
+                operand_word(*operand)
             ),
             Self::NonManifoldResult { .. } => write!(
                 f,
@@ -4705,8 +4733,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // every pair is read (`vtxfac::touch_classes`), and each vertex in
     // pairs alone, likewise (`vtxfac::pair_classes`).
     let mut touches = std::collections::BTreeMap::new();
-    let mut paired: std::collections::BTreeMap<_, Vec<vtxfac::PairRead<T>>> =
-        std::collections::BTreeMap::new();
+    // Each vertex's own sectors, with its pairs.
+    let mut paired = std::collections::BTreeMap::new();
     // Vertex-on-face classification (sonva then sonvb, as 15.5). Each
     // pierce inserts its piercing side's null edges as it is read; the
     // rings follow, one per face and point (`vtxfac::mint_ring`).
@@ -4853,7 +4881,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         vtxfac::PartnerRead::Along(how) => return Err(along_face(how)),
                     }
                 }
-                None => paired.entry((operand, vertex)).or_default().push(pair),
+                None => paired
+                    .entry((operand, vertex))
+                    .or_insert_with(|| (own.clone(), Vec::new()))
+                    .1
+                    .push(pair),
             }
         }
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
@@ -4916,8 +4948,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             )?;
         read.push(((operand, vertex), classes));
     }
-    for (&key, pairs) in &paired {
-        read.push((key, vtxfac::pair_classes(key.0, key.1, pairs, band)?));
+    for (&key, (own, pairs)) in &paired {
+        read.push((key, vtxfac::pair_classes(key.0, key.1, own, pairs, band)?));
     }
     for ((operand, vertex), classes) in read {
         let body = match operand {
@@ -7263,6 +7295,11 @@ mod tests {
                 partner: VertexKey::default(),
                 along: AlongFace::Curved,
             },
+            BooleanError::NestingUnread {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                partners: [VertexKey::default(); 2],
+            },
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),
                 b_vertices: [VertexKey::default(); 2],
@@ -7464,6 +7501,7 @@ mod tests {
                 BooleanErrorKind::PinchRaysInAFace => "PinchRaysInAFace",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::PartnerAlongFace => "PartnerAlongFace",
+                BooleanErrorKind::NestingUnread => "NestingUnread",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",

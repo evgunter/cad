@@ -429,6 +429,16 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             bearing(238.0, 0.4, 0.4),
             bearing(230.0, 0.448, 0.4),
         ];
+        // A notched block: an octant void at `MEET`, and a tet tip in it
+        // whose three edges lie on the notch's three faces, so no edge
+        // of the tip lies inside the void; a pyramid reaching into the
+        // tip, the void beside it and the block pairs with both.
+        let octant = [[0.4, 0.0, 0.0], [0.0, 0.4, 0.0], [0.0, 0.0, 0.4]];
+        let tip = [[0.15, 0.15, 0.0], [0.0, 0.15, 0.15], [0.15, 0.0, 0.15]];
+        let notched_b = built("a notched block", subtract(&block_b, &p(octant), t()));
+        let tipped_b = built("a tip in the notch", union(&notched_b, &p(tip), t()));
+        let tipped = u(dd(G::All, c(octant)), c(tip));
+        let tipped_rev_b = built("the notch about a tip", union(&p(tip), &notched_b, t()));
         // A pentagonal void buried in the block: a vertex in one pair,
         // its partner hollow.
         let pentagon: Vec<[f64; 3]> = (0..5)
@@ -557,6 +567,7 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         // A pyramid with an edge opposite the saddle's valley at 90°,
         // on the planes of the two faces beside that valley, outside
         // their sectors, and its other two edges under the saddle.
+        let across_tip = pyr([[0.2, 0.2, 0.2], [0.3, 0.015, 0.015], [-0.3, -0.15, -0.06]]);
         let along_unread = pyr([
             bearing(270.0, 0.5, 0.2),
             bearing(250.0, 0.5, -0.5),
@@ -756,6 +767,21 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 "opposite a saddle's valley",
                 pick(&along_unread),
                 (&saddle_b, &saddle),
+            ),
+            (
+                "across a tip touching each face of its notch",
+                pick(&across_tip),
+                (&tipped_b, &tipped),
+            ),
+            (
+                "across a notch about a tip",
+                pick(&across_tip),
+                (&tipped_rev_b, &tipped),
+            ),
+            (
+                "beside a tip in its notch",
+                pick(&cone),
+                (&tipped_b, &tipped),
             ),
             (
                 "opposite a saddle's valley beside an arch",

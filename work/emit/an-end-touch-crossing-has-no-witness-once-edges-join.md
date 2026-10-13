@@ -33,3 +33,15 @@ the branch has no witness.
 Find a union or boolean that publishes an end-touch crossing — an edge
 ending inside a face it lies in, at a vertex of degree three or more —
 and pin its two senses, mutation-checked against that branch.
+
+## 2026-10-13 — re-measured (branch `emit/pair-meeting-run`)
+
+The area-overlap fixture still publishes no vertex at (0.2 | 0.4, 0 | 1,
+0.8) in any of its 6 member orders. At a union the case no longer reads
+a sense at minting. Since PR 4922 the union names every non-corner
+vertex from the finished body's lines, with member edges' senses from
+the pairwise judgements. A member edge ends only at its own vertex, so a
+union reaches no end-touch of a member edge, and this row's witness has
+to be a pair boolean's. The in-face union vertex a union does publish, a
+glued-away rim's end, is a run of seams with no sense
+(`a-union-edge-in-a-face-whose-member-face-glued-is-a-seam-not-a-member-edge-piece`).
