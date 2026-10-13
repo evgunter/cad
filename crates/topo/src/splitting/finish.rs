@@ -956,7 +956,10 @@ fn section_plane_restatements<T: Decide>(
             // A pair names no chart to restate it in: listed as it
             // stands, its key for this face stands for the chart the
             // face moves onto.
-            if !matches!(curve.description(), geom_brep::EdgeDescription::OnPair { .. }) {
+            if !matches!(
+                curve.description(),
+                geom_brep::EdgeDescription::OnPair { .. }
+            ) {
                 let image = geom_brep::EdgeDescriptionSpec::chart(chart);
                 spec.description = match curve.authority() {
                     geom_brep::EdgeAuthority::Declared(mc) => image.declared_by(mc),
