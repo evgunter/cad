@@ -1186,3 +1186,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Merged current main locally (`ecd87aa28b`, not yet pushed). nextest: main's file with the PR's +6 −2 sweep::all and +3 topo entries, compared per binary against main. Local verify of topo+sweep+geom-brep at three ε is running in /home/user/v4927.
   - The two fuzz lanes are mid-work: in-band, "door fix green, hunt clean"; pn-apex, "branch pushed". Re-armed for 11:05.
 - 2026-10-13 — 4927 local verify on `ecd87aa28b` (head + main `83ede6cb44`; pushed): fmt; topo+sweep+geom-brep 6802/6802 at each of the three ε; whole workspace `--profile ci` at default ε 13 717/13 717. The subagent could not read the hosted default-ε red: log tail window only, blob host denied, exit 100 = test failure. Most PR runs pass that step (9 of 13 recent failing runs). It does not reproduce locally, so I am waiting on the hosted run on `ecd87aa28b` and on d4927.
+- 2026-10-13 11:20 — Check-in. Both fuzz lanes are done:
+  - **PR 4964** (in-band sweep P1), head `c260b84e`. Hosted CI green. Two causes: a bare first-harmonic extreme in the door, and a judge reading distance instead of the ratified residual.
+  - **PR 4966** (pn apex reach plus the P2 orthonormal-frame sibling), head `5c565c0a`. The red was the oracle's; the fix is `square_seam` plus the `pair_bound` step-5 charge.
+  - Both are graded M. Arm draws: 4964 byte 96, 4966 byte 159. Both mod 3 = 0 → **HOLDOUT** pairs.
+  - Dispatched r4964a/b on `c260b84e` (brief sha256 `cdb29cc38a1a`) and r4966a/b on `5c565c0a` (brief `4f4b1d29bb92`), all local Opus, concurrent. Protocol `24b76fff0e`.
+  - 4927: hosted `test` is running on `ecd87aa28b`; d4927 is still out.
+  - Next lane, the ring-path far-frame item, waits for 4927 to land, since both touch `ring_path.rs`. Re-armed for 12:06.
