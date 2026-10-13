@@ -91,8 +91,8 @@ fn leaf<R>(m: &Arc<DriveMemo>, f: impl FnOnce() -> R) -> SymCounts {
 /// comparison do not always reach the same nodes.
 /// The rows from [`a_leaf_needs_a_frozen_node_once_however_often_it_reaches_it`]
 /// down are the ones about `frozen` itself.
-fn decisions(c: SymCounts) -> (u64, u64, u64) {
-    (c.symbolic_zero, c.numeric, c.sign_gated)
+fn decisions(c: SymCounts) -> (u64, u64) {
+    (c.symbolic, c.numeric)
 }
 
 /// **The write side of the unrecorded guard** (R1 M6 / R2 MINOR-2 —
@@ -112,7 +112,7 @@ fn decisions(c: SymCounts) -> (u64, u64, u64) {
 /// walk, so nothing downstream can rescue the form (under
 /// `SymRules::shipped` the EARLY walk, which stays per leaf, re-folds it
 /// and hides the move). Before the fix leaf B came back
-/// `symbolic_zero 0 / numeric 1`; the reference — the same leaf with no
+/// `symbolic 0 / numeric 1`; the reference — the same leaf with no
 /// memo at all — is `1 / 0`.
 #[test]
 fn an_unrecorded_freeze_is_never_published_to_the_drive_memo() {
@@ -126,7 +126,7 @@ fn an_unrecorded_freeze_is_never_published_to_the_drive_memo() {
     });
     assert_eq!(
         decisions(reference),
-        (1, 0, 0),
+        (1, 0),
         "without a memo the recorded node folds: {reference:?}"
     );
 
@@ -138,7 +138,7 @@ fn an_unrecorded_freeze_is_never_published_to_the_drive_memo() {
     });
     assert_eq!(
         decisions(a),
-        (0, 1, 0),
+        (0, 1),
         "leaf A freezes the unrecorded node: {a:?}"
     );
     // **The freeze is on A's column although no drive holds it.** A's
@@ -195,7 +195,7 @@ fn a_leaf_that_records_the_node_hands_a_later_leaf_a_theorem_it_would_have_misse
     let alone = with_session_rules(budget(), rules, || zero(c_outside * c_outside - lit(4.0))).1;
     assert_eq!(
         decisions(alone),
-        (0, 1, 0),
+        (0, 1),
         "on its own, a leaf that did not record the node freezes it: {alone:?}"
     );
 
@@ -204,13 +204,13 @@ fn a_leaf_that_records_the_node_hands_a_later_leaf_a_theorem_it_would_have_misse
         let c = lit(2.0);
         zero(c * c - lit(4.0))
     });
-    assert_eq!(decisions(first), (1, 0, 0), "{first:?}");
+    assert_eq!(decisions(first), (1, 0), "{first:?}");
     let (_, second) = with_session_memo(budget(), rules, &m, || {
         zero(c_outside * c_outside - lit(4.0))
     });
     assert_eq!(
         decisions(second),
-        (1, 0, 0),
+        (1, 0),
         "the leaf that did not record the node takes the recorded parent's published form and \
          reaches the theorem it would have missed alone ({alone:?} without the memo): {second:?}"
     );
@@ -251,7 +251,7 @@ fn a_leaf_varying_opaque_sequence_moves_no_decision_through_the_memo() {
     assert_eq!(r2, r0);
     assert_eq!(r3, r0);
     for c in [c0, c1, c2, c3] {
-        assert_eq!(decisions(c), (2, 1, 0), "{c:?}");
+        assert_eq!(decisions(c), (2, 1), "{c:?}");
     }
     println!("memo after four leaves with a leaf-varying opaque sequence: {m:?}");
 }
@@ -502,8 +502,8 @@ fn a_leafs_need_does_not_move_with_the_order_across_the_unrecorded_branch() {
         "before and after the recording leaf: {before:?} {recorder:?} {after:?}"
     );
     assert_eq!(
-        (before.symbolic_zero, before.numeric),
-        (after.symbolic_zero, after.numeric),
+        (before.symbolic, before.numeric),
+        (after.symbolic, after.numeric),
         "and no decision column moved either"
     );
 }

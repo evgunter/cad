@@ -3053,7 +3053,7 @@ unbounded translation enclosure the mints refuse.
 - It **shrinks** at minted placements: ten samples fewer per
   `Transform` node or pattern copy (`m10_6_certifying_keys`'s
   `min_clearance_neck` key moves; on the chain's symbolic lane
-  `symbolic_zero` is 30 fewer at one link and 200 fewer at four).
+  `symbolic` (then `symbolic_zero`) is 30 fewer at one link and 200 fewer at four).
 - It **shrinks by three** at an instance placed by a literal offset:
   the literal is decided once at the door (the group frame is read
   once a node), seven margins where the composite was decided once at
@@ -3082,3 +3082,21 @@ pair) and `datum_unit_norm` (the evaluation layer's lift), on the
 "one length, two funnel names, split by road" shape above: the
 placement is a general map, so the placed axis is a length of its
 own until the sketch plane is a frame.
+
+## DECIDE-10 addendum (2026-10-13): one symbolic token
+
+The symbolic tier's three K tokens are one. A decision the tier
+discharged is recorded as `symbolic` (`SampleOutcome::Symbolic`),
+however the walk reached the zero; `symbolic_zero`, `sign_gated`
+(M10-8) and `registered` (M10-9) are retired, and `k-lint` refuses each
+by name (`tools/k-lint/tests/outcome_vocabulary.rs`). The per-file and
+TOTAL lines print `(N symbolic, M classified)`. Like the tokens it
+replaces, `symbolic` is never a rule sample.
+
+What moved, measured on the driver dump (`k_report_driver_dump`,
+`--features probe`, ε = 1e-9) before and after: nothing but the
+spelling. The three fixtures' 57,124 samples are row-for-row identical
+with `symbolic_zero` read as `symbolic` (37,420 of them; 19,620
+positive, 52 negative and 32 zero classified on both sides). The
+decision read, which now declines at a point scalar such as the
+replay's `Sym<Probe>`, answered none of them.

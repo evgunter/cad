@@ -480,7 +480,7 @@ fn assert_row(row: &Row) {
                 row.first
             );
             assert!(
-                row.counts.symbolic_zero > 0,
+                row.counts.symbolic > 0,
                 "the tier is what carries it, so the leaf discharged identities: {:?}",
                 row.counts
             );
