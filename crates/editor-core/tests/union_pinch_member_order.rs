@@ -1316,7 +1316,10 @@ const TWO_GERMS: &str = "work/tang/an-edge-crossing-two-wedges-about-a-contact-l
 
 /// A table, key-free: each row's name by where its entities stand —
 /// a vertex at its point, an edge at its ends, a face at its vertices.
-fn named_shape(ev: &Evaluation<f64>, id: RecipeNodeId) -> BTreeMap<String, Vec<Vec<Point>>> {
+type NamedShape = BTreeMap<String, Vec<Vec<Point>>>;
+
+/// `id`'s table as a [`NamedShape`].
+fn named_shape(ev: &Evaluation<f64>, id: RecipeNodeId) -> NamedShape {
     let body = body_of(ev, id);
     let at = |k: &editor_core::EntityKey| -> Vec<Point> {
         let mut ps: Vec<Point> = match *k {
@@ -1356,7 +1359,7 @@ fn named_shape(ev: &Evaluation<f64>, id: RecipeNodeId) -> BTreeMap<String, Vec<V
 #[test]
 fn a_prism_bridging_two_wedges_is_named_alike_in_every_member_order_that_builds() {
     for (label, plate, builds) in [("with the plate", true, 18), ("alone", false, 6)] {
-        let mut first: Option<(Shape, BTreeMap<String, Vec<Vec<Point>>>)> = None;
+        let mut first: Option<(Shape, NamedShape)> = None;
         let mut built = 0;
         for order in every_order_of(4, plate) {
             let (doc, m) = bridging(ProfileDoc::empty_derived("bridge", Tol::witness()));

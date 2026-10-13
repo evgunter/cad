@@ -2,7 +2,8 @@
 id: a-prism-bridging-two-wedges-about-a-contact-line-refuses-shared-rim
 kind: issue
 title: A prism bridging two wedges about a contact line refuses Naming(SharedRim NotAdjacent) on a body topo builds sound
-status: open
+status: closed
+closed: 2026-10-13
 opened: 2026-10-08
 priority: P2
 cost: M
@@ -36,4 +37,53 @@ the other 16 (4) build through editor-core.
 Unmeasured: which face pair the refusal names and why it shares no
 edge. The refusing orders are those that fold the bridging prism
 onto the two touching ones.
+
+## Closed (branch `emit/naming-refusals`, 2026-10-13)
+
+**Measured.** The refusing orders are exactly those that fold the
+bridge `c` (30°–140°) right after the two wedges `a` (0°–50°) and
+`b` (120°–170°). At that fold step, operand A is `a ∪ b`; the bridge
+fills the gap between the wedges and is consumed there, so the result
+holds a **zip-listed seam edge** on the line from z 0.5 to 1.7 whose
+two faces are `a`'s 0° wall and `b`'s 170° wall. Both descend to
+operand A. In `a ∪ b` those walls share no edge (each meets its own
+wedge's other wall along one of the line's two coincident edges), so
+`emit_topo`'s `chord_kind` asked `same_side_rim` for their rim and got
+`NotAdjacent`. The refusal came through `seam_pair`, not through the
+derived-chord path the row guessed.
+
+**Fix** (`names/emit_topo.rs`, `chord_kind`). Two unmerged faces of one
+operand that share no edge in it can meet in the result only where the
+other operand filled the gap between them and was consumed, so only a
+union produces such an edge. Around the edge, the material between the
+two faces includes the gap, which neither a subtract nor an intersect
+can add. The edge is now their `Seam`, sides in name order. That is the
+README's union reading: an edge lying within no member edge "is the
+seam of the faces it separates". It is also the name every other order
+already gave: folded before either wedge, the bridge leaves the two
+walls in different operands, and the edge is an ordinary cross seam.
+The merged-faces arm is unchanged.
+
+**A second order-dependence the pin found** (`names/borders.rs`,
+`Obstacles::record`). With the plate, order `[c, plate, a, b]` cited
+neither `b`'s walls nor its cap in the bridge chord wall's left piece.
+The other 17 orders cited both. Here `b`'s notch in that wall is
+discarded at the last step. Its boundary along z = 1 is a piece of the
+plate seam that step 2 recorded, but `a` had split that seam at step 3,
+and `touches` matched only the recorded key. A chain edge's touch now
+follows its split lineage (`split_from`) up to the earlier seam, so the
+notch joins the plate strip's obstacle. That obstacle divides the wall,
+so its walls are cited, as in the other 17 orders and as N2 reads it.
+
+**Pinned.** `crates/editor-core/tests/union_pinch_member_order.rs`,
+`a_prism_bridging_two_wedges_is_named_alike_in_every_member_order_that_builds`
+(slow set). With the plate, 18 of the 24 orders build. The 6 that fold
+the bridge after the plate refuse `CrossingsAlongAContactLine`
+(`work/tang/an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt.md`),
+and the test says so if that ever changes. Alone, all 6 orders build.
+Every order that builds is tier-3 valid, holds one body, and publishes
+one table, compared row by row by where each row's entities stand. The
+edge between the walls on the line is one `Seam` of `a`'s and `b`'s
+walls in every order. The editor-core suite passes with no golden
+moved.
 
