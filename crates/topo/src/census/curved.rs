@@ -122,7 +122,8 @@ fn refuse(edge: EdgeKey, what: &'static str, errors: &mut Vec<ValidationError>) 
     });
 }
 
-fn decided<T: Decide>(
+/// `margin`'s sign, or `None` with the escalation pushed.
+pub(super) fn decided<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -131,6 +132,30 @@ fn decided<T: Decide>(
     geom_core::k_stats::decide(name, margin, band)
         .map_err(|cause| errors.push(ValidationError::CensusEscalated { cause }))
         .ok()
+}
+
+/// Whether a point is in two cells, each reading pushing what stopped
+/// it: `Some(false)` where either reads it out, whatever the other
+/// pushed (a decided answer drops the other's escalations); `Some(true)`
+/// where both read it in; `None` otherwise, with what both pushed.
+pub(super) fn in_both(
+    a: impl FnOnce(&mut Vec<ValidationError>) -> Option<bool>,
+    b: impl FnOnce(&mut Vec<ValidationError>) -> Option<bool>,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    let mut held = Vec::new();
+    let on_a = a(&mut held);
+    if on_a == Some(false) {
+        return Some(false);
+    }
+    match (on_a, b(&mut held)) {
+        (_, Some(false)) => Some(false),
+        (Some(true), Some(true)) => Some(true),
+        _ => {
+            errors.extend(held);
+            None
+        }
+    }
 }
 
 /// Whether a search decision definitely came out `sign`; an escalation
@@ -195,6 +220,17 @@ fn read<T: Decide>(
         accel,
         curvature,
     })
+}
+
+/// `e`'s certified carrier, or `None` with the typed refusal pushed
+/// ([`read`]).
+pub(super) fn carrier<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Curve3<T>> {
+    read(body, e, band, errors).map(|r| r.curve)
 }
 
 /// Whether a polish step that moves its point `moved` metres is kept:
@@ -473,8 +509,11 @@ fn meet_at<T: Decide>(
     let t = polish_foot(b, a.curve.eval(s), t, slack);
     let s = polish_foot(a, b.curve.eval(t), s, slack);
     let p = a.curve.eval(s);
-    interior_at(body, a, p, s, band, held) == Some(true)
-        && interior_at(body, b, p, t, band, held) == Some(true)
+    in_both(
+        |errors| interior_at(body, a, p, s, band, errors),
+        |errors| interior_at(body, b, p, t, band, errors),
+        held,
+    ) == Some(true)
 }
 
 /// Whether `a`'s and `b`'s interiors meet, one of them curved (module
@@ -519,11 +558,14 @@ fn reads_meet<T: Decide>(
             }
         }
     }
-    // A candidate off either edge may escalate where another is on
-    // both: its escalations stand only if no candidate decides.
+    // A candidate undecided on one edge may stand beside another on
+    // both: its escalations stand only if no candidate is on both.
     if points.into_iter().any(|p| {
-        on_interior(body, ra, p, band, &mut held) == Some(true)
-            && on_interior(body, rb, p, band, &mut held) == Some(true)
+        in_both(
+            |errors| on_interior(body, ra, p, band, errors),
+            |errors| on_interior(body, rb, p, band, errors),
+            &mut held,
+        ) == Some(true)
     }) {
         return Some(true);
     }
@@ -1008,5 +1050,60 @@ mod tests {
         );
         let off = feet(&r, q + Vec3::unit_z() * 1e-3, band(), &mut errors).unwrap();
         assert_eq!((off, errors), (vec![], vec![]));
+    }
+
+    /// **Two circles kissing in their plane meet at the point**: the
+    /// unit circle's arc over ±30° against an arc over 150..210° of a
+    /// unit circle outside it or a half-unit one inside it, each touching
+    /// it at (1, 0, 0) (the point touch C3 names for two edges).
+    /// Pushed 0.1 m apart they do not meet; pushed 3ε, whether they
+    /// meet is undecided and escalates.
+    #[test]
+    fn kissing_circles_meet_at_their_touch_point() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let eps = tol.eps();
+        for (what, (cx, r, t), meet) in [
+            ("outside", (2.0, 1.0, 180.0), Some(true)),
+            ("inside", (0.5, 0.5, 0.0), Some(true)),
+            ("outside, 0.1 m apart", (2.1, 1.0, 180.0), Some(false)),
+            ("inside, 0.1 m apart", (0.4, 0.5, 0.0), Some(false)),
+            ("outside, 3ε apart", (2.0 + 3.0 * eps, 1.0, 180.0), None),
+        ] {
+            let mut body = Body::<f64>::new();
+            let mut arc = |center: Point3<f64>, radius: f64, (t0, t1): (f64, f64)| {
+                let c = geom::Curve3::Circle {
+                    center,
+                    axis: Vec3::unit_z(),
+                    radius,
+                    u_ref: Vec3::unit_x(),
+                };
+                let (t0, t1) = (t0.to_radians(), t1.to_radians());
+                let born = body.mvfs(c.eval(t0), true).unwrap();
+                body.mev(
+                    MevSite::Lone {
+                        r#loop: born.r#loop,
+                    },
+                    c.eval(t1),
+                    EdgeCurveSpec::arc_of_circle(c.clone(), t0, t1).unwrap(),
+                    tol,
+                )
+                .unwrap()
+                .edge
+            };
+            let a = arc(Point3::new(0.0, 0.0, 0.0), 1.0, (-30.0, 30.0));
+            let b = arc(Point3::new(cx, 0.0, 0.0), r, (t - 30.0, t + 30.0));
+            let mut errors = Vec::new();
+            assert_eq!(
+                curved_interiors_meet(&body, a, b, band, &mut errors),
+                meet,
+                "{what}: {errors:?}"
+            );
+            assert_eq!(
+                meet.is_none(),
+                !errors.is_empty(),
+                "{what}: an escalation is pushed exactly where undecided: {errors:?}"
+            );
+        }
     }
 }

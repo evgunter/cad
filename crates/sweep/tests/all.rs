@@ -208,6 +208,8 @@ mod pocket_ring_steep_ellipse;
 mod pocket_wall_crossing_a_side_face;
 #[path = "point_in_loop_arc_cap.rs"]
 mod point_in_loop_arc_cap;
+#[path = "point_touch_records.rs"]
+mod point_touch_records;
 #[path = "pole_slit_window.rs"]
 mod pole_slit_window;
 #[path = "r1_lane0_e2e.rs"]
@@ -293,6 +295,8 @@ mod axis_lap;
 mod band_annulus_host_boundary;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
+#[path = "band_planar_consume.rs"]
+mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]
 mod band_planar_cut_off;
 #[path = "band_planar_cut_off_interval.rs"]
