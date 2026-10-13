@@ -2,12 +2,13 @@
 id: no-tighten-offer-quotes-a-value-below-the-runs-resolution
 kind: issue
 title: A zero-band margin's tighten offer quotes a value far below anything a run can resolve ("tighten the tolerance below 2.71e-28 m"), at a build and at rest
-status: review
+status: closed
 opened: 2026-10-08
 priority: P3
 cost: M
 branch: encl/eps-floor
 pr: 4925
+closed: 2026-10-13
 ---
 
 
