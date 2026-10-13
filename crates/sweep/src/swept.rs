@@ -51,7 +51,8 @@ use geom_brep::{
     newell_plane,
 };
 use geom_core::{
-    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
+    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, RigidMotion,
+    RigidMotionError, Sign, Tol, UnitVec3, Vec3,
 };
 use profile::SegmentKind;
 use topo::{
@@ -63,14 +64,27 @@ use topo::{
 /// revolve's far copy the turn about the revolution axis.
 ///
 /// A point is placed and then turned on its offset from the axis
-/// ([`Affine3::rotate_point_about_axis`], W1 in
+/// ([`Affine3::rotate_point_about_unit_axis`]'s spelling, W1 in
 /// `crates/geom-core/README.md`). A description that carries a
 /// placement rather than a point carries [`Placing::map`], the turn
 /// composed into the placement once.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Placing<T: Real> {
     place: Affine3<T>,
-    turn: Option<(Point3<T>, Vec3<T>, T)>,
+    turn: Option<Turn<T>>,
+}
+
+/// A revolve's turn: the axis point, the axis witness and the angle a
+/// point and a direction are turned by
+/// ([`Affine3::rotate_point_about_unit_axis`], W1's spelling), and the
+/// same rotation minted anchored at the axis point, which turns a
+/// placement.
+#[derive(Clone, Copy, Debug)]
+struct Turn<T: Real> {
+    origin: Point3<T>,
+    axis: UnitVec3<T>,
+    angle: T,
+    anchored: RigidMotion<T>,
 }
 
 impl<T: Real> From<Affine3<T>> for Placing<T> {
@@ -81,12 +95,32 @@ impl<T: Real> From<Affine3<T>> for Placing<T> {
 
 impl<T: Real> Placing<T> {
     /// `place`, then the turn by `angle` about the axis through
-    /// `origin` along `dir`.
-    pub(crate) fn turned(place: Affine3<T>, origin: Point3<T>, dir: Vec3<T>, angle: T) -> Self {
-        Placing {
+    /// `origin` along `dir`, both rigid motions by construction.
+    ///
+    /// # Errors
+    ///
+    /// The mint's refusal of an angle or axis point that is not a
+    /// finite number.
+    pub(crate) fn turned(
+        place: Affine3<T>,
+        origin: Point3<T>,
+        dir: UnitVec3<T>,
+        angle: T,
+    ) -> Result<Self, RigidMotionError> {
+        Ok(Placing {
             place,
-            turn: Some((origin, dir, angle)),
-        }
+            turn: Some(Turn {
+                origin,
+                axis: dir,
+                angle,
+                anchored: RigidMotion::rotation_about_axis(origin, dir, angle)?,
+            }),
+        })
+    }
+
+    /// A direction turned by the turn, `None` when there is none.
+    pub(crate) fn turn_vec(self, v: Vec3<T>) -> Option<Vec3<T>> {
+        self.turn.map(|turn| turn.anchored.transform_vec(v))
     }
 
     /// Whether a turn follows the placement.
@@ -99,9 +133,7 @@ impl<T: Real> Placing<T> {
     pub(crate) fn map(self) -> Affine3<T> {
         match self.turn {
             None => self.place,
-            Some((origin, dir, angle)) => {
-                Affine3::rotation_about_axis(origin, dir, angle) * self.place
-            }
+            Some(turn) => turn.anchored.to_affine() * self.place,
         }
     }
 
@@ -110,8 +142,8 @@ impl<T: Real> Placing<T> {
         let placed = self.place.transform_point(Point3::new(p.x, p.y, T::zero()));
         match self.turn {
             None => placed,
-            Some((origin, dir, angle)) => {
-                Affine3::rotate_point_about_axis(origin, dir, angle, placed)
+            Some(turn) => {
+                Affine3::rotate_point_about_unit_axis(turn.origin, turn.axis, turn.angle, placed)
             }
         }
     }

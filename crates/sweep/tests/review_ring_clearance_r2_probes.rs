@@ -34,7 +34,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Sign, Tol, Vec3};
+use geom_core::{Point2, Sign, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
@@ -78,8 +78,12 @@ fn pipped(dc: f64, pr: f64) -> Body<f64> {
         Revolution::Full,
         tol(),
     );
-    let ball = topo::transform_rigid(&ball, &Affine3::translation(Vec3::new(dc, 1.0, 0.0)), tol())
-        .expect("the pip's rigid motion");
+    let ball = topo::transform_rigid(
+        &ball,
+        &geom_core::RigidMotion::translation(Vec3::new(dc, 1.0, 0.0)).unwrap(),
+        tol(),
+    )
+    .expect("the pip's rigid motion");
     realized(BooleanOp::Subtract, &cylinder(), &ball, tol())
 }
 
