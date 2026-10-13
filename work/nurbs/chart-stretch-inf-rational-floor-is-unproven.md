@@ -58,16 +58,18 @@ which the sup now reads too). The module docs carry the proofs:
 - `rational_area_floor`: `T(S) × U(S)` is affine in `S` (the
   `S × S` part vanishes), so `W²·(S_u × S_v)` is a convex combination
   of the crosses with both factors at one active point; the floor is
-  the least projected cross over `w_max²` or `w_min²` by sign. That is
-  tighter than reading the points in pairs and needs no product spline
-  (the homogeneous `M̃` of option one).
+  the least projected cross over `w_max²` or `w_min²` by sign. It
+  needs no product spline (the homogeneous `M̃` of option one); how its
+  reach compares with option one's is unmeasured
+  (`rational-inf-floor-reach-refines-before-reading`).
 
-`NurbsSurface::{stretch_floor, area_floor}` are the doors, poison on a
-weight that is not strictly positive and finite. `pcurve_cache`
-reads them along the polynomial net's summed direction (`area_inf`
-along `c_u × c_v`); `weight_ratio_factor` and
-`skipping_surface_derivative_net` are gone (the direction walks the
-nonempty spans' derived windows, so no zero knot difference is read).
+`NurbsSurface::{stretch_floor, area_floor}` are the doors; the
+weights they read are in `weight_in_regime` at every producer (PR
+4923), so they re-check nothing. `pcurve_cache` reads them along the
+polynomial net's summed direction (`net_direction`, the sum of
+`geom_core::spline::derivative_net` per column; `area_inf` along
+`c_u × c_v`); `weight_ratio_factor` and
+`skipping_surface_derivative_net` are gone.
 At unit weights the per-axis floors read the polynomial net entries as
 before; the area floor is now cell-local.
 
@@ -82,12 +84,12 @@ weight quotient.
 | Hit | Disposition |
 |---|---|
 | `pcurve_cache` `nurbs_stretch_inf` | fixed: the floors |
-| `pcurve_cache` `weight_ratio_factor` + its `weight_ratio_poison` row | retired; the admissibility read moved to `geom`'s `floor_weights_admissible`, with its own row |
-| `pcurve_cache` `skipping_surface_derivative_net` | retired: `net_direction` walks nonempty spans |
+| `pcurve_cache` `weight_ratio_factor` + its `weight_ratio_poison` row | retired; the producers hold the weight regime (PR 4923); `work/knot/surface-knot-insertion-writes-weights-validate-counts-refuses.md`'s citation of both updated |
+| `pcurve_cache` `skipping_surface_derivative_net` | retired: `net_direction` sums `derivative_net` per column |
 | `pcurve_cache` `net_inf` | now `floor_along` (the clamp and cap only) |
 | `chart_stretch_sup` → `nurbs_stretch_bounds` | sup side, unchanged |
 | `topo` `chart_region` `certified_arms` and its rows | reader, unchanged; green |
-| `sweep` `r2_probe_cert8` written charts | the three rational nets refuse at the proven floor: their weights moved to a spread the floor enters (at most `1.6×`), and `probe_steep_rational_charts_refuse_at_the_pair_term_floor` pins the original weights' refusal; filed `rational-inf-floor-reach-refines-before-reading` |
+| `sweep` `r2_probe_cert8` written charts | the three rational nets refuse at the proven floor past about `1.7×` weight spread: their weights moved to `1.6×`, `probe_rational_charts_refuse_at_a_1_8_spread` pins the refusal at `1.8×` with the area floor as its cause, and `check_certified_arms` fails on a net that does not build; filed `rational-inf-floor-reach-refines-before-reading` |
 | `sweep` `cert8_r1_probes`, `m9_2_chart_region_loft`; `step-import` `cert_n2r2_consumer_probes`; `geom-brep` `cert_n2r2_class3_probes` | readers; green |
 | `geom` `NurbsCurve3::rational_speed_lower_bound` | a separate, proven derivation (the piece assembly); filed `rational-inf-speed-has-two-recipes-curve-and-surface` |
 | `geom-brep` `offset_meters` `‖S_u × S_v‖` floor | its own per-cell hull derivation, `f64`-only; not a weight bracket |

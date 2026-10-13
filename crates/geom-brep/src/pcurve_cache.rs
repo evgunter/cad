@@ -5884,38 +5884,47 @@ fn floor_along<T: Real>(floor: T, c: Vec3<T>, cap: T) -> T {
 
 /// The direction the inf side reads `S_u` along (`S_v` with
 /// `along_v`): the sum of the polynomial derivative-net entries
-/// `p·(Pᵢ₊₁ⱼ − Pᵢⱼ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)` over the pairs a nonempty span
-/// reads, each once. Any direction gives a sound floor; this is the
-/// net's own mean, the direction a chart that does not fold moves in.
+/// ([`geom_core::spline::derivative_net`] of each column), summed pair
+/// by pair. Any direction gives a sound floor; this is the net's own
+/// mean, the direction a chart that does not fold moves in. A column
+/// whose net refuses (a non-positive knot difference, which validation
+/// rules out) leaves no direction, and the floor read along it is zero.
 fn net_direction<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec3<T> {
     let (nu, nv) = s.control_counts();
     let ctl = s.control();
-    let n_in = if along_v { nu } else { nv };
+    let (n_out, n_in) = if along_v { (nv, nu) } else { (nu, nv) };
     let knots = if along_v {
         s.knot_values_v()
     } else {
         s.knot_values_u()
     };
-    let (kv, held, p) = (knots.structure(), knots.values(), knots.degree());
-    let at = |i: usize, j: usize| -> geom_core::Point3<T> {
-        if along_v {
-            ctl[j * nv + i]
-        } else {
-            ctl[i * nv + j]
-        }
+    let nets: Option<Vec<Vec<Vec3<T>>>> = (0..n_in)
+        .map(|j| {
+            let column: Vec<geom_core::Point3<T>> = (0..n_out)
+                .map(|i| {
+                    if along_v {
+                        ctl[j * nv + i]
+                    } else {
+                        ctl[i * nv + j]
+                    }
+                })
+                .collect();
+            geom_core::spline::derivative_net(
+                &column,
+                knots.structure().knots(),
+                knots.values(),
+                knots.degree(),
+                0,
+            )
+        })
+        .collect();
+    let Some(nets) = nets else {
+        return Vec3::zero();
     };
     let mut c = Vec3::zero();
-    let mut next = 0;
-    for span in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
-        for i in span.first_derived_window() {
-            if i < next {
-                continue;
-            }
-            next = i + 1;
-            let factor = geom_core::spline::span_derivative_scale(p, held[i + 1], held[i + p + 1]);
-            for j in 0..n_in {
-                c = c + (at(i + 1, j) - at(i, j)) * factor;
-            }
+    for i in 0..n_out.saturating_sub(1) {
+        for net in &nets {
+            c = c + net[i];
         }
     }
     c

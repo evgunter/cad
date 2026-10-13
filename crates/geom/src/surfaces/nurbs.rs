@@ -592,16 +592,6 @@ impl<T: SpanLocate> NurbsSurface<T> {
     }
 }
 
-/// Whether a weight `channel` admits the floors' proof, which reads the
-/// point as a convex combination of the control points: every weight
-/// strictly positive and finite. The constructors validate exactly that
-/// (`net::validate_counts`), but a refinement can write a value they
-/// would refuse (knot insertion on subnormal weights rounds one to `0`),
-/// and a floor is the unsafe direction to answer a number for.
-fn floor_weights_admissible(channel: &[f64]) -> bool {
-    !channel.is_empty() && channel.iter().all(|w| *w > 0.0 && w.is_finite())
-}
-
 impl<T: Real> NurbsSurface<T> {
     /// Certified **upper** bounds on `‖S_u‖` and `‖S_v‖` over the whole
     /// domain, in m/param: the pair-term bound of
@@ -630,13 +620,9 @@ impl<T: Real> NurbsSurface<T> {
     /// domain, for any `d`, signed:
     /// [`geom_core::spline::rational_stretch_floor`], the min over the
     /// nonempty cells. Clamped at zero it floors `‖S_u‖·‖d‖`. At unit
-    /// weights it is the polynomial derivative net's floor. Poison when a
-    /// control point is, or when a weight is not strictly positive and
-    /// finite (`floor_weights_admissible`).
+    /// weights it is the polynomial derivative net's floor; poison when a
+    /// control point is.
     pub fn stretch_floor(&self, along_u: bool, d: Vec3<T>) -> T {
-        if !floor_weights_admissible(&self.weight_channel) {
-            return T::from_f64(f64::NAN);
-        }
         geom_core::spline::rational_stretch_floor(
             (&self.knots_u, &self.knots_v),
             &self.point_rows(),
@@ -649,11 +635,8 @@ impl<T: Real> NurbsSurface<T> {
     /// A lower bound on `(S_u × S_v)·d` over the whole domain, for any
     /// `d`, signed: [`geom_core::spline::rational_area_floor`], the min
     /// over the nonempty cells. Clamped at zero it floors the area
-    /// element `‖S_u × S_v‖·‖d‖`. Poison as [`Self::stretch_floor`].
+    /// element `‖S_u × S_v‖·‖d‖`; poison as [`Self::stretch_floor`].
     pub fn area_floor(&self, d: Vec3<T>) -> T {
-        if !floor_weights_admissible(&self.weight_channel) {
-            return T::from_f64(f64::NAN);
-        }
         geom_core::spline::rational_area_floor(
             (&self.knots_u, &self.knots_v),
             &self.point_rows(),
@@ -1863,25 +1846,5 @@ mod reversal_tests {
             (-0.0f64).to_bits(),
             "the −0.0 is carried verbatim, sign bit and all"
         );
-    }
-}
-
-/// **A weight list the floors' proof does not cover reads no floor.**
-#[cfg(test)]
-mod floor_weights {
-    use super::floor_weights_admissible;
-
-    #[test]
-    fn only_strictly_positive_finite_weights_admit_a_floor() {
-        assert!(floor_weights_admissible(&[1.0, 2.0, f64::MIN_POSITIVE]));
-        for (name, w) in [
-            ("a zero weight", vec![f64::from_bits(1), 0.0]),
-            ("a negative weight", vec![1.0, -1.0]),
-            ("a NaN weight", vec![1.0, f64::NAN]),
-            ("an infinite weight", vec![1.0, f64::INFINITY]),
-            ("no weights", vec![]),
-        ] {
-            assert!(!floor_weights_admissible(&w), "{name}: {w:?}");
-        }
     }
 }

@@ -153,6 +153,38 @@ fn a_positive_projection_divides_by_the_greatest_weight() {
     );
 }
 
+/// **Every active column's pairs are read.** On this bilinear patch the
+/// `u` edges differ, `4x̂` at `v = 0` and `x̂ − 2ŷ` at `v = 1`, so
+/// `S_u·x̂ = 4 − 3v` falls to `1` at the second column; the `v` edges
+/// read `3ŷ` at `u = 0` and `−3x̂ + ŷ` at `u = 1`, so `S_v·ŷ` falls to
+/// `1` at the second row. Read over the first column (row) alone the
+/// floors claim `4` and `3`.
+#[test]
+fn every_active_column_is_read() {
+    let s = surface(
+        (vec![0.0, 0.0, 1.0, 1.0], 1),
+        (vec![0.0, 0.0, 1.0, 1.0], 1),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 3.0, 0.0),
+            Point3::new(4.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+        ],
+        vec![1.0; 4],
+    );
+    for (name, along_u, d) in [
+        ("S_u·x", true, Vec3::new(1.0, 0.0, 0.0)),
+        ("S_v·y", false, Vec3::new(0.0, 1.0, 0.0)),
+    ] {
+        floor_holds(
+            name,
+            s.stretch_floor(along_u, d),
+            sampled_stretch(&s, along_u, d),
+            Some(1e-9),
+        );
+    }
+}
+
 /// **Every term is read at every active point.** The least term value
 /// along `x` is the pair's term at its FAR end (`w₀·4` at `P₁`); read
 /// at the pair's own start, or at the cell's first active point only,

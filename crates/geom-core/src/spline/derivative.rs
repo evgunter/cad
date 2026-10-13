@@ -37,6 +37,12 @@
 //! same bound per direction, per cell. Both read one
 //! [`RationalPairTerm`].
 //!
+//! **No zero knot difference is reachable.** A span is walked only
+//! when it is nonempty, and its active pairs are `i ∈ [s − p, s − 1]`
+//! ([`Span::first_derived_window`](super::Span::first_derived_window),
+//! total): each pair's knot difference `u_{i+p+1} − u_{i+1}` spans
+//! `[u_s, u_{s+1}]`, so it is positive. Nothing here checks it.
+//!
 //! # The rational floors
 //!
 //! The same sums bound the derivative from **below** along any
@@ -86,12 +92,6 @@
 //!
 //! At unit weights every `T(Pⱼ)` is the polynomial derivative-net entry,
 //! so both floors are the polynomial net's, cell by cell.
-//!
-//! **No zero knot difference is reachable.** A span is walked only
-//! when it is nonempty, and its active pairs are `i ∈ [s − p, s − 1]`
-//! ([`Span::first_derived_window`](super::Span::first_derived_window),
-//! total): each pair's knot difference `u_{i+p+1} − u_{i+1}` spans
-//! `[u_s, u_{s+1}]`, so it is positive. Nothing here checks it.
 
 use core::ops::{Mul, Sub};
 
@@ -261,67 +261,85 @@ fn rational_span_speed_sup<T: Real, const D: usize>(
     terms.map_or(poison, |t| pair_sup(t.into_iter(), active, least))
 }
 
-/// One nonempty cell `(su, sv)` of a rational tensor patch, read along
-/// one direction: the pair terms of that direction over each of the
-/// cell's active columns, the cell's active points, and the least and
-/// greatest active weight. Along `u` the pairs run along `u` in each
-/// active column; along `v` the roles swap. The one per-pair builder of
-/// the tensor statements: the sup and both floors read it.
-struct Cell<T, const D: usize> {
-    terms: Vec<RationalPairTerm<T, D>>,
+/// One nonempty cell `(su, sv)` of a rational tensor patch with
+/// row-major `points` and `weights` (`[iu·nv + iv]`) over the `held_u` /
+/// `held_v` knot values of the vectors the spans index: the cell's
+/// active points and the least and greatest active weight, and its pair
+/// terms along either direction ([`Cell::terms`]). The one per-pair
+/// builder of the tensor statements: the sup and both floors read it.
+struct Cell<'a, T, const D: usize> {
+    spans: (Span<'a>, Span<'a>),
+    held: (&'a [T], &'a [T]),
+    points: &'a [[T; D]],
+    weights: &'a [T],
+    nv: usize,
     active: Vec<[T; D]>,
     least: T,
     most: T,
 }
 
-/// The [`Cell`] `(su, sv)` of the patch with row-major `points` and
-/// `weights` (`[iu·nv + iv]`) over the `held_u` / `held_v` knot values
-/// of the vectors the spans index; `None` on an index past an array.
-fn cell<T: Real, const D: usize>(
-    (su, sv): (Span<'_>, Span<'_>),
-    (held_u, held_v): (&[T], &[T]),
-    points: &[[T; D]],
-    weights: &[T],
-    nv: usize,
-    along_u: bool,
-) -> Option<Cell<T, D>> {
-    let at = |iu: usize, iv: usize| -> Option<([T; D], T)> {
-        let k = iu.checked_mul(nv)?.checked_add(iv)?;
-        Some((*points.get(k)?, *weights.get(k)?))
-    };
-    let mut active = Vec::with_capacity((su.degree() + 1) * (sv.degree() + 1));
-    let mut range: Option<(T, T)> = None;
-    for iu in su.window() {
-        for iv in sv.window() {
-            let (pt, w) = at(iu, iv)?;
-            active.push(pt);
-            range = Some(range.map_or((w, w), |(lo, hi)| (lo.min(w), hi.max(w))));
+impl<'a, T: Real, const D: usize> Cell<'a, T, D> {
+    /// The cell, or `None` on an index past an array.
+    fn new(
+        spans: (Span<'a>, Span<'a>),
+        held: (&'a [T], &'a [T]),
+        points: &'a [[T; D]],
+        weights: &'a [T],
+        nv: usize,
+    ) -> Option<Self> {
+        let mut cell = Self {
+            spans,
+            held,
+            points,
+            weights,
+            nv,
+            active: Vec::with_capacity((spans.0.degree() + 1) * (spans.1.degree() + 1)),
+            least: T::zero(),
+            most: T::zero(),
+        };
+        let mut range: Option<(T, T)> = None;
+        for iu in spans.0.window() {
+            for iv in spans.1.window() {
+                let (pt, w) = cell.at(iu, iv)?;
+                cell.active.push(pt);
+                range = Some(range.map_or((w, w), |(lo, hi)| (lo.min(w), hi.max(w))));
+            }
         }
+        (cell.least, cell.most) = range?;
+        Some(cell)
     }
-    let (least, most) = range?;
-    let (run, other, held, p) = if along_u {
-        (su, sv, held_u, su.degree())
-    } else {
-        (sv, su, held_v, sv.degree())
-    };
-    let terms = run
-        .first_derived_window()
-        .flat_map(|i| other.window().map(move |b| (i, b)))
-        .map(|(i, b)| {
-            let (a0, a1) = if along_u {
-                (at(i, b)?, at(i + 1, b)?)
-            } else {
-                (at(b, i)?, at(b, i + 1)?)
-            };
-            Some(RationalPairTerm::new(pair_scale(held, p, i)?, a0, a1))
-        })
-        .collect::<Option<Vec<_>>>()?;
-    Some(Cell {
-        terms,
-        active,
-        least,
-        most,
-    })
+
+    fn at(&self, iu: usize, iv: usize) -> Option<([T; D], T)> {
+        let k = iu.checked_mul(self.nv)?.checked_add(iv)?;
+        Some((*self.points.get(k)?, *self.weights.get(k)?))
+    }
+
+    /// The pair terms along `u` (`along_u`) in each of the cell's active
+    /// columns, or along `v` in each active row; `None` on an index past
+    /// an array.
+    fn terms(&self, along_u: bool) -> Option<Vec<RationalPairTerm<T, D>>> {
+        let ((su, sv), (held_u, held_v)) = (self.spans, self.held);
+        let (run, other, held) = if along_u {
+            (su, sv, held_u)
+        } else {
+            (sv, su, held_v)
+        };
+        run.first_derived_window()
+            .flat_map(|i| other.window().map(move |b| (i, b)))
+            .map(|(i, b)| {
+                let (a0, a1) = if along_u {
+                    (self.at(i, b)?, self.at(i + 1, b)?)
+                } else {
+                    (self.at(b, i)?, self.at(b, i + 1)?)
+                };
+                Some(RationalPairTerm::new(
+                    pair_scale(held, run.degree(), i)?,
+                    a0,
+                    a1,
+                ))
+            })
+            .collect()
+    }
 }
 
 /// `per_cell` over the nonempty cells of the patch over `knots_u` ×
@@ -384,9 +402,9 @@ pub fn rational_stretch_sup<T: Real, const D: usize>(
     over_cells(
         knots,
         |spans, held, nv| {
-            cell(spans, held, points, weights, nv, along_u).map_or_else(poison, |c| {
-                pair_sup(c.terms.into_iter(), &c.active, c.least)
-            })
+            Cell::new(spans, held, points, weights, nv)
+                .and_then(|c| Some(pair_sup(c.terms(along_u)?.into_iter(), &c.active, c.least)))
+                .unwrap_or_else(poison)
         },
         T::max,
     )
@@ -422,7 +440,8 @@ fn over_weight<T: Real>(m: T, least: T, most: T) -> T {
 /// projected term value over the cell's weight, or poison when no cell
 /// is nonempty or an index runs past an array. `points` and `weights`
 /// as [`rational_stretch_sup`]'s. For a unit `d` it floors `‖S_u‖` once
-/// clamped at zero.
+/// clamped at zero. A lower bound under `Interval`; at `f64`, rounded to
+/// nearest, it can sit an ulp above.
 #[must_use]
 pub fn rational_stretch_floor<T: Real, const D: usize>(
     knots: (&Knots<T>, &Knots<T>),
@@ -434,14 +453,17 @@ pub fn rational_stretch_floor<T: Real, const D: usize>(
     over_cells(
         knots,
         |spans, held, nv| {
-            cell(spans, held, points, weights, nv, along_u).map_or_else(poison, |c| {
-                let m = least_of(
-                    c.terms
-                        .iter()
-                        .flat_map(|t| c.active.iter().map(move |pj| dot(t.at(*pj), d))),
-                );
-                over_weight(m, c.least, c.most)
-            })
+            Cell::new(spans, held, points, weights, nv)
+                .and_then(|c| {
+                    let terms = c.terms(along_u)?;
+                    let m = least_of(
+                        terms
+                            .iter()
+                            .flat_map(|t| c.active.iter().map(move |pj| dot(t.at(*pj), d))),
+                    );
+                    Some(over_weight(m, c.least, c.most))
+                })
+                .unwrap_or_else(poison)
         },
         T::min,
     )
@@ -452,7 +474,8 @@ pub fn rational_stretch_floor<T: Real, const D: usize>(
 /// signed: the min over the nonempty cells of the least projected cross
 /// of a `u` and a `v` term, both at one active point, over the cell's
 /// weight squared; poison as [`rational_stretch_floor`]. For a unit `d`
-/// it floors `‖S_u × S_v‖` once clamped at zero.
+/// it floors `‖S_u × S_v‖` once clamped at zero. A lower bound under
+/// `Interval`; at `f64` it can sit an ulp above.
 #[must_use]
 pub fn rational_area_floor<T: Real>(
     knots: (&Knots<T>, &Knots<T>),
@@ -463,17 +486,17 @@ pub fn rational_area_floor<T: Real>(
     over_cells(
         knots,
         |spans, held, nv| {
-            let (Some(cu), Some(cv)) = (
-                cell(spans, held, points, weights, nv, true),
-                cell(spans, held, points, weights, nv, false),
-            ) else {
+            let Some(c) = Cell::new(spans, held, points, weights, nv) else {
+                return poison();
+            };
+            let (Some(tu), Some(tv)) = (c.terms(true), c.terms(false)) else {
                 return poison();
             };
             let mut m: Option<T> = None;
-            for pj in &cu.active {
+            for pj in &c.active {
                 // `(a × b)·d = a·(b × d)`: one cross per `v` term.
-                let e: Vec<[T; 3]> = cv.terms.iter().map(|b| cross(b.at(*pj), d)).collect();
-                for a in &cu.terms {
+                let e: Vec<[T; 3]> = tv.iter().map(|b| cross(b.at(*pj), d)).collect();
+                for a in &tu {
                     let a = a.at(*pj);
                     for eb in &e {
                         let x = dot(a, *eb);
@@ -482,7 +505,7 @@ pub fn rational_area_floor<T: Real>(
                 }
             }
             let m = m.unwrap_or_else(poison);
-            over_weight(m, cu.least.powi(2), cu.most.powi(2))
+            over_weight(m, c.least.powi(2), c.most.powi(2))
         },
         T::min,
     )

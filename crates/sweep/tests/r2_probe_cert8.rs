@@ -179,8 +179,9 @@ fn probe_sampled_bounds_hold_on_the_acceptance_walls() {
 /// `chart_stretch_inf` + `certified_arms` assembly, and samples the
 /// real surface for a violation of any of the four claims. Returns the
 /// worst contraction ratio seen, or `None` when the chart never entered
-/// the mode — a degenerate net, a floor at machine zero, or a poisoned
-/// assembly is a SKIP, not a counterexample.
+/// the mode — a floor at machine zero or a poisoned assembly is a SKIP,
+/// not a counterexample. A net that does not build is a failure, never a
+/// skip.
 ///
 /// `note` names the caller's chart in every message: the written row
 /// passes its tag, the randomised one its trial and replay line.
@@ -191,7 +192,8 @@ fn check_certified_arms(ctl: &[[f64; 3]; 9], w: &[f64; 9], note: &str) -> Option
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let points: Vec<Point3<f64>> = ctl.iter().copied().map(Point3::from_array).collect();
-    let surf = NurbsSurface::new(ku, kv, points, w.to_vec()).ok()?;
+    let surf = NurbsSurface::new(ku, kv, points, w.to_vec())
+        .unwrap_or_else(|e| panic!("{note}: the net must build: {e:?}"));
     let s: Surface<f64> = Surface::Nurbs(std::sync::Arc::new(surf));
     let i = geom_brep::chart_stretch_inf(&s);
     if !(i.inf_u > 1e-6 && i.inf_v > 1e-6) {
@@ -268,10 +270,10 @@ fn check_certified_arms(ctl: &[[f64; 3]; 9], w: &[f64; 9], note: &str) -> Option
 /// lives here, on charts a reader can see, and the search next door
 /// carries none.
 ///
-/// The rational charts' weights spread at most `1.6×`: the inf floors
-/// are the pair-term statement, whose hull relaxation refuses these
-/// nets at a wider spread
-/// (`probe_steep_rational_charts_refuse_at_the_pair_term_floor`).
+/// The rational charts' weights spread `1.6×` (each `1 + t·(w − 1)`
+/// of a steeper original): the inf floors are the pair-term statement,
+/// whose hull relaxation refuses these nets from about `1.7×`
+/// (`probe_rational_charts_refuse_at_a_1_8_spread`).
 /// A written chart: its tag, the 3x3 control net, and the nine
 /// weights.
 type WrittenChart = (&'static str, [[f64; 3]; 9], [f64; 9]);
@@ -320,7 +322,7 @@ const WRITTEN_CHARTS: [WrittenChart; 5] = [
             [2.0, 1.0, 0.0],
             [2.0, 2.0, 0.0],
         ],
-        [1.0, 0.9, 1.0, 1.2, 1.0, 0.88, 1.0, 1.4, 1.0],
+        [1.0, 0.8986, 1.0, 1.2027, 1.0, 0.8784, 1.0, 1.4054, 1.0],
     ),
     (
         "bowed-rational",
@@ -335,7 +337,7 @@ const WRITTEN_CHARTS: [WrittenChart; 5] = [
             [2.0, 1.0, 0.3],
             [2.0, 2.0, 0.0],
         ],
-        [1.0, 0.9, 1.0, 1.2, 1.0, 0.88, 1.0, 1.4, 1.0],
+        [1.0, 0.8986, 1.0, 1.2027, 1.0, 0.8784, 1.0, 1.4054, 1.0],
     ),
     (
         // Sheared, so u and v are not orthogonal anywhere: this is the
@@ -352,7 +354,7 @@ const WRITTEN_CHARTS: [WrittenChart; 5] = [
             [2.7, 1.4, 0.1],
             [3.4, 2.4, 0.0],
         ],
-        [1.0, 0.94, 1.0, 1.18, 1.0, 0.88, 1.0, 1.36, 1.0],
+        [1.0, 0.9348, 1.0, 1.1957, 1.0, 0.8696, 1.0, 1.3913, 1.0],
     ),
 ];
 
@@ -371,24 +373,55 @@ fn probe_written_charts_never_break_the_certified_arms() {
 }
 
 /// **The pair-term floor's frontier on the written nets.** The three
-/// rational charts above at their original weights (spread `3.7×` to
-/// `7.5×`) read no positive inf: the floor evaluates each pair term
-/// over the whole cell's hull, and at these weights some term projects
-/// to zero or below at a far active point (on the flat net exactly
-/// zero). A refusal is sound and only a reach cost; this row pins where
-/// it falls, so a change to the floor's reach shows here
+/// rational charts with their weights spread `1.8×` instead of `1.6×`
+/// read no area floor, so the assembly refuses them: the floor reads
+/// each pair term over the whole cell's hull of active points, and the
+/// least projected cross reaches zero at about `1.69×` on the flat and
+/// bowed nets (both per-axis infs still positive) and `1.71×` on the
+/// sheared one (where `inf_v` reaches zero with it). A refusal is sound
+/// and only a reach cost; this row pins it beside the witness set's
+/// `1.6×`, so a change to the floor's reach shows here
 /// (`work/nurbs/rational-inf-floor-reach-refines-before-reading.md`).
 #[test]
-fn probe_steep_rational_charts_refuse_at_the_pair_term_floor() {
-    let steep: [[f64; 9]; 3] = [
-        [1.0, 0.5, 1.0, 2.0, 1.0, 0.4, 1.0, 3.0, 1.0],
-        [1.0, 0.5, 1.0, 2.0, 1.0, 0.4, 1.0, 3.0, 1.0],
-        [1.0, 0.8, 1.0, 1.6, 1.0, 0.6, 1.0, 2.2, 1.0],
+fn probe_rational_charts_refuse_at_a_1_8_spread() {
+    use geom::NurbsSurface;
+    use geom_core::Point3;
+    use geom_core::spline::KnotVector;
+    let wide: [[f64; 9]; 3] = [
+        [1.0, 0.8701, 1.0, 1.2597, 1.0, 0.8442, 1.0, 1.5195, 1.0],
+        [1.0, 0.8701, 1.0, 1.2597, 1.0, 0.8442, 1.0, 1.5195, 1.0],
+        [1.0, 0.9167, 1.0, 1.25, 1.0, 0.8333, 1.0, 1.5, 1.0],
     ];
-    for ((tag, ctl, _), w) in WRITTEN_CHARTS[2..].iter().zip(steep) {
+    for ((tag, ctl, _), w) in WRITTEN_CHARTS[2..].iter().zip(wide) {
+        let surf = NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            ctl.iter().copied().map(Point3::from_array).collect(),
+            w.to_vec(),
+        )
+        .unwrap_or_else(|e| panic!("{tag} at 1.8x: the net must build: {e:?}"));
+        let i = geom_brep::chart_stretch_inf(&Surface::Nurbs(std::sync::Arc::new(surf)));
         assert!(
-            check_certified_arms(ctl, &w, &format!("steep {tag}")).is_none(),
-            "steep {tag}: the pair-term floor now enters this net; move the frontier"
+            i.area_inf == 0.0,
+            "{tag} at 1.8x: the area floor reads {} — the pair-term floor now \
+             reaches this spread; move the frontier",
+            i.area_inf
+        );
+        assert!(
+            i.inf_u > 0.0,
+            "{tag} at 1.8x: inf_u {} — the refusal is the area floor's",
+            i.inf_u
+        );
+        if *tag != "sheared-rational" {
+            assert!(
+                i.inf_v > 0.0,
+                "{tag} at 1.8x: inf_v {} — the refusal is the area floor's",
+                i.inf_v
+            );
+        }
+        assert!(
+            check_certified_arms(ctl, &w, tag).is_none(),
+            "{tag} at 1.8x: a zero area floor must refuse the arms"
         );
     }
 }

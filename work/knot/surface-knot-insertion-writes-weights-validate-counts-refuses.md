@@ -39,24 +39,22 @@ The curve side already guards against this at its consumer:
 re-checks the refined weights and returns poison. On the surface side,
 any consumer that trusts the `validate_counts` precondition is wrong
 about refined payloads. `geom_brep`'s `weight_ratio_factor` (in
-`pcurve_cache.rs`) trusted it until PR 3614, which now returns poison
-for such a list.
+`pcurve_cache.rs`) trusted it until PR 3614 made it return poison for
+such a list; PR 4928 retired that factor, and `chart_stretch_inf`'s
+pair-term floors rely on the producers' weight regime
+(`geom_core::spline::weight_in_regime`, PR 4923).
 
 The fix belongs at the producer: the refinement doors should
 re-validate their output and refuse with a typed `KnotAlgebraError`,
 not hand back a payload `new` would reject. Every consumer should not
 have to carry its own re-check.
 
-## Also noted: the weight ratio overflows on validated weights
+## Also noted: the weight ratio overflowed on validated weights
 
-`weight_ratio_factor` computes `(w_max/w_min)²`. For validated weights
-such as `[1e-200, 1, 1, 1]`, that overflows to `+inf`, so the sup arms
-become `inf`. This errs in the safe direction (it over-states, so the
-lane refuses), but it means any rational net with a weight ratio above
-about 1e154 has no usable sup arm. Pinned in `geom_brep`'s
-`weight_ratio_poison` test. It is not a defect in this program's
-ground; it is recorded here because it shares the weight-range question
-with the finding above.
+`weight_ratio_factor` computed `(w_max/w_min)²`, which overflowed to
+`+inf` on validated weights such as `[1e-200, 1, 1, 1]`. PR 4928
+retired it: the inf floors divide by each cell's own weights and form
+no ratio, so the overflow and its `weight_ratio_poison` pin are gone.
 
 ## Re-homed from FLUX to KNOT (2026-10-10)
 
