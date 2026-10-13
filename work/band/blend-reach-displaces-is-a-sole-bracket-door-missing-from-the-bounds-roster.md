@@ -2,10 +2,11 @@
 id: blend-reach-displaces-is-a-sole-bracket-door-missing-from-the-bounds-roster
 kind: issue
 title: blend/reach.rs's displaces is a sole-bracket bound door missing from the bounds roster, so main's bounds census is red
-status: open
+status: closed
 opened: 2026-10-13
 priority: P0
 cost: E
+closed: 2026-10-13
 ---
 
 
