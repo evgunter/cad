@@ -302,11 +302,11 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
             .expect_err("a 0.55 m radius does not fit a 1 m face")
             .error,
     ));
-    let (leaning, turn) = crate::common::operands::leaning_turn(0.5);
+    let (leaning, turn) = crate::common::operands::leaning_turn_in_band(t);
     out.push((
         "fillet turn",
         fillet_edges(&sweep::test_support::at_rest(&leaning, t), &turn, D, t)
-            .expect_err("a turn whose faces are not symmetric overruns its mitre")
+            .expect_err("a turn at a lean in band escalates")
             .error,
     ));
     out

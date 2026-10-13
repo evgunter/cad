@@ -337,12 +337,18 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   chamfer: its chord is the gap times a ratio the corner fixes, at least
   sin φ of the near band's face angle but unbounded as the turn flattens
   toward a T, where a gap in band can carry a definite chord. Both Zero
-  builds the mitre on L; both definite builds a chamfer's overrun on the
-  side the sign picks, and refuses a fillet's (`TURN_OVERRUN`, naming
-  the far band); anything else escalates, with a recourse that makes the
-  feet meet (equal, or for a chamfer supplementary, face angles), for a
-  chamfer moves them clearly apart (a larger setback, a more asymmetric
-  corner), or requests L too for the patch. A Zero verdict is a coincidence
+  builds the mitre on L; both definite builds the overrun on the side
+  the sign picks; anything else escalates, with a recourse that makes the
+  feet meet (equal, or for a chamfer supplementary, face angles), moves
+  them clearly apart (a larger setback, a more asymmetric corner), or
+  requests L too for the patch. The overrun's section escalates as any
+  cut-off's does: near a box corner, where the far band's cut-off face
+  is tilted just off square to its axis, a fillet's ellipse stays in
+  band out to `sec θ = 1 + escalate / r`, so moving the feet apart there
+  hands on to that ellipse's own recourse; where the face is square the
+  section is a circle and the overrun builds once the feet are apart. A fillet's overrun arc is tangent to the
+  mitre at its end and to L at the far foot, so band `k`'s boundary runs
+  G1 from the crossing to L. A Zero verdict is a coincidence
   decided from values, the two feet being one point, so the verdict
   records it (`BatteryVerdict::coincidences`, D10), and
   `Blended::coincidences` carries the rows to the document's coincidence
@@ -393,8 +399,8 @@ rather than on a rim edge (a band running into a wall or a step, and the
 inner corner of an L-shaped rim, where the shared face's sector is
 reflex); two cut-offs at the two ends of one rim whose feet on it cross
 or coincide, metered before any mutation by `fillet3_cut_off_feet`
-(feet apart only within the band escalate); a fillet's overrun at a
-turn; an overrun's far foot past L's far end, as for any cut-off; an
+(feet apart only within the band escalate); an overrun's far foot past
+L's far end, as for any cut-off; an
 overrun whose near requested edge ends before band `k`'s trimline on the
 shared face reaches it, the other foot of `k`'s sliver landing inside a
 face (a short near edge at an obtuse shared-face angle, which refuses
@@ -418,8 +424,9 @@ band's `EndArc` and its end `FootVertex`; both resolve
 across a coincidence moves them to the other band. Where the feet
 coincide the turn foot has four edges, so blending L in a later call
 refuses. At an overrun the turn foot is trivalent and L's later band
-ends in band `k`'s face, a plane: it builds only where L's foot lands on
-the overrun edge, which takes a much smaller second setback. Every such
+ends in band `k`'s face: a chamfer's is a plane, and it builds only
+where L's foot lands on the overrun edge, which takes a much smaller
+second setback; a fillet's is a cylinder, a curved end face. Every such
 refusal's recourse is to request L in the same call, which builds the
 patch.
 
