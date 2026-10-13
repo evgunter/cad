@@ -1346,9 +1346,14 @@ pub fn polynomial_area_pieces<T: Real>(
     let dv = cell_grid(&g.map_v(|row| av.derive(row))?, (&au, 0), (&av, 1))?;
     let numer = product(&du, &dv, cross)?;
     let (mu, mv) = numer.degree();
-    let denom = Grid::new(mv + 1, vec![Vector([T::one()]); (mu + 1) * (mv + 1)])?;
-    let whole = Raised { numer, denom };
     let counts = (piece_count(mu, splits.0), piece_count(mv, splits.1));
+    let ones = || vec![T::one(); (mu + 1) * (mv + 1)];
+    if counts == (1, 1) {
+        // One piece is the block itself: no cut to form.
+        return Some(vec![QuotientPiece::new(numer.arrays(), ones())?]);
+    }
+    let denom = Grid::new(mv + 1, ones().into_iter().map(|w| Vector([w])).collect())?;
+    let whole = Raised { numer, denom };
     let cut = Cut::new(counts, (&[mu], &[mv]))?;
     (0..counts.0)
         .flat_map(|iu| (0..counts.1).map(move |iv| (iu, iv)))
