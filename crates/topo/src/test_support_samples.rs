@@ -582,11 +582,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Torus,
         },
-        PcurveCertifyError::UnsupportedCarrier {
-            chart: geom::SurfaceKind::Torus,
-            carrier: geom::CurveKind::Nurbs,
-            class: geom_brep::UncoveredClass::NoFittedClass,
-        },
         PcurveCertifyError::CarrierGrazesChart {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
@@ -602,7 +597,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             why: "a fitted-grade image at the closed-form door",
         },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
-        PcurveCertifyError::FittedMateMissing,
         PcurveCertifyError::SectorRefused {
             piece: 0,
             channel: geom_brep::SectorChannel::Azimuth,
@@ -614,16 +608,13 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             source: geom_core::spline::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
         },
         PcurveCertifyError::FittedCertificate {
-            limb: Some(geom_brep::SsiLimb::Tube),
-            what: "the uniqueness tube straddles a second branch",
-            magnitude: Some(FittedMagnitude::CertifiedClearance {
-                certified_clearance: MarginDiag::value(1e-7),
-                boxes: 12,
-            }),
+            limb: Some(geom_brep::SsiLimb::HullSup),
+            what: "a certificate limb exceeded ε",
+            magnitude: Some(FittedMagnitude::LimbResidual(MarginDiag::value(1e-7))),
         },
         PcurveCertifyError::CarrierDomain(carrier_domain_collapsed()),
         PcurveCertifyError::FittedEscalated {
-            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::Tube),
+            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
             cause: diag(),
         },
         PcurveCertifyError::IntervalNotForward,

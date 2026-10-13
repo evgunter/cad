@@ -360,7 +360,7 @@ fn both_sweeps_evaluate_in_one_document() {
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x20d0_b806_b3a7_87fe),
-        ("corner_table", 0x0ff2_e6d5_8c6f_bdcd),
+        ("corner_table", 0x0e00_e0f5_df9e_d8b3),
         ("cut_cylinder", 0xa6c1_1622_9a6f_5245),
         ("boss_union", 0xa1a1_dffb_faca_cea6),
         ("kitchen_sink", 0x587e_9ada_00a5_7fb6),

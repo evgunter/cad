@@ -666,9 +666,9 @@ fn the_cavity_pcurves_certify_on_both_charts() {
         "two rims, one wall side and one cap side each"
     );
     // The face's cache set is minted WHOLE: `mint_faces` answers one
-    // `UnsupportedCarrier` half-edge by leaving the entire face
-    // uncached, so a spiric with no image would cost the torus wall's
-    // two CIRCLE rims their harmonic caches too.
+    // refused half-edge by refusing the entire face, so a spiric with
+    // no image would cost the torus wall's two CIRCLE rims their
+    // harmonic caches too.
     let torus_face = cavity
         .faces()
         .find(|(_, f)| matches!(cavity.get_surface(f.surface), Some(Surface::Torus { .. })))
