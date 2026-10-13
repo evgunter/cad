@@ -1937,17 +1937,17 @@ fn first_pair<T: Decide>(
     Ok(best.map(|(_, m)| m))
 }
 
-/// **Whether two unused germ slots are match partners** — the one
-/// criterion [`find_match`] pairs on and [`loose_partners`] counts
-/// partners with, so the separation constraint sees the partners the
-/// matcher will take: the A germs carry the SAME loci, each `OnEdge`
-/// locus at its own site ([`locus_at_site`]); the two halves' senses
-/// oppose in A; the sites are distinct (`bool_join_chord`) and FACE
-/// each other along the germ line (the locus-aware facing); and the B
-/// germs at the same slots mirror them — same loci, opposed senses —
-/// or the join has desynced. `Some(reach)` when they are partners — how
-/// far the partner is along the germ's line ([`Reach`]). Two slots
-/// of one record never are.
+/// **Whether two unused germ slots are match partners** — the
+/// criterion [`find_match`] pairs on, and the one [`loose_partners`]
+/// pairs two records' halves by, so the separation constraint sees the
+/// partners the matcher will take: the A germs carry the SAME loci,
+/// each `OnEdge` locus at its own site ([`locus_at_site`]); the two
+/// halves' senses oppose in A; the sites are distinct
+/// (`bool_join_chord`) and FACE each other along the germ line (the
+/// locus-aware facing); and the B germs at the same slots mirror them —
+/// same loci, opposed senses — or the join has desynced. `Some(reach)`
+/// when they are partners — how far the partner is along the germ's
+/// line ([`Reach`]). Two slots of one record never are.
 fn partners<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
@@ -3550,9 +3550,9 @@ fn loose_partners<T: Decide>(
     for &(i, s) in &loose {
         let mut best: Option<(Reach<T>, (usize, usize))> = None;
         for &(j, t) in &loose {
-            // The matcher's own criterion ([`partners`]): the separation
-            // constraint must count partners with the matcher's eyes or
-            // roles get walled off wrongly.
+            // Across records, the matcher's own criterion ([`partners`]):
+            // the separation constraint must see the pairs the matcher
+            // will take, or roles get walled off wrongly.
             let Some(reach) = partners(open, red, sa, sb, (i, s), (j, t), band)? else {
                 continue;
             };
@@ -3564,6 +3564,10 @@ fn loose_partners<T: Decide>(
     }
     for seg in segments {
         let [(r, s), (q, t)] = seg.ends;
+        // Defence in depth, unreachable in effect: a one-site record's
+        // two slots are consumed together and `bool_connect` cuts it at
+        // once, so a consumed pair's halves are keys no live loop holds.
+        // The guard keeps the map's domain to unused halves.
         if r != q || open[r].a[s].1 {
             continue;
         }

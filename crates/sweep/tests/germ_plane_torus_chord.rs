@@ -357,6 +357,120 @@ fn a_slab_across_a_torus_of_one_face_pair_builds_its_true_body() {
     }
 }
 
+/// The volume of the ring torus `(R, r)` above the height `h`, at any
+/// `h`: all of it under the tube, none over it.
+fn cap_at(big_r: f64, r: f64, h: f64) -> f64 {
+    cap(big_r, r, h.clamp(-r, r))
+}
+
+/// The comb whose teeth `[−3, 3.5] × [a, b] × [−3, 3]` (one per entry of
+/// `teeth`, ascending and apart) hang off the spine
+/// `[3, 3.5] × [a₀, bₙ] × [−3, 3]`, clear of a torus `R + r < 3`: the
+/// profile in `z = −3` extruded 6 m along `z`.
+fn comb(teeth: &[(f64, f64)]) -> Solid {
+    let (x0, x1, x2) = (-3.0, 3.0, 3.5);
+    let (lo, hi) = (teeth[0].0, teeth[teeth.len() - 1].1);
+    let mut ring = vec![
+        Point2::new(x0, lo),
+        Point2::new(x2, lo),
+        Point2::new(x2, hi),
+    ];
+    for (k, &(a, b)) in teeth.iter().enumerate().rev() {
+        ring.push(Point2::new(x0, b));
+        ring.push(Point2::new(x0, a));
+        if k > 0 {
+            ring.push(Point2::new(x1, a));
+            ring.push(Point2::new(x1, teeth[k - 1].1));
+        }
+    }
+    ring.pop();
+    let plane = profile::SketchPlane::new(Affine3::from_parts(
+        Mat3::from_cols(
+            Vec3::unit_x(),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
+        Vec3::new(0.0, 0.0, -3.0),
+    ));
+    let vp = profile::Profile::new(plane, vec![profile::ProfileLoop::polygon(ring)])
+        .validate(Tol::witness())
+        .expect("the comb's profile validates");
+    let body = sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: 6.0,
+            side: sweep::ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the comb extrudes")
+    .body;
+    let teeth = teeth.to_vec();
+    let area = teeth.iter().map(|(a, b)| (x2 - x0) * (b - a)).sum::<f64>()
+        + (x2 - x1) * ((hi - lo) - teeth.iter().map(|(a, b)| b - a).sum::<f64>());
+    Solid {
+        body: sweep::test_support::finished("the comb", body, Tol::witness()),
+        volume: area * 6.0,
+        inside: Box::new(move |p| {
+            let parts: Vec<_> = teeth
+                .iter()
+                .map(|&(a, b)| all(&[within(p.x, (x0, x2)), within(p.y, (a, b))]))
+                .chain([all(&[within(p.x, (x1, x2)), within(p.y, (lo, hi))])])
+                .collect();
+            let plan = if parts.contains(&Some(true)) {
+                Some(true)
+            } else {
+                parts.iter().all(|m| *m == Some(false)).then_some(false)
+            };
+            all(&[plan, within(p.z, (-3.0, 3.0))])
+        }),
+    }
+}
+
+/// **A comb across a torus of one face pair builds its true body**: the
+/// combs of two to four teeth, each tooth a slab across the tube or one
+/// with a face past it (or the whole tooth clear of it), against the
+/// one-face torus (its vertex at five phases) and the torus seamed on
+/// `y = 0`. Each comb's faces cut the torus in six or eight concentric
+/// circles, every one a one-site loop on one face, and each loop's chord
+/// must keep every other's two halves on one side of it.
+#[test]
+fn a_comb_across_a_torus_of_one_face_pair_builds_its_true_body() {
+    let (big_r, r) = (2.0, 0.5);
+    let combs: [&[(f64, f64)]; 4] = [
+        &[(-0.4, -0.15), (0.1, 0.35)],
+        &[(-0.7, -0.25), (0.15, 0.3)],
+        &[(-0.7, -0.3), (-0.1, 0.1), (0.3, 0.7)],
+        &[(-0.9, -0.6), (-0.4, -0.2), (0.05, 0.25), (0.6, 0.9)],
+    ];
+    let mut tori: Vec<_> = [0.0, 1.0, 2.0, PI, 5.5]
+        .into_iter()
+        .map(|phase| {
+            (
+                format!("the one-face torus, vertex at {phase}"),
+                one_face_torus(big_r, r, phase),
+            )
+        })
+        .collect();
+    tori.push(("the seamed torus".to_string(), seamed_torus(big_r, r)));
+    for (name, body) in tori {
+        let t = ring(body, (big_r, r));
+        for teeth in combs {
+            let meet = teeth
+                .iter()
+                .map(|&(a, b)| cap_at(big_r, r, a) - cap_at(big_r, r, b))
+                .sum();
+            holds_to_the_truth(
+                &format!("{name}, the comb {teeth:?}"),
+                &t,
+                &comb(teeth),
+                meet,
+                about_the_tube(big_r, r),
+            );
+        }
+    }
+}
+
 /// **A section circle along an equator edge of the torus refuses typed**
 /// in every op: the plane `y = 0` against the one-face torus whose
 /// vertex lies on an equator, whose wrap parallel is that circle, and
