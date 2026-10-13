@@ -1927,10 +1927,10 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::PcurveSplit {
             edge: ek,
             half_edge: he,
-            error: geom_brep::PcurveCertifyError::UnsupportedCarrier {
+            error: geom_brep::PcurveCertifyError::CarrierOffChart {
                 chart: geom::SurfaceKind::Torus,
-                carrier: geom::CurveKind::Nurbs,
-                class: geom_brep::UncoveredClass::NoFittedClass,
+                carrier: geom::CurveKind::Spiric,
+                why: "the spiric lies on neither its own torus nor that torus's mirror",
             },
         },
         EulerOpError::PcurveMint {
