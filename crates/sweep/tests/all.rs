@@ -220,6 +220,8 @@ mod r2_mate3_probes;
 mod r2_mesh1_donut_probes;
 #[path = "rehome_rings_lune.rs"]
 mod rehome_rings_lune;
+#[path = "review2_glue_door_probes.rs"]
+mod review2_glue_door_probes;
 #[path = "review_4704_flush_round_oracle.rs"]
 mod review_4704_flush_round_oracle;
 #[path = "review_r2_vv_probes.rs"]
