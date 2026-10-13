@@ -1265,6 +1265,14 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - The only red was step 9's FLUSH 1e-12 `coincidence_door` ring P1, which reproduces on main a5229515. Build B's PR comment names it.
   - Seam notes are posted on sym, decide, tcost and tint.
   - Build D was told to bring main into 4954 and take main's digest lines.
+- **2026-10-13 — unit 2 (build A): what it touches in `patch_bound.rs`, ahead of ENCL #4891's re-scope.** On `nurbs/quotient-second-order` from main `092b3022`. As of this note there is no ENCL reply on #4891 or `work/encl/log.md`.
+  - **Touches:** `rational_cells` (its whole body), the rational arm's module-doc section, the rational halves of the `PatchCell` field docs, and `RATIONAL_CERT_SPLITS`' doc.
+    - Each cell's boxes and sups, first and second order, come from `geom_core::spline::derivative`'s quotient pieces on the original cells' exact dyadic pieces: `S_u`, `S_v`, `S_u×S_v`, `S_uu`, `S_uv`, `S_vv`.
+    - The arm's interval refinement and the recentred hulls it fed are deleted: `window_tilde_hull`, `tilde_entry`, and the rational use of `refine_split`.
+    - `rational_split_points` goes once mesh chords stops refining.
+  - **Does not touch:** the integral arm (`integral_cells*`, `DNets`, `comp_nets`); the unit-arm helpers #4891 reworks (`vectors_norm_sup`, `window_norm_sup`, `cross_norm_sup`, `centre`, `coordinate_hull`); `PatchCell`'s layout; `PatchBoundError`.
+  - The rational arm stops calling the unit-arm helpers. #4891's re-scope keeps them for the integral arm.
+  - Also touched, outside `patch_bound`: mesh chords' `rational_carrier_m_bound`, `offset_meters`' cell inf (the area-floor quotient), and `geom_core::spline::derivative`, which gains the second-order statement. — (NURBS, build A)
 - 2026-10-13 11:30Z — **PR 4954 merged** (quotient bound, unit 1) at `092b30227f` on head d6bb50c4.
   - CI was fully green, with no FLUSH red on this head. The `test` job took 80 min, which adds to the CI friction already logged.
   - Before merging I commented on #4891 (comment 6144508945). ENCL did not answer between 06:21Z and 11:28Z, so the ruling stands and #4891 re-scopes.
