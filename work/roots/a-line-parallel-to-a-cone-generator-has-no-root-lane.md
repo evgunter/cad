@@ -62,3 +62,10 @@ The cylinder's twin of the pose builds, and once this lane answers
 the cone's, the cone's owes what that file's cylinder test checks:
 the edge's two ends recorded as v-f rests on the piece of the wall
 that holds them (`boolean::ops::Descendants::holder`).
+
+## 2026-10-13: names retired by PR 4820 (FUSE)
+
+PR 4820 retired `Descendants::holder`. A vertex-on-face rest on a
+divided face is now placed by `boolean::ops::place_found` (a found
+row) or `boolean::ops::carried` (a carried row), both over
+`records::landings`.

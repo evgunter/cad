@@ -401,9 +401,10 @@ pub(crate) fn wedge_decided<T: Decide>(
 /// from there down to its own, so the arm binds and keeps its own margin:
 /// an exactly zero wedge, and one that is only rounding on a tangent
 /// seam, whose own value would offer a tolerance many decades below the
-/// one that already decides the seam. An arm no smaller tolerance
-/// decides positive — poisoned, decided negative, or a zero on the
-/// negative side — keeps its own too: there is no tolerance to quote
+/// one that already decides the seam. An arm no smaller tolerance a run
+/// admits decides positive — poisoned, decided negative, a zero on the
+/// negative side, or one only a tolerance below `EPS_MIN` decides —
+/// keeps its own too: there is no tolerance to quote
 /// ([`LeverEscalation::re_quotes`]).
 fn at_wedge<T: Decide>(
     escalation: LeverEscalation,
@@ -1416,10 +1417,11 @@ mod tests {
     /// undecided arm** (`SizedDecision::recourse`): a reader that routes
     /// the arm gate's rejection as `RefusedArm::Undecided` ends it as the
     /// Zero arm does, at a build, at rest and at the import door. A zero
-    /// with no size to tighten below, read or proved, takes the note; a
-    /// rejected zero a smaller tolerance decides passing is offered that
-    /// tolerance and no note; and neither an untagged in-band margin nor
-    /// a rejected Negative takes it.
+    /// with no size to tighten below — read, proved, or rounding whose
+    /// tolerance lies below `EPS_MIN` — takes the note; a rejected zero a
+    /// smaller tolerance decides passing is offered that tolerance and no
+    /// note; and neither an untagged in-band margin nor a rejected
+    /// Negative takes it.
     #[test]
     fn a_gates_rejected_zero_ends_in_the_arms_zero_note() {
         use geom_core::sym::with_session;
@@ -1430,8 +1432,10 @@ mod tests {
         let b = Band::new(1e-9, 1e-8).unwrap();
         let reject = |margin| decide_positive("dihedral_arm", margin, b).unwrap_err();
         let read = reject(Margin::of(0.0));
-        // `0.1·3/3 − 0.1` rounds to a positive reading in the zero band.
+        // `0.1·3/3 − 0.1` rounds to a positive reading in the zero band,
+        // 1.39e-17 m, whose `|m|/K` lies below `EPS_MIN`.
         let rounded = reject(Margin::of(0.1_f64 * 3.0 / 3.0 - 0.1));
+        let small = reject(Margin::of(5e-10));
         let budget = SymBudget {
             max_terms: 64,
             max_degree: 8,
@@ -1470,10 +1474,10 @@ mod tests {
                         coincidence distance ε_in = 1e-8 m, so the file does not state it. ";
         let offer = format!(
             "{lever}, or, if this length or the gap its faces open is intended, tighten the \
-             tolerance below 1.3877787807814458e-18 m"
+             tolerance below 5e-11 m"
         );
         let file = FileCoincidence::new(1e-8);
-        let rows: [(&str, &Indeterminate, [String; 3]); 5] = [
+        let rows: [(&str, &Indeterminate, [String; 3]); 6] = [
             (
                 "a read zero",
                 &read,
@@ -1487,14 +1491,18 @@ mod tests {
             (
                 "a rounded zero",
                 &rounded,
+                [noted.clone(), noted.clone(), format!("{unstated}{noted}")],
+            ),
+            (
+                "a small size",
+                &small,
                 [
                     offer.clone(),
                     offer,
                     format!(
                         "{unstated}{lever}, or, if this length or the gap its faces open is \
                          intended, re-export the file with its uncertainty declared below \
-                         1.3877787807814457e-17 m and tighten the tolerance below \
-                         1.3877787807814458e-18 m"
+                         5e-10 m and tighten the tolerance below 5e-11 m"
                     ),
                 ],
             ),
@@ -1555,6 +1563,13 @@ mod tests {
                 panic!("a point margin: {err:?}");
             };
             assert_eq!(err.rung(), LeverRung::Arm);
+            if b.offer_deciding(extent).is_none() {
+                // The arm offers no tolerance (D4 ¶4), so there is none
+                // to decide the wedge by: the arm keeps its own margin.
+                assert_eq!(err.diag().predicate, Some("dihedral_arm"), "{extent:e}");
+                assert_eq!(m, extent, "{extent:e}");
+                continue;
+            }
             assert_eq!(err.diag().predicate, Some("dihedral_arm_wedge"));
             assert!((m - theta.sin() * extent).abs() <= 1e-6 * m, "{m:e}");
         }

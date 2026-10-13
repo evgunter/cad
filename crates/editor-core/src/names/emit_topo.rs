@@ -22,10 +22,10 @@ use super::emit::{
     Incidence, NamingError, Rim, RimShare, edge_ends, ent, face_half_edges, name1, rim_between,
     rims_between, vertex_point,
 };
-use super::groups::{CrossingSenses, Emitted, GroupRecord, Parent};
+use super::groups::{Emitted, GroupRecord, Parent};
 use super::merged::{self, NESTED_MERGED};
 use super::role::{
-    EntityKind, NameRef, Qualifier, RoleSeg, Sense, SplitHalf, StableName, edge_line,
+    EntityKind, NameRef, Qualifier, RoleSeg, RunLine, Sense, SplitHalf, StableName, edge_line,
 };
 use super::seam_pair;
 use super::table::{EntityKey, Entry, NameTable};
@@ -772,7 +772,8 @@ fn oriented<T: geom_core::Real>(
 
 /// A crossed seam edge with no first side: neither way along it is a
 /// fact of the names, so neither is a crossing's sense.
-const UNORIENTED: &str = "a crossed seam edge has no first side to orient its crossings by";
+pub(super) const UNORIENTED: &str =
+    "a crossed seam edge has no first side to orient its crossings by";
 
 /// One boolean operand under naming.
 pub(crate) struct OperandCtx<'a, T: Decide> {
@@ -1213,6 +1214,23 @@ pub(crate) fn name_boolean<T: Decide>(
         )?;
     }
     tie.flush(&mut t)?;
+    // An operand corner the result holds as several vertices: each
+    // copy's divider walls (N2), read through the faces' obstacles. The
+    // corner's faces are its parent, and its pieces are the faces that
+    // hold part of them (`held_by`).
+    let corner_walls = |sides: &BTreeSet<OpSide<VertexKey>>, copies: &[VertexKey]| {
+        let mut parent: BTreeSet<OpSide<FaceKey>> = BTreeSet::new();
+        for &side in sides {
+            let (op, k) = side.of(a, b);
+            let faces = op
+                .body
+                .faces_of_vertex(k)
+                .ok_or_else(|| bug("an operand corner's star does not resolve"))?;
+            parent.extend(faces.into_iter().map(|f| side.with(f)));
+        }
+        let pieces: BTreeSet<FaceKey> = parent.iter().flat_map(&held_by).collect();
+        obstacles.split_corner(body, &parent, copies, &pieces, &wall)
+    };
 
     let edge_groups = name_boolean_edges(
         node,
@@ -1231,7 +1249,7 @@ pub(crate) fn name_boolean<T: Decide>(
         &merged_descents,
         bnd,
     )?;
-    let senses = name_boolean_vertices(
+    name_boolean_vertices(
         node,
         &mut t,
         &mut tie,
@@ -1243,6 +1261,7 @@ pub(crate) fn name_boolean<T: Decide>(
         b,
         &inc,
         &edge_groups,
+        &corner_walls,
         bnd,
     )?;
     tie.flush(&mut t)?;
@@ -1262,7 +1281,7 @@ pub(crate) fn name_boolean<T: Decide>(
     tie.flush(&mut t)?;
 
     super::emit::check_total(&t, body, 0)?;
-    Ok(Emitted::new(t, rec).with_senses(senses))
+    Ok(Emitted::new(t, rec))
 }
 
 /// A merged parent in a pair boolean: its `Merged` name, the faces it
@@ -1837,13 +1856,14 @@ struct EdgeGroup {
     lone: Lone,
 }
 
-/// Boolean vertices: operand pass-downs (`From`), and seam
+/// Boolean vertices: operand pass-downs (`From`, + `Fragment(Borders)`
+/// at each of several vertices one corner is held as: null copies and
+/// the zip's copies per cone, [`Fused`]), and seam
 /// (crossing/fused) vertices named by the operand entities whose
 /// crossing minted them — derived from the already-named incident edges
 /// (combinatorial wiring facts) — and, where an edge crosses, by its
 /// sense ([`senses_at`]): `Crossing`, `EdgeCrossing`, or `Seam` for
-/// every other meeting. Returns the senses read at each seam vertex, for
-/// a union's fold ([`CrossingSenses`]).
+/// every other meeting.
 #[allow(clippy::too_many_arguments)]
 fn name_boolean_vertices<T: Decide>(
     node: RecipeNodeId,
@@ -1857,8 +1877,12 @@ fn name_boolean_vertices<T: Decide>(
     b: &OperandCtx<'_, T>,
     inc: &Incidence,
     edge_groups: &[EdgeGroup],
+    corner_walls: &impl Fn(
+        &BTreeSet<OpSide<VertexKey>>,
+        &[VertexKey],
+    ) -> Result<BTreeMap<Vec<StableName>, Vec<VertexKey>>, NamingError>,
     bnd: geom_core::Band,
-) -> Result<CrossingSenses, NamingError> {
+) -> Result<(), NamingError> {
     let bug = |what| NamingError::Emission { what };
     // Each edge's parent, the head a vertex cites it by, and whether
     // that descends from a tie.
@@ -1918,24 +1942,26 @@ fn name_boolean_vertices<T: Decide>(
             name1(EntityKind::Vertex, node, side.wrap(a, b, u.name)),
             u.tied,
             parent,
+            side,
         )
     };
     // Candidate seam-vertex names, grouped for multiplicity: the key
     // is the (A, B) parent pair, the value (descends-from-a-tie,
     // vertices).
-    let mut senses = CrossingSenses::new();
     let mut groups: BTreeMap<RoleSeg, (bool, Vec<(VertexKey, Along)>)> = BTreeMap::new();
-    // Operand vertices → the result vertices that are each of them:
-    // several where the boolean leaves several at one corner (null
-    // copies), a tie, as nothing tells them apart.
-    let mut corners: BTreeMap<StableName, (bool, Parent, Vec<super::table::EntityRef>)> =
-        BTreeMap::new();
+    // Operand vertices → the operand keys read there and the result
+    // vertices that are each of them: several where the boolean leaves
+    // several at one corner (null copies, and the zip's copies per
+    // cone, `BooleanNaming::cone_splits`).
+    type Corner = (bool, Parent, BTreeSet<OpSide<VertexKey>>, Vec<VertexKey>);
+    let mut corners: BTreeMap<StableName, Corner> = BTreeMap::new();
     for (v, _) in body.vertices() {
         // A vertex that is one of an operand's own vertices is that
         // vertex (N2), read at every operand key the boolean leaves at
         // the point: the kept key, then its fusion partners nearest
         // first (`fused_partners`; A's where both operands fused here,
-        // as `zip_seam` keeps the outer cycle's vertex), then the rest
+        // as `zip_seam` keeps the outer cycle's vertex), each a copy per
+        // cone read as the vertex it copies (`Fused::origin`), then the rest
         // A's first (`operand_vertex_keys`), then the vertex the
         // reduction's contact rows pair one of them with
         // (`contact_identity`).
@@ -1944,7 +1970,7 @@ fn name_boolean_vertices<T: Decide>(
         let kept = core::iter::once(&v).chain(fused.partners.get(&v).into_iter().flatten());
         let mut order = Vec::new();
         for &k in kept {
-            order.push(operand_key(naming, inv_vertices, k)?.0);
+            order.push(operand_key(naming, inv_vertices, fused.origin(k))?.0);
         }
         order.extend(keys.iter().map(|&(o, k)| OpSide::on(o, k)));
         for side in order {
@@ -1959,26 +1985,18 @@ fn name_boolean_vertices<T: Decide>(
         {
             identity = Some(identity_of(side, u));
         }
-        if let Some((name, from_tie, parent)) = identity {
+        if let Some((name, from_tie, parent, side)) = identity {
             let at = corners
                 .entry(name)
-                .or_insert((from_tie, parent, Vec::new()));
+                .or_insert((from_tie, parent, BTreeSet::new(), Vec::new()));
             at.0 |= from_tie;
-            at.2.push(ent(0, EntityKey::Vertex(v)));
+            at.2.insert(side);
+            at.3.push(v);
             continue;
         }
         // What the boolean classified here: the senses a crossing is
-        // named by, and the evidence a union reads for a vertex its fold
-        // names some other way (`CrossingSenses`).
+        // named by.
         let at_v = senses_at(naming, &keys, a, b)?;
-        let crossed: Vec<(StableName, Sense)> = at_v
-            .iter()
-            .filter(|s| !(s.unoriented && s.sense.crosses()))
-            .map(|s| (s.name.clone(), s.sense))
-            .collect();
-        if !crossed.is_empty() {
-            senses.insert(v, crossed);
-        }
         // Seam vertex: parents from incident edges' names.
         let edges = inc
             .vertex_edges
@@ -2059,23 +2077,11 @@ fn name_boolean_vertices<T: Decide>(
             ([], [be]) if a_faces.len() == 1 => (a_faces[0].clone(), be.clone()),
             // A seam JUNCTION (M4 PR 5: declared merges can consume
             // every operand-descended edge at a crossing): the vertex
-            // where k ≥ 2 seam LINES meet. Its name is the path of the
-            // lines' Seam segments, in the canonical form's order —
-            // deterministic, and unique per line set (straight lines
-            // meet once). A pinch is one too: several edges of one
-            // operand pierce a face of the other at one vertex, so no
-            // single edge is its parent; and so is a point edges of both
-            // operands run through, one of them on one side, where no
-            // edge pair is.
-            (aes, bes)
-                if seam_lines.len() >= 2
-                    && match (aes.len(), bes.len()) {
-                        (0, 0) => true,
-                        (n, 0) | (0, n) => n >= 2,
-                        (1, _) | (_, 1) => true,
-                        _ => false,
-                    } =>
-            {
+            // where k ≥ 2 seam LINES meet and no operand edge does. N2
+            // counts a seam as a line of a vertex's name only at a union,
+            // so here no line is an edge and the name is the path of the
+            // lines' Seam segments, in the canonical form's order.
+            ([], []) if seam_lines.len() >= 2 => {
                 let name = canonical::minted(StableName {
                     kind: EntityKind::Vertex,
                     node,
@@ -2090,37 +2096,115 @@ fn name_boolean_vertices<T: Decide>(
                 put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
                 continue;
             }
+            // Operand edges where seam lines meet, no one edge pair being
+            // the parentage: a pinch, where several edges of one operand
+            // pierce a face of the other, or a point edges of both
+            // operands run through, one of them on one side. N2 names it
+            // by its lines: each side's edges, those on one straight line
+            // once as the least ([`flush_lines`]). One line and one face
+            // of the other operand is that line's `Crossing`; two or more
+            // lines are their run.
+            (aes, bes)
+                if seam_lines.len() >= 2
+                    && match (aes.len(), bes.len()) {
+                        (n, 0) | (0, n) => n >= 1,
+                        (1, _) | (_, 1) => true,
+                        _ => false,
+                    } =>
+            {
+                let a_lines = flush_lines(aes, a, bnd)?;
+                let b_lines = flush_lines(bes, b, bnd)?;
+                let sense = |side, edge: &NameRef| sense_of(&at_v, side, edge);
+                let (seg, along) = match (a_lines.as_slice(), b_lines.as_slice()) {
+                    ([ae], []) if b_faces.len() == 1 => (
+                        RoleSeg::Crossing {
+                            edge: edge_line(ae),
+                            sense: sense(topo::Operand::A, ae)?,
+                            face: b_faces[0].clone(),
+                        },
+                        Along::A(ae.clone()),
+                    ),
+                    ([], [be]) if a_faces.len() == 1 => (
+                        RoleSeg::Crossing {
+                            edge: edge_line(be),
+                            sense: sense(topo::Operand::B, be)?,
+                            face: a_faces[0].clone(),
+                        },
+                        Along::B(be.clone()),
+                    ),
+                    (al, bl) if al.len() + bl.len() >= 2 => {
+                        let mut lines = Vec::with_capacity(al.len() + bl.len());
+                        for (side, edges) in [(topo::Operand::A, al), (topo::Operand::B, bl)] {
+                            for e in edges {
+                                let along = match side {
+                                    topo::Operand::A => Along::A(e.clone()),
+                                    topo::Operand::B => Along::B(e.clone()),
+                                };
+                                let line = RunLine {
+                                    line: edge_line(e),
+                                    sense: Some(sense(side, e)?),
+                                };
+                                lines.push((line, along));
+                            }
+                        }
+                        lines.sort_by(|x, y| x.0.cmp(&y.0));
+                        let along = lines
+                            .first()
+                            .map(|(_, a)| a.clone())
+                            .ok_or(bug("a seam vertex's run holds no line"))?;
+                        (
+                            RoleSeg::EdgeCrossing(lines.into_iter().map(|(l, _)| l).collect()),
+                            along,
+                        )
+                    }
+                    // One line meeting several faces of the other
+                    // operand, no edge of it: N2 has no pair spelling
+                    // for it, so it is a missing rule
+                    // (`work/emit/a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces.md`).
+                    ([_], []) | ([], [_]) => {
+                        return Err(NamingError::SeamVertexParentage { vertex: v });
+                    }
+                    _ => return Err(bug("a seam vertex's operand edges hold no line")),
+                };
+                let slot = groups.entry(seg).or_insert((false, Vec::new()));
+                slot.0 |= from_tie;
+                slot.1.push((v, along));
+                continue;
+            }
             // Written to a witness: an ordinary declared union reached
             // exactly this shape — one operand-descended edge on the A
-            // side, none on the B side, and, everything above having
-            // already run, no single B face to supply the other parent.
-            // The vertex is half-decided, the body is sound and the
-            // recipe is legal, so what is missing is a rule. Maximal
-            // edges join that witness's vertex away, and no document
-            // reaches the arm now
+            // side, none on the B side, fewer than two seam lines (the
+            // arm above takes two or more, on either side) and, everything
+            // above having already run, no single B face to supply the
+            // other parent. The vertex is half-decided, the body is sound
+            // and the recipe is legal, so what is missing is a rule.
+            // Maximal edges join that witness's vertex away, and no
+            // document reaches the arm now
             // (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`).
             //
-            // **Its mirror (`([], [_])`) is not here, and the
-            // reason is the finish's asymmetry, scoped to ZIPPED
-            // vertices.** The witness is a vertex whose B structure a
-            // shared plane consumed: Eq. 15.3 lumps every B on-sector to
-            // the discarded side (`topo::boolean::tables::eq15_3_lump`),
-            // so on a shared plane A's copy is what survives, and the zip
-            // keeps A's vertex where the two meet. The mirror needs B's
-            // lone edge surviving where A's structure was consumed, which
-            // that lumping does not produce. A vertex nothing zipped
-            // (a touch) is not covered by this argument; the vertex its
-            // contact rows pair it with names it, on either side, and on a
-            // straight edge the output stage joins it away. Two kinds of
-            // row hold the sides: `swapping_the_operands_swaps_the_sides_of_every_name`
+            // **So `SeamVertexParentage` is raised on both sides where
+            // two or more seam lines meet, and on the A side alone where
+            // fewer do.** The B side's lone edge with fewer than two seam
+            // lines falls to the residue below, and the reason is the
+            // finish's asymmetry, scoped to ZIPPED vertices. The witness
+            // is a vertex whose B structure a shared plane consumed: Eq.
+            // 15.3 lumps every B on-sector to the discarded side
+            // (`topo::boolean::tables::eq15_3_lump`), so on a shared
+            // plane A's copy is what survives, and the zip keeps A's
+            // vertex where the two meet. The mirror needs B's lone edge
+            // surviving where A's structure was consumed, which that
+            // lumping does not produce. A vertex nothing zipped (a touch)
+            // is not covered by this argument; the vertex its contact rows
+            // pair it with names it, on either side, and on a straight
+            // edge the output stage joins it away. Two kinds of row hold
+            // the sides: `swapping_the_operands_swaps_the_sides_of_every_name`
             // (in `emit_boolean_vertex_keys`) holds the two sides
             // SYMMETRIC — the same geometry named alike with A and B
             // exchanged — which a consistent A/B relabel would pass; the
             // absolute rows beside it (the nested corners, the touched
             // reflex edge, the assembly's touched ridge) pin WHICH side
             // each name belongs to. A shape nobody has reached is not a
-            // shape known to be legal, so the mirror stays in the residue
-            // below.
+            // shape known to be legal, so that mirror stays in the residue.
             ([_], []) => return Err(NamingError::SeamVertexParentage { vertex: v }),
             // The unenumerated residue, which stays an emission bug. A
             // catch-all is the preimage of every case nobody has named
@@ -2155,15 +2239,26 @@ fn name_boolean_vertices<T: Decide>(
                 },
                 Along::B(pb),
             ),
-            (EntityKind::Edge, EntityKind::Edge) => (
-                RoleSeg::EdgeCrossing {
-                    a: edge_line(&pa),
-                    a_sense: sense(topo::Operand::A, &pa)?,
-                    b: edge_line(&pb),
-                    b_sense: sense(topo::Operand::B, &pb)?,
-                },
-                Along::A(pa),
-            ),
+            // Two edges: the k = 2 run, in name order, ranked along its
+            // least line.
+            (EntityKind::Edge, EntityKind::Edge) => {
+                let la = RunLine {
+                    line: edge_line(&pa),
+                    sense: Some(sense(topo::Operand::A, &pa)?),
+                };
+                let lb = RunLine {
+                    line: edge_line(&pb),
+                    sense: Some(sense(topo::Operand::B, &pb)?),
+                };
+                let along = if la.line <= lb.line {
+                    Along::A(pa)
+                } else {
+                    Along::B(pb)
+                };
+                let mut run = vec![la, lb];
+                run.sort();
+                (RoleSeg::EdgeCrossing(run), along)
+            }
             (EntityKind::Face, EntityKind::Face) => {
                 (RoleSeg::Seam { a: pa, b: pb }, Along::Nowhere)
             }
@@ -2175,9 +2270,23 @@ fn name_boolean_vertices<T: Decide>(
         slot.0 |= from_tie;
         slot.1.push((v, along));
     }
-    for (name, (from_tie, parent, ents)) in corners {
-        rec.record(&name, ents.clone(), parent);
-        mint_candidates(t, tie, from_tie, name, ents)?;
+    // A corner held as one vertex is that corner; one held as several
+    // is fragments of it, `Fragment(Borders)` over each copy's divider
+    // walls (N2), and copies with equal sets tie.
+    for (name, (from_tie, parent, sides, copies)) in corners {
+        let ents = |vs: &[VertexKey]| vs.iter().map(|&v| ent(0, EntityKey::Vertex(v))).collect();
+        rec.record(&name, ents(&copies), parent);
+        if let [one] = copies[..] {
+            put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(one)))?;
+            continue;
+        }
+        for (walls, vs) in corner_walls(&sides, &copies)? {
+            let mut piece = name.clone();
+            piece
+                .path
+                .push(RoleSeg::Fragment(Qualifier::Borders(walls)));
+            mint_candidates(t, tie, from_tie, canonical::minted(piece), ents(&vs))?;
+        }
     }
     for (seg, (from_tie, verts)) in groups {
         let base = name1(EntityKind::Vertex, node, seg);
@@ -2228,11 +2337,73 @@ fn name_boolean_vertices<T: Decide>(
         }
         rank_crossings(t, tie, from_tie, &base, &crossings, bnd)?;
     }
-    Ok(senses)
+    Ok(())
+}
+
+/// **The lines of one operand's edges at a seam vertex** (N2), least
+/// first ([`least_per_line`]). An edge whose table does not name it
+/// once is a line of its own.
+fn flush_lines<T: Decide>(
+    edges: &[NameRef],
+    op: &OperandCtx<'_, T>,
+    bnd: geom_core::Band,
+) -> Result<Vec<NameRef>, NamingError> {
+    least_per_line(
+        edges.iter().cloned(),
+        |e| match crossed_edge(e, op.table) {
+            Some(k) => straight_segment(op.body, k),
+            None => Ok(None),
+        },
+        bnd,
+    )
+}
+
+/// **Edges that run flush on one straight line, counted once as the
+/// least of them** (N2's lines at a vertex), least first: each of
+/// `edges` in order, except one whose segment lies on the line of a
+/// lesser one's, through [`ON_MEMBER_EDGE`]. `segment` reads an edge's
+/// segment, `None` for an edge that is no straight line
+/// ([`straight_segment`]), which is a line of its own. The one home of
+/// the collapse the pair boolean (`flush_lines`) and the union
+/// (`emit_union::Flush::meeting`) both read.
+pub(super) fn least_per_line<E: Ord, T: Decide>(
+    edges: impl IntoIterator<Item = E>,
+    mut segment: impl FnMut(&E) -> Result<Option<Segment<T>>, NamingError>,
+    bnd: geom_core::Band,
+) -> Result<Vec<E>, NamingError> {
+    let mut sorted: Vec<E> = edges.into_iter().collect();
+    sorted.sort();
+    let mut kept: Vec<(E, Option<Segment<T>>)> = Vec::with_capacity(sorted.len());
+    for e in sorted {
+        let seg = segment(&e)?;
+        let mut flush = false;
+        if let Some(seg) = &seg {
+            for on in kept.iter().filter_map(|(_, on)| on.as_ref()) {
+                flush |= on.runs_with(seg, ON_MEMBER_EDGE, bnd)?.is_some();
+            }
+        }
+        if !flush {
+            kept.push((e, seg));
+        }
+    }
+    Ok(kept.into_iter().map(|(e, _)| e).collect())
+}
+
+/// Edge `e`'s segment if it is straight ([`is_straight`]), else `None`.
+pub(super) fn straight_segment<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+) -> Result<Option<Segment<T>>, NamingError> {
+    if is_straight(body, e) {
+        Segment::of_edge(body, e).map(Some)
+    } else {
+        Ok(None)
+    }
 }
 
 /// The edge a seam vertex is ranked along: an A-side edge, a B-side
 /// one, or none, for a point on a seam line.
+#[derive(Clone)]
 enum Along {
     A(NameRef),
     B(NameRef),
@@ -2242,19 +2413,41 @@ enum Along {
 /// What a boolean fused, read once per boolean: each result vertex's
 /// fusion partners ([`fused_partners`]) and every pair of operand keys
 /// a null edge (`BooleanNaming::null_copies`) leaves at one point, both
-/// ways round.
+/// ways round, and the vertex each of the zip's splits per cone
+/// (`BooleanNaming::cone_splits`) copied. Both kinds of copy leave
+/// several result vertices at one operand point: a null copy is read
+/// through `one_point`, a copy per cone through [`Fused::origin`].
 struct Fused {
     partners: BTreeMap<VertexKey, Vec<VertexKey>>,
     one_point: Vec<((topo::Operand, VertexKey), (topo::Operand, VertexKey))>,
+    split_from: BTreeMap<VertexKey, VertexKey>,
 }
 
 impl Fused {
     fn of(naming: &topo::BooleanNaming) -> Self {
-        Self::from_rows(naming.vertex_merges.rows(), &naming.null_copies)
+        let mut fused = Self::from_rows(naming.vertex_merges.rows(), &naming.null_copies);
+        fused.split_from = naming
+            .cone_splits
+            .iter()
+            .map(|&(split, new)| (new, split))
+            .collect();
+        fused
+    }
+
+    /// The result vertex `k` is a copy of: the vertex a split per cone
+    /// copied it from, through every split, or `k` itself. A split's
+    /// copy is minted on the result, so it is the operand vertex it
+    /// copies, not a key of either operand.
+    fn origin(&self, mut k: VertexKey) -> VertexKey {
+        while let Some(&from) = self.split_from.get(&k) {
+            k = from;
+        }
+        k
     }
 
     /// From the zips' fusions `(dead, kept)` and the null copies, each
-    /// in the order made.
+    /// in the order made, with no copy per cone ([`Fused::of`] adds
+    /// those).
     fn from_rows(
         merges: &[(VertexKey, VertexKey)],
         null_copies: &[(topo::Operand, VertexKey, VertexKey)],
@@ -2267,6 +2460,7 @@ impl Fused {
         Self {
             partners: fused_partners(merges),
             one_point,
+            split_from: BTreeMap::new(),
         }
     }
 }
@@ -2277,7 +2471,9 @@ impl Fused {
 /// those fused into one of them, each hop in the order they died. A
 /// vertex's operand identity is the first of them its operand names, so
 /// a key one fusion from the survivor wins over a key it absorbed
-/// earlier, as when no chain formed.
+/// earlier, as when no chain formed. A partner may be a copy the zip
+/// made per cone, which the caller reads as the vertex it copies
+/// ([`Fused::origin`]).
 fn fused_partners(merges: &[(VertexKey, VertexKey)]) -> BTreeMap<VertexKey, Vec<VertexKey>> {
     let mut into: BTreeMap<VertexKey, Vec<VertexKey>> = BTreeMap::new();
     for &(dead, kept) in merges {
@@ -2303,7 +2499,8 @@ fn fused_partners(merges: &[(VertexKey, VertexKey)]) -> BTreeMap<VertexKey, Vec<
 
 /// **Every operand vertex result vertex `v` is**, `(operand, key)` in
 /// that operand's clone keys: its own key read through the layout
-/// ([`operand_key`]), each key fused into it, and, transitively, every
+/// ([`operand_key`]), each key fused into it, each read through the
+/// copy per cone it may be ([`Fused::origin`]), and, transitively, every
 /// key a null edge (`BooleanNaming::null_copies`) joins to any of
 /// those: it leaves two keys of one point.
 fn operand_vertex_keys(
@@ -2314,7 +2511,11 @@ fn operand_vertex_keys(
 ) -> Result<BTreeSet<(topo::Operand, VertexKey)>, NamingError> {
     let mut keys = BTreeSet::new();
     for &k in core::iter::once(&v).chain(fused.partners.get(&v).into_iter().flatten()) {
-        keys.insert(operand_key(naming, inv_vertices, k)?.0.of_operand());
+        keys.insert(
+            operand_key(naming, inv_vertices, fused.origin(k))?
+                .0
+                .of_operand(),
+        );
     }
     loop {
         let new: Vec<_> = fused
@@ -3093,8 +3294,12 @@ fn rim_holding<T: Decide>(
     })
 }
 
-/// Whether edge `e` of `body` is carried by a line.
-fn is_straight<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
+/// Whether edge `e` of `body` is carried by a line: a tag read, no
+/// number consulted, and the one straightness test the flush readings
+/// share. The flush tests are straight-segment tests, and a curved
+/// edge's chord is not its locus (a sphere's two meridians share both
+/// ends and both faces).
+pub(super) fn is_straight<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
     topo::query::edge_carrier_kind(body, e) == Some(topo::query::CurveKind::Line)
 }
 
@@ -5785,11 +5990,25 @@ mod touch_reread_rows {
         t
     }
 
-    /// Names every op on `(x, y)` in both orders; returns how many built.
-    fn names(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) -> usize {
+    /// What naming the ops of one scene found.
+    #[derive(Default)]
+    struct Named {
+        /// Ops that built.
+        built: usize,
+        /// Operand corners named as fragments (several result vertices).
+        fragmented: usize,
+        /// Corner names, bare or fragment, that tie.
+        tied_corners: usize,
+    }
+
+    /// Names every op on `(x, y)` in both orders.
+    fn names(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) -> Named {
+        use crate::names::role::Qualifier;
+        use crate::names::table::Entry;
+        use std::collections::BTreeSet;
         let (xn, yn) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
         let (xt, yt) = (table(x, xn), table(y, yn));
-        let mut named = 0;
+        let mut named = Named::default();
         for (what, (a, an, at), (b, bn, bt), r) in [
             ("x − y", (x, xn, &xt), (y, yn, &yt), subtract(x, y, t())),
             ("y − x", (y, yn, &yt), (x, xn, &xt), subtract(y, x, t())),
@@ -5813,22 +6032,44 @@ mod touch_reread_rows {
                 table: bt,
                 body: b,
             };
-            match name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t()) {
-                Ok(_) => named += 1,
+            let table = match name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t())
+            {
+                Ok(e) => e.table,
                 Err(e) => panic!("{label}, {}, {what}: names, got {e:?}", pose.label),
+            };
+            named.built += 1;
+            let mut fragmented = BTreeSet::new();
+            for (n, e) in table.iter().filter(|(n, _)| n.kind == EntityKind::Vertex) {
+                let corner = match n.path.as_slice() {
+                    [c @ RoleSeg::From { .. }] => c,
+                    [
+                        c @ RoleSeg::From { .. },
+                        RoleSeg::Fragment(Qualifier::Borders(_)),
+                    ] => {
+                        fragmented.insert(c.clone());
+                        c
+                    }
+                    _ => continue,
+                };
+                if matches!(e, Entry::Tied(_)) {
+                    eprintln!("{label}, {}, {what}: {corner:?} ties", pose.label);
+                    named.tied_corners += 1;
+                }
             }
+            named.fragmented += fragmented.len();
         }
         named
     }
 
-    /// **A corner the result holds as several vertices is one tied name
-    /// over them** (N2: each is that corner, and nothing tells them
-    /// apart): "over a void in the bare arch", `x − y` at rest, leaves
-    /// `x`'s apex at the plate's top as several result vertices, each a
-    /// null copy of it, and names them all `x`'s corner, tied
-    /// (`work/emit/a-corner-held-as-several-result-vertices-ties.md`).
+    /// **A corner the result holds as several vertices is a fragment
+    /// of it at each** (N2): "over a void in the bare arch", `x − y` at
+    /// rest, leaves `x`'s apex at the plate's top as two result
+    /// vertices, each a null copy of it, and each is `x`'s corner +
+    /// `Fragment(Borders)` over the walls of `y` that divide the corner
+    /// there, the two sets apart.
     #[test]
-    fn a_corner_held_as_several_result_vertices_is_one_tied_name() {
+    fn a_corner_held_as_several_result_vertices_is_a_fragment_at_each() {
+        use crate::names::role::Qualifier;
         use crate::names::table::Entry;
         let pose = &poses()[0];
         let p = |b: [[f64; 3]; 3]| apex_pyramid(&b, pose, t());
@@ -5854,43 +6095,81 @@ mod touch_reread_rows {
         };
         let named = name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t())
             .expect("x − y names");
-        let ties: Vec<(&crate::names::StableName, usize)> = named
+        let ties: Vec<&crate::names::StableName> = named
             .table
             .iter()
-            .filter_map(|(n, e)| match e {
-                Entry::Tied(rs) if n.kind == EntityKind::Vertex => Some((n, rs.len())),
+            .filter(|(n, e)| n.kind == EntityKind::Vertex && matches!(e, Entry::Tied(_)))
+            .map(|(n, _)| n)
+            .collect();
+        assert!(ties.is_empty(), "no vertex name ties: {ties:?}");
+        let corner_of_x = |seg: &RoleSeg| {
+            matches!(seg, RoleSeg::From { read, of }
+                if *read == crate::names::FOLD_A
+                    && matches!(of.path.as_slice(), [RoleSeg::CapVertex(..)]))
+        };
+        let fragments: Vec<(&RoleSeg, &Vec<crate::names::StableName>)> = named
+            .table
+            .iter()
+            .filter(|(n, _)| n.kind == EntityKind::Vertex)
+            .filter_map(|(n, _)| match n.path.as_slice() {
+                [corner, RoleSeg::Fragment(Qualifier::Borders(walls))] if corner_of_x(corner) => {
+                    Some((corner, walls))
+                }
                 _ => None,
             })
             .collect();
-        let [(name, n)] = ties.as_slice() else {
-            panic!("one tied vertex name: {ties:?}");
+        let [(corner, one), (also, other)] = fragments.as_slice() else {
+            panic!("two fragments of x's corner: {fragments:?}");
         };
-        assert_eq!(*n, 2, "{name:?}: the two vertices at the corner");
-        assert!(
-            matches!(
-                name.path.as_slice(),
-                [RoleSeg::From { read, of }]
-                    if *read == crate::names::FOLD_A
-                        && matches!(of.path.as_slice(), [RoleSeg::CapVertex(..)])
-            ),
-            "the tie is x's own corner: {name:?}"
-        );
+        assert_eq!(corner, also, "both fragments are of one corner");
+        assert_ne!(one, other, "the two copies' walls tell them apart");
+        for walls in [one, other] {
+            assert!(
+                !walls.is_empty()
+                    && walls
+                        .iter()
+                        .all(|w| w.kind == EntityKind::Face && w.node == yn),
+                "each copy's walls are y's faces: {walls:?}"
+            );
+        }
+        let bare = named
+            .table
+            .iter()
+            .any(|(n, _)| n.kind == EntityKind::Vertex && n.path == [(*corner).clone()]);
+        assert!(!bare, "a corner held as several vertices has no bare name");
     }
 
-    /// At rest, every scene.
+    /// At rest, every scene: seven operand corners are held as several
+    /// result vertices, and each copy's walls tell it apart. They are
+    /// `x`'s apex, where `y`'s void meets it, in `x − y` over a void in
+    /// the arch, the bare arch, the quad arch and the bare quad arch and
+    /// over the void with the island in it, and in `x ∩ y` crossing the
+    /// island in the void and hanging across the near-flat quad void.
     #[test]
     fn a_vertex_read_twice_names_its_result_in_every_op() {
-        assert!(every_scene(&poses()[..1]) > 0, "cells built");
+        let named = every_scene(&poses()[..1]);
+        assert!(named.built > 0, "cells built");
+        assert_eq!(named.fragmented, 7, "corners held as several vertices");
+        assert_eq!(named.tied_corners, 0, "corner names that tie");
     }
 
-    /// The other poses, every scene.
+    /// The other poses, every scene: the same seven corners at each, as
+    /// a pose moves no scene's topology.
     #[test]
     fn a_vertex_read_twice_names_its_result_in_every_op_at_every_pose() {
-        assert!(every_scene(&poses()[1..]) > 0, "cells built");
+        let rest = &poses()[1..];
+        let named = every_scene(rest);
+        assert!(named.built > 0, "cells built");
+        assert_eq!(
+            named.fragmented,
+            7 * rest.len(),
+            "corners held as several vertices"
+        );
+        assert_eq!(named.tied_corners, 0, "corner names that tie");
     }
 
-    fn every_scene(poses: &[Pose]) -> usize {
-        let mut named = 0;
+    fn every_scene(poses: &[Pose]) -> Named {
+        let mut named = Named::default();
         for pose in poses {
             let p = |b: [[f64; 3]; 3]| apex_pyramid(&b, pose, t());
             let plate = posed_box("the plate", PLATE, pose, t());
@@ -6046,7 +6325,10 @@ mod touch_reread_rows {
                     &flat_island,
                 ),
             ] {
-                named += names(label, x, y, pose);
+                let n = names(label, x, y, pose);
+                named.built += n.built;
+                named.fragmented += n.fragmented;
+                named.tied_corners += n.tied_corners;
             }
         }
         named

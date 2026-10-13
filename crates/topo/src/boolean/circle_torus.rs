@@ -360,7 +360,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
             lever,
         },
         &CIRCLE_TORUS_ROWS,
-        Some(&RootSlack {
+        &RootSlack {
             row: ROOT_SLACK,
             residual: &|theta| {
                 geom_brep::conic_torus_implicit(
@@ -373,7 +373,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
                 )
             },
             f_per_metre_hi: T::one(),
-        }),
+        },
         band,
     )
 }

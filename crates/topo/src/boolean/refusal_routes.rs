@@ -283,6 +283,15 @@ pub enum BooleanDecision {
     /// reading in the zero band, reachable only where the band's ratio
     /// is 2 or less, refuses rather than read the wrong side.
     BisectorSide,
+    /// Whether the faces two corners of one solid leave an edge of the
+    /// other's corner in part around it, where that edge lies on both
+    /// corners' boundaries (`vtxfac::along_partners`,
+    /// `bool_partner_half_plane`): the chord between two such
+    /// half-planes' directions levered at the farthest reach, a
+    /// magnitude. A definitely positive chord passes, and the edge is
+    /// on the solid's boundary; a zero is the corners flush along it,
+    /// which refuses with its decided margin, as the in-band arm does.
+    PartnerFaces,
     /// Whether the two faces at a seam edge of the result cross there or
     /// touch tangentially (`dihedral_wedge`, as the result's seam
     /// re-description reads it): every definite verdict passes (a crease
@@ -893,6 +902,22 @@ const FLANK_SENSE: SizedDecision = SizedDecision {
     ..CORNER_SENSE
 };
 
+/// Whether two corners of one solid that meet along an edge of the
+/// other part around it ([`BooleanDecision::PartnerFaces`]): the chord
+/// between their faces' half-planes there levered at the farthest
+/// reach, a magnitude, so a definitely positive one alone passes. Both
+/// corners are one solid's, so moving the parts reaches the reading
+/// only by taking the other solid's corner off that point; reshaping
+/// the one solid parts its corners.
+const PARTNER_FACES: SizedDecision = SizedDecision {
+    lever: "move the parts so that edge's corner lands clear of them, or reshape that solid so \
+            they clearly part",
+    size: "gap between their faces",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
 /// The one move that lengthens the arm a corner's reading is metered
 /// over: shared by every decision whose margin, once its direction has
 /// read, measures that arm ([`LeverArm`]'s corner gates,
@@ -1406,6 +1431,9 @@ impl BooleanDecision {
                 "whether two parallel directions at a corner point the same way or opposite ways"
             }
             Self::BisectorSide => "which side of a face a corner's bisector leaves on",
+            Self::PartnerFaces => {
+                "whether two corners of one solid part around an edge of the other"
+            }
             Self::SeamWedge => {
                 "whether the two faces at a seam edge cross there or touch tangentially"
             }
@@ -1599,6 +1627,7 @@ impl BooleanDecision {
             // measured margin; a longer arm lengthens every reading of the
             // corner.
             Self::BisectorSide => Ending::Lever(CORNER_EDGES),
+            Self::PartnerFaces => Ending::Sized(PARTNER_FACES),
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
             Self::SeamJet => Ending::Sized(SEAM_JET),
             Self::EdgeOnFaces => Ending::Lever(crate::merge_faces::EDGE_ON_FACES_LEVER),
@@ -1716,18 +1745,19 @@ pub(in crate::boolean) mod tests {
         }
     }
 
-    /// The band's multiplier `K`, which turns a margin into the
-    /// tolerance a smaller one than which decides it.
-    fn k() -> f64 {
-        band().escalate() / band().zero()
-    }
-
     /// The point margin `diag` carries, for this row's arithmetic.
     fn point_margin(diag: &Indeterminate) -> f64 {
         diag.margin
             .diagnostic_f64_for_error_text()
             .value()
             .expect("a point margin")
+    }
+
+    /// What [`offered_below`] reads where the decision offers on
+    /// `margin`: the run band's offer for it, none at or below `EPS_MIN`
+    /// ([`Band::offer_deciding`]).
+    fn offer_at(margin: Option<f64>) -> Option<Option<f64>> {
+        margin.and_then(|m| band().offer_deciding(m)).map(Some)
     }
 
     /// The tolerance an ending offers to tighten below, where it offers
@@ -1840,7 +1870,7 @@ pub(in crate::boolean) mod tests {
             );
             assert_eq!(
                 offered_below(&text),
-                Some(Some(margin / k())),
+                offer_at(Some(margin)),
                 "{door} offers the tolerance the margin gives: {text}"
             );
         }
@@ -1912,6 +1942,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::ConicBend => vec![BooleanDecision::ConicBend],
                 BooleanDecisionKind::DirectionSense => vec![BooleanDecision::DirectionSense],
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
+                BooleanDecisionKind::PartnerFaces => vec![BooleanDecision::PartnerFaces],
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
                 BooleanDecisionKind::EdgeOnFaces => vec![BooleanDecision::EdgeOnFaces],
@@ -2159,6 +2190,14 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::BisectorSide => (
                 "which side of a face a corner's bisector leaves on",
                 Ending::Lever(LONGER),
+            ),
+            BooleanDecision::PartnerFaces => (
+                "whether two corners of one solid part around an edge of the other",
+                Ending::Sized(
+                    "Recourse: move the parts so that edge's corner lands clear of them, or \
+                     reshape that solid so they clearly part",
+                    SizedPass::Positive,
+                ),
             ),
             BooleanDecision::LeverArm(LeverArm::SectorSide) => (
                 "whether an edge at a corner is long enough to read which side of a face it \
@@ -2437,9 +2476,9 @@ pub(in crate::boolean) mod tests {
         }
     }
 
-    /// The tolerance a smaller one than which decides `margin` on a side
-    /// `passes` accepts: a point margin at `|m|/K`, an enclosure with
-    /// both ends on one such side at its nearer end's.
+    /// The margin whose tolerance decides `margin` on a side `passes`
+    /// accepts, for [`offer_at`]: a point margin's own magnitude, an
+    /// enclosure with both ends on one such side its nearer end's.
     fn expected_offer(margin: MarginDiag, passes: SizedPass) -> Option<f64> {
         let on = |v: f64| {
             v != 0.0
@@ -2450,9 +2489,9 @@ pub(in crate::boolean) mod tests {
                 }
         };
         match margin.diagnostic_f64_for_error_text() {
-            geom_core::ErrorTextReading::Value(m) => on(m).then(|| m.abs() / k()),
+            geom_core::ErrorTextReading::Value(m) => on(m).then(|| m.abs()),
             geom_core::ErrorTextReading::Enclosure { lo, hi } => {
-                (on(lo) && on(hi) && (lo > 0.0) == (hi > 0.0)).then(|| lo.abs().min(hi.abs()) / k())
+                (on(lo) && on(hi) && (lo > 0.0) == (hi > 0.0)).then(|| lo.abs().min(hi.abs()))
             }
             geom_core::ErrorTextReading::Invalid => None,
         }
@@ -2552,7 +2591,7 @@ pub(in crate::boolean) mod tests {
                         );
                         assert_eq!(
                             offered_below(&text),
-                            expected_offer(margin, passes).map(Some),
+                            offer_at(expected_offer(margin, passes)),
                             "{label}: {text}"
                         );
                     }
@@ -3204,7 +3243,7 @@ pub(in crate::boolean) mod tests {
             if margin > 0.0 {
                 assert_eq!(
                     offered_below(&text),
-                    Some(Some(margin / k())),
+                    offer_at(Some(margin)),
                     "{label}: the tolerance a positive margin gives: {text}"
                 );
             }
@@ -3383,8 +3422,8 @@ pub(in crate::boolean) mod tests {
                         && !text.contains("FaceKey"),
                     "{label}: {text}"
                 );
-                let offer = (!definite && sign > 0.0).then(|| reach / k());
-                assert_eq!(offered_below(&text), offer.map(Some), "{label}: {text}");
+                let offer = (!definite && sign > 0.0).then_some(reach);
+                assert_eq!(offered_below(&text), offer_at(offer), "{label}: {text}");
                 assert_eq!(
                     BooleanError::Merge(err).to_string(),
                     format!("coplanar-merge output stage refused: {text}"),
@@ -3455,7 +3494,7 @@ pub(in crate::boolean) mod tests {
         );
         assert_eq!(
             offered_below(&text),
-            Some(Some(point_margin(&diag) / k())),
+            offer_at(Some(point_margin(&diag))),
             "{text}"
         );
     }
@@ -3671,7 +3710,7 @@ pub(in crate::boolean) mod tests {
             "{text}"
         );
         let m = point_margin(&refused);
-        assert_eq!(offered_below(&text), Some(Some(m.abs() / k())), "{text}");
+        assert_eq!(offered_below(&text), offer_at(Some(m)), "{text}");
     }
 
     /// **The two definite arms, and the maximal-faces gate's, pass the
@@ -3706,7 +3745,7 @@ pub(in crate::boolean) mod tests {
                         band: b,
                     }),
                 },
-                Some(zero_margin / k()),
+                Some(zero_margin),
             ),
             (
                 "pierce curvature, negative",
@@ -3724,7 +3763,7 @@ pub(in crate::boolean) mod tests {
                     faces: [face, face],
                     offset: diag,
                 },
-                Some(point_margin(&diag) / k()),
+                Some(point_margin(&diag)),
             ),
         ];
         for (name, err, offer) in rows {
@@ -3732,7 +3771,7 @@ pub(in crate::boolean) mod tests {
             let problems = short_of_the_guard(&text, &[]);
             assert!(problems.is_empty(), "{name}: {problems:?}: {text}");
             assert!(!text.contains("declare"), "{name}: {text}");
-            assert_eq!(offered_below(&text), offer.map(Some), "{name}: {text}");
+            assert_eq!(offered_below(&text), offer_at(offer), "{name}: {text}");
         }
         let pierce = BooleanError::CurvedPierceUnsupported {
             operand: Operand::A,
@@ -3856,8 +3895,8 @@ pub(in crate::boolean) mod tests {
                     && !text.contains("declare"),
                 "{rung:?}: {text}"
             );
-            let offer = (rung == PlaneRung::Parallel).then(|| point_margin(&diag) / k());
-            assert_eq!(offered_below(&text), offer.map(Some), "{rung:?}: {text}");
+            let offer = (rung == PlaneRung::Parallel).then(|| point_margin(&diag));
+            assert_eq!(offered_below(&text), offer_at(offer), "{rung:?}: {text}");
         }
     }
 }

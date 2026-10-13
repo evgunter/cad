@@ -198,10 +198,7 @@
 //! The pass CLEARS the map first, so it reads none of the operand's
 //! rows; that they were sound is the operand type's promise (above),
 //! and a stale-row operand refuses where it is gated, not here
-//! (`shell9_r2_probes`). A face whose carrier class the pass cannot
-//! derive stops carrying rows rather than refusing
-//! (`UnsupportedCarrier`; not known to be reachable through this
-//! verb). The refusal is [`ShellError::Pcurve`], a kernel finding by
+//! (`shell9_r2_probes`). The refusal is [`ShellError::Pcurve`], a kernel finding by
 //! construction.
 //!
 //! # The record

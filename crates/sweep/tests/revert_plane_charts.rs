@@ -206,7 +206,6 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
         .recertify(
             &carrier3,
             reverted_plane,
-            None,
             band,
             <f64 as topo::AtRestPolicy>::fitted_lane(),
         )
@@ -219,7 +218,6 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
     let stale = row.recertify(
         &carrier3,
         reverted_plane,
-        None,
         band,
         <f64 as topo::AtRestPolicy>::fitted_lane(),
     );

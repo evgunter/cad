@@ -307,6 +307,10 @@ mod band_reads_three_ways;
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
+#[path = "band_turn_overrun_chamfer.rs"]
+mod band_turn_overrun_chamfer;
+#[path = "band_turn_overrun_oracles.rs"]
+mod band_turn_overrun_oracles;
 #[path = "band_turn_overrun_probe.rs"]
 mod band_turn_overrun_probe;
 #[path = "band_turn_overrun_verdict.rs"]
@@ -383,6 +387,8 @@ mod euler_site_rows_equal_the_pass;
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
 mod extrude_interval;
+#[path = "face_face_touch.rs"]
+mod face_face_touch;
 #[path = "issue93_az_intersect.rs"]
 mod issue93_az_intersect;
 #[path = "join1_r2_probes.rs"]
@@ -1119,5 +1125,7 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "join_lever_is_the_joined_edge.rs"]
+mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]
 mod review_4737_span_probes;
