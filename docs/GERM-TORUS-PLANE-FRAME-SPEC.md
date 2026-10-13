@@ -167,9 +167,13 @@ every pose:
   torus the face's outer loop lies on the other arcs' carriers, so
   every path between them runs along an arc's plane; the ring lane
   reads such a piece apart from the arc (§1.3), and both build their
-  true bodies in every op. Containment refuses `PartialTorusFace` on
-  their ∪ and `T ∖ P` bodies, whose torus walls are no chart rectangle
-  (INSIDE, below).
+  true bodies in every op. So does the box `y ≥ −0.3` against the
+  one-face torus with its vertex at `π + asin 0.6`, whose wrap parallel
+  and vertex lie on the box's face: an edge and a vertex on a face that
+  cuts the tube transversally, decided Zero by the crossing layer's
+  margins, as TANG's rim is (§2, not held). Containment refuses
+  `PartialTorusFace` on their ∪ and `T ∖ P` bodies, whose torus walls
+  are no chart rectangle (INSIDE, below).
 - **A slab across the one-face torus** refuses `JoinDesync` in
   `choose_roles` at some vertex phases (filed on GERM,
   `a-slab-against-a-one-face-torus-desyncs-its-chord-roles`).
