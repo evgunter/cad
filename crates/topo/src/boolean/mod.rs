@@ -238,6 +238,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         }
         // The coincidences these names decide.
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
+        "bool_held_carrier_datum" => {
+            "whether a face lies on the carrier of a face its pierce point's vertex bounds"
+        }
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
         "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" | "bool_cone_arc"
@@ -4793,8 +4796,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         };
         let mut held = Vec::new();
         // Each curved face's box, read once: a pierce point is placed in
-        // a curved face only where its box holds the point, and its
-        // carrier is none of the piercing vertex's own faces'.
+        // a curved face only where its box holds the point.
         let mut curved_boxes = std::collections::BTreeMap::new();
         if minted.iter().any(|(_, plan)| plan.is_some()) {
             let pad = boxes::sweep_pad(band);
@@ -4807,25 +4809,16 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band)?);
             }
         }
-        let may_hold = |body: &Body<T>, face: FaceKey, own: &[FaceKey], p: Point3<T>| {
+        let box_holds = |face: FaceKey, p: Point3<T>| {
             let point = bvh::Aabb::from_points([p]).unwrap_or_else(bvh::Aabb::poison);
-            let carrier = |f: FaceKey| {
-                body.face_surface_linked(
-                    f,
-                    crate::live::proven(&body.faces, f, crate::EntityId::Face),
-                )
-            };
             curved_boxes.get(&face).is_none_or(|b| b.overlaps(&point))
-                && !own
-                    .iter()
-                    .any(|&o| crate::chart_region::surface_bits_equal(carrier(o), carrier(face)))
         };
         for (_, plan) in &minted {
             if let Some(plan) = plan {
                 held.extend(vtxfac::faces_holding_pierce(
                     piercing_body,
                     pierced_body,
-                    &may_hold,
+                    &box_holds,
                     plan,
                     band,
                     tol,

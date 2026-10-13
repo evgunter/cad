@@ -1572,9 +1572,10 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 /// Mints each such ring vertex and its run's strut in `piercing_body`
 /// and returns them with the pierce's half of its ring. A plane face is
 /// read where the point is on its plane or in band of it, a curved face
-/// that `may_hold` says can hold the point: its box holds it, and its
-/// carrier is none of the piercing vertex's own faces', whose siblings
-/// on one carrier a valid body never lets overlap. The vertex is built on two planes
+/// whose box `box_holds` says holds the point, on a carrier none of the
+/// piercing vertex's own faces lies on (their siblings on one carrier,
+/// which a valid body never lets overlap them), and where the point is
+/// not definitely off that carrier.
 /// only: a curved face that holds the point, or whose trim cannot say
 /// whether it does, and a plane face holding it over a curved pierced
 /// face, refuse [`BooleanError::HeldPierceUnbuilt`] before anything is
@@ -1591,12 +1592,7 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
     piercing_body: &mut Body<T>,
     pierced_body: &Body<T>,
-    may_hold: &dyn Fn(
-        &Body<T>,
-        crate::entity::FaceKey,
-        &[crate::entity::FaceKey],
-        geom_core::Point3<T>,
-    ) -> bool,
+    box_holds: &dyn Fn(crate::entity::FaceKey, geom_core::Point3<T>) -> bool,
     plan: &RingPlan<T>,
     band: Band,
     tol: Tol,
@@ -1633,6 +1629,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         .into_iter()
         .map(|he| piercing_body.face_of_linked(he))
         .collect();
+    let extent = super::carrier_eq::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(p, arm));
     for face in faces {
         if own.contains(&face) {
             continue;
@@ -1640,7 +1637,7 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         let Some(plane) = face_plane(piercing_body, face) else {
             // A curved face is read only where its box can hold the
             // point, as a plane is only where the point is on it.
-            if !may_hold(piercing_body, face, &own, p) {
+            if !box_holds(face, p) {
                 continue;
             }
             // Off the carrier, the face holds nothing: decided first, as
@@ -1659,6 +1656,15 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                 ),
                 Ok(Sign::Positive | Sign::Negative)
             ) {
+                continue;
+            }
+            // A face on one of their carriers is their sibling there,
+            // which a valid body never lets overlap them: it holds the
+            // point outside.
+            if own
+                .iter()
+                .any(|&o| one_carrier(piercing_body, o, face, &extent, band))
+            {
                 continue;
             }
             let (placement, _) =
@@ -1769,6 +1775,42 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         });
     }
     Ok(out)
+}
+
+/// Whether faces `a` and `b` of `body` lie on one carrier, decided: by
+/// the carrier ladder ([`super::carrier_eq`]) over `extent` where it has
+/// an arm for both, else datum by datum on their stored descriptions,
+/// each within the band (`bool_held_carrier_datum`). Anything undecided
+/// is `false`, which reads the face rather than passing it over.
+fn one_carrier<T: Decide>(
+    body: &Body<T>,
+    a: crate::entity::FaceKey,
+    b: crate::entity::FaceKey,
+    extent: &super::carrier_eq::ConsumedExtent<'_, T>,
+    band: Band,
+) -> bool {
+    use super::carrier_eq::{CarrierRelation, carrier_eq};
+    if let (Some(x), Some(y)) = (
+        super::carrier_pair::face_carrier(body, a),
+        super::carrier_pair::face_carrier(body, b),
+    ) {
+        return matches!(
+            carrier_eq(&x, &y, super::plane_eq::PlaneIdentity::NONE, extent, band),
+            Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite)
+        );
+    }
+    let surface = |f| body.face_surface_linked(f, proven(&body.faces, f, EntityId::Face));
+    match surface(a).paired_with(surface(b)) {
+        geom::SurfacePairing::Analytic(data) => data.pairs().all(|(_, x, y)| {
+            x.scalars().zip(y.scalars()).all(|(p, q)| {
+                matches!(
+                    decide("bool_held_carrier_datum", Margin::of(p - q), band),
+                    Ok(Sign::Zero)
+                )
+            })
+        }),
+        _ => false,
+    }
 }
 
 /// **The germs' order round the ring vertex**: indices into `germs`
