@@ -20,8 +20,9 @@
 //! edge-plane lane rather than the parallel pair's radical plane. That
 //! lane copies its edge on the edge's own side, which it does for a line
 //! or a circle and not for an ellipse
-//! (`cleave/the-edge-plane-lane-copies-no-ellipse-edge`): every op
-//! refuses there, and is held to its closed form once it builds.
+//! (`cleave/the-edge-plane-lane-copies-no-ellipse-edge`): every op ends
+//! there, and the pins name that ending exactly, so a fix to it moves
+//! them.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -46,7 +47,7 @@ fn rod(spin: f64, (z0, z1): (f64, f64)) -> AtRestBody<f64> {
     let m = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), spin);
     finished(
         "the spun rod",
-        topo::transform_rigid(&rod, &m, tol).unwrap(),
+        topo::transform_rigid(&rod, &geom_core::test_support::rigid(&m, tol), tol).unwrap(),
         tol,
     )
 }
@@ -58,7 +59,7 @@ fn mitred(spin: f64) -> AtRestBody<f64> {
     let slab = brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol);
     let under = finished(
         "the half-space under z = x",
-        topo::transform_rigid(&slab, &tilt, tol).unwrap(),
+        topo::transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol), tol).unwrap(),
         tol,
     );
     match topo::subtract(&rod(spin, (-3.0, 3.0)), &under, tol) {
@@ -73,7 +74,12 @@ fn crossing(spin: f64, x0: f64) -> AtRestBody<f64> {
     let m = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
     finished(
         "the crossing rod",
-        topo::transform_rigid(&rod(spin, (x0, 3.0)), &m, tol).unwrap(),
+        topo::transform_rigid(
+            &rod(spin, (x0, 3.0)),
+            &geom_core::test_support::rigid(&m, tol),
+            tol,
+        )
+        .unwrap(),
         tol,
     )
 }
@@ -88,9 +94,10 @@ fn shared(x0: f64) -> f64 {
 /// (`chord_join::along_edge_spec`).
 const NO_ELLIPSE_COPY: &str = "a section segment along an edge whose carrier has no chord lane";
 
-/// The lines of the six ops at `(spin A, spin B, x0)` that neither build
-/// SOUND at their closed form nor refuse at the edge-plane lane's copy.
-fn wrong((sa, sb, x0): (f64, f64, f64)) -> Vec<String> {
+/// The lines of the six ops at `(spin A, spin B, x0)` that do not end
+/// at the edge-plane lane's copy of the ellipse edge, each with what it
+/// did against its closed form.
+fn not_at_the_copy((sa, sb, x0): (f64, f64, f64)) -> Vec<String> {
     let tol = Tol::witness();
     let (a, b) = (mitred(sa), crossing(sb, x0));
     let (va, vb, s) = (3.0 * PI, (3.0 - x0) * PI, shared(x0));
@@ -108,8 +115,8 @@ fn wrong((sa, sb, x0): (f64, f64, f64)) -> Vec<String> {
             Err(BooleanError::Join(SplitJoinError::SectionInvariant { what, .. }))
                 if what.starts_with(NO_ELLIPSE_COPY)
         );
-        let line = outcome(r, want, tol);
-        if !(line.starts_with("OK SOUND") || at_the_copy) {
+        if !at_the_copy {
+            let line = outcome(r, want, tol);
             lines.push(format!(
                 "spins ({sa}, {sb}), B from x = {x0} | {op} | {line}"
             ));
@@ -119,24 +126,35 @@ fn wrong((sa, sb, x0): (f64, f64, f64)) -> Vec<String> {
 }
 
 /// **The crossing pair is not read as parallel**: at the row's pose
-/// every op in both orders builds SOUND at its closed form or refuses at
-/// the edge-plane lane's copy, and none reaches the parallel pair's
-/// radical plane (`JoinDesync`).
+/// every op in both orders ends at the edge-plane lane's copy of the
+/// ellipse edge, a kernel-invariant refusal on valid input that
+/// `cleave/the-edge-plane-lane-copies-no-ellipse-edge` owns, and none
+/// at the parallel pair's radical plane (`JoinDesync`). An op that
+/// builds, or refuses otherwise, moves this pin with that row.
 #[test]
-fn crossing_rods_take_the_edge_plane_lane() {
-    let bad = wrong((0.4, 0.3, 0.2));
-    assert!(bad.is_empty(), "{}", bad.join("\n"));
+fn crossing_rods_end_at_the_ellipse_edge_copy() {
+    let moved = not_at_the_copy((0.4, 0.3, 0.2));
+    assert!(
+        moved.is_empty(),
+        "the-edge-plane-lane-copies-no-ellipse-edge: every op ends at the copy\n{}",
+        moved.join("\n")
+    );
 }
 
-/// [`crossing_rods_take_the_edge_plane_lane`] at two more spin pairs,
-/// both seam rulings at `±x` among them, and with `B` from `x = 0.5`.
+/// [`crossing_rods_end_at_the_ellipse_edge_copy`] at two more spin
+/// pairs, both seam rulings at `±x` among them, and with `B` from
+/// `x = 0.5`.
 #[test]
-fn crossing_rods_take_the_edge_plane_lane_at_every_spin() {
-    let bad: Vec<String> = [(1.0, -0.7, 0.2), (0.0, 0.0, 0.2), (0.4, 0.3, 0.5)]
+fn crossing_rods_end_at_the_ellipse_edge_copy_at_every_spin() {
+    let moved: Vec<String> = [(1.0, -0.7, 0.2), (0.0, 0.0, 0.2), (0.4, 0.3, 0.5)]
         .into_iter()
-        .flat_map(wrong)
+        .flat_map(not_at_the_copy)
         .collect();
-    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    assert!(
+        moved.is_empty(),
+        "the-edge-plane-lane-copies-no-ellipse-edge: every op ends at the copy\n{}",
+        moved.join("\n")
+    );
 }
 
 /// **The shared volume's closed form agrees with a slicing**: Simpson

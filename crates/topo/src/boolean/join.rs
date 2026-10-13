@@ -260,7 +260,8 @@ enum KindArm {
     WallPlane,
     /// [`GermLane::Radical`].
     Spheres,
-    /// [`GermLane::Rulings`]: a cylinder pair on parallel axes.
+    /// [`GermLane::Rulings`]: a cylinder pair, which keeps this arm only
+    /// on parallel axes ([`segment_arm`]).
     Cylinders,
     /// No face-pair arm: the edge-plane lane, where the germ runs along
     /// a conic edge of one solid in a curved face of the other, takes
@@ -268,25 +269,66 @@ enum KindArm {
     None,
 }
 
-/// The kind arm of a germ face pair, A's kind first. A cylinder pair
-/// takes the rulings arm only where `parallel` reads its axes parallel
-/// ([`face_pair_axes_parallel`]): walls on axes that are not parallel
-/// meet in no ruling, so their pair has no arm. `parallel` is read for
-/// that pair alone.
-fn kind_arm(
-    a: geom::SurfaceKind,
-    b: geom::SurfaceKind,
-    parallel: impl FnOnce() -> Result<bool, BooleanError>,
-) -> Result<KindArm, BooleanError> {
+/// The kind arm of a germ face pair by its kinds, A's kind first.
+fn kind_arm(a: geom::SurfaceKind, b: geom::SurfaceKind) -> KindArm {
     use geom::SurfaceKind::{Cone, Cylinder, Plane, Sphere, Torus};
-    Ok(match (a, b) {
+    match (a, b) {
         (Plane, Plane) => KindArm::Planar,
         (Plane, Sphere | Cylinder | Cone | Torus) => KindArm::PlaneWall,
         (Sphere | Cylinder | Cone | Torus, Plane) => KindArm::WallPlane,
         (Sphere, Sphere) => KindArm::Spheres,
-        (Cylinder, Cylinder) if parallel()? => KindArm::Cylinders,
+        (Cylinder, Cylinder) => KindArm::Cylinders,
         _ => KindArm::None,
-    })
+    }
+}
+
+/// **The kind arm of a segment's germ face pair** ([`kind_arm`]), read
+/// in [`bool_connect`] before any segment's surgery divides a face: a
+/// cylinder pair keeps [`KindArm::Cylinders`] only where its axes read
+/// parallel ([`cylinder_pair_axes`]), at the point and lever the frame
+/// dispatch reads that face pair at ([`frame_lever`]). Walls whose axes
+/// are not parallel meet in no ruling, so their pair falls through to
+/// the edge-plane lane. A reading in the band is the walls' coincidence
+/// undecided ([`frame_refusal`]).
+fn segment_arm<T: Decide>(
+    red: &BooleanReduction<T>,
+    germ: &HalfGerm<T>,
+    band: Band,
+) -> Result<KindArm, BooleanError> {
+    let surf = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
+        body.get_face(f)
+            .and_then(|fd| body.get_surface(fd.surface))
+            .cloned()
+            .ok_or(BooleanError::JoinDesync {
+                what: "germ face surface no longer resolves",
+            })
+    };
+    let (sa, sb) = (surf(&red.a, germ.a_face)?, surf(&red.b, germ.b_face)?);
+    let arm = kind_arm(sa.kind(), sb.kind());
+    let (
+        KindArm::Cylinders,
+        geom::Surface::Cylinder {
+            origin: o1,
+            axis: a1,
+            radius: r1,
+            ..
+        },
+        geom::Surface::Cylinder {
+            origin: o2,
+            axis: a2,
+            radius: r2,
+            ..
+        },
+    ) = (arm, &sa, &sb)
+    else {
+        return Ok(arm);
+    };
+    let (at, extent) = frame_lever((&sa, &red.a, germ.a_face), (&sb, &red.b, germ.b_face), band)?;
+    match cylinder_pair_axes((*o1, *a1), (*o2, *a2), (*r1, *r2), at, extent, band) {
+        Ok(CylinderAxes::Parallel) => Ok(KindArm::Cylinders),
+        Ok(CylinderAxes::Apart(_)) => Ok(KindArm::None),
+        Err(e) => Err(frame_refusal(e, (germ.a_face, &sa), (germ.b_face, &sb))),
+    }
 }
 
 /// How one solid's ring-lane island is closed for its winding, as
@@ -927,12 +969,22 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let segments = join_segments(red, band)?;
+    // A segment along an edge of both solids is that edge in both: each
+    // solid's chord copies its own edge and no section is read (the
+    // germ's two faces may share one carrier), so it takes no kind arm.
+    let arms = segments
+        .iter()
+        .map(|seg| match seg.lane {
+            SegmentLane::AlongEdge => Ok(None),
+            SegmentLane::Section => segment_arm(red, &seg.germ, band).map(Some),
+        })
+        .collect::<Result<Vec<_>, BooleanError>>()?;
     let mut sa = SolidJoin::new(red, Operand::A, band);
     let mut sb = SolidJoin::new(red, Operand::B, band);
     let mut completed: Vec<UnresolvedPair> = Vec::new();
     let mut open = open_records(red)?;
 
-    for seg in &segments {
+    for (seg, arm) in segments.iter().zip(arms) {
         let [(entry, entry_slot), (cand, cand_slot)] = seg.ends;
         let (ea, ra) = (open[entry].a[entry_slot].0.he, open[cand].a[cand_slot].0.he);
         let (eb, rb) = (open[entry].b[entry_slot].0.he, open[cand].b[cand_slot].0.he);
@@ -1094,22 +1146,14 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 plane: (center, germ_normal(germ_reach(&red.a)?, center, axis)?),
             })
         };
-        // A segment along an edge of both solids is that edge in both:
-        // each solid's chord copies its own edge and no section is read
-        // (the germ's two faces may share one carrier), so it takes no
-        // kind lane.
-        let lane = if seg.lane == SegmentLane::AlongEdge {
-            None
-        } else {
+        let lane = if let Some(arm) = arm {
             let plane_of = |s: &geom::Surface<T>| match *s {
                 Sf::Plane { origin, normal, .. } => {
                     Ok((origin, germ_normal(germ_reach(&red.a)?, origin, normal)?))
                 }
                 _ => Err(desync("a planar kind arm's face is not a plane")),
             };
-            let parallel =
-                || face_pair_axes_parallel((&red.a, germ.a_face), (&red.b, germ.b_face), band);
-            Some(match kind_arm(ga.kind(), gb.kind(), parallel)? {
+            Some(match arm {
                 KindArm::Planar => GermLane::Planar,
                 KindArm::PlaneWall => GermLane::PlaneWall(plane_of(&ga)?),
                 KindArm::WallPlane => GermLane::WallPlane(plane_of(&gb)?),
@@ -1163,6 +1207,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 }
                 arm @ KindArm::None => edge_lane(arm)?,
             })
+        } else {
+            None
         };
         // Role order per solid, derived independently (module docs,
         // the seam-orientation discipline): cross-solid seam orientation is
@@ -2174,47 +2220,6 @@ pub(super) fn face_pair_section_loops<T: Decide>(
     (body_b, face_b): (&Body<T>, FaceKey),
     band: Band,
 ) -> Result<Option<SectionLoops<T>>, BooleanError> {
-    let (sa, sb, at, extent) = face_pair_reading((body_a, face_a), (body_b, face_b), band)?;
-    pair_section_frame_at(&sa, &sb, at, extent, band)
-        .map_err(|e| frame_refusal(e, (face_a, &sa), (face_b, &sb)))
-}
-
-/// **Whether a germ face pair's two cylinder walls stand on parallel
-/// axes**, read where [`face_pair_section_loops`] reads them and levered
-/// as it levers them ([`cylinder_pair_axes`]), so a face pair whose
-/// frame was read answers as its frame did. An undecided reading is the
-/// walls' coincidence undecided; a pair that is not two cylinders is a
-/// desync.
-fn face_pair_axes_parallel<T: Decide>(
-    (body_a, face_a): (&Body<T>, FaceKey),
-    (body_b, face_b): (&Body<T>, FaceKey),
-    band: Band,
-) -> Result<bool, BooleanError> {
-    let (sa, sb, at, extent) = face_pair_reading((body_a, face_a), (body_b, face_b), band)?;
-    match cylinder_pair_axes(&sa, &sb, at, extent, band) {
-        Ok(CylinderAxes::Parallel) => Ok(true),
-        Ok(CylinderAxes::Apart(_)) => Ok(false),
-        Err(e) => Err(frame_refusal(e, (face_a, &sa), (face_b, &sb))),
-    }
-}
-
-/// A face pair's surfaces, the point its frame is read at
-/// ([`frame_reading`]) and the measure it is levered at
-/// ([`frame_extent`]).
-#[allow(clippy::type_complexity)] // (A's surface, B's, reading point, extent) — one reading
-fn face_pair_reading<T: Decide>(
-    (body_a, face_a): (&Body<T>, FaceKey),
-    (body_b, face_b): (&Body<T>, FaceKey),
-    band: Band,
-) -> Result<
-    (
-        geom::Surface<T>,
-        geom::Surface<T>,
-        geom_core::Point3<T>,
-        FrameExtent<T>,
-    ),
-    BooleanError,
-> {
     let desync = |what| BooleanError::JoinDesync { what };
     let surf = |body: &Body<T>, f: FaceKey| -> Result<geom::Surface<T>, BooleanError> {
         body.get_face(f)
@@ -2222,28 +2227,35 @@ fn face_pair_reading<T: Decide>(
             .cloned()
             .ok_or(desync("germ face surface no longer resolves"))
     };
-    let sa = surf(body_a, face_a)?;
-    let sb = surf(body_b, face_b)?;
-    // `surf` resolved both faces above, and nothing writes between, so
-    // `face_witnesses` reads each.
+    let (sa, sb) = (surf(body_a, face_a)?, surf(body_b, face_b)?);
+    let (at, extent) = frame_lever((&sa, body_a, face_a), (&sb, body_b, face_b), band)?;
+    pair_section_frame_at(&sa, &sb, at, extent, band)
+        .map_err(|e| frame_refusal(e, (face_a, &sa), (face_b, &sb)))
+}
+
+/// **Where a face pair's frame is read, and what it is levered at**:
+/// the reading point ([`frame_reading`]) and the consumed region's
+/// measure from it ([`frame_extent`]), for the two faces' surfaces
+/// `sa` and `sb`, which the caller resolved from those faces.
+fn frame_lever<T: Decide>(
+    (sa, body_a, face_a): (&geom::Surface<T>, &Body<T>, FaceKey),
+    (sb, body_b, face_b): (&geom::Surface<T>, &Body<T>, FaceKey),
+    band: Band,
+) -> Result<(geom_core::Point3<T>, FrameExtent<T>), BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
     let witnesses = |body: &Body<T>, f: FaceKey| {
         super::carrier_pair::face_witnesses(body, f).unwrap_or_else(|| {
             unreachable!(
-                "{}, which `surf` resolved, does not resolve",
+                "{}, whose surface the caller resolved, does not resolve",
                 crate::entity::EntityId::Face(f)
             )
         })
     };
-    let (at, span) = frame_reading(
-        &sa,
-        &sb,
-        witnesses(body_a, face_a),
-        witnesses(body_b, face_b),
-    )
-    .map_err(desync)?;
-    let extent = frame_extent((&sa, body_a, face_a), (&sb, body_b, face_b), at, span, band)
+    let (at, span) = frame_reading(sa, sb, witnesses(body_a, face_a), witnesses(body_b, face_b))
         .map_err(desync)?;
-    Ok((sa, sb, at, extent))
+    let extent =
+        frame_extent((sa, body_a, face_a), (sb, body_b, face_b), at, span, band).map_err(desync)?;
+    Ok((at, extent))
 }
 
 /// **The germ's own loop** of its pair's section
@@ -2461,8 +2473,9 @@ fn face_reach<T: Decide>(
 /// ruling whatever description the must-carry rule gave it: the walls
 /// touch along one ruling, undeclared contact that no arm here takes,
 /// refused `CurvedBooleanUnsupported` naming that wall. Any other curve
-/// is a conic, a plane the frame read parallel to both axes and a
-/// wall's table did not, which is a desync.
+/// is a conic, a plane parallel to both axes as the kind arm read them
+/// ([`segment_arm`]) that a wall's table did not read so, which is a
+/// desync.
 ///
 /// No pose is known to reach either refusal through a public door:
 /// walls that touch along a ruling meet the coincidence ladder and the
@@ -2524,7 +2537,7 @@ const BOOL_JOIN_CC_AXIS_OFFSET: &str = "bool_join_cc_axis_offset";
 /// this plane, as two rulings, one, or none.
 ///
 /// The axes are read as unit and parallel, as the kind arm read them
-/// before taking the pair ([`face_pair_axes_parallel`]).
+/// before taking the pair ([`segment_arm`]).
 #[allow(clippy::type_complexity)] // (plane point, plane normal) — one datum tuple
 pub(super) fn parallel_radical_plane<T: Decide>(
     own: &geom::Surface<T>,
@@ -2925,9 +2938,9 @@ fn conic_section_frame_at<T: Decide>(
         (Sf::Plane { .. }, Sf::Plane { .. }) => return Ok(None),
         // **Cylinder×cylinder.** Two walls with PARALLEL axes meet in
         // rulings — lines — whatever their radii, so `None` here is
-        // proven by the axes alone ([`cylinder_pair_axes`]) and needs
-        // neither the radii nor a constructed section: a tangent-ruling
-        // pair at rest is exactly this case. The non-parallel half is
+        // proven by the axes alone ([`cylinder_pair_axes`], which reads
+        // the radii only as a lever) and needs no constructed section:
+        // a tangent-ruling pair at rest is exactly this case. The non-parallel half is
         // never straight, and it splits again on COPLANARITY. The signed
         // axis-to-axis gap along `a1×a2` is the section table's own
         // `cc_axes_coplanar` margin (`geom_brep::cylinder_cylinder_section`
@@ -2949,19 +2962,22 @@ fn conic_section_frame_at<T: Decide>(
             Sf::Cylinder {
                 origin: o1,
                 axis: a1,
+                radius: r1,
                 ..
             },
             Sf::Cylinder {
                 origin: o2,
                 axis: a2,
+                radius: r2,
                 ..
             },
         ) => {
-            let reach = match cylinder_pair_axes(sa, sb, at, extent, band)? {
+            let (l1, l2) = ((*o1, *a1), (*o2, *a2));
+            let reach = match cylinder_pair_axes(l1, l2, (*r1, *r2), at, extent, band)? {
                 CylinderAxes::Parallel => return Ok(None),
                 CylinderAxes::Apart(reach) => reach,
             };
-            return match geom_brep::cylinder_axes_coplanar(&reach, (*o1, *a1), (*o2, *a2), band) {
+            return match geom_brep::cylinder_axes_coplanar(&reach, l1, l2, band) {
                 Ok(Sign::Zero) => Err(intersecting_cylinder_axes(sa, sb, &reach, band)),
                 Ok(Sign::Positive | Sign::Negative) => Err(FrameError::NoArm),
                 Err(diag) => Err(FrameError::Escalated(diag)),
@@ -3018,62 +3034,44 @@ fn conic_section_frame_at<T: Decide>(
 enum CylinderAxes<T: geom_core::Real> {
     /// Parallel: the walls meet in rulings, or not at all.
     Parallel,
-    /// Definitely not parallel, read across this reach, which the
-    /// coplanarity reading and the section table re-read.
+    /// Definitely not parallel, read across this reach, which the frame
+    /// dispatch's coplanarity reading and section table re-read.
     Apart(geom_brep::Reach<T>),
 }
 
-/// **Whether a cylinder pair's axes are parallel**, asked of the section
-/// table's own row ([`geom_brep::cylinder_axes_parallel`],
-/// `cc_axes_parallel`) at `at`, levered at the larger radius or the
-/// walls' span, whichever is longer: the axes drift apart by the sine
-/// times the length they run together. A bigger lever only moves a
-/// reading toward the definite side, and there the frame dispatch
-/// refuses and the join takes no rulings arm, so it never serves a
-/// frame or a radical plane the walls' span would not. The table
-/// re-decides this margin from the same reach, so the two are one
-/// reading.
+/// **Whether a cylinder pair's axes are parallel**: the axes `line1`
+/// and `line2` of walls of radii `radii`, asked of the section table's
+/// own row ([`geom_brep::cylinder_axes_parallel`], `cc_axes_parallel`)
+/// at `at`, levered at the larger radius or the walls' span, whichever
+/// is longer: the axes drift apart by the sine times the length they run
+/// together. A bigger lever only moves a reading toward the definite
+/// side, and there the frame dispatch refuses and the join takes no
+/// rulings arm, so it never serves a frame or a radical plane the walls'
+/// span would not. The frame dispatch and [`segment_arm`] both read it
+/// here, from the same point and lever ([`frame_lever`]); on the frame's
+/// path the table re-decides this margin from the returned reach.
 ///
 /// # Errors
 ///
 /// [`FrameError::Escalated`] where the reading is in the band, and a
-/// desync for a pair that is not two cylinders or an extent a cylinder
-/// pair is never levered at.
+/// desync for an extent a cylinder pair is never levered at.
 fn cylinder_pair_axes<T: Decide>(
-    sa: &geom::Surface<T>,
-    sb: &geom::Surface<T>,
+    line1: (geom_core::Point3<T>, geom_core::Vec3<T>),
+    line2: (geom_core::Point3<T>, geom_core::Vec3<T>),
+    (r1, r2): (T, T),
     at: geom_core::Point3<T>,
     extent: FrameExtent<T>,
     band: Band,
 ) -> Result<CylinderAxes<T>, FrameError> {
-    let (
-        geom::Surface::Cylinder {
-            origin: o1,
-            axis: a1,
-            radius: r1,
-            ..
-        },
-        geom::Surface::Cylinder {
-            origin: o2,
-            axis: a2,
-            radius: r2,
-            ..
-        },
-    ) = (sa, sb)
-    else {
-        return Err(FrameError::Desync(
-            "a cylinder pair's axes asked of a pair that is not two cylinders",
-        ));
-    };
     let lever = match extent {
-        FrameExtent::Span(l) => l.max(r1.max(*r2)),
-        FrameExtent::Radii | FrameExtent::Wall { .. } => r1.max(*r2),
+        FrameExtent::Span(l) => l.max(r1.max(r2)),
+        FrameExtent::Radii | FrameExtent::Wall { .. } => r1.max(r2),
         FrameExtent::Reach(_) | FrameExtent::Cone(_) => {
             return Err(FrameError::Desync(FACE_REACH_ELSEWHERE));
         }
     };
     let reach = geom_brep::Reach::Measured { at, lever };
-    match geom_brep::cylinder_axes_parallel(&reach, (*o1, *a1), (*o2, *a2), band) {
+    match geom_brep::cylinder_axes_parallel(&reach, line1, line2, band) {
         Ok(Sign::Zero) => Ok(CylinderAxes::Parallel),
         Ok(Sign::Positive | Sign::Negative) => Ok(CylinderAxes::Apart(reach)),
         Err(diag) => Err(FrameError::Escalated(diag)),
@@ -4739,25 +4737,23 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// **The kind arm's reading of a cylinder pair's axes**
-    /// ([`super::cylinder_pair_axes`]), the frame dispatch's own. Two
-    /// unit cylinders 2 apart along `y`: the second tilted `0.15·zero`
-    /// reads parallel at the radius and in the band at a 10 m span, and
-    /// turned onto `z` reads apart, at any lever.
+    /// **A cylinder pair's axes read by their lever**
+    /// ([`super::cylinder_pair_axes`]). Unit walls about the `x` axis and
+    /// about an axis through `(0, 2, 0)`: tilted `0.15·zero` off `x`, it
+    /// reads parallel at the radius and in the band over a 10 m span;
+    /// along `z`, apart at either lever.
     #[test]
-    fn the_kind_arm_reads_parallel_apart_and_in_band_as_the_frame_does() {
+    fn cylinder_pair_axes_read_parallel_apart_and_in_band_by_their_lever() {
         use super::{CylinderAxes, FrameExtent, cylinder_pair_axes};
         let theta = 0.15 * Tol::witness().eps();
-        let c1 = cylinder_at(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), 1.0);
-        let tilted = cylinder_at(
+        let x = (Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let tilted = (
             Point3::new(0.0, 2.0, 0.0),
             Vec3::new(theta.cos(), theta.sin(), 0.0),
-            1.0,
         );
-        let crossing = cylinder_at(Point3::new(0.0, 2.0, 0.0), Vec3::new(0.0, 0.0, 1.0), 1.0);
+        let crossing = (Point3::new(0.0, 2.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let read =
-            |b: &geom::Surface<f64>, extent| match cylinder_pair_axes(&c1, b, at(), extent, band())
-            {
+            |other, extent| match cylinder_pair_axes(x, other, (1.0, 1.0), at(), extent, band()) {
                 Ok(CylinderAxes::Parallel) => "parallel",
                 Ok(CylinderAxes::Apart(_)) => "apart",
                 Err(FrameError::Escalated(d)) if d.predicate == Some("cc_axes_parallel") => {
@@ -4765,26 +4761,34 @@ mod frame_dispatch_tests {
                 }
                 Err(_) => "another refusal",
             };
-        assert_eq!(
-            read(&tilted, FrameExtent::Radii),
-            "parallel",
-            "the tilt at the radius"
-        );
-        assert_eq!(
-            read(&tilted, FrameExtent::Span(10.0)),
-            "in band",
-            "the tilt over 10 m"
-        );
-        assert_eq!(
-            read(&crossing, FrameExtent::Radii),
-            "apart",
-            "crossing at the radius"
-        );
-        assert_eq!(
-            read(&crossing, FrameExtent::Span(10.0)),
-            "apart",
-            "crossing over 10 m"
-        );
+        for (other, extent, want, what) in [
+            (
+                tilted,
+                FrameExtent::Radii,
+                "parallel",
+                "the tilt at the radius",
+            ),
+            (
+                tilted,
+                FrameExtent::Span(10.0),
+                "in band",
+                "the tilt over 10 m",
+            ),
+            (
+                crossing,
+                FrameExtent::Radii,
+                "apart",
+                "crossing at the radius",
+            ),
+            (
+                crossing,
+                FrameExtent::Span(10.0),
+                "apart",
+                "crossing over 10 m",
+            ),
+        ] {
+            assert_eq!(read(other, extent), want, "{what}");
+        }
     }
 
     /// **The germ frame reads at the curved face, wherever the wall's
@@ -6838,14 +6842,13 @@ mod tests {
 
 #[cfg(test)]
 mod kind_arm_rows {
-    use super::{BooleanError, KindArm, kind_arm};
+    use super::{KindArm, kind_arm};
     use geom::SurfaceKind::{self, Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
 
     /// **The edge-plane lane is the fallthrough's alone.** Every face
     /// pair with an arm keeps it, so a germ along an edge in such a pair
     /// rides the pair's own datum; only the pairs with none reach the
-    /// edge-plane lane. A cylinder pair has an arm only on parallel
-    /// axes, and no other pair's arm reads the axes.
+    /// edge-plane lane.
     #[test]
     fn the_edge_plane_lane_takes_only_the_pairs_no_arm_takes() {
         let kinds: [SurfaceKind; 7] = [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx];
@@ -6868,38 +6871,9 @@ mod kind_arm_rows {
                     .iter()
                     .find(|(pair, _)| *pair == (a, b))
                     .map_or(KindArm::None, |&(_, arm)| arm);
-                let mut asked = false;
-                let parallel = || {
-                    asked = true;
-                    Ok(true)
-                };
-                assert_eq!(kind_arm(a, b, parallel).ok(), Some(want), "{a:?} × {b:?}");
-                assert_eq!(
-                    asked,
-                    (a, b) == (Cylinder, Cylinder),
-                    "{a:?} × {b:?} reads axes"
-                );
+                assert_eq!(kind_arm(a, b), want, "{a:?} × {b:?}");
             }
         }
-        assert_eq!(
-            kind_arm(Cylinder, Cylinder, || Ok(false)).ok(),
-            Some(KindArm::None),
-            "a cylinder pair on axes that are not parallel"
-        );
-        let refused = kind_arm(Cylinder, Cylinder, || {
-            Err(BooleanError::JoinDesync {
-                what: "the axes' reading",
-            })
-        });
-        assert!(
-            matches!(
-                refused,
-                Err(BooleanError::JoinDesync {
-                    what: "the axes' reading"
-                })
-            ),
-            "the axes' refusal is the arm's: {refused:?}"
-        );
     }
 }
 
