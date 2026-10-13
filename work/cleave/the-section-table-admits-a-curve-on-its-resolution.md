@@ -1,11 +1,11 @@
 ---
 id: the-section-table-admits-a-curve-on-its-resolution
 kind: unit
-title: The section table admits a curve only where its resolution is within eps/K, and refuses the rest as a kernel limit
+title: A minted section conic is stored anchored on the arc its edge uses, its centre derived (Ev, PR 4812)
 status: parked
 opened: 2026-10-12
 priority: P2
-cost: M
+cost: H
 parent: a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join
 blocked_on: [a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex]
 ---
@@ -57,3 +57,27 @@ check waits for D4 ¶4's size range. So this unit's "admit only where
 consistent with it as a first step. The decision's text is in GERM's
 row.
 
+## Re-scoped (2026-10-13): Ev's end state, not an admission
+
+Ev's decision on PR 4812 supersedes this row's "admit only where
+ρ ≤ ε/K, refuse the rest". There is no refusal at the arm. The unit is
+now the end state. Its decided text is in GERM's row's "Decided"
+section:
+- A kernel-minted section conic is stored anchored on the arc its edge
+  uses: parameter zero there, centre derived and never stored. Its
+  resolution is then `u` times the arc distance from the anchor, not
+  `u·A`.
+- An imported ellipse keeps the file's centre form exactly as read,
+  with the anchored form as an internal cache. Export writes the
+  original and round-trips bit-exactly; export of a minted ellipse
+  writes the derived centre.
+- Evaluators read the anchored form either way. No public API changes.
+- Where both flanks of a two-flank cylinder cut are used, there is
+  one carrier per edge. The germ frames and `Reach::Span` read a
+  shared carrier today, so confirm that shape first.
+- Every `Ellipse` consumer is kept in step: boxes, chart image,
+  envelope, tessellation, certification, STEP export, and the germ
+  frames that read `center`.
+
+This follows the re-pose (PR 4861), which removes the parameter term.
+The interim relabel belongs to the parent row's part 3 (PR 4810).
