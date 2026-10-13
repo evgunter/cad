@@ -40,9 +40,7 @@ fn how(build: impl FnOnce() -> Sym<Interval>) -> String {
         geom_core::k_stats::decide("r1_m10_10", Margin::of(build()), band())
     });
     match out {
-        Ok(Sign::Zero) if counts.symbolic_zero == 1 => "theorem".to_owned(),
-        Ok(Sign::Zero) if counts.registered == 1 => "registered".to_owned(),
-        Ok(Sign::Zero) if counts.sign_gated == 1 => "gated".to_owned(),
+        Ok(Sign::Zero) if counts.symbolic == 1 => "proven".to_owned(),
         Ok(s) => format!("numeric {s:?}"),
         Err(e) => format!("refused {:?}", e.margin),
     }
@@ -73,7 +71,7 @@ fn r1_the_multiple_reader_wraps_on_a_huge_dyadic_coefficient() {
     });
     println!("R1: cos((2^123+1)·32·atan x) − cos(32·atan x) => {answer}");
     assert_ne!(
-        answer, "theorem",
+        answer, "proven",
         "rule D folded a wrapped multiple as if it were 32"
     );
 }
@@ -89,7 +87,7 @@ fn r1_a_multiple_past_the_cap_does_not_fold() {
         (Sym::from_f64(128.0) * phi).cos() - (Sym::from_f64(128.0) * phi).cos() - Sym::from_f64(0.0)
     });
     println!("R1: 128·atan x self-difference => {answer}");
-    assert_eq!(answer, "theorem", "one atom cancels with itself regardless");
+    assert_eq!(answer, "proven", "one atom cancels with itself regardless");
 }
 
 /// **The half-π fold survives the same overflow** — `fold_at_half_pi`
@@ -104,7 +102,7 @@ fn r1_the_half_pi_fold_is_safe_under_the_same_shift() {
         (huge * Sym::<Interval>::pi()).cos() - Sym::from_f64(1.0)
     });
     println!("R1: cos((2^123+1)·32·π) − 1 => {answer} (an even multiple of π: correct)");
-    assert_eq!(answer, "theorem");
+    assert_eq!(answer, "proven");
 }
 
 // -------------------------------------------- rule D's closed forms
@@ -129,7 +127,7 @@ fn r1_the_closed_forms_hold_over_boxes_including_straddling_x() {
                 let s = (Sym::from_f64(1.0) + x * x).sqrt();
                 x.atan().cos() - Sym::from_f64(1.0) / s
             }),
-            "theorem",
+            "proven",
             "cos(atan X) over [{lo}, {hi}]"
         );
         assert_eq!(
@@ -137,7 +135,7 @@ fn r1_the_closed_forms_hold_over_boxes_including_straddling_x() {
                 let s = (Sym::from_f64(1.0) + x * x).sqrt();
                 x.atan().sin() - x / s
             }),
-            "theorem",
+            "proven",
             "sin(atan X) over [{lo}, {hi}]"
         );
         // cos(2φ) = 2cos²φ − 1, sin(3φ) = 3sinφ − 4sin³φ,
@@ -149,7 +147,7 @@ fn r1_the_closed_forms_hold_over_boxes_including_straddling_x() {
                 let c = x.atan().cos();
                 (two * x.atan()).cos() - (two * c * c - Sym::from_f64(1.0))
             }),
-            "theorem",
+            "proven",
             "cos(2·atan X) over [{lo}, {hi}]"
         );
         assert_eq!(
@@ -158,7 +156,7 @@ fn r1_the_closed_forms_hold_over_boxes_including_straddling_x() {
                 (Sym::from_f64(3.0) * x.atan()).sin()
                     - (Sym::from_f64(3.0) * s - Sym::from_f64(4.0) * s * s * s)
             }),
-            "theorem",
+            "proven",
             "sin(3·atan X) over [{lo}, {hi}]"
         );
         assert_eq!(
@@ -168,7 +166,7 @@ fn r1_the_closed_forms_hold_over_boxes_including_straddling_x() {
                 (Sym::from_f64(4.0) * x.atan()).cos()
                     - (Sym::from_f64(8.0) * c2 * c2 - Sym::from_f64(8.0) * c2 + Sym::from_f64(1.0))
             }),
-            "theorem",
+            "proven",
             "cos(4·atan X) over [{lo}, {hi}]"
         );
         // The halves, against the double-angle identity read the other
@@ -178,7 +176,7 @@ fn r1_the_closed_forms_hold_over_boxes_including_straddling_x() {
                 let h = Sym::from_f64(0.5) * x.atan();
                 x.atan().cos() - (Sym::from_f64(2.0) * h.cos() * h.cos() - Sym::from_f64(1.0))
             }),
-            "theorem",
+            "proven",
             "the half's double-angle over [{lo}, {hi}]"
         );
         assert_eq!(
@@ -186,7 +184,7 @@ fn r1_the_closed_forms_hold_over_boxes_including_straddling_x() {
                 let h = Sym::from_f64(0.5) * x.atan();
                 x.atan().sin() - Sym::from_f64(2.0) * h.sin() * h.cos()
             }),
-            "theorem",
+            "proven",
             "the half's sine over [{lo}, {hi}]"
         );
         // A quarter, two halvings deep.
@@ -196,7 +194,7 @@ fn r1_the_closed_forms_hold_over_boxes_including_straddling_x() {
                 (Sym::from_f64(0.5) * x.atan()).cos()
                     - (Sym::from_f64(2.0) * h.cos() * h.cos() - Sym::from_f64(1.0))
             }),
-            "theorem",
+            "proven",
             "the quarter's double-angle over [{lo}, {hi}]"
         );
     }
@@ -211,7 +209,7 @@ fn r1_two_different_multiples_never_decide_zero() {
             let x = over("b", 0.3, 0.5);
             (Sym::from_f64(a) * x.atan()).cos() - (Sym::from_f64(b) * x.atan()).cos()
         });
-        assert_ne!(answer, "theorem", "cos({a}·atan X) vs cos({b}·atan X)");
+        assert_ne!(answer, "proven", "cos({a}·atan X) vs cos({b}·atan X)");
     }
 }
 
@@ -234,8 +232,8 @@ fn r1_pythagoras_closes_at_a_rule_d_argument_and_at_an_opaque_one() {
         t.sin() * t.sin() + t.cos() * t.cos() - Sym::from_f64(1.0)
     });
     println!("R1: sin²+cos²−1 at 1.5·atan X => {folded}; at atan X + 1 => {opaque}");
-    assert_eq!(folded, "theorem");
-    assert_eq!(opaque, "theorem");
+    assert_eq!(folded, "proven");
+    assert_eq!(opaque, "proven");
 }
 
 // ------------------------------------------- A1: the `atan2` fold
@@ -284,14 +282,14 @@ fn r1_the_atan2_fold_refuses_everything_it_says_it_refuses() {
         let x = over("x", 0.5, 1.5);
         Sym::zero().atan2(Sym::from_f64(0.0) - x * x)
     });
-    assert_ne!(neg, "theorem", "atan2(0, −X²) must not fold");
+    assert_ne!(neg, "proven", "atan2(0, −X²) must not fold");
     // An odd power beside a `sqrt` atom: N = sqrt(u)·v, sign unknown.
     let mixed = how(|| {
         let u = over("u", 0.5, 1.5);
         let v = over("v", -1.0, 1.0);
         Sym::zero().atan2(u.sqrt() * v)
     });
-    assert_ne!(mixed, "theorem", "atan2(0, sqrt(u)·v) must not fold");
+    assert_ne!(mixed, "proven", "atan2(0, sqrt(u)·v) must not fold");
     // `Y` a NUMERICAL coincidence: two distinct parameters that happen
     // to be equal at the nominal. `Y`'s form is not the zero form.
     let coincidence = how(|| {
@@ -311,7 +309,7 @@ fn r1_the_atan2_fold_refuses_everything_it_says_it_refuses() {
         (a - b).atan2(u.sqrt())
     });
     assert_ne!(
-        coincidence, "theorem",
+        coincidence, "proven",
         "atan2(a − b, N) with a, b distinct parameters must not fold"
     );
     println!("R1: atan2 never-fold set: −X² => {neg}; sqrt(u)·v => {mixed}; a−b => {coincidence}");
@@ -335,11 +333,11 @@ fn r1_the_half_pi_fold_takes_the_indeterminate_and_not_the_literal() {
         "R1: cos π + 1 => {exact}; sin(3π/2) + 1 => {three_halves}; \
          cos(π/3) − ½ => {third}; cos(LIT π) + 1 => {literal}"
     );
-    assert_eq!(exact, "theorem", "cos π = −1");
-    assert_eq!(three_halves, "theorem", "sin(3π/2) = −1");
-    assert_ne!(third, "theorem", "cos(π/3) is not a half-multiple");
+    assert_eq!(exact, "proven", "cos π = −1");
+    assert_eq!(three_halves, "proven", "sin(3π/2) = −1");
+    assert_ne!(third, "proven", "cos(π/3) is not a half-multiple");
     assert_ne!(
-        literal, "theorem",
+        literal, "proven",
         "a numerically-close literal π is not the form's π"
     );
 }
@@ -357,7 +355,7 @@ fn r1_pi_beside_a_parameter_never_folds() {
         );
         (Sym::<Interval>::pi() * x).cos() + Sym::from_f64(1.0)
     });
-    assert_ne!(answer, "theorem", "cos(π·x) at a numerically-unit x");
+    assert_ne!(answer, "proven", "cos(π·x) at a numerically-unit x");
     println!("R1: cos(π·x) + 1 at x ≡ 1 => {answer}");
 }
 
@@ -383,7 +381,7 @@ fn r1_the_zero_normalization_over_a_vanishing_denominator() {
         (z + x) - x
     });
     println!("R1: (0/d + x) − x, d straddling => {straddling}; d positive => {positive}");
-    assert_eq!(positive, "theorem");
+    assert_eq!(positive, "proven");
     assert!(
         straddling.starts_with("refused"),
         "a vanishing denominator is clause 1's: {straddling}"
@@ -420,8 +418,8 @@ fn r1_rule_a_over_odd_powers_and_in_the_denominator() {
         "R1: s³ − X·s => {odd_pos}; X/s² − 1 => {den_pos}; \
          s³ − X·s straddling => {odd_straddling}; X/s² − 1 at X ∋ 0 => {den_at_zero}"
     );
-    assert_eq!(odd_pos, "theorem");
-    assert_eq!(den_pos, "theorem");
+    assert_eq!(odd_pos, "proven");
+    assert_eq!(den_pos, "proven");
     assert!(
         odd_straddling.starts_with("refused"),
         "sqrt of a straddling box: {odd_straddling}"
@@ -440,8 +438,8 @@ fn r1_rule_a_over_odd_powers_and_in_the_denominator() {
 /// − x` does not" — written when `sqrt_square`, `pythagoras` and
 /// `early_ab` were all dial-off. `SymRules::shipped()` turns all three
 /// on, and both decide as THEOREMS. Only the third sentence of that
-/// paragraph (`|x| − x` on a nonnegative `x`, which is rule C's) still
-/// holds.
+/// paragraph (`|x| − x` on a nonnegative `x`, zero only by a sign of
+/// the box, which no rule folds) still holds.
 #[test]
 fn r1_two_of_the_headers_documented_limits_no_longer_hold() {
     let sqrt_square = how(|| {
@@ -461,15 +459,12 @@ fn r1_two_of_the_headers_documented_limits_no_longer_hold() {
          |x| - x on x > 0 => {abs_of_nonneg} (the header says all three do NOT decide)"
     );
     assert_eq!(
-        sqrt_square, "theorem",
+        sqrt_square, "proven",
         "the header says this does not decide"
     );
-    assert_eq!(
-        pythagoras, "theorem",
-        "the header says this does not decide"
-    );
+    assert_eq!(pythagoras, "proven", "the header says this does not decide");
     assert_ne!(
-        abs_of_nonneg, "theorem",
-        "rule C is dial-off, so this one still stands"
+        abs_of_nonneg, "proven",
+        "no rule folds on a sign of the box, so this one still stands"
     );
 }

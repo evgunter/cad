@@ -630,17 +630,6 @@ impl From<EulerOpError> for SplitReduceError {
 /// declarations, so its plane is the first lever.
 pub(crate) use geom_core::SPLIT_PLANE_RECOURSE as SPLIT_COINCIDENCE_RECOURSE;
 
-/// The ending of a split escalation whose margin is no size the user
-/// chose (an angle, a winding, an order, a vertex's offset from the
-/// plane): the split's lever alone, with the unreadable-margin note on
-/// poison (D4 ¶1 (i)).
-pub(crate) fn split_lever_ending(diag: &geom_core::Indeterminate) -> String {
-    LeverOnly {
-        lever: SPLIT_COINCIDENCE_RECOURSE,
-    }
-    .recourse(RefusedArm::Undecided(diag), Reading::Build)
-}
-
 impl core::fmt::Display for SplitReduceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use geom_core::RANGE_RECOURSE;
@@ -696,7 +685,7 @@ impl core::fmt::Display for SplitReduceError {
             Self::SliverVertex { diag, .. } => diag
                 .undecided(
                     "whether a vertex lies on the split plane",
-                    split_lever_ending(diag),
+                    diag.lever_ending(SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::SliverSector { reading, .. } => write!(

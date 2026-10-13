@@ -1166,8 +1166,8 @@ fn the_symbolic_tier_reads_a_definition_through_its_inputs_symbols() {
     let (decided, counts) = session(true);
     assert_eq!(decided, Some(Ok(Sign::Zero)));
     assert_eq!(
-        counts.symbolic_zero,
-        binding.symbolic_zero + 1,
+        counts.symbolic,
+        binding.symbolic + 1,
         "h − 2·w is a theorem"
     );
 }

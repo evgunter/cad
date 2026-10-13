@@ -3,13 +3,12 @@
 //! arc-family measurement (`m10_8_arc_family_interval` is the evidence
 //! half, `#[ignore]`d; `m10_8_harness` the shared probe).
 //!
-//! What ships, and these rows pin: the constant fold A0 in the plain
-//! form, and rule C's clause-3 fold in the early walk alongside it
-//! (`geom_core::SymRules::shipped`), over an arbitrary-precision
-//! coefficient ring. Rules A/B stay dial-selectable and off: over the
-//! top residual they add nothing on the documents; per node they are
-//! minutes per replay. The rows here pin the set itself and that it is
-//! inert on straight geometry.
+//! What M10-8 shipped, and these rows pin: the constant fold A0
+//! (`geom_core::SymRules::shipped` carries it, beside the later units'
+//! rules), over an arbitrary-precision coefficient ring. The rows here
+//! pin the A0 set itself and that the shipped set is inert on straight
+//! geometry. (M10-8 also built rule C, a sign fold in the early walk,
+//! dial-off; it is retired.)
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
@@ -32,10 +31,6 @@ fn m10_8_the_a0_set_is_a0_alone() {
     assert!(
         s.const_fold && s.early,
         "A0, in the early walk alongside the plain form"
-    );
-    assert!(
-        !s.signed_root,
-        "rule C is built and dial-selectable, and does not ship (inert)"
     );
     // BY CONSTRUCTION, not by a list: a dial this row forgot to name
     // would be one A0-alone silently carried. `SymRules::none()` is
@@ -137,14 +132,14 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic_zero=482 numeric=265 frozen=0",
+        "decisions symbolic=482 numeric=265 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic_zero=490 numeric=257 frozen=0",
+        "decisions symbolic=490 numeric=257 frozen=0",
         "eight of the 265 numeric refusals are comparisons of two rational CONSTANTS, which \
-         A0 decides exactly — THEOREMS, and nothing here is gated"
+         A0 decides exactly"
     );
     assert_eq!(
         shipped,

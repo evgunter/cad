@@ -16,7 +16,7 @@
 //! degenerate case ([`PoseConstruction`]).
 
 use geom_brep::OutwardNormal;
-use geom_core::{Decide, OrthoFrame, Point3, Tol, UnitVec3, UnitVec3Error, Vec3};
+use geom_core::{Decide, Point3, RigidMotion, Tol, UnitVec3, UnitVec3Error, Vec3};
 use topo::DATUM_UNIT_NORM;
 
 use super::{
@@ -183,7 +183,7 @@ fn definition<T: Decide>(
             let a = dir.get();
             let along = (position - origin).dot(a);
             let foot = origin + a * along;
-            OrthoFrame::from_aim_and_reference(foot, dir, position - origin, DATUM_UNIT_NORM, b)
+            RigidMotion::from_aim_and_reference(foot, dir, position - origin, DATUM_UNIT_NORM, b)
                 .map(PoseValue::Frame)
                 .map_err(|e| degenerate(e.error, PoseConstruction::Through))?
         }
@@ -281,7 +281,7 @@ fn degenerate(error: UnitVec3Error, construction: PoseConstruction) -> NodeError
 
 /// **Coordinates in a frame**, lifted through its axes.
 fn in_frame<T: Decide>(
-    f: OrthoFrame<T>,
+    f: RigidMotion<T>,
     coords: &PoseCoords,
     scalar: &impl Fn(VarId, crate::expr::Dimension) -> Result<T, NodeErrorKind>,
     band: geom_core::Band,

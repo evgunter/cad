@@ -12,7 +12,9 @@
 //!
 //! The poses are the coincfr3 review's C1 sphere probes and the coincfr4
 //! review's own (`zz_fr4_sweep_probe`): its off-axis spheres, its balls
-//! under and beside a slab, and its brick below a tube.
+//! under and beside a slab. Its brick below a tube offers no value: the
+//! glue door escalates the tangency it cannot decide
+//! ([`a_brick_grazing_a_tube_in_band_escalates_at_the_glue_door`]).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::test_support::{ball_poled, ball_poled_y, brick, finished, revolved_about_y};
@@ -174,9 +176,8 @@ fn tube(outer: f64, lo: f64, hi: f64) -> topo::AtRestBody<f64> {
     )
 }
 
-/// The coincfr4 review's `brick_by_tube` (below): a brick whose top face
-/// stands `gap` below a unit tube's wall, its edges across the axis, by
-/// op `k`.
+/// The coincfr4 review's `brick_by_tube`: a brick whose top face stands
+/// `gap` below a unit tube's wall, its edges across the axis, by op `k`.
 fn brick_below_a_tube(k: u8, gap: f64) -> Result<(), topo::BooleanError> {
     let tol = Tol::witness();
     let b = finished(
@@ -230,9 +231,6 @@ cases! {
         ball_beside_a_slab(0, D);
     ball_beside_a_slab_in_band_subtract: "Coincidence(EdgeOnPlane)", D =>
         ball_beside_a_slab(1, -D);
-    // The review's brick below a tube: its re-run meets the containment,
-    // whose own story is CONTACT's row.
-    brick_below_a_tube_union: "Coincidence(EdgeOnCurvedFace)", D => brick_below_a_tube(0, D);
 }
 
 /// The band every case's first raise runs at.
@@ -337,4 +335,31 @@ fn every_sphere_offer_passes_just_below_it() {
         "false offers:\n{}",
         false_offers.join("\n\n")
     );
+}
+
+/// **A brick grazing a tube in band escalates at the glue door**, in
+/// every op: its top face and the tube's wall are a plane and a
+/// cylinder whose gap is in band, a tangency the witness lane reads and
+/// cannot decide, so the operation refuses on that reading, offering
+/// the move rather than a tolerance, before any later stage meets the
+/// pair unglued. The gap is the middle of the band the process runs at.
+#[test]
+fn a_brick_grazing_a_tube_in_band_escalates_at_the_glue_door() {
+    let gap = 5.5 * Band::linear(Tol::witness()).unwrap().zero();
+    for k in 0..3 {
+        let err = brick_below_a_tube(k, gap).expect_err("the graze refuses");
+        let topo::BooleanError::Escalated { diag, .. } = &err else {
+            panic!("op {k}: escalates: {err:?}");
+        };
+        assert_eq!(diag.predicate, Some("pc_parallel_gap"), "op {k}: {err:?}");
+        assert_eq!(
+            topo::test_support::offer_key(&err).0,
+            "Coincidence(TangentLocus)",
+            "op {k}"
+        );
+        assert!(
+            test_utils::offer::offered_below(&err.to_string()).is_none(),
+            "op {k}: no tolerance offered: {err}"
+        );
+    }
 }

@@ -14,7 +14,7 @@ refs: [a-reflected-loft-placement-evades-both-normal-checks]
 Raised in review of FRAME-WITNESS (PR 2675) and filed at its fix pass.
 
 `profile::SketchPlane<T>` is `{ pub placement: Affine3<T> }`.
-`SketchPlane::from_frame(frame: OrthoFrame<T>)` is the only door that
+`SketchPlane::from_frame(frame: RigidMotion<T>)` is the only door that
 MINTS one, and it immediately throws the witness away: it stores
 `frame.to_affine()` and nothing else.
 
@@ -36,7 +36,7 @@ Two consequences, both live:
 
 ## The shape a fix would take
 
-Store the `OrthoFrame<T>` and derive the placement, or store both with
+Store the `RigidMotion<T>` and derive the placement, or store both with
 the frame authoritative; accessors return the witnesses. `new` then
 either goes away, becomes a fallible door that decides what it was
 handed, or stays as a clearly-named read-back door for a placement
@@ -51,7 +51,7 @@ without arithmetic — a property a stored frame would have to keep.
 ## Where it came from
 
 `crates/profile/src/lib.rs` (`SketchPlane`, `new`, `from_frame`, the
-four accessors); `crates/geom-core/src/linalg/ortho_frame.rs` for the
+four accessors); `crates/geom-core/src/linalg/rigid_motion.rs` for the
 witness. The ruling is
 SCALAR's `unit-vector-invariants-carried-as-prose` (ruled on PR 2457; `docs/doc-ledger/scalar-leaves-the-tracker.md`) §RATIFIED.
 

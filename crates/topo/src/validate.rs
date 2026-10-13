@@ -2525,7 +2525,7 @@ const WEDGE: SizedDecision = SizedDecision {
     size: "angle",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// On a smooth edge, the faces' second-order separation: passes when
@@ -2537,7 +2537,7 @@ const SEPARATION: SizedDecision = SizedDecision {
     size: "curvature difference",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The ending a kernel defect gets: nothing the user can change in
@@ -7225,8 +7225,9 @@ pub(crate) fn tier3_local_checks_marked<
             } else {
                 Sign::Positive
             };
-            // Line, Circle and Ellipse carriers (banner); an empty
-            // ring and a loop riding a spiric or NURBS edge are not
+            // Line, Circle, Ellipse and Spiric carriers (banner); an
+            // empty ring and a loop the sum does not wind (a NURBS edge,
+            // or a spiric at a scalar that does not certify) are not
             // asked. Tier 3 runs on a body tier 1 cleared.
             let Some(winding) = body.planar_loop_winding(l, outward, band) else {
                 continue;

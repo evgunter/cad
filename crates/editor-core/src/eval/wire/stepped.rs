@@ -6,7 +6,7 @@
 //! evaluation (`stepped_map`) and the mate solve's derived offset both
 //! call them, so one value refuses on both roads.
 
-use geom_core::{Affine3, Band, Decide, Point3, Sign, UnitVec3, Vec3};
+use geom_core::{Band, Decide, Point3, RigidMotion, Sign, UnitVec3, Vec3};
 
 use super::{PATTERN_DIRECTION_ROLE, escalated, turns_off, unit};
 use crate::decision::Decision;
@@ -206,22 +206,32 @@ fn negated(authored: &Formula) -> Option<Formula> {
     .ok()
 }
 
-/// The rigid map of placement `i ≥ 1` under a STEPPED rule (linear or
-/// circular) — **the one home of the stepped placement rule's math**,
-/// read by both placement-rule nodes (through `stepped_map`) and by
-/// the mate solve's derived offset, so all three derive the same map
-/// bit for bit. Placement 0 is the identity and reads no operand, so
-/// no caller asks this for it. `i as f64` is exact up to 2^53.
-pub(crate) fn stepped_rule_map<T: Decide>(ops: &SteppedOperands<T>, i: i64) -> Affine3<T> {
+/// The rigid motion of placement `i ≥ 1` under a STEPPED rule (linear
+/// or circular), minted by construction — **the one home of the stepped
+/// placement rule's math**, read by both placement-rule nodes (through
+/// `stepped_map`) and by the mate solve's derived offset, so all three
+/// derive the same map bit for bit. Placement 0 is the identity and
+/// reads no operand, so no caller asks this for it. `i as f64` is exact
+/// up to 2^53.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::Motion`] for a step whose translation or angle is
+/// not a finite number.
+pub(crate) fn stepped_rule_map<T: Decide>(
+    ops: &SteppedOperands<T>,
+    i: i64,
+) -> Result<RigidMotion<T>, NodeErrorKind> {
     let step = T::from_f64(i as f64);
     match &ops.0 {
         Rule::Linear { direction, spacing } => {
-            Affine3::translation(direction.get() * (*spacing * step))
+            RigidMotion::translation(direction.get() * (*spacing * step))
         }
         Rule::Circular {
             origin,
             dir,
             step: angle,
-        } => Affine3::rotation_about_axis(*origin, dir.get(), *angle * step),
+        } => RigidMotion::rotation_about_axis(*origin, *dir, *angle * step),
     }
+    .map_err(NodeErrorKind::Motion)
 }
