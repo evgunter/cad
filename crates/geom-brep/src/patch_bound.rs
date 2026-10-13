@@ -101,7 +101,10 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, max_bound, norm_sup};
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::net::{TensorChannels, TensorCoeffs, TensorNet};
-use geom_core::spline::{C1Break, Derived, KnotVector};
+use geom_core::spline::pieces::piece_count;
+use geom_core::spline::{
+    C1Break, CellAxis, CellBlock, Derived, KnotVector, QuotientPiece, cell_second_quotients,
+};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
 /// span of every direction splits into this many equal pieces before
@@ -407,53 +410,9 @@ pub fn rational_split_points(kv: &KnotVector) -> Vec<f64> {
 /// they read; the differencing is not this module's any more.
 pub type Net = TensorNet;
 
-/// The signed hull of `a[i][j] − c·w[i][j]` over the window
-/// `wu × wv` — the recentred homogeneous net `Ã = A − c·w` read
-/// through the linearity of knot differencing (`d(A − c·w) = dA −
-/// c·dw`, entrywise, same knots). Out-of-range indices are refused.
-///
-/// This module's own READING, not the shared assembly: no other
-/// consumer of a tensor net recentres at the hull read, because no
-/// other one has a cell-local centre to recentre against.
-///
-/// Fixed association (D9): `u`-major, `i` outer and `j` inner, hulled
-/// left to right — [`TensorNet::window_hull`]'s order, so the two
-/// readings of one net agree on which coefficient came first.
-pub fn window_tilde_hull(
-    a: &Net,
-    w: &Net,
-    c: Interval,
-    wu: &RangeInclusive<usize>,
-    wv: &RangeInclusive<usize>,
-) -> Interval {
-    let mut acc: Option<Interval> = None;
-    for i in wu.clone() {
-        for j in wv.clone() {
-            let e = tilde_entry(a, w, c, i, j);
-            acc = Some(match acc {
-                None => e,
-                Some(h) => Interval::hull(h, e),
-            });
-        }
-    }
-    acc.unwrap_or_else(Interval::refused)
-}
-
-/// One entry of the recentred homogeneous net, `a[i][j] − c·w[i][j]` —
-/// the coefficient [`window_tilde_hull`] hulls and the rational cells'
-/// vector readings take norms of.
-fn tilde_entry(a: &Net, w: &Net, c: Interval, i: usize, j: usize) -> Interval {
-    a.get(i, j) - c * w.get(i, j)
-}
-
 /// The signed hull of `net[i][j]` over the window `wu × wv` —
 /// [`TensorNet::window_hull`], re-exported under the name this
 /// module's consumers already use.
-///
-/// Distinct from [`window_tilde_hull`] with a zero centre on purpose:
-/// that spelling computes `a − 0·w`, and interval arithmetic's outward rounding
-/// makes the subtraction widen the answer by an ulp — enough to put a
-/// CELL's bound above the whole-patch hull it is a subset of.
 pub fn window_hull(net: &Net, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>) -> Interval {
     net.window_hull(wu, wv)
 }
@@ -477,27 +436,15 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
 /// `PatchSpans::decompose` consumes and whose net [`window_hull`]
 /// reads.
 ///
-/// **The ARITHMETIC still diverges, and that is what is left.** This
-/// module extracts `w·P`; `offset_fit::channel` extracts `w·(P − c)`
-/// against a WHOLE-PATCH recentring origin, because its net feeds
-/// polynomial products formed once over the merged break structure,
-/// where interval arithmetic's rounding scales with the coordinate. This site
-/// recentres too, but LATER and per cell ([`window_tilde_hull`]), off
-/// the cell's own control window — the tighter centre, available here
-/// because a cell-local hull is what is being read. So a change to one
-/// is not automatically a change to both. What they still share is the
-/// ORDER (`weight · coordinate`), and a change to THAT is a change to
-/// both.
-///
-/// **Unifying the two CENTRES is open, and it is not this seam's own
-/// to close.** The patch-hull consolidation (issue 1006) unified the
-/// storage and left the centres deliberately apart: they are different
-/// centres because they are read at different granularities, and
-/// making them one means deciding whether the composite lane can
-/// afford a per-cell centre or the cell lane must give up its tighter
-/// one — a measurement on `offset_fit`'s numbers, not a refactor. It
-/// is filed rather than assigned here, because a residue whose owner
-/// is the unit that chose to keep it has no owner at all.
+/// **The ARITHMETIC diverges, and that is what is left.** This module
+/// extracts `w·P`; `offset_fit::channel` extracts `w·(P − c)` against a
+/// WHOLE-PATCH recentring origin, because its net feeds polynomial
+/// products formed once over the merged break structure, where interval
+/// arithmetic's rounding scales with the coordinate. This module's
+/// rational cells read the quotient pieces
+/// ([`geom_core::spline::cell_second_quotients`]) in the frame of each
+/// cell's first active point. What the two still share is the ORDER
+/// (`weight · coordinate`), and a change to THAT is a change to both.
 fn comp_nets(n: &NurbsSurface<f64>) -> TensorChannels<'_, 3> {
     let nv = n.knots_v().control_count();
     TensorChannels::from_fn(n.knots_u(), n.knots_v(), |i, j| {
@@ -700,16 +647,6 @@ fn centre(vectors: &[[Interval; 3]]) -> [Interval; 3] {
     })
 }
 
-/// The signed hull of coordinate `c` over `vectors`, folded in their
-/// order; refused for none.
-fn coordinate_hull(vectors: &[[Interval; 3]], c: usize) -> Interval {
-    vectors
-        .iter()
-        .map(|v| v[c])
-        .reduce(Interval::hull)
-        .unwrap_or_else(Interval::refused)
-}
-
 /// The INTEGRAL arm (all weights bitwise `1.0`): the plain hull
 /// assembly on the spatial nets — no quotient rule intervenes, so the
 /// enclosure IS the coefficient hull.
@@ -811,14 +748,12 @@ fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>
     Ok(cells)
 }
 
-/// The RATIONAL arm: the quotient-rule assembly over the homogeneous
-/// nets, on the cells of the fixed [`RATIONAL_CERT_SPLITS`]
-/// refinement (module docs).
-#[allow(clippy::too_many_lines)]
+/// The RATIONAL arm: the quotient statement on each nonempty cell's
+/// exact dyadic pieces, `splits` per direction (module docs).
 fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>, PatchBoundError> {
-    // The convex-combination licence, on f64 STRUCTURE.
-    // (`NurbsSurface::new` refuses these at the door; re-checked here so
-    // THIS bound never divides by an unproven denominator.)
+    // The licence, on f64 STRUCTURE: `NurbsSurface::new` refuses these at
+    // the door; re-checked here so THIS bound never reads an unproven
+    // weight.
     if !n
         .weights()
         .iter()
@@ -826,201 +761,96 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     {
         return Err(PatchBoundError::NonPositiveWeight);
     }
-    // THE REFINEMENT IS PART OF THE ENCLOSURE. The homogeneous nets `w`
-    // and `w·P` are refined IN INTERVAL ARITHMETIC from point intervals of the
-    // DESCRIBED net, so insertion widens outward like every later step
-    // and the cells enclose the described patch. An `f64` refinement
-    // here would make them enclose the refined-`f64` patch instead, and
-    // the described one escapes that by insertion rounding amplified by
-    // the knot differencing.
-    // One refinement of the four homogeneous channels `w·x, w·y, w·z, w`
-    // over the surface's one pair of vectors.
-    let nv0 = n.knots_v().control_count();
-    let described = TensorChannels::from_fn(n.knots_u(), n.knots_v(), |i, j| {
-        let (p, w) = (
-            n.control()[i * nv0 + j],
-            Interval::point(n.weights()[i * nv0 + j]),
-        );
-        [
-            w * Interval::point(p.x),
-            w * Interval::point(p.y),
-            w * Interval::point(p.z),
-            w,
-        ]
-    });
-    let refined = refine_split(&described, splits)?;
-    let (kv_u, kv_v) = (refined.knots_u(), refined.knots_v());
-    let [ax, ay, az, w_pair] = refined.channels();
-    let w_grid = w_pair.net();
-    let (nu, nv) = (w_grid.nu(), w_grid.nv());
-    // Positivity survives insertion in ℝ (convex combinations); this
-    // code may not assume the ARITHMETIC proved it, so the refined
-    // licence is read off the enclosure's own `lo` — a weight hull that
-    // touches or straddles zero voids the convex-combination licence
-    // just as a described non-positive weight does, and a refusal is not a
-    // proof of positivity either.
-    for i in 0..nu {
-        for j in 0..nv {
-            let w = w_grid.get(i, j);
-            #[allow(clippy::neg_cmp_op_on_partial_ord)]
-            if !w.is_certified() || !(w.lo() > 0.0) || !w.lo().is_finite() {
-                return Err(PatchBoundError::RefinedWeightLostPositivity);
-            }
-        }
-    }
-    // Second derivatives along a degree-1 direction are EXACTLY zero
-    // in ℝ for the polynomial nets A and w (the direction is a single
-    // linear span pre-refinement — the C¹ gate — and refinement's
-    // inserted knots are removable), so those partials are
-    // `Second::Zero` and their terms exact zeros; the CROSS terms
-    // stay. A degree ≥ 2 direction with no derived vector refuses
-    // (`DerivedKnots`) rather than reading zero.
-    let w_nets = DNets::build(&w_pair)?;
-    let a_base = [ax, ay, az];
-    let a_nets = a_base
-        .iter()
-        .map(DNets::build)
-        .collect::<Result<Vec<_>, _>>()?;
-    // The refined control points, `P = A / w` per channel, ONCE for the
-    // whole net. Each is read by every cell whose window covers it —
-    // `(pu + 1)(pv + 1)` cells at the interior, twice over (the centroid
-    // and the value hull) — so computing it per cell paid the same ring
-    // division up to `2(pu + 1)(pv + 1)` times for one coefficient.
-    // Entrywise, so each point is enclosed at its own weight rather than
-    // at the cell's weight hull.
-    let p_nets: Vec<Net> = a_base
-        .iter()
-        .map(|a| Net::from_fn(nu, nv, |i, j| a.net().get(i, j) / w_grid.get(i, j)))
-        .collect();
-    let zero = Interval::zero();
-    let two = Interval::point(2.0);
+    let (kv_u, kv_v) = (n.knots_u(), n.knots_v());
+    let held = |kv: &KnotVector| -> Vec<Interval> {
+        kv.knots().iter().map(|k| Interval::point(*k)).collect()
+    };
+    let (held_u, held_v) = (held(kv_u), held(kv_v));
+    let nv = kv_v.control_count();
     let mut cells: Vec<PatchCell> = Vec::new();
-    for su in kv_u.first_span()..=kv_u.last_span() {
-        for sv in kv_v.first_span()..=kv_v.last_span() {
-            // Emptiness skip and span validation, both directions. The
-            // spans come from the REFINED knot vectors rather than from
-            // a refined surface: there is no refined `f64` surface on
-            // this arm any more, only refined enclosure nets.
-            let (Some(span_u), Some(span_v)) = (kv_u.span(su), kv_v.span(sv)) else {
-                continue;
-            };
-            let w = CellWindows {
-                u_val: span_u.window(),
-                v_val: span_v.window(),
-                u_d1: span_u.first_derived_window(),
-                v_d1: span_v.first_derived_window(),
-                u_d2: span_u.derived_window(2),
-                v_d2: span_v.derived_window(2),
-            };
-            let point_at = |comp: usize, i: usize, j: usize| {
-                p_nets
-                    .get(comp)
-                    .map_or_else(Interval::refused, |p| p.get(i, j))
-            };
-            // The cell centroid ([`centre`]) of the active control
-            // points, and every reading below recentred on it: the
-            // active `P − c`, whose hull holds `S − c` (positive weights
-            // make the rational basis a nonnegative partition of unity
-            // over them), and the active coefficients of `Ã_u` and `Ã_v`.
-            let cc = centre(&window_vectors(&w.u_val, &w.v_val, point_at));
-            let about = window_vectors(&w.u_val, &w.v_val, |k, i, j| point_at(k, i, j) - cc[k]);
-            let au = window_vectors(&w.u_d1, &w.v_val, |k, i, j| {
-                tilde_entry(&a_nets[k].d10, &w_nets.d10, cc[k], i, j)
-            });
-            let av = window_vectors(&w.u_val, &w.v_d1, |k, i, j| {
-                tilde_entry(&a_nets[k].d01, &w_nets.d01, cc[k], i, j)
-            });
-            // The cell's weight hull — the divisor (module docs).
-            let w_cell = window_hull(w_grid, &w.u_val, &w.v_val);
-            // Weight-net hulls on the cell.
-            let w10s = window_hull(&w_nets.d10, &w.u_d1, &w.v_val);
-            let w01s = window_hull(&w_nets.d01, &w.u_val, &w.v_d1);
-            let w11s = window_hull(&w_nets.d11, &w.u_d1, &w.v_d1);
-            let w20s = w_nets
-                .d20
-                .hull(w.u_d2.as_ref(), |net, wu2| window_hull(net, wu2, &w.v_val));
-            let w02s = w_nets
-                .d02
-                .hull(w.v_d2.as_ref(), |net, wv2| window_hull(net, &w.u_val, wv2));
-            let mut s_u = [zero; 3];
-            let mut s_v = [zero; 3];
-            let mut s_uu = [zero; 3];
-            let mut s_uv = [zero; 3];
-            let mut s_vv = [zero; 3];
-            for (comp, a) in a_nets.iter().enumerate() {
-                let v0s = coordinate_hull(&about, comp);
-                // Recentred homogeneous derivative hulls
-                // `Ã_kl = A_kl − c·w_kl` on the cell.
-                let at =
-                    |an: &Net, wn: &Net, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>| {
-                        window_tilde_hull(an, wn, cc[comp], wu, wv)
-                    };
-                let a10s = coordinate_hull(&au, comp);
-                let a01s = coordinate_hull(&av, comp);
-                let a11s = at(&a.d11, &w_nets.d11, &w.u_d1, &w.v_d1);
-                // `A` and `w` are channels of one pair, so their second
-                // partials are both `Zero` or both nets.
-                let a20s = match (&a.d20, &w_nets.d20) {
-                    (Second::Zero, Second::Zero) => zero,
-                    (Second::Net(an), Second::Net(wn)) => w
-                        .u_d2
-                        .as_ref()
-                        .map_or_else(Interval::refused, |wu2| at(an, wn, wu2, &w.v_val)),
-                    _ => unreachable!("A and w share one pair of vectors"),
-                };
-                let a02s = match (&a.d02, &w_nets.d02) {
-                    (Second::Zero, Second::Zero) => zero,
-                    (Second::Net(an), Second::Net(wn)) => w
-                        .v_d2
-                        .as_ref()
-                        .map_or_else(Interval::refused, |wv2| at(an, wn, &w.u_val, wv2)),
-                    _ => unreachable!("A and w share one pair of vectors"),
-                };
-                // The quotient rule itself, in certification arithmetic, divided by
-                // the whole weight hull.
-                let s1u = (a10s - v0s * w10s) / w_cell;
-                let s1v = (a01s - v0s * w01s) / w_cell;
-                s_u[comp] = s1u;
-                s_v[comp] = s1v;
-                s_uu[comp] = (a20s - two * s1u * w10s - v0s * w20s) / w_cell;
-                s_vv[comp] = (a02s - two * s1v * w01s - v0s * w02s) / w_cell;
-                s_uv[comp] = (a11s - s1u * w01s - s1v * w10s - v0s * w11s) / w_cell;
+    for su in (kv_u.first_span()..=kv_u.last_span()).filter_map(|i| kv_u.span(i)) {
+        for sv in (kv_v.first_span()..=kv_v.last_span()).filter_map(|i| kv_v.span(i)) {
+            let mut points = Vec::with_capacity((su.degree() + 1) * (sv.degree() + 1));
+            let mut weights = Vec::with_capacity(points.capacity());
+            for iu in su.window() {
+                for iv in sv.window() {
+                    let (pt, w) = (n.control()[iu * nv + iv], n.weights()[iu * nv + iv]);
+                    points.push([pt.x, pt.y, pt.z].map(Interval::point));
+                    weights.push(Interval::point(w));
+                }
             }
-            // The vector readings over coefficient-vector norms (the
-            // fields' docs): the quotient rule for the speeds, and the
-            // cross term with the two `w_d·Ã_d × (S − c)` terms over
-            // `inf w²` for `‖S_u × S_v‖`.
-            let vectors = [
-                vectors_norm_sup(&au),
-                vectors_norm_sup(&av),
-                vectors_norm_sup(&about),
-                cross_norm_sup(&au, &av),
-            ];
-            let weights = [w_cell, w10s, w01s];
-            let sups = if vectors.iter().all(|t| t.is_finite())
-                && weights.iter().all(|i| i.is_certified())
-            {
-                let [au_sup, av_sup, reach, cross_sup] = vectors.map(Interval::point);
-                let (w_u, w_v) = (Interval::point(w10s.mag()), Interval::point(w01s.mag()));
-                let w_lo = Interval::point(w_cell.lo());
-                [
-                    certified_hi((au_sup + reach * w_u) / w_lo),
-                    certified_hi((av_sup + reach * w_v) / w_lo),
-                    certified_hi(
-                        (cross_sup + au_sup * reach * w_v + reach * av_sup * w_u) / w_lo.sqr(),
+            let pieces = cell_second_quotients(
+                (CellAxis::Span(su, &held_u), CellAxis::Span(sv, &held_v)),
+                CellBlock::Points {
+                    origin: points[0],
+                    points: &points,
+                    weights: &weights,
+                },
+                (splits, splits),
+            )
+            .ok_or(PatchBoundError::RefinementFailed)?;
+            // The pieces are counted for the second-order quotients'
+            // degree (`cell_second_quotients`).
+            let counts = (
+                piece_count(3 * su.degree(), splits),
+                piece_count(3 * sv.degree(), splits),
+            );
+            let (eu, ev) = (span_extent(kv_u, su.index()), span_extent(kv_v, sv.index()));
+            for (k, (first, second)) in pieces.iter().enumerate() {
+                let (iu, iv) = (k / counts.1, k % counts.1);
+                cells.push(cell_from(
+                    (
+                        piece_extent(eu, iu, counts.0),
+                        piece_extent(ev, iv, counts.1),
                     ),
-                ]
-            } else {
-                [f64::NAN; 3]
-            };
-            cells.push(cell_from(
-                (span_extent(kv_u, su), span_extent(kv_v, sv)),
-                [s_u, s_v, s_uu, s_uv, s_vv],
-                sups,
-            ));
+                    [
+                        signed_box(&first.u),
+                        signed_box(&first.v),
+                        signed_box(&second.uu),
+                        signed_box(&second.uv),
+                        signed_box(&second.vv),
+                    ],
+                    [
+                        certified_sup(&first.u),
+                        certified_sup(&first.v),
+                        first.area.as_ref().map_or(f64::NAN, certified_sup),
+                    ],
+                ));
+            }
         }
     }
     Ok(cells)
+}
+
+/// Piece `i` of `count` equal pieces of `[lo, hi]`, in `f64`: the
+/// dyadic points the pieces are cut at, rounded as
+/// [`geom_core::spline::algebra::equal_split_points`] rounds them.
+fn piece_extent((lo, hi): (f64, f64), i: usize, count: usize) -> (f64, f64) {
+    #[allow(clippy::cast_precision_loss)]
+    let at = |k: usize| {
+        if k == 0 {
+            lo
+        } else if k == count {
+            hi
+        } else {
+            lo + (hi - lo) * (k as f64 / count as f64)
+        }
+    };
+    (at(i), at(i + 1))
+}
+
+/// The signed componentwise box of a quotient over its piece: each
+/// coordinate between its least and greatest coefficient ratio
+/// ([`QuotientPiece::coordinate_range`]).
+fn signed_box(q: &QuotientPiece<Interval, 3>) -> [Interval; 3] {
+    q.coordinate_range().map(|(lo, hi)| Interval::hull(lo, hi))
+}
+
+/// The quotient's norm sup over its piece, read from above; `NaN` when
+/// it does not certify.
+fn certified_sup(q: &QuotientPiece<Interval, 3>) -> f64 {
+    let s = q.sup_norm();
+    if s.is_certified() { s.hi() } else { f64::NAN }
 }
 
 #[cfg(test)]

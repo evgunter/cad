@@ -477,6 +477,20 @@ impl<T: Real, const D: usize> Grid<T, D> {
             .map_v(|row| restrict(bv, row))
     }
 
+    /// The grid restricted to piece `(iu, iv)` of `counts` equal dyadic
+    /// pieces per axis, by the exact [`piece_weights`] of its own
+    /// degree on each axis.
+    fn on_piece(&self, (iu, iv): (usize, usize), counts: (usize, usize)) -> Option<Self> {
+        let block = |deg: usize, count: usize, i: usize| -> Option<Vec<f64>> {
+            let n = (deg + 1).pow(2);
+            piece_weights(deg, count)?
+                .get(i * n..(i + 1) * n)
+                .map(<[f64]>::to_vec)
+        };
+        let (du, dv) = self.degree();
+        self.restrict(&block(du, counts.0, iu)?, &block(dv, counts.1, iv)?)
+    }
+
     /// The grid raised to the degrees `(du, dv)` by elevation: its
     /// product with a grid of ones.
     fn raised_to(&self, (du, dv): (usize, usize)) -> Option<Self> {
@@ -754,42 +768,12 @@ pub struct CellSecondQuotients<T> {
 }
 
 impl<T: Real> Homogeneous<T> {
-    /// The grids restricted to piece `(iu, iv)` of `counts` per axis.
-    fn restrict(&self, (iu, iv): (usize, usize), counts: (usize, usize)) -> Option<Self> {
-        let block = |deg: usize, count: usize, i: usize| -> Option<Vec<f64>> {
-            let n = (deg + 1).pow(2);
-            piece_weights(deg, count)?
-                .get(i * n..(i + 1) * n)
-                .map(<[f64]>::to_vec)
-        };
-        let on = |g: (usize, usize)| -> Option<(Vec<f64>, Vec<f64>)> {
-            Some((block(g.0, counts.0, iu)?, block(g.1, counts.1, iv)?))
-        };
-        let r3 = |g: &Grid<T, 3>| {
-            let (bu, bv) = on(g.degree())?;
-            g.restrict(&bu, &bv)
-        };
-        let r1 = |g: &Grid<T, 1>| {
-            let (bu, bv) = on(g.degree())?;
-            g.restrict(&bu, &bv)
-        };
-        let pair = |(x, y): &(Grid<T, 3>, Grid<T, 1>)| Some((r3(x)?, r1(y)?));
-        let second = match &self.second {
-            Some(g) => Some(SecondGrids {
-                uu: g
-                    .uu
-                    .as_ref()
-                    .map(pair)
-                    .map_or(Some(None), |x| x.map(Some))?,
-                uv: pair(&g.uv)?,
-                vv: g
-                    .vv
-                    .as_ref()
-                    .map(pair)
-                    .map_or(Some(None), |x| x.map(Some))?,
-            }),
-            None => None,
-        };
+    /// The first-order grids restricted to piece `(iu, iv)` of `counts`
+    /// per axis (the second order is cut after it is formed:
+    /// [`SecondRaised::on_piece`]).
+    fn restrict(&self, at: (usize, usize), counts: (usize, usize)) -> Option<Self> {
+        let r3 = |g: &Grid<T, 3>| g.on_piece(at, counts);
+        let r1 = |g: &Grid<T, 1>| g.on_piece(at, counts);
         Some(Self {
             a: r3(&self.a)?,
             w: r1(&self.w)?,
@@ -797,7 +781,7 @@ impl<T: Real> Homogeneous<T> {
             wu: r1(&self.wu)?,
             av: r3(&self.av)?,
             wv: r1(&self.wv)?,
-            second,
+            second: None,
         })
     }
 
@@ -807,7 +791,7 @@ impl<T: Real> Homogeneous<T> {
     /// likewise, `M_uv = A_uv·W² − A·W_uv·W − A_u·W·W_v − A_v·W·W_u +
     /// 2·A·W_u·W_v`, each over `W³`. `None` when the grids were not
     /// built.
-    fn second_quotients(&self) -> Option<CellSecondQuotients<T>> {
+    fn second_raised(&self) -> Option<SecondRaised<T>> {
         let g = self.second.as_ref()?;
         let (a, w) = (&self.a, &self.w);
         // `−X·W·Y` for a vector grid `X` and scalar grid `Y`.
@@ -819,7 +803,7 @@ impl<T: Real> Homogeneous<T> {
         let diagonal = |d: &Grid<T, 3>, dw: &Grid<T, 1>, xy: Option<&(Grid<T, 3>, Grid<T, 1>)>| {
             let cross = ayz(dw, dw)?.minus(&xwy(d, dw)?)?.times(2.0)?;
             let (m, w3) = second_numerator(a, w, xy.map(|(x, y)| (x, y)), cross)?;
-            quotient(&m, &w3)
+            Raised::of(&m, w3)
         };
         let uu = diagonal(&self.au, &self.wu, g.uu.as_ref())?;
         let vv = diagonal(&self.av, &self.wv, g.vv.as_ref())?;
@@ -828,13 +812,18 @@ impl<T: Real> Homogeneous<T> {
             .minus(&xwy(&self.au, &self.wv)?)?
             .minus(&xwy(&self.av, &self.wu)?)?;
         let (m, w3) = second_numerator(a, w, Some((&g.uv.0, &g.uv.1)), cross)?;
-        let uv = quotient(&m, &w3)?;
-        Some(CellSecondQuotients { uu, uv, vv })
+        let uv = Raised::of(&m, w3)?;
+        Some(SecondRaised { uu, uv, vv })
     }
 
     /// The quotients on this piece (module docs): `N_u = A_u·W − A·W_u`
     /// and `N_v` over `W²`, and `M̃` over `W³`.
     fn quotients(&self, area: bool) -> Option<CellQuotients<T>> {
+        self.first_raised(area)?.pieces()
+    }
+
+    /// [`Self::quotients`] before it is cut.
+    fn first_raised(&self, area: bool) -> Option<FirstRaised<T>> {
         let first = |d: &Grid<T, 3>, dw: &Grid<T, 1>| -> Option<Grid<T, 3>> {
             product(d, &self.w, |x, w| (Vector(x) * w[0]).0)?.minus(&product(
                 &self.a,
@@ -843,8 +832,8 @@ impl<T: Real> Homogeneous<T> {
             )?)
         };
         let w2 = product(&self.w, &self.w, |x, y| [x[0] * y[0]])?;
-        let u = quotient(&first(&self.au, &self.wu)?, &w2)?;
-        let v = quotient(&first(&self.av, &self.wv)?, &w2)?;
+        let u = Raised::of(&first(&self.au, &self.wu)?, w2.clone())?;
+        let v = Raised::of(&first(&self.av, &self.wv)?, w2.clone())?;
         let area = if area {
             let w3 = product(&w2, &self.w, |x, y| [x[0] * y[0]])?;
             let scaled = |w: &Grid<T, 1>, x: &Grid<T, 3>| {
@@ -853,11 +842,102 @@ impl<T: Real> Homogeneous<T> {
             let m = scaled(&self.w, &product(&self.au, &self.av, cross)?)?
                 .minus(&scaled(&self.wv, &product(&self.au, &self.a, cross)?)?)?
                 .minus(&scaled(&self.wu, &product(&self.a, &self.av, cross)?)?)?;
-            Some(quotient(&m, &w3)?)
+            Some(Raised::of(&m, w3)?)
         } else {
             None
         };
-        Some(CellQuotients { u, v, area })
+        Some(FirstRaised { u, v, area })
+    }
+}
+
+/// A quotient before it is cut into pieces: its numerator raised to its
+/// weight power's degrees, and the weight power. Restricting both to a
+/// piece by the same exact weights gives the piece's own coefficients
+/// at that degree (restriction is linear and preserves degree), so a
+/// quotient raised once over a cell and cut is the statement on each
+/// piece.
+#[derive(Clone)]
+struct Raised<T, const D: usize> {
+    numer: Grid<T, D>,
+    denom: Grid<T, 1>,
+}
+
+impl<T: Real, const D: usize> Raised<T, D> {
+    fn of(numer: &Grid<T, D>, denom: Grid<T, 1>) -> Option<Self> {
+        Some(Self {
+            numer: numer.raised_to(denom.degree())?,
+            denom,
+        })
+    }
+
+    fn on_piece(&self, at: (usize, usize), counts: (usize, usize)) -> Option<Self> {
+        Some(Self {
+            numer: self.numer.on_piece(at, counts)?,
+            denom: self.denom.on_piece(at, counts)?,
+        })
+    }
+
+    fn piece(&self) -> Option<QuotientPiece<T, D>> {
+        QuotientPiece::new(
+            self.numer.arrays(),
+            self.denom.c.iter().map(|w| w.0[0]).collect(),
+        )
+    }
+}
+
+/// [`CellQuotients`] before it is cut.
+struct FirstRaised<T> {
+    u: Raised<T, 3>,
+    v: Raised<T, 3>,
+    area: Option<Raised<T, 3>>,
+}
+
+impl<T: Real> FirstRaised<T> {
+    fn on_piece(&self, at: (usize, usize), counts: (usize, usize)) -> Option<Self> {
+        Some(Self {
+            u: self.u.on_piece(at, counts)?,
+            v: self.v.on_piece(at, counts)?,
+            area: match &self.area {
+                Some(a) => Some(a.on_piece(at, counts)?),
+                None => None,
+            },
+        })
+    }
+
+    fn pieces(&self) -> Option<CellQuotients<T>> {
+        Some(CellQuotients {
+            u: self.u.piece()?,
+            v: self.v.piece()?,
+            area: match &self.area {
+                Some(a) => Some(a.piece()?),
+                None => None,
+            },
+        })
+    }
+}
+
+/// [`CellSecondQuotients`] before it is cut.
+struct SecondRaised<T> {
+    uu: Raised<T, 3>,
+    uv: Raised<T, 3>,
+    vv: Raised<T, 3>,
+}
+
+impl<T: Real> SecondRaised<T> {
+    fn on_piece(&self, at: (usize, usize), counts: (usize, usize)) -> Option<Self> {
+        Some(Self {
+            uu: self.uu.on_piece(at, counts)?,
+            uv: self.uv.on_piece(at, counts)?,
+            vv: self.vv.on_piece(at, counts)?,
+        })
+    }
+
+    fn pieces(&self) -> Option<CellSecondQuotients<T>> {
+        Some(CellSecondQuotients {
+            uu: self.uu.piece()?,
+            uv: self.uv.piece()?,
+            vv: self.vv.piece()?,
+        })
     }
 }
 
@@ -1228,17 +1308,29 @@ fn cell_pieces<T: Real>(
         av: cell_grid(&av_w, (&au, 0), (&av, 1))?,
         wv: cell_grid(&wv_w, (&au, 0), (&av, 1))?,
     };
+    if whole.second.is_some() {
+        // Both orders formed once over the cell and cut: the pieces are
+        // counted for the second-order quotients' degree `3p`, so every
+        // row cut is cut exactly.
+        let first = whole.first_raised(area)?;
+        let second = whole.second_raised()?;
+        let counts = (piece_count(3 * p, splits.0), piece_count(3 * q, splits.1));
+        let mut out = Vec::with_capacity(counts.0 * counts.1);
+        for iu in 0..counts.0 {
+            for iv in 0..counts.1 {
+                out.push((
+                    first.on_piece((iu, iv), counts)?.pieces()?,
+                    Some(second.on_piece((iu, iv), counts)?.pieces()?),
+                ));
+            }
+        }
+        return Some(out);
+    }
     let counts = (piece_count(p, splits.0), piece_count(q, splits.1));
     let mut out = Vec::with_capacity(counts.0 * counts.1);
     for iu in 0..counts.0 {
         for iv in 0..counts.1 {
-            let piece = whole.restrict((iu, iv), counts)?;
-            let second = if piece.second.is_some() {
-                Some(piece.second_quotients()?)
-            } else {
-                None
-            };
-            out.push((piece.quotients(area)?, second));
+            out.push((whole.restrict((iu, iv), counts)?.quotients(area)?, None));
         }
     }
     Some(out)
