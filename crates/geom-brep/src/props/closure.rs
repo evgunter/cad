@@ -204,25 +204,22 @@ pub(super) struct ChartLoop<T, const N: usize> {
 
 /// **A closed form's circle sits clear of the axis it is carried to**
 /// (`props_chart_axis_inside`): `radius`, the circle's radius about the
-/// axis (the core circle), exceeds `2ε`. The parse holds the circle's
-/// centre within `ε` of the axis (the core circle), so then the axis
-/// passes inside the circle: from any point of it the circle's centre
-/// and the axis are less than a quarter turn apart, and the turn
-/// carrying the circle's stored turn to the axis (`curved::about_axis`
-/// and the tube's analogue) is read clear of its branch cut. The
+/// axis (the core circle), is definitely positive, at least `Kε`. The
+/// parse holds the circle's centre within `ε` of the axis (the core
+/// circle), so the axis then passes inside the circle: seen from any
+/// point of it, the circle's centre and the axis are less than a quarter
+/// turn apart, and the turn carrying the circle's stored turn to the
+/// axis (`curved::about_axis` and the tube's analogue) is read clear of
+/// its branch cut. `Kε` is also the least radius the parse's axis class
+/// admits a rim at (`props_circle_axis_class`, `r_c·|n_c·â|` definite),
+/// so no circle the parse admits is refused here for want of it. The
 /// cylinder decides it once at its radius, which every rim's is within
-/// `ε` of; the torus once at its minor radius, for its meridians, and
-/// at each parallel's own. A circle narrower than that is within its own
+/// `ε` of; the torus once at its minor radius, for its meridians, and at
+/// each parallel's own. A circle narrower than that is within its own
 /// band, and this closed form has no reading of it
 /// ([`PropsError::NotIsoRectangle`]).
 pub(super) fn require_axis_inside<T: Decide>(radius: T, band: Band) -> Result<(), PropsError> {
-    let eps = T::from_f64(band.zero());
-    if decide(
-        "props_chart_axis_inside",
-        Margin::of(radius - eps - eps),
-        band,
-    )
-    .map_err(escalated)?
+    if decide("props_chart_axis_inside", Margin::of(radius), band).map_err(escalated)?
         == Sign::Positive
     {
         Ok(())

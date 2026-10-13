@@ -765,3 +765,132 @@ fn torus_chains_of_arcs_off_centre_measure() {
         }
     }
 }
+
+/// **Circles just past the axis class's threshold measure** at `f64`
+/// and at the interval scalar: the parse admits a rim on a periodic
+/// chart once its radius about the axis is definite (`Kε`,
+/// `props_circle_axis_class`), and the closed forms read every circle it
+/// admits. A cylinder rectangle and band of radius `10.5ε` and `11.5ε`,
+/// a thin torus of that minor radius, and spindle and horn tori whose
+/// parallel near the axis has that radius all measure; demanding
+/// `2ε` more of the radius than the class does refused them. (At
+/// `ε = 1e-12` the spindle and horn faces escalate at the interval
+/// scalar for another reason, filed and pinned below.)
+#[test]
+fn circles_just_past_the_axis_class_threshold_measure() {
+    fn rim<T: geom_core::Decide>(radius: f64, z: f64, ends: (f64, f64)) -> LoopEdge<T> {
+        off_arc::<T>(radius, [0.0, 0.0], 0.0, z, ends)
+    }
+    fn cylinder_faces<T: geom_core::Decide>(radius: f64) -> [Result<(), PropsError>; 2] {
+        let at = |u: f64, z: f64| [radius * u.cos(), radius * u.sin(), z];
+        let rect = vec![
+            rim::<T>(radius, 0.0, (0.0, 2.0)),
+            segment::<T>(at(2.0, 0.0), at(2.0, 1.0)),
+            rim::<T>(radius, 1.0, (2.0, 0.0)),
+            segment::<T>(at(0.0, 1.0), at(0.0, 0.0)),
+        ];
+        let (lower, upper) = (
+            vec![rim::<T>(radius, 0.0, (0.0, TAU))],
+            vec![rim::<T>(radius, 1.0, (TAU, 0.0))],
+        );
+        let s = cylinder_of::<T>(radius);
+        [
+            curved_face_loops(&s, &[&rect], true, band()).map(|_| ()),
+            curved_face_loops(&s, &[&lower, &upper], true, band()).map(|_| ()),
+        ]
+    }
+    fn torus_rect<T: geom_core::Decide>(
+        (big, r): (f64, f64),
+        (v0, v1): (f64, f64),
+    ) -> Result<(), PropsError> {
+        let parallel = |v: f64, u0: f64, u1: f64| {
+            edge::<T>(
+                Curve3::Circle {
+                    center: p3(0.0, 0.0, r * v.sin()),
+                    axis: v3(0.0, 0.0, 1.0),
+                    radius: T::from_f64(big + r * v.cos()),
+                    u_ref: v3(1.0, 0.0, 0.0),
+                },
+                u0,
+                u1,
+                0,
+                0,
+            )
+        };
+        let meridian = |u: f64, a: f64, b: f64| {
+            edge::<T>(
+                Curve3::Circle {
+                    center: p3(big * u.cos(), big * u.sin(), 0.0),
+                    axis: v3(u.sin(), -u.cos(), 0.0),
+                    radius: T::from_f64(r),
+                    u_ref: v3(u.cos(), u.sin(), 0.0),
+                },
+                a,
+                b,
+                0,
+                0,
+            )
+        };
+        let l = vec![
+            parallel(v0, 0.0, 1.0),
+            meridian(1.0, v0, v1),
+            parallel(v1, 1.0, 0.0),
+            meridian(0.0, v1, v0),
+        ];
+        let s = Surface::Torus {
+            center: p3(0.0, 0.0, 0.0),
+            axis: v3(0.0, 0.0, 1.0),
+            major_radius: T::from_f64(big),
+            minor_radius: T::from_f64(r),
+            u_ref: v3(1.0, 0.0, 0.0),
+        };
+        curved_face_loops(&s, &[&l], true, band()).map(|_| ())
+    }
+    fn faces<T: geom_core::Decide>(rho: f64) -> Vec<(String, Result<(), PropsError>)> {
+        let [rect, whole] = cylinder_faces::<T>(rho);
+        let mut out = vec![
+            ("cylinder rectangle".to_string(), rect),
+            ("cylinder band".to_string(), whole),
+            (
+                "thin torus".to_string(),
+                torus_rect::<T>((1e-3, rho), (0.2, 1.2)),
+            ),
+        ];
+        // The parallel at `v1` has radius `rho` about the axis.
+        for (name, big, r) in [
+            ("spindle torus", 0.004, 0.005),
+            ("horn torus", 0.005, 0.005),
+        ] {
+            let v1 = ((rho - big) / r).acos();
+            out.push((name.to_string(), torus_rect::<T>((big, r), (1.0, v1))));
+        }
+        out
+    }
+    let e = eps();
+    for k in [10.5, 11.5] {
+        for (what, got) in faces::<f64>(k * e) {
+            assert_eq!(got, Ok(()), "{what} at {k}ε, f64");
+        }
+        for (what, got) in faces::<geom_core::Interval>(k * e) {
+            // A spindle or horn parallel within about `1e-8` m of the
+            // axis escalates the loop's whole-turn residual at the
+            // interval scalar, its rounding charged at the loop's
+            // largest radius (work item
+            // `closed-form-loop-whole-charges-near-axis-rounding-at-the-largest-radius`).
+            // Its fix measures these too, and turns this arm red.
+            let filed = what.ends_with("torus") && what != "thin torus" && k * e < 1e-8;
+            if filed {
+                assert!(
+                    matches!(
+                        &got,
+                        Err(PropsError::Escalated { cause, .. })
+                            if format!("{cause:?}").contains("props_chart_loop_whole")
+                    ),
+                    "{what} at {k}ε, interval: {got:?}"
+                );
+            } else {
+                assert_eq!(got, Ok(()), "{what} at {k}ε, interval");
+            }
+        }
+    }
+}
