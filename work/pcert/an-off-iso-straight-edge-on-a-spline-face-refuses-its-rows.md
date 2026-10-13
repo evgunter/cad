@@ -2,8 +2,9 @@
 id: an-off-iso-straight-edge-on-a-spline-face-refuses-its-rows
 kind: issue
 title: the mint refuses a spline face holding an off-iso straight edge (LoopDiscontinuity, no rows stored), because its line-rim arm picks a row through the start foot
-status: dispatched
+status: closed
 opened: 2026-10-12
+closed: 2026-10-13
 priority: P2
 cost: M
 branch: pcert/off-iso-line-takes-its-general-row
@@ -56,3 +57,24 @@ Probe each row candidate at an interior parameter, as the
 `Intersection` arm's interior-row block does
 (`pcurve_iso_seam_column`). Where none holds, derive the `General`
 image (`derive_general_image`) instead of refusing or guessing.
+
+## Closed
+
+`pcert/off-iso-line-takes-its-general-row`. A `Line` carrier described
+as a chart image or a scaffold now takes the boundary-iso schedule the
+`Intersection` arm takes:
+- the closed-form columns and rows, in both directions;
+- then the row, and for a line the column, whose moving map the end
+  feet measure;
+- then the `General` image.
+
+Every candidate is judged a quarter span in by `probe_pick`, the one
+home of that probe (the arc rim's direction pick goes through it too).
+The triangle lamina's diagonal mints `General` and certifies at f64 and
+Interval, and its row and column edges keep their exact `IsoLine`s
+(`topo`'s `an_off_iso_straight_edge_takes_its_general_row`). The step
+import's plane × wall shape imports through a STEP file
+(`step-import`'s `an_off_iso_line_on_a_spline_wall_imports_its_general_row`).
+
+The wall-seam arm's one-foot column pick is left as it stands:
+`work/pcert/the-wall-seam-arm-positions-its-column-off-the-start-foot.md`.

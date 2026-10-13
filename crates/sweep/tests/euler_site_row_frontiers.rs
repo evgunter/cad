@@ -18,7 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::EdgeCurveSpec;
+use geom_brep::{EdgeCurveSpec, Pcurve, PcurveCertifyError};
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::Revolution;
@@ -266,6 +266,8 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
 /// No image moves, nor any element but the joint the strut re-links,
 /// and the wall misses the null strut's two rows and the
 /// new strut's two.
+/// The new strut leaves the wall, so its wall image is `General`, and
+/// certification refuses that typed at the map residual.
 #[test]
 fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
     let mut body = lofted_prism();
@@ -307,6 +309,45 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
             other => panic!("only missing rows are reported, got {other:?}"),
         })
         .collect();
+    // The strut leaves the wall, so no iso line holds it a quarter span
+    // in, and its derived image is `General`, which certification
+    // refuses typed at the map residual: nothing here can store it.
+    let wall = {
+        let face = body.face_of_half_edge(he).unwrap();
+        body.get_surface(body.get_face(face).unwrap().surface)
+            .unwrap()
+            .clone()
+    };
+    let curve = body
+        .get_curve_geom(body.get_edge(strut.edge).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap();
+    let (t0, t1) = curve.params();
+    for h in [strut.he_plus, strut.he_minus] {
+        let image = match topo::pcurve_of(&body, h, band()) {
+            Ok(Pcurve::General(image)) => image,
+            other => panic!("{h:?}: the strut's image is General: {other:?}"),
+        };
+        let got = geom_brep::PcurveCache::certify_general(
+            image,
+            t0,
+            t1,
+            curve.carrier(),
+            &wall,
+            band(),
+            <f64 as topo::AtRestPolicy>::fitted_lane(),
+        );
+        assert!(
+            matches!(
+                got,
+                Err(PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::MapResidual,
+                    ..
+                })
+            ),
+            "{h:?}: the strut's General image refuses at certification: {got:?}"
+        );
+    }
     missing.sort();
     let mut want = vec![null.he_plus, null.he_minus, strut.he_plus, strut.he_minus];
     want.sort();
@@ -324,6 +365,8 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
 /// rather than refusing `SplineChart`, every finding tier 3 reads is on
 /// a spline wall, a rim's planar cap included in none, and no image a
 /// surviving half on a spline wall stores moves.
+/// The listed member, a straight edge on the wall, derives the exact
+/// iso line it lies on: a seam its boundary column, a rim its row.
 #[test]
 fn a_kill_re_describing_a_certified_member_leaves_its_spline_wall_as_found() {
     let base = lofted_prism();
@@ -345,10 +388,15 @@ fn a_kill_re_describing_a_certified_member_leaves_its_spline_wall_as_found() {
     };
     let (mut rims, mut seams) = (0, 0);
     for (edge, e) in base.edges() {
-        match [e.he_plus, e.he_minus].map(|h| on_spline(&base, h)) {
-            [true, true] => seams += 1,
-            [true, false] | [false, true] => rims += 1,
+        let seam = match [e.he_plus, e.he_minus].map(|h| on_spline(&base, h)) {
+            [true, true] => true,
+            [true, false] | [false, true] => false,
             [false, false] => continue,
+        };
+        if seam {
+            seams += 1;
+        } else {
+            rims += 1;
         }
         let mut body = base.clone();
         let (t0, t1) = body
@@ -382,6 +430,27 @@ fn a_kill_re_describing_a_certified_member_leaves_its_spline_wall_as_found() {
             before,
             "{edge:?}: no image a spline wall stores moves"
         );
+        // The member the kill re-described with `line_between` is a
+        // straight edge on the wall: a seam derives its exact boundary
+        // column, a rim its row, each from the probe a quarter span in.
+        let half = body.get_edge(*member).unwrap();
+        for h in [half.he_plus, half.he_minus] {
+            if !on_spline(&body, h) {
+                continue;
+            }
+            let derived = topo::pcurve_of(&body, h, band());
+            let Ok(Pcurve::IsoLine { pl, .. }) = derived else {
+                panic!("{edge:?}: the member's wall image is an iso line: {derived:?}")
+            };
+            let column = pl.x == 0.0 && pl.y != 0.0;
+            let row = pl.y == 0.0 && pl.x != 0.0;
+            assert!(
+                if seam { column } else { row },
+                "{edge:?}: a {} takes its {}: {derived:?}",
+                if seam { "seam" } else { "rim" },
+                if seam { "column" } else { "row" }
+            );
+        }
         let findings = validate_pcurves(&body, band());
         assert!(
             findings.iter().all(|f| match *f {

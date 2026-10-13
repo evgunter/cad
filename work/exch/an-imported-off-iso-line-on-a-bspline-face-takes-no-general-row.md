@@ -42,3 +42,18 @@ Once the pcert row is fixed, the plane × wall case adopts through the
 conventional rung and mints `General`. The wall × wall case also needs
 the edge certificate to take a line carrier, or recognition to leave
 the spline alone (the D7 row).
+
+## The plane × wall case is closed (2026-10-13)
+
+`pcert/off-iso-line-takes-its-general-row` closed the plane × wall case,
+reproduced through a STEP file: `step-import`'s
+`an_off_iso_line_on_a_spline_wall_imports_its_general_row`. The file is
+a hand-emitted tetrahedron whose base is a degree 2 × 2 B-spline
+parabolic cylinder, and whose diagonal `LINE` is shared with a slanted
+plane. Main refused the import (`Pcurves { LoopDiscontinuity }`). On that
+branch the diagonal adopts through the conventional rung, mints its
+`General` row on the wall, and the import ships tier-3 valid.
+
+**The wall × wall case stays open**, as above: it needs the edge
+certificate to take a line carrier, or recognition to leave the spline
+alone (`work/exch/d7-promotes-an-off-iso-straight-spline-the-intersection-rung-then-refuses.md`).
