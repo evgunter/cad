@@ -1,14 +1,14 @@
 //! **The rational stretch and area floors**
-//! (`NurbsSurface::stretch_floor` / `area_floor`, the tensor-cell
-//! pair-term floors of `geom_core::spline::rational_stretch_floor` and
-//! `rational_area_floor`): one named row per clause of the proof.
+//! (`NurbsSurface::stretch_floor` / `area_floor`, the quotient bound of
+//! `geom_core::spline::derivative` on each cell's dyadic pieces): one
+//! named row per clause of the proof.
 //!
 //! A clause whose removal makes a floor UNSOUND has a row whose fixture
 //! puts the true minimum below what the floor without that clause would
-//! claim; a LOCALITY clause, whose removal only weakens the floor, has a
-//! row that pins the floor at the true minimum, so a floor that drops
-//! (to zero everywhere, at the extreme) goes red. Random fuzz witnesses
-//! none of this: each fixture is written down.
+//! claim; a LOCALITY or tightness clause, whose removal only weakens the
+//! floor, has a row that pins the floor near the true minimum, so a
+//! floor that drops (to zero everywhere, at the extreme) goes red.
+//! Random fuzz witnesses none of this: each fixture is written down.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -85,269 +85,83 @@ fn sampled_min(
     least
 }
 
-fn lift(d: Vec3<f64>) -> Vec3<Interval> {
-    d.map(<Interval as Real>::from_f64)
+/// `min ‖S_u‖` (`along_u`) or `min ‖S_v‖`, sampled.
+fn sampled_stretch(s: &NurbsSurface<f64>, along_u: bool) -> f64 {
+    sampled_min(s, 64, |du, dv| if along_u { du.norm() } else { dv.norm() })
 }
 
-/// `min S_u·d` (`along_u`) or `min S_v·d`, sampled.
-fn sampled_stretch(s: &NurbsSurface<f64>, along_u: bool, d: Vec3<f64>) -> f64 {
-    let d = lift(d);
-    sampled_min(s, 64, |du, dv| if along_u { du.dot(d) } else { dv.dot(d) })
+/// `min ‖S_u × S_v‖`, sampled.
+fn sampled_area(s: &NurbsSurface<f64>) -> f64 {
+    sampled_min(s, 64, |du, dv| du.cross(dv).norm())
 }
 
-/// `min (S_u × S_v)·d`, sampled.
-fn sampled_area(s: &NurbsSurface<f64>, d: Vec3<f64>) -> f64 {
-    let d = lift(d);
-    sampled_min(s, 64, |du, dv| du.cross(dv).dot(d))
-}
-
-/// The floor is sound against the sampled minimum, and within `slack`
-/// of it (`slack = None`: soundness only).
+/// The floor is sound against the sampled minimum, and at least
+/// `share` of it (`None`: soundness only).
 #[track_caller]
-fn floor_holds(name: &str, floor: f64, sampled: f64, slack: Option<f64>) {
+fn floor_holds(name: &str, floor: f64, sampled: f64, share: Option<f64>) {
     assert!(
         floor <= sampled,
         "{name}: floor {floor} is above the sampled minimum {sampled}"
     );
-    if let Some(slack) = slack {
+    if let Some(share) = share {
         assert!(
-            floor >= sampled - slack,
-            "{name}: floor {floor} is more than {slack} below the minimum {sampled}"
+            floor >= share * sampled,
+            "{name}: floor {floor} is below {share} of the minimum {sampled}"
         );
     }
 }
 
 /// The rational linear `x(u)` from `0` to `4` with weights `(1, 4)`:
-/// `x′ = w₀w₁·4/W²` runs from `16` at `u = 0` down to `1` at `u = 1`.
+/// `x′ = w₀w₁·4/W²` runs from `16` at `u = 0` down to `1` at `u = 1`,
+/// and the area element with it (`S_v = ẑ`).
 fn rising() -> NurbsSurface<f64> {
     ruled(vec![0.0, 1.0], 1, &[0.0, 4.0], &[1.0, 4.0])
 }
 
-/// **A negative projection divides by the LEAST weight.** Along `−x`
-/// the term values are `−16` and `−4`, and the true minimum is `−16`,
-/// at `W = 1`: over the greatest weight the floor would read `−4`.
-#[test]
-fn a_negative_projection_divides_by_the_least_weight() {
-    let s = rising();
-    let d = Vec3::new(-1.0, 0.0, 0.0);
-    floor_holds(
-        "S_u·(−x)",
-        s.stretch_floor(true, d),
-        sampled_stretch(&s, true, d),
-        Some(1e-9),
-    );
-}
-
-/// **A non-negative projection divides by the GREATEST weight.** Along
-/// `x` the least term value is `4` and the true minimum `1`, at
-/// `W = 4`: over the least weight the floor would read `4`.
-#[test]
-fn a_positive_projection_divides_by_the_greatest_weight() {
-    let s = rising();
-    let d = Vec3::new(1.0, 0.0, 0.0);
-    floor_holds(
-        "S_u·x",
-        s.stretch_floor(true, d),
-        sampled_stretch(&s, true, d),
-        Some(1e-9),
-    );
-}
-
-/// **Every active column's pairs are read.** On this bilinear patch the
-/// `u` edges differ, `4x̂` at `v = 0` and `x̂ − 2ŷ` at `v = 1`, so
-/// `S_u·x̂ = 4 − 3v` falls to `1` at the second column; the `v` edges
-/// read `3ŷ` at `u = 0` and `−3x̂ + ŷ` at `u = 1`, so `S_v·ŷ` falls to
-/// `1` at the second row. Read over the first column (row) alone the
-/// floors claim `4` and `3`.
-#[test]
-fn every_active_column_is_read() {
-    let s = surface(
-        (vec![0.0, 0.0, 1.0, 1.0], 1),
-        (vec![0.0, 0.0, 1.0, 1.0], 1),
-        vec![
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(0.0, 3.0, 0.0),
-            Point3::new(4.0, 0.0, 0.0),
-            Point3::new(1.0, 1.0, 0.0),
-        ],
-        vec![1.0; 4],
-    );
-    for (name, along_u, d) in [
-        ("S_u·x", true, Vec3::new(1.0, 0.0, 0.0)),
-        ("S_v·y", false, Vec3::new(0.0, 1.0, 0.0)),
-    ] {
-        floor_holds(
-            name,
-            s.stretch_floor(along_u, d),
-            sampled_stretch(&s, along_u, d),
-            Some(1e-9),
-        );
+/// A circular arc of radius 1 ruled along `z`, as quadratic rational
+/// spans of `2·half` radians each, `spans` of them from angle
+/// `start`: span `i`'s middle point at the tangents' meet, weight
+/// `cos(half)`.
+fn arc(start: f64, half: f64, spans: usize) -> NurbsSurface<f64> {
+    let mut xs = Vec::new();
+    let mut ws = Vec::new();
+    let mut breaks = vec![0.0];
+    for i in 0..spans {
+        #[allow(clippy::cast_precision_loss)]
+        let a = start + 2.0 * half * i as f64;
+        if i == 0 {
+            xs.push(Point3::new(a.cos(), a.sin(), 0.0));
+            ws.push(1.0);
+        }
+        let m = a + half;
+        xs.push(Point3::new(m.cos() / half.cos(), m.sin() / half.cos(), 0.0));
+        ws.push(half.cos());
+        let e = a + 2.0 * half;
+        xs.push(Point3::new(e.cos(), e.sin(), 0.0));
+        ws.push(1.0);
+        #[allow(clippy::cast_precision_loss)]
+        breaks.push((i + 1) as f64);
     }
-}
-
-/// **Every term is read at every active point.** The least term value
-/// along `x` is the pair's term at its FAR end (`w₀·4` at `P₁`); read
-/// at the pair's own start, or at the cell's first active point only,
-/// it is `w₁·4 = 16`, a floor of `4` against the true `1`. The degree-2
-/// arc is the case where the least value sits at a point that is not
-/// either end of the pair whose term it is.
-#[test]
-fn the_term_is_read_at_every_active_point() {
-    let s = rising();
-    let d = Vec3::new(1.0, 0.0, 0.0);
-    floor_holds(
-        "linear",
-        s.stretch_floor(true, d),
-        sampled_stretch(&s, true, d),
-        None,
-    );
-    let arc = ruled(vec![0.0, 1.0], 2, &[0.0, 1.0, 1.2], &[1.0, 3.0, 9.0]);
-    floor_holds(
-        "quadratic",
-        arc.stretch_floor(true, d),
-        sampled_stretch(&arc, true, d),
-        None,
-    );
-}
-
-/// **The weight divides once per derivative factor.** Scaling every
-/// weight leaves the surface unchanged and scales every term value with
-/// it (and every cross with its square), so the floors are invariant:
-/// `S_u` over `W`, the area element over `W²`. A floor over the wrong
-/// power of the weight moves with the scale.
-#[test]
-fn uniformly_scaled_weights_read_the_same_floors() {
-    let base = rising();
-    let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0));
-    let (f0, a0) = (base.stretch_floor(true, x), base.area_floor(y));
-    for k in [1e-3, 1e3] {
-        let s = ruled(vec![0.0, 1.0], 1, &[0.0, 4.0], &[k, 4.0 * k]);
-        let (f, a) = (s.stretch_floor(true, x), s.area_floor(y));
-        assert!(
-            (f - f0).abs() <= 1e-12 * f0.abs(),
-            "stretch at ×{k}: {f} vs {f0}"
-        );
-        assert!(
-            (a - a0).abs() <= 1e-12 * a0.abs(),
-            "area at ×{k}: {a} vs {a0}"
-        );
-        floor_holds("stretch", f, sampled_stretch(&s, true, x), None);
-        floor_holds("area", a, sampled_area(&s, y), None);
+    // Double interior knots: each span is its own quadratic arc.
+    let mut ku = vec![0.0; 3];
+    for b in &breaks[1..breaks.len() - 1] {
+        ku.extend([*b, *b]);
     }
-}
-
-/// **The area floor divides by its weight squared by the sign.** On the
-/// ruled patch `S_u × S_v = −x′·ŷ`, `x′ ∈ [1, 16]`: along `−ŷ` the
-/// least cross is `4·1` over `w_max² = 16`, and along `ŷ` it is
-/// `−16·4` over `w_min² = 1` against the true `−16`. Either divisor on
-/// the wrong side claims above the true minimum.
-#[test]
-fn the_area_floor_divides_by_the_squared_weight_by_its_sign() {
-    let s = rising();
-    for (name, d) in [
-        ("along −y", Vec3::new(0.0, -1.0, 0.0)),
-        ("along y", Vec3::new(0.0, 1.0, 0.0)),
-    ] {
-        floor_holds(name, s.area_floor(d), sampled_area(&s, d), None);
+    ku.extend([breaks[breaks.len() - 1]; 3]);
+    let (mut pts, mut w) = (Vec::new(), Vec::new());
+    for (x, wi) in xs.iter().zip(&ws) {
+        for z in [0.0, 1.0] {
+            pts.push(*x + Vec3::new(0.0, 0.0, z));
+            w.push(*wi);
+        }
     }
-}
-
-/// **Both factors of a cross are read at one point.** `T(S) × U(S)` is
-/// affine in `S` only with `S` the same in both factors. On these two
-/// bilinear patches, whose weights differ along both directions, the
-/// floor with the `v` term (first) or the `u` term (second) read at the
-/// cell's first point instead claims `0.461` against a sampled `0.398`
-/// along `ẑ`, and `−1.80` against `−2.04` along `−ẑ` (fixtures a search
-/// over random bilinear patches found).
-#[test]
-fn both_factors_of_a_cross_are_read_at_one_point() {
-    let bilinear = |pts: [[f64; 3]; 4], w: [f64; 4]| {
-        surface(
-            (vec![0.0, 0.0, 1.0, 1.0], 1),
-            (vec![0.0, 0.0, 1.0, 1.0], 1),
-            pts.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
-            w.to_vec(),
-        )
-    };
-    let v_side = bilinear(
-        [
-            [
-                0.05115414404285357,
-                0.04020158133436242,
-                0.21194913761987055,
-            ],
-            [0.13212597668765905, 1.0265534146353426, 0.13013743691059915],
-            [1.1637266203245495, 0.20790745013085654, 0.3805128156857206],
-            [1.1766205467159978, 1.0392927022611977, 0.4327114026119544],
-        ],
-        [
-            1.419592622849598,
-            2.3982519986774027,
-            1.363705211963951,
-            2.671366776744994,
-        ],
-    );
-    let u_side = bilinear(
-        [
-            [
-                0.0007061127840568227,
-                0.017130348865978882,
-                0.3848033683622043,
-            ],
-            [0.14647573952206644, 1.1149017961519276, 0.21109946641136085],
-            [1.1758969642004764, 0.010161451808882194, 0.3828131654380899],
-            [1.235183960617558, 1.1958826043902469, 0.39393879758853545],
-        ],
-        [
-            3.4566489259400695,
-            2.858855350262942,
-            2.5153666820030725,
-            2.6793620497527,
-        ],
-    );
-    for (name, s, d) in [
-        ("v term, along z", v_side, Vec3::new(0.0, 0.0, 1.0)),
-        ("u term, along −z", u_side, Vec3::new(0.0, 0.0, -1.0)),
-    ] {
-        floor_holds(name, s.area_floor(d), sampled_area(&s, d), None);
-    }
-}
-
-/// **A cell reads its own weights.** Over knots `[0, 1, 2]`, `x` runs
-/// `0 → 2` at unit weights (`x′ = 2`) and then `2 → 6` with weights
-/// `(1, 4)` (`x′` down to `1`). The floor is the true `1`; over the
-/// patch's weight range the unit-weight cell would read `2/4`.
-#[test]
-fn a_cell_reads_its_own_weights() {
-    let s = ruled(vec![0.0, 1.0, 2.0], 1, &[0.0, 2.0, 6.0], &[1.0, 1.0, 4.0]);
-    let d = Vec3::new(1.0, 0.0, 0.0);
-    floor_holds(
-        "two cells",
-        s.stretch_floor(true, d),
-        sampled_stretch(&s, true, d),
-        Some(1e-9),
-    );
-}
-
-/// **A cell reads its own points.** `x` runs `0 → 2` at weight 4
-/// (`x′ = 2`) and then `2 → 6` with weights `(4, 1)` (`x′ = 16/W²`, `1`
-/// at `u = 1`). The floor is the true `1`; with the first cell's `x = 0`
-/// standing for `S`, the second cell's term reads `4 + 3·(0 − 2) < 0`.
-#[test]
-fn a_cell_reads_its_own_points() {
-    let s = ruled(vec![0.0, 1.0, 2.0], 1, &[0.0, 2.0, 6.0], &[4.0, 4.0, 1.0]);
-    let d = Vec3::new(1.0, 0.0, 0.0);
-    floor_holds(
-        "two cells",
-        s.stretch_floor(true, d),
-        sampled_stretch(&s, true, d),
-        Some(1e-9),
-    );
+    surface((ku, 2), (vec![0.0, 0.0, 1.0, 1.0], 1), pts, w)
 }
 
 /// **The floors are not vacuous at unit weights.** A bilinear rectangle
 /// `[0, 2] × [0, 3]` has `S_u = 2x̂`, `S_v = 3ŷ` and area element `6`
-/// everywhere, and the floors read exactly that.
+/// everywhere, and the floors read exactly that: every ratio is the
+/// constant itself, and a floor that reads zero everywhere goes red.
 #[test]
 fn a_unit_weight_rectangle_reads_its_exact_floors() {
     let s = surface(
@@ -361,7 +175,142 @@ fn a_unit_weight_rectangle_reads_its_exact_floors() {
         ],
         vec![1.0; 4],
     );
-    assert_eq!(s.stretch_floor(true, Vec3::new(1.0, 0.0, 0.0)), 2.0);
-    assert_eq!(s.stretch_floor(false, Vec3::new(0.0, 1.0, 0.0)), 3.0);
-    assert_eq!(s.area_floor(Vec3::new(0.0, 0.0, 1.0)), 6.0);
+    assert_eq!(
+        (s.stretch_floor(true), s.stretch_floor(false), s.area_floor()),
+        (2.0, 3.0, 6.0)
+    );
+}
+
+/// **Each ratio divides by its own weight power, not the least.** On
+/// [`rising`] the numerator is the constant `16x̂` and `W²` runs from
+/// `1` to `16`: the last piece's ratios are `16/6.25`, `16/10` and
+/// `16/16`, so the floor is the true `1`. Over the piece's least
+/// weight power every ratio would read `16/6.25 = 2.56`.
+#[test]
+fn each_ratio_divides_by_its_own_weight_power() {
+    let s = rising();
+    floor_holds(
+        "S_u",
+        s.stretch_floor(true),
+        sampled_stretch(&s, true),
+        Some(1.0 - 1e-9),
+    );
+    floor_holds("area", s.area_floor(), sampled_area(&s), Some(1.0 - 1e-9));
+}
+
+/// **The weight power is the derivative's own.** Scaling every weight
+/// leaves the surface unchanged and scales the numerators and the
+/// weight powers alike, so the floors are invariant to rounding: `N_u`
+/// over `W²`, `M̃` over `W³`. A floor over the wrong power of the
+/// weight moves with the scale.
+#[test]
+fn uniformly_scaled_weights_read_the_same_floors() {
+    let base = arc(0.3, 0.6, 2);
+    let f0 = [base.stretch_floor(true), base.stretch_floor(false), base.area_floor()];
+    for k in [1e-3, 1e3] {
+        let s = NurbsSurface::new(
+            base.knots_u().clone(),
+            base.knots_v().clone(),
+            base.control().to_vec(),
+            base.weights().iter().map(|w| w * k).collect(),
+        )
+        .unwrap();
+        let f = [s.stretch_floor(true), s.stretch_floor(false), s.area_floor()];
+        for (which, (a, b)) in ["u", "v", "area"].iter().zip(f.iter().zip(&f0)) {
+            assert!(
+                (a - b).abs() <= 1e-12 * b.abs(),
+                "{which} at ×{k}: {a} against {b}"
+            );
+        }
+    }
+}
+
+/// **A rational half-cylinder reads positive.** Its `S_u` turns
+/// through half a revolution, so one direction for the whole chart
+/// meets it at a right angle or worse somewhere and floors it at zero;
+/// each piece's own direction (the sum of its numerator's
+/// coefficients) floors every piece's quarter-turn at most well above
+/// zero. The floors read above `0.9` of the arc's least speed (`√2`);
+/// one direction for the chart reads `0`.
+#[test]
+fn a_rational_half_cylinder_reads_positive() {
+    let s = arc(0.0, core::f64::consts::FRAC_PI_4, 2);
+    let (fu, fa) = (s.stretch_floor(true), s.area_floor());
+    floor_holds("S_u", fu, sampled_stretch(&s, true), Some(0.9));
+    floor_holds("area", fa, sampled_area(&s), Some(0.9));
+    floor_holds(
+        "S_v",
+        s.stretch_floor(false),
+        sampled_stretch(&s, false),
+        Some(1.0 - 1e-9),
+    );
+}
+
+/// **The piece schedule reaches a wide arc.** One quadratic span
+/// turning through `170°`: read as the cell's one Bézier piece, its
+/// ratios fan out around the cell's mean direction and the floor reads
+/// `0.17` of the arc's least speed; on the schedule's pieces each turns
+/// through a fraction of it and the floor reads above `0.8` of it,
+/// below the sampled truth.
+#[test]
+fn the_piece_schedule_reaches_a_wide_arc() {
+    let s = arc(0.0, 85f64.to_radians(), 1);
+    floor_holds("S_u", s.stretch_floor(true), sampled_stretch(&s, true), Some(0.8));
+    floor_holds("area", s.area_floor(), sampled_area(&s), Some(0.8));
+}
+
+/// **The floors are sound on the named carriers** and on the bilinear
+/// patches whose weights differ along both directions (fixtures a
+/// search found against an earlier floor's cross clause): each floor at
+/// most the sampled minimum.
+#[test]
+fn the_floors_hold_on_curved_rational_nets() {
+    let bilinear = |pts: [[f64; 3]; 4], w: [f64; 4]| {
+        surface(
+            (vec![0.0, 0.0, 1.0, 1.0], 1),
+            (vec![0.0, 0.0, 1.0, 1.0], 1),
+            pts.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
+            w.to_vec(),
+        )
+    };
+    let nets = [
+        ("rising", rising()),
+        ("quadratic", ruled(vec![0.0, 1.0], 2, &[0.0, 1.0, 1.2], &[1.0, 3.0, 9.0])),
+        ("two cells, own weights", ruled(vec![0.0, 1.0, 2.0], 1, &[0.0, 2.0, 6.0], &[1.0, 1.0, 4.0])),
+        ("two cells, own points", ruled(vec![0.0, 1.0, 2.0], 1, &[0.0, 2.0, 6.0], &[4.0, 4.0, 1.0])),
+        ("quarter arcs", arc(0.2, 0.4, 3)),
+        (
+            "bilinear, v side",
+            bilinear(
+                [
+                    [0.05115414404285357, 0.04020158133436242, 0.21194913761987055],
+                    [0.13212597668765905, 1.0265534146353426, 0.13013743691059915],
+                    [1.1637266203245495, 0.20790745013085654, 0.3805128156857206],
+                    [1.1766205467159978, 1.0392927022611977, 0.4327114026119544],
+                ],
+                [1.419592622849598, 2.3982519986774027, 1.363705211963951, 2.671366776744994],
+            ),
+        ),
+        (
+            "bilinear, u side",
+            bilinear(
+                [
+                    [0.0007061127840568227, 0.017130348865978882, 0.3848033683622043],
+                    [0.14647573952206644, 1.1149017961519276, 0.21109946641136085],
+                    [1.1758969642004764, 0.010161451808882194, 0.3828131654380899],
+                    [1.235183960617558, 1.1958826043902469, 0.39393879758853545],
+                ],
+                [3.4566489259400695, 2.858855350262942, 2.5153666820030725, 2.6793620497527],
+            ),
+        ),
+    ];
+    for (name, s) in &nets {
+        for (which, f, t) in [
+            ("S_u", s.stretch_floor(true), sampled_stretch(s, true)),
+            ("S_v", s.stretch_floor(false), sampled_stretch(s, false)),
+            ("area", s.area_floor(), sampled_area(s)),
+        ] {
+            floor_holds(&format!("{name}: {which}"), f, t, None);
+        }
+    }
 }

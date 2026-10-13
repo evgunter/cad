@@ -49,6 +49,14 @@ use std::sync::OnceLock;
 
 use crate::net;
 
+/// The surface bounds' piece schedule per direction (D9: structure,
+/// never a decision): [`NurbsSurface::stretch_sup`],
+/// [`NurbsSurface::stretch_floor`] and [`NurbsSurface::area_floor`] read
+/// each nonempty cell as this many equal pieces along each axis, or
+/// fewer where the restriction weights would not be exact
+/// ([`geom_core::spline::pieces::piece_count`]). @@MEASURE@@
+const STRETCH_PIECE_SPLITS: usize = 2;
+
 /// The point and every partial with `k + l ≤ 2` at one parameter pair.
 ///
 /// This is [`crate::surfaces::Surface::jet`]'s return type for **all
@@ -537,6 +545,9 @@ pub struct NurbsSurface<T: Real> {
     /// symbolic session; on the same terms as the curve's speed memos
     /// (nothing mutates the fields above after construction).
     stretch: OnceLock<(geom_core::SupSpeed<T>, geom_core::SupSpeed<T>)>,
+    /// [`NurbsSurface::stretch_floor`] along `u` and `v` and
+    /// [`NurbsSurface::area_floor`], memoised as `stretch` is.
+    floors: OnceLock<[T; 3]>,
 }
 
 /// The surface's value, without the stretch memo.
@@ -549,6 +560,7 @@ impl<T: Real> core::fmt::Debug for NurbsSurface<T> {
             weights,
             weight_channel,
             stretch: _,
+            floors: _,
         } = self;
         f.debug_struct("NurbsSurface")
             .field("knots_u", knots_u)
@@ -588,60 +600,84 @@ impl<T: SpanLocate> NurbsSurface<T> {
             weights,
             weight_channel,
             stretch: OnceLock::new(),
+            floors: OnceLock::new(),
         })
     }
 }
 
 impl<T: Real> NurbsSurface<T> {
     /// Certified **upper** bounds on `‖S_u‖` and `‖S_v‖` over the whole
-    /// domain, in m/param: the pair-term bound of
-    /// [`geom_core::spline::rational_stretch_sup`], per direction,
-    /// the max over the nonempty cells. At unit weights it is the
-    /// polynomial control-difference bound. At `Interval` certified, at
-    /// `f64` the same expression in round-to-nearest; never a refusal.
-    /// Memoised outside a symbolic session only, as
+    /// domain, in m/param: the max over the [`STRETCH_PIECE_SPLITS`]²
+    /// pieces of each nonempty cell of
+    /// [`geom_core::spline::QuotientPiece::sup_norm`] on `S_u = N_u/W²`
+    /// and `S_v` (the `geom_core::spline::derivative` module docs hold
+    /// the derivation). At `Interval` certified, at `f64` the same
+    /// expression in round-to-nearest; poison where the statement
+    /// refuses (a degree above 28 along either axis). Memoised outside a
+    /// symbolic session only, as
     /// [`crate::curves::NurbsCurve3::speed_upper_bound`] is.
     pub fn stretch_sup(&self) -> (geom_core::SupSpeed<T>, geom_core::SupSpeed<T>) {
         crate::curves::nurbs::session_memo(&self.stretch, || {
-            let points = self.point_rows();
-            let side = |along_u| {
-                geom_core::SupSpeed::new(geom_core::spline::rational_stretch_sup(
-                    (&self.knots_u, &self.knots_v),
-                    &points,
-                    &self.weights,
-                    along_u,
-                ))
+            let pieces = self.pieces(false);
+            let side = |read: fn(&geom_core::spline::CellQuotients<T>) -> T| {
+                geom_core::SupSpeed::new(
+                    pieces
+                        .as_ref()
+                        .and_then(|ps| ps.iter().map(read).reduce(T::max))
+                        .unwrap_or_else(|| T::from_f64(f64::NAN)),
+                )
             };
-            (side(true), side(false))
+            (side(|c| c.u.sup_norm()), side(|c| c.v.sup_norm()))
         })
     }
 
-    /// A lower bound on `S_u·d` (`along_u`) or `S_v·d` over the whole
-    /// domain, for any `d`, signed:
-    /// [`geom_core::spline::rational_stretch_floor`], the min over the
-    /// nonempty cells. Clamped at zero it floors `‖S_u‖·‖d‖`. At unit
-    /// weights it is the polynomial derivative net's floor; poison when a
-    /// control point is.
-    pub fn stretch_floor(&self, along_u: bool, d: Vec3<T>) -> T {
-        geom_core::spline::rational_stretch_floor(
-            (&self.knots_u, &self.knots_v),
-            &self.point_rows(),
-            &self.weights,
-            along_u,
-            [d.x, d.y, d.z],
-        )
+    /// A lower bound on `‖S_u‖` (`along_u`) or `‖S_v‖` over the whole
+    /// domain, signed: the min over the pieces of
+    /// [`geom_core::spline::QuotientPiece::inf_norm`], each piece's
+    /// coefficient ratios projected on their own numerator's sum, so
+    /// every piece reads along its own direction. Clamped at zero it
+    /// floors the norm; poison where a piece's numerator sums to zero
+    /// or the statement refuses. Memoised as [`Self::stretch_sup`] is.
+    pub fn stretch_floor(&self, along_u: bool) -> T {
+        self.floors()[usize::from(!along_u)]
     }
 
-    /// A lower bound on `(S_u × S_v)·d` over the whole domain, for any
-    /// `d`, signed: [`geom_core::spline::rational_area_floor`], the min
-    /// over the nonempty cells. Clamped at zero it floors the area
-    /// element `‖S_u × S_v‖·‖d‖`; poison as [`Self::stretch_floor`].
-    pub fn area_floor(&self, d: Vec3<T>) -> T {
-        geom_core::spline::rational_area_floor(
+    /// A lower bound on the area element `‖S_u × S_v‖` over the whole
+    /// domain, signed: [`Self::stretch_floor`]'s reading of
+    /// `S_u × S_v = M̃/W³`; poison as there (and above degree 18 along
+    /// either axis, where `3p` passes the statement's ceiling).
+    pub fn area_floor(&self) -> T {
+        self.floors()[2]
+    }
+
+    /// `[stretch_floor(u), stretch_floor(v), area_floor]`, memoised.
+    fn floors(&self) -> [T; 3] {
+        crate::curves::nurbs::session_memo(&self.floors, || {
+            let pieces = self.pieces(true);
+            let least = |read: fn(&geom_core::spline::CellQuotients<T>) -> T| {
+                pieces
+                    .as_ref()
+                    .and_then(|ps| ps.iter().map(read).reduce(T::min))
+                    .unwrap_or_else(|| T::from_f64(f64::NAN))
+            };
+            [
+                least(|c| c.u.inf_norm()),
+                least(|c| c.v.inf_norm()),
+                least(|c| c.area.as_ref().map_or_else(|| T::from_f64(f64::NAN), |a| a.inf_norm())),
+            ]
+        })
+    }
+
+    /// The first-order quotients on every piece
+    /// ([`geom_core::spline::stretch_pieces`]), with the area element
+    /// when `area`.
+    fn pieces(&self, area: bool) -> Option<Vec<geom_core::spline::CellQuotients<T>>> {
+        geom_core::spline::stretch_pieces(
             (&self.knots_u, &self.knots_v),
             &self.point_rows(),
             &self.weights,
-            [d.x, d.y, d.z],
+            (STRETCH_PIECE_SPLITS, STRETCH_PIECE_SPLITS),
+            area,
         )
     }
 
@@ -665,6 +701,7 @@ impl<T: Real> NurbsSurface<T> {
             weights: vec![T::one(); 4],
             weight_channel: vec![1.0; 4],
             stretch: OnceLock::new(),
+            floors: OnceLock::new(),
         }
     }
 
@@ -783,6 +820,7 @@ impl<T: Real> NurbsSurface<T> {
             weights,
             weight_channel,
             stretch: OnceLock::new(),
+            floors: OnceLock::new(),
         }
     }
 

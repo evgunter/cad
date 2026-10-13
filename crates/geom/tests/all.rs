@@ -141,6 +141,8 @@ mod curves_review_m5_pr4_adversarial;
 mod curves_second_derivative;
 #[path = "curves/span_window_pairing.rs"]
 mod curves_span_window_pairing;
+#[path = "curves/quotient_bound.rs"]
+mod curves_quotient_bound;
 #[path = "curves/speed_upper_bound.rs"]
 mod curves_speed_upper_bound;
 #[path = "curves/split_at.rs"]

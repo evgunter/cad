@@ -1,7 +1,8 @@
 //! **The rational speed bound** (`NurbsCurve3::speed_upper_bound`, the
-//! pair-term bound of `geom_core::spline::rational_speed_sup`)
-//! dominates the true speed, never reads above the homogeneous recipe
-//! it replaced, and is the true sup where the pair terms attain it.
+//! quotient bound of `geom_core::spline::derivative` on each span's
+//! dyadic pieces) dominates the true speed, never reads above the
+//! homogeneous recipe the pair-term bound replaced, and is the true sup
+//! where a piece's end ratio attains it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -82,7 +83,7 @@ fn check(name: &str, c: &NurbsCurve3<f64>) -> f64 {
     );
     assert!(
         m <= a * (1.0 + 1e-12),
-        "{name}: the pair-term bound {m} above recipe A's {a}"
+        "{name}: the quotient bound {m} above recipe A's {a}"
     );
     m / floor
 }
@@ -195,23 +196,25 @@ fn the_bound_covers_random_rational_nets() {
     }
 }
 
-/// **The pin at `j ∉ {i, i + 1}`.** On the quadratic through `(0, 0)`,
-/// `(1, 0)`, `(2, 0)` with weights `4, 1, 1`, the largest pair term is
-/// pair `0` read at `P₂`:
-/// `‖1·(P₁ − P₀) − (1 − 4)·(P₂ − P₀)‖ = 7`, scale `2`, least weight `1`,
-/// so the bound is `14` exactly. Dropping the `−Δw·(P_j − Pᵢ)` term
-/// reads `2`, and reading `j` over the pair's own points only reads
-/// `8` (pair `0` at `P₁`, `w₀·‖P₁ − P₀‖ = 4`).
+/// **The pieces converge on the sup.** On the quadratic through
+/// `(0, 0)`, `(1, 0)`, `(2, 0)` with weights `4, 1, 1` the speed peaks
+/// at `3.3191`; the bound reads every piece's largest coefficient
+/// ratio and sits within `0.1%` of it. Read as each span's one Bézier
+/// piece it reads `5`, and the retired pair-term bound read `14`.
 #[test]
-fn the_bound_reads_its_largest_term_at_a_point_outside_the_pair() {
+fn the_pieces_converge_on_the_sup() {
     let c = curve(
         vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
         2,
         &[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)],
         vec![4.0, 1.0, 1.0],
     );
-    assert_eq!(c.speed_upper_bound().get(), 14.0);
-    check("collinear quadratic, weights 4 1 1", &c);
+    let ratio = check("collinear quadratic, weights 4 1 1", &c);
+    assert!(
+        ratio <= 1.001,
+        "bound {} / sampled sup = {ratio}",
+        c.speed_upper_bound().get()
+    );
 }
 
 /// **The bound is local.** A degree-2 spline over three spans whose
