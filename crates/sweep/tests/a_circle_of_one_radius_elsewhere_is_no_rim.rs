@@ -31,9 +31,12 @@ fn about_y((inner, outer): (f64, f64), (lo, hi): (f64, f64), x: f64) -> topo::Bo
         (Point2::new(inner, hi), 0.0),
     ];
     let body = revolved_about_y(profile, sweep::Revolution::Full, tol());
-    let place =
-        geom_core::test_support::rigid(&Affine3::translation(Vec3::new(x, 0.0, 0.0)), tol());
-    topo::transform_rigid(&body, &place, tol()).unwrap()
+    topo::transform_rigid(
+        &body,
+        &geom_core::test_support::rigid(&Affine3::translation(Vec3::new(x, 0.0, 0.0)), tol()),
+        tol(),
+    )
+    .unwrap()
 }
 
 /// Every op in both operand orders, each answer's offer key.
