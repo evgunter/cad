@@ -17,7 +17,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EnvelopeStatement, Pcurve, PcurveCache, PcurveCertifyError, SpiricImage};
+use geom_brep::{
+    EnvelopeStatement, Pcurve, PcurveCache, PcurveCertifyError, SpiricImage, WallTorus,
+};
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 
 const R: f64 = 0.09375;
@@ -75,17 +77,34 @@ fn cap_plane() -> Surface<f64> {
 /// The wall image the mint produces for [`carrier`] on [`torus`],
 /// with `sense` and `v0` open so a row can move exactly one number.
 fn wall(sense: f64, v0: f64) -> Pcurve<f64> {
+    // `u0` is the chart azimuth of the cutting plane's normal: `n = +x`
+    // is the chart's own `u_ref`, so it is zero here.
+    wall_image(0.0, sense, WallTorus::Own, v0)
+}
+
+fn wall_image(u0: f64, sense: f64, torus: WallTorus, v0: f64) -> Pcurve<f64> {
     Pcurve::Spiric {
         major: R,
         minor: RR,
         offset: D,
         image: SpiricImage::Wall {
-            // `u0` is the chart azimuth of the cutting plane's normal:
-            // `n = +x` is the chart's own `u_ref`, so it is zero here.
-            u0: 0.0,
+            u0,
             v0,
             sense,
+            torus,
         },
+    }
+}
+
+/// The carrier's torus reflected through the cutting plane: centre
+/// `2D` along `n = +x`, the same axis and radii.
+fn mirror_torus() -> Surface<f64> {
+    Surface::Torus {
+        center: Point3::new(2.0 * D, 0.0, 0.0),
+        axis: Vec3::unit_y(),
+        major_radius: R,
+        minor_radius: RR,
+        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -447,8 +466,9 @@ fn a_wall_image_certifies_at_a_whole_period_shift_and_not_at_a_half_one() {
 }
 
 /// **The chart roster, at the door.** A spiric lies on its own cutting
-/// plane and its own torus and on no other analytic chart, and the
-/// mint says so per kind rather than falling through one refusal.
+/// plane and the two tori that hold it (its own and that torus's mirror
+/// through the plane) and on no other analytic chart, and the mint says
+/// so per kind rather than falling through one refusal.
 #[test]
 fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
     let c = carrier();
@@ -505,21 +525,17 @@ fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
     );
 }
 
-/// **The one foreign torus that holds the oval.** Reflecting the
-/// carrier's torus through the cutting plane (centre moved `2·D` along
-/// the plane normal) leaves the section unchanged, so the oval lies on
-/// that MIRROR torus — measured here at every sample — while the wall
-/// image, which maps through the carrier's own torus, does not apply.
-/// The pair is uncovered, not off the chart.
+/// **The one foreign torus that holds the oval, imaged.** Reflecting
+/// the carrier's torus through the cutting plane (centre moved `2·D`
+/// along the plane normal) leaves the section unchanged, so the oval
+/// lies on that MIRROR torus — measured here at every sample. About the
+/// mirror the oval's radial part is `−n·d + m·f`, so its azimuth runs
+/// from `−n` (chart azimuth `π`) the other way round:
+/// `u = π − atan2(f, d)`, `v = t`. The mint images it so, and the
+/// image certifies the same identity the own-torus wall does.
 #[test]
-fn the_mirror_torus_holds_the_oval_and_is_uncovered() {
-    let mirror = Surface::Torus {
-        center: Point3::new(2.0 * D, 0.0, 0.0),
-        axis: Vec3::unit_y(),
-        major_radius: R,
-        minor_radius: RR,
-        u_ref: Vec3::unit_x(),
-    };
+fn the_mirror_torus_holds_the_oval_and_mints_its_wall_image() {
+    let mirror = mirror_torus();
     let c = carrier();
     for k in 0..16 {
         let p = c.eval(T0 + (T1 - T0) * f64::from(k) / 15.0);
@@ -529,18 +545,81 @@ fn the_mirror_torus_holds_the_oval_and_is_uncovered() {
         let implicit = (rho - R).powi(2) + y * y - RR * RR;
         assert!(implicit.abs() < 1e-14, "on the mirror torus: {implicit:e}");
     }
-    let e = geom_brep::chart_pcurve(&c, &mirror, band())
-        .and_then(|p| certify(p, &mirror, band()))
-        .unwrap_err_or_else_msg("mirror torus");
-    assert!(
-        matches!(
-            e,
-            PcurveCertifyError::UnsupportedCarrier {
-                chart: geom::SurfaceKind::Torus,
-                carrier: geom::CurveKind::Spiric,
-                class: geom_brep::UncoveredClass::MirrorTorusSpiric,
-            }
-        ),
-        "{e:?}"
+    let minted = geom_brep::chart_pcurve(&c, &mirror, band()).expect("the mirror wall mints");
+    let Pcurve::Spiric {
+        image:
+            SpiricImage::Wall {
+                u0,
+                v0,
+                sense,
+                torus,
+            },
+        ..
+    } = minted
+    else {
+        panic!("a wall image: {minted:?}")
+    };
+    assert_eq!(
+        (u0.abs(), v0, sense, torus),
+        (core::f64::consts::PI, 0.0, 1.0, WallTorus::Mirror),
+        "the azimuth of −n, the chart axis the carrier's, and the mirror named"
     );
+    let row = certify(minted, &mirror, band()).expect("the mirror wall certifies");
+    assert_eq!(
+        row.certificate().statement,
+        EnvelopeStatement::SpiricIdentity
+    );
+    assert_eq!(row.certificate().envelope, 0.0);
+    assert!(
+        row.certificate().max_residual <= 1e-15,
+        "{:e}",
+        row.certificate().max_residual
+    );
+}
+
+/// **A wall image names one of the two tori, and is no image on the
+/// other.** The image's tag names the torus the identity maps through,
+/// so the own-torus image on the mirror and the mirror image
+/// on the own torus are each the wrong image of a carrier the chart
+/// holds (`ImageMismatch`, not off the chart); a torus that is neither
+/// holds no oval of it (`CarrierOffChart`), whichever image it is
+/// handed.
+#[test]
+fn a_wall_image_names_one_torus_and_is_refused_on_the_other() {
+    let own = wall(1.0, 0.0);
+    let mirrored = wall_image(core::f64::consts::PI, 1.0, WallTorus::Mirror, 0.0);
+    for (what, image, surface) in [
+        ("the own image on the mirror", own.clone(), mirror_torus()),
+        (
+            "the mirror image on the own torus",
+            mirrored.clone(),
+            torus(),
+        ),
+    ] {
+        let e = certify(image, &surface, band()).unwrap_err_or_else_msg(what);
+        assert!(
+            matches!(
+                e,
+                PcurveCertifyError::ImageMismatch {
+                    image: geom_brep::PcurveKind::Spiric,
+                    ..
+                }
+            ),
+            "{what}: {e:?}"
+        );
+    }
+    let neither = Surface::Torus {
+        center: Point3::new(4.0 * D, 0.0, 0.0),
+        axis: Vec3::unit_y(),
+        major_radius: R,
+        minor_radius: RR,
+        u_ref: Vec3::unit_x(),
+    };
+    for (what, image) in [("own", own), ("mirror", mirrored)] {
+        let e = certify(image, &neither, band()).unwrap_err_or_else_msg(what);
+        assert!(
+            matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
+            "the {what} image on a third torus: {e:?}"
+        );
+    }
 }

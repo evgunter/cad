@@ -530,59 +530,77 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
 }
 
 // ---------------------------------------------------------------------
-// The interval lane: the fold's honest remainder, constructed
+// The fold at a half-period tie
 // ---------------------------------------------------------------------
 
-/// The fix-pass coverage obligation: `PeriodFold` was previously
-/// constructed by no test at any scalar. Here it is constructed at the
-/// scalar it exists FOR — `Body<Interval>` — on the exact
-/// configuration `periodic_branch` documents as its honest remainder:
-/// two windows a genuine HALF-PERIOD apart, where the two nearest
-/// branches are equidistant, the fold integer's enclosure spans two
-/// integers, and the arm declines typed instead of picking a branch.
-mod interval_lane {
-    use super::{ChartRegionError, ContactVerdict, CylFrame, band, cyl_wall_sheet};
-    use geom_core::Tol;
-    use geom_core::interval::Interval;
-    use topo::{Body, declared_pair_overlap};
+/// Two descriptions of one unit cylinder: A's wall over `a` in azimuth
+/// at heights `[0, 1]`, and B's over `b`, stored with its origin half
+/// way up the axis (its window moved down to match) so the two do not
+/// read bit-identical and the pair takes the enclosure arm.
+fn tie_pair<T: geom_core::Decide + topo::AtRestPolicy + geom_core::real::CertifiedBounds>(
+    a: (f64, f64),
+    b: (f64, f64),
+) -> Result<ChartOverlap, ChartRegionError> {
+    let mut body_a = Body::<T>::new();
+    let fa = cyl_wall_sheet(
+        &mut body_a,
+        CylFrame::canonical(1.0),
+        a,
+        (0.0, 1.0),
+        Tol::witness(),
+    );
+    let mut body_b = Body::<T>::new();
+    let fb = cyl_wall_sheet(
+        &mut body_b,
+        CylFrame {
+            origin: Point3::new(0.0, 0.0, 0.5),
+            ..CylFrame::canonical(1.0)
+        },
+        b,
+        (-0.3, 0.3),
+        Tol::witness(),
+    );
+    declared_pair_overlap(&body_a, fa, &body_b, fb, ContactVerdict::Definite, band())
+}
 
-    /// INVARIANT (the fold's remainder, constructed): two descriptions
-    /// of one cylinder whose trims sit an exact
-    /// HALF-PERIOD apart in azimuth. The fold argument's true value
-    /// lands on `periodic_branch`'s documented tie; interval
-    /// arithmetic's outward rounding gives the enclosure positive
-    /// width across it, the branch index spans two integers, and the
-    /// arm declines `PeriodFold` — the variant's first constructing
-    /// row at any scalar.
-    #[test]
-    fn a_half_period_tie_declines_period_fold() {
-        let pi = core::f64::consts::PI;
-        let mut a = Body::<Interval>::new();
-        let fa = cyl_wall_sheet(
-            &mut a,
-            CylFrame::canonical(1.0),
+/// **A fold astride a half-period mark answers on both branches.** Two
+/// windows whose midpoints sit a half period apart (or within the band
+/// of it) are a tie between two folds; each fold sees the mirror image
+/// of the other's overlap, so the pair is answered on both and the
+/// answer kept where they agree, at `f64` and at `Interval` alike: the
+/// two half-cylinders touch along their meridians, and windows a half
+/// period apart are disjoint. A window clear of the tie is answered on
+/// its one branch, and reads the same.
+#[test]
+fn a_half_period_tie_answers_on_both_branches() {
+    let pi = core::f64::consts::PI;
+    let rows = [
+        (
+            (0.0, pi),
+            (pi, 2.0 * pi),
+            Err(ChartRegionError::TouchingBoundary),
+        ),
+        ((0.0, 0.4), (pi, pi + 0.4), Ok(ChartOverlap::Empty)),
+        (
             (0.0, 0.4),
-            (0.0, 1.0),
-            Tol::witness(),
+            (pi + 1e-12, pi + 0.4 + 1e-12),
+            Ok(ChartOverlap::Empty),
+        ),
+        (
+            (0.0, 0.4),
+            (pi + 1e-6, pi + 0.4 + 1e-6),
+            Ok(ChartOverlap::Empty),
+        ),
+        ((0.0, 0.4), (pi - 0.3, pi + 0.1), Ok(ChartOverlap::Empty)),
+    ];
+    for (a, b, want) in rows {
+        let at_f64 = tie_pair::<f64>(a, b);
+        assert_eq!(at_f64, want, "f64: A {a:?} against B {b:?}");
+        let at_interval = tie_pair::<geom_core::Interval>(a, b);
+        assert_eq!(
+            at_interval.as_ref().map_err(core::mem::discriminant),
+            want.as_ref().map_err(core::mem::discriminant),
+            "Interval: A {a:?} against B {b:?}: {at_interval:?}"
         );
-        // B's description stores its origin half way up the axis (its
-        // window moved down to match): one cylinder, two descriptions
-        // that do not read bit-identical, so the pair takes the
-        // enclosure arm rather than one chart.
-        let mut b = Body::<Interval>::new();
-        let fb = cyl_wall_sheet(
-            &mut b,
-            CylFrame {
-                origin: geom_core::Point3::new(0.0, 0.0, 0.5),
-                ..CylFrame::canonical(1.0)
-            },
-            (pi, pi + 0.4),
-            (-0.3, 0.3),
-            Tol::witness(),
-        );
-        match declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()) {
-            Err(ChartRegionError::PeriodFold) => {}
-            other => panic!("the half-period tie declines PeriodFold: {other:?}"),
-        }
     }
 }

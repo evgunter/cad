@@ -2,8 +2,9 @@
 id: a-meeting-of-three-members-at-one-point-has-no-order-free-sense
 kind: issue
 title: Where two members' edges meet on a third member's face, or three members' edges meet, the senses an EdgeCrossing would carry depend on member order
-status: open
+status: closed
 opened: 2026-10-12
+closed: 2026-10-12
 priority: P2
 cost: M
 ---
@@ -116,3 +117,52 @@ The ruling is stated in names README N2 *Vertices* and the flush paragraph:
 
 The build is this row's. It also closes the order dependence in
 `a-crossing-of-a-union-seam-is-spelled-by-member-order`.
+
+## Closed (branch `emit/vertex-run`, 2026-10-12)
+
+Built as ruled.
+
+- **Spelling.** `RoleSeg::EdgeCrossing` is a run of `RunLine { line,
+  sense }` in name order (`names/role.rs`); a union seam in a run is
+  cited by its seam edge's base and carries no sense. `Crossing` is
+  unchanged. The run is carried through `role.rs`, `canonical.rs` (the
+  run is sorted in every name; its rank re-reads along its least edge
+  and refuses where a rewrite makes another line least), `seam_pair.rs`,
+  `nest.rs`, `select.rs`, `words.rs`, the content key (`eval`) and N5's
+  `GroupCutters` (`resolve::SeamParent::cut_by`: every other line of a
+  run one of whose lines is on the parent).
+- **The pair boolean** spells edge × edge as the k = 2 run, senses read
+  at the step as before, ranked along its least line.
+- **The union** reads every non-corner vertex from the finished body
+  (`emit_union::Flush::meeting`): the member edges cut there, flush
+  lines once as the least (two straight member edges on one line are
+  one line, so the pinch's coincident contact edges are one), and each
+  seam whose faces bound none of them. One member edge and no seam is a
+  `Crossing`; otherwise a run. Each edge's sense is read against the
+  members of the name's other entries from the pairwise judgements:
+  `Links::judged` keeps each judgement's `edge_classes`, placed at the
+  result vertex each settles on, and a side is inside where any
+  judgement classed it so; a side none classed refuses. Runs rank along
+  their least edge, or along a straight seam in them (`rank_along_seam`).
+- **Retired:** `Flush::crossing`, `Flush::edge_crossing`,
+  `Flush::junction` and the four fallbacks in the table above, the
+  fold-carried senses (`Fold`'s and `Emitted`'s `CrossingSenses`,
+  `carried_sense`, `read_sense`, `way_of`, `way_at`).
+
+**Measured** (`union_pinch_member_order`, every member order):
+- two wedges and the plate: 3 names on main, 1 now, the
+  legs' run, each `Outside` (`two_legs_on_the_plate_are_their_touch_in_every_member_order`);
+- three wedges, with and without the plate: 1 run of the three legs,
+  each `Outside`; four wedges, with and without: 1 run of the four,
+  each `Leaves` (opposite wedges overlap below the top);
+- the pinch, plate against the joined blocks: the contact's `Crossing`
+  of the plate's top, `Leaves`, in both orders
+  (`two_edges_of_one_member_at_the_pinch_are_one_crossing`).
+
+`KNOWN_ABSENT` went from 620 to 28 (see
+`a-crossing-of-a-union-seam-is-spelled-by-member-order.md`, closed with
+it), and the cut-seam fixtures publish one table in every order. The
+corpus moved only in spelling: `corner_table` and `crossing_slots`
+carry pair-boolean edge × edge vertices, whose tables are identical to
+main's once both spellings are written as a sorted set of (line,
+sense).

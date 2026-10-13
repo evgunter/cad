@@ -46,3 +46,9 @@ move and re-certify, and the row above re-baselines.
 `852d68bb1d`) with the same refusal shape (`RechartFalsifies` …
 `TubeNotOneArc`, `Undecided`), seen by the PR 4286 and PR 4797 lanes
 while re-running their eps rows on main. At 1e-9 it passed there.
+
+## 2026-10-13 — still red at 1e-6 on main
+
+The FLUX cylinder-band lane (PR 4839) re-ran
+`r1_lane0_e2e::the_f64_seam_answers_every_public_door` alone by name on clean
+main `e71d719f1`. It is red at `CAD_TOLERANCE_EPS=1e-6` and green at 1e-12.

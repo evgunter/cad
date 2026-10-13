@@ -85,3 +85,17 @@ Measured on that branch:
 Still owed: that, and the three-member fold witness, which waits on a
 fold step minting the face–face row at all
 (`work/contacthold/a-union-fold-step-mints-no-face-face-row-for-a-given-tangency.md`).
+
+## 2026-10-13: a carried edge-face or face-face record lands through the one carry (FUSE)
+
+FUSE closed `an-edge-or-face-record-follows-its-faces-key-through-a-division`
+as no path for the reduction's own records. Their divided faces already
+go through `boolean::ops::place_found` (PR 4820). An operand's carried
+edge-face and face-face records still have no carried kind, so that
+half stays here. Once this row gives them one, they must land as
+`boolean::ops::carried` lands the carried kinds today: through
+`operand_fate`, then `records::landings`, which puts a record on every
+pair of a divided face's pieces and chords that the census's record
+confirm reads as meeting. Do not chase their face by key through
+`Descendants::live`: a division keeps the key on one piece, whichever
+it is.

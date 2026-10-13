@@ -3507,7 +3507,9 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::CapTransverse,
         BlendDecision::CapEllipse,
         BlendDecision::CutOffFeet,
-        BlendDecision::TurnIsosceles,
+        BlendDecision::TurnFeetGap,
+        BlendDecision::TurnOverrunChord,
+        BlendDecision::TurnFeet,
         BlendDecision::MitreSection,
     ] {
         let refused = BlendError::Escalated {
@@ -4968,8 +4970,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "co_ruled",
             "coaxial",
+            "common_foot",
             "cusp",
-            "equal_angles",
             "on_carrier",
             "same_opposite",
             "same_oriented",

@@ -62,14 +62,17 @@ pub use blossom::{BlossomError, SpanRow, diagonal_in_span, restrict_bernstein, r
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
-pub use derivative::{derivative_net, rational_speed_sup, span_derivative_scale};
+pub use derivative::{
+    RationalPairTerm, derivative_net, rational_area_floor, rational_speed_sup,
+    rational_stretch_floor, rational_stretch_sup, span_derivative_scale,
+};
 pub use hull::{
     C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,
 };
 pub use knot_values::{KnotSpan, Knots};
 pub use knots::{
-    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
-    knot_difference,
+    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, check_weight_values,
+    derivative_knot_slice, knot_difference, weight_in_regime,
 };
 pub use locate::{SpanLocate, SpanSet, poison_from};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
