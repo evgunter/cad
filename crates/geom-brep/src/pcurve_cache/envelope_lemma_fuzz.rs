@@ -391,8 +391,8 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             // own radius on a rim or a torus parallel, reads Zero) to
             // well clear of it; the plane tilted off ⊥ by an angle the
             // axial decision still reads Zero at the radius drawn, so a
-            // turning class's two radial coefficients disagree
-            // (`Orientation`).
+            // turning class's two radial coefficients disagree (its
+            // `Radius` pair).
             let rho = band().zero() * 10f64.powf(s.range(-1.5, 4.0));
             let theta = (band().zero() / rho).min(1.0) * s.range(0.0, 0.9);
             let normal = (axis + tang * theta).normalize();
@@ -541,8 +541,8 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
             let center = center + nudge(s, 1);
             // Half the size moves stretch the circle into an ellipse, so
-            // its two radial coefficients disagree (what `Orientation`
-            // meters on a turning class).
+            // its two radial coefficients disagree (what a turning
+            // class's `Radius` pair meters).
             if (which == 0 || which == 2) && s.below(2) == 0 {
                 let (major, minor) = (scaled(s, radius), scaled(s, radius));
                 let (major, minor, u_ref) = if major >= minor {
@@ -658,16 +658,10 @@ fn arm(derivation: Derivation) -> &'static str {
 /// carrier the arm admits has a linear term; the term is defence, zero
 /// on every input that reaches it, and a table that drops it is not a
 /// table that under-states anything.
-///
-/// Left out too: `Orientation` on a turning sphere parallel. Its axial
-/// gate reads the plane's tilt at the circle's radius `ρ` (`θ ≲ ε/ρ`),
-/// and its winding reads the circle's area at the sphere's radius
-/// (`ρ ≳ √(εR)`), so the orientation defect `ρ·(1 − cos θ) ≲ ε²/ρ` is
-/// under the rounding of every row that reaches the arm.
 fn arm_terms() -> Vec<(&'static str, Vec<EnvelopeTerm>)> {
-    use EnvelopeTerm::{Centre, Drift, Line, Orientation, Radius, Tilt};
+    use EnvelopeTerm::{Centre, Drift, Line, Orientation, Radius};
     let cases: [(&str, &[EnvelopeTerm]); 14] = [
-        ("cylinder moving", &[Centre, Radius, Orientation]),
+        ("cylinder moving", &[Centre, Radius]),
         (
             "cylinder moving, zero winding",
             &[Line, Centre, Radius, Drift],
@@ -675,24 +669,18 @@ fn arm_terms() -> Vec<(&'static str, Vec<EnvelopeTerm>)> {
         ("cylinder meridian", &[Line, Radius, Drift]),
         ("cone ruling, by direction", &[Radius, Line]),
         ("cone ruling, anchored", &[Radius, Line]),
-        ("cone rim", &[Centre, Tilt, Radius, Orientation]),
-        ("cone rim, zero winding", &[Centre, Tilt, Radius, Drift]),
-        ("sphere parallel", &[Centre, Tilt, Radius]),
-        (
-            "sphere parallel, zero winding",
-            &[Centre, Tilt, Radius, Drift],
-        ),
-        ("sphere meridian", &[Centre, Radius, Orientation]),
+        ("cone rim", &[Centre, Radius]),
+        ("cone rim, zero winding", &[Centre, Radius, Drift]),
+        ("sphere parallel", &[Centre, Radius]),
+        ("sphere parallel, zero winding", &[Centre, Radius, Drift]),
+        ("sphere meridian", &[Centre, Radius]),
         (
             "sphere meridian, pole start",
             &[Centre, Radius, Drift, Orientation],
         ),
-        ("torus parallel", &[Centre, Tilt, Radius, Orientation]),
-        (
-            "torus parallel, zero winding",
-            &[Centre, Tilt, Radius, Drift],
-        ),
-        ("torus meridian", &[Centre, Radius, Tilt, Orientation]),
+        ("torus parallel", &[Centre, Radius]),
+        ("torus parallel, zero winding", &[Centre, Radius, Drift]),
+        ("torus meridian", &[Centre, Radius]),
     ];
     cases
         .into_iter()
@@ -932,18 +920,14 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
             }
         }
     }
-    // On an arm only circles reach, `Orientation` is second order in an
-    // in-band tilt of the circle's plane (`ρ·(1 − cos θ)` with `θ ≲ ε/ρ`,
-    // so `≲ ε²/ρ`): at a band this narrow that is under the f64 rounding
-    // every row is read to, at any radius the arm admits. The sphere
-    // parallel's is under it at every ε row (`arm_terms`).
+    // A pole start's `Orientation` is second order in an in-band tilt
+    // of the circle's plane (`ρ·(1 − cos θ)` with `θ ≲ ε/ρ`, so
+    // `≲ ε²/ρ`): at a band this narrow that is under the f64 rounding
+    // every row is read to, at any radius the arm admits.
     let second_order = |arm: &str, t: EnvelopeTerm| {
         band().zero() < 1e-10
             && t == EnvelopeTerm::Orientation
-            && matches!(
-                arm,
-                "cone rim" | "sphere meridian, pole start" | "torus parallel"
-            )
+            && arm == "sphere meridian, pole start"
     };
     let missing: Vec<(&str, EnvelopeTerm)> = arm_terms()
         .into_iter()

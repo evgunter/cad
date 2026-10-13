@@ -2795,9 +2795,18 @@ fn chart_v_du<T: Decide>(
     let Pcurve::Harmonic { p0, pa, pb, pl } = *p else {
         return Ok(None);
     };
+    // `sup |x·cos t + y·sin t| = √(x² + y²)`, spelled as
+    // `geom_brep::harmonic` spells it, whose helpers are crate-private.
+    let pair = |_site: &str, x: T, y: T| {
+        #[cfg(test)]
+        if radial_pair_mutant(_site) {
+            return x.abs() + y.abs();
+        }
+        (x.powi(2) + y.powi(2)).sqrt()
+    };
     match decide(
         "split_chart_azimuth_linear",
-        Margin::levered((pa.x.powi(2) + pb.x.powi(2)).sqrt(), radius),
+        Margin::levered(pair("topo-gate", pa.x, pb.x), radius),
         band,
     )
     .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -2811,13 +2820,22 @@ fn chart_v_du<T: Decide>(
             });
         }
     }
-    let v_var = (pa.y.abs() + pb.y.abs() + pl.y.abs()) * (t1 - t0).abs();
+    let v_var = (pair("topo-v-var", pa.y, pb.y) + pl.y.abs()) * (t1 - t0).abs();
     let half = T::from_f64(0.5);
     let dt = t1 - t0;
     let integral = (p0.y - anchor) * dt + pa.y * (t1.sin() - t0.sin())
         - pb.y * (t1.cos() - t0.cos())
         + pl.y * (t1 + t0) * dt * half;
     Ok(Some((pl.x * integral, v_var)))
+}
+
+/// Whether a test build reads one of [`chart_v_du`]'s harmonic pairs as
+/// the sum of its coefficients again: `PCERT_RADIAL_PAIR_MUTANT`, read
+/// at compile time (`scripts/gates/no-ambient-env.sh` forbids a runtime
+/// read), names `topo-gate` or `topo-v-var`.
+#[cfg(test)]
+fn radial_pair_mutant(site: &str) -> bool {
+    option_env!("PCERT_RADIAL_PAIR_MUTANT") == Some(site)
 }
 
 /// A cylinder face's chart frame: the one destructure the wall-chart
@@ -4418,6 +4436,9 @@ mod torus_chord_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torus_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod v_du_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

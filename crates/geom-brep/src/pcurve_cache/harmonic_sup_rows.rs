@@ -18,15 +18,15 @@ use geom_core::{Bounds, Interval, Tol};
 
 use super::*;
 
-fn band() -> Band {
+pub(super) fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-fn zero() -> f64 {
+pub(super) fn zero() -> f64 {
     band().zero()
 }
 
-fn lift_pcurve(p: &Pcurve<f64>) -> Pcurve<Interval> {
+pub(super) fn lift_pcurve(p: &Pcurve<f64>) -> Pcurve<Interval> {
     let f = Interval::from_f64;
     let v = |q: Vec2<f64>| Vec2::new(f(q.x), f(q.y));
     match *p {
@@ -63,7 +63,7 @@ fn lift_pcurve(p: &Pcurve<f64>) -> Pcurve<Interval> {
 /// sampled residual is over half the band, and the `f64` envelope stays
 /// under the band and covers the residual up to the samples' own
 /// rounding (coordinates of unit size, a few ulps each).
-fn certifies(
+pub(super) fn certifies(
     what: &str,
     stored: &Pcurve<f64>,
     (t0, t1): (f64, f64),
@@ -97,7 +97,7 @@ fn certifies(
 /// band, the `f64` envelope covers it inside the band up to the
 /// samples' own rounding (coordinates of unit size, a few ulps each),
 /// and the `Interval` envelope's upper end covers it too.
-fn covers(
+pub(super) fn covers(
     what: &str,
     stored: &Pcurve<f64>,
     (t0, t1): (f64, f64),
@@ -128,7 +128,7 @@ fn covers(
     );
 }
 
-fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
+pub(super) fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
     Curve3::Circle {
         center,
         axis,
@@ -141,7 +141,7 @@ fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -
 /// `(1, −1, 0)/√2`: both `a·z` and `b·z` are `radius·sin φ/√2`, so its
 /// axial deviation from the untilted circle is `radius·sin φ` while the
 /// coefficient sum reads `√2` times that.
-fn tilted_circle(center: Point3<f64>, radius: f64, phi: f64) -> Curve3<f64> {
+pub(super) fn tilted_circle(center: Point3<f64>, radius: f64, phi: f64) -> Curve3<f64> {
     let k = Vec3::new(FRAC_1_SQRT_2, -FRAC_1_SQRT_2, 0.0);
     let (s, c) = phi.sin_cos();
     let turn = |v: Vec3<f64>| v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c));
