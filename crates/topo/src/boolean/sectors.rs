@@ -5288,8 +5288,9 @@ mod tests {
     /// the margin the funnel read, and both end in the corner's lever
     /// and the tolerance that margin gives (the decision passes on
     /// either definite sign, so a zero-band margin is a size a smaller
-    /// tolerance decides), the lever alone where that tolerance lies at
-    /// or below `EPS_MIN` (D4 ¶4). A clear arm reads the sense.
+    /// tolerance decides), the lever and the floor's sentence where that
+    /// tolerance lies at or below `EPS_MIN` (D4 ¶4). A clear arm reads the
+    /// sense.
     #[test]
     fn a_direction_sense_refuses_its_decided_zero_as_its_in_band_arm() {
         let b = band();
@@ -5312,12 +5313,13 @@ mod tests {
             let text = err.to_string();
             let lever = "Recourse: make the edges at the corner where the two faces meet span \
                          clearly more than the tolerance";
+            let size = "length of the corner's shorter edge";
             let ending = b.offer_deciding(arm).map_or_else(
-                || lever.to_owned(),
+                || format!("{lever}; {}", geom_core::floor_note(size)),
                 |offered| {
                     format!(
-                        "{lever}, or, if this length of the corner's shorter edge is intended, \
-                         tighten the tolerance below {offered:e} m"
+                        "{lever}, or, if this {size} is intended, tighten the tolerance below \
+                         {offered:e} m"
                     )
                 },
             );
@@ -6077,7 +6079,12 @@ mod tests {
             short
         };
         let ending = b.offer_deciding(quoted).map_or_else(
-            || "span clearly more than the tolerance".to_owned(),
+            || {
+                format!(
+                    "span clearly more than the tolerance; {}",
+                    geom_core::floor_note("edge's length or rise")
+                )
+            },
             |offered| {
                 format!(
                     "if this edge's length or rise is intended, tighten the tolerance below \

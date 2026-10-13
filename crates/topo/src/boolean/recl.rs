@@ -2131,14 +2131,15 @@ mod tests {
                 let text = err.to_string();
                 let lever = "Recourse: make the edges at the corner where the two faces meet \
                              span clearly more than the tolerance";
-                let offer = band.offer_deciding(arm).filter(|_| class.is_some());
-                let ending = if let Some(offered) = offer {
-                    format!(
-                        "{lever}, or, if this length of the corner's shorter edge is intended, \
-                         tighten the tolerance below {offered:e} m"
-                    )
-                } else {
-                    lever.to_owned()
+                let size = "length of the corner's shorter edge";
+                let ending = match (class, band.offer_deciding(arm)) {
+                    (None, _) => lever.to_owned(),
+                    (Some(_), Some(offered)) => format!(
+                        "{lever}, or, if this {size} is intended, tighten the tolerance below \
+                         {offered:e} m"
+                    ),
+                    // Only a tolerance at or below ε_min decides the arm.
+                    (Some(_), None) => format!("{lever}; {}", geom_core::floor_note(size)),
                 };
                 assert!(
                     !text.contains("declare") && text.ends_with(&ending),
