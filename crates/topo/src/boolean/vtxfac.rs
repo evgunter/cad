@@ -287,13 +287,16 @@ pub(super) fn touch_classes<T: geom_core::Real>(
 /// the other or lies on the other's boundary, and some of it is held:
 /// an edge, or, where every edge lies on the other's faces (an island
 /// touching each face of its void), a direction strictly inside it
-/// ([`interior`]); a cone with no such direction refuses as one that
-/// reads nothing. Cones that touch but never cross nest or lie apart,
-/// so some cone is outermost, and outermost cones lie apart and agree:
-/// a met one beside a joined one would lie in its material. An edge
-/// on two or more partners' boundaries reads [`along_partners`]. Each
-/// of those, and an edge some partner's rows miss (every pair reads
-/// the vertex's one orbit), refuses as an invariant where it fails.
+/// ([`interior`]); where none reads, it refuses
+/// [`BooleanError::NestingUnread`], or escalates where the readings
+/// reach the band. An edge on two or more partners' boundaries reads
+/// [`along_partners`]. The layering relies on cones that touch but
+/// never cross, as one solid's sheets at rest do: they nest or lie
+/// apart, so some cone is outermost, and outermost cones agree (a met
+/// one beside a joined one would lie in its material). No outermost
+/// cone, outermost cones that disagree, and an edge some partner's
+/// rows miss (every pair reads the vertex's one orbit) each break that
+/// and refuse as an invariant.
 ///
 /// A partner reads nothing (`sectors::wedge_classes`' `None`) where its
 /// sectors lie on fewer than two faces; where they lie on two with no
@@ -328,7 +331,12 @@ pub(super) fn pair_classes<T: Decide>(
     }
     // Every partner reads, so this keeps one read per pair.
     let reads: Vec<_> = pairs.iter().filter_map(|p| p.read.as_ref()).collect();
-    layered_alone(own, pairs, &reads, band, refuse)
+    let unwitnessed = |inner: usize, outer: usize| BooleanError::NestingUnread {
+        operand,
+        vertex,
+        partners: [pairs[inner].partner, pairs[outer].partner],
+    };
+    layered_alone(own, pairs, &reads, band, refuse, unwitnessed)
 }
 
 /// [`pair_classes`]' layering of partners that each read (`reads`, one
@@ -340,6 +348,7 @@ fn layered_alone<T: Decide>(
     reads: &[&super::sectors::WedgeRead],
     band: Band,
     refuse: impl Fn(usize, usize) -> BooleanError,
+    unwitnessed: impl Fn(usize, usize) -> BooleanError,
 ) -> Result<Vec<(HalfEdgeKey, SideCode)>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
     // Partner `i`'s cone lies inside `j`'s where every edge of `i` is
@@ -356,7 +365,7 @@ fn layered_alone<T: Decide>(
         if rows.any(|c| c != SideCode::On) {
             return Ok(true);
         }
-        let probe = interior(&pairs[i].sectors, band)?.ok_or_else(|| refuse(i, j))?;
+        let probe = interior(&pairs[i].sectors, band)?.ok_or_else(|| unwitnessed(i, j))?;
         let read =
             super::sectors::wedge_classes(std::slice::from_ref(&probe), &pairs[j].sectors, band)?
                 .ok_or_else(|| refuse(j, i))?;
@@ -413,39 +422,55 @@ fn layered_alone<T: Decide>(
 }
 
 /// **A direction strictly inside a partner's cone**, as a probe edge
-/// read against other corners: the mean `c` of the corner's sector
-/// bounds, or `−c`, whichever the corner's own reading holds (inside
-/// its material where its cone is met, outside where joined), levered
-/// at its shortest arm. A convex or hollow corner's bounds lie on its
-/// cone's boundary, so `c` lies inside it. `None` where neither reads
+/// read against other corners: the first candidate the corner's own
+/// reading holds (inside its material where its cone is met, outside
+/// where joined). The candidates are the link mean `c`
+/// ([`super::sectors::link_mean`]) and `−c`, which serve a convex or
+/// hollow corner, whose bounds lie on its cone's boundary; then, for a
+/// polygon cone whose mean may leave it, a direction just off each
+/// sector's middle to either side of its face, at a step that shrinks
+/// fivefold until a reading holds or the band takes it. Each is levered
+/// at the corner's shortest arm. `Err` with the first refusal met where
+/// none holds and some reading refused, an escalation where the steps
+/// reach the band; `None` where every reading was decided and none
 /// held.
 fn interior<T: Decide>(
     sectors: &[BoolSector<T>],
     band: Band,
 ) -> Result<Option<BoolSector<T>>, BooleanError> {
-    let (Some(first), Some(arm)) = (
-        sectors.first(),
-        sectors.iter().map(|s| s.arm).reduce(|a, b| a.min(b)),
-    ) else {
+    let (Some(first), Some((mean, arm))) = (sectors.first(), super::sectors::link_mean(sectors))
+    else {
         return Ok(None);
     };
-    let sum = sectors
-        .iter()
-        .fold(Vec3::zero(), |acc, s| acc + s.start + s.end);
-    for dir in [sum, -sum] {
-        let probe = BoolSector {
-            start: dir,
-            end: dir,
-            start_reach: super::sectors::Reach::Extent(arm),
-            end_reach: super::sectors::Reach::Extent(arm),
-            ..first.clone()
-        };
-        let read = super::sectors::wedge_classes(std::slice::from_ref(&probe), sectors, band)?;
-        if read.is_some_and(|r| r.rows.iter().all(|&(_, c)| held(c, r.met))) {
-            return Ok(Some(probe));
+    let probe = |dir: Vec3<T>| BoolSector {
+        start: dir,
+        end: dir,
+        start_reach: super::sectors::Reach::Extent(arm),
+        end_reach: super::sectors::Reach::Extent(arm),
+        ..first.clone()
+    };
+    let off_faces = (0..12).flat_map(|k| {
+        let step = T::from_f64(0.25 * 0.2_f64.powi(k));
+        sectors.iter().flat_map(move |s| {
+            let middle = s.start + s.end;
+            let off = s.normal.vec() * (step * middle.norm());
+            [middle - off, middle + off]
+        })
+    });
+    let mut refused = None;
+    for dir in [mean, -mean].into_iter().chain(off_faces) {
+        let candidate = probe(dir);
+        match super::sectors::wedge_classes(std::slice::from_ref(&candidate), sectors, band) {
+            Ok(Some(r)) if r.rows.iter().all(|&(_, c)| held(c, r.met)) => {
+                return Ok(Some(candidate));
+            }
+            Ok(_) => {}
+            Err(e) => {
+                refused.get_or_insert(e);
+            }
         }
     }
-    Ok(None)
+    refused.map_or(Ok(None), Err)
 }
 
 /// **The class of an edge on two or more partners' boundaries** (`on`):

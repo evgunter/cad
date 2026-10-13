@@ -105,9 +105,12 @@ reads nothing, and report any cell main built that would then refuse.
   alone leaves the edge in is decidedly apart from every other's.
   Otherwise it refuses `Escalated` with
   `BooleanDecision::PartnerFaces` (flush or in band).
-- **The rest refuse.** A cone with no interior direction read refuses
-  as one that reads nothing (`VertexReadTwice`). Disagreement after
-  that, no outermost cone, or an edge some partner's rows miss are
+- **The rest refuse.** The interior direction is the first held among
+  the link mean, its opposite, and directions just off each face's
+  middle at shrinking steps. Where none holds, it escalates once the
+  steps reach the band, and otherwise refuses
+  `BooleanError::NestingUnread`. Disagreement after that, no outermost
+  cone, or an edge some partner's rows miss are
   `ClassificationInvariant`s. The reasons are that every pair reads
   the vertex's one orbit, and that cones which touch but never cross
   nest or lie apart.

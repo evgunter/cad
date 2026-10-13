@@ -1920,6 +1920,17 @@ pub(super) fn wedge_classes<T: Decide>(
     }))
 }
 
+/// **A corner's link mean** `c`: the mean of its sectors' unit bounds,
+/// with its shortest arm, the lever a reading of `c` is metered over.
+/// `None` for a corner with no sectors.
+pub(super) fn link_mean<T: Decide>(sectors: &[BoolSector<T>]) -> Option<(Vec3<T>, T)> {
+    let arm = sectors.iter().map(|s| s.arm).reduce(|a, b| a.min(b))?;
+    let sum = sectors
+        .iter()
+        .fold(Vec3::zero(), |acc, s| acc + s.start + s.end);
+    Some((sum / T::from_f64(2.0 * sectors.len() as f64), arm))
+}
+
 /// **Each edge of `own`'s orbit against `other`'s corner read as a
 /// polygon cone**: the corner's faces bound its material whatever its
 /// shape, a dart's apex (a reflex edge) or a saddle as much as a convex
@@ -1952,13 +1963,9 @@ pub(super) fn cone_read<T: Decide>(
             None => return Ok(None),
         }
     }
-    let Some(arm) = other.iter().map(|s| s.arm).reduce(|a, b| a.min(b)) else {
+    let Some((mean, arm)) = link_mean(other) else {
         return Ok(None);
     };
-    let sum = other
-        .iter()
-        .fold(Vec3::zero(), |acc, s| acc + s.start + s.end);
-    let mean = sum / T::from_f64(2.0 * other.len() as f64);
     let away = match decide("bool_cone_pointed", Margin::levered(mean.norm(), arm), band) {
         // An in-band `−c` labels nothing, as no side read does: the cone
         // is the material.
