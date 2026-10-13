@@ -375,7 +375,10 @@ fn assert_pinch_records(records: &topo::ContactRecords) {
 /// decided), so the overlap between the two shared keys is structure,
 /// and the census passes it without the edge-edge row; the row stays,
 /// citing both ends' decisions, for the `unproven-coincidence` lint.
-/// Red if an end's two vertices sit on two keys.
+/// Red if an end's two vertices sit on two keys. That the withheld row
+/// passes is the open state of the INTENT row
+/// `a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys`
+/// (ruling A, ahead of Ev on PR 4793), not its goal.
 #[test]
 fn a_pinch_without_its_edge_edge_row_reads_its_shared_ends() {
     let tol = Tol::witness();
@@ -396,7 +399,9 @@ fn a_pinch_without_its_edge_edge_row_reads_its_shared_ends() {
     assert_eq!(
         validate_pseudomanifold(&pinch.body, &bounds, tol),
         Ok(()),
-        "the overlap between two shared keys is structure"
+        "the overlap between two shared keys reads as structure: the open state of \
+         work/intent/a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys.md, \
+         not the goal"
     );
 }
 
@@ -2251,4 +2256,52 @@ fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
             }
         }
     }
+}
+
+/// **A pinch line's end joins where the next union straightens it, its
+/// records carried.** `p` and `q` touch along the z-axis over
+/// `z ∈ (0, 1)`; `r` stacks on `p`, so `p`'s vertex at `(0, 0, 1)`
+/// lies inside the stacked block's vertical edge. Carrying `p ∪ q`'s
+/// records, the union with `r` joins that vertex away (its key shared
+/// only with `q`'s corner, another lump's: `edge_join::free_vertices`),
+/// leaves no joinable vertex, passes 3′ on its records, and builds the
+/// body `r` first builds. Red where the join keeps every vertex on a
+/// shared key (a vertex more than the other order, joinable at rest).
+#[test]
+fn a_pinch_lines_end_joins_where_the_next_union_straightens_it() {
+    let tol = Tol::witness();
+    let p = finished("p", brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol);
+    let q = finished("q", brick((-1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), tol), tol);
+    let r = finished("r", brick((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), tol), tol);
+    let step = |a: &AtRestBody<f64>, b: &AtRestBody<f64>, prev: Option<&BooleanBody<f64>>| {
+        let mut decls = BooleanInputs::default();
+        if let Some(prev) = prev {
+            decls.records_a = carried_rows(&prev.contacts);
+        }
+        match union_in(a, b, &decls, tol) {
+            Ok(BooleanResult::Body(out)) => out,
+            other => panic!("{other:?}"),
+        }
+    };
+    let pq = step(&p, &q, None);
+    let fold = step(&pq.body, &r, Some(&pq));
+    let pr = step(&p, &r, None);
+    let other = step(&pr.body, &q, Some(&pr));
+    let counts = |b: &Body<f64>| (b.vertices().count(), b.edges().count(), b.faces().count());
+    let band = geom_core::Band::linear(tol).unwrap();
+    assert_eq!(
+        topo::joinable_vertices(&fold.body, band).unwrap(),
+        vec![],
+        "no joinable vertex is left"
+    );
+    assert_eq!(
+        validate_pseudomanifold(&fold.body, &fold.contacts, tol),
+        Ok(()),
+        "3′ on its records"
+    );
+    assert_eq!(
+        counts(&fold.body),
+        counts(&other.body),
+        "the two orders' bodies"
+    );
 }

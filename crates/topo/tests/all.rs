@@ -87,6 +87,8 @@ mod boolean_pinch_copies;
 mod box_with_hole;
 #[path = "carried_citations_past_index_zero.rs"]
 mod carried_citations_past_index_zero;
+#[path = "carried_vertex_pairs_share_a_key.rs"]
+mod carried_vertex_pairs_share_a_key;
 #[path = "cell_pair_records.rs"]
 mod cell_pair_records;
 #[path = "census_g2_carrier.rs"]
@@ -207,6 +209,8 @@ mod mesh8_coherence;
 mod missed_ray_side;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
+#[path = "offset_a_corner_kiss.rs"]
+mod offset_a_corner_kiss;
 #[path = "offset_doors_read_charts_not_material.rs"]
 mod offset_doors_read_charts_not_material;
 #[path = "on_verdict.rs"]

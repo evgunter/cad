@@ -3955,8 +3955,10 @@ fn carried_vertices<T: Real>(
 
 /// **A result the seams were zipped into**, with its two operands: the
 /// only path that leaves an op's copies of one vertex on one point key
-/// (the join's null-edge copies, the zip's split per cone), so the only
-/// one [`carry`] reads pinches for. It holds the zip's
+/// (the join's null-edge copies, the zip's split per cone) when
+/// [`carry`] runs, so the only one it reads pinches for. The keys
+/// [`share_recorded_points`] ties come after the carry, and are read by
+/// no pinch row. It holds the zip's
 /// [`super::zip::ConesSplit`], which only `zip::split_cones` builds.
 pub(super) struct Zipped<'a, T: Real> {
     operands: [&'a Body<T>; 2],
@@ -3967,15 +3969,16 @@ pub(super) struct Zipped<'a, T: Real> {
 /// ledger's pending rows, ascending: each decided row with a vertex end
 /// whose live descendant shares its point key with another live vertex,
 /// where not every vertex on that key descends from an operand vertex
-/// that already shared its key. Two vertices on one point key are an
-/// op's copies of one vertex: the join's null-edge copies
-/// ([`Descendants::copies_of`]) or the zip's split per cone
-/// (`zip::split_cones`), so pieces of the result touch there with no
-/// record between them (D1's structural sharing), and the row that put
-/// the vertex on the other operand's cell is the coincidence that made
-/// them touch (DESIGN, the reduction's coincidence discipline). Copies
-/// an operand already held are its own structure, which no decision of
-/// this op made.
+/// that already shared its key. When the carry runs, two vertices on
+/// one point key the op made are its copies of one vertex: the join's
+/// null-edge copies ([`Descendants::copies_of`]) or the zip's split per
+/// cone (`zip::split_cones`), so pieces of the result touch there with
+/// no record between them (D1's structural sharing), and the row that
+/// put the vertex on the other operand's cell is the coincidence that
+/// made them touch (DESIGN, the reduction's coincidence discipline).
+/// Keys an operand already shared are its own structure, which no
+/// decision of this op made: its copies, or two corners an earlier
+/// boolean decided one point and recorded ([`share_recorded_points`]).
 fn pinch_rows<T: Real>(
     body: &Body<T>,
     operands: [&Body<T>; 2],
@@ -4032,19 +4035,81 @@ fn pinch_rows<T: Real>(
 
 /// **The output stage's one key rule**: the vertices of every
 /// vertex-vertex record of the result move onto one point key
-/// (`zip::record_classes`), on every path a boolean builds by. Run
+/// ([`record_classes`]), on every path a boolean builds by. Run
 /// after [`carry`], on the records the result ships.
 ///
 /// # Errors
 ///
-/// As `zip::record_classes` and `zip::share_points`.
+/// As [`record_classes`] and `zip::share_points`.
 fn share_recorded_points<T: Decide>(
     body: &mut Body<T>,
     contacts: &ContactRecords,
     coincidences: &[crate::Coincidence],
 ) -> Result<(), BooleanError> {
-    let classes = super::zip::record_classes(body, contacts, coincidences)?;
+    let classes = record_classes(body, contacts, coincidences)?;
     super::zip::share_points(body, &classes)
+}
+
+/// **Two vertices a record says touch sit on one point key.** A
+/// boolean that decides from values that two vertices of its operands
+/// coincide puts them on one point key in its result, whether they are
+/// cones of one solid's pinch or touching corners of two solids in an
+/// assembly. A vertex-vertex record of the result states that the two
+/// are one point: the op decided it (the carry refuses a record no
+/// decision backs, and every decision it emits decided its margin
+/// Zero), or an operand carried it in and the carry confirmed it by the
+/// census's own read (`records::landings`, which refuses a carried
+/// record whose cells do not meet as the caller's stale record). So
+/// every key the records reach, through their pairs and through the
+/// keys their vertices share, names one point, and the classes of two
+/// or more keys are returned for `zip::share_points`. No position is
+/// read here: the record is the premise.
+/// The records themselves stay, citing their decisions, which is what
+/// the `unproven-coincidence` lint reads.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where a record's vertex does not
+/// resolve in `body`.
+fn record_classes<T: Real>(
+    body: &Body<T>,
+    contacts: &crate::ContactRecords,
+    coincidences: &[crate::Coincidence],
+) -> Result<Vec<super::zip::PointClass>, BooleanError> {
+    let key = |v: VertexKey| {
+        body.get_vertex(v)
+            .map(|d| d.point)
+            .ok_or(BooleanError::JoinDesync {
+                what: "a vertex-vertex record names a vertex the result does not hold",
+            })
+    };
+    let mut roots = super::zip::Roots::new();
+    for (a, b) in contacts.vertex_vertex() {
+        roots.union(key(a)?, key(b)?);
+    }
+    #[cfg_attr(not(feature = "sweep-testing"), allow(unused_mut))]
+    let mut classes = roots.classes();
+    // The margins each class's records cite, for the test witness
+    // (`take_shared_points`).
+    #[cfg(feature = "sweep-testing")]
+    for row in contacts.rows() {
+        let crate::ContactKind::VertexVertex(a, _) = row.kind() else {
+            continue;
+        };
+        let Some(class) = classes.get_mut(&roots.find(key(a)?)) else {
+            continue;
+        };
+        for cite in row.cites.iter() {
+            if let crate::Backing::Decided(k) = cite
+                && let Some(c) = coincidences.get(k as usize)
+            {
+                class.margins.push(c.margin);
+            }
+        }
+    }
+    #[cfg(not(feature = "sweep-testing"))]
+    let _ = coincidences;
+    Ok(classes.into_values().collect())
 }
 
 /// The records `carry_rows` left, their decisions and `pinched`'s

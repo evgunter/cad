@@ -13,6 +13,12 @@ use topo::{
     validate_pseudomanifold,
 };
 
+/// The row that decides whether a result reused without its records
+/// should pass at rest; the pins here hold its open state (ruling A's,
+/// ahead of Ev's answer on PR 4793), not its goal.
+const OPEN: &str =
+    "work/intent/a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys.md";
+
 fn tol() -> Tol {
     Tol::witness()
 }
@@ -76,7 +82,7 @@ fn carries_the_kiss(what: &str, body: &Body<f64>, carried: &ContactRecords) {
     assert_eq!(
         validate_pseudomanifold(body, &ContactRecords::default(), tol()),
         Ok(()),
-        "{what}: withheld, the kiss reads off its shared key"
+        "{what}: withheld, the kiss reads off its shared key: the open state of {OPEN}, not the goal"
     );
 }
 

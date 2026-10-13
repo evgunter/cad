@@ -585,7 +585,8 @@ impl<T: Real> Body<T> {
     /// passes the keys the seam correspondence ties, whose pairs the
     /// zips' scaffolding certifies coincident before any rebind, and the
     /// keys its result's vertex-vertex records tie, each a pair it
-    /// decided one point.
+    /// decided one point or an operand's carried record its carry
+    /// confirmed (`boolean::ops::record_classes`).
     pub(crate) fn share_point(&mut self, vertices: &[VertexKey], onto: PointKey) -> Option<()> {
         self.points.get(onto)?;
         let old: Vec<PointKey> = vertices

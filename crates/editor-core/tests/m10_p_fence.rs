@@ -144,7 +144,7 @@
 //!
 //! **ALL FOUR NUMBERS MOVED WHEN A BOOLEAN'S RECORDED VERTEX PAIRS CAME
 //! TO SHARE ONE POINT KEY**, through `kiss_carry` alone: its union's
-//! two kissing corners now sit on one key (`zip::record_classes`), so
+//! two kissing corners now sit on one key (`ops::record_classes`), so
 //! its body carries one point fewer and the stream is shorter. No
 //! outcome changed and no coordinate moved;
 //! `intent_s2_c_world::PRE_C` and `seat4_verb_lowering`'s document

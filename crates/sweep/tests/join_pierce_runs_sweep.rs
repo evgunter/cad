@@ -1751,7 +1751,8 @@ fn four_pairs_battery() {
     }
 }
 
-/// **Three pairs whose operand's pinch the touch unions decided build.**
+/// **Three pairs at one vertex build on one key; their unions fail tier
+/// 3′ with `MixedTouch`.**
 /// [`notch343`]'s corner against three cubes whose corners touch only
 /// there, two poses (PR 4249's review probes): `three i=4 j=3 k=1`
 /// (side-2 cubes, diagonals 120° apart in the plane normal to the grid
@@ -1760,7 +1761,7 @@ fn four_pairs_battery() {
 /// siblings hang at its copy (`insert::hang_at_shared`), and no seam
 /// links the pinched operand's cones. The touch unions that built the
 /// operand decided its corners one point and put them on one key
-/// (`zip::record_classes`), so every op builds at the oracle's volume
+/// (`ops::record_classes`), so every op builds at the oracle's volume
 /// with one vertex per cone at `v`, on one key, and meshes. The
 /// intersections and differences are `SOUND`. Tier 3′ refuses both
 /// unions with the census's `MixedTouch` alone, at the point where the
@@ -1769,7 +1770,7 @@ fn four_pairs_battery() {
 /// Red, a key finding at `v` or a refusal, where the touch unions leave
 /// their corners on separate keys.
 #[test]
-fn three_pairs_whose_operands_pinch_the_touch_unions_decided_build() {
+fn three_pairs_at_one_vertex_build_on_one_key_and_their_unions_fail_mixed_touch() {
     let v = notch343().v;
     let mut poses: Vec<(&str, Vec<Frame>, f64)> = Vec::new();
     // `three`: each cube's corner diagonal along `d`, twisted by `psi`.
@@ -2357,7 +2358,7 @@ fn a_pinched_operands_pierces_of_one_point_mint_one_ring() {
     }
 }
 
-/// **A pinch's cones sit on one point key** (`zip::record_classes`).
+/// **A pinch's cones sit on one point key** (`ops::record_classes`).
 /// Six of [`dbl`]'s poses whose union with the cube pinches at `v` in
 /// two cones. Both cones' vertices are the pinched operand's own. The
 /// corners' union that built it decided the two corners one point and

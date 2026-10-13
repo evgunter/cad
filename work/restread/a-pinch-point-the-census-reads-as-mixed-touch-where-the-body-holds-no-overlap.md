@@ -1,10 +1,10 @@
 ---
 id: a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap
 kind: issue
-title: At a three-cone pinch the census refuses a union MixedTouch where the body's volume, cones, keys and mesh match the oracle (196 four_pairs lines, three, tripod)
+title: At a three-cone pinch the census refuses a union MixedTouch where the body's volume, cones, keys and mesh match the oracle (214 four_pairs poses, three, tripod)
 status: open
 opened: 2026-10-12
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -28,7 +28,7 @@ the two solids of the result that meet at `v`.
   two keys). Their reasons were not tallied line by line.
 - `three i=4 j=3 k=1` and `tripod i=0 j=4 t=1 k=0`, `ab U` and `ba U`:
   `MixedTouch` alone, pinned by
-  `join_pierce_runs_sweep::three_pairs_whose_operands_pinch_the_touch_unions_decided_build`.
+  `join_pierce_runs_sweep::three_pairs_at_one_vertex_build_on_one_key_and_their_unions_fail_mixed_touch`.
 
 ## Read at `three i=4 j=3 k=1 ab U`
 
@@ -61,7 +61,7 @@ there.
 ## Replay
 
 `cargo test -p sweep --release --test all
-three_pairs_whose_operands_pinch_the_touch_unions_decided_build` (the
+three_pairs_at_one_vertex_build_on_one_key_and_their_unions_fail_mixed_touch` (the
 pin), or add a probe printing `Star` per site (the lane's probe, not
 committed, put a trace in `TouchSite::verdict` and a direction sampler
 over the result's vertices at `v`).
@@ -73,3 +73,20 @@ material at `v` so a cone's star and the containment door agree; the
 196 `four_pairs` lines and the two pinned unions should then pass tier
 3′, and the pin's `MixedTouch` arm goes. If the body: file it on the
 op's program with this pose.
+
+## Tally (PR 4823's review R2, 2026-10-13) and priority
+
+R2 re-ran `four_pairs_battery` on PR 4823's head. All 196 `OK BAD`
+lines fail tier 3′ on one finding, `CensusUndecidable` with
+`MixedTouch`, and 18 more poses the battery's volume filter skips fail
+the same way: 214 in all. In every one the volume oracle matches and
+the cone and key oracle is clean.
+
+Raised to **P1**: since PR 4823 these are public-path unions
+(`topo::union` of an operand an earlier union pinched) that ship as
+at-rest bodies tier 3′ refuses, where main refused them typed
+(`PinchConesOnSeparateKeys`) or shipped 24 of them `OK BAD` with the
+cones on two keys. PR 4823 accepts that cost: the typed refusal it
+retires read keys an earlier op had left apart, so it refused 287
+unions the key rule now builds (115 `SOUND`), and this row is where
+the census's half is owed.

@@ -43,7 +43,7 @@
 //! pinch that still sit on several keys onto one: the keys the
 //! correspondence ties ([`point_classes`]), read before the split. The
 //! output stage then does the same for the keys the result's
-//! vertex-vertex records tie ([`record_classes`]).
+//! vertex-vertex records tie (`ops::record_classes`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -184,7 +184,7 @@ impl<K: Ord + Copy> Roots<K> {
 /// after. Decided by the records alone: no position is read. Copies an
 /// operand held on one key, which the zips may fuse onto the other
 /// operand's key one by one, carry no vertex-vertex record, so
-/// [`record_classes`] does not reach them.
+/// `ops::record_classes` does not reach them.
 ///
 /// # Errors
 ///
@@ -213,7 +213,7 @@ pub(super) fn point_classes<T: geom_core::Real>(
 /// smallest live key ([`Body::share_point`]); elsewhere nothing moves.
 /// The classes come from the seams, after the zips ([`point_classes`]),
 /// and from the result's vertex-vertex records, at the output stage
-/// ([`record_classes`]). The census's same-point rung and the join
+/// (`ops::record_classes`). The census's same-point rung and the join
 /// then read the point from its keys.
 ///
 /// # Errors
@@ -262,75 +262,17 @@ pub(super) fn share_points<T: geom_core::Real>(
 
 /// The point keys one rebind of [`share_points`] puts on one key, with
 /// the margin of each decision the records tying them cite
-/// ([`record_classes`]); none where the seams tie them
+/// (`ops::record_classes`); none where the seams tie them
 /// ([`point_classes`]), whose pairs are bitwise coincident.
 pub(super) struct PointClass {
-    keys: BTreeSet<PointKey>,
+    pub(super) keys: BTreeSet<PointKey>,
     #[cfg(feature = "sweep-testing")]
-    margins: Vec<geom_core::MarginDiag>,
-}
-
-/// **Two vertices a record says touch sit on one point key.** A
-/// boolean that decides from values that two vertices of its operands
-/// coincide puts them on one point key in its result, whether they are
-/// cones of one solid's pinch or touching corners of two solids in an
-/// assembly. A vertex-vertex record of the result is that decision: the
-/// carry refuses a record no decision backs, and every decision it
-/// emits decided its margin Zero. So every key the records reach,
-/// through their pairs and through the keys their vertices share, names
-/// one point, and the classes of two or more keys are returned for
-/// [`share_points`]. No position is read: the record is the premise.
-/// The records themselves stay, citing their decisions, which is what
-/// the `unproven-coincidence` lint reads.
-///
-/// # Errors
-///
-/// [`BooleanError::JoinDesync`] where a record's vertex does not
-/// resolve in `body`.
-pub(super) fn record_classes<T: geom_core::Real>(
-    body: &Body<T>,
-    contacts: &crate::ContactRecords,
-    coincidences: &[crate::Coincidence],
-) -> Result<Vec<PointClass>, BooleanError> {
-    let key = |v: VertexKey| {
-        body.get_vertex(v)
-            .map(|d| d.point)
-            .ok_or(BooleanError::JoinDesync {
-                what: "a vertex-vertex record names a vertex the result does not hold",
-            })
-    };
-    let mut roots = Roots::new();
-    for (a, b) in contacts.vertex_vertex() {
-        roots.union(key(a)?, key(b)?);
-    }
-    #[cfg_attr(not(feature = "sweep-testing"), allow(unused_mut))]
-    let mut classes = roots.classes();
-    // The margins each class's records cite, for the test witness
-    // (`take_shared_points`).
-    #[cfg(feature = "sweep-testing")]
-    for row in contacts.rows() {
-        let crate::ContactKind::VertexVertex(a, _) = row.kind() else {
-            continue;
-        };
-        let Some(class) = classes.get_mut(&roots.find(key(a)?)) else {
-            continue;
-        };
-        for cite in row.cites.iter() {
-            if let crate::Backing::Decided(k) = cite
-                && let Some(c) = coincidences.get(k as usize)
-            {
-                class.margins.push(c.margin);
-            }
-        }
-    }
-    #[cfg(not(feature = "sweep-testing"))]
-    let _ = coincidences;
-    Ok(classes.into_values().collect())
+    pub(super) margins: Vec<geom_core::MarginDiag>,
 }
 
 impl Roots<PointKey> {
     /// Each class of two or more keys, by its root.
-    fn classes(&self) -> BTreeMap<PointKey, PointClass> {
+    pub(super) fn classes(&self) -> BTreeMap<PointKey, PointClass> {
         let mut classes: BTreeMap<PointKey, PointClass> = BTreeMap::new();
         for &k in self.0.keys() {
             let r = self.find(k);
@@ -375,7 +317,7 @@ thread_local! {
 
 /// One class [`share_points`] rebound: each key's point before the
 /// rebind, each coordinate as its `{:?}` rendering, and each margin its
-/// records cite ([`record_classes`]), as its `{:e}` rendering; none for
+/// records cite (`ops::record_classes`), as its `{:e}` rendering; none for
 /// a class the seams tie, which holds one point bit for bit.
 #[cfg(feature = "sweep-testing")]
 pub type SharedClass = (Vec<[String; 3]>, Vec<String>);

@@ -1350,7 +1350,7 @@ impl<T: Real> Geo<T> {
     /// two vertices a boolean decided one point from values, across
     /// solids too: the touching corners of an assembly's parts share
     /// the key their vertex-vertex record ties
-    /// (`boolean::zip::record_classes`). The op records each such
+    /// (`boolean::ops::record_classes`). The op records each such
     /// decision (`DecisionSite::VertexFusion`) for the
     /// `unproven-coincidence` lint where a record of its result cites it
     /// (the record between vertices that stay distinct), or where the

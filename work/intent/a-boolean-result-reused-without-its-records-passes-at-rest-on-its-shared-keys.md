@@ -70,3 +70,26 @@ that holds them, or a door that takes a `BooleanBody`), so a plain
 reuse cannot drop them; or is a dropped record acceptable now that the
 key carries the touch, with the lint's evidence the only loss? A
 designer's question under D10, not a lane's.
+
+## Measured (PR 4823's review, 2026-10-13)
+
+Both reviewers of PR 4823 (FLUSH's touch-key lane) measured the cost.
+
+- **R1:** `topo` `union_flush_onto_edge_contact`'s three-brick fold run
+  with `BooleanInputs::default()` (no records carried) builds 17
+  vertices / 25 edges in 4 of its order/span cells, with a vertex the
+  join should have taken (non-maximal) that passes at rest. At span
+  `(−0.5, 0.5)` base built 16 vertices, `SOUND`.
+- **R2:** the corner kiss united with `[1,2]×[0,1]×[1,2]` builds 16
+  vertices with the kiss's records carried and 17 without.
+
+So a dropped record now costs maximal edges as well as the loud
+refusal: the join cannot free a lump's corner no carried record names
+(`edge_join::free_vertices`), and the at-rest check 11 reads that
+corner's shared key as a pinch and passes it.
+
+The question is with Ev on the `[ev]` PR 4793 (fork-log row 133:
+whether D1's "structural sharing needs no record" covers a key a
+boolean shared on a value decision). PR 4823's pins hold this row's
+open state: they assert the shared keys, and name this row where a
+withheld record passes.

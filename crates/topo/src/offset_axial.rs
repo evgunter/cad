@@ -546,7 +546,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     //
     // A corner whose charts the moves leave in place keeps its point;
     // the moved corners on one point are solved once, over every chart
-    // meeting any of them, and move together (the planar door's rule,
+    // meeting any of them, and move together, or part per solid where
+    // two solids' corners no longer meet (the planar door's rule,
     // `offset_planes_together`).
     let mut at_vertex = Vec::new();
     for (vertex, _) in body.vertices() {
@@ -572,8 +573,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             position.push((*vertex, *here));
         }
     }
-    let mut moved: Vec<(Vec<VertexKey>, Point3<T>)> = Vec::new();
-    for group in crate::replace_face::group_by_point(body, asked.clone()) {
+    let solve = |group: &[VertexKey]| {
         let mut at: Vec<&MovedChart<T>> = Vec::new();
         let mut arms: Vec<T> = Vec::new();
         let mut here = None;
@@ -589,7 +589,23 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         let here = here.unwrap_or_else(|| {
             unreachable!("a group `group_by_point` answers holds the vertex it was asked about")
         });
-        let point = solve_corner(group[0], here, &at, &arms, &frame, band)?;
+        solve_corner(group[0], here, &at, &arms, &frame, band)
+    };
+    let mut moved: Vec<(Vec<VertexKey>, Point3<T>)> = Vec::new();
+    let mut work = crate::replace_face::group_by_point(body, asked.clone());
+    work.reverse();
+    while let Some(group) = work.pop() {
+        let point = match solve(&group) {
+            Ok(point) => point,
+            Err(refused) => {
+                let parts = crate::replace_face::split_by_solid(body, &group);
+                if parts.len() < 2 {
+                    return Err(refused);
+                }
+                work.extend(parts.into_iter().rev());
+                continue;
+            }
+        };
         position.extend(group.iter().map(|&v| (v, point)));
         moved.push((group, point));
     }

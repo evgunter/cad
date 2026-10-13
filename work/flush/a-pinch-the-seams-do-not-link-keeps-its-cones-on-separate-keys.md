@@ -285,3 +285,33 @@ clean mesh: filed as
 A result reused without its records now passes a point touch at rest
 on its shared key: filed as
 `work/intent/a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys.md`.
+
+## Fix pass (PR 4823's review, 2026-10-13)
+
+- **The offset doors part a corner kiss the offset pulls apart.**
+  `replace_face::group_by_point` groups moved corners by point key, so
+  the two kissing corners were solved as one six-plane corner and
+  `offset_planes_together` refused `TogetherCorner { planes: 6 }` (the
+  general door, `VertexDisagreement`). Grouping by solid instead broke
+  main's `m3_pr3_split::an_offset_that_moves_both_tip_copies_together_keeps_them_touching`
+  (a split's two halves keep one point at a tip, and must move as
+  one). So each door (`offset_together`, `offset_axial`,
+  `replace_face::solve_corners`) solves a key's corners together first,
+  and where a group spanning two solids refuses, solves each solid's
+  corner alone and the corners part (`replace_face::split_by_solid`).
+  Pinned by `topo` `offset_a_corner_kiss` (planar and general doors,
+  five distances, two frames); the axial door takes no planar body, so
+  its arm is unpinned.
+- **A forged carried record refuses stale.** Main's carry now confirms
+  each carried record by the census's read (`records::landings`)
+  before it reaches the result, so a carried vertex pair 1 or √3 apart
+  refuses `CarryRefused { Stale }` and moves nothing; an honest one
+  still rebinds. Pinned by `topo` `carried_vertex_pairs_share_a_key`.
+- **The seam classes' second pin.** `records_cite_their_decision::an_operands_copies_on_one_key_stay_on_one_key_at_every_normal`:
+  43 of 120 runs split an operand's copies onto two keys without
+  `zip::point_classes`.
+- **The join's freeing, second pin.** `union_flush_onto_edge_contact::a_pinch_lines_end_joins_where_the_next_union_straightens_it`
+  builds 17 vertices against the other order's 16 without it.
+- The pins that pass a withheld record name the INTENT row
+  `a-boolean-result-reused-without-its-records-passes-at-rest-on-its-shared-keys`
+  as their open state, and assert the keys.

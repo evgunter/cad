@@ -379,13 +379,17 @@ pub fn shared_point_finding(body: &Body<f64>, at: V3) -> Option<String> {
 /// last drain held keys farther apart than the margins its records'
 /// decisions read, the finding, else `None`; with the number of classes
 /// drained. The rebind reads no position, so this pins its premise: the
-/// result's vertex-vertex records tie only keys at one point, within
-/// the margins that decided it (`topo::SharedClass`).
+/// seams tie only keys at one point, bit for bit, and the result's
+/// vertex-vertex records only keys within the margins that decided them
+/// (`topo::SharedClass`).
 pub fn shared_point_spread_finding() -> (usize, Option<String>) {
     let classes = topo::take_shared_points();
     let at = |p: &[String; 3]| p.clone().map(|c| c.parse::<f64>().unwrap());
     let apart = |(points, margins): &topo::SharedClass| {
         let o = at(&points[0]);
+        // A class is a chain of records, each pair within its margin, so
+        // by the triangle inequality every point lies within their sum of
+        // the first; a seam class cites none and must be one point.
         let reach: f64 = margins
             .iter()
             .map(|m| m.parse::<f64>().unwrap().abs())
