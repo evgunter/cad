@@ -1560,3 +1560,33 @@ and MSOLVE. Spec deleted (`docs/doc-ledger/sym-17-spec.md`).
   - 4197 (merged 15:35Z, from a branch whose last main merge was 11:54Z) changed it to take `&RigidMotion`.
   - **Fix:** PR 4992 (`nurbs/fix-main-sweep-rigid-tests`), test-only. It wraps the four sites in `geom_core::test_support::rigid`. It merges on CI.
   - **Class:** a signature change's re-spelling pass covers only the callers its branch can see. A branch that last merged main hours before it lands misses callers added since. — (NURBS orchestrator)
+## 2026-10-13 — SYM's two P0s re-taken on `main` and closed; SYM handed back `ready`
+
+Every row of `m10_derived_frame_tilted_interval` was re-run on `main` at
+`621e036e19` (release, ε default, ignored rows included; 18/18 pass).
+- `derived-frame-placement-freezes-on-the-symbolic-lane` **closes**.
+  The document it was filed on, the tilt-`u` family and `tiltNZ` all
+  certify, and the degree freeze it named no longer refuses anything.
+- `a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity`
+  **closes**. The revolve no longer refuses, since PCERT retired its
+  predicate, and what is left is the boss's attachment-gate refusal,
+  which the tier now moves (4 → 1 with rule E on).
+
+The successors:
+- `derived-frame-spin-documents-stopped-certifying-under-guided` (P1).
+  The spin and half-spin documents certified at SYM-5 and refuse on
+  `main` at the wall join. This is unattributed, and nothing went red
+  because the row is evidence-only. Next comes a bisect and a gating
+  row.
+- `derived-frame-guided-boss-residue-after-rules-e-and-f` (P2): tilt-UV,
+  the stacked pair, and the revolved cap's boss.
+
+**SYM is handed back `ready` at P1**, with nobody on it. Its
+dispatchable spine is P1:
+- the spin regression;
+- the chain's arm straddle;
+- the mitre freeze;
+- the chain's self-intersection, whose Phase 1 only can run until
+  CLEAR's engine lands.
+
+The order in `plan.md` is unchanged past the closed rows.

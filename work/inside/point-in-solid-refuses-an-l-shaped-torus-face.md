@@ -38,6 +38,28 @@ or a narrower refusal that leaves the rest of the body answerable. Then
 which `work/contacthold/notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands.md`
 is parked on.
 
+## More evidence: every torus face an oval bounds (GERM U-T4, 2026-10-12)
+
+Past U-T4's spiric chord the plane × torus boolean mints torus faces
+bounded by spiric oval arcs, none a chart rectangle. Measured on
+`germ/plane-torus-chord-spiric`
+(`crates/sweep/tests/germ_plane_torus_spiric.rs`):
+
+- `point_in_solid` refuses `PartialTorusFace` at every sampled point of
+  every body those poses build (S1, M3, P4, the box between two ovals'
+  planes, B1, B2 on the donut, the one-face tori and the seamed torus;
+  B5, B5′ on the fat tori), so the rows read it nowhere and say so
+  (`SKIPPED (… ): point_in_solid: it refuses PartialTorusFace on every
+  built body`);
+- the result's shell sort reads it too, and refuses
+  `Pieces(Probe { source: PartialTorusFace })` (letter `s` in the rows'
+  tables): ∩ both orders and T ∖ P of the box between two ovals' planes,
+  ∩ both orders of B1 and the tie bar, P ∖ T of B2, and ∩ both orders of
+  B5 and B5′ on every fat torus.
+
+When this lands those rows read `point_in_solid` at every sampled point
+and the stops move to bodies.
+
 ## More evidence (GERM, `germ/one-face-torus-pierce-ring`)
 
 The torus less a box corner refuses `PartialTorusFace` at every one
