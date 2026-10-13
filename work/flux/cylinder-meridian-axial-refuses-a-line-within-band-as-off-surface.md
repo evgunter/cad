@@ -2,10 +2,12 @@
 id: cylinder-meridian-axial-refuses-a-line-within-band-as-off-surface
 kind: issue
 title: The cylinder iso parse refuses as OffSurface a line within band of the cylinder that is not a ruling
-status: open
+status: review
 opened: 2026-10-13
 priority: P3
 cost: E
+pr: 5038
+branch: flux/line-iso-incidence
 ---
 
 Found by the FLUX iso-parse-incidence unit's sweep (`flux/iso-parse-incidence`),
