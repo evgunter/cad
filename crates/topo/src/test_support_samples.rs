@@ -582,11 +582,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Torus,
         },
-        PcurveCertifyError::UnsupportedCarrier {
-            chart: geom::SurfaceKind::Torus,
-            carrier: geom::CurveKind::Spiric,
-            class: geom_brep::UncoveredClass::MirrorTorusSpiric,
-        },
         PcurveCertifyError::CarrierGrazesChart {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,

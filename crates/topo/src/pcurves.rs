@@ -46,11 +46,8 @@
 //!   derived and certified by [`geom_brep::chart_pcurve_over`]
 //!   (`analytic_derive`). A cone's tilted section and a torus's
 //!   Villarceau circle take their exact focal-section image
-//!   ([`geom_brep::Pcurve::FocalSection`]). Any other carrier outside
-//!   every route that can still lie on the chart refuses
-//!   [`PcurveCertifyError::UnsupportedCarrier`] with the class named,
-//!   and its face stays uncached, excused by C4's exemption
-//!   ([`not_owed`]) until the class's route lands. A carrier that
+//!   ([`geom_brep::Pcurve::FocalSection`]). Every carrier that can lie
+//!   on an analytic chart has one of these routes. A carrier that
 //!   cannot lie on its face ([`PcurveCertifyError::CarrierOffChart`]),
 //!   or that grazes a cone or torus as none of its circles
 //!   ([`PcurveCertifyError::CarrierGrazesChart`]), is a defect, and the
@@ -520,9 +517,8 @@ pub enum PcurveMintError {
     /// carries some: the face's cache set is incomplete, a defect. A
     /// face that stores none is [`PcurveMintError::Unminted`], or the
     /// refusal its derivation meets; a planar face stores none by
-    /// construction, and a face of an uncovered class
-    /// ([`PcurveCertifyError::UnsupportedCarrier`]) none until its
-    /// route lands.
+    /// construction, and at a scalar with no fitted door a face only
+    /// that door can image stores none ([`not_owed`]).
     ///
     /// **On the output of `mev`, `mef` and `mekr`, and of the doors
     /// that move a loop or run onto a face (`kfmrh`, `ring_move`,
@@ -590,8 +586,8 @@ pub enum PcurveMintError {
     /// image against its carrier: the description refuses rather than
     /// claim a bound it does not hold. The face is either unminted
     /// (tier 3's [`PcurveMintError::Unminted`]) or one the mint leaves
-    /// uncached for a pair no lane covers yet
-    /// ([`PcurveCertifyError::UnsupportedCarrier`]). A face that stores
+    /// uncached at a scalar with no fitted door
+    /// ([`PcurveCertifyError::FittedLaneUnsupported`]). A face that stores
     /// OTHER rows refuses [`PcurveMintError::MissingCache`] instead.
     UncertifiedImage {
         /// The half-edge whose image has no stored certificate.
@@ -2674,8 +2670,7 @@ pub fn mint_pcurves_of<T: AtRestPolicy>(
 /// refusal, or a panic on a torn record, leaves the body as found.
 ///
 /// A face whose rows are not owed ([`not_owed`]: a pair the chart can
-/// hold but no route covers yet — a spline carrier on an analytic
-/// chart, a mirror-torus spiric, a line, ellipse or spiric offered a
+/// hold but no route covers yet — a line, ellipse or spiric offered a
 /// fitted image — or a fitted face at a scalar with no fitted door; the
 /// at-rest pass excuses exactly these, by the same predicate)
 /// contributes the rows it held, carried ([`carry_rows`]), so the mint
@@ -2803,26 +2798,21 @@ fn restate<T: Decide>(
 /// **Whether a face's refusal means its rows are not owed**: the one
 /// reading, shared by the minting pass ([`mint_rows`]), which leaves
 /// such a face storing nothing, and the at-rest pass
-/// ([`validate_pcurves`]), which reports nothing about it. Two arms, and
-/// only these:
-///
-/// - **an uncovered class** — a pair the chart can hold but no lane
-///   covers yet ([`PcurveCertifyError::UnsupportedCarrier`], whose
-///   `class` names it); each class leaves this arm in the change that
-///   wires its route;
-/// - **a scalar with no fitted door** ([`AtRestPolicy::fitted_lane`]
-///   answers `None`, as a dual's does) refusing a face only the fitted
-///   lane can image ([`PcurveCertifyError::FittedLaneUnsupported`]):
-///   that scalar certifies nothing fitted, so it owes no fitted row. The
-///   rule is the scalar's, not a class's — at every scalar that holds
-///   the door, a fitted refusal is a finding.
+/// ([`validate_pcurves`]), which reports nothing about it. One arm, and
+/// only this: **a scalar with no fitted door**
+/// ([`AtRestPolicy::fitted_lane`] answers `None`, as a dual's does)
+/// refusing a face only the fitted lane can image
+/// ([`PcurveCertifyError::FittedLaneUnsupported`]): that scalar
+/// certifies nothing fitted, so it owes no fitted row. The rule is the
+/// scalar's, not a class's — at every scalar that holds the door, a
+/// fitted refusal is a finding. Every (chart, carrier) class a chart
+/// can hold has a route, so no class is excused.
 fn not_owed<T: AtRestPolicy>(e: &PcurveMintError) -> bool {
     match e {
-        PcurveMintError::Certify { error, .. } => match error {
-            PcurveCertifyError::UnsupportedCarrier { .. } => true,
-            PcurveCertifyError::FittedLaneUnsupported { .. } => T::fitted_lane().is_none(),
-            _ => false,
-        },
+        PcurveMintError::Certify {
+            error: PcurveCertifyError::FittedLaneUnsupported { .. },
+            ..
+        } => T::fitted_lane().is_none(),
         _ => false,
     }
 }
@@ -4023,7 +4013,10 @@ fn singular_at<T: Decide>(
 /// point rather than from a stored latitude. On a plane or a spline
 /// chart the first channel is not an angle, and the arm is
 /// [`chart_u_arm`]'s rate.
-fn joint_arm<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point3<T>) -> ChartArm<T> {
+pub(crate) fn joint_arm<T: Real>(
+    chart: DescribedChart<'_, T>,
+    vertex: geom_core::Point3<T>,
+) -> ChartArm<T> {
     let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
         let w = vertex - origin;
         (w - axis * w.dot(axis)).norm()
@@ -4373,6 +4366,54 @@ fn near_pole_gap_closes<T: Decide>(
     })
 }
 
+/// **A joint's whole periods by the marks, with the near-pole read**:
+/// [`geom_brep::whole_period_count`] metered at the vertex's lever `arm`.
+/// Where a mark misses (undecided, or the gap on it), the unshifted gap
+/// decided within ε at that lever takes the image itself
+/// ([`near_pole_gap_closes`]): a band-sized lever (a vertex near a
+/// narrow cone's apex, whose incidence can decide it off the apex while
+/// its lever `d·sin α` is under the band) reads every mark as Zero, and
+/// the two chart points then agree in metres at the vertex.
+///
+/// # Errors
+///
+/// The marks' [`BranchMiss`] where the near-pole read does not close.
+pub(crate) fn lever_periods<T: Decide>(
+    name: &'static str,
+    arm: ChartArm<T>,
+    gap: T,
+    period: T,
+    band: Band,
+) -> Result<i32, BranchMiss> {
+    match whole_period_count(name, gap, period, |g| arm.meter(g), band) {
+        Err(miss @ (BranchMiss::Undecided(_) | BranchMiss::OnMark)) => {
+            near_pole_gap_closes(arm, gap, period, false, band).ok_or(miss)
+        }
+        decided => decided,
+    }
+}
+
+/// **The two branches astride a half-period mark**: where `gap` sits on
+/// or near the mark between `j` and `j + 1` periods, `[j, j + 1]`, with
+/// `j` decided by the marks of `gap` less half a period, which then sits
+/// near `j` periods, half a period from either of its own marks. A caller
+/// whose marks missed asks its question on both and keeps an answer only
+/// where the two agree.
+///
+/// # Errors
+///
+/// [`BranchMiss`] where `j`'s own marks miss.
+pub(crate) fn branches_astride<T: Decide>(
+    name: &'static str,
+    gap: T,
+    period: T,
+    meter: impl Fn(T) -> Margin<T>,
+    band: Band,
+) -> Result<[i32; 2], BranchMiss> {
+    let j = whole_period_count(name, gap - period * T::from_f64(0.5), period, meter, band)?;
+    Ok([j, j + 1])
+}
+
 /// **A spline chart's joint gap**: the entry `entry` and the
 /// predecessor's exit `prev` agree within ε through the chart's sup
 /// stretch on each channel ([`chart_u_arm`], [`v_meter`]). A net can
@@ -4506,7 +4547,7 @@ fn chart_edge<T: Decide>(
             matches!(chart, Surface::Plane { .. })
                 && matches!(walked.carrier, geom::Curve3::Line { .. })
         }
-        // A spiric image is curved on BOTH charts it lives on — the
+        // A spiric image is curved on EVERY chart it lives on — the
         // cap's `pm·f(t) + pa·sin t` and the wall's `atan2(f, d)`
         // azimuth — so it takes the envelope door below, which the
         // `_` arm there already answers from `eval` over the span
@@ -4649,8 +4690,8 @@ pub(crate) fn chart_period<T: AtRestPolicy>(chart: &Surface<T>, band: Band) -> O
 /// placeholder, both before any loop is walked;
 /// [`PcurveMintError`] — the loop walk's own refusals (a half of a null
 /// edge, a typed chart refusal such as
-/// [`PcurveCertifyError::UnsupportedCarrier`] for a `Nurbs` carrier on
-/// an analytic chart, a discontinuous or unclosed walk);
+/// [`PcurveCertifyError::CarrierOffChart`] for a carrier that cannot
+/// lie on its chart, a discontinuous or unclosed walk);
 /// [`PcurveMintError::EmptyOuter`] for a face whose outer loop is a
 /// lone vertex; [`PcurveMintError::UncertifiedImage`] for a fitted
 /// or general image on a face that stores no rows, and
@@ -6195,7 +6236,7 @@ mod derive_without_a_door {
 #[allow(clippy::unwrap_used, clippy::float_cmp, clippy::panic)]
 mod polar_shift_tests {
     use super::shift_polar_branch;
-    use geom_brep::{Pcurve, SpiricImage};
+    use geom_brep::{Pcurve, SpiricImage, WallTorus};
     use geom_core::{Point2, Vec2};
 
     /// **The meridional branch shift, at its own door.** A body cannot
@@ -6217,13 +6258,20 @@ mod polar_shift_tests {
                 u0: 0.25,
                 v0: 0.5,
                 sense: -1.0,
+                torus: WallTorus::Mirror,
             },
         };
         let Pcurve::Spiric {
             major,
             minor,
             offset,
-            image: SpiricImage::Wall { u0, v0, sense },
+            image:
+                SpiricImage::Wall {
+                    u0,
+                    v0,
+                    sense,
+                    torus,
+                },
         } = shift_polar_branch(&wall, 3.0, period)
         else {
             panic!("the wall arm keeps its variant and its image kind");
@@ -6231,6 +6279,7 @@ mod polar_shift_tests {
         assert_eq!(v0, 0.5 + 3.0 * period, "v0 takes the whole-period shift");
         assert_eq!(u0, 0.25, "the azimuth constant is the other door's");
         assert_eq!(sense, -1.0, "the sign is not a branch");
+        assert_eq!(torus, WallTorus::Mirror, "nor is the torus");
         assert_eq!((major, minor, offset), (0.09375, 0.0703125, 0.0078125));
 
         // A cap lives on a plane chart, where no joint decides a

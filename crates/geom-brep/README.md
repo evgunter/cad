@@ -543,11 +543,12 @@ validity is judged on what the producer returns. Every class of carrier
 a chart can hold has a route into a certified row, and a face no route
 covers refuses at the producer rather than reaching rest uncached. A
 carrier whose route refuses (a spline or a circle whose projected image
-reaches a pole) refuses at the producer like any other refusal: the
-exemption excuses only a class no route reaches, and a scalar that holds
+reaches a pole) refuses at the producer like any other refusal: no
+class goes unrouted, so the exemption excuses only a scalar that holds
 no certified lane, at which a net's projected row cannot read its hull. The
 lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
-plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
+plane-cap and torus-wall images of a `Curve3::Spiric`, on its own torus
+and on that torus's mirror through the cutting plane, data-free and
 closed from the carrier's own parameter), `FocalSection` (a conic
 whose projection onto the plane normal to the chart's axis has its
 focus on the axis, in two instances: a tilted plane×cone ellipse on its

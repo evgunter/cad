@@ -127,14 +127,18 @@ crates/topo/src/boolean/sectors.rs	1	constant	2.0 * other.len() as f64	a count
 crates/topo/src/boolean/separating.rs	1	constant	2.0 * pad	the band's sweep pad, a tolerance
 crates/topo/src/boolean/separating.rs	1	constant	f64::from(n)	a count
 crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction of the schedule
+crates/topo/src/boolean/solid_contain.rs	1	constant	f64::from(k)	a decided whole-period count
 crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/boolean/sphere_region.rs	1	constant	share	a fixed split fraction
 crates/topo/src/chart_bound.rs	1	constant	<fn>	a fixed direction of the 2-D ray schedule (SCHEDULE_2D)
 crates/topo/src/chart_bound.rs	1	constant	k	a ring shift count (RING_SHIFTS)
 crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/chart_region.rs	1	constant	n as f64	a count
+crates/topo/src/chart_region.rs	1	constant	f64::from(k)	a decided whole-period count
+crates/topo/src/chord_join.rs	1	constant	f64::from(k)	a decided whole-period count
 crates/topo/src/joint.rs	1	constant	f64::from(self.u)	the element's integer period count
 crates/topo/src/joint.rs	1	constant	f64::from(self.v)	the element's integer polar-branch count
+crates/topo/src/offset_derive.rs	1	constant	<fn>	certified_speed: an f64 carrier's stored net lifted to Interval (map_scalar) to read its certified speed bound
 crates/topo/src/pcurves.rs	1	constant	2.0 * band.zero()	the band's zero width, a tolerance
 crates/topo/src/pcurves.rs	1	constant	f64::from(k)	a whole-period count
 crates/topo/src/pcurves.rs	1	constant	f64::from(m)	a decided step count

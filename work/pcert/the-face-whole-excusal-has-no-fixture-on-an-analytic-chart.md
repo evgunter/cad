@@ -73,3 +73,23 @@ suites reached it at no scalar. The arm stays: it is reachable by
 construction. An iso-curve spline edge on a spline chart certifies with
 no lane at the dual, and an analytic face beside it is owed a fitted or
 projected row for that carrier. It has no fixture.
+
+## `MirrorTorusSpiric` is gone too (`pcert/mint-routes-spiric-nofitted`, 2026-10-12)
+
+The class now has its route: a mirror wall image. The whole oval that
+PR 4227 tried is now a fixture for a MINTED face
+(`crates/topo/tests/a_whole_spiric_oval_bounds_its_mirror_torus.rs`).
+`not_owed`'s first arm excuses `NoFittedClass` alone, and that class is
+reachable only on a spline chart (`stated_general_image_mint`), never on
+an analytic one.
+
+## The class arm is gone (`pcert/fitted-row-reads-carrier-and-chart`, PR 4900)
+
+`NoFittedClass`, the last uncovered class, is deleted, and with it
+`UncoveredClass`, `PcurveCertifyError::UnsupportedCarrier` and
+`not_owed`'s class arm. `not_owed` keeps one arm: a scalar with no
+fitted door (`FittedLaneUnsupported`). It has a fixture on a spline
+chart now: `stated_general_image_mint::at_dual64` reaches it, and those
+two rows were the only excusals a census of the topo, sweep,
+step-import, mesh and editor-core `ci` suites found. It still has no
+fixture on an analytic chart, which is what this item asks for.

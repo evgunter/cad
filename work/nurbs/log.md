@@ -999,3 +999,89 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - un-`pub` the unpaired `rational_span_speed_sup`.
   - **Class:** the issue's four-site census, a hand-written list, missed `mesh` chords `rational_carrier_m_bound` (recipe A on C′), plus `patch_bound` `rational_cells` and `offset_fit` `m_tilde_sup`. Part 2 takes them or files a row for each, with a hit list in its body.
   - **Brief correction (mine):** `weight_ratio_factor` is not inf-only until part 2 (pcurve_cache `nurbs_stretch_bounds` is a surface sup). — (NURBS orchestrator)
+
+- **2026-10-12 20:08Z — 4892 fix pass read (head `48801e68342514cb2ee8e16f307c0366b3f30589`).** All 7 items landed:
+  - `speed_upper_bound_on` deleted;
+  - weight arm deleted;
+  - pin at j outside the pair (14 exactly; the mutants read 2 and 8);
+  - locality row;
+  - rational offset_derive rows reaching `level_row` and `plane_spline_root`;
+  - `rational_span_speed_sup` private;
+  - one `session_memo` helper.
+  - "Lift once" is declined (perf only, needs a caller-side cache).
+  - `offset_fit` `m_tilde_sup` is accepted as out of class: a polynomial product, no quotient.
+  - **Build C corrected the reviewer:** the weight arm was not unreachable. Knot insertion can round a subnormal weight to 0, and `from_validated_parts` admits it. The bound reads non-finite there (pinned), so deleting the arm stays sound. The admission itself is a latent invariant breach. Build C files `knot-insertion-can-round-a-weight-to-zero` (P3) in this PR, and I post a seam note on KNOT (co-owner of `algebra.rs`). — (NURBS orchestrator)
+
+- **2026-10-12 20:40Z — PR 4904 (rational surface bound, part 2, stacked on 4892) up; single FULL reviewer dispatched.**
+  - The reviewer is session_01TTzHgrMCC5fMeXpHU6eyTA at `b56fe691f1b831b13034a76f4ccbae1f903e39d0`, confirmed connected.
+  - Tier FULL, because the surface twin of a soundness bound carries its own index arithmetic.
+  - Claims to falsify: surface soundness per direction; the routed sites (recognize, the pcurve sups, enclose bit-identical); the six-cell `frozen=` digest re-cut with disp=0; red-under-mutation including locality; the dispositions of patch_bound/chords (filed) and offset_fit (out of class).
+  - **4892 harness red explained:** `lo + (hi−lo)·n/n` rounded one ulp past the domain. The bound was not unsound there. The clamp is in 0e26675ae0.
+  - **4892 merge waits on one push:** main merged (contacthold 4809 and 4820 also touch `topo/src/shell.rs`) plus the zero-weight row. — (NURBS orchestrator)
+
+- **2026-10-12 21:00Z — PR 4904 FULL review: APPROVE-WITH-FIXES.**
+  - **What holds:**
+    - the surface statement is sound per direction (hand-checked, plus a 300-surface sweep, 0 failures);
+    - enclose is bit-identical (200k Interval cases, to_bits);
+    - the recognize None arms were dead;
+    - the digest re-cut reproduces at 1e-9 with disp=0.
+  - **The finding that matters:** the "j over the pair's own points only" mutant is UNSOUND (the true sup is up to 136× above it, on a coincident pair with a large weight step), and NO row catches it: not fuzz, not the named carriers, not recognize. This also refutes part 1's "no cubic Bézier beats pairs-only" search. Part 1's j-outside-the-pair pin catches it on curves by value only.
+  - **Class, logged as a rule I will brief from now on:** for a soundness bound, random fuzz does not witness each clause. Every clause whose removal is unsound owes a named witness row that goes red under the mutant that drops it, and every locality clause owes a row that goes red when the bound degrades.
+  - **Fix pass sent to build C:**
+    - the witness row (surface, plus a curve twin);
+    - a locality row;
+    - the stale "sup multiplies by the weight ratio" prose (a class: sweep `ratio`/`Floater`);
+    - `offset_meters` `patch_regularity` and mesh `nurbs_cert` `cell_readings` read patch_bound's recipe-A first-order sup → named in row (b) or routed;
+    - enclose `about` restates `RationalPairTerm::at` (a fresh copy of the duplication the PR closes);
+    - one per-pair builder;
+    - the tautological `the_two_doors_report_one_sup`;
+    - widen the fuzz;
+    - correct "fewer frozen ⇒ tighter".
+  - **Handed to build B's P2 floor row:** the inf side's `skipping_surface_derivative_net` with its own `denom == 0` skip. — (NURBS orchestrator)
+
+- **2026-10-12 21:50Z — PR 4892 merges** (`47226e9fb248e5c78a2a1e7cbe3273d39b248ac4` → main `9c414f94e8`).
+  - Its gate ok was green on a base containing contacthold 4809 and 4820 (which touch `shell.rs`).
+  - Main took 4831 and germ/conic after that run. I checked: no shared files, `merge-tree` clean, and none of main's new code calls an API 4892 removed. I merged rather than re-run.
+  - Seam notes are posted to SHELF/SHELL, PCERT/PCTAIL, TCOST/TINT and KNOT.
+  - Build C merges main into 4904 before its fix pass. — (NURBS orchestrator)
+
+- **2026-10-12 22:25Z — PR 4904 fix pass pushed** (head `064fcbb6fce841007133fdf468340051449110ee`; base is now main).
+  - The pair-only counterexample is pinned on the surface and on the curve. `check` asserts bound ≥ sampled floor, so it is red under the j-over-pair mutant.
+  - Part 1's search had drawn weights from {0.25…8} only. That was the blind spot.
+  - Also landed:
+    - a locality row;
+    - the stale ratio prose (m9_2 re-measured);
+    - row (b) names `patch_regularity` and `cell_readings`;
+    - `RationalPairTerm::about` as the one spelling, with private fields;
+    - one `pair_scale`;
+    - the tautological test deleted;
+    - the fuzz widened (degree 1–5, 10^±3, `expect` on KnotVector);
+    - the body corrected on `frozen`.
+  - Tier for the fix pass: orchestrator's read. Every item answers a named finding, and the refactors are covered by the rows that pinned the review's mutants.
+  - It merges on green. — (NURBS orchestrator)
+
+- **2026-10-12 23:10Z — PR 4904 merges** (`064fcbb6fce841007133fdf468340051449110ee` → main `51d913c3ca`).
+  - gate ok was green on a base containing main with 4892. Main's later drift shares no file with it, and no new main code reads a symbol it changed.
+  - The digest's six `frozen=` cells moved with it, and no other digest-touching merge is in between.
+  - The rational sup is now one statement for curves and surfaces. The design row `rational-speed-bounds-have-two-recipes-across-four-sites` is closed in the PR.
+  - Seam notes are posted to PCERT/PCTAIL, SSIARITH/SSIEDGE/SSIMARCH, EXCH and KNOT.
+  - Next: build B on the P2 inf floor. Build C is archived: its context was at about 700k, and its unit is done. — (NURBS orchestrator)
+
+- **2026-10-12 23:10Z — friction (message delivery).** Build C reports that six of my messages queued between 18:19Z and 21:49Z reached it only at about 23:09Z, up to five hours late.
+  - Its work kept pace only because I re-sent each ask as a `now` interrupt.
+  - The acknowledge-and-interrupt rule is what made the lane workable. A `next`-priority send to a lane polling CI in a long tool loop can sit for hours.
+  - From now on, the default for any ask that gates a merge is `now`. — (NURBS orchestrator)
+
+- **2026-10-12 23:15Z — build A dispatched on `knot-insertion-can-round-a-weight-to-zero`** (`nurbs/insert-weight-collapse`).
+  - Tier: single STYLE. It is a guard with one shared check, and the witness rows carry its correctness.
+  - Scope:
+    - every weight writer (insert, refine, elevate, surface twins) refuses with `WeightCollapse` through one shared check;
+    - the existing pin becomes the refusal;
+    - the hit list of weight-writing plans goes in the body.
+  - It does not collide with build B's `pcurve_cache` work. The KNOT seam is announced in the PR. — (NURBS orchestrator)
+
+- **2026-10-12 23:56Z — PR 4923 (zero-weight writer guard, build A) green-ready.**
+  - One shared admission, `written_weight`, guards insertion, refinement, elevation, removal and the surface twins.
+  - Plan, curve and surface rows each go red with a guard removed.
+  - The old pin is deleted; it read a curve that can no longer be built.
+  - Single STYLE reviewer session_01RSRJMupUMGh3L6aJcd1hrJ is dispatched at `c147c29b52181564f85f03a7f4a14fad4c3124f1`, confirmed connected. — (NURBS orchestrator)

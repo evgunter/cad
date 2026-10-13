@@ -2,7 +2,8 @@
 id: uncovered-chart-classes-have-no-incidence-test
 kind: issue
 title: An uncovered chart_pcurve class has no incidence test, so an off-chart carrier among them is excused as uncovered
-status: open
+status: closed
+closed: 2026-10-12
 opened: 2026-10-01
 ---
 
@@ -63,3 +64,18 @@ the chart can still lie within ε of it (a tangent segment of length
 `≲ √(8εR)` on a sphere), and is called off-chart. That posture is the
 lane's throughout (chart images are carrier images), and no producer is
 known to reach it.
+
+Moved by `pcert/mint-routes-spiric-nofitted` (2026-10-12): the
+spiric's foreign tori are no longer an uncovered class. The mirror torus
+mints its wall image, and every other torus refuses `CarrierOffChart`
+by the same coefficient match.
+
+## Closed (2026-10-12): no uncovered class remains
+
+With `MirrorTorusSpiric` routed (PR 4897) and `NoFittedClass` deleted
+(PR 4900), `UncoveredClass` and `PcurveCertifyError::UnsupportedCarrier`
+are deleted on `pcert/fitted-row-reads-carrier-and-chart`. No class is
+excused as uncovered, so none can hide an off-chart carrier. The
+smaller gap above (an edge within ε of a carrier that is off the
+chart) is the lane's stated posture, that chart images are carrier
+images, and no producer is known to reach it.

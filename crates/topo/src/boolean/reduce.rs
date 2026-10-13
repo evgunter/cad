@@ -4616,21 +4616,21 @@ mod declaration_order_rows {
                 true,
                 Some(true),
                 Coincide::VertexOnCoveredFace,
-                DeclarationRead::Spent(GlueClass::REST),
+                DeclarationRead::Spent(GlueClass::Rest),
             ),
             (
                 Some(ContactClass::Rest),
                 false,
                 Some(true),
                 uncovered,
-                DeclarationRead::Spent(GlueClass::REST),
+                DeclarationRead::Spent(GlueClass::Rest),
             ),
             (
                 Some(ContactClass::Tangent),
                 false,
                 Some(false),
                 uncovered,
-                DeclarationRead::Spent(GlueClass::TANGENT),
+                DeclarationRead::Spent(GlueClass::Tangent),
             ),
         ];
         for (class, one, door, which, read) in postures {
@@ -4880,7 +4880,7 @@ mod declaration_order_rows {
                     move |u, v, w| p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, w),
                     tol,
                 ),
-                GlueClass::REST,
+                GlueClass::Rest,
             ),
             (
                 "sunk into the block",

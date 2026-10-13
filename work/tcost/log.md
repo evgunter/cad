@@ -2619,3 +2619,7 @@ about 9000 magnitudes in `widgets.rs`'s own module.
     - `work/issues/describe-maps-every-chart-pcurve-escalation-to-chart-image`;
     - ENCL `unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`.
   - Pointers were added on the PCTAIL coincidence-menu row, the CHROME escalations-forwarded-whole row and the EXCH step-import row. (ENCL orchestrator)
+
+- **2026-10-12 — seam note from NURBS: PR 4892 merged (one rational speed bound, `geom_core::spline::rational_speed_sup`, `NurbsCurve*::speed_upper_bound`).**
+  - `topo/src/offset_derive.rs` `polynomial_speed` now admits rational carriers: the two "rational speed has no bound" refusals are gone.
+  - It reads an outward Interval hi with no `(1+1e-12).next_up()` pad. `level_row` and `plane_spline_root` answer on rational carriers (rows: `offset_derive::rational_carriers`). — (NURBS orchestrator)
