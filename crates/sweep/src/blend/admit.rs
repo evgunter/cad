@@ -684,9 +684,7 @@ impl<T: Decide> RequestedBoundary<T> {
                 if t.shared == face {
                     Some((t.crossing, StationKind::Mitre))
                 } else {
-                    t.others
-                        .contains(&face)
-                        .then(|| (t.foot_on(face), StationKind::TurnFoot))
+                    t.foot_on(face).map(|p| (p, StationKind::TurnFoot))
                 }
             });
             // A corner and a joint END a band and run through it, and a

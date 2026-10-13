@@ -276,13 +276,21 @@ pub fn leaning_turn(s: f64) -> (Body<f64>, [EdgeKey; 2]) {
     leaning_turn_at(s)
 }
 
-/// [`leaning_turn`] at the lean whose chamfer turn reads in `tol`'s
-/// band (`band_turn_overrun_verdict`'s window: `0.015°` at the default
-/// band, scaling as the square root of its zero, as the chamfer's gap
-/// does at a box corner), so the turn escalates for either verb.
+/// [`leaning_turn`] at [`lean_in_band`], where its chamfer turn
+/// escalates. A fillet's gap is linear in the lean, so the same lean is
+/// far outside its band: the fillet refuses its overrun
+/// (`blend::battery::TURN_OVERRUN`).
 pub fn leaning_turn_in_band(tol: Tol) -> (Body<f64>, [EdgeKey; 2]) {
+    leaning_turn(lean_in_band(tol))
+}
+
+/// The lean `s` at which [`leaning_turn`]'s chamfer turn at setback
+/// `0.1` reads in `tol`'s band (`band_turn_overrun_verdict`'s window:
+/// `0.015°` at the default band, scaling as the square root of its
+/// zero, as the chamfer's gap does at a box corner).
+pub fn lean_in_band(tol: Tol) -> f64 {
     let r = (geom_core::Band::linear(tol).expect("a band").zero() / 1e-9).sqrt();
-    leaning_turn((0.015 * r).to_radians().tan())
+    (0.015 * r).to_radians().tan()
 }
 
 /// [`leaning_turn`] at the scalar `T`: its corners read from `f64`.

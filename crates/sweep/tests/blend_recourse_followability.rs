@@ -452,13 +452,16 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
 /// (`band_turn_overrun_verdict`'s window, scaled with the run's band)
 /// escalates and carries the sentence. Each end it names builds: the
 /// feet meeting at equal face angles (no lean) and at supplementary ones
-/// (the sheared box's corner), the feet clearly apart (a lean of `0.5`,
-/// the overrun), and the third edge requested in the same call, the
-/// corner patch.
+/// (the sheared box's corner), the feet clearly apart by a more
+/// asymmetric corner (a lean of `0.5`) and by a larger setback (the same
+/// lean at `0.5`), each the overrun, and the third edge requested in the
+/// same call, the corner patch.
 #[test]
 fn the_turn_recourse_builds_at_each_end_it_names() {
     use crate::band_planar_cut_off::edge;
-    use crate::common::operands::{leaning_turn, leaning_turn_in_band, parallelepiped};
+    use crate::common::operands::{
+        lean_in_band, leaning_turn, leaning_turn_in_band, parallelepiped,
+    };
     let (leaning, bands) = leaning_turn_in_band(tol());
     let err = refusal(&leaning, &bands, 0.1, "a turn in band", true);
     assert!(
@@ -488,10 +491,19 @@ fn the_turn_recourse_builds_at_each_end_it_names() {
         "supplementary face angles",
     );
     let (apart, turn) = leaning_turn(0.5);
-    chamfers(&apart, &turn, 0.1, "the feet clearly apart");
-    let s = (0.015 * (Band::linear(tol()).expect("the run's band").zero() / 1e-9).sqrt())
-        .to_radians()
-        .tan();
+    chamfers(&apart, &turn, 0.1, "the feet clearly apart, a more asymmetric corner");
+    let larger = chamfer_edges(&sweep::test_support::at_rest(&leaning, tol()), &bands, 0.5, tol())
+        .unwrap_or_else(|e| panic!("a larger setback: the recourse's request must build, got {e:?}"));
+    validate_geometric(&larger.body, tol())
+        .unwrap_or_else(|e| panic!("a larger setback: tier 3, got {e:?}"));
+    assert!(
+        !larger
+            .coincidences
+            .iter()
+            .any(|r| r.relation == topo::Relation::CommonFoot),
+        "a larger setback moves the feet apart: the overrun, not a mitre"
+    );
+    let s = lean_in_band(tol());
     let third = edge(&leaning, [s, 0.0, 1.0], [0.0, 0.0, 0.0]);
     chamfers(
         &leaning,

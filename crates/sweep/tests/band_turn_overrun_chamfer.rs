@@ -620,21 +620,22 @@ fn bossed(a: f64, b: f64) -> (Body<f64>, [EdgeKey; 2]) {
     (bossed, edges)
 }
 
-/// **The overrun's footprint is metered as the far band's cut-off
-/// sliver** (arm (c)). At the bracket's `y = 0` corner the top edge's
-/// band reaches further down `L` (`√2·d` against `d`) and is cut off by
-/// the leaning wall: the overrun is the right triangle there with legs
-/// `(√2 − 1)·d` along `L` and `(1 − 1/√2)·d` along the near band's
-/// trimline, its incircle of radius `≈ 0.1·d` about `(1.1·d, 0.1·d)` in
-/// the wall's `(along L, across)` frame. A boss standing on the wall
-/// there has its ring past the near band's trimline, so that band's own
-/// meters pass it: the far band's sliver refuses it, at the leaning
-/// wall (its ring not certified clear of the sliver's region; a chord
-/// end's sliver reads a ring inside it as a bound). The same boss moved
-/// clear of the sliver, to
-/// `(2·d, 0.1·d)`, builds at the half-spaces' volume.
+/// **A boss standing in the overrun refuses.** At the bracket's `y = 0`
+/// corner the top edge's band reaches further down `L` (`√2·d` against
+/// `d`) and is cut off by the leaning wall: the overrun is the right
+/// triangle there with legs `(√2 − 1)·d` along `L` and `(1 − 1/√2)·d`
+/// along the near band's trimline, its incircle of radius `≈ 0.1·d`
+/// about `(1.1·d, 0.1·d)` in the wall's `(along L, across)` frame. A
+/// boss standing on the wall there has its ring past the near band's
+/// trimline, so that band's own meters pass it. Two meters refuse it:
+/// the far band's cut-off sliver (arm (c), `RingClearance` at the
+/// leaning wall, a bound reading) answers first, and the reach
+/// (`FaceClearance`) refuses it without arm (c). Either is a refusal of
+/// the right feature; the row holds that one of them answers. The same
+/// boss moved clear of the sliver, to `(2·d, 0.1·d)`, builds at the
+/// half-spaces' volume.
 #[test]
-fn the_overruns_sliver_meter_refuses_a_boss_in_it_and_builds_one_clear() {
+fn a_boss_in_the_overrun_refuses_and_one_clear_of_the_sliver_builds() {
     let (inside, edges) = bossed(1.1 * D, 0.1 * D);
     match chamfer_edges(&at_rest(&inside, tol()), &edges, D, tol()) {
         Err(e) => match e.error {
@@ -645,10 +646,11 @@ fn the_overruns_sliver_meter_refuses_a_boss_in_it_and_builds_one_clear() {
                 assert!(
                     matches!(surface, Some(Surface::Plane { normal, .. })
                         if (normal.x - normal.z).abs() < 1e-12 && normal.y.abs() < 1e-12),
-                    "the refusal names the leaning wall, got {surface:?}"
+                    "the sliver's refusal names the leaning wall, got {surface:?}"
                 );
             }
-            other => panic!("a boss in the overrun refuses at its sliver, got {other}"),
+            sweep::blend::BlendError::FaceClearance { .. } => {}
+            other => panic!("a boss in the overrun refuses at a clearance meter, got {other}"),
         },
         Ok(out) => panic!(
             "a boss in the overrun must refuse, built one whose tier 3 reads {:?}",
@@ -669,27 +671,51 @@ fn the_overruns_sliver_meter_refuses_a_boss_in_it_and_builds_one_clear() {
 /// **L blended in a later call** ends at the overrun's turn foot, a
 /// trivalent vertex, in the far band's face: its cut-off's feet land on
 /// that face's two rims there, the far band's trimline on L's other face
-/// and the overrun edge. At the leaning prism's `0.5` corner a second
-/// chamfer of L at the first's setback refuses (its band does not fit
-/// beside the short overrun edge); at a tenth of it L's foot lands on
-/// the overrun edge and the chamfer builds, tier-3 valid.
+/// and the overrun edge. At each of the leaning prism's overrun corners
+/// (`±0.5`, `±1`) a second chamfer of L at the first's setback refuses
+/// at the clearance screen, which cannot certify L's band clear of the
+/// faces about the short overrun edge (`FaceClearanceUncertified`); at a
+/// tenth of it L's foot lands on the overrun edge and the chamfer builds,
+/// tier-3 valid, taking what its half-space takes of the first chamfer's
+/// body (still a convex polytope, read off its own planes).
 #[test]
 fn a_later_chamfer_of_l_builds_where_its_foot_lands_on_the_overrun_edge() {
-    let (body, edges) = leaning_turn(0.5);
-    let out = chamfer(&body, &edges, "the overrun");
-    let foot = out.naming.as_ref().expect("births").turn_feet[0].0;
-    let b = &out.body;
-    let l = b
-        .edges_of_vertex(foot)
-        .expect("a fan")
-        .into_iter()
-        .find(|e| ends(b, *e).iter().any(|v| norm(point_at(b, *v)) < 1e-12))
-        .expect("L's piece runs from the turn foot to the origin");
-    assert!(
-        chamfer_edges(&at_rest(b, tol()), &[l], D, tol()).is_err(),
-        "L at the first setback refuses"
-    );
-    let later = chamfer_edges(&at_rest(b, tol()), &[l], 0.1 * D, tol())
-        .unwrap_or_else(|e| panic!("L at a tenth of the setback builds, got {}", e.error));
-    validate_geometric(&later.body, tol()).unwrap_or_else(|e| panic!("L later: tier 3, {e:?}"));
+    for s in [0.5, -0.5, 1.0, -1.0] {
+        let what = format!("lean {s}");
+        let (body, edges) = leaning_turn(s);
+        let out = chamfer(&body, &edges, &what);
+        let foot = out.naming.as_ref().expect("births").turn_feet[0].0;
+        let b = &out.body;
+        let l = b
+            .edges_of_vertex(foot)
+            .expect("a fan")
+            .into_iter()
+            .find(|e| ends(b, *e).iter().any(|v| norm(point_at(b, *v)) < 1e-12))
+            .expect("L's piece runs from the turn foot to the origin");
+        match chamfer_edges(&at_rest(b, tol()), &[l], D, tol()) {
+            Err(e) => assert!(
+                matches!(
+                    e.error,
+                    sweep::blend::BlendError::FaceClearanceUncertified { .. }
+                ),
+                "{what}: L at the first setback refuses at the clearance screen, got {}",
+                e.error
+            ),
+            Ok(_) => panic!("{what}: L at the first setback must refuse"),
+        }
+        let later = chamfer_edges(&at_rest(b, tol()), &[l], 0.1 * D, tol()).unwrap_or_else(|e| {
+            panic!(
+                "{what}: L at a tenth of the setback builds, got {}",
+                e.error
+            )
+        });
+        validate_geometric(&later.body, tol())
+            .unwrap_or_else(|e| panic!("{what}: L later: tier 3, {e:?}"));
+        let want = closed_form(&halves_of(b), b, &[l], 0.1 * D);
+        let removed = volume(b) - volume(&later.body);
+        assert!(
+            (removed - want).abs() < 1e-12,
+            "{what}: L later takes ΔV {removed} against its half-space's {want}"
+        );
+    }
 }

@@ -1909,7 +1909,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
                         if !turns.iter().any(|t| t.vertex == v) =>
                     {
                         let [l1, l2] = &*links;
-                        turns.push(turn_at(body, v, [l1, l2], third, band)?);
+                        turns.push(turn_at(body, v, [l1, l2], third, band, kind)?);
                     }
                     Some(EndVerdict::Turn(..)) | None => {}
                 }
@@ -2125,7 +2125,9 @@ pub enum TurnRunOut<T: Real> {
 /// band's face of the third edge, at `end` on that band's trimline, and
 /// the far band `far` is cut off past it by that face, from `end` down
 /// to its own foot ([`Turn::foot`]) — band `far`'s cut-off at that face,
-/// clipped at `end`.
+/// clipped at `end`. The verdict builds every chord it decides
+/// definite, so a just-definite overrun leaves an edge from `end` to the
+/// far foot barely longer than the band's `escalate` width.
 #[derive(Clone, Debug)]
 pub struct Overrun<T: Real> {
     /// The far band, as an index into [`Turn::requested`].
@@ -2133,6 +2135,15 @@ pub struct Overrun<T: Real> {
     /// The mitre's end `q`, on the near band's trimline on its face of
     /// the third edge: the far band's plane met with that trimline.
     pub end: Point3<T>,
+}
+
+impl<T: Real> Overrun<T> {
+    /// The near band, as an index into [`Turn::requested`]: the one the
+    /// mitre is cut across, whose face of the third edge the far band's
+    /// cut-off runs on.
+    pub fn near(&self) -> usize {
+        1 - self.far
+    }
 }
 
 impl<T: Real> Turn<T> {
@@ -2152,14 +2163,15 @@ impl<T: Real> Turn<T> {
         }
     }
 
-    /// The band's foot on `face`, one of [`Turn::others`]: where its
-    /// trimline there starts. The turn foot, but on the near band's face
-    /// at an overrun, the mitre's end.
-    pub fn foot_on(&self, face: FaceKey) -> Point3<T> {
-        match self.overrun() {
-            Some(o) if self.others[1 - o.far] == face => o.end,
+    /// The band's foot on `face`, where its trimline there starts: the
+    /// turn foot, but on the near band's face at an overrun, the mitre's
+    /// end. `None` for a face not in [`Turn::others`].
+    pub fn foot_on(&self, face: FaceKey) -> Option<Point3<T>> {
+        let i = self.others.iter().position(|f| *f == face)?;
+        Some(match self.overrun() {
+            Some(o) if o.near() == i => o.end,
             _ => self.foot,
-        }
+        })
     }
 }
 
@@ -2201,6 +2213,7 @@ fn turn_at<T: Decide>(
     links: [&Link<T>; 2],
     third: EdgeKey,
     band: Band,
+    kind: BlendKind,
 ) -> Result<Turn<T>, BlendError> {
     let [l1, l2] = links;
     let TurnReading {
@@ -2225,10 +2238,7 @@ fn turn_at<T: Decide>(
             )),
         ),
         TurnVerdict::Overrun { far } => {
-            if !links
-                .iter()
-                .all(|l| matches!(l.blend.surface, Surface::Plane { .. }))
-            {
+            if matches!(kind, BlendKind::Fillet) {
                 return Err(super::surgery::unbuilt_run_out(
                     EntityId::Edge(links[far].edge),
                     TURN_OVERRUN,
