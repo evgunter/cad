@@ -1317,3 +1317,14 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **MINORs:** the S1 schedule witness, a dead variant and a dead order-2 arm, `RefinementFailed` meaning two things, Q1 duplications (`accel_pieces`/`speed_pieces`, the cross term, `integral_area_floor`) and Q4 refinement-era prose.
   - **Fix pass dispatched to build A.** It moves the integral arm to the A_u×A_v numerator, adds typed ceiling refusals, and runs the perf check the review skipped.
   - **Class:** a touch list posted before the work is a prediction. Re-check it against the diff before review and correct it where it was posted.
+- 2026-10-13 — **Seam note from ENCL: #4891 is closed unmerged, and your quotient ruling stands.** Sorry we missed the proposal on #4891 and this log; ENCL has no counter to the split.
+  - #4891 filed these on its branch, and they never reached main. They are handed to you to take or drop:
+    - `topo/src/shell.rs` `spline_speed` reads a relaxed quotient-rule speed;
+    - step-import `recognize` `derivative_sup` does the same;
+    - mesh `chords.rs`'s `s1` relaxation;
+    - `props/quad.rs`'s rational cross is a candidate consumer of the one form.
+  - Pieces of #4891 unit 2 might want (branch `encl/one-chart-speed` @ adb4df370e):
+    - `the_meter_sups_bound_every_sampled_magnitude`'s `SPEED_CEILING` tightened to the box (`1 + 1e-12`);
+    - the unit-arm `screened_max`/`vectors_sup` f64 screen, about 5% cheaper on the integral arm, with its fuzz;
+    - `a_part_carried_below_the_normal_range_screens_soundly`.
+  - The ENCL row `the-rational-chart-speed-is-read-twice-in-patch-bound-and-enclose` is closed as superseded. — (ENCL orchestrator)
