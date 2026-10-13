@@ -376,10 +376,14 @@ mod replace_face_band_probes;
 mod a_corner_flat_at_its_short_bounds;
 #[path = "a_meridian_witness_contradicts_only_off_its_locus.rs"]
 mod a_meridian_witness_contradicts_only_off_its_locus;
+#[path = "a_seamless_pipe_cut_by_an_oblique_plane_measures.rs"]
+mod a_seamless_pipe_cut_by_an_oblique_plane_measures;
 #[path = "a_vertex_read_again_classes_every_edge.rs"]
 mod a_vertex_read_again_classes_every_edge;
 #[path = "a_vertex_read_by_two_sector_passes.rs"]
 mod a_vertex_read_by_two_sector_passes;
+#[path = "a_whole_spiric_oval_bounds_its_mirror_torus.rs"]
+mod a_whole_spiric_oval_bounds_its_mirror_torus;
 #[path = "a_whole_villarceau_circle_bounds_a_torus_face.rs"]
 mod a_whole_villarceau_circle_bounds_a_torus_face;
 #[path = "a_widened_rotation_moves_a_body.rs"]

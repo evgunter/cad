@@ -9441,4 +9441,63 @@ mod found_on_a_divided_face {
             got => panic!("{got:?}"),
         }
     }
+
+    /// A vertex a later stage took, as the join takes one: the record's
+    /// vertex is killed, and its interior is held now by an edge that
+    /// lies in the walled-off piece (the bottom edge of a small prism
+    /// standing on that piece, grafted in as a second shell). The record
+    /// lands on the edge and the piece it lies in, not on the key piece.
+    /// Red when the face of a taken vertex's row is read by its key.
+    #[test]
+    fn a_taken_vertexs_row_lands_on_the_piece_its_edge_lies_in() {
+        let tol = Tol::witness();
+        let (mut body, top, other) = divided();
+        assert!(
+            holds(&body, other, 1.5, 0.5),
+            "the walled-off piece holds the x > y half"
+        );
+        let stand = crate::test_support_fixtures::prism_z::<f64>(
+            &[(1.2, 0.2), (1.8, 0.2), (1.8, 0.8)],
+            1.0,
+            1.5,
+            tol,
+        );
+        let solid = body.solids().next().unwrap().0;
+        crate::boolean::combine::graft_solids_disjoint(&mut body, &[solid], &stand.body).unwrap();
+        let at = |p: Point3<f64>, x: f64, y: f64| (p.x, p.y, p.z) == (x, y, 1.0);
+        let edge = body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                let d = body.get_edge(e).unwrap();
+                let ends = [d.he_plus, d.he_minus].map(|h| {
+                    let v = body.get_half_edge(h).unwrap().start;
+                    *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+                });
+                (at(ends[0], 1.2, 0.2) && at(ends[1], 1.8, 0.2))
+                    || (at(ends[1], 1.2, 0.2) && at(ends[0], 1.8, 0.2))
+            })
+            .expect("the stand's edge along y = 0.2 on the top's plane");
+        let taken = body.mvfs(Point3::new(1.5, 0.2, 1.0), true).unwrap();
+        body.kvfs(taken.solid).unwrap();
+        let records: ContactRecords = [crate::Cited::new(
+            Contact::of(Cell::Vertex(taken.vertex), Cell::Face(top)).unwrap(),
+            crate::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect();
+        let mut divisions = crate::lineage::FaceDivisions::default();
+        divisions.push((other, top)).unwrap();
+        let mut desc = Descendants::default();
+        desc.substitute((Cell::Vertex(taken.vertex), Cell::Edge(edge)))
+            .unwrap();
+        let desc = desc.with_fragments([divisions.clone(), divisions]);
+        assert_eq!(
+            carry_in_place(&body, &records, &desc, band())
+                .unwrap()
+                .kinds()
+                .collect::<Vec<_>>(),
+            [ContactKind::EdgeFace(edge, other)]
+        );
+    }
 }

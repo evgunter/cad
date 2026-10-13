@@ -56,3 +56,10 @@ census's own reading order alone. Still open here:
 
 A record of a short tilted piece and a long one can still escalate at
 rest where the op that made it did not.
+
+## 2026-10-13: names retired by PR 4820 (FUSE)
+
+PR 4820 retired `ee_lineage`. An operand's carried edge-edge record
+is now placed on the pieces of a split edge by `boolean::ops::carried`
+(`operand_fate`, then `records::landings`), through the census's own
+record confirm.

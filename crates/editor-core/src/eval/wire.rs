@@ -2918,7 +2918,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let mut acc_table = Arc::clone(&views[0]);
     // Contact is judged here, pairwise, and nowhere else (DM4). Each
     // member's box is the separation certificate's hull, read through
-    // the certificate's one box door; a judged pair's body is discarded.
+    // the certificate's one box door; a judged pair's body is read only
+    // for where its classified edge pieces lie ([`names::UnionLinks`]).
     let hulls = members
         .iter()
         .map(|m| {
@@ -2972,7 +2973,9 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .map_err(NodeErrorKind::Naming)?;
             let verdicts = pair_verdicts(p, q, &out.coincidences);
             match out.record {
-                verbs::VerbRecord::Boolean { naming, .. } => Ok(Some((naming, rows, verdicts))),
+                verbs::VerbRecord::Boolean { naming, .. } => {
+                    Ok(Some(((naming, out.body), rows, verdicts)))
+                }
                 _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: verb.foreign_record,
                 })),
@@ -3058,7 +3061,9 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         },
                     )
                     .map_err(NodeErrorKind::Naming)?;
-                    links.judged(0, 1, &naming).map_err(NodeErrorKind::Naming)?;
+                    links
+                        .judged(0, 1, &naming, &out.body)
+                        .map_err(NodeErrorKind::Naming)?;
                 }
                 // The step's records in the node's terms: a row the step
                 // decided is a fold row, named in the node's own space
@@ -3147,7 +3152,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     tol,
                 )
                 .map_err(NodeErrorKind::Naming)?;
-                fold.step(step + 1, &naming, &out.body, &emitted.senses)
+                fold.step(step + 1, &naming, &out.body)
                     .map_err(NodeErrorKind::Naming)?;
                 acc_table = emitted.table;
                 step_groups.push(emitted.groups);
@@ -3293,14 +3298,14 @@ const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
 /// one verdict per pair ([`PairVerdict`]). `None` where a judged
 /// intersection is empty.
 #[allow(clippy::type_complexity)] // the judge's one record, or none for an empty intersection
-fn judge_pairwise_contact(
+fn judge_pairwise_contact<T: Decide>(
     hulls: &[bvh::Aabb],
     mut judge: impl FnMut(
         usize,
         usize,
     ) -> Result<
         Option<(
-            topo::BooleanNaming,
+            (topo::BooleanNaming, topo::AtRestBody<T>),
             Vec<crate::coincide::NamedCoincidence>,
             Vec<PairVerdict>,
         )>,
@@ -3308,7 +3313,7 @@ fn judge_pairwise_contact(
     >,
 ) -> Result<
     Option<(
-        names::UnionLinks,
+        names::UnionLinks<T>,
         Vec<crate::coincide::NamedCoincidence>,
         Vec<PairVerdict>,
     )>,
@@ -3324,10 +3329,12 @@ fn judge_pairwise_contact(
             if !hulls[p].overlaps(&hulls[q]) {
                 continue;
             }
-            let Some((naming, judged, glued)) = judge(p, q)? else {
+            let Some(((naming, body), judged, glued)) = judge(p, q)? else {
                 return Ok(None);
             };
-            links.judged(p, q, &naming).map_err(NodeErrorKind::Naming)?;
+            links
+                .judged(p, q, &naming, &body)
+                .map_err(NodeErrorKind::Naming)?;
             rows.extend(judged);
             verdicts.extend(glued);
         }

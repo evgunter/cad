@@ -311,7 +311,7 @@ fn a_wrong_number_in_the_image_refuses() {
 /// numbers moved by a quarter of ε certifies where the envelope reads
 /// the move under the band (and refuses, soundly, where it does not),
 /// and then the envelope covers the residual sampled densely over the
-/// span.
+/// span, up to the rounding of both at `f64`.
 #[test]
 fn the_envelope_covers_an_admitted_error() {
     let surface = torus();
@@ -362,9 +362,12 @@ fn the_envelope_covers_an_admitted_error() {
             };
             let sup = sampled_sup(&image, &carrier, a, b);
             assert!(sup > 0.1 * h, "{what}: off its carrier by only {sup:e}");
+            // The `f64` envelope is the exact sup's own rounding, and the
+            // samples carry theirs: a few ulps of the torus's size.
+            let rounding = 16.0 * f64::EPSILON * (MAJOR + MINOR + 1.0);
             let envelope = cache.certificate().envelope;
             assert!(
-                envelope >= sup,
+                envelope + rounding >= sup,
                 "{what}: envelope {envelope:e} under the sampled residual {sup:e}"
             );
             compared.push(name);

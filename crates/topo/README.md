@@ -396,8 +396,11 @@ touch is recorded as any pair whose interiors meet — an edge–edge record
 of the two edges on the line, citing the glue's tangency decision and
 confirmed by reconstruction from its bounding vertex records. Where the
 line runs through a face's interior the touch is a face–face curve
-touch; the reduction mints no face–face row, so that union refuses
-(`BooleanError::TangentSlitArmUnbuilt`) until it does.
+touch, recorded the same way and bounded by the records of the cells
+its ends lie in; where the two sides are one piece (the operands also
+overlap elsewhere, or a later op joins them), the result is one solid
+pinched along the line, carrying the same record. A pinch is a record,
+never a junction.
 
 The same substrate is the at-rest door: `validate_pseudomanifold` with
 mate declarations landed in `ContactRecords`, no boolean, no zip.

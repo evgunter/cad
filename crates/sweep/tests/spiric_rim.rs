@@ -729,7 +729,13 @@ fn a_displaced_azimuth_constant_reds_at_every_sample() {
         major,
         minor,
         offset,
-        image: geom_brep::SpiricImage::Wall { u0, v0, sense },
+        image:
+            geom_brep::SpiricImage::Wall {
+                u0,
+                v0,
+                sense,
+                torus,
+            },
     } = stored
     else {
         panic!("the wall's image is a spiric wall image");
@@ -743,6 +749,7 @@ fn a_displaced_azimuth_constant_reds_at_every_sample() {
             u0: u0 + delta,
             v0,
             sense,
+            torus,
         },
     };
     let floor = (major - minor) * 2.0 * (delta / 2.0).sin();
@@ -1171,7 +1178,7 @@ mod interval_rows {
                     major,
                     minor,
                     offset: image_offset,
-                    image: geom_brep::SpiricImage::Wall { sense, .. },
+                    image: geom_brep::SpiricImage::Wall { sense, torus, .. },
                 } = *cache.pcurve()
                 else {
                     panic!("the wall's image is a spiric wall image");
@@ -1190,6 +1197,11 @@ mod interval_rows {
                     geom_core::Real::abs(sense).lo() == 1.0
                         && geom_core::Real::abs(sense).hi() == 1.0,
                     "the wall's sense is exactly a unit sign at the certified scalar: {sense:?}"
+                );
+                assert_eq!(
+                    torus,
+                    geom_brep::WallTorus::Own,
+                    "a rim lies on its own torus"
                 );
                 let cert = cache.certificate();
                 assert_eq!(

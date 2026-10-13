@@ -1164,18 +1164,6 @@ fn c4_band_refuses_every_mate_at_the_door_and_reaches_every_instance_overflow() 
     band_refuses_every_mate(&doc, &ids);
 }
 
-/// **`Band` reaches every row: K·ε rounds back onto ε.**
-#[test]
-fn c4_band_refuses_every_mate_at_the_door_and_reaches_every_instance_empty() {
-    Tolerance::init(Tolerance {
-        eps: 5e-324,
-        k: 1.0 + f64::EPSILON,
-    })
-    .expect("first commit in this process");
-    let (doc, ids) = band_document("msolve8-c4-empty");
-    band_refuses_every_mate(&doc, &ids);
-}
-
 /// **`PosesOfAnotherDocument` reaches no row.** A solved document of
 /// five instances and two mates records it against nothing;
 /// `SolvedPoses::placement` raises it for every instance when read

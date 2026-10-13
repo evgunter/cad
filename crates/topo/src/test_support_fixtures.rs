@@ -1781,6 +1781,38 @@ pub fn half_disc_cap(off: f64, tol: Tol) -> (Body<f64>, FaceKey, Point3<f64>) {
     (body, cap, end)
 }
 
+/// **A whole-period gap over a box**, for the rows that read a branch
+/// decided as structure. Run `f` in a fresh symbolic session at
+/// `Sym<Interval>`, handing it `(a, b)` whose difference is the
+/// polynomial `periods·τ` in a parameter over `[0.2, 0.4]`, while
+/// neither side is a constant: `a = p² + p + periods·τ`, `b = p·(p + 1)`.
+/// The value channel of `a − b` is about 0.64 rad wide (the box,
+/// with its dependency lost), so a decision on a residual built from
+/// the gap is definite only where its form is the zero polynomial.
+#[cfg(test)]
+pub(crate) fn whole_period_gap_over_a_box<R>(
+    periods: f64,
+    f: impl FnOnce(geom_core::Sym<geom_core::Interval>, geom_core::Sym<geom_core::Interval>) -> R,
+) -> (R, geom_core::sym::SymCounts) {
+    use geom_core::{Interval, ParamSymbol, Sym, SymBudget};
+    let budget = SymBudget {
+        max_terms: 64,
+        max_degree: 8,
+    };
+    geom_core::sym::with_session(budget, || {
+        let p = Sym::param_over(
+            ParamSymbol::new(test_utils::symbol_id("branch_box")),
+            Interval::from_bounds(0.2, 0.4),
+            0.2,
+            0.4,
+        );
+        let one = Sym::<Interval>::one();
+        let a = p * p + p + Sym::from_f64(periods) * Sym::tau();
+        let b = p * (p + one);
+        f(a, b)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

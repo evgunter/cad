@@ -978,12 +978,10 @@ impl<E: CertifiedBounds> RationalWindow<'_, E> {
     /// a rational spline (module docs).
     fn weights_positive(self) -> bool {
         let (first, last) = (self.span.first_control(), self.span.index());
-        // `w > 0.0` is false for NaN, so a NaN weight refuses (the spline
-        // substrate's NaN-catching discipline, in its positive form).
         // Indexing justified: last ≤ control_count() − 1 = weights.len() − 1.
         self.pair.weights[first..=last]
             .iter()
-            .all(|w| *w > 0.0 && w.is_finite())
+            .all(|w| crate::spline::weight_in_regime(*w))
     }
 
     /// Enclosure of the **rational** scalar spline's values over this
