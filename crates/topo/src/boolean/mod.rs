@@ -238,6 +238,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         }
         // The coincidences these names decide.
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
+        "bool_held_carrier_datum" => {
+            "whether a face lies on the carrier of a face its pierce point's vertex bounds"
+        }
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
         "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" | "bool_cone_arc"
@@ -1769,6 +1772,9 @@ pub struct BooleanReduction<T: Real> {
     pub contacts: ReductionContacts,
     /// Every null edge minted, both operands, insertion order.
     pub null_edges: Vec<BoolNullEdgeRecord<T>>,
+    /// Each operand's null-edge copies, checked as each null edge was
+    /// recorded ([`NullEdges::extend`]).
+    pub(crate) copies: [crate::lineage::VertexCopies; 2],
     /// The cross-body correspondence pairs.
     pub null_pairs: Vec<NullEdgePairRecord>,
     /// Pierced-face ring insertions.
@@ -2411,6 +2417,29 @@ pub enum BooleanError {
         /// geometry.
         wedge: geom_brep::MaterialWedge,
     },
+    /// **A pierce point inside a face of the piercing operand that the
+    /// Boolean cannot yet build a vertex in** (`vtxfac::faces_holding_pierce`).
+    /// An operand whose solids touch, one's edge lying in another's face,
+    /// pierces the other operand's face where that face crosses its own,
+    /// and the section of the two passes the point. The vertex that needs
+    /// is built where both faces are planes; here one is curved, or the
+    /// curved face's trim could not say whether it holds the point.
+    /// Refused before anything is built.
+    HeldPierceUnbuilt {
+        /// The piercing operand, whose face holds the point.
+        operand: Operand,
+        /// The face that holds the point.
+        face: FaceKey,
+        /// The other operand's face the point pierces.
+        pierced: FaceKey,
+        /// The holding face's surface kind.
+        kind: geom::SurfaceKind,
+        /// The pierced face's surface kind.
+        pierced_kind: geom::SurfaceKind,
+        /// Whether the holding face's trim placed the point inside it:
+        /// `false` where it could not read its trim there.
+        placed: bool,
+    },
     /// A boolean's input ([`BooleanInputs`]) references an entity that
     /// does not resolve in its operand (stale/foreign key, or a
     /// non-planar given face), or gives a pair a relation that does not
@@ -2460,6 +2489,19 @@ pub enum BooleanError {
         /// it crosses into more. Keys of the other operand's working
         /// copy, as `vertex` is.
         partners: [VertexKey; 2],
+    },
+    /// The operands meet along a ray where one or both hold coincident
+    /// edges, pieces of that operand touching along it (a contact line),
+    /// and more than one pair of the two operands' edges on the ray
+    /// crosses: two or more edge-edge germs along one ray of one vertex
+    /// pair (`recl::recl_edges`), whose sections along the line the
+    /// insertion does not yet place apart. The operation applied to the
+    /// pieces before they are joined meets no contact line there.
+    CrossingsAlongAContactLine {
+        /// A's vertex on the line: a key of A's working copy.
+        a_vertex: VertexKey,
+        /// B's vertex there: a key of B's working copy.
+        b_vertex: VertexKey,
     },
     /// Cones of one operand that touch along a ray lying in the other's
     /// face: the pierces of that face at one point read germs along one
@@ -2884,9 +2926,10 @@ pub enum BooleanError {
         /// The typed pcurve-pass refusal, nested whole.
         source: crate::pcurves::PcurveMintError,
     },
-    /// The joining stage's chord machinery refused (PR 5; nested
-    /// whole — includes `UnpairedLooseEnds` and `SectionLoopMixed`).
-    Join(SplitJoinError),
+    /// The joining stage's chord machinery refused, nested whole
+    /// (`UnpairedLooseEnds`, `SectionLoopMixed`, …): never a lineage row,
+    /// which is [`Self::LineageRow`] ([`BooleanJoin`]).
+    Join(BooleanJoin),
     /// The output stage's join could not decide whether a valence-2
     /// vertex is a regular point of its edges' carrier: a reading in
     /// the margin band (D4 ¶3).
@@ -3033,8 +3076,10 @@ pub enum BooleanError {
         /// What failed to resolve.
         what: &'static str,
     },
-    /// The F7 output stage (`merge_coplanar_faces`) refused.
-    Merge(MergeCoplanarError),
+    /// The F7 output stage (`merge_coplanar_faces`) refused, nested
+    /// whole: never its re-description of a kept boundary, which refuses
+    /// as the Boolean's own description does ([`BooleanMerge`]).
+    Merge(BooleanMerge),
     /// The result did not pass the door's at-rest gate (tier 3,
     /// [`crate::AtRestPolicy::gate_at_rest_kept`]; tiers 1 and 2 and
     /// the scaffold fence where the scalar runs none), loudly — no body
@@ -3214,6 +3259,8 @@ pub enum BooleanErrorKind {
     UnsupportedDeclarationClass,
     /// [`BooleanError::RimCuspArmUnbuilt`].
     RimCuspArmUnbuilt,
+    /// [`BooleanError::HeldPierceUnbuilt`].
+    HeldPierceUnbuilt,
     /// [`BooleanError::InvalidInput`].
     InvalidInput,
     /// [`BooleanError::PairingMismatch`].
@@ -3224,6 +3271,8 @@ pub enum BooleanErrorKind {
     PinchConesOnSeparateKeys,
     /// [`BooleanError::PinchRaysInAFace`].
     PinchRaysInAFace,
+    /// [`BooleanError::CrossingsAlongAContactLine`].
+    CrossingsAlongAContactLine,
     /// [`BooleanError::VertexReadTwice`].
     VertexReadTwice,
     /// [`BooleanError::PartnerAlongFace`].
@@ -3463,11 +3512,13 @@ impl BooleanError {
                 BooleanErrorKind::UnsupportedDeclarationClass
             }
             Self::RimCuspArmUnbuilt { .. } => BooleanErrorKind::RimCuspArmUnbuilt,
+            Self::HeldPierceUnbuilt { .. } => BooleanErrorKind::HeldPierceUnbuilt,
             Self::InvalidInput { .. } => BooleanErrorKind::InvalidInput,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PinchConesOnSeparateKeys { .. } => BooleanErrorKind::PinchConesOnSeparateKeys,
             Self::PinchRaysInAFace { .. } => BooleanErrorKind::PinchRaysInAFace,
+            Self::CrossingsAlongAContactLine { .. } => BooleanErrorKind::CrossingsAlongAContactLine,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::PartnerAlongFace { .. } => BooleanErrorKind::PartnerAlongFace,
             Self::NestingUnread { .. } => BooleanErrorKind::NestingUnread,
@@ -3956,6 +4007,28 @@ impl core::fmt::Display for BooleanError {
                  the kernel yet",
                 pair.class.name()
             ),
+            Self::HeldPierceUnbuilt {
+                operand,
+                kind,
+                pierced_kind,
+                placed,
+                ..
+            } => write!(
+                f,
+                "a solid of the {} operand has an edge lying in a {} face of another of its \
+                 solids, and a {} face of the other operand crosses both there{}; the Boolean \
+                 builds that only on two planes. Recourse: join the \
+                 solid holding that face to the other operand first, or move the edge off the \
+                 face",
+                operand_word(*operand),
+                kind_word(*kind),
+                kind_word(*pierced_kind),
+                if *placed {
+                    ""
+                } else {
+                    " (or may: its outline is unread there)"
+                },
+            ),
             Self::InvalidInput { operand, what } => write!(
                 f,
                 "an input on the {} operand is invalid: {what}",
@@ -3982,6 +4055,14 @@ impl core::fmt::Display for BooleanError {
                  the other solid, in a way the Boolean cannot yet join. There is no \
                  way through this in the kernel yet",
                 operand_word(*operand)
+            ),
+            Self::CrossingsAlongAContactLine { .. } => write!(
+                f,
+                "the solids meet along a line where pieces of one or both touch, and \
+                 they cut into each other there across more than one piece, which the \
+                 Boolean cannot yet join. Recourse: apply the operation to the pieces \
+                 before they are joined to each other, or move one solid so its edges \
+                 leave the line"
             ),
             Self::PinchConesOnSeparateKeys { operand, .. } => write!(
                 f,
@@ -4735,7 +4816,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         ));
     }
 
-    let mut null_edges = Vec::new();
+    let mut null_edges = NullEdges::default();
     let mut null_pairs = Vec::new();
     let mut pierce_rings = Vec::new();
     let mut ring_ties = Vec::new();
@@ -4805,6 +4886,46 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 )?);
             }
         }
+        // A pierce point inside a face of the piercing body's own adds a
+        // pierce there, which its ring serves (`vtxfac::faces_holding_pierce`).
+        let (piercing_body, pierced_body) = match operand {
+            Operand::A => (&mut a, &b),
+            Operand::B => (&mut b, &a),
+        };
+        let mut held = Vec::new();
+        // Each curved face's box, read once: a pierce point is placed in
+        // a curved face only where its box holds the point.
+        let mut curved_boxes = std::collections::BTreeMap::new();
+        if minted.iter().any(|(_, plan)| plan.is_some()) {
+            let pad = boxes::sweep_pad(band);
+            let curved: Vec<FaceKey> = piercing_body
+                .faces()
+                .map(|(k, _)| k)
+                .filter(|&k| reduce::face_plane(piercing_body, k).is_none())
+                .collect();
+            for face in curved {
+                curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band)?);
+            }
+        }
+        let box_holds = |face: FaceKey, p: Point3<T>| {
+            let point = bvh::Aabb::from_points([p]).unwrap_or_else(bvh::Aabb::poison);
+            curved_boxes.get(&face).is_none_or(|b| b.overlaps(&point))
+        };
+        for (_, plan) in &minted {
+            if let Some(plan) = plan {
+                held.extend(vtxfac::faces_holding_pierce(
+                    piercing_body,
+                    pierced_body,
+                    &box_holds,
+                    plan,
+                    band,
+                    tol,
+                )?);
+            }
+        }
+        let held_on: std::collections::BTreeMap<_, _> =
+            held.iter().map(|h| (h.plan.contact.vertex, h.on)).collect();
+        minted.extend(held.into_iter().map(|h| (vec![h.strut], Some(h.plan))));
         // Each ring is minted, and its records read, where its first
         // pierce was: a face pierced at one point alone mints as it
         // would beside its piercing side.
@@ -4820,11 +4941,21 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         };
         let mut rings = std::collections::BTreeMap::new();
         let (groups, ties) = vtxfac::ring_groups(&only, band)?;
-        ring_ties.extend(ties.into_iter().map(|(i, j, margin)| RingTie {
-            operand,
-            a: only[i].contact.vertex,
-            b: only[j].contact.vertex,
-            margin,
+        // A held pierce stands at its pierce's point because the point
+        // lies on its face, so a tie to one cites that decision. Held
+        // pierces follow every pierce the sweep found, and a tie's `j`
+        // follows its `i`, so a tie holds one at `j` wherever it holds
+        // one, and two held pierces tie by the later's.
+        ring_ties.extend(ties.into_iter().map(|(i, j, margin)| {
+            RingTie {
+                operand,
+                a: only[i].contact.vertex,
+                b: only[j].contact.vertex,
+                margin: held_on
+                    .get(&only[j].contact.vertex)
+                    .copied()
+                    .unwrap_or(margin),
+            }
         }));
         for group in groups {
             let members: Vec<_> = group.iter().map(|&k| plans[k].1).collect();
@@ -4832,9 +4963,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             rings.insert(plans[group[0]].0, ring);
         }
         for (i, (edges, _)) in minted.into_iter().enumerate() {
-            null_edges.extend(edges);
+            null_edges.extend(edges)?;
             if let Some(ring) = rings.remove(&i) {
-                null_edges.extend(ring.edges);
+                null_edges.extend(ring.edges)?;
                 null_pairs.extend(ring.pairs);
                 pierce_rings.push(ring.ring);
             }
@@ -5057,8 +5188,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let hangs = insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
     let hung = hung_points(&hangs, &contacts.vv, [&a, &b])?;
     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
-    null_edges.extend(out.edges);
+    null_edges.extend(out.edges)?;
     null_pairs.extend(out.pairs);
+    let NullEdges {
+        records: null_edges,
+        copies,
+    } = null_edges;
     let held = border_held(held, &covered, &null_edges, &a, &b)?;
     let rest_contacts = decls
         .pairs
@@ -5099,6 +5234,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         b: carved_b,
         contacts: ReductionContacts { ee, ..contacts },
         null_edges,
+        copies,
         null_pairs,
         pierce_rings,
         ring_ties,
@@ -5261,6 +5397,48 @@ struct Touch<T: Real> {
     face: FaceKey,
     /// Each pair's partner side and rows, in pair order.
     pairs: Vec<vtxfac::PairRead<T>>,
+}
+
+/// The reduction's null edges as it records them, both operands, in
+/// insertion order, with each operand's copies: every end of a null
+/// edge other than the vertex it was minted at, which the null edge
+/// minted ([`crate::null::mev_null_run`]).
+struct NullEdges<T: Real> {
+    records: Vec<BoolNullEdgeRecord<T>>,
+    copies: [crate::lineage::VertexCopies; 2],
+}
+
+impl<T: Real> Default for NullEdges<T> {
+    fn default() -> Self {
+        Self {
+            records: Vec::new(),
+            copies: Default::default(),
+        }
+    }
+}
+
+impl<T: Real> NullEdges<T> {
+    /// Records `minted`, each copy checked as it is added.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::LineageRow`] where a copy is not one the null edge
+    /// minted: an earlier record names it.
+    fn extend(
+        &mut self,
+        minted: impl IntoIterator<Item = BoolNullEdgeRecord<T>>,
+    ) -> Result<(), BooleanError> {
+        for r in minted {
+            let copies = &mut self.copies[usize::from(r.operand == Operand::B)];
+            for end in [r.attr.below_end, r.attr.above_end] {
+                if end != r.at_vertex {
+                    copies.push((end, r.at_vertex))?;
+                }
+            }
+            self.records.push(r);
+        }
+        Ok(())
+    }
 }
 
 /// The two vertices each null edge joins, `(operand, below end, above
@@ -6563,16 +6741,86 @@ fn validate_declarations<T: Decide>(
     Ok(())
 }
 
-impl BooleanError {
-    /// The chord join's refusal as the Boolean's: nested whole
-    /// ([`Self::Join`]), except a lineage row the join's division list
-    /// refused, which is the Boolean's own [`Self::LineageRow`], so one
-    /// lineage refusal reaches a caller one way.
-    #[must_use]
-    pub fn of_join(error: SplitJoinError) -> Self {
-        match error {
-            SplitJoinError::LineageRow(refusal) => refusal.into(),
-            other => Self::Join(other),
+pub use join_lift::BooleanJoin;
+
+/// The one conversion of a chord-join refusal into the Boolean's, held
+/// by the type: [`BooleanJoin`]'s field is private to this module, so
+/// [`BooleanError::Join`] is built only here, and never around a
+/// lineage row.
+mod join_lift {
+    use super::{BooleanError, SplitJoinError};
+
+    /// A chord-join refusal the Boolean nests whole: any
+    /// [`SplitJoinError`] but a lineage row.
+    #[derive(Debug)]
+    pub struct BooleanJoin(SplitJoinError);
+
+    impl BooleanJoin {
+        /// The join's own refusal.
+        #[must_use]
+        pub fn error(&self) -> &SplitJoinError {
+            &self.0
+        }
+    }
+
+    impl core::fmt::Display for BooleanJoin {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            self.0.fmt(f)
+        }
+    }
+
+    /// Nested whole ([`BooleanError::Join`]), except a lineage row the
+    /// join's division list refused, which is the Boolean's own
+    /// [`BooleanError::LineageRow`], so one lineage refusal reaches a
+    /// caller one way.
+    impl From<SplitJoinError> for BooleanError {
+        fn from(error: SplitJoinError) -> Self {
+            match error {
+                SplitJoinError::LineageRow(refusal) => refusal.into(),
+                other => Self::Join(BooleanJoin(other)),
+            }
+        }
+    }
+}
+
+pub use merge_lift::BooleanMerge;
+
+/// The one conversion of a merge-door refusal into the Boolean's, held
+/// by the type: [`BooleanMerge`]'s field is private to this module, so
+/// [`BooleanError::Merge`] is built only here, and never around the
+/// door's re-description of a kept boundary.
+mod merge_lift {
+    use super::{BooleanError, MergeCoplanarError};
+
+    /// A merge-door refusal the Boolean nests whole: any
+    /// [`MergeCoplanarError`] but a kept boundary left undescribed.
+    #[derive(Debug)]
+    pub struct BooleanMerge(MergeCoplanarError);
+
+    impl BooleanMerge {
+        /// The merge door's own refusal.
+        #[must_use]
+        pub fn error(&self) -> &MergeCoplanarError {
+            &self.0
+        }
+    }
+
+    impl core::fmt::Display for BooleanMerge {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            self.0.fmt(f)
+        }
+    }
+
+    /// Nested whole ([`BooleanError::Merge`]), except the door's
+    /// re-description of its kept faces' boundaries, which refuses as the
+    /// Boolean's own description pass does (`ops::of_describe`), so one
+    /// undescribed edge reaches a caller one way.
+    impl From<MergeCoplanarError> for BooleanError {
+        fn from(error: MergeCoplanarError) -> Self {
+            match error.kept_boundary() {
+                Some(described) => super::ops::of_describe(described),
+                None => Self::Merge(BooleanMerge(error)),
+            }
         }
     }
 }
@@ -7383,6 +7631,10 @@ mod tests {
                 operand: Operand::A,
                 face,
             },
+            BooleanError::CrossingsAlongAContactLine {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+            },
             BooleanError::VertexReadTwice {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
@@ -7597,11 +7849,13 @@ mod tests {
                 BooleanErrorKind::ContinuationContradicted => "ContinuationContradicted",
                 BooleanErrorKind::UnsupportedDeclarationClass => "UnsupportedDeclarationClass",
                 BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",
+                BooleanErrorKind::HeldPierceUnbuilt => "HeldPierceUnbuilt",
                 BooleanErrorKind::InvalidInput => "InvalidInput",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PinchConesOnSeparateKeys => "PinchConesOnSeparateKeys",
                 BooleanErrorKind::PinchRaysInAFace => "PinchRaysInAFace",
+                BooleanErrorKind::CrossingsAlongAContactLine => "CrossingsAlongAContactLine",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::PartnerAlongFace => "PartnerAlongFace",
                 BooleanErrorKind::NestingUnread => "NestingUnread",
