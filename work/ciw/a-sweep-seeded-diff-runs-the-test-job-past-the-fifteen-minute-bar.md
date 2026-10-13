@@ -90,12 +90,16 @@ of its test steps brings the job under it.
 - **Taken: #5001.** Memoising the whole-cell nets takes the shell row
   from 1692 s back to 284 s locally. The cut-net remainder is on
   NURBS's slate.
-- **Taken: the tour's own crate at opt-1** (`demos/tour/Cargo.toml`).
+- **Tried, not kept: the tour's own crate at opt-1**
+  (`[profile.release.package.demo-tour] opt-level = 1`).
   - Locally, 4 cores: the `demo-tour` units drop from about 553 s to
     463 s of build wall, and from 1825 to 1682 cpu-s.
   - The tests run in 381 s at opt-3 and 384 s at opt-1; all 94 pass.
-  - The saving is small because the cost is the crate instantiating
-    the kernel's generics, not optimising them.
+  - Hosted (#5010, `demos` job 115486892202): the tour step goes from
+    24m04s to 23m32s, about 45 s saved.
+  - That is under the 3-min bar a profile override has to clear.
+  - The cost is the crate instantiating the kernel's generics, not
+    optimising them.
 - **Declined: caching the workspace crates across runs.**
   - Over 3 days, 115 of main's 571 first-parent commits changed `src/`
     in geom-core, geom, geom-brep or topo. That is 88% of the commits
