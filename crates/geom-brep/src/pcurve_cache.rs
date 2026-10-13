@@ -7756,7 +7756,13 @@ fn derive_class<T: Decide>(
                             ));
                         }
                     };
-                    let start = (r0 + ra) * ns;
+                    // The vertex at `t = 0` lies along `ra` from the axis:
+                    // `r0 = −e·ra` (the focus), so `r0 + ra = (1 − e)·ra`
+                    // with `1 − e > 0`. Its azimuth is read off `ra`
+                    // alone, because the sum cancels to `A·k²/2` near a
+                    // parabola and would turn any off-plane rounding in
+                    // the centre by `1/k²`.
+                    let start = ra * ns;
                     Ok((
                         Pcurve::FocalSection(FocalImage {
                             u0: stable_azimuth(start.dot(cv), start.dot(u_ref), band),
