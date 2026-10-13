@@ -240,30 +240,29 @@ fn the_bound_reads_each_pair_against_its_own_spans_points() {
     check("a far point active on the last span only", &c);
 }
 
-/// **A refinement that rounds a weight to zero reads no finite low
-/// bound.** On a net of the least subnormal weight, a midpoint
-/// insertion forms `½·w + ½·w`, and each half rounds to zero: the
-/// refined curve holds a zero weight the constructor would refuse.
-/// The bound divides by that zero least weight, so it reads `+∞` or
-/// NaN, never a number below the true speed.
-/// The insertion side: `work/nurbs/knot-insertion-can-round-a-weight-to-zero.md`.
+/// **A subnormal-positive least weight reads no low bound.** The
+/// bound divides by the least weight, which here is the least subnormal
+/// (`f64::from_bits(1)`): it must read non-finite, or at least the
+/// sampled sup, never a low number. One carrier with the subnormal in
+/// the middle (the curve is nearly the chord) and one with it at both
+/// ends (the speed there is enormous).
 #[test]
-fn a_weight_collapsed_by_refinement_reads_no_finite_bound() {
+fn a_subnormal_least_weight_reads_no_low_bound() {
     let w = f64::from_bits(1);
-    let c = curve(
-        vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
-        2,
-        &[(0.0, 0.0), (1.0, 1.0), (2.0, 0.0)],
-        vec![w, w, w],
-    );
-    let refined = c.insert_knot(0.5, 1).expect("the insertion is admitted");
-    assert!(
-        refined.weight_channel().contains(&0.0),
-        "the midpoint insertion kept every weight positive: {:?}",
-        refined.weight_channel()
-    );
-    let m = refined.speed_upper_bound().get();
-    assert!(!m.is_finite(), "a collapsed weight read a finite bound {m}");
+    for (name, weights) in [("middle", vec![1.0, w, 1.0]), ("ends", vec![w, 1.0, w])] {
+        let c = curve(
+            vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+            2,
+            &[(0.0, 0.0), (1.0, 1.0), (2.0, 0.0)],
+            weights,
+        );
+        let m = c.speed_upper_bound().get();
+        let floor = sampled_sup_floor(&c, 4000);
+        assert!(
+            !m.is_finite() || m >= floor,
+            "{name}: bound {m} below the sampled sup {floor}"
+        );
+    }
 }
 
 /// **The pair's own points do not suffice.** On this quadratic

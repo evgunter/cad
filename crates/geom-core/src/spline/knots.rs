@@ -172,6 +172,39 @@ impl core::fmt::Display for SplineError {
 
 impl core::error::Error for SplineError {}
 
+/// **The weight regime**: a rational net's weight is strictly positive
+/// and finite. The one spelling of that predicate: every constructor's
+/// check ([`check_weight_values`]), the knot-algebra plans' admission of
+/// what they write, and the hull bound's licence read it. Written in
+/// the positive form, so NaN (`NaN > 0` is false) is outside the regime.
+#[must_use]
+pub fn weight_in_regime(w: f64) -> bool {
+    w > 0.0 && w.is_finite()
+}
+
+/// Every weight in [`weight_in_regime`], or the first that is not, named:
+/// [`SplineError::NonPositiveWeight`] for zero, negative and NaN, then
+/// [`SplineError::NonFiniteWeight`] for `+∞`. Counts are the caller's
+/// check; this reads values only.
+///
+/// # Errors
+///
+/// As above, at the offending index.
+pub fn check_weight_values(weights: &[f64]) -> Result<(), SplineError> {
+    for (index, &weight) in weights.iter().enumerate() {
+        if weight_in_regime(weight) {
+            continue;
+        }
+        // Outside the regime and still `> 0` is `+∞`.
+        return Err(if weight > 0.0 {
+            SplineError::NonFiniteWeight { index, weight }
+        } else {
+            SplineError::NonPositiveWeight { index, weight }
+        });
+    }
+    Ok(())
+}
+
 /// The exact structural violation behind
 /// [`SplineError::KnotVectorInvalid`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
