@@ -1370,7 +1370,9 @@ fn name_boolean_edges<T: Decide>(
     // within (`rim_holding`); when nothing picks one,
     // `NamingError::SharedRim` is what the arm below says. ----
     enum ChordKind {
-        Cross(Upstream, Upstream),
+        /// A seam: its two faces' names, and the one operand both
+        /// descend from where they do.
+        Cross(Upstream, Upstream, Option<topo::Operand>),
         SameA(EdgeKey),
         SameB(EdgeKey),
     }
@@ -1506,10 +1508,10 @@ fn name_boolean_edges<T: Decide>(
         };
         Ok(match (d0, d1) {
             (OpSide::A(_), OpSide::B(_)) => {
-                ChordKind::Cross(operand_face_name(d0)?, operand_face_name(d1)?)
+                ChordKind::Cross(operand_face_name(d0)?, operand_face_name(d1)?, None)
             }
             (OpSide::B(_), OpSide::A(_)) => {
-                ChordKind::Cross(operand_face_name(d1)?, operand_face_name(d0)?)
+                ChordKind::Cross(operand_face_name(d1)?, operand_face_name(d0)?, None)
             }
             // Two faces of one operand that share no edge there meet
             // only where the other operand filled the gap between them
@@ -1521,10 +1523,11 @@ fn name_boolean_edges<T: Decide>(
                 ) =>
             {
                 let (n0, n1) = (operand_face_name(d0)?, operand_face_name(d1)?);
+                let side = Some(d0.operand());
                 if n1.name < n0.name {
-                    ChordKind::Cross(n1, n0)
+                    ChordKind::Cross(n1, n0, side)
                 } else {
-                    ChordKind::Cross(n0, n1)
+                    ChordKind::Cross(n0, n1, side)
                 }
             }
             // Two faces of one operand: the rim they share
@@ -1537,25 +1540,27 @@ fn name_boolean_edges<T: Decide>(
             }
         })
     };
-    let seam_pair = |e: EdgeKey| -> Result<(Upstream, Upstream), NamingError> {
+    type SeamPair = (Upstream, Upstream, Option<topo::Operand>);
+    let seam_pair = |e: EdgeKey| -> Result<SeamPair, NamingError> {
         // A zip-listed seam edge is the join's own, so it has no side
         // to read a both-merged pair through to.
         match chord_kind(e, None)? {
-            ChordKind::Cross(fa, fb) => Ok((fa, fb)),
+            ChordKind::Cross(fa, fb, one) => Ok((fa, fb, one)),
             _ => Err(bug("seam edge between same-operand faces")),
         }
     };
     // Group value: (descends-from-a-tie, edges). Two tied operand
     // faces answer to ONE name, so their seam chords land in one
     // group — the widening B1 asks for, not a collision.
-    let mut seam_groups: BTreeMap<(NameRef, NameRef), (bool, Vec<EdgeKey>)> = BTreeMap::new();
-    let mut add_seam = |fa: Upstream, fb: Upstream, e: EdgeKey| {
+    type SeamGroup = (bool, Option<topo::Operand>, Vec<EdgeKey>);
+    let mut seam_groups: BTreeMap<(NameRef, NameRef), SeamGroup> = BTreeMap::new();
+    let mut add_seam = |fa: Upstream, fb: Upstream, one: Option<topo::Operand>, e: EdgeKey| {
         let from_tie = fa.tied || fb.tied;
         let slot = seam_groups
             .entry((fa.name, fb.name))
-            .or_insert((false, Vec::new()));
+            .or_insert((false, one, Vec::new()));
         slot.0 |= from_tie;
-        slot.1.push(e);
+        slot.2.push(e);
     };
     // ---- Edges the output stage's joins made, named for the operand
     // edges they lie along (`joined_cover`): read off this body and the
@@ -1588,8 +1593,8 @@ fn name_boolean_edges<T: Decide>(
         if body.get_edge(e).is_none() || joined_named(&e) {
             continue; // consumed by the merge stage, or named above
         }
-        let (fa, fb) = seam_pair(e)?;
-        add_seam(fa, fb, e);
+        let (fa, fb, one) = seam_pair(e)?;
+        add_seam(fa, fb, one, e);
     }
 
     // ---- Operand-descended edges, grouped by (side, root). ----
@@ -1645,8 +1650,8 @@ fn name_boolean_edges<T: Decide>(
             // Where a both-merged chord reads through to, checked
             // geometrically there (`chord_kind`).
             match chord_kind(e, Some(root.operand()))? {
-                ChordKind::Cross(fa, fb) => {
-                    add_seam(fa, fb, e);
+                ChordKind::Cross(fa, fb, one) => {
+                    add_seam(fa, fb, one, e);
                 }
                 ChordKind::SameA(k) => {
                     groups.entry(OpSide::A(k)).or_default().push(e);
@@ -1678,7 +1683,7 @@ fn name_boolean_edges<T: Decide>(
             lone: Lone::Whole,
         });
     }
-    for ((fa, fb), (from_tie, edges)) in seam_groups {
+    for ((fa, fb), (from_tie, one, edges)) in seam_groups {
         let base = name1(EntityKind::Edge, node, RoleSeg::Seam { a: fa, b: fb });
         rec.record_by_name(
             &base,
@@ -1690,7 +1695,7 @@ fn name_boolean_edges<T: Decide>(
             from_tie,
             edges,
             set: Vec::new(),
-            side: None,
+            side: one,
             lone: Lone::Whole,
         });
     }
@@ -1863,10 +1868,10 @@ struct EdgeGroup {
     edges: Vec<EdgeKey>,
     /// The operand edges a joined edge's set name lists, or empty.
     set: Vec<OpSide<EdgeKey>>,
-    /// The operand a carried edge descends from, or `None` for a seam
-    /// or a joined set. Its name's read is no side: both seats may read
-    /// one family (`xs[1] − xs[0]`), and the read keys the name either
-    /// way (REFERENCES DM4).
+    /// The operand a carried edge descends from, or a seam's both faces
+    /// do; `None` for any other seam or a joined set. Its name's read is
+    /// no side: both seats may read one family (`xs[1] − xs[0]`), and the
+    /// read keys the name either way (REFERENCES DM4).
     side: Option<topo::Operand>,
     /// What a lone piece of the parent is named for.
     lone: Lone,
@@ -2063,6 +2068,15 @@ fn name_boolean_vertices<T: Decide>(
                 // derived-seam lane, so a seam vertex may lean on a
                 // Seam-named edge outside `naming.seam_edges`) — the
                 // NAME is the evidence either way.
+                // A seam between two faces of one operand lies along the
+                // other operand's edge that filled the gap between them,
+                // so it ends at operand vertices, and it has no A and B
+                // side to cross.
+                Some(RoleSeg::Seam { .. }) if side.is_some() => {
+                    return Err(bug(
+                        "a seam vertex on a seam between two faces of one operand",
+                    ));
+                }
                 Some(RoleSeg::Seam { a: fa, b: fb }) => {
                     a_faces.push(fa.clone());
                     b_faces.push(fb.clone());

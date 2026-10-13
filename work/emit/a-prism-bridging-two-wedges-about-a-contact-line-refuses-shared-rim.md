@@ -63,6 +63,13 @@ seam of the faces it separates". It is also the name every other order
 already gave: folded before either wedge, the bridge leaves the two
 walls in different operands, and the edge is an ordinary cross seam.
 The merged-faces arm is unchanged.
+Such a seam lies along the edge of the operand that filled the gap, so
+it ends at operand vertices. The group carries its one operand
+(`EdgeGroup::side`), and a seam vertex read off it refuses as an
+emission bug rather than taking one face of that operand as the
+other side. With the bridge's z-range at (0.6, 1.5), (0.6, 1.9) and
+(0.3, 1.5), every order of the prisms alone builds one table (probed,
+not pinned).
 
 **A second order-dependence the pin found** (`names/borders.rs`,
 `Obstacles::record`). With the plate, order `[c, plate, a, b]` cited

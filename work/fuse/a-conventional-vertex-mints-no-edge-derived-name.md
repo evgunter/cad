@@ -2,9 +2,8 @@
 id: a-conventional-vertex-mints-no-edge-derived-name
 kind: issue
 title: Naming a conventional vertex refuses typed: its edge-derived name, the ranking skip and the modulo-position order rows are unbuilt
-status: parked
+status: open
 opened: 2026-10-07
-blocked_on: [a-sphere-cut-in-cap-fails-its-names-missing-upstream]
 ---
 
 
@@ -52,3 +51,14 @@ so it never goes conventional. The vocabulary is not worth adding
 unreached while the guard refuses loudly. The witness the ruling's
 build listed — a cap on two flush blocks in all six member orders,
 names equal modulo the conventional vertex — is built with it.
+
+## 2026-10-13: a document reaches it (EMIT, branch `emit/naming-refusals`)
+
+`work/emit/a-sphere-cut-in-cap-fails-its-names-missing-upstream` is
+closed. The lens ∩ tilted brick cap, in either slot, and the brick
+minus the lens now name every face and edge, and refuse only
+`ConventionalVertex` at the circle's one vertex
+(`crates/editor-core/tests/emit_sphere_cut_in_cap.rs`,
+`a_sphere_cut_in_names_the_lens_entities_it_divides`). The union and the
+lens minus the brick keep the cut unglued
+(`work/fuse/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick`).

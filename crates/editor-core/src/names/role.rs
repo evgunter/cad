@@ -1293,7 +1293,10 @@ pub enum RoleSeg {
     /// named by the sorted run of those lines' face × face `Seam`
     /// segments, one segment per line and nothing after them.
     ///
-    /// In a pair boolean's table `a` is the A side and `b` the B side.
+    /// In a pair boolean's table `a` is the A side and `b` the B side,
+    /// except on a seam between two faces of one operand, which only a
+    /// union makes (the other operand filled the gap between them and
+    /// was consumed): its sides are that operand's, in name order.
     /// In a UNION's published table they are not: a union has no A
     /// and B, so the two sides are in name order (`names::canonical`,
     /// at the collapse and after any rewrite), and `a` is only the
