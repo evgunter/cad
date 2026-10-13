@@ -2238,9 +2238,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    the roots certify. So the glue reaches the join, whose germ
     //    pair of the stem's weld cap against the arch's wall (plane ×
     //    torus, the arch's rim lying in the cap) takes the plane × wall
-    //    arm and stops at the cap's chord, whose guard has no torus
-    //    partner: the join refuses dividing a plane against a torus,
-    //    which only the arch carries, so the plane is the stem's cap.
+    //    arm and its chord, an arc of the arch's meridian circle. Past
+    //    the join, the section certificate's interior-loop guard refuses
+    //    the stem's tube wall against the arch's: two tori with parallel
+    //    axes apart, which it has no arm for.
     wall(
         1,
         "glue the two stem arcs into one stem (coincident-planar mate)",
@@ -2248,11 +2249,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::Join(pncad::topo::SplitJoinError::SectionUnarmed {
-                    divided: pncad::geom::SurfaceKind::Plane,
-                    wall: pncad::geom::SurfaceKind::Torus,
+                BooleanError::CurvedPairUnsupported {
+                    site: pncad::topo::PairRefusalSite::InteriorLoopGuard,
+                    kind: pncad::geom::SurfaceKind::Torus,
+                    other_kind: pncad::geom::SurfaceKind::Torus,
                     ..
-                })
+                }
             )
         },
         "make the stem a single body — and close #968, whose whole content this is",
@@ -4112,24 +4114,25 @@ mod verbs_gate_r1_probes {
         let glued = crate::booleans::try_union(stem, arch, tol)
             .expect_err("the stem's two arcs still cannot be glued");
         println!("lily wall 1: {glued:?}");
-        // **Wall 1 is past the gate and the crossing layer.** The
-        // circle × torus root lane certifies each seam's crossing of the
-        // other tube's carrier as lying outside that face's window, so
-        // the glue reaches the join, whose germ pair of the stem's weld
-        // cap against the arch's wall (plane × torus) takes the
-        // plane × wall arm and refuses at the cap's chord, whose guard
-        // has no torus partner: a plane divided against a torus, which
-        // only the arch carries, so the plane is the stem's cap.
+        // **Wall 1 is past the gate, the crossing layer and the
+        // join.** The circle × torus root lane certifies each seam's
+        // crossing of the other tube's carrier as lying outside that
+        // face's window, so the glue reaches the join, whose germ pair
+        // of the stem's weld cap against the arch's wall (plane × torus)
+        // takes the plane × wall arm and its chord. Past the join, the
+        // interior-loop guard refuses the stem's tube wall against the
+        // arch's, two tori with parallel axes apart.
         assert!(
             matches!(
                 glued,
-                BooleanError::Join(pncad::topo::SplitJoinError::SectionUnarmed {
-                    divided: pncad::geom::SurfaceKind::Plane,
-                    wall: pncad::geom::SurfaceKind::Torus,
+                BooleanError::CurvedPairUnsupported {
+                    site: pncad::topo::PairRefusalSite::InteriorLoopGuard,
+                    kind: pncad::geom::SurfaceKind::Torus,
+                    other_kind: pncad::geom::SurfaceKind::Torus,
                     ..
-                })
+                }
             ),
-            "wall 1 stops at the join's plane × torus chord, on the stem's cap: {glued:?}"
+            "wall 1 stops at the interior-loop guard on its two tube walls: {glued:?}"
         );
         // **The weld itself has no torus contact**, measured
         // off the two loci: the stem tube's end circle has radius

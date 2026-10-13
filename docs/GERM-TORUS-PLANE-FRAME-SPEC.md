@@ -132,17 +132,54 @@ Plane-first orders meet F3a, then F3a′.
   a general pose. §1.4 shows this holds for every corner bar on this
   donut, and fails on a fat torus (B5).
 
-### 0.2 Bodies returned: none
+### 0.2 Bodies returned, and the doors behind F3
 
-No pose returned a body, on main or with any combination of switches,
-because F3 stands behind every served frame. Several doors stand behind
-F3, and none was reached, so none was measured:
+No pose returned a body before U-T3, because F3 stood behind every
+served frame. Measured in U-T3 with the circles' chord in, every op of
+every pose:
 
-- the interior-loop guard;
-- the result door's volume for a ring on a torus face.
-
-Their measurement is the chord units' first step (§3). The ring
-closure of a torus face's island was measured in U-T2 (§1.3).
+- **Bodies.** M1, M2, P1, P2, `y ≥ −0.3`, a box face `y = 0.2` and one
+  `y = 0.499`, on the donut, the one-face torus and the seamed torus,
+  and T1, build in all six ops. Each holds to its closed form, to a
+  Monte Carlo of the analytic operands, to tier 3 and to
+  `point_in_solid` (`germ_plane_torus_chord`). So do three older pins
+  that stood at F3: the notched half donut (`3π²/8`), the vase's brick
+  in its torus band and TANG's tube in `pi_seam_and_kiss`.
+- **M3 and P4** keep F3: their box faces `z = 1.2` cut two spiric ovals,
+  which are U-T4's.
+- **The interior-loop guard** stops the lily (both orders, ∪): past the
+  join, the certificate has no arm for the stem's tube wall against
+  the arch's, two tori with parallel axes apart (filed on ORBIT,
+  `the-lilys-stem-and-arch-walls-have-no-certificate-arm`). The lily's
+  ∩ and ∖ refuse earlier, on the no-crossings path.
+- **A section circle that is an edge of the torus** (`y = 0` against
+  the one-face torus with its vertex on an equator, and against the
+  torus seamed there) refuses `SingleSiteSectionLoop` in every op: the
+  in-face circle class of SECT's
+  `closed-in-face-section-loop-has-one-site`, where the evidence is
+  added.
+- **A ring on a torus face** is reached through the public ops: the box
+  `x ≥ 0 ∧ y ≥ h`, `h < 0`, against the one-face torus with its vertex
+  on the inner equator puts a pierce ring on the torus face, and so
+  does the bar `[−3, 3] × [0.2, 1.2] × [0, 3]` against the donut, torus
+  first. The ring's point lies in the planes of run arcs (a box edge
+  pierces the tube on two box faces' planes), and on the one-face
+  torus the face's outer loop lies on the other arcs' carriers, so
+  every path between them runs along an arc's plane; the ring lane
+  reads such a piece apart from the arc (§1.3), and both build their
+  true bodies in every op. So does the box `x ≥ 0 ∧ y ≥ −0.3` against the
+  one-face torus with its vertex at `π + asin 0.6`, whose wrap parallel
+  and vertex lie on the box's face: an edge and a vertex on a face that
+  cuts the tube transversally, decided Zero by the crossing layer's
+  margins, as TANG's rim is (§2, not held). Containment refuses
+  `PartialTorusFace` on their ∪ and `T ∖ P` bodies, whose torus walls
+  are no chart rectangle (INSIDE, below).
+- **A slab across the one-face torus** refuses `JoinDesync` in
+  `choose_roles` at some vertex phases (filed on GERM,
+  `a-slab-against-a-one-face-torus-desyncs-its-chord-roles`).
+- **Containment on a body the notch mints** refuses `PartialTorusFace`:
+  its torus walls are L-shaped in the chart (filed on INSIDE,
+  `point-in-solid-refuses-an-l-shaped-torus-face`).
 
 **The section certificate on the corner bars** (`section_report`, on
 main):
@@ -253,12 +290,31 @@ distance from the reading point (`face_reach_from`), handed to the table
 as its `extent`. It is the cone arm's measure (U-S3), and `frame_extent`
 gains the torus arm beside `cone_reach`. A definite verdict at that
 lever holds over the whole face, and so over the section the join
-consumes there. Any other extent is a desync. The table's comment caps
-a minted circle's distance off its plane at `r·ε/extent`, and assumes
-the extent is at least `R + r`. That bound is about the minted circle,
-which the frame never reads: the frame reads only centres, which lie
-within `|d| ≤ band` of the plane, and the axis `n̂` or `â`. The bound
-belongs to the chord units (U-T3, U-T4).
+consumes there. Any other extent is a desync. The extent levers only the
+axis tilt's fork; no served circle leans on it being long:
+
+- **A meridian circle** is minted on the torus about a centre `d` off
+  the plane, and the tilt leans its points off the plane by up to
+  `r·|â·n̂|` more. The table decides the sum (`pt_axis_plane_gap`
+  beside its floor), so a served circle stands under the band off its
+  plane at any lever. Decided one at a time, `d = 0.9ε` beside a lean
+  of `0.9ε` stood `1.8ε` off on the donut and on `(1, 0.95)`, and
+  `1.32ε` on the arch `(1.1, 0.052)`.
+- **The concentric circles** are read at the plane's crossing of the
+  axis, depth `h = d/(â·n̂)`, wherever the plane's origin is stored. A
+  circle of radius `ρ ≤ R + r` stands at most `ρ‖â × n̂‖` off the plane,
+  under the tilt levered at `R + r`, and the plane's depth moves by at
+  most as much across the circles, which `pt_cap_gap` reads beside its
+  gap. Read at the stored origin, a circle stood off the cut by the
+  origin's distance from the axis times the tilt (19 bands at 50 m, 181
+  at 500 m), and a plane 41 bands over the tube's crest was served
+  circles. At `R` rather than `R + r` the outer circle stood `1.1ε`
+  off its plane (`chord_join::torus_chord_rows`).
+
+The frame reads only the circles' centres and axes. The chord reads
+the circles, at the divided face's reach, which can be shorter than `r`
+(the lily's weld cap reads `0.112 m`); the sum above bounds them there
+too.
 
 ### 1.2 The general pose: a typed refusal named for its configuration
 
@@ -281,10 +337,9 @@ one decision. The measured poses take:
 | a plane a few degrees off axis-normal that still cuts both tube circles | `AroundAxis` |
 
 The recourse is the one the dispatch's torus refusal gives
-(`meeting_recourse`): no flat cut of a torus face builds a body until
-U-T2 to U-T4 land, so naming the served planes would point at doors
-that refuse too. The served planes join the recourse with the unit that
-first builds one.
+(`meeting_recourse`), which names the planes a torus face is joined
+against since U-T3 built them: a plane through the torus's axis or
+square to it.
 A tangency (S2, S4, V1, P3) never reaches this refusal: F0 refuses it
 first, and the certificate's own tangent verdict would refuse it at the
 guard.
@@ -332,26 +387,34 @@ bodies, measured in §0.1:
   curve (`RingFace::Quadric`). The paths run on meridians and parallels.
   A crossing of a loop arc's plane counts only on that arc's own loop
   of the plane (`ArcLoop`, on the join's own `LoopSplit`), because a
-  plane cuts a torus in two. The
+  plane cuts a torus in two. A piece that runs along an arc's plane —
+  the meridian or parallel through a point of the arc's carrier or of
+  its plane's other loop, as a box edge's pierce point is — meets the
+  arc nowhere where the two are decided apart: its circle clear of the
+  arc's, or the arc's own circle with the two spans disjoint
+  (`ring_path::misses_in_plane`); so does a lead with an end on the
+  plane, decided farther from the arc than half its length. The
   parity does not depend on the path, because tier 3 lifts every face
   to a chart disc, so the island's curve bounds on the torus. Loop arcs
   read are meridians and parallels, but for two parallels: the tube's
   top and bottom circles (radius `R`), whose plane touches the torus
   along them, so a path meets that plane only where it meets the
   circle and never crosses it, and plane crossings cannot count them.
-  They refuse as `RingIslandUnread`, and since they are the donut's
-  face splits, re-homing a ring on any donut face refuses with them;
-  reading them is U-T3's (a crossing counted by tube angle, not by the
-  plane). A spiric oval refuses as `RingIslandUnread` until U-T4.
+  They are read across the cylinder `ρ = R` instead, which cuts the
+  torus transversally in exactly those two circles, told apart by
+  their height along the axis (`ring_path::LoopArc::Crest`, U-T3): a
+  meridian piece crosses it at the top and bottom of the tube, a
+  parallel piece never. A spiric oval refuses as `RingIslandUnread`
+  until U-T4.
 - **The chord for the circles (F3, meridian and concentric).**
   `section_case` (`chord_join.rs` :957) and `wall_section` (:1487) gain
   the torus arm. **Both sections have two loops**, and `SectionCase` has
   no two-conic case. The arm picks the loop the chord's sites lie on,
   with the frame's margin, as `SectionCase::Straight([l1, l2])` is
-  resolved at the sites for two rulings. T1 and the lily need only this:
-  T1 takes the concentric circles through `wall_section` (its outer
-  circle is the rim), and the lily takes the arch's meridian circle on
-  both sides.
+  resolved at the sites for two rulings. T1 needs only this: it takes
+  the concentric circles through `wall_section` (its outer circle is
+  the rim) and builds. The lily takes the arch's meridian circle on
+  both sides, and then stops at the interior-loop guard (§0.2).
 - **The chord for the ovals (F3, spiric).** `SectionCase` gains a spiric
   arm: an arc of a `Curve3::Spiric`, chosen by its own parameter, which
   turns monotonically about `k_σ` (§1.1). B1, B2 and B5 need it.
@@ -386,10 +449,38 @@ Each oval runs from corner to corner across the end square:
 - so the square holds a lens of the tube on each side, bounded by oval
   arcs whose only events are the corners.
 
-The certificate clears those pairs as `Essential` (W2), so **nothing
-upstream guards that lens**. Once the spiric chord lands, the join
-traces the arcs from the corner germs or returns a wrong body. That
-obligation is U-T4's (§3). Its mechanism is Q1, a fork.
+The certificate clears those pairs as `Essential` (W2), and that is
+its whole contract: a component evidenced by an event is left to the
+join to trace (its lemma L1). Nothing upstream needs to guard the lens,
+because the join already pairs it. Measured on main, B5 and B5′ in
+all six ops and both orders: the crossing layer records eight corner
+events, the matcher consumes all eight, and each segment joins the two
+corners of one oval, `(±w, w, ±z) → (±w, −w, ±z)`. Two face pairs
+share each site pair (the end square and the bar's side `x = ±w`, each
+against the torus), because the corner edge dips into the tube. So the
+pairing is decided before any chord exists. U-T4 cannot mis-pair the
+lens; it can only mis-curve it.
+
+The lens is then traced by the rule every curved chord uses, with no
+mechanism of its own (Q1):
+
+- which arc of a closed section the chord takes is the pairing's
+  answer, read as the germ's departure (`chord_join::arc_leaving`
+  decides `leave · tangent(p₁)`, and `oriented_arc` runs from the start
+  site's parameter to the matched site's). At a corner the departure
+  points into the end square along the oval;
+- a curved wall never defaults to a straight chord: an unarmed section
+  is a typed refusal, so chording the end square along its own edges is
+  a mutant, not a state the lane can drift into.
+
+The same class builds true bodies on main for the other kinds: a box
+edge dipping into a sphere, an oblique cylinder or a cone frustum, its
+two ends on the curved face and nothing else touching, builds the true
+body in all six ops (volume against a Monte Carlo of the operands, tier
+3, `point_in_solid`). Whether such a component carries only vertex
+events depends on where the other body's seam falls: on a cylinder with
+its seam turned across the lens the same lens carries an edge event and
+builds the same bodies.
 
 ## 2. The D10 check, per arm
 
@@ -408,7 +499,7 @@ the carrier pair … and refuses what falls in the sliver band".
 | the dispatch (U-T2) | **not held** | pure geometry: a germ plane and a wall. **The lily's declared `Rest` cap pair is not read on this path**: the undeclared union reaches the same doors in both orders (§0.1), so U-T2's rows run the lily undeclared |
 | the chord arms (U-T3, U-T4) | **not held** | sections of the C5 table; a tangent section keeps today's touching refusal |
 | TANG's rim (the edge-plane lane, F3b) | **not held** | the rim is ON the torus by the crossing layer's margined verdict, not by a declaration |
-| the lens (U-T4) | **not held** | either answer to Q1 is a traced join or a margined certificate rule on the undeclared path |
+| the lens (U-T4) | **not held** | a traced join on the undeclared path (Q1): margined geometry, no declaration read |
 | **a torus sector ON the plane: the touching poses P3, S2, S4, V1 (F0)** | **HELD** | `vtxfac.rs` :721: the C8 rule opens a curved on-carrier sector "by a VERIFIED declaration and by nothing else". Under D10 that coincidence is a margined verdict at stage 4's coincidence door, built there, not here |
 | **the second-order reading at a tangency** (`sectors::tangent_lump` for a torus) | **HELD** | runs only for a declared-`Tangent` pair; D10 makes tangency a construction (stage 6) |
 
@@ -435,8 +526,9 @@ the item header's `cost:` as H→H, M→M, L→E. Cost is the size of the lane.
 | — | U-H1 `torus-on-carrier-sector` | **HELD by D10**: the touching poses at F0 (a torus sector on the plane, the tangent circle, the Villarceau pair) | `d10-one-way-to-say-intent-is-unbuilt` | H | — | dual |
 
 **Order.** U-T1 lands first. U-T2 needs it for every pose but the
-lily's. The lily's glue (`L1`) needs only U-T2 and U-T3. TANG's pose
-needs U-T1 and U-T3. `germ_torus_doors`' bars B1 and B2 need all four
+lily's. The lily's glue (`L1`) passes the chord with U-T2 and U-T3 and
+then needs a certificate arm for its two tube walls (§0.2). TANG's pose
+needs U-T1 and U-T3, and builds. `germ_torus_doors`' bars B1 and B2 need all four
 units. B3, and the near-perpendicular bar, are general poses and refuse
 by name once U-T1 lands, until the general rung retires.
 
@@ -516,14 +608,17 @@ Rows run in-crate, against `pair_section_frame_at` and
    run or a closing chord on either reads its island and re-homes its
    rings, held to the torus islands' oracle.
    `torus_ring_rows`' `a_run_on_the_tubes_top_or_bottom_circle_is_a_ring_the_lane_does_not_read`
-   goes red, and is rewritten as the reading.
-6. **The minted circles' planarity** at the face reach (the table's
-   `r·ε/extent` comment, §1.1): measured on the thinnest face reach
-   among the rows.
+   goes red, and is rewritten as the reading
+   (`a_run_on_the_tubes_top_or_bottom_circle_winds_its_island_as_the_oracle_does`).
+6. **The minted circles' planarity** (§1.1): at the thinnest face
+   reach among the rows, with the meridian plane's stand-off and lean
+   in band together, and with the plane's origin stored off the axis.
 
 ### U-T4 — plane-torus-chord-spiric
 
-1. **Red first:** S1, B1 and B2 at F3, with spiric payloads.
+1. **Red first:** S1, B1 and B2 at F3, with spiric payloads. Since
+   U-T3, a torus's `SectionUnarmed` is raised only for its spiric
+   ovals.
 2. **Arcs on the oval's own parameter**, held to the closed form.
    **Red against the mutant "arc chosen by angle about the plane's
    foot"**.
@@ -533,31 +628,33 @@ Rows run in-crate, against `pair_section_frame_at` and
    that chords the end square along its own edges**, skipping the oval
    arcs between the corners: that body misses the lens. Measure the lens
    volume first and show it well above the rows' tolerance, as
-   `the_oval_lens_is_well_above_the_rows_tolerance` does for the oval.
+   `the_oval_lens_is_well_above_the_rows_tolerance` does for the oval
+   (measured: `6.6e-5 m³` on B5, `9.3e-3` on B5′). The spiric arc goes
+   through `arc_leaving` and `oriented_arc`, not a rule of its own: the
+   oval exposes its parameter and tangent, and a lever for the departure
+   cosine in place of a conic's semi-major axis (the oval's own extent).
+   Pin B5's segment listing (eight records, corner to corner on one
+   loop) beside `every_segment_joins_two_sites_of_one_loop`, and name
+   in review that the matcher's `off_conic_slack` assumes a conic.
 4. **Bodies** for S1, B1 and B2, against the truth.
 
 ## 4. Open questions (⚑ = design fork)
 
-- **Q1 ⚑ The fat corner bar's lens: trace it, or guard it?** On B5 the
-  frame and the section certificate both pass a lens whose arcs carry no
-  event but its corners (§1.4). U-T4 owns it either way, and its row 3
-  holds for both answers.
-  - **Trace.** The join chords the oval arcs from the corner germs,
-    because the frame pairs the corner germs along the oval. Then B5 is
-    a body. What it makes true: a corner-only contact is joined like any
-    other germ pair, and nothing is added to the certificate. What it
-    leaves possible: a pairing defect at corner-only germs shows as a
-    wrong body that only a truth row catches.
-  - **Guard.** The certificate's W2 and W4 stop clearing a component
-    whose only events are vertex contacts: such a component refuses, or
-    goes to `interior-loop-cut-in`. What it makes true: no body rests on
-    a section traced only at its corners. What it costs: poses that build
-    correctly today, wherever a corner touches a curved face, would
-    refuse. Which ones has not been measured. It is also a change to a
-    GERM module that other kinds read.
-
-  Both are reversible. The choice decides whether corner-only contact is
-  a join case or a certificate case.
+- **Q1 The fat corner bar's lens** (answered: traced, through the
+  chord's arc rule; no guard in any layer). On B5 the frame and the
+  section certificate both pass a lens whose arcs carry no event but its
+  corners (§1.4). The join already pairs its corners on one loop, and
+  U-T4's spiric arc follows the departure rule every curved chord uses.
+  No certificate, frame or join rule reads whether a component's events
+  are vertex contacts: after the reduction every event is a vertex
+  contact, and whether one is minted or brought by the operand depends
+  on how the input is meshed and where a seam falls, not on the pose.
+  A margined rule refusing such components was measured: it would
+  refuse the sphere, cylinder and cone corner lenses that build true
+  bodies today, and, by a census over the sweep suite, up to 93 rows
+  and 634 six-op runs that return bodies now (an upper bound: the
+  census's criterion also catches rims and flush contacts). U-T4's row 3
+  is the obligation's pin.
 - **Q2 Where the general pose refuses** (answered: at the frame). A
   frame exists for two loops round the axis (§1.2's proof), and the
   cylinder × sphere arm serves a frame for a quartic and refuses at the

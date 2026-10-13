@@ -56,8 +56,12 @@ mod mate2_common;
 mod revolve_common;
 mod seam_region_common;
 
+#[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
+mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_curved_keel_in_the_plane.rs"]
 mod a_curved_keel_in_the_plane;
+#[path = "a_face_off_the_tangent_ruling.rs"]
+mod a_face_off_the_tangent_ruling;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
 mod a_flank_touch_at_a_shared_corner;
 #[path = "a_flipped_shallow_dimple.rs"]
@@ -307,8 +311,14 @@ mod band_reads_three_ways;
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
+#[path = "band_turn_overrun_chamfer.rs"]
+mod band_turn_overrun_chamfer;
+#[path = "band_turn_overrun_oracles.rs"]
+mod band_turn_overrun_oracles;
 #[path = "band_turn_overrun_probe.rs"]
 mod band_turn_overrun_probe;
+#[path = "band_turn_overrun_verdict.rs"]
+mod band_turn_overrun_verdict;
 #[path = "bitdump.rs"]
 mod bitdump;
 #[path = "blend1_r1_probes.rs"]
@@ -351,6 +361,8 @@ mod blend_tworims;
 mod blend_value_decided_rows;
 #[path = "bool5r1_probes.rs"]
 mod bool5r1_probes;
+#[path = "census_reads_conic_records.rs"]
+mod census_reads_conic_records;
 #[path = "cert5_offgrid_knot_rational.rs"]
 mod cert5_offgrid_knot_rational;
 #[path = "cert8_r1_probes.rs"]
@@ -381,6 +393,8 @@ mod euler_site_rows_equal_the_pass;
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
 mod extrude_interval;
+#[path = "face_face_touch.rs"]
+mod face_face_touch;
 #[path = "issue93_az_intersect.rs"]
 mod issue93_az_intersect;
 #[path = "join1_r2_probes.rs"]
@@ -779,6 +793,8 @@ mod germ_coplanar_conic;
 mod germ_interior_oval;
 #[path = "germ_interior_saddle.rs"]
 mod germ_interior_saddle;
+#[path = "germ_plane_torus_chord.rs"]
+mod germ_plane_torus_chord;
 #[path = "germ_plane_torus_frame.rs"]
 mod germ_plane_torus_frame;
 #[path = "germ_radial_hole.rs"]
@@ -1071,6 +1087,9 @@ mod wire_loft_end_profile_lift;
 #[path = "wedge_end_doors.rs"]
 mod wedge_end_doors;
 
+#[path = "review_4831_probes.rs"]
+mod review_4831_probes;
+
 #[path = "review_3701_probes.rs"]
 mod review_3701_probes;
 
@@ -1112,5 +1131,7 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "join_lever_is_the_joined_edge.rs"]
+mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]
 mod review_4737_span_probes;

@@ -41,9 +41,7 @@ fn label(
     counts: geom_core::SymCounts,
 ) -> String {
     match out {
-        Ok(Sign::Zero) if counts.symbolic_zero == 1 => "theorem".to_owned(),
-        Ok(Sign::Zero) if counts.registered == 1 => "registered".to_owned(),
-        Ok(Sign::Zero) if counts.sign_gated == 1 => "sign_gated".to_owned(),
+        Ok(Sign::Zero) if counts.symbolic == 1 => "proven".to_owned(),
         Ok(s) => format!("numeric {s:?}"),
         Err(e) => format!("refused {:?}", e.margin),
     }
@@ -66,7 +64,7 @@ fn how(rules: SymRules, build: impl FnOnce() -> Sym<f64>) -> (String, f64) {
 fn sound(what: &str, (l, v): (String, f64)) -> String {
     println!("  {what}: {l} value {v:e}");
     assert!(
-        l != "theorem" || v.abs() <= 1.0e-12,
+        l != "proven" || v.abs() <= 1.0e-12,
         "{what}: SAYS IDENTICALLY ZERO but the value at the point is {v:e} — UNSOUND"
     );
     l
@@ -83,10 +81,10 @@ fn unit(x: f64, y: f64, z: f64) -> Vec3<Sym<f64>> {
 fn a_re_normalised_unit_vectors_norm_is_one() {
     println!("=== ‖v̂‖ − 1");
     let resid = || unit(3.0, 4.0, 12.0).norm() - Sym::from_f64(1.0);
-    assert_eq!(sound("shipped", how(SymRules::shipped(), resid)), "theorem");
+    assert_eq!(sound("shipped", how(SymRules::shipped(), resid)), "proven");
     assert_ne!(
         sound("without_rule_e", how(SymRules::without_rule_e(), resid)),
-        "theorem",
+        "proven",
         "without the rule the tier does not reach it"
     );
 }
@@ -111,7 +109,7 @@ fn the_shapes_rule_e_must_not_fold() {
                     - Sym::from_f64(1.0)
             })
         ),
-        "theorem",
+        "proven",
         "a numerically-unit vector is not a unit vector"
     );
 
@@ -123,7 +121,7 @@ fn the_shapes_rule_e_must_not_fold() {
                 (unit(3.0, 4.0, 12.0) * p("k", 1.0)).norm() - Sym::from_f64(1.0)
             })
         ),
-        "theorem",
+        "proven",
         "‖k·v̂‖ − 1 is not an identity in k"
     );
 
@@ -160,7 +158,7 @@ fn the_shapes_rule_e_must_not_fold() {
     );
     assert_eq!(
         sound("‖(x,0,0)̂‖ − 1 at x = 2", along(2.0)),
-        "theorem",
+        "proven",
         "away from zero it is a real identity and the rule reaches it"
     );
 }
@@ -183,7 +181,7 @@ fn the_shared_factor_folded_where_it_vanishes_is_refused_by_clause_one() {
     };
     assert_eq!(
         sound("x = 2 shipped", how(SymRules::shipped(), resid(2.0))),
-        "theorem",
+        "proven",
         "away from zero the shared factor cancels and the two sqrts are one atom"
     );
     assert_ne!(
@@ -191,7 +189,7 @@ fn the_shared_factor_folded_where_it_vanishes_is_refused_by_clause_one() {
             "x = 2 without_rule_e",
             how(SymRules::without_rule_e(), resid(2.0))
         ),
-        "theorem",
+        "proven",
         "and without the rule they are two atoms"
     );
     let at_zero = sound("x = 0 shipped", how(SymRules::shipped(), resid(0.0)));
@@ -219,7 +217,7 @@ fn a_non_unit_vector_never_acquires_a_unit_norm() {
                     (unit(3.0, 4.0, 12.0) * Sym::from_f64(scale)).norm() - Sym::from_f64(1.0)
                 })
             ),
-            "theorem",
+            "proven",
             "‖{name}·v̂‖ is {name}, not one"
         );
     }
@@ -230,7 +228,7 @@ fn a_non_unit_vector_never_acquires_a_unit_norm() {
                 (unit(3.0, 4.0, 12.0) * Sym::from_f64(3.0)).norm() - Sym::from_f64(3.0)
             })
         ),
-        "theorem",
+        "proven",
         "the true statement about the same vector IS reached"
     );
 }
@@ -255,7 +253,7 @@ fn two_normalisations_stacked() {
             "‖n̂‖² − 1",
             how(s, || n_hat().dot(n_hat()) - Sym::from_f64(1.0))
         ),
-        "theorem",
+        "proven",
         "a doubly-normalised vector is still a unit vector"
     );
     assert_eq!(
@@ -266,7 +264,7 @@ fn two_normalisations_stacked() {
                 n_hat().dot(v) - Sym::from_f64(0.0)
             })
         ),
-        "theorem",
+        "proven",
         "a cross product is orthogonal to its operands and the tier reaches it \
          through two normalisations"
     );
@@ -305,9 +303,9 @@ fn rule_e_can_cost_a_theorem_to_the_coefficient_ring() {
     println!("=== the coefficient width the scale step moves");
     let off = sound("without_rule_e", how(SymRules::without_rule_e(), resid));
     let on = sound("shipped", how(SymRules::shipped(), resid));
-    assert_eq!(off, "theorem", "without rule E the early walk reaches it");
+    assert_eq!(off, "proven", "without rule E the early walk reaches it");
     assert_ne!(
-        on, "theorem",
+        on, "proven",
         "RULE E COSTS THIS THEOREM: the scale step's coefficient width freezes the product. \
          The rule is monotone in terms and degree and NOT in coefficient width, and this row \
          is the standing statement of that. If this row fails the loss has been closed — \
@@ -330,7 +328,7 @@ fn two_spellings_of_one_quotient_key_one_atom() {
     };
     assert_eq!(
         sound("shipped", how(SymRules::shipped(), resid)),
-        "theorem",
+        "proven",
         "(S+1)/(2S) and (½S+½)/S are one form, so one atom"
     );
 }
@@ -383,53 +381,15 @@ fn the_scale_step_keeps_the_sign_of_both_halves() {
         let n = (Sym::from_f64(-1.0) - x * x) / (Sym::from_f64(-2.0) - y * y - y * y);
         Sym::from_f64(0.0).atan2(n)
     };
-    assert_eq!(sound("q − q", how(SymRules::shipped(), resid)), "theorem");
+    assert_eq!(sound("q − q", how(SymRules::shipped(), resid)), "proven");
     let l = sound(
         "atan2(0, (−1−x²)/(−2−2y²))",
         how(SymRules::shipped(), nonneg),
     );
     assert_ne!(
-        l, "theorem",
+        l, "proven",
         "neither half is non-negative BY SYNTAX, so rule D's A1 fold must not fire: \
-         if this reads `theorem` the scale step has flipped the signs and \
+         if this reads `proven` the scale step has flipped the signs and \
          `manifest::nonneg` is reading the pivot rather than the form"
     );
-}
-
-mod gated {
-    //! **The clause-3 gate survives the cancellation.** Rule C
-    //! (`signed`, dial-off in the shipped set) folds `sqrt(R²)` to `R`
-    //! by a certified sign, and marks the form `gated`: a zero reached
-    //! through it is `sign_gated`, never `symbolic_zero`. `cancel`
-    //! rebuilds the form, so it has to carry that flag — dropping it
-    //! would report a weaker claim as a stronger one, the one
-    //! direction the receipt may never move in.
-    use super::{band, budget};
-    use geom_core::predicate::{Margin, Sign};
-    use geom_core::sym::with_session_rules;
-    use geom_core::{Interval, ParamSymbol, Real, Sym, SymRules};
-
-    #[test]
-    fn the_clause_three_gate_survives_rule_e() {
-        let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
-            let x = Sym::param_over(
-                ParamSymbol::new(test_utils::symbol_id("x")),
-                Interval::from_bounds(2.0, 4.0),
-                2.0,
-                4.0,
-            );
-            let m = (x * x).sqrt() - x;
-            geom_core::k_stats::decide("sym_rule_e_gate", Margin::of(m), band())
-        });
-        println!("gate row: {out:?} {counts:?}");
-        assert!(matches!(out, Ok(Sign::Zero)), "rule C decides it: {out:?}");
-        assert_eq!(
-            counts.sign_gated, 1,
-            "the decision is GATED, not a theorem: {counts:?}"
-        );
-        assert_eq!(
-            counts.symbolic_zero, 0,
-            "a dropped `gated` would read here as an unconditional theorem: {counts:?}"
-        );
-    }
 }

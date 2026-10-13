@@ -65,3 +65,12 @@ again, unmeasured in isolation (it was only ever run together with a
 parameter-rounding bug the branch then fixed), to keep that unit
 minimal. Its first measurement should be the rows above, plus
 `cert5_offgrid_knot_rational` and `m8_3_rational_volume`.
+
+## More evidence (NURBS build C, 2026-10-12)
+
+Evenly stacked sections do not escape it at `Interval`. `loft_body::<Interval>`
+on `arc_section(1.0)` at z = 0, 1, …, n − 1 (`common::stacked`) refuses
+with the same `IsoUnsupported` seam error at n = 8 (v-degree 2 and 3),
+16 (degree 2) and 40 (degrees 2 and 3), on main `f581d1ae29` and on
+`nurbs/refined-scan-cost` alike; n = 3 at degree 2 builds. Found while
+timing the rational speed meter on an arc loft.

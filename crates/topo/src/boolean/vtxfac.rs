@@ -201,10 +201,11 @@ fn held(class: SideCode, met: bool) -> bool {
 /// none of their cones, flipped once for each cone that holds it.
 ///
 /// Each partner's material is a convex cone (met) or its complement
-/// (joined) whose boundary meets the others' only at the point, so the
-/// cones nest or lie apart. Every face bounds the other solid's
-/// material on one side only, so crossing a partner's boundary flips
-/// it. A partner's row says on which side of its own boundary the edge
+/// (joined) whose boundary meets the others' at the point, or touches
+/// them along rays, never crossing them, so the cones nest or lie
+/// apart. Every face bounds the other solid's material on one side
+/// only, so crossing a partner's boundary flips it. A partner's row
+/// says on which side of its own boundary the edge
 /// lies, so which cones hold the edge, and how many, is read off the
 /// rows alone. An edge on one partner's boundary is on the solid's,
 /// whatever depth that boundary lies at; one on two, or beside a
@@ -270,22 +271,33 @@ pub(super) fn touch_classes<T: geom_core::Real>(
 }
 
 /// **The classes of a vertex's edges against the other solid, where
-/// the vertex is in pairs alone**, touching no face; refuses
-/// [`BooleanError::VertexReadTwice`], naming the partner and one
-/// beside it, where a partner's cone reads nothing beside another's:
-/// against the vertex's edges, or against the other's in reading which
-/// cone holds which. One pair alone keeps its rows, none where its
-/// partner reads nothing.
+/// the vertex is in pairs alone**, touching no face, its own edges
+/// `own` (its sectors); refuses [`BooleanError::VertexReadTwice`],
+/// naming the partner and one beside it, where a partner's cone reads
+/// nothing beside another's: against the vertex's edges, or against
+/// the other's in reading which cone holds which. One pair alone keeps
+/// its rows, none where its partner reads nothing.
 ///
 /// Several partners read [`layered`]: the cones that no other holds
 /// are outermost, and the material beyond them is outside the solid
 /// where they are met and inside it where they are joined. Which side
 /// of a link a partner calls its cone does not matter here: just beyond
 /// an outermost cone lies outside every cone, since no other holds its
-/// link. Where an edge is left undecided, or the outermost disagree,
-/// each pair's rows stand as read, as for one pair: a silent path,
-/// filed as
-/// `work/tang/pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided.md`.
+/// link. A cone lies inside another where every edge of it is held by
+/// the other or lies on the other's boundary, and some of it is held:
+/// an edge, or, where every edge lies on the other's faces (an island
+/// touching each face of its void), a direction strictly inside it
+/// ([`interior`]); where none reads before its steps reach the band,
+/// the corner is thinner than ε_input wherever probed, and it refuses
+/// [`BooleanError::NestingUnread`]. An edge on two or more partners' boundaries reads
+/// [`along_partners`]. The layering relies on cones that touch but
+/// never cross, as one solid's sheets at rest do: they nest or lie
+/// apart, so some cone is outermost, and outermost cones agree (a met
+/// one beside a joined one would lie in its material). No outermost
+/// cone, outermost cones that disagree, and an edge some partner's
+/// rows miss (every pair reads the vertex's one orbit) each break that
+/// and refuse as an invariant.
+///
 /// A partner reads nothing (`sectors::wedge_classes`' `None`) where its
 /// sectors lie on fewer than two faces; where they lie on two with no
 /// bisector to read the wedge by; or where its corner is read as a
@@ -295,16 +307,10 @@ pub(super) fn touch_classes<T: geom_core::Real>(
 pub(super) fn pair_classes<T: Decide>(
     operand: Operand,
     vertex: VertexKey,
+    own: &[BoolSector<T>],
     pairs: &[PairRead<T>],
     band: Band,
 ) -> Result<Vec<(HalfEdgeKey, SideCode)>, BooleanError> {
-    let alone = || {
-        pairs
-            .iter()
-            .filter_map(|p| p.read.as_ref())
-            .flat_map(|r| r.rows.iter().copied())
-            .collect()
-    };
     let refuse = |unread: usize, beside: usize| BooleanError::VertexReadTwice {
         operand,
         vertex,
@@ -313,32 +319,57 @@ pub(super) fn pair_classes<T: Decide>(
             SectorRead::Pair(pairs[beside].partner),
         ],
     };
-    if let [_] = pairs {
-        return Ok(alone());
+    if let [one] = pairs {
+        return Ok(one
+            .read
+            .as_ref()
+            .map(|r| r.rows.clone())
+            .unwrap_or_default());
     }
     if let Some(unread) = pairs.iter().position(|p| p.read.is_none()) {
         return Err(refuse(unread, usize::from(unread == 0)));
     }
     // Every partner reads, so this keeps one read per pair.
     let reads: Vec<_> = pairs.iter().filter_map(|p| p.read.as_ref()).collect();
-    Ok(layered_alone(pairs, &reads, band, refuse)?.unwrap_or_else(alone))
+    let unwitnessed = |inner: usize, outer: usize| BooleanError::NestingUnread {
+        operand,
+        vertex,
+        partners: [pairs[inner].partner, pairs[outer].partner],
+    };
+    layered_alone(own, pairs, &reads, band, refuse, unwitnessed)
 }
 
 /// [`pair_classes`]' layering of partners that each read (`reads`, one
-/// per pair), or `None` where it cannot decide; `refuse(j, i)` where
-/// partner `j`'s cone reads nothing against partner `i`'s edges.
+/// per pair); `refuse(j, i)` where partner `j`'s cone reads nothing
+/// against partner `i`'s edges.
 fn layered_alone<T: Decide>(
+    own: &[BoolSector<T>],
     pairs: &[PairRead<T>],
     reads: &[&super::sectors::WedgeRead],
     band: Band,
     refuse: impl Fn(usize, usize) -> BooleanError,
-) -> Result<Option<Vec<(HalfEdgeKey, SideCode)>>, BooleanError> {
-    // Partner `i`'s cone lies inside `j`'s where `j` holds every edge
-    // of `i` (strictly: cones whose boundaries meet only at the point).
+    unwitnessed: impl Fn(usize, usize) -> BooleanError,
+) -> Result<Vec<(HalfEdgeKey, SideCode)>, BooleanError> {
+    let invariant = |what| BooleanError::ClassificationInvariant { what };
+    // Partner `i`'s cone lies inside `j`'s where every edge of `i` is
+    // held by `j` or on its boundary, and some of `i` lies inside `j`:
+    // a held edge, or, where every edge lies on `j`'s faces, a
+    // direction strictly inside `i`'s cone ([`interior`]).
     let inside = |i: usize, j: usize| -> Result<bool, BooleanError> {
         let read = super::sectors::wedge_classes(&pairs[i].sectors, &pairs[j].sectors, band)?
             .ok_or_else(|| refuse(j, i))?;
-        Ok(!read.rows.is_empty() && read.rows.iter().all(|&(_, c)| held(c, read.met)))
+        let mut rows = read.rows.iter().map(|&(_, c)| c);
+        if !rows.clone().all(|c| c == SideCode::On || held(c, read.met)) {
+            return Ok(false);
+        }
+        if rows.any(|c| c != SideCode::On) {
+            return Ok(true);
+        }
+        let probe = interior(&pairs[i].sectors, band)?.ok_or_else(|| unwitnessed(i, j))?;
+        let read =
+            super::sectors::wedge_classes(std::slice::from_ref(&probe), &pairs[j].sectors, band)?
+                .ok_or_else(|| refuse(j, i))?;
+        Ok(read.rows.iter().all(|&(_, c)| held(c, read.met)))
     };
     let mut base = None;
     for (i, read) in reads.iter().enumerate() {
@@ -354,23 +385,164 @@ fn layered_alone<T: Decide>(
             } else {
                 SideCode::In
             };
-            // Outermost cones that disagree fall back: main's
-            // `a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op`
-            // reaches it, and builds on the per-pair rows.
             if base.is_some_and(|b| b != here) {
-                return Ok(None);
+                return Err(invariant(
+                    "a vertex's outermost partners disagree on the material beyond them",
+                ));
             }
             base = Some(here);
         }
     }
-    let Some(base) = base else {
-        return Ok(None);
-    };
-    Ok(reads[0]
+    let base = base.ok_or_else(|| invariant("each of a vertex's partners lies inside another"))?;
+    reads[0]
         .rows
         .iter()
-        .map(|&(he, _)| Some((he, layered(base, he, pairs.iter())?)))
-        .collect())
+        .map(|&(he, _)| {
+            let on: Vec<_> = pairs
+                .iter()
+                .filter(|p| {
+                    p.read
+                        .as_ref()
+                        .is_some_and(|r| r.rows.contains(&(he, SideCode::On)))
+                })
+                .collect();
+            let class = if let [_, _, ..] = on.as_slice() {
+                let edge = own
+                    .iter()
+                    .find(|s| s.he == he && s.end_edge())
+                    .ok_or_else(|| invariant("a vertex's row names no edge of its own sectors"))?;
+                along_partners(edge, &on, band)?
+            } else {
+                layered(base, he, pairs.iter())
+                    .ok_or_else(|| invariant("a partner's rows miss an edge of the vertex"))?
+            };
+            Ok((he, class))
+        })
+        .collect()
+}
+
+/// **A direction strictly inside a partner's cone**, as a probe edge
+/// read against other corners: the first candidate the corner's own
+/// reading holds (inside its material where its cone is met, outside
+/// where joined). The candidates are the link mean `c`
+/// ([`super::sectors::link_mean`]) and `−c`, which serve a convex or
+/// hollow corner, whose bounds lie on its cone's boundary; then, for a
+/// polygon cone whose mean may leave it, a direction off each sector's
+/// middle to either side of its face, a quarter of the middle's length
+/// off at first and a fifth of that at each next step, so a corner as
+/// thin as the band allows is reached. The steps stop where the band
+/// takes them: at the first step at which no candidate reads decidedly
+/// off its own face. Each is levered at the corner's shortest arm. A
+/// candidate read in band is passed over, since another may still read
+/// inside; any other refusal is the reading's own and is returned.
+/// `None` where no candidate holds before the band takes the steps:
+/// the corner is thinner than the band wherever it was probed.
+fn interior<T: Decide>(
+    sectors: &[BoolSector<T>],
+    band: Band,
+) -> Result<Option<BoolSector<T>>, BooleanError> {
+    let (Some(first), Some((mean, arm))) = (sectors.first(), super::sectors::link_mean(sectors))
+    else {
+        return Ok(None);
+    };
+    let reach = super::sectors::Reach::Extent(arm);
+    let probe = |dir: Vec3<T>| BoolSector {
+        start: dir,
+        end: dir,
+        start_reach: reach,
+        end_reach: reach,
+        ..first.clone()
+    };
+    let holds = |dir: Vec3<T>| -> Result<Option<BoolSector<T>>, BooleanError> {
+        let candidate = probe(dir);
+        match super::sectors::wedge_classes(std::slice::from_ref(&candidate), sectors, band) {
+            Ok(Some(r)) if r.rows.iter().all(|&(_, c)| held(c, r.met)) => Ok(Some(candidate)),
+            Ok(_) | Err(BooleanError::Escalated { .. }) => Ok(None),
+            Err(e) => Err(e),
+        }
+    };
+    for dir in [mean, -mean] {
+        if let Some(candidate) = holds(dir)? {
+            return Ok(Some(candidate));
+        }
+    }
+    let fifth = T::from_f64(0.2);
+    let mut step = T::from_f64(0.25);
+    loop {
+        let mut clear = false;
+        for s in sectors {
+            let middle = s.middle();
+            let off = s.normal.vec() * (step * middle.norm());
+            for dir in [middle - off, middle + off] {
+                clear |= matches!(
+                    super::sectors::plane_side_code(dir, reach, s.normal, band),
+                    Ok(SideCode::In | SideCode::Out)
+                );
+                if let Some(candidate) = holds(dir)? {
+                    return Ok(Some(candidate));
+                }
+            }
+        }
+        if !clear {
+            return Ok(None);
+        }
+        step = step * fifth;
+    }
+}
+
+/// **The class of an edge on two or more partners' boundaries** (`on`):
+/// `On` where the material their faces bound changes side somewhere
+/// around it. Around the edge each partner's material turns at the
+/// half-planes its faces leave the edge in
+/// ([`super::sectors::half_planes`]), so the solid's material turns at
+/// a half-plane one partner alone leaves it in: the edge is on the
+/// solid's boundary where one such is decidedly apart from every other
+/// partner's. Where every half-plane meets another's the partners lie
+/// flush along the edge, met on both sides of a shared face or a face
+/// tangent to a curved one, which these first-order readings do not
+/// tell apart; that refuses, as a half-plane in band of another's does,
+/// with [`super::BooleanDecision::PartnerFaces`]. Faces flush along
+/// the edge part by the half-planes' chord at the farthest reach of
+/// the edge and the partners' sectors.
+pub(super) fn along_partners<T: Decide>(
+    edge: &BoolSector<T>,
+    on: &[&PairRead<T>],
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    let mut planes = Vec::new();
+    for (k, p) in on.iter().enumerate() {
+        let read = super::sectors::half_planes(edge.end, edge.end_reach, &p.sectors, band)?;
+        planes.extend(read.into_iter().map(|t| (k, t)));
+    }
+    let reach = on
+        .iter()
+        .flat_map(|p| p.sectors.iter().map(BoolSector::span))
+        .fold(edge.end_reach.length(), |a, b| a.max(b));
+    let mut refused = None;
+    for &(k, t) in &planes {
+        let mut apart = true;
+        for &(_, u) in planes.iter().filter(|&&(j, _)| j != k) {
+            let chord = Margin::levered((t - u).norm(), reach);
+            if let Err(diag) =
+                crate::validate::decide_nonzero("bool_partner_half_plane", chord, band)
+            {
+                apart = false;
+                refused.get_or_insert(diag);
+            }
+        }
+        if apart {
+            return Ok(SideCode::On);
+        }
+    }
+    Err(match refused {
+        Some(diag) => BooleanError::Escalated {
+            decision: super::BooleanDecision::PartnerFaces,
+            diag,
+        },
+        None => BooleanError::ClassificationInvariant {
+            what: "an edge on two partners' boundaries lies in none of their faces",
+        },
+    })
 }
 
 /// Output of one vertex-on-face classification.
@@ -607,80 +779,32 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 predicate: Some("bool_sector_coplanar"),
                 terminal_sliver: false,
             };
-            return Err(match class {
-                GlueClass::Continuation => {
-                    BooleanError::ContinuationContradicted { a, b, fact, margin }
-                }
-                GlueClass::Seam => BooleanError::SeamContradicted { a, b, fact, margin },
-                GlueClass::Contact(class) => BooleanError::ContactContradicted {
-                    declaration: crate::contact::DeclaredContact { a, b, class },
-                    steer: fact.and_then(super::contact_verify::fit_steer),
-                    fact,
-                    margin,
-                },
-            });
+            return Err(super::glue_contradicted(a, b, class, fact, margin));
         }
-        // A declared one-carrier pair's lump bridges an in-band tilt, and
-        // a `Tangent` pair's descends to the second order; a seam has no
-        // lump arm here, so its in-band tilt refuses as an undeclared
-        // one does.
+        // A glued one-carrier pair's lump bridges an in-band tilt, and a
+        // tangency's descends to the second order.
         let refused = match (&tilt, class) {
-            (Ok(Sign::Zero), _) => false,
-            (Err(_), Some(GlueClass::Seam) | None) | (Ok(Sign::Positive | Sign::Negative), _) => {
-                true
-            }
-            (Err(_), Some(_)) => false,
+            (Ok(Sign::Zero), _) | (Err(_), Some(_)) => false,
+            (Err(_), None) | (Ok(Sign::Positive | Sign::Negative), _) => true,
         };
         if refused {
-            // A one-carrier declaration bridges the residue only against
-            // a planar pierced face (a curved one refuses below whatever
-            // is declared), and the door admits the one the pair's senses
-            // make it, or none where it cannot read them; `Tangent` only
-            // where the door's witness lane derives the pair's tangency,
-            // which it checks before it admits one.
-            fn surface<T: Decide>(
-                body: &Body<T>,
-                f: crate::entity::FaceKey,
-            ) -> Option<&geom::Surface<T>> {
-                body.get_face(f)
-                    .and_then(|face| body.get_surface(face.surface))
-            }
-            let tangent = match (
-                surface(piercing_body, s.face),
-                surface(pierced_body, contact.face),
-                match class {
-                    Some(_) => {
-                        Some(declared.reach_of(piercing, s.face, pierced_op, contact.face)?)
-                    }
-                    // An undeclared pair's extent, read mid-operation:
-                    // a face whose box no longer reads offers no
-                    // `Tangent` (`work/tang/the-tangent-offer-drops-for-a-face-with-null-scaffolding-mid-op.md`).
-                    None => super::carrier_pair::pair_extent(
-                        piercing_body,
-                        s.face,
-                        pierced_body,
-                        contact.face,
-                        band,
-                    )
-                    .ok()
-                    .map(|extent| extent.reach),
-                },
-            ) {
-                (Some(a), Some(b), Some(reach)) => {
-                    geom_brep::tangent_locus(a, b, reach, band).is_ok()
-                }
-                _ => false,
-            };
-            let one_carrier = plane
+            // An unglued pair: a one-carrier class would bridge the
+            // residue against a planar pierced face (a curved one refuses
+            // below whatever is glued), and the door admits the one the
+            // pair's senses make it, or none where it cannot read them. A
+            // tangency is never offered: no declaration reaches the glue
+            // door (D10). The door leaves a pair unglued where the witness
+            // lane refutes the tangency, and also where its reading refuses
+            // or escalates, which it swallows (filed:
+            // `work/contacthold/the-glue-doors-tangency-swallows-its-escalations.md`).
+            let admitted: Vec<GlueClass> = plane
                 .is_some()
                 .then(|| {
                     super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band)
                         .and_then(GlueClass::of_senses)
                 })
-                .flatten();
-            let admitted: Vec<GlueClass> = one_carrier
+                .flatten()
                 .into_iter()
-                .chain(tangent.then_some(GlueClass::TANGENT))
                 // A decided tilt admits no class: no declaration settles it.
                 .filter(|_| !decided_tilt)
                 .collect();
@@ -706,18 +830,18 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 }),
             };
         }
-        // Declared-`Tangent` (distinct carriers touching): the lump
-        // verdict is the second-order sector trilean — which side the
-        // sector's carrier CURVES to relative to the pierced face's
-        // material ([`super::sectors::tangent_lump`]), read for the WHOLE
-        // sector. Per bound, the bound riding the locus reads `On`, which
+        // A glued tangency (distinct carriers touching, whichever side
+        // the materials lie on): the lump verdict is the second-order
+        // sector trilean — which side the sector's carrier CURVES to
+        // relative to the pierced face's material
+        // ([`super::sectors::tangent_lump`]), read for the WHOLE sector. Per bound, the bound riding the locus reads `On`, which
         // the on-entry resolution below settles from its neighbours; but
         // an arc tangent at this vertex is split at the band's edge, and
         // the sliver's arm puts the arc's second-order margin in the zero
         // band too, so the two `On`s are the consecutive-`On` refusal
         // (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`;
         // pinned by `m9_3_zip::a_tangent_curved_sector_on_a_face_lumps_whole`).
-        if class == Some(GlueClass::TANGENT) {
+        if class == Some(GlueClass::Tangent) {
             let surface_of = |body: &Body<T>, f| {
                 body.get_face(f)
                     .and_then(|face| body.get_surface(face.surface))
@@ -735,7 +859,19 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             );
             let reach = declared.reach_of(piercing, s.face, pierced_op, contact.face)?;
             let lump = super::sectors::tangent_lump(
-                &s_sector, &s_pierced, reach, n_pierced, p, op, piercing, s.face, s.arm, read, band,
+                &s_sector,
+                &s_pierced,
+                reach,
+                n_pierced,
+                s.normal,
+                p,
+                op,
+                piercing,
+                s.face,
+                s.reached_bounds(),
+                s.arm,
+                read,
+                band,
             )?;
             entries[k].class = lump;
             entries[(k + 1) % n].class = lump;
@@ -759,12 +895,13 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 kind,
             });
         };
-        // C8: a CURVED on-carrier sector is opened by a VERIFIED
-        // declaration and by nothing else — undeclared touching keeps
-        // this typed frontier refusal. The recourse is a declared
-        // coincidence (C4: a `Rest` or `Tangent` contact, or a
-        // continuation), under which classification descends to the
-        // carrier ladder or the C7 sector trilean instead of refusing.
+        // C8: a CURVED on-carrier sector is opened by the glue door's
+        // verdict and by nothing else. A tangency the witness lane
+        // verifies is glued and took the second-order lump above, so what
+        // reaches here unglued lies outside the lane (a torus, a cone, a
+        // spline), or is a pair whose reading the door swallowed: an
+        // in-band tangency surfaces here, not as its escalation (filed:
+        // `work/contacthold/the-glue-doors-tangency-swallows-its-escalations.md`).
         if !declared_one_carrier
             && !matches!(sector_carrier, super::carrier_eq::CarrierDesc::Plane { .. })
         {
@@ -2059,7 +2196,7 @@ mod tests {
                 Err([px, pw]),
             ),
         ] {
-            let got = pair_classes(Operand::B, own, &pairs, band);
+            let got = pair_classes(Operand::B, own, &[], &pairs, band);
             if let Err(e) = &got {
                 assert!(
                     e.to_string()
