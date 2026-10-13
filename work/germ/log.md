@@ -1249,3 +1249,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **My call:** no delta reviews this time. Every answer-moving change goes toward a refusal or an escalation and was measured by the lane. I rely on local verify plus hosted CI.
   - Local verify of both on head + main at three ε is running: `scratchpad/vpr.sh`, summaries in v4966/ and v4964/. Hosted test runs are in progress on both.
   - r5012 is reviewing. TiltedEllipse lane: dispatch once 4966 merges, so the item is on main.
+- 2026-10-13 21:25 — Check-in.
+  - **4966 local verify** on `58d47a47e6` + main: fmt, clippy, geom 446, geom-brep 1272 and sweep 2631 green at all three ε; topo 2985 green at unset and 1e-12.
+    - One red at 1e-6: topo `no_pose_inside_the_band_is_answered`, seed `0x499618e04240b357`. That is the P1 in-band class PR 4964 fixes (a fresh seed), not on 4966's branch.
+    - Since then the lane pushed `c053efaf55`, re-baselining editor-core's pad and bracket frozen receipts for the cross-product square, and merged main (`67d8b87742`). Waiting on its hosted run, then re-run editor-core and the PR rows on that head.
+  - **4964**: hosted CI green on `6f8aea425f` (gate ok); local verify is next in the queue.
+  - r5012 is still reviewing. Re-armed for 22:21.
