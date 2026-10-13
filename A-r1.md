@@ -1,0 +1,4 @@
+(A = Fable, round 1)
+Moved to I2: the blend's operand can be an instantiated part (Node::Fillet reads BODY; InstantiatePart produces BODY); ASSEMBLY.md A2 ("which solids are one part … never body state; fusing is explicit, never implied") — the blend reads body state and cannot tell same-part island from another instance's solid; Ev's "a solid is one piece" makes an island a solid of its own, not "a feature" of the blended solid. Void: build (shell-death door in topo beside insert_void). Island: refuse, naming the Solid.
+S: S1 as a decided refusal at the mouth (both agree).
+Class: protrusions (cap cycles) and support mouths are one class with two meters; order: concave bar first (every meter and carve already built), then blind members (pin, convex blind bore), then support feet (new meter).

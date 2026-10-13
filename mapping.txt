@@ -1,3 +1,5 @@
 concave-fill fork: byte 101, A = Fable, B = Opus, protocol 26db1af89e
 Opus designer = local agent (a75bf8…), Fable designer = local agent (a65a5a…), dispatched 09:36; byte 101 odd → A = Fable, B = Opus
 First reports: A (Fable) S1-decided + I1 (shell door) + support-mouth first; B (Opus) S1-decided + I2 void-only/island refuses (A2) + build protrusions in F. Agree S; split on island; both add missed shapes (B: protrusions of the solid in F; A: support-mouth features).
+Round 1: CROSSOVER — B (Opus) moved to I1, A (Fable) moved to I2. Orchestrator verified ProductOperand (wire.rs ~740-760, mod.rs ~640): a blend operand is always one part. Round 2 sent to both with the fact.
+Round 2: CONVERGED — S1 (decided refusal at the mouth), I1 (one shell-death door; shell-side rule + re-homing), class side×host×cycles, order: bar → one-cycle (blind + support; new support-strip meter) → shell door.

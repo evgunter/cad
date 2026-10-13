@@ -1,0 +1,2 @@
+(B = Opus, round 2)
+I1 kept: an instantiated single part has parts=1; an island in it was made by that part's own recipe; A2 governs fusing across instances, and multi-instance bodies are refused as ProductOperand before the blend. Order: takes A's — concave bar first (tests the concave prism reading alone on an unchanged carve), then blind (pin, convex blind bore), then support mouths, then the shell kill. Adds the shell-kill material-side rule. S agreed. Class statement: side × host (cap/support) × cycles (1/2).
