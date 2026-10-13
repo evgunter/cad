@@ -93,6 +93,8 @@ mod cell_pair_records;
 mod census_g2_carrier;
 #[path = "census_records_what_it_decides.rs"]
 mod census_records_what_it_decides;
+#[path = "cleave_zero_band_gap_review_probe.rs"]
+mod cleave_zero_band_gap_review_probe;
 #[path = "cone_apex_cap_body.rs"]
 mod cone_apex_cap_body;
 #[path = "cone_apex_sector_joints.rs"]
