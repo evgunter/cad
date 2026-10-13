@@ -132,6 +132,8 @@ mod refine;
 pub mod section;
 pub mod system;
 
+use std::rc::Rc;
+
 use geom::{Collocation, Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
@@ -1625,11 +1627,15 @@ impl TubeDegeneracy {
 /// its whole domain ([`ChartedNurbs::mint`]). The fields are private:
 /// the only way to hold one is to have minted it from the surface it
 /// carries.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct ChartedNurbs<'a, T: geom_core::Real> {
     surface: &'a NurbsSurface<T>,
-    grid: Option<&'a enclose::CellGrid>,
     speeds: enclose::ChartSpeeds,
+    /// The chart enclosures over the surface's own cells, and over the
+    /// grid's when it was minted on one: each one value shared by every
+    /// clone, so a cell is read once for the operand's life.
+    own: Rc<NurbsBoxes<'a, T>>,
+    on_grid: Option<Rc<NurbsBoxes<'a, T>>>,
 }
 
 impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
@@ -1640,11 +1646,13 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     /// [`SsiError::ChartSpeed`], naming the axis whose speed is zero or
     /// not finite.
     pub fn mint(surface: &'a NurbsSurface<T>) -> Result<Self, SsiError> {
-        let speeds = NurbsBoxes::new(surface).chart_speeds()?;
+        let boxes = NurbsBoxes::new(surface);
+        let speeds = boxes.chart_speeds()?;
         Ok(Self {
             surface,
-            grid: None,
             speeds,
+            own: Rc::new(boxes),
+            on_grid: None,
         })
     }
 
@@ -1665,21 +1673,27 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
         surface: &'a NurbsSurface<T>,
         grid: &'a enclose::CellGrid,
     ) -> Result<Self, SsiError> {
-        NurbsBoxes::new(surface).chart_speeds()?;
-        let speeds = NurbsBoxes::on_grid(surface, grid).chart_speeds()?;
+        let own = NurbsBoxes::new(surface);
+        own.chart_speeds()?;
+        let boxes = NurbsBoxes::on_grid(surface, grid);
+        let speeds = boxes.chart_speeds()?;
         Ok(Self {
             surface,
-            grid: Some(grid),
             speeds,
+            own: Rc::new(own),
+            on_grid: Some(Rc::new(boxes)),
         })
     }
 
     /// The chart enclosures, over the cells it was minted on.
-    pub(crate) fn boxes(&self) -> NurbsBoxes<'a, T> {
-        match self.grid {
-            Some(g) => NurbsBoxes::on_grid(self.surface, g),
-            None => NurbsBoxes::new(self.surface),
-        }
+    pub(crate) fn boxes(&self) -> &NurbsBoxes<'a, T> {
+        self.on_grid.as_deref().unwrap_or(&self.own)
+    }
+
+    /// The chart enclosures over the surface's own cells, whatever it
+    /// was minted on: the ℝ⁴ pair's ([`four::PairBoxes`]).
+    pub(crate) fn own_boxes(&self) -> &Rc<NurbsBoxes<'a, T>> {
+        &self.own
     }
 }
 
@@ -2781,6 +2795,7 @@ fn boundary_pass(
     };
     boundary::Pass {
         wall,
+        boxes: charted.own_boxes(),
         speeds: charted.speeds(),
         plane: boundary::PassPlane {
             origin,

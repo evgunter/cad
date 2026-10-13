@@ -67,7 +67,7 @@ pub(crate) struct Ends<'a> {
 }
 
 /// The operand pair a branch between known ends is certified against.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) enum Operands<'a> {
     /// A plane and a NURBS wall: the wall's pcurve carries the chart
     /// tube.
@@ -89,7 +89,7 @@ pub(crate) enum Operands<'a> {
 impl<'a> Operands<'a> {
     /// The certificate's lane for a fitted triple's pcurves.
     fn lane<'b>(
-        self,
+        &self,
         pa: Option<&'b NurbsCurve2<f64>>,
         pb: Option<&'b NurbsCurve2<f64>>,
     ) -> Result<certify::Lane<'b, f64>, SsiError>
@@ -106,7 +106,7 @@ impl<'a> Operands<'a> {
                 };
                 Ok(certify::Lane::Chart {
                     plane,
-                    wall: *wall,
+                    wall: wall.clone(),
                     pcurve,
                 })
             }
@@ -115,8 +115,8 @@ impl<'a> Operands<'a> {
                     return Err(need());
                 };
                 Ok(certify::Lane::Pair {
-                    a,
-                    b,
+                    a: a.clone(),
+                    b: b.clone(),
                     pcurve_a,
                     pcurve_b,
                 })

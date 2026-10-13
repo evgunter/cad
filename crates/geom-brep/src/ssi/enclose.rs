@@ -592,7 +592,8 @@ impl UvWindow {
 /// surface's net refined in certification arithmetic, whose finer cells
 /// read tighter hulls. Evaluation ([`NurbsBoxes::rect_box`]'s midpoint)
 /// and the boundary rows always read the surface itself.
-pub(crate) struct NurbsBoxes<'a, T: CertifiedBounds> {
+#[derive(Debug)]
+pub(crate) struct NurbsBoxes<'a, T: geom_core::Real> {
     surface: &'a NurbsSurface<T>,
     grid: Option<&'a CellGrid>,
     /// Each span cell's whole net, row-major by `(su, sv)` over the cell
@@ -602,6 +603,7 @@ pub(crate) struct NurbsBoxes<'a, T: CertifiedBounds> {
 }
 
 /// [`NurbsBoxes`]'s whole-cell nets, `v`-span count wide.
+#[derive(Debug)]
 struct CellNets {
     nv: usize,
     cells: Vec<OnceCell<Option<CellNet>>>,
@@ -627,7 +629,11 @@ impl CellNets {
         }
         self.cells
             .get(su * self.nv + sv)?
-            .get_or_init(build)
+            .get_or_init(|| {
+                #[cfg(test)]
+                tests::WHOLE_NETS.with(|n| n.set(n.get() + 1));
+                build()
+            })
             .as_ref()
     }
 
@@ -1406,8 +1412,14 @@ pub(crate) fn refused_box() -> Box3 {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(super) mod tests {
     use super::*;
+
+    std::thread_local! {
+        /// Whole-cell nets built on this thread ([`CellNets::get`]).
+        pub(in crate::ssi) static WHOLE_NETS: core::cell::Cell<usize> =
+            const { core::cell::Cell::new(0) };
+    }
 
     /// A test's window, ordered by construction.
     fn win((u0, u1, v0, v1): (f64, f64, f64, f64)) -> UvWindow {

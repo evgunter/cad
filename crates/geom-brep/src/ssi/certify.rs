@@ -1351,6 +1351,8 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
     (rung, pad): (f64, (f64, f64)),
     (ends, band): ([Box3; 2], Band),
 ) -> Result<Option<Rung>, SsiError> {
+    #[cfg(test)]
+    tests::CHART_PROBES.with(|n| n.set(n.get() + 1));
     let surface = boxes.surface();
     let Some(windows) = chart_tube_windows(pcurve, pad) else {
         return Ok(None);
@@ -1493,14 +1495,14 @@ type PairPads = ((f64, f64), (f64, f64));
 /// this rung. [`Rung::refused`] where a box's margin is.
 fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
     (pa, pb): (&NurbsCurve2<T>, &NurbsCurve2<T>),
-    (na, nb): (super::ChartedNurbs<'_, T>, super::ChartedNurbs<'_, T>),
+    (na, nb): (&super::ChartedNurbs<'_, T>, &super::ChartedNurbs<'_, T>),
     (rung, (pad_a, pad_b)): (f64, PairPads),
     band: Band,
 ) -> Option<Rung> {
     use super::four::{Box4, PairBoxes, dominant, graph_margin, one_arc_pair};
     let (sa, sb) = (na.speeds(), nb.speeds());
     let speeds = [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()];
-    let pair = PairBoxes::new(na.surface(), nb.surface(), speeds);
+    let pair = PairBoxes::new(na, nb, speeds);
     let chain = pair_tube_chain((pa, pb), (pad_a, pad_b))?;
     // The tangent is a DIRECTION — structure — selected through the
     // bracket's upper end as the chart lane's is: the graph margin is
@@ -1943,6 +1945,13 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     limbs: Limbs,
     at: &mut Refused,
 ) -> Result<SsiCertificate<T>, SsiError> {
+    // Limb 3 reads its theorem over the region the search is cut to: an
+    // ℝ³ search's slab; the wall's knot rectangle, which every chart
+    // enclosure is clipped to.
+    let slab = match lane {
+        Lane::Spatial { slab, .. } => Some(slab),
+        Lane::AtRest { .. } | Lane::Chart { .. } | Lane::Pair { .. } => None,
+    };
     // The pair the first two limbs read, the pcurve beside the second.
     let (first, second);
     let (a, b, pcurve_a, pcurve_b) = match lane {
@@ -1995,13 +2004,6 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
         on_locus = on_locus.max(l1);
         hull_sup = hull_sup.max(l2);
     }
-    // ---- limb 3: one theorem at every door, over the region the
-    // search is cut to (an ℝ³ search's slab; the wall's knot rectangle,
-    // which every chart enclosure is clipped to).
-    let slab = match lane {
-        Lane::Spatial { slab, .. } => Some(slab),
-        Lane::AtRest { .. } | Lane::Chart { .. } | Lane::Pair { .. } => None,
-    };
     // The carrier's two ends, as the carrier's scalar evaluates them: on
     // the f64 lane a point, not an enclosure of the exact end, which the
     // end checks then read within ε of
@@ -2051,7 +2053,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 // region (a window's corner can sit farther than the rung
                 // from the carrier).
                 let pad = n.speeds().pad(radius);
-                probe_tube_chart(p, &n.boxes(), (origin, normal), (radius, pad), (ends, band))
+                probe_tube_chart(p, n.boxes(), (origin, normal), (radius, pad), (ends, band))
             })?
         }
         (SsiOperand::Nurbs(na), SsiOperand::Nurbs(nb)) => {
@@ -2063,7 +2065,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             limb_three((widest, extent), band, |radius| {
                 Ok(probe_tube_pair(
                     (pa, pb),
-                    (*na, *nb),
+                    (na, nb),
                     (radius, (na.speeds().pad(radius), nb.speeds().pad(radius))),
                     band,
                 ))
@@ -2099,6 +2101,12 @@ fn tube_transversality<T: Decide>(
 
 #[cfg(test)]
 mod tests {
+    std::thread_local! {
+        /// Chart-lane tube probes run on this thread (one per rung).
+        pub(super) static CHART_PROBES: core::cell::Cell<usize> =
+            const { core::cell::Cell::new(0) };
+    }
+
     /// A synthetic limb-2 hull over `[0, 1]` with its `cuts` added, every
     /// span bounded by `sup` and no break value certified.
     fn flat_hull(cuts: &[f64], sup: f64) -> super::Hull {
@@ -3217,15 +3225,19 @@ mod tests {
     /// refusal is `TubeNotOneArc` with no located interval, which
     /// [`super::super::refine::refine_by_certificate`] returns as it is
     /// rather than as `RefinementExhausted`.
-    #[test]
-    #[allow(clippy::unwrap_used, clippy::panic)]
-    fn a_limb_three_refusal_on_the_chart_lane_is_not_located() {
+    /// The fold at slope `c = 800ε`, gap height β = ½ε, and the straight
+    /// carrier across its gap with its pcurve: `(wall, carrier, pcurve,
+    /// plane)`.
+    #[allow(clippy::unwrap_used)]
+    fn fold_across_its_gap() -> (
+        geom::NurbsSurface<f64>,
+        geom::NurbsCurve3<f64>,
+        geom::NurbsCurve2<f64>,
+        geom::Surface<f64>,
+    ) {
         use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
         use geom_core::spline::KnotVector;
-        use geom_core::{Band, Point2, Point3, Vec3};
-
-        use super::{Lane, certify_located};
-        use crate::ssi::{ChartedNurbs, SsiError};
+        use geom_core::{Point2, Point3, Vec3};
 
         let beta = 0.5e-9;
         let c = 1600.0 * beta;
@@ -3266,6 +3278,18 @@ mod tests {
             normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
+        (wall, carrier, pcurve, plane)
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    fn a_limb_three_refusal_on_the_chart_lane_is_not_located() {
+        use geom_core::Band;
+
+        use super::{Lane, certify_located};
+        use crate::ssi::{ChartedNurbs, SsiError};
+
+        let (wall, carrier, pcurve, plane) = fold_across_its_gap();
         let lane = Lane::Chart {
             plane: &plane,
             wall: ChartedNurbs::mint(&wall).unwrap(),
@@ -3281,6 +3305,42 @@ mod tests {
             refused.error
         );
         assert!(refused.at.is_none(), "limb 3 was located: {:?}", refused.at);
+    }
+
+    /// **An operand's cells are built once for its life, not once per
+    /// rung**: the mint reads the one-cell fold's speeds, limb 3 walks
+    /// its ladder with every rung reading the wall's chart enclosures,
+    /// and the cell's net is built once over all of it.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn every_rung_reads_the_operands_one_build_of_each_cell() {
+        use geom_core::Band;
+
+        use super::{Lane, certify_located};
+        use crate::ssi::ChartedNurbs;
+        use crate::ssi::enclose::tests::WHOLE_NETS;
+
+        let (wall, carrier, pcurve, plane) = fold_across_its_gap();
+        WHOLE_NETS.with(|n| n.set(0));
+        CHART_PROBES.with(|n| n.set(0));
+        let wall_op = ChartedNurbs::mint(&wall).unwrap();
+        let lane = Lane::Chart {
+            plane: &plane,
+            wall: wall_op,
+            pcurve: &pcurve,
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let _ = certify_located(&carrier, lane, 1.0, band, super::Limbs::Tube);
+        let rungs = CHART_PROBES.with(core::cell::Cell::get);
+        let built = WHOLE_NETS.with(core::cell::Cell::get);
+        assert!(
+            rungs >= 2,
+            "the ladder probed {rungs} rungs: the row reads nothing"
+        );
+        assert_eq!(
+            built, 1,
+            "the one-cell wall's net was built {built} times over {rungs} rungs"
+        );
     }
 
     /// **A refused transversality enclosure is no sliver.** A torus has
