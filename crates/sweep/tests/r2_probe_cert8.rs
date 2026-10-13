@@ -267,6 +267,11 @@ fn check_certified_arms(ctl: &[[f64; 3]; 9], w: &[f64; 9], note: &str) -> Option
 /// carry two obligations of which only one is safe to cut. So the floor
 /// lives here, on charts a reader can see, and the search next door
 /// carries none.
+///
+/// The rational charts' weights spread at most `1.6×`: the inf floors
+/// are the pair-term statement, whose hull relaxation refuses these
+/// nets at a wider spread
+/// (`probe_steep_rational_charts_refuse_at_the_pair_term_floor`).
 /// A written chart: its tag, the 3x3 control net, and the nine
 /// weights.
 type WrittenChart = (&'static str, [[f64; 3]; 9], [f64; 9]);
@@ -315,7 +320,7 @@ const WRITTEN_CHARTS: [WrittenChart; 5] = [
             [2.0, 1.0, 0.0],
             [2.0, 2.0, 0.0],
         ],
-        [1.0, 0.5, 1.0, 2.0, 1.0, 0.4, 1.0, 3.0, 1.0],
+        [1.0, 0.9, 1.0, 1.2, 1.0, 0.88, 1.0, 1.4, 1.0],
     ),
     (
         "bowed-rational",
@@ -330,7 +335,7 @@ const WRITTEN_CHARTS: [WrittenChart; 5] = [
             [2.0, 1.0, 0.3],
             [2.0, 2.0, 0.0],
         ],
-        [1.0, 0.5, 1.0, 2.0, 1.0, 0.4, 1.0, 3.0, 1.0],
+        [1.0, 0.9, 1.0, 1.2, 1.0, 0.88, 1.0, 1.4, 1.0],
     ),
     (
         // Sheared, so u and v are not orthogonal anywhere: this is the
@@ -347,7 +352,7 @@ const WRITTEN_CHARTS: [WrittenChart; 5] = [
             [2.7, 1.4, 0.1],
             [3.4, 2.4, 0.0],
         ],
-        [1.0, 0.8, 1.0, 1.6, 1.0, 0.6, 1.0, 2.2, 1.0],
+        [1.0, 0.94, 1.0, 1.18, 1.0, 0.88, 1.0, 1.36, 1.0],
     ),
 ];
 
@@ -362,6 +367,29 @@ fn probe_written_charts_never_break_the_certified_arms() {
                 )
             });
         println!("written chart {tag}: worst contraction ratio {worst}");
+    }
+}
+
+/// **The pair-term floor's frontier on the written nets.** The three
+/// rational charts above at their original weights (spread `3.7×` to
+/// `7.5×`) read no positive inf: the floor evaluates each pair term
+/// over the whole cell's hull, and at these weights some term projects
+/// to zero or below at a far active point (on the flat net exactly
+/// zero). A refusal is sound and only a reach cost; this row pins where
+/// it falls, so a change to the floor's reach shows here
+/// (`work/nurbs/rational-inf-floor-reach-refines-before-reading.md`).
+#[test]
+fn probe_steep_rational_charts_refuse_at_the_pair_term_floor() {
+    let steep: [[f64; 9]; 3] = [
+        [1.0, 0.5, 1.0, 2.0, 1.0, 0.4, 1.0, 3.0, 1.0],
+        [1.0, 0.5, 1.0, 2.0, 1.0, 0.4, 1.0, 3.0, 1.0],
+        [1.0, 0.8, 1.0, 1.6, 1.0, 0.6, 1.0, 2.2, 1.0],
+    ];
+    for ((tag, ctl, _), w) in WRITTEN_CHARTS[2..].iter().zip(steep) {
+        assert!(
+            check_certified_arms(ctl, &w, &format!("steep {tag}")).is_none(),
+            "steep {tag}: the pair-term floor now enters this net; move the frontier"
+        );
     }
 }
 
