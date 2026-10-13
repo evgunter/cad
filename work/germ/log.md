@@ -1272,3 +1272,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Row `PR-4966.md` last: holdout, M, byte 159, coding byte 191 → A = r4966b, tallied 0, major false.
   - Worktrees and targets removed.
   - The TiltedEllipse lane (session_019MVgQmqRijZNgdo3U6o2ke) is on 4966's branch; it merges main itself now that 4966 has landed.
+- 2026-10-13 23:23 — Check-in. 5012's fix pass is on its audit-doc item; the TiltedEllipse lane is working. One lane was free, so I dispatched the P3 spiric lever near the pinch: session_014HPqTVQme8Re1tW6MGLAE4, branch germ/spiric-lever-pinch. Re-armed for 00:23.
