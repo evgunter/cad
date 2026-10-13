@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-13
 priority: P2
 cost: M
-design: true
 ---
 
 ## What
@@ -53,3 +52,7 @@ floor. The question is which, if either, belongs in
 pair; the curve meter's piece assembly
 (`rational-inf-speed-has-two-recipes-curve-and-surface`) is the other
 data point on reach.
+
+## Ruling (2026-10-13, orchestrator, designers convergent)
+
+Both rows close into ONE statement: the Bernstein quotient (coefficient-ratio) bound on dyadic pieces, in `geom_core::spline::derivative`. Each derivative quantity is written as a numerator over a power of `W`, both raised to one degree. Then `inf (·)·d ≥ min_k (a_k·d)/b_k` and `sup ‖·‖ ≤ max_k ‖a_k‖/b_k`, read on exact dyadic Bézier pieces, never on refined knot vectors. The full ruling is in `work/nurbs/log.md`, 2026-10-13 03:00Z.

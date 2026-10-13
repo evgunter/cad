@@ -256,26 +256,6 @@ fn carrier_of(body: &Body<f64>, he: topo::HalfEdgeKey) -> (Curve3<f64>, f64, f64
     (c.carrier().clone(), t0, t1)
 }
 
-/// The plane operand of the seam's intersection description (the mate
-/// the fitted-grade certificate needs) — same read as the unit's
-/// `seam_operands`, restated here independently.
-fn seam_plane(body: &Body<f64>, he: topo::HalfEdgeKey) -> Surface<f64> {
-    let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
-    let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
-        panic!("the seam's carrier is certified")
-    };
-    let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
-        panic!("the seam is described as an intersection")
-    };
-    pair.keys()
-        .into_iter()
-        .find_map(|k| match body.get_surface(k) {
-            Some(p @ Surface::Plane { .. }) => Some(p.clone()),
-            _ => None,
-        })
-        .expect("one operand is the restated plane")
-}
-
 // ---------------------------------------------------------------- //
 // The rows                                                          //
 // ---------------------------------------------------------------- //
@@ -355,7 +335,6 @@ fn r1_certify_general_refuses_a_plausible_wrong_column() {
     )
     .expect("the shifted image is a well-formed curve");
     let (carrier, t0, t1) = carrier_of(&body, he);
-    let mate = seam_plane(&body, he);
     let shifted = Arc::new(shifted);
     let verdict = geom_brep::PcurveCache::certify_general(
         shifted,
@@ -363,7 +342,6 @@ fn r1_certify_general_refuses_a_plausible_wrong_column() {
         t1,
         &carrier,
         &Surface::Nurbs(Arc::new(chart)),
-        Some(&mate),
         band(),
         <f64 as topo::AtRestPolicy>::fitted_lane(),
     );
@@ -716,20 +694,6 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
     let extended = Surface::Nurbs(Arc::new(
         NurbsSurface::new(n.knots_u().clone(), kv, control, vec![1.0; 6]).unwrap(),
     ));
-    // The plane operand, read before the rechart mints a new key.
-    let plane_key = {
-        let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
-        let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
-            panic!("certified")
-        };
-        let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
-            panic!("intersection")
-        };
-        pair.keys()
-            .into_iter()
-            .find(|k| matches!(body.get_surface(*k), Some(Surface::Plane { .. })))
-            .expect("one operand is the plane")
-    };
     let key = rechart(&mut body, bowed, extended);
     let chart = chart_of(&body, key);
     assert_eq!(chart.knots_v().domain(), (0.0, 2.0));
@@ -779,36 +743,6 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         );
     }
     // ---- And General CERTIFIES it, which is the corrected claim. ----
-    // The description is re-stated against the chart the face now
-    // carries, so the mate is the one `mate_surface` would find rather
-    // than a hand-picked one (`rechart` mints a new surface key).
-    body.set_edge_curve(
-        body.get_half_edge(he).unwrap().edge,
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                pair: SurfacePair::new(plane_key, key),
-                witness: carrier.eval((t0 + t1) * 0.5),
-            },
-            carrier: carrier.clone(),
-            param_start: t0,
-            param_end: t1,
-        },
-        Tol::witness(),
-    )
-    .expect("the seam re-attaches against the extended chart");
-    let mate = {
-        let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
-        let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
-            panic!("certified")
-        };
-        let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
-            panic!("intersection")
-        };
-        let other = pair
-            .other(key)
-            .expect("mate_surface's precondition: the face's own surface is in the pair");
-        body.get_surface(other).cloned().expect("the mate resolves")
-    };
     let eps = Tol::witness().get().eps;
     let cache = geom_brep::PcurveCache::certify_general(
         std::sync::Arc::clone(image),
@@ -816,18 +750,21 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         t1,
         &carrier,
         &Surface::Nurbs(Arc::new(chart.clone())),
-        Some(&mate),
         band(),
         <f64 as topo::AtRestPolicy>::fitted_lane(),
     )
-    .expect("General certifies a partial column against its operand pair");
+    .expect("General certifies a partial column against its chart");
     let cert = cache.certificate();
     assert!(
         cert.envelope <= eps,
         "its between-samples bound is inside eps: {:e} vs {eps:e}",
         cert.envelope
     );
-    assert!(cert.ssi().is_some(), "the FULL C2 certificate: {cert:?}");
+    assert_eq!(
+        cert.statement,
+        geom_brep::EnvelopeStatement::MapResidualComposite,
+        "the fitted grade's hull bound: {cert:?}"
+    );
     println!(
         "R1: a partial column takes General and certifies, envelope {:e} m",
         cert.envelope
