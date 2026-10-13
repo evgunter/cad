@@ -136,7 +136,7 @@ use geom_core::predicate::Band;
 use geom_core::spline::{KnotVector, ParamRange, SpanLocate, poison_from};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
-use crate::harmonic::harmonic_sup;
+use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::offset::Nappe;
 
 use super::{
@@ -2032,7 +2032,7 @@ pub(super) fn projected_envelope<T: Decide>(
     match (image.chart, &twin) {
         (ProjectedChart::Cone { sin, cos, .. }, Surface::Cone { half_angle, .. }) => {
             let (s, c) = half_angle.sin_cos();
-            let drift = (sin - s).abs() + (cos - c).abs();
+            let drift = harmonic_sup_scalar(sin - s, cos - c);
             terms.add(EnvelopeTerm::FidelityV, drift * (v_reach + incidence + d));
         }
         (

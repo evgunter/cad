@@ -4195,13 +4195,24 @@ enum Derivation {
 }
 
 /// Check 4's envelope on a periodic chart, one running sum per
-/// [`EnvelopeTerm`]; the certified bound is their total.
+/// [`EnvelopeTerm`]; the certified bound is their total. The flag says
+/// the two channel fidelities meter displacements along orthogonal
+/// chart directions ([`EnvelopeTerms::orthogonal_fidelity`]), so the
+/// total reads them as the two legs of one displacement.
 #[derive(Clone, Copy)]
-struct EnvelopeTerms<T: Real>([T; EnvelopeTerm::ALL.len()]);
+struct EnvelopeTerms<T: Real>([T; EnvelopeTerm::ALL.len()], bool);
 
 impl<T: Decide> EnvelopeTerms<T> {
     fn new() -> Self {
-        Self([T::zero(); EnvelopeTerm::ALL.len()])
+        Self([T::zero(); EnvelopeTerm::ALL.len()], false)
+    }
+
+    /// `FidelityU` and `FidelityV` are `arm·sup|Δ|` of one chart
+    /// segment's two channels on a chart whose `S_u ⊥ S_v` everywhere:
+    /// the segment's image is no longer than `√(arm_u²·Δu² +
+    /// arm_v²·Δv²)`, so the total reads the pair at its norm.
+    fn orthogonal_fidelity(&mut self) {
+        self.1 = true;
     }
 
     fn add(&mut self, term: EnvelopeTerm, value: T) {
@@ -4210,7 +4221,18 @@ impl<T: Decide> EnvelopeTerms<T> {
     }
 
     fn total(&self) -> T {
-        self.0.iter().fold(T::zero(), |sum, &term| sum + term)
+        let (u, v) = (EnvelopeTerm::FidelityU.slot(), EnvelopeTerm::FidelityV.slot());
+        let rest = self
+            .0
+            .iter()
+            .enumerate()
+            .filter(|&(slot, _)| !self.1 || (slot != u && slot != v))
+            .fold(T::zero(), |sum, (_, &term)| sum + term);
+        if self.1 {
+            rest + harmonic_sup_scalar(self.0[u], self.0[v])
+        } else {
+            rest
+        }
     }
 
     /// The first term, in [`EnvelopeTerm::ALL`]'s order, that does not
@@ -4440,6 +4462,43 @@ fn norm_gap<T: Real>(p: T, p_sq: T, q: Vec3<T>) -> T {
     (p_sq - q.dot(q)).abs() / (p + q.norm())
 }
 
+/// `p/‖q‖ − 1`, the factor that stretches `q` to length `p` (`q·(1 + k)`
+/// has norm `p`), its numerator [`norm_gap`]'s polynomial. `p ≥ 0`,
+/// `q ≠ 0`.
+fn stretch<T: Real>(p: T, p_sq: T, q: Vec3<T>) -> T {
+    let n = q.norm();
+    (p_sq - q.dot(q)) / ((p + n) * n)
+}
+
+/// A rim's or a parallel's **class circle** against the carrier's
+/// `(a, b)`: the image turns `ρ·â_r` at the decided winding, so its
+/// `cos t` and `sin t` coefficients are `a_r·(1 + k)` and
+/// `β·e×a_r·(1 + k)` with `k` the [`stretch`] to `ρ`, and the pair's
+/// difference from the carrier's is read whole — radius, winding and
+/// the plane's tilt at one exact sup. A winding decided Zero reads the
+/// image's constant radial at its full length and the carrier's pair as
+/// drift.
+fn class_circle<T: Decide>(
+    terms: &mut EnvelopeTerms<T>,
+    beta: Winding,
+    (rho, rho_sq): (T, T),
+    (a, b): (Vec3<T>, Vec3<T>),
+    axis: Vec3<T>,
+) {
+    let a_r = a - axis * a.dot(axis);
+    match beta {
+        Winding::Pos | Winding::Neg => {
+            let f = T::one() + stretch(rho, rho_sq, a_r);
+            let turn = axis.cross(a_r) * beta.value();
+            terms.add(EnvelopeTerm::Radius, harmonic_sup(a_r * f - a, turn * f - b));
+        }
+        Winding::Zero => {
+            terms.add(EnvelopeTerm::Radius, rho);
+            terms.add(EnvelopeTerm::Drift, harmonic_sup(a, b));
+        }
+    }
+}
+
 /// Check 4's **incidence** terms: a bound on `sup |S(P_d(t)) − C(t)|`
 /// for the image `P_d` that [`derive_harmonic`] builds from `form`
 /// under `derivation`, in the carrier's own coefficients and the
@@ -4452,7 +4511,7 @@ fn incidence<T: Decide>(
     reach: T,
     terms: &mut EnvelopeTerms<T>,
 ) {
-    use EnvelopeTerm::{Centre, Drift, Line, Orientation, Radius, Tilt};
+    use EnvelopeTerm::{Centre, Drift, Line, Orientation, Radius};
     let Harmonic3 { c, a, b, l } = form;
     match (surface, derivation) {
         (
@@ -4468,19 +4527,9 @@ fn incidence<T: Decide>(
             let (w_r, a_r, b_r) = (radial(c - origin), radial(a), radial(b));
             terms.add(Line, radial(l).norm() * reach);
             match derivation {
-                Derivation::CylinderMoving {
-                    beta: beta @ (Winding::Pos | Winding::Neg),
-                } => {
+                Derivation::CylinderMoving { beta } => {
                     terms.add(Centre, w_r.norm());
-                    terms.add(Radius, norm_gap(radius, radius.powi(2), a_r));
-                    terms.add(Orientation, (b_r - axis.cross(a_r) * beta.value()).norm());
-                }
-                Derivation::CylinderMoving {
-                    beta: Winding::Zero,
-                } => {
-                    terms.add(Centre, w_r.norm());
-                    terms.add(Radius, radius);
-                    terms.add(Drift, harmonic_sup(a_r, b_r));
+                    class_circle(terms, beta, (radius, radius.powi(2)), (a_r, b_r), axis);
                 }
                 _ => {
                     terms.add(Radius, norm_gap(radius, radius.powi(2), w_r));
@@ -4526,20 +4575,9 @@ fn incidence<T: Decide>(
                 }
                 Derivation::ConeRim { nappe, beta } => {
                     let rho = h * nappe.value() * slope;
-                    let (a_r, b_r) = (radial(a), radial(b));
                     terms.add(Centre, w_r.norm());
-                    terms.add(Tilt, harmonic_sup_scalar(a.dot(axis), b.dot(axis)));
                     terms.add(Line, l.norm() * reach);
-                    match beta {
-                        Winding::Pos | Winding::Neg => {
-                            terms.add(Radius, norm_gap(rho, rho.powi(2), a_r));
-                            terms.add(Orientation, (b_r - axis.cross(a_r) * beta.value()).norm());
-                        }
-                        Winding::Zero => {
-                            terms.add(Radius, rho);
-                            terms.add(Drift, harmonic_sup(a_r, b_r));
-                        }
-                    }
+                    class_circle(terms, beta, (rho, rho.powi(2)), (a, b), axis);
                 }
                 _ => unreachable!("incidence: the cone arm matched its own derivations"),
             }
@@ -4564,25 +4602,18 @@ fn incidence<T: Decide>(
                     let rho_sq = radius.powi(2) - h.powi(2);
                     let rho = rho_sq.sqrt();
                     terms.add(Centre, w_r.norm());
-                    terms.add(Tilt, harmonic_sup_scalar(aa, bb));
-                    match beta {
-                        Winding::Pos | Winding::Neg => {
-                            terms.add(Radius, norm_gap(rho, rho_sq, a_r));
-                            terms.add(Orientation, (b_r - axis.cross(a_r) * beta.value()).norm());
-                        }
-                        Winding::Zero => {
-                            terms.add(Radius, rho);
-                            terms.add(Drift, harmonic_sup(a_r, b_r));
-                        }
-                    }
+                    class_circle(terms, beta, (rho, rho_sq), (a, b), axis);
                 }
                 Derivation::SphereMeridian { pole: false, sigma } => {
                     // `J·a`: `a` turned a quarter in its meridian plane,
                     // `(‖a_r‖·axis − aa·â_r)·‖a‖/‖a‖`.
                     let ja = (axis * a_r.dot(a_r) - a_r * aa) / a_r.norm();
+                    let k = stretch(radius, radius.powi(2), a);
                     terms.add(Centre, w.norm());
-                    terms.add(Radius, norm_gap(radius, radius.powi(2), a));
-                    terms.add(Orientation, (ja * sigma.value() - b).norm());
+                    terms.add(
+                        Radius,
+                        harmonic_sup(a * k, ja * (T::one() + k) * sigma.value() - b),
+                    );
                 }
                 Derivation::SphereMeridian { pole: true, sigma } => {
                     terms.add(Centre, w.norm());
@@ -4590,7 +4621,7 @@ fn incidence<T: Decide>(
                     terms.add(Drift, a_r.norm() * T::from_f64(3.0));
                     terms.add(
                         Orientation,
-                        bb.abs() + (aa * sigma.value() + b_r.norm()).abs(),
+                        harmonic_sup_scalar(bb, aa * sigma.value() + b_r.norm()),
                     );
                 }
                 _ => unreachable!("incidence: the sphere arm matched its own derivations"),
@@ -4609,25 +4640,33 @@ fn incidence<T: Decide>(
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let w = c - center;
             let (h, w_r) = (w.dot(axis), radial(w));
-            let (a_r, b_r) = (radial(a), radial(b));
+            let a_r = radial(a);
             let aa = a.dot(axis);
             let minor_sq = minor_radius.powi(2);
             terms.add(Line, l.norm() * reach);
             match derivation {
                 Derivation::TorusParallel { beta } => {
-                    let core = a_r.norm() - major_radius;
+                    let rho = a_r.norm();
+                    let core = rho - major_radius;
                     let m_sq = h.powi(2) + core.powi(2);
-                    let tube = (minor_sq - m_sq).abs() / (minor_radius + m_sq.sqrt());
+                    let m = m_sq.sqrt();
                     terms.add(Centre, w_r.norm());
-                    terms.add(Tilt, harmonic_sup_scalar(aa, b.dot(axis)));
                     match beta {
                         Winding::Pos | Winding::Neg => {
-                            terms.add(Radius, tube);
-                            terms.add(Orientation, (b_r - axis.cross(a_r) * beta.value()).norm());
+                            // `r/m − 1`: the image's radius is `ρ + core·κ`,
+                            // its height `h·(1 + κ)`.
+                            let kappa = (minor_sq - m_sq) / ((minor_radius + m) * m);
+                            let f = T::one() + core * kappa / rho;
+                            let turn = axis.cross(a_r) * beta.value();
+                            terms.add(
+                                Radius,
+                                (h * kappa).abs() + harmonic_sup(a_r * f - a, turn * f - b),
+                            );
                         }
                         Winding::Zero => {
+                            let tube = (minor_sq - m_sq).abs() / (minor_radius + m);
                             terms.add(Radius, tube + major_radius + minor_radius);
-                            terms.add(Drift, harmonic_sup(a_r, b_r));
+                            terms.add(Drift, harmonic_sup(a, b));
                         }
                     }
                 }
@@ -4635,17 +4674,17 @@ fn incidence<T: Decide>(
                     let wr_sq = w_r.dot(w_r);
                     let aw = a.dot(w_r);
                     let n_sq = aw.powi(2) / wr_sq + aa.powi(2);
-                    let tube = (minor_sq - n_sq).abs() / (minor_radius + n_sq.sqrt());
                     terms.add(
                         Centre,
                         norm_gap(major_radius, major_radius.powi(2), w_r) + h.abs(),
                     );
-                    terms.add(Radius, tube);
-                    terms.add(Tilt, (a_r - w_r * (aw / wr_sq)).norm());
-                    terms.add(
-                        Orientation,
-                        ((axis * aw - w_r * aa) / wr_sq.sqrt() * sigma.value() - b).norm(),
-                    );
+                    // `a*` and `b*`, the image's `cos t` and `sin t`
+                    // coefficients up to the factor `r/n`.
+                    let n = n_sq.sqrt();
+                    let f = T::one() + (minor_sq - n_sq) / ((minor_radius + n) * n);
+                    let a_star = w_r * (aw / wr_sq) + axis * aa;
+                    let b_star = (axis * aw - w_r * aa) / wr_sq.sqrt() * sigma.value();
+                    terms.add(Radius, harmonic_sup(a_star * f - a, b_star * f - b));
                 }
                 _ => unreachable!("incidence: the torus arm matched its own derivations"),
             }
@@ -4806,7 +4845,12 @@ fn fidelity<T: Decide>(
         unreachable!("fidelity: check 4 compares two harmonic images")
     };
     let (arm_u, arm_v) = match chart_stretch_sup(surface) {
-        Ok(arms) => arms,
+        Ok(arms) => {
+            terms.orthogonal_fidelity();
+            arms
+        }
+        // The two legs below are not orthogonal (a chord against a
+        // ruling), so the cone's channels add.
         Err(NoChartSup::ConeAzimuthGrowsWithV) => {
             // `S(u, v) = apex + v·g(u)` with `|g(u₁) − g(u₂)| = sin α·
             // chord(u₁ − u₂)`, so `|S(u₁, v₁) − S(u₂, v₂)| ≤ |v₁ − v₂| +

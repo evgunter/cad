@@ -2797,7 +2797,7 @@ fn chart_v_du<T: Decide>(
     };
     match decide(
         "split_chart_azimuth_linear",
-        Margin::levered(pa.x.abs() + pb.x.abs(), radius),
+        Margin::levered((pa.x.powi(2) + pb.x.powi(2)).sqrt(), radius),
         band,
     )
     .map_err(|diag| SplitJoinError::Escalated { face, diag })?
