@@ -214,13 +214,7 @@ impl core::fmt::Display for JoinUndecided {
                         "whether an edge meeting another at a vertex on one curve {}",
                         geom_brep::ISO_FAMILY_CLAUSE
                     ),
-                    geom_brep::recourse::LeverOnly {
-                        lever: geom_core::COINCIDENCE_RECOURSE,
-                    }
-                    .recourse(
-                        geom_brep::recourse::RefusedArm::Undecided(diag),
-                        geom_brep::recourse::Reading::Build
-                    )
+                    diag.lever_ending(geom_core::COINCIDENCE_RECOURSE)
                 )
             ),
             JoinReading::ChartClass(e @ geom_brep::IsoFamilyRefusal::Image(_)) => write!(

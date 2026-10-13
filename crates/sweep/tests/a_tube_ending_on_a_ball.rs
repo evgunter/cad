@@ -76,7 +76,9 @@ impl Pose {
         let o = Point3::origin();
         let place = Affine3::rotation_about_axis(o, Vec3::unit_z(), self.turn)
             * Affine3::rotation_about_axis(o, Vec3::unit_x(), self.tilt);
-        let placed = topo::transform_rigid(&body, &place, tol).unwrap();
+        let placed =
+            topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol), tol)
+                .unwrap();
         (finished("the tube", placed, tol), vt, shared)
     }
 }
@@ -164,7 +166,12 @@ struct Probe {
 /// `tube_at(a, z0, len)` turned by `place` about the origin.
 fn placed_tube(a: f64, z0: f64, len: f64, place: Affine3<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
-    let body = topo::transform_rigid(&tube_at(a, z0, len), &place, tol).unwrap();
+    let body = topo::transform_rigid(
+        &tube_at(a, z0, len),
+        &geom_core::test_support::rigid(&place, tol),
+        tol,
+    )
+    .unwrap();
     finished("the tube", body, tol)
 }
 

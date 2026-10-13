@@ -3525,7 +3525,7 @@ pub(in crate::boolean) mod tests {
             ] {
                 let moved = crate::transform::transform_rigid(
                     &body,
-                    &geom_core::Affine3::translation(shift),
+                    &geom_core::RigidMotion::translation(shift).unwrap(),
                     tol,
                 )
                 .expect("a translation is rigid");

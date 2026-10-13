@@ -16,7 +16,7 @@
 //! 6 and the mass properties refuse the flip by name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Tol, Vec3};
+use geom_core::{Tol, Vec3};
 use sweep::test_support::{ball_poled_y, brick, finished};
 use topo::AtRestBody;
 
@@ -38,8 +38,12 @@ fn slab() -> AtRestBody<f64> {
 fn ball() -> AtRestBody<f64> {
     let tol = Tol::witness();
     let at = ball_poled_y(R, Vec3::new(0.0, 0.0, 0.0), tol);
-    let moved =
-        topo::transform_rigid(&at, &Affine3::translation(Vec3::new(C.0, C.1, C.2)), tol).unwrap();
+    let moved = topo::transform_rigid(
+        &at,
+        &geom_core::RigidMotion::translation(Vec3::new(C.0, C.1, C.2)).unwrap(),
+        tol,
+    )
+    .unwrap();
     finished("the ball", moved, tol)
 }
 

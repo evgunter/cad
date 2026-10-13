@@ -990,6 +990,25 @@ mod tests {
             .expect("a key minted into a reused slot is new to the list");
     }
 
+    /// **The same invariant over vertices**: a vertex removed and a
+    /// vertex minted into its slot get keys that differ, so the copy a
+    /// null edge mints there is fresh to a copy list that names the
+    /// first. Red if slot reuse stops versioning vertex keys.
+    #[test]
+    fn a_vertex_minted_into_a_reused_slot_is_fresh_to_the_list() {
+        use crate::entity::VertexKey;
+        let mut arena: SlotMap<VertexKey, ()> = SlotMap::with_key();
+        let original = arena.insert(());
+        let copy = arena.insert(());
+        let mut list = VertexCopies::default();
+        list.push((copy, original)).unwrap();
+        arena.remove(original);
+        let reused = arena.insert(());
+        assert_ne!(reused, original, "the reused slot carries a new version");
+        list.push((reused, copy))
+            .expect("a key minted into a reused slot is new to the list");
+    }
+
     /// **A null-edge copy list refuses a copy it already names, where the
     /// copy is recorded.** A copy recorded again, or a copy of the vertex
     /// a copy of it was minted at, would close a cycle the chase back to

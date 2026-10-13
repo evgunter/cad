@@ -5962,6 +5962,11 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
             };
             let q = r.center - Point3::origin();
             let map = geom_core::Affine3::from_parts(linear, q - linear * q);
+            // Built from bare unit-by-convention directions, so its
+            // rigidity is decided at the door rather than carried
+            // (`work/cleave/the-sphere-re-cut-rotation-is-decided-at-the-door-not-minted`).
+            let map = geom_core::RigidMotion::check_rigid(&map, band)
+                .map_err(|_| corrupt("re-cut rotation is not decided rigid"))?;
             let turned = crate::transform::transform_rigid(&ball, &map, tol)
                 .map_err(|_| corrupt("re-cut rotation failed to re-certify"))?;
             rotated.push(turned);

@@ -34,4 +34,12 @@ rather than refuse. What is owed: the `VertexCopies` shape —
 `crate::lineage`'s `Minted` list over `EdgeKey` and `VertexKey`,
 pushed where the split is made and refusing a non-fresh row as
 `BooleanError::LineageRow` — so each chase is total by the list's
-type. Measure first that every writer records the key it minted.
+type. The guard is that runtime refusal at append (a writer that
+recorded a key it did not mint ends the op as `LineageRow` rather than
+hanging a reader), not a second measurement of the writers.
+
+Territory: two of the three sites are other programs' ground —
+`ops::input_cell` and `BooleanNaming::settle_cones` in `ops.rs`
+(cleave/hone, reachhold), and `split_root` in `boolean/mod.rs`
+(cleave/hone); the writers `reduce::split_logged` and
+`zip::split_cones` sit there too.

@@ -247,7 +247,7 @@ fn slab_below_y(y0: f64) -> AtRestBody<f64> {
     .body;
     let block = topo::transform_rigid(
         &block,
-        &geom_core::Affine3::translation(Vec3::new(0.0, 0.0, -2.0)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, -2.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap();

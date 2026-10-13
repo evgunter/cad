@@ -34,7 +34,7 @@ use pncad::profile::{ConstructedLoop, SketchPlane};
 /// the reference radial the window's angles start from. The axis is
 /// decided and KEPT; the reference yields its component along it.
 ///
-/// One line over `OrthoFrame::from_axis_and_reference`, spelled here
+/// One line over `RigidMotion::from_axis_and_reference`, spelled here
 /// because these probes are an integration test of the tour BINARY
 /// and cannot reach the tour's own `scalar::axis_frame`.
 ///
@@ -47,8 +47,8 @@ fn tube_frame(
     axis: Vec3<f64>,
     u_ref: Vec3<f64>,
     tol: Tol,
-) -> pncad::geom_core::OrthoFrame<f64> {
-    pncad::geom_core::OrthoFrame::from_axis_and_reference(
+) -> pncad::geom_core::RigidMotion<f64> {
+    pncad::geom_core::RigidMotion::from_axis_and_reference(
         center,
         axis,
         u_ref,
@@ -795,10 +795,8 @@ fn r2_the_two_union_walls_on_my_operands() {
     );
     let cone = pncad::topo::transform_rigid(
         &cone,
-        &pncad::geom_core::Affine3::from_parts(
-            pncad::geom_core::Mat3::identity(),
-            Vec3::new(0.45, 0.2, 0.0),
-        ),
+        &pncad::geom_core::RigidMotion::translation(Vec3::new(0.45, 0.2, 0.0))
+            .expect("a finite translation"),
         tol,
     )
     .expect("placed");
@@ -1074,14 +1072,18 @@ fn r2_the_scene_numbers() {
     );
     let spout = pncad::topo::transform_rigid(
         &spout,
-        &pncad::geom_core::Affine3::from_parts(
-            pncad::geom_core::Mat3::from_cols(
-                Vec3::new(0.6, 0.8, 0.0),
-                Vec3::new(-0.8, 0.6, 0.0),
-                Vec3::unit_z(),
+        &pncad::geom_core::RigidMotion::check_rigid(
+            &pncad::geom_core::Affine3::from_parts(
+                pncad::geom_core::Mat3::from_cols(
+                    Vec3::new(0.6, 0.8, 0.0),
+                    Vec3::new(-0.8, 0.6, 0.0),
+                    Vec3::unit_z(),
+                ),
+                Vec3::new(-1.0 / 32.0, 3.0 / 64.0, 0.0),
             ),
-            Vec3::new(-1.0 / 32.0, 3.0 / 64.0, 0.0),
-        ),
+            pncad::geom_core::Band::linear(tol).expect("the run's band"),
+        )
+        .expect("a 3-4-5 turn is rigid"),
         tol,
     )
     .expect("spout placed");
