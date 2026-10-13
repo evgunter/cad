@@ -40,3 +40,11 @@
   - B reads a memoised dyadic-tree cover of at most 3×3 nodes: multiplication-free, but it reads up to 3w;
   - A restricts to the exact window by de Casteljau at its ends: as tight as today's cut, with interval-by-f64 work per restriction and no memo across windows.
 - **Reconciliation round 1:** each designer is shown the other's report.
+
+## Reconciliation round 1
+
+- **B revised, 22:52Z.** B moves to A's shape whole: exact restriction by de Casteljau at the window's ends, with dyadic pieces as `restrict` at t = ½. B withdraws the tree cover.
+  - **Why:** the cover's 3w read costs tightness at the tube margin and on the flat wall; exact restriction needs no state, so it satisfies D9 by construction; the cover's memo would only add 20–50%.
+  - **Subsumption:** the tree is this design plus a memo and snapping, which nothing calls for.
+  - **Adds:** the whole-cell meet becomes a debug containment check rather than a mechanism, unless rounding is shown to matter.
+  - **Confidence:** likely; subsumption sure.
