@@ -12,12 +12,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_brep::PcurveCertifyError;
+use geom_brep::{
+    CertifyError, EdgeDescriptionSpec, PcurveCertifyError, PlaneNurbsRefusal, SurfacePair,
+};
 use geom_core::{Band, Point2, Tol};
 use profile::test_support::bulge_loop;
 use sweep::test_support::stacked_at;
 use topo::pcurves::PcurveMintError;
-use topo::{Body, FaceKey, FaceSurface, HalfEdgeKey, Pcurve};
+use topo::{Body, EulerOpError, FaceKey, FaceSurface, HalfEdgeKey, Pcurve};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -71,17 +73,18 @@ fn derived(body: &Body<f64>, h: HalfEdgeKey) -> Result<Pcurve<f64>, PcurveMintEr
     topo::pcurve_of(&fresh, h, band())
 }
 
-/// `(p0.x, pd.x, p0.y)` of an IsoArc image.
-fn arc(image: &Pcurve<f64>) -> (f64, f64, f64) {
+/// `(p0.x, pd.x, p0.y, pd.y)` of an IsoArc image: where it starts, how
+/// far `u` moves, its row, and how far `v` moves.
+fn arc(image: &Pcurve<f64>) -> (f64, f64, f64, f64) {
     match image {
-        Pcurve::IsoArc { p0, pd, .. } => (p0.x, pd.x, p0.y),
+        Pcurve::IsoArc { p0, pd, .. } => (p0.x, pd.x, p0.y, pd.y),
         other => panic!("an arc rim's image is an IsoArc: {other:?}"),
     }
 }
 
 /// **A rim against the chart's `u` takes its reversed row.** Each rim
 /// derives the IsoArc that starts at `u = 1` and runs to `u = 0` on its
-/// own row, and the mint certifies and stores it. The native wall is
+/// own row, and the mint certifies and stores exactly that row. The native wall is
 /// the control: the same rims, forward. (Tier 3 is not read: the lifted
 /// re-chart leaves the rims' descriptions naming the old chart.)
 #[test]
@@ -91,7 +94,7 @@ fn a_rim_against_the_charts_u_takes_its_reversed_row() {
     for (h, row) in rims.into_iter().zip([0.0, 1.0]) {
         assert_eq!(
             arc(&derived(&body, h).unwrap()),
-            (0.0, 1.0, row),
+            (0.0, 1.0, row, 0.0),
             "the control: a native rim runs with the chart's u"
         );
     }
@@ -117,7 +120,7 @@ fn a_rim_against_the_charts_u_takes_its_reversed_row() {
     for (h, row) in rims.into_iter().zip([0.0, 1.0]) {
         assert_eq!(
             arc(&derived(&reversed, h).unwrap()),
-            (1.0, -1.0, row),
+            (1.0, -1.0, row, 0.0),
             "{h:?}: the rim runs from u = 1 to u = 0 on its own row"
         );
     }
@@ -126,24 +129,25 @@ fn a_rim_against_the_charts_u_takes_its_reversed_row() {
         Ok(()),
         "the mint stores the reversed wall's rows"
     );
-    for h in rims {
+    for (h, row) in rims.into_iter().zip([0.0, 1.0]) {
         let stored = reversed.pcurve(h).expect("the rim's row is stored");
         assert_eq!(
-            arc(stored.pcurve()).1,
-            -1.0,
-            "{h:?}: the stored row runs against u"
+            arc(stored.pcurve()),
+            (1.0, -1.0, row, 0.0),
+            "{h:?}: the stored row runs from u = 1 to u = 0 on its own row"
         );
     }
 }
 
-/// **A half-rim is refused for its map, not for its row.** Splitting a
-/// rim leaves two arcs that lie on the chart's row `v = 0` but each
-/// span half its `u` domain, which the IsoArc map (the edge's whole
-/// carrier onto the whole domain) cannot state. The second half starts
-/// inside the domain, so a row picked off the start would refuse it for
-/// lying on no boundary; both halves are refused for the map instead.
+/// **A half-rim reaches the row-and-direction pick, and is refused
+/// there.** Splitting a rim leaves two arcs that lie on the chart's row
+/// `v = 0` but each span half its `u` domain, which the IsoArc map (the
+/// edge's whole carrier onto the whole domain) cannot state. The second
+/// half starts inside the domain, so a row picked off the start would
+/// refuse it before any candidate was judged; both halves are judged,
+/// and refused by the pick.
 #[test]
-fn a_half_rim_is_refused_for_its_map_not_its_row() {
+fn a_half_rim_reaches_the_pick_and_is_refused_there() {
     let mut body = semicircle_prism();
     let (wall, [bottom, _]) = arc_wall(&body);
     let edge = body.get_half_edge(bottom).unwrap().edge;
@@ -163,12 +167,51 @@ fn a_half_rim_is_refused_for_its_map_not_its_row() {
                 error: PcurveCertifyError::IsoUnsupported { what },
                 ..
             }) => assert!(
-                what.contains("does not span this chart's u domain"),
-                "{h:?}: the half-rim is refused for its map: {what}"
+                what.starts_with("no boundary row of this chart, in either u direction"),
+                "{h:?}: the half-rim is refused by the pick: {what}"
             ),
             other => panic!("{h:?}: a half-rim has no IsoArc image: {other:?}"),
         }
         refused += 1;
     }
     assert_eq!(refused, 2, "both halves of the split rim are on the wall");
+}
+
+/// **An `Intersection` circle on a spline chart is refused at the
+/// door.** `nurbs_iso_derive`'s boundary-iso schedule offers a circle to
+/// the arc rim and falls through to `General` only on the pick's own
+/// refusal, so a pick that certification then refused would not reach
+/// `General`. No body at rest holds such an edge: the plane × NURBS
+/// certificate takes a spline carrier only (and the NURBS × NURBS one no
+/// closed form). If a door ever certifies one, this goes red and the
+/// fall-through is owed a second look.
+#[test]
+fn an_intersection_circle_on_a_spline_wall_is_refused_at_the_door() {
+    let mut body = semicircle_prism();
+    let (_, [bottom, _]) = arc_wall(&body);
+    let edge = body.get_half_edge(bottom).unwrap().edge;
+    let geom = body
+        .get_curve_geom(body.get_edge(edge).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap()
+        .clone();
+    let (s1, s2) = topo::readback::edge_sides(&body, edge).unwrap().surfaces();
+    let (t0, t1) = geom.params();
+    let mut spec = geom.restated_spec();
+    spec.description = EdgeDescriptionSpec::Intersection {
+        pair: SurfacePair::new(s1, s2),
+        witness: geom.carrier().eval(0.5 * (t0 + t1)),
+    };
+    let before = format!("{body:?}");
+    let refused = body.set_edge_curve(edge, spec, tol());
+    assert!(
+        matches!(
+            refused,
+            Err(EulerOpError::Certification {
+                error: CertifyError::PlaneNurbs(PlaneNurbsRefusal::Unsupported { .. }),
+            })
+        ),
+        "the rim's circle is refused as a plane × NURBS Intersection: {refused:?}"
+    );
+    assert_eq!(format!("{body:?}"), before, "the body is untouched");
 }

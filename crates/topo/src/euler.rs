@@ -5934,9 +5934,9 @@ mod tests {
                     finding: crate::PcurveMintError::Certify {
                         half_edge: spline_half,
                         error: geom_brep::PcurveCertifyError::IsoUnsupported {
-                            what: "an arc rim whose chart image is neither boundary row in \
-                                   either u direction — the rim does not span this chart's u \
-                                   domain along one",
+                            what: "no boundary row of this chart, in either u direction, \
+                                   holds the circle at the interior probe — not an arc rim \
+                                   spanning the chart's u domain",
                         },
                     },
                 },

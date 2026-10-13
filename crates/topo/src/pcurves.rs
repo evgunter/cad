@@ -1179,33 +1179,6 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         }
         None => (T::zero(), T::one(), T::zero(), T::one()),
     };
-    // A definite endpoint-side selection: which of the two candidate
-    // chart values places the carrier's START on the surface. The
-    // selection is structure (a two-way pick), the CHECK is the full
-    // iso-lane certification that follows every derivation.
-    //
-    // `None` is "no candidate is definitely it", NOT a refusal: the
-    // wall-seam arm, its one user, then offers the start's measured
-    // foot, so the refusal text lives at the call sites.
-    let side_pick = |eval_at: &dyn Fn(T) -> geom_core::Point3<T>,
-                     cands: &[T]|
-     -> Result<Option<T>, PcurveMintError> {
-        let start = carrier.eval(t0);
-        for cand in cands {
-            match decide(
-                "pcurve_iso_side",
-                Margin::of(start.distance(eval_at(*cand))),
-                band,
-            ) {
-                Ok(Sign::Zero) => return Ok(Some(*cand)),
-                Ok(Sign::Positive | Sign::Negative) => {}
-                Err(cause) => {
-                    return Err(PcurveMintError::Escalated { half_edge, cause });
-                }
-            }
-        }
-        Ok(None)
-    };
     // The ARC-RIM class: a circle on one of the chart's boundary rows,
     // its image the row on the chart's own rational-quadratic parameter
     // (`Pcurve::IsoArc`). An IsoUnsupported refusal says this carrier
@@ -1241,7 +1214,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             [(cu0, cu1 - cu0), (cu1, cu0 - cu1)].map(|(p0x, sign)| image(v, p0x, sign))
         });
         match probe_pick(
-            "pcurve_iso_arc_direction",
+            "pcurve_iso_arc_row_direction",
             &carrier,
             (t0, span),
             surface,
@@ -1251,8 +1224,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             Ok(Some(cand)) => Ok(cand),
             Err(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
             Ok(None) => Err(refuse(
-                "an arc rim whose chart image is neither boundary row in either u \
-                 direction — the rim does not span this chart's u domain along one",
+                "no boundary row of this chart, in either u direction, holds the circle \
+                 at the interior probe — not an arc rim spanning the chart's u domain",
             )),
         }
     };
@@ -1383,7 +1356,11 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             }
         }
         // A circle on a boundary row is the arc rim's; any other
-        // circle, an IsoUnsupported answer, is not.
+        // circle, an IsoUnsupported answer, is not. A pick the arc-rim
+        // certification would then refuse does not fall through to
+        // `General`, and need not: no door certifies an `Intersection`
+        // circle on a spline chart (the plane × NURBS certificate takes a
+        // spline carrier, the spline-pair ones no closed form).
         if deferred.is_none() && matches!(carrier, geom::Curve3::Circle { .. }) {
             match arc_rim() {
                 Err(PcurveMintError::Certify {
@@ -1446,6 +1423,30 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             // a knot: the certifier collapses the chart at exactly the
             // value it is handed, and any error in that value is what
             // its hull meters.
+            // A definite endpoint-side selection: which candidate
+            // column places the carrier's START on the surface. `None`
+            // is "no candidate is definitely it", not a refusal: the
+            // start's measured foot is offered next. The CHECK is the
+            // full iso-lane certification that follows.
+            let side_pick = |eval_at: &dyn Fn(T) -> geom_core::Point3<T>,
+                             cands: &[T]|
+             -> Result<Option<T>, PcurveMintError> {
+                let start = carrier.eval(t0);
+                for cand in cands {
+                    match decide(
+                        "pcurve_iso_side",
+                        Margin::of(start.distance(eval_at(*cand))),
+                        band,
+                    ) {
+                        Ok(Sign::Zero) => return Ok(Some(*cand)),
+                        Ok(Sign::Positive | Sign::Negative) => {}
+                        Err(cause) => {
+                            return Err(PcurveMintError::Escalated { half_edge, cause });
+                        }
+                    }
+                }
+                Ok(None)
+            };
             let x = match side_pick(&column, &[cu0, cu1])? {
                 Some(x) => x,
                 None => {
@@ -1486,7 +1487,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // The sub-arc count is read off the chart's u structure (one
         // span per sub-arc, by the loft's construction); that read is
         // a SELECTION, and the CHECK is the full arc-rim certification
-        // that follows, which compares the chart's boundary column
+        // that follows, which compares the chart's boundary row
         // against the carrier circle's own rational-quadratic form and
         // refuses a chart that is not this construction.
         geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
