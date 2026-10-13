@@ -1394,3 +1394,17 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Class:** a change to a shared bound (`patch_bound`, offset) moves pinned values in crates the PR gate doesn't seed. The reviewers ran the seeded suites only.
   - **Next time:** run the slow sets of the bound's downstream consumers (sweep, topo) locally before merging, or seed them.
 - 2026-10-13 22:58Z — **Build C's L1+L2** passes 427 of 428 rows clean across enclose, patch_bound, nurbs_cert, offset, derivative, stretch and the digest at three ε. The one red is the main red above. The PR is opening.
+- 2026-10-13 23:00Z — **Design fork CONVERGED: the cost of the quotient bound.** It ran two rounds and crossed once in round 1, as the protocol anticipates. The record is on `analysis/design-fork/nurbs-quotient-cost`. No Ev and no fork-log row: the statement is unchanged and no ratified text moves.
+  - **The finding beneath both:** `NurbsBoxes` is rebuilt per rung (`certify`) and per `boundary` call, so the 5001 memo lives one probe. Windows nest and never repeat, so no window-keyed cache and no tree.
+  - **The final state:**
+    - an operand-lifetime `NurbsBoxes`;
+    - one raised quotient per cell, with `restrict(a, b)` by de Casteljau and `pieces` by halving;
+    - the piece tables and the exactness ceiling retired;
+    - the cut retired, becoming restriction;
+    - the meet turned into a debug containment check.
+  - **Dispatched to build C as three PRs:**
+    - lifetime (my read);
+    - products-once with halving (FULL);
+    - cut becomes restriction (FULL).
+    - It measures after each step, and the L1+L2 PR is closed as superseded.
+  - **Process note:** the 22:40Z brief's "bit-identical levers are exhausted" was one level off. Both designers found the cause in ownership and order of operations, not in arithmetic.
