@@ -1,0 +1,4 @@
+fork: contacthold-unread-carried-record
+byte: 127 (odd: A = Fable, B = Opus)
+brief sha256: 5d42d5fcb01a
+dispatched: 2026-10-13T04:26Z
