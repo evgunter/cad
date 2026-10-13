@@ -1109,3 +1109,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - U-T4: main merged; running the post-merge clippy and rows; no PR yet.
   - PR 4910's body: the ∪ / T∖P containment refusal (`PartialTorusFace`) was added as evidence to INSIDE's `point-in-solid-refuses-an-l-shaped-torus-face`, and the rows pin it. It filed `work/germ/a-ring-path-along-a-ruling-or-crest-arcs-carrier-reads-nothing.md` (GERM; no public pose found).
   - Re-armed for 00:53.
+- 2026-10-13 00:42 — **r4906 in: APPROVE**, 0 MAJOR / 0 MINOR / 3 NIT (saved scratchpad/dr4906/R1.md).
+  - 1,512 ops per side against main: 594 refusals now build, 0 wrong bodies, the other 918 identical. The wrong-pairing mutant fails loud.
+  - NITs: the slots-unconsumed guard is an equivalent mutant; the `partners` doc is stale; no row pins combs with more than two one-site loops per slab plane pair.
+  - Fix pass for the NITs: session_01WhNhdX2mvh3kcQuUp4yeL7. No second review (no MAJOR). Row at merge: sequential, M, tallied 0, major false.
