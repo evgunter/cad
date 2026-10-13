@@ -102,3 +102,11 @@ is such a product. The acceptance rows in
 (`no_carried_declaration_can_reach_a_boolean_operand` and the nested,
 transformed and placed-union rows beside it) pin the refusal. This row
 stays unreachable for as long as products refuse.
+
+## 2026-10-13: names retired by PR 4820 (FUSE)
+
+`remap_contacts` is gone. The boolean's records are built by
+`boolean::ops::carry` → `carry_rows`, with `place_found` for the
+reduction's rows and `carried` (`operand_fate`, then
+`records::landings`) for the operands', which land on the census's
+record confirm rather than dropping a consumed record by key.
