@@ -1722,8 +1722,8 @@ impl MarginDiag {
             Reading::Invalid => return Shows::Unreadable,
         };
         let reaches = passes.reaches(lo, hi);
-        if self.placement(band) == Placement::Past {
-            return if reaches.0 { Shows::Past } else { Shows::NoSize };
+        if reaches.0 && self.placement(band) == Placement::Past {
+            return Shows::Past;
         }
         match reaches {
             _ if self.proven() => Shows::NoSize,
