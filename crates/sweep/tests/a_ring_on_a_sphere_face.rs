@@ -45,8 +45,14 @@ fn boxed(b: Bounds) -> AtRestBody<f64> {
 /// `ball` turned by `turn` before it is moved to `c`.
 fn placed(ball: topo::Body<f64>, turn: Affine3<f64>, c: Vec3<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
-    let turned = topo::transform_rigid(&ball, &turn, tol).unwrap();
-    let moved = topo::transform_rigid(&turned, &Affine3::translation(c), tol).unwrap();
+    let turned =
+        topo::transform_rigid(&ball, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
+    let moved = topo::transform_rigid(
+        &turned,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        tol,
+    )
+    .unwrap();
     finished("the ball", moved, tol)
 }
 
@@ -320,9 +326,8 @@ fn a_ring_inside_a_sphere_island_moves_and_stops_at_the_role_read() {
         assert!(
             matches!(
                 out,
-                Err(BooleanError::Join(
-                    topo::SplitJoinError::SectionLoopUndecided { .. }
-                ))
+                Err(BooleanError::Join(ref j))
+                    if matches!(j.error(), topo::SplitJoinError::SectionLoopUndecided { .. })
             ),
             "the well, {op}: wanted the role read's refusal, got {:?}",
             out.map(|_| "a body")

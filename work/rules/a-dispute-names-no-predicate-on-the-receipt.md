@@ -30,9 +30,7 @@ disputed decision records `ShapeOutcome::Definite(sign)` there — the
 same row any other definite decision records, so the report cannot tell
 them apart either. Naming the dispute means a NEW `ShapeOutcome` row
 (say `DisputedDefinite(sign)`), which is a change to the report's
-vocabulary: `sym/discharge_pins.rs`'s seam-2 roster grows a member and
-has to classify it as not-from-a-discharge, and every consumer of the
-report learns the new row. SYM-11 declined that as out of its scope (no
+vocabulary: every consumer of the report learns the new row. SYM-11 declined that as out of its scope (no
 change to the K token vocabulary or the receipt's wire format) and
 disclosed it instead.
 

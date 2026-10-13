@@ -627,7 +627,12 @@ BOUNDS_ALLOWLIST=(
   # as before), and `face_clearance_margin` is `face_clearance` with its
   # margin formed by the caller, the door the surgery's strip meter
   # refuses through; both decide only through `classify`.
-  'crates/sweep/src/blend/battery.rs 18 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 18 -> 20: `turn_at` picks a fillet overrun's far-band section through
+  # `cut_off_section`, which a chain end's cut-off picks its section
+  # through too: both reach `cap_transverse`, the cut-off's own
+  # kind-picker (`classify` and the ellipse door), and read no bracket of
+  # their own.
+  'crates/sweep/src/blend/battery.rs 20 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
   # carry-through pass's support-boundary arm split into its own
@@ -661,7 +666,9 @@ BOUNDS_ALLOWLIST=(
   # `seam_split_param`'s window test as before — and the planar band's
   # `cut_off_plan` calls the shared plan. The same seam, and the same
   # reads, moved and shared; no new decision reads a bracket.
-  'crates/sweep/src/blend/open/planar.rs 4 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # `turn_plan` plans a chamfer overrun's far band through
+  # `cut_off_plan`, for its sliver, and reads no bracket of its own.
+  'crates/sweep/src/blend/open/planar.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/ruled.rs 2 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # end_face.rs 5 -> 7: `foot_param` is the one read of where a foot
   # lands on its rim (`split_param_in_span`'s window test, worded as the

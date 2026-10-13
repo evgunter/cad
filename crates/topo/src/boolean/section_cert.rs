@@ -143,9 +143,10 @@
 //!   component counts of the torus arms need genus 1.
 //! - **Event vertices lie on `Σ` within the band**, the posture every
 //!   contact record takes.
-//! - **Witness points are within rounding of `Σ`** on `f64`, and
-//!   enclosures of it on the interval lane; containment is decided on the
-//!   band, and a point it cannot decide is not a witness.
+//! - **Witness points are within rounding of `Σ`** on `f64` — of their
+//!   own distance from each carrier's anchor, not of a form that squares
+//!   it — and enclosures of it on the interval lane; containment is
+//!   decided on the band, and a point it cannot decide is not a witness.
 //! - **Lone-vertex loops.** The sweep is edge-driven, so a vertex of a
 //!   `LoopBoundary::Empty` loop is never examined. That does not break
 //!   L1 on its own: `F` surrounds its lone vertex on every side, so the

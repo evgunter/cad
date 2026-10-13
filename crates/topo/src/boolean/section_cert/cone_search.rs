@@ -50,7 +50,7 @@ test_utils::gated_to![
     "crates/geom-core/src/linalg/",
 ];
 
-use super::search_kit::{band, offset, unit_vec};
+use super::search_kit::{band, matched, offset, unit_vec};
 use super::*;
 use core::f64::consts::{PI, TAU};
 use geom::Surface;
@@ -73,6 +73,11 @@ pub(super) struct Traced {
     /// Each cell's component, if the zero set crosses it.
     comp: Vec<Option<usize>>,
     pub(super) classes: Vec<Class>,
+    /// The sign changes along each column `u = 2πi/nu`.
+    pub(super) column_changes: Vec<usize>,
+    /// The cells whose corners alternate in sign round the cell: two
+    /// arcs or a crossing, which cell adjacency cannot tell apart.
+    pub(super) saddles: usize,
 }
 
 fn find(parent: &mut [usize], mut x: usize) -> usize {
@@ -103,10 +108,14 @@ pub(super) fn trace(
     let n = nu * nv;
     let mut parent: Vec<usize> = (0..n).collect();
     let mut active = vec![false; n];
+    let mut column_changes = vec![0usize; nu];
+    let mut saddles = 0usize;
     for j in 0..nv {
         for i in 0..nu {
             let (a, b, c, d) = (s(i, j), s(i + 1, j), s(i, j + 1), s(i + 1, j + 1));
             active[cell(i, j)] = !(a == b && b == c && c == d);
+            column_changes[i] += usize::from(a != c);
+            saddles += usize::from(a == d && b == c && a != b);
             // The right neighbour shares column i + 1.
             if s(i + 1, j) != s(i + 1, j + 1) {
                 let (x, y) = (
@@ -163,6 +172,8 @@ pub(super) fn trace(
         v1,
         comp,
         classes,
+        column_changes,
+        saddles,
     }
 }
 
@@ -547,23 +558,26 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
     if single && want.len() != 1 {
         bad.push(format!("single, traced {want:?}"));
     }
-    let mut seen = Vec::new();
-    for c in &parts {
-        let Some(w) = c.witness else {
-            continue;
-        };
-        let (u, t) = k.chart(w);
-        let on: Vec<usize> = traced
-            .near(u, t)
-            .into_iter()
-            .filter(|&i| traced.classes[i] == class_of(c) && !seen.contains(&i))
-            .collect();
-        match on.first() {
-            Some(&i) => seen.push(i),
-            None => bad.push(format!(
-                "the witness {w:?} of a {:?} part is on no such traced component",
-                class_of(c)
-            )),
+    // Each witness's traced components of its part's class, matched one
+    // to one: two components can pass within a cell of one witness.
+    let near: Vec<(Point3<f64>, Class, Vec<usize>)> = parts
+        .iter()
+        .filter_map(|c| {
+            let w = c.witness?;
+            let (u, t) = k.chart(w);
+            let on = traced
+                .near(u, t)
+                .into_iter()
+                .filter(|&i| traced.classes[i] == class_of(c))
+                .collect();
+            Some((w, class_of(c), on))
+        })
+        .collect();
+    if !matched(&near.iter().map(|(_, _, on)| on.clone()).collect::<Vec<_>>()) {
+        for (w, class, on) in &near {
+            bad.push(format!(
+                "the witness {w:?} of a {class:?} part is on traced components {on:?}, not each on its own"
+            ));
         }
     }
     if let Surface::Cylinder {

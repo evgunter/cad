@@ -435,7 +435,8 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Instance { of: n, .. }
         | RoleSeg::Placed { of: n }
         | RoleSeg::InPart { of: n } => vec![n],
-        RoleSeg::Seam { a, b } | RoleSeg::EdgeCrossing { a, b, .. } => vec![a, b],
+        RoleSeg::Seam { a, b } => vec![a, b],
+        RoleSeg::EdgeCrossing(run) => run.iter().map(|l| &*l.line).collect(),
         RoleSeg::Crossing { edge, face, .. } => vec![edge, face],
         RoleSeg::TrimEdge { edge, support } => vec![edge, support],
         RoleSeg::FootVertex { vertex, support } => vec![vertex, support],

@@ -754,7 +754,7 @@ fn off_surface_boundaries_must_refuse_typed() {
         matches!(
             curved_face(&s, &edges, true, band()),
             Err(PropsError::OffSurface {
-                what: "props_rim_center_on_axis"
+                what: "props_cylinder_circle_off_axis"
             })
         ),
         "off-surface rim (center off the axis) must be a typed refusal, \

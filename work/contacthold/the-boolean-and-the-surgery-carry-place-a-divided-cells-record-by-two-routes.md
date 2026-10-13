@@ -2,12 +2,14 @@
 id: the-boolean-and-the-surgery-carry-place-a-divided-cells-record-by-two-routes
 kind: issue
 title: The boolean and the surgery carry place a divided cell's record among its pieces by two routes
-status: open
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
-design: true
 refs: [surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key]
+closed: 2026-10-12
+pr: 4820
+branch: contacthold/one-record-carry-boolean
 ---
 
 ## What
@@ -46,3 +48,11 @@ carried touch, with a fresh decision where it meets a vertex. That is
 the shape the split lacks for
 `a-cut-through-a-recorded-touch-mints-a-pair-no-record-backs`, so the
 two rows are best weighed together.
+
+## Resolved (PR 4820)
+
+Ev ruled on `[ev]` PR 4749: one carry. `ops::ledger`'s edge-split
+placement, `ops::ee_lineage` and `Descendants::holder` retire; each
+operand's carried records go through `ops::carried` (the boolean's
+lineage, `ops::operand_fate`, into `records::landings`, the surgery
+verbs' placement), the boolean deciding a minted vertex pair at its door.

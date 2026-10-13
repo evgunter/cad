@@ -94,7 +94,7 @@ use geom_core::k_stats::{Magnitude, NonzeroSign};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
-use crate::recourse::{AtZero, SizedDecision, SizedPass, StoredDefinite};
+use crate::recourse::{NoSize, SizedDecision, SizedPass, StoredDefinite};
 
 /// Whether the folded lever arm at a point of an edge is positive: the
 /// length the wedge between the edge's faces is metered over, the
@@ -114,7 +114,7 @@ pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
     size: "length or the gap its faces open",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Contradiction,
-    at_zero: Some(AtZero::same(
+    no_size: Some(NoSize::same(
         "an edge of no length, or a face curving to a point as a cone does, leaves no angle to \
          measure",
     )),
@@ -154,7 +154,7 @@ pub const MATERIAL_PAIRING: SizedDecision = SizedDecision {
     size: "length",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The question [`MATERIAL_PAIRING`] decides, of an edge: every door that
@@ -401,9 +401,10 @@ pub(crate) fn wedge_decided<T: Decide>(
 /// from there down to its own, so the arm binds and keeps its own margin:
 /// an exactly zero wedge, and one that is only rounding on a tangent
 /// seam, whose own value would offer a tolerance many decades below the
-/// one that already decides the seam. An arm no smaller tolerance
-/// decides positive — poisoned, decided negative, or a zero on the
-/// negative side — keeps its own too: there is no tolerance to quote
+/// one that already decides the seam. An arm no smaller tolerance a run
+/// admits decides positive — poisoned, decided negative, a zero on the
+/// negative side, or one only a tolerance below `EPS_MIN` decides —
+/// keeps its own too: there is no tolerance to quote
 /// ([`LeverEscalation::re_quotes`]).
 fn at_wedge<T: Decide>(
     escalation: LeverEscalation,
@@ -853,16 +854,105 @@ pub enum MustCarryDescription<T: Real> {
     /// stores it on its carrier.
     Intrinsic(crate::EdgeDescriptionSpec<T>),
     /// The conventional description: a chart image where the edge
-    /// rests. Which adjacent chart, and whether the stored carrier is
-    /// restated or the exact carrier stated, is the caller's: a
-    /// sweep-minted edge already stores its locus and restates it,
-    /// while a blend contact edge stores a chord scaffold and states
-    /// the locus fresh.
-    Conventional,
+    /// rests, in the adjacent chart the caller named. Whether the
+    /// stored carrier is restated or the exact carrier stated is the
+    /// caller's: a sweep-minted edge already stores its locus and
+    /// restates it, while a blend contact edge stores a chord scaffold
+    /// and states the locus fresh ([`MustCarryDescription::spec`]).
+    Conventional(crate::SurfaceKey),
 }
 
-/// Why a join entered as definitely smooth gets no description: each
-/// caller maps it to its own typed refusal.
+impl<T: Real> MustCarryDescription<T> {
+    /// The description stated fresh: the intrinsic tangency, or a chart
+    /// image the certification door derives from the carrier in the
+    /// named chart.
+    #[must_use]
+    pub fn spec(self) -> crate::EdgeDescriptionSpec<T> {
+        match self {
+            Self::Intrinsic(description) => description,
+            Self::Conventional(chart) => crate::EdgeDescriptionSpec::chart(chart),
+        }
+    }
+}
+
+/// A join entered as definitely smooth, as the must-carry rule is asked
+/// about it ([`must_carry_description`]): its two surfaces with their
+/// keys, in either order, and the edge between them — its carrier, its
+/// parameter interval, the chord between its ends (the extent is
+/// [`crate::edge_extent`]'s over these) and its witness.
+#[derive(Clone, Copy)]
+pub struct SmoothJoin<'a, T: Real> {
+    /// The two surfaces, each with its key.
+    pub surfaces: [(crate::SurfaceKey, &'a Surface<T>); 2],
+    /// The edge's carrier.
+    pub carrier: &'a geom::Curve3<T>,
+    /// The edge's parameter interval on the carrier.
+    pub interval: (T, T),
+    /// The distance between the edge's two ends.
+    pub chord: T,
+    /// The witness an intrinsic description stores.
+    pub witness: Point3<T>,
+}
+
+/// **What a definitely-smooth join stores**, or the caller's typed
+/// refusal: the surfaces put in their pair's key order
+/// ([`crate::SurfacePair::sorted`]), the rule over the edge's extent
+/// ([`must_carry_over_edge`]), and its verdict mapped to a description
+/// ([`MustCarryVerdict::description`]) with the conventional one resting
+/// in the chart `chart` names.
+///
+/// Which adjacent chart a conventional edge rests in is each caller's
+/// choice, so it is an argument here, read only where the verdict is
+/// conventional. It must be one of the pair's two surfaces: a
+/// conventional edge rests in a chart it bounds, and a chart outside
+/// the pair is refused through `foreign_chart` rather than stored.
+///
+/// Each refusal is built by the caller, from the reading that raised it
+/// ([`DihedralReading::of_must_carry`]) and its diagnostics: an in-band
+/// first-order station (the dihedral, by the rung that raised it)
+/// through `first_order`, an in-band second-order station (the bend)
+/// through `second_order`, a refuted smooth premise through `refuted`.
+///
+/// # Errors
+///
+/// What `first_order`, `second_order` or `refuted` builds, on an
+/// in-band or transverse verdict; what `foreign_chart` builds, on an
+/// under-determined verdict whose chart is not one of the pair's.
+pub fn must_carry_description<T: Decide, E>(
+    join: SmoothJoin<'_, T>,
+    band: Band,
+    chart: impl FnOnce() -> crate::SurfaceKey,
+    first_order: impl FnOnce(DihedralReading, Indeterminate) -> E,
+    second_order: impl FnOnce(DihedralReading, Indeterminate) -> E,
+    refuted: impl FnOnce() -> E,
+    foreign_chart: impl FnOnce(crate::SurfaceKey) -> E,
+) -> Result<MustCarryDescription<T>, E> {
+    let [(ka, a), (kb, b)] = join.surfaces;
+    let (pair, [sa, sb]) = crate::SurfacePair::sorted(ka, a, kb, b);
+    let (t0, t1) = join.interval;
+    let extent = crate::edge_extent(join.carrier, t0, t1, join.chord);
+    match must_carry_over_edge(sa, sb, join.carrier, t0, t1, extent, band).description(
+        pair,
+        join.witness,
+        chart,
+    ) {
+        Ok(MustCarryDescription::Conventional(chart)) if !pair.contains(chart) => {
+            Err(foreign_chart(chart))
+        }
+        Ok(description) => Ok(description),
+        Err(MustCarryRefusal::InBand(escalation)) => {
+            let (reading, diag) = DihedralReading::of_must_carry(escalation);
+            Err(match escalation {
+                MustCarryEscalation::FirstOrder(_) => first_order(reading, diag),
+                MustCarryEscalation::SecondOrder(_) => second_order(reading, diag),
+            })
+        }
+        Err(MustCarryRefusal::Refuted) => Err(refuted()),
+    }
+}
+
+/// Why a join entered as definitely smooth gets no description:
+/// [`must_carry_description`] routes it to its caller's typed refusals.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MustCarryRefusal {
     /// [`MustCarryVerdict::InBand`]: certifiable as neither, refused
@@ -874,34 +964,13 @@ pub enum MustCarryRefusal {
     Refuted,
 }
 
-impl MustCarryRefusal {
-    /// The refusal routed to its caller's three typed arms: an in-band
-    /// first-order station (the dihedral, with the deciding rung's
-    /// diagnostic), an in-band second-order station (the sagitta), or a
-    /// refuted smooth premise. One spelling of the split every caller
-    /// that names the three apart makes.
-    pub fn route<E>(
-        self,
-        first_order: impl FnOnce(Indeterminate) -> E,
-        second_order: impl FnOnce(Indeterminate) -> E,
-        refuted: impl FnOnce() -> E,
-    ) -> E {
-        match self {
-            Self::InBand(MustCarryEscalation::FirstOrder(escalation)) => {
-                first_order(escalation.diag())
-            }
-            Self::InBand(MustCarryEscalation::SecondOrder(diag)) => second_order(diag),
-            Self::Refuted => refuted(),
-        }
-    }
-}
-
 impl MustCarryVerdict {
     /// The one mapping from the verdict to what the join stores:
     /// jet-determinate ⇒ the intrinsic `TangentIntersection { pair,
-    /// witness }`, under-determined ⇒ conventional, in-band and
-    /// transverse ⇒ a typed refusal. `pair` names the surfaces
-    /// [`must_carry_over_edge`] was asked about.
+    /// witness }`, under-determined ⇒ conventional, in the chart `chart`
+    /// names (read only on that arm), in-band and transverse ⇒ a typed
+    /// refusal. `pair` names the surfaces [`must_carry_over_edge`] was
+    /// asked about.
     ///
     /// # Errors
     ///
@@ -910,12 +979,13 @@ impl MustCarryVerdict {
         self,
         pair: crate::SurfacePair,
         witness: Point3<T>,
+        chart: impl FnOnce() -> crate::SurfaceKey,
     ) -> Result<MustCarryDescription<T>, MustCarryRefusal> {
         match self {
             Self::JetDeterminate => Ok(MustCarryDescription::Intrinsic(
                 crate::EdgeDescriptionSpec::TangentIntersection { pair, witness },
             )),
-            Self::UnderDetermined => Ok(MustCarryDescription::Conventional),
+            Self::UnderDetermined => Ok(MustCarryDescription::Conventional(chart())),
             Self::InBand(source) => Err(MustCarryRefusal::InBand(source)),
             Self::Transverse => Err(MustCarryRefusal::Refuted),
         }
@@ -983,6 +1053,39 @@ impl MustCarryEscalation {
         match self {
             Self::FirstOrder(escalation) => escalation.diag(),
             Self::SecondOrder(diag) => diag,
+        }
+    }
+}
+
+/// The reading of the two faces at an edge that could not decide: the
+/// first-order dihedral by the rung that raised it, or the second-order
+/// bend.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DihedralReading {
+    /// The first-order dihedral: the angle between the faces, metered
+    /// over the edge, at the rung that could not decide.
+    Lever(crate::LeverRung),
+    /// The second-order bend of two faces that meet smoothly.
+    Bend,
+}
+
+impl DihedralReading {
+    /// A first-order dihedral escalation ([`classify_dihedral`])
+    /// as the rung that raised it, with its diagnostics.
+    #[must_use]
+    pub const fn of_lever(escalation: crate::LeverEscalation) -> (Self, Indeterminate) {
+        (Self::Lever(escalation.rung()), escalation.diag())
+    }
+
+    /// A must-carry station's escalation
+    /// ([`crate::MustCarryEscalation`]) as the reading that raised
+    /// it — the first-order dihedral by rung, or the second-order bend —
+    /// with its diagnostics.
+    #[must_use]
+    pub const fn of_must_carry(escalation: crate::MustCarryEscalation) -> (Self, Indeterminate) {
+        match escalation {
+            crate::MustCarryEscalation::FirstOrder(lever) => Self::of_lever(lever),
+            crate::MustCarryEscalation::SecondOrder(diag) => (Self::Bend, diag),
         }
     }
 }
@@ -1310,26 +1413,31 @@ mod tests {
         );
     }
 
-    /// **A gate's rejected Zero ends in the arm's zero note on the
-    /// undecided arm** (`SizedDecision::recourse`): a reader that routes
+    /// **A gate's rejection ends by its reading on either arm**
+    /// (`SizedDecision::recourse`): a reader that routes
     /// the arm gate's rejection as `RefusedArm::Undecided` ends it as the
-    /// Zero arm does, at a build, at rest and at the import door. A zero
-    /// with no size to tighten below, read or proved, takes the note; a
+    /// Zero arm does, at a build, at rest and at the import door. A
+    /// reading that shows no size — a read or proved zero, or an untagged
+    /// in-band margin on the refused side — takes the note at a build and
+    /// at rest; a positive rounding whose tolerance lies below `EPS_MIN`
+    /// takes the floor's sentence instead, at the import door too; a
     /// rejected zero a smaller tolerance decides passing is offered that
-    /// tolerance and no note; and neither an untagged in-band margin nor
-    /// a rejected Negative takes it.
+    /// tolerance; a rejected Negative ends in the lever alone; and at the
+    /// import door no reading takes the note.
     #[test]
-    fn a_gates_rejected_zero_ends_in_the_arms_zero_note() {
+    fn a_gates_rejection_ends_by_its_reading_on_either_arm() {
         use geom_core::sym::with_session;
-        use geom_core::{FileCoincidence, ParamSymbol, Sym, SymBudget, Theorem};
+        use geom_core::{FileCoincidence, ParamSymbol, Sym, SymBudget};
 
         use crate::recourse::{ReadAt, Reading, Refused, RefusedArm};
 
         let b = Band::new(1e-9, 1e-8).unwrap();
         let reject = |margin| decide_positive("dihedral_arm", margin, b).unwrap_err();
         let read = reject(Margin::of(0.0));
-        // `0.1·3/3 − 0.1` rounds to a positive reading in the zero band.
+        // `0.1·3/3 − 0.1` rounds to a positive reading in the zero band,
+        // 1.39e-17 m, whose `|m|/K` lies below `EPS_MIN`.
         let rounded = reject(Margin::of(0.1_f64 * 3.0 / 3.0 - 0.1));
+        let small = reject(Margin::of(5e-10));
         let budget = SymBudget {
             max_terms: 64,
             max_degree: 8,
@@ -1340,8 +1448,8 @@ mod tests {
             decide_positive("dihedral_arm", Margin::of(x * three / three - x), b).unwrap_err()
         });
         assert_eq!(
-            (proved.margin.rejected_sign(), proved.margin.theorem()),
-            (Some(Sign::Zero), Some(Theorem::SymbolicZero)),
+            (proved.margin.rejected_sign(), proved.margin.proven()),
+            (Some(Sign::Zero), true),
             "the proved zero is a gate's rejection: {proved:?}"
         );
         assert_eq!(
@@ -1368,42 +1476,46 @@ mod tests {
                         coincidence distance ε_in = 1e-8 m, so the file does not state it. ";
         let offer = format!(
             "{lever}, or, if this length or the gap its faces open is intended, tighten the \
-             tolerance below 1.3877787807814458e-18 m"
+             tolerance below 5e-11 m"
+        );
+        let floor = format!(
+            "{lever}; {}",
+            geom_core::floor_note("length or the gap its faces open")
         );
         let file = FileCoincidence::new(1e-8);
-        let rows: [(&str, &Indeterminate, [String; 3]); 5] = [
+        let rows: [(&str, &Indeterminate, [String; 3]); 6] = [
             (
                 "a read zero",
                 &read,
-                [noted.clone(), noted.clone(), format!("{unstated}{noted}")],
+                [noted.clone(), noted.clone(), format!("{unstated}{lever}")],
             ),
             (
                 "a proved zero",
                 &proved,
-                [noted.clone(), noted.clone(), format!("{unstated}{noted}")],
+                [noted.clone(), noted.clone(), format!("{unstated}{lever}")],
             ),
             (
                 "a rounded zero",
                 &rounded,
+                [floor.clone(), floor.clone(), format!("{unstated}{floor}")],
+            ),
+            (
+                "a small size",
+                &small,
                 [
                     offer.clone(),
                     offer,
                     format!(
                         "{unstated}{lever}, or, if this length or the gap its faces open is \
                          intended, re-export the file with its uncertainty declared below \
-                         1.3877787807814457e-17 m and tighten the tolerance below \
-                         1.3877787807814458e-18 m"
+                         5e-10 m and tighten the tolerance below 5e-11 m"
                     ),
                 ],
             ),
             (
-                "an untagged in-band margin",
+                "an untagged in-band margin on the refused side",
                 &in_band,
-                [
-                    lever.to_owned(),
-                    lever.to_owned(),
-                    format!("{unstated}{lever}"),
-                ],
+                [noted.clone(), noted, format!("{unstated}{lever}")],
             ),
             (
                 "a rejected Negative",
@@ -1453,6 +1565,13 @@ mod tests {
                 panic!("a point margin: {err:?}");
             };
             assert_eq!(err.rung(), LeverRung::Arm);
+            if b.offer_deciding(extent).is_none() {
+                // The arm offers no tolerance (D4 ¶4), so there is none
+                // to decide the wedge by: the arm keeps its own margin.
+                assert_eq!(err.diag().predicate, Some("dihedral_arm"), "{extent:e}");
+                assert_eq!(m, extent, "{extent:e}");
+                continue;
+            }
             assert_eq!(err.diag().predicate, Some("dihedral_arm_wedge"));
             assert!((m - theta.sin() * extent).abs() <= 1e-6 * m, "{m:e}");
         }
@@ -1568,7 +1687,8 @@ mod tests {
         let (a, b) = (keys.insert(()), keys.insert(()));
         let pair = crate::SurfacePair::new(a, b);
         let witness = Point3::new(1.0, 2.0, 3.0);
-        match MustCarryVerdict::JetDeterminate.description(pair, witness) {
+        let unread = || unreachable!("the chart is read only where the verdict is conventional");
+        match MustCarryVerdict::JetDeterminate.description(pair, witness, unread) {
             Ok(MustCarryDescription::Intrinsic(
                 crate::EdgeDescriptionSpec::TangentIntersection {
                     pair: got,
@@ -1577,10 +1697,12 @@ mod tests {
             )) => assert!(got == pair && w.distance(witness) == 0.0, "{got:?} {w:?}"),
             other => panic!("jet-determinate must be the intrinsic tangency: {other:?}"),
         }
-        assert!(matches!(
-            MustCarryVerdict::UnderDetermined.description(pair, witness),
-            Ok(MustCarryDescription::Conventional)
-        ));
+        for chart in [a, b] {
+            assert!(matches!(
+                MustCarryVerdict::UnderDetermined.description::<f64>(pair, witness, || chart),
+                Ok(MustCarryDescription::Conventional(got)) if got == chart
+            ));
+        }
         let source = MustCarryEscalation::SecondOrder(Indeterminate {
             margin: geom_core::MarginDiag::value(5e-9),
             band: band(),
@@ -1588,13 +1710,184 @@ mod tests {
             terminal_sliver: false,
         });
         assert!(matches!(
-            MustCarryVerdict::InBand(source).description(pair, witness),
+            MustCarryVerdict::InBand(source).description(pair, witness, unread),
             Err(MustCarryRefusal::InBand(s)) if s == source
         ));
         assert!(matches!(
-            MustCarryVerdict::Transverse.description(pair, witness),
+            MustCarryVerdict::Transverse.description(pair, witness, unread),
             Err(MustCarryRefusal::Refuted)
         ));
+    }
+
+    /// **The shared chain answers each verdict with the caller's own
+    /// pieces, and the same answer in either surface order**: an
+    /// under-determined join rests in the chart the caller named,
+    /// whichever of the pair it names, and a chart outside the pair is
+    /// the foreign-chart constructor's; a jet-determinate one is the
+    /// tangency over the pair in key order; and each refusal comes from
+    /// the constructor for its own reading — an in-band dihedral from
+    /// the first-order one, with the rung that raised it, an in-band
+    /// sagitta from the second-order one as the bend, a corner from the
+    /// refuted one. The chart is read only where the verdict is
+    /// conventional. Every answer, diagnostics included, is the same
+    /// whichever surface the caller lists first, which only the sort
+    /// makes so: each order reads the transverse curvature along its
+    /// first surface's normal, and on the sphere in its sleeve the two
+    /// readings differ in their last bit.
+    #[test]
+    fn must_carry_description_answers_with_the_callers_chart_and_constructors() {
+        #[derive(Debug, PartialEq)]
+        enum Refused {
+            FirstOrder(DihedralReading, Indeterminate),
+            SecondOrder(DihedralReading, Indeterminate),
+            Refuted,
+            Foreign(crate::SurfaceKey),
+        }
+        let mut keys = slotmap::SlotMap::<crate::SurfaceKey, ()>::with_key();
+        let (a, b, elsewhere) = (keys.insert(()), keys.insert(()), keys.insert(()));
+        let ask = |sa: &Surface<f64>,
+                   sb: &Surface<f64>,
+                   carrier,
+                   interval: (f64, f64),
+                   chart: Option<crate::SurfaceKey>| {
+            let (t0, t1) = interval;
+            let answers = [[(a, sa), (b, sb)], [(b, sb), (a, sa)]].map(|surfaces| {
+                let answer = must_carry_description(
+                    SmoothJoin {
+                        surfaces,
+                        carrier,
+                        interval,
+                        chord: carrier.eval(t0).distance(carrier.eval(t1)),
+                        witness: carrier.mid_point(t0, t1),
+                    },
+                    band(),
+                    || {
+                        chart.unwrap_or_else(|| {
+                            unreachable!("the chart is read only if conventional")
+                        })
+                    },
+                    Refused::FirstOrder,
+                    Refused::SecondOrder,
+                    || Refused::Refuted,
+                    Refused::Foreign,
+                );
+                format!("{answer:?}")
+            });
+            assert_eq!(
+                answers[0], answers[1],
+                "the two surface orders answer alike"
+            );
+            let [answer, _] = answers;
+            answer
+        };
+        let along = |dir| geom::Curve3::Line {
+            origin: Point3::origin(),
+            dir,
+        };
+        let floor = plane(Vec3::unit_z(), Vec3::unit_x());
+        let (x_axis, y_axis) = (along(Vec3::unit_x()), along(Vec3::unit_y()));
+
+        let coplanar = plane(Vec3::unit_z(), Vec3::unit_y());
+        for chart in [a, b] {
+            assert_eq!(
+                ask(&floor, &coplanar, &x_axis, (0.0, 1.0), Some(chart)),
+                format!(
+                    "{:?}",
+                    Ok::<_, Refused>(MustCarryDescription::<f64>::Conventional(chart))
+                ),
+                "coplanar planes rest in the named chart"
+            );
+        }
+        assert_eq!(
+            ask(&floor, &coplanar, &x_axis, (0.0, 1.0), Some(elsewhere)),
+            format!(
+                "{:?}",
+                Err::<MustCarryDescription<f64>, _>(Refused::Foreign(elsewhere))
+            ),
+            "a chart outside the pair is refused, not stored"
+        );
+
+        let cylinder = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 2.0),
+            axis: Vec3::unit_y(),
+            radius: 2.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let pair = crate::SurfacePair::new(a, b);
+        assert!(
+            ask(&floor, &cylinder, &y_axis, (0.0, 10.0), None).starts_with(&format!(
+                "Ok(Intrinsic(TangentIntersection {{ pair: {pair:?}"
+            )),
+            "a plane on a cylinder's generator is the intrinsic tangency over the pair"
+        );
+
+        let theta = 3.0 * eps();
+        let near = plane(Vec3::new(theta.sin(), 0.0, theta.cos()), Vec3::unit_y());
+        assert!(
+            ask(&floor, &near, &y_axis, (0.0, 1.0), None)
+                .starts_with("Err(FirstOrder(Lever(Reading), "),
+            "an in-band dihedral is the first-order constructor's, by its rung"
+        );
+
+        let (sin, cos) = std::f64::consts::FRAC_PI_4.sin_cos();
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: std::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::unit_x(),
+        };
+        let ruling = Vec3::new(sin, 0.0, cos);
+        let tangent = plane(Vec3::new(cos, 0.0, -sin), ruling);
+        let len = (2.0 * (band().zero() * band().escalate()).sqrt() / 0.01).sqrt();
+        let generator = along(ruling);
+        let bend = ask(&cone, &tangent, &generator, (100.0, 100.0 + len), None);
+        assert!(
+            bend.starts_with("Err(SecondOrder(Bend, ") && bend.contains("tangent_second_order"),
+            "an in-band sagitta is the second-order constructor's, as the bend: {bend}"
+        );
+
+        // A sphere in a cylinder of its own radius, touching along the
+        // equator, on a tilted axis: the two orders read `κ_rel` apart in
+        // its last bit at some stations, and this interval's deciding
+        // station is one of them.
+        let axis = Vec3::new(0.3, 0.7, 0.2).normalize();
+        let u_ref = Vec3::new(1.0, -0.2, -0.3);
+        let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
+        let (center, radius) = (Point3::new(0.37, -1.21, 2.9), 1.7);
+        let sleeve = Surface::Cylinder {
+            origin: center,
+            axis,
+            radius,
+            u_ref,
+        };
+        let ball = Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        };
+        let equator = geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        };
+        let turn = (2.0 * (band().zero() * band().escalate()).sqrt() * radius).sqrt() / radius;
+        let bend = ask(&sleeve, &ball, &equator, (0.15, 0.15 + turn), None);
+        assert!(
+            bend.starts_with("Err(SecondOrder(Bend, "),
+            "the equator's sagitta is in band: {bend}"
+        );
+
+        let wall = plane(Vec3::unit_x(), Vec3::unit_y());
+        assert_eq!(
+            ask(&floor, &wall, &y_axis, (0.0, 1.0), None),
+            format!(
+                "{:?}",
+                Err::<MustCarryDescription<f64>, _>(Refused::Refuted)
+            ),
+            "a corner is the refuted constructor's"
+        );
     }
 
     /// **The lane gates the demand, never the in-band refusal.** The
@@ -1915,6 +2208,59 @@ mod tests {
                 Some(Sign::Zero)
             )
         );
+    }
+
+    /// **A cone's apex at the import door ends in the door's sentence and
+    /// the lever, without the arm's zero note** — the accepted cost of
+    /// one message below ε_in: the door cannot tell an apex the file
+    /// states exactly from a rounded zero, so the note that names the
+    /// apex rides only away from the door. The apex arm reads exactly
+    /// 0.0 on the `f64` lane; both routes a reader takes end alike. Red
+    /// if the note returns at the door or leaves the at-rest ending.
+    #[test]
+    fn a_cone_apex_at_the_import_door_keeps_its_lever_and_loses_its_note() {
+        use geom_core::FileCoincidence;
+
+        use crate::recourse::{Reading, RefusedArm};
+
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: std::f64::consts::FRAC_PI_6,
+            u_ref: Vec3::unit_x(),
+        };
+        let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
+        let err = classify_dihedral(&cone, &s1, Point3::origin(), 1.0, band()).unwrap_err();
+        let diag = err.diag();
+        let geom_core::ErrorTextReading::Value(m) = diag.margin.diagnostic_f64_for_error_text()
+        else {
+            panic!("the apex arm is a point reading: {err:?}");
+        };
+        assert_eq!(
+            m.to_bits(),
+            0.0_f64.to_bits(),
+            "the apex arm reads exactly +0.0"
+        );
+        let collapsed = err.collapsed_arm().expect("the apex's arm is decided zero");
+        let note = "leaves no angle to measure";
+        let lever = "Recourse: move the geometry so that edge is clearly longer and no face \
+                     curves tightly there";
+        let file = FileCoincidence::new(1e-6);
+        for arm in [RefusedArm::Undecided(&diag), collapsed.arm()] {
+            let at_rest = DIHEDRAL_ARM.recourse(arm, Reading::AtRest);
+            assert!(
+                at_rest.starts_with(lever) && at_rest.ends_with(note),
+                "{arm:?} at rest: {at_rest}"
+            );
+            assert_eq!(
+                DIHEDRAL_ARM.recourse(arm, file),
+                format!(
+                    "This length or the gap its faces open is below the file's declared \
+                     coincidence distance ε_in = 1e-6 m, so the file does not state it. {lever}"
+                ),
+                "{arm:?} at the import door"
+            );
+        }
     }
 
     /// Two coplanar faces on one tangent plane: material sides agree

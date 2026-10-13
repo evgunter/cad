@@ -177,11 +177,14 @@ pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> P
 ///
 /// One exception class for "this is no frame", whichever door was
 /// asked: the human message is the kernel's own prose, `variant` is
-/// [`crate::tags::ortho_frame_error_tag`]'s word, and the classifier
+/// [`crate::tags::orthonormalize_error_tag`]'s word, and the classifier
 /// payload is [`crate::escalation`]'s, so a caller reads `margin`,
 /// `zero`, `escalate` and `predicate` off an escalated mint exactly as
 /// it reads them off an escalated ladder.
-pub(crate) fn ortho_frame_err(py: Python<'_>, err: &pncad::geom_core::OrthoFrameError) -> PyErr {
+pub(crate) fn orthonormalize_err(
+    py: Python<'_>,
+    err: &pncad::geom_core::OrthonormalizeError,
+) -> PyErr {
     use pncad::geom_core::UnitVec3Error;
 
     let none = || py.None();
@@ -219,7 +222,7 @@ pub(crate) fn ortho_frame_err(py: Python<'_>, err: &pncad::geom_core::OrthoFrame
         ErrorClass::Frame,
         err.to_string(),
         &[
-            ("variant", text(crate::tags::ortho_frame_error_tag(err))),
+            ("variant", text(crate::tags::orthonormalize_error_tag(err))),
             ("inner_variant", none()),
             ("margin", margin),
             ("margin_low", margin_low),

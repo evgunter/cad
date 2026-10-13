@@ -41,3 +41,19 @@ fixes this while an ellipse is a centre plus axes.
   Its chart-image half (the α = 1.55 `MapResidual` table) stays open.
 - At the gate: a debug assertion that no carrier with ρ > ε/K arrives
   (D9 row 5).
+
+## Seam note from GERM (2026-10-12): Ev's decision on PR 4812
+
+Ev decided GERM's `conic-section-just-past-its-band-fails-certification-downstream`
+on PR 4812, after this unit was designed. The end state: a minted
+section ellipse is stored anchored on the arc its edge uses, with the
+centre derived and never stored, so the far-centre term (b) is removed
+rather than refused; there is **no refusal at the arm**; in the interim
+a miss within a carrier's own resolution is relabelled as a kernel
+limitation, refusing nothing new; and a certification-time resolution
+check waits for D4 ¶4's size range. So this unit's "admit only where
+ρ ≤ ε/K, refuse the rest before minting" is superseded; the re-pose
+(`a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex`) is
+consistent with it as a first step. The decision's text is in GERM's
+row.
+

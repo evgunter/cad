@@ -324,7 +324,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
     let disc = extruded(vec![circle_loop(0.0, 0.0, 0.6)], 1.0);
     let tall_disc = topo::transform_rigid(
         &disc,
-        &Affine3::translation(Vec3::new(0.0, 0.0, -0.5)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, -0.5)).unwrap(),
         Tol::witness(),
     )
     .unwrap();
@@ -333,7 +333,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
     let tall = extruded(vec![circle_loop(0.0, 0.0, 0.6)], 2.0);
     let tall = topo::transform_rigid(
         &tall,
-        &Affine3::translation(Vec3::new(0.0, 0.0, -0.5)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, -0.5)).unwrap(),
         Tol::witness(),
     )
     .unwrap();
@@ -357,7 +357,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
     // A union with a partially-embedded disc (blind boss).
     let boss = topo::transform_rigid(
         &disc,
-        &Affine3::translation(Vec3::new(0.0, 0.0, 0.5)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 0.5)).unwrap(),
         Tol::witness(),
     )
     .unwrap();
@@ -469,7 +469,12 @@ fn rigid_transform_preserves_the_authority_census() {
     let before: Vec<bool> = authority_census(&body).iter().map(|(_, d)| *d).collect();
     let map = Affine3::translation(Vec3::new(3.0, -1.0, 2.0))
         * Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), PI / 2.0);
-    let moved = topo::transform_rigid(&body, &map, Tol::witness()).expect("the vessel transforms");
+    let moved = topo::transform_rigid(
+        &body,
+        &geom_core::test_support::rigid(&map, Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("the vessel transforms");
     let after: Vec<bool> = authority_census(&moved).iter().map(|(_, d)| *d).collect();
     assert_eq!(after, before, "transform_rigid must not flip is_declared");
     fence_crosscheck(&moved, "vessel after rigid transform");

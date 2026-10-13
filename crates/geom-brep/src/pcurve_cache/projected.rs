@@ -136,6 +136,7 @@ use geom_core::predicate::Band;
 use geom_core::spline::{KnotVector, ParamRange, SpanLocate, poison_from};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
+use crate::harmonic::harmonic_sup;
 use crate::offset::Nappe;
 
 use super::{
@@ -1402,6 +1403,15 @@ fn axial_floor<T: Real>(z: (f64, f64), nappe: Nappe) -> T {
 }
 
 /// The distance of an angle from the nearest point of `shift + τℤ`.
+///
+/// Sound at every scalar on its own terms: a lattice distance is
+/// continuous in the angle and the same on either branch at a tie, so
+/// the floor's pick never shows in it, and an `Interval` straddle widens
+/// it but still encloses. Its readers (`projected_envelope`'s fidelity
+/// terms) pass a deck offset (a whole number of turns, or a reflection's
+/// zero) against a shift of 0 or π (the sphere's twin), all form-definite
+/// constants at `Sym`, and add the distance to an envelope bound: no
+/// identity reads it.
 fn off_period<T: Real>(angle: T, shift: T) -> T {
     (angle - shift).reduce_periodic_centred(T::tau()).abs()
 }
@@ -1924,9 +1934,10 @@ pub(super) fn projected_envelope<T: Decide>(
             let Surface::Sphere { center, radius, .. } = *surface else {
                 return Err(refuse("a circle's projected image is written for a sphere"));
             };
+            // `Δc + Δa·cos t + Δb·sin t`: the centre's gap and the pair's
+            // exact sup.
             let d = (*centre - to_frame(form.c - o, &e)).norm()
-                + (*a - to_frame(form.a, &e)).norm()
-                + (*b - to_frame(form.b, &e)).norm();
+                + harmonic_sup(*a - to_frame(form.a, &e), *b - to_frame(form.b, &e));
             for &k in &met {
                 let b = image.frame_box(k, t0, t1);
                 holds(b.x.0, band, k, SectorChannel::Azimuth)?;

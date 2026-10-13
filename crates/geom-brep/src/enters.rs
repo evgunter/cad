@@ -120,7 +120,9 @@ impl LeverEscalation {
 
     /// Whether [`LeverEscalation::quoting_reading`] may re-quote this
     /// escalation: the arm's rung, refused with a tolerance that decides
-    /// it. An exact zero or a poisoned margin is a verdict no smaller
+    /// it, an admissible one above `EPS_MIN`
+    /// ([`Indeterminate::offers_tolerance`](geom_core::Indeterminate::offers_tolerance)).
+    /// An exact zero or a poisoned margin is a verdict no smaller
     /// tolerance re-decides, and the reading's rung meters nothing
     /// further. A door asks this before it reads the metered quantity.
     #[must_use]

@@ -212,3 +212,12 @@ fold only geometric refusals, which is what they claim.
 ## Re-homed at TOPO's cut (2026-10-11)
 
 Moved from TOPO to TOPOTAIL when TOPO dropped to P2 and split on its priority seam (`work/topotail/log.md`). TOPO kept the Euler surgery doors; this row is a torn-record, refusal-recourse or code-hygiene row, or a parked boolean or placement row.
+
+## 2026-10-13: names retired by PR 4820 (FUSE)
+
+`remap_contacts` and `remap_carried` are gone. The carry is
+`boolean::ops::carry` → `carry_rows`: the reduction's rows are placed
+by `place_found`, the operands' rows by `carried` (`operand_fate`, then
+`records::landings`). A fusion row naming a key an earlier row killed
+now refuses at append (`lineage::Substitutions`, as
+`BooleanError::LineageRow`).

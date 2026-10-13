@@ -356,18 +356,18 @@ fn a_tangency_in_the_middle_of_an_edge_builds_in_either_operand_order() {
     }
 }
 
-/// **A `Tangent` touching a fillet mid-edge builds its subtracts and
-/// intersect in either operand order, and refuses its union.** A unit box stands beside the rounded plate, turned 45° so
-/// its west wall is tangent to the south-east fillet along the ruling at
-/// azimuth −45°: the box's wall edges pass that ruling mid-span and the
-/// plate has no edge on it. The boolean verifies the tangency by its
-/// witness, and the verified pair is the cover (C4). The union
-/// would touch face–face along a ruling through the box wall's
-/// interior, which the reduction mints no row for, so it refuses. Volumes are
+/// **A `Tangent` touching a fillet mid-edge builds every op in either
+/// operand order.** A unit box stands beside the rounded plate, turned
+/// 45° so its west wall is tangent to the south-east fillet along the
+/// ruling at azimuth −45°: the box's wall edges pass that ruling
+/// mid-span and the plate has no edge on it. The boolean verifies the
+/// tangency by its witness, and the verified pair is the cover (C4).
+/// The union is two solids touching face–face along the ruling through
+/// the box wall's and the fillet's interiors, one record. Volumes are
 /// closed form (the box 1, the plate [`area`] of four corners, interiors
 /// disjoint); faces: the box 6, the plate 10.
 #[test]
-fn a_tangent_beside_a_fillet_refuses_its_union_and_builds_the_rest_in_either_order() {
+fn a_tangent_beside_a_fillet_builds_every_op_in_either_order() {
     let s2 = core::f64::consts::FRAC_1_SQRT_2;
     let touch = Point2::new(W - R + R * s2, R - R * s2);
     let at = |along: f64, out: f64| {
@@ -382,19 +382,28 @@ fn a_tangent_beside_a_fillet_refuses_its_union_and_builds_the_rest_in_either_ord
         ("box is A", &boxed, &p, (1.0, 6), (area(4.0), 10)),
         ("plate is A", &p, &boxed, (area(4.0), 10), (1.0, 6)),
     ] {
-        let box_operand = if order == "box is A" {
-            topo::Operand::A
-        } else {
-            topo::Operand::B
-        };
         match topo::union(a, b, tol()) {
-            Err(BooleanError::TangentSlitArmUnbuilt { interior, .. }) => {
-                assert_eq!(interior, box_operand, "{order}: A ∪ B, the box wall");
+            Ok(topo::BooleanResult::Body(r)) => {
+                assert_eq!(r.body.solids().count(), 2, "{order}: A ∪ B, two solids");
+                let v = volume(&r.body);
+                assert!((v - va - vb).abs() < 1e-9, "{order}: A ∪ B, volume {v}");
+                let kinds: Vec<_> = r
+                    .contacts
+                    .face_face()
+                    .map(|(x, y)| {
+                        [x, y].map(|f| {
+                            let face = r.body.get_face(f).unwrap();
+                            r.body.get_surface(face.surface).unwrap().kind()
+                        })
+                    })
+                    .collect();
+                assert!(
+                    kinds == [[geom::SurfaceKind::Plane, geom::SurfaceKind::Cylinder]]
+                        || kinds == [[geom::SurfaceKind::Cylinder, geom::SurfaceKind::Plane]],
+                    "{order}: A ∪ B, the box wall and the fillet's face–face record: {kinds:?}"
+                );
             }
-            out => panic!(
-                "{order}: A ∪ B, the ruling runs through the box wall: {:?}",
-                out.map(|_| ())
-            ),
+            out => panic!("{order}: A ∪ B: {:?}", out.map(|_| ())),
         }
         builds(
             &format!("{order}: A ∖ B"),
@@ -417,7 +426,7 @@ fn a_tangent_beside_a_fillet_refuses_its_union_and_builds_the_rest_in_either_ord
 }
 
 /// The 45° unit box of
-/// [`a_tangent_beside_a_fillet_refuses_its_union_and_builds_the_rest_in_either_order`],
+/// [`a_tangent_beside_a_fillet_builds_every_op_in_either_order`],
 /// its west wall on the south-east fillet's ruling at azimuth −45°,
 /// standing from `z0` to `z1`.
 fn box_beside_the_fillet(z0: f64, z1: f64) -> AtRestBody<f64> {
@@ -484,10 +493,7 @@ fn comb() -> AtRestBody<f64> {
 /// **A covered touch no vertex splits refuses, typed, in both operand
 /// orders and every op.** The deferral widens only what the other
 /// operand's vertex puts under a touch; where nothing does, the
-/// settled pair answers the frontier it was deferred with. The union
-/// refuses first at the door: the tangent ruling runs through the
-/// box wall's interior, a face–face touch the reduction mints no row
-/// for.
+/// settled pair answers the frontier it was deferred with.
 ///
 /// - The short box beside the fillet (z 0.25 to 0.75, and 0.25 to 1):
 ///   its wall edges graze the fillet mid-ruling, where the plate has
@@ -523,13 +529,8 @@ fn a_covered_touch_no_vertex_splits_refuses_in_both_orders() {
     poses.push(("comb".to_string(), long, teeth));
     for (pose, a0, b0) in &poses {
         for (order, a, b) in [("first is A", a0, b0), ("second is A", b0, a0)] {
-            let out = topo::union(a, b, tol());
-            assert!(
-                matches!(out, Err(BooleanError::TangentSlitArmUnbuilt { .. })),
-                "{pose}, {order}, A ∪ B: the ruling runs through the wall: {:?}",
-                out.map(|_| ())
-            );
             for (op, out) in [
+                ("A ∪ B", topo::union(a, b, tol())),
                 ("A ∖ B", topo::subtract(a, b, tol())),
                 ("A ∩ B", topo::intersect(a, b, tol())),
             ] {
@@ -946,7 +947,12 @@ fn a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order() {
         (-0.25, 0.0),
     ] {
         let shift = geom_core::Affine3::translation(geom_core::Vec3::new(dx, dy, 0.0));
-        let moved = topo::transform_rigid(&plate(sharp(), 1.0), &shift, tol()).unwrap();
+        let moved = topo::transform_rigid(
+            &plate(sharp(), 1.0),
+            &geom_core::test_support::rigid(&shift, tol()),
+            tol(),
+        )
+        .unwrap();
         let upper = finished("the offset plate", moved, tol());
         for (order, a, b) in [
             ("upper ∪ lower", &upper, &lower),

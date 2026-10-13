@@ -548,7 +548,7 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, 
         .line_to(p2(x.1, y.1), tol)?
         .line_to(p2(x.0, y.1), tol)?
         .line_to(Start, tol)?;
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![rect.into()], tol)?;
     let body = extrude(&profile, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body;
     // The boolean takes finished bodies: the at-rest gate (tier 3) makes one.
@@ -597,7 +597,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+#     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -653,7 +653,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+#     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -682,7 +682,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+#     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -755,7 +755,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+#     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -795,7 +795,7 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+#     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -845,7 +845,7 @@ use pncad::step_import::StepImport;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+#     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();

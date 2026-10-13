@@ -350,6 +350,18 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/reach.rs",
+        subject: "displaces",
+        why: Selection(
+            "whether a reading takes the place of the one `Unclear` holds for its rank: \
+             the upper end of its margin on the better side, or equal and naming a \
+             lesser entity. It only chooses which already-classified refusal of one \
+             rank the request reports; whether the request refuses, and as what, is \
+             fixed before it runs, so it inherits `impl<T: Bounds> Unclear<T>`'s \
+             disposition and no other",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
         subject: "canonical_axis",
         why: Selection(
             "picks the sign of a band's axis (its largest component positive) and the \

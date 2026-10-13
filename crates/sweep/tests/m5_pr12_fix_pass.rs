@@ -221,16 +221,19 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
     let c2 = prism(&[(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)], 3.0);
     let c2 = topo::transform_rigid(
         &c2,
-        &Affine3::translation(Vec3::new(-1.55, -1.55, -2.45)),
+        &geom_core::RigidMotion::translation(Vec3::new(-1.55, -1.55, -2.45)).unwrap(),
         Tol::witness(),
     )
     .unwrap();
     let c2 = topo::transform_rigid(
         &c2,
-        &Affine3::rotation_about_axis(
-            Point3::new(1.0, 1.0, 1.0),
-            Vec3::new(1.0, -1.0, 0.0).normalize(),
-            0.4,
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(
+                Point3::new(1.0, 1.0, 1.0),
+                Vec3::new(1.0, -1.0, 0.0).normalize(),
+                0.4,
+            ),
+            Tol::witness(),
         ),
         Tol::witness(),
     )

@@ -6,6 +6,10 @@ status: open
 opened: 2026-10-01
 priority: P2
 cost: M
+design: true
+branch: germ/conic-past-band
+pr: 4812
+refs: [focal-section-vertex-azimuth-is-read-off-a-cancelling-sum, focal-section-envelope-bounds-the-whole-ellipse-not-the-span, focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor]
 ---
 
 Found by the plane × cone split lane (`plane-cone-elliptic-section-split-refusal`),
@@ -112,6 +116,45 @@ neighbours of this door, where the miss is the input's rather than the
 carrier's rounding, are filed as CLEAVE's
 `a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join`.
 
+## The lever is a fork (GERM measurement, 2026-10-12)
+
+Measured by `sweep/examples/conic_past_band_probe.rs`: the split of a
+frustum (five half-angles, three scales) and of a cylinder (three
+scales) by planes tilted toward the degenerate limit, at all three ε,
+axis-aligned and in a generic pose, with the arm's carrier residual
+(double-double), the chart image's map residual over the consumed
+arcs and the whole turn, and its certificate. The tables and the
+options are the draft PR's body. In short:
+
+- **The cylinder** refuses downstream only at the Euler gate's
+  endpoint residual, and that door is read by `u·A` (`u` the rounding
+  unit, `A` the semi-major) alone: at ε = 1e-9 the unit and 100-unit
+  cylinders certify to `u·A/ε ≈ 0.22` and refuse from 0.40 (the
+  0.01-unit one refuses first at the sector door,
+  `Reduce(SliverSector)`); at 1e-12 the crossover is 0.71–1.26. The extent plays no part, and the carrier and its image
+  stay at rounding throughout.
+- **The cone** refuses mostly at the image (`Pcurves(Certify)`,
+  envelope or map residual), at `u·A/ε` anywhere from 1.4e-5 to 0.34:
+  the image's whole-turn miss grows like `u·A/k²` at a generic pose
+  (`k² = 1 − tan²α·tan²φ`), with a further `~1/cos²α` on flat cones
+  (α = 1.55 refuses at half the parabolic tilt at 1e-12). No single
+  quantity among `u·A`, `A/extent`, `u·A/k`, `u·A/(k·cos²α)`
+  separates certifying from refusing poses: each overlaps by at least
+  3× in the sweep.
+- **Most of the cone's image error is avoidable one layer down**:
+  `chart_pcurve` reads the vertex azimuth off a sum that cancels near
+  the parabola, and reading it off the major axis cuts the whole-turn
+  miss 10–1000× (filed on PCERT, with the envelope's whole-ellipse
+  reading and the flat-cone factor: `refs`).
+
+So several levers are viable and they trade off (what they refuse,
+which layer owns the conditioning): an arm criterion on the carrier
+alone, one that also bounds the image, the image fixed first and
+then the carrier criterion, or the late refusal re-worded. The
+frustum counterexample above (`A ≈ 3.4` against an extent of 2.0,
+tilt `0.9·(π/2 − α)`) certifies at every ε, and no criterion that
+reads `A` against the extent survives the sweep.
+
 ## Note from CLEAVE (2026-10-12)
 
 CLEAVE's section-end design fork, with two designers converging, splits
@@ -128,3 +171,46 @@ this row's "what closes it" in two:
   term, to the digit.
 - **The chart-image half** stays yours: the α = 1.55 `MapResidual`
   table, where the carrier is accurate and the pcurve image is not.
+
+## Decided (Ev, PR 4812, 2026-10-12)
+
+- **End state: the conic carrier is stored in the form it was born in,
+  and the other form is derived.** A kernel-minted section is stored
+  anchored on the arc its edge uses (parameter zero there, the centre
+  derived, never stored), so its resolution is `u` times the arc
+  distance from the anchor, not `u·A`. An imported ellipse keeps the
+  file's centre form exactly as read, with the anchored form as an
+  internal cache, so export writes the original and round-trips
+  bit-exactly; export of a minted ellipse writes the derived centre.
+  Evaluators read the anchored form either way. No public API changes:
+  nothing public reads the ellipse's fields.
+- **No refusal at the arm.** The existing degeneracy trilean stays the
+  only door there.
+- **PCERT's three chart fixes land now** (`refs`).
+- **Interim:** a miss within a carrier's own resolution ends as a
+  kernel limitation (D4 ¶1(i)'s last resort), not "kernel defect", and
+  nothing that certifies today starts refusing.
+- **Deferred:** a certification-time resolution check that refuses with
+  a geometry lever waits for D4 ¶4's size range to be built generally;
+  it would be that clause's first instance.
+- **Owners.** The carrier half is CLEAVE's (note below):
+  `a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex` is a
+  first step consistent with this end state (it removes the parameter
+  term). This decision supersedes the arm refusal in
+  `the-section-table-admits-a-curve-on-its-resolution`: the far-centre
+  term it would refuse is removed by deriving the centre. The
+  chart-image half stays this row's (PCERT's fixes).
+
+## Note from PCERT (2026-10-13)
+
+`focal-section-vertex-azimuth-is-read-off-a-cancelling-sum` is fixed
+(`pcert/focal-section-vertex-azimuth`): `chart_pcurve` reads the cone
+image's vertex azimuth off the major axis, and the skew-pose whole-turn
+miss drops 10–1000× to `u·A/k`. That narrows the chart-image half and
+does not close it: at unit scale, ε = 1e-9, the skew-pose cone still
+refuses at the image from about `k < 5e-3` (`β`'s own conditioning,
+`u·A/k`), and `α = 1.55` still misses by 8.8e-7 at `f = 0.9999`
+(`focal-section-image-on-a-flat-cone-misses-by-a-cos-squared-factor`).
+The span envelope (`focal-section-envelope-bounds-the-whole-ellipse-not-the-span`)
+is untouched.
+

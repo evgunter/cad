@@ -63,7 +63,7 @@ pub(crate) const SPLIT_PARAM_INTERIOR: SizedDecision = SizedDecision {
     size: CROSSING_SIZE,
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The one ending of [`SPLIT_PARAM_INTERIOR`]'s refused `arm`, at the
@@ -260,6 +260,9 @@ impl<T: Decide> Body<T> {
     /// lies exactly in both adjacent charts, so either certifies; the
     /// edge's own orientation names one, as it does for a blend's
     /// contact edge, and both children's plus halves lie in that face.
+    /// A parent whose tangency names a pair that face's surface is not
+    /// in is incoherent with its faces, and refuses
+    /// [`EulerOpError::DescriptionNotAdjacent`] rather than rest there.
     ///
     /// The pair's keys are links of the parent's certified description,
     /// so a key that does not resolve is a torn body, not a refusal.
@@ -286,26 +289,22 @@ impl<T: Decide> Body<T> {
             })
         };
         let [ka, kb] = pair.keys();
-        let (pair, [sa, sb]) = geom_brep::SurfacePair::sorted(ka, surface(ka), kb, surface(kb));
-        let (s0, s1) = (spec.param_start, spec.param_end);
-        let extent = geom_brep::edge_extent(&spec.carrier, s0, s1, p0.distance(p1));
-        let description =
-            match geom_brep::must_carry_over_edge(sa, sb, &spec.carrier, s0, s1, extent, band)
-                .description(pair, witness)
-                .map_err(|refusal| {
-                    refusal.route(
-                        |diag| EulerOpError::SplitTangentEscalated { edge, diag },
-                        |diag| EulerOpError::SplitTangentBendEscalated { edge, diag },
-                        || EulerOpError::SplitTangentRefuted { edge },
-                    )
-                })? {
-                geom_brep::MustCarryDescription::Intrinsic(description) => description,
-                geom_brep::MustCarryDescription::Conventional => {
-                    geom_brep::EdgeDescriptionSpec::chart(
-                        crate::pcurves::half_edge_face(self, he_plus).1.surface,
-                    )
-                }
-            };
+        let description = geom_brep::must_carry_description(
+            geom_brep::SmoothJoin {
+                surfaces: [(ka, surface(ka)), (kb, surface(kb))],
+                carrier: &spec.carrier,
+                interval: (spec.param_start, spec.param_end),
+                chord: p0.distance(p1),
+                witness,
+            },
+            band,
+            || crate::pcurves::half_edge_face(self, he_plus).1.surface,
+            |_, diag| EulerOpError::SplitTangentEscalated { edge, diag },
+            |_, diag| EulerOpError::SplitTangentBendEscalated { edge, diag },
+            || EulerOpError::SplitTangentRefuted { edge },
+            |_| EulerOpError::DescriptionNotAdjacent { edge: Some(edge) },
+        )?
+        .spec();
         Ok(EdgeCurveSpec {
             description,
             ..spec

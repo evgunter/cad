@@ -14,9 +14,10 @@ in the recourse its decision earns", which closed
 
 `geom_brep::PcurveCertifyError::ending`
 (`crates/geom-brep/src/pcurve_cache.rs`, ~1779) returns `None` for
-fourteen arms: `UnsupportedChart`, `UnsupportedCarrier`,
-`CarrierOffChart`, `ImageMismatch`, `FittedLaneUnsupported`,
-`FittedMateMissing`, `SectorRefused`, `IsoUnsupported`, `ChartRow`,
+thirteen arms (`FittedMateMissing`, a fourteenth, was deleted on
+`pcert/fitted-row-reads-carrier-and-chart`): `UnsupportedChart`,
+`UnsupportedCarrier`, `CarrierOffChart`, `ImageMismatch`,
+`FittedLaneUnsupported`, `SectorRefused`, `IsoUnsupported`, `ChartRow`,
 `FittedCertificate`, `CarrierDomain`, `ChartWindingUnsupported`,
 `PlaceholderChart` and `Band`. The match ends in a grouped `return None`,
 so a new arm can join the group silently.

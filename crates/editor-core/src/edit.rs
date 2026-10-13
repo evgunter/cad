@@ -497,7 +497,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// per node — so a SetTolerance result is never silently
     /// evaluated at the old ε.
     SetTolerance {
-        /// The new modeling tolerance (finite, strictly positive).
+        /// The new modeling tolerance, admissible per
+        /// [`geom_core::tolerance::eps_admissible`].
         eps: f64,
     },
     /// Attach (or replace) one BLACK-BOX metadata value on a face or
@@ -2601,7 +2602,8 @@ pub enum EditError {
         /// The kind that was not set on it.
         kind: AttrKind,
     },
-    /// A `SetTolerance` whose ε is not finite and strictly positive.
+    /// A `SetTolerance` whose ε is not admissible: not finite, or below
+    /// `geom_core::tolerance::EPS_MIN`.
     InvalidTolerance {
         /// The refused value.
         value: f64,
@@ -2774,8 +2776,9 @@ pub enum EditError {
     },
     /// A proper placement frame that is not definitely a rigid motion
     /// at tolerance — it may scale or shear an axis. The evaluation
-    /// refuses to move a body by one ([`topo::TransformError::NotRigid`],
-    /// the same predicate), so the document never admits one.
+    /// admits a literal frame through the same door
+    /// ([`geom_core::RigidMotion::check_rigid`]), so the document never
+    /// admits one it would refuse.
     NonRigidPlacement {
         /// The node holding the frame.
         node: SpokenNode,
@@ -4064,12 +4067,13 @@ impl EditError {
                 tail.recourse(f, format_args!("clear only an attribute the name carries"))
             }
             Self::InvalidTolerance { value } => {
-                write!(f, "tolerance {value:e} is not finite and strictly positive")?;
+                use geom_core::tolerance::{EPS_MIN, EpsFloor};
+                write!(f, "tolerance {value:e} is not admissible: {EpsFloor}")?;
                 tail.recourse(
                     f,
                     format_args!(
-                        "keep the tolerance the document records, or offer a positive length \
-                         in metres"
+                        "keep the tolerance the document records, or offer a length in metres of \
+                         at least {EPS_MIN:e}"
                     ),
                 )
             }

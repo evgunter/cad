@@ -1294,11 +1294,13 @@ pub enum EulerOpError {
     /// [`Body::split_edge`]: the one joint decision
     /// (`crate::pcurves::decide_joint`) decided no element for the joint
     /// between the two children of a half-edge's row. The gap there is
-    /// exactly zero, so what refused is the split point's lever: a mark
-    /// at it escalated (`diag` is `Some`), or the lever is so short that
-    /// the zero gap reads on a mark (`None`), as on a narrow cone near
-    /// its apex. The split writes no element nothing decided. Raised
-    /// before any mutation, so the body is untouched.
+    /// zero, and a zero gap meets the image's own orbit point at any
+    /// lever (the near-pole read, `crate::pcurves::lever_periods`), so a
+    /// short lever alone no longer refuses: what refuses is a reading
+    /// the band cannot decide (`diag` is `Some`), or a decided miss
+    /// (`None`) of a channel the near-pole read does not serve. The
+    /// split writes no element nothing decided. Raised before any
+    /// mutation, so the body is untouched.
     SplitJointUndecided {
         /// The edge being split.
         edge: EdgeKey,
@@ -1313,9 +1315,9 @@ pub enum EulerOpError {
     /// joint the kill bridges across it has no element to write. Either
     /// whether the half's ends meet escalated, or they meet and the
     /// joint decision there missed: a mark at the vertex escalated, or
-    /// its lever is so short that the gap reads on a mark, or the
-    /// periods lie past the branch reach. Raised in the plan phase, so
-    /// the body is untouched.
+    /// the gap reads on a mark and meets no orbit point at the vertex's
+    /// lever, or the periods lie past the branch reach. Raised in the
+    /// plan phase, so the body is untouched.
     KillTurnUndecided {
         /// The killed half-edge whose turn was not decided.
         half_edge: HalfEdgeKey,
@@ -1927,10 +1929,10 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::PcurveSplit {
             edge: ek,
             half_edge: he,
-            error: geom_brep::PcurveCertifyError::UnsupportedCarrier {
+            error: geom_brep::PcurveCertifyError::CarrierOffChart {
                 chart: geom::SurfaceKind::Torus,
-                carrier: geom::CurveKind::Nurbs,
-                class: geom_brep::UncoveredClass::NoFittedClass,
+                carrier: geom::CurveKind::Spiric,
+                why: "the spiric lies on neither its own torus nor that torus's mirror",
             },
         },
         EulerOpError::PcurveMint {
@@ -7224,7 +7226,6 @@ mod tests {
             "Recourse: move the geometry so the crossing lands clearly away from the edge's ends";
         let tol = geom_core::Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let k = band.escalate() / band.zero();
         let raise = |t: f64| {
             let cube = crate::test_support_fixtures::declined_cube::<f64>(tol);
             let mut body = cube.body;
@@ -7256,7 +7257,11 @@ mod tests {
                     ..
                 },
                 EulerOpError::SplitParamEscalated { diag, .. },
-            ) => [Some(value(*z) / k), None, Some(value(diag.margin) / k)],
+            ) => [
+                band.offer_deciding(value(*z)),
+                None,
+                band.offer_deciding(value(diag.margin)),
+            ],
             other => panic!("a zero-band, an outside and an in-band split: {other:?}"),
         };
         for (err, want) in [zero, outside, undecided].iter().zip(want) {
@@ -7265,7 +7270,11 @@ mod tests {
                 text.contains(LEVER) && !text.contains("declare"),
                 "the one lever, and no declaration: {text}"
             );
-            assert_eq!(offered(&text), want, "the tolerance its arm gives: {text}");
+            assert_eq!(
+                offered(&text),
+                want,
+                "the tolerance its arm gives, above EPS_MIN: {text}"
+            );
         }
     }
 

@@ -59,7 +59,7 @@ fn r1_rule_a_never_fires_on_a_straddling_argument() {
             Ok(Sign::Zero),
             "[{lo}, {hi}]: a straddling sqrt is Invalid, never Zero"
         );
-        assert_eq!(counts.symbolic_zero, 0, "[{lo}, {hi}]: {counts:?}");
+        assert_eq!(counts.symbolic, 0, "[{lo}, {hi}]: {counts:?}");
     }
 }
 
@@ -92,12 +92,9 @@ fn r1_rule_a_decides_zero_at_every_width_and_off_it_widens() {
             (Ok(Sign::Zero), Ok(Sign::Zero), Ok(Sign::Zero)),
             "half={half}"
         );
-        assert_eq!(c_on.symbolic_zero, 3, "half={half}: {c_on:?}");
+        assert_eq!(c_on.symbolic, 3, "half={half}: {c_on:?}");
         let (off, c_off) = with_session_rules(budget(), SymRules::none(), build);
-        assert_eq!(
-            c_off.symbolic_zero, 0,
-            "half={half}: rules off, no rule fires"
-        );
+        assert_eq!(c_off.symbolic, 0, "half={half}: rules off, no rule fires");
         if half >= 0.5 {
             assert!(
                 off.0 != Ok(Sign::Zero),
@@ -123,7 +120,7 @@ fn r1_rule_a_never_claims_a_coincidence() {
     // All three are numerically zero (or definite) at the point; none
     // is a theorem.
     let _ = out;
-    assert_eq!(counts.symbolic_zero, 0, "{counts:?}");
+    assert_eq!(counts.symbolic, 0, "{counts:?}");
 }
 
 /// **Rule B, same argument only**: `sin²θ + cos²θ − 1` is a theorem at
@@ -150,7 +147,7 @@ fn r1_rule_b_shape() {
         assert_eq!(out.0, Ok(Sign::Zero), "half={half}: the Pythagorean pair");
         assert_eq!(out.2, Ok(Sign::Zero), "half={half}: sin⁴ = (1 − cos²)²");
         assert_eq!(
-            counts.symbolic_zero, 2,
+            counts.symbolic, 2,
             "half={half}: exactly the two identities: {counts:?}"
         );
         if half >= 0.3 {
@@ -163,7 +160,7 @@ fn r1_rule_b_shape() {
         sign_of(s + c - lit(1.0))
     });
     assert_eq!(out, Ok(Sign::Zero), "numerically zero at θ = 0");
-    assert_eq!(counts.symbolic_zero, 0, "and not a theorem: {counts:?}");
+    assert_eq!(counts.symbolic, 0, "and not a theorem: {counts:?}");
 }
 
 /// **Rule B on a POISONED argument**: `sin²θ + cos²θ − 1` with `θ =
@@ -178,7 +175,7 @@ fn r1_rule_b_never_fires_through_poison() {
         sign_of(s * s + c * c - lit(1.0))
     });
     assert_ne!(out, Ok(Sign::Zero), "a poisoned argument never certifies");
-    assert_eq!(counts.symbolic_zero, 0, "{counts:?}");
+    assert_eq!(counts.symbolic, 0, "{counts:?}");
 }
 
 /// **Rule A through a reciprocal**: `1/sqrt(X)² − 1/X` and the arc's
@@ -199,7 +196,7 @@ fn r1_rule_a_reaches_the_normalized_frame_shape_on_a_small_form() {
             )
         });
         assert_eq!(out, (Ok(Sign::Zero), Ok(Sign::Zero)), "half={half}");
-        assert_eq!(counts.symbolic_zero, 2, "half={half}: {counts:?}");
+        assert_eq!(counts.symbolic, 2, "half={half}: {counts:?}");
     }
 }
 
@@ -231,5 +228,5 @@ fn r1_a0_constant_fold_is_exact() {
     assert_ne!(out.2, Ok(Sign::Zero));
     assert_eq!(out.3, Ok(Sign::Zero));
     assert_ne!(out.4, Ok(Sign::Zero));
-    assert_eq!(counts.symbolic_zero, 3, "{counts:?}");
+    assert_eq!(counts.symbolic, 3, "{counts:?}");
 }

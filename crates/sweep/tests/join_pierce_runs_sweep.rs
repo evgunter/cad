@@ -2847,8 +2847,8 @@ fn plain_runs(x: &AtRestBody<f64>, y: &AtRestBody<f64>, vx: f64, vy: f64, common
 ///   (`work/flush/an-l-prism-top-edge-exactly-in-the-cube-face-plane-ships-an-undeclared-contact.md`).
 ///
 /// Red when a vertex-on-face record follows its face's key through the
-/// division instead of the piece that holds the vertex
-/// (`boolean::ops::Descendants::holder`): `ab U` of each wedge pair and
+/// division instead of the pieces whose interiors the census confirms
+/// it meets (`boolean::ops::place_found`): `ab U` of each wedge pair and
 /// `ba U` of `w350-w200` fail tier 3′, and so do the L-prism's `ab U`,
 /// `ab S` and `ba U`.
 #[test]

@@ -890,18 +890,21 @@ fn role<'n, 's>(
             text(format!(" {} the body of ", sense_verb(*sense))),
             cites.one(face),
         ],
-        RoleSeg::EdgeCrossing {
-            a,
-            a_sense,
-            b,
-            b_sense,
-        } => vec![
-            text(meeting(&[*a_sense, *b_sense])),
-            cites.one(a),
-            text(format!(" {} the other body and ", sense_verb(*a_sense))),
-            cites.one(b),
-            text(format!(" {} the first", sense_verb(*b_sense))),
-        ],
+        RoleSeg::EdgeCrossing(run) => {
+            let senses: Vec<_> = run.iter().filter_map(|l| l.sense).collect();
+            let mut out = vec![text(meeting(&senses))];
+            for (i, l) in run.iter().enumerate() {
+                if i > 0 {
+                    out.push(text(if i + 1 == run.len() { " and " } else { ", " }));
+                }
+                out.push(cites.one(&l.line));
+                out.push(text(match l.sense {
+                    Some(sense) => format!(" {} the rest", sense_verb(sense)),
+                    None => " runs through".to_owned(),
+                }));
+            }
+            out
+        }
         RoleSeg::Merged(set) => {
             // A set on an edge is the edge a join made of its members.
             let what = if leaf.kind == EntityKind::Edge {
@@ -1030,6 +1033,7 @@ mod tests {
 
     use super::*;
     use crate::names::role::NameRef;
+    use crate::names::role::RunLine;
     use crate::node::StepId;
 
     const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1 << 16);
@@ -1097,12 +1101,16 @@ mod tests {
             name(
                 EntityKind::Vertex,
                 OP,
-                vec![RoleSeg::EdgeCrossing {
-                    a: NameRef::new(rim(1)),
-                    a_sense,
-                    b: NameRef::new(rim(2)),
-                    b_sense,
-                }],
+                vec![RoleSeg::EdgeCrossing(vec![
+                    RunLine {
+                        line: NameRef::new(rim(1)),
+                        sense: Some(a_sense),
+                    },
+                    RunLine {
+                        line: NameRef::new(rim(2)),
+                        sense: b_sense,
+                    },
+                ])],
             )
         };
         for (sense, head, verb) in [
@@ -1122,19 +1130,26 @@ mod tests {
             let s = said(&crossing(sense));
             assert!(s.starts_with(head) && s.contains(verb), "{sense:?}: {s}");
         }
-        let touch = said(&edges(Sense::Outside, Sense::Outside));
+        let touch = said(&edges(Sense::Outside, Some(Sense::Outside)));
         assert!(
             touch.starts_with("the touch where ")
-                && touch.contains(" meets from outside the other body and ")
-                && touch.contains(" meets from outside the first"),
+                && touch.matches(" meets from outside the rest").count() == 2
+                && touch.contains(" the rest and "),
             "{touch}"
         );
-        let mixed = said(&edges(Sense::Enters, Sense::Inside));
+        let mixed = said(&edges(Sense::Enters, Some(Sense::Inside)));
         assert!(
             mixed.starts_with("the crossing where ")
-                && mixed.contains(" enters the other body and ")
-                && mixed.contains(" meets from inside the first"),
+                && mixed.contains(" enters the rest and ")
+                && mixed.contains(" meets from inside the rest"),
             "{mixed}"
+        );
+        let seam = said(&edges(Sense::Outside, None));
+        assert!(
+            seam.starts_with("the touch where ")
+                && seam.contains(" meets from outside the rest and ")
+                && seam.contains(" runs through"),
+            "{seam}"
         );
         assert_ne!(
             said(&crossing(Sense::Outside)),

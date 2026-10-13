@@ -33,7 +33,7 @@ pub const TOUR_FRAME_AXIS: &str = "tour_frame_axis";
 /// the run's band.
 ///
 /// The library's decision-free frames are the three world ones
-/// (`OrthoFrame::axes_xy` and its siblings); anything else — a plane
+/// (`RigidMotion::axes_xy` and its siblings); anything else — a plane
 /// spanned by x̂ and ẑ, a plane rolled about a stem — goes through the
 /// Gram–Schmidt mint, which IS a decision and so wants a band and a
 /// funnel name. This is the tour writing that out once instead of at
@@ -65,8 +65,8 @@ pub fn authored_frame<S: Scalar>(
     u: pncad::geom_core::Vec3<S>,
     v: pncad::geom_core::Vec3<S>,
     tol: pncad::geom_core::Tol,
-) -> pncad::geom_core::OrthoFrame<S> {
-    pncad::geom_core::OrthoFrame::gram_schmidt(
+) -> pncad::geom_core::RigidMotion<S> {
+    pncad::geom_core::RigidMotion::gram_schmidt(
         origin,
         u,
         v,
@@ -85,7 +85,7 @@ pub fn authored_frame<S: Scalar>(
 /// verbatim — and the reference yields whatever component of it lies
 /// along the axis, so a scene states the roll it means rather than a
 /// vector it has had to make perpendicular by hand. That is the whole
-/// helper: one call to `OrthoFrame::from_axis_and_reference`, wearing
+/// helper: one call to `RigidMotion::from_axis_and_reference`, wearing
 /// the tour's band and funnel name.
 ///
 /// # Panics
@@ -97,8 +97,8 @@ pub fn axis_frame<S: Scalar>(
     axis: pncad::geom_core::Vec3<S>,
     u_ref: pncad::geom_core::Vec3<S>,
     tol: pncad::geom_core::Tol,
-) -> pncad::geom_core::OrthoFrame<S> {
-    pncad::geom_core::OrthoFrame::from_axis_and_reference(
+) -> pncad::geom_core::RigidMotion<S> {
+    pncad::geom_core::RigidMotion::from_axis_and_reference(
         center,
         axis,
         u_ref,

@@ -153,7 +153,7 @@ use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 use crate::dihedral::decide_reported;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
 use crate::recourse::{
-    AtZero, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+    NoSize, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
 use crate::shape_operator::FundamentalForms;
 
@@ -213,7 +213,7 @@ impl Meter {
                 size: "thinness",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: Some(AtZero::same(
+                no_size: Some(NoSize::same(
                     "if it has none, this may indicate a kernel bug worth reporting",
                 )),
             },
@@ -222,7 +222,7 @@ impl Meter {
                 size: "clearance",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             },
         }
     }
@@ -277,8 +277,8 @@ pub enum MeterError {
     /// smallest certified curvature radius on the folding side, so
     /// the offset self-intersects (or the bound is too weak to prove
     /// that it does not). The message names `reach`, the distance a
-    /// request must stay strictly inside; the margin and `kappa` ride
-    /// in the payload.
+    /// request must stay strictly inside, and on the zero arm the
+    /// margin; `kappa` rides in the payload.
     CurvatureHeadroom {
         /// The certified critical distance on the folding side, in
         /// metres (`+∞` when the patch does not curve that way).
@@ -312,9 +312,8 @@ impl core::fmt::Display for MeterError {
                 verdict,
             } => write!(
                 f,
-                "the face's normal cannot be proved non-zero (a chart {} m thin: normal \
-                 length {floor} m² per unit parameter area over speed {speed_lever} m), so it \
-                 has no offset",
+                "the face's normal is not shown non-zero (margin {:e} m, from normal length \
+                 {floor:e} m² per unit parameter area over speed {speed_lever:e} m)",
                 verdict.margin()
             ),
             Self::CurvatureHeadroom {
@@ -324,16 +323,17 @@ impl core::fmt::Display for MeterError {
             } => write!(
                 f,
                 "the offset distance's magnitude passes the face's radius of curvature on the \
-                 side it bends toward ({reach} m), so the offset folds over itself"
+                 side it bends toward ({reach:e} m), so the offset folds over itself"
             ),
             Self::CurvatureHeadroom {
                 reach,
-                verdict: Refused::Zero(_),
+                verdict: verdict @ Refused::Zero(_),
                 ..
             } => write!(
                 f,
-                "the offset distance's magnitude is within tolerance of the face's radius of \
-                 curvature on the side it bends toward ({reach} m), so the offset may fold"
+                "the offset distance's magnitude is not shown below the face's curvature radius \
+                 on its bending side, {reach:e} m (margin {:e} m), so the offset may fold",
+                verdict.margin()
             ),
             Self::Escalated { source, .. } => write!(
                 f,
@@ -978,10 +978,11 @@ mod tests {
     /// on every arm; the conditional tighten, valued at `m/K`, only on
     /// a band-decided arm whose margin is positive (a zero verdict
     /// inside the band, or an undecided margin); the lever alone on the
-    /// sign-certain arm, on a margin on the refused side, and straddling
-    /// zero; the report clause on a zero floor, which no tolerance
-    /// resolves; and a poisoned margin keeps the lever and says what it
-    /// may mean. Read with another lever, each ending keeps its shape
+    /// sign-certain arm and straddling zero; the report clause on a floor
+    /// that shows no size — zero, or in band on the refused side — which
+    /// no tolerance resolves, and where the decision has none, the lever
+    /// alone there; and a poisoned margin keeps the lever and says what
+    /// it may mean. Read with another lever, each ending keeps its shape
     /// and swaps the lever alone.
     #[test]
     fn each_meter_arm_ends_in_its_decisions_recourse() {
@@ -1006,7 +1007,7 @@ mod tests {
             (escalated(Meter::NormalFloor, straddle), SPLIT.to_owned()),
             (
                 escalated(Meter::NormalFloor, MarginDiag::value(-5e-9)),
-                SPLIT.to_owned(),
+                format!("{SPLIT}{REPORT}"),
             ),
             (
                 escalated(Meter::NormalFloor, MarginDiag::INVALID),
@@ -1120,19 +1121,18 @@ mod tests {
         let rows = [
             (
                 floor_zero(5e-10),
-                "the face's normal cannot be proved non-zero (a chart 0.0000000005 m thin: \
-                 normal length 0.000000001 m² per unit parameter area over speed 2 m), so it \
-                 has no offset",
+                "the face's normal is not shown non-zero (margin 5e-10 m, from normal length 1e-9 \
+                 m² per unit parameter area over speed 2e0 m)",
             ),
             (
                 headroom(zero(5e-10)),
-                "the offset distance's magnitude is within tolerance of the face's radius of \
-                 curvature on the side it bends toward (0.001 m), so the offset may fold",
+                "the offset distance's magnitude is not shown below the face's curvature radius \
+                 on its bending side, 1e-3 m (margin 5e-10 m), so the offset may fold",
             ),
             (
                 headroom(negative(-1e-4)),
                 "the offset distance's magnitude passes the face's radius of curvature on the \
-                 side it bends toward (0.001 m), so the offset folds over itself",
+                 side it bends toward (1e-3 m), so the offset folds over itself",
             ),
         ];
         for (error, want) in rows {

@@ -1,12 +1,12 @@
 ---
 id: boolean-door-runs-the-census-over-its-result
 kind: issue
-title: "The boolean door gates its result at tier 3 but not the census: a census at the door refuses 175 results on main, 38 of them curved unions whose solids the cross-solid lane cannot tell apart"
+title: The boolean door gates its result at tier 3 but not the census: a census at the door refuses 175 results on main, 38 of them curved unions whose solids the cross-solid lane cannot tell apart
 status: parked
 opened: 2026-10-03
 priority: P1
 cost: H
-blocked_on: [census-cross-solid-curved-pairs-undecidable-on-shell-results, a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms, a-two-pinch-union-ships-a-pinch-its-records-do-not-declare]
+blocked_on: [census-cross-solid-curved-pairs-undecidable-on-shell-results]
 refs: [3987, 3870]
 ---
 
@@ -139,3 +139,18 @@ body with the same pair): this row is the fix.
   (`work/flush/check-10-reads-a-cavitys-role-from-its-volume-sign.md`)
   and 9 refuse `Containment` in the operand orientation probe
   (`work/cleave/a-sliver-operands-orientation-falls-back-to-its-volume-where-it-has-no-planar-face.md`).
+
+## 2026-10-13: two blockers closed (FUSE, carry-rows-after-4820)
+
+FUSE closed `a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms`
+and `a-two-pinch-union-ships-a-pinch-its-records-do-not-declare` on main
+`0d2117d0`, so they are pruned from `blocked_on`. A census at the door,
+over topo/sweep/editor-core `ci`, finds no `StaleContactDeclaration`.
+Its `UnrecordedContact` findings on results that carry records are the
+operands' own contacts, which a kernel op called without
+`BooleanInputs` records does not carry in. The two rows' closing notes
+carry the measurement.
+
+## The per-record confirm folds in here (2026-10-13)
+
+Ev on `[ev]` PR 4951: confirming each record an op mints (`confirm_records` over `BooleanBody::contacts`) is not a separate door step; it comes with un-parking this gate, whose job is "escalate or not". The point-touch reading (PR 4956) has to land before this gate, so that a body C7 calls valid (the rod-on-plate union) does not refuse on a record no reading covers. (CONTACTHOLD orchestrator)

@@ -119,3 +119,14 @@ copy, which is where the residue came from. Measured:
 
 No witness reaches the catch-all arm now. The arm itself stays, as the
 unenumerated residue.
+
+## No longer reached by the probe corpus (EMIT, PR 4949, 2026-10-13)
+
+`emit_shared_rim_several` now fuses all 282 cells, up from 272. The
+`RESIDUES` admission is gone, and any refusal fails the row. The
+orders that reached this residue (`row` and `rowids` in
+`[a, h, b, g]` and `[h, a, b, g]`, among others) now emit. The cause
+was the `Borders` chase. It stopped at a seam that a later step's join
+had killed, so the chase now follows `EdgeJoin` and each step's split
+lineage. Whether any other document still reaches this row is WIRE's
+call; it is left open here.

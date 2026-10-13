@@ -33,8 +33,8 @@
 //!
 //! **Plane–plane support pairs only**, and open chains terminating at
 //! trivalent corners whose three edges are all requested (the corner
-//! patch), two of whose edges are, the faces symmetric about the third
-//! (the mitre), or that the chain's edge alone reaches (the cut-off, at
+//! patch), two of whose edges are, the bands' feet on the third meeting
+//! at equal or supplementary face angles beside it (the mitre), or that the chain's edge alone reaches (the cut-off, at
 //! any plane end face) — the same door the fillet's blank phase
 //! carves, since it is the same carve.
 //!

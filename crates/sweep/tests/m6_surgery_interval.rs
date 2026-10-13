@@ -18,7 +18,7 @@ mod certified {
 
     use geom::Curve3;
     use geom::Surface;
-    use geom_core::{Affine3, Bounds, Interval};
+    use geom_core::{Bounds, Interval};
     use profile::{Profile, test_support::bulge_loop};
     use sweep::blend::build::fillet_edges;
     use sweep::test_support::{cube, finished, sketch_from_axes};
@@ -67,7 +67,7 @@ mod certified {
         let h = DIE_L / 2.0;
         topo::transform_rigid(
             &ball,
-            &Affine3::translation(v3(h, h, DIE_L + (PIP_R - PIP_H))),
+            &geom_core::RigidMotion::translation(v3(h, h, DIE_L + (PIP_R - PIP_H))).unwrap(),
             Tol::witness(),
         )
         .unwrap()

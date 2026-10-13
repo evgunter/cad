@@ -276,18 +276,31 @@ fn the_admitted_torus_lane_stops_at_the_section_pass() {
 // 2. The G1 chain.
 // -------------------------------------------------------------------
 
-/// **The G1 tube chain refuses at the crossing layer**: an edge of one
-/// segment rides the other's wall. In both orders.
+/// **The G1 tube chain refuses at the glue door**: the two segments
+/// share their terminal meridian circle, and at its poles the tubes
+/// osculate (`κ_rel` exactly zero at a sample), the second-order
+/// residue no declaration stands behind. In both orders.
 #[test]
-fn the_g1_tube_chain_refuses_at_the_crossing_layer() {
+fn the_g1_tube_chain_refuses_at_the_glue_door() {
     let (a, b) = (segment_a(), segment_b());
     for (x, y) in [(&a, &b), (&b, &a)] {
         let err = topo::union(x, y, Tol::witness()).expect_err("the chain refuses");
-        assert!(
-            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-            "the crossing layer's refusal: {err:?}"
-        );
+        assert!(osculates(&err), "the glue door's refusal: {err:?}");
     }
+}
+
+/// The glue door's escalation on the chain's second order.
+fn osculates(err: &BooleanError) -> bool {
+    matches!(
+        err,
+        BooleanError::Escalated {
+            diag: geom_core::Indeterminate {
+                predicate: Some("contact_tangent_second_order"),
+                ..
+            },
+            ..
+        }
+    )
 }
 
 // -------------------------------------------------------------------
@@ -305,9 +318,9 @@ fn the_g1_tube_chain_refuses_at_the_crossing_layer() {
 ///   radius `R`);
 /// - the coincident pair (a continuation, both materials on one side)
 ///   stops at the no-crossings section pass on the tangency (R-tan);
-/// - the chain and the kissing pair refuse at the crossing layer
-///   (escalated where the run's band puts the sampled margin in its
-///   window).
+/// - the chain refuses at the glue door on its osculating poles, and
+///   the kissing pair at the crossing layer (escalated where the run's
+///   band puts the sampled margin in its window).
 #[test]
 fn subtract_and_intersect_on_the_torus_rest_fixtures() {
     let tangency = |what: &str, err: &BooleanError| {
@@ -362,10 +375,14 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
     for (op, r) in subtract_both_orders_and_intersect(&a, &b) {
         tangency(&format!("coincident pair, {op}"), &r.expect_err(op));
     }
-    for (name, (a, b)) in [
-        ("chain", (segment_a(), segment_b())),
-        ("kissing pair", kissing_pair()),
-    ] {
+    for (op, r) in subtract_both_orders_and_intersect(&segment_a(), &segment_b()) {
+        let err = r.expect_err(op);
+        assert!(
+            osculates(&err),
+            "chain, {op}: the glue door's refusal: {err:?}"
+        );
+    }
+    for (name, (a, b)) in [("kissing pair", kissing_pair())] {
         for (op, r) in subtract_both_orders_and_intersect(&a, &b) {
             let err = r.expect_err(op);
             // The escalation is the circle rung's sampled clearance
