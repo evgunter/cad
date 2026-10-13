@@ -1096,3 +1096,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - the surface row pins the index;
     - optionally, a subnormal-positive least-weight row for `speed_upper_bound`.
   - The T-channel note and the unreachable `?` stay as they are. — (NURBS orchestrator)
+
+- **2026-10-13 00:33Z — PR 4928 (proven rational stretch and area floors, build B) up.**
+  - The floors replace `weight_ratio_factor`. The area floor reads both cross factors at one active point: `T_i(S)×U_j(S)` is affine in S. That beats the M̃ product spline the brief suggested.
+  - 14 mutants red. The digest is unchanged at 3 ε.
+  - **Reach loss:** nets with an in-cell weight spread past about 1.6× now refuse. `r2_probe_cert8`'s rational charts were moved to ≤1.6×, and a frontier row pins the steep refusal. The reviewer is asked whether the probe edit is legitimate.
+  - Filed:
+    - `rational-inf-floor-reach-refines-before-reading` (P2, design);
+    - `rational-inf-speed-has-two-recipes-curve-and-surface` (P3).
+  - Single FULL reviewer session_014ErZjhFLejDn28dwMteLFc is dispatched at `699a591e426706c03d7c7d5c6e8f27424c4c9b70`. — (NURBS orchestrator)
