@@ -1729,7 +1729,7 @@ mod tests {
         assert!(
             within.starts_with(
                 "This clearance is below the file's declared coincidence distance ε_in = 1e-6 \
-                 m, so the file does not state it. Recourse: store the edge's curve"
+                 m, so the file cannot tell it from zero. Recourse: store the edge's curve"
             ) && within.ends_with(
                 ", or, if this clearance is intended, re-export the file with its uncertainty \
                  declared below 5e-9 m and tighten the tolerance below 5e-10 m"

@@ -423,37 +423,37 @@ const POLEFRUSTUM_ZERO_SPAN_STATED: &str = "the stored parameter interval is not
      edge is not vanishingly short, or, if this length is intended, tighten the tolerance below \
      1.799999999166981e-10 m";
 /// The ε-relative sibling at every band: its span lies within the
-/// file's ε_in (1e-10 m), so the file does not state it, and the import
-/// door ends it in one sentence whether the run's band reads it as zero
-/// (the coarse bands, this fragment) or in band (the fine one,
+/// file's ε_in (1e-10 m), so the file cannot tell it from zero, and the
+/// import door ends it in one sentence whether the run's band reads it as
+/// zero (the coarse bands, this fragment) or in band (the fine one,
 /// [`PARAM_SPAN_UNSTATED`]): the lever, or both steps that keep the
 /// span together — declare the file's uncertainty below it, and tighten
 /// below it over K (D4 ¶1). The values pin the span.
 const INTERVAL_ZERO_SPAN_UNSTATED: &str = "the stored parameter interval is not shown to run \
      forward (margin 5.65487109168879e-12 m). This length is below the file's \
-     declared coincidence distance ε_in = 1e-10 m, so the file does not state it. Recourse: move \
-     the geometry so this edge is not vanishingly short, or, if this length is intended, re-export \
-     the file with its uncertainty declared below 5.65487109168879e-12 m and tighten the tolerance \
-     below 5.65487109168879e-13 m";
-/// [`INTERVAL_ZERO_SPAN_UNSTATED`]'s sentence on the fine band's
-/// escalation of the same span.
-const PARAM_SPAN_UNSTATED: &str = "lies inside the ambiguity band (1e-12, 1e-11). This length is \
-     below the file's declared coincidence distance ε_in = 1e-10 m, so the file does not state it. \
+     declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it from zero. \
      Recourse: move the geometry so this edge is not vanishingly short, or, if this length is \
      intended, re-export the file with its uncertainty declared below 5.65487109168879e-12 m and \
      tighten the tolerance below 5.65487109168879e-13 m";
+/// [`INTERVAL_ZERO_SPAN_UNSTATED`]'s sentence on the fine band's
+/// escalation of the same span.
+const PARAM_SPAN_UNSTATED: &str = "lies inside the ambiguity band (1e-12, 1e-11). This length is \
+     below the file's declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it \
+     from zero. Recourse: move the geometry so this edge is not vanishingly short, or, if this \
+     length is intended, re-export the file with its uncertainty declared below \
+     5.65487109168879e-12 m and tighten the tolerance below 5.65487109168879e-13 m";
 /// Their fine-band sub-reason: with the spans certified, adoption
 /// refuses the rim/sphere near-tangency — the second-order arm's own
 /// verdict, so a regression that moves the refusal to another door
 /// fails these cells. Band-decided, like the tangent-plane zero, and
 /// within the files' ε_in: the import door's one sentence for a size the
-/// file does not state. The margin (1.62e-16) over K lies below
+/// file cannot tell from zero. The margin (1.62e-16) over K lies below
 /// `EPS_MIN`, so the ending is the lever alone (D4 ¶4).
 const TANGENT_SECOND_ORDER_ZERO: &str = "at sample 1 the faces are not shown to curve apart at \
      second order (margin 1.6199999985005657e-16 m), so they are not shown to fix \
      where the edge runs, which its description says they do. This curvature difference is below \
-     the file's declared coincidence distance ε_in = 1e-10 m, so the file does not state it. \
-     Recourse: move the geometry so the faces curve apart more clearly where they touch";
+     the file's declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it from \
+     zero. Recourse: move the geometry so the faces curve apart more clearly where they touch";
 /// dm1's former coarse-band sub-reason: the convergence predicate
 /// declines to decide, by name. **No cell reaches it any more** — the
 /// gate stops on a definite SIGN before the round whose width lands in
@@ -504,13 +504,13 @@ const HALFCAP_EPS7_TIGHTEN: &str = "step import: joining the edges of the solid 
 /// verdict is band-decided — at a finer ambient band the coincidence
 /// predicates no longer fire here, and the file imports — but the angle
 /// lies within both ε_in overrides, so the import door ends it in its
-/// one sentence for a size the file does not state (D4 ¶1), and the
-/// attempt ends there (the `;` before the next rung). The margin is
+/// one sentence for a size the file cannot tell from zero (D4 ¶1), and
+/// the attempt ends there (the `;` before the next rung). The margin is
 /// rounding noise whose tolerance lies below `EPS_MIN`, so the ending
 /// is the lever alone (D4 ¶4). The fragment starts after the
 /// override's own ε_in, which differs per cell.
-const TANGENT_PLANES_COINCIDE: &str = " m, so the file does not state it. Recourse: move the \
-     geometry so the surfaces cross at a clearer angle;";
+const TANGENT_PLANES_COINCIDE: &str = " m, so the file cannot tell it from zero. Recourse: move \
+     the geometry so the surfaces cross at a clearer angle;";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
 const PARAM_SPAN_ESCALATED: (&str, &str) = (
@@ -1203,16 +1203,16 @@ fn assert_adoption_reading(who: &str, e: &StepImportError, exposure: &mut Exposu
     }
     exposure.add(
         WITHHELD,
-        msg.matches("so the file does not state it").count()
-            + msg.matches("so the file may not state it").count(),
+        msg.matches("so the file cannot tell it from zero").count()
+            + msg.matches("so the file may not tell it from zero").count(),
     );
 }
 
 /// [`assert_adoption_reading`]'s tally: offers to tighten it parsed.
 const OFFERS: &str = "offers to tighten parsed";
 /// [`assert_adoption_reading`]'s tally: readings at the import door that
-/// withheld the offer to tighten alone, for a size the file does not
-/// state.
+/// withheld the offer to tighten alone, for a size the file cannot tell
+/// from zero.
 const WITHHELD: &str = "readings that withheld the offer";
 
 /// The reader touches the kernel's at-rest validators at exactly TWO

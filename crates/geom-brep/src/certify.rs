@@ -5751,7 +5751,8 @@ mod tests {
                         // run's placement of it picking no other words.
                         assert!(
                             door.starts_with(&format!("This {} is below the file's", sized.size))
-                                && door.contains("so the file does not state it. Recourse: "),
+                                && door
+                                    .contains("so the file cannot tell it from zero. Recourse: "),
                             "{check:?} {arm:?}: {door}"
                         );
                         if at_rest.contains("tighten") {
@@ -5995,8 +5996,8 @@ mod tests {
     /// **The collapsed-arm gates' definite refusals read the import door
     /// like every sized decision's** (D4 ¶1): a collapsed transversality
     /// arm and a collapsed span meter end through [`recourse`] at the door, so
-    /// a zero within the file's ε_in is a size the file does not state,
-    /// not the at-rest offer to tighten alone.
+    /// a zero within the file's ε_in is a size the file cannot tell from
+    /// zero, not the at-rest offer to tighten alone.
     #[test]
     fn the_collapsed_arm_gates_read_the_import_door() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -6022,7 +6023,7 @@ mod tests {
                 "{check:?}: the door's ending is the decision's"
             );
             assert!(
-                door.contains("so the file does not state it. Recourse: ")
+                door.contains("so the file cannot tell it from zero. Recourse: ")
                     && door.contains(" m and tighten the tolerance below 5e-11 m"),
                 "{check:?}: {door}"
             );

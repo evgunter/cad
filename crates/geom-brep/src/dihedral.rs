@@ -1473,7 +1473,8 @@ mod tests {
              leaves no angle to measure"
         );
         let unstated = "This length or the gap its faces open is below the file's declared \
-                        coincidence distance ε_in = 1e-8 m, so the file does not state it. ";
+                        coincidence distance ε_in = 1e-8 m, so the file cannot tell it from \
+                        zero. ";
         let offer = format!(
             "{lever}, or, if this length or the gap its faces open is intended, tighten the \
              tolerance below 5e-11 m"
@@ -2256,7 +2257,8 @@ mod tests {
                 DIHEDRAL_ARM.recourse(arm, file),
                 format!(
                     "This length or the gap its faces open is below the file's declared \
-                     coincidence distance ε_in = 1e-6 m, so the file does not state it. {lever}"
+                     coincidence distance ε_in = 1e-6 m, so the file cannot tell it from \
+                     zero. {lever}"
                 ),
                 "{arm:?} at the import door"
             );
