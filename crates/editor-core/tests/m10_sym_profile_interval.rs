@@ -563,11 +563,12 @@ const PLATE_MAX_TERMS: usize = 28;
 /// - the two fidelity channels read as one displacement's legs (`√(u² +
 ///   v²)` in the envelope's total): `Plain/Decision` and
 ///   `Early/Decision` +36 each;
-/// - `EnvelopeTerm::Tilt` retired, one zero summand fewer per envelope:
-///   `Plain/Decision` and `Early/Decision` −12 each.
+/// - `EnvelopeTerm::Tilt` and `EnvelopeTerm::Orientation` retired, one
+///   zero summand fewer per envelope each: `Plain/Decision` and
+///   `Early/Decision` −12 per slot, −24 in all.
 ///
-/// Together `Plain/Decision` 15749/252 → 16060/324, `Plain/Assertion`
-/// 4349/389 → 4542/405, `Early/Decision` 8671 → 8982, `Early/Assertion`
+/// Together `Plain/Decision` 15749/252 → 16048/324, `Plain/Assertion`
+/// 4349/389 → 4542/405, `Early/Decision` 8671 → 8970, `Early/Assertion`
 /// 5312 → 5505, `Door/Decision` 7181 → 7377, and every digest of those
 /// lines; calls, every decision tally and the largest form hold, and
 /// the slab does not move.
@@ -579,9 +580,9 @@ const PLATE_MAX_TERMS: usize = 28;
 /// (+14 forms each) and those lines' digests; calls, freezes and every
 /// other line hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 16060 frozen 324 digest 265bd7cee525e383f20cda97cbf055d5\n\
+     Plain/Decision calls 1048 forms 16048 frozen 324 digest f89ef49f722b34fae182cdf42193f5b8\n\
      Plain/Assertion calls 654 forms 4542 frozen 405 digest 3c4fc6a4bbbcee24d316349a6cc2996f\n\
-     Early/Decision calls 352 forms 8982 frozen 0 digest d1499cec96d84106285c22fb8031389d\n\
+     Early/Decision calls 352 forms 8970 frozen 0 digest 7331ca9ce50daa679d9117fae6863d1a\n\
      Early/Assertion calls 654 forms 5505 frozen 0 digest f269ea0d98b363db1a637afa17caf594\n\
      Door/Decision calls 396 forms 7377 frozen 0 digest a8da80a66f4d786105cc71ef44022df3\n\
      Door/Assertion calls 396 forms 0 frozen 0 digest 00000000000000000000000000000000";

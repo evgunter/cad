@@ -530,8 +530,9 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// each site measured by reverting it alone: the turning cylinder's
 /// pair against its class circle +103 frozen and the cylinder class
 /// selector's radial circle at its exact sup (`radial_amplitude`) +56,
-/// 3294 → 3453; the fidelity channels' norm and the retired `Tilt` slot
-/// move nothing here, and every decision column holds.
+/// 3294 → 3453; the fidelity channels' norm and the retired `Tilt` and
+/// `Orientation` slots move nothing here, and every decision column
+/// holds.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night

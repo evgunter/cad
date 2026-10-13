@@ -64,7 +64,8 @@ use crate::m10_9_pins_interval::measured_studies;
 /// +52, +36, and the cylinder class selector's radial circle at its
 /// exact sup (`radial_amplitude`) +16, +24, +8, +24, +8; together
 /// 641 → 729, 828 → 904, 498 → 542, 830 → 906, 314 → 358. The fidelity
-/// channels' norm and the retired `Tilt` slot move no column here.
+/// channels' norm and the retired `Tilt` and `Orientation` slots move
+/// no column here.
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
     ("two_hole_plate", [1048, 0, 654, 729]),
     ("r1_annulus", [566, 0, 399, 904]),
