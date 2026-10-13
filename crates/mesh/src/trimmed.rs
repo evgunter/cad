@@ -23,7 +23,7 @@
 //! trimmed-NURBS lane", now promoted; NURBS faces route here
 //! unconditionally, iso-rectangle or not, because the swept-rectangle
 //! walk has no NURBS chart; RATIONAL faces since M8-5, whose Hessian
-//! bound is the quotient-rule assembly over the homogeneous nets).
+//! bound reads the pair-term statement of `geom_core::spline::derivative`).
 //! The NURBS lane's certificate is the
 //! hull-derived Hessian interpolation bound (`crate::nurbs_cert`:
 //! derivation, covered-vs-refused inventory). Its boundary pcurves

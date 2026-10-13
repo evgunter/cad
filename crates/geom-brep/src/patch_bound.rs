@@ -772,9 +772,9 @@ fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>
     Ok(cells)
 }
 
-/// The RATIONAL arm: the quotient-rule assembly over the homogeneous
-/// nets, on the cells of the fixed [`RATIONAL_CERT_SPLITS`]
-/// refinement (module docs).
+/// The RATIONAL arm: the pair-term statement per cell, on the cells of
+/// the fixed [`RATIONAL_CERT_SPLITS`] refinement of the homogeneous
+/// nets (module docs).
 #[allow(clippy::too_many_lines)]
 fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>, PatchBoundError> {
     // The convex-combination licence, on f64 STRUCTURE.

@@ -55,55 +55,40 @@
 //! # The rational arm (M8-5)
 //!
 //! A RATIONAL face is `S = A/w` with `A = ΣΣ Nᵢ Nⱼ wᵢⱼ Pᵢⱼ` and
-//! `w = ΣΣ Nᵢ Nⱼ wᵢⱼ` — both POLYNOMIAL tensor-product B-splines, so
-//! every ingredient below is the same control-hull convexity fact as
-//! the integral arm, taken on the homogeneous nets. The quotient rule
-//! (exactly `NurbsSurface::ders_in_span`'s corrections) gives, for any
-//! constant `c` (write `Ã = A − c·w`, so `S − c = Ã/w` and the
-//! derivatives of `S` are unchanged):
+//! `w = ΣΣ Nᵢ Nⱼ wᵢⱼ`. Its cells come from [`patch_bound::patch_cells`],
+//! whose rational arm reads the **pair-term statement** of
+//! `geom_core::spline::derivative` (its module docs, "The second
+//! order", hold the derivation): per cell,
 //!
 //! ```text
-//! S_u  = (Ã_u  − (S − c)·w_u) / w                        (v symmetric)
-//! S_uu = (Ã_uu − 2·S_u·w_u − (S − c)·w_uu) / w           (v symmetric)
-//! S_uv = (Ã_uv − S_u·w_v − S_v·w_u − (S − c)·w_uv) / w
+//! W·S_u                       ∈ hull of the u pair terms at the active points (v symmetric)
+//! W·S_uu + 2·W_u·S_u          ∈ hull of their scaled second differences       (v symmetric)
+//! W·S_uv + W_v·S_u + W_u·S_v  ∈ hull of their scaled cross differences
 //! ```
 //!
-//! Taking sups componentwise over one knot-span cell:
-//!
-//! - `sup|Ã_kl|` — hull of the recentred homogeneous derivative
-//!   coefficients active on the cell
-//!   ([`geom_core::spline::SplineCoeffs::derivative_coeffs`]
-//!   iterated, exactly as the integral arm; recentring commutes with
-//!   knot differencing, `d(A − c·w) = dA − c·dw`);
-//! - `sup|S^c − c^c| ≤ max_active |P^c − c^c|` — the rational value
-//!   hull: strictly positive weights make the rational basis a
-//!   nonnegative partition of unity over the active net (the licence,
-//!   checked; refused typed otherwise);
-//! - `sup|S_u|` — the same recurrence one order down;
-//! - `sup|w_kl|` — the weight spline's own derivative hulls.
+//! with `W_u`, `W_v` in the hulls of the pairs' weight rates, so each
+//! second-order box is the hull minus the weight-rate products of the
+//! first-order boxes, over the cell's weight hull — one first-order
+//! statement feeds both orders.
 //!
 //! **The divisor is the cell's weight hull, argued not assumed.** On
 //! the cell, `w ∈ [w_min, w_max]` of the active weights (convex
-//! combination), and the recurrence is evaluated SIGNED in certification arithmetic —
-//! the true minus signs, divided by the whole hull, which is where the
-//! quotient rule's cancellations survive. The interval division
-//! refuses if positivity was never proven.
+//! combination), and the boxes are evaluated SIGNED in certification
+//! arithmetic — the true minus signs, divided by the whole hull. The
+//! interval division refuses if positivity was never proven.
 //!
-//! **Recentring keeps the cross terms cell-sized**: with the cell's
-//! control centroid as `c`, `sup|S − c|` is a cell-of-control-net
-//! fact, not a whole-patch one, so `(S − c)·w_dd` and `S_d·w_d` do not
-//! inflate with the patch's distance from the origin (the M8-2
-//! template's trick, lifted to two parameters). The whole-domain bound
-//! is the max over cells of the per-cell sups, after the FIXED
-//! [`patch_bound::RATIONAL_CERT_SPLITS`] refinement (schedule docs
-//! there) — which is taken in certification arithmetic, so the sups bound the
-//! DESCRIBED face and not the refined-`f64` one.
+//! No centre is chosen: every point enters a pair term as a difference
+//! with another. The whole-domain bound is the max over cells of the
+//! per-cell sups, after the FIXED [`patch_bound::RATIONAL_CERT_SPLITS`]
+//! refinement (schedule docs there) — which is taken in certification
+//! arithmetic, so the sups bound the DESCRIBED face and not the
+//! refined-`f64` one.
 //!
-//! A degree-1 direction's `Ã_dd`, `w_dd` are exactly zero, but its
+//! A degree-1 direction has no second difference of its own, but its
 //! CROSS terms survive — a rational degree-1 direction genuinely
 //! curves in parameter (a Möbius-reparameterized ruling), so its
 //! second partials are NOT the integral arm's exact zero. The
-//! recurrences above carry that automatically.
+//! weight-rate products carry that automatically.
 //!
 //! The certificate consumer is unchanged: the Q/4 Taylor bound only
 //! needs C¹ with an a.e. second-derivative bound, and the C¹ gate
@@ -200,10 +185,9 @@ fn face_err(fk: FaceKey, e: PatchBoundError) -> TessellateError {
 /// The cell reports SIGNED componentwise enclosures and this is where
 /// a vector magnitude is read off them: `Σ_c sup²`, whose `√hi`
 /// ([`cell_component`]) bounds the partial's norm. There is no second
-/// reading to choose between — the magnitude assembly the rational arm
-/// used to carry alongside the signed one applied the triangle
-/// inequality to the quotient rule and could not see its cancellations
-/// (issue 1006).
+/// reading to choose between — a magnitude assembly beside the signed
+/// one would apply the triangle inequality to every term and could not
+/// see the cancellations (issue 1006).
 fn cell_readings(c: &patch_bound::PatchCell) -> [Interval; 5] {
     [
         norm_sq(&c.s_uu),
@@ -228,8 +212,8 @@ pub(crate) struct NurbsFaceBound {
     /// value rather than on a threshold ([`cell_component`]).
     ///
     /// **On the rational arm the exact zero needs a constant weight
-    /// NET.** A degree-1 direction's `Ã_uu` and `w_uu` are exact zeros
-    /// but the cross term `S_u·w_u` is not (module docs). Where every
+    /// NET.** A degree-1 direction has no second difference of its own,
+    /// but its weight-rate term `2·W_u·S_u` remains (module docs). Where every
     /// weight is the same, the refinement holds each one exactly (each
     /// insertion step is met with the hull of its two sources), `w_u`
     /// and `w_v` are exact zeros, and so are `muu` and `mvv` — the
@@ -1841,8 +1825,8 @@ pub(crate) mod tests {
 
     /// **A RATIONAL degree-1 direction is NOT degenerate**, so the
     /// degenerate arms must not be taken for it. The quarter cylinder
-    /// is degree 1 in `v`; its `Ã_vv` and `w_vv` are exact zeros, but
-    /// the quotient rule's cross terms are not (module docs), and the
+    /// is degree 1 in `v`; it has no `v` second difference, but its
+    /// weight-rate cross terms are not zero (module docs), and the
     /// ring chain reports their width. The arm predicate IS the
     /// observable: `split_steps`' v-degenerate arms are guarded by
     /// `mvv == 0.0`, so a strictly positive `mvv` is exactly the claim
@@ -1935,8 +1919,8 @@ pub(crate) mod tests {
     /// CONSCIOUS FLIP (M8-5): `rational_face_refuses_typed` re-derived
     /// as the positive row. The refusal's premise — "a rational second
     /// derivative is not a control-hull convexity fact" — was answered
-    /// by the quotient-rule assembly over the HOMOGENEOUS nets (module
-    /// docs), so the pin is now the bound's honesty: on adversarial
+    /// by the pair-term statement on the HOMOGENEOUS nets (module docs),
+    /// so the pin is now the bound's honesty: on adversarial
     /// rational patches, dense-sampled true second partials are
     /// DOMINATED by the certified sups, and the sups are real (> 0),
     /// never a fabricated zero.
@@ -2677,9 +2661,9 @@ pub(crate) mod tests {
     /// geometrically the same flat quad (constant weights cancel in
     /// ℝ), so every true second partial is zero.
     ///
-    /// - `muu`/`mvv` are the EXACT zero. The degree-1 `Ã_dd`/`w_dd`
-    ///   terms are exact zeros, and what is left is the `S_d · w_d`
-    ///   cross term. The refinement meets each insertion step with the
+    /// - `muu`/`mvv` are the EXACT zero. A degree-1 direction has no
+    ///   second difference, and what is left is the `2·W_d·S_d`
+    ///   weight-rate term. The refinement meets each insertion step with the
     ///   hull of its two sources, so a constant weight net stays its
     ///   point and `w_d` is the exact zero too. In ℝ it is zero, so this
     ///   is an enclosure of the described patch that happens to be
@@ -2970,7 +2954,7 @@ pub(crate) mod tests {
         // apart, so what they may differ by is the arithmetic's own dust
         // and nothing else. They do differ: this assembly is not
         // scale-invariant — interval arithmetic's rounding rides the weight
-        // magnitude through the quotient rule — so the claim is a bound
+        // magnitude through the pair terms — so the claim is a bound
         // on the disagreement, which is what a scale-dependent blow-up
         // would break. Measured at ~2.6e-13 relative on the nonzero
         // component; pinned at 1e-11, and the structurally-zero pair is
@@ -2996,7 +2980,7 @@ pub(crate) mod tests {
     /// **The tight stratum, enumerated.** Every escape this certificate
     /// has ever been caught in — two hosted, both measured in exact
     /// arithmetic — was a BILINEAR rational patch at a domain corner,
-    /// where the quotient rule's factors all take their extremes at the
+    /// where the rational factors all take their extremes at the
     /// same point and the cell hull has no slack left to absorb a
     /// rounding. `r1_random_rational_soundness_sweep` reaches that
     /// stratum on one draw in nine, which is why two hits took
@@ -3033,7 +3017,7 @@ pub(crate) mod tests {
     fn the_bilinear_rational_stratum_is_dominated_at_every_weight_decade() {
         // Four control nets whose corner geometry differs: a unit quad,
         // a twisted one (the mixed term's tight case), a skewed one, one
-        // far from the origin (the recentring claim), and a tiny one.
+        // far from the origin (translation invariance), and a tiny one.
         let nets: [[[f64; 3]; 4]; 5] = [
             [
                 [0.0, 0.0, 0.0],
@@ -3297,7 +3281,7 @@ pub(crate) mod tests {
     // R1 REVIEW PROBES (M8-5, PR #322): independent adversarial
     // fixtures beyond the PR's own — extreme weight ratios, the C¹
     // multiplicity edge on the RATIONAL arm, tiny/huge/offset patches
-    // (the recentring claim), and a Möbius-reparameterized ruling
+    // (translation invariance), and a Möbius-reparameterized ruling
     // (degree-1 cross-term path). Each dense-samples the true second
     // partials via the independently dual-validated `ders` oracle and
     // demands domination, with a finite-difference spot cross-check.
@@ -3369,7 +3353,7 @@ pub(crate) mod tests {
     }
 
     /// Interior multiplicity EXACTLY p−1 on the RATIONAL arm — the C¹
-    /// gate's covered edge composed with the quotient rule; S_uu jumps
+    /// gate's covered edge composed with the rational arm; S_uu jumps
     /// at the knot and the sampling straddles it.
     #[test]
     fn r1_rational_multiplicity_p_minus_one_dominated() {
@@ -3401,7 +3385,7 @@ pub(crate) mod tests {
     /// Tiny (1e-6-scale) and huge far-from-origin (1e6 offset) copies
     /// of the extreme-weight patch: domination must hold at both, and
     /// the OFFSET copy's bound must stay commensurate with the centred
-    /// one (the recentring claim — no distance-to-origin inflation).
+    /// one (translation invariance — no distance-to-origin inflation).
     #[test]
     fn r1_tiny_and_offset_patches_dominated() {
         let tiny = extreme_weight_patch([0.0; 3], 1e-6);
@@ -3413,7 +3397,7 @@ pub(crate) mod tests {
         let _ = (wuu, wuv, wvv);
         assert!(
             bf.muu < 16.0 * bc.muu && bf.muv < 16.0 * bc.muv && bf.mvv < 16.0 * bc.mvv,
-            "recentring failed: offset bound ({},{},{}) vs centred ({},{},{})",
+            "translation inflated the bound: offset ({},{},{}) vs centred ({},{},{})",
             bf.muu,
             bf.muv,
             bf.mvv,
@@ -3984,10 +3968,11 @@ pub(crate) mod tests {
     }
 
     /// **CERT-10 red row: the rational per-cell reading is the SIGNED
-    /// one.** The magnitude reading applied the triangle inequality to
-    /// the quotient rule (all `+`, divide by the smallest weight); the
-    /// signed one evaluates the quotient rule itself in certification arithmetic, with
-    /// the true minus signs and the whole weight hull as the divisor.
+    /// one.** A magnitude reading applies the triangle inequality to
+    /// every term (all `+`, divide by the smallest weight); the signed
+    /// one evaluates the statement's hulls in certification arithmetic,
+    /// with the true minus signs and the whole weight hull as the
+    /// divisor.
     /// The signed reading is strictly tighter and both are sound, so
     /// the shipped grid sizing reads the signed one.
     #[test]

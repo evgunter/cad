@@ -2,10 +2,12 @@
 id: rational-second-derivative-bounds-have-two-recipes
 kind: issue
 title: Rational second-derivative bounds (chords' carrier M, patch_bound's rational cells) use the hull-quotient recipe, not the pair-term one order up
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: M
+branch: nurbs/second-order-pair-term
+closed: 2026-10-13
 ---
 
 
@@ -50,3 +52,26 @@ each term at the hull points with `S′` from the pair-term statement.
 Route both sites through it, so the first- and second-order rational
 bounds each have one recipe. The goldens that pin `m_sup` and the
 chord counts move with it (re-baseline them, stating the reason).
+
+## Closed (2026-10-13)
+
+The second order is derived beside the first in
+`crates/geom-core/src/spline/derivative.rs` ("The second order"):
+`W·C″ = Σ N_{j,p−2}·k²ⱼ·(b_{j+1} − bⱼ)(C) − 2·W′·C′`, where the `bᵢ`
+are the first-order pair terms. So `sup‖C″‖` is at most the vertex
+max of the scaled second differences, plus `2·max|dᵢ|·S₁`, over the
+least weight; `S₁` is the first-order bound and `dᵢ` the weight
+rates. Per cell, the surface reads
+`W·S_uu = … − 2·W_u·S_u` and `W·S_uv = … − W_v·S_u − W_u·S_v`.
+
+Both orders read one set of pair terms, `RationalSpanTerms` and
+`RationalCellTerms`; no third per-pair builder was written.
+- `mesh` chords' `rational_carrier_m_bound` now reads
+  `NurbsCurve3::accel_upper_bound`.
+- `patch_bound`'s rational cells take every box and sup off the cell's
+  vertex sets.
+- The readers, `offset_meters` `patch_regularity` and `nurbs_cert`
+  `cell_readings`, take the new cells unchanged.
+
+Witness rows and the mutant table are in the PR body.
+

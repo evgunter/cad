@@ -149,8 +149,8 @@ pub(crate) fn compute_chords(
             // multiplicities ≤ p − 1), and sup|C″| is a control-
             // coefficient convexity fact via iterated derivative
             // hulls — on the CONTROL NET directly for an integral
-            // carrier, through the quotient-rule assembly over the
-            // homogeneous net for a RATIONAL one (M8-5; a
+            // carrier, through the second-order pair-term bound
+            // for a RATIONAL one (M8-5; a
             // rational-walled body's seam edges read back rational,
             // so this gate is what makes the face bound reachable).
             Curve3::Nurbs(ref n) => nurbs_chord_count(n, span, delta_s, ek)?,
@@ -195,7 +195,7 @@ pub(crate) fn compute_chords(
 /// `|C″| ≤ √(Σ sup²)`, and the per-step bound `h²·M/8 ≤ δ_s` sizes
 /// `h`. Integral carriers take the direct control-hull arm; RATIONAL
 /// carriers (M8-5) take [`rational_carrier_m_bound`] — the surface
-/// bound's quotient-rule assembly one dimension down. (The former
+/// bound's pair-term statement one dimension down. (The former
 /// blanket rational refusal claimed "arc-bearing profiles refuse at
 /// the rational-wall gate" — false since M8-2's rational span meter:
 /// arc-walled bodies BUILD now, and their seam edges read back

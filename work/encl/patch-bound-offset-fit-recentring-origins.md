@@ -33,3 +33,14 @@ Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
 and header are unchanged; the directory is the claim (`work/README.md`).
 The `## Home` section above naming `work/cert/` is superseded by this
 line and is kept as the record of why the file was filed there.
+
+## The patch_bound side no longer recentres (NURBS, 2026-10-13)
+
+`patch_bound`'s rational cells now read the pair-term statement
+(`geom_core::spline::RationalCellTerms`, from the NURBS row
+`rational-second-derivative-bounds-have-two-recipes`). In it every
+control point enters as a difference with another, so no centre is
+chosen and `window_tilde_hull` is deleted. One of the two centres this
+row weighs is gone. `offset_fit::channel`'s whole-patch origin remains,
+and with it the question of whether that lane needs one at all.
+
