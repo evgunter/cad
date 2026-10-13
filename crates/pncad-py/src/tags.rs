@@ -1627,6 +1627,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PinchConesOnSeparateKeys => "pinch_cones_on_separate_keys",
         BooleanErrorKind::PinchRaysInAFace => "pinch_rays_in_a_face",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
+        BooleanErrorKind::PartnerAlongFace => "partner_along_face",
         BooleanErrorKind::NestingUnread => "nesting_unread",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
