@@ -684,25 +684,23 @@ fn the_fat_corner_bars_lens_is_the_true_body_or_a_typed_refusal() {
 
 /// **A plane parallel to the axis just short of the inner equator builds
 /// its true bodies**: the half-space `x ≥ x₀` against the donut `1e-3`
-/// and `1e-6` short of its inner equator, and against the fat tori
+/// short of its inner equator, and against the fat tori
 /// `(1, 0.9)` and `(1, 0.95)` `0.01` from the axis, cuts two ovals
 /// pinched toward a point at the inner equator, each an island in the
 /// plane face, which the planar ring lane winds through the spiric
 /// enclosure (`topo`'s `loop_winding`). Every op builds, held to the
-/// truth.
+/// truth. (`1e-6` short of the donut's inner equator, the loops wind in
+/// `loop_winding::spiric_rows`; through the ops it costs a minute and a
+/// half, and at ε `1e-6` the pose is a touching one.)
 #[test]
 fn a_plane_near_the_inner_equator_builds_its_true_bodies() {
-    for (big_r, r, x0) in [
-        (2.0, 0.5, 1.5 - 1e-3),
-        (2.0, 0.5, 1.5 - 1e-6),
-        (1.0, 0.9, 0.01),
-        (1.0, 0.95, 0.01),
-    ] {
+    for (big_r, r, x0) in [(2.0, 0.5, 1.5 - 1e-3), (1.0, 0.9, 0.01), (1.0, 0.95, 0.01)] {
+        let pose = format!("({big_r}, {r}), x ≥ {x0}");
         let t = ring(torus(big_r, r), (big_r, r));
         let p = half(Point3::new(x0, 0.0, 0.0), Vec3::unit_x());
         let meet = torus_in_box((big_r, r), (x0, 9.0), (-9.0, 9.0), (-9.0, 9.0));
         answers(
-            &format!("({big_r}, {r}), x ≥ {x0}"),
+            &pose,
             (&t, &p),
             meet,
             about_the_tube(big_r, r),

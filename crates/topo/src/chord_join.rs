@@ -4035,6 +4035,7 @@ impl ChordJoiner {
             .planar_loop_winding(l, normal, self.band)
         {
             Some(Ok(sign @ (Sign::Positive | Sign::Negative))) => Ok(sign),
+            Some(Err(diag)) => Err(SplitJoinError::Escalated { face: oldf, diag }),
             _ => Err(invariant(
                 "a one-site loop's conic in a pierce ring does not wind definitely on its plane",
             )),
