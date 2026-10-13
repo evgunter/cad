@@ -1355,3 +1355,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - `QuotientRefused`'s note naming the face kind correctly;
     - `cut_both`'s coupling made explicit.
   - Merge after CI on that head.
+- 2026-10-13 19:45Z — **Build C's final CI wall-time report.**
+  - A deep, geom-brep-seeded PR's test job went from 37–103 min to **21 min** (#5001). The 55-min run was 4954's own regression, not CI shape.
+  - The build floor is 13–20 min hosted, throughput-bound.
+  - Declined: the workspace-crate cache. Deferred: the test-job split.
+  - **#5010:** the opt-1 tour change saved only about 45 s hosted, under the 3-min bar, so I asked for it to be dropped. The CIW row (with `needs_ev`) and the topo row stay.
+  - **#5011 `[ev]`:** the CI bar question.
+    - Recommended: 15 min, or 25 min for PRs that seed geom-core, geom, geom-brep or topo, with queue time excluded.
+    - Alternatives: larger runners (B) or a self-hosted incremental build (C).
+    - Before Ev reads it, I asked build C to measure (C)'s incremental rebuild and update the body in place.
