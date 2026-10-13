@@ -13,10 +13,10 @@ cost: E
 
 ## What
 
-`CertCheck::ParamSpan` (`crates/geom-brep/src/certify.rs`, `CertCheck::ending`) is `StoredDefinite::Contradiction` with a no-size note. At a build (`SizedDecision::recourse` in `crates/geom-brep/src/recourse.rs`, its `RefusedArm::SignCertain` arm):
+`CertCheck::ParamSpan` (`crates/geom-brep/src/certify.rs`, `CertCheck::ending`) is `StoredDefinite::Contradiction` with a no-size note. At a build, a reversed span ends two ways (`SizedDecision::recourse` in `crates/geom-brep/src/recourse.rs`):
 
-- past the band, a reversed span ends in the lever alone;
-- inside the band, a reversed span reads as NoSize (a point on the refused side) and ends in the lever plus "an edge of no length, or a reversed one, is one no kernel construction mints, so this is a kernel defect worth reporting".
+- past the band, it reaches the sign-certain arm (`RefusedArm::SignCertain`) and ends in the lever alone;
+- inside the band, it reaches the Zero or Undecided arm, reads as NoSize (a point on the refused side), and ends in the lever plus "an edge of no length, or a reversed one, is one no kernel construction mints, so this is a kernel defect worth reporting".
 
 So one user situation (a reversed edge) tells two stories by distance from zero. D4 ¶1 (iv) asks the definite arm to tell the same story as its in-band sibling.
 

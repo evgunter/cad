@@ -132,9 +132,15 @@ fn a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it() {
         .diagnostic_f64_for_error_text()
         .value()
         .unwrap();
-    let ending = band.offer_deciding(m).map_or_else(
-        || format!("{LEVER}; {}", geom_core::floor_note("clearance")),
-        |_| offer(m),
+    let ending = geom_core::MarginDiag::value(m).sized_recourse(
+        band,
+        geom_core::SizedWords {
+            lever: LEVER.trim_start_matches("Recourse: "),
+            size: "clearance",
+            passes: geom_core::SizedPass::Positive,
+            no_size: None,
+            unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+        },
     );
     assert!(err.to_string().ends_with(&ending), "{err}");
     assert_sound_and_meshed(

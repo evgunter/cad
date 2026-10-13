@@ -524,7 +524,7 @@ fn a_zero_on_the_rejected_side_offers_no_tolerance() {
         let text = refusal.unwrap_err().to_string();
         assert!(!text.contains("tighten"), "{text}");
         assert!(
-            text.contains("a decided zero no smaller tolerance moves onto a side"),
+            text.contains("no size on a sign this decision passes, at any smaller tolerance"),
             "{text}"
         );
     }

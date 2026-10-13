@@ -5311,16 +5311,15 @@ mod tests {
                 "{arm:e}: the margin the funnel read"
             );
             let text = err.to_string();
-            let lever = "Recourse: make the edges at the corner where the two faces meet span \
-                         clearly more than the tolerance";
-            let size = "length of the corner's shorter edge";
-            let ending = b.offer_deciding(arm).map_or_else(
-                || format!("{lever}; {}", geom_core::floor_note(size)),
-                |offered| {
-                    format!(
-                        "{lever}, or, if this {size} is intended, tighten the tolerance below \
-                         {offered:e} m"
-                    )
+            let ending = geom_core::MarginDiag::value(arm).sized_recourse(
+                b,
+                geom_core::SizedWords {
+                    lever: "make the edges at the corner where the two faces meet span clearly \
+                            more than the tolerance",
+                    size: "length of the corner's shorter edge",
+                    passes: geom_core::SizedPass::NonZero,
+                    no_size: None,
+                    unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
                 },
             );
             assert!(
@@ -6078,18 +6077,15 @@ mod tests {
         } else {
             short
         };
-        let ending = b.offer_deciding(quoted).map_or_else(
-            || {
-                format!(
-                    "span clearly more than the tolerance; {}",
-                    geom_core::floor_note("edge's length or rise")
-                )
-            },
-            |offered| {
-                format!(
-                    "if this edge's length or rise is intended, tighten the tolerance below \
-                     {offered:e} m"
-                )
+        let ending = geom_core::MarginDiag::value(quoted).sized_recourse(
+            b,
+            geom_core::SizedWords {
+                lever: "make the edges at the corner where the two faces meet span clearly more \
+                        than the tolerance",
+                size: "edge's length or rise",
+                passes: geom_core::SizedPass::Positive,
+                no_size: None,
+                unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
             },
         );
         assert!(

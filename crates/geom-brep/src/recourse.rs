@@ -400,17 +400,11 @@ impl SizedDecision {
     /// at `at` (D4 ¶1 (i)/(iv)).
     ///
     /// - Every band-decided arm — in band, zero where zero does not
-    ///   pass, or an undecided enclosure straddling zero — ends in the
-    ///   lever at every reading, with the words the arm's reporting margin
-    ///   gives ([`MarginDiag::sized_recourse`]), read from the number
-    ///   whichever arm its reader routed it on: the tolerance below which
-    ///   a smaller one a run admits decides the margin passing;
-    ///   [`SizedDecision::no_size`], where the decision has one, on a
-    ///   reading that shows no size; the floor's sentence on a size only
-    ///   a tolerance at or below `EPS_MIN` decides; nothing more on an
-    ///   enclosure whose sign is unresolved. A poisoned margin keeps the
-    ///   lever and takes the note its reading gives
-    ///   ([`unreadable_margin_note`]).
+    ///   pass, or an undecided enclosure straddling zero — ends as its
+    ///   reporting margin's class gives ([`MarginDiag::sized_recourse`]),
+    ///   read from the number whichever arm its reader routed it on, with
+    ///   [`SizedDecision::no_size`] as the no-size note and the note its
+    ///   reading gives an unreadable margin ([`unreadable_margin_note`]).
     /// - The sign-certain arm names the lever alone at a build. Read
     ///   over stored geometry it ends as [`SizedDecision::stored`] says.
     /// - The import door ([`ReadAt::File`]) reads as at rest, except that
@@ -711,8 +705,9 @@ mod tests {
     /// rest and at the import door, on both lanes — the decision's note on
     /// a reading that shows no size, the floor's sentence on a sub-floor
     /// size, the lever alone on an enclosure across zero, the offer on a
-    /// size — and the import door adds no note. Red if a route keys the
-    /// note on the tag rather than the reading.
+    /// size — and the import door adds no decision's note but keeps the
+    /// floor's sentence. Red if a route keys the note on the tag rather
+    /// than the reading.
     #[test]
     fn either_route_ends_a_reading_alike() {
         use geom_core::{Interval, Margin, floor_note, k_stats::decide_positive};
@@ -785,10 +780,16 @@ mod tests {
                 );
                 match at {
                     ReadAt::Run(Reading::Build) => assert_eq!(got, want, "{margin}"),
-                    ReadAt::File(_) => assert!(
-                        !got.ends_with("; S") && !got.contains("a run admits"),
-                        "{margin} at the import door: {got}"
-                    ),
+                    ReadAt::File(_) => {
+                        // No decision's note at the door; the floor's
+                        // sentence, true of the number, rides as at a build.
+                        assert!(!got.ends_with("; S"), "{margin} at the import door: {got}");
+                        assert_eq!(
+                            got.ends_with(&floor_note("length")),
+                            want.ends_with(&floor_note("length")),
+                            "{margin} at the import door: {got}"
+                        );
+                    }
                     ReadAt::Run(Reading::AtRest) => {}
                 }
             }

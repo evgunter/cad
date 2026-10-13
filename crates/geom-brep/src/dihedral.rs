@@ -1413,19 +1413,19 @@ mod tests {
         );
     }
 
-    /// **A gate's rejected Zero ends in the arm's zero note on the
-    /// undecided arm** (`SizedDecision::recourse`): a reader that routes
+    /// **A gate's rejection ends by its reading on either arm**
+    /// (`SizedDecision::recourse`): a reader that routes
     /// the arm gate's rejection as `RefusedArm::Undecided` ends it as the
     /// Zero arm does, at a build, at rest and at the import door. A
     /// reading that shows no size — a read or proved zero, or an untagged
     /// in-band margin on the refused side — takes the note at a build and
     /// at rest; a positive rounding whose tolerance lies below `EPS_MIN`
-    /// takes the floor's sentence instead; a rejected zero a smaller
-    /// tolerance decides passing is offered that tolerance; a rejected
-    /// Negative ends in the lever alone; and at the import door no
-    /// reading takes the note.
+    /// takes the floor's sentence instead, at the import door too; a
+    /// rejected zero a smaller tolerance decides passing is offered that
+    /// tolerance; a rejected Negative ends in the lever alone; and at the
+    /// import door no reading takes the note.
     #[test]
-    fn a_gates_rejected_zero_ends_in_the_arms_zero_note() {
+    fn a_gates_rejection_ends_by_its_reading_on_either_arm() {
         use geom_core::sym::with_session;
         use geom_core::{FileCoincidence, ParamSymbol, Sym, SymBudget, Theorem};
 
@@ -1497,7 +1497,7 @@ mod tests {
             (
                 "a rounded zero",
                 &rounded,
-                [floor.clone(), floor, format!("{unstated}{lever}")],
+                [floor.clone(), floor.clone(), format!("{unstated}{floor}")],
             ),
             (
                 "a small size",

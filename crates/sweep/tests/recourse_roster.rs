@@ -450,25 +450,22 @@ fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
             !text.contains(geom_core::UNREADABLE_MARGIN_NOTE),
             "{what}: a short link is the caller's geometry: {text}"
         );
+        let ending = geom_core::MarginDiag::value(arm).sized_recourse(
+            b,
+            geom_core::SizedWords {
+                lever: sweep::blend::FILLET3_CHAIN_RECOURSE,
+                size: "link length",
+                passes: geom_core::SizedPass::Positive,
+                no_size: None,
+                unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+            },
+        );
+        assert!(text.ends_with(&ending), "{what}: {text}");
+        // Follow the offer, where there is one: below it the junction
+        // passes.
         let Some(offered) = b.offer_deciding(arm) else {
-            assert!(
-                text.ends_with(&format!(
-                    "Recourse: {}; {}",
-                    sweep::blend::FILLET3_CHAIN_RECOURSE,
-                    geom_core::floor_note("link length")
-                )),
-                "{what}: no offer quotes a tolerance at or below EPS_MIN: {text}"
-            );
             continue;
         };
-        assert!(
-            text.ends_with(&format!(
-                "Recourse: {}, or, if this link length is intended, tighten the tolerance \
-                 below {offered:e} m",
-                sweep::blend::FILLET3_CHAIN_RECOURSE,
-            )),
-            "{what}: {text}"
-        );
         let tighter = Band::new(offered / 2.0, offered / 2.0 * k).expect("a tighter band");
         chain_g1(x, x, arm, v, tighter)
             .unwrap_or_else(|e| panic!("{what}: below the offer the junction passes: {e}"));

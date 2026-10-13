@@ -9,7 +9,7 @@ cost: E
 ---
 
 
-(Filed by the ENCL implementer of `import-door-appends-a-defect-note-to-a-sub-eps-in-zero-span`, from its Answered section's "Filed separately" list. The sentence lives on `crates/geom-core/src/predicate.rs`, SCALAR/ENCL shared ground; the import door's wording is ENCL's.)
+(Filed by the ENCL implementer of `import-door-appends-a-defect-note-to-a-sub-eps-in-zero-span`, from its Answered section's "Filed separately" list. The sentence lives in `crates/geom-core/src/predicate.rs`, which `work.py territory` gives to SCALAR. The row is on ENCL because the question is the import door's wording, which ENCL's adoption work (D7's ε_in door) owns; no SCALAR mechanism is in question.)
 
 ## What
 
