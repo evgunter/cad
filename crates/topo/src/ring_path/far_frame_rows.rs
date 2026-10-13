@@ -23,28 +23,78 @@ fn far() -> Frame {
     }
 }
 
-/// Paths asked, decided, decided odd, and each wrong one's description.
+/// The far frame's axes about the origin at unit scale: where the
+/// islands' oracles are read, on coordinates the far frame's rounding has
+/// not touched.
+fn local() -> Frame {
+    Frame {
+        o: Point3::origin(),
+        s: 1.0,
+        ..far()
+    }
+}
+
+/// How far, in local units, a grid point is kept from an island's
+/// boundary: a million times the far frame's rounding of a local unit.
+const OFF_BOUNDARY: f64 = 1e-6;
+
+/// Whether the local point `p` is inside by `inside`, or `None` within
+/// [`OFF_BOUNDARY`] of the boundary: where a step that far along a local
+/// axis changes the answer.
+fn settled(inside: &dyn Fn(Point3<f64>) -> bool, p: Point3<f64>) -> Option<bool> {
+    let here = inside(p);
+    let steps = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()]
+        .into_iter()
+        .flat_map(|e| [e, -e])
+        .map(|e| e * OFF_BOUNDARY);
+    steps
+        .map(|e| inside(p + e))
+        .all(|x| x == here)
+        .then_some(here)
+}
+
+/// Paths asked, decided, decided odd, each wrong one's description, and
+/// the point–island pairs set aside on the island's boundary.
 #[derive(Default)]
 struct Tally {
     asked: usize,
     decided: usize,
     odd: usize,
     wrong: Vec<String>,
+    kept: usize,
+    on_boundary: usize,
 }
 
 impl Tally {
+    /// Each point's side of an island by `inside`, read at its local
+    /// twin; `None` on the boundary, which is counted.
+    fn sides(
+        &mut self,
+        inside: &dyn Fn(Point3<f64>) -> bool,
+        locals: &[Point3<f64>],
+    ) -> Vec<Option<bool>> {
+        let sides: Vec<_> = locals.iter().map(|&p| settled(inside, p)).collect();
+        let off = sides.iter().filter(|s| s.is_some()).count();
+        self.kept += off;
+        self.on_boundary += sides.len() - off;
+        sides
+    }
+
     /// Every path `quadric` offers from `a` to `b`, read against `arcs`
-    /// and the island's oracle. An escalation says nothing, as an
-    /// undecided path does.
+    /// and the ends' sides. An escalation says nothing, as an undecided
+    /// path does; an end on the boundary is not read.
     fn read(
         &mut self,
         quadric: &Quadric<f64>,
         (a, b): (Point3<f64>, Point3<f64>),
         arcs: &[LoopArc<f64>],
-        inside: &dyn Fn(Point3<f64>) -> bool,
+        sides: (Option<bool>, Option<bool>),
         name: &str,
     ) {
-        let want = inside(a) != inside(b);
+        let (Some(sa), Some(sb)) = sides else {
+            return;
+        };
+        let want = sa != sb;
         let Ok(paths) = quadric.paths((a, b), band()) else {
             return;
         };
@@ -61,6 +111,12 @@ impl Tally {
     }
 
     fn assert(&self, what: &str, decided_percent: usize) {
+        assert!(
+            self.on_boundary * 20 < self.kept,
+            "{what}: {} point–island pairs on a boundary against {} kept",
+            self.on_boundary,
+            self.kept
+        );
         assert!(
             self.wrong.is_empty(),
             "{what}: {} of {} decided paths read wrong, the first {:?}",
@@ -81,33 +137,36 @@ impl Tally {
 /// The cone rows' grid (`a_cone_path_crosses_an_island_by_the_oracle_parity`)
 /// with the lune's top height 2.2 added, whose parallels lie in that
 /// arc's plane, against the lune, the lune by the apex and the sector,
-/// both nappes, in the far frame.
+/// both nappes, in the far frame. Each island's side of a point is read
+/// at the point's local twin ([`local`]), and the sector's four points
+/// on its top arc are set aside ([`settled`]).
 #[test]
 fn a_cone_path_in_a_far_frame_reads_the_oracle_parity_or_nothing() {
-    let f = far();
+    let (f, l) = (far(), local());
     let mut tally = Tally::default();
+    let chart: Vec<_> = [0.05, 0.17, 0.6, 1.3, 1.6, 2.1, 2.2, 2.9]
+        .into_iter()
+        .flat_map(|h| (0..16).map(move |k| (h, -PI + (f64::from(k) + 0.5) * PI / 8.0)))
+        .collect();
+    let points: Vec<_> = chart.iter().map(|&(h, t)| on_nappe(f, h, t)).collect();
+    let locals: Vec<_> = chart.iter().map(|&(h, t)| on_nappe(l, h, t)).collect();
     for mirror in [false, true] {
-        let cone = cone(f, mirror);
+        let (cone, twin) = (cone(f, mirror), cone(l, mirror));
         let quadric = Quadric::of(&cone).unwrap();
-        let mut points = Vec::new();
-        for h in [0.05, 0.17, 0.6, 1.3, 1.6, 2.1, 2.2, 2.9] {
-            for k in 0..16 {
-                points.push(on_nappe(f, h, -PI + (f64::from(k) + 0.5) * PI / 8.0));
-            }
-        }
-        for (name, island) in [
-            ("lune", lune(f, &cone, 1.0)),
-            ("lune by the apex", lune(f, &cone, 0.1)),
-            ("sector", sector(f, &cone)),
+        for (name, island, oracle) in [
+            ("lune", lune(f, &cone, 1.0), lune(l, &twin, 1.0)),
+            ("lune by the apex", lune(f, &cone, 0.1), lune(l, &twin, 0.1)),
+            ("sector", sector(f, &cone), sector(l, &twin)),
         ] {
             let arcs: Vec<_> = island
                 .edges
                 .iter()
                 .map(|e| LoopArc::of(&e.carrier, e.params).unwrap())
                 .collect();
+            let sides = tally.sides(&oracle.inside, &locals);
             for (i, &a) in points.iter().enumerate() {
-                for &b in &points[i + 1..] {
-                    tally.read(&quadric, (a, b), &arcs, &island.inside, name);
+                for (j, &b) in points.iter().enumerate().skip(i + 1) {
+                    tally.read(&quadric, (a, b), &arcs, (sides[i], sides[j]), name);
                 }
             }
         }
@@ -133,27 +192,30 @@ fn torus_arcs(quadric: &Quadric<f64>, island: &Island) -> Vec<LoopArc<f64>> {
         .collect()
 }
 
-/// Points on the planes of the arcs of a torus island bounded by spiric
-/// ovals: on the ovals' planes `x = d` and on the parallels' cones,
-/// away from the island's corners.
-fn on_oval_planes(f: Frame, island: &Island) -> Vec<Point3<f64>> {
+/// Chart points on the planes of the arcs of a torus island bounded by
+/// spiric ovals: on the ovals' planes `x = d` and on the parallels'
+/// cones, away from the island's corners (`corners`, local).
+fn on_oval_planes(corners: &[Point3<f64>]) -> Vec<(f64, f64)> {
     let (big, small) = RADII;
-    let mut points = Vec::new();
+    let mut chart = Vec::new();
     for d in [-0.7, 0.1, 0.2, 0.3, 0.4, 0.9, 1.0] {
         for v in [-2.6, -1.1, -0.2, 0.15, 1.2, 2.0, 2.9] {
             let c = d / (big + small * f64::cos(v));
             if c.abs() < 1.0 {
-                points.extend([c.acos(), -c.acos()].map(|u| on_torus(f, u, v)));
+                chart.extend([(c.acos(), v), (-c.acos(), v)]);
             }
         }
     }
     for v in [-0.7, -0.6, -0.5, 0.4, 0.8, 0.9, 1.8, 2.75] {
         for k in 0..6 {
-            points.push(on_torus(f, -PI + (f64::from(k) + 0.27) * PI / 3.0, v));
+            chart.push((-PI + (f64::from(k) + 0.27) * PI / 3.0, v));
         }
     }
-    points.retain(|&p| island.corners.iter().all(|&c| (p - c).norm() > 1e-3 * f.s));
-    points
+    chart.retain(|&(u, v)| {
+        let p = on_torus(local(), u, v);
+        corners.iter().all(|&c| (p - c).norm() > 1e-3)
+    });
+    chart
 }
 
 /// Every torus island, from points on its arcs' carriers and planes
@@ -161,20 +223,22 @@ fn on_oval_planes(f: Frame, island: &Island) -> Vec<Point3<f64>> {
 /// the ovals' planes), to every fifth point of the whole torus's grid
 /// and to each other, both ways, the axis either way, in the far frame.
 /// Each meridian or parallel through such a point lies in an arc's
-/// plane.
+/// plane. Each island's side of a point is read at the point's local
+/// twin ([`local`]), and the points on an island's arcs are set aside
+/// ([`settled`]).
 #[test]
 fn a_torus_path_in_a_far_frame_reads_the_oracle_parity_or_nothing() {
-    let f = far();
+    let (f, l) = (far(), local());
     let grid: Vec<_> = (0..12)
         .flat_map(|k| {
             (0..8).map(move |j| {
-                on_torus(
-                    f,
+                (
                     -PI + (f64::from(k) + 0.31) * PI / 6.0,
                     -PI + (f64::from(j) + 0.43) * PI / 4.0,
                 )
             })
         })
+        .step_by(5)
         .collect();
     let mut tally = Tally::default();
     for mirror in [false, true] {
@@ -190,22 +254,27 @@ fn a_torus_path_in_a_far_frame_reads_the_oracle_parity_or_nothing() {
                 ("the outer side", (-1.0, 0.7), (-FRAC_PI_2, FRAC_PI_2)),
             ])
             .map(|(name, us, vs)| {
-                let carriers: Vec<_> = super::tests::on_carriers(us, vs)
-                    .into_iter()
-                    .map(|(u, v)| on_torus(f, u, v))
-                    .collect();
-                (name, rectangle(f, us, vs), carriers)
+                let carriers = super::tests::on_carriers(us, vs);
+                (name, rectangle(f, us, vs), rectangle(l, us, vs), carriers)
             });
-        let ovals = spiric_islands(f).into_iter().map(|(name, island)| {
-            let carriers = on_oval_planes(f, &island);
-            (name, island, carriers)
-        });
-        for (name, island, carriers) in rectangles.chain(ovals) {
+        let ovals = spiric_islands(f).into_iter().zip(spiric_islands(l)).map(
+            |((name, island), (_, oracle))| {
+                let carriers = on_oval_planes(&oracle.corners);
+                (name, island, oracle, carriers)
+            },
+        );
+        for (name, island, oracle, carriers) in rectangles.chain(ovals) {
             let arcs = torus_arcs(&quadric, &island);
-            for (i, &a) in carriers.iter().enumerate() {
-                for &b in grid.iter().step_by(5).chain(&carriers[i + 1..]) {
-                    for ends in [(a, b), (b, a)] {
-                        tally.read(&quadric, ends, &arcs, &island.inside, name);
+            let chart: Vec<_> = carriers.iter().chain(&grid).copied().collect();
+            let points: Vec<_> = chart.iter().map(|&(u, v)| on_torus(f, u, v)).collect();
+            let locals: Vec<_> = chart.iter().map(|&(u, v)| on_torus(l, u, v)).collect();
+            let sides = tally.sides(&oracle.inside, &locals);
+            let n = carriers.len();
+            for i in 0..n {
+                for j in (n..chart.len()).chain(i + 1..n) {
+                    for (x, y) in [(i, j), (j, i)] {
+                        let ends = (points[x], points[y]);
+                        tally.read(&quadric, ends, &arcs, (sides[x], sides[y]), name);
                     }
                 }
             }
@@ -214,33 +283,41 @@ fn a_torus_path_in_a_far_frame_reads_the_oracle_parity_or_nothing() {
     tally.assert("torus", 60);
 }
 
-/// **Each charged reading stands down on a margin of two ulps of a far
+/// **Each charged reading stands down on a margin of three ulps of a far
 /// coordinate**, which the same margin about the origin decides: the
-/// gap of a circle against a plane two ulps beyond it
-/// (**`split_ring_path_meets_plane`**), a root two ulps outside a
-/// piece's span (**`split_ring_path_in_span`**), a segment two ulps off
-/// a conic's plane by its end (**`split_ring_path_segment_side`**), a
-/// crossing two ulps on its arc's own loop
-/// (**`split_ring_path_torus_loop`**), a parallel two ulps off the crest
-/// cylinder (**`split_ring_path_crest_graze`**), a lead from two ulps off
-/// it (**`split_ring_path_crest_side`**), a segment two ulps of sine off
-/// a ruling at a unit lever (**`split_ring_path_rulings_apart`**), and
-/// the paths from an end two ulps off the cone's apex plane
+/// gap of a circle against a plane three ulps beyond it
+/// (**`split_ring_path_meets_plane`**), a root three ulps outside a
+/// piece's span, on a unit circle and on one of radius 1/64
+/// (**`split_ring_path_in_span`**, whose charge in the parameter is
+/// `slack / arm`), a segment three ulps off a conic's plane by its end
+/// (**`split_ring_path_segment_side`**), a crossing three ulps on its
+/// arc's own loop (**`split_ring_path_torus_loop`**), a parallel three
+/// ulps off the crest cylinder (**`split_ring_path_crest_graze`**), a
+/// lead from three ulps off it (**`split_ring_path_crest_side`**), a
+/// segment at a unit lever six ulps of sine off a ruling arc 1 long, and
+/// 192 off one 1/64 long (**`split_ring_path_rulings_apart`**, charged
+/// each direction's rounding: four ulps over the lever and four over
+/// the arc's length), and the paths
+/// from an end three ulps off the cone's apex plane
 /// (**`split_ring_path_nappe`**), off its axis
-/// (**`split_ring_path_off_apex`**), two ulps of slant past the other's
+/// (**`split_ring_path_off_apex`**), three ulps of slant past the other's
 /// parallel (**`split_ring_path_rise`**), off a torus's core
-/// (**`split_ring_path_off_core`**) and two ulps of sine off the other on
-/// a sphere (**`split_ring_path_span`**). Two ulps clear the band's
-/// escalation threshold; the far coordinates' resolution is four. Each
-/// case is red against the mutant "no resolution charged" at its own
-/// reading.
+/// (**`split_ring_path_off_core`**) and three ulps of sine off the other
+/// on a sphere (**`split_ring_path_span`**). The far coordinates'
+/// resolution is four ulps. Half of it would leave one ulp of each
+/// margin, which clears the band's escalation threshold, so each case is
+/// red against the mutants "no resolution charged" at its own reading
+/// and "[`resolution`] halved"; the short circle is red against `slack`
+/// charged in the parameter unlevered, and the short ruling arc against
+/// its direction's rounding uncharged.
 #[test]
 fn each_charged_reading_stands_down_inside_far_points_resolution() {
     let esc = band().escalate();
-    let k = (2.0 * esc).log2().ceil() + 51.0;
+    let k = (2.0 * esc).log2().ceil() + 52.0;
     let far = 2f64.powf(k);
     let ulp = far * f64::EPSILON;
-    assert!(2.0 * ulp > esc, "two ulps clear the band");
+    let m = 3.0 * ulp;
+    assert!(ulp > esc, "one ulp clears the band");
     let read = |pieces: Vec<Piece<f64>>, arc: LoopArc<f64>| {
         path_parity(
             &Path {
@@ -299,7 +376,7 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
                 "meets_plane",
                 read(
                     vec![Piece::Arc(circle(
-                        at(-2.0 * ulp - 1.0, 0.0, 0.0),
+                        at(-m - 1.0, 0.0, 0.0),
                         z,
                         x,
                         1.0,
@@ -316,7 +393,20 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
                         z,
                         x,
                         1.0,
-                        (FRAC_PI_2 + 2.0 * ulp, PI),
+                        (FRAC_PI_2 + m, PI),
+                    ))],
+                    LoopArc::Conic(conic(None)),
+                ),
+            ),
+            (
+                "in_span, radius 1/64",
+                read(
+                    vec![Piece::Arc(circle(
+                        at(0.0, 0.0, 0.0),
+                        z,
+                        x,
+                        1.0 / 64.0,
+                        (FRAC_PI_2 + 64.0 * m, PI),
                     ))],
                     LoopArc::Conic(conic(None)),
                 ),
@@ -324,7 +414,7 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
             (
                 "segment_side",
                 read(
-                    vec![segment(at(2.0 * ulp, 1.0, 0.0), at(1.0, 1.0, 0.0))],
+                    vec![segment(at(m, 1.0, 0.0), at(1.0, 1.0, 0.0))],
                     LoopArc::Conic(conic(None)),
                 ),
             ),
@@ -334,7 +424,7 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
                     vec![Piece::Arc(circle(at(0.0, 0.0, 0.0), z, x, 1.0, (0.0, PI)))],
                     LoopArc::Conic(conic(Some(ArcLoop {
                         split: LoopSplit::Side {
-                            origin: at(0.0, 1.0 - 2.0 * ulp, 0.0),
+                            origin: at(0.0, 1.0 - m, 0.0),
                             dir: y,
                         },
                         positive: true,
@@ -348,7 +438,7 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
                         at(0.0, 0.0, 0.0),
                         z,
                         x,
-                        1.0 + 2.0 * ulp,
+                        1.0 + m,
                         (0.0, 1.0),
                     ))],
                     crest,
@@ -357,7 +447,7 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
             (
                 "crest_side",
                 read(
-                    vec![segment(at(1.0 + 2.0 * ulp, 0.0, 0.0), at(1.5, 0.0, 0.0))],
+                    vec![segment(at(1.0 + m, 0.0, 0.0), at(1.5, 0.0, 0.0))],
                     crest,
                 ),
             ),
@@ -367,8 +457,19 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
                     vec![segment(at(1.0, 0.0, 0.0), at(2.0, 0.0, 0.0))],
                     LoopArc::Line {
                         origin: at(0.0, 0.0, 0.0),
-                        dir: Vec3::new(1.0, 2.0 * ulp, 0.0),
+                        dir: Vec3::new(1.0, 2.0 * m, 0.0),
                         span: (0.0, 1.0),
+                    },
+                ),
+            ),
+            (
+                "rulings_apart, a ruling arc 1/64 long",
+                read(
+                    vec![segment(at(1.0, 0.0, 0.0), at(2.0, 0.0, 0.0))],
+                    LoopArc::Line {
+                        origin: at(0.0, 0.0, 0.0),
+                        dir: Vec3::new(1.0, 64.0 * m, 0.0),
+                        span: (0.0, 1.0 / 64.0),
                     },
                 ),
             ),
@@ -388,16 +489,16 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
             centre: at(0.0, 0.0, 0.0),
             radius: 1.0,
         };
-        let e = 2.0 * ulp / 2f64.sqrt();
+        let e = m / 2f64.sqrt();
         let counts = [
             (
                 "nappe",
-                cone.paths((at(1.0, 0.0, 2.0 * ulp), at(1.0, 0.5, 1.0)), band()),
+                cone.paths((at(1.0, 0.0, m), at(1.0, 0.5, 1.0)), band()),
                 2,
             ),
             (
                 "off_apex",
-                cone.paths((at(2.0 * ulp, 0.0, 1.0), at(1.0, 0.5, 1.0)), band()),
+                cone.paths((at(m, 0.0, 1.0), at(1.0, 0.5, 1.0)), band()),
                 2,
             ),
             (
@@ -407,12 +508,12 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
             ),
             (
                 "off_core",
-                torus.paths((at(2.0 + 2.0 * ulp, 0.0, 0.0), at(0.0, 2.5, 0.0)), band()),
+                torus.paths((at(2.0 + m, 0.0, 0.0), at(0.0, 2.5, 0.0)), band()),
                 2,
             ),
             (
                 "span",
-                sphere.paths((at(1.0, 0.0, 0.0), at(1.0, 2.0 * ulp, 0.0)), band()),
+                sphere.paths((at(1.0, 0.0, 0.0), at(1.0, m, 0.0)), band()),
                 1,
             ),
         ];

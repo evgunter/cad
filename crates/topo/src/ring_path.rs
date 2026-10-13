@@ -200,7 +200,10 @@ impl<T: Decide> Quadric<T> {
                 centre: apex, axis, ..
             } => Ok(decide(
                 "split_ring_path_off_apex",
-                Margin::of(Self::axial(apex, axis, p).1.norm() - resolution(&[apex, p])),
+                Margin::of(charge(
+                    Self::axial(apex, axis, p).1.norm(),
+                    resolution(&[apex, p]),
+                )),
                 band,
             )? == Sign::Positive),
         }
@@ -350,8 +353,11 @@ impl<T: Decide> Quadric<T> {
                 let (off_f, off_t) = ((from - kf).norm(), (to - kt).norm());
                 let slack = resolution(&[from, to, centre]);
                 for off in [off_f, off_t] {
-                    if decide("split_ring_path_off_core", Margin::of(off - slack), band)?
-                        != Sign::Positive
+                    if decide(
+                        "split_ring_path_off_core",
+                        Margin::of(charge(off, slack)),
+                        band,
+                    )? != Sign::Positive
                     {
                         return Ok(Vec::new());
                     }
@@ -1004,9 +1010,9 @@ impl<T: Decide> Quadric<T> {
 /// interior point; its crossing there is the arrival and is not
 /// counted. `None` when a reading of a crossing not passed over lands
 /// in the zero band; `Err` when one lands in the escalation band, which
-/// says nothing about the parity either: the caller asks another path. A crossing is passed
-/// over when any of its in-span readings is decided out of span, though
-/// another escalate.
+/// says nothing about the parity either: the caller asks another path.
+/// A crossing is passed over when any of its in-span readings is
+/// decided out of span, even where another escalates.
 ///
 /// - A circle piece meets a conic's or an oval's plane where
 ///   `A cos θ + B sin θ = −D/r` (`A`, `B` the plane normal's components
@@ -1033,13 +1039,18 @@ impl<T: Decide> Quadric<T> {
 ///   plane's normal and the ruling, levered at the piece's radius), and
 ///   another ruling nowhere off the apex (the two are decided apart,
 ///   **`split_ring_path_rulings_apart`**: the sine between them,
-///   levered at the segment's distance from the apex).
+///   levered at the segment's distance from the apex, and charged each
+///   direction's rounding: the resolution over that distance and over
+///   the arc's length).
 /// - On a torus, a meeting point counts only on the arc's own loop of
 ///   its plane ([`ArcLoop`], **`split_ring_path_torus_loop`**).
 /// - Every reading above is charged the [`resolution`] of the path's
 ///   points and the arcs' centres ([`charge`]), but the cosine across,
-///   read between two directions, and the lead's length, whose zero only
-///   hands the point to charged readings: in a frame far from the
+///   read between two directions, and two readings whose zero only hands
+///   the case to charged readings, so that a charge would only widen it:
+///   the lead's length, and [`misses_in_plane`]'s
+///   **`split_ring_path_same_circle`**, whose zero hands the arcs' ends
+///   to the in-span readings. In a frame far from the
 ///   origin, points that should lie on one plane or one circle are
 ///   stored further apart than the band, and a margin inside their
 ///   rounding stands down rather than decide.
@@ -1093,7 +1104,7 @@ pub(crate) fn path_parity<T: Decide>(
                     else {
                         if let LoopArc::Conic(conic) = arc
                             && !arrival
-                            && misses_in_plane(&p, conic, band)?
+                            && misses_in_plane(&p, conic, slack, band)?
                         {
                             continue;
                         }
@@ -1227,7 +1238,7 @@ pub(crate) fn path_parity<T: Decide>(
                     // arc's least speed).
                     if s0 == Sign::Zero || s1 == Sign::Zero {
                         if let LoopArc::Conic(conic) = arc
-                            && segment_misses((from, to), conic, band)?
+                            && segment_misses((from, to), conic, slack, band)?
                         {
                             continue;
                         }
@@ -1260,13 +1271,17 @@ pub(crate) fn path_parity<T: Decide>(
                     let [a0, a1] = in_span(param(arc, x), sec.span, sec.speed * slope);
                     readings.push([inside, inside, a0, a1, on_own(sec.own, x)]);
                 }
-                (Piece::Segment { ruling, lever, .. }, LoopArc::Line { dir, .. }) => {
+                (Piece::Segment { ruling, lever, .. }, LoopArc::Line { dir, span, .. }) => {
                     if arrival {
                         continue;
                     }
+                    // Each direction's sine carries its ends' rounding
+                    // over their distance: the ruling's over the lever,
+                    // the arc's over its length.
+                    let rounding = slack / lever + slack / (span.1 - span.0);
                     if decide_m(
                         "split_ring_path_rulings_apart",
-                        Margin::levered(charge(ruling.cross(dir).norm(), slack / lever), lever),
+                        Margin::levered(charge(ruling.cross(dir).norm(), rounding), lever),
                     )? != Sign::Positive
                     {
                         return Ok(None);
@@ -1357,10 +1372,20 @@ fn charge<T: Real>(m: T, slack: T) -> T {
 }
 
 /// **How far apart points stored at `points`' distances from the
-/// origin may lie where they should coincide**: a few roundings of the
-/// farthest. A reading between such points charges it to its margin, so
-/// that where coordinates cannot resolve the band it stands down rather
-/// than deciding on their rounding.
+/// origin may lie where they should coincide**: `4ε` times the farthest
+/// distance `far`. A rounding to the grid moves a coordinate of a point
+/// within `far` of the origin by at most half an ulp, `ε·far/2`. Each of
+/// two points that should coincide is rounded at most twice: when it is
+/// stored, and in the one step that places it from stored points (a
+/// centre moved along an axis, a point placed round a circle, a lead's
+/// end moved along a tube radius). So they part by at most `2ε·far` in
+/// each coordinate, and by at most `2√3·ε·far` as a vector, which
+/// `4ε·far` bounds. A margin's own arithmetic adds nothing at that
+/// scale: its subtraction of stored coordinates rounds relative to
+/// their difference, and the rest relative to the margin. A reading
+/// between such points charges the resolution to its margin, so that
+/// where coordinates cannot resolve the band it stands down rather than
+/// deciding on their rounding.
 fn resolution<T: Real>(points: &[Point3<T>]) -> T {
     let far = points
         .iter()
@@ -1393,18 +1418,19 @@ fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
 /// `conic`'s plane, misses the arc**
 /// (**`split_ring_path_segment_apart`**): its midpoint is decided
 /// farther from the arc ([`Conic::distance_floor`]) than half its
-/// length, within which every point of it lies of the midpoint.
+/// length, within which every point of it lies of the midpoint,
+/// charged `slack` ([`charge`]).
 fn segment_misses<T: Decide>(
     (from, to): (Point3<T>, Point3<T>),
     conic: &Conic<T>,
+    slack: T,
     band: Band,
 ) -> Result<bool, Indeterminate> {
     let half = (to - from).norm() * T::from_f64(0.5);
     let mid = from + (to - from) * T::from_f64(0.5);
-    let slack = resolution(&[from, to, conic.centre]);
     Ok(decide(
         "split_ring_path_segment_apart",
-        Margin::of(conic.distance_floor(mid) - half - slack),
+        Margin::of(charge(conic.distance_floor(mid) - half, slack)),
         band,
     )? == Sign::Positive)
 }
@@ -1429,13 +1455,14 @@ fn segment_misses<T: Decide>(
 ///   ([`span_readings`]). Two arcs of one circle overlap only where one
 ///   holds an end of the other.
 ///
-/// `Ok(false)` where neither is decided.
+/// `Ok(false)` where neither is decided. The apart and in-span readings
+/// are charged `slack` ([`charge`]).
 fn misses_in_plane<T: Decide>(
     p: &CircleArc<T>,
     conic: &Conic<T>,
+    slack: T,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    let slack = resolution(&[p.centre, conic.centre]);
     let apart = (p.centre - conic.centre).norm();
     let (inner, outer) = (conic.a.min(conic.b), conic.a.max(conic.b));
     let gap = (apart - p.radius - outer)
@@ -1443,7 +1470,7 @@ fn misses_in_plane<T: Decide>(
         .max(p.radius - outer - apart);
     if decide(
         "split_ring_path_coplanar_apart",
-        Margin::of(gap - slack),
+        Margin::of(charge(gap, slack)),
         band,
     )? == Sign::Positive
     {
@@ -2036,7 +2063,13 @@ mod tests {
                 ("the meridian across the axis", across, true),
             ] {
                 assert_eq!(
-                    misses_in_plane(&piece, &conic, band()).unwrap(),
+                    misses_in_plane(
+                        &piece,
+                        &conic,
+                        resolution(&[piece.centre, conic.centre]),
+                        band()
+                    )
+                    .unwrap(),
                     misses,
                     "{what}, scale {}",
                     f.s
@@ -2091,7 +2124,13 @@ mod tests {
                 "and on both arcs"
             );
             assert!(
-                !misses_in_plane(&piece, &conic, band()).unwrap(),
+                !misses_in_plane(
+                    &piece,
+                    &conic,
+                    resolution(&[piece.centre, conic.centre]),
+                    band()
+                )
+                .unwrap(),
                 "crossing arcs read apart, scale {}",
                 f.s
             );
@@ -2212,7 +2251,8 @@ mod tests {
                     "{what}: the oracle reads {truth}"
                 );
                 assert_eq!(
-                    segment_misses(ends, &c, band()).unwrap(),
+                    segment_misses(ends, &c, resolution(&[ends.0, ends.1, c.centre]), band())
+                        .unwrap(),
                     misses,
                     "{what}, scale {}",
                     f.s
@@ -2236,7 +2276,12 @@ mod tests {
                             if (to - from).norm() < 1e-9 * f.s {
                                 continue;
                             }
-                            let Ok(true) = segment_misses((from, to), &c, band()) else {
+                            let Ok(true) = segment_misses(
+                                (from, to),
+                                &c,
+                                resolution(&[from, to, c.centre]),
+                                band(),
+                            ) else {
                                 continue;
                             };
                             apart += 1;
@@ -2292,8 +2337,18 @@ mod tests {
             };
             let lead = (at(1.0 + 2.0 * ulp), at(2.0 + 2.0 * ulp));
             let read = (
-                misses_in_plane(&piece, &conic, band()),
-                segment_misses(lead, &conic, band()),
+                misses_in_plane(
+                    &piece,
+                    &conic,
+                    resolution(&[piece.centre, conic.centre]),
+                    band(),
+                ),
+                segment_misses(
+                    lead,
+                    &conic,
+                    resolution(&[lead.0, lead.1, conic.centre]),
+                    band(),
+                ),
             );
             if o == 0.0 {
                 assert_eq!(read, (Ok(true), Ok(true)), "about the origin");

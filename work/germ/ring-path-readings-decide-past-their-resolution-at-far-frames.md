@@ -72,6 +72,15 @@ counts differ from the item's 440 / 92 408 because PR 4927 landed
 between the two runs. The torus islands from their arcs' carriers and
 planes, in the same far frame, read **5270 wrong of 598 847** on main.
 
+Those counts read the islands' oracles on the far frame's rounded
+coordinates, and from grid points on the islands' boundaries (the
+sector's four on its top arc at height 2.2, and the points on the
+ovals and parallels within their spans), where the oracle reads
+rounding noise. Read at each point's local twin, with points within
+`1e-6` local units of a boundary set aside, main at 6f2656a reads
+**162 wrong of 91 356** on the cone grid and **1914 wrong of 584 313**
+on the torus's.
+
 The fix charges the coordinates' `resolution` to every reading between
 points stored in the frame, shrinking each margin toward zero by it
 (`charge`, `crates/topo/src/ring_path.rs`). In `path_parity` the slack
