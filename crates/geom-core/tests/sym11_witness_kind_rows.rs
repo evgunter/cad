@@ -18,7 +18,9 @@
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::sym::{SymRegistration, with_session_rules};
 use geom_core::tolerance::Tol;
-use geom_core::{Decide, ParamSymbol, Real, Sym, SymBudget, SymCounts, SymRules, Witness};
+use geom_core::{
+    Decide, ParamSymbol, Real, SpanLocate, Sym, SymBudget, SymCounts, SymRules, Witness,
+};
 
 pub(crate) fn budget() -> SymBudget {
     SymBudget {
@@ -290,6 +292,89 @@ fn sym11_a_frozen_check_is_counted_frozen_and_disputes_nothing() {
             b.max_terms
         );
     }
+}
+
+/// **Values built before the session read frozen.** The adversary built
+/// outside any session and decided inside one: its nodes are not in the
+/// session's table, so the walk can only make each an unknown of its
+/// own, and the theorem the in-session build finds is not there to
+/// dispute. The check reads frozen, as it is; built inside, it reads
+/// expanded and disputes.
+#[test]
+fn sym11_values_built_outside_the_session_read_frozen() {
+    let x0 = ADVERSARY_X[0];
+    let decide = |m: Sym<f64>| {
+        geom_core::k_stats::decide("sym11_witness_kind", Margin::of(m), band()).map(|_| ())
+    };
+    let outside = adversary::<f64>(x0);
+    let (_, out) = with_session_rules(budget(), SymRules::shipped(), || decide(outside));
+    let (_, inside) = with_session_rules(budget(), SymRules::shipped(), || {
+        decide(adversary::<f64>(x0))
+    });
+    for (at, c, want) in [("outside", out, (0, 1, 0)), ("inside", inside, (1, 0, 1))] {
+        assert_eq!(
+            (c.checks_expanded, c.checks_frozen, c.theorems_disputed),
+            want,
+            "built {at} the session: (checks_expanded, checks_frozen, theorems_disputed): {c:?}"
+        );
+    }
+}
+
+/// **The session's own free unknowns are not freezes.** An opaque value
+/// and a hull minted inside the session are indeterminates of the
+/// session's own naming, so `opaque + hull(x, y) + 1` is a whole form
+/// and its check reads expanded. At `Sym<Interval>`, the lane whose
+/// hull has a value; the exact witness's check runs under debug
+/// assertions, which every test profile has.
+#[test]
+fn sym11_an_opaque_value_and_a_hull_read_expanded() {
+    use geom_core::Interval;
+    let margin = || {
+        let p = |name: &str, v: f64| {
+            Sym::param(
+                ParamSymbol::new(test_utils::symbol_id(name)),
+                Interval::from_f64(v),
+            )
+        };
+        Sym::opaque(Interval::from_f64(0.5))
+            + p("x", 1.0).enclosure_hull(p("y", 2.0))
+            + Sym::from_f64(1.0)
+    };
+    let (l, c, _) = decide_under(budget(), SymRules::shipped(), margin)
+        .expect("a check that finds no theorem does not assert");
+    assert_eq!(
+        l, "numeric Positive",
+        "the margin is positive over the box: {c:?}"
+    );
+    assert_eq!(
+        (c.checks_expanded, c.checks_frozen),
+        (1, 0),
+        "(checks_expanded, checks_frozen): {c:?}"
+    );
+}
+
+/// **A poisoned form disputes nothing, so its check reads frozen.**
+/// `atan(1/(x − x)) + 1`: at `f64` the margin is a definite
+/// `π/2 + 1`, and the form went through a division by the zero
+/// polynomial, so it has no value anywhere and can be declared zero
+/// nowhere.
+#[test]
+fn sym11_a_poisoned_check_reads_frozen() {
+    let margin = || {
+        let x = Sym::param(ParamSymbol::new(test_utils::symbol_id("x")), 0.5);
+        (Sym::from_f64(1.0) / (x - x)).atan() + Sym::from_f64(1.0)
+    };
+    let (l, c, _) = decide_under(budget(), SymRules::shipped(), margin)
+        .expect("an inexact witness never panics on a contradiction");
+    assert_eq!(
+        l, "numeric Positive",
+        "the margin is π/2 + 1 at the point: {c:?}"
+    );
+    assert_eq!(
+        (c.checks_expanded, c.checks_frozen),
+        (0, 1),
+        "(checks_expanded, checks_frozen): {c:?}"
+    );
 }
 
 /// **A check whose plain form froze still sees its margin where the

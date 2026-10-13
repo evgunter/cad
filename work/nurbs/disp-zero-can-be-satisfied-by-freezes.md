@@ -36,12 +36,20 @@ an M and a seam.
 ## Closed (2026-10-13, PR 4944)
 
 `SymCounts` gained `checks_expanded` and `checks_frozen`, which split the
-contradiction checks by whether the plain or early form they read
-reaches a frozen node. The digest prints them as `chk=<expanded>/<checks>`
-and guards every receipt with `dispute_coverage`: at least 3/4 of the
-checks on whole forms, and at least one check. The bodies read 89/110
-and 92/116 on `validate_geometric` at every ε. Under a two-term budget
-the arc loft falls to 26/110 while `disp` still reads 0, and the guard
-trips (`a_starved_budget_trips_the_guard_while_disp_still_reads_zero`).
+contradiction checks by whether a form they read reaches only free
+indeterminates: π, or the parameters, opaque values and hulls the
+session recorded. A node frozen on the budget, a node minted before the
+session, or a poisoned form puts the check in `checks_frozen`.
+
+The digest now builds its `Sym` bodies inside the session and receipts
+the door alone. It prints the split as `chk=<expanded>/<checks>`, and
+guards every receipt with `dispute_coverage`: at least one check, and,
+over 20 checks or more, at least 4/5 of them on whole forms. Measured at
+every ε, `validate_geometric` reads 103/110 on the arc loft and 104/116
+(106/116 at 1e-6) on the strip, with `disp=0`. Built outside the
+session, the arc door reads 14/110 and still `disp=0`, and the guard
+trips
+(`bodies_built_before_the_session_trip_the_guard_while_disp_still_reads_zero`).
+
 The sibling in the SYM-11 far-placement table is filed as
 `work/sym/far-placement-zero-dispute-cells-can-be-satisfied-by-freezes`.
