@@ -1234,10 +1234,7 @@ impl core::fmt::Display for MergeCoplanarError {
                  {}",
                 diag.undecided(
                     edge_on_faces_subject!("the edge"),
-                    geom_brep::recourse::LeverOnly {
-                        lever: EDGE_ON_FACES_LEVER,
-                    }
-                    .recourse(RefusedArm::Undecided(diag), Reading::Build)
+                    diag.lever_ending(EDGE_ON_FACES_LEVER)
                 )
             ),
             Self::KeptBoundaryUndecided {
