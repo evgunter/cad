@@ -2,10 +2,12 @@
 id: runline-is-curated-in-the-facade-and-unbound-in-python
 kind: issue
 title: RunLine is curated in the pncad façade and neither bound in Python nor listed, so main's binding census is red
-status: open
+status: closed
+pr: 4945
 opened: 2026-10-13
 priority: P0
 cost: E
+closed: 2026-10-13
 ---
 
 
