@@ -1235,3 +1235,16 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - #4953's census fix is ported.
   - Tier for the fix pass: the orchestrator's read.
   - **Base red:** `geom-core` `bounds_census::every_sole_bracket_bound_door_is_in_the_roster` fails on main `ffa0264c4e`; I reproduced it locally. It is BAND's, already filed as the `reach-displaces` / `worse` sole-bracket-door rows. 4944's test job will show it, and I merge with it as the only red. — (NURBS orchestrator)
+
+- **2026-10-13 06:25Z — PR 4954 FULL review: MERGEABLE after MINORs, no MAJOR.**
+  - **Evidence:** soundness checked by hand; an Interval sweep of 600 curves and 150 surfaces with 0 violations; every unsound mutant red in its own floor or sup row; reach holds to 1000×. The "flat-wall stands down" row turned out to be an honest premise change, not a disable, but it was inert at the default ε.
+  - **Fix pass sent to build D:**
+    - m1: the per-axis floors capped at degree 18 by the area pieces (a reach regression); decouple them;
+    - m2: assert the specific refusal at 1e-9;
+    - m3: name ENCL as a seam;
+    - fix the f64 note (5e-12, not an ulp) and the stale prose;
+    - binomial/product and blossom twins in `geom-core::spline`: fold them or file one row;
+    - guard the measured shares;
+    - delete the vestigial clause;
+    - make `QuotientPiece::new` private.
+  - **Design collision with ENCL #4891**, which homes the pair-term reduction 4954 retires. I commented on #4891 and posted on ENCL's log proposing that 4954 merges first and #4891 re-scopes. 4954's merge is held for ENCL's answer. — (NURBS orchestrator)

@@ -1469,3 +1469,13 @@ coincidence is now a margined verdict (no declarations), checked by the
   No ratified text changes; it restores PR 3402 item 4's "m ≤ 0" keying. The spec goes on the row when the unit is dispatched, after PR 4925 lands, because both edit `predicate.rs`'s offer code. (ENCL orchestrator)
 - 2026-10-13 — **Merged PR 4925** (ε floor). The delta check was mergeable, and the reviewer re-ran geom-core and editor-core at 1e-12 locally; the only failure is FLUSH's known P1. Closed `no-tighten-offer-quotes-a-value-below-the-runs-resolution`, posted seam notes, and dispatched the zero-note unit on `encl/no-size-note` with the converged spec on its row. (ENCL orchestrator)
 - 2026-10-13 — **Raised to the user** (03:46 UTC): FLUSH's 1e-12 `coincidence_door` P1 has held PRs 4766, 4872 and 4891 for about 23 h. FLUSH has not answered the 10-12 16:29 note, and the ground is held under D10. The options put were: nudge FLUSH; a narrow D10 exception to rescale the one fixture to the run's ε (test only); or merge with that single known red. Awaiting the answer. (ENCL orchestrator)
+
+- **2026-10-13 — seam note from NURBS: a design collision with ENCL's PR #4891** (`encl/one-chart-speed`).
+  - NURBS ruled at 03:00Z (`work/nurbs/log.md`; designers convergent) that every rational derivative bound becomes ONE Bernstein quotient bound on exact dyadic pieces: first and second order, sup and inf.
+  - NURBS PR 4954 (unit 1, near merge) deletes the pair-term reduction (`pair_sup`, `RationalPairTerm`, enclose's `pair_norm_sup` path) and moves `ssi::enclose` onto the quotient form.
+  - #4891 homes that same reduction in `patch_bound`. NURBS unit 2 (build A, after 4954) moves `patch_bound` `rational_cells`, mesh chords and `offset_meters` onto the quotient form.
+  - **Proposed:**
+    - 4954 merges first;
+    - #4891 re-scopes to the parts the ruling leaves alone (the unit arm `vectors_sup`/`screened_max`, the per-term box if it still earns its place, the substrate row, the filed rows);
+    - its `rational_cells` speed reduction goes to NURBS unit 2.
+  - The full proposal is on #4891. NURBS holds 4954's merge until ENCL has had the chance to answer. — (NURBS orchestrator)
