@@ -7573,3 +7573,101 @@ mod from_computed_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)]
+mod review_5028_probes {
+    use super::{DescribedChart, JointElement, PinMiss, decide_joint};
+    fn chart(s: &Surface<f64>) -> DescribedChart<'_, f64> {
+        DescribedChart::of(s).unwrap()
+    }
+    use geom::Surface;
+    use geom_brep::Pcurve;
+    use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn read(out: Result<JointElement, PinMiss>) -> String {
+        match out {
+            Ok(JointElement::Shift(d)) => format!("Shift u={} v={} twin={}", d.u, d.v, d.twin),
+            Ok(e) => format!("{e:?}"),
+            Err(PinMiss::Discontinuity) => "Discontinuity".into(),
+            Err(PinMiss::Escalated(_)) => "Escalated".into(),
+            Err(PinMiss::OutOfReach) => "OutOfReach".into(),
+        }
+    }
+
+    fn at(s: &Surface<f64>, vertex: Point3<f64>, v: f64, gap: f64) -> String {
+        let zero = Vec2::new(0.0, 0.0);
+        let image = Pcurve::Harmonic {
+            p0: Point2::new(0.0, v),
+            pa: zero,
+            pb: zero,
+            pl: zero,
+        };
+        read(decide_joint(
+            chart(s),
+            &image,
+            0.0,
+            Point2::new(gap, v),
+            vertex,
+            Some(core::f64::consts::TAU),
+            band(),
+        ))
+    }
+
+    /// Claim 2: a whole turn plus δ at a band-sized lever, δ·ℓ swept
+    /// across ε. Claim 3: levers where several offsets close.
+    #[test]
+    fn probe_non_exact_whole_turn() {
+        let tau = core::f64::consts::TAU;
+        let eps = band().zero();
+        let alpha = 0.01f64;
+        let cone: Surface<f64> = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for dm in [2.0, 3.0, 5.0, 10.0, 30.0] {
+            let d = dm * band().escalate();
+            let lever = d * alpha.sin();
+            let vertex = Point3::new(lever, 0.0, d * alpha.cos());
+            for k in [-0.01, 0.0, 0.3, 0.9, 1.1, 2.0, 5.0, 20.0, -0.9, -1.1, -5.0] {
+                let delta = k * eps / lever;
+                for base in [tau, -tau, 0.0, 0.5 * tau, 2.0 * tau] {
+                    let gap = base + delta;
+                    eprintln!(
+                        "cone d={dm}·esc lever/eps={:.3} base={:.3}τ δ·ℓ={k}ε -> {}",
+                        lever / eps,
+                        base / tau,
+                        at(&cone, vertex, d, gap)
+                    );
+                }
+            }
+        }
+        let sphere: Surface<f64> = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for lm in [0.05, 0.15, 0.25, 0.5, 1.0, 3.0, 5.0] {
+            let lever = lm * eps;
+            let z = (4.0 - lever * lever).sqrt();
+            let p = Point3::new(lever, 0.0, z);
+            let v = (z / 2.0).asin();
+            for base in [0.0, 0.5, -0.5, 1.0, -1.0, 1.5, -1.5] {
+                for k in [0.0, 0.5, 2.0] {
+                    let gap = base * tau + k * eps / lever;
+                    eprintln!(
+                        "sphere lever={lm}ε base={base}τ δ·ℓ={k}ε -> {}",
+                        at(&sphere, p, v, gap)
+                    );
+                }
+            }
+        }
+    }
+}
