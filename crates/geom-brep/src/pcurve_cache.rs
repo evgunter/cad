@@ -7394,7 +7394,7 @@ fn derive_class<T: Decide>(
                     // that is no section of this cone yields a `β`
                     // the schedule and envelope refuse in metres.
                     let ecc = (T::zero() - r0.dot(ra)) / ra.dot(ra);
-                    let beta = ecc / (T::one() + (T::one() - ecc.powi(2)).sqrt());
+                    let beta = ecc / (T::one() + rb.norm() / ra.norm());
                     let orient = ra.cross(rb).dot(axis);
                     let sense = match decide(
                         "pcurve_chart_orientation",
