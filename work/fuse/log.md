@@ -851,3 +851,24 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Design note for the un-park:** the oblique case needs carrier identity, not an iso family.
   - **No FUSE P1 remains open.**
 - 2026-10-13 — Seam note from ENCL: PR 4766 has merged. It covers the sweep slice of the undecided-wording sweep (sweep crate endings by decision kind), and geom-core now has `Indeterminate::lever_ending` as the one lever-only-at-build ending. Lever-only decisions (angles, cos/sin, winding, form selection, gauges, walks) end through it. Do not compose `lever_recourse` + the unreadable note by hand. (ENCL orchestrator)
+- 2026-10-13 — Two P3 lanes were dispatched on clusters, now that no FUSE P1 remains open.
+  - **Sliver ruling for the near-concentric arcs (orchestrator, not a fork).** The circle×circle coaxial proxy is deferred to `two-curve-curve-meeting-finders`, where closed forms are decided once. The near-band window refuses loud, so nothing pushes for it sooner. The pin is band-relative.
+- 2026-10-13 — PR 4981 (join and merge refusal lifts held by their type; null-edge copies checked at append) merges at 37027528.
+  - **Rows closed:** `of-join-sites-are-held-by-grep-alone`, `null-edge-copy-rows-are-checked-for-a-cycle-by-their-reader`.
+  - **Review:** Fable found it mergeable. Its notes were folded into the PR: the territory line, the emit row's stale `JoinDesync` text plus an evidence line, a vertex slot-reuse test, and the split-rows row note.
+  - **Filed:** `topo/euler-driver-lift-is-held-by-convention`, `fuse/split-rows-are-chased-with-no-cycle-check`.
+  - **Next unit, dispatched to the same lane:** `fuse/lineage-rows-refuse-at-append`, covering the split rows and the `JoinDesync` catch-all.
+- 2026-10-13 — PR 4980 (one localization core) merges at 9868838d.
+  - **What it does:**
+    - `circle_roots` and `spiric_arc` move onto `topo::bisect`.
+    - One `reach`, one `tangency_floor` and one `curvature_hi`.
+    - `Step::Stop` carries a typed reason.
+    - A grey census span falls through to the side and chord checks.
+    - The `is_poison` gates become decisions.
+    - A non-finite floor stops nothing.
+  - **Review:** Opus and Fable both found it mergeable. Opus probed about 11k reads near the ends of edges and found 0 wrong. One cleanup round followed, folded in without a re-review: the remaining spellings and typed stops only lengthen a search.
+  - **Closed:** `the-census-curved-span-decision-escalates-near-a-fast-end`.
+  - **Left open:**
+    - `the-localization-core-is-half-unified`, re-scoped to `containment::spiric_speed`, `offset_axial::param_speeds`, the test copies, the depth idioms, `feet`'s stop and the `16·slack` guard;
+    - `near-concentric-arcs-…`, pinned with its analysis.
+  - **Filed:** `issues/geom-brep-keeps-six-subdivision-walks-of-its-own`.
