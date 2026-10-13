@@ -115,6 +115,47 @@ both ways against `src`; a name with no row names its hole at both.
   arrival and continuation arms' "widen the input tolerance (K·ε)"
   against their rows' kinds.
 
+**Done: the editor-core slice, in PR 4811.** `NodeErrorKind::Escalated`,
+`NamingError::Escalated` and `SelectRefusal::InBand` render through
+`Indeterminate::undecided`. Their ending comes from `decision::Decision`,
+a closed enum declared from one table of name and kind. The evaluation's
+escalations are built from a `Decision`, and a name with no row ends
+sized plus `geom_core::MissingRecourse`. Lever: `eval_direction_norm` (a
+gauge), the angles, and `name_frag_order_along` (a curve parameter).
+Sized: the pattern spacing, naming's three distances and
+`sel_datum_distance`. The lever ending is composed through
+`geom_brep::recourse::LeverOnly`; it moves to
+`Indeterminate::lever_ending` once PR 4766 lands.
+
+- Skipped, held under D10. Each keeps its old sentence through a held
+  arm at its door, pinned through that door:
+  - measure: `NodeErrorKind::MeasureEscalated`, for distance and gap on
+    `bool_plane_parallel` and `carrier_cyl_axis_parallel`; also
+    `measure.rs`'s assertion verdict;
+  - placement: `NodeErrorKind::PlacementAxisEscalated`, which
+    `EditError::PlacementAxis` carries;
+  - pose and datum: `NodeErrorKind::PoseDirectionEscalated`, covering
+    `DirectionRefusal::node_error` (datum axes, normals and frames, and
+    the sketch `FrameDirection` that carries it) and `wire/pose.rs`'s
+    `degenerate`. Until the hold lifts, `datum_unit_norm` and
+    `eval_direction_norm`, the same arithmetic, end two ways: held at
+    the pose ground, the lever alone at the evaluation;
+  - `mate.rs`: `MateError::Indeterminate`, and `MateCheck`'s "could not
+    be decided".
+- Left:
+  - `checks.rs` `CheckEvidence::Escalated` ("the component count is
+    unknowable: {shell payload}"), a consequence ahead of the question;
+  - the placement route compares the user-facing role word
+    (`role == PLACEMENT_AXIS_ROLE` in `eval/wire.rs` `unit`), and becomes
+    a typed route from `placement.rs` when D10 lifts;
+  - the naming door is fed `&str` through `emit_topo`'s `Segment`
+    methods, so its census reads the naming word table: a new unworded
+    naming predicate renders the missing-recourse note, but nothing goes
+    red;
+  - `placement.rs`'s `# Errors` doc for `Frame::rotate_then_translate`
+    still names `NodeErrorKind::Escalated`, in a held file;
+  - `DECISION_PHRASES` keeps "too close to call" for the held sites.
+
 ## Repair shape
 
 One crate per PR, re-baselining the texts each moves; drop

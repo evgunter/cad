@@ -234,9 +234,28 @@ fn log(ev: &Evaluation<f64>, mate: RecipeNodeId) -> Vec<geom_core::k_stats::Verd
 }
 
 /// The decisions over one mate's two authored sides — each a part base
-/// with one literal step, whose composed axis the solve re-mints — the
-/// first thing the solve decides about a mate's own datum.
-const OWN_FRAMES: [&str; 2] = ["mate_frame_offset_axis", "mate_frame_offset_axis"];
+/// with one literal step, admitted at the decided rigidity door (seven
+/// margins; the translation's finiteness is not a decision) before the
+/// solve re-mints the composed axis — the first thing the solve decides
+/// about a mate's own datum.
+const OWN_FRAMES: [&str; 16] = [
+    "transform_rigid_col0_unit",
+    "transform_rigid_col1_unit",
+    "transform_rigid_col2_unit",
+    "transform_rigid_col01_orth",
+    "transform_rigid_col12_orth",
+    "transform_rigid_col02_orth",
+    "transform_rigid_det_plus_one",
+    "mate_frame_offset_axis",
+    "transform_rigid_col0_unit",
+    "transform_rigid_col1_unit",
+    "transform_rigid_col2_unit",
+    "transform_rigid_col01_orth",
+    "transform_rigid_col12_orth",
+    "transform_rigid_col02_orth",
+    "transform_rigid_det_plus_one",
+    "mate_frame_offset_axis",
+];
 
 // ---- one home per decision ----
 

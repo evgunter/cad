@@ -271,7 +271,7 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
     assert_eq!(
         format!("{:?}", cert.certificate()),
         "PcurveCertificate { samples: 9, max_residual: 0.0, envelope: 0.0, statement: \
-         MapResidualIsoHull, ssi: None }",
+         MapResidualIsoHull }",
         "the carrier is the reversed chart's column run back, exactly"
     );
     println!(

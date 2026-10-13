@@ -202,7 +202,7 @@ fn an_x_bar_sunk_into_either_cap_answers_its_closed_form() {
 
 /// The rigid motion taking the cube `[0, l]³`'s corner at the origin to
 /// `p`, its main diagonal to `diag`, spun `spin` about it.
-fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> AtRestBody<f64> {
+pub(crate) fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let u1 = Vec3::new(1.0, 1.0, 1.0).normalize();
     let u2 = Vec3::new(1.0, -1.0, 0.0).normalize();
@@ -218,8 +218,12 @@ fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> AtRestBody<f64
     };
     let m = Mat3::from_cols(col(0), col(1), col(2));
     let cube = brick((0.0, l), (0.0, l), (0.0, l), tol);
-    let cube = topo::transform_rigid(&cube, &Affine3::from_parts(m, p - Point3::origin()), tol)
-        .expect("the cube moves");
+    let cube = topo::transform_rigid(
+        &cube,
+        &geom_core::test_support::rigid(&Affine3::from_parts(m, p - Point3::origin()), tol),
+        tol,
+    )
+    .expect("the cube moves");
     finished("the cube", cube, tol)
 }
 

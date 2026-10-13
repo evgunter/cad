@@ -13,25 +13,34 @@ use common::{brick, finished};
 use geom_core::Tol;
 use topo::{Body, BooleanBody, BooleanResult, Cell, EdgeKey, FaceKey, VertexKey, subtract};
 
-/// A settled stretch: the result edge and the faces on its two sides.
-pub(crate) type Stretch = Option<(EdgeKey, [FaceKey; 2])>;
+/// A settled stretch: each result edge it lies along, with the faces on
+/// the edge's two sides; empty for a stretch whose ends fused, or lie
+/// inside a merged face, or that no live edge joins. An end the zip split
+/// per cone lies at each of its copies (`Settler::settle_cones`), and the
+/// stretch is read between every pair of copies, as `borders.rs` reads
+/// it: each edge found lies along the stretch's locus, so the discard's
+/// region meets it.
+pub(crate) type Stretch = Vec<(EdgeKey, [FaceKey; 2])>;
 
-/// The result edge each discard's bordered stretch settles onto, and the
-/// kept faces on either side of it; `None` for a stretch whose ends
-/// fused, or lie inside a merged face, or that no live edge joins.
+/// The result edges each discard's bordered stretch settles onto, and
+/// the kept faces on either side of each.
 pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
     let body: &Body<f64> = &out.body;
     let settler = out.naming.settler(body);
-    let settle = |v: VertexKey| settler.settle(v).expect("every end settles on a live cell");
+    let settle = |v: VertexKey| {
+        settler
+            .settle_cones(v)
+            .expect("every end settles on a live cell")
+    };
     let face_of = |he| body.face_of_half_edge(he).unwrap();
-    let mut by_ends: BTreeMap<(VertexKey, VertexKey), (EdgeKey, [FaceKey; 2])> = BTreeMap::new();
+    let mut by_ends: BTreeMap<(VertexKey, VertexKey), Stretch> = BTreeMap::new();
     for (k, e) in body.edges() {
         let s = body.get_half_edge(e.he_plus).unwrap().start;
         let t = body.half_edge_end(e.he_plus).unwrap();
-        by_ends.insert(
-            (s.min(t), s.max(t)),
-            (k, [face_of(e.he_plus), face_of(e.he_minus)]),
-        );
+        by_ends
+            .entry((s.min(t), s.max(t)))
+            .or_default()
+            .push((k, [face_of(e.he_plus), face_of(e.he_minus)]));
     }
     out.naming
         .discards
@@ -40,18 +49,26 @@ pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
             d.bordered
                 .iter()
                 .map(|&(u, w)| {
-                    let (u, w) = (settle(u), settle(w));
-                    let between = match (u, w) {
-                        (Cell::Vertex(u), Cell::Vertex(w)) => by_ends.get(&(u.min(w), u.max(w))),
-                        // An end inside a joined edge or a merged face ends
-                        // no edge.
-                        _ => None,
-                    };
-                    between.copied().or_else(|| {
-                        let e = out.naming.stretch_through_joins(body, (u, w))?;
-                        let d = body.get_edge(e)?;
-                        Some((e, [face_of(d.he_plus), face_of(d.he_minus)]))
-                    })
+                    let (us, ws) = (settle(u), settle(w));
+                    let mut found = Vec::new();
+                    for (&u, &w) in us.iter().flat_map(|u| ws.iter().map(move |w| (u, w))) {
+                        let between = match (u, w) {
+                            (Cell::Vertex(u), Cell::Vertex(w)) => {
+                                by_ends.get(&(u.min(w), u.max(w)))
+                            }
+                            // An end inside a joined edge or a merged
+                            // face ends no edge.
+                            _ => None,
+                        };
+                        if let Some(es) = between {
+                            found.extend(es.iter().copied());
+                        } else if let Some(e) = out.naming.stretch_through_joins(body, (u, w))
+                            && let Some(d) = body.get_edge(e)
+                        {
+                            found.push((e, [face_of(d.he_plus), face_of(d.he_minus)]));
+                        }
+                    }
+                    found
                 })
                 .collect()
         })
@@ -77,13 +94,7 @@ fn a_through_slot_records_the_strip_it_discards_between_two_kept_pieces() {
     let BooleanResult::Body(out) = subtract(&plate, &slot, tol).expect("the slot subtracts") else {
         panic!("a slotted plate is not empty");
     };
-    let rows: BTreeMap<FaceKey, FaceKey> = out.naming.face_fragments_a.iter().copied().collect();
-    let root = |mut f: FaceKey| {
-        while let Some(&p) = rows.get(&f).filter(|p| **p != f) {
-            f = p;
-        }
-        f
-    };
+    let root = |f: FaceKey| out.naming.face_fragments_a.root(f);
     // Operand face → the result faces descending from it (A keys are
     // the result's on this path).
     let mut pieces: BTreeMap<FaceKey, BTreeSet<FaceKey>> = BTreeMap::new();
@@ -108,9 +119,13 @@ fn a_through_slot_records_the_strip_it_discards_between_two_kept_pieces() {
             continue;
         }
         for s in stretches {
-            let (e, _) =
-                s.expect("every stretch the slot's discards border settles on a live edge");
-            assert!(seams.contains(&e), "a bordered stretch is a seam edge");
+            assert!(
+                !s.is_empty(),
+                "every stretch the slot's discards border settles on a live edge"
+            );
+            for (e, _) in s {
+                assert!(seams.contains(e), "a bordered stretch is a seam edge");
+            }
         }
         let held = pieces.get(&root(d.face)).cloned().unwrap_or_default();
         let bordered: BTreeSet<FaceKey> = stretches

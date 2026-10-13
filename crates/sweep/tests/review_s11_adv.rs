@@ -19,7 +19,7 @@ use profile::RawLoop;
 use crate::common::approx::band;
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{OrthoFrame, Point2, Point3};
+use geom_core::{Point2, Point3, RigidMotion};
 use profile::{
     ArcSweep, Center, Open, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
 };
@@ -440,7 +440,7 @@ fn adv_union_with_reversed_faces_answers_exactly() {
         Point2::new(1.8, 0.5),
         Point2::new(1.2, 0.5),
     ]);
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, 0.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(0.0, 0.0, 0.0)));
     let vp = Profile::new(plane, vec![sq])
         .validate(Tol::witness())
         .unwrap();

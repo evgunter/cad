@@ -150,7 +150,7 @@
 use core::f64::consts::PI;
 use pncad::document::ExtrudeSide;
 
-use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Vec2, Vec3};
+use pncad::geom_core::{Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::BlendError;
@@ -158,9 +158,7 @@ use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
-use pncad::topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand, TransformError,
-};
+use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand};
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
 use crate::scalar::{Scalar, authored_frame, axis_frame, sketch_frame};
@@ -2238,9 +2236,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    the roots certify. So the glue reaches the join, whose germ
     //    pair of the stem's weld cap against the arch's wall (plane ×
     //    torus, the arch's rim lying in the cap) takes the plane × wall
-    //    arm and stops at the cap's chord, whose guard has no torus
-    //    partner: the join refuses dividing a plane against a torus,
-    //    which only the arch carries, so the plane is the stem's cap.
+    //    arm and its chord, an arc of the arch's meridian circle. Past
+    //    the join, the section certificate's interior-loop guard refuses
+    //    the stem's tube wall against the arch's: two tori with parallel
+    //    axes apart, which it has no arm for.
     wall(
         1,
         "glue the two stem arcs into one stem (coincident-planar mate)",
@@ -2248,11 +2247,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::Join(pncad::topo::SplitJoinError::SectionUnarmed {
-                    divided: pncad::geom::SurfaceKind::Plane,
-                    wall: pncad::geom::SurfaceKind::Torus,
+                BooleanError::CurvedPairUnsupported {
+                    site: pncad::topo::PairRefusalSite::InteriorLoopGuard,
+                    kind: pncad::geom::SurfaceKind::Torus,
+                    other_kind: pncad::geom::SurfaceKind::Torus,
                     ..
-                })
+                }
             )
         },
         "make the stem a single body — and close #968, whose whole content this is",
@@ -2301,7 +2301,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    extrusion is deferred past M2. The probe pins that door, not
     //    the out-of-plane blade, which the scene above builds live.
     let leafp = {
-        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)));
+        let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, 0.0)));
         // Algebra-authored (LIB-G1): via-point arcs (see `leaf`).
         let lp = Open
             .at(p2(0.0, 0.0))
@@ -2334,8 +2334,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // 4. A bud is an OVOID, not a ball: a sphere scaled along its own
     //    axis. There is no ellipsoid surface and no non-uniform map —
-    //    `transform_rigid` is the only body map, and it decides
-    //    rigidity rather than trusting it.
+    //    a body moves only by a `RigidMotion`, and a matrix becomes one
+    //    only through the door that decides its rigidity.
+    let band = pncad::geom_core::Band::linear(tol).expect("the run's band");
     let stretch = Affine3::from_parts(
         Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.6)),
         v3(0.0, 0.0, 0.0),
@@ -2343,10 +2344,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     wall(
         4,
         "stretch a lantern into an ovoid bud (non-uniform scale)",
-        pncad::topo::transform_rigid(lant, &stretch, tol),
+        RigidMotion::check_rigid(&stretch, band)
+            .map(|stretch| pncad::topo::transform_rigid(lant, &stretch, tol)),
         // The NAMED predicate matters: a unit-norm failure on the
         // scaled column, not a determinant or orthogonality failure.
-        |e| matches!(e, TransformError::NotRigid { check } if *check == "transform_rigid_col2_unit"),
+        |e| matches!(e, RigidMotionError::NotRigid { check } if *check == "transform_rigid_col2_unit"),
         "model buds as spheroids",
     );
 
@@ -2360,10 +2362,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     wall(
         5,
         "mirror a leaf across the plant's plane (improper isometry)",
-        pncad::topo::transform_rigid(by("lily_leaf_a"), &mirror, tol),
+        RigidMotion::check_rigid(&mirror, band)
+            .map(|mirror| pncad::topo::transform_rigid(by("lily_leaf_a"), &mirror, tol)),
         // A reflection's columns ARE unit and orthogonal; only the
         // determinant catches it, and that is the whole point.
-        |e| matches!(e, TransformError::NotRigid { check } if *check == "transform_rigid_det_plus_one"),
+        |e| matches!(e, RigidMotionError::NotRigid { check } if *check == "transform_rigid_det_plus_one"),
         "author leaves once and mirror them",
     );
 
@@ -4112,24 +4115,25 @@ mod verbs_gate_r1_probes {
         let glued = crate::booleans::try_union(stem, arch, tol)
             .expect_err("the stem's two arcs still cannot be glued");
         println!("lily wall 1: {glued:?}");
-        // **Wall 1 is past the gate and the crossing layer.** The
-        // circle × torus root lane certifies each seam's crossing of the
-        // other tube's carrier as lying outside that face's window, so
-        // the glue reaches the join, whose germ pair of the stem's weld
-        // cap against the arch's wall (plane × torus) takes the
-        // plane × wall arm and refuses at the cap's chord, whose guard
-        // has no torus partner: a plane divided against a torus, which
-        // only the arch carries, so the plane is the stem's cap.
+        // **Wall 1 is past the gate, the crossing layer and the
+        // join.** The circle × torus root lane certifies each seam's
+        // crossing of the other tube's carrier as lying outside that
+        // face's window, so the glue reaches the join, whose germ pair
+        // of the stem's weld cap against the arch's wall (plane × torus)
+        // takes the plane × wall arm and its chord. Past the join, the
+        // interior-loop guard refuses the stem's tube wall against the
+        // arch's, two tori with parallel axes apart.
         assert!(
             matches!(
                 glued,
-                BooleanError::Join(pncad::topo::SplitJoinError::SectionUnarmed {
-                    divided: pncad::geom::SurfaceKind::Plane,
-                    wall: pncad::geom::SurfaceKind::Torus,
+                BooleanError::CurvedPairUnsupported {
+                    site: pncad::topo::PairRefusalSite::InteriorLoopGuard,
+                    kind: pncad::geom::SurfaceKind::Torus,
+                    other_kind: pncad::geom::SurfaceKind::Torus,
                     ..
-                })
+                }
             ),
-            "wall 1 stops at the join's plane × torus chord, on the stem's cap: {glued:?}"
+            "wall 1 stops at the interior-loop guard on its two tube walls: {glued:?}"
         );
         // **The weld itself has no torus contact**, measured
         // off the two loci: the stem tube's end circle has radius

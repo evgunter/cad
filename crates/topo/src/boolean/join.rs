@@ -378,7 +378,7 @@ impl SolidJoin {
     ) -> Result<JoinPlan, BooleanError> {
         self.joiner
             .plan(body, halves, SegmentEdge::Locus(segment))
-            .map_err(BooleanError::Join)
+            .map_err(BooleanError::of_join)
     }
 
     /// The segment's curve in `lane`, from the site of the plan's first
@@ -395,7 +395,7 @@ impl SolidJoin {
         let curve = self
             .joiner
             .segment_curve(body, plan, lane, leave)
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
         curve.ok_or(BooleanError::Join(SplitJoinError::SectionInvariant {
             face: plan.face(),
             what: "both chords of a matched segment are its own edge (a loop holding both \
@@ -481,7 +481,7 @@ impl SolidJoin {
         let minted = self
             .joiner
             .join(body, plan, curve, tol)
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
         if let Some(edge) = segment {
             self.along
                 .extend(minted.into_iter().map(|chord| (edge, chord)));
@@ -901,8 +901,12 @@ pub(super) fn segment_sites(
 /// arena, B rows in the B-clone arena pre-graft).
 pub(super) struct Connected {
     pub completed: Vec<CompletedPolygonPair>,
-    pub a_fragments: Vec<(FaceKey, FaceKey)>,
-    pub b_fragments: Vec<(FaceKey, FaceKey)>,
+    pub a_fragments: crate::lineage::FaceDivisions,
+    pub b_fragments: crate::lineage::FaceDivisions,
+    /// Each operand's faces the join killed, `(killed face, face holding
+    /// its region)` in that operand's clone keys, A's then B's
+    /// (`ChordJoiner::take_absorbed`).
+    pub absorbed: [crate::lineage::Substitutions<FaceKey>; 2],
     /// Each operand's chords along its own edges, `(edge, chord)` in
     /// that operand's clone keys, A's then B's: every chord a segment
     /// whose locus on that operand is an edge minted runs along that
@@ -935,7 +939,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // Still-loose halves (choose_roles' separation constraint —
         // a role order must not wall a pending half off from its match
         // partner). The chosen halves themselves are being consumed.
-        let (mut a_loose, mut b_loose) = loose_partners(&open, red, &sa.sides, &sb.sides, band)?;
+        let (mut a_loose, mut b_loose) =
+            loose_partners(&open, &segments, red, &sa.sides, &sb.sides, band)?;
         a_loose.remove(ea);
         a_loose.remove(ra);
         b_loose.remove(eb);
@@ -1040,7 +1045,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             };
             let face = match crate::chord_join::he_face(body, he) {
                 Ok(face) => face,
-                Err(e) => return BooleanError::Join(e),
+                Err(e) => return BooleanError::of_join(e),
             };
             match body
                 .get_face(face)
@@ -1177,10 +1182,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         );
         sa.joiner
             .place_pending(&mut red.a, (ea, ra))
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
         sb.joiner
             .place_pending(&mut red.b, (eb, rb))
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
         let a_lane = choose_roles(&red.a, (ea, ra), &a_loose, seg_a, a_closure, band)
             .map_err(|e| pinch_ray_refusal(e, red, Operand::A, (ea, ra)))?;
         let b_lane = choose_roles(&red.b, (eb, rb), &b_loose, seg_b, b_closure, band)
@@ -1412,12 +1417,13 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     }
     // A pierce ring deferred at a pinch is placed by the join that
     // reaches it; one still pending after every join has run never was.
-    sa.joiner.finish(&red.a).map_err(BooleanError::Join)?;
-    sb.joiner.finish(&red.b).map_err(BooleanError::Join)?;
+    sa.joiner.finish(&red.a).map_err(BooleanError::of_join)?;
+    sb.joiner.finish(&red.b).map_err(BooleanError::of_join)?;
     Ok(Connected {
         completed,
         a_fragments: sa.joiner.take_fragments(),
         b_fragments: sb.joiner.take_fragments(),
+        absorbed: [sa.joiner.take_absorbed(), sb.joiner.take_absorbed()],
         along: [sa.along, sb.along],
     })
 }
@@ -1946,17 +1952,17 @@ fn first_pair<T: Decide>(
     Ok(best.map(|(_, m)| m))
 }
 
-/// **Whether two unused germ slots are match partners** — the one
-/// criterion [`find_match`] pairs on and [`loose_partners`] counts
-/// partners with, so the separation constraint sees the partners the
-/// matcher will take: the A germs carry the SAME loci, each `OnEdge`
-/// locus at its own site ([`locus_at_site`]); the two halves' senses
-/// oppose in A; the sites are distinct (`bool_join_chord`) and FACE
-/// each other along the germ line (the locus-aware facing); and the B
-/// germs at the same slots mirror them — same loci, opposed senses —
-/// or the join has desynced. `Some(reach)` when they are partners — how
-/// far the partner is along the germ's line ([`Reach`]). Two slots
-/// of one record never are.
+/// **Whether two unused germ slots are match partners** — the
+/// criterion [`find_match`] pairs on, and the one [`loose_partners`]
+/// pairs two records' halves by, so the separation constraint sees the
+/// partners the matcher will take: the A germs carry the SAME loci,
+/// each `OnEdge` locus at its own site ([`locus_at_site`]); the two
+/// halves' senses oppose in A; the sites are distinct
+/// (`bool_join_chord`) and FACE each other along the germ line (the
+/// locus-aware facing); and the B germs at the same slots mirror them —
+/// same loci, opposed senses — or the join has desynced. `Some(reach)`
+/// when they are partners — how far the partner is along the germ's
+/// line ([`Reach`]). Two slots of one record never are.
 fn partners<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
@@ -3227,12 +3233,18 @@ fn pt_germ_frame<T: Decide>(
         }),
         _ => Err(carried()),
     };
-    let two = |loops, split| Ok(Some(SectionLoops::Two { loops, split }));
-    match geom_brep::plane_torus_section(plane, torus, lever, band) {
+    let section = geom_brep::plane_torus_section(plane, torus, lever, band);
+    let split = section
+        .as_ref()
+        .ok()
+        .and_then(|s| LoopSplit::plane_torus(s, (c, a, big_r), n));
+    let two = |loops| match split {
+        Some(split) => Ok(Some(SectionLoops::Two { loops, split })),
+        None => Err(carried()),
+    };
+    match section {
         Ok(geom_brep::PlaneTorusSection::MeridianCircles { c1, c2 }) => {
-            let loops = [circle(c1)?, circle(c2)?];
-            let dir = (loops[0].center - c).normalize();
-            two(loops, LoopSplit::Side { origin: c, dir })
+            two([circle(c1)?, circle(c2)?])
         }
         Ok(geom_brep::PlaneTorusSection::SpiricOvals { s1, s2 }) => {
             let oval = |curve: geom::Curve3<T>| match curve {
@@ -3265,17 +3277,11 @@ fn pt_germ_frame<T: Decide>(
                 }
                 _ => Err(carried()),
             };
-            let dir = a.cross(n).normalize();
-            two([oval(s1)?, oval(s2)?], LoopSplit::Side { origin: c, dir })
+            two([oval(s1)?, oval(s2)?])
         }
-        Ok(geom_brep::PlaneTorusSection::ConcentricCircles { c1, c2 }) => two(
-            [circle(c1)?, circle(c2)?],
-            LoopSplit::Radius {
-                origin: c,
-                axis: a.normalize(),
-                radius: big_r,
-            },
-        ),
+        Ok(geom_brep::PlaneTorusSection::ConcentricCircles { c1, c2 }) => {
+            two([circle(c1)?, circle(c2)?])
+        }
         Ok(
             geom_brep::PlaneTorusSection::TangentCircle(_) | geom_brep::PlaneTorusSection::Empty,
         ) => Err(FrameError::Desync(
@@ -3619,11 +3625,14 @@ type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
 /// static in the germ geometry, which [`capture_rank`] reads to rank
 /// what a chord arc captures. Germ meta is shared between the solids,
 /// so the (record, slot) partner relation is computed once (A-clone
-/// points — coincident copies) and translated per solid. A loose half
-/// with no partner maps to `None` (conservatively separated wherever
-/// captured).
+/// points — coincident copies) and translated per solid. A one-site
+/// loop's two halves, which [`partners`] never pairs (they are one
+/// record's), are each other's: its segment ([`wrap_site_segments`])
+/// runs from one round the loop to the other. A loose half with no
+/// partner maps to `None` (conservatively separated wherever captured).
 fn loose_partners<T: Decide>(
     open: &[OpenRecord<T>],
+    segments: &[SectionSegment<T>],
     red: &BooleanReduction<T>,
     sa: &Sides,
     sb: &Sides,
@@ -3639,9 +3648,9 @@ fn loose_partners<T: Decide>(
     for &(i, s) in &loose {
         let mut best: Option<(Reach<T>, (usize, usize))> = None;
         for &(j, t) in &loose {
-            // The matcher's own criterion ([`partners`]): the separation
-            // constraint must count partners with the matcher's eyes or
-            // roles get walled off wrongly.
+            // Across records, the matcher's own criterion ([`partners`]):
+            // the separation constraint must see the pairs the matcher
+            // will take, or roles get walled off wrongly.
             let Some(reach) = partners(open, red, sa, sb, (i, s), (j, t), band)? else {
                 continue;
             };
@@ -3650,6 +3659,20 @@ fn loose_partners<T: Decide>(
         let partner = best.map(|(_, jt)| jt);
         a_map.insert(open[i].a[s].0.he, partner.map(|(j, t)| open[j].a[t].0.he));
         b_map.insert(open[i].b[s].0.he, partner.map(|(j, t)| open[j].b[t].0.he));
+    }
+    for seg in segments {
+        let [(r, s), (q, t)] = seg.ends;
+        // Defence in depth, unreachable in effect: a one-site record's
+        // two slots are consumed together and `bool_connect` cuts it at
+        // once, so a consumed pair's halves are keys no live loop holds.
+        // The guard keeps the map's domain to unused halves.
+        if r != q || open[r].a[s].1 {
+            continue;
+        }
+        for (map, side) in [(&mut a_map, &open[r].a), (&mut b_map, &open[r].b)] {
+            map.insert(side[s].0.he, Some(side[t].0.he));
+            map.insert(side[t].0.he, Some(side[s].0.he));
+        }
     }
     Ok((a_map, b_map))
 }
@@ -3767,7 +3790,7 @@ fn choose_roles<T: Decide>(
         let sites = |order| {
             JoinPlan::of(body, order, SegmentEdge::Locus(segment), band)
                 .map(|plan| plan.sites())
-                .map_err(BooleanError::Join)
+                .map_err(BooleanError::of_join)
         };
         let across = match (sites((x, y))?, sites((y, x))?) {
             ((Some(a), None), (None, Some(b))) if a == b => true,
@@ -3910,11 +3933,11 @@ fn ring_run_ccw<T: Decide>(
         IslandClosing::Wall(section) => {
             let wound =
                 crate::chord_join::chart_island_winding(body, face, (h1, h2), section, band)
-                    .map_err(BooleanError::Join)?;
+                    .map_err(BooleanError::of_join)?;
             return ring_winding_order(wound);
         }
         IslandClosing::Quadric(curve) => {
-            let closing = curve.run_closing(h1, face).map_err(BooleanError::Join)?;
+            let closing = curve.run_closing(h1, face).map_err(BooleanError::of_join)?;
             let wound = crate::chord_join::path_island_winding(
                 body,
                 face,
@@ -3922,12 +3945,12 @@ fn ring_run_ccw<T: Decide>(
                 closing.as_ref(),
                 band,
             )
-            .map_err(BooleanError::Join)?;
+            .map_err(BooleanError::of_join)?;
             return ring_winding_order(wound);
         }
         IslandClosing::Planar(normal, curve) => (normal, curve),
     };
-    let closing = curve.run_closing(h1, face).map_err(BooleanError::Join)?;
+    let closing = curve.run_closing(h1, face).map_err(BooleanError::of_join)?;
     let wound = body
         .planar_run_winding_decided((h1, h2), RunClosing::of(closing.as_ref()), normal, band)
         .map_err(|RunMissesEnd| desync("ring-run arc did not close"))?
@@ -4128,11 +4151,11 @@ fn cut_pair<T: Decide>(
     let a_out = sa
         .joiner
         .cut_core(&mut red.a, a_edge, tol)
-        .map_err(BooleanError::Join)?;
+        .map_err(BooleanError::of_join)?;
     let b_out = sb
         .joiner
         .cut_core(&mut red.b, b_edge, tol)
-        .map_err(BooleanError::Join)?;
+        .map_err(BooleanError::of_join)?;
     match (a_out, b_out) {
         (CutOutcome::Merged, CutOutcome::Merged) => Ok(()),
         (
@@ -5198,6 +5221,7 @@ mod frame_dispatch_tests {
             let head = match wall_section(&body, b, through, unit_normal, face, corner) {
                 Ok(Some(WallSection { case, .. })) => match case {
                     SectionCase::Conic(_) => "conic",
+                    SectionCase::Loops { .. } => "loops",
                     SectionCase::Straight(_) => "lines",
                     SectionCase::Tangent(_) => "tangent",
                 },

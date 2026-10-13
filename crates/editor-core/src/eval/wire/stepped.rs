@@ -6,9 +6,10 @@
 //! evaluation (`stepped_map`) and the mate solve's derived offset both
 //! call them, so one value refuses on both roads.
 
-use geom_core::{Affine3, Band, Decide, Point3, Sign, UnitVec3, Vec3};
+use geom_core::{Band, Decide, Point3, RigidMotion, Sign, UnitVec3, Vec3};
 
 use super::{PATTERN_DIRECTION_ROLE, escalated, turns_off, unit};
+use crate::decision::Decision;
 use crate::eval::{NodeErrorKind, StepTurns};
 use crate::formula::Formula;
 
@@ -71,7 +72,7 @@ impl<T: Decide> SteppedOperands<T> {
             geom_core::Margin::of(spacing),
             band,
         )
-        .map_err(escalated(PATTERN_SPACING))?;
+        .map_err(escalated(Decision::PatternSpacing))?;
         match decided.sign {
             Sign::Positive => Ok(Self(Rule::Linear {
                 direction: unit_dir,
@@ -100,13 +101,13 @@ impl<T: Decide> SteppedOperands<T> {
         band: Band,
     ) -> Result<Self, NodeErrorKind> {
         let seen = geom_core::k_stats::decide_flagged_reported(PATTERN_STEP, step, band, "F14")
-            .map_err(escalated(PATTERN_STEP))?;
+            .map_err(escalated(Decision::PatternStep))?;
         let positive = match seen.sign {
             Sign::Zero => return Err(NodeErrorKind::DegenerateStep),
             Sign::Positive => true,
             Sign::Negative => false,
         };
-        let turns = match turns_off(PATTERN_STEP_TURN, step, T::tau(), band)? {
+        let turns = match turns_off(Decision::PatternStepTurn, step, T::tau(), band)? {
             Sign::Negative => return Ok(Self(Rule::Circular { origin, dir, step })),
             Sign::Zero => StepTurns::Whole,
             Sign::Positive => match turns_held(step, band)? {
@@ -139,7 +140,7 @@ enum Held {
 fn turns_held<T: Decide>(step: T, band: Band) -> Result<Held, NodeErrorKind> {
     let off = |k: u64| {
         let whole = T::tau() * T::from_f64(k as f64);
-        turns_off(PATTERN_STEP_TURN, step, whole, band)
+        turns_off(Decision::PatternStepTurn, step, whole, band)
     };
     let (mut below, mut above) = (1, 2);
     loop {
@@ -205,22 +206,32 @@ fn negated(authored: &Formula) -> Option<Formula> {
     .ok()
 }
 
-/// The rigid map of placement `i ≥ 1` under a STEPPED rule (linear or
-/// circular) — **the one home of the stepped placement rule's math**,
-/// read by both placement-rule nodes (through `stepped_map`) and by
-/// the mate solve's derived offset, so all three derive the same map
-/// bit for bit. Placement 0 is the identity and reads no operand, so
-/// no caller asks this for it. `i as f64` is exact up to 2^53.
-pub(crate) fn stepped_rule_map<T: Decide>(ops: &SteppedOperands<T>, i: i64) -> Affine3<T> {
+/// The rigid motion of placement `i ≥ 1` under a STEPPED rule (linear
+/// or circular), minted by construction — **the one home of the stepped
+/// placement rule's math**, read by both placement-rule nodes (through
+/// `stepped_map`) and by the mate solve's derived offset, so all three
+/// derive the same map bit for bit. Placement 0 is the identity and
+/// reads no operand, so no caller asks this for it. `i as f64` is exact
+/// up to 2^53.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::Motion`] for a step whose translation or angle is
+/// not a finite number.
+pub(crate) fn stepped_rule_map<T: Decide>(
+    ops: &SteppedOperands<T>,
+    i: i64,
+) -> Result<RigidMotion<T>, NodeErrorKind> {
     let step = T::from_f64(i as f64);
     match &ops.0 {
         Rule::Linear { direction, spacing } => {
-            Affine3::translation(direction.get() * (*spacing * step))
+            RigidMotion::translation(direction.get() * (*spacing * step))
         }
         Rule::Circular {
             origin,
             dir,
             step: angle,
-        } => Affine3::rotation_about_axis(*origin, dir.get(), *angle * step),
+        } => RigidMotion::rotation_about_axis(*origin, *dir, *angle * step),
     }
+    .map_err(NodeErrorKind::Motion)
 }

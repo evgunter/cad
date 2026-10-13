@@ -319,6 +319,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
     );
     // The retired set, as a lookup: a key the fillet RETIRED can never
     // be a survivor, whatever its arena says.
+    let retired_f: BTreeSet<FaceKey> = rec.dead.faces.iter().copied().collect();
     let retired_e: BTreeSet<EdgeKey> = rec.dead.edges.iter().copied().collect();
     let retired_v: BTreeSet<VertexKey> = rec.dead.vertices.iter().copied().collect();
     for (kind, key) in rows {
@@ -334,10 +335,8 @@ pub(super) fn name_blend<T: geom_core::Real>(
                 let dead = match key {
                     EntityKey::Edge(k) => retired_e.contains(&k),
                     EntityKey::Vertex(k) => retired_v.contains(&k),
-                    // `Retired` carries no face channel — its doc
-                    // (`sweep::blend::naming::Retired`) states why —
-                    // so a face key here is a real survivor.
-                    EntityKey::Face(_) | EntityKey::Body => false,
+                    EntityKey::Face(k) => retired_f.contains(&k),
+                    EntityKey::Body => false,
                 };
                 if dead {
                     return Err(NamingError::Emission {
@@ -376,7 +375,7 @@ mod tie_tests {
 
     use std::sync::Arc;
 
-    use geom_core::{OrthoFrame, Point2, Tol};
+    use geom_core::{Point2, RigidMotion, Tol};
     use topo::Body;
 
     use super::*;
@@ -386,7 +385,7 @@ mod tie_tests {
 
     /// A unit cube and the extrude table that names it.
     fn cube() -> (Body<f64>, Arc<NameTable>) {
-        let plane = profile::SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
+        let plane = profile::SketchPlane::from_frame(RigidMotion::axes_xy(geom_core::Point3::new(
             0.0, 0.0, 0.0,
         )));
         let square = profile::ProfileLoop::polygon(

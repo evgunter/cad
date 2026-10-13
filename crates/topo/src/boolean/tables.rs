@@ -143,18 +143,15 @@ pub fn table_iii_rule(op: BooleanOp, comparison: Operand, relation: PlaneRelatio
     eq15_3_lump(op, comparison, relation) == SideCode::Out
 }
 
-/// Resolves a Table II verdict cell to a concrete intersect decision.
-pub fn resolve_verdict(
-    v: TableIiVerdict,
-    op: BooleanOp,
-    comparison: Operand,
-    relation: PlaneRelation,
-) -> bool {
+/// Resolves a Table II verdict cell to a concrete intersect decision,
+/// given Table III's rule for the cell's on-sector: whether it lumps
+/// `Out` ([`table_iii_rule`] for a coincident pair).
+pub fn resolve_verdict(v: TableIiVerdict, lumps_out: bool) -> bool {
     match v {
         TableIiVerdict::No => false,
         TableIiVerdict::Yes => true,
-        TableIiVerdict::Rule => table_iii_rule(op, comparison, relation),
-        TableIiVerdict::NotRule => !table_iii_rule(op, comparison, relation),
+        TableIiVerdict::Rule => lumps_out,
+        TableIiVerdict::NotRule => !lumps_out,
     }
 }
 
@@ -257,8 +254,8 @@ mod tests {
     #[test]
     fn tog_fig18_worked_example() {
         let (r1, _) = table_ii(In, On);
-        assert!(resolve_verdict(r1, Union, A, Plus));
+        assert!(resolve_verdict(r1, table_iii_rule(Union, A, Plus)));
         let (r1, _) = table_ii(Out, On);
-        assert!(resolve_verdict(r1, Union, B, Plus));
+        assert!(resolve_verdict(r1, table_iii_rule(Union, B, Plus)));
     }
 }

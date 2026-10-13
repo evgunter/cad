@@ -345,22 +345,27 @@ fn a_cell_reached_from_both_sides_cites_its_shortest_chain() {
 /// carried vertex-on-face row loses its citation or is re-decided.
 #[test]
 fn a_carried_vertex_on_face_record_cites_its_operands_record() {
-    use geom_core::{Affine3, Point3, Vec3};
+    use geom_core::{Band, Point3, RigidMotion, UnitVec3, Vec3};
     let a = box_of((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), "a");
     let cube = brick((-0.5, 0.5), (-0.5, 0.5), (-0.5, 0.5), tol());
     // The corner (−½, −½, −½) turned to point straight down.
-    let turn = Affine3::rotation_about_axis(
+    let band = Band::linear(tol()).expect("the run's band");
+    let axis =
+        UnitVec3::new(Vec3::new(1.0, -1.0, 0.0), "test_turn_axis", band).expect("a definite axis");
+    let turn = RigidMotion::rotation_about_axis(
         Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(1.0, -1.0, 0.0),
+        axis,
         (1.0_f64 / 3.0_f64.sqrt()).acos(),
-    );
+    )
+    .expect("a finite turn");
     let turned = topo::transform_rigid(&cube, &turn, tol()).expect("a rigid turn");
     let low = turned
         .vertex_points()
         .map(|(_, p)| p)
         .min_by(|p, q| p.z.total_cmp(&q.z))
         .expect("a vertex");
-    let lift = Affine3::translation(Vec3::new(0.5 - low.x, 0.5 - low.y, 1.0 - low.z));
+    let lift = RigidMotion::translation(Vec3::new(0.5 - low.x, 0.5 - low.y, 1.0 - low.z))
+        .expect("a finite lift");
     let on_corner = finished(
         "the cube on its corner",
         topo::transform_rigid(&turned, &lift, tol()).expect("a rigid lift"),

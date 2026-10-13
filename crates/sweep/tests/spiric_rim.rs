@@ -245,8 +245,14 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
         ))),
         "the cavity fails nothing but check 7: {verdict:?}"
     );
-    let posed_after = transform_rigid(&cavity, &map, tol()).expect("the cavity re-poses");
-    let posed_first = transform_rigid(&quarter, &map, tol()).expect("the operand re-poses");
+    let posed_after = transform_rigid(&cavity, &geom_core::test_support::rigid(&map, tol()), tol())
+        .expect("the cavity re-poses");
+    let posed_first = transform_rigid(
+        &quarter,
+        &geom_core::test_support::rigid(&map, tol()),
+        tol(),
+    )
+    .expect("the operand re-poses");
     let mut offset_after = posed_first.clone();
     let band = Band::linear(tol()).expect("band");
     topo::offset_charts_together(
@@ -666,9 +672,9 @@ fn the_cavity_pcurves_certify_on_both_charts() {
         "two rims, one wall side and one cap side each"
     );
     // The face's cache set is minted WHOLE: `mint_faces` answers one
-    // `UnsupportedCarrier` half-edge by leaving the entire face
-    // uncached, so a spiric with no image would cost the torus wall's
-    // two CIRCLE rims their harmonic caches too.
+    // refused half-edge by refusing the entire face, so a spiric with
+    // no image would cost the torus wall's two CIRCLE rims their
+    // harmonic caches too.
     let torus_face = cavity
         .faces()
         .find(|(_, f)| matches!(cavity.get_surface(f.surface), Some(Surface::Torus { .. })))
@@ -717,7 +723,13 @@ fn a_displaced_azimuth_constant_reds_at_every_sample() {
         major,
         minor,
         offset,
-        image: geom_brep::SpiricImage::Wall { u0, v0, sense },
+        image:
+            geom_brep::SpiricImage::Wall {
+                u0,
+                v0,
+                sense,
+                torus,
+            },
     } = stored
     else {
         panic!("the wall's image is a spiric wall image");
@@ -731,6 +743,7 @@ fn a_displaced_azimuth_constant_reds_at_every_sample() {
             u0: u0 + delta,
             v0,
             sense,
+            torus,
         },
     };
     let floor = (major - minor) * 2.0 * (delta / 2.0).sin();
@@ -1159,7 +1172,7 @@ mod interval_rows {
                     major,
                     minor,
                     offset: image_offset,
-                    image: geom_brep::SpiricImage::Wall { sense, .. },
+                    image: geom_brep::SpiricImage::Wall { sense, torus, .. },
                 } = *cache.pcurve()
                 else {
                     panic!("the wall's image is a spiric wall image");
@@ -1178,6 +1191,11 @@ mod interval_rows {
                     geom_core::Real::abs(sense).lo() == 1.0
                         && geom_core::Real::abs(sense).hi() == 1.0,
                     "the wall's sense is exactly a unit sign at the certified scalar: {sense:?}"
+                );
+                assert_eq!(
+                    torus,
+                    geom_brep::WallTorus::Own,
+                    "a rim lies on its own torus"
                 );
                 let cert = cache.certificate();
                 assert_eq!(

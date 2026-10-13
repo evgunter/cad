@@ -1,12 +1,12 @@
 ---
 id: boolean-door-runs-the-census-over-its-result
 kind: issue
-title: "The boolean door gates its result at tier 3 but not the census: a census at the door refuses 175 results on main, 38 of them curved unions whose solids the cross-solid lane cannot tell apart"
+title: The boolean door gates its result at tier 3 but not the census: a census at the door refuses 175 results on main, 38 of them curved unions whose solids the cross-solid lane cannot tell apart
 status: parked
 opened: 2026-10-03
 priority: P1
 cost: H
-blocked_on: [census-cross-solid-curved-pairs-undecidable-on-shell-results, a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms, a-two-pinch-union-ships-a-pinch-its-records-do-not-declare]
+blocked_on: [census-cross-solid-curved-pairs-undecidable-on-shell-results]
 refs: [3987, 3870]
 ---
 
@@ -105,3 +105,52 @@ those findings (`SHIPS_A_FINDING`), so a door census that refuses them
 turns that pin red, to be re-pinned at the refusal. The findings are
 FUSE's (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`,
 where the full list is).
+
+## Evidence: needles the door ships with an in-band pair since thinness is judged by pairs (FLUSH, PR 4783, 2026-10-12)
+
+Ev's ruling on PR 4690 retires the door's sole-shell `V/A` gate (PR
+4636): a result is too thin only when a pair of its cells is in band.
+The door's own build decides the pairs it makes (a slab, a hollow's
+wall or a fin below `Kε` refuses `VertexOnFace` or a loop's `Boundary`
+at margin `t`). It reads no pair the census alone reads, so results the
+retired gate refused for the wrong reason now ship, some holding such a
+pair. The FLUSH orchestrator ruled against a stop-gap (a census over
+`slivers()`-flagged results only would refuse a needle and ship a fat
+body with the same pair): this row is the fix.
+- **PR 4783's own probe**, ε 1e-9, `topo/tests/sliver_shell_role.rs`
+  `a_needle_ships_an_in_band_edge_pair_until_the_door_runs_the_census`:
+  the `notch307` piece ∩ the census witness cube (`nt e0 a3`) builds one
+  lump alone in its solid, and `validate_pseudomanifold` over its own
+  contacts escalates `pm_census_ee_span` at d = 1e-8, piece ∩ cube
+  (margin 2.31e-9), d = 1e-8, cube ∩ piece (2.76e-9 and 1.45e-9) and
+  d = 3e-8, piece ∩ cube (1.59e-9). A door census turns those rows red,
+  to be re-pinned at the refusal.
+- **R2's review**, ε 1e-9 (`crates/topo/tests/review_4783_r2_probes.rs`
+  on `flush/thinness-by-pairs-review-r2` @ ef12bed5): of a 512-op
+  notch307 family (a0–a15, d from 5e-9 to 4e-8, both orders), 14 ops
+  change; **11** now ship with `pm_census_ee_span` in band (a3 d1e-8,
+  1.5e-8, 2e-8, 2.5e-8 both orders; a3 d3e-8 piece first; a2 d3.05e-8
+  both orders), 3 ship clean. The same family already ships **44** such
+  results on base, so the class predates PR 4783.
+- **R1's review**, ε 1e-6 (the topo `review-sliver-probe` feature on
+  `flush/thinness-by-pairs-review` @ a79ba445): `rc_wide_battery` moves
+  **34** lines from `ShellRole` to built (`OK BAD … operand=false`),
+  census clean; 25 are check 10's pieces-sort class
+  (`work/flush/check-10-reads-a-cavitys-role-from-its-volume-sign.md`)
+  and 9 refuse `Containment` in the operand orientation probe
+  (`work/cleave/a-sliver-operands-orientation-falls-back-to-its-volume-where-it-has-no-planar-face.md`).
+
+## 2026-10-13: two blockers closed (FUSE, carry-rows-after-4820)
+
+FUSE closed `a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms`
+and `a-two-pinch-union-ships-a-pinch-its-records-do-not-declare` on main
+`0d2117d0`, so they are pruned from `blocked_on`. A census at the door,
+over topo/sweep/editor-core `ci`, finds no `StaleContactDeclaration`.
+Its `UnrecordedContact` findings on results that carry records are the
+operands' own contacts, which a kernel op called without
+`BooleanInputs` records does not carry in. The two rows' closing notes
+carry the measurement.
+
+## The per-record confirm folds in here (2026-10-13)
+
+Ev on `[ev]` PR 4951: confirming each record an op mints (`confirm_records` over `BooleanBody::contacts`) is not a separate door step; it comes with un-parking this gate, whose job is "escalate or not". The point-touch reading (PR 4956) has to land before this gate, so that a body C7 calls valid (the rod-on-plate union) does not refuse on a record no reading covers. (CONTACTHOLD orchestrator)

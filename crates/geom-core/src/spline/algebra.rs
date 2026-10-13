@@ -91,11 +91,17 @@ pub enum KnotAlgebraError {
         /// The requested removal count.
         requested: usize,
     },
-    /// A removal chain produced a non-positive or non-finite weight —
-    /// the candidate polygon leaves the positive-weight regime, so the
-    /// removal is refused rather than returning an invalid curve.
+    /// A plan wrote a non-positive or non-finite weight: a removal
+    /// chain left the positive-weight regime, or an insertion's or
+    /// elevation's combination of two positive weights rounded to zero
+    /// (both terms underflowing, on a net of subnormal weights). The
+    /// operation is refused rather than returning an invalid curve.
     WeightCollapse {
-        /// New-polygon index of the collapsed weight.
+        /// New-polygon index of the collapsed weight: in the polygon the
+        /// writing pass builds. For a removal that is the removal's own
+        /// polygon, or, when the bound's reinsertion
+        /// ([`remove_knot_plan`] re-inserts `u` to measure the bound) is
+        /// the writer, the reinserted polygon's slot.
         index: usize,
     },
 }
@@ -137,9 +143,9 @@ impl core::fmt::Display for KnotAlgebraError {
             ),
             KnotAlgebraError::WeightCollapse { index } => write!(
                 f,
-                "removing a knot collapsed weight {index} out of the positive regime. \
-                 Recourse: drop this removal — the curve the chain would leave is not a \
-                 valid rational one, so keep the knot"
+                "the knot operation wrote weight {index} out of the positive regime. \
+                 Recourse: drop this operation — the curve it would leave is not a \
+                 valid rational one, so keep the curve as it is"
             ),
         }
     }
@@ -518,12 +524,9 @@ pub(super) fn boehm_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> 
     Interval::between(x, y, ratio)
 }
 
-/// Validates weights against a knot vector: count, positivity,
-/// finiteness (the shared precondition of every plan constructor).
-// `!(x > 0)`-shaped guards below are deliberate: the negated form is
-// NaN-catching (`NaN > 0` is false, so NaN refuses), where `x <= 0`
-// would silently pass NaN through — the fail-loud direction.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
+/// Validates weights against a knot vector: count, then the weight
+/// regime ([`super::knots::check_weight_values`]) — the shared
+/// precondition of every plan constructor.
 fn check_weights(kv: &KnotVector, weights: &[f64]) -> Result<(), KnotAlgebraError> {
     if weights.len() != kv.control_count() {
         return Err(KnotAlgebraError::Structure(
@@ -533,20 +536,23 @@ fn check_weights(kv: &KnotVector, weights: &[f64]) -> Result<(), KnotAlgebraErro
             },
         ));
     }
-    for (index, w) in weights.iter().enumerate() {
-        if !(*w > 0.0) {
-            return Err(KnotAlgebraError::Structure(
-                SplineError::NonPositiveWeight { index, weight: *w },
-            ));
-        }
-        if !w.is_finite() {
-            return Err(KnotAlgebraError::Structure(SplineError::NonFiniteWeight {
-                index,
-                weight: *w,
-            }));
-        }
+    super::knots::check_weight_values(weights).map_err(KnotAlgebraError::Structure)
+}
+
+/// **The one admission of a weight a plan writes**: in the weight
+/// regime ([`super::knots::weight_in_regime`]), or
+/// [`KnotAlgebraError::WeightCollapse`] at its new-polygon `index`.
+/// [`check_weights`] holds a plan's INPUT to the same regime, but a
+/// combination of two admitted weights can still leave it (an
+/// insertion's convex blend rounds to zero when both terms underflow; a
+/// removal's unblend can go negative), so every writer — insertion,
+/// elevation, removal — passes what it writes through here.
+fn written_weight(index: usize, w: f64) -> Result<f64, KnotAlgebraError> {
+    if super::knots::weight_in_regime(w) {
+        Ok(w)
+    } else {
+        Err(KnotAlgebraError::WeightCollapse { index })
     }
-    Ok(())
 }
 
 /// Single knot insertion (Book §5.2, Boehm), `times`-fold: returns a
@@ -557,7 +563,9 @@ fn check_weights(kv: &KnotVector, weights: &[f64]) -> Result<(), KnotAlgebraErro
 /// # Errors
 ///
 /// [`KnotAlgebraError`] on structure mismatch, out-of-domain `u`, or
-/// multiplicity overflow. `times == 0` is a no-op (empty chain).
+/// multiplicity overflow, and [`KnotAlgebraError::WeightCollapse`] when
+/// an inserted weight rounds out of the positive regime ([`written_weight`]).
+/// `times == 0` is a no-op (empty chain).
 pub fn insert_knot_plan(
     kv: &KnotVector,
     weights: &[f64],
@@ -580,7 +588,7 @@ pub fn insert_knot_plan(
     let mut cur_kv = kv.clone();
     let mut cur_w = weights.to_vec();
     for _ in 0..times {
-        let plan = insert_once(&cur_kv, &cur_w, knot);
+        let plan = insert_once(&cur_kv, &cur_w, knot)?;
         cur_kv = plan.knots.clone();
         cur_w = plan.weights.clone();
         plans.push(plan);
@@ -593,7 +601,11 @@ pub fn insert_knot_plan(
 /// validated). `u` was minted against the chain's first vector; an
 /// insertion leaves both clamp runs alone, so it is interior to every
 /// vector of the chain.
-fn insert_once(kv: &KnotVector, weights: &[f64], knot: InteriorKnot) -> CurvePlan {
+fn insert_once(
+    kv: &KnotVector,
+    weights: &[f64],
+    knot: InteriorKnot,
+) -> Result<CurvePlan, KnotAlgebraError> {
     let p = kv.degree();
     let knots = kv.knots();
     let k = find_span_in(knots, p, knot);
@@ -629,7 +641,7 @@ fn insert_once(kv: &KnotVector, weights: &[f64], knot: InteriorKnot) -> CurvePla
     // docs.
     for j in (k - p + 1)..=(k - s) {
         let alpha = (u - knots[j]) / (knots[j + p] - knots[j]);
-        let wq = alpha * weights[j] + (1.0 - alpha) * weights[j - 1];
+        let wq = written_weight(j, alpha * weights[j] + (1.0 - alpha) * weights[j - 1])?;
         let lambda = alpha * weights[j] / wq;
         new_w[j] = wq;
         steps.push(Step::Combo {
@@ -657,11 +669,11 @@ fn insert_once(kv: &KnotVector, weights: &[f64], knot: InteriorKnot) -> CurvePla
         });
         new_w[j] = weights[j - 1];
     }
-    CurvePlan {
+    Ok(CurvePlan {
         knots: new_kv,
         weights: new_w,
         steps,
-    }
+    })
 }
 
 /// Knot refinement (Book §5.3) as a fold of single insertions in
@@ -831,25 +843,18 @@ impl RingRefinement {
         &self.knots
     }
 
-    /// The source vector's control count: the length a channel must
-    /// have.
-    #[must_use]
-    pub fn source_count(&self) -> usize {
-        self.source
-    }
-
-    /// The insertion chain, one plan per inserted point: for an applier
-    /// at another scalar (`SpanLocate::refine_homogeneous`).
-    #[must_use]
-    pub fn plans(&self) -> &[CurvePlan] {
+    /// The insertion chain, one plan per inserted point: what the
+    /// refinement tests replay plan by plan.
+    #[cfg(test)]
+    pub(crate) fn plans(&self) -> &[CurvePlan] {
         &self.plans
     }
 
     /// `channel` through every plan in order, each by
     /// [`CurvePlan::apply_certified`], so the result encloses the refined
-    /// channel of the described net. A channel that is not
-    /// [`RingRefinement::source_count`] long refuses: every entry of the
-    /// refined length is refused.
+    /// channel of the described net. A channel that is not one entry per
+    /// source control point refuses: every entry of the refined length is
+    /// refused.
     #[must_use]
     pub fn refine(&self, channel: &[Interval]) -> Vec<Interval> {
         if channel.len() != self.source {
@@ -1076,7 +1081,10 @@ pub struct RemovalStep {
 /// [`KnotAlgebraError::KnotNotPresent`] if `u` is not an interior knot
 /// (exact `f64` identity), [`KnotAlgebraError::RemovalExceedsMultiplicity`],
 /// [`KnotAlgebraError::WeightCollapse`] if a pass leaves the
-/// positive-weight regime, plus the shared structure refusals.
+/// positive-weight regime — the removal chain's written weights, or the
+/// reinsertion's ([`insert_knot_plan`] of `u` into the removed curve,
+/// which the bound is measured on), whose `index` is then the
+/// reinserted polygon's slot — plus the shared structure refusals.
 pub fn remove_knot_plan(
     kv: &KnotVector,
     weights: &[f64],
@@ -1117,8 +1125,6 @@ pub fn remove_knot_plan(
 
 /// One removal pass (fn docs on [`remove_knot_plan`] for the chain
 /// derivation; preconditions established there).
-// NaN-catching negated comparisons — see `check_weights`' note.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, KnotAlgebraError> {
     let p = kv.degree();
     let knots = kv.knots();
@@ -1162,10 +1168,7 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
         } else {
             (Src::New(i - 1), new_w[i - 1])
         };
-        let wq = (weights[i] - (1.0 - a) * prev_w) / a;
-        if !(wq > 0.0) || !wq.is_finite() {
-            return Err(KnotAlgebraError::WeightCollapse { index: i });
-        }
+        let wq = written_weight(i, (weights[i] - (1.0 - a) * prev_w) / a)?;
         // λ overflow note: wq passed the guard, but a subnormal-
         // positive wq can still overflow `…/wq` to +∞ here; the lifted
         // infinite λ then poisons the combined point (NaN through
@@ -1195,10 +1198,7 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
         } else {
             (Src::New(i + 1), new_w[i + 1])
         };
-        let wq = (weights[i + 1] - a * next_w) / (1.0 - a);
-        if !(wq > 0.0) || !wq.is_finite() {
-            return Err(KnotAlgebraError::WeightCollapse { index: i });
-        }
+        let wq = written_weight(i, (weights[i + 1] - a * next_w) / (1.0 - a))?;
         // λ overflow note: as in the forward chain above.
         let lambda = (weights[i + 1] / (1.0 - a)) / wq;
         steps.push(Step::Combo {
@@ -1241,8 +1241,9 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
 /// # Errors
 ///
 /// The shared structure refusals; a [`KnotAlgebraError::WeightCollapse`]
-/// from step (3) is possible only through floating-point degeneracy and
-/// is surfaced honestly rather than clamped.
+/// from any step is possible only through floating-point degeneracy
+/// (an underflowing blend in (1) or (2), a removal leaving the regime
+/// in (3)) and is surfaced honestly rather than clamped.
 pub fn elevate_plan(kv: &KnotVector, weights: &[f64]) -> Result<Vec<CurvePlan>, KnotAlgebraError> {
     check_weights(kv, weights)?;
     let p = kv.degree();
@@ -1264,7 +1265,7 @@ pub fn elevate_plan(kv: &KnotVector, weights: &[f64]) -> Result<Vec<CurvePlan>, 
         }
     }
     // (2) Per-segment elevation.
-    let stage = elevate_bezier_stage(&cur_kv, &cur_w);
+    let stage = elevate_bezier_stage(&cur_kv, &cur_w)?;
     cur_kv = stage.knots.clone();
     cur_w = stage.weights.clone();
     plans.push(stage);
@@ -1285,7 +1286,7 @@ pub fn elevate_plan(kv: &KnotVector, weights: &[f64]) -> Result<Vec<CurvePlan>, 
 
 /// The Bézier-segment elevation stage: every interior knot is at
 /// multiplicity `p` (established by [`elevate_plan`] step 1).
-fn elevate_bezier_stage(kv: &KnotVector, weights: &[f64]) -> CurvePlan {
+fn elevate_bezier_stage(kv: &KnotVector, weights: &[f64]) -> Result<CurvePlan, KnotAlgebraError> {
     let p = kv.degree();
     let knots = kv.knots();
     // Distinct values in order (ends included).
@@ -1316,7 +1317,7 @@ fn elevate_bezier_stage(kv: &KnotVector, weights: &[f64]) -> CurvePlan {
         let o2 = seg * (p + 1); // new segment offset
         for i in 1..=p {
             let c = i as f64 / (p + 1) as f64;
-            let wq = c * weights[o + i - 1] + (1.0 - c) * weights[o + i];
+            let wq = written_weight(o2 + i, c * weights[o + i - 1] + (1.0 - c) * weights[o + i])?;
             let lambda = c * weights[o + i - 1] / wq;
             steps.push(Step::Combo {
                 target: o2 + i,
@@ -1336,11 +1337,11 @@ fn elevate_bezier_stage(kv: &KnotVector, weights: &[f64]) -> CurvePlan {
         });
         new_w[o2 + p + 1] = weights[o + p];
     }
-    CurvePlan {
+    Ok(CurvePlan {
         knots: new_kv,
         weights: new_w,
         steps,
-    }
+    })
 }
 
 #[cfg(test)]
@@ -2060,5 +2061,38 @@ mod tests {
                 "no recourse in: {msg}"
             );
         }
+    }
+
+    /// **A written weight that rounds out of the positive regime is
+    /// refused, at every writer.** On a net of the least subnormal
+    /// weight a half-and-half blend rounds each half to zero (a tie, to
+    /// even), so the written weight is `0`: insertion at a midpoint,
+    /// refinement (a fold of insertions) and degree-1 elevation (whose
+    /// one binomial coefficient is `½`) each meet it, and each answers
+    /// `WeightCollapse` at the slot it would have written.
+    #[test]
+    fn a_blend_that_rounds_a_weight_to_zero_is_refused() {
+        let w = f64::from_bits(1);
+        let quad = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let collapse = KnotAlgebraError::WeightCollapse { index: 1 };
+        assert_eq!(
+            insert_knot_plan(&quad, &[w, w, w], 0.5, 1).map(|_| ()),
+            Err(collapse.clone()),
+            "insertion"
+        );
+        assert_eq!(
+            refine_plan(&quad, &[w, w, w], &[0.5]).map(|_| ()),
+            Err(collapse.clone()),
+            "refinement"
+        );
+        let line = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        assert_eq!(
+            elevate_plan(&line, &[w, w]).map(|_| ()),
+            Err(collapse),
+            "elevation"
+        );
+        // Weights a blend cannot underflow pass the same writers.
+        assert!(insert_knot_plan(&quad, &[1.0; 3], 0.5, 1).is_ok());
+        assert!(elevate_plan(&line, &[1.0; 2]).is_ok());
     }
 }

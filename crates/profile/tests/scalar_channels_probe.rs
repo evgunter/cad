@@ -9,11 +9,13 @@
 //! `Dual<f64>` cross-scalar tests stay ungated in `scalar_channels.rs`;
 //! only this file carries the whole-file gate.
 //!
-//! **CI EXECUTES THIS SUITE.** It is rostered in
-//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
-//! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
-//! by `--check-executed`, so every assertion below is a gate and a red here
-//! fails the merge. By hand:
+//! **The nightly executes this suite; the PR gate only builds it.** It is
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! under the DEFAULT selection by `scripts/k_probe_sweep.sh` in the
+//! nightly's dev-probe row, whose tally is floored by `--check-executed`,
+//! so a red here reds the nightly. The PR gate compiles it (`clippy
+//! --all-features`) and runs none of it, so a PR can merge green over a red
+//! here. By hand:
 //! `cargo test -p profile --features probe --test all -- scalar_channels_probe::`.
 
 #![cfg(feature = "probe")]
@@ -58,7 +60,7 @@ fn probe_records_margin_distributions_without_changing_decisions() {
             // inside `geom_core::Sym`, which this suite never
             // instantiates: it records at bare `Probe`, so no sample
             // here can carry that outcome.
-            SampleOutcome::SymbolicZero | SampleOutcome::SignGated | SampleOutcome::Registered => {
+            SampleOutcome::Symbolic => {
                 panic!("no symbolic tier is installed on this path: {s:?}")
             }
         }

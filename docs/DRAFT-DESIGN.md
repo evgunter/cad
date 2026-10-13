@@ -70,7 +70,8 @@ pass**, and the kernel has partial vocabulary for it:
   no-certification-here contract — the caller owns re-description.
 - **The vertex half has no public door**: `get_vertex_mut` is
   `pub(crate)`; the only whole-body point rewriter is
-  `transform_rigid`, which is rigid by checked contract.
+  `transform_rigid`, which moves by a `RigidMotion` witness (rigid by
+  construction, or decided at its door).
 - **The pass shape has one shipped inhabitant**:
   `topo::replace_face_offset` (VERBS OFF-D, #1043) replaces ONE
   face's surface, re-describes its boundary and places the vertices

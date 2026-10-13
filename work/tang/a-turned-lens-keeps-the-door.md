@@ -2,10 +2,11 @@
 id: a-turned-lens-keeps-the-door
 kind: issue
 title: The turned lens builds only with its discs declared Rest, which D10 retires
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
+blocked_on: [intent-stage4-is-built]
 ---
 
 ## What
@@ -46,3 +47,7 @@ Waits on `intent-stage4-is-built`, not on the whole program: it already builds; 
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E deletes `UndeclaredCoincidence`. The glue door declares a pair of discs that are one plane with opposed senses `Rest` itself, the same `FacePairDeclaration` the test passes (`crates/topo/src/boolean/glue.rs:72`–`:83`). The dome-on-tube twin of this disc pair is pinned building undeclared as the declared union, bit for bit (`crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`, `a_dome_abutting_on_the_rim_undeclared_is_the_declared_union`). The lens row itself runs only the declared posture (`pi_seam_and_kiss_through_the_boolean.rs:744`, through `unions_with_discs_rest` at `:214`). The turned discs could decide in band, where the declared rung bridges and the undeclared refuses `Escalated`, so the undeclared posture is not measured. What remains: pin the undeclared lens, plain and turned, beside the declared one, and close the row if it is the declared body.
+
+## Parked on INTENT stage 4 (2026-10-12)
+
+This row acts on declared contacts: a declared `Seam` / `Rest` pair, or a declared tangency. D10's stage 4 retires the declared pairs, the undeclared refusals and the stored tangent-joint flags, so widening it now would widen a path D10 is removing. It is parked on `intent-stage4-is-built` and is re-read against the built code when that row closes (TANG orchestrator).

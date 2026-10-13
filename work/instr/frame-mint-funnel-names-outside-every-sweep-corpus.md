@@ -14,7 +14,7 @@ Disclosed by FRAME-WITNESS (`docs/FRAME-WITNESS-SPEC.md`, PR 2675) and
 scheduled here at its fix pass, on the review finding that a disclosed
 gap owes a schedule.
 
-`geom_core::OrthoFrame`'s mints take the K funnel name as a PARAMETER,
+`geom_core::RigidMotion`'s mints take the K funnel name as a PARAMETER,
 so every layer that mints a frame names its own decisions. `docs/K-REPORT.md`'s
 roster-change section tables the names that now reach the funnel, and
 two of them reach no corpus `scripts/k_probe_sweep.sh` runs:
@@ -24,7 +24,7 @@ two of them reach no corpus `scripts/k_probe_sweep.sh` runs:
   binding's value road, and it now decides TWO lengths per call where
   it decided none before: the authored `u`'s own length, and the
   authored `v`'s residual perpendicular to `u`. Both go through
-  `OrthoFrame::gram_schmidt` under `Tol::witness()`'s band. No K sweep
+  `RigidMotion::gram_schmidt` under `Tol::witness()`'s band. No K sweep
   sees either, so the distribution of a shipped door's margins is
   invisible.
 - **`fixture_frame_axis`** — `crates/sweep/src/test_support.rs`, the
@@ -151,7 +151,7 @@ Unit 16 is late in lane C, and the coverage-honesty half for
 2. **`sketch_plane_frame_norm` stays, and its gap is the finding.** It
    ships on the Python binding's value road and decides two lengths per
    call — the authored `u`'s own length and the authored `v`'s residual
-   perpendicular to `u`, both through `OrthoFrame::gram_schmidt` under
+   perpendicular to `u`, both through `RigidMotion::gram_schmidt` under
    `Tol::witness()`'s band — and no corpus watches. Under (a) that is
    exactly what the roster is for: a decision the kernel can be asked to
    make, with the coverage column saying honestly that nothing samples

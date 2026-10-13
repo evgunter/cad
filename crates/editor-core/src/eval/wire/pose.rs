@@ -16,12 +16,12 @@
 //! degenerate case ([`PoseConstruction`]).
 
 use geom_brep::OutwardNormal;
-use geom_core::{Decide, OrthoFrame, Point3, Tol, UnitVec3, UnitVec3Error, Vec3};
+use geom_core::{Decide, Point3, RigidMotion, Tol, UnitVec3, UnitVec3Error, Vec3};
 use topo::DATUM_UNIT_NORM;
 
 use super::{
     DATUM_AXIS_ROLE, DirectionRefusal, PLANE_NORMAL_ROLE, Results, band, datum_unit, frame_axes,
-    read_body, refusal, select, slots, value_of,
+    pose_direction_escalated, read_body, refusal, select, slots, value_of,
 };
 use crate::eval::{NodeErrorKind, ValuePayload};
 use crate::expr::{VarEnv, eval_var};
@@ -183,7 +183,7 @@ fn definition<T: Decide>(
             let a = dir.get();
             let along = (position - origin).dot(a);
             let foot = origin + a * along;
-            OrthoFrame::from_aim_and_reference(foot, dir, position - origin, DATUM_UNIT_NORM, b)
+            RigidMotion::from_aim_and_reference(foot, dir, position - origin, DATUM_UNIT_NORM, b)
                 .map(PoseValue::Frame)
                 .map_err(|e| degenerate(e.error, PoseConstruction::Through))?
         }
@@ -275,13 +275,13 @@ fn degenerate(error: UnitVec3Error, construction: PoseConstruction) -> NodeError
         UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength => {
             NodeErrorKind::PoseDegenerate { construction }
         }
-        other => refusal(other, POSE_DIRECTION_ROLE, DATUM_UNIT_NORM),
+        other => refusal(other, POSE_DIRECTION_ROLE, pose_direction_escalated),
     }
 }
 
 /// **Coordinates in a frame**, lifted through its axes.
 fn in_frame<T: Decide>(
-    f: OrthoFrame<T>,
+    f: RigidMotion<T>,
     coords: &PoseCoords,
     scalar: &impl Fn(VarId, crate::expr::Dimension) -> Result<T, NodeErrorKind>,
     band: geom_core::Band,
@@ -560,5 +560,39 @@ fn kind_word(kind: VarKind) -> u8 {
         K::Plane => w::PLANE,
         K::Frame => w::FRAME,
         other => unreachable!("a pose definition writes or projects to a pose kind, not {other}"),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod held_text {
+    use geom_core::{Band, Indeterminate, MarginDiag, UnitVec3Error};
+
+    use crate::eval::NodeErrorKind;
+    use crate::pose::PoseConstruction;
+
+    /// **A pose construction's undecided direction keeps its sentence**
+    /// (D10's pose ground is held): through this door it is a
+    /// [`NodeErrorKind::PoseDirectionEscalated`], said "too close to
+    /// call" with the bare escalation's tail.
+    #[test]
+    fn a_pose_constructions_undecided_direction_keeps_its_sentence() {
+        let source = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).expect("zero < escalate"),
+            predicate: Some(topo::DATUM_UNIT_NORM),
+            terminal_sliver: false,
+        };
+        let got = super::degenerate(UnitVec3Error::Escalated(source), PoseConstruction::Through);
+        assert!(
+            matches!(got, NodeErrorKind::PoseDirectionEscalated { .. }),
+            "{got:?}"
+        );
+        assert_eq!(
+            got.to_string(),
+            "whether a direction has any length is too close to call: margin 5e-9 lies inside \
+             the ambiguity band (1e-9, 1e-8) — a near-coincidence; Recourse: move the geometry, \
+             or, if this size is intended, tighten the tolerance below 5e-10 m"
+        );
     }
 }

@@ -372,7 +372,7 @@ mod tests {
                 discharge(margin.expect("a Zero verdict carries its margin")),
             )
         });
-        assert_eq!(got, (PlaneRelation::SameOriented, None));
+        assert_eq!(got, (PlaneRelation::SameOriented, false));
     }
 
     /// **Zero glues, whatever the planes' descriptions** (D10): two
