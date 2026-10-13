@@ -1208,3 +1208,11 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - the floor constant cites its measurement and handles small receipts;
     - the SYM row's cell count is fixed and the blind spot noted there.
   - **Class:** a guard whose measured baseline depends on a classifier's blind spot guards the blind spot. Its baseline needs the same adversarial check as the bound it guards. — (NURBS orchestrator)
+
+- **2026-10-13 04:54Z — 4944 finding 1 measured and ruled.**
+  - The pre-session nodes are literal and lofting arithmetic, not free variables. Freezing them DOES blind the checks: built inside the session, 364 and 306 more decisions become theorems.
+  - True coverage is 103/110 and 104/116, and disp is still 0. The old 89/110 was a mis-measure.
+  - **Fix (c), approved.** The session names the free indeterminates it minted, and every other indeterminate charges `checks_frozen`, which is conservative for every caller. The digest builds its bodies inside the session and receipts the door alone.
+  - **Added:**
+    - a witness row that fails under the old classifier, using out-of-session bodies, which must read frozen;
+    - an explicit statement in the body that the digest receipt changes meaning. — (NURBS orchestrator)
