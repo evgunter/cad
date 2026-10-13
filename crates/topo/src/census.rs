@@ -6667,10 +6667,10 @@ fn confirm_vertex_on_face<T: Decide>(
 }
 
 /// One `(vertex, edge)` record's witness: both cells live, the vertex
-/// not an end of the edge, on the edge's line and strictly inside its
-/// span (pass 2's two decisions, so the two directions agree). The
-/// lane is pass 2's: a record on a live edge whose carrier is not a
-/// line refuses typed.
+/// not an end of the edge, on the edge's carrier and strictly inside its
+/// span: pass 2's two decisions on a line, so the two directions agree,
+/// and the curved lane's ([`curved::on_curved_interior`]) on any other
+/// carrier.
 fn confirm_vertex_on_edge<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -6711,9 +6711,9 @@ fn confirm_vertex_on_edge<T: Decide>(
 
 /// One edge-edge record's witness: both edges live, and
 /// their interiors meet — crossing inside both spans, or overlapping
-/// along a positive length — by the edge-edge lanes' own decisions. A
-/// record on a live non-line edge refuses typed, as a `(vertex, edge)`
-/// record's does.
+/// along a positive length — by the edge-edge lanes' own decisions on
+/// two lines, and the curved lane's
+/// ([`curved::curved_interiors_meet`]) where either is not one.
 fn confirm_edge_edge<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,

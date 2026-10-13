@@ -357,6 +357,8 @@ mod blend_tworims;
 mod blend_value_decided_rows;
 #[path = "bool5r1_probes.rs"]
 mod bool5r1_probes;
+#[path = "census_reads_conic_records.rs"]
+mod census_reads_conic_records;
 #[path = "cert5_offgrid_knot_rational.rs"]
 mod cert5_offgrid_knot_rational;
 #[path = "cert8_r1_probes.rs"]
