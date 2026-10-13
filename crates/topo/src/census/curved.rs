@@ -65,6 +65,9 @@ struct Read<T: Real> {
     curvature: Option<T>,
 }
 
+/// The meeting search's answer: the two interiors meet.
+struct Met;
+
 /// A run `(a, b)` of a span, cut `depth` times.
 #[derive(Clone, Copy)]
 struct Piece<T> {
@@ -137,10 +140,14 @@ fn surely<T: Decide>(name: &'static str, margin: T, band: Band, sign: Sign) -> b
 }
 
 /// `e`'s certified curve, span and rate bounds, or the typed refusal
-/// pushed for an edge with none, or whose least speed meters no length
-/// over its span (a spline's control-net floor can be zero: a
-/// single-span rational arc whose derivative net turns past a right
-/// angle has none, so such an edge refuses here whole).
+/// pushed for an edge with none; whose speed bound meters no reach over
+/// its span (a span within the band, or a bound that is poison — which
+/// certification refuses to mint, so the refusal guards a door closed
+/// upstream today); or
+/// whose least speed meters no length over its span (a spline's
+/// control-net floor can be zero: a single-span rational arc whose
+/// derivative net turns past a right angle has none, so such an edge
+/// refuses here whole).
 fn read<T: Decide>(
     body: &Body<T>,
     edge: EdgeKey,
@@ -161,8 +168,8 @@ fn read<T: Decide>(
     let accel = crate::carrier_speed::accel_hi(&carrier);
     let curvature = crate::carrier_speed::curvature_hi(&carrier);
     let span = curve.params();
-    let reach = Margin::metered_sup((span.1 - span.0).abs(), hi);
-    if decided("pm_census_curved_speed_hi", reach, band, errors)? != Sign::Positive {
+    let span_reach = Margin::metered_sup((span.1 - span.0).abs(), hi);
+    if decided("pm_census_curved_speed_hi", span_reach, band, errors)? != Sign::Positive {
         refuse(
             edge,
             "a record on a curved edge whose speed bound meters no reach",
@@ -256,23 +263,26 @@ fn feet<T: Decide>(
         return Some(vec![polish_foot(r, q, t, slack)]);
     }
     let mut out = Vec::new();
-    let walk = bisect([Piece::whole(r.span)], |p| -> Step<Piece<T>, ()> {
-        let (m, reach) = (p.mid(), p.reach(r.hi));
-        let gap = (r.curve.eval(m) - q).norm();
-        if surely(
-            "pm_census_ve_curved_clear",
-            gap - reach,
-            band,
-            Sign::Positive,
-        ) {
-            return Step::Settled;
-        }
-        if surely("pm_census_ve_curved_piece", reach, band, Sign::Zero) {
-            out.push(polish_foot(r, q, m, gap + reach));
-            return Step::Settled;
-        }
-        Step::Halve(p.halves())
-    });
+    let walk = bisect(
+        [Piece::whole(r.span)],
+        |p| -> Step<Piece<T>, core::convert::Infallible> {
+            let (m, reach) = (p.mid(), p.reach(r.hi));
+            let gap = (r.curve.eval(m) - q).norm();
+            if surely(
+                "pm_census_ve_curved_clear",
+                gap - reach,
+                band,
+                Sign::Positive,
+            ) {
+                return Step::Settled;
+            }
+            if surely("pm_census_ve_curved_piece", reach, band, Sign::Zero) {
+                out.push(polish_foot(r, q, m, gap + reach));
+                return Step::Settled;
+            }
+            Step::Halve(p.halves())
+        },
+    );
     if walk.is_err() {
         refuse(
             r.edge,
@@ -431,7 +441,9 @@ fn floor<T: Decide>(a: &Read<T>, b: &Read<T>, band: Band) -> Option<T> {
 
 /// Whether a piece of reach `reach` is small enough to stop at: within
 /// the floor, decided — an enclosure of the floor is read at its lower
-/// end, so a wide one halves on rather than stopping a long piece.
+/// end, so a wide one halves on rather than stopping a long piece. A
+/// floor that is not a finite length (two straight carriers' `κ = 0`) is
+/// no floor: pieces stop at the band.
 fn stops<T: Decide>(reach: T, floor: Option<T>, band: Band) -> bool {
     let within = |margin: T| {
         matches!(
@@ -440,8 +452,8 @@ fn stops<T: Decide>(reach: T, floor: Option<T>, band: Band) -> bool {
         )
     };
     match floor {
-        Some(f) => within(reach - f),
-        None => within(reach),
+        Some(f) if geom_core::is_finite_length(f) => within(reach - f),
+        Some(_) | None => within(reach),
     }
 }
 
@@ -526,7 +538,7 @@ fn reads_meet<T: Decide>(
             let stop_b = stops(pb.reach(rb.hi), floor, band);
             if stop_a && stop_b {
                 return if meet_at(body, (ra, pa), (rb, pb), band, &mut held) {
-                    Step::Stop(())
+                    Step::Stop(Met)
                 } else {
                     Step::Settled
                 };
@@ -539,7 +551,7 @@ fn reads_meet<T: Decide>(
         },
     );
     match walk {
-        Ok(Some(())) => return Some(true),
+        Ok(Some(Met)) => return Some(true),
         Ok(None) => {}
         Err(_) => {
             let what = "the census's meeting search of two curved edges ran past its budget";
@@ -895,20 +907,19 @@ mod tests {
         }
     }
 
-    /// **A piece stops only within the floor's lower end.** A floor
-    /// read as an enclosure `[0.01, ∞]` — a curvature bound whose lower
-    /// end is zero — stops no piece of reach 1, and stops one of reach
-    /// 0.005; a piece of reach 1 stops at a floor of 2. Red when a
-    /// piece stops wherever its reach does not decide past the floor,
-    /// which reads the enclosure's upper end and stops the walk at its
-    /// root.
+    /// **A piece stops only within a finite floor's lower end.** A
+    /// floor read as the enclosure `[0.01, 1000]` stops no piece of reach
+    /// 1 and stops one of reach 0.005; an infinite floor — two straight
+    /// carriers' zero curvature — stops a piece only at the band. Red when a piece stops wherever
+    /// its reach does not decide past the floor (the enclosure's upper
+    /// end, which stops the walk at its root), and when an infinite floor
+    /// stops one.
     #[test]
-    fn a_piece_stops_only_within_the_floors_lower_end() {
+    fn a_piece_stops_only_within_a_finite_floors_lower_end() {
         use geom_core::Interval;
-        let wide = Interval::from_bounds(0.01, f64::INFINITY);
-        let stops = |reach: f64, floor: Interval| {
-            super::stops(Interval::from_bounds(reach, reach), Some(floor), band())
-        };
+        let at = |x: f64| Interval::from_bounds(x, x);
+        let stops = |reach: f64, floor: Interval| super::stops(at(reach), Some(floor), band());
+        let wide = Interval::from_bounds(0.01, 1e3);
         assert!(
             !stops(1.0, wide),
             "a long piece against a wide floor halves on"
@@ -917,9 +928,14 @@ mod tests {
             stops(0.005, wide),
             "a piece within the floor's lower end stops"
         );
+        assert!(stops(1.0, at(2.0)), "a piece within a point floor stops");
         assert!(
-            stops(1.0, Interval::from_bounds(2.0, 2.0)),
-            "a piece within a point floor stops"
+            !super::stops(1.0, Some(f64::INFINITY), band()),
+            "an infinite floor stops no piece at f64"
+        );
+        assert!(
+            super::stops(band().zero() / 2.0, Some(f64::INFINITY), band()),
+            "a piece within the band stops"
         );
     }
 

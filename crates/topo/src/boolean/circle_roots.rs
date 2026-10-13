@@ -677,10 +677,12 @@ pub(super) fn certified_subdivision<T: Decide>(
     };
     let (first, first_side) = ends[0];
     ends.push((first + T::tau(), first_side));
-    // Walked left to right ([`crate::bisect`]), past its piece budget
-    // `Uncertain`, so the bisection's raw midpoints come out in order; the reported roots do not, since one in the walk's tail past
-    // `mid + π` re-centres to the front. No reader relies on the order
-    // (the type is documented unordered).
+    // The pieces are walked left to right ([`crate::bisect`]), so the
+    // bisection's raw midpoints come out in order; the reported roots do
+    // not, since one in the walk's tail past `mid + π` re-centres to the
+    // front, and no reader relies on the order (the type is documented
+    // unordered). A walk past the core's piece budget answers
+    // `Uncertain`, as a visit that stops does.
     let pieces: Vec<((T, Sign), (T, Sign))> = ends.windows(2).map(|w| (w[0], w[1])).collect();
     let mut roots: Vec<T> = Vec::new();
     let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
@@ -759,7 +761,7 @@ pub(super) fn certified_subdivision<T: Decide>(
                 let turn = lo - reported(lo);
                 root = nearer(close(l - turn, r - turn));
                 if !on(root) {
-                    return Step::Stop(());
+                    return Step::Stop(CircleRoots::Uncertain);
                 }
             }
             if let Some(meter) = slack {
@@ -782,25 +784,27 @@ pub(super) fn certified_subdivision<T: Decide>(
                 let arc = speed_hi * reach / lever;
                 match decide(meter.row, Margin::of(arc), band) {
                     Ok(Sign::Zero | Sign::Negative) => {}
-                    Ok(Sign::Positive) | Err(_) => return Step::Stop(()),
+                    Ok(Sign::Positive) | Err(_) => return Step::Stop(CircleRoots::Uncertain),
                 }
             }
             roots.push(root);
             return Step::Settled;
         }
         if !definitely(rows.width, speed_hi * (r - l)) {
-            return Step::Stop(());
+            return Step::Stop(CircleRoots::Uncertain);
         }
         let Some((c, sc)) = SPLITS.iter().find_map(|&share| {
             let c = l + (r - l) * T::from_f64(share);
             side(c).map(|s| (c, s))
         }) else {
-            return Step::Stop(());
+            return Step::Stop(CircleRoots::Uncertain);
         };
         Step::Halve([((l, sl), (c, sc)), ((c, sc), (r, sr))])
     });
-    if !matches!(walk, Ok(None)) {
-        return Ok(CircleRoots::Uncertain);
+    match walk {
+        Ok(None) => {}
+        Ok(Some(answer)) => return Ok(answer),
+        Err(_) => return Ok(CircleRoots::Uncertain),
     }
     // Round the closed turn the ends' signs change an even number of
     // times, and every change on a monotone piece was bisected; an odd

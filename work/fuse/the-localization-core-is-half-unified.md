@@ -2,10 +2,8 @@
 id: the-localization-core-is-half-unified
 kind: issue
 title: The bisection localizations share a walk but not their spellings: the tangency floor, a piece's reach, the budget and the stop reason each live in more than one place
-status: closed
-branch: fuse/the-localization-core
-pr: 4980
-closed: 2026-10-13
+status: open
+refs: [4980]
 opened: 2026-10-13
 priority: P3
 cost: M
@@ -33,16 +31,21 @@ PR 4946 put `boolean::carrier_touch` and `census::curved` on one walk,
 - **`bisect::Step::Stop` loses its reason.** `carrier_touch` (`over`) and
   `census::curved` (`met`) carry side flags to say why a walk stopped.
 
-## 2026-10-13, closed: PR 4980
+## 2026-10-13: PR 4980 did the five cites; what remains
 
-All five cites. `circle_roots` and `spiric_arc` (three walks) run on
-`topo::bisect`, whose `Step::Stop(R)` carries the answer (the side
-flags are gone); `bisect::reach` and `bisect::tangency_floor(ρ, …)` are
-the one spelling (ρ a radius; `carrier_touch` bit-identical);
-`carrier_speed::curvature_hi` reads `Conic::curvature_hi`;
-`geom::spiric_period_rate_bounds` is the generic bound
-`spiric_curvature_sup` and `carrier_speed` read. Walk-by-walk piece
-counts over `topo` + `sweep` are identical before and after (fuzzers
-replayed on their seeds) save one budget-edge reading, whose answer is
-unchanged. `geom-brep`'s six walks filed:
-`work/issues/geom-brep-keeps-six-subdivision-walks-of-its-own.md`.
+PR 4980 did the following:
+- `circle_roots` and `spiric_arc` (three walks) moved onto `topo::bisect`, whose `Step::Stop(R)` carries a typed reason at each site.
+- `bisect::reach` and `bisect::tangency_floor(ρ, …)` are the one spelling of each, in `carrier_touch`, `spiric_arc` and `census::curved`.
+- `carrier_speed::curvature_hi` reads `Conic::curvature_hi`, and `carrier_touch` reads it too.
+- `geom::spiric_period_rate_bounds` is the generic whole-period spiric bound.
+
+Its review found more copies of the same class. They are this row's scope now:
+
+- **A second whole-period spiric bound and a reach copy.** `splitting/containment.rs` `spiric_speed`, called from `shell.rs`, is one. It should read `geom::spiric_period_rate_bounds` and `bisect::reach`.
+- **A second "one spelling" of the per-kind lever.** `offset_axial.rs` `param_speeds` claims that title, beside `carrier_speed::speed_range`.
+- **Test copies of the whole-period bound in `sweep`.** These are `pis_arc_capped_poses` and `contfp_reads_arcs_on_their_carriers`.
+- **Three depth idioms beside a core that owns only the budget.** These are `spiric_arc`'s `MAX_DEPTH`, `census::curved`'s `Piece::depth`, and `circle_roots`' width row (`rows.width`).
+- **A second spelling of `census::curved::stops`.** `census::curved::feet` stops a piece on `surely(reach, Zero)`.
+- **An unpinned polish guard.** The `16·slack` guard (`census::curved::step_kept`'s bound) has no row: keeping every step leaves the suite green.
+
+The walk-shaped sweep that found the first five cites could not see duplicated arithmetic, which is how these escaped. Sweep the constants and the formulas (`spiric_rate_bounds(`, `f_min`, `* h`, `speed *`), not only the stacks.

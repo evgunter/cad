@@ -21,11 +21,11 @@
 //!
 //! A piece that settles neither way is halved, until its ball is within
 //! the band's coincidence threshold (the boundary reading), a fixed
-//! depth, or [`crate::bisect`]'s piece budget. A reading that runs out of depth or budget
-//! is not a reading in the band: the walk names it as the edge it could
-//! not cross ([`super::containment::Uncrossable`]).
+//! depth, or [`crate::bisect`]'s piece budget. A reading that runs out
+//! of depth or budget is not a reading in the band: the walk names it
+//! as the edge it could not cross ([`super::containment::Uncrossable`]).
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use crate::bisect::{Step, bisect};
 use crate::validate::{decide, definitely_positive as positive};
@@ -59,6 +59,9 @@ const CROSS_ADVANCE: &str = "point_in_arc_loop_spiric_advance";
 /// the oval; the boundary reading, whose pieces stop at the band, only
 /// on a carrier whose bounds outrun `2⁶⁰` band widths.
 const MAX_DEPTH: u32 = 60;
+
+/// A walk that stopped on a piece past [`MAX_DEPTH`]: no answer.
+struct TooDeep;
 
 /// A spiric oval: [`geom::Curve3::Spiric`]'s data, named so that a
 /// [`SpiricArc`] can only be built from one.
@@ -142,7 +145,7 @@ impl<T: Decide> SpiricArc<T> {
                 return Step::Settled;
             }
             if p.depth >= MAX_DEPTH {
-                return Step::Stop(());
+                return Step::Stop(TooDeep);
             }
             Step::Halve(self.halves(p))
         });
@@ -180,7 +183,7 @@ impl<T: Decide> SpiricArc<T> {
         Bounds {
             h,
             center: self.point(vm),
-            reach: speed * h,
+            reach: crate::bisect::reach(SupSpeed::new(speed), (p.va, p.vb)),
             accel,
         }
     }
@@ -344,7 +347,7 @@ impl<T: Decide> SpiricArc<T> {
                 }
             }
             if p.depth >= MAX_DEPTH {
-                return Step::Stop(());
+                return Step::Stop(TooDeep);
             }
             Step::Halve(self.halves(p))
         });
