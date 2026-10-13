@@ -82,3 +82,10 @@ serde_json = "1.0.151"
 [profile.release]
 debug-assertions = true
 overflow-checks = true
+
+# The tour's own crate compiles at opt-1; the kernel crates it builds by
+# path stay at the release default. Most of the tour's build is this
+# crate's own targets instantiating the kernel's generics, and what the
+# tour asserts is kernel output, which no opt-level moves.
+[profile.release.package.demo-tour]
+opt-level = 1

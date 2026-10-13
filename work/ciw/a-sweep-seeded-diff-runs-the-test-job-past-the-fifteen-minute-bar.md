@@ -82,3 +82,33 @@ of its test steps brings the job under it.
   codegen is about 9.5 min of that.
 - The tests take 8m08s: 94 tests, 1881 cpu-s on 4 threads. The three
   `eps_regression::tour_runs_green_at_*` rows run 338–448 s each.
+
+## Taken and declined
+
+- **Taken: #5001.** Memoising the whole-cell nets takes the shell row
+  from 1692 s back to 284 s locally. The cut-net remainder is on
+  NURBS's slate.
+- **Taken: the tour's own crate at opt-1** (`demos/tour/Cargo.toml`).
+  - Locally, 4 cores: the `demo-tour` units drop from about 553 s to
+    463 s of build wall, and from 1825 to 1682 cpu-s.
+  - The tests run in 381 s at opt-3 and 384 s at opt-1; all 94 pass.
+  - The saving is small because the cost is the crate instantiating
+    the kernel's generics, not optimising them.
+- **Declined: caching the workspace crates across runs.**
+  - Over 3 days, 115 of main's 571 first-parent commits changed `src/`
+    in geom-core, geom, geom-brep or topo. That is 88% of the commits
+    that changed any crate's `src/`, about 1.6 an hour, and each one
+    invalidates nearly every workspace artifact.
+  - Keeping the entry fresh costs a near-full build per main push, at
+    about 0.9 GB per save against the 10 GB budget.
+    `docs/CI-MINUTES-2026-08.md` declined the same trade.
+- **Deferred: splitting `test` into two package-group jobs.**
+  - Estimate from the timings: a kernel shard of 2616 cpu-s and an app
+    shard of 1560 cpu-s, chain-bound; the job goes from about 37 min to
+    22–25 min.
+  - It costs a job slot per code PR while runs already queue for 19 min.
+  - To be re-measured with the queue included.
+- **Filed:** `work/topo/topos-unit-tests-recompile-the-whole-crate-on-every-topo-closure-pr.md`.
+- **The bar itself is Ev's.** A deep-kernel PR's cold build is 16–20 min
+  on 4-vCPU hosted runners, so no arrangement of its tests brings it
+  under 15. The `[ev]` PR states the choice.
