@@ -12996,7 +12996,13 @@ mod two_carrier_records {
         fn p4_the_line_grazing_a_vertex() {
             let rows = report(
                 "p4",
-                &[(0.0, -1.0), (4.0, -1.0), (4.0, -0.5), (2.0, 0.0), (0.0, -0.5)],
+                &[
+                    (0.0, -1.0),
+                    (4.0, -1.0),
+                    (4.0, -0.5),
+                    (2.0, 0.0),
+                    (0.0, -0.5),
+                ],
                 (-1.0, 5.0),
             );
             assert!(rows.iter().all(|r| r.contains("named true")), "{rows:#?}");
