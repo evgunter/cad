@@ -39,3 +39,13 @@ This is a real counterexample to the row's property, not a flake. It
 should be pinned as a deterministic row beside the fix. The fix makes
 the head's line reading escalate wherever the whole-turn reach refuses
 on a tilt this close to the band.
+
+## Another seed (2026-10-13)
+
+PR 4962's CI (`band/turn-overrun-fillet`, which touches no file under
+`crates/topo`) drew `CAD_FUZZ_SEED=0x42ba32f9ed63baf9` at `1e-12` and
+failed the same row with the conic arm: `chord_join: head serves conic
+where main reads refused (0.0666318355989892 rad × 1.761587807094113 on
+r = 1, sin β = 0.000000000005677081873502136)`. The property is the same
+and the reading is a different class, so a fix for the line arm alone
+would not close it.
