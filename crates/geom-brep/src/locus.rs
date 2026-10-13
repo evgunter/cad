@@ -1133,7 +1133,7 @@ mod tests {
         let inside = along(Point3::new(0.0, 0.8 - g, 0.0), 0.2);
         // (pair, across ẑ, face, curvature sum): the clearance at `s` is
         // `g + κ·s²/2`.
-        let rows: [(&str, &Surface<f64>, &Surface<f64>, bool, usize, f64); 4] = [
+        let rows = [
             ("plane face", &plane, &lifted, false, 0, 1.0),
             ("wall face over a plane", &plane, &lifted, false, 1, 1.0),
             ("outside wall", &unit, &outside, true, 1, 2.0),
