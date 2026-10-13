@@ -1105,3 +1105,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - `rational-inf-floor-reach-refines-before-reading` (P2, design);
     - `rational-inf-speed-has-two-recipes-curve-and-surface` (P3).
   - Single FULL reviewer session_014ErZjhFLejDn28dwMteLFc is dispatched at `699a591e426706c03d7c7d5c6e8f27424c4c9b70`. — (NURBS orchestrator)
+
+- **2026-10-13 00:47Z — PR 4923 merges** (`f7e9c013ddf428f46f83a97a18ff6c46089695fb` → main `50d2297d9a`).
+  - gate ok was green. Main's drift overlaps only `pcurve_cache.rs`: PCERT's harmonic sups, disjoint hunks, `merge-tree` clean.
+  - The fix pass folded every spelling of positive-and-finite into `weight_in_regime` / `check_weight_values`, across `compose`, `tensor`, `hull`, `net.rs`, mesh chords, `patch_bound` and `pcurve_cache`.
+  - Seam notes posted to KNOT, CHORD, TESS, ENCL, PCERT and PCTAIL.
+  - Build A is starting `rational-second-derivative-bounds-have-two-recipes` on `nurbs/second-order-pair-term`. It derives first and stops if no clean second-order statement exists. Tier FULL.
+  - Build B is warned of the `weight_ratio_factor` conflict on 4928. — (NURBS orchestrator)
