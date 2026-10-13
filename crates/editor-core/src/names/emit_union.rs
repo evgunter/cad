@@ -121,7 +121,8 @@ use crate::names::emit::{
 };
 use crate::names::emit_topo::{
     Cover, CrossedEdge, EdgePieces, FaceDescent, Lone, OnSegment, Segment, UNORIENTED,
-    crossed_edge_orientation, name_edge_pieces, name_parent_faces, rank_crossings,
+    crossed_edge_orientation, is_straight, least_per_line, name_edge_pieces, name_parent_faces,
+    rank_crossings, straight_segment,
 };
 use crate::names::groups::Rederived;
 use crate::names::least_root::LeastRoot;
@@ -361,7 +362,13 @@ fn group_member_edges<T: geom_core::Decide>(
                 (Some(Along::One(least)), whole)
             }
             (Some((member, edge, _)), _) => (Some(Along::One((member, edge))), false),
-            (None, [k]) => (flush.least_within(*k).map(Along::One), false),
+            (None, [k]) => match flush.least_within(*k) {
+                Some(least) => {
+                    let whole = flush.holds_whole(*k, &least)?;
+                    (Some(Along::One(least)), whole)
+                }
+                None => (None, false),
+            },
             (None, _) => (None, false),
         };
         match key {
@@ -628,7 +635,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let (Some(from0), Some(from1)) = (self.faces.get(f0), self.faces.get(f1)) else {
             return Ok(none);
         };
-        if !straight(self.body, k) {
+        if !is_straight(self.body, k) {
             return Ok(none);
         }
         let mut candidates = BTreeMap::new();
@@ -641,7 +648,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                     continue;
                 };
                 for r in rims_between(m.body, a, b)? {
-                    if !straight(m.body, r) {
+                    if !is_straight(m.body, r) {
                         continue;
                     }
                     if let Some(name) = unique_name(m.table, EntityKey::Edge(r)) {
@@ -761,7 +768,9 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     ///
     /// [`NamingError::Emission`] where a finished edge at `v` is neither a
     /// member edge's piece nor a seam, where one member edge and no seam
-    /// meet other than one face, or as [`Flush::sense_against`].
+    /// meet no face, or as [`Flush::sense_against`];
+    /// [`NamingError::SeamVertexParentage`] where one member edge and no
+    /// seam meet several faces (a missing rule, as at a pair boolean).
     fn meeting(
         &self,
         v: topo::VertexKey,
@@ -791,16 +800,14 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         }
         // Member edges of several finished edges that run flush on one
         // line are that line once, as the least of them.
-        let mut lines: Vec<MemberEntity> = Vec::with_capacity(cited.len());
-        for line in cited {
-            let mut flush = false;
-            for kept in &lines {
-                flush |= self.same_way(&line, kept)?.is_some();
-            }
-            if !flush {
-                lines.push(line);
-            }
-        }
+        let lines = least_per_line(
+            cited,
+            |line: &MemberEntity| {
+                let (body, edge) = member_edge(self.members, line.0, line.1.name())?;
+                straight_segment(body, edge)
+            },
+            self.bnd,
+        )?;
         let cited: BTreeSet<MemberEntity> = lines.into_iter().collect();
         let sides = self.sides(&along)?;
         let bounds = |f: &topo::FaceKey| {
@@ -843,10 +850,18 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 }
             }
             let mut faces = faces.into_iter();
-            let (Some((face, others)), None) = (faces.next(), faces.next()) else {
-                return Err(bug(
-                    "one member edge meets other than one face at a union vertex no seam reaches",
-                ));
+            let (face, others) = match (faces.next(), faces.next()) {
+                (Some(one), None) => one,
+                // One line meeting several faces of other members and no
+                // seam: N2 spells no one face for its `Crossing`, the
+                // pair boolean's missing rule too
+                // (`work/emit/a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces.md`).
+                (Some(_), Some(_)) => return Err(NamingError::SeamVertexParentage { vertex: v }),
+                (None, _) => {
+                    return Err(bug(
+                        "one member edge meets no face at a union vertex no seam reaches",
+                    ));
+                }
             };
             let sense = self.sense_against(v, line, &others, links)?;
             return Ok(Some(StableName {
@@ -1039,7 +1054,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         }
         let (of_body, of_edge) = member_edge(self.members, of.0, of.1.name())?;
         let (like_body, like_edge) = member_edge(self.members, like.0, like.1.name())?;
-        if !(straight(of_body, of_edge) && straight(like_body, like_edge)) {
+        if !(is_straight(of_body, of_edge) && is_straight(like_body, like_edge)) {
             return Ok(None);
         }
         Segment::of_edge(like_body, like_edge)?.runs_with(
@@ -1247,14 +1262,6 @@ fn member_faces(name: &StableName, out: &mut BTreeSet<MemberEntity>) {
             _ => {}
         }
     }
-}
-
-/// Whether edge `e` of `body` is carried by a line: a tag read, no
-/// number consulted. The flush tests are straight-segment tests, and a
-/// curved edge's chord is not its locus (a sphere's two meridians share
-/// both ends and both faces).
-fn straight<T: geom_core::Decide>(body: &topo::Body<T>, e: topo::EdgeKey) -> bool {
-    topo::query::edge_carrier_kind(body, e) == Some(topo::query::CurveKind::Line)
 }
 
 /// The face a member's table names `name`, when it names one face.
@@ -1534,7 +1541,7 @@ fn rank_along_seam<T: geom_core::Decide>(
         if !(unique && points.len() == keys.len()) {
             break;
         }
-        if !g.edges.iter().all(|&e| straight(body, e)) {
+        if !g.edges.iter().all(|&e| is_straight(body, e)) {
             continue;
         }
         let first = *g.edges.first().ok_or(NamingError::Emission {
