@@ -51,3 +51,33 @@ reached from `boundary::stretch_within` / `side_stretch` →
 None of them alone reaches the pre-#4954 cost. Which trade to make,
 and whether the 8–15× is accepted as the price of the tighter bound, is
 the call of NURBS, the program that owns the statement.
+
+## Levers 1 and 2, taken (2026-10-13)
+
+The levers, bit-identical:
+- `cell_axis_quotients` forms one axis at a time.
+- `CellNet` forms each axis on its first read.
+- `NurbsBoxes::deriv_boxes` serves the Jacobian's two columns from one
+  cut net per cell.
+- A cell's first-order pieces are cut from one table per degree.
+- `product` reads its binomials from per-call rows.
+
+Local, 4 cores, ci profile, one test thread:
+
+| row | before #4954 | main `2639b944` | levers 1+2 |
+|---|---|---|---|
+| shell (`encl_curved_loft_shell`) | 35.3 s | 285.6 s | 216.3 s |
+| `r1_lane0_e2e` seam | 12.6 s | 182.6 s | 112.9 s |
+
+**Short of the 2× target.** gdb on the levered head puts 31 of 40
+samples in `cell_axis_quotients` → `product`. They are reached mostly
+through `certify::probe_tube_chart` → `chart_transverse_margin` →
+`CellNet::transverse_readings`, which needs both axes on cut nets that
+do not repeat. The self time is `DInterval`'s multiply and divide: the
+statement's arithmetic, not overhead.
+
+A scale-by-`f64` fast path would at best halve the interval×point
+multiplies, which already take `corner_bounds`' two-corner path. That
+is an estimated 15–25%. What is left is lever 3, a design call:
+read the pair-term hull first, and form the quotient only where the
+hull does not decide.

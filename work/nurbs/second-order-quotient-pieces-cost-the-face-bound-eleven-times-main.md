@@ -55,3 +55,13 @@ rounding) where two rounded products would do.
   faster, so a smaller count may meet the same sizing, but the count
   moves cell granularity, the census and the offset goldens, so it is
   a measurement before it is a change.
+
+## Build C's levers (2026-10-13)
+
+The first-order levers do not reach the second-order path:
+- the face bound reads 0.964 s on `2639b944` and 0.927 s with them;
+- `cert10r2` probe1 reads 10.70 s and 10.74 s.
+
+Its cost stays `combine`'s interval×point multiplies plus the
+second-order products. The scale-by-`f64` fast path is still this
+row's lever, estimated at most about 2× on those multiplies.
