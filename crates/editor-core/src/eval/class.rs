@@ -73,6 +73,8 @@ pub enum NodeErrorClass {
     Boolean,
     /// [`NodeErrorKind::Transform`].
     Transform,
+    /// [`NodeErrorKind::Motion`].
+    Motion,
     /// [`NodeErrorKind::Skin`].
     Skin,
     /// [`NodeErrorKind::Loft`].
@@ -295,6 +297,7 @@ impl NodeErrorKind {
             Self::Blend { verb, .. } => by_verb(*verb, C::Fillet, C::Chamfer),
             Self::Boolean(_) => C::Boolean,
             Self::Transform(_) => C::Transform,
+            Self::Motion(_) => C::Motion,
             Self::Skin(_) => C::Skin,
             Self::Loft(_) => C::Loft,
             Self::CurvedSolidFrontier { .. } => C::CurvedSolidFrontier,
@@ -508,6 +511,7 @@ mod tests {
         Chamfer,
         Boolean,
         Transform,
+        Motion,
         Skin,
         Loft,
         CurvedSolidFrontier,
@@ -729,6 +733,9 @@ mod tests {
             },
             C::Boolean => K::Boolean(topo::BooleanError::UnrepresentableResult),
             C::Transform => K::Transform(topo::TransformError::NurbsPlaceholder),
+            C::Motion => K::Motion(geom_core::RigidMotionError::NonFinite(
+                geom_core::MotionPart::Angle,
+            )),
             C::Skin => K::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
             C::Loft => K::Loft(sweep::LoftError::Band(band_error())),
             C::CurvedSolidFrontier => K::CurvedSolidFrontier {

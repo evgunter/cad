@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol, Vec3};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{cube, prism, realized};
@@ -27,7 +27,12 @@ fn sub(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 }
 
 fn at(b: Body<f64>, x: f64, y: f64, z: f64) -> Body<f64> {
-    topo::transform_rigid(&b, &Affine3::translation(Vec3::new(x, y, z)), tol()).unwrap()
+    topo::transform_rigid(
+        &b,
+        &geom_core::RigidMotion::translation(Vec3::new(x, y, z)).unwrap(),
+        tol(),
+    )
+    .unwrap()
 }
 
 /// A vertical bore of radius `rad` about `(x, y)`, from `z` up `h`.
@@ -478,7 +483,7 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
 /// sliver, and r = 0.201 refuses with an enclosure about −0.001.
 mod interval_lane {
     use crate::common::interval::{iv, p2, v3};
-    use geom_core::{Affine3, Bounds, Interval, Tol};
+    use geom_core::{Bounds, Interval, Tol};
     use sweep::blend::BlendError;
     use sweep::blend::build::fillet_edges;
     use sweep::test_support::{cube, finished, prism};
@@ -501,8 +506,12 @@ mod interval_lane {
             iv(0.3),
             t(),
         );
-        let diamond =
-            topo::transform_rigid(&diamond, &Affine3::translation(v3(0.0, 0.0, 0.8)), t()).unwrap();
+        let diamond = topo::transform_rigid(
+            &diamond,
+            &geom_core::RigidMotion::translation(v3(0.0, 0.0, 0.8)).unwrap(),
+            t(),
+        )
+        .unwrap();
         let body: AtRestBody<Interval> = boolean_op_with(
             BooleanOp::Subtract,
             &finished("the cube", cube(1.0, t()), t()),

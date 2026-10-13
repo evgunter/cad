@@ -22,7 +22,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y};
 use topo::{AtRestBody, Body, BooleanOp};
@@ -36,7 +36,12 @@ fn ball(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
         Revolution::Full,
         Tol::witness(),
     );
-    let b = topo::transform_rigid(&b, &Affine3::translation(c), Tol::witness()).unwrap();
+    let b = topo::transform_rigid(
+        &b,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap();
     finished("the ball", b, Tol::witness())
 }
 
@@ -155,7 +160,12 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
             Tol::witness(),
         );
         let to = Vec3::new(iv(c.x), iv(c.y), iv(c.z));
-        let b = topo::transform_rigid(&b, &Affine3::translation(to), Tol::witness()).unwrap();
+        let b = topo::transform_rigid(
+            &b,
+            &geom_core::RigidMotion::translation(to).unwrap(),
+            Tol::witness(),
+        )
+        .unwrap();
         finished("the ball", b, Tol::witness())
     };
     let (a, b) = (ball_iv(BASE), ball_iv(BASE + Vec3::new(1.4, 0.0, 0.0)));

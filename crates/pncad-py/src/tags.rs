@@ -141,7 +141,7 @@ use pncad::document::{
     UpdateError,
 };
 use pncad::geom_core::{
-    BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
+    BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthonormalizeError,
     UnitVec3Error,
 };
 use pncad::mesh::TessellateError;
@@ -878,7 +878,7 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
 }
 
 /// The stable tag for a FRAME WITNESS mint's refusal
-/// (`geom_core::OrthoFrame::gram_schmidt`), which is what the sketch
+/// (`geom_core::RigidMotion::gram_schmidt`), which is what the sketch
 /// plane door raises.
 ///
 /// Two axes times the direction door's three definite facts, plus the
@@ -889,7 +889,7 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
 /// help. The escalated arm carries the classifier payload on the
 /// exception's own fields rather than in the word, exactly as
 /// [`frame_error_tag`]'s degenerate arm does.
-pub fn ortho_frame_error_tag(err: &OrthoFrameError) -> &'static str {
+pub fn orthonormalize_error_tag(err: &OrthonormalizeError) -> &'static str {
     match (err.axis, err.error) {
         (OrthoAxis::U, UnitVec3Error::Degenerate) => "degenerate_u_axis",
         (OrthoAxis::V, UnitVec3Error::Degenerate) => "degenerate_v_axis",
@@ -952,6 +952,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Chamfer => "chamfer",
         C::Boolean => "boolean",
         C::Transform => "transform",
+        C::Motion => "motion",
         C::Skin => "skin",
         C::Loft => "loft",
         C::CurvedSolidFrontier => "curved_solid_frontier",
@@ -1143,6 +1144,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Blend { error, .. } => Some(blend_error_tag(error)),
         NodeErrorKind::Boolean(inner) => Some(boolean_error_tag(inner.kind())),
         NodeErrorKind::Transform(inner) => Some(transform_error_tag(inner)),
+        NodeErrorKind::Motion(inner) => Some(rigid_motion_error_tag(inner)),
         NodeErrorKind::Skin(inner) => Some(skin_error_tag(inner)),
         NodeErrorKind::Loft(inner) => Some(loft_error_tag(inner)),
         NodeErrorKind::CurvedSolidFrontier { .. } => None,
@@ -1458,6 +1460,8 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::UnderflowedAxis => "underflowed_axis",
         RevolveError::DegenerateAxis => "degenerate_axis",
         RevolveError::AxisEscalated { .. } => "axis_escalated",
+        RevolveError::PlacedAxis { .. } => "placed_axis",
+        RevolveError::Turn(_) => "turn",
         RevolveError::DegenerateAngle => "degenerate_angle",
         RevolveError::FullRangeAngle => "full_range_angle",
         RevolveError::AngleEscalated { .. } => "angle_escalated",
@@ -1627,6 +1631,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PinchConesOnSeparateKeys => "pinch_cones_on_separate_keys",
         BooleanErrorKind::PinchRaysInAFace => "pinch_rays_in_a_face",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
+        BooleanErrorKind::PartnerAlongFace => "partner_along_face",
         BooleanErrorKind::NestingUnread => "nesting_unread",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
@@ -1674,14 +1679,23 @@ pub fn transform_error_tag(err: &TransformError) -> &'static str {
         TransformError::Pcurve { .. } => "pcurve",
         TransformError::Band(_) => "band",
         TransformError::Certify { .. } => "certify",
-        TransformError::NotRigid { .. } => "not_rigid",
-        TransformError::NonFiniteMap { .. } => "non_finite_map",
         TransformError::NullScaffold { .. } => "null_scaffold",
         TransformError::NurbsPlaceholder => "nurbs_placeholder",
         TransformError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
         TransformError::NurbsLaneUnsupported { .. } => "nurbs_lane_unsupported",
         TransformError::ApproxRecertify { .. } => "approx_recertify",
         TransformError::Corrupt { .. } => "corrupt",
+    }
+}
+
+/// The stable tag for a placement's rigid motion refusing — the inner
+/// arm of [`NodeErrorKind::Motion`].
+pub fn rigid_motion_error_tag(err: &pncad::geom_core::RigidMotionError) -> &'static str {
+    use pncad::geom_core::RigidMotionError as E;
+    match err {
+        E::NonFinite(_) => "non_finite",
+        E::NotRigid { .. } => "not_rigid",
+        E::Undecided { .. } => "undecided",
     }
 }
 
@@ -2123,6 +2137,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
         StepImportError::Join { .. } => "join",
+        StepImportError::PlacementMap { .. } => "placement_map",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::TierInvalid { .. } => "tier_invalid",

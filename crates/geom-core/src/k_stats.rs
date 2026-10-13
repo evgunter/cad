@@ -1662,6 +1662,10 @@ impl Real for Probe {
         Real::is_poison(self.0)
     }
 
+    fn is_bounded(self) -> bool {
+        Real::is_bounded(self.0)
+    }
+
     fn powi(self, n: i32) -> Self {
         Self(Real::powi(self.0, n))
     }

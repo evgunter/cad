@@ -355,7 +355,9 @@ fn the_witnesses_build_at_every_pose() {
     for (what, body, edges) in witnesses() {
         let want = closed_form(&halves_of(&body), &body, &edges, D);
         for (pose, map) in poses() {
-            let moved = topo::transform_rigid(&body, &map, tol()).expect("a rigid pose");
+            let moved =
+                topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol())
+                    .expect("a rigid pose");
             let what = format!("{what} at {pose}");
             let out = chamfer(&moved, &edges, &what);
             let removed = volume(&moved) - volume(&out.body);

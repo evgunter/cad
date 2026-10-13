@@ -2,12 +2,13 @@
 id: a-near-aligned-capped-tube-refuses-by-operand-order
 kind: issue
 title: A sphere-capped tube turned within a hair of aligned refuses at the ruling door with the tube as operand A and escalates a contact vertex's containment with the cap as operand A
-status: review
+status: closed
 opened: 2026-10-11
 priority: P3
 cost: M
 branch: contacthold/glue-door-escalates
 pr: 4918
+closed: 2026-10-13
 ---
 
 
