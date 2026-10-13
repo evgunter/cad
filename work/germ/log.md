@@ -1162,3 +1162,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Pair:** no MAJOR either side (tallied 0, major false).
   - **Fix pass dispatched** with the union plus the reconciliation with 4910's `ring_path` homes: session_01CfMEAtdQdhRyEeyqJ3FNZK.
 - 2026-10-13 06:00 — Check-in. 4886's fix pass merged main and pushed `0d0297b8`; CI is running and it is writing the body rows. 4927's fix pass resolved its merge conflicts with main (4910's ring_path) and is running tests. Nothing ready to merge. Re-armed for 07:00.
+- 2026-10-13 07:10 — **PR 4886's fix pass is done** (head `c29ed1db`). Every item is answered, and the item closes on a clean hunt (round 3: 520/300/300 at effort 1 plus 24 at effort 6; round 4 on merged main clean).
+  - `0x870` fixed (neighbouring-scalar reading).
+  - `0xc7c` was a real classifier witness defect: witnesses 1e4 bands off the wall at 1e-12, fixed by a Newton polish.
+  - A new class (roots past the half-turn) was fixed by a re-close.
+  - The row's matching is now non-greedy, moved into `search_kit.rs` for all three searches.
+  - The strip certificate is pinned and its charge made rigorous; the meter is required by type.
+  - **New main reds** reported by the lane and reproduced on `origin/main` `eb96a01d`: geom-core `bounds_census::every_sole_bracket_bound_door_is_in_the_roster` and `certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned` (PRs 4929 and 4953 taking them).
+  - **My call (not protocol):** the fix pass added unreviewed answer-affecting logic (the re-close turns Uncertain into roots; the witness polish moves witnesses), so I dispatched one focused **delta review d4886** of `b9e0bafb..c29ed1db`, local Opus. It is not a protocol review and not tallied; it goes in the row's fix-pass column. Local verify running in /home/user/v4886 (head + main `a44ad58995`; scratchpad/v4886/summary.txt).
