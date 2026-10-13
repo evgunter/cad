@@ -814,3 +814,5 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Re-scoped:** the carried-vf-at-a-pinch P3, to 4820's names.
   - **New finding:** 229 results that carry records still ship an *undeclared* contact, in 7 tests. They are green only because none of those tests asserts 3′.
   - **Ruled:** trace one pose so the row lands with its owner (CONTACTHOLD for the carry, FUSE for the mint). File it at P1, with a P3 for the missing 3′ assertions. The lane also adds a line to the stale-citation rows of other programs.
+  - **The trace overturns the P1 ruling.** All 229 come from tests that fold through bare kernel ops without `BooleanInputs` records. Their allowances are documented, or a carried sibling asserts 3′ and passes. Re-folding `standing_pyramids…` with the records carried passes strict 3′ on 60/60 steps. No defect, and no P1.
+  - **Filed instead, P3 with `design: true`:** a result's tier-3′ currency is relative to the records passed in, so the `BooleanBody` contract can overstate it. Fixes to weigh: say so in the doc, refuse or flag the input, or make the type carry the relativity.
