@@ -8,7 +8,7 @@
 
 use geom::SurfaceKind;
 use geom_core::{Tol, Vec3};
-use sweep::test_support::{ball_poled_y, brick};
+use sweep::test_support::{ball_poled_y, brick, finished};
 use topo::{Body, Cell, ContactRecords, ValidationError};
 
 fn tol() -> Tol {
@@ -41,13 +41,19 @@ fn top(body: &Body<f64>, z: f64) -> topo::FaceKey {
 /// What tier 3′ says of the one record of `x` and `y`.
 #[derive(Debug, PartialEq, Eq)]
 enum Read {
-    /// No finding refuses it.
+    /// No finding on the record.
     Confirmed,
+    /// The record's stale finding, alone.
     Stale,
+    /// Escalations only.
     Escalated,
+    /// Typed refusals only.
     Unsupported,
 }
 
+/// The record's reading among tier 3′'s findings, read exactly: beside
+/// it the census reports two solids' curved faces in reach undecidable
+/// whatever the record (RESTREAD's row), and any other finding panics.
 fn read(body: &Body<f64>, x: Cell, y: Cell) -> Read {
     let mut records = ContactRecords::default();
     records.extend([topo::Cited::new(
@@ -57,23 +63,17 @@ fn read(body: &Body<f64>, x: Cell, y: Cell) -> Read {
     let errors = topo::validate_pseudomanifold(body, &records, tol())
         .err()
         .unwrap_or_default();
-    if errors
+    let mine: Vec<_> = errors
         .iter()
-        .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. }))
-    {
-        Read::Stale
-    } else if errors
-        .iter()
-        .any(|e| matches!(e, ValidationError::CensusUnsupported { .. }))
-    {
-        Read::Unsupported
-    } else if errors
-        .iter()
-        .any(|e| matches!(e, ValidationError::CensusEscalated { .. }))
-    {
-        Read::Escalated
-    } else {
-        Read::Confirmed
+        .filter(|e| !matches!(e, ValidationError::CensusUndecidable { .. }))
+        .collect();
+    let all = |f: fn(&ValidationError) -> bool| !mine.is_empty() && mine.iter().all(|e| f(e));
+    match mine.as_slice() {
+        [] => Read::Confirmed,
+        [ValidationError::StaleContactDeclaration { .. }] => Read::Stale,
+        _ if all(|e| matches!(e, ValidationError::CensusEscalated { .. })) => Read::Escalated,
+        _ if all(|e| matches!(e, ValidationError::CensusUnsupported { .. })) => Read::Unsupported,
+        _ => panic!("findings beside the record's reading: {mine:?}"),
     }
 }
 
@@ -113,33 +113,86 @@ fn a_ball_on_a_slab_face_is_read_at_its_touch_point() {
     }
 }
 
+/// The pairs of `fa` and `fb`'s faces, each read, sorted.
+fn pair_reads(body: &Body<f64>, fa: &[topo::FaceKey], fb: &[topo::FaceKey]) -> Vec<String> {
+    let mut got: Vec<String> = fa
+        .iter()
+        .flat_map(|&x| fb.iter().map(move |&y| (x, y)))
+        .map(|(x, y)| format!("{:?}", read(body, Cell::Face(x), Cell::Face(y))))
+        .collect();
+    got.sort();
+    got
+}
+
 /// Two half-unit balls touching at (2, 2, 2): one pair of their faces
-/// holds the point and is confirmed, the other three are stale. A ball
-/// of radius 0.25 inside a unit ball, touching it from inside at
-/// (2, 2, 2.5): one pair confirmed, the rest stale. (Each ball's seam
-/// meridian runs through its +x side, so the points are put on z.)
+/// holds the point and is confirmed, the other three are stale. (Each
+/// ball's seam meridian runs through its +x side, so the point is put
+/// on z.)
 #[test]
 fn two_balls_touching_are_read_at_their_touch_point() {
-    for (what, (r, c), big) in [
-        ("outside", (0.5, Vec3::new(2.0, 2.0, 2.5)), 0.5),
-        ("inside", (0.25, Vec3::new(2.0, 2.0, 2.25)), 1.0),
+    let a = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 1.5), tol());
+    let b = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 2.5), tol());
+    let (body, fa) = graft(Body::new(), &a);
+    let (body, fb) = graft(body, &b);
+    let fa: Vec<_> = fa.into_iter().filter(|f| !fb.contains(f)).collect();
+    assert_eq!(
+        pair_reads(&body, &fa, &fb),
+        ["Confirmed", "Stale", "Stale", "Stale"],
+        "one pair of faces holds the touch point"
+    );
+}
+
+/// A ball of radius 0.25 in a unit ball's cavity in a block, touching
+/// the cavity's wall from inside at (2, 2, 2.5): one pair of the two
+/// spheres' faces holds the point and is confirmed, the rest stale.
+#[test]
+fn a_ball_touching_its_cavity_from_inside_is_read_at_its_touch_point() {
+    let block = finished(
+        "the block",
+        brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 3.0), tol()),
+        tol(),
+    );
+    let hollow = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 1.5), tol());
+    let cavity = match topo::subtract(&block, &finished("the hollow", hollow, tol()), tol()) {
+        Ok(topo::BooleanResult::Body(b)) => b.body.into_body(),
+        other => panic!("the block less the hollow: {:?}", other.map(|_| ())),
+    };
+    let ball = ball_poled_y(0.25, Vec3::new(2.0, 2.0, 2.25), tol());
+    let walls: Vec<_> = cavity
+        .faces()
+        .filter(|(_, f)| cavity.get_surface(f.surface).unwrap().kind() == SurfaceKind::Sphere)
+        .map(|(k, _)| k)
+        .collect();
+    let (body, fb) = graft(cavity, &ball);
+    let mut want = vec!["Confirmed"];
+    want.resize(walls.len() * fb.len(), "Stale");
+    assert_eq!(pair_reads(&body, &walls, &fb), want);
+}
+
+/// A half-unit ball touching the slab's top face at the face's
+/// boundary: on its edge x = 0 and at its corner both records are stale
+/// (the point is not inside the face); 3ε inside the edge the record of
+/// the hemisphere holding it escalates where the band is wider than 3ε,
+/// and the other hemisphere's, which does not hold the point, still
+/// reads stale.
+#[test]
+fn a_ball_touching_a_slab_face_at_its_boundary_is_read_there() {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let (eps, k) = (band.zero(), band.escalate() / band.zero());
+    let near = if k > 3.0 { "Escalated" } else { "Confirmed" };
+    for (what, (x, y), want) in [
+        ("on the face's edge", (0.0, 2.0), ["Stale", "Stale"]),
+        ("at the face's corner", (0.0, 0.0), ["Stale", "Stale"]),
+        (
+            "3ε inside the face's edge",
+            (3.0 * eps, 2.0),
+            [near, "Stale"],
+        ),
     ] {
-        let a = ball_poled_y(big, Vec3::new(2.0, 2.0, 1.5), tol());
-        let b = ball_poled_y(r, c, tol());
-        let (body, fa) = graft(Body::new(), &a);
-        let (body, fb) = graft(body, &b);
-        let fa: Vec<_> = fa.into_iter().filter(|f| !fb.contains(f)).collect();
-        let mut got: Vec<String> = fa
-            .iter()
-            .flat_map(|&x| fb.iter().map(move |&y| (x, y)))
-            .map(|(x, y)| format!("{:?}", read(&body, Cell::Face(x), Cell::Face(y))))
-            .collect();
-        got.sort();
-        assert_eq!(
-            got,
-            ["Confirmed", "Stale", "Stale", "Stale"],
-            "{what}: one pair of faces holds the touch point"
-        );
+        let ball = ball_poled_y(0.5, Vec3::new(x, y, 1.5), tol());
+        let (body, balls) = graft(slab(), &ball);
+        let face = top(&body, 1.0);
+        assert_eq!(reads(&body, &balls, Cell::Face(face)), want, "{what}");
     }
 }
 

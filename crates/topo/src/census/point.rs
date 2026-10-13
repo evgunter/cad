@@ -8,38 +8,30 @@
 //! positive (their second-order separation, levered by the curved
 //! carrier's radius), the carriers coincide at it within ε, and the
 //! point is strictly inside both cells. Carriers that coincide nowhere,
-//! or cross, read stale; carriers outside these lanes refuse typed.
-//! Whether the solids cross at the point is the touch analysis's reading
-//! of the faces around it, not this record's.
+//! or cross, read stale. An edge–face pair outside these lanes refuses
+//! typed; a face pair outside them is not this lane's
+//! ([`face_face`] answers `None`). Whether the solids cross at the
+//! point is the touch analysis's reading of the faces around it, not
+//! this record's.
+//!
+//! The closed forms here are touch points, not the crossing sections
+//! `boolean::section_cert` derives for the same carrier pairs (a
+//! sample of the section circle, its touch a band fallback) nor the
+//! ray roots `boolean::solid_contain` reads: neither answers the point
+//! where the carriers come nearest.
 
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
-use super::{
-    CensusSubject, CensusUnsupportedCause, FaceContainment, ValidationError, curved, face_holds,
-};
+use super::curved::{self, Carrier, decided};
+use super::{CensusSubject, CensusUnsupportedCause, FaceContainment, ValidationError, face_holds};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 
-/// A carrier these lanes read.
+/// A face carrier these lanes read.
 #[derive(Clone, Copy)]
-enum Carrier<T: Real> {
-    Line {
-        origin: Point3<T>,
-        dir: Vec3<T>,
-    },
-    Circle {
-        center: Point3<T>,
-        axis: Vec3<T>,
-        radius: T,
-    },
-    Plane {
-        origin: Point3<T>,
-        normal: Vec3<T>,
-    },
-    Sphere {
-        center: Point3<T>,
-        radius: T,
-    },
+enum Surface<T: Real> {
+    Plane { origin: Point3<T>, normal: Vec3<T> },
+    Sphere { center: Point3<T>, radius: T },
 }
 
 /// What a point-touch reading answers.
@@ -54,54 +46,26 @@ pub(super) enum Read {
 }
 
 /// Where two carriers touch, on their closed-form lane.
-enum Locus<T: Real> {
+enum Touch<T: Real> {
     At(Point3<T>),
     /// The carriers coincide nowhere, or cross.
     Apart,
-    /// A circle lying in a plane: a curve touch, not a point one.
+}
+
+/// Where a circle and a plane touch.
+enum Locus<T: Real> {
+    Touch(Touch<T>),
+    /// The circle lies in the plane: a curve touch, not a point one.
     Lies,
 }
 
-fn edge_carrier<T: Real>(body: &Body<T>, e: EdgeKey) -> Option<Carrier<T>> {
-    let curve = body
-        .edges
-        .get(e)
-        .and_then(|d| body.curves.get(d.curve))
-        .and_then(crate::null::CurveGeom::certified)?;
-    match *curve.carrier() {
-        geom::Curve3::Line { origin, dir } => Some(Carrier::Line { origin, dir }),
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            ..
-        } => Some(Carrier::Circle {
-            center,
-            axis,
-            radius,
-        }),
-        _ => None,
-    }
-}
-
-fn face_carrier<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Carrier<T>> {
+fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
     let face = body.get_face(f)?;
     match *body.get_surface(face.surface)? {
-        geom::Surface::Plane { origin, normal, .. } => Some(Carrier::Plane { origin, normal }),
-        geom::Surface::Sphere { center, radius, .. } => Some(Carrier::Sphere { center, radius }),
+        geom::Surface::Plane { origin, normal, .. } => Some(Surface::Plane { origin, normal }),
+        geom::Surface::Sphere { center, radius, .. } => Some(Surface::Sphere { center, radius }),
         _ => None,
     }
-}
-
-fn decided<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-    errors: &mut Vec<ValidationError>,
-) -> Option<Sign> {
-    geom_core::k_stats::decide(name, margin, band)
-        .map_err(|cause| errors.push(ValidationError::CensusEscalated { cause }))
-        .ok()
 }
 
 /// `κ_rel` definitely positive: `Some(true)`; in band, `Some(false)`;
@@ -131,11 +95,11 @@ fn coincident<T: Decide>(
     at: Point3<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
-) -> Option<Locus<T>> {
+) -> Option<Touch<T>> {
     Some(
         match decided("pm_census_point_gap", Margin::of(gap - reach), band, errors)? {
-            Sign::Zero => Locus::At(at),
-            _ => Locus::Apart,
+            Sign::Zero => Touch::At(at),
+            _ => Touch::Apart,
         },
     )
 }
@@ -147,97 +111,52 @@ fn on_sphere<T: Decide>(
     foot: Point3<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
-) -> Option<Locus<T>> {
+) -> Option<Touch<T>> {
     if !separates(T::one() / r, r, band, errors)? {
-        return Some(Locus::Apart);
+        return Some(Touch::Apart);
     }
     let w = foot - c;
     let d = w.norm();
     // The touch point is on the sphere along `c → foot`, so a foot at
     // the centre (the carrier through it) crosses.
     if decided("pm_census_point_centre", Margin::of(d), band, errors)? != Sign::Positive {
-        return Some(Locus::Apart);
+        return Some(Touch::Apart);
     }
     coincident(d, r, c + w * (r / d), band, errors)
 }
 
-/// The two carriers' touch point (module docs). `Ok(None)` where a
-/// decision escalated (pushed); `Err` for a pair outside these lanes.
-fn locus<T: Decide>(
-    a: Carrier<T>,
-    b: Carrier<T>,
-    band: Band,
-    errors: &mut Vec<ValidationError>,
-) -> Result<Option<Locus<T>>, ()> {
-    use Carrier::{Circle, Line, Plane, Sphere};
-    Ok(match (a, b) {
-        (
-            Circle {
-                center,
-                axis,
-                radius,
-            },
-            Plane { origin, normal },
-        )
-        | (
-            Plane { origin, normal },
-            Circle {
-                center,
-                axis,
-                radius,
-            },
-        ) => circle_plane((center, axis, radius), (origin, normal), band, errors),
-        (Line { origin, dir }, Sphere { center, radius })
-        | (Sphere { center, radius }, Line { origin, dir }) => {
-            let foot = origin + dir * dir.dot(center - origin);
-            on_sphere((center, radius), foot, band, errors)
-        }
-        (Plane { origin, normal }, Sphere { center, radius })
-        | (Sphere { center, radius }, Plane { origin, normal }) => {
-            let foot = center - normal * normal.dot(center - origin);
-            on_sphere((center, radius), foot, band, errors)
-        }
-        (
-            Sphere {
-                center: c1,
-                radius: r1,
-            },
-            Sphere {
-                center: c2,
-                radius: r2,
-            },
-        ) => sphere_sphere((c1, r1), (c2, r2), band, errors),
-        _ => return Err(()),
-    })
-}
-
 /// A circle `(c, a, r)` against a plane `(o, n)`: the circle's point
-/// nearest the plane is `c ∓ r·d̂`, `d` the plane's normal across the
-/// circle's plane, and `κ_rel = |d| / r`. A circle parallel to the
-/// plane lies in it, or is apart.
+/// nearest the plane is `c ∓ r·d̂`, `d = (a × n) × a` the plane's
+/// normal across the circle's plane, and `κ_rel = |d| / r`. A circle
+/// parallel to the plane lies in it, or is apart.
 fn circle_plane<T: Decide>(
     (c, a, r): (Point3<T>, Vec3<T>, T),
     (o, n): (Point3<T>, Vec3<T>),
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Locus<T>> {
-    let d = n - a * a.dot(n);
+    // Not `n − a·(a·n)`: as the circle turns parallel to the plane that
+    // difference cancels, and its component along `n` (`sin²`, which
+    // places the touch point off the circle's centre plane) rounds away.
+    let d = a.cross(n).cross(a);
     let sin = d.norm();
     let s = n.dot(c - o);
     if !separates(sin / r, r, band, errors)? {
         return Some(
             match decided("pm_census_point_plane", Margin::of(s), band, errors)? {
                 Sign::Zero => Locus::Lies,
-                _ => Locus::Apart,
+                _ => Locus::Touch(Touch::Apart),
             },
         );
     }
     let toward = d / sin;
-    match decided("pm_census_point_plane", Margin::of(s), band, errors)? {
-        Sign::Positive => coincident(s, r * sin, c - toward * r, band, errors),
-        Sign::Negative => coincident(T::zero() - s, r * sin, c + toward * r, band, errors),
-        Sign::Zero => Some(Locus::Apart),
-    }
+    Some(Locus::Touch(
+        match decided("pm_census_point_plane", Margin::of(s), band, errors)? {
+            Sign::Positive => coincident(s, r * sin, c - toward * r, band, errors)?,
+            Sign::Negative => coincident(T::zero() - s, r * sin, c + toward * r, band, errors)?,
+            Sign::Zero => Touch::Apart,
+        },
+    ))
 }
 
 /// Two spheres: outside each other at `|c₂ − c₁| = r₁ + r₂`
@@ -248,11 +167,11 @@ fn sphere_sphere<T: Decide>(
     (c2, r2): (Point3<T>, T),
     band: Band,
     errors: &mut Vec<ValidationError>,
-) -> Option<Locus<T>> {
+) -> Option<Touch<T>> {
     let v = c2 - c1;
     let dist = v.norm();
     if decided("pm_census_point_centre", Margin::of(dist), band, errors)? != Sign::Positive {
-        return Some(Locus::Apart);
+        return Some(Touch::Apart);
     }
     let u = v / dist;
     let small = r1.min(r2);
@@ -264,22 +183,22 @@ fn sphere_sphere<T: Decide>(
     )? {
         Sign::Zero => {
             if !separates(T::one() / r1 + T::one() / r2, small, band, errors)? {
-                return Some(Locus::Apart);
+                return Some(Touch::Apart);
             }
-            return Some(Locus::At(c1 + u * r1));
+            return Some(Touch::At(c1 + u * r1));
         }
-        Sign::Positive => return Some(Locus::Apart),
+        Sign::Positive => return Some(Touch::Apart),
         Sign::Negative => {}
     }
     let big = r1.max(r2);
     if !separates(T::one() / small - T::one() / big, small, band, errors)? {
-        return Some(Locus::Apart);
+        return Some(Touch::Apart);
     }
     // The point is on the big sphere away from the small one's centre.
     let (cb, out) = match decided("pm_census_point_radii", Margin::of(r1 - r2), band, errors)? {
         Sign::Positive => (c1, u),
         Sign::Negative => (c2, -u),
-        Sign::Zero => return Some(Locus::Apart),
+        Sign::Zero => return Some(Touch::Apart),
     };
     coincident(dist, big - small, cb + out * big, band, errors)
 }
@@ -314,19 +233,14 @@ fn in_face<T: Decide>(
 }
 
 fn read<T: Real>(
-    locus: Option<Locus<T>>,
-    lies: impl FnOnce() -> ValidationError,
+    touch: Option<Touch<T>>,
     inside: impl FnOnce(Point3<T>, &mut Vec<ValidationError>) -> Option<bool>,
     errors: &mut Vec<ValidationError>,
 ) -> Read {
-    match locus {
+    match touch {
         None => Read::Pushed,
-        Some(Locus::Apart) => Read::Stale,
-        Some(Locus::Lies) => {
-            errors.push(lies());
-            Read::Pushed
-        }
-        Some(Locus::At(p)) => match inside(p, errors) {
+        Some(Touch::Apart) => Read::Stale,
+        Some(Touch::At(p)) => match inside(p, errors) {
             Some(true) => Read::Met,
             Some(false) => Read::Stale,
             None => Read::Pushed,
@@ -344,9 +258,33 @@ pub(super) fn edge_face<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Read {
     let subject = CensusSubject::Entity(EntityId::Edge(edge));
-    let carriers = edge_carrier(body, edge).zip(face_carrier(body, face));
-    let locus = match carriers.map(|(e, f)| locus(e, f, band, errors)) {
-        Some(Ok(locus)) => locus,
+    let Some(curve) = curved::carrier(body, edge, errors) else {
+        return Read::Pushed;
+    };
+    let touch = match (curve, surface(body, face)) {
+        (
+            Carrier::Circle {
+                center,
+                normal: axis,
+                radius,
+            },
+            Some(Surface::Plane { origin, normal }),
+        ) => match circle_plane((center, axis, radius), (origin, normal), band, errors) {
+            None => None,
+            Some(Locus::Touch(touch)) => Some(touch),
+            Some(Locus::Lies) => {
+                errors.push(refused(
+                    subject,
+                    "a circle lying in a plane away from a conventional vertex: the census \
+                     builds no curve-touch lane along an edge's carrier",
+                ));
+                return Read::Pushed;
+            }
+        },
+        (Carrier::Line { origin, dir }, Some(Surface::Sphere { center, radius })) => {
+            let foot = origin + dir * dir.dot(center - origin);
+            on_sphere((center, radius), foot, band, errors)
+        }
         _ => {
             errors.push(refused(
                 subject,
@@ -357,17 +295,13 @@ pub(super) fn edge_face<T: Decide>(
         }
     };
     read(
-        locus,
-        || {
-            refused(
-                subject,
-                "a circle lying in a plane away from a conventional vertex: the census builds \
-                 no curve-touch lane along an edge's carrier",
+        touch,
+        |p, errors| {
+            curved::in_both(
+                |errors| curved::on_curved_interior(body, edge, p, band, errors),
+                |errors| in_face(body, face, p, band, errors),
+                errors,
             )
-        },
-        |p, errors| match curved::on_curved_interior(body, edge, p, band, errors)? {
-            true => in_face(body, face, p, band, errors),
-            false => Some(false),
         },
         errors,
     )
@@ -382,14 +316,33 @@ pub(super) fn face_face<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Read> {
-    let (ca, cb) = face_carrier(body, a).zip(face_carrier(body, b))?;
-    let locus = locus(ca, cb, band, errors).ok()?;
+    use Surface::{Plane, Sphere};
+    let touch = match surface(body, a).zip(surface(body, b))? {
+        (Plane { origin, normal }, Sphere { center, radius })
+        | (Sphere { center, radius }, Plane { origin, normal }) => {
+            let foot = center - normal * normal.dot(center - origin);
+            on_sphere((center, radius), foot, band, errors)
+        }
+        (
+            Sphere {
+                center: c1,
+                radius: r1,
+            },
+            Sphere {
+                center: c2,
+                radius: r2,
+            },
+        ) => sphere_sphere((c1, r1), (c2, r2), band, errors),
+        (Plane { .. }, Plane { .. }) => return None,
+    };
     Some(read(
-        locus,
-        || unreachable!("two faces' carriers never lie one in the other on a point lane"),
-        |p, errors| match in_face(body, a, p, band, errors)? {
-            true => in_face(body, b, p, band, errors),
-            false => Some(false),
+        touch,
+        |p, errors| {
+            curved::in_both(
+                |errors| in_face(body, a, p, band, errors),
+                |errors| in_face(body, b, p, band, errors),
+                errors,
+            )
         },
         errors,
     ))

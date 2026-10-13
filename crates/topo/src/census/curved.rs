@@ -21,9 +21,10 @@ use super::{CensusSubject, CensusUnsupportedCause, ValidationError, gap_is_zero}
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId};
 
-/// The carriers these lanes read: a line, or a circle.
+/// The edge carriers these lanes read, and the point-touch lanes
+/// ([`super::point`]) too: a line, or a circle.
 #[derive(Clone, Copy)]
-enum Carrier<T: Real> {
+pub(super) enum Carrier<T: Real> {
     Line {
         origin: Point3<T>,
         dir: Vec3<T>,
@@ -44,18 +45,32 @@ struct Read<T: Real> {
     speed: T,
 }
 
+fn refused(e: EdgeKey, what: &'static str) -> ValidationError {
+    ValidationError::CensusUnsupported {
+        subject: CensusSubject::Entity(EntityId::Edge(e)),
+        cause: CensusUnsupportedCause::ContactLane(
+            crate::contact::ContactRefusal::NotCertifiable { what },
+        ),
+    }
+}
+
 /// `e`'s certified curve's carrier, span and least speed, or the typed
-/// refusal pushed for a carrier outside these lanes.
+/// refusal pushed for an edge with no certified curve or a carrier
+/// outside these lanes.
 fn read<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Read<T>> {
-    let curve = body
+    let Some(curve) = body
         .edges
         .get(e)
         .and_then(|d| body.curves.get(d.curve))
-        .and_then(crate::null::CurveGeom::certified)?;
+        .and_then(crate::null::CurveGeom::certified)
+    else {
+        errors.push(refused(e, "a record's edge carries no certified curve"));
+        return None;
+    };
     let carrier = curve.carrier().clone();
     let (read, speed) = match carrier {
         geom::Curve3::Line { origin, dir } => (Carrier::Line { origin, dir }, T::one()),
@@ -73,14 +88,10 @@ fn read<T: Decide>(
             radius,
         ),
         _ => {
-            errors.push(ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Edge(e)),
-                cause: CensusUnsupportedCause::ContactLane(
-                    crate::contact::ContactRefusal::NotCertifiable {
-                        what: "a record on a curved edge is certified on a circle edge only",
-                    },
-                ),
-            });
+            errors.push(refused(
+                e,
+                "a record on a curved edge is certified on a circle edge only",
+            ));
             return None;
         }
     };
@@ -92,7 +103,17 @@ fn read<T: Decide>(
     })
 }
 
-fn decided<T: Decide>(
+/// `e`'s carrier, or `None` with the typed refusal pushed ([`read`]).
+pub(super) fn carrier<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Carrier<T>> {
+    read(body, e, errors).map(|r| r.carrier)
+}
+
+/// `margin`'s sign, or `None` with the escalation pushed.
+pub(super) fn decided<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -101,6 +122,30 @@ fn decided<T: Decide>(
     geom_core::k_stats::decide(name, margin, band)
         .map_err(|cause| errors.push(ValidationError::CensusEscalated { cause }))
         .ok()
+}
+
+/// Whether a point is in two cells, each reading pushing what stopped
+/// it: `Some(false)` where either reads it out, whatever the other
+/// pushed (a decided answer drops the other's escalations); `Some(true)`
+/// where both read it in; `None` otherwise, with what both pushed.
+pub(super) fn in_both(
+    a: impl FnOnce(&mut Vec<ValidationError>) -> Option<bool>,
+    b: impl FnOnce(&mut Vec<ValidationError>) -> Option<bool>,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    let mut held = Vec::new();
+    let on_a = a(&mut held);
+    if on_a == Some(false) {
+        return Some(false);
+    }
+    match (on_a, b(&mut held)) {
+        (_, Some(false)) => Some(false),
+        (Some(true), Some(true)) => Some(true),
+        _ => {
+            errors.extend(held);
+            None
+        }
+    }
 }
 
 /// Whether `q` lies on `e`'s interior (module docs). `None` where a
@@ -301,13 +346,16 @@ pub(super) fn curved_interiors_meet<T: Decide>(
         (Carrier::Line { .. }, Carrier::Line { .. }) => Some(Vec::new()),
     };
     points.extend(crossings?);
-    // A candidate off either edge may escalate where another is on
-    // both: its escalations stand only if no candidate decides.
+    // A candidate undecided on one edge may stand beside another on
+    // both: its escalations stand only if no candidate is on both.
     let mut held = Vec::new();
     for p in points {
-        let on_a = on_curved_interior(body, a, p, band, &mut held);
-        let on_b = on_curved_interior(body, b, p, band, &mut held);
-        if (on_a, on_b) == (Some(true), Some(true)) {
+        if in_both(
+            |errors| on_curved_interior(body, a, p, band, errors),
+            |errors| on_curved_interior(body, b, p, band, errors),
+            &mut held,
+        ) == Some(true)
+        {
             return Some(true);
         }
     }
@@ -380,10 +428,9 @@ mod tests {
     /// **Two circles kissing in their plane meet at the point**: the
     /// unit circle's arc over ±30° against an arc over 150..210° of a
     /// unit circle outside it or a half-unit one inside it, each touching
-    /// it at (1, 0, 0) (the point touch C3 names for two edges, its
-    /// `κ_rel` the two curvatures' sum or difference, never zero for two
-    /// distinct circles). Pushed 0.1 m apart they do not meet; pushed
-    /// 3ε, whether they meet is undecided and escalates.
+    /// it at (1, 0, 0) (the point touch C3 names for two edges).
+    /// Pushed 0.1 m apart they do not meet; pushed 3ε, whether they
+    /// meet is undecided and escalates.
     #[test]
     fn kissing_circles_meet_at_their_touch_point() {
         let tol = Tol::witness();

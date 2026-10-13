@@ -12871,7 +12871,7 @@ mod edge_face_residual {
 /// x = `x` (y over `y`, z over −0.5..1.5), read by the record confirm.
 /// At x = 1 the circle touches the face's plane at (1, 0, 0).
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod point_touch {
     use super::*;
     use crate::boolean::Cell;
@@ -12879,9 +12879,20 @@ mod point_touch {
     use geom_core::Tol;
 
     fn rim_on_face(u: (f64, f64), x: f64, y: (f64, f64)) -> Result<bool, ValidationError> {
+        rim_on_brick(CylFrame::canonical(1.0), u, x, y, (-0.5, 1.5))
+    }
+
+    /// The rim at v = 0 of `frame` over `u` against the face x = `x` of
+    /// a brick on its +x side, the face's region y over `y`, z over `z`.
+    fn rim_on_brick(
+        frame: CylFrame,
+        u: (f64, f64),
+        x: f64,
+        y: (f64, f64),
+        z: (f64, f64),
+    ) -> Result<bool, ValidationError> {
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
-        let frame = CylFrame::canonical(1.0);
         cyl_wall_sheet(&mut body, frame, u, (0.0, 1.0), tol);
         let xyz = |p: Point3<f64>| [p.x, p.y, p.z];
         let (p, q) = (xyz(frame.at(u.0, 0.0)), xyz(frame.at(u.1, 0.0)));
@@ -12895,13 +12906,13 @@ mod point_touch {
             })
             .map(|(k, _)| k)
             .expect("the bottom rim");
-        let block = brick::<f64>((x, x + 1.0), y, (-0.5, 1.5), tol);
+        let block = brick::<f64>((x, x + 1.0), y, z, tol);
         let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
         let side = block
             .faces()
             .find(|(_, f)| match block.get_surface(f.surface) {
                 Some(geom::Surface::Plane { origin, normal, .. }) => {
-                    normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-15
+                    normal.x.abs() > 0.5 && (origin.x - x).abs() <= 1e-15 * x.abs().max(1.0)
                 }
                 _ => false,
             })
@@ -12953,5 +12964,63 @@ mod point_touch {
             "{:?}",
             rim_on_face((-0.5, 0.5), x, (-0.5, 0.5))
         );
+    }
+
+    /// The touch point on the face's boundary is not inside it: on an
+    /// edge of the face, and at its corner, the record is stale.
+    #[test]
+    fn a_circle_touching_a_plane_face_on_its_boundary_is_stale() {
+        for (what, y, z) in [
+            ("on the face's edge y = 0", (0.0, 1.0), (-0.5, 0.5)),
+            ("at the face's corner", (0.0, 1.0), (0.0, 1.0)),
+        ] {
+            assert_eq!(
+                rim_on_brick(CylFrame::canonical(1.0), (-0.5, 0.5), 1.0, y, z),
+                Ok(false),
+                "{what}"
+            );
+        }
+    }
+
+    /// A unit circle nearly parallel to the plane it touches, its
+    /// sagitta over the radius `2k·ε` (`k` the band's escalate over
+    /// zero): `κ_rel` clears the band and the touch point sits off the
+    /// circle's centre plane by about `4kε`, which the reading keeps.
+    /// At `3ε` the separation is undecided; at `0.5ε` the circle lies in
+    /// the plane through its centre (a curve touch, refused typed), or
+    /// stands apart a metre off or `1.5kε` off.
+    #[test]
+    fn a_circle_nearly_parallel_to_a_plane_is_read_at_its_touch_point() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (eps, k) = (band.zero(), band.escalate() / band.zero());
+        for (what, sagitta, off, want) in [
+            ("sagitta 2kε, touching", 2.0 * k, None, "met"),
+            ("sagitta 3ε, touching", 3.0, None, "escalated"),
+            (
+                "sagitta 0.5ε, through the centre",
+                0.5,
+                Some(0.0),
+                "unsupported",
+            ),
+            ("sagitta 0.5ε, a metre off", 0.5, Some(1.0), "stale"),
+            ("sagitta 0.5ε, 1.5kε off", 0.5, Some(1.5 * k * eps), "stale"),
+        ] {
+            let frame = CylFrame::tilted(1.0, (2.0 * sagitta * eps).acos());
+            let tp = frame.at::<f64>(0.0, 0.0);
+            let got = match rim_on_brick(
+                frame,
+                (-0.5, 0.5),
+                off.unwrap_or(tp.x),
+                (tp.y - 0.5, tp.y + 0.5),
+                (tp.z - 0.5, tp.z + 0.5),
+            ) {
+                Ok(true) => "met",
+                Ok(false) => "stale",
+                Err(ValidationError::CensusEscalated { .. }) => "escalated",
+                Err(ValidationError::CensusUnsupported { .. }) => "unsupported",
+                Err(e) => panic!("{what}: {e:?}"),
+            };
+            assert_eq!(got, want, "{what}");
+        }
     }
 }

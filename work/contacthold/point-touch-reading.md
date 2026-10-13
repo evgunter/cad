@@ -24,7 +24,8 @@ levered by the curved carrier's radius), the carriers coincide within
 ε, and the point is strictly inside both cells (the curved edge-interior
 door, the face containment door). Apart or crossing reads stale; a
 circle lying in a plane away from a conventional vertex is a curve
-touch, refused typed; carriers outside the lanes refuse typed.
+touch, refused typed; an edge–face pair outside the lanes refuses
+typed, and a face pair outside them goes on to the tangent-line lane.
 
 - edge–face: circle on a plane, line on a sphere
   (`census::confirm_edge_face`, after the line-in-plane and
