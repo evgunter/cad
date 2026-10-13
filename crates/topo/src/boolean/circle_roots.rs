@@ -344,8 +344,8 @@ const POLE_CANDIDATES: u32 = 32;
 /// `F`'s sign. The answer is [`certified_subdivision`]'s; the half-angle
 /// ladder runs first and only its escalations are kept.
 ///
-/// `slack` is the subdivision's root-slack meter, where the caller has
-/// one.
+/// `slack` is the subdivision's root-slack meter: an answer rests on
+/// the roots it reports.
 ///
 /// # Errors
 ///
@@ -357,7 +357,7 @@ pub(super) fn half_angle_roots<T: Decide>(
     residual: impl Fn(T) -> T,
     frame: HalfAngleFrame<T>,
     rows: &HalfAngleRows,
-    slack: Option<&RootSlack<'_, T>>,
+    slack: &RootSlack<'_, T>,
     band: Band,
 ) -> Result<CircleRoots<T>, BooleanError> {
     if f.degree > 2 {
@@ -366,7 +366,7 @@ pub(super) fn half_angle_roots<T: Decide>(
         });
     }
     ladder_roots(f, &residual, &frame, rows, band)?;
-    certified_subdivision(f, &residual, &frame.walk, &rows.verify, slack, band)
+    certified_subdivision(f, &residual, &frame.walk, &rows.verify, Some(slack), band)
 }
 
 /// [`half_angle_roots`]'s ladder: the quartic in the tangent half-angle
@@ -563,7 +563,8 @@ const BISECTIONS: u32 = 64;
 ///   scalar's resolution and must then read ON the surface (`side`,
 ///   `Zero`), or the answer is `Uncertain` — and, where the caller hands
 ///   a [`RootSlack`] meter, its slack must be definitely inside the band
-///   too;
+///   too. The bisection closes on two adjacent scalars, and the root is
+///   the one whose residual is nearer zero;
 /// - otherwise the piece is split, until its arc length is inside the
 ///   band (`width`): a piece that small, neither clear nor monotone,
 ///   holds a double root — a tangency — and the answer is `Uncertain`,
@@ -578,6 +579,17 @@ const BISECTIONS: u32 = 64;
 /// true one to within `noise`, so its `k`-th derivative to within
 /// `Nᵏ·noise` (Bernstein's inequality for a trigonometric polynomial of
 /// degree `N`), and each Taylor term above is charged its own share.
+///
+/// **Without a meter** (`slack` `None`) a root is only a scalar whose
+/// residual, as evaluated, reads ON beside a sign change of it: within
+/// one scalar step of a true root of that evaluation, not within the
+/// band of the true root, and a pair inside the band of a true graze
+/// can stand for none. No answer rests on such roots: every door that
+/// answers meters its walk ([`half_angle_roots`] takes its meter by
+/// type; `ellipse_torus`'s `torus_walk` takes an `Option` that only its
+/// own rows pass as `None`), and the meterless walks are the ruling
+/// charts' uncharged reading, which only chooses a refusal's row, and
+/// the rows.
 #[allow(clippy::too_many_lines)] // one walk: the cut, the pieces, the bisection
 pub(super) fn certified_subdivision<T: Decide>(
     f: &TrigPoly<T>,
@@ -709,23 +721,47 @@ pub(super) fn certified_subdivision<T: Decide>(
             // from its harmonics: the two share their zero set, and near a
             // graze `|F′|` is small enough that the harmonics' rounding
             // moves `F`'s sign change along the arc by more than the band.
-            let (mut lo, mut hi) = (l, r);
-            let at_lo = residual(l);
-            for _ in 0..BISECTIONS {
-                let c = (lo + hi) / two;
-                let product = residual(c) * at_lo;
-                lo = product.select_le_zero(lo, c);
-                hi = product.select_le_zero(c, hi);
-            }
+            let close = |l: T, r: T| {
+                let (mut lo, mut hi) = (l, r);
+                let at_lo = residual(l);
+                for _ in 0..BISECTIONS {
+                    let c = (lo + hi) / two;
+                    let product = residual(c) * at_lo;
+                    lo = product.select_le_zero(lo, c);
+                    hi = product.select_le_zero(c, hi);
+                }
+                (lo, hi)
+            };
             // Reported within `π` of the arc's midpoint, so a caller
             // compares it with `[t0, t1]` directly: the first cut's ends
             // are moved along their pieces, so the last piece runs past
-            // the half-turn.
+            // the half-turn. Of the two adjacent scalars the bracket
+            // closes on, a steep residual can read ON at one only, and
+            // their midpoint rounds onto either.
             let mid = (t0 + t1) / two;
-            let root = mid + ((lo + hi) / two - mid).reduce_periodic_centred(T::tau());
-            match decide(rows.side, Margin::of(residual(root)), band) {
-                Ok(Sign::Zero) => {}
-                _ => return Ok(CircleRoots::Uncertain),
+            let reported = |t: T| mid + (t - mid).reduce_periodic_centred(T::tau());
+            let nearer = |(lo, hi): (T, T)| {
+                let (at_lo, at_hi) = (reported(lo), reported(hi));
+                (residual(at_lo).abs() - residual(at_hi).abs()).select_le_zero(at_lo, at_hi)
+            };
+            let on = |t: T| {
+                matches!(
+                    decide(rows.side, Margin::of(residual(t)), band),
+                    Ok(Sign::Zero)
+                )
+            };
+            let (lo, hi) = close(l, r);
+            let mut root = nearer((lo, hi));
+            if !on(root) {
+                // Moved by the turn it is reported at, which is `2π` only to
+                // rounding, the root stands on a line read with rounding of
+                // its own: the bracket is closed again on the piece moved
+                // by that turn, on the scalars the root is reported at.
+                let turn = lo - reported(lo);
+                root = nearer(close(l - turn, r - turn));
+                if !on(root) {
+                    return Ok(CircleRoots::Uncertain);
+                }
             }
             if let Some(meter) = slack {
                 // `|F|` at the root, true to within `reach`: the true root
@@ -1160,6 +1196,39 @@ mod subdivision_guard_rows {
                 let off = residual(t).abs();
                 assert!(off <= eps, "root {t} reads {off:e} off the surface");
             }
+        }
+    }
+
+    /// **A bisected root is the bracket end nearer the surface.** The
+    /// residual is `sin(θ − a)` steepened `8.1·10⁶`-fold about `a` and
+    /// shifted `0.3` of the band's zero down there, so between `a` and the
+    /// next scalar `b` it steps from `−0.3` to `+1.5` zeros: the bracket
+    /// closes on them, `a` reads ON and `b` does not. `a`'s last bit is
+    /// odd, so their midpoint rounds onto `b`; reported there the root
+    /// reads off the surface and the answer is `Uncertain`.
+    #[test]
+    fn a_steep_root_is_reported_at_the_bracket_end_on_the_surface() {
+        let eps = 1e-9;
+        let a = f64::from_bits(1.0f64.to_bits() + 3);
+        let b = f64::from_bits(a.to_bits() + 1);
+        assert_eq!((a + b) / 2.0, b, "the midpoint rounds onto b");
+        let (steep, shift) = (1.8 * eps / (b - a), 0.3 * eps);
+        let residual = |t: f64| {
+            let near = (-((t - a) / 0.1).powi(2)).exp();
+            (t - a).sin() * (1.0 + (steep - 1.0) * near) - shift * near
+        };
+        assert!(residual(a).abs() < eps && residual(b) > eps, "a ON, b off");
+        let (s, c) = a.sin_cos();
+        let f = TrigPoly::second(0.0, -s, c, 0.0, 0.0);
+        match walk(&f, &residual, 0.0, eps) {
+            CircleRoots::Certified { count: 2, thetas } => {
+                assert!(
+                    thetas[..2].contains(&a),
+                    "the roots {:?} miss a",
+                    &thetas[..2]
+                );
+            }
+            other => panic!("{other:?} for a residual crossing twice, once at a"),
         }
     }
 

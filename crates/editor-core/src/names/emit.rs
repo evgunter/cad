@@ -122,8 +122,12 @@ pub enum NamingError {
     /// about and how it failed.
     Settle(SettleError),
     /// A boolean's seam VERTEX left half-decided by the edges around
-    /// it: one operand-descended edge on one side, none on the other,
-    /// and nothing else naming the missing parent.
+    /// it: one line of one operand's edges (one edge, or several
+    /// running flush on one straight line), no edge and no single face
+    /// of the other operand, and nothing else naming the missing parent.
+    /// A union raises it for the same shape read off its finished body:
+    /// one member line and no seam meeting several faces of other
+    /// members (`emit_union::Flush::meeting`).
     ///
     /// **Not an emission inconsistency**, and the test is the same one
     /// [`Self::Band`] applies: nothing about the result body is wrong
@@ -427,9 +431,9 @@ impl crate::spoken::Say for NamingError {
             // and the vertex is where a rule would be applied.
             Self::SeamVertexParentage { vertex } => write!(
                 f,
-                "{UNRULED_FRAMING}: seam vertex {vertex:?} has one operand-descended edge on \
-                 one side and none on the other, and nothing else names the missing parent, so \
-                 the edges around it leave its parentage half-decided"
+                "{UNRULED_FRAMING}: seam vertex {vertex:?} lies on one side's edges along one \
+                 line, and on no edge or single face of the other side, so its parentage is \
+                 half-decided"
             ),
             // The node rides in the sentence, not only in the payload:
             // the two keys are an OPERAND body's, so a reader handed
