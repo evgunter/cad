@@ -9,25 +9,25 @@
 //! under the class its senses decide: opposed senses a `Rest` contact,
 //! aligned senses a continuation. A pair of distinct carriers the
 //! tangent witness lane verifies tangent along its locus joins them as
-//! a `Tangent` contact or, its senses aligned, a seam. From there the
-//! pair takes the arm a verified declaration of that class opens, and
-//! the declaration door records the decision ([`crate::coincidence`]),
-//! so a declared and an undeclared scene are one body. The decision is
+//! one `Tangent` coincidence, which claims nothing of the materials
+//! (C4): the consumers read which side each lies on. From there the
+//! pair takes the arm its class opens, and the declaration door records
+//! the decision ([`crate::coincidence`]). The decision is
 //! kept only where the two faces meet, at a point, an edge or an area
 //! ([`touched`]): the boxes offer a frame-dependent superset of the
 //! pairs that do.
 //!
-//! A pair whose coincidence does not decide (in band, or poisoned) is
-//! left to the stage that meets it, which refuses it there: two faces
-//! whose carriers do not decide one may never touch.
+//! A pair whose one-carrier coincidence does not decide (in band, or
+//! poisoned) is left to the stage that meets it, which refuses it there:
+//! two faces whose carriers do not decide one may never touch.
 
 use std::borrow::Cow;
 
 use geom_core::{Band, Bounds, Decide};
 
 use super::{
-    BooleanError, CarrierRelation, Glue, GluedPair, Operand, PairUnread, Tangency, boxes,
-    carrier_pair_relation, verify_tangency_declaration,
+    BooleanError, CarrierRelation, DeclarationRead, Glue, GluedPair, Operand, PairUnread, boxes,
+    carrier_pair_relation, glued_tangency,
 };
 use crate::body::Body;
 use crate::contact::GlueClass;
@@ -56,10 +56,10 @@ pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
             continue;
         }
         let class = match carrier_pair_relation(a, fa, b, fb, false, band) {
-            Ok(Ok(CarrierRelation::SameOpposite)) => Some(GlueClass::REST),
+            Ok(Ok(CarrierRelation::SameOpposite)) => Some(GlueClass::Rest),
             Ok(Ok(CarrierRelation::SameOriented)) => Some(GlueClass::Continuation),
             Ok(Ok(CarrierRelation::Distinct)) | Err(PairUnread::OutsideInventory) => {
-                tangency(a, fa, b, fb, band)?
+                tangency(a, fa, b, fb, band)?.then_some(GlueClass::Tangent)
             }
             Ok(Err(_)) | Err(PairUnread::Extent(_)) => None,
         };
@@ -75,19 +75,20 @@ pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
     Ok(Cow::Owned(out))
 }
 
-/// **The tangency the witness lane verifies between `fa` and `fb`**: a
-/// `Tangent` contact where the pair verifies as one, else a seam where
-/// it verifies as one, else `None`. Asked only of a pair the witness
-/// lane has a locus for: a plane and a cylinder, two cylinders, or two
-/// faces ending on one circle.
+/// **Whether the witness lane verifies `fa` and `fb` tangent** along a
+/// locus ([`glued_tangency`]), asked only of a pair it has a locus for:
+/// a plane and a cylinder, two cylinders, or two faces ending on one
+/// circle. Along a rim the routing must also read the junction the two
+/// faces make as one the zip builds, the smooth seam. Any refusal is no
+/// tangency, an escalation included (filed:
+/// `work/contacthold/the-glue-doors-tangency-swallows-its-escalations.md`).
 fn tangency<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<Option<GlueClass>, BooleanError> {
-    use geom::SurfaceKind::{Cylinder, Plane};
+) -> Result<bool, BooleanError> {
     let kind = |body: &Body<T>, f| {
         body.get_face(f)
             .and_then(|face| body.get_surface(face.surface))
@@ -96,22 +97,25 @@ fn tangency<T: Decide>(
                 what: "the glue door: a face it enumerated has no surface",
             })
     };
-    let ruled = matches!(
-        (kind(a, fa)?, kind(b, fb)?),
-        (Plane, Cylinder) | (Cylinder, Plane) | (Cylinder, Cylinder)
-    );
-    if !ruled
+    if !ruled((kind(a, fa)?, kind(b, fb)?))
         && !matches!(
             super::rim_wedge::shared_rim(a, fa, b, fb, band),
             Ok(Some(_))
         )
     {
-        return Ok(None);
+        return Ok(false);
     }
-    Ok([Tangency::Contact, Tangency::Seam]
-        .into_iter()
-        .find(|&claim| verify_tangency_declaration(a, fa, b, fb, claim, band).is_ok())
-        .map(Tangency::coincidence))
+    Ok(glued_tangency(a, fa, b, fb, DeclarationRead::Moot, band).is_ok())
+}
+
+/// Whether two carriers' kinds are the witness lane's line pairs: a
+/// plane and a cylinder, or two cylinders.
+pub(crate) fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
+    use geom::SurfaceKind::{Cylinder, Plane};
+    matches!(
+        kinds,
+        (Plane, Cylinder) | (Cylinder, Plane) | (Cylinder, Cylinder)
+    )
 }
 
 /// **The cross pairs whose face boxes overlap**: each face of `a` against

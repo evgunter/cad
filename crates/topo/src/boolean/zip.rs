@@ -228,10 +228,7 @@ pub(super) fn point_classes<T: geom_core::Real>(
 /// they move onto the class's smallest live key
 /// ([`Body::share_point`]). Elsewhere the zips left one vertex, and
 /// nothing moves. The census's same-point rung and the output stage's
-/// join then read the pinch from its keys. Returns the vertices it moved
-/// off their own key: each now sits at its class's point, which a seam
-/// pair certifies within ε of its own, so it is seam structure as a
-/// fused vertex is.
+/// join then read the pinch from its keys.
 ///
 /// # Errors
 ///
@@ -240,8 +237,7 @@ pub(super) fn point_classes<T: geom_core::Real>(
 pub(super) fn share_points<T: geom_core::Real>(
     body: &mut Body<T>,
     classes: &[BTreeSet<PointKey>],
-) -> Result<Vec<VertexKey>, BooleanError> {
-    let mut moved = Vec::new();
+) -> Result<(), BooleanError> {
     // The classes are disjoint (`point_classes` builds them as a
     // partition), so one index serves them all.
     let mut on_key: BTreeMap<PointKey, Vec<VertexKey>> = BTreeMap::new();
@@ -267,18 +263,13 @@ pub(super) fn share_points<T: geom_core::Real>(
                 .collect();
             SHARED.with(|s| s.borrow_mut().push(at));
         }
-        moved.extend(
-            keys.iter()
-                .filter(|&&k| k != onto)
-                .flat_map(|k| on_key[k].clone()),
-        );
         // Unreachable: `on_key` holds live vertices and live keys only.
         body.share_point(&vertices, onto)
             .ok_or(BooleanError::ZipCorrespondence {
                 what: "a pinch vertex no longer resolves",
             })?;
     }
-    Ok(moved)
+    Ok(())
 }
 
 /// **A hung point left on several keys refuses.** Where the insertion

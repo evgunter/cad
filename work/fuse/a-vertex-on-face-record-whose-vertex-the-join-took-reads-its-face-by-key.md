@@ -6,8 +6,8 @@ status: closed
 opened: 2026-10-11
 priority: P2
 cost: M
-closed: 2026-10-12
-pr: 4893
+closed: 2026-10-13
+pr: 4820
 ---
 
 
@@ -43,60 +43,57 @@ reads the record's own face by key (the non-vertex arm beside
 piece the killed vertex's point lay on. Owed alongside the joined vertex:
 the killed vertex's point kept with its substitution row.
 
-## 2026-10-12, fixed (FUSE, PR 4893)
+## 2026-10-13, fixed by PR 4820 (FUSE, PR 4893)
 
-`Descendants::holder(face, rest)` is the one read of a vertex-on-face
-record's face. The rest is the point the record's vertex has in its
-operand clone, which the ledger logs for every vertex-on-face row
-(`boolean::ops::rests`). A row with no logged point refuses
-`JoinDesync`. The vertex-only spelling is gone.
+CONTACTHOLD's one carry (PR 4820) retired `Descendants::holder`, and
+with it the by-key read this row names.
 
-- `Rest::Kept { vertex, at }` covers a vertex still in the result: the
-  piece it bounds, else the piece whose interior holds `at`.
-- `Rest::Taken(at)` covers a vertex the join or the merge took: the
-  piece whose interior holds `at`.
+- A row the reduction found, on a face the join divided, goes through
+  `boolean::ops::place_found`. The face becomes its live pieces and the
+  chords between them (`face_pieces`), and the row lands on every pair
+  of images the census's record confirm reads as meeting
+  (`records::landings`).
+- An operand's carried rows go through `boolean::ops::carried`
+  (`operand_fate`, then the same `landings`).
 
-This rules out the owed line above ("the killed vertex's point kept
-with its substitution row"): no geometry is added to lineage rows, and
-the point is read from the operand instead.
+So a row whose vertex the join or the merge took reads its other cell,
+the joined edge or the kept face, against each piece by that cell's
+geometry. Neither the key nor the vertex's point is read.
 
-**Premise, guarded.** No stage moves a kernel vertex. A zip's fusion and
-`zip::share_points` are the two stages that leave a vertex at another's
-point, within ε, and `carry_rows` skips the rows of both kinds before it
-reads the face. So
-the operand point is the point the vertex has in the result.
-`carry_rows` checks that on every kept vertex (`boolean::ops::at_rest`):
-the gap between the rest and the result point must decide zero, as the
-census decides two vertices one point. It refuses `JoinDesync` where
-the gap is nonzero and escalates as `SelfCheck(CarriedLineage)` where
-it is in band. The check is a `Decide` call, not a bit compare: a
-bracket never decides (the `Bounds` scope rule). `piece_holds` places the point with the
-census's own band: a margin within the band of a piece's carrier or
-boundary escalates as `SelfCheck(CarriedLineage)`, kept or taken alike.
+**Pinned.** `boolean::ops::found_on_a_divided_face::a_taken_vertexs_row_lands_on_the_piece_its_edge_lies_in`
+(PR 4893) kills a record's vertex and substitutes it with an edge
+lying in the walled-off piece: the bottom edge of a small prism
+standing on that piece, grafted in as a second shell. The record
+lands as `EdgeFace(edge, walled-off piece)`. With `place_found`'s
+divided arm skipped, so the face is read by key, it lands on the key
+piece and the row goes red.
 
-**Why nothing reaches the taken arm today.**
+PR 4893 first built a point-based door here: a ledger of each row's
+operand point, `holder(face, rest)`, and a check that a kept vertex
+sits at that point. It dropped that door on merging 4820, because a
+second door beside the one carry is the defect this row names. Two
+results from it stand:
 
-- The join takes only a valence-2 vertex between two edges on one
-  carrier.
-- The merge kills only seam and strut vertices.
-- In a boolean, every such vertex is a section or seam vertex. A zip
-  fuses each of those, or `zip::share_points` moves it onto its class's
-  key, and `carry_rows` skips the rows of both kinds before any face
-  read.
-
-So `carry` cannot reach the taken arm today, and lane B's three tried
-poses agree. The door and its rows stay anyway: they cost little, and
-an operand carrying a valence-2 collinear vertex with its own
-vertex-on-face row would reach the arm.
-
-**Witness.** No suite reaches the taken arm. On ea1088c5,
-instrumentation (reverted) counted a vertex-on-face row whose vertex
-was dead and whose face the section divided. Across the 2,721-body
-lattice, the two-stage carried corpus (4,536 runs), the full
-topo/sweep/editor-core suites (8,342 tests) and 2,940 random
-star-prism scenes under four ops, it counted 0. The door lands with
-unit rows on a hand-divided face (`boolean::ops::holder_rows`,
-`a_dead_vertexs_*`): a taken vertex lands on the piece holding its
-rest, a rest on the chord drops, an in-band rest escalates, and a
-missing rest refuses. Reading a taken vertex's face by key turns the
-first three red.
+- **Why nothing reaches the taken arm from a boolean today.** The join
+  takes only a valence-2 vertex between two edges on one carrier, and
+  the merge kills only seam and strut vertices. In a boolean every
+  such vertex is a section or seam vertex, which a zip fuses and
+  `carry_rows` skips (`desc.fused`). Instrumentation on ea1088c5
+  (reverted) counted 0 rows whose vertex was taken and whose face the
+  section divided. It covered the 2,721-body lattice, the two-stage
+  carried corpus (4,536 runs), the topo/sweep/editor-core suites
+  (8,342 tests) and 2,940 random star-prism scenes under four ops.
+- **If a point-based check ever returns, `zip::share_points` must be
+  in it.** `share_points` rebinds every live vertex of a point class
+  onto the class's smallest key, and those vertices are not in
+  `desc.fused`. A class is the union-find closure of seam pairs
+  (`zip::point_classes`), each of them one point within the zero band
+  (`reduce`'s `one_vertex_at`). So two keys of a class of k ≥ 3 can
+  sit up to (k−1)·`band.zero()` apart, past the band, and a check of a
+  moved vertex against its operand point would escalate a rebind that
+  is the op's own. Measured with a temporary probe over
+  topo/sweep/editor-core ci at ε = 1e-9, 1e-6 and 1e-12:
+  - 149 moved vertices at each ε, all within the zero band;
+  - classes of 2, 3 and 4 keys: 113, 30 and 6 per ε;
+  - so 36 classes per ε have the shape that can cross the band, and
+    none did.

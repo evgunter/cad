@@ -58,18 +58,16 @@ have nothing to inherit. Carrying an edge–face record through the cut's
 lineage (onto the pieces whose interiors still meet the face, as D1
 rules for an edge–edge one) is this row's owed step for that kind.
 
-## 2026-10-12: a carried edge-face or face-face record reads its divided face through the pieces door (FUSE)
+## 2026-10-13: a carried edge-face or face-face record lands through the one carry (FUSE)
 
 FUSE closed `an-edge-or-face-record-follows-its-faces-key-through-a-division`
-as no path. Today no edge-face or face-face record has a carried kind,
-so `boolean::ops::carry_rows`' `cell_rows` never chases a face cell.
-Once this row gives such a record a carried kind, its face read in
-`carry_rows` must not be `Descendants::live` by key: a section's
-division keeps the key on one piece, whichever it is. It must land on
-the live pieces of the divided face whose interiors still meet the
-other cell, as `ContactRecords::carried_onto` / `landed_on_pieces`
-(`crates/topo/src/boolean/records.rs`) already do for the split doors,
-asking `census::RecordConfirm::meets` of each pair of pieces.
-`Descendants::fragments` gives the boolean's division rows. That door's
-own fallback to the keys when no pair meets is
-`work/fuse/a-divided-record-no-piece-pair-meets-falls-back-to-its-key.md`.
+as no path for the reduction's own records. Their divided faces already
+go through `boolean::ops::place_found` (PR 4820). An operand's carried
+edge-face and face-face records still have no carried kind, so that
+half stays here. Once this row gives them one, they must land as
+`boolean::ops::carried` lands the carried kinds today: through
+`operand_fate`, then `records::landings`, which puts a record on every
+pair of a divided face's pieces and chords that the census's record
+confirm reads as meeting. Do not chase their face by key through
+`Descendants::live`: a division keeps the key on one piece, whichever
+it is.
