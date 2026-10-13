@@ -2,9 +2,10 @@
 id: the-periodic-chart-closure-decides-are-four-spellings-of-one-question
 kind: issue
 title: Whether a loop closes on a periodic chart is decided four ways, with four meters and three refusals
-status: review
+status: closed
 pr: 4938
 opened: 2026-10-12
+closed: 2026-10-13
 ---
 
 
