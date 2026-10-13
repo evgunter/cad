@@ -1156,3 +1156,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Row `PR-4910.md` last: sequential, M, byte 221, tallied 0, major false.
   - U-T4 (PR 4927) now has to reconcile its `ring_path` with 4910's `Conic`/`param`/`span_readings` homes. The 4910 lane wrote the recipe in its PR body: `Self::Conic { .. }` becomes `Self::Conic(c)`, and `param_at` becomes `c.param(x)`. Put it in 4927's fix-pass brief.
 - 2026-10-13 04:58 — Check-in. r4927a is alive (60 writes in 15 min). 4886's fix pass is on hunt round 3 plus the mutant table; it reports 1e-12 reds on 4 rows that it is working through. Nothing ready to merge. Re-armed for 05:58.
+- 2026-10-13 05:06 — **r4927a (A) in: APPROVE-WITH-FIXES, 0 MAJOR** (saved scratchpad/dr4927/r4927a.md). Its own ray-cast oracle over about 6,000 bodies found 0 wrong; the winding bound held against 40-digit mpmath (8,000 cases); every changed outcome against main was main's SectionUnarmed.
+  - **MINORs:** the duplicated spiric quadrature (bilateral with B's style Q1); the lens row cannot go red on a wrong-material body at a coarse ε; two unsupported body claims (certification biting; the lever along the whole arc); a third stop, VolumeUnmeasured, unlisted.
+  - **NITs:** the typed reason for an unsupported winding; a hand-spelled oval parameter.
+  - **Pair:** no MAJOR either side (tallied 0, major false).
+  - **Fix pass dispatched** with the union plus the reconciliation with 4910's `ring_path` homes: session_01CfMEAtdQdhRyEeyqJ3FNZK.
