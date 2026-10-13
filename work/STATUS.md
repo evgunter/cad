@@ -1929,8 +1929,8 @@ area `kernel`; prefix `nurbs/`; tag `(NURBS orchestrator)`; ab_band `9300-9399`.
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
 | P1 | `parametric-polygon-loop-certifies-nothing` | issue | H | parked | A profile loop with a document parameter in a polygon vertex certifies nothing at any box width | d10-one-way-to-say-intent-is-unbuilt |  |
-| P2 | `rational-inf-floor-reach-refines-before-reading` | issue | M +design | open | The rational inf floors refuse nets whose weights spread past about 1.7× in a cell; a tighter floor would recover reach |  |  |
-| P3 | `rational-inf-speed-has-two-recipes-curve-and-surface` | issue | M +design | open | The rational inf speed has two recipes: the curve's piece assembly and the surface's pair-term floor |  |  |
+| P2 | `rational-inf-floor-reach-refines-before-reading` | issue | M | open | The rational inf floors refuse nets whose weights spread past about 1.7× in a cell; a tighter floor would recover reach |  |  |
+| P3 | `rational-inf-speed-has-two-recipes-curve-and-surface` | issue | M | open | The rational inf speed has two recipes: the curve's piece assembly and the surface's pair-term floor |  |  |
 | P3 | `rational-second-derivative-bounds-have-two-recipes` | issue | M | open | Rational second-derivative bounds (chords' carrier M, patch_bound's rational cells) use the hull-quotient recipe, not the pair-term one order up |  |  |
 | P4 | `degree-elevation-recomposition-error-grows-as-one-over-the-closest-knot-gap` | issue | M | open | degree elevation's recomposition removals amplify rounding by about one over the closest distinct-knot gap, so evaluation invariance is conditioned, not absolute |  |  |
 | P4 | `disp-zero-can-be-satisfied-by-freezes` | issue | M | open | The digest's disp=0 can be satisfied by freezes: a frozen contradiction check records no dispute |  |  |
