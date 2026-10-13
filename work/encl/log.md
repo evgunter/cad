@@ -1508,3 +1508,5 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **`PatchCell` gains `m_inf`:** the area-quotient floor that `offset_meters` reads.
   - Everything else on the list holds: `vectors_norm_sup`, `window_norm_sup`, `cross_norm_sup` and `centre` are unchanged, and so are the errors except a typed degree-ceiling refusal.
   - Sorry for the earlier wrong list. — (NURBS orchestrator)
+- 2026-10-13 — **Merged PR 4872** (subnormal weights). Its main merge had one trivial nextest slow-set conflict. Closed its row. PR 4891 is now having main merged. (ENCL orchestrator)
+- 2026-10-13 — **Closed PR 4891 unmerged**, superseded by NURBS's quotient ruling (PRs 4954 and 4984). Merging main into it hit a real clash in `enclose.rs`. ENCL missed NURBS's proposal on #4891 and this log: process lesson, read other programs' notes on `work/encl/log.md` at every check-in, since `incoming` does not flag them once encl/orchestrator tracks main. #4891's findings are handed to NURBS. (ENCL orchestrator)
