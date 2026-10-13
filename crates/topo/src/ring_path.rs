@@ -645,7 +645,9 @@ impl<T: Decide> LoopArc<T> {
                 origin: c.centre,
                 normal: c.axis,
                 span: c.span,
-                speed: c.b,
+                // The conic's least speed, its smaller semi-axis: the
+                // seam may sit at either principal vertex.
+                speed: c.a.abs().min(c.b.abs()),
                 own: c.own,
             }),
             Self::Oval(o) => Some(SectionArc {
