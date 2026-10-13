@@ -1033,6 +1033,249 @@ mod tests {
         }
     }
 
+    /// An integral biquadratic with interior knots, or its rational twin
+    /// with weights varying along both directions.
+    fn biquadratic(rational: bool) -> NurbsSurface<f64> {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0], 2)
+            .expect("valid");
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for i in 0..6u32 {
+            for j in 0..6u32 {
+                let (u, v) = (f64::from(i) * 0.2, f64::from(j) * 0.2);
+                control.push(geom_core::Point3::new(
+                    u + 0.1 * v * v,
+                    v,
+                    0.3 * u * (1.0 - u) + 0.2 * v * v,
+                ));
+                weights.push(if rational {
+                    1.0 + 0.6 * f64::from((i * 6 + j) % 5) / 4.0
+                } else {
+                    1.0
+                });
+            }
+        }
+        NurbsSurface::new(kv.clone(), kv, control, weights).expect("valid")
+    }
+
+    /// A rational biquadratic whose weights vary strongly along `v` (the
+    /// middle `v` column carries the large weights), found by a seeded
+    /// search for a patch on which the `w_v` term of the retired `m_sup`
+    /// recipe kept the bound above the sample.
+    fn strong_v() -> NurbsSurface<f64> {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
+        let control = [
+            (-0.891, -0.073, -0.646),
+            (0.257, -0.311, -0.081),
+            (0.577, -0.584, 0.283),
+            (-0.841, -0.157, 0.184),
+            (0.203, 0.789, 0.876),
+            (0.146, 0.698, 0.284),
+            (0.739, -0.405, 0.519),
+            (0.801, -0.122, -0.214),
+            (0.903, -0.323, -0.794),
+        ]
+        .map(|(x, y, z)| geom_core::Point3::new(x, y, z))
+        .to_vec();
+        let weights = vec![
+            0.287, 2.163, 0.446, 0.227, 0.857, 0.908, 0.399, 7.160, 0.861,
+        ];
+        NurbsSurface::new(kv.clone(), kv, control, weights).expect("valid")
+    }
+
+    /// A rational patch of bidegree `(2, 1)` whose weights vary along the
+    /// degree-1 direction.
+    fn ruled() -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("valid");
+        let control = [
+            (1.0, 0.0, 0.0),
+            (1.0, 0.0, 1.0),
+            (1.0, 1.0, 0.0),
+            (1.0, 1.0, 1.2),
+            (0.0, 1.0, 0.0),
+            (0.0, 1.0, 0.9),
+        ]
+        .map(|(x, y, z)| geom_core::Point3::new(x, y, z))
+        .to_vec();
+        let weights = vec![1.0, 2.5, 0.7, 1.6, 1.0, 0.5];
+        NurbsSurface::new(ku, kv, control, weights).expect("valid")
+    }
+
+    /// The quarter cylinder (`r = h = 1`): a rational arc in `u`, a
+    /// ruling in `v`, its normal turning through a right angle.
+    fn quarter_cylinder() -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("valid");
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let mut control = Vec::new();
+        for (x, y) in [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0)] {
+            for z in [0.0, 1.0] {
+                control.push(geom_core::Point3::new(x, y, z));
+            }
+        }
+        NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).expect("valid")
+    }
+
+    /// **The area floor reads each cell's own normal.** Each cell's
+    /// [`PatchCell::m_inf`] is checked against `‖S_u × S_v‖` on a 5×5
+    /// grid over the cell: never above the least certified upper end
+    /// of the samples (soundness: the true inf is at most any sampled
+    /// value), and at least a measured share of the least sampled
+    /// value (the floor follows the normal as it turns). The quarter
+    /// cylinder's normal turns through a right angle, so a floor read
+    /// along one fixed direction collapses to zero on the cells where
+    /// the normal is across it; the other fixtures are the meter row's.
+    #[test]
+    fn the_area_floor_reads_each_cells_own_normal() {
+        // Measured worst share: `0.937` (the degree-1 fixture; `0.996`
+        // the rational twin, `0.999` the integral arm and the cylinder),
+        // with about a tenth to spare.
+        const FLOOR_SHARE: f64 = 0.85;
+        for (name, n, splits, share) in [
+            ("integral", biquadratic(false), 4, true),
+            ("rational", biquadratic(true), 4, true),
+            ("rational degree-1 v", ruled(), 4, true),
+            (
+                "quarter cylinder",
+                quarter_cylinder(),
+                RATIONAL_CERT_SPLITS,
+                true,
+            ),
+            // Soundness only: near the corner `(0.31, 0.13)` the area
+            // falls to `0.036` of its scale and the normal turns inside a
+            // piece, so the cell there reads the conservative zero.
+            ("rational strong v", strong_v(), RATIONAL_CERT_SPLITS, false),
+        ] {
+            let lifted = n.map_scalar(<Interval as geom_core::Real>::from_f64);
+            let cells = patch_cells_refined(&n, splits).expect("covered");
+            let mut worst = f64::INFINITY;
+            for c in &cells {
+                let (mut least_hi, mut least) = (f64::INFINITY, f64::INFINITY);
+                for a in 0..5u32 {
+                    for b in 0..5u32 {
+                        let u = c.u.0 + (c.u.1 - c.u.0) * f64::from(a) / 4.0;
+                        let v = c.v.0 + (c.v.1 - c.v.0) * f64::from(b) / 4.0;
+                        let jet = lifted.ders(
+                            <Interval as geom_core::Real>::from_f64(u),
+                            <Interval as geom_core::Real>::from_f64(v),
+                        );
+                        let m = geom_core::interval::norm_sq(&cross(
+                            &jet.du.to_array(),
+                            &jet.dv.to_array(),
+                        ))
+                        .sqrt();
+                        least_hi = least_hi.min(m.hi());
+                        let f = n.ders(u, v);
+                        least = least.min(f.du.cross(f.dv).norm());
+                    }
+                }
+                assert!(
+                    c.m_inf <= least_hi,
+                    "{name}: m_inf {:e} above a sampled ‖S_u × S_v‖ {least_hi:e} on {:?} × {:?}",
+                    c.m_inf,
+                    c.u,
+                    c.v
+                );
+                worst = worst.min(c.m_inf / least);
+            }
+            assert!(
+                !share || worst >= FLOOR_SHARE,
+                "{name}: a cell's floor reads {worst} of its least sampled ‖S_u × S_v‖"
+            );
+        }
+    }
+
+    /// **A rational cell reads only its own points.** On a rational
+    /// biquadratic with two nonempty `u` spans, the last `u` row of
+    /// control points and weights is active on the second span alone:
+    /// moving it a hundredfold leaves every first-span cell bit-identical
+    /// (its extents, its five signed boxes and its four meters).
+    #[test]
+    fn a_rational_cell_reads_only_its_own_points() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2).expect("valid");
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let patch = |far: f64| {
+            let mut control = Vec::new();
+            let mut weights = Vec::new();
+            for i in 0..nu {
+                for j in 0..nv {
+                    #[allow(clippy::cast_precision_loss)]
+                    let (x, y) = (i as f64, j as f64);
+                    let last = i + 1 == nu;
+                    control.push(geom_core::Point3::new(
+                        x * if last { far } else { 1.0 },
+                        y,
+                        0.3 * x * y,
+                    ));
+                    weights.push(if last { far } else { 1.0 + 0.2 * (x + y) });
+                }
+            }
+            NurbsSurface::new(ku.clone(), kv.clone(), control, weights).expect("valid")
+        };
+        let first_span = |far: f64| -> Vec<Vec<u64>> {
+            patch_cells_refined(&patch(far), 4)
+                .expect("covered")
+                .iter()
+                .filter(|c| c.u.1 <= 1.0)
+                .map(|c| {
+                    let boxes = [c.s_u, c.s_v, c.s_uu, c.s_uv, c.s_vv];
+                    [c.u.0, c.u.1, c.v.0, c.v.1]
+                        .into_iter()
+                        .chain(boxes.iter().flatten().flat_map(|i| [i.lo(), i.hi()]))
+                        .chain([c.s_u_sup, c.s_v_sup, c.m_sup, c.m_inf])
+                        .map(f64::to_bits)
+                        .collect()
+                })
+                .collect()
+        };
+        let (near, far) = (first_span(1.0), first_span(100.0));
+        assert_eq!(near.len(), 16, "the first span's cells at four splits");
+        assert_eq!(near, far, "a first-span cell read the last u row");
+    }
+
+    /// **The cells are the second order's pieces.** The rational arm
+    /// counts its pieces at the second order's degree `3p`, where a
+    /// count stays exact to fewer splits than at `p`: a biquintic reads
+    /// `8` pieces per span direction at `16` splits (degree `15` is
+    /// past the `12` that `16` pieces reach), not the `16` its own
+    /// degree would take. The row pins the count and that the cells tile
+    /// the domain, each extent meeting the next end to end, so extents
+    /// counted at another degree than the pieces leave a gap or an
+    /// overlap.
+    #[test]
+    fn the_rational_cells_tile_each_span_at_the_second_orders_count() {
+        let kv = KnotVector::clamped([vec![0.0; 6], vec![1.0; 6]].concat(), 5).expect("valid");
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for i in 0..6u32 {
+            for j in 0..6u32 {
+                let (u, v) = (f64::from(i) * 0.2, f64::from(j) * 0.2);
+                control.push(geom_core::Point3::new(u, v, 0.4 * u * v - 0.2 * u * u));
+                weights.push(1.0 + 0.3 * f64::from((i + 2 * j) % 3));
+            }
+        }
+        let n = NurbsSurface::new(kv.clone(), kv, control, weights).expect("valid");
+        let cells = patch_cells_refined(&n, RATIONAL_CERT_SPLITS).expect("covered");
+        assert_eq!(cells.len(), 8 * 8, "a biquintic's pieces at 16 splits");
+        let ends = |axis: fn(&PatchCell) -> (f64, f64)| {
+            let mut e: Vec<(f64, f64)> = cells.iter().map(axis).collect();
+            e.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
+            e.dedup();
+            e
+        };
+        for (what, e) in [("u", ends(|c| c.u)), ("v", ends(|c| c.v))] {
+            assert_eq!(e.len(), 8, "{what}: {e:?}");
+            assert_eq!(e.first().map(|x| x.0), Some(0.0), "{what}: {e:?}");
+            assert_eq!(e.last().map(|x| x.1), Some(1.0), "{what}: {e:?}");
+            assert!(
+                e.windows(2).all(|w| w[0].1 == w[1].0),
+                "{what}: the extents do not meet end to end: {e:?}"
+            );
+        }
+    }
+
     /// **The meters' vector sups bound every sampled magnitude, and sit
     /// within a measured factor of the box readings they replace**, on
     /// both arms and through a degree-1 direction. Each cell's
@@ -1071,74 +1314,12 @@ mod tests {
         // a tenth to spare.
         const SPEED_CEILING: f64 = 1.1;
         const M_CEILING: f64 = 1.13;
-        let biquadratic = |rational: bool| {
-            let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0], 2)
-                .expect("valid");
-            let mut control = Vec::new();
-            let mut weights = Vec::new();
-            for i in 0..6u32 {
-                for j in 0..6u32 {
-                    let (u, v) = (f64::from(i) * 0.2, f64::from(j) * 0.2);
-                    control.push(geom_core::Point3::new(
-                        u + 0.1 * v * v,
-                        v,
-                        0.3 * u * (1.0 - u) + 0.2 * v * v,
-                    ));
-                    weights.push(if rational {
-                        1.0 + 0.6 * f64::from((i * 6 + j) % 5) / 4.0
-                    } else {
-                        1.0
-                    });
-                }
-            }
-            NurbsSurface::new(kv.clone(), kv, control, weights).expect("valid")
-        };
-        // Found by a seeded search for a patch on which the `w_v` term of
-        // `m_sup` is what keeps the bound above the sample (the corner
-        // `(0, 1)` at four splits). The middle `v` column carries the
-        // large weights.
-        let strong_v = {
-            let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
-            let control = [
-                (-0.891, -0.073, -0.646),
-                (0.257, -0.311, -0.081),
-                (0.577, -0.584, 0.283),
-                (-0.841, -0.157, 0.184),
-                (0.203, 0.789, 0.876),
-                (0.146, 0.698, 0.284),
-                (0.739, -0.405, 0.519),
-                (0.801, -0.122, -0.214),
-                (0.903, -0.323, -0.794),
-            ]
-            .map(|(x, y, z)| geom_core::Point3::new(x, y, z))
-            .to_vec();
-            let weights = vec![
-                0.287, 2.163, 0.446, 0.227, 0.857, 0.908, 0.399, 7.160, 0.861,
-            ];
-            NurbsSurface::new(kv.clone(), kv, control, weights).expect("valid")
-        };
-        let ruled = {
-            let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
-            let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("valid");
-            let control = [
-                (1.0, 0.0, 0.0),
-                (1.0, 0.0, 1.0),
-                (1.0, 1.0, 0.0),
-                (1.0, 1.0, 1.2),
-                (0.0, 1.0, 0.0),
-                (0.0, 1.0, 0.9),
-            ]
-            .map(|(x, y, z)| geom_core::Point3::new(x, y, z))
-            .to_vec();
-            let weights = vec![1.0, 2.5, 0.7, 1.6, 1.0, 0.5];
-            NurbsSurface::new(ku, kv, control, weights).expect("valid")
-        };
         let names = ["‖S_u‖", "‖S_v‖", "‖S_u × S_v‖"];
         for (name, n) in [
             ("integral", biquadratic(false)),
             ("rational", biquadratic(true)),
-            ("rational strong v", strong_v),
-            ("rational degree-1 v", ruled),
+            ("rational strong v", strong_v()),
+            ("rational degree-1 v", ruled()),
         ] {
             let cells = patch_cells_refined(&n, 4).expect("covered");
             assert!(cells.len() >= 16, "{name}: {} cells", cells.len());

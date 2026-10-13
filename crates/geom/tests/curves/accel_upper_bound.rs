@@ -181,27 +181,30 @@ fn a_polynomial_cubic_reads_its_second_differences() {
 /// **A span's bound reads only the span's own points.** On a quadratic
 /// with three nonempty spans the last control point and weight are
 /// active on the last span alone; moving them a hundredfold leaves the
-/// first span's bound bit-identical, while the domain's bound grows.
+/// first span's pieces bit-identical, every numerator and weight-power
+/// coefficient, while the domain's bound grows. The data is not dyadic,
+/// so the coefficients carry rounding: `C″` is the same in every frame
+/// in ℝ, and a frame read from a foreign point shows in the bits.
 #[test]
 fn a_far_point_active_on_the_last_span_only_does_not_reach_the_first() {
     let knots = vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0];
     let near = curve(
         knots.clone(),
         2,
-        &[(0.0, 0.0), (1.0, 0.5), (2.0, 0.0), (3.0, 1.0), (4.0, 0.0)],
-        vec![1.0, 2.0, 1.0, 1.5, 1.0],
+        &[(0.1, 0.3), (1.1, 0.7), (2.3, 0.1), (3.1, 1.3), (4.0, 0.2)],
+        vec![1.1, 2.3, 0.9, 1.7, 1.0],
     );
     let far = curve(
         knots,
         2,
         &[
-            (0.0, 0.0),
-            (1.0, 0.5),
-            (2.0, 0.0),
-            (3.0, 1.0),
-            (400.0, 90.0),
+            (0.1, 0.3),
+            (1.1, 0.7),
+            (2.3, 0.1),
+            (3.1, 1.3),
+            (400.3, 90.7),
         ],
-        vec![1.0, 2.0, 1.0, 1.5, 100.0],
+        vec![1.1, 2.3, 0.9, 1.7, 100.0],
     );
     // The pieces come in ascending span order, the same count per span.
     let first = |c: &NurbsCurve3<f64>| -> Vec<u64> {
@@ -216,7 +219,10 @@ fn a_far_point_active_on_the_last_span_only_does_not_reach_the_first() {
         let per_span = pieces.len() / 3;
         pieces[..per_span]
             .iter()
-            .map(|q| q.sup_norm().to_bits())
+            .flat_map(|q| {
+                let numer = q.numer().iter().flatten().copied();
+                numer.chain(q.denom().iter().copied()).map(f64::to_bits)
+            })
             .collect()
     };
     assert_eq!(
