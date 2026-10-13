@@ -17,7 +17,9 @@
 //! too and the corner reads the pair one plane, its offset off the
 //! block's a rounding residue. Either way it refuses
 //! `Coincidence(Sectors)` quoting the bounds' margin, which is the one a
-//! smaller tolerance clears; `offer_rows`' `thin_wedge_in_band_over_its_faces`
+//! smaller tolerance clears; where no tolerance a run admits decides it
+//! (at ε 1e-12, `θ·sin φ / K` lies below the floor at `k = ±0.5`), it
+//! refuses on the glue door's in-band reading instead; `offer_rows`' `thin_wedge_in_band_over_its_faces`
 //! and `flat_wedge_*` rows execute it, and
 //! `the_in_band_wedge_is_in_band_at_the_glue_door` shows the glue door's
 //! own offer would be false.
@@ -61,17 +63,24 @@ fn a_wedge_tilted_in_band_over_a_block_top_refuses_every_op_on_its_bounds_margin
             false,
             band,
         );
-        assert!(
-            matches!(
-                glue,
-                Ok(Err(PlaneEqError::Escalated {
-                    rung: PlaneRung::Parallel,
-                    ..
-                }))
-            ),
-            "{label}: the glue door reads the pair's tilt in band: {glue:?}"
-        );
+        let door = match glue {
+            Ok(Err(PlaneEqError::Escalated {
+                rung: PlaneRung::Parallel,
+                diag,
+            })) => diag,
+            other => panic!("{label}: the glue door reads the pair's tilt in band: {other:?}"),
+        };
         let bounds = theta.abs() * phi.sin();
+        // A tilt Zero at the arm reaches the carrier ladder, which reads
+        // the pair one plane: where no tolerance a run admits decides the
+        // bounds (their offer at or below the floor), the corner lies on
+        // the block's plane at every tolerance, and the refusal names the
+        // glue door's reading. A tilt in band refuses on the bounds first.
+        let binding = if k.abs() > 1.0 || band.offer_deciding(bounds).is_some() {
+            ("bool_sector_coplanar", bounds)
+        } else {
+            ("bool_plane_parallel", upper(door.margin))
+        };
         let ops = [
             ("A ∪ B", topo::union(&block, &tool, tol)),
             ("B ∪ A", topo::union(&tool, &block, tol)),
@@ -81,28 +90,33 @@ fn a_wedge_tilted_in_band_over_a_block_top_refuses_every_op_on_its_bounds_margin
             ("B ∖ A", topo::subtract(&tool, &block, tol)),
         ];
         for (op, out) in ops {
-            // The coplanar lump admits the class the pair's senses
-            // make it (`Settles`); `recl`'s `unglued_tilt`, which
-            // quotes the same predicate and margin, admits none.
-            match out {
-                Err(BooleanError::Escalated {
-                    decision:
-                        BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Settles(_)),
-                    diag,
-                }) => {
-                    assert_eq!(
-                        diag.predicate,
-                        Some("bool_sector_coplanar"),
-                        "{label}, {op}: the bounds' predicate"
-                    );
-                    let m = upper(diag.margin).abs();
-                    assert!(
-                        (m - bounds).abs() <= 1e-3 * bounds,
-                        "{label}, {op}: quotes the bounds' margin {bounds}, got {m}"
-                    );
-                }
-                other => panic!("{label}, {op}: refuses at the coplanar lump: {other:?}"),
-            }
+            // Each admits the class the pair's senses make it
+            // (`Settles`); `recl`'s `unglued_tilt`, which quotes the
+            // bounds' predicate and margin, admits none.
+            let Err(BooleanError::Escalated {
+                decision: BooleanDecision::Coincidence(which, DeclarationRead::Settles(_)),
+                diag,
+            }) = out
+            else {
+                panic!("{label}, {op}: refuses on a coincidence: {out:?}");
+            };
+            let (predicate, margin) = binding;
+            let want = if predicate == "bool_sector_coplanar" {
+                Coincide::Sectors
+            } else {
+                Coincide::OnPlanes
+            };
+            assert_eq!(which, want, "{label}, {op}: the binding reading's question");
+            assert_eq!(
+                diag.predicate,
+                Some(predicate),
+                "{label}, {op}: its predicate"
+            );
+            let m = upper(diag.margin).abs();
+            assert!(
+                (m - margin).abs() <= 1e-3 * margin,
+                "{label}, {op}: quotes the binding margin {margin}, got {m}"
+            );
         }
     }
 }
