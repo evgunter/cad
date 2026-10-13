@@ -6977,7 +6977,7 @@ class Coincidence:
     name there (the opaque text the materializers answer with); the
     plane a split cuts with is `(read, None)`; and a profile's own piece
     is `(profile, piece)`, the profile's `NodeId`. `relation` is
-    `same_oriented`, `same_opposite`, `on_carrier`, `equal_angles`,
+    `same_oriented`, `same_opposite`, `on_carrier`, `common_foot`,
     `tangent`, `cusp`, `surface_tangent`, `coaxial` or `co_ruled`; `site`
     is `plane_ladder`, `carrier_ladder`, `tangent_witness`,
     `coaxial_sphere`, `split_on`, `battery_turn`, `battery_joint`,

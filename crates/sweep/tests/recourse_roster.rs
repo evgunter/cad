@@ -181,9 +181,14 @@ const PAIRING: &[(BlendDecision, &str)] = &[
         sweep::blend::FILLET3_CORNER_RECOURSE,
     ),
     (
-        BlendDecision::TurnIsosceles,
+        BlendDecision::TurnFeetGap,
         sweep::blend::FILLET3_TURN_RECOURSE,
     ),
+    (
+        BlendDecision::TurnOverrunChord,
+        sweep::blend::FILLET3_TURN_RECOURSE,
+    ),
+    (BlendDecision::TurnFeet, sweep::blend::FILLET3_TURN_RECOURSE),
     (
         BlendDecision::MitreSection,
         sweep::blend::FILLET3_TURN_RECOURSE,
@@ -347,7 +352,9 @@ const NO_TOLERANCE: &[BlendDecision] = &[
     BlendDecision::ContactArm,
     BlendDecision::ContactWedge,
     BlendDecision::CapTransverse,
-    BlendDecision::TurnIsosceles,
+    BlendDecision::TurnFeetGap,
+    BlendDecision::TurnOverrunChord,
+    BlendDecision::TurnFeet,
     BlendDecision::MitreSection,
 ];
 
