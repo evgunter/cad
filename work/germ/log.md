@@ -1209,3 +1209,6 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **r4964a in** (0 MAJOR). MINOR: the ellipse Miss judges accept a pose past ε rather than past Kε, so the fuzz is a weak guard and the pinned rows carry it.
   - **r4966a in** (0 MAJOR). MINORs: τ<6u holds only for a near-square seam; the coverage slack is reused. Off-target find: TiltedEllipse serves ellipses far off flat cones on main.
   - r4964b and r4966b are still writing. Re-armed for 16:13.
+- 2026-10-13 15:50 — **r4966b in**: 0 MAJOR, with 2 MINOR and 3 NIT. The PR 4966 pair is complete: no MAJOR either side (tallied 0, major false). Coding byte 191, odd → A = r4966b.
+  - Bilateral findings: step-6 coverage reuses slack; three homes for squaring the seam; the seed D is misquoted; the torus doc.
+  - Fix pass dispatched with the union (7 items): session_01DUWmFbVrHXFyL421Yd1NJF on germ/pn-apex-reach-pico-eps. It covers a robust squaring for any tilt, a typed refusal for a seam parallel to the axis, one home for the squaring, a tilted-seam boolean measurement, and filing r4966a's TiltedEllipse find. Adjudication is in scratchpad/dr4966/adjudication.md.
