@@ -1261,3 +1261,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Row `PR-4964.md` last: holdout, M, byte 96, coding byte 95 → A = r4964b, tallied 0, major false. r4964b's process-list glimpse is disclosed in the fair-pair column.
   - **4966:** hosted CI green on `67d8b87742`, editor-core's re-baselined receipts included. Main (now with 4964) merged in a worktree as `cb3808807f`; the cone, section and pcurve rows are running at three ε before the row and merge.
 - 2026-10-13 22:25 — Check-in. 4966's merged-head rows were blocked on the build slot (r5012 holds it). Relaunched as scratchpad/m4966.sh (summary in v4966/m-summary.txt). **Dispatched the TiltedEllipse lane**: session_019MVgQmqRijZNgdo3U6o2ke, branch germ/flat-cone-tilted-ellipse, based on 4966's branch (both touch the plane×cone arm); it merges main once 4966 lands. r5012 is still reviewing. Re-armed for 23:22.
+- 2026-10-13 22:35 — **r5012 in** (sequential, the only review): 0 MAJOR, 2 MINOR, 4 NIT, plus style.
+  - Its own oracle over 8 frames × cone/torus × 3 ε: head 0 wrong and 0 inconsistent; main has thousands at 1e-12 in far frames. No ordinary pose that main decides now refuses.
+  - MINORs: no row guards the in-span charge's `slack/arm` units; the factor 4 in `resolution` is guarded only by the unit row.
+  - No MAJOR, so no second review. Fix pass dispatched: session_01MwGM3c7HPed697AGsRRu79 (7 items).
+  - Row at merge: sequential, M, byte 118, tallied 0, major false.
