@@ -27,7 +27,7 @@ reachability is unmeasured.
 ## Shape
 
 The Gram–Schmidt step, decided: `UnitVec3::new` on the rejection (or
-`OrthoFrame::from_aim_and_reference` against the axis) under an
+`RigidMotion::from_aim_and_reference` against the axis) under an
 offset K name, with a typed refusal where it decides zero or
 escalates in band, instead of a direction. The value-poison posture at
 the exact apex then comes for free. Found by the `linalg`

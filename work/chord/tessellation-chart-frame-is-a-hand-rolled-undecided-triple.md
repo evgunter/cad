@@ -23,7 +23,7 @@ here with no length decided anywhere:
   offset, shed of its off-plane part and normalized;
 - `v_ref = normal.cross(u_ref)`.
 
-That is the shape `geom_core::OrthoFrame` now records as a type: a
+That is the shape `geom_core::RigidMotion` now records as a type: a
 decided normalize, a residual perpendicular to it, and the cross
 product they determine. Two of the three lengths here can be zero for a
 real input — a degenerate loop, and a walk whose farthest point lies on
@@ -47,7 +47,7 @@ the decisions, not about the choice of `u`.
 
 ## Pointer
 
-`crates/geom-core/src/linalg/ortho_frame.rs` — `OrthoFrame::gram_schmidt`
+`crates/geom-core/src/linalg/rigid_motion.rs` — `RigidMotion::gram_schmidt`
 is this ladder written once, with both lengths decided and a typed
 refusal naming which axis. `work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum.md`
 is the same undecided `normalize` one crate over.
