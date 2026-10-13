@@ -2,11 +2,12 @@
 id: import-door-appends-a-defect-note-to-a-sub-eps-in-zero-span
 kind: issue
 title: geom-brep: at the import door, a ParamSpan Zero arm whose enclosure straddles zero appends the at-rest 'kernel defect or a damaged file' note right after 'the file does not state it'
-status: dispatched
+status: review
 opened: 2026-10-08
 priority: P3
 cost: M
 branch: encl/no-size-note
+pr: 4943
 ---
 
 
