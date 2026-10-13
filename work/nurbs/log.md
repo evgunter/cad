@@ -1372,3 +1372,13 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - Recommended: 15 min, or 25 min for PRs that seed geom-core, geom, geom-brep or topo, with queue time excluded.
     - Alternatives: larger runners (B) or a self-hosted incremental build (C).
     - Before Ev reads it, I asked build C to measure (C)'s incremental rebuild and update the body in place.
+- 2026-10-13 21:52Z — **PR 4984 merged** (unit 2, second-order quotient) at `2639b944`, on head 3d23bdcc. CI was green; the FULL review and its delta check were mergeable, and the delta MINORs are folded in.
+  - Seam notes are posted on chord, tess, encl, offset, shell, guard, knot, tcost and tint.
+  - `rational-second-derivative-bounds-have-two-recipes` is closed by the PR.
+  - **Next:**
+    - build C on cut-net levers 1+2;
+    - `other-rational-speed-readings-read-relaxed-quotient-recipes` (ENCL's handover) goes to build A next;
+    - the perf row `second-order-quotient-pieces-cost-the-face-bound-eleven-times-main` is shared with build C's levers.
+- 2026-10-13 21:55Z — **Dispatched after 4984.**
+  - **Build C:** cut-net levers 1+2 on `nurbs/cut-net-quotient-cost`, from 2639b944. It covers both perf rows (cut nets, and the face bound's per-piece restriction), bit-identical, with counting guards. The target is within about 2× of before 4954.
+  - **Build A:** `other-rational-speed-readings-read-relaxed-quotient-recipes` on `nurbs/remaining-rational-readings`, with the tier decided at PR time.
