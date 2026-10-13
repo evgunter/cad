@@ -1857,7 +1857,8 @@ struct EdgeGroup {
 }
 
 /// Boolean vertices: operand pass-downs (`From`, + `Fragment(Borders)`
-/// at each of several vertices one corner is held as), and seam
+/// at each of several vertices one corner is held as: null copies and
+/// the zip's copies per cone, [`Fused`]), and seam
 /// (crossing/fused) vertices named by the operand entities whose
 /// crossing minted them — derived from the already-named incident edges
 /// (combinatorial wiring facts) — and, where an edge crosses, by its
@@ -1950,7 +1951,8 @@ fn name_boolean_vertices<T: Decide>(
     let mut groups: BTreeMap<RoleSeg, (bool, Vec<(VertexKey, Along)>)> = BTreeMap::new();
     // Operand vertices → the operand keys read there and the result
     // vertices that are each of them: several where the boolean leaves
-    // several at one corner (null copies).
+    // several at one corner (null copies, and the zip's copies per
+    // cone, `BooleanNaming::cone_splits`).
     type Corner = (bool, Parent, BTreeSet<OpSide<VertexKey>>, Vec<VertexKey>);
     let mut corners: BTreeMap<StableName, Corner> = BTreeMap::new();
     for (v, _) in body.vertices() {
@@ -1958,7 +1960,8 @@ fn name_boolean_vertices<T: Decide>(
         // vertex (N2), read at every operand key the boolean leaves at
         // the point: the kept key, then its fusion partners nearest
         // first (`fused_partners`; A's where both operands fused here,
-        // as `zip_seam` keeps the outer cycle's vertex), then the rest
+        // as `zip_seam` keeps the outer cycle's vertex), each a copy per
+        // cone read as the vertex it copies (`Fused::origin`), then the rest
         // A's first (`operand_vertex_keys`), then the vertex the
         // reduction's contact rows pair one of them with
         // (`contact_identity`).
@@ -2170,35 +2173,38 @@ fn name_boolean_vertices<T: Decide>(
             }
             // Written to a witness: an ordinary declared union reached
             // exactly this shape — one operand-descended edge on the A
-            // side, none on the B side, and, everything above having
-            // already run, no single B face to supply the other parent.
-            // The vertex is half-decided, the body is sound and the
-            // recipe is legal, so what is missing is a rule. Maximal
-            // edges join that witness's vertex away, and no document
-            // reaches the arm now
+            // side, none on the B side, fewer than two seam lines (the
+            // arm above takes two or more, on either side) and, everything
+            // above having already run, no single B face to supply the
+            // other parent. The vertex is half-decided, the body is sound
+            // and the recipe is legal, so what is missing is a rule.
+            // Maximal edges join that witness's vertex away, and no
+            // document reaches the arm now
             // (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`).
             //
-            // **Its mirror (`([], [_])`) is not here, and the
-            // reason is the finish's asymmetry, scoped to ZIPPED
-            // vertices.** The witness is a vertex whose B structure a
-            // shared plane consumed: Eq. 15.3 lumps every B on-sector to
-            // the discarded side (`topo::boolean::tables::eq15_3_lump`),
-            // so on a shared plane A's copy is what survives, and the zip
-            // keeps A's vertex where the two meet. The mirror needs B's
-            // lone edge surviving where A's structure was consumed, which
-            // that lumping does not produce. A vertex nothing zipped
-            // (a touch) is not covered by this argument; the vertex its
-            // contact rows pair it with names it, on either side, and on a
-            // straight edge the output stage joins it away. Two kinds of
-            // row hold the sides: `swapping_the_operands_swaps_the_sides_of_every_name`
+            // **So `SeamVertexParentage` is raised on both sides where
+            // two or more seam lines meet, and on the A side alone where
+            // fewer do.** The B side's lone edge with fewer than two seam
+            // lines falls to the residue below, and the reason is the
+            // finish's asymmetry, scoped to ZIPPED vertices. The witness
+            // is a vertex whose B structure a shared plane consumed: Eq.
+            // 15.3 lumps every B on-sector to the discarded side
+            // (`topo::boolean::tables::eq15_3_lump`), so on a shared
+            // plane A's copy is what survives, and the zip keeps A's
+            // vertex where the two meet. The mirror needs B's lone edge
+            // surviving where A's structure was consumed, which that
+            // lumping does not produce. A vertex nothing zipped (a touch)
+            // is not covered by this argument; the vertex its contact rows
+            // pair it with names it, on either side, and on a straight
+            // edge the output stage joins it away. Two kinds of row hold
+            // the sides: `swapping_the_operands_swaps_the_sides_of_every_name`
             // (in `emit_boolean_vertex_keys`) holds the two sides
             // SYMMETRIC — the same geometry named alike with A and B
             // exchanged — which a consistent A/B relabel would pass; the
             // absolute rows beside it (the nested corners, the touched
             // reflex edge, the assembly's touched ridge) pin WHICH side
             // each name belongs to. A shape nobody has reached is not a
-            // shape known to be legal, so the mirror stays in the residue
-            // below.
+            // shape known to be legal, so that mirror stays in the residue.
             ([_], []) => return Err(NamingError::SeamVertexParentage { vertex: v }),
             // The unenumerated residue, which stays an emission bug. A
             // catch-all is the preimage of every case nobody has named
@@ -2385,7 +2391,9 @@ enum Along {
 /// fusion partners ([`fused_partners`]) and every pair of operand keys
 /// a null edge (`BooleanNaming::null_copies`) leaves at one point, both
 /// ways round, and the vertex each of the zip's splits per cone
-/// (`BooleanNaming::cone_splits`) copied.
+/// (`BooleanNaming::cone_splits`) copied. Both kinds of copy leave
+/// several result vertices at one operand point: a null copy is read
+/// through `one_point`, a copy per cone through [`Fused::origin`].
 struct Fused {
     partners: BTreeMap<VertexKey, Vec<VertexKey>>,
     one_point: Vec<((topo::Operand, VertexKey), (topo::Operand, VertexKey))>,
@@ -2415,7 +2423,8 @@ impl Fused {
     }
 
     /// From the zips' fusions `(dead, kept)` and the null copies, each
-    /// in the order made.
+    /// in the order made, with no copy per cone ([`Fused::of`] adds
+    /// those).
     fn from_rows(
         merges: &[(VertexKey, VertexKey)],
         null_copies: &[(topo::Operand, VertexKey, VertexKey)],
@@ -2439,7 +2448,9 @@ impl Fused {
 /// those fused into one of them, each hop in the order they died. A
 /// vertex's operand identity is the first of them its operand names, so
 /// a key one fusion from the survivor wins over a key it absorbed
-/// earlier, as when no chain formed.
+/// earlier, as when no chain formed. A partner may be a copy the zip
+/// made per cone, which the caller reads as the vertex it copies
+/// ([`Fused::origin`]).
 fn fused_partners(merges: &[(VertexKey, VertexKey)]) -> BTreeMap<VertexKey, Vec<VertexKey>> {
     let mut into: BTreeMap<VertexKey, Vec<VertexKey>> = BTreeMap::new();
     for &(dead, kept) in merges {
@@ -2465,7 +2476,8 @@ fn fused_partners(merges: &[(VertexKey, VertexKey)]) -> BTreeMap<VertexKey, Vec<
 
 /// **Every operand vertex result vertex `v` is**, `(operand, key)` in
 /// that operand's clone keys: its own key read through the layout
-/// ([`operand_key`]), each key fused into it, and, transitively, every
+/// ([`operand_key`]), each key fused into it, each read through the
+/// copy per cone it may be ([`Fused::origin`]), and, transitively, every
 /// key a null edge (`BooleanNaming::null_copies`) joins to any of
 /// those: it leaves two keys of one point.
 fn operand_vertex_keys(
