@@ -446,13 +446,12 @@ const PARAM_SPAN_UNSTATED: &str = "lies inside the ambiguity band (1e-12, 1e-11)
 /// verdict, so a regression that moves the refusal to another door
 /// fails these cells. Band-decided, like the tangent-plane zero, and
 /// within the files' ε_in: the import door's one sentence for a size the
-/// file does not state, the values pinning the margin.
+/// file does not state. The margin (1.62e-16) over K lies below
+/// `EPS_MIN`, so the ending is the lever alone (D4 ¶4).
 const TANGENT_SECOND_ORDER_ZERO: &str = "the faces agree to second order at sample 1, so they do \
      not fix where the edge runs, which its description says they do. This curvature difference \
      is below the file's declared coincidence distance ε_in = 1e-10 m, so the file does not state \
-     it. Recourse: move the geometry so the faces curve apart more clearly where they touch, or, \
-     if this curvature difference is intended, re-export the file with its uncertainty declared \
-     below 1.6199999985005657e-16 m and tighten the tolerance below 1.6199999985005656e-17 m";
+     it. Recourse: move the geometry so the faces curve apart more clearly where they touch";
 /// dm1's former coarse-band sub-reason: the convergence predicate
 /// declines to decide, by name. **No cell reaches it any more** — the
 /// gate stops on a definite SIGN before the round whose width lands in
@@ -504,12 +503,12 @@ const HALFCAP_EPS7_TIGHTEN: &str = "step import: joining the edges of the solid 
 /// predicates no longer fire here, and the file imports — but the angle
 /// lies within both ε_in overrides, so the import door ends it in its
 /// one sentence for a size the file does not state (D4 ¶1), and the
-/// attempt ends there (the `;` before the next rung). The fragment
-/// starts after the override's own ε_in, which differs per cell.
+/// attempt ends there (the `;` before the next rung). The margin is
+/// rounding noise whose tolerance lies below `EPS_MIN`, so the ending
+/// is the lever alone (D4 ¶4). The fragment starts after the
+/// override's own ε_in, which differs per cell.
 const TANGENT_PLANES_COINCIDE: &str = " m, so the file does not state it. Recourse: move the \
-     geometry so the surfaces cross at a clearer angle, or, if this angle is intended, re-export \
-     the file with its uncertainty declared below 2.7105054300843824e-27 m and tighten the \
-     tolerance below 2.7105054300843823e-28 m;";
+     geometry so the surfaces cross at a clearer angle;";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
 const PARAM_SPAN_ESCALATED: (&str, &str) = (

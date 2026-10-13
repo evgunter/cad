@@ -2,10 +2,12 @@
 id: a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms
 kind: issue
 title: A boolean result ships contact records its geometry no longer confirms, so the tier-3′ pass refuses it StaleContactDeclaration
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
+closed: 2026-10-13
+pr: 4820
 ---
 
 
@@ -174,3 +176,34 @@ green at ε default and 1e-12. The pose has no cone face. Not bisected.
 The last change to the pin is `e15cbbb1b` ("the pin drops the four
 findings main no longer ships"). Main's push CI does not run sweep's
 1e-6 row, so only a PR that touches an eps-sensitive crate sees it.
+
+## 2026-10-13, closed: fixed by INTENT stage 4 F and PR 4820 (FUSE, carry-rows-after-4820)
+
+Measured on main `0d2117d0` with a temporary probe (never committed)
+in `boolean_op_with` that ran `validate_pseudomanifold(body, contacts)`
+on every body the door ships, over the topo, sweep and editor-core `ci`
+suites (8,390 tests, about 18,000 results). Across all of it there is no
+`StaleContactDeclaration`.
+
+- **This row's tests:**
+  - `boolean_covered`'s two rows: 6/6 pass.
+  - `emit_union_flush_names`: about 300/300 pass.
+  - `emit_union_rim_piece_ranks`: about 2,800/2,800 pass.
+  - `near_tangent_pierce_poses`: 108/108 pass.
+  - `reach_wall_chord_rows`' other rows: 172/172 pass.
+  - `docm7_union_declare`'s test no longer exists; stage 4 F retired
+    declarations.
+- **The drum.** `reach_wall_chord_rows::a_cube_touching_a_drum_at_a_corner_answers_its_closed_form`:
+  8 of 32 results fail tier 3′, on `CensusUndecidable` alone. That is the
+  census's curved lane, not a stale record: it belongs to
+  `work/fuse/census-curved-record-lanes-read-circles-only.md`.
+- **The pinched-operand battery** (`join_pinch_cones_r2_probes.rs`,
+  commit `66adba296c`), re-run in a scratch copy adapted to the current
+  API: 676 bodies pass tier 3′, and the other 44 lines are correct empty
+  results. The 120 stale lines measured on main `3e9d1a96` are now 0.
+- **The `Lcvx` battery's ten stale poses** (`g16.1` to `g17.3`), every
+  op in both orders: 60/60 pass.
+
+Stage 4 F retired the declared pairs, so no record outlives a flush
+pair any more. PR 4820's one carry lands each record only where the
+census's record confirm reads the pair meeting (`records::landings`).

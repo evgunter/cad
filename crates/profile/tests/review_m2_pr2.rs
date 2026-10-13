@@ -499,8 +499,9 @@ fn far_from_origin_rectangle_and_l_profile_validate() {
     assert_eq!(vp.loops()[1].role(), LoopRole::Hole);
 }
 
-/// Arcs at a moderate distance (1e4 m, inside the km session box):
-/// circle + hole annulus still validates at eps = 1e-9.
+/// Arcs at 1e4 m, ten times the 1 km session box (D4 ¶4), whose
+/// rejection at construction is not built: circle + hole annulus still
+/// validates at eps = 1e-9.
 #[test]
 fn annulus_at_ten_kilometers_validates() {
     let c = 1.0e4;
