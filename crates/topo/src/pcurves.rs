@@ -1110,12 +1110,14 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 /// - A chart image naming THIS face's surface IS the answer: since
 ///   the conventional descriptions collapsed (U2) there is nothing
 ///   left to derive.
-/// - An iso LINE image naming the OTHER wall maps as this chart's own
-///   `u = const` column: a domain end when a definite endpoint residual
-///   (`pcurve_iso_side`) places the carrier's start there, otherwise
-///   the column its certified chart foot measures (a chart wider than
-///   the face it trims), and then CERTIFIED by the full iso lane — a
-///   wrong pick fails loudly, never silently.
+/// - An iso LINE image naming the OTHER wall maps as a column of this
+///   chart carrying the neighbour's own `v` map — a domain end, or the
+///   column the start's certified chart foot measures (a chart wider
+///   than the face it trims) — where one holds the carrier at the
+///   interior probe ([`probe_pick`]); otherwise the carrier takes the
+///   boundary-iso schedule below, as an `Intersection` seam does, down
+///   to its `General` image. Every pick is then CERTIFIED by the full
+///   iso lane.
 ///
 /// **The chart's own domain, not the unit square (#327).** Every
 /// boundary above is the payload's KNOT domain end. A chart the kernel
@@ -1232,7 +1234,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
 
     // The boundary-iso schedule (the arms' own note, below), named by
     // the probe's predicate label.
-    let iso_schedule = |what: &'static str| -> Result<Pcurve<T>, PcurveMintError> {
+    let iso_schedule = |what: &'static str,
+                        stated: Vec<Pcurve<T>>,
+                        prior: Option<Indeterminate>|
+     -> Result<Pcurve<T>, PcurveMintError> {
         let Some(wall) = surface.spline_chart() else {
             unreachable!(
                 "nurbs_iso_derive: both callers route only a chart with a spline payload \
@@ -1289,11 +1294,11 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             (t0, span),
             surface,
             band,
-            columns.chain(rows),
+            stated.into_iter().chain(columns).chain(rows),
         ) {
             Ok(Some(cand)) => return Ok(cand),
-            Ok(None) => None,
-            Err(cause) => Some(cause),
+            Ok(None) => prior,
+            Err(cause) => prior.or(Some(cause)),
         };
         // ---- The fixed schedule found nothing: MEASURE the map. ----
         // The candidates above assume the carrier traverses the chart's
@@ -1402,75 +1407,40 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // second opinion about a locus the description already states.
         geom_brep::EdgeDescription::Chart(ref c) if c.surface == own => Ok(c.pcurve.clone()),
         // **The wall–wall seam stated on the OTHER wall.** An iso
-        // LINE image (`u` fixed, `v` moving) on the neighbour's chart
-        // maps as this chart's own `u = u₀`/`u = u₁` boundary, the
-        // side selected by the endpoint. The moving channel is the
-        // description's own, verbatim: the two walls share the seam's
-        // parameterization, which is what makes them one seam.
+        // LINE image on the neighbour's chart is a seam the two walls
+        // usually share the parameterization of, so its `v` map is
+        // offered verbatim first.
         geom_brep::EdgeDescription::Chart(geom_brep::ChartCurve {
             pcurve: Pcurve::IsoLine { p0, pl },
             ..
         }) => {
-            let v0 = p0.y + pl.y * t0;
-            let column = |cand: T| surface.eval(cand, v0);
-            // The image's SHAPE is the neighbour's own description (a
-            // column, `v` moving as the neighbour says); only its
-            // POSITION is derived here. A domain end wins where one is
-            // definitely it; on a chart wider than the face it trims
-            // the seam is an interior column, and its position is the
-            // carrier start's certified chart foot — one sample,
-            // offered to the same metre-valued check — with no snap to
-            // a knot: the certifier collapses the chart at exactly the
-            // value it is handed, and any error in that value is what
-            // its hull meters.
-            // A definite endpoint-side selection: which candidate
-            // column places the carrier's START on the surface. `None`
-            // is "no candidate is definitely it", not a refusal: the
-            // start's measured foot is offered next. The CHECK is the
-            // full iso-lane certification that follows.
-            let side_pick = |eval_at: &dyn Fn(T) -> geom_core::Point3<T>,
-                             cands: &[T]|
-             -> Result<Option<T>, PcurveMintError> {
-                let start = carrier.eval(t0);
-                for cand in cands {
-                    match decide(
-                        "pcurve_iso_side",
-                        Margin::of(start.distance(eval_at(*cand))),
-                        band,
-                    ) {
-                        Ok(Sign::Zero) => return Ok(Some(*cand)),
-                        Ok(Sign::Positive | Sign::Negative) => {}
-                        Err(cause) => {
-                            return Err(PcurveMintError::Escalated { half_edge, cause });
-                        }
-                    }
-                }
-                Ok(None)
-            };
-            let x = match side_pick(&column, &[cu0, cu1])? {
-                Some(x) => x,
-                None => {
-                    let Some(foot) = derive_chart_foot(carrier.eval(t0), surface, half_edge)?
-                    else {
-                        return Err(refuse(
-                            "the carrier's start point lies on neither chart boundary, and \
-                             no lane measures a chart foot at this scalar, so the interior \
-                             seam column it sits on cannot be positioned",
-                        ));
-                    };
-                    side_pick(&column, &[computed_foot::<T>(foot).x])?.ok_or_else(|| {
-                        refuse(
-                            "the carrier's start has a certified chart foot, but the \
-                             neighbour's v map does not place it there — the two walls do \
-                             not share the seam's parameterization",
-                        )
-                    })?
-                }
-            };
-            Ok(Pcurve::IsoLine {
+            // The neighbour's own `v` map, as a column of this chart:
+            // a boundary column, then the column the start's measured
+            // foot names (a chart wider than the face it trims). Each
+            // is judged a quarter span in, like every iso candidate;
+            // where none holds — the walls do not share the seam's
+            // parameterization, or the image is no column at all —
+            // the boundary-iso schedule takes the carrier as it is.
+            let stated = |x: T| Pcurve::IsoLine {
                 p0: Point2::new(x, p0.y),
                 pl: Vec2::new(T::zero(), pl.y),
-            })
+            };
+            let what = "pcurve_iso_wall_seam";
+            let prior = match probe_pick(
+                what,
+                &carrier,
+                (t0, span),
+                surface,
+                band,
+                [cu0, cu1].map(stated),
+            ) {
+                Ok(Some(cand)) => return Ok(cand),
+                Ok(None) => None,
+                Err(cause) => Some(cause),
+            };
+            let at_foot = derive_chart_foot(carrier.eval(t0), surface, half_edge)?
+                .map(|foot| stated(computed_foot::<T>(foot).x));
+            iso_schedule(what, at_foot.into_iter().collect(), prior)
         }
         // **The M8-3 ARC-RIM arm.** An ARC cap rim's chart image is
         // the same boundary line the LINE arm mints, but its moving
@@ -1536,9 +1506,11 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
             if matches!(carrier, geom::Curve3::Line { .. }) =>
         {
-            iso_schedule("pcurve_iso_line_rim")
+            iso_schedule("pcurve_iso_line_rim", Vec::new(), None)
         }
-        geom_brep::EdgeDescription::Intersection { .. } => iso_schedule("pcurve_iso_seam_column"),
+        geom_brep::EdgeDescription::Intersection { .. } => {
+            iso_schedule("pcurve_iso_seam_column", Vec::new(), None)
+        }
         _ => Err(refuse(
             "no iso derivation for this locus on a NURBS chart — only chart images of \
              this chart, iso-line images of the neighbouring wall, boundary-iso \
