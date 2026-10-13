@@ -27,6 +27,12 @@ ResultVolumeImplausible { which: "vol(A ∪ B) ≤ vol(A) + vol(B)", got: "2.0",
 | 1e-13 … 5e-10 | refuses | refuses | refuses |
 | −1e-12, −1e-10 (overlap) | Ok | Ok | Ok |
 
+PR 5002's review reproduced the table on the `[0,1]²` footprint and
+added finer cells there (B's bottom placed at `1.0` plus `n` ulp, or
+at `1.0 + g`): 1 ulp builds; 4 ulp and `1e-15` refuse
+(`cleave_zero_band_gap_review_probe.rs` on `flush/given-gate-review`
+@ `e1abf0a4dd`). The review agrees the band is P0.
+
 (`Tol::witness()`, band zero 1e-9; `brick` and `finished` from
 `topo::test_support`.)
 

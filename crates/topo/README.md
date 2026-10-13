@@ -240,8 +240,9 @@ its zero band on `Bridged`.
 
 A boolean's face pairs are the glue its margins decide (`boolean::glue`),
 or, at a step of an n-ary union's fold, the verdicts that union's pairwise
-judgement decided (`BooleanInputs::given`, each pair minted from a
-`GlueVerdict` the kernel returned); declarations live on mate
+judgement decided (`BooleanInputs::given`, each pair made from a
+`GlueVerdict` some boolean returned, which nothing ties to the operands
+it is handed to); declarations live on mate
 nodes alone (`crates/editor-core/ASSEMBLY.md`). Bodies carry only verified records,
 in the `BooleanBody` wrapper, never persisted. Replay is scalar-generic;
 an indeterminate verification at an interval scalar aborts.

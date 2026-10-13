@@ -57,22 +57,39 @@ A `BooleanInputs` built by hand with one `GivenPair` went through
 
 ## Fix
 
-A given pair can no longer be stated. `GivenPair`'s fields are private
-and its one constructor is `GlueVerdict::given_at`. A `GlueVerdict` is
-minted only by the kernel, from the face-pair rows of a boolean's own
-coincidences (`GlueVerdict::of_rows`, `crates/topo/src/boolean/mod.rs`),
-and handed out on `BooleanBody::verdicts`. `verbs` carries the list on
-`VerbRecord::Boolean`. The union fold
+**Owed is narrowed.** The row asks for a pair "only `editor_core`'s
+union fold can mint". What lands is a pair only made from a verdict
+*some boolean* decided. Rust cannot restrict a constructor to one
+calling crate, and a kernel-held mint that knows the fold's members
+and lineage is the refactor the row's other shape names (the fold's
+step behind a kernel door). So any `boolean_op_with` caller can still
+re-key or reuse a minted verdict. Through that route the three
+measurements above reproduce on this branch (review probes on
+`flush/given-gate-review`): a `Continuation` verdict re-keyed onto the
+rest touch builds with no row; a verdict reused on faces 0.5 apart
+builds; unrelated pairs refuse only at the backstop. That residue is
+`a-glue-verdict-is-not-bound-to-the-bodies-it-judged`. What is closed
+is a pair stated from nothing: a relation the caller writes down.
+
+**The change.** The given pair is `GluedPair`, the glue's own pair
+type, now public with crate-private fields; its one public mint is
+`GlueVerdict::given_at`. A `GlueVerdict` is minted only by the kernel,
+from the face-pair rows of a boolean's own coincidences
+(`GlueVerdict::of_rows`, `crates/topo/src/boolean/mod.rs`, reading
+`Coincidence::face_pair`), and handed out on `BooleanBody::verdicts`.
+`verbs` carries the list on `VerbRecord::Boolean`. The union fold
 (`crates/editor-core/src/eval/wire.rs`, `pair_verdicts` and
 `given_pairs`) reads the judgement's verdicts there rather than
 re-deriving them from the rows, and re-keys each verdict's A face
 through its lineage. `Glue::of` is infallible, because a verdict's
-relation always glues.
+class always glues.
 
-The pin is `GivenPair`'s `compile_fail` doc-test, which tries the
-measurement's spelling. `given_pairs_are_the_folds_alone.rs` adds a
-second pin: a rest touch is the union's one verdict, and handed back,
-it builds the decided body with no row of its own.
-
-What stays open: a verdict is not bound to the bodies it judged
-(`a-glue-verdict-is-not-bound-to-the-bodies-it-judged`).
+**The pin** is a source census,
+`a_given_pair_is_made_from_a_kernel_verdict::the_one_public_mint_of_a_given_pair_is_given_at`:
+no public function in `topo`'s source other than `given_at` returns
+either type, and neither has a public field or a minting derive. A
+public `of_rows`, a public `GluedPair::new`, or a public field each
+turn it red (each tried). The same module's
+`a_rest_touch_is_the_unions_one_verdict_and_glues_as_given` checks
+that a rest touch is the union's one verdict and that, handed back, it
+builds the decided body with no row of its own.

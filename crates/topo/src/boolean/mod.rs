@@ -799,36 +799,22 @@ pub struct BooleanInputs {
     ///
     /// **Not carried by the façade.** It is the union fold's channel
     /// (`editor_core`'s n-ary union hands each step the pass's
-    /// verdicts, read through member lineage), and a pair in it is
-    /// minted only from a verdict a boolean decided
-    /// ([`GlueVerdict::given_at`]).
-    pub given: Option<Vec<GivenPair>>,
+    /// verdicts, read through member lineage). Its pairs are made only
+    /// from a verdict some boolean decided ([`GlueVerdict::given_at`]),
+    /// but nothing ties that verdict to these operands: a caller who
+    /// re-keys or reuses one glues its pair here with nothing measured
+    /// and no row recorded
+    /// (`work/flush/a-glue-verdict-is-not-bound-to-the-bodies-it-judged.md`).
+    pub given: Option<Vec<GluedPair>>,
     /// Operand A's own contact records, carried into the result.
     pub records_a: OperandRecords,
     /// Operand B's own contact records, carried into the result.
     pub records_b: OperandRecords,
 }
 
-/// **One carrier pair decided before the operation**: a face of each
-/// operand and the class its decision glued it under. The one way to
-/// make one is [`GlueVerdict::given_at`], so a given pair is always
-/// one a boolean decided, never one a caller states:
-///
-/// ```compile_fail,E0451
-/// fn forge(a: topo::FaceKey, b: topo::FaceKey) -> topo::GivenPair {
-///     topo::GivenPair { a, b, class: topo::GlueClass::Rest }
-/// }
-/// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct GivenPair {
-    a: FaceKey,
-    b: FaceKey,
-    class: GlueClass,
-}
-
 /// **A face pair a boolean glued on its own decision**: a face of
-/// each operand, in that operation's operand keys, and the relation
-/// its margin decided, which glues. Only the kernel mints one
+/// each operand, in that operation's operand keys, and the class its
+/// margin's relation glued them under. Only the kernel mints one
 /// ([`BooleanBody::verdicts`]), from the face-pair rows of the
 /// operation's own coincidences: it is what an n-ary union's pairwise
 /// judgement hands its fold steps (DM4).
@@ -836,7 +822,6 @@ pub struct GivenPair {
 pub struct GlueVerdict {
     a: FaceKey,
     b: FaceKey,
-    relation: crate::Relation,
     class: GlueClass,
 }
 
@@ -853,19 +838,15 @@ impl GlueVerdict {
 
     /// The decided relation.
     pub fn relation(self) -> crate::Relation {
-        self.relation
+        self.class.relation()
     }
 
-    /// **This verdict, given to a fold step** whose B operand is the
-    /// judged B operand and whose A operand holds `a` as a face that
-    /// descends from the judged A face: the step reads the A side
-    /// through its lineage and keeps the B face and the decision.
-    pub fn given_at(self, a: FaceKey) -> GivenPair {
-        GivenPair {
-            a,
-            b: self.b,
-            class: self.class,
-        }
+    /// **This verdict, given to a fold step**: the pair of `a` and the
+    /// judged B face, under the judged class. The fold passes each
+    /// accumulation face whose lineage holds the judged A face, over
+    /// the judged B operand; nothing here checks either.
+    pub fn given_at(self, a: FaceKey) -> GluedPair {
+        GluedPair::new(a, self.b, self.class)
     }
 
     /// The verdicts `rows` record: each row relating an A-operand face
@@ -873,23 +854,10 @@ impl GlueVerdict {
     pub(crate) fn of_rows(rows: &[crate::Coincidence]) -> Vec<Self> {
         rows.iter()
             .filter_map(|row| {
-                let [
-                    crate::RowCell::Input {
-                        input: Operand::A,
-                        cell: crate::Cell::Face(a),
-                    },
-                    crate::RowCell::Input {
-                        input: Operand::B,
-                        cell: crate::Cell::Face(b),
-                    },
-                ] = row.cells
-                else {
-                    return None;
-                };
+                let (a, b) = row.face_pair()?;
                 Some(Self {
                     a,
                     b,
-                    relation: row.relation,
                     class: row.relation.glued_class()?,
                 })
             })
@@ -950,13 +918,7 @@ impl Glue {
         } = inputs;
         let (pairs, verdicts) = match given {
             None => (Vec::new(), Verdicts::Decided),
-            Some(given) => (
-                given
-                    .iter()
-                    .map(|g| GluedPair::new(g.a, g.b, g.class))
-                    .collect(),
-                Verdicts::Given,
-            ),
+            Some(given) => (given.clone(), Verdicts::Given),
         };
         Self {
             pairs,
@@ -967,9 +929,11 @@ impl Glue {
     }
 }
 
-/// One glued cross-operand face pair and its class.
+/// **One glued cross-operand face pair and its class**: a pair an
+/// operation decided, or one it was given ([`BooleanInputs::given`]),
+/// whose one public mint is [`GlueVerdict::given_at`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct GluedPair {
+pub struct GluedPair {
     /// The A-operand face.
     pub(crate) a: FaceKey,
     /// The B-operand face.

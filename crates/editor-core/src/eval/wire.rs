@@ -3388,7 +3388,7 @@ fn given_pairs<T: Decide>(
     member: usize,
     fold: &names::UnionFold,
     acc: &topo::Body<T>,
-) -> Result<Vec<topo::GivenPair>, NodeErrorKind> {
+) -> Result<Vec<topo::GluedPair>, NodeErrorKind> {
     let bug = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
     let mut given: std::collections::BTreeMap<(topo::FaceKey, topo::FaceKey), topo::GlueVerdict> =
         std::collections::BTreeMap::new();
@@ -3429,17 +3429,7 @@ fn given_pairs<T: Decide>(
 fn debug_assert_given(rows: &[topo::Coincidence], inputs: &BooleanInputs) {
     if cfg!(debug_assertions) && inputs.given.is_some() {
         for row in rows {
-            if let [
-                topo::RowCell::Input {
-                    input: topo::Operand::A,
-                    cell: topo::Cell::Face(fa),
-                },
-                topo::RowCell::Input {
-                    input: topo::Operand::B,
-                    cell: topo::Cell::Face(fb),
-                },
-            ] = row.cells
-            {
+            if let Some((fa, fb)) = row.face_pair() {
                 debug_assert!(
                     false,
                     "a union fold step judged the carrier pair {fa:?}/{fb:?} itself: its \
