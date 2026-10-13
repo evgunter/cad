@@ -1927,10 +1927,10 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::PcurveSplit {
             edge: ek,
             half_edge: he,
-            error: geom_brep::PcurveCertifyError::UnsupportedCarrier {
+            error: geom_brep::PcurveCertifyError::CarrierOffChart {
                 chart: geom::SurfaceKind::Torus,
-                carrier: geom::CurveKind::Nurbs,
-                class: geom_brep::UncoveredClass::NoFittedClass,
+                carrier: geom::CurveKind::Spiric,
+                why: "the spiric lies on neither its own torus nor that torus's mirror",
             },
         },
         EulerOpError::PcurveMint {
@@ -7224,7 +7224,6 @@ mod tests {
             "Recourse: move the geometry so the crossing lands clearly away from the edge's ends";
         let tol = geom_core::Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let k = band.escalate() / band.zero();
         let raise = |t: f64| {
             let cube = crate::test_support_fixtures::declined_cube::<f64>(tol);
             let mut body = cube.body;
@@ -7256,7 +7255,11 @@ mod tests {
                     ..
                 },
                 EulerOpError::SplitParamEscalated { diag, .. },
-            ) => [Some(value(*z) / k), None, Some(value(diag.margin) / k)],
+            ) => [
+                band.offer_deciding(value(*z)),
+                None,
+                band.offer_deciding(value(diag.margin)),
+            ],
             other => panic!("a zero-band, an outside and an in-band split: {other:?}"),
         };
         for (err, want) in [zero, outside, undecided].iter().zip(want) {
@@ -7265,7 +7268,11 @@ mod tests {
                 text.contains(LEVER) && !text.contains("declare"),
                 "the one lever, and no declaration: {text}"
             );
-            assert_eq!(offered(&text), want, "the tolerance its arm gives: {text}");
+            assert_eq!(
+                offered(&text),
+                want,
+                "the tolerance its arm gives, above EPS_MIN: {text}"
+            );
         }
     }
 

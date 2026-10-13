@@ -2060,7 +2060,6 @@ mod tests {
             )
         };
         let mid = (band.zero() + band.escalate()) / 2.0;
-        let k = band.escalate() / band.zero();
         let arms = [
             (mid, "an in-band arm"),
             (0.5 * band.zero(), "a zero-band arm"),
@@ -2132,11 +2131,11 @@ mod tests {
                 let text = err.to_string();
                 let lever = "Recourse: make the edges at the corner where the two faces meet \
                              span clearly more than the tolerance";
-                let ending = if class.is_some() {
+                let offer = band.offer_deciding(arm).filter(|_| class.is_some());
+                let ending = if let Some(offered) = offer {
                     format!(
                         "{lever}, or, if this length of the corner's shorter edge is intended, \
-                         tighten the tolerance below {:e} m",
-                        arm / k
+                         tighten the tolerance below {offered:e} m"
                     )
                 } else {
                     lever.to_owned()

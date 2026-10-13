@@ -330,7 +330,8 @@ impl LeverOnly {
 
 /// What a zero verdict that leaves no size to tighten below may mean
 /// beyond the lever, by where it is read: appended to the lever as
-/// "; {note}".
+/// "; {note}". It speaks too for a nonzero zero-band margin whose offer
+/// falls at or below `EPS_MIN` and is withheld (D4 ¶4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AtZero {
     /// The note at a build, where the kernel made the geometry.
@@ -387,9 +388,11 @@ pub struct SizedDecision {
     pub passes: SizedPass,
     /// How its sign-certain arm ends over stored geometry.
     pub stored: StoredDefinite,
-    /// What a zero verdict leaving no size to tighten below may mean
-    /// beyond the lever, where the decision's own metering can reach
-    /// zero on sound geometry or no construction mints it.
+    /// What a zero verdict leaving no admissible size to tighten below
+    /// may mean beyond the lever — an exact or proved zero, or a nonzero
+    /// margin whose offer falls at or below `EPS_MIN` (D4 ¶4) — where
+    /// the decision's own metering can reach zero on sound geometry or
+    /// no construction mints it.
     pub at_zero: Option<AtZero>,
 }
 
@@ -402,8 +405,8 @@ impl SizedDecision {
     ///   every reading, with the words the arm's reporting margin gives
     ///   ([`MarginDiag::sized_recourse`]): at a build or at rest, the
     ///   tolerance below which a smaller one decides the margin passing,
-    ///   where one does. A zero verdict that leaves no size to tighten
-    ///   below adds [`SizedDecision::at_zero`] where the decision has
+    ///   where one does above `EPS_MIN`. A zero verdict that leaves no
+    ///   admissible size to tighten below adds [`SizedDecision::at_zero`] where the decision has
     ///   one, on a gate's rejected Zero ([`MarginDiag::rejected_sign`])
     ///   too, whichever arm its reader routed it on. A poisoned margin
     ///   keeps the lever and takes the note its reading gives

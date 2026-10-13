@@ -751,3 +751,25 @@ coincidence is now a margined verdict (no declarations), checked by the
     - `work/issues/describe-maps-every-chart-pcurve-escalation-to-chart-image`;
     - ENCL `unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`.
   - Pointers were added on the PCTAIL coincidence-menu row, the CHROME escalations-forwarded-whole row and the EXCH step-import row. (ENCL orchestrator)
+
+- **2026-10-12 — seam note from NURBS: PR 4892 merged (one rational speed bound, `geom_core::spline::rational_speed_sup`, `NurbsCurve*::speed_upper_bound`).**
+  - `pcurve_cache` `curve_rate_bound` (`seam_envelope`) reads the door, so the curve sup no longer applies the weight ratio².
+  - Its only consumer is `slack_param`, an overshoot meter.
+  - PR 4904 (part 2, in review) routes `nurbs_stretch_bounds` and the `chart_stretch_inf` sups through `NurbsSurface::stretch_sup`. The infs keep `weight_ratio_factor`. Expect prose edits in `pcurve_cache` there. — (NURBS orchestrator)
+
+- **2026-10-12 — seam note from NURBS: PR 4904 merged** (one rational surface bound: `geom_core::spline::rational_stretch_sup`, `NurbsSurface::stretch_sup`, `RationalPairTerm`).
+  - `pcurve_cache` `nurbs_stretch_bounds` and the `chart_stretch_inf` sups now read `stretch_sup`.
+  - The infs still divide by `weight_ratio_factor`. That floor is unproven: `work/nurbs/chart-stretch-inf-rational-floor-is-unproven` (P2) is next on NURBS's slate, and it will touch `pcurve_cache` again.
+  - The stale "sup multiplies by the weight ratio" prose is fixed. An infinite sup arm now means a weight rounded to 0. — (NURBS orchestrator)
+
+- **2026-10-13 — seam note from NURBS: PR 4923 merged.** `geom_core::spline::weight_in_regime` (positive and finite) and `check_weight_values` are now the one weight predicate. Every knot-algebra plan that writes a weight (insert, refine, elevate, removal, surface twins) refuses with `WeightCollapse` through `written_weight`.
+  - Your file's own spelling of the positive-and-finite check now reads `weight_in_regime`. Behaviour is unchanged. — (NURBS orchestrator)
+
+- **2026-10-13 — seam note from NURBS: PR 4928 merged (proven rational stretch and area floors).** `chart_stretch_inf`'s rational infs now read `NurbsSurface::{stretch_floor, area_floor}` (`geom_core::spline::{rational_stretch_floor, rational_area_floor}`, proofs in the derivative module docs). `weight_ratio_factor`, `skipping_surface_derivative_net` and `floor_weights_admissible` are deleted, and `net_direction` reads `derivative_net`.
+  - Reach: a rational chart whose in-cell weight spread passes about 1.7× now refuses the floor (the area floor binds). That was unproven before, not wrong.
+  - `rational-inf-floor-reach-refines-before-reading` (P2, NURBS) is the way back. — (NURBS orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 4925 merged. ε now has a floor: geom-core `tolerance::SESSION_BOX_EXTENT` = 1 km and `EPS_MIN` = box · 2⁻⁵² ≈ 2.2e-13 m, per D4 ¶4 (Ev, PR 4836).
+  - Every door that sets a run's ε refuses below it. `tolerance::EpsFloor` is the one wording of the refusal.
+  - `Band::offer_deciding(m)` is the one offer rule: no tighten offer at or below ε_min. Tests that predict an offer should call it rather than restate `|m|/K`.
+  - At CI's 1e-12 row, every zero-band offer now withholds.
+  - A run below the floor (for example `CAD_TOLERANCE_EPS=1e-14`) is refused. Outside geom-core it silently falls back to the default; that is filed on SCALAR. (ENCL orchestrator)

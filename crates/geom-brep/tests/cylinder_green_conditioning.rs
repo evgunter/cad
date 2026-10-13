@@ -251,3 +251,55 @@ fn a_ring_wound_against_its_face_is_a_hole_and_one_wound_with_it_refuses() {
         "a ring wound with its face must refuse: {got:?}"
     );
 }
+
+/// **A band reads its holes by winding, in any loop order.** The unit
+/// cylinder's band between whole rims at `v = 0` and `v = 1`, with the
+/// square hole `[0.3, 0.6]²`: wound against the face it measures
+/// `2π − 0.09` stored first, middle or last; wound with it, it refuses
+/// (`props_ring_winding`) wherever it is stored. Read by position, a
+/// hole stored first is the face's own loop and is never asked.
+#[test]
+fn a_band_reads_its_holes_by_winding_in_any_loop_order() {
+    use core::f64::consts::TAU;
+    use geom_brep::props::{PropsError, curved_face_loops};
+    let (surface, build) = framed(1.0, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
+    let rim = |v: f64, a: f64, b: f64, tag: u32| {
+        vec![edge(
+            Curve3::Circle {
+                center: p3(0.0, 0.0, v),
+                axis: v3(0.0, 0.0, 1.0),
+                radius: 1.0,
+                u_ref: v3(1.0, 0.0, 0.0),
+            },
+            a,
+            b,
+            tag,
+            tag,
+        )]
+    };
+    let (bottom, top) = (rim(0.0, 0.0, TAU, 20), rim(1.0, TAU, 0.0, 21));
+    let against = build((0.3, 0.6), (0.3, 0.6), false, 10);
+    let with = build((0.3, 0.6), (0.3, 0.6), true, 10);
+    let area = TAU - 0.09;
+    for (h, b, t) in [(0, 1, 2), (1, 0, 2), (2, 1, 0)] {
+        let order = |hole: &[LoopEdge<f64>]| {
+            let mut loops: [&[LoopEdge<f64>]; 3] = [&[], &[], &[]];
+            loops[b] = &bottom;
+            loops[t] = &top;
+            loops[h] = hole;
+            curved_face_loops(&surface, &loops, true, band())
+        };
+        let fc = order(&against)
+            .unwrap_or_else(|e| panic!("the hole at {h}: the holed band was refused: {e:?}"));
+        assert!(
+            ((fc.area - area) / area).abs() <= 1e-12,
+            "the hole at {h}: area {} against {area}",
+            fc.area
+        );
+        let got = order(&with);
+        assert!(
+            matches!(got, Err(PropsError::RingWoundWithFace)),
+            "the hole at {h}, wound with its face, must refuse: {got:?}"
+        );
+    }
+}

@@ -45,6 +45,7 @@ use geom_core::spline::{
     SplineError,
 };
 use geom_core::{Point3, Real, Vec3};
+use std::sync::OnceLock;
 
 use crate::net;
 
@@ -523,7 +524,7 @@ pub enum NetState {
 
 /// after construction — every knot-algebra operation returns a new
 /// surface).
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct NurbsSurface<T: Real> {
     knots_u: Knots<T>,
     knots_v: Knots<T>,
@@ -532,6 +533,31 @@ pub struct NurbsSurface<T: Real> {
     /// The weights' value channel, read off `weights` at construction
     /// (the curve's field of the same name says what reads it).
     weight_channel: Vec<f64>,
+    /// [`NurbsSurface::stretch_sup`], filled on first read outside a
+    /// symbolic session; on the same terms as the curve's speed memos
+    /// (nothing mutates the fields above after construction).
+    stretch: OnceLock<(geom_core::SupSpeed<T>, geom_core::SupSpeed<T>)>,
+}
+
+/// The surface's value, without the stretch memo.
+impl<T: Real> core::fmt::Debug for NurbsSurface<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            knots_u,
+            knots_v,
+            control,
+            weights,
+            weight_channel,
+            stretch: _,
+        } = self;
+        f.debug_struct("NurbsSurface")
+            .field("knots_u", knots_u)
+            .field("knots_v", knots_v)
+            .field("control", control)
+            .field("weights", weights)
+            .field("weight_channel", weight_channel)
+            .finish()
+    }
 }
 
 impl<T: SpanLocate> NurbsSurface<T> {
@@ -561,11 +587,68 @@ impl<T: SpanLocate> NurbsSurface<T> {
             control,
             weights,
             weight_channel,
+            stretch: OnceLock::new(),
         })
     }
 }
 
 impl<T: Real> NurbsSurface<T> {
+    /// Certified **upper** bounds on `‖S_u‖` and `‖S_v‖` over the whole
+    /// domain, in m/param: the pair-term bound of
+    /// [`geom_core::spline::rational_stretch_sup`], per direction,
+    /// the max over the nonempty cells. At unit weights it is the
+    /// polynomial control-difference bound. At `Interval` certified, at
+    /// `f64` the same expression in round-to-nearest; never a refusal.
+    /// Memoised outside a symbolic session only, as
+    /// [`crate::curves::NurbsCurve3::speed_upper_bound`] is.
+    pub fn stretch_sup(&self) -> (geom_core::SupSpeed<T>, geom_core::SupSpeed<T>) {
+        crate::curves::nurbs::session_memo(&self.stretch, || {
+            let points = self.point_rows();
+            let side = |along_u| {
+                geom_core::SupSpeed::new(geom_core::spline::rational_stretch_sup(
+                    (&self.knots_u, &self.knots_v),
+                    &points,
+                    &self.weights,
+                    along_u,
+                ))
+            };
+            (side(true), side(false))
+        })
+    }
+
+    /// A lower bound on `S_u·d` (`along_u`) or `S_v·d` over the whole
+    /// domain, for any `d`, signed:
+    /// [`geom_core::spline::rational_stretch_floor`], the min over the
+    /// nonempty cells. Clamped at zero it floors `‖S_u‖·‖d‖`. At unit
+    /// weights it is the polynomial derivative net's floor; poison when a
+    /// control point is.
+    pub fn stretch_floor(&self, along_u: bool, d: Vec3<T>) -> T {
+        geom_core::spline::rational_stretch_floor(
+            (&self.knots_u, &self.knots_v),
+            &self.point_rows(),
+            &self.weights,
+            along_u,
+            [d.x, d.y, d.z],
+        )
+    }
+
+    /// A lower bound on `(S_u × S_v)·d` over the whole domain, for any
+    /// `d`, signed: [`geom_core::spline::rational_area_floor`], the min
+    /// over the nonempty cells. Clamped at zero it floors the area
+    /// element `‖S_u × S_v‖·‖d‖`; poison as [`Self::stretch_floor`].
+    pub fn area_floor(&self, d: Vec3<T>) -> T {
+        geom_core::spline::rational_area_floor(
+            (&self.knots_u, &self.knots_v),
+            &self.point_rows(),
+            &self.weights,
+            [d.x, d.y, d.z],
+        )
+    }
+
+    fn point_rows(&self) -> Vec<[T; 3]> {
+        self.control.iter().map(|p| [p.x, p.y, p.z]).collect()
+    }
+
     /// The "no description yet" placeholder payload for
     /// [`crate::surfaces::Surface::Nurbs`]: structurally valid (bilinear on
     /// `[0,1]²`, unit weights) with all-poison control points, so
@@ -581,6 +664,7 @@ impl<T: Real> NurbsSurface<T> {
             control: vec![p; 4],
             weights: vec![T::one(); 4],
             weight_channel: vec![1.0; 4],
+            stretch: OnceLock::new(),
         }
     }
 
@@ -698,6 +782,7 @@ impl<T: Real> NurbsSurface<T> {
             control,
             weights,
             weight_channel,
+            stretch: OnceLock::new(),
         }
     }
 
@@ -1091,7 +1176,10 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
     ///
     /// # Errors
     ///
-    /// As the curve op ([`geom_core::spline::algebra::insert_knot_plan`]).
+    /// As the curve op ([`geom_core::spline::algebra::insert_knot_plan`]),
+    /// [`KnotAlgebraError::WeightCollapse`] included: an inserted weight
+    /// rounding out of the positive regime in any column, at its index
+    /// along `u`.
     pub fn insert_knot_u(&self, u: f64, times: usize) -> Result<Self, KnotAlgebraError> {
         self.map_u_columns(|kv, w| spline::algebra::insert_knot_plan(kv, w, u, times))
     }
@@ -1100,7 +1188,8 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
     ///
     /// # Errors
     ///
-    /// As [`NurbsSurface::insert_knot_u`].
+    /// As [`NurbsSurface::insert_knot_u`], `WeightCollapse`'s index
+    /// along `v`.
     pub fn insert_knot_v(&self, v: f64, times: usize) -> Result<Self, KnotAlgebraError> {
         Ok(self.transposed().insert_knot_u(v, times)?.transposed())
     }
@@ -1109,7 +1198,8 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
     ///
     /// # Errors
     ///
-    /// As [`NurbsSurface::insert_knot_u`], against cumulative structure.
+    /// As [`NurbsSurface::insert_knot_u`], against cumulative structure,
+    /// [`KnotAlgebraError::WeightCollapse`] included.
     pub fn refine_knots_u(&self, add: &[f64]) -> Result<Self, KnotAlgebraError> {
         self.map_u_columns(|kv, w| spline::algebra::refine_plan(kv, w, add))
     }
@@ -1118,7 +1208,8 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
     ///
     /// # Errors
     ///
-    /// As [`NurbsSurface::refine_knots_u`].
+    /// As [`NurbsSurface::refine_knots_u`], `WeightCollapse`'s index
+    /// along `v`.
     pub fn refine_knots_v(&self, add: &[f64]) -> Result<Self, KnotAlgebraError> {
         Ok(self.transposed().refine_knots_u(add)?.transposed())
     }
@@ -1127,7 +1218,9 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
     ///
     /// # Errors
     ///
-    /// As the curve op ([`geom_core::spline::algebra::elevate_plan`]).
+    /// As the curve op ([`geom_core::spline::algebra::elevate_plan`]),
+    /// [`KnotAlgebraError::WeightCollapse`] from any of its stages
+    /// included.
     pub fn elevate_degree_u(&self, raise: usize) -> Result<Self, KnotAlgebraError> {
         let mut cur = self.clone();
         for _ in 0..raise {
@@ -1156,8 +1249,9 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
     ///
     /// # Errors
     ///
-    /// As the curve op (`KnotNotPresent`, multiplicity, weight
-    /// collapse, structure).
+    /// As the curve op (`KnotNotPresent`, multiplicity,
+    /// [`KnotAlgebraError::WeightCollapse`] from the chain or its
+    /// reinsertion, structure).
     pub fn remove_knot_u(&self, u: f64, times: usize) -> Result<(Self, T), KnotAlgebraError> {
         let mut cur = self.clone();
         let mut bound = T::zero();
