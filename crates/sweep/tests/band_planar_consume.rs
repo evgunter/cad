@@ -528,6 +528,40 @@ fn a_blind_bore_inside_the_planar_sliver_refuses_as_a_bound() {
     }
 }
 
+/// The tilted bore through the leaning prism at `s = 0` whose axis is a
+/// chord of the fillet arc's circle, touching it at mid-length, its ends
+/// `h = 0.0255` either side, of radius `a = 0.002`: the bored body and
+/// the axis's ends, or `None` where the fixture cannot be built. The
+/// Boolean cuts each wall in an ellipse whose axes differ by
+/// `a·(ℓ/2 − 1)`, `ℓ` the axis's length between the walls; where that is
+/// within the tolerance band's escalate width the cut cannot tell them
+/// apart and escalates, so the row stands down at that ε.
+fn tilted_bore(what: &str) -> Option<(topo::AtRestBody<f64>, (f64, f64), (f64, f64), f64)> {
+    let (r, h, a) = (D, 0.0255, 0.002);
+    let s2 = 2f64.sqrt();
+    // In `(y, z)`: `c = (r, 1 − r)`, the ray towards the old vertex
+    // `(0, 1)` is `(−1, 1)/√2`, the chord along `(1, 1)/√2`.
+    let mid = (r - r / s2, 1.0 - r + r / s2);
+    let p = (mid.0 - h / s2, mid.1 - h / s2);
+    let q = (mid.0 + h / s2, mid.1 + h / s2);
+    let axis = (4.0 + (2.0 * h).powi(2)).sqrt();
+    let axes_apart = a * (axis / 2.0 - 1.0);
+    let escalate = geom_core::Band::linear(tol())
+        .expect("the witness band")
+        .escalate();
+    if axes_apart < escalate {
+        test_utils::vacuity::stood_down(
+            what,
+            &format!(
+                "the wall ellipses' axes differ by {axes_apart:e}, inside the band's escalate \
+                 width {escalate:e}: the Boolean that cuts the bore escalates"
+            ),
+        );
+        return None;
+    }
+    Some((bored(0.0, p, q, a, Vec3::new(0.0, 1.0, 1.0)), p, q, a))
+}
+
 /// **A tilted bore inside the sliver at both caps that dips into the
 /// kept ball between them refuses**, as a bound at its wall. Its axis
 /// is a chord of the arc's circle, touching it at mid-length (the ray
@@ -541,14 +575,9 @@ fn a_blind_bore_inside_the_planar_sliver_refuses_as_a_bound() {
 /// consumed.
 #[test]
 fn a_tilted_bore_inside_at_both_planar_caps_through_the_ball_refuses() {
-    let (r, h, a) = (D, 0.0255, 0.002);
-    let s2 = 2f64.sqrt();
-    // In `(y, z)`: `c = (r, 1 − r)`, the ray towards the old vertex
-    // `(0, 1)` is `(−1, 1)/√2`, the chord along `(1, 1)/√2`.
-    let mid = (r - r / s2, 1.0 - r + r / s2);
-    let p = (mid.0 - h / s2, mid.1 - h / s2);
-    let q = (mid.0 + h / s2, mid.1 + h / s2);
-    let body = bored(0.0, p, q, a, Vec3::new(0.0, 1.0, 1.0));
+    let Some((body, ..)) = tilted_bore("the tilted bore under the fillet") else {
+        return;
+    };
     let got = Verb::Fillet
         .run_finished(&body, &[front(&body)])
         .map(|_| ());
@@ -569,12 +598,9 @@ fn a_tilted_bore_inside_at_both_planar_caps_through_the_ball_refuses() {
 /// and would refuse the bore as a bound.
 #[test]
 fn a_tilted_bore_inside_the_chamfers_prism_goes_with_it() {
-    let (r, h, a) = (D, 0.0255, 0.002);
-    let s2 = 2f64.sqrt();
-    let mid = (r - r / s2, 1.0 - r + r / s2);
-    let p = (mid.0 - h / s2, mid.1 - h / s2);
-    let q = (mid.0 + h / s2, mid.1 + h / s2);
-    let body = bored(0.0, p, q, a, Vec3::new(0.0, 1.0, 1.0));
+    let Some((body, p, q, a)) = tilted_bore("the tilted bore under the chamfer") else {
+        return;
+    };
     let walls = curved_walls(&body);
     assert_eq!(walls.len(), 2, "the tilted bore's two half-walls");
     let axis = (4.0 + (q.0 - p.0).powi(2) + (q.1 - p.1).powi(2)).sqrt();
