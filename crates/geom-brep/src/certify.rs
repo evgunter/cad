@@ -605,11 +605,11 @@ impl core::fmt::Display for CertifyError {
                  chart closes in no direction)"
             ),
             Self::IntervalNotForward {
-                verdict: Refused::Zero(_),
+                verdict: Refused::Zero(Classified { margin, .. }),
             } => write!(
                 f,
-                "the stored parameter interval spans no length at this tolerance — a \
-                 degenerate zero-span interval, which the forward gate refuses"
+                "the forward gate refuses the stored parameter interval at this tolerance \
+                 (span {margin:e} m)"
             ),
             Self::IntervalNotForward {
                 verdict: Refused::Negative { .. },
@@ -618,15 +618,18 @@ impl core::fmt::Display for CertifyError {
                 "the stored parameter interval runs backwards — increasing parameter must \
                  run from the edge's start vertex to its end vertex"
             ),
-            Self::SpanMeterCollapsed { .. } => write!(
+            Self::SpanMeterCollapsed { verdict } => write!(
                 f,
-                "the spline carrier's knot domain, metered at its certified speed floor, is not \
-                 above zero at this tolerance, so its stored interval cannot be measured in metres"
+                "the spline carrier's knot domain, metered at its certified speed floor, does \
+                 not classify above zero at this tolerance ({:e} m), so its stored interval has \
+                 no certified metre scale",
+                verdict.margin()
             ),
-            Self::ArmCollapsed { sample, .. } => write!(
+            Self::ArmCollapsed { sample, verdict } => write!(
                 f,
-                "at sample {sample} the edge is not {}",
-                crate::DIHEDRAL_ARM_CLAUSE
+                "at sample {sample} the edge is not shown {} (margin {:e} m)",
+                crate::DIHEDRAL_ARM_CLAUSE,
+                verdict.margin()
             ),
             Self::WindingExceeded => write!(
                 f,
@@ -659,33 +662,46 @@ impl core::fmt::Display for CertifyError {
                 f,
                 "the analytic Intersection's rung-3 certificate refused — {refusal}"
             ),
-            Self::NotTransverse { sample, lever, .. } => {
+            Self::NotTransverse {
+                sample,
+                lever,
+                verdict,
+            } => {
                 write!(f, "the faces meet tangentially at sample {sample}")?;
                 if let Some(lever) = lever {
                     write!(f, ", their angle levered by {lever}")?;
                 }
-                write!(f, ", where the edge's description says they cross")
+                write!(
+                    f,
+                    "{} (margin {:e} m), where the edge's description says they cross",
+                    within_tolerance(*verdict),
+                    verdict.margin()
+                )
             }
-            Self::NotSecondOrderSeparated { sample, .. } => write!(
+            Self::NotSecondOrderSeparated { sample, verdict } => write!(
                 f,
-                "the faces agree to second order at sample {sample}, so they \
-                 do not fix where the edge runs, which its description says they do"
+                "the faces agree to second order at sample {sample}{} (margin {:e} m), so they \
+                 do not fix where the edge runs, which its description says they do",
+                within_tolerance(*verdict),
+                verdict.margin()
             ),
             Self::TubeNotSeparated {
-                verdict: Refused::Zero(_),
+                verdict: verdict @ Refused::Zero(_),
             } => write!(
                 f,
                 "the certified lower bound on how far the faces curve apart along the edge \
-                 is zero at this tolerance, so the certificate cannot prove they fix where \
-                 the edge runs, which its description says they do"
+                 does not classify above zero at this tolerance ({:e} m), so the certificate \
+                 cannot prove they fix where the edge runs, which its description says they do",
+                verdict.margin()
             ),
             Self::TubeNotSeparated {
-                verdict: Refused::Negative { .. },
+                verdict: verdict @ Refused::Negative { .. },
             } => write!(
                 f,
                 "the certified lower bound on how far the faces curve apart along the edge \
-                 is below zero, so the certificate cannot prove they fix where the edge \
-                 runs, which its description says they do"
+                 is below zero ({:e} m), so the certificate cannot prove they fix where the \
+                 edge runs, which its description says they do",
+                verdict.margin()
             ),
             Self::TangentCertificateUnsupported => write!(
                 f,
@@ -721,6 +737,15 @@ impl core::fmt::Display for CertifyError {
             }
             Self::Band(e) => write!(f, "{e}"),
         }
+    }
+}
+
+/// What a refused verdict's payload says of where its margin stands: a
+/// zero verdict is a reading within the tolerance, not an exact one.
+fn within_tolerance(verdict: Refused) -> &'static str {
+    match verdict {
+        Refused::Zero(_) => ", within the tolerance",
+        Refused::Negative { .. } => "",
     }
 }
 
@@ -6076,11 +6101,118 @@ mod tests {
         let text = err.render(Reading::Build);
         assert_eq!(
             text,
-            "at sample 4 the edge is not long enough, for how its faces curve, to measure their \
-             angle. Recourse: move the geometry so that edge is clearly longer and no face curves \
-             tightly there; an edge of no length, or a face curving to a point as a cone does, \
-             leaves no angle to measure",
+            "at sample 4 the edge is not shown long enough, for how its faces curve, to measure \
+             their angle (margin 0e0 m). Recourse: move the geometry so that edge is clearly \
+             longer and no face curves tightly there; an edge of no length, or a face curving to \
+             a point as a cone does, leaves no angle to measure",
         );
+    }
+
+    /// **A zero verdict's payload prints its reading and claims no size**:
+    /// whether the reading shows none is the ending's to say, from the
+    /// reading's class, so a positive span and an enclosure across zero
+    /// render no such claim anywhere, and a reading that does show none
+    /// says so once, in the ending.
+    #[test]
+    fn each_zero_arm_payload_prints_its_reading_and_claims_no_size() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let zero = |margin| Refused::Zero(Classified { margin, band });
+        let (sized, across, none) = (
+            MarginDiag::value(5e-10),
+            MarginDiag::enclosure(-2e-10, 3e-10),
+            MarginDiag::value(0.0),
+        );
+        let forward = |m| CertifyError::IntervalNotForward { verdict: zero(m) };
+        let meter = |m| CertifyError::SpanMeterCollapsed { verdict: zero(m) };
+        let arm = |m| CertifyError::ArmCollapsed {
+            sample: 4,
+            verdict: zero(m),
+        };
+        let crossing = |m| CertifyError::NotTransverse {
+            sample: 4,
+            lever: None,
+            verdict: zero(m),
+        };
+        let second = |m| CertifyError::NotSecondOrderSeparated {
+            sample: 4,
+            verdict: zero(m),
+        };
+        let tube = |m| CertifyError::TubeNotSeparated { verdict: zero(m) };
+        let rows = [
+            (
+                forward(sized),
+                "the forward gate refuses the stored parameter interval at this tolerance (span \
+                 5e-10 m)",
+            ),
+            (
+                forward(across),
+                "the forward gate refuses the stored parameter interval at this tolerance (span \
+                 [-2e-10, 3e-10] m)",
+            ),
+            (
+                meter(sized),
+                "the spline carrier's knot domain, metered at its certified speed floor, does not \
+                 classify above zero at this tolerance (5e-10 m), so its stored interval has no \
+                 certified metre scale",
+            ),
+            (
+                arm(across),
+                "at sample 4 the edge is not shown long enough, for how its faces curve, to \
+                 measure their angle (margin [-2e-10, 3e-10] m)",
+            ),
+            (
+                crossing(sized),
+                "the faces meet tangentially at sample 4, within the tolerance (margin 5e-10 m), \
+                 where the edge's description says they cross",
+            ),
+            (
+                second(sized),
+                "the faces agree to second order at sample 4, within the tolerance (margin 5e-10 \
+                 m), so they do not fix where the edge runs, which its description says they do",
+            ),
+            (
+                tube(sized),
+                "the certified lower bound on how far the faces curve apart along the edge does \
+                 not classify above zero at this tolerance (5e-10 m), so the certificate cannot \
+                 prove they fix where the edge runs, which its description says they do",
+            ),
+        ];
+        let claims = [
+            "no length",
+            "not long enough",
+            "not above zero",
+            "spans no",
+            "is zero",
+        ];
+        for (error, payload) in rows {
+            assert_eq!(error.to_string(), payload, "{error:?}");
+            for reading in [Reading::Build, Reading::AtRest] {
+                let text = error.render(reading);
+                for claim in claims {
+                    assert!(
+                        !text.contains(claim),
+                        "{reading:?} claims {claim:?}: {text}"
+                    );
+                }
+            }
+        }
+        for (error, note) in [
+            (forward(none), "an edge of no length"),
+            (meter(none), "a vanishing speed floor"),
+            (arm(none), "an edge of no length"),
+        ] {
+            let text = error.render(Reading::Build);
+            assert!(
+                error.to_string().contains("0e0 m)"),
+                "the payload prints its zero: {text}"
+            );
+            assert_eq!(
+                text.matches(note).count(),
+                1,
+                "a reading of no size says so once, in its ending: {text}"
+            );
+            assert!(!error.to_string().contains(note), "{text}");
+        }
     }
 
     /// **An undecided arm stays undecided when the wedge it quotes reads

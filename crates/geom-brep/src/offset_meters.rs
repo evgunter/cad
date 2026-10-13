@@ -313,8 +313,8 @@ impl core::fmt::Display for MeterError {
             } => write!(
                 f,
                 "the face's normal cannot be proved non-zero (a chart {} m thin: normal \
-                 length {floor} m² per unit parameter area over speed {speed_lever} m), so it \
-                 has no offset",
+                 length {floor} m² per unit parameter area over speed {speed_lever} m), so no \
+                 offset of it can be certified",
                 verdict.margin()
             ),
             Self::CurvatureHeadroom {
@@ -1122,8 +1122,8 @@ mod tests {
             (
                 floor_zero(5e-10),
                 "the face's normal cannot be proved non-zero (a chart 0.0000000005 m thin: \
-                 normal length 0.000000001 m² per unit parameter area over speed 2 m), so it \
-                 has no offset",
+                 normal length 0.000000001 m² per unit parameter area over speed 2 m), so no \
+                 offset of it can be certified",
             ),
             (
                 headroom(zero(5e-10)),
