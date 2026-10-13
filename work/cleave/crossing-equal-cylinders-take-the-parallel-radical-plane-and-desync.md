@@ -82,21 +82,31 @@ pair to `Cylinders` on kinds alone.
 
 The fix is in `boolean/join.rs`:
 
-- `kind_arm` takes the axes' reading. A cylinder pair keeps
-  `KindArm::Cylinders` only when its axes read parallel.
-- That reading is `face_pair_axes_parallel`, taken where
-  `face_pair_section_loops` reads the frame and levered as it levers
-  it, through the frame dispatch's own reading, now factored out as
-  `cylinder_pair_axes`. A face pair whose frame was read gets the same
-  answer from both.
+- `segment_arm` reads each segment's kind arm in `bool_connect` before
+  any surgery. A cylinder pair keeps `KindArm::Cylinders` only when its
+  axes read parallel. Otherwise it falls through to the edge-plane
+  lane.
+- The axes are read by `cylinder_pair_axes`, the frame dispatch's own
+  reading, factored out of it. Both callers read from the same point
+  and lever (`frame_lever`).
 - In band, the reading escalates `Escalated { Coincidence(Section,
-  Moot) }`, the frame's own refusal for that margin. A definite crossing
-  has no kind arm and goes to the edge-plane lane.
+  Moot) }`, the frame's own refusal for that margin. Its lever is filed
+  as `cleave/an-in-band-axis-parallelism-offers-a-proximity-lever`.
 
-The scene now reaches that lane and refuses at its copy of the ellipse
-edge, at every ε and pose above. That copy is filed as
+The scene now reaches the edge-plane lane and refuses at its copy of
+the ellipse edge, at every ε and pose above. That copy is filed as
 `cleave/the-edge-plane-lane-copies-no-ellipse-edge`, with what lies
-behind it. The fixture, `crates/sweep/tests/crossing_equal_rods.rs`,
-holds every op to its closed form or to that one refusal. Unit rows:
-`kind_arm_rows` and
-`frame_dispatch_tests::the_kind_arm_reads_parallel_apart_and_in_band_as_the_frame_does`.
+behind it.
+
+Pins:
+
+- `crates/sweep/tests/crossing_equal_rods.rs` holds every op to that
+  exact ending, under that row's id.
+- `parallel_cylinder_join::seams_lying_on_the_walls_read_the_axes_at_the_walls_span`
+  reaches the in-band arm through a door. Two parallel rods, each
+  rod's seam ruling lying on the other's wall, B tipped so the tip reads
+  in band over the walls' span and parallel at the radius. The pin goes
+  red when the escalation is read as parallel, and when the join reads
+  at the radius.
+- Unit row:
+  `frame_dispatch_tests::cylinder_pair_axes_read_parallel_apart_and_in_band_by_their_lever`.
