@@ -2,10 +2,12 @@
 id: a-non-isosceles-turn-overruns-past-the-mitre
 kind: issue
 title: blend: two requested edges at a non-isosceles trivalent corner refuse TURN_OVERRUN, where Ev's ruling builds the mitre plus one short overrun curve
-status: open
+status: closed
 opened: 2026-10-07
 priority: P2
 cost: H
+pr: 4962
+closed: 2026-10-13
 ---
 
 
@@ -468,4 +470,60 @@ clears, and adds no refusal the reach does not make (filed:
 `a-turns-overrun-meters-the-whole-cut-off-sliver`). A just-definite
 overrun builds a chord barely longer than the band's `escalate` width
 (`1.46e-8` at a lean of `0.026°`), by design.
+
+## Step 3 — the fillet's overrun (PR 4962)
+
+Both verbs and both convexities now build where both readings are
+definite. `TURN_OVERRUN` is gone.
+
+- **The record.** `Overrun` carries `section`: the far band's section by
+  the near face, `Chord` for a chamfer, and for a fillet what
+  `cap_transverse` picks from `Fⱼ`'s plane and band `k`'s axis (the
+  cut-off's own picker, margin and ellipse door).
+- **The carrier.** `turn_plan` plans band `k`'s cut-off at `Fⱼ` in that
+  section. `overrun_cut` describes the overrun edge with that cut-off's
+  carrier (`Transverse`, a circle or an ellipse), which the description
+  pass windows from `p_k` to `q` and certifies as any cut-off arc. `q`
+  lies on it exactly (on `t_jF ⊂ Fⱼ` and on cylinder `k`). No new carrier
+  kind and no new role. The design reports' final state ("k's cut-off at
+  Fⱼ clipped at q", same carrier) and the probe's G1 finding left no
+  choice open.
+- **Recourse.** `FILLET3_TURN_RECOURSE`'s middle leg names both verbs.
+  Its followability row runs the fillet's legs at a `60°` corner skewed
+  into the turn's band.
+
+**Rows** (`crates/sweep/tests/band_turn_overrun_fillet.rs`, `r = 0.1`).
+The oracle is `B ∩ (W₁ ∪ W₂)`, each `Wᵢ` the infinite prism over the
+kite less the ball's sector. Each band is computed in closed form (area
+and first moment); the overlap by globally adaptive Gauss–Kronrod over
+band 1's section, the chord along band 1's edge read in closed form.
+The oracle matches a hand form at the box corner
+(`(1 − π/4)r²·3.5 − (5/3 − π/2)r³`) to `1e-12`, and matches the
+kernel's box mitre.
+- **Witnesses**: the bracket's corners, the leaning prism at `±0.5`,
+  the skewed box, and the sheared box's supplementary corner.
+  - Tiers 3 and 3′, naming total, trivalent, `ΔV` at the oracle within
+    the certified pad (fillet volumes carry pads to `≈1e-8`).
+  - `p_k` and `q` where the probe puts them; the arc the probe's circle
+    or ellipse, tangent to the mitre at `q` and to L at `p_k`.
+  - Also at six poses and at `Interval` (leaning `±0.5`, `±1`).
+- **Concave**: the pocket ceiling and the void.
+- **The sweep**: 126 convex corners and 36 concave ones.
+- **Leaning prisms** over leans, radii, scales and orders, and generic
+  hexahedra. A trimline running into a face before its end face refuses
+  `FOOT_INSIDE_A_FACE`, read off the oracle's section.
+- **Features** in and clear of the overrun.
+- **Escalations**: the in-band leans escalate (the leaning prism on
+  `CapEllipse`, the `60°` corner on the turn readings). L filleted later
+  refuses `END_FACE_CURVED`.
+
+**What moved.** Every fillet overrun that refused builds. Near a box
+corner the fillet's overrun escalates `CapEllipse` past its turn band, to
+`θ = √(2·escalate/r)` (`≈0.0256°` at `r = d`), as a plain cut-off at that
+tilt does. The window row brackets that edge.
+
+**Filed**: `an-interval-fillet-cut-off-at-an-oblique-end-reads-its-arc-backward`.
+At `Interval` the skewed box's top edge filleted alone refuses
+`BodyNotIntact` where `f64` builds, on main too. The fillet turn there
+refuses the same way, pinned. The two step-2 residues stay open.
 
