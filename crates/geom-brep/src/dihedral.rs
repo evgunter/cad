@@ -868,8 +868,8 @@ pub struct MixedStations {
 /// The one recourse of a mixed edge ([`MixedStations`]), a geometry
 /// lever: no tolerance moves a dihedral that turns from a corner to a
 /// smooth join along one edge.
-pub const MIXED_JOIN_RECOURSE: &str = "Recourse: move the geometry so the two faces meet at a \
-     corner along the whole of the edge, or smoothly along the whole of it";
+pub const MIXED_JOIN_RECOURSE: &str =
+    "Recourse: move the geometry so the faces meet at a corner, or smoothly, along the whole edge";
 
 impl MixedStations {
     /// The corner verdict over the first-order readings of the
@@ -919,9 +919,8 @@ impl core::fmt::Display for MixedStations {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "the two faces meet at a corner at certification sample {} and smoothly at \
-             its neighbour, sample {}, so between them they turn from one to the other at \
-             a point too close to tangent to classify. {MIXED_JOIN_RECOURSE}",
+            "the faces meet at a corner at sample {} and smoothly at sample {}, so they \
+             turn tangent between them, too near to classify. {MIXED_JOIN_RECOURSE}",
             self.transverse, self.smooth
         )
     }
@@ -1838,7 +1837,7 @@ mod tests {
         assert!(
             text.contains("sample 2")
                 && text.contains("sample 3")
-                && text.ends_with("smoothly along the whole of it"),
+                && text.ends_with("along the whole edge"),
             "a mixed refusal names both stations and ends in its recourse: {text}"
         );
     }
