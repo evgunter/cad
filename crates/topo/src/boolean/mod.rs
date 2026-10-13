@@ -6162,7 +6162,9 @@ fn tangent_line<T: Decide>(
 /// ([`tangent_pair_at_rest`]).
 pub(crate) enum RestTangent<T: Real> {
     /// The two faces' extents along their tangent line are definitely
-    /// disjoint: no point of the line is in both.
+    /// disjoint or meet at one point, as the glue door reads them
+    /// ([`locus_through_both_faces`]): no span of the line is in both,
+    /// so their interiors do not meet along it.
     Apart,
     /// The jet schedule verified the line over where both extents meet,
     /// `overlap`; whether the line lies in the two faces there is the
@@ -6188,7 +6190,7 @@ pub(crate) enum RestTangent<T: Real> {
 /// definitely not tangent, labelled with the row that refused it, or the
 /// table contradicts it; `Escalated` where a margin is in band; and
 /// `NotCertifiable` where no closed-form locus derives, a face cannot be
-/// read (naming why), or the extents meet at one point.
+/// read (naming why).
 pub(crate) fn tangent_pair_at_rest<T: Decide>(
     body: &Body<T>,
     fa: FaceKey,
@@ -6240,12 +6242,7 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
     let (t0, t1) = line.overlap;
     match crate::validate::decide("pm_census_tangent_overlap", Margin::of(t1 - t0), band) {
         Ok(Sign::Positive) => {}
-        Ok(Sign::Negative) => return Ok(RestTangent::Apart),
-        Ok(Sign::Zero) => {
-            return Err(ContactRefusal::NotCertifiable {
-                what: "the faces' extents along their tangent line meet at one point",
-            });
-        }
+        Ok(Sign::Negative | Sign::Zero) => return Ok(RestTangent::Apart),
         Err(diag) => return Err(ContactRefusal::Escalated { diag }),
     }
     contact_verify::tangent_locus_relation(
