@@ -2,11 +2,12 @@
 id: a-span-the-finest-jet-schedule-cannot-reach-leaves-a-locus-pair-unglued
 kind: issue
 title: A tangency whose span bound the finest jet schedule cannot reach is left unglued and meets the frontier refusal
-status: review
+status: closed
 branch: contacthold/glue-door-escalates
 pr: 4918
 opened: 2026-10-13
 priority: P2
+closed: 2026-10-13
 ---
 
 
