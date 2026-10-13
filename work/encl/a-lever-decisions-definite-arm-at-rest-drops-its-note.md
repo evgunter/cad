@@ -21,7 +21,7 @@ At rest, a `StoredDefinite::Lever` decision still tells two stories:
 
 Two production decisions have this shape:
 
-- `CertCheck::ParamSpanMeter` (`crates/geom-brep/src/certify.rs`, `CertCheck::ending`). A spline that turns back on itself reads a definitely negative floor (`review_m2_pr3_certify::a_collapsed_spline_meter_refuses_as_the_meter_decision`, the "turns back" net). Read at rest, it ends in the lever alone. A stalled one ends with "a vanishing speed floor means ...".
+- `CertCheck::ParamSpanMeter` (`crates/geom-brep/src/certify.rs`, `CertCheck::ending`). A spline that turns back on itself reads a definitely negative floor (`review_m2_pr3_certify::a_collapsed_spline_meter_refuses_as_the_meter_decision`, the "turns back" net). Read at rest, it ends in the lever alone. A stalled one ends with the note.
 - `Meter::NormalFloor` (`crates/geom-brep/src/offset_meters.rs`, `Meter::decision`). Its thinness is never negative (the `MeterError::NormalFloor` docs), so the definite arm there is unreachable in practice.
 
 D4 ¶1 (iv) excuses only a definite *contradiction* read at rest, which ends as a defect. A Lever decision is by definition one the lever reaches, so (iv) would ask for one story.

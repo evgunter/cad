@@ -868,8 +868,8 @@ impl CertCheck {
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
                 no_size: Some(NoSize::same(
-                    "a vanishing speed floor means the spline stalls or turns back, or that the \
-                     floor has reached its limit, which is worth reporting",
+                    "if it does neither, the speed floor has reached its limit, which is worth \
+                     reporting",
                 )),
             }),
             Self::ParamWinding => Ending::Sized(SizedDecision {

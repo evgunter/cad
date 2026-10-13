@@ -1983,9 +1983,9 @@ fn motion() -> Vec<(String, NodeErrorKind)> {
 ///   zero arm, which has no margin to quote;
 /// - the span's own lever;
 /// - a collapse gate's own decision (a lever arm, a spline's metered
-///   length), undecided and decided: its lever, with what a vanishing
-///   floor means on a spline meter of no length, and on a poisoned
-///   margin what that may mean;
+///   length), undecided and decided: its lever, with what a floor at or
+///   below zero means on a spline meter, and on a poisoned margin what
+///   that may mean;
 /// - a poisoned margin on a sized decision: the lever, and what it may
 ///   mean;
 /// - an exact residual's kernel-defect ending;
@@ -2089,7 +2089,8 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                 },
             },
             "Recourse: move the geometry so this spline edge runs steadily forward, never stalling \
-             or turning back",
+             or turning back; if it does neither, the speed floor has reached its limit, which is \
+             worth reporting",
         ),
         (
             "spline meter, invalid",
