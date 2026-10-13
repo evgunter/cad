@@ -56,9 +56,10 @@ use std::collections::HashMap;
 
 use geom::Curve3;
 use geom_brep::Pcurve;
+use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::spline::{KnotVector, SplineCoeffs};
+use geom_core::spline::SplineCoeffs;
 use topo::{Body, EdgeKey};
 
 use crate::nurbs_cert::{FaceBounds, face_bound};
@@ -285,30 +286,15 @@ fn nurbs_chord_count(
 }
 
 /// Certified `sup‖C″‖` for a RATIONAL B-spline carrier (M8-5): the
-/// face bound's quotient-rule assembly one dimension down. Write
-/// `C = A/w` with `A = Σ Nᵢ wᵢ Pᵢ`, `w = Σ Nᵢ wᵢ` (both polynomial);
-/// for any constant `c` (`Ã = A − c·w`):
-///
-/// ```text
-/// C′ = (Ã′ − (C − c)·w′) / w
-/// C″ = (Ã″ − 2·C′·w′ − (C − c)·w″) / w
-/// ```
-///
-/// Per span (after the fixed
-/// [`geom_brep::patch_bound::RATIONAL_CERT_SPLITS`] refinement), each
-/// ingredient is an active-window hull on the homogeneous nets:
-/// `sup|C − c| ≤ max_active |P − c|` (positive weights — the licence
-/// the caller checked — make the rational basis a nonnegative
-/// partition of unity), `sup|Ã'|`/`sup|Ã″|`/`sup|w′|`/`sup|w″|` are
-/// iterated [`geom_core::spline::SplineCoeffs::derivative_coeffs`] hulls, and the divisor is the span's
-/// weight range: for a SUP bound with a nonnegative numerator the
-/// conservative division is by `w_min` (the mirror image of the speed
-/// meter's lower-bound `w_max` choice — the interval division by
-/// `[w_lo, w_hi]` computes exactly that, outward-rounded, and refuses
-/// if positivity was never proven). Recentring at the span's control
-/// centroid keeps the cross terms span-sized. The domain bound is the
-/// max over spans (hull of the squared enclosures), read from above
-/// off its root — a refusal flows to the caller's finite check.
+/// second-order pair-term bound
+/// ([`geom::NurbsCurve3::accel_upper_bound`]; the derivation is
+/// `geom_core::spline::derivative`'s "The second order"), read in
+/// certification arithmetic off the carrier refined by the fixed
+/// [`geom_brep::patch_bound::RATIONAL_CERT_SPLITS`] schedule
+/// ([`geom_brep::patch_bound::rational_split_points`]). Insertion is
+/// evaluation-invariant in ℝ; it shortens every span, which shrinks
+/// the hulls the bound is the max of. A refusal (a poisoned span)
+/// flows to the caller's finite check as `NaN`.
 fn rational_carrier_m_bound(
     n: &geom::NurbsCurve3<f64>,
     ek: EdgeKey,
@@ -333,155 +319,14 @@ fn rational_carrier_m_bound(
                    outside the certified chord inventory",
         });
     }
-    let kv = refined.knots();
-    let p = kv.degree(); // ≥ 2: the caller's degree gate ran first
-    let inner = kv.derivative_knot_slice().to_vec();
-    let Ok(kv1) = KnotVector::clamped(inner, p - 1) else {
-        return Err(TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "B-spline carrier whose derivative knot vector fails to \
-                   materialise — outside the certified chord inventory",
-        });
-    };
-    // Homogeneous coefficient nets and their derivative enclosures.
-    let w_pts: Vec<Interval> = refined
-        .weights()
-        .iter()
-        .map(|w| Interval::point(*w))
-        .collect();
-    let dw = kv.difference_coeffs(&w_pts);
-    let ddw = kv1.difference_coeffs(&dw);
-    let comp = |c: usize| -> Vec<Interval> {
-        refined
-            .control()
-            .iter()
-            .zip(refined.weights())
-            .map(|(pt, w)| {
-                Interval::point(*w)
-                    * Interval::point(match c {
-                        0 => pt.x,
-                        1 => pt.y,
-                        _ => pt.z,
-                    })
-            })
-            .collect()
-    };
-    let a_nets: Vec<(Vec<Interval>, Vec<Interval>)> = (0..3)
-        .map(|c| {
-            let a = comp(c);
-            let da = kv.difference_coeffs(&a);
-            let dda = kv1.difference_coeffs(&da);
-            (da, dda)
-        })
-        .collect();
-    // The signed hull of `net[i] − c·wnet[i]` over `[i0, i1]`
-    // (out-of-range is refused; recentring commutes with differencing).
-    let window = |net: &[Interval],
-                  wnet: &[Interval],
-                  c: Interval,
-                  active: core::ops::RangeInclusive<usize>|
-     -> Interval {
-        let mut acc: Option<Interval> = None;
-        for i in active {
-            let e = match (net.get(i), wnet.get(i)) {
-                (Some(&a), Some(&w)) => a - c * w,
-                _ => Interval::refused(),
-            };
-            acc = Some(match acc {
-                None => e,
-                Some(h) => Interval::hull(h, e),
-            });
-        }
-        acc.unwrap_or_else(Interval::refused)
-    };
-    let mag = |h: Interval| Interval::from_bounds(0.0, h.mag());
-    let two = Interval::point(2.0);
-    let mut sq_acc: Option<Interval> = None;
-    for s in kv.first_span()..=kv.last_span() {
-        // Emptiness check and window validation in one step: `span`
-        // yields `None` exactly for the empty spans this loop skipped,
-        // and its `first_control` is `s − p` computed once, in range.
-        // The two runtime refusals this replaces ("span below its
-        // degree", "span beyond its control net") are now
-        // unrepresentable: `Span` exists only for `p ≤ s ≤ last_span`,
-        // and `last_span = knots.len() − p − 2 = control_count − 1`,
-        // which `validate_counts` pins to `refined.control().len()`.
-        let Some(span) = kv.span(s) else { continue };
-        // The span centroid — a translation CHOICE (any finite c is
-        // sound), f64 structure, fixed order.
-        let mut csum = [0.0f64; 3];
-        let mut count = 0.0f64;
-        for pt in &refined.control()[span.window()] {
-            csum[0] += pt.x;
-            csum[1] += pt.y;
-            csum[2] += pt.z;
-            count += 1.0;
-        }
-        let cen = [csum[0] / count, csum[1] / count, csum[2] / count];
-        // The span's weight range — the divisor (doc comment).
-        let mut w_span: Option<Interval> = None;
-        for w in &w_pts[span.window()] {
-            w_span = Some(match w_span {
-                None => *w,
-                Some(h) => Interval::hull(h, *w),
-            });
-        }
-        let w_span = w_span.unwrap_or_else(Interval::refused);
-        let zero = Interval::zero();
-        // Active windows: value [s−p, s]; each differencing drops the
-        // top index, which is what `derived_window` names — so `s − 1`
-        // and `s − 2` are not subtractions at the use site either. The
-        // caller's degree gate makes p ≥ 2, so the order-2 window is
-        // always `Some`; if that ever stopped holding the bound
-        // is REFUSED (and the caller's finite check reads it) rather than
-        // underflowing.
-        // `p ≥ 2` (the caller's degree gate), so the order-2 window is
-        // `Some` on every reachable path. It is asserted rather than
-        // merely commented: `debug_assert` is the tree's fail-loud form
-        // for a state that cannot occur — the panic family is denied in
-        // kernel code (workspace lints), so the release build still
-        // takes the total route below and REFUSES the
-        // bound instead of quietly under-reporting it.
-        let d2 = span.derived_window(2);
-        debug_assert!(
-            d2.is_some(),
-            "the degree gate promised p ≥ 2 for this carrier, got {p}"
-        );
-        let w1 = mag(window(&dw, &dw, zero, span.first_derived_window()));
-        let w2 = mag(d2
-            .clone()
-            .map_or_else(Interval::refused, |a| window(&ddw, &ddw, zero, a)));
-        let mut sq = Interval::zero();
-        for (c, (da, dda)) in a_nets.iter().enumerate() {
-            let cc = Interval::point(cen[c]);
-            let mut v0h: Option<Interval> = None;
-            for pt in &refined.control()[span.window()] {
-                let e = Interval::point(match c {
-                    0 => pt.x,
-                    1 => pt.y,
-                    _ => pt.z,
-                }) - cc;
-                v0h = Some(match v0h {
-                    None => e,
-                    Some(h) => Interval::hull(h, e),
-                });
-            }
-            let v0 = mag(v0h.unwrap_or_else(Interval::refused));
-            let a1 = mag(window(da, &dw, cc, span.first_derived_window()));
-            let a2 = mag(d2
-                .clone()
-                .map_or_else(Interval::refused, |a| window(dda, &ddw, cc, a)));
-            let s1 = (a1 + v0 * w1) / w_span;
-            let s2 = (a2 + two * s1 * w1 + v0 * w2) / w_span;
-            sq = sq + s2.sqr();
-        }
-        sq_acc = Some(match sq_acc {
-            None => sq,
-            Some(h) => Interval::hull(h, sq),
-        });
-    }
-    // Same contract, same reason: a refused hull answers `NaN`.
-    Ok(sq_acc.map_or(f64::NAN, |s| s.sqrt().mag()))
+    // The refined carrier at the certification scalar, its every value
+    // a point: the bound's upper end is certified.
+    let bound = refined.map_scalar(Interval::point).accel_upper_bound();
+    Ok(if bound.is_certified() {
+        bound.hi()
+    } else {
+        f64::NAN
+    })
 }
 
 /// The adjacent-NURBS chord tightening (module docs): for each
@@ -657,7 +502,7 @@ fn nurbs_tighten(
 ///
 /// **What this function does NOT check, because the type already
 /// does.** A degree-0 image and an interior multiplicity above the
-/// degree are both refused by [`KnotVector::clamped`] at construction,
+/// degree are both refused by [`geom_core::spline::KnotVector::clamped`] at construction,
 /// so no image carrying either can reach here. Multiplicity `= p` — a
 /// C⁰ kink — IS constructible and IS admitted: the bound is a
 /// Lipschitz statement, which C⁰ suffices for.
@@ -789,6 +634,7 @@ mod tests {
     use super::*;
     use crate::nurbs_cert::tests::Domination;
     use geom::NurbsCurve3;
+    use geom_core::spline::KnotVector;
     use geom_core::{Point2, Point3};
     use topo::EdgeKey;
 
@@ -1031,7 +877,7 @@ mod tests {
     /// **A C⁰ kink is admitted; the type refuses what this arm does
     /// not.** Interior multiplicity `= p` is constructible and the
     /// Lipschitz bound holds across it. Degree 0 and multiplicity
-    /// `p + 1` are refused by [`KnotVector::clamped`] itself, so the
+    /// `p + 1` are refused by [`geom_core::spline::KnotVector::clamped`] itself, so the
     /// arm carries no guard for either — this row is why those two
     /// sentences in its doc are a measurement.
     #[test]

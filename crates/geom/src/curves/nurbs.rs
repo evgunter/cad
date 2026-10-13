@@ -1270,6 +1270,25 @@ macro_rules! nurbs_curve {
                 })
             }
 
+            /// A certified **upper** bound on `‖C″(t)‖` over the whole
+            /// domain, in m/param²: the second-order pair-term bound of
+            /// [`geom_core::spline::rational_accel_sup`] (the
+            /// `geom_core::spline::derivative` module docs, "The second
+            /// order"), the max over the nonempty spans. It reads the
+            /// same pair terms as [`Self::speed_upper_bound`], whose
+            /// span bound it carries in its `−2·W′·C′` term. At
+            /// `Interval` it is certified; at `f64` it is the same
+            /// expression in round-to-nearest. It never refuses.
+            pub fn accel_upper_bound(&self) -> T {
+                let points: Vec<[T; $dim]> = self.control.iter().map(|p| [$(p.$c),+]).collect();
+                geom_core::spline::rational_accel_sup(
+                    &self.knots,
+                    &points,
+                    &self.weights,
+                    self.knots().first_span()..=self.knots().last_span(),
+                )
+            }
+
             /// [`Self::speed_lower_bound`]'s computation: once per curve
             /// outside a symbolic session, at every read inside one.
             fn speed_lower_bound_uncached(&self) -> geom_core::InfSpeed<T> {

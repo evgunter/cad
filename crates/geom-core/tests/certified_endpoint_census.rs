@@ -416,6 +416,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          construction",
     ),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
+    ("crates/mesh/src/chords.rs", 1, 1, ""),
     ("crates/topo/src/props/quad_lane.rs", 7, 7, ""),
 ];
 
