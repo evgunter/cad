@@ -175,7 +175,10 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
     // which no smaller tolerance decides passing, so no tolerance is
     // offered.
     let msg = err.render(geom_brep::recourse::Reading::Build);
-    assert!(msg.contains("agree to second order"), "{msg}");
+    assert!(
+        msg.contains("not shown to curve apart at second order"),
+        "{msg}"
+    );
     assert!(
         msg.ends_with(
             "Recourse: move the geometry so the faces curve apart more clearly where they \

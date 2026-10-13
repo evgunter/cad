@@ -610,7 +610,7 @@ impl core::fmt::Display for CertifyError {
             } => write!(
                 f,
                 "the stored parameter interval is not shown to run forward at this tolerance \
-                 (span {margin:e} m)"
+                 (margin {margin:e} m)"
             ),
             Self::IntervalNotForward {
                 verdict: Refused::Negative { .. },
@@ -622,13 +622,13 @@ impl core::fmt::Display for CertifyError {
             Self::SpanMeterCollapsed { verdict } => write!(
                 f,
                 "the spline carrier's knot domain, metered at its certified speed floor, is not \
-                 shown above zero at this tolerance ({:e} m), so its stored interval has no \
-                 certified metre scale",
+                 shown above zero at this tolerance (margin {:e} m), so its stored interval has \
+                 no certified metre scale",
                 verdict.margin()
             ),
             Self::ArmCollapsed { sample, verdict } => write!(
                 f,
-                "at sample {sample} the edge is not shown {} (margin {:e} m)",
+                "at sample {sample} the edge is not shown {} at this tolerance (margin {:e} m)",
                 crate::DIHEDRAL_ARM_CLAUSE,
                 verdict.margin()
             ),
@@ -668,22 +668,22 @@ impl core::fmt::Display for CertifyError {
                 lever,
                 verdict,
             } => {
-                write!(f, "the faces meet tangentially at sample {sample}")?;
+                write!(f, "at sample {sample} the faces are not shown to cross")?;
                 if let Some(lever) = lever {
-                    write!(f, ", their angle levered by {lever}")?;
+                    write!(f, ", their angle levered by {lever},")?;
                 }
                 write!(
                     f,
-                    "{} (margin {:e} m), where the edge's description says they cross",
-                    within_tolerance(*verdict),
+                    " at this tolerance (margin {:e} m), where the edge's description says they \
+                     cross",
                     verdict.margin()
                 )
             }
             Self::NotSecondOrderSeparated { sample, verdict } => write!(
                 f,
-                "the faces agree to second order at sample {sample}{} (margin {:e} m), so they \
-                 do not fix where the edge runs, which its description says they do",
-                within_tolerance(*verdict),
+                "at sample {sample} the faces are not shown to curve apart at second order at \
+                 this tolerance (margin {:e} m), so they are not shown to fix where the edge \
+                 runs, which its description says they do",
                 verdict.margin()
             ),
             Self::TubeNotSeparated {
@@ -691,8 +691,8 @@ impl core::fmt::Display for CertifyError {
             } => write!(
                 f,
                 "the certified lower bound on how far the faces curve apart along the edge \
-                 is not shown above zero at this tolerance ({:e} m), so the certificate cannot \
-                 prove they fix where the edge runs, which its description says they do",
+                 is not shown above zero at this tolerance (margin {:e} m), so the certificate \
+                 cannot prove they fix where the edge runs, which its description says they do",
                 verdict.margin()
             ),
             Self::TubeNotSeparated {
@@ -700,8 +700,8 @@ impl core::fmt::Display for CertifyError {
             } => write!(
                 f,
                 "the certified lower bound on how far the faces curve apart along the edge \
-                 is below zero ({:e} m), so the certificate cannot prove they fix where the \
-                 edge runs, which its description says they do",
+                 is below zero (margin {:e} m), so the certificate cannot prove they fix where \
+                 the edge runs, which its description says they do",
                 verdict.margin()
             ),
             Self::TangentCertificateUnsupported => write!(
@@ -738,15 +738,6 @@ impl core::fmt::Display for CertifyError {
             }
             Self::Band(e) => write!(f, "{e}"),
         }
-    }
-}
-
-/// What a refused verdict's payload says of where its margin stands: a
-/// zero verdict is a reading within the tolerance, not an exact one.
-fn within_tolerance(verdict: Refused) -> &'static str {
-    match verdict {
-        Refused::Zero(_) => ", within the tolerance",
-        Refused::Negative { .. } => "",
     }
 }
 
@@ -6103,7 +6094,7 @@ mod tests {
         assert_eq!(
             text,
             "at sample 4 the edge is not shown long enough, for how its faces curve, to measure \
-             their angle (margin 0e0 m). Recourse: move the geometry so that edge is clearly \
+             their angle at this tolerance (margin 0e0 m). Recourse: move the geometry so that edge is clearly \
              longer and no face curves tightly there; an edge of no length, or a face curving to \
              a point as a cone does, leaves no angle to measure",
         );
@@ -6113,9 +6104,15 @@ mod tests {
     /// whether the reading shows none is the ending's to say, from the
     /// reading's class, so a positive span and an enclosure across zero
     /// render no such claim anywhere, and a reading that does show none
-    /// says so once, in the ending.
+    /// says so once, in the ending. Each payload says "not shown" of its
+    /// reading, which holds of every class a zero verdict carries — a
+    /// symbolic-tier proved zero whose rounded number lies outside the
+    /// zero band included — and prints it as `(margin … m)`.
     #[test]
     fn each_zero_arm_payload_prints_its_reading_and_claims_no_size() {
+        use geom_core::sym::with_session;
+        use geom_core::{Margin, ParamSymbol, Sym, SymBudget};
+
         let band = Band::new(1e-9, 1e-8).unwrap();
         let zero = |margin| Refused::Zero(Classified { margin, band });
         let (sized, across, none) = (
@@ -6123,59 +6120,98 @@ mod tests {
             MarginDiag::enclosure(-2e-10, 3e-10),
             MarginDiag::value(0.0),
         );
-        let forward = |m| CertifyError::IntervalNotForward { verdict: zero(m) };
-        let meter = |m| CertifyError::SpanMeterCollapsed { verdict: zero(m) };
-        let arm = |m| CertifyError::ArmCollapsed {
+        // `x·3/3 − x` at this `x` rounds to 3.7e-9 m, past the zero
+        // band's 1e-9 m; the symbolic tier proves it zero.
+        let (proved, _) = with_session(
+            SymBudget {
+                max_terms: 64,
+                max_degree: 8,
+            },
+            || {
+                let x = Sym::param(ParamSymbol::new(0xa8), 23_456_789.1_f64);
+                let three = Sym::from_f64(3.0);
+                crate::dihedral::decide_positive("pin", Margin::of(x * three / three - x), band)
+                    .unwrap_err()
+            },
+        );
+        let proved = Refused::rejected(&proved).unwrap();
+        assert!(
+            matches!(proved, Refused::Zero(Classified { margin, .. }) if margin.proven()),
+            "the fixture is a proved zero: {proved:?}"
+        );
+        let forward = |verdict| CertifyError::IntervalNotForward { verdict };
+        let meter = |verdict| CertifyError::SpanMeterCollapsed { verdict };
+        let arm = |verdict| CertifyError::ArmCollapsed { sample: 4, verdict };
+        let crossing = |lever, verdict| CertifyError::NotTransverse {
             sample: 4,
-            verdict: zero(m),
+            lever,
+            verdict,
         };
-        let crossing = |m| CertifyError::NotTransverse {
-            sample: 4,
-            lever: None,
-            verdict: zero(m),
+        let second = |verdict| CertifyError::NotSecondOrderSeparated { sample: 4, verdict };
+        let tube = |verdict| CertifyError::TubeNotSeparated { verdict };
+        let below = Refused::Negative {
+            margin: MarginDiag::value(-5e-9),
         };
-        let second = |m| CertifyError::NotSecondOrderSeparated {
-            sample: 4,
-            verdict: zero(m),
-        };
-        let tube = |m| CertifyError::TubeNotSeparated { verdict: zero(m) };
         let rows = [
             (
-                forward(sized),
+                forward(zero(sized)),
                 "the stored parameter interval is not shown to run forward at this tolerance \
-                 (span 5e-10 m)",
+                 (margin 5e-10 m)",
             ),
             (
-                forward(across),
+                forward(zero(across)),
                 "the stored parameter interval is not shown to run forward at this tolerance \
-                 (span [-2e-10, 3e-10] m)",
+                 (margin [-2e-10, 3e-10] m)",
             ),
             (
-                meter(sized),
+                forward(proved),
+                "the stored parameter interval is not shown to run forward at this tolerance \
+                 (margin 3.725290298461914e-9 m)",
+            ),
+            (
+                meter(zero(sized)),
                 "the spline carrier's knot domain, metered at its certified speed floor, is not \
-                 shown above zero at this tolerance (5e-10 m), so its stored interval has no \
-                 certified metre scale",
+                 shown above zero at this tolerance (margin 5e-10 m), so its stored interval has \
+                 no certified metre scale",
             ),
             (
-                arm(across),
+                arm(zero(across)),
                 "at sample 4 the edge is not shown long enough, for how its faces curve, to \
-                 measure their angle (margin [-2e-10, 3e-10] m)",
+                 measure their angle at this tolerance (margin [-2e-10, 3e-10] m)",
             ),
             (
-                crossing(sized),
-                "the faces meet tangentially at sample 4, within the tolerance (margin 5e-10 m), \
+                crossing(None, zero(sized)),
+                "at sample 4 the faces are not shown to cross at this tolerance (margin 5e-10 m), \
                  where the edge's description says they cross",
             ),
             (
-                second(sized),
-                "the faces agree to second order at sample 4, within the tolerance (margin 5e-10 \
-                 m), so they do not fix where the edge runs, which its description says they do",
+                crossing(Some(crate::ssi::PointLever::Extent), zero(sized)),
+                "at sample 4 the faces are not shown to cross, their angle levered by the \
+                 feature extent, at this tolerance (margin 5e-10 m), where the edge's \
+                 description says they cross",
             ),
             (
-                tube(sized),
+                crossing(None, below),
+                "at sample 4 the faces are not shown to cross at this tolerance (margin -5e-9 m), \
+                 where the edge's description says they cross",
+            ),
+            (
+                second(zero(sized)),
+                "at sample 4 the faces are not shown to curve apart at second order at this \
+                 tolerance (margin 5e-10 m), so they are not shown to fix where the edge runs, \
+                 which its description says they do",
+            ),
+            (
+                tube(zero(sized)),
                 "the certified lower bound on how far the faces curve apart along the edge is \
-                 not shown above zero at this tolerance (5e-10 m), so the certificate cannot \
-                 prove they fix where the edge runs, which its description says they do",
+                 not shown above zero at this tolerance (margin 5e-10 m), so the certificate \
+                 cannot prove they fix where the edge runs, which its description says they do",
+            ),
+            (
+                tube(below),
+                "the certified lower bound on how far the faces curve apart along the edge is \
+                 below zero (margin -5e-9 m), so the certificate cannot prove they fix where the \
+                 edge runs, which its description says they do",
             ),
         ];
         let claims = [
@@ -6184,9 +6220,14 @@ mod tests {
             "not above zero",
             "spans no",
             "is zero",
+            "within the tolerance",
         ];
         for (error, payload) in rows {
             assert_eq!(error.to_string(), payload, "{error:?}");
+            // A proved zero shows no size, so its ending says so.
+            if matches!(error, CertifyError::IntervalNotForward { verdict } if verdict == proved) {
+                continue;
+            }
             for reading in [Reading::Build, Reading::AtRest] {
                 let text = error.render(reading);
                 for claim in claims {
@@ -6198,13 +6239,13 @@ mod tests {
             }
         }
         for (error, note) in [
-            (forward(none), "an edge of no length"),
-            (meter(none), "a vanishing speed floor"),
-            (arm(none), "an edge of no length"),
+            (forward(zero(none)), "an edge of no length"),
+            (meter(zero(none)), "a vanishing speed floor"),
+            (arm(zero(none)), "an edge of no length"),
         ] {
             let text = error.render(Reading::Build);
             assert!(
-                error.to_string().contains("0e0 m)"),
+                error.to_string().contains("(margin 0e0 m)"),
                 "the payload prints its zero: {text}"
             );
             assert_eq!(

@@ -401,7 +401,7 @@ fn the_door_refuses_a_tangential_plane_in_the_certify_vocabulary() {
             let msg = e.to_string();
             println!("M7-8 door tangential: {msg}");
             assert!(
-                msg.contains("the faces meet tangentially"),
+                msg.contains("the faces are not shown to cross"),
                 "the tangency vocabulary, verbatim: {msg}"
             );
         }

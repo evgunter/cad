@@ -11769,7 +11769,7 @@ mod tests {
                     }),
                 },
                 "a torus face's tube radius is not shown smaller than its ring radius at this \
-                 tolerance (difference 0e0 m). Recourse: make the tube radius clearly smaller than \
+                 tolerance (margin 0e0 m). Recourse: make the tube radius clearly smaller than \
                  the ring radius"
                     .to_owned(),
             ),

@@ -77,12 +77,13 @@ impl TorusConvention {
         let margin = verdict.margin();
         match (self, verdict) {
             (Self::Tube, Refused::Zero(_)) => format!(
-                "{whose} tube radius is not shown above zero at this tolerance ({margin:e} m)"
+                "{whose} tube radius is not shown above zero at this tolerance \
+                 (margin {margin:e} m)"
             ),
             (Self::Tube, Refused::Negative { .. }) => format!("{whose} tube radius is negative"),
             (Self::Ring, Refused::Zero(_)) => format!(
                 "{whose} tube radius is not shown smaller than its ring radius at this tolerance \
-                 (difference {margin:e} m)"
+                 (margin {margin:e} m)"
             ),
             (Self::Ring, Refused::Negative { .. }) => {
                 format!("{whose} tube radius is larger than its ring radius (a spindle torus)")
@@ -100,8 +101,9 @@ mod tests {
     use crate::recourse::{Classified, Refused};
 
     /// **A zero verdict prints its reading and names no shape**: a
-    /// positive difference inside the zero band is no horn, nor a tube
-    /// within it no tube, so the clause says only what the band did.
+    /// positive difference inside the zero band does not make a horn,
+    /// nor does a positive tube radius inside it make no tube, so the
+    /// clause says only what the band did.
     #[test]
     fn a_zero_verdict_prints_its_reading() {
         let band = Band::new(1e-9, 1e-8).expect("a valid band");
@@ -111,12 +113,13 @@ mod tests {
         });
         assert_eq!(
             TorusConvention::Tube.refused("a torus face's", zero),
-            "a torus face's tube radius is not shown above zero at this tolerance (5e-10 m)"
+            "a torus face's tube radius is not shown above zero at this tolerance \
+             (margin 5e-10 m)"
         );
         assert_eq!(
             TorusConvention::Ring.refused("a torus face's", zero),
             "a torus face's tube radius is not shown smaller than its ring radius at this \
-             tolerance (difference 5e-10 m)"
+             tolerance (margin 5e-10 m)"
         );
     }
 }
