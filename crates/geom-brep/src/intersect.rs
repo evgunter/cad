@@ -973,39 +973,53 @@ pub(crate) enum RuledSection<T: Real> {
     Empty,
 }
 
-/// Steps 1–2 of [`plane_cylinder_section`]: the axis-in-plane lane.
-/// `None` where the axis definitely leaves the plane (step 3 not run).
-/// The gap is read at the foot of `reach`'s point on the axis and the
-/// tilt levered from there. The tangent-locus lane reads its ruling
-/// tangency here, so the section and the witness never decide it apart.
-pub(crate) fn plane_cylinder_ruled<T: Decide>(
-    pc: &PlaneCylinder<T>,
-    reach: &Reach<T>,
-    band: Band,
-) -> Result<Option<RuledSection<T>>, Indeterminate> {
-    plane_cylinder_ruled_read(pc, reach, band).map(|(_, ruled)| ruled)
-}
-
-/// [`plane_cylinder_ruled`], with `pc_axis_plane_parallel`'s verdict.
+/// Steps 1–2 of [`plane_cylinder_section`]: the axis-in-plane lane, at
+/// `reach`'s frame ([`ruled_frame`]): the tilt row
+/// ([`ruled_parallel`]), then, with the axis in the plane, the gap row
+/// ([`ruled_section`]). The tangent-locus lane reads its ruling
+/// tangency through the same two rows on the same frame, so the
+/// section and the witness never decide it apart.
 fn plane_cylinder_ruled_read<T: Decide>(
     pc: &PlaneCylinder<T>,
     reach: &Reach<T>,
     band: Band,
 ) -> Result<(Decided, Option<RuledSection<T>>), Indeterminate> {
-    let RuledFrame {
-        o,
-        c,
-        gap_signed,
-        lever,
-    } = ruled_frame(pc, reach);
-    let (n, a, r) = (pc.n, pc.a, pc.r);
-    // A tangent line's Zero is one only with this one, so its margin
+    let frame = ruled_frame(pc, reach);
+    let parallel = ruled_parallel(&frame, band)?;
+    Ok((parallel, ruled_section(pc, &frame, parallel, band)?))
+}
+
+/// `pc_axis_plane_parallel`: the axis' normal component levered from
+/// the frame's hinge.
+pub(crate) fn ruled_parallel<T: Decide>(
+    frame: &RuledFrame<T>,
+    band: Band,
+) -> Result<Decided, Indeterminate> {
+    decide_reported(
+        "pc_axis_plane_parallel",
+        Margin::levered(frame.c, frame.lever),
+        band,
+    )
+}
+
+/// The axis-in-plane lane's answer once the tilt row has read
+/// `parallel`: `None` where the axis definitely leaves the plane (step
+/// 3 not run); otherwise the gap row ([`ruled_gap`]) mints the rulings,
+/// the tangency ruling or none.
+pub(crate) fn ruled_section<T: Decide>(
+    pc: &PlaneCylinder<T>,
+    frame: &RuledFrame<T>,
+    parallel: Decided,
+    band: Band,
+) -> Result<Option<RuledSection<T>>, Indeterminate> {
+    // A tangent line's Zero is one only with the tilt's, so its margin
     // stands for both.
-    let parallel = decide_reported("pc_axis_plane_parallel", Margin::levered(c, lever), band)?;
     if parallel.sign != Sign::Zero {
-        return Ok((parallel, None));
+        return Ok(None);
     }
-    let section = match ruled_gap(pc, reach, band)? {
+    let &RuledFrame { o, gap_signed, .. } = frame;
+    let (n, a, r) = (pc.n, pc.a, pc.r);
+    Ok(Some(match ruled_gap(pc, frame, band)? {
         (Sign::Positive, _) => {
             // Cross-section chord: the plane cuts the circle at
             // foot ± w·half, foot the axis' plane projection.
@@ -1029,21 +1043,21 @@ fn plane_cylinder_ruled_read<T: Decide>(
             gap: gap.jointly(parallel.margin),
         },
         (Sign::Negative, _) => RuledSection::Empty,
-    };
-    Ok((parallel, Some(section)))
+    }))
 }
 
 /// The axis-in-plane lane's frame: the foot of `reach`'s point on the
 /// axis, the axis' normal component `c`, the foot's signed height over
 /// the plane, and the lever the tilt is read at.
-struct RuledFrame<T: Real> {
-    o: Point3<T>,
-    c: T,
-    gap_signed: T,
-    lever: T,
+pub(crate) struct RuledFrame<T: Real> {
+    pub(crate) o: Point3<T>,
+    pub(crate) c: T,
+    pub(crate) gap_signed: T,
+    pub(crate) lever: T,
 }
 
-fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) -> RuledFrame<T> {
+/// [`RuledFrame`] of the pair at `reach`.
+pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) -> RuledFrame<T> {
     let &PlaneCylinder { q, n, o, a, .. } = pc;
     let o = reach.foot_on(o, a);
     let c = a.dot(n);
@@ -1075,19 +1089,13 @@ fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) -> RuledFrame
 /// leaves in band ([`crate::tangent_locus`]).
 pub(crate) fn ruled_gap<T: Decide>(
     pc: &PlaneCylinder<T>,
-    reach: &Reach<T>,
+    frame: &RuledFrame<T>,
     band: Band,
 ) -> Result<(Sign, MarginDiag), Indeterminate> {
-    let RuledFrame {
-        c,
-        gap_signed,
-        lever,
-        ..
-    } = ruled_frame(pc, reach);
     decide_across_reported(
         ["pc_parallel_gap", "pc_parallel_gap_floor"],
-        pc.r - gap_signed.abs(),
-        Margin::levered(c, lever).value(),
+        pc.r - frame.gap_signed.abs(),
+        Margin::levered(frame.c, frame.lever).value(),
         band,
     )
 }

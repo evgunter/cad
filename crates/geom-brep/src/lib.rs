@@ -141,7 +141,7 @@ pub use intersect::{
     sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
-pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
+pub use locus::{TangentLocus, TangentLocusError, tangent_locus, tangent_locus_of_faces};
 pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{

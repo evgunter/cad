@@ -43,9 +43,13 @@ whose reading the door swallows is left unglued and meets it at:
 
 The glued pairs that met it at `recl::require_same`'s tangent arm (the
 stadium, the kiss with overlap, a plane covering part of a hole's ruling)
-answer since `resolve_edge_sector` lumps them; this row's escalation is
-the last route by which a pair the lane has a locus for reaches the
-frontier refusal.
+answer since `resolve_edge_sector` lumps them. Two routes by which a
+pair the lane has a locus for reaches the frontier refusal remain after
+this row: a rim junction the routing places outside what the zip builds
+(`TangencyFailure::Unrouted`, scheduled under
+`a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp.md`),
+and a span the finest jet schedule cannot reach
+(`a-span-the-finest-jet-schedule-cannot-reach-leaves-a-locus-pair-unglued.md`).
 
 ## Fixed (PR 4918)
 
@@ -53,9 +57,17 @@ The door now propagates `TangencyFailure::Refused` and an undecidable
 rim identity; counter-evidence, a pair outside the lane and a rim
 junction the routing places outside what the zip builds
 (`TangencyFailure::Unrouted`) stay no tangency. Of the refusals the
-door used to swallow, two were not in-band tangencies and are fixed
-where they start: `contact_verify::on_surface` and the touch's span
-line refuse `NotCertifiable` where every reading is definite and only
-the sag stands past the band (the G1 tube chain), and
-`geom_brep::tangent_locus` answers `NotTangent` on a definite gap
-before an in-band axis tilt (the leaned ruling).
+door used to swallow, three kinds were not about the faces' geometry
+and are fixed where they start:
+
+- `contact_verify::tangent_table` reads a span whose only unsettled
+  reading is the jet schedule's sag again on finer schedules, up to
+  sixty-four spans to each of the nine-sample schedule's; past that a
+  sag beyond the band is `NotCertifiable` (the G1 tube chain, whose
+  meridian bound needs some 35 000 spans) and one in band escalates;
+- `geom_brep::tangent_locus` answers `NotTangent` on a definite gap
+  before an in-band axis tilt (the leaned ruling);
+- `geom_brep::tangent_locus_of_faces` answers `NotTangent` on
+  `tangent_locus_face_clear` where a face's extent across the locus
+  stands definitely clear of the other carrier (a brick beside a
+  tube's ruling, a cylinder wall turned off it).

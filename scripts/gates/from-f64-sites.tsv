@@ -110,6 +110,7 @@ crates/topo/src/boolean/circle_roots.rs	1	constant	f64::from(top)	a subdivision 
 crates/topo/src/boolean/circle_roots.rs	2	constant	share	a fixed split fraction (SPLITS)
 crates/topo/src/boolean/circle_roots.rs	3	constant	f64::from(k)	a subdivision index
 crates/topo/src/boolean/join.rs	1	constant	band.zero()	the band's zero width, a tolerance
+crates/topo/src/boolean/mod.rs	1	constant	boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/boolean/rim_wedge.rs	1	constant	k	a fixed wrap count
 crates/topo/src/boolean/rim_wedge.rs	1	constant	phase(i)	a fixed station of the sample schedule
 crates/topo/src/boolean/rim_wedge.rs	1	constant	sgn	a root's sign, ±1

@@ -5613,7 +5613,18 @@ fn tangent_line<T: Decide>(
     let reach = carrier_pair::pair_extent(a, fa, b, fb, band)
         .map_err(unreadable_extent)?
         .reach;
-    match geom_brep::tangent_locus(sa, sb, reach, band) {
+    // Each face's padded reach along a direction, read in the frame it
+    // aims, so a face that does not reach the locus settles an in-band
+    // reading of the carriers.
+    let extents = |across| {
+        let frame = boxes::BoxFrame::aimed(across);
+        let pad = T::from_f64(boxes::sweep_pad(band));
+        [(a, fa), (b, fb)].map(|(body, face)| {
+            crate::census::face_reach_in(body, face, band, &frame)
+                .map(|(lo, hi)| (lo.x - pad, hi.x + pad))
+        })
+    };
+    match geom_brep::tangent_locus_of_faces(sa, sb, reach, band, extents) {
         Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
             let (span, overlap) = witness_span(a, fa, b, fb, origin, dir)?;
             Ok(Ok(TangentLine {

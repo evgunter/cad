@@ -5,7 +5,9 @@
 //! residual half of it. Every sample reads the touch within ε when
 //! `δ ≤ ε`; the span line `max|sᵢ| + gap_sag` is what refuses near the
 //! band's edge, and only because `gap_sag` adds both surfaces' second
-//! derivatives (the larger residual sag alone would pass it).
+//! derivatives (the larger residual sag alone would pass it). The table
+//! reads a span line past ε again on finer schedules, so the refusal
+//! stands only within the finest schedule's sag of the band's edge.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -60,25 +62,30 @@ fn read(delta: f64) -> Result<ContactVerdict, ContactRefusal> {
 #[test]
 fn the_touch_between_samples_charges_both_surfaces_sags() {
     let eps = band().zero();
+    let tau = core::f64::consts::TAU;
     let (ball, bore, halfway) = off_axis_ball(0.95 * eps);
-    let bounds =
-        geom_brep::tangent_span_bounds(&ball, &bore, &halfway, 0.0, core::f64::consts::TAU)
-            .unwrap();
-    // The fixture's premise: the sum sag puts the span line in band at
-    // 0.95ε, the max sag would not.
+    let bounds = geom_brep::tangent_span_bounds(&ball, &bore, &halfway, 0.0, tau).unwrap();
+    // The nine-sample schedule's span line is in band at 0.95ε: a finer
+    // schedule settles it, the true separation being within ε.
     assert!(0.95 * eps + bounds.gap_sag > eps, "{bounds:?}");
-    assert!(0.95 * eps + bounds.residual_sag <= eps, "{bounds:?}");
-    // Well inside the band: verified.
-    assert!(
-        matches!(read(0.5 * eps), Ok(ContactVerdict::Definite)),
-        "0.5ε: {:?}",
-        read(0.5 * eps)
-    );
-    // Every sample within ε, the span past it: the span line escalates.
-    match read(0.95 * eps) {
+    for delta in [0.5 * eps, 0.95 * eps] {
+        assert!(
+            matches!(read(delta), Ok(ContactVerdict::Definite)),
+            "{delta:e}: {:?}",
+            read(delta)
+        );
+    }
+    // The table's finest schedule: sixty-four spans to each of the
+    // nine-sample schedule's. Between its two sags, every sample within
+    // ε, the span line escalates on the sum and the max would pass.
+    let finest = geom_brep::tangent_span_bounds(&ball, &bore, &halfway, 0.0, tau / 64.0).unwrap();
+    let delta = eps - 0.5 * (finest.residual_sag + finest.gap_sag);
+    assert!(delta + finest.residual_sag <= eps, "{finest:?}");
+    assert!(delta + finest.gap_sag > eps, "{finest:?}");
+    match read(delta) {
         Err(ContactRefusal::Escalated { diag }) => {
             assert_eq!(diag.predicate, Some("contact_tangent_touch"), "{diag:?}");
         }
-        other => panic!("0.95ε: the span line refuses on the sag: {other:?}"),
+        other => panic!("{delta:e}: the span line refuses on the sag: {other:?}"),
     }
 }

@@ -5,15 +5,15 @@
 
 use geom::Surface;
 use geom_core::{
-    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
+    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, UnitVec3, Vec3,
 };
 
 use crate::dihedral::decide;
 use crate::extent::{ExtentBall, Reach};
 use crate::intersect::{
-    ParallelAxes, PlaneCylinder, RuledSection, cylinder_axes_parallel_reported,
+    ParallelAxes, PlaneCylinder, RuledFrame, RuledSection, cylinder_axes_parallel_reported,
     decide_across_reported, parallel_axes_at, parallel_cylinder_gap_reported, parallel_swing,
-    plane_cylinder_ruled, ruled_gap,
+    ruled_frame, ruled_gap, ruled_parallel, ruled_section,
 };
 
 /// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
@@ -135,10 +135,76 @@ pub fn tangent_locus<T: Decide>(
     reach: ExtentBall<T>,
     band: Band,
 ) -> Result<TangentLocus<T>, TangentLocusError> {
+    tangent_locus_of_faces(a, b, reach, band, |_| [None, None])
+}
+
+/// [`tangent_locus`] of two faces on `a` and `b`, whose extents settle
+/// an in-band reading: `extents` gives each face's least and greatest
+/// coordinate along a unit direction about the world origin, padded,
+/// `a`'s first (`None` where a face's extent does not read).
+///
+/// The carriers are read across `reach`, which encloses both faces,
+/// so an in-band reading is the carriers'. Where it escalates, the
+/// lane asks whether the faces reach the locus at all: a face whose
+/// extent across the locus stands far enough off it lies definitely
+/// clear of the other carrier, and the pair is `NotTangent { apart }`
+/// on `tangent_locus_face_clear`, the escalation superseded
+/// ([`Section::faces_clear`]).
+///
+/// # Errors
+///
+/// As [`tangent_locus`].
+pub fn tangent_locus_of_faces<T: Decide>(
+    a: &geom::Surface<T>,
+    b: &geom::Surface<T>,
+    reach: ExtentBall<T>,
+    band: Band,
+    extents: impl FnOnce(UnitVec3<T>) -> [Option<(T, T)>; 2],
+) -> Result<TangentLocus<T>, TangentLocusError> {
     // The witness reads the ball its callers hand it
     // (`crate::extent`'s module docs).
     let reach = &Reach::Ball(reach);
-    let escalate = TangentLocusError::Escalated;
+    let ((section, read), log) =
+        geom_core::k_stats::detached(|| closed_form_locus(a, b, reach, band));
+    match (read, section) {
+        (Err(TangentLocusError::Escalated(diag)), Some(section)) => {
+            let (clear, clear_log) =
+                geom_core::k_stats::detached(|| section.faces_clear(extents, band));
+            if clear {
+                geom_core::k_stats::splice_superseded(log);
+                geom_core::k_stats::splice(clear_log);
+                Err(TangentLocusError::NotTangent {
+                    apart: true,
+                    predicate: FACE_CLEAR,
+                })
+            } else {
+                geom_core::k_stats::splice(log);
+                drop(clear_log);
+                Err(TangentLocusError::Escalated(diag))
+            }
+        }
+        (read, _) => {
+            geom_core::k_stats::splice(log);
+            read
+        }
+    }
+}
+
+/// The row a face clear of the other carrier refuses the tangency on.
+const FACE_CLEAR: &str = "tangent_locus_face_clear";
+
+/// The two arms' readings, with the pair's cross-section where it has
+/// one.
+#[allow(clippy::type_complexity)]
+fn closed_form_locus<T: Decide>(
+    a: &geom::Surface<T>,
+    b: &geom::Surface<T>,
+    reach: &Reach<T>,
+    band: Band,
+) -> (
+    Option<Section<T>>,
+    Result<TangentLocus<T>, TangentLocusError>,
+) {
     match (a, b) {
         (
             &Surface::Plane {
@@ -173,162 +239,328 @@ pub fn tangent_locus<T: Decide>(
                 a: axis,
                 r: radius,
             };
-            let gap = "pc_parallel_gap";
-            let (ruled, axis_log) =
-                geom_core::k_stats::detached(|| plane_cylinder_ruled(&pc, reach, band));
-            let ruled = match ruled {
-                Ok(ruled) => {
-                    geom_core::k_stats::splice(axis_log);
-                    ruled
-                }
-                Err(diag) => {
-                    return Err(definite_over_in_band(diag, axis_log, || {
-                        match ruled_gap(&pc, reach, band) {
-                            Ok((Sign::Positive, _)) => Some((false, gap)),
-                            Ok((Sign::Negative, _)) => Some((true, gap)),
-                            Ok((Sign::Zero, _)) | Err(_) => None,
-                        }
-                    }));
-                }
-            };
-            match ruled {
-                Some(RuledSection::TangentLine { origin, dir, gap }) => {
-                    Ok(TangentLocus::Line { origin, gap, dir })
-                }
-                Some(RuledSection::ParallelLines { .. }) => Err(TangentLocusError::NotTangent {
-                    apart: false,
-                    predicate: gap,
-                }),
-                Some(RuledSection::Empty) => Err(TangentLocusError::NotTangent {
-                    apart: true,
-                    predicate: gap,
-                }),
-                None => Err(TangentLocusError::Unsupported {
-                    what: "plane×cylinder tangency is closed-form only along a ruling — \
-                           the axis must lie in the plane's direction space",
-                }),
-            }
+            let frame = ruled_frame(&pc, reach);
+            let plane_first = matches!(a, Surface::Plane { .. });
+            let section = Section::plane_cylinder(&pc, &frame, plane_first, reach, band);
+            (section, plane_cylinder_locus(&pc, &frame, band))
         }
         (
-            Surface::Cylinder {
+            &Surface::Cylinder {
                 origin: o1,
                 axis: a1,
                 radius: r1,
                 ..
             },
-            Surface::Cylinder {
+            &Surface::Cylinder {
                 origin: o2,
                 axis: a2,
                 radius: r2,
                 ..
             },
         ) => {
-            // Each tangency below is one only with the axes parallel, so
-            // its margin stands for both.
-            let (parallel, axis_log) = geom_core::k_stats::detached(|| {
-                cylinder_axes_parallel_reported(reach, (*o1, *a1), (*o2, *a2), band)
-            });
-            let parallel = match parallel {
-                Ok(Decided {
-                    sign: Sign::Zero,
-                    margin,
-                }) => {
-                    geom_core::k_stats::splice(axis_log);
-                    margin
-                }
-                Ok(Decided { .. }) => {
-                    geom_core::k_stats::splice(axis_log);
-                    return Err(TangentLocusError::Unsupported {
-                        what: "cylinder×cylinder tangency is closed-form only for PARALLEL \
-                               axes (the generator line); skew/crossing axes are outside \
-                               the lane",
-                    });
-                }
-                Err(diag) => {
-                    return Err(definite_over_in_band(diag, axis_log, || {
-                        let dist = parallel_axes_at(reach, (*o1, *a1), (*o2, *a2)).d;
-                        let swing = parallel_swing(reach, (*o1, *a1), (*o2, *a2), dist);
-                        match parallel_cylinder_gaps((*r1, *r2), dist, swing, band) {
-                            Ok(CylinderGap::NotTangent { apart, predicate }) => {
-                                Some((apart, predicate))
-                            }
-                            Ok(CylinderGap::External(_) | CylinderGap::Internal(_)) | Err(_) => {
-                                None
-                            }
-                        }
-                    }));
-                }
-            };
-            let ParallelAxes {
-                foot1,
-                d_vec: w,
-                d: dist,
-            } = parallel_axes_at(reach, (*o1, *a1), (*o2, *a2));
-            let swing = parallel_swing(reach, (*o1, *a1), (*o2, *a2), dist);
-            match parallel_cylinder_gaps((*r1, *r2), dist, swing, band).map_err(escalate)? {
-                CylinderGap::External(gap) => {
-                    let w_hat = w.normalize();
-                    Ok(TangentLocus::Line {
-                        origin: foot1 + w_hat * *r1,
-                        gap: gap.jointly(parallel),
-                        dir: *a1,
-                    })
-                }
-                CylinderGap::NotTangent { apart, predicate } => {
-                    Err(TangentLocusError::NotTangent { apart, predicate })
-                }
-                CylinderGap::Internal(gap) => {
-                    // Internal tangency: the smaller cylinder rests
-                    // inside the larger; the generator sits on the
-                    // offset direction at the LARGER radius from the
-                    // larger axis. With coaxial axes (dist in the
-                    // zero band AND radii in the zero band) the locus
-                    // direction is ill-posed — refuse typed.
-                    match decide("tangent_locus_side", Margin::of(dist), band).map_err(escalate)? {
-                        Sign::Positive => {}
-                        _ => {
-                            return Err(TangentLocusError::Unsupported {
-                                what: "coaxial equal-radius cylinders have no isolated \
-                                       tangent generator (conformal contact is Rest, \
-                                       not Tangent)",
-                            });
-                        }
-                    }
-                    // Which cylinder contains which decides the
-                    // generator's side (derived: with ŵ = o1→o2 and
-                    // |w| = |r1 − r2|, the touch point is
-                    // P = o1 + ŵ·r1 when r1 > r2 — c2 inside c1 —
-                    // and P = o1 − ŵ·r1 when r1 < r2, both from
-                    // collinearity of P, o1, o2 with |P−o1| = r1,
-                    // |P−o2| = r2). The side is DECIDED, never an
-                    // evaluation-lane comparison.
-                    let w_hat = w.normalize();
-                    let sign = match decide("tangent_locus_side", Margin::of(*r1 - *r2), band)
-                        .map_err(escalate)?
-                    {
-                        Sign::Positive => T::one(),
-                        Sign::Negative => T::zero() - T::one(),
-                        Sign::Zero => {
-                            return Err(TangentLocusError::Unsupported {
-                                what: "equal-radius internal tangency contradicts the \
-                                       definite axis offset — no closed-form generator",
-                            });
-                        }
-                    };
-                    Ok(TangentLocus::Line {
-                        origin: foot1 + w_hat * (sign * *r1),
-                        gap: gap.jointly(parallel),
-                        dir: *a1,
-                    })
-                }
-            }
+            let axes = parallel_axes_at(reach, (o1, a1), (o2, a2));
+            let swing = parallel_swing(reach, (o1, a1), (o2, a2), axes.d);
+            let section = Section::cylinders((r1, r2), (a1, a2), &axes, reach, band);
+            let read = cylinders_locus(((o1, a1), (o2, a2)), (r1, r2), &axes, swing, reach, band);
+            (section, read)
         }
-        _ => Err(TangentLocusError::Unsupported {
-            what: "the closed-form tangent-locus lane holds plane×cylinder and parallel \
-                   cylinder pairs only (the DEV-1 certified set)",
+        _ => (
+            None,
+            Err(TangentLocusError::Unsupported {
+                what: "the closed-form tangent-locus lane holds plane×cylinder and parallel \
+                       cylinder pairs only (the DEV-1 certified set)",
+            }),
+        ),
+    }
+}
+
+/// The plane×cylinder arm on `frame`: the tilt row, then the gap row.
+fn plane_cylinder_locus<T: Decide>(
+    pc: &PlaneCylinder<T>,
+    frame: &RuledFrame<T>,
+    band: Band,
+) -> Result<TangentLocus<T>, TangentLocusError> {
+    let gap = "pc_parallel_gap";
+    let (parallel, axis_log) = geom_core::k_stats::detached(|| ruled_parallel(frame, band));
+    let parallel = match parallel {
+        Ok(parallel) => {
+            geom_core::k_stats::splice(axis_log);
+            parallel
+        }
+        Err(diag) => {
+            return Err(definite_over_in_band(diag, axis_log, || {
+                match ruled_gap(pc, frame, band) {
+                    Ok((Sign::Positive, _)) => Some((false, gap)),
+                    Ok((Sign::Negative, _)) => Some((true, gap)),
+                    Ok((Sign::Zero, _)) | Err(_) => None,
+                }
+            }));
+        }
+    };
+    match ruled_section(pc, frame, parallel, band).map_err(TangentLocusError::Escalated)? {
+        Some(RuledSection::TangentLine { origin, dir, gap }) => {
+            Ok(TangentLocus::Line { origin, gap, dir })
+        }
+        Some(RuledSection::ParallelLines { .. }) => Err(TangentLocusError::NotTangent {
+            apart: false,
+            predicate: gap,
+        }),
+        Some(RuledSection::Empty) => Err(TangentLocusError::NotTangent {
+            apart: true,
+            predicate: gap,
+        }),
+        None => Err(TangentLocusError::Unsupported {
+            what: "plane×cylinder tangency is closed-form only along a ruling — \
+                   the axis must lie in the plane's direction space",
         }),
     }
 }
+
+/// The parallel-cylinder arm, its axes read once at the feet (`axes`,
+/// their `swing` across the reach): the axes row, then the gap rows.
+#[allow(clippy::type_complexity)]
+fn cylinders_locus<T: Decide>(
+    lines: ((Point3<T>, Vec3<T>), (Point3<T>, Vec3<T>)),
+    (r1, r2): (T, T),
+    axes: &ParallelAxes<T>,
+    swing: T,
+    reach: &Reach<T>,
+    band: Band,
+) -> Result<TangentLocus<T>, TangentLocusError> {
+    let escalate = TangentLocusError::Escalated;
+    let (line1, line2) = lines;
+    let a1 = line1.1;
+    // Each tangency below is one only with the axes parallel, so its
+    // margin stands for both.
+    let (parallel, axis_log) =
+        geom_core::k_stats::detached(|| cylinder_axes_parallel_reported(reach, line1, line2, band));
+    let parallel = match parallel {
+        Ok(Decided {
+            sign: Sign::Zero,
+            margin,
+        }) => {
+            geom_core::k_stats::splice(axis_log);
+            margin
+        }
+        Ok(Decided { .. }) => {
+            geom_core::k_stats::splice(axis_log);
+            return Err(TangentLocusError::Unsupported {
+                what: "cylinder×cylinder tangency is closed-form only for PARALLEL \
+                       axes (the generator line); skew/crossing axes are outside \
+                       the lane",
+            });
+        }
+        Err(diag) => {
+            return Err(definite_over_in_band(
+                diag,
+                axis_log,
+                || match parallel_cylinder_gaps((r1, r2), axes.d, swing, band) {
+                    Ok(CylinderGap::NotTangent { apart, predicate }) => Some((apart, predicate)),
+                    Ok(CylinderGap::External(_) | CylinderGap::Internal(_)) | Err(_) => None,
+                },
+            ));
+        }
+    };
+    let &ParallelAxes {
+        foot1,
+        d_vec: w,
+        d: dist,
+    } = axes;
+    match parallel_cylinder_gaps((r1, r2), dist, swing, band).map_err(escalate)? {
+        CylinderGap::External(gap) => Ok(TangentLocus::Line {
+            origin: foot1 + w.normalize() * r1,
+            gap: gap.jointly(parallel),
+            dir: a1,
+        }),
+        CylinderGap::NotTangent { apart, predicate } => {
+            Err(TangentLocusError::NotTangent { apart, predicate })
+        }
+        CylinderGap::Internal(gap) => {
+            // Internal tangency: the smaller cylinder rests inside the
+            // larger; the generator sits on the offset direction at the
+            // LARGER radius from the larger axis. With coaxial axes
+            // (dist in the zero band AND radii in the zero band) the
+            // locus direction is ill-posed — refuse typed.
+            match decide("tangent_locus_side", Margin::of(dist), band).map_err(escalate)? {
+                Sign::Positive => {}
+                _ => {
+                    return Err(TangentLocusError::Unsupported {
+                        what: "coaxial equal-radius cylinders have no isolated tangent \
+                               generator (conformal contact is Rest, not Tangent)",
+                    });
+                }
+            }
+            // Which cylinder contains which decides the generator's
+            // side (derived: with ŵ = o1→o2 and |w| = |r1 − r2|, the
+            // touch point is P = o1 + ŵ·r1 when r1 > r2 — c2 inside
+            // c1 — and P = o1 − ŵ·r1 when r1 < r2, both from
+            // collinearity of P, o1, o2 with |P−o1| = r1, |P−o2| = r2).
+            // The side is DECIDED, never an evaluation-lane comparison.
+            let sign =
+                match decide("tangent_locus_side", Margin::of(r1 - r2), band).map_err(escalate)? {
+                    Sign::Positive => T::one(),
+                    Sign::Negative => T::zero() - T::one(),
+                    Sign::Zero => {
+                        return Err(TangentLocusError::Unsupported {
+                            what: "equal-radius internal tangency contradicts the definite \
+                               axis offset — no closed-form generator",
+                        });
+                    }
+                };
+            Ok(TangentLocus::Line {
+                origin: foot1 + w.normalize() * (sign * r1),
+                gap: gap.jointly(parallel),
+                dir: a1,
+            })
+        }
+    }
+}
+
+/// **A closed-form pair's cross-section across its locus**, where a
+/// face that does not reach the locus is read against the other
+/// carrier. `across` is the unit direction perpendicular to the locus
+/// in the plane both carriers are tangent to, and `at` the locus's
+/// coordinate along it about the world origin.
+///
+/// Each carrier is a line (a plane) or a circle (a cylinder) in every
+/// section perpendicular to the first cylinder's axis, the plane's
+/// axis in the plane×cylinder arm; `slack` bounds how far the second
+/// carrier stands, across the reach, from its section at the feet (the
+/// tilt the axis row allows, levered across the reach). A point of a
+/// face whose coordinate along `across` stands `s` or more off `at` is
+/// then at least [`Section::clearance`] off the other carrier, so a
+/// face whose padded extent stands there lies definitely clear of the
+/// other face.
+struct Section<T: Real> {
+    across: UnitVec3<T>,
+    at: T,
+    walls: Walls<T>,
+}
+
+/// The two carriers in the section, in the pair's order.
+enum Walls<T: Real> {
+    /// A plane and a cylinder of radius `r` whose axis stands at least
+    /// `h` off the plane across the reach; `plane_first` where the
+    /// plane is the pair's first.
+    PlaneCylinder { plane_first: bool, h: T, r: T },
+    /// Two cylinders of radii `radii` whose axes stand `d` apart at the
+    /// feet, the second within `slack` of its section there.
+    Cylinders { radii: (T, T), d: T, slack: T },
+}
+
+impl<T: Decide> Section<T> {
+    /// The plane×cylinder section on `frame`: `across` is the axis
+    /// crossed with the normal, which the plane holds and which is
+    /// perpendicular to the axis, and the plane's height off the axis
+    /// moves by the axis' normal component times the farthest the
+    /// reach stands from the foot. `None` where `across` does not
+    /// decide a direction.
+    fn plane_cylinder(
+        pc: &PlaneCylinder<T>,
+        frame: &RuledFrame<T>,
+        plane_first: bool,
+        reach: &Reach<T>,
+        band: Band,
+    ) -> Option<Self> {
+        // `r·|a × n|`: the wall's reach across the locus, a length.
+        let across = UnitVec3::new(pc.a.cross(pc.n) * pc.r, ACROSS, band).ok()?;
+        let tilt = frame.c.abs() * reach.lever_from(frame.o);
+        Some(Self {
+            at: across.get().dot(frame.o - Point3::origin()),
+            across,
+            walls: Walls::PlaneCylinder {
+                plane_first,
+                h: frame.gap_signed.abs() - tilt,
+                r: pc.r,
+            },
+        })
+    }
+
+    /// The parallel-cylinder section at the feet (`axes`): `across` is
+    /// the first axis crossed with the offset between the feet, and the
+    /// second axis, read in the first's direction through its foot,
+    /// moves by the two directions' difference times the farthest the
+    /// reach stands from that foot. `None` where `across` does not
+    /// decide a direction (the axes in band of coaxial).
+    fn cylinders(
+        radii: (T, T),
+        (a1, a2): (Vec3<T>, Vec3<T>),
+        axes: &ParallelAxes<T>,
+        reach: &Reach<T>,
+        band: Band,
+    ) -> Option<Self> {
+        // `|a1 × d_vec| = |d_vec|`, the axes' offset, a length.
+        let across = UnitVec3::new(a1.cross(axes.d_vec), ACROSS, band).ok()?;
+        let foot2 = axes.foot1 + axes.d_vec;
+        let turn = (a1 - a2).norm().min((a1 + a2).norm());
+        Some(Self {
+            at: across.get().dot(axes.foot1 - Point3::origin()),
+            across,
+            walls: Walls::Cylinders {
+                radii,
+                d: axes.d_vec.norm(),
+                slack: turn * reach.lever_from(foot2),
+            },
+        })
+    }
+
+    /// The least distance from a point of face `i`'s carrier that
+    /// stands `s` or more off the locus across it to the other carrier.
+    /// A point of a wall of radius `ri` at angle `φ` from the locus
+    /// stands `ri·|sin φ|` across, so `|cos φ| ≤ k`; its distance to
+    /// the other circle's centre, `D` from its own, then lies between
+    /// `√(ri² + D² ∓ 2·ri·D·k)`.
+    fn clearance(&self, i: usize, s: T) -> T {
+        let zero = T::zero();
+        let s = s.max(zero);
+        let room = |s: T, r: T| (T::one() - (s / r).powi(2)).max(zero).sqrt();
+        match self.walls {
+            Walls::PlaneCylinder { plane_first, h, r } => {
+                if (i == 0) == plane_first {
+                    // A plane point `s` across stands `√(s² + h²)` or
+                    // more off the axis.
+                    (s.powi(2) + h.max(zero).powi(2)).sqrt() - r
+                } else {
+                    h - r * room(s, r)
+                }
+            }
+            Walls::Cylinders { radii, d, slack } => {
+                let (ri, rj) = if i == 0 { radii } else { (radii.1, radii.0) };
+                let k = room((s - slack).max(zero), ri);
+                let base = ri.powi(2) + d.powi(2);
+                let cross = (ri + ri) * d * k;
+                let near = (base - cross).max(zero).sqrt();
+                let far = (base + cross).sqrt();
+                (near - rj).max(rj - far) - slack
+            }
+        }
+    }
+
+    /// Whether some face's extent across the locus (`extents`, read
+    /// along `across`) stands far enough off it to lie definitely clear
+    /// of the other carrier, decided on `tangent_locus_face_clear`.
+    fn faces_clear(
+        &self,
+        extents: impl FnOnce(UnitVec3<T>) -> [Option<(T, T)>; 2],
+        band: Band,
+    ) -> bool {
+        extents(self.across)
+            .into_iter()
+            .enumerate()
+            .any(|(i, extent)| {
+                extent.is_some_and(|(lo, hi)| {
+                    let s = (lo - self.at).max(self.at - hi);
+                    matches!(
+                        decide(FACE_CLEAR, Margin::of(self.clearance(i, s)), band),
+                        Ok(Sign::Positive)
+                    )
+                })
+            })
+    }
+}
+
+/// The site the cross-section's direction is decided under.
+const ACROSS: &str = "tangent_locus_across";
 
 /// **Definite counter-evidence answers before an in-band parallelism.**
 /// Each closed-form tangency needs its axis row Zero AND its gap row
@@ -660,6 +892,127 @@ mod tests {
                 assert_eq!(d.predicate, Some("cc_axes_parallel"));
             }
             other => panic!("at the tangent distance the tilt escalates: {other:?}"),
+        }
+    }
+
+    /// **A face that does not reach the locus settles an in-band
+    /// reading.** A unit cylinder along `x` over the plane `z = 0`, its
+    /// axis `5.5·ε` above the tangent height, so the gap row is in band.
+    /// The across direction is `±ŷ` and the ruling stands at `y = 0`. A
+    /// plane face over `y ∈ [0.01, 0.5]` stands about `5·10⁻⁵` off the
+    /// wall at its nearest edge: no tangency, on the face row. A face
+    /// over `y ∈ [−0.25, 0.25]` reaches the ruling and the gap row's
+    /// escalation stands; so does a pair whose extents do not read.
+    #[test]
+    fn a_face_clear_of_the_ruling_settles_an_in_band_gap() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let cyl = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 1.0 + 5.5 * band.zero()),
+            axis: Vec3::unit_x(),
+            radius: 1.0,
+            u_ref: Vec3::unit_z(),
+        };
+        let reach = ExtentBall::new(Point3::new(0.5, 0.0, 0.0), 1.5);
+        let wall = (-1.0, 1.0);
+        let across = |plane_face: (f64, f64)| {
+            move |dir: UnitVec3<f64>| {
+                // The across direction is ±ŷ; read each face's span on it.
+                let flip = |(lo, hi): (f64, f64)| {
+                    if dir.get().y > 0.0 {
+                        (lo, hi)
+                    } else {
+                        (-hi, -lo)
+                    }
+                };
+                [Some(flip(plane_face)), Some(flip(wall))]
+            }
+        };
+        match tangent_locus_of_faces(&plane, &cyl, reach, band, across((0.01, 0.5))) {
+            Err(TangentLocusError::NotTangent { apart, predicate }) => {
+                assert!(apart, "clear");
+                assert_eq!(predicate, "tangent_locus_face_clear");
+            }
+            other => panic!("the face off the ruling is no tangency: {other:?}"),
+        }
+        match tangent_locus_of_faces(&cyl, &plane, reach, band, |d| {
+            let [p, w] = across((0.01, 0.5))(d);
+            [w, p]
+        }) {
+            Err(TangentLocusError::NotTangent { predicate, .. }) => {
+                assert_eq!(predicate, "tangent_locus_face_clear", "either order");
+            }
+            other => panic!("the face off the ruling, cylinder first: {other:?}"),
+        }
+        for (why, read) in [
+            (
+                "over the ruling",
+                tangent_locus_of_faces(&plane, &cyl, reach, band, across((-0.25, 0.25))),
+            ),
+            (
+                "unread",
+                tangent_locus_of_faces(&plane, &cyl, reach, band, |_| [None, None]),
+            ),
+        ] {
+            match read {
+                Err(TangentLocusError::Escalated(d)) => {
+                    assert_eq!(d.predicate, Some("pc_parallel_gap"), "{why}");
+                }
+                other => panic!("{why}: the gap row escalates: {other:?}"),
+            }
+        }
+    }
+
+    /// The same for parallel cylinders: unit cylinders along `x`, the
+    /// second's axis at `y = 2 + 5.5·ε` (outside) or the second a rod of
+    /// radius 0.2 at `y = 0.8 − 5.5·ε` (inside). Across is `±ẑ`, the
+    /// ruling at `z = 0`; the second's face over `z ∈ [0.1, 0.2]`
+    /// stands off it, and one over `z ∈ [−0.1, 0.1]` reaches it.
+    #[test]
+    fn a_cylinder_face_clear_of_the_ruling_settles_an_in_band_gap() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let g = 5.5 * band.zero();
+        let along = |y: f64, r: f64| Surface::Cylinder {
+            origin: Point3::new(0.0, y, 0.0),
+            axis: Vec3::unit_x(),
+            radius: r,
+            u_ref: Vec3::unit_z(),
+        };
+        let reach = ExtentBall::new(Point3::new(0.5, 1.0, 0.0), 2.0);
+        let across = |second: (f64, f64)| {
+            move |dir: UnitVec3<f64>| {
+                let flip = |(lo, hi): (f64, f64)| {
+                    if dir.get().z > 0.0 {
+                        (lo, hi)
+                    } else {
+                        (-hi, -lo)
+                    }
+                };
+                [Some(flip((-1.0, 1.0))), Some(flip(second))]
+            }
+        };
+        for (other, gap_row, why) in [
+            (along(2.0 + g, 1.0), "cc_parallel_gap", "outside"),
+            (along(0.8 - g, 0.2), "tangent_locus_internal_gap", "inside"),
+        ] {
+            let first = along(0.0, 1.0);
+            match tangent_locus_of_faces(&first, &other, reach, band, across((0.1, 0.2))) {
+                Err(TangentLocusError::NotTangent { apart, predicate }) => {
+                    assert!(apart, "{why}");
+                    assert_eq!(predicate, "tangent_locus_face_clear", "{why}");
+                }
+                other => panic!("{why}: the face off the ruling is no tangency: {other:?}"),
+            }
+            match tangent_locus_of_faces(&first, &other, reach, band, across((-0.1, 0.1))) {
+                Err(TangentLocusError::Escalated(d)) => {
+                    assert_eq!(d.predicate, Some(gap_row), "{why}");
+                }
+                other => panic!("{why}: over the ruling the gap row escalates: {other:?}"),
+            }
         }
     }
 }
