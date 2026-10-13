@@ -297,6 +297,8 @@ mod axis_lap;
 mod band_annulus_host_boundary;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
+#[path = "band_planar_consume.rs"]
+mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]
 mod band_planar_cut_off;
 #[path = "band_planar_cut_off_interval.rs"]
@@ -317,6 +319,10 @@ mod band_ruled_cap_ring;
 mod band_ruled_d_hole;
 #[path = "band_turn_overrun_chamfer.rs"]
 mod band_turn_overrun_chamfer;
+#[path = "band_turn_overrun_fillet.rs"]
+mod band_turn_overrun_fillet;
+#[path = "band_turn_overrun_fillet_model.rs"]
+mod band_turn_overrun_fillet_model;
 #[path = "band_turn_overrun_oracles.rs"]
 mod band_turn_overrun_oracles;
 #[path = "band_turn_overrun_probe.rs"]
