@@ -2,12 +2,13 @@
 id: the-glue-doors-tangency-swallows-its-escalations
 kind: issue
 title: The glue door's tangency read swallows every refusal, escalations included, so an in-band tangency surfaces later as CurvedBooleanUnsupported
-status: review
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
 branch: contacthold/glue-door-escalates
 pr: 4918
+closed: 2026-10-13
 ---
 
 
