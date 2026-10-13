@@ -1271,3 +1271,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Seam notes are posted on pcert, pctail, ssiarith, ssiedge, ssimarch, knot, encl, tcost, tint, shelf, shell and chart.
   - `rational-inf-floor-reach-refines-before-reading` and `rational-inf-speed-has-two-recipes-curve-and-surface` are closed by the PR.
   - Next: build A on unit 2.
+- 2026-10-13 11:33Z — **Build A dispatched on unit 2 of the quotient ruling.** Session session_01WzFKtLWBVWNnnS3M5ezaMB, branch `nurbs/quotient-second-order` from 092b3022.
+  - **Scope:**
+    - `patch_bound` `rational_cells`: first- and second-order boxes, and `m_sup`;
+    - `mesh` chords `rational_carrier_m_bound`;
+    - `offset_meters` `cell_normal` / `patch_regularity`, whose inf reads the area-floor quotient;
+    - `second_derivative.rs`, if it carries a rational recipe.
+  - Closes `rational-second-derivative-bounds-have-two-recipes`. The pair-term WIP f22f608d stays unmerged; its rows carry over.
+  - **ENCL seam:** before touching `patch_bound.rs`, the lane reads #4891 as it stands and logs what it will touch. If ENCL has countered, it stops.
+  - Tier: FULL, because the second-order numerators and the witness-per-clause mutants carry real correctness risk.
