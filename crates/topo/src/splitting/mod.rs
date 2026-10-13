@@ -457,14 +457,12 @@ pub enum SplitReduceError {
     /// Two cyclically-consecutive entries remained ON after rule (a) —
     /// the "no consecutive ONs" invariant failed. For a planar operand
     /// this means a coplanar sector escaped the gate (documented
-    /// invariant, checked loudly rather than assumed). Since M5 PR 9
-    /// the conic in-plane-departure chain resolves ONE ORDER DOWN
-    /// first (the C12.2 second-order trilean,
-    /// `tangent_sector_order2`: an arc grazing the plane classifies
-    /// by which side it CURVES to), so reaching this refusal on a
-    /// conic boundary means the chain tied at second order too — a
-    /// genuinely osculating configuration this machinery will not
-    /// guess at (in-band second order escalates F6 upstream instead).
+    /// invariant, checked loudly rather than assumed). A conic's
+    /// in-plane departure reads one order down first
+    /// ([`geom_brep::conic_bend_side`]: an arc grazing the plane
+    /// classifies by which side it bends to), so reaching this refusal
+    /// on a conic boundary means a whole conic edge lay within the band
+    /// of the plane (an undecided bend escalates upstream instead).
     ConsecutiveOnSectors {
         /// The ON vertex whose neighborhood violated the invariant.
         vertex: VertexKey,
@@ -1111,9 +1109,10 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole (no
 /// degenerate body is ever emitted). The sides are gated at tier 2
-/// ([`SplitFinishError::ResultInvalid`]). Tier 3 is deliberately not run
-/// on the sides: a pinch side's touching pieces carry contacts split
-/// declares nowhere.
+/// ([`SplitFinishError::ResultInvalid`]); tier 3 is not run on them. A
+/// pinch side's touching pieces need no contact record, since their
+/// copies of the pinched vertex share its point key, and the ON verdict
+/// that pinched them is in [`SplitResult::coincidences`].
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,

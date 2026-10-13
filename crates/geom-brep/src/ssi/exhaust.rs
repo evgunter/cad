@@ -470,7 +470,7 @@ pub(super) const R3_SCALE: SizedDecision = SizedDecision {
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The chart lane's floor is finer than the wall's parameters resolve:
@@ -482,7 +482,7 @@ pub(super) const CHART_SCALE: SizedDecision = SizedDecision {
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The chart lane's floor spans no finite parameter width: the wall is
@@ -493,7 +493,7 @@ const CHART_TOO_SLOW: SizedDecision = SizedDecision {
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 impl core::fmt::Display for FloorRefusal {
@@ -967,12 +967,13 @@ fn sweep_r3(
         let e1 = implicit_enclosure(s1, cell);
         let e2 = implicit_enclosure(s2, cell);
         if !e1.is_certified() || !e2.is_certified() {
-            // The kind list in this sentence is held true by the lane
-            // gate: `cylinder_sphere_ssi` refuses `WrongLane` for
-            // every operand that is not a cylinder or a sphere.
-            // Widening that gate (admitting Cone/Torus/Nurbs to this
-            // lane) must revisit this sentence with it, or the arm
-            // starts blaming kinds it never sees.
+            // The lane gate (`cylinder_sphere_ssi`'s `WrongLane`)
+            // admits only kinds in the enclosure roster
+            // (`enclose::has_implicit_enclosure`), so a refused
+            // enclosure here is a degenerate operand, not a missing
+            // arm. A gate that admits a kind outside the roster must
+            // revisit this sentence, or the arm starts blaming a radius
+            // for a missing arm.
             return Err(SsiError::UnsupportedCertificate {
                 what: "a degenerate operand — a sphere or cylinder of zero \
                        radius, whose implicit form divides by that radius — \

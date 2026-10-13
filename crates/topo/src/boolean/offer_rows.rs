@@ -28,7 +28,8 @@
 //! The coincfr4 review's poses are adopted here (its wedges W1–W6, its
 //! turned corner cc2, its bent prism, its off-axis seam) and in `sweep`'s
 //! `offer_rows` (its dome on a tube, its off-axis spheres, its balls by a
-//! slab, its brick below a tube): a harness that passes only on its own
+//! slab; its brick below a tube refuses at the glue door, offering no
+//! value): a harness that passes only on its own
 //! poses was that review's finding. The census below is keyed per
 //! decision, and [`every_site_names_the_decision_it_raises`] keys the
 //! sites.
@@ -316,6 +317,8 @@ cases! {
         super::super::sectors::direction_sense(
             Vec3::new(1.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 0.0), D, band()
         ).map(|_| ());
+    partners_parting_by_the_band: "PartnerFaces", D, CORNER_SITE, Valued =>
+        partners_along_x(D);
     direction_just_outside_a_sector: "Coincidence(Sectors)", -D, CORNER_SITE, Valued =>
         within_a_quarter(Vec3::new(1.0, -D, 0.0));
     tangent_side_curving_away: "Coincidence(TangentSide)", D, TANGENT_SITE, Valued =>
@@ -779,16 +782,18 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
 /// least lift its bend gives it at its extent, `2·sin²(extent/2)`, is
 /// `margin`.
 fn conic_bend(margin: f64) -> Result<(), BooleanError> {
-    use super::super::sectors::{Bend, BendBounds, FaceShape, pierce_side};
+    use super::super::sectors::{FaceShape, pierce_side};
+    use geom_brep::{BendBounds, ConicBend};
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     let extent = 2.0 * (margin / 2.0).sqrt().asin();
-    let bend = Bend {
+    let bend = ConicBend {
         curvature: Vec3::new(0.0, 0.0, 1.0),
         bounds: BendBounds::Planar {
             least: 1.0,
-            most: 1.0,
             reach: core::f64::consts::FRAC_PI_2,
             rise: 1.0,
+            arc: extent,
+            lifts_to: core::f64::consts::PI,
         },
     };
     pierce_side(
@@ -804,11 +809,14 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
 
 // The join's regularity readings share one refusal. The pole distance
 // is rostered at its door below; the pair's wedge is reachable from
-// operands, and is not rostered: `classify_dihedral` is levered by the
-// shorter of the vertex's two edges, so a few-ε arc beside an
-// otherwise joinable vertex reads the wedge in the band and refuses
-// the whole boolean (`JoinUndecided`), where the boolean built before
-// the curved join (`work/fuse/a-sliver-arc-beside-a-joinable-vertex-refuses-the-boolean`).
+// operands, and is not rostered. `classify_dihedral` is levered by the
+// extent of the edge the join makes (the larger of the vertex's two
+// edges'), so the wedge reads in the band only where the pair itself
+// nearly turns tangent at the vertex: a vertex near a crossing of the
+// locus. A few-ε arc is not the way in: its own certification refuses
+// it at mint (`Certification` `Escalated { Transversality }`), so no
+// certified edge beside the vertex is that short
+// (`crates/sweep/tests/join_lever_is_the_joined_edge.rs`).
 const EDGE_JOIN_SITE: Door = Door::Site(
     "a valence-2 vertex's distance from its chart's pole is read inside the join's predicate, \
      on a vertex an output stage leaves between two edges of one carrier, which no pair of \
@@ -868,7 +876,7 @@ fn tangent_side(arm_gate: bool) -> Result<(), BooleanError> {
     } else {
         (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt()
     };
-    let read = DeclarationRead::Spent(GlueClass::TANGENT);
+    let read = DeclarationRead::Spent(GlueClass::Tangent);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
 }
 
@@ -1141,7 +1149,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
 /// review's probe, undeclared).
 fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
     use super::super::recl::resolve_edge_edge;
-    use super::super::sectors::{BoolSector, PairRecord};
+    use super::super::sectors::BoolSector;
     let tol = Tol::witness();
     let o = Point3::new(0.0, 0.0, 0.0);
     let (x, y, z) = (
@@ -1185,17 +1193,9 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(y, true),
         arm,
     };
-    let records = [PairRecord {
-        a: 0,
-        b: 0,
-        sa: (super::super::SideCode::On, super::super::SideCode::Out),
-        sb: (super::super::SideCode::Out, super::super::SideCode::In),
-        intersect: true,
-    }];
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     resolve_edge_edge(
-        &records,
         &corner(fca),
         &corner(fcb),
         &ca,
@@ -1282,6 +1282,79 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
     super::super::sectors::within(&s, dir, false, DeclarationRead::Moot, band()).map(|_| ())
 }
 
+/// **Corners flush along an edge refuse with the lever alone**: the
+/// decided zero of [`BooleanDecision::PartnerFaces`] refuses with its
+/// decided margin, as the in-band arm does, and offers no tolerance:
+/// no smaller one parts faces that lie on one half-plane.
+#[test]
+fn corners_flush_along_an_edge_refuse_with_the_lever_alone() {
+    let err = partners_along_x(0.0).expect_err("flush corners refuse");
+    assert!(
+        matches!(
+            err,
+            BooleanError::Escalated {
+                decision: BooleanDecision::PartnerFaces,
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+    let text = err.to_string();
+    assert!(
+        text.contains("lands clear of them") && !text.contains("tighten"),
+        "{text}"
+    );
+}
+
+/// An edge along x on the boundaries of two corners of one solid, each
+/// with one face leaving it: one in the plane z = 0, the other's turned
+/// `tilt` about x, so their half-planes part by `tilt` at the unit
+/// reach.
+fn partners_along_x(tilt: f64) -> Result<(), BooleanError> {
+    use super::super::sectors::BoolSector;
+    use super::super::vtxfac::PairRead;
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let x = Vec3::new(1.0, 0.0, 0.0);
+    let sector = |end: Vec3<f64>| BoolSector {
+        he: crate::entity::HalfEdgeKey::default(),
+        start: x,
+        end,
+        start_reach: Reach::Chord {
+            base: o,
+            far: o + x,
+        },
+        end_reach: Reach::Chord {
+            base: o,
+            far: o + end,
+        },
+        face: crate::entity::FaceKey::default(),
+        normal: OutwardNormal::from_chart(x.cross(end), true),
+        arm: 1.0,
+    };
+    let partner = |end| PairRead {
+        partner: VertexKey::default(),
+        side: None,
+        read: None,
+        sectors: vec![sector(end)],
+    };
+    let flat = partner(Vec3::new(0.0, 1.0, 0.0));
+    let turned = partner(Vec3::new(0.0, tilt.cos(), tilt.sin()));
+    let edge = BoolSector {
+        start: Vec3::new(0.0, -1.0, 0.0),
+        start_reach: Reach::Chord {
+            base: o,
+            far: o + Vec3::new(0.0, -1.0, 0.0),
+        },
+        end: x,
+        end_reach: Reach::Chord {
+            base: o,
+            far: o + x,
+        },
+        ..sector(Vec3::new(0.0, -1.0, 0.0))
+    };
+    super::super::vtxfac::along_partners(&edge, &[&flat, &turned], band()).map(|_| ())
+}
+
 /// A declared-`Tangent` cylinder resting on a floor along a ruling from
 /// the side `side` (`+1` above), at the arm whose sagitta is `D`.
 fn tangent_side_of(side: f64) -> Result<(), BooleanError> {
@@ -1296,7 +1369,7 @@ fn tangent_side_of(side: f64) -> Result<(), BooleanError> {
         -geom_brep::implicit_hessian_form(s, p, d) / geom_brep::implicit_gradient(s, p).dot(n.vec())
     };
     let arm = (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt();
-    let read = DeclarationRead::Spent(GlueClass::TANGENT);
+    let read = DeclarationRead::Spent(GlueClass::Tangent);
     tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
 }
 
@@ -1617,9 +1690,8 @@ fn planar_flank_membership(against: bool, rest: bool) -> Result<(), BooleanError
 
 /// [`planar_flank_membership`] at the flankers' arm `arm`.
 fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(), BooleanError> {
-    use super::super::SideCode::{In, On, Out};
     use super::super::recl::resolve_edge_edge;
-    use super::super::sectors::{BoolSector, PairRecord};
+    use super::super::sectors::BoolSector;
     let tol = Tol::witness();
     let o = Point3::new(0.0, 0.0, 0.0);
     let (x, y, z) = (
@@ -1647,13 +1719,6 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         normal: OutwardNormal::from_chart(y, true),
         arm,
     };
-    let records = [PairRecord {
-        a: 0,
-        b: 0,
-        sa: (On, Out),
-        sb: (Out, In),
-        intersect: true,
-    }];
     let flank = if against { -x } else { x };
     let decls = Glue {
         pairs: if rest {
@@ -1666,7 +1731,6 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
     let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, band())?;
     resolve_edge_edge(
-        &records,
         &[sector(z, x, fa), sector(x, z, fa)],
         &[sector(z, flank, fb), sector(flank, z, fb)],
         &pa.body,
@@ -2268,6 +2332,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::PointInFaceRefused
         | BooleanErrorKind::RestPieceUnread
+        | BooleanErrorKind::CarryRefused
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
         | BooleanErrorKind::UnjoinedOperand
@@ -2278,15 +2343,15 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ContactContradicted
         | BooleanErrorKind::ContinuationContradicted
         | BooleanErrorKind::UnsupportedDeclarationClass
-        | BooleanErrorKind::SeamContradicted
         | BooleanErrorKind::RimCuspArmUnbuilt
-        | BooleanErrorKind::TangentSlitArmUnbuilt
         | BooleanErrorKind::InvalidInput
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchConesOnSeparateKeys
         | BooleanErrorKind::PinchRaysInAFace
         | BooleanErrorKind::VertexReadTwice
+        | BooleanErrorKind::PartnerAlongFace
+        | BooleanErrorKind::NestingUnread
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
@@ -2296,6 +2361,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::GermFrameCylinderPinch
         | BooleanErrorKind::JoinDesync
+        | BooleanErrorKind::LineageRow
         | BooleanErrorKind::EdgeUndescribed
         | BooleanErrorKind::JoinCarrierUnsupported
         | BooleanErrorKind::TornComponent
@@ -2560,6 +2626,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ArcSphereRoots",
         1,
     ),
+    ("glue.rs", "tangency", "Coincide::Rim", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
@@ -2631,20 +2698,16 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
-    ("mod.rs", "tangent_rim_refusal", "Coincide::Rim", 1),
+    ("mod.rs", "route_rim", "Coincide::Rim", 1),
     (
         "mod.rs",
-        "verify_tangency_declaration",
-        "Coincide::Contact",
-        1,
-    ),
-    ("mod.rs", "verify_tangency_declaration", "Coincide::Rim", 2),
-    (
-        "mod.rs",
-        "verify_tangency_declaration",
+        "locus_through_both_faces",
         "Coincide::TangentLocus",
         2,
     ),
+    ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
+    ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
+    ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
     (
         "ops.rs",
         "bound_holds",
@@ -2676,14 +2739,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Nested", 1),
-    ("ops.rs", "ee_lineage", "BooleanDecision::SelfCheck", 1),
-    ("ops.rs", "ee_lineage", "BooleanDecision::VertexOnVertex", 1),
-    ("ops.rs", "ee_lineage", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "carried", "BooleanDecision::VertexOnVertex", 1),
     ("ops.rs", "piece_holds", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "piece_holds", "SelfCheck::CarriedLineage", 1),
-    ("ops.rs", "ledger", "BooleanDecision::SelfCheck", 1),
-    ("ops.rs", "ledger", "BooleanDecision::VertexOnVertex", 1),
-    ("ops.rs", "ledger", "SelfCheck::CarriedLineage", 1),
     ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
     (
@@ -2699,10 +2757,11 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "recl.rs",
         "resolve_edge_edge",
         "Coincide::CurvedFlankSense",
-        2,
+        1,
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
+    ("recl.rs", "resolve_edge_sector", "Coincide::TangentSide", 1),
     ("recl.rs", "unglued_tilt", "Coincide::Sectors", 2),
     ("recl.rs", "wedge_is_reflex", "Coincide::Sectors", 1),
     (
@@ -2827,17 +2886,24 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "read_side", "LeverArm::SectorSide", 1),
     ("sectors.rs", "runs_in", "Coincide::EdgeOnPlane", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
+    ("sectors.rs", "tangent_lump", "Coincide::TangentSide", 1),
     (
         "sectors.rs",
         "tangent_relative_side",
         "LeverArm::SectorCurving",
         1,
     ),
-    ("sectors.rs", "within", "Coincide::Sectors", 1),
+    ("sectors.rs", "within_signs", "Coincide::Sectors", 1),
     (
         "sphere_region.rs",
         "-",
         "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
+    (
+        "vtxfac.rs",
+        "along_partners",
+        "BooleanDecision::PartnerFaces",
         1,
     ),
     (

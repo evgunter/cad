@@ -13,7 +13,7 @@
 use core::f64::consts::PI;
 
 use geom_core::k_stats::Bracket;
-use geom_core::{Affine3, Point3, Tol, Vec3};
+use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::{block, brick, finished};
 use topo::ShellNaming;
 use topo::{Body, FaceKey, ShellError, ShellRole, SolidKey};
@@ -252,7 +252,7 @@ fn r2_a_solid_of_only_cavities_is_refused_at_the_gate() {
     let cube = |at: Vec3<f64>| {
         topo::transform_rigid(
             &block(0.5, 0.5, 0.5, Tol::witness()),
-            &Affine3::translation(at),
+            &geom_core::RigidMotion::translation(at).unwrap(),
             tol(),
         )
         .unwrap()
@@ -536,7 +536,7 @@ fn r2_e2e_consumer_seat() {
     let mut assembly = part_a.clone();
     let placed = topo::transform_rigid(
         &part_b,
-        &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),
+        &geom_core::RigidMotion::translation(Vec3::new(10.0, 0.0, 0.0)).unwrap(),
         tol(),
     )
     .unwrap();

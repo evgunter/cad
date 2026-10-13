@@ -3,8 +3,8 @@
 //! pair opening the cosurface reduction rung and the carrier lump at
 //! both wall sites; a tangency the DEV-1 witness lane verifies descends
 //! to the second-order sector trilean, save a union whose ruling runs
-//! through a plane face's interior, which refuses until the
-//! doubled-slit arm is built.
+//! through a plane face's interior, which refuses until the reduction
+//! records a face–face curve touch.
 //!
 //! The canonical reachability fixture is the two-peg kernel shape's
 //! core: a bored plate (through-hole subtract) and an exactly-filling
@@ -139,8 +139,9 @@ fn lying_cyl(zc: f64) -> AtRestBody<f64> {
 }
 
 /// The Tangent door on the witness lane's own rows: an in-band gap
-/// ESCALATES, and the touching pair VERIFIES, and its union then
-/// refuses because the ruling runs through the plate top's interior.
+/// ESCALATES, and the touching pair VERIFIES, and its union is the two
+/// solids touching along the cylinder's edge on the ruling, which lies
+/// in the plate top's interior: an edge–face record, no face–face one.
 #[test]
 fn tangent_door_escalates_and_verifies() {
     let a = finished("the plate", plate(), Tol::witness());
@@ -164,16 +165,16 @@ fn tangent_door_escalates_and_verifies() {
             .any(|x| x.predicate == "pc_parallel_gap" && x.sign == Sign::Zero),
         "the witness lane must have derived the ruling from the section's tangent gap"
     );
-    // Verified, and the ruling runs through the plate top's interior:
-    // the union would have material on both sides of it, the doubled
-    // slit #131 rules for, whose arm is unbuilt, so it refuses typed.
     match out {
-        Err(BooleanError::TangentSlitArmUnbuilt { interior, .. }) => {
-            assert_eq!(interior, topo::Operand::A, "the plate top's interior");
+        Ok(topo::BooleanResult::Body(r)) => {
+            assert_eq!(r.body.solids().count(), 2, "two solids");
+            assert_eq!(r.contacts.edge_face().count(), 1, "the edge on the ruling");
+            assert_eq!(
+                r.contacts.face_face().count(),
+                0,
+                "no face holds the ruling inside"
+            );
         }
-        other => panic!(
-            "the verified tangent union refuses as the unbuilt slit arm: {:?}",
-            other.map(|_| ())
-        ),
+        other => panic!("the verified tangent union: {:?}", other.map(|_| ())),
     }
 }

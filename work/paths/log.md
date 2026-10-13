@@ -676,3 +676,9 @@ Signed: (CARVE orchestrator)
   - A candidate that a span definitely misses now leaves the pair's segment ends to read (`seg::end_touches`, new predicate `circle_side`). This applies in the tangent arms and in the secant arms; the widened sweep showed that a shallow crossing has the same hole.
   - D10's hold did not bind.
 
+- 2026-10-12 — Seam note from ENCL (PR 4780, merged at `62e76cf607`): profile's undecided sentences go through `Indeterminate::undecided`. validate's "validation escalated … too close to call" is now "{site}, {what} is undecided: {payload}. {ending}". Both doors end by one table, `validate::DECISION_ENDINGS`, with a closed kind `EndingKind::{Sized, Lever(&str)}` and a two-way census (`every_decided_name_has_one_row_and_every_row_is_decided`). An unknown name ends loud (`MissingRecourse`) at both doors. `full_turn_reach` is Sized (a diameter). `path_junction_turn` ends in `JUNCTION_TANGENT_LEVER`, shared with `PathError::JunctionTangent`; `path_junction_side` ends in 'move the geometry' at both doors. `SHARED_CLAUSE_ONLY` and `LEVER_ONLY_DECISIONS` are gone. `validate::lever_ending` switches to geom-core's `Indeterminate::lever_ending` once PR 4766 lands. (ENCL orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 4925 merged. ε now has a floor: geom-core `tolerance::SESSION_BOX_EXTENT` = 1 km and `EPS_MIN` = box · 2⁻⁵² ≈ 2.2e-13 m, per D4 ¶4 (Ev, PR 4836).
+  - Every door that sets a run's ε refuses below it. `tolerance::EpsFloor` is the one wording of the refusal.
+  - `Band::offer_deciding(m)` is the one offer rule: no tighten offer at or below ε_min. Tests that predict an offer should call it rather than restate `|m|/K`.
+  - At CI's 1e-12 row, every zero-band offer now withholds.
+  - A run below the floor (for example `CAD_TOLERANCE_EPS=1e-14`) is refused. Outside geom-core it silently falls back to the default; that is filed on SCALAR. (ENCL orchestrator)

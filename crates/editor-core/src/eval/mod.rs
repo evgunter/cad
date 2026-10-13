@@ -29,7 +29,9 @@ pub use parts::PartFault;
 pub(crate) mod schedule;
 pub(crate) mod slots;
 mod wire;
-pub(crate) use wire::decision_words;
+pub(crate) use wire::{
+    DECISION_WORDS, EVAL_DIRECTION_NORM, PATTERN_SPACING, PATTERN_STEP, PATTERN_STEP_TURN,
+};
 
 pub(crate) use wire::{
     DATUM_AXIS_ROLE, SteppedOperands, TRANSFORM_AXIS_ROLE, need_scalar, need_vec3,
@@ -1478,6 +1480,10 @@ pub enum NodeErrorKind {
     Boolean(BooleanError),
     /// The rigid-transform op refused.
     Transform(TransformError),
+    /// A placement's rigid motion was not minted (a part of it is not
+    /// a finite number) or not admitted (a literal frame, or a map the
+    /// mate solve composed, that the decided door refuses).
+    Motion(geom_core::RigidMotionError),
     /// The §10.3/§10.4 construction refused (M5 PR 10 §2's typed
     /// compatibility door): section shapes that do not correspond,
     /// open/closed mixing, degenerate sections, an unusable v-degree,
@@ -1706,6 +1712,36 @@ pub enum NodeErrorKind {
     },
     /// A decided predicate escalated (in-band indeterminacy).
     Escalated {
+        /// The named predicate.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: Indeterminate,
+    },
+    /// **A measurement's parallelism read escalated** (D10's Measure
+    /// ground): the measure door's own sentence, which [`Self::Escalated`]'s
+    /// does not speak for. Its class is [`NodeErrorClass::Escalated`].
+    MeasureEscalated {
+        /// The named predicate.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: Indeterminate,
+    },
+    /// **A placement frame's rotation axis escalated** (D10's placement
+    /// ground): the sentence `EditError::PlacementAxis` carries, which
+    /// [`Self::Escalated`]'s does not speak for. Its class is
+    /// [`NodeErrorClass::Escalated`].
+    PlacementAxisEscalated {
+        /// The named predicate.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: Indeterminate,
+    },
+    /// **A pose's or datum's direction escalated** (D10's pose ground):
+    /// a datum's axis, normal or frame axis, or a pose construction's
+    /// direction, in the sentence [`Self::FrameDirection`] also carries,
+    /// which [`Self::Escalated`]'s does not speak for. Its class is
+    /// [`NodeErrorClass::Escalated`].
+    PoseDirectionEscalated {
         /// The named predicate.
         predicate: &'static str,
         /// The escalation, unaltered.
@@ -2163,6 +2199,7 @@ impl crate::spoken::Say for NodeErrorKind {
             // own, and a coincidence refusal carries its own recourse.
             Self::Boolean(e) => write!(f, "the Boolean op refused: {e}"),
             Self::Transform(e) => write!(f, "the transform op refused: {e}"),
+            Self::Motion(e) => write!(f, "the placement's motion refused: {e}"),
             Self::Skin(e) => write!(f, "the skin construction refused: {e}"),
             Self::Loft(e) => write!(f, "the loft assembly refused: {e}"),
             Self::CurvedSolidFrontier { what } => write!(f, "not yet buildable: {what}"),
@@ -2317,6 +2354,16 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::Escalated { predicate, source } => {
                 // What the decision was deciding, in words; the name is
                 // routing and rides `Debug`.
+                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
+                write!(
+                    f,
+                    "{}",
+                    source.undecided(what, crate::decision::ending(predicate, source))
+                )
+            }
+            Self::MeasureEscalated { predicate, source }
+            | Self::PlacementAxisEscalated { predicate, source }
+            | Self::PoseDirectionEscalated { predicate, source } => {
                 let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(f, "{what} is too close to call: {source}")
             }
@@ -4069,9 +4116,8 @@ where
     if let Some(&(group, cause)) = op_env.across.get(&id) {
         return fail(bracket, NodeErrorKind::Unplaced { group, cause });
     }
-    // An instance's group frame, in this lane: read before the key,
-    // which it feeds, and again by the op (the profile program's
-    // precedent below says why twice is right).
+    // An instance's group frame, in this lane: read once, before the
+    // key, which it feeds, and handed to the op.
     let group_frame = match wire::instance_frame(doc, id, op_env.poses, env, tol) {
         Ok(frame) => frame,
         Err(kind) => return fail(bracket, kind),
@@ -4294,6 +4340,7 @@ where
         &slot_values,
         payload.as_ref(),
         profile_pre.as_ref(),
+        group_frame,
         op_env,
         tol,
     );
@@ -4940,6 +4987,10 @@ impl<T: geom_core::Decide + ContentBits> SolveAnswer<T> {
         frame_bits(h, &pose.right);
         match frame {
             crate::placement::Motion::Identity => h.write_tag(tag::presence::ABSENT),
+            crate::placement::Motion::Rigid(rigid) => {
+                h.write_tag(tag::presence::PRESENT);
+                frame_bits(h, &rigid.to_affine());
+            }
             crate::placement::Motion::Map(map) => {
                 h.write_tag(tag::presence::PRESENT);
                 frame_bits(h, &map);
@@ -6297,11 +6348,15 @@ fn extrude_side_tag(side: crate::node::ExtrudeSide) -> u8 {
     }
 }
 
-fn sense_tag(sense: crate::names::Sense) -> u8 {
+/// A crossing sense's key tag: a run line with no sense (a seam) is 0.
+fn sense_tag(sense: Option<crate::names::Sense>) -> u8 {
     use crate::names::Sense;
     match sense {
-        Sense::Enters => 1,
-        Sense::Leaves => 2,
+        None => 0,
+        Some(Sense::Enters) => 1,
+        Some(Sense::Leaves) => 2,
+        Some(Sense::Outside) => 3,
+        Some(Sense::Inside) => 4,
     }
 }
 
@@ -6553,18 +6608,14 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::Crossing { edge, face, sense } => {
             h.name(edge);
             h.name(face);
-            h.write_tag(sense_tag(*sense));
+            h.write_tag(sense_tag(Some(*sense)));
         }
-        RoleSeg::EdgeCrossing {
-            a,
-            a_sense,
-            b,
-            b_sense,
-        } => {
-            h.name(a);
-            h.write_tag(sense_tag(*a_sense));
-            h.name(b);
-            h.write_tag(sense_tag(*b_sense));
+        RoleSeg::EdgeCrossing(run) => {
+            h.write_u64(run.len() as u64);
+            for l in run {
+                h.name(&l.line);
+                h.write_tag(sense_tag(l.sense));
+            }
         }
         RoleSeg::Merged(names) => {
             h.write_u64(names.len() as u64);
@@ -6593,7 +6644,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::CrossingVertex { side, edge, sense } => {
             h.write_tag(half(*side));
             h.name(edge);
-            h.write_tag(sense_tag(*sense));
+            h.write_tag(sense_tag(Some(*sense)));
         }
         RoleSeg::OnToolVertex { side, of } => {
             h.write_tag(half(*side));

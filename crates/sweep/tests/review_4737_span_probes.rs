@@ -1,6 +1,7 @@
-//! Review probes for PR 4737 (`record_spans`, `ee_lineage`): poses that
-//! stress a span's bounds, printed one line per run so base and head
-//! diff. Run with `--ignored --nocapture`.
+//! Review probes for `record_spans` and the carry of an edge-edge record
+//! onto the reduction's split pieces (`ops::carried`): poses that stress
+//! a span's bounds, printed one line per run so base and head diff. Run
+//! with `--ignored --nocapture`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -129,7 +130,12 @@ fn turned(b: &topo::Body<f64>, angle: f64) -> AtRestBody<f64> {
     let b = if angle == 0.0 {
         b.clone()
     } else {
-        topo::transform_rigid(b, &rot(angle), tol()).unwrap()
+        topo::transform_rigid(
+            b,
+            &geom_core::test_support::rigid(&rot(angle), tol()),
+            tol(),
+        )
+        .unwrap()
     };
     finished("op", b, tol())
 }

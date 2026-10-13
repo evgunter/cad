@@ -158,11 +158,28 @@ fn sans_epsilon(t: &str) -> String {
 /// row held its word, and no point moved. Re-taken merged over
 /// FORK-DM4 unit 1 (PR 4527), whose names keyed by read had moved the
 /// same rows on main.
+///
+/// **Re-pinned for the killed-lineage chase** (`emit_topo`'s
+/// `KilledSplits`): `crossing_slots` only. Its second slot's bottom rim
+/// reaches the result in pieces split off around stretches the subtract
+/// killed. Those pieces were read as chords, and one was named a seam of
+/// the first slot's floor and the second slot's wall. They are now
+/// pieces of that rim. Two floor corners moved with them: one from a
+/// junction of three seam lines to a crossing of the rim, and one from
+/// a face crossing to the seam vertex of two edges that touch. Every
+/// other document held its word.
+///
+/// **Re-pinned for the vertex run** (N2: an `EdgeCrossing` is a run of
+/// (line, sense) in name order): `corner_table` and `crossing_slots`,
+/// the two documents whose pair booleans meet edge to edge. Their
+/// tables are the old ones with each edge × edge vertex re-spelled: read
+/// as a set of (line, sense), every run is the pair it replaced, and no
+/// other row moved; the persisted text did not move.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xd72f039cbf03dff5, 0xc4419fe7887fa041),
-    ("corner_table", 0xd096c8d3473a2924, 0xcc1c35defda29f84),
+    ("corner_table", 0x9ea78d8780a1cd68, 0xcc1c35defda29f84),
     ("heat_sink", 0x28a1b80da248137b, 0xf4af7c24a597adea),
-    ("crossing_slots", 0x08118a9b072194e7, 0xfd8f77c1f5dd4008),
+    ("crossing_slots", 0x3086170ae41a9a89, 0xfd8f77c1f5dd4008),
     ("nested_islands_105", 0x909dbef37a66ff00, 0xfbb23451ffa46126),
     (
         "nested_islands_106_depth1",

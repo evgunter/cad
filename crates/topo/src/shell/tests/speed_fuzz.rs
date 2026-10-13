@@ -1,4 +1,5 @@
-//! The counterexample search behind [`super::super::spline_speed`]:
+//! The counterexample search behind the spline speed bound the shell
+//! reads (`NurbsCurve3::speed_upper_bound`):
 //! rational splines nobody chose, on knots nobody chose, sampled densely
 //! against the speed bound the tilted read balls their pieces with.
 
@@ -8,14 +9,13 @@ test_utils::gated_to![
     "crates/geom-core/src/spline/",
 ];
 
-use super::super::spline_speed;
 use geom_core::Point3;
 
 /// **No rational spline is faster than its bound.** Degrees 1 to 3,
 /// up to eight control points in a box of side 2, weights spread over
 /// three decades (the weight term carries the bound there), interior
 /// knots drawn and sorted: `|C′|` at 400 parameters never exceeds
-/// [`spline_speed`].
+/// `speed_upper_bound`.
 #[test]
 fn no_rational_spline_outruns_its_speed_bound() {
     let mut rng = test_utils::fuzz::start("shell spline speed");
@@ -41,7 +41,7 @@ fn no_rational_spline_outruns_its_speed_bound() {
             continue;
         };
         let spline = geom::NurbsCurve3::new(kv, control, weights).unwrap();
-        let bound = spline_speed(&spline);
+        let bound = spline.speed_upper_bound().get();
         for k in 0..=400 {
             let t = k as f64 / 400.0;
             let speed = spline.deriv(t).norm();

@@ -2,10 +2,12 @@
 id: a-vertex-on-face-row-follows-its-face-not-the-part-it-rests-on
 kind: issue
 title: A vertex-on-face row follows its face's lineage, not the part of the face the vertex rests on: ∩ keeps it stale, ∖ drops it
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
+closed: 2026-10-13
+pr: 4650
 ---
 
 
@@ -71,3 +73,13 @@ On that branch `a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_o
 passes tier 3′ in all six ops with the pin flipped (`drops` removed).
 The row does not need INTENT stage 4: the records are discovered, not
 declared. Left for FUSE's orchestrator to close on the merge.
+
+## 2026-10-13, closed (FUSE, PR 4893)
+
+First fixed by FLUSH's PR 4650 (`Descendants::holder`). CONTACTHOLD's
+one carry (PR 4820) has since replaced `holder`: a divided face goes
+through `boolean::ops::place_found` and the census's record confirm
+(`records::landings`). On the merge of main into PR 4893,
+`a_dangling_null_edge_holding_another_pairs_cut_builds_in_every_op`
+(`crates/topo/tests/union_flush_onto_edge_contact.rs`) passes tier 3′
+in all six ops with no pin left.

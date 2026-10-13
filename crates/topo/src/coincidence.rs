@@ -17,8 +17,11 @@
 //! result holds. A pair on one surface key is structure and is not
 //! recorded, and an ON verdict that only places topology is not a
 //! coincidence (D1): a vertex identity is recorded only where a record
-//! citing it survives, and a boolean's face-pair decision only where
-//! the two faces meet, at a point, an edge or an area.
+//! citing it survives or the op's copies of the vertex touch in the
+//! result (a pinch the op made: copies an operand already held on one
+//! key are its structure, and record nothing), and a boolean's
+//! face-pair decision only where the two faces meet, at a point, an
+//! edge or an area.
 
 use geom_core::MarginDiag;
 
@@ -77,9 +80,9 @@ pub enum Relation {
     SameOpposite,
     /// The first cell lies on the second's carrier.
     OnCarrier,
-    /// The two cells make equal angles with a third (an isosceles
-    /// turn, whose mitre lands on that third edge).
-    EqualAngles,
+    /// The two cells' bands end at one point of a third edge (a turn
+    /// whose mitre lands on that edge).
+    CommonFoot,
     /// The two cells meet in first-order contact: their tangent lines
     /// at the common point are one line, the second carrying on the
     /// first's heading through it (`aligned`, a smooth joint) or
@@ -89,13 +92,10 @@ pub enum Relation {
         /// reversing it.
         aligned: bool,
     },
-    /// Two surfaces touch tangentially along a locus: their outward
-    /// sides opposed (a tangent contact) or, `seam`, one surface carried
-    /// on into the other.
-    TangentContact {
-        /// The outward sides agree: a seam.
-        seam: bool,
-    },
+    /// Two surfaces on distinct carriers tangent along a locus. It says
+    /// nothing of the materials: whether the outward sides agree is a
+    /// fact of the two faces' senses, read off them where it matters.
+    SurfaceTangent,
     /// The two cells' carriers' axes of revolution are one line.
     Coaxial,
     /// The two cells' carriers are ruled along one direction, so one
@@ -107,19 +107,18 @@ pub enum Relation {
 impl Relation {
     /// The class a face pair glued under this relation glues as: one
     /// carrier opposed a `Rest` contact, aligned a continuation, a
-    /// tangency a `Tangent` contact or a seam. `None` for a relation
-    /// that glues no face pair.
+    /// tangency `Tangent`. `None` for a relation that glues no face
+    /// pair.
     #[must_use]
     pub const fn glued_class(self) -> Option<crate::contact::GlueClass> {
         use crate::contact::GlueClass as C;
         match self {
-            Self::SameOpposite => Some(C::REST),
+            Self::SameOpposite => Some(C::Rest),
             Self::SameOriented => Some(C::Continuation),
-            Self::TangentContact { seam: false } => Some(C::TANGENT),
-            Self::TangentContact { seam: true } => Some(C::Seam),
+            Self::SurfaceTangent => Some(C::Tangent),
             Self::Tangent { .. }
             | Self::OnCarrier
-            | Self::EqualAngles
+            | Self::CommonFoot
             | Self::Coaxial
             | Self::CoRuled => None,
         }
@@ -149,7 +148,9 @@ pub enum DecisionSite {
     /// with two or more runs on one side, so pieces of one side touch
     /// there.
     SplitOn,
-    /// The blend battery's isosceles turn (`fillet3_turn_isosceles`).
+    /// The blend battery's turn whose two bands' feet on its third edge
+    /// are one point (`fillet3_turn_feet_gap` and
+    /// `fillet3_turn_overrun_chord`, jointly).
     BatteryTurn,
     /// The blend battery's chain junction, its two links decided
     /// tangent so one band runs through it (`fillet3_chain_g1`).
@@ -164,7 +165,7 @@ pub enum DecisionSite {
     /// A boolean's vertex identity: a vertex of one operand decided on
     /// a vertex, an edge or a face of the other, or a carried record's
     /// vertex on a vertex the reduction minted, whose touch survives
-    /// into the result.
+    /// into the result, as a record or as a pinch.
     VertexFusion,
     /// The at-rest census: two cells of different groups of a body at
     /// rest (two copies, two imported instances) decided one, or two
@@ -173,24 +174,27 @@ pub enum DecisionSite {
 }
 
 /// **How a row's Zero was discharged**: against the band, or, in a
-/// replay at `Sym`, as a theorem of the symbolic tier (ERROR-DESIGN
-/// E12) — the deciding margin identically zero in the variables.
+/// replay at `Sym`, proven by the symbolic tier (ERROR-DESIGN E12) —
+/// the deciding margin zero wherever the construction takes the
+/// decisions it took. It says that the margin is zero, and nothing
+/// about how the tier proved it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Discharge {
     /// The margin was classified against the band.
     Numeric,
     /// The symbolic tier proved the margin zero.
-    Theorem(geom_core::Theorem),
+    Proven,
 }
 
 impl Discharge {
     /// How `margin`'s Zero was discharged, as its decision stamped it
-    /// ([`MarginDiag::theorem`]).
+    /// ([`MarginDiag::proven`]).
     #[must_use]
     pub const fn of(margin: MarginDiag) -> Self {
-        match margin.theorem() {
-            Some(how) => Self::Theorem(how),
-            None => Self::Numeric,
+        if margin.proven() {
+            Self::Proven
+        } else {
+            Self::Numeric
         }
     }
 }

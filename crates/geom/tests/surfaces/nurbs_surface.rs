@@ -275,6 +275,47 @@ fn surface_removal_bound_is_honest() {
     }
 }
 
+/// **The surface twins refuse a zero written weight too.** Every
+/// `u` operation runs the curve plan per `u` column and every `v`
+/// operation the same by transpose, so a bilinear net of the least
+/// subnormal weight meets the curve's collapse in both directions: a
+/// midpoint insertion, the same point as a refinement, and a degree
+/// elevation (coefficient `½`), each refused rather than admitted.
+#[test]
+fn a_surface_knot_operation_that_would_write_a_zero_weight_is_refused() {
+    use geom_core::spline::KnotAlgebraError;
+    let w = f64::from_bits(1);
+    let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let s = NurbsSurface::new(
+        k(),
+        k(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 1.0),
+        ],
+        vec![w; 4],
+    )
+    .expect("a least-subnormal weight is positive and finite");
+    // Index 1 in both directions: the slot each operation writes along
+    // its own direction, so a `v` index mis-mapped through the
+    // transpose reads another slot.
+    let refused = |what: &str, r: Result<NurbsSurface<f64>, KnotAlgebraError>| {
+        assert_eq!(
+            r.map(|_| ()),
+            Err(KnotAlgebraError::WeightCollapse { index: 1 }),
+            "{what}"
+        );
+    };
+    refused("insert_knot_u", s.insert_knot_u(0.5, 1));
+    refused("insert_knot_v", s.insert_knot_v(0.5, 1));
+    refused("refine_knots_u", s.refine_knots_u(&[0.5]));
+    refused("refine_knots_v", s.refine_knots_v(&[0.5]));
+    refused("elevate_degree_u", s.elevate_degree_u(1));
+    refused("elevate_degree_v", s.elevate_degree_v(1));
+}
+
 /// Spec row 3, surface side: refusals typed and exact.
 #[test]
 fn surface_construction_refusals_are_typed() {

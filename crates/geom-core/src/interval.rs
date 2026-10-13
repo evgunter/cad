@@ -572,6 +572,15 @@ impl Real for Interval {
         self.0.is_nai() || self.0.is_empty()
     }
 
+    /// Both endpoints finite, and not poison: `[MAX, ∞]` from an
+    /// overflow is unbounded, where [`is_finite_length`]'s `x − x`
+    /// reads the entire line and not poison.
+    ///
+    /// [`is_finite_length`]: crate::real::is_finite_length
+    fn is_bounded(self) -> bool {
+        !Real::is_poison(self) && self.0.lo().is_finite() && self.0.hi().is_finite()
+    }
+
     /// The hull `[⌊lo⌋, ⌊hi⌋]` — floor spans integers ⇒ the hull is the
     /// honest enclosure (containment is the contract; a step function
     /// has no tighter interval image). Decoration per IEEE 1788: a box
@@ -866,26 +875,13 @@ impl crate::spline::SpanLocate for Interval {
         crate::spline::blossom::restrict_window(window, span, ends)
     }
 
-    fn refine_homogeneous(
-        refinement: &crate::spline::RingRefinement,
-        _knots: &crate::spline::Knots<Self>,
-        channel: &[Self],
-    ) -> Vec<Self> {
-        refinement.refine(channel)
-    }
-
-    fn refine_weights(
-        refinement: &crate::spline::RingRefinement,
-        _knots: &crate::spline::Knots<Self>,
-        weights: &[Self],
-    ) -> Option<Vec<Self>> {
-        let refined = refinement.refine(weights);
-        crate::spline::algebra::certainly_positive(&refined).then_some(refined)
-    }
-
     fn point_value(self) -> Option<f64> {
         let (lo, hi) = (Bounds::lo(self), Bounds::hi(self));
         (lo == hi && !lo.is_nan()).then_some(lo)
+    }
+
+    fn plain_constant(self) -> Option<f64> {
+        self.point_value()
     }
 
     fn split_projective<A: crate::spline::ProjectiveSplit<Self>>(arm: A) -> A::Out {

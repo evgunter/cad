@@ -65,12 +65,6 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
         s.early && s.const_fold && s.registered,
         "on top of the early walk, A0 and the door: {s:?}"
     );
-    assert!(
-        !s.signed_root,
-        "rule C's own fold at `sqrt`/`abs` stays dial-off: it is inert at the shipped ring \
-         width and costs ~2x. The decision read is the value read that DOES ship, at the \
-         ops rule C never reached, and it has a dial of its own"
-    );
     let off = SymRules::without_the_algebra();
     assert!(
         !off.trig_of_atan
@@ -124,7 +118,6 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             early: true,
             early_ab: false,
             trig_of_atan: false,
-            signed_root: false,
             common_factor: false,
             manifest_sign: false,
             canonical_root: false,
@@ -146,7 +139,6 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             early: true,
             early_ab: true,
             trig_of_atan: true,
-            signed_root: false,
             common_factor: true,
             manifest_sign: true,
             canonical_root: true,
@@ -162,7 +154,7 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
 
 /// The plate's per-predicate split at the nominal
 /// (`m10_8_harness::split_at_the_nominal`).
-fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u64; 4]> {
+fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u64; 2]> {
     let doc = crate::m10_7_plate::plate(5.0e-5, 1.0e-5, tol).0;
     crate::m10_8_harness::split_at_the_nominal(&doc, rules, tol)
 }
@@ -177,68 +169,67 @@ fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u6
 /// zero form; `cos π` on the negative frame is `−1`). What is left of
 /// each after the trig is the rim identity `‖q − c‖ = r`, and the
 /// circles store their authored radius as `|r|`, so the rim at a
-/// vertex folds onto it with no registration. `symbolic_zero` does not
-/// fall anywhere: the plain form is asked first, so the algebra can
-/// only add.
+/// vertex folds onto it with no registration. `symbolic` does not fall
+/// anywhere: the plain form is asked first, so the algebra can only
+/// add.
 #[test]
 fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     let tol = Tol::witness();
     let off = split_at_the_nominal(SymRules::without_the_algebra(), tol);
     let on = split_at_the_nominal(SymRules::shipped(), tol);
-    let row = |t: &BTreeMap<&'static str, [u64; 4]>, p: &str| {
+    let row = |t: &BTreeMap<&'static str, [u64; 2]>, p: &str| {
         t.get(p)
             .copied()
             .unwrap_or_else(|| panic!("no {p} decisions"))
     };
     // The `_1`/`_2` slots are the surface pair's key order, not the
     // plate's against the cylinder's, so the pair is read as one sum.
-    let pair = |t: &BTreeMap<&'static str, [u64; 4]>, stem: &str| {
+    let pair = |t: &BTreeMap<&'static str, [u64; 2]>, stem: &str| {
         let (a, b) = (row(t, &format!("{stem}_1")), row(t, &format!("{stem}_2")));
-        core::array::from_fn::<u64, 4, _>(|i| a[i] + b[i])
+        core::array::from_fn::<u64, 2, _>(|i| a[i] + b[i])
     };
     // The split with the algebra off.
-    assert_eq!(row(&off, "carrier_matches_mapped_source"), [180, 0, 16, 56]);
-    assert_eq!(pair(&off, "carrier_on_surface"), [288, 0, 0, 72]);
-    assert_eq!(pair(&off, "witness_on_surface"), [32, 0, 0, 8]);
-    assert_eq!(row(&off, "pcurve_map_residual"), [0, 0, 0, 36]);
+    assert_eq!(row(&off, "carrier_matches_mapped_source"), [196, 56]);
+    assert_eq!(pair(&off, "carrier_on_surface"), [288, 72]);
+    assert_eq!(pair(&off, "witness_on_surface"), [32, 8]);
+    assert_eq!(row(&off, "pcurve_map_residual"), [0, 36]);
     // The algebra on.
     assert_eq!(
         row(&on, "carrier_matches_mapped_source"),
-        [252, 0, 0, 0],
+        [252, 0],
         "rule D meets the pushforward and the carrier at every sample, and the rim at a \
          vertex folds onto the authored |r|, so every one of the 72 is a THEOREM"
     );
     assert_eq!(
         pair(&on, "carrier_on_surface"),
-        [360, 0, 0, 0],
+        [360, 0],
         "both residuals at the carrier's samples, the cylinder's by rule D with A/B: THEOREMS"
     );
     assert_eq!(
         pair(&on, "witness_on_surface"),
-        [40, 0, 0, 0],
+        [40, 0],
         "both residuals at the strut witness, the cylinder's by rule D with A/B: THEOREMS"
     );
     assert_eq!(
         row(&on, "pcurve_map_residual"),
-        [36, 0, 0, 0],
+        [36, 0],
         "the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form (A1) and `cos π` \
          on the negative frame to −1; the rim folds onto |r|, so every one of the 36 is a \
          THEOREM"
     );
     assert_eq!(
         row(&on, "line_span"),
-        [8, 0, 0, 0],
+        [8, 0],
         "the plate's eight `line_span` comparisons are between two rational CONSTANTS, \
          which A0 decides exactly — THEOREMS, no value read \
          (`work/decide/a0-leaves-max-and-min-of-constants-opaque`'s fix)"
     );
     for (p, before) in &off {
         let after = row(&on, p);
-        let discharged = |s: [u64; 4]| s[0] + s[1] + s[2];
         assert!(
-            after[0] >= before[0] && discharged(after) >= discharged(*before),
-            "{p}: the plain form is asked first, so `symbolic_zero` never falls, and no \
-             decision is LOST — what the algebra discharges it keeps: {before:?} -> {after:?}"
+            after[0] >= before[0],
+            "{p}: the plain form is asked first, so no decision is LOST — what the algebra \
+             discharges it keeps: {before:?} -> {after:?}"
         );
     }
 }
@@ -351,10 +342,10 @@ fn m10_10_the_walked_rows_envelope_is_a_theorem_over_the_box() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let (shapes, _, _) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
     let split = crate::m10_8_harness::split(&shapes);
-    assert_eq!(split.get("pcurve_envelope"), Some(&[16, 0, 0, 0]));
+    assert_eq!(split.get("pcurve_envelope"), Some(&[16, 0]));
     // The branches themselves are definite sign decisions read off the
     // value: 32 for check 4's fidelity, 34 for the walk, which decides
     // each loop's closure joint as it does every other.
-    assert_eq!(split.get("pcurve_fidelity_branch"), Some(&[0, 0, 0, 32]));
-    assert_eq!(split.get("pcurve_loop_branch"), Some(&[0, 0, 0, 34]));
+    assert_eq!(split.get("pcurve_fidelity_branch"), Some(&[0, 32]));
+    assert_eq!(split.get("pcurve_loop_branch"), Some(&[0, 34]));
 }

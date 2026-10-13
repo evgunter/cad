@@ -15,7 +15,9 @@
 //!   axis escalates, and a lean decided off the axis keeps the crossing
 //!   layer's door. None is taken as ON.
 //! - **Across an ellipse**: on a tube whose bottom is cut obliquely, the
-//!   ruling meets the ellipse at its plane, and every op builds.
+//!   ruling meets the ellipse at its plane, and every op builds. A
+//!   coaxial rod's rim lying on that tube's walls meets the ellipse the
+//!   same way, and every op builds there too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -36,8 +38,13 @@ const AREA: f64 = 0.32;
 /// A z-axis cylinder of radius [`R`] from `z0`, length `len`, through
 /// the extrude door: two wall faces, their seam rulings at `±x`.
 fn rod_z(z0: f64, len: f64) -> AtRestBody<f64> {
+    rod_of(R, z0, len)
+}
+
+/// [`rod_z`] at radius `r`.
+fn rod_of(r: f64, z0: f64, len: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
-    let lp = profile::circle(Point2::new(0.0, 0.0), R, tol).unwrap();
+    let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
     let plane = profile::SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let p = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol)
@@ -53,6 +60,32 @@ fn rod_z(z0: f64, len: f64) -> AtRestBody<f64> {
     .unwrap()
     .body;
     finished("the rod", rod, tol)
+}
+
+/// `rod` less the half-space under the plane `z = c + slope·x`.
+fn cut_below(rod: &AtRestBody<f64>, slope: f64, c: f64) -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -slope.atan());
+    let under = topo::transform_rigid(
+        &brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.0), tol),
+        &geom_core::test_support::rigid(&tilt, tol),
+        tol,
+    )
+    .unwrap();
+    let under = finished(
+        "the slab under the plane",
+        topo::transform_rigid(
+            &under,
+            &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, c)).unwrap(),
+            tol,
+        )
+        .unwrap(),
+        tol,
+    );
+    match topo::subtract(rod, &under, tol) {
+        Ok(BooleanResult::Body(b)) => b.body,
+        other => panic!("the cut rod builds: {other:?}"),
+    }
 }
 
 /// The square `(1, 0)`, `(0.6, 0.4)`, `(0.2, 0)`, `(0.6, −0.4)` turned
@@ -71,24 +104,7 @@ fn square(turn: f64, z0: f64, h: f64) -> AtRestBody<f64> {
 /// [`rod_z`]'s tube from `z = −1` to [`H`], its bottom cut by the plane
 /// `z = 0.5 + 0.2·x`: each wall face is bounded below by an ellipse arc.
 fn slanted_tube() -> AtRestBody<f64> {
-    let tol = Tol::witness();
-    let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), -(0.2_f64).atan());
-    let under = topo::transform_rigid(
-        &brick((-3.0, 3.0), (-3.0, 3.0), (-5.0, 0.0), tol),
-        &tilt,
-        tol,
-    )
-    .unwrap();
-    let under = finished(
-        "the slab under the plane",
-        topo::transform_rigid(&under, &Affine3::translation(Vec3::new(0.0, 0.0, 0.5)), tol)
-            .unwrap(),
-        tol,
-    );
-    match topo::subtract(&rod_z(-1.0, H + 1.0), &under, tol) {
-        Ok(BooleanResult::Body(b)) => b.body,
-        other => panic!("the slanted tube builds: {other:?}"),
-    }
+    cut_below(&rod_z(-1.0, H + 1.0), 0.2, 0.5)
 }
 
 /// The six ops of `t` and `b`, labelled.
@@ -105,19 +121,6 @@ fn six(
         ("t ∩ b", topo::intersect(t, b, tol)),
         ("b ∩ t", topo::intersect(b, t, tol)),
     ]
-}
-
-/// The wall (cylinder) faces of `b`.
-fn walls(b: &AtRestBody<f64>) -> Vec<topo::FaceKey> {
-    b.faces()
-        .filter(|(_, f)| {
-            matches!(
-                b.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
-        .map(|(k, _)| k)
-        .collect()
 }
 
 /// `(faces, edges, vertices, shells)`.
@@ -281,7 +284,12 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
             ] {
                 let b = finished(
                     "the moved prism",
-                    topo::transform_rigid(&square(turn, z0, h), &xf, tol).unwrap(),
+                    topo::transform_rigid(
+                        &square(turn, z0, h),
+                        &geom_core::test_support::rigid(&xf, tol),
+                        tol,
+                    )
+                    .unwrap(),
                     tol,
                 );
                 for (op, r) in six(&t, &b) {
@@ -302,7 +310,12 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
         for d in [40.0 * z, -40.0 * z] {
             let b = finished(
                 "the leaned prism",
-                topo::transform_rigid(&square(turn, z0, h), &lean(d), tol).unwrap(),
+                topo::transform_rigid(
+                    &square(turn, z0, h),
+                    &geom_core::test_support::rigid(&lean(d), tol),
+                    tol,
+                )
+                .unwrap(),
                 tol,
             );
             for (op, r) in six(&t, &b) {
@@ -387,39 +400,163 @@ fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
     }
 }
 
-/// **The one-carrier arms keep their reach.** The slanted tube and a
-/// coaxial rod of the same radius (`z ∈ [1, 3]`, turned `0.4` rad),
-/// every pair of their wall faces one carrier: the rod's lower rim lies
-/// on the tube's wall faces, which an ellipse bounds. The one-carrier
-/// arms' interior question reads lines and circles
-/// only, so every op refuses on that rim, against a wall face of the
-/// tube, as it did before the lying-on lane read ellipses.
+/// **A continuation on a wall an ellipse bounds builds every op.** The
+/// slanted tube and a coaxial rod of the same radius (`z ∈ [1, 3]`,
+/// turned `0.4` rad), every pair of their wall faces one carrier: the
+/// rod's lower rim lies on the tube's wall faces, which an ellipse
+/// bounds, and the interior question reads that ellipse through its
+/// plane. With the tube `1.5π` and the rod `2π`, overlapping in the
+/// unit-height cylinder `z ∈ [1, 2]`: the union is `2.5π`, `t ∖ r` the
+/// tube below `z = 1` (`0.5π`), `r ∖ t` the rod above `z = 2` (`π`),
+/// and the intersection `π`.
 #[test]
-fn a_continuation_on_a_wall_bounded_by_an_ellipse_keeps_the_door() {
+fn a_continuation_on_a_wall_bounded_by_an_ellipse_builds_every_op() {
     let tol = Tol::witness();
     let t = slanted_tube();
     let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 0.4);
     let r = finished(
         "the rod",
-        topo::transform_rigid(&rod_z(1.0, H), &spin, tol).unwrap(),
+        topo::transform_rigid(
+            &rod_z(1.0, H),
+            &geom_core::test_support::rigid(&spin, tol),
+            tol,
+        )
+        .unwrap(),
         tol,
     );
-    let (a, b) = (topo::Operand::A, topo::Operand::B);
-    for (op, res, rod_is) in [
-        ("t ∪ r", topo::union(&t, &r, tol), b),
-        ("r ∪ t", topo::union(&r, &t, tol), a),
-        ("t ∖ r", topo::subtract(&t, &r, tol), b),
-        ("r ∖ t", topo::subtract(&r, &t, tol), a),
-        ("t ∩ r", topo::intersect(&t, &r, tol), b),
-        ("r ∩ t", topo::intersect(&r, &t, tol), a),
+    // The union's two wall pairs meet on a four-arc circle; every other
+    // result is a two-faced wall between two caps.
+    let (whole, part): (Census, Census) = ((6, 12, 8, 1), (4, 6, 4, 1));
+    for (op, res, volume, census) in [
+        ("t ∪ r", topo::union(&t, &r, tol), 2.5 * PI, whole),
+        ("r ∪ t", topo::union(&r, &t, tol), 2.5 * PI, whole),
+        ("t ∖ r", topo::subtract(&t, &r, tol), 0.5 * PI, part),
+        ("r ∖ t", topo::subtract(&r, &t, tol), PI, part),
+        ("t ∩ r", topo::intersect(&t, &r, tol), PI, part),
+        ("r ∩ t", topo::intersect(&r, &t, tol), PI, part),
     ] {
-        let Err(BooleanError::CurvedPierceUnsupported { operand, face, .. }) = res else {
-            panic!("{op}: the crossing layer's door: {res:?}");
+        let Ok(BooleanResult::Body(bb)) = res else {
+            panic!("{op}: builds: {res:?}");
         };
-        assert_eq!(operand, rod_is, "{op}: on the rod's edge");
+        let body = &bb.body;
+        topo::validate_geometric(body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
+        topo::validate_pseudomanifold(body, &bb.contacts, tol)
+            .unwrap_or_else(|e| panic!("{op}: tier 3′: {e:?}"));
+        let m = topo::mass_properties(body, tol).unwrap();
         assert!(
-            walls(&t).contains(&face),
-            "{op}: against a wall of the tube"
+            (m.volume - volume).abs() <= m.volume_pad + 1e-12,
+            "{op}: the closed form: {} ± {} vs {volume}",
+            m.volume,
+            m.volume_pad
         );
+        assert_eq!(
+            (
+                body.faces().count(),
+                body.edges().count(),
+                body.vertices().count(),
+                body.shells().count()
+            ),
+            census,
+            "{op}: F, E, V, shells"
+        );
+    }
+}
+
+/// **A rim across a wall's ellipse builds where the join can describe
+/// it.** The slanted tube and a coaxial rod of the same radius from
+/// `z = 0.5` (turned `0.4` and `1.3` rad), their walls one carrier: the
+/// rod's lower rim crosses the tube's ellipse where `x = 0`, so each is
+/// split at the other's crossing, read where the circle's plane meets
+/// the ellipse's. The overlap is the tube less the part under `z = 0.5`,
+/// `1.5π − 2/15`; `t ∖ r` is that part, `2/15`, and `r ∖ t` the rod above
+/// `z = 2` and the part under the slant, `0.5π + 2/15`. `t ∪ r` refuses
+/// `EdgeUndescribed` with no conventional lane where `r ∪ t` builds
+/// (`cleave/a-rod-rim-across-a-tube-ellipse-union-is-undescribed-in-one-order`).
+#[test]
+fn a_rim_across_a_walls_ellipse_builds_every_op_but_one_union_order() {
+    let tol = Tol::witness();
+    let t = slanted_tube();
+    let common = 1.5 * PI - 2.0 / 15.0;
+    for turn in [0.4, 1.3] {
+        let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), turn);
+        let r = finished(
+            "the rod",
+            topo::transform_rigid(
+                &rod_z(0.5, H),
+                &geom_core::test_support::rigid(&spin, tol),
+                tol,
+            )
+            .unwrap(),
+            tol,
+        );
+        let label = |op: &str| format!("turn {turn}: {op}");
+        let res = topo::union(&t, &r, tol);
+        assert!(
+            matches!(res, Err(BooleanError::EdgeUndescribed { .. })),
+            "{}: {res:?}",
+            label("t ∪ r refuses EdgeUndescribed")
+        );
+        for (op, res, volume) in [
+            ("r ∪ t", topo::union(&r, &t, tol), 2.0 * PI + 2.0 / 15.0),
+            ("t ∖ r", topo::subtract(&t, &r, tol), 2.0 / 15.0),
+            ("r ∖ t", topo::subtract(&r, &t, tol), 0.5 * PI + 2.0 / 15.0),
+            ("t ∩ r", topo::intersect(&t, &r, tol), common),
+            ("r ∩ t", topo::intersect(&r, &t, tol), common),
+        ] {
+            let Ok(BooleanResult::Body(bb)) = res else {
+                panic!("{}: builds: {res:?}", label(op));
+            };
+            topo::validate_geometric(&bb.body, tol)
+                .unwrap_or_else(|e| panic!("{}: tier 3: {e:?}", label(op)));
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+                .unwrap_or_else(|e| panic!("{}: tier 3′: {e:?}", label(op)));
+            let m = topo::mass_properties(&bb.body, tol).unwrap();
+            assert!(
+                (m.volume - volume).abs() <= m.volume_pad + 1e-9 * volume,
+                "{}: the closed form: {} ± {} vs {volume}",
+                label(op),
+                m.volume,
+                m.volume_pad
+            );
+        }
+    }
+}
+
+/// **Two sections the band reads coplanar are not taken for one
+/// curve.** Two radius-`0.01` rods on one axis, each cut below a plane
+/// through the origin, of slopes `100` and `100(1 + d)`: their ellipse
+/// rims cross at `(0, ±0.01, 0)`. With `d = k·ε` the planes' tilt
+/// carries about `k·ε` across the ellipses, so the band reads them
+/// parallel and through one point, and their one-curve margin is about `3·k·ε`
+/// at most. At `k = 0.5` and `0.9` every op refuses `Escalated` on
+/// `bool_carrier_cross_ellipses_one_curve`, the two rims being neither
+/// one curve nor apart within the band; at `k = 0.1` they are one curve
+/// within it, and every op refuses further on. None reads the rims'
+/// crossings away.
+#[test]
+fn two_rims_the_band_reads_coplanar_are_not_one_curve() {
+    let tol = Tol::witness();
+    let rod = rod_of(0.01, -3.0, 6.0);
+    for k in [0.1, 0.5, 0.9] {
+        let d = k * tol.eps();
+        let (a, b) = (
+            cut_below(&rod, 100.0, 0.0),
+            cut_below(&rod, 100.0 * (1.0 + d), 0.0),
+        );
+        for (op, res) in six(&a, &b) {
+            let label = format!("k = {k}: {op}");
+            if k > 0.2 {
+                let Err(BooleanError::Escalated { diag, .. }) = &res else {
+                    panic!("{label}: escalates: {res:?}");
+                };
+                assert_eq!(
+                    diag.predicate,
+                    Some("bool_carrier_cross_ellipses_one_curve"),
+                    "{label}: on the one-curve row"
+                );
+            } else {
+                assert!(res.is_err(), "{label}: refuses: {res:?}");
+            }
+        }
     }
 }

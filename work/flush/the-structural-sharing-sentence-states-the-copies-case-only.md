@@ -15,6 +15,6 @@ cost: E
 
 Since then, two rulings by the FLUSH orchestrator have put vertices on one point key from a value decision:
 - **Ruling B** (PR 4728): one key per pinch, with each grouping recorded as a `VertexFusion` row.
-- **Ruling A** (fork-log row 121; `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys`): the same across an assembly's solids.
+- **Ruling A** (fork-log row 133; `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys`): the same across an assembly's solids.
 
 Neither changes a decision. The sentence now describes one source of a shared key out of two. The census already reads both alike. The `[ev]` PR that carries this row restates the sentence.

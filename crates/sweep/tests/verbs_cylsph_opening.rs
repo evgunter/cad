@@ -74,7 +74,12 @@ fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    topo::transform_rigid(&ball, &Affine3::translation(centre), Tol::witness()).unwrap()
+    topo::transform_rigid(
+        &ball,
+        &geom_core::RigidMotion::translation(centre).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// The re-posed twin's map, off every axis plane.
@@ -87,7 +92,12 @@ fn twin_map() -> Affine3<f64> {
 }
 
 fn posed(b: &Body<f64>) -> Body<f64> {
-    topo::transform_rigid(b, &twin_map(), Tol::witness()).unwrap()
+    topo::transform_rigid(
+        b,
+        &geom_core::test_support::rigid(&twin_map(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// The coaxial fixture, direct and re-posed: `r = 1`, `R = 1.5`, the
@@ -292,7 +302,7 @@ fn a_ball_scraping_the_wall_refuses_at_the_section_pass() {
         );
     let s = topo::transform_rigid(
         &ball_at(0.5, Vec3::new(0.0, 0.0, 0.0)),
-        &poled_z,
+        &geom_core::test_support::rigid(&poled_z, Tol::witness()),
         Tol::witness(),
     )
     .unwrap();
@@ -455,10 +465,12 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     };
     let msg = format!("{err}");
     // What the JOIN dispatch wires, stated as the recourse: a plane
-    // face against a plane, cylinder, sphere or cone face — so the
-    // sentence does not claim the wider SECTION-FRAME dispatch's pairs
-    // as join arms.
-    let wired = "they meet only where a plane face meets a plane, cylinder, sphere or cone face";
+    // face against a plane, cylinder, sphere or cone face, or a torus
+    // face where the plane holds its axis or stands square to it — so
+    // the sentence does not claim the wider SECTION-FRAME dispatch's
+    // pairs as join arms.
+    let wired = "every meeting is a plane against a plane, cylinder, sphere, cone, or torus \
+                 whose axis it holds or is square to";
     assert!(
         msg.contains(wired),
         "the refusal does not state what that dispatch wires: {msg}"

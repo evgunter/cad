@@ -887,55 +887,119 @@ fn names_at(ev: &Evaluation<f64>, id: RecipeNodeId, p: Point) -> Vec<String> {
     out
 }
 
-/// **Where three wedges' axes cross, at the plate's top, the vertex
-/// has one junction name in every member order that folds the wedges
-/// before the plate**: the seam lines through it, in canonical order.
-/// Orders that fold the plate earlier mint the vertex at another step,
-/// under another name
-/// (`work/wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it.md`).
-#[test]
-fn the_junction_where_the_wedges_meet_has_one_name_in_every_member_order() {
+/// The senses a vertex name's `EdgeCrossing` run carries, line by
+/// line in name order: an edge's, or `None` for a seam.
+fn run_senses(name: &str) -> Vec<String> {
+    name.split("sense: ")
+        .skip(1)
+        .map(|rest| {
+            rest.split([' ', ',', '}'])
+                .next()
+                .unwrap_or_default()
+                .to_owned()
+        })
+        .collect()
+}
+
+/// Asserts every order of `orders` (member indices into
+/// [`tilted_holes`]'s list, `0` the plate) names the point where
+/// `holes`' legs meet with one `EdgeCrossing` run of the legs, each with
+/// sense `sense`, the same in every order.
+fn one_run(label: &str, holes: fn() -> Vec<Hole>, sense: &str, orders: &[Vec<usize>]) {
     let mut first: Option<Vec<String>> = None;
-    for order in orders(4).into_iter().filter(|o| o[3] == 0) {
+    for order in orders {
         let (doc, m) = tilted_holes(
             ProfileDoc::empty_derived("union_pinch", Tol::witness()),
-            &three_wedges(),
+            &holes(),
         );
         let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
         let (doc, u) = crate::fixture::union_over(doc, &members);
         let ev = run(&doc);
         if let Some(e) = failure(&ev, u) {
-            panic!("member order {order:?}: refused: {e:?}");
+            panic!("{label}, member order {order:?}: refused: {e:?}");
         }
         let names = names_at(&ev, u, top());
-        assert_eq!(
-            names.len(),
-            1,
-            "member order {order:?}: the meeting point's names"
+        let [name] = names.as_slice() else {
+            panic!("{label}, member order {order:?}: one name at the meeting point: {names:?}");
+        };
+        assert!(
+            name.contains("path: [EdgeCrossing(")
+                && name.matches("role: Leg").count() == holes().len(),
+            "{label}, member order {order:?}: the run of the legs: {name}"
         );
         assert_eq!(
-            names[0].matches("Seam {").count(),
-            6,
-            "member order {order:?}: the junction is named by its six seam lines"
+            run_senses(name),
+            vec![format!("Some({sense})"); holes().len()],
+            "{label}, member order {order:?}: each leg against the rest: {name}"
         );
         match &first {
             None => first = Some(names),
             Some(f) => assert_eq!(
                 &names, f,
-                "member order {order:?}: the meeting point's name"
+                "{label}, member order {order:?}: the meeting point's name"
             ),
         }
     }
 }
 
-/// **Where two leaning wedges' legs meet at the plate's top, their union
-/// names the vertex a seam of the two legs, in either member order**:
-/// each leg lies outside the other wedge on both sides of the vertex,
-/// so neither enters or leaves the other and the vertex is no crossing.
-/// The fold reaches one wedge's copy of the vertex only through two
-/// fusions (`names::emit_topo::fused_partners`).
+/// Every order of `n` members, or with `plate` false every order of
+/// members `1..n`.
+fn every_order_of(n: usize, plate: bool) -> Vec<Vec<usize>> {
+    orders(n)
+        .into_iter()
+        .filter(|o| plate || o[n - 1] == 0)
+        .map(|o| o.into_iter().filter(|&i| plate || i != 0).collect())
+        .collect()
+}
+
+/// **Where three or more wedges' legs meet, the vertex is one run of the
+/// legs whichever fold step minted it** (N2, `emit_union::Flush::meeting`).
+/// Three wedges and the plate, folded plate first and plate last; every
+/// order is [`the_junction_where_the_wedges_meet_has_one_name_in_every_member_order`]'s.
 #[test]
-fn two_wedges_name_their_meeting_point_a_seam_of_their_legs_in_either_order() {
+fn the_junction_where_three_wedges_meet_has_one_name_plate_first_or_last() {
+    one_run(
+        "three wedges and the plate",
+        three_wedges,
+        "Outside",
+        &[vec![0, 1, 2, 3], vec![3, 2, 1, 0]],
+    );
+}
+
+/// **Where three or more wedges' legs meet, the vertex is one run of the
+/// legs in every member order**, with the plate and without it (N2,
+/// `emit_union::Flush::meeting`): the legs locate the point, so the
+/// plate, whose top passes through it, is not in the name. Each leg's
+/// sense is read against the other wedges together: three lean apart,
+/// each leg outside the other two on both sides; four lean so that
+/// opposite wedges overlap below the top, so each leg leaves the rest.
+#[test]
+fn the_junction_where_the_wedges_meet_has_one_name_in_every_member_order() {
+    type Row = (&'static str, fn() -> Vec<Hole>, bool, &'static str);
+    let rows: [Row; 4] = [
+        ("three wedges and the plate", three_wedges, true, "Outside"),
+        ("four wedges and the plate", four_wedges, true, "Leaves"),
+        ("three wedges", three_wedges, false, "Outside"),
+        ("four wedges", four_wedges, false, "Leaves"),
+    ];
+    for (label, holes, plate, sense) in rows {
+        one_run(
+            label,
+            holes,
+            sense,
+            &every_order_of(holes().len() + 1, plate),
+        );
+    }
+}
+
+/// **Where two leaning wedges' legs meet at the plate's top, their union
+/// names the vertex the edge crossing of the two legs, each touching the
+/// other wedge from outside, in either member order**: each leg lies
+/// outside the other wedge on both sides of the vertex. The fold reaches
+/// one wedge's copy of the vertex only through two fusions
+/// (`names::emit_topo::fused_partners`).
+#[test]
+fn two_wedges_name_their_meeting_point_the_touch_of_their_legs_in_either_order() {
     let mut first: Option<Vec<String>> = None;
     for order in [[1, 2], [2, 1]] {
         let (doc, m) = tilted_holes(
@@ -955,13 +1019,13 @@ fn two_wedges_name_their_meeting_point_a_seam_of_their_legs_in_either_order() {
         );
         let n = &names[0];
         assert!(
-            n.contains("path: [Seam {") && !n.contains("Crossing"),
-            "member order {order:?}: the meeting point is a seam, no crossing: {n}"
+            n.contains("path: [EdgeCrossing(") && run_senses(n) == ["Some(Outside)"; 2],
+            "member order {order:?}: the meeting point is the legs' touch from outside: {n}"
         );
         assert_eq!(
             n.matches("role: Leg").count(),
             2,
-            "member order {order:?}: the seam is of the two legs: {n}"
+            "member order {order:?}: the crossing is of the two legs: {n}"
         );
         match &first {
             None => first = Some(names),
@@ -1093,4 +1157,141 @@ fn solids_touching_along_one_line_build_one_body_in_every_member_order() {
         above * (1.5 + 1.23 + 1.37 + 1.22),
         false,
     );
+}
+
+/// **Two edges of one member that run flush where they pierce another
+/// are one line** (N2): the joined blocks hold their contact as two
+/// coincident edges, which pierce the plate's top at the pinch. They are
+/// cited once, as the least, so the pinch is that edge's `Crossing` of
+/// the plate's top, leaving the plate, alike in both orders.
+#[test]
+fn two_edges_of_one_member_at_the_pinch_are_one_crossing() {
+    let (doc, m) = pinch(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
+    let [plate, p1, p2] = m[..] else {
+        panic!("the pinch fixture is three members")
+    };
+    let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2]);
+    let mut first: Option<Vec<String>> = None;
+    for members in [[plate, blocks], [blocks, plate]] {
+        let (doc, u) = crate::fixture::union_over(doc.clone(), &members);
+        let ev = run(&doc);
+        if let Some(e) = failure(&ev, u) {
+            panic!("{members:?}: refused: {e:?}");
+        }
+        let names = names_at(&ev, u, top());
+        assert!(
+            matches!(names.as_slice(), [n] if n.contains("path: [Crossing {")
+                && n.contains("Cap(End)")
+                && n.contains("sense: Leaves")
+                && !n.contains("Seam {")),
+            "{members:?}: the pinch is the contact's crossing of the plate's top: {names:?}"
+        );
+        match &first {
+            None => first = Some(names),
+            Some(f) => assert_eq!(&names, f, "{members:?}"),
+        }
+    }
+}
+
+/// **Two wedges' legs meeting on the plate's top are their touch in
+/// every member order** (N2): the legs locate the point, so the plate's
+/// top, which passes through it, is not in the name, and each leg's sense
+/// is read against the other wedge alone, from the pair's judgement.
+/// Each lies outside the other on both sides.
+#[test]
+fn two_legs_on_the_plate_are_their_touch_in_every_member_order() {
+    let mut first: Option<String> = None;
+    for order in orders(3) {
+        let (doc, m) = tilted_holes(
+            ProfileDoc::empty_derived("union_pinch", Tol::witness()),
+            &two_wedges(),
+        );
+        let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+        let (doc, u) = crate::fixture::union_over(doc, &members);
+        let ev = run(&doc);
+        if let Some(e) = failure(&ev, u) {
+            panic!("member order {order:?}: refused: {e:?}");
+        }
+        let names = names_at(&ev, u, top());
+        let [name] = names.as_slice() else {
+            panic!("member order {order:?}: one name at the meeting point: {names:?}");
+        };
+        assert!(
+            name.contains("path: [EdgeCrossing(")
+                && name.matches("role: Leg").count() == 2
+                && run_senses(name) == ["Some(Outside)"; 2],
+            "member order {order:?}: the legs' touch from outside: {name}"
+        );
+        match &first {
+            None => first = Some(name.clone()),
+            Some(f) => assert_eq!(name, f, "member order {order:?}: the meeting point's name"),
+        }
+    }
+}
+
+/// **The plate less the wedges' union, and the wedges' union less the
+/// plate, carry the union's name for the point where the legs meet alike
+/// in every member order of the union**
+/// (`work/wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it.md`):
+/// the union's run is order-free, so what a subtract carries of it is
+/// too. Each subtract names the point by the union's vertex alone, every
+/// name it binds there carried from it (N2: a vertex of either operand is
+/// that vertex), so nothing of its own there reads the member order.
+/// Three and four wedges, every order. P − U refused three wedges in
+/// member order `[2, 1, 0]` once it named its own meeting by its lines,
+/// and four in `[3, 2, 1, 0]` before that, while the zip's split per cone
+/// of the union's vertex was read as no operand vertex
+/// (`BooleanNaming::cone_splits`). The union's and the subtracts' own
+/// ids, which the member order moves, are masked.
+#[test]
+fn a_subtract_against_the_wedges_union_names_their_meeting_alike_in_every_member_order() {
+    for (label, holes) in [
+        ("three wedges", three_wedges as fn() -> Vec<Hole>),
+        ("four wedges", four_wedges),
+    ] {
+        let n = holes().len();
+        let mut first: Option<[Vec<String>; 2]> = None;
+        for order in orders(n) {
+            let (doc, m) = tilted_holes(
+                ProfileDoc::empty_derived("union_pinch", Tol::witness()),
+                &holes(),
+            );
+            let plate = m[0];
+            let wedges: Vec<RecipeNodeId> = order.iter().map(|&i| m[i + 1]).collect();
+            let (doc, u) = crate::fixture::union_over(doc, &wedges);
+            let (doc, p_u) = insert(doc, pair_node(BooleanOp::Subtract, plate, u));
+            let (doc, u_p) = insert(doc, pair_node(BooleanOp::Subtract, u, plate));
+            let ev = run(&doc);
+            let mut masks: Vec<(String, &str)> = Vec::new();
+            for (id, tag) in [(u, "U"), (p_u, "P-U"), (u_p, "U-P")] {
+                masks.push((format!("{id:?}"), tag));
+                masks.push((format!("{:?}", crate::fixture::out(&doc, id)), tag));
+            }
+            let named = |id: RecipeNodeId, what: &str| -> Vec<String> {
+                if let Some(e) = failure(&ev, id) {
+                    panic!("{label} {what}, member order {order:?}: refused: {e:?}");
+                }
+                names_at(&ev, id, top())
+                    .into_iter()
+                    .map(|n| {
+                        masks
+                            .iter()
+                            .fold(n, |n, (id, tag)| n.replace(id.as_str(), tag))
+                    })
+                    .collect()
+            };
+            let both = [named(p_u, "P − U"), named(u_p, "U − P")];
+            for (names, what) in both.iter().zip(["P − U", "U − P"]) {
+                assert!(
+                    !names.is_empty() && names.iter().all(|n| n.contains("path: [From { read: U,")),
+                    "{label} {what}, member order {order:?}: every name at the point is carried \
+                     from the union's vertex: {names:?}"
+                );
+            }
+            match &first {
+                None => first = Some(both),
+                Some(f) => assert_eq!(&both, f, "{label}, member order {order:?}"),
+            }
+        }
+    }
 }

@@ -120,8 +120,11 @@
 //! domain is served by the boundary cell's polynomial extension —
 //! exactly the spline's own clamped extension semantics (see the
 //! [`super::super`] span contract) — and a window that straddles a knot
-//! line is bounded on **every** cell it touches and maxed, which is
-//! sound on each cell's own territory and conservative off it.
+//! line is bounded on **every** cell whose interior it meets and maxed,
+//! which is sound on each cell's own territory and conservative off it.
+//! A cell the window meets only on its edge is not read: interior knot
+//! multiplicity is at most the degree, so the surface is continuous
+//! across a knot line and its value there is the neighbour's own.
 //!
 //! # C6 and the refusal posture
 //!
@@ -134,7 +137,7 @@
 
 use super::super::knots::{KnotVector, SplineError};
 use super::super::net::TensorCoeffs;
-use super::super::range::{ParamRange, last_at_or_below};
+use super::super::range::ParamRange;
 use super::{
     BernsteinSpans, ComposeError, CurveCertData, bern_mul_row, binom_row, to_bezier_spans_extra,
 };
@@ -181,20 +184,7 @@ impl<'a> SurfaceCertData<'a> {
                 control: n,
             }));
         }
-        for (index, w) in weights.iter().enumerate() {
-            if !(*w > 0.0) {
-                return Err(ComposeError::Structure(SplineError::NonPositiveWeight {
-                    index,
-                    weight: *w,
-                }));
-            }
-            if !w.is_finite() {
-                return Err(ComposeError::Structure(SplineError::NonFiniteWeight {
-                    index,
-                    weight: *w,
-                }));
-            }
-        }
+        crate::spline::check_weight_values(weights).map_err(ComposeError::Structure)?;
         if coords.len() != 3 {
             return Err(ComposeError::DimensionMismatch {
                 dims: coords.len(),
@@ -544,31 +534,43 @@ pub fn coefficient_norm_sup(num: [&[Interval]; 3]) -> f64 {
 // Cell selection (structure, f64) and the entry point
 // ---------------------------------------------------------------------
 
-/// The cell indices of the break list `breaks` whose closed interval
-/// meets `window`, clamped so an out-of-domain window is served by the
-/// boundary cell's polynomial extension (module docs, domain posture).
-/// Returns the inclusive index range. A [`ParamRange`] has no NaN or
-/// inverted spelling, so no window lands on a cell it does not name.
+/// The cell indices of the break list `breaks` whose open interior
+/// meets `window`, or, where none does (a window that is one point on a
+/// break, or lies off the domain), whose closed interval meets it,
+/// clamped so an out-of-domain window is served by the boundary cell's
+/// polynomial extension (module docs, domain posture). Returns the
+/// inclusive index range. A [`ParamRange`] has no NaN or inverted
+/// spelling, so no window lands on a cell it does not name.
 ///
-/// Banked observation (PR 7b review NOTE 1, 2026-07-31): the overlap
-/// test is **closed**, so a window whose endpoint lands exactly on a
-/// knot pulls in the neighbor cell whose contribution is a
-/// single-point agreement (the two patch polynomials agree at the
-/// knot). A strict-interior test would be tighter and still sound —
-/// a future tightening, banked rather than slipped into a fix pass.
+/// A cell the window meets only on its edge is left out, which is sound
+/// only for a quantity continuous across the breaks: there the value on
+/// the edge is the neighbour's own, and the neighbour is read. The
+/// surface is, its interior knot multiplicity being at most its degree
+/// ([`KnotVector::clamped`]).
 fn cells_touched(breaks: &[f64], window: ParamRange) -> (usize, usize) {
     let last = breaks.len() - 2;
-    let (lo, hi) = window.ends();
-    // The first cell whose upper break is at or above `lo` (the closed
-    // overlap), and the last whose lower break is at or below `hi`.
-    let first_cell = breaks[1..=last + 1].partition_point(|b| *b < lo.get());
-    let last_cell = last_at_or_below(&breaks[..=last], hi);
-    match last_cell {
+    let (lo, hi) = (window.ends().0.get(), window.ends().1.get());
+    // The first cell whose upper break is above `lo` and the last whose
+    // lower break is below `hi`, or with `open` false, at or above and
+    // at or below.
+    let meets = |open: bool| {
+        let first = breaks[1..=last + 1].partition_point(|&b| b < lo || (open && b == lo));
+        let end = breaks[..=last]
+            .partition_point(|&b| b < hi || (!open && b == hi))
+            .checked_sub(1);
+        (first, end)
+    };
+    if let (first, Some(end)) = meets(true)
+        && first <= end
+    {
+        return (first, end);
+    }
+    match meets(false) {
         // The window misses the domain below: the first cell.
-        None => (0, 0),
+        (_, None) => (0, 0),
         // Or above: the last cell.
-        Some(_) if first_cell > last => (last, last),
-        Some(last_cell) => (first_cell, last_cell),
+        (first, Some(_)) if first > last => (last, last),
+        (first, Some(end)) => (first, end),
     }
 }
 
@@ -755,19 +757,32 @@ pub fn surface_curve_residual(
 mod tests {
     use super::*;
 
-    /// The cell locator against the closed-overlap scan it replaced,
+    /// The cell locator against a cell-by-cell scan of the same rule,
     /// over windows inside, on, straddling and outside the breaks.
     #[test]
-    fn cells_touched_is_the_closed_overlap_clamped_to_an_edge_cell() {
+    fn cells_touched_is_the_open_overlap_else_the_closed_one_clamped() {
         fn scan(breaks: &[f64], lo: f64, hi: f64) -> (usize, usize) {
             let last = breaks.len() - 2;
-            let (mut first, mut end) = (last, 0);
-            for cell in 0..=last {
-                if breaks[cell + 1] >= lo && breaks[cell] <= hi {
-                    first = first.min(cell);
-                    end = end.max(cell);
+            let meets = |open: bool| {
+                let (mut first, mut end) = (last, 0);
+                for cell in 0..=last {
+                    let met = if open {
+                        breaks[cell + 1] > lo && breaks[cell] < hi
+                    } else {
+                        breaks[cell + 1] >= lo && breaks[cell] <= hi
+                    };
+                    if met {
+                        first = first.min(cell);
+                        end = end.max(cell);
+                    }
                 }
+                (first, end)
+            };
+            let (first, end) = meets(true);
+            if first <= end {
+                return (first, end);
             }
+            let (first, end) = meets(false);
             if first > end {
                 if hi < breaks[0] { (0, 0) } else { (last, last) }
             } else {

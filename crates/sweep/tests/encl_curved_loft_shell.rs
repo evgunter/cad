@@ -232,7 +232,13 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
             "the refusing face is not a wall: {e}"
         );
         let ReplaceFaceError::Fit {
-            error: geom_brep::OffsetFitError::SampleCapReached { achieved, grid, .. },
+            error:
+                geom_brep::OffsetFitError::WallReached {
+                    wall: geom_brep::OffsetFitWall::SampleCap { .. },
+                    achieved,
+                    grid,
+                    ..
+                },
             ..
         } = error.as_ref()
         else {
@@ -989,7 +995,13 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
         if eps < 4.382e-11 {
             match &moved {
                 Err(ReplaceFaceError::Fit {
-                    error: geom_brep::OffsetFitError::SampleCapReached { achieved, grid, .. },
+                    error:
+                        geom_brep::OffsetFitError::WallReached {
+                            wall: geom_brep::OffsetFitWall::SampleCap { .. },
+                            achieved,
+                            grid,
+                            ..
+                        },
                     ..
                 }) => assert!(
                     *grid == (45, 45) && (achieved - 4.382e-11).abs() < 1e-14,
@@ -1056,8 +1068,12 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies() {
             Vec3::new(0.0, 0.0, 1.0),
             0.7,
         );
-        topo::transform_rigid(&body, &rigid, Tol::witness())
-            .unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the moved body maps rigidly: {e}"));
+        topo::transform_rigid(
+            &body,
+            &geom_core::test_support::rigid(&rigid, Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the moved body maps rigidly: {e}"));
     }
 }
 

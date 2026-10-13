@@ -268,18 +268,18 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
     out
 }
 
-/// **No name binds different geometry in any two member orders of a
-/// union whose seam lines are cut.**
+/// **Every member order of a union whose seam lines are cut publishes
+/// one table.**
 ///
 /// A seam line's pieces are ranked by the seam-chain ranker in one
 /// order and by the descent ranker in another — after one step or
-/// several, through one wrapper or more. Every ranker along a seam line
-/// must use one orientation, or one name lands on another piece. The
-/// tables need not be identical — which step cut the line shows in a
-/// name's structure — but a name present in two orders names the same
-/// entity in both. Three fixtures, every order: 6, 24 and 24.
+/// several, through one wrapper or more — and a point where a cutter
+/// crosses a seam is minted by whichever step met it. The union names
+/// both from the finished body (N2), so every order publishes the same
+/// names, each bound to the same geometry. Three fixtures, every order:
+/// 6, 24 and 24.
 #[test]
-fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
+fn every_member_order_of_a_cut_seam_union_publishes_one_table() {
     type Members = fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>);
     let fixtures: [(&str, Members); 3] = [
         ("slab_rib_cutall", slab_rib_cutall),
@@ -308,22 +308,24 @@ fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
                 (p, t)
             })
             .collect();
-        let mut rebound = Vec::new();
-        for (i, (pi, a)) in tables.iter().enumerate() {
-            for (pj, b) in &tables[i + 1..] {
-                for (n, ga) in a {
-                    if let Some(gb) = b.get(n)
-                        && ga != gb
-                    {
-                        rebound.push(format!("{pi:?} vs {pj:?}: {n} binds {ga} vs {gb}"));
-                    }
+        let (p0, first) = &tables[0];
+        let mut moved = Vec::new();
+        for (p, t) in &tables[1..] {
+            for (n, g) in t {
+                match first.get(n) {
+                    Some(g0) if g0 == g => {}
+                    Some(g0) => moved.push(format!("{p:?}: {n} binds {g}, {p0:?} {g0}")),
+                    None => moved.push(format!("{p:?}: {n} is absent from {p0:?}")),
                 }
+            }
+            for n in first.keys().filter(|n| !t.contains_key(*n)) {
+                moved.push(format!("{p0:?}: {n} is absent from {p:?}"));
             }
         }
         assert!(
-            rebound.is_empty(),
-            "{what}: {} rebinds:\n{rebound:#?}",
-            rebound.len()
+            moved.is_empty(),
+            "{what}: {} names differ between orders:\n{moved:#?}",
+            moved.len()
         );
     }
 }

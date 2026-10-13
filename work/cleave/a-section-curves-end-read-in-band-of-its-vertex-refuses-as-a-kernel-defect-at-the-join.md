@@ -2,10 +2,11 @@
 id: a-section-curves-end-read-in-band-of-its-vertex-refuses-as-a-kernel-defect-at-the-join
 kind: issue
 title: A section curve's end read in band of the vertex it meets refuses at the join as a kernel defect, at the split and at the Boolean
-status: open
+status: dispatched
 opened: 2026-10-12
 priority: P2
 cost: M
+branch: cleave/section-end-inband-join
 ---
 
 
@@ -82,3 +83,52 @@ section conic's amplified rounding. Only the first may become an
 becomes an arm-side refusal on the carrier's conditioning, as GERM's row
 asks. Then give each input reading its lever, at both doors, and check
 that moving the parts as told builds.
+
+## Designed (2026-10-12; designer pair converged after one reconciliation round, no ratified text changes)
+
+PR 4810's first build re-read the escalated pin with the vertex moved
+onto the plane. Its review measured that the re-read reads a sum, so
+at ε = 1e-12 a near-axial ellipse's own rounding was typed `OnPlane`
+or left as the defect depending on the vertex offset. No reading at
+the join separates the two populations. The join's miss has three
+terms with three owners:
+- the vertex's offset δ from the plane, grown by 1/sin ψ (ψ the
+  dihedral between plane and wall at the vertex): the input's;
+- a stood-in circle's Zero'd margin: the input's;
+- the curve's own resolution: the kernel's.
+
+The kernel's term is two limits of storing an ellipse as a centre plus
+axes with θ = 0 at a major vertex. Both were measured, and matched to
+the digit in two independent replications:
+- **(a)** The parameter near ±π/2 resolves only to ulp(π/2)·A, with
+  A ≈ r/θ. A clockwise span taken as 2π minus a small span adds
+  ulp(2π)·speed.
+- **(b)** A far centre (≈ w/θ off-axis) holds only about
+  5·u·|centre − face|.
+
+Q1's "re-posed or certified, never covered by K", in four units:
+
+1. `a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex`
+   re-poses the curve and removes (a). Prototype on 4810's head at
+   1e-12: the coin-flip family builds 66/66 and through-axis planes
+   96/96.
+2. `the-section-table-admits-a-curve-on-its-resolution` admits on
+   ρ ≤ ε/K, refuses the rest (b) as a kernel limit with no lever, and
+   makes `Curve3::resolution` the one rule.
+3. This row (PR 4810, reworked on top of 1 and 2): every escalated
+   attachment pin on an admitted section curve is the input's. That
+   covers the endpoint pins and a stood-in circle's surface residual
+   (review m3). Each is typed by provenance (`OnPlane` /
+   `SquareToAxis`), with no re-read. `SectionEnds::reading` goes; the
+   types, the stories, their levers and `edge_on_plane_refusal` stay.
+   A definite miss stays the gate's.
+4. `the-split-reads-a-vertex-against-the-section-it-ends-not-the-plane`
+   is separable. Once it lands, a definite join miss really is a defect
+   (review m2).
+
+Why ε/K and not ε: with ρ ≤ ε, an in-band pin typed as the input's
+could be up to 90% the kernel's. That would offer the kernel's error
+as the user's lever, which PR 4335 forbids. Why a kernel limit and not
+a tilt lever: the same rule; D4 ¶1(i)'s last-resort ending applies.
+Labels and reports are on `analysis/design-fork/cleave-section-end-carrier-bound`
+and in the orchestrator's log.

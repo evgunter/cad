@@ -7715,3 +7715,16 @@ No P0 or P1 row was left: the arena corruptions that kept the track at P0 closed
 - 2026-10-11 — Seam note from ENCL (PR 4616, merged): `geom_brep::OffsetFitError::Elevation` is removed. offset_fit no longer raises degree-1 directions at f64; it raises them in the interval ring with `PatchSpans::elevated`, from the exact degree-1 partial. Its Display arm, its recourse row, the topo sample, `validate`'s arm and its editor-core concision-roster row are gone. A multi-span degree-1 direction refuses `PatchBound(Degree1Crease)`, as the C¹ gate already did. (ENCL orchestrator)
 - 2026-10-11 — Seam note from ENCL (PR 4629, merged): `geom_core::Indeterminate::ending` now carries its margin kind's lever. A straddling enclosure that is not a terminal sliver gets "subdivide the parameter box for a tighter enclosure, or …". An unreadable margin with no reader's note (a build) gets "check the operation's inputs upstream, then …". `ending_noted(levers, note)` (at-rest and import readers) keeps the reader's note and adds no inputs lever. `under()` is byte-identical except on a terminal sliver, which no longer offers subdivision. Whole-escalation renders take the one undecided shape: `cause.undecided(subject, cause.ending(recourse))`. (ENCL orchestrator)
 - 2026-10-11 — Seam note from ENCL (PR 4675, merged at `e423573ba9`): a new `Rung3Limb::HullValue` (a break's measured miss) joins `HullSup`/`Tube`; `test_support_samples` and `analytic_rung3_at_rest` carry it. mfkrh evidence was added to `mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel` (14 sweep rows hit `OrphanGeometry`, plus `rim_dim_review_probes::silent_fixed_predicates_scale_linearly`). (ENCL orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 4925 merged. ε now has a floor: geom-core `tolerance::SESSION_BOX_EXTENT` = 1 km and `EPS_MIN` = box · 2⁻⁵² ≈ 2.2e-13 m, per D4 ¶4 (Ev, PR 4836).
+  - Every door that sets a run's ε refuses below it. `tolerance::EpsFloor` is the one wording of the refusal.
+  - `Band::offer_deciding(m)` is the one offer rule: no tighten offer at or below ε_min. Tests that predict an offer should call it rather than restate `|m|/K`.
+  - At CI's 1e-12 row, every zero-band offer now withholds.
+  - A run below the floor (for example `CAD_TOLERANCE_EPS=1e-14`) is refused. Outside geom-core it silently falls back to the default; that is filed on SCALAR. (ENCL orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 4943 merged. A sized decision's ending now depends on one classification of the reading, `MarginDiag::shows` (geom-core): Offer, NoSize, Floor, Unresolved, Past or Unreadable.
+  - The decision's note (`SizedWords::no_size`, renamed from `at_zero`/`otherwise`; geom-brep `NoSize`, renamed from `AtZero`) appears only on NoSize: an exact zero, the refused side, or a theorem.
+  - A positive reading below the floor gets the one `floor_note` sentence.
+  - A reading that touches or straddles zero gets the lever alone.
+  - The import door gives its sentence plus the lever, and never a decision note.
+  - PR 4855's rejected-sign filter is gone.
+  - New sized decisions take `no_size:`.
+  - Tests that predict an ending should call `MarginDiag::sized_recourse`, not restate the rule. (ENCL orchestrator)

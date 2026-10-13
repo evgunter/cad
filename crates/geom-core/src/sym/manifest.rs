@@ -6,10 +6,10 @@
 //! becomes `−X` wherever the form shows `X` NEGATIVE. Nothing here
 //! reads a value: the condition is a fact about the form's syntax, and
 //! all four rewrites are equalities of reals at every point clause 1
-//! admits, so a zero reached through this rule is a THEOREM and lands
-//! in `symbolic_zero`. One rule with two arms under one dial: the
-//! negative arm is the positive one reflected, term for term, and a
-//! reader who wants them apart reads the argument's leading sign.
+//! admits, so a zero reached through this rule is a THEOREM. One rule
+//! with two arms under one dial: the negative arm is the positive one
+//! reflected, term for term, and a reader who wants them apart reads
+//! the argument's leading sign.
 //!
 //! # The invariant, and then where the atoms come from
 //!
@@ -129,7 +129,7 @@
 //! positive polynomial and `D` is a manifestly non-negative one. `D`
 //! needs only non-negativity because `D ≠ 0` at every point of a box
 //! clause 1 admits — and that is `quotient`'s side condition, argued
-//! there in full over the FIVE sources a denominator has. It is NOT
+//! there in full over the FOUR sources a denominator has. It is NOT
 //! "a point where `D` vanishes is a point the value channel divided by
 //! zero at": that covers only source (i), and `quotient`'s header names
 //! it as the mistake its own paragraph replaces; (ii)–(iv) are non-zero
@@ -231,36 +231,18 @@
 //! # Where it runs, and in what order
 //!
 //! At the NODE, in the early walk only (`super::combine`), so the
-//! plain form is untouched and a plain theorem is never re-labelled.
+//! plain form is untouched and nothing the plain walk proves is lost.
 //! The atom is not minted at all rather than folded afterwards, which
 //! is what keeps it out of every product above it.
 //!
 //! Against the other rules: A0's exact constant fold is tried FIRST
 //! (a constant argument is folded to its exact rational, which is
-//! more than this rule would say), then this one, then rule C
-//! (`signed`) — the value-free rule before the one that reads a value,
-//! so a discharge that could be a theorem is never counted
-//! `sign_gated`. Rules A/B per node and rule E run AFTER `combine`
-//! returns, on the form this rule left, and the argument this rule
-//! tests is the kid's form as those rules already left it — so against
-//! THEM the order is structural and not a choice: an atom this rule
-//! keeps from being minted is not one a later rule could have folded.
-//!
-//! What IS a choice is the order against A0 and rule C at this node,
-//! and it is pinned by a residual BOTH F and C take: `abs(1 + t²)` over
-//! a recorded bracket, and `abs(2/t²)` likewise
-//! (`geom-core`'s `sym_rule_f_rows`,
-//! `the_order_against_rule_c_is_pinned_by_a_residual_rule_c_would_take`
-//! and `a_shape_both_rules_take_is_what_pins_the_order`), and for the
-//! negative arm `abs(−(1 + t²))` and `abs(−2/t²)` over the same
-//! brackets
-//! (`the_negative_arms_order_against_rule_c_is_pinned_the_same_way`).
-//! Each is a `theorem` at the shipped order and `sign_gated` with rule
-//! F shut, and planting C before F reds every one of them. A residual
-//! rule C cannot reach — one built with `Sym::param`, which records no
-//! bracket, or one whose
-//! argument carries a `sqrt` atom `signed::fold` will not enclose — is
-//! green under either order and pins nothing.
+//! more than this rule would say), then this one. Rules A/B per node
+//! and rule E run AFTER `combine` returns, on the form this rule left,
+//! and the argument this rule tests is the kid's form as those rules
+//! already left it — so against THEM the order is structural and not a
+//! choice: an atom this rule keeps from being minted is not one a later
+//! rule could have folded.
 
 use std::sync::Arc;
 

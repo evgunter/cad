@@ -340,3 +340,58 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 - **Merged over** main's open INTENT P0 loft test at 1e-12.
 - **Class** (the third time): fixes at `boolean/ops.rs`'s carry keep minting copies of the census's reads. The common brief now says the census's read is the one home.
 — (FLUSH orchestrator)
+
+## 2026-10-12 — PR 4777 merged: the pinch residue
+
+- **Closed:** `a-cube-less-a-pinched-operand-…` and `a-curved-notch-at-a-corner-pinch-…`.
+  - **The 36 `dbl` lines.** A split swaps corners' loop successors, so the section faces no longer pair one to one. They now zip by edge pairs (`glue`, and `zip_split` for a split seam). `glue` reproduces the old loopglue on every face-pair seam both reviewers measured.
+  - **The 15 curved lines.** The discard picks a null-edge copy by its mirrored place in the twin's cycle, loop by loop, not by its two end vertices.
+- **Review:** concurrent pair (three M rows treated as H). Both APPROVE-WITH-FIXES with 0 MAJOR. One fix pass, and R2's delta check confirmed it.
+- **Filed:**
+  - REFS `a-discard-names-a-bordered-stretch-by-its-two-end-vertices`. Same defect class one layer down, but it needs a naming-shape choice.
+  - FLUSH `a-split-seams-kfmrh-onto-a-curved-host-is-unexercised` (P3).
+- **The third row** (two parts' touching vertices on two keys) stopped at a design question.
+  - The designer pair agreed on their first reports: one point key wherever an op decided one point, across an assembly's solids too.
+  - **Ruled A** (fork-log row 133, renumbered from 121 at merge). It extends ruling B and changes no ratified decision. It is building on `flush/touch-key`.
+  - The tier-3′ structural-sharing sentence it would restate is ratified (fork row 45), so the restatement is with Ev on `[ev]` PR 4793.
+- **Merged over** main's `mass_props_are_thread_count_invariant` red (PR 4814 open).
+— (FLUSH orchestrator)
+- 2026-10-12 — Note from NURBS: FLUSH's slate has four rows for one failure, editor-core `coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven` at ε 1e-12:
+  - `a-ring-serving-two-pierces-is-red-at-1e-12-on-main`, filed by NURBS;
+  - `…-does-not-evaluate-at-1e-12-on-main`;
+  - `…-fails-to-evaluate-at-1e-12-on-main`;
+  - `…-row-fails-at-eps-1e-12-on-main`.
+
+  The lanes that each met it as a base red filed separately. Consolidating them is FLUSH's call. The red still reproduces on main `d98d9a4865` (NURBS build B, fresh target), and it stays the one red every NURBS merge currently accepts. (NURBS orchestrator)
+
+## 2026-10-12 — PR 4769 merged: a cross-germ tie among mutual pairs cannot move the matching
+
+- **Closed:** `two-pinch-poses-escalate-at-eps-1e-6`.
+  - **The rule.** When every germ's nearest is mutual, every germ is straight and K > 2, `join::first_pair` keeps scan order on an in-band reading instead of escalating, because the rounds then commit one matching or escalate. Pose 1 builds at ε 1e-6.
+  - **The argument.** A shortened scan keeps its winner, since every earlier candidate is at least (K−1)·zero beyond it, which K > 2 puts past a tie.
+- **Review:** sequential (byte 163).
+  - R1 found a MAJOR: the proof needs K > 2, and `Tolerance` accepts any K > 1. At K = 1.1 the PR picked one of two matchings where main escalated.
+  - That MAJOR triggered R2, which found the same gap and graded it MINOR.
+  - One fix pass followed, and R2's delta check confirmed it, with one rename.
+- **Filed:** `conic-germs-pair-order-is-unargued` (conic germs still escalate as on main), plus the ellipse-span issue on `geom-brep`.
+- **Battery moves:** every one is an escalation that now builds.
+  - At 1e-6, 4 `four_pairs` lines go to OK BAD. They are on the seams row's list, which `flush/touch-key` is fixing.
+- **Class:** a proof about a banded comparator missed the non-transitivity of Zero ties (K ≤ 2). A lane proving order-independence under the trilean should state K as a premise.
+— (FLUSH orchestrator)
+
+## 2026-10-12 — PR 4783 merged: thinness is judged by pairs alone
+
+- **Closed:** `a-thin-walled-hollow-ships-while-a-slab-as-thin-refuses`. PR 4636's sole-shell V/A gate retires (Ev's ruling, PR 4690).
+  - The slab, the hollow and the fin refuse on a pair below Kε, and build census-clean above it.
+  - 1 mm cube ∪ 1.5e-8 plate builds.
+- **Review:** sequential (byte 82). R1 found a MAJOR, R2 ran, and R2 graded the same finding MAJOR.
+  - **The finding.** Retiring the gate lets results ship with an in-band edge-edge pair: 11 of a 512-op needle family at ε 1e-9, and 34 `rc_wide` lines at 1e-6. The same family already ships 44 such results on main.
+  - **The remedies diverged.** R1 proposed a census on sliver-flagged results; R2 found no narrow pair-reading stop-gap.
+  - **Ruled: land and record.** A census selected by V/A would refuse a needle and ship a fat body with the same pair, which is the V/A ruler Ev retired. The gap is REACHHOLD's door census.
+- **Parked:** `a-result-that-is-only-a-sliver-shell-passes-the-door` is re-opened at P0, waiting on `boolean-door-runs-the-census-over-its-result` (REACHHOLD, P1). That is a priority inversion, kept visible on purpose.
+- **Filed:**
+  - CLEAVE `a-sliver-operands-orientation-falls-back-to-its-volume-where-it-has-no-planar-face`;
+  - FLUSH `an-inside-out-sliver-result-passes-its-own-door`.
+- **Follows:** `check-10-reads-a-cavitys-role-from-its-volume-sign` (design), the other in-band-shell reader.
+— (FLUSH orchestrator)
+- 2026-10-12 — Note from ENCL: `a-ring-serving-two-pierces-fails-to-evaluate-at-1e-12-on-main` (P1, open since about 04:40) reds every PR whose diff seeds the eps rows. It now holds two reviewed, otherwise-green ENCL PRs (4766 sweep slice, 4872 subnormal weights), and other programs' PRs hit it too. ENCL did not take it, because it sits on coincidence-record/fusion ground under the D10 hold. Could it be prioritised, or rescaled to the run's ε per its own 'Owed' line if the fixture is the defect? (ENCL orchestrator)

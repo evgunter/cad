@@ -51,9 +51,15 @@ curved face in reach of the other piece lands in this class as well:
 the "same geometry passes as shells of one solid" asymmetry above is
 gone from the verbs' outputs, which no longer put two pieces under one
 solid. Measured on PR 3891's branch with a box declared `Tangent` to a
-plate's fillet (two solids, tier 3 green, 3′ `CensusUndecidable` alone);
-main has since refused that union (`TangentSlitArmUnbuilt`), so no row
-pins it today.
+plate's fillet (two solids, tier 3 green, 3′ `CensusUndecidable` alone).
+Main refused that union for a while (`TangentSlitArmUnbuilt`); it answers
+again since `contacthold/face-face-touch-row` (PR 4921), two solids with
+the face–face record of the box's wall and the fillet
+(`reach_continuation::a_tangent_beside_a_fillet_builds_every_op_in_either_order`,
+which does not run 3′). The like rod resting on a plate
+(`face_face_touch::a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it`)
+refuses 3′ `CensusUndecidable` on the rod's wall and a plate face,
+measured on PR 4921's review; no row pins that verdict.
 
 ## 2026-10-03 — 38 boolean results on main (REACH, `boolean-door-adopts-the-finished-body-type`)
 
@@ -239,3 +245,52 @@ The all-planar twin `ARC tri tri` passes 3′. The op's records of the
 touch are complete since FLUSH's `an-apex-edge-…` (PR on
 `flush/apex-edge-in-face-plane`): the bound records plus the apex
 edge's span against the face (or the collinear edge, `quarter`).
+
+## 2026-10-12: a tangent touch's union reaches it (`contacthold/same-side-tangent-touch`)
+
+Ev's ruling on `[ev]` PR 4723 makes the union of two operands that
+touch only along a tangent line a two-solid `Assembly`, and that union
+now builds. Its 3′ pass on its own records refuses only with
+`CensusUndecidable` (`CurvedWithinReach` on the face pairs, then the
+solid pair). Three fixtures show it:
+
+- two discs kissing externally;
+- two externally tangent upright cylinders;
+- PR 4704's `sameside-corner` quarter round on a slab.
+
+`crates/sweep/tests/common/touch_union.rs` admits exactly that
+refusal (`CurvedWithinReach` on face pairs across the two solids, and
+the `Unexamined` solid pair it leaves) and no other finding, and cites
+this row. PR 4781's review fixtures add cylinders of unequal radii and
+a box edge on a cylinder's ruling, which read the same. When this lane
+lands, that check can demand `Ok`.
+
+## 2026-10-12 — lobes touching at a pinch (CONTACTHOLD)
+
+Pieces that touch at one point, where the touch is recorded, land here
+too. The L-prism (reflex top corner `(1, 1, 1)`) intersected with a
+cylinder of radius 3 or 6 whose side passes through that corner, at
+the normals `(1, 1.3, 0.7)`, `(1, 1.3, 0.4)` and `(1.2, 1.0, 0.3)`,
+builds in either operand order: two lobes on one point key at the
+corner, and the corner's `VertexFusion` row (the prism's corner on
+the cylinder's side). Each of those 12 results then fails
+`validate_pseudomanifold` against its own records with
+`CensusUndecidable` ("a curved face of one is within reach of the
+other") between the cylinder wall of one lobe and a face of the other.
+The unions of the same pairs pass. Measured at
+`contacthold/zero-to-distinct-cells-audit` (PR 4765) by its review
+probe `review_4765_curved_probes::probe_curved_pinch` (sweep), which
+was dropped once it had been read. The pairs meet at the pinch, so no
+separation clears them: the arm needs a contact read at a recorded
+pinch, not a sharper separation test.
+
+## 2026-10-12 — five more at the curved pinch (FLUSH)
+
+FLUSH's pinch-residue lane (branch `flush/pinch-residue`) made 15
+`curved_notch_pinch` lines build that refused `JoinDesync` on main.
+Five of the new bodies fail tier 3′ with `CensusUndecidable` alone,
+the signature above (the oracle's volume, tier 2, the certificate, no
+definite finding): `0 3 2 ba S`, `1 6 0 ba S`, `3 1 0 ba S`,
+`6 1 0 ab I`, `6 1 0 ba S`. Replay with `CURVED_POSE="i j k order op"
+cargo test -p sweep --release --test all curved_notch_pinch_one --
+--ignored --nocapture`.

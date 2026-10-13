@@ -28,12 +28,13 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::{
-    Band, Decide, LeveredUnitError, Margin, OrthoFrame, Point3, Real, Sign, UNIT_DIRECTION_ARM,
+    Band, Decide, LeveredUnitError, Margin, Point3, Real, RigidMotion, Sign, UNIT_DIRECTION_ARM,
     UnitVec3, UnitVec3Error, Vec3,
 };
 
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
+use crate::implicit::cone_offset;
 
 /// The flux and area of a curved face from its **outer** loop:
 /// [`curved_face_loops`] over that one loop. `band` is the run's
@@ -83,11 +84,14 @@ pub enum MaterialSign {
     ///
     /// * one with both chart poles on its loop (a lune, a hemisphere
     ///   split at its poles), whose loop bounds the face and its
-    ///   complement alike with neither holding a pole. Such faces are
-    ///   seam siblings that meet along their meridians tangentially,
-    ///   where tier 3's check 4 reads a flip of one sibling as a
-    ///   lamina, though not a flip of both
-    ///   (`work/flux/a-pair-of-seam-siblings-flipped-together-is-silent.md`);
+    ///   complement alike with neither holding a pole. Tier 3 reads
+    ///   such a face through the region it forms with its seam
+    ///   siblings, the faces of its surface it reaches across shared
+    ///   edges, where that region's boundary encodes one
+    ///   ([`sphere_region_material_sign`]). A region whose boundary
+    ///   carries both poles stays unread: for a region of one face that
+    ///   is no defect, as the flipped bit describes the complement,
+    ///   another valid body;
     ///   and, the same answer by the band rather than by the geometry,
     ///   one with a pole off its loop but within the ambiguity band of
     ///   a great (or near-great) carrier's plane: its antipode is the
@@ -219,6 +223,7 @@ pub fn boundary_material_sign_loops<T: Decide>(
 /// stored span. One home and one band: the margins are `RimArms`-
 /// levered through the same named decides as the flux lane
 /// (`props_circle_axis_class`, `props_rim_fit`,
+/// `props_cylinder_circle_*` and `props_cone_circle_*`,
 /// `props_rim_axis_parallel`, `props_rim_center_on_axis`, the
 /// `props_meridian_*` incidences, `props_rim_level`), so a
 /// `NotIsoRectangle` from here carries the `what` the flux lane would
@@ -776,47 +781,39 @@ fn require_extent<T: Decide>(margin: Margin<T>, band: Band) -> Result<(), PropsE
     }
 }
 
-/// Rim incidence on its surface of revolution (M2 PR 7 review F1:
-/// shape checks alone — radius fit, definite axis class — accept
-/// circles nowhere on the surface). Certifies, with `w` the rim center
-/// minus the surface's axis origin:
+/// **Whether an on-surface circle is the iso rim** the parse reads a
+/// level off its centre, with `w` the rim centre minus the surface's
+/// axis origin:
 ///
-/// - carrier axis **parallel** to the surface axis (the definite axis
-///   class only pins `n_c·â ≠ 0`): margin `‖n_c × â‖·r_c` — the
-///   tilt angle metered at the rim radius (lever arm `r_c`);
-/// - rim center **on the axis line**: margin `‖w − â(w·â)‖`, the
-///   center's perpendicular offset from the axis (already meters).
+/// - carrier axis **parallel** to the surface axis
+///   (`props_rim_axis_parallel`): `‖n_c × â‖·r_c`, the tilt metered at
+///   the rim radius;
+/// - rim centre **on the axis line** (`props_rim_center_on_axis`):
+///   `‖w − â(w·â)‖`.
 ///
-/// Together with the per-surface radius/level fit these pin the rim
-/// circle pointwise onto the surface.
-///
-/// **`premise` varies by surface and that is the point** (row 7's
-/// split). On a cylinder or a cone the only circles on the surface are
-/// its cross-sections, so these two residuals are incidence: a miss is
-/// [`PropsError::OffSurface`]. On a sphere and a torus they are not —
-/// the radius fit alone already places the circle on the surface, and
-/// these ask the further question whether it is the iso-v rim, which a
-/// sphere circle cut by an oblique plane and a torus Villarceau circle
-/// fail while lying on the surface. There a miss is the inventory's.
+/// These are the circle's deviation from the iso rim, not its distance
+/// from the surface, so a miss is the inventory's: every caller has
+/// decided incidence at the true distance first, and an oblique sphere
+/// section, a torus Villarceau circle, or a circle tilted within band
+/// of a cylinder or cone lies on the surface and is not iso.
 fn require_rim_incidence<T: Decide>(
     w: Vec3<T>,
     n_c: Vec3<T>,
     r_c: T,
     axis: Vec3<T>,
     band: Band,
-    premise: Premise,
 ) -> Result<(), PropsError> {
     require_zero(
         "props_rim_axis_parallel",
         Margin::levered(n_c.cross(axis).norm(), r_c),
         band,
-        premise,
+        Premise::Inventory,
     )?;
     require_zero(
         "props_rim_center_on_axis",
         Margin::norm3(w - axis * w.dot(axis)),
         band,
-        premise,
+        Premise::Inventory,
     )
 }
 
@@ -1342,10 +1339,12 @@ fn cylinder_chart<T: Decide>(
 
 /// A cylinder face's holes: each ring that does not wind the cylinder
 /// (`props_ring_contractible` Zero), as its chart area in m² (`R·A`)
-/// and boundary length. A ring that winds it is a band's second rim,
-/// whose chart area alone depends on the anchor, so it is no hole and
-/// is passed over: the face's zero-winding check
-/// (`props_chart_loops_closed`) makes the face's whole anchor-free.
+/// and boundary length. A ring that winds it is a band's rim, whose
+/// chart area alone depends on the anchor, so it is no hole and is
+/// passed over: the face's zero-winding check
+/// (`props_chart_loops_closed`) makes the face's whole anchor-free. On
+/// such a band the first loop stored is a hole too when it does not
+/// wind, so it is read as one.
 fn cylinder_holes<T: Decide>(
     rims: &[(T, T)],
     spans: &[(usize, T)],
@@ -1353,18 +1352,37 @@ fn cylinder_holes<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<Vec<(T, T)>, PropsError> {
-    let mut holes = Vec::with_capacity(spans.len() - 1);
-    for (i, &(start, lines)) in spans.iter().enumerate().skip(1) {
+    let span = |i: usize| {
+        let (start, lines) = spans[i];
         let end = spans.get(i + 1).map_or(rims.len(), |&(next, _)| next);
-        let ring = &rims[start..end];
+        (&rims[start..end], lines)
+    };
+    let contractible = |ring: &[(T, T)]| {
         let winding = ring.iter().fold(T::zero(), |acc, &(_, du)| acc + du);
-        if classify(
+        classify(
             "props_ring_contractible",
             Margin::levered(winding, radius),
             band,
             PropsCheck::Inventory,
-        )? == Sign::Zero
-        {
+        )
+        .map(|sign| sign == Sign::Zero)
+    };
+    let mut holes = Vec::with_capacity(spans.len());
+    let mut band_face = false;
+    for i in 1..spans.len() {
+        let (ring, lines) = span(i);
+        if contractible(ring)? {
+            let (a, l) = loop_chart(ring, lines);
+            holes.push((radius * a, l));
+        } else {
+            band_face = true;
+        }
+    }
+    // On a band every loop that does not wind is a hole, the first one
+    // stored included.
+    if band_face {
+        let (ring, lines) = span(0);
+        if contractible(ring)? {
             let (a, l) = loop_chart(ring, lines);
             holes.push((radius * a, l));
         }
@@ -1569,7 +1587,23 @@ fn cylinder_boundary<T: Decide>(
                     band,
                     Premise::OnSurface,
                 )?;
-                require_rim_incidence(center - origin, n_c, r_c, axis, band, Premise::OnSurface)?;
+                // Incidence at the true distance from the cylinder: a
+                // circle tilted by `θ` is off it by `r·(1 − cos θ)`, and
+                // one whose centre is `o` off the axis by `o`.
+                require_zero(
+                    "props_cylinder_circle_tilt",
+                    Margin::levered(T::one() - n_c.dot(axis).abs(), r_c),
+                    band,
+                    Premise::OnSurface,
+                )?;
+                let w = center - origin;
+                require_zero(
+                    "props_cylinder_circle_off_axis",
+                    Margin::norm3(w - axis * w.dot(axis)),
+                    band,
+                    Premise::OnSurface,
+                )?;
+                require_rim_incidence(w, n_c, r_c, axis, band)?;
                 let v = (center - origin).dot(axis);
                 // The axial arc length itself — meters.
                 rims.push(Rim::decided(
@@ -1649,8 +1683,10 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 /// a region whose closure holds the apex, where `n` is undefined on a
 /// set of no area. What it needs, each decided by name:
 ///
-/// - **edges on the cone** — generators through the apex, rims of the
-///   cone's own radius (the incidence premises, in [`cone_loops`]);
+/// - **edges on the cone** — generators through the apex, coaxial
+///   sections, plane sections (the incidence premises,
+///   [`require_on_cone`]), each conic's span within a period
+///   ([`require_cone_conic_spans`]);
 /// - **one nappe** — the boundary does not cross the apex
 ///   (`props_cone_nappe`, in [`cone_loops`]);
 /// - **closed loops** that bound the region **once**: every joint
@@ -1682,7 +1718,8 @@ fn min_max<T: Real>(levels: &[T]) -> Result<(T, T), PropsError> {
 /// [`PropsError::DegenerateFace`] for a face of no area;
 /// [`PropsError::ConeLoop`] naming the decide for a loop that does not
 /// close, goes round the axis twice, meets itself at a vertex, or a
-/// ring that winds the axis or reaches the apex;
+/// ring that winds the axis or reaches the apex, and for an ellipse
+/// arc's span not forward or past a period;
 /// [`PropsError::RingWoundWithFace`] for a ring wound with the face;
 /// [`PropsError::HolesExceedFace`] for holes that cover more than the
 /// outer loop; [`PropsError::Escalated`] for an in-band decision.
@@ -1771,13 +1808,10 @@ struct ConeLoops<T: Real> {
 /// area against the chart normal, off the axial vector area.
 ///
 /// Every edge must lie on the cone, decided as incidence
-/// ([`PropsError::OffSurface`]): a line is a generator — at the
-/// generator angle to the axis (`props_meridian_generator`) and through
-/// the apex (`props_meridian_apex`) — and a circle is a rim, coaxial
-/// (`props_circle_axis_class`, `props_rim_axis_parallel`,
-/// `props_rim_center_on_axis`) at the cone's radius for its height
-/// (`props_rim_fit`). An ellipse is read as the plane section it is
-/// stated to be, its incidence undecided here.
+/// ([`PropsError::OffSurface`], [`require_on_cone`]): a line is a
+/// generator, a circle a coaxial section and an ellipse the section by
+/// its plane. Every circle and ellipse span is decided within a period
+/// ([`require_cone_conic_spans`]) before any reader takes it.
 ///
 /// The chart normal makes `n·axis = −sin α` on the `v > 0` nappe and
 /// `+sin α` on the other, so a face whose traversal places it left of
@@ -1810,7 +1844,7 @@ fn cone_loops<T: Decide>(
         for e in edges {
             require_on_cone(apex, axis, sin_a, cos_a, e, band)?;
         }
-        require_cone_circle_spans(edges, band)?;
+        require_cone_conic_spans(edges, band)?;
     }
     let (mut ends, mut length, mut axial, mut va) =
         (Vec::new(), T::zero(), T::zero(), Vec3::zero());
@@ -1874,17 +1908,23 @@ fn cone_loop_refusal(e: PropsError) -> PropsError {
     }
 }
 
-/// **An edge lies on the cone** — the incidence premises the iso parse
-/// ([`cone_boundary`]) decides, under the same names: a line at the
-/// generator angle through the apex, a circle coaxial at the cone's
-/// radius for its height. An ellipse passes undecided ([`cone_loops`]).
+/// **An edge lies on the cone**, each premise decided at the true
+/// distance from the cone of the edge's farthest point, every one
+/// through the cone's residual ([`cone_offset`]):
 ///
-/// Each meters a point's distance from the cone: a line's angle off the
-/// generator, `sin(β − α) = |dir × axis|·cos α − |dir·axis|·sin α`, over
-/// its span, and a rim's distance in its meridian plane,
-/// `r·cos α − |h|·sin α` with `h` the centre's axial height — neither
-/// divides by `sin α` or `cos α`, so neither is levered toward a needle
-/// or a near-flat cone.
+/// - a line is a generator ([`require_cone_generator`]), under the iso
+///   parse's names;
+/// - a circle is coaxial (`props_circle_axis_class`) at the cone's
+///   radius for its height (`props_rim_fit`, the residual at the radius
+///   and the centre's axial height), and neither tilted
+///   (`props_cone_circle_tilt`) nor off the axis
+///   (`props_cone_circle_off_axis`) by more than the band. With the
+///   other two exact, a circle tilted by `θ` is off the cone by at most
+///   `r·(sin θ·sin α + (1 − cos θ)·cos α)` and one whose centre is `o`
+///   off the axis by at most `o·cos α`, both attained. The iso parse
+///   asks besides whether it is the iso rim ([`require_rim_incidence`]);
+/// - an ellipse arc is bounded off the cone over its whole span
+///   ([`require_cone_ellipse`]).
 fn require_on_cone<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -1894,67 +1934,246 @@ fn require_on_cone<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     match e.carrier {
-        Curve3::Line { dir, .. } => {
-            require_zero(
-                "props_meridian_generator",
-                Margin::levered(
-                    dir.cross(axis).norm() * cos_a - dir.dot(axis).abs() * sin_a,
-                    e.t1 - e.t0,
-                ),
-                band,
-                Premise::OnSurface,
-            )?;
-            require_zero(
-                "props_meridian_apex",
-                Margin::norm3((apex - e.p0()).cross(dir)),
-                band,
-                Premise::OnSurface,
-            )
-        }
+        Curve3::Line { dir, .. } => require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band),
         Curve3::Circle {
             center,
             axis: n_c,
             radius: r_c,
             ..
-        } => {
-            if classify(
-                "props_circle_axis_class",
-                Margin::levered(n_c.dot(axis), r_c),
-                band,
-                PropsCheck::Inventory,
-            )? == Sign::Zero
-            {
-                return Err(PropsError::OffSurface {
-                    what: "props_circle_axis_class",
-                });
-            }
-            require_zero(
-                "props_rim_fit",
-                Margin::of(r_c * cos_a - (center - apex).dot(axis).abs() * sin_a),
-                band,
-                Premise::OnSurface,
-            )?;
-            require_rim_incidence(center - apex, n_c, r_c, axis, band, Premise::OnSurface)
-        }
-        Curve3::Ellipse { .. } => Ok(()),
+        } => require_cone_circle(apex, axis, sin_a, cos_a, center, n_c, r_c, band).map(|_| ()),
+        Curve3::Ellipse { .. } => require_cone_ellipse(apex, axis, sin_a, cos_a, e, band),
         Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
     }
 }
 
-/// **Every circle span the cone reads, decided** ([`require_rim_span`]).
-/// The cone's flux lane and material sign integrate each edge's stored
-/// span through [`loop_vector_area`] (`R²·Δt`) and [`cone_edge_length`]
-/// (`R·|Δt|`) on every loop, rings and the ellipse-cut branch included,
-/// none of which mints a [`Rim`]; a circle on a cone is a coaxial
-/// section, so its span is a rim's and is decided under the rim's names
-/// at its own radius.
-fn require_cone_circle_spans<T: Decide>(
+/// [`require_on_cone`]'s circle arm, shared with the iso parse
+/// ([`cone_boundary`]), which reads the returned axis class as the
+/// rim's sense.
+#[allow(clippy::too_many_arguments)]
+fn require_cone_circle<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    sin_a: T,
+    cos_a: T,
+    center: Point3<T>,
+    n_c: Vec3<T>,
+    r_c: T,
+    band: Band,
+) -> Result<Sign, PropsError> {
+    let s = classify(
+        "props_circle_axis_class",
+        Margin::levered(n_c.dot(axis), r_c),
+        band,
+        PropsCheck::Inventory,
+    )?;
+    if s == Sign::Zero {
+        return Err(PropsError::OffSurface {
+            what: "props_circle_axis_class",
+        });
+    }
+    let w = center - apex;
+    require_zero(
+        "props_rim_fit",
+        Margin::of(cone_offset(r_c, w.dot(axis).abs(), sin_a, cos_a)),
+        band,
+        Premise::OnSurface,
+    )?;
+    let cos_t = n_c.dot(axis).abs();
+    require_zero(
+        "props_cone_circle_tilt",
+        Margin::levered(
+            n_c.cross(axis).norm() * sin_a + (T::one() - cos_t) * cos_a,
+            r_c,
+        ),
+        band,
+        Premise::OnSurface,
+    )?;
+    require_zero(
+        "props_cone_circle_off_axis",
+        Margin::levered(cos_a, (w - axis * w.dot(axis)).norm()),
+        band,
+        Premise::OnSurface,
+    )?;
+    Ok(s)
+}
+
+/// **An ellipse arc lies on the cone over its whole span**, bounded,
+/// not sampled (`props_cone_ellipse_on_cone`).
+///
+/// With `w` a point's offset from the apex, `h = w·axis` and `ρ` its
+/// distance from the axis, the cone's quadric residual
+/// `Q = ρ²·cos²α − h²·sin²α` — formed from the radial and axial parts
+/// apart, which do not cancel against each other toward a needle as
+/// `cos²α·|w|² − h²` does — factors as
+/// `(ρ·cos α − |h|·sin α)·(ρ·cos α + |h|·sin α)`: the elevation times a
+/// second factor. So the elevation is at most `|Q|` over a lower bound
+/// on that factor, metres, and that bound is taken over the
+/// span in 128 equal pieces, each about its midpoint `t_m`, and decided
+/// once at its largest.
+///
+/// On a piece, with `δ = t − t_m`, the carrier is
+/// `W + A·x + B·y`, where `x = cos δ − 1`, `y = sin δ`, `W` the
+/// midpoint's offset, and `A`, `B` the ellipse's axis vectors turned to
+/// `t_m`. Since `x² + 2x + y² = 0`, `Q` is
+/// `k₀ + k_x·x + k_y·y + k_xx·x² + k_xy·x·y`, whose five coefficients are
+/// unique — all zero for an ellipse on the cone — and are read off the
+/// quadratic form at the midpoint, so they carry the rounding of points
+/// near the face, not of a carrier that may reach far past it; `k₀`,
+/// which no small factor scales, is `Q` at the midpoint taken as its
+/// two factors, the first the midpoint's own elevation. Over the
+/// piece `|x| ≤ X = 1 − cos δ_max` and `|y| ≤ Y = sin δ_max`, which
+/// bound `|Q|`. The piece's `|h|` is bounded below by the larger of
+/// `|h_m| − |A·axis|·X − |B·axis|·Y` and the whole carrier's minimum,
+/// `|h_m − A·axis| − ‖(A·axis, B·axis)‖`; its least over the pieces is
+/// decided positive first (`props_cone_ellipse_nappe`), since an
+/// ellipse on the cone lies on one nappe clear of the apex.
+///
+/// The pieces are many because the parameter is slow where a section
+/// is sharp: near the vertex nearest the apex an eccentric section's
+/// `A` is its major semi-axis while `|h|` is small, so a piece must be
+/// short for `|A|·X` — and the rounding the coefficients carry at that
+/// scale — to stay small against `|h|`.
+///
+/// The second factor is bounded below on a piece by
+/// `ρ_low·cos α + |h|_low·sin α`, `ρ_low` the midpoint's distance from
+/// the axis less what `A` and `B` can move it over the piece. The bound
+/// over-reads the elevation by the spread of `ρ` and `|h|` across a
+/// piece and by the triangle inequality over the five terms.
+fn require_cone_ellipse<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    sin_a: T,
+    cos_a: T,
+    e: &LoopEdge<T>,
+    band: Band,
+) -> Result<(), PropsError> {
+    let Curve3::Ellipse {
+        center,
+        axis: n,
+        major,
+        minor,
+        u_ref,
+    } = e.carrier
+    else {
+        return Err(PropsError::Unimplemented);
+    };
+    let (a, b) = (u_ref * major, n.cross(u_ref) * minor);
+    let (cos2, sin2) = (cos_a.powi(2), sin_a.powi(2));
+    let perp = |p: Vec3<T>| p - axis * p.dot(axis);
+    let m = |p: Vec3<T>, q: Vec3<T>| perp(p).dot(perp(q)) * cos2 - p.dot(axis) * q.dot(axis) * sin2;
+    let piece = (e.t1 - e.t0) / T::from_f64(128.0);
+    let half = (piece / T::from_f64(2.0)).abs();
+    let x_max = T::one() - half.min(T::pi()).cos();
+    let y_max = half.min(T::pi() / T::from_f64(2.0)).sin();
+    let mut middle = T::from_f64(0.5);
+    let (mut h_low, mut elevation) = (T::zero(), T::zero());
+    for k in 0..128 {
+        let (st, ct) = (e.t0 + piece * middle).sin_cos();
+        let (am, bm) = (a * ct + b * st, b * ct - a * st);
+        let w = (center - apex) + am;
+        let (hm, ha, hb) = (w.dot(axis), am.dot(axis), bm.dot(axis));
+        let h = (hm.abs() - ha.abs() * x_max - hb.abs() * y_max)
+            .max((hm - ha).abs() - (ha.powi(2) + hb.powi(2)).sqrt());
+        let mbb = m(bm, bm);
+        let rho = perp(w).norm();
+        let q_max = (cone_offset(rho, hm.abs(), sin_a, cos_a) * (rho * cos_a + hm.abs() * sin_a))
+            .abs()
+            + (m(w, am) - mbb).abs() * T::from_f64(2.0) * x_max
+            + m(w, bm).abs() * T::from_f64(2.0) * y_max
+            + (m(am, am) - mbb).abs() * x_max.powi(2)
+            + m(am, bm).abs() * T::from_f64(2.0) * x_max * y_max;
+        let rho_low = (rho - perp(am).norm() * x_max - perp(bm).norm() * y_max).max(T::zero());
+        let piece_elevation = q_max / (rho_low * cos_a + h * sin_a);
+        (h_low, elevation) = if k == 0 {
+            (h, piece_elevation)
+        } else {
+            (h_low.min(h), elevation.max(piece_elevation))
+        };
+        middle = middle + T::one();
+    }
+    if classify(
+        "props_cone_ellipse_nappe",
+        Margin::of(h_low),
+        band,
+        PropsCheck::Inventory,
+    )? != Sign::Positive
+    {
+        return Err(PropsError::OffSurface {
+            what: "props_cone_ellipse_nappe",
+        });
+    }
+    require_zero(
+        "props_cone_ellipse_on_cone",
+        Margin::of(elevation),
+        band,
+        Premise::OnSurface,
+    )?;
+    Ok(())
+}
+
+/// **A line on the cone is a generator**: at the generator angle to the
+/// axis (`props_meridian_generator`) and through the apex
+/// (`props_meridian_apex`, the apex's distance from the line, `dir`
+/// unit). A line through the apex at angle `β` to the axis is off the
+/// cone by `s·sin(β − α)` at distance `s` from the apex, and
+/// `sin(β − α)` is the cone's residual at the unit direction
+/// ([`cone_offset`] of `|dir × axis|` and `|dir·axis|`), so the angle is
+/// levered by the edge's reach from the apex, the farther of its ends.
+fn require_cone_generator<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    sin_a: T,
+    cos_a: T,
+    dir: Vec3<T>,
+    e: &LoopEdge<T>,
+    band: Band,
+) -> Result<(), PropsError> {
+    require_zero(
+        "props_meridian_generator",
+        Margin::levered(
+            cone_offset(dir.cross(axis).norm(), dir.dot(axis).abs(), sin_a, cos_a),
+            (e.p0() - apex).norm().max((e.p1() - apex).norm()),
+        ),
+        band,
+        Premise::OnSurface,
+    )?;
+    require_zero(
+        "props_meridian_apex",
+        Margin::norm3((apex - e.p0()).cross(dir)),
+        band,
+        Premise::OnSurface,
+    )
+}
+
+/// **Every conic span the cone reads, decided.** The cone's flux lane
+/// and material sign integrate each edge's stored span through
+/// [`loop_vector_area`] and [`cone_edge_length`], and its winding reads
+/// it through [`cone_loop_winding`], on every loop, rings included,
+/// and none of them mints a [`Rim`]. A circle
+/// on a cone is a coaxial section, so its span is a rim's and is decided
+/// under the rim's names at its own radius ([`require_rim_span`]). An
+/// ellipse arc is no rim: its span is decided under its own names,
+/// `props_cone_ellipse_span_forward` / `props_cone_ellipse_span_winding`,
+/// at certification's ellipse meter, the smaller semi-axis magnitude,
+/// refusing as [`PropsError::ConeLoop`].
+fn require_cone_conic_spans<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<(), PropsError> {
     for e in edges {
-        if let Curve3::Circle { radius, .. } = e.carrier {
-            require_rim_span(e, radius, band)?;
+        match e.carrier {
+            Curve3::Circle { radius, .. } => require_rim_span(e, radius, band)?,
+            Curve3::Ellipse { major, minor, .. } => require_span_within_period(
+                e,
+                major.abs().min(minor),
+                band,
+                [
+                    "props_cone_ellipse_span_forward",
+                    "props_cone_ellipse_span_winding",
+                ],
+                |what| PropsError::ConeLoop { what },
+            )?,
+            _ => {}
         }
     }
     Ok(())
@@ -2309,25 +2528,7 @@ fn cone_boundary<T: Decide>(
         match e.carrier {
             Curve3::Line { dir, .. } => {
                 generators = true;
-                require_zero(
-                    "props_meridian_generator",
-                    Margin::levered(
-                        dir.cross(axis).norm() * cos_a - dir.dot(axis).abs() * sin_a,
-                        e.t1 - e.t0,
-                    ),
-                    band,
-                    Premise::OnSurface,
-                )?;
-                // Incidence: a line at the generator angle is a
-                // generator iff it passes through the apex — the
-                // apex-to-line distance `‖(apex − p) × dir‖` (`dir`
-                // unit, so meters directly).
-                require_zero(
-                    "props_meridian_apex",
-                    Margin::norm3((apex - e.p0()).cross(dir)),
-                    band,
-                    Premise::OnSurface,
-                )?;
+                require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)?;
                 levels.push((e.p0() - apex).dot(axis) / cos_a);
                 levels.push((e.p1() - apex).dot(axis) / cos_a);
             }
@@ -2337,25 +2538,9 @@ fn cone_boundary<T: Decide>(
                 radius: r_c,
                 ..
             } => {
-                let s = classify(
-                    "props_circle_axis_class",
-                    Margin::levered(n_c.dot(axis), r_c),
-                    band,
-                    PropsCheck::Inventory,
-                )?;
-                if s == Sign::Zero {
-                    return Err(PropsError::NotIsoRectangle {
-                        what: "cone boundary circle is not a rim",
-                    });
-                }
+                let s = require_cone_circle(apex, axis, sin_a, cos_a, center, n_c, r_c, band)?;
+                require_rim_incidence(center - apex, n_c, r_c, axis, band)?;
                 let v = (center - apex).dot(axis) / cos_a;
-                require_zero(
-                    "props_rim_fit",
-                    Margin::of(r_c * cos_a - (center - apex).dot(axis).abs() * sin_a),
-                    band,
-                    Premise::OnSurface,
-                )?;
-                require_rim_incidence(center - apex, n_c, r_c, axis, band, Premise::OnSurface)?;
                 // The signed slant arc length itself — meters.
                 rims.push(Rim::decided(
                     e,
@@ -2478,8 +2663,7 @@ fn require_rim_only_closed<T: Decide>(
     )?;
     // The joins, in the loop's own order: edge `i`'s traversal END is
     // edge `i + 1`'s traversal START, cyclically. A point deviation in
-    // metres, the comparand `require_rim_incidence` already meters
-    // incidences with.
+    // metres.
     for (i, e) in edges.iter().enumerate() {
         let next = &edges[(i + 1) % edges.len()];
         require_zero(
@@ -3111,13 +3295,23 @@ fn pole_free_side<T: Decide>(
     lp: &SphereLoop<T>,
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
+    agreed_side(axis, |pole| pole_side(center, radius, pole, lp, band))
+}
+
+/// **The side the poles' readings agree on.** `read` reads the side at
+/// the pole in direction `pole`, or `None` for a pole it does not read;
+/// an in-band reading leaves that pole unread too, and never refuses.
+/// `Encoded` when the readings made agree, `Unencoded` when none is made
+/// or two disagree.
+fn agreed_side<T: Decide>(
+    axis: Vec3<T>,
+    read: impl Fn(Vec3<T>) -> Result<Option<Sign>, PropsError>,
+) -> Result<MaterialSign, PropsError> {
     let up = axis / axis.norm();
     let mut reading: Option<Sign> = None;
     for pole in [up, -up] {
-        let side = match pole_side(center, radius, pole, lp, band) {
+        let side = match read(pole) {
             Ok(side) => side,
-            // An in-band reading leaves this pole unread; it never
-            // refuses the face.
             Err(PropsError::Escalated { .. }) => None,
             Err(other) => return Err(other),
         };
@@ -3128,6 +3322,99 @@ fn pole_free_side<T: Decide>(
         }
     }
     Ok(reading.map_or(MaterialSign::Unencoded, MaterialSign::Encoded))
+}
+
+/// **The side of a seam region of one sphere's faces**, read off the
+/// region's own boundary. A face whose loop holds both chart poles
+/// encodes no side alone ([`pole_free_side`]), but the faces on its
+/// surface that it reaches across shared edges tile one region, the
+/// loops' traversals agree across every edge they share, and that
+/// region encodes a side wherever its boundary does. `boundary` is the
+/// region's boundary (the members' edges no other member shares,
+/// chained into loops); `members` is every loop of every member.
+///
+/// * **No boundary**: the members close the sphere. `Unencoded`. Once
+///   over, they are a shell whose orientation tier 3's volume checks
+///   read; more than once, their faces overlap and no reading here
+///   tells.
+/// * **Two or more boundary loops**: the sign of the region's
+///   Gauss–Bonnet area, as for a face with holes.
+/// * **One boundary loop**: read at each pole on an edge interior to
+///   the region, on some member's loop and off the boundary. The region
+///   holds that pole, so it is the side of the boundary that holds it.
+///   A pole on no member's loop is not read: the region would be the
+///   side without it only if no face held a chart singularity off its
+///   loop, which validity does not yet refuse. `Unencoded` when no pole
+///   is read, among them a boundary carrying both poles: that region
+///   and its complement are both legal, and for a region of one face,
+///   flipping its bit describes the other one, a valid body and not a
+///   defect.
+///
+/// # Errors
+///
+/// As [`boundary_material_sign_loops`], over the boundary and the
+/// members; [`PropsError::SphereLoop`] for a surface that is not a
+/// sphere.
+pub fn sphere_region_material_sign<T: Decide>(
+    surface: &Surface<T>,
+    boundary: &[&[LoopEdge<T>]],
+    members: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let Surface::Sphere {
+        center,
+        radius,
+        axis,
+        ..
+    } = *surface
+    else {
+        return Err(PropsError::SphereLoop {
+            what: "a seam region read on a surface that is not a sphere",
+        });
+    };
+    let gauss = sphere_loops(center, radius, boundary, band)?;
+    let [one] = gauss.as_slice() else {
+        return if gauss.is_empty() {
+            Ok(MaterialSign::Unencoded)
+        } else {
+            side_of_sphere_loops(center, radius, axis, &gauss, band)
+        };
+    };
+    let members = sphere_loops(center, radius, members, band)?;
+    agreed_side(axis, |pole| {
+        let p = center + pole * radius;
+        for arc in members.iter().flat_map(|m| &m.arcs) {
+            if pole_against_arc(arc, p, band)?.1 {
+                return Ok(pole_side(center, radius, pole, one, band)?.map(Sign::flip));
+            }
+        }
+        Ok(None)
+    })
+}
+
+/// Where the point `p` on the sphere stands against `arc`: the side of
+/// its carrier plane (`props_sphere_pole_plane`, in metres), and whether
+/// it lies on the arc itself, in that plane and within the arc's span
+/// (`props_sphere_pole_on_arc`, [`arc_point_margin`]).
+fn pole_against_arc<T: Decide>(
+    arc: &SphereArc<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<(Sign, bool), PropsError> {
+    let plane = classify(
+        "props_sphere_pole_plane",
+        Margin::of(arc.axis.dot(p - arc.centre)),
+        band,
+        PropsCheck::Inventory,
+    )?;
+    let on = plane == Sign::Zero
+        && classify(
+            "props_sphere_pole_on_arc",
+            arc_point_margin(arc, p),
+            band,
+            PropsCheck::Inventory,
+        )? != Sign::Negative;
+    Ok((plane, on))
 }
 
 /// **Which side of the loop the pole in direction `pole` lies on**:
@@ -3170,20 +3457,8 @@ fn pole_side<T: Decide>(
     let p = center + pole * radius;
     let mut circulations = Vec::with_capacity(lp.arcs.len());
     for arc in &lp.arcs {
-        let plane = classify(
-            "props_sphere_pole_plane",
-            Margin::of(arc.axis.dot(p - arc.centre)),
-            band,
-            PropsCheck::Inventory,
-        )?;
-        if plane == Sign::Zero
-            && classify(
-                "props_sphere_pole_on_arc",
-                arc_point_margin(arc, p),
-                band,
-                PropsCheck::Inventory,
-            )? != Sign::Negative
-        {
+        let (plane, on) = pole_against_arc(arc, p, band)?;
+        if on {
             return Ok(None);
         }
         // The cap left of a forward arc is the one its axis points into.
@@ -3253,7 +3528,7 @@ fn arc_point_margin<T: Decide>(arc: &SphereArc<T>, p: Point3<T>) -> Margin<T> {
 /// circle's own radius `r_c`, as `props_rim_span_forward` /
 /// `props_rim_span_winding`, refusing [`PropsError::NotIsoRectangle`].
 /// Asked by [`Rim::decided`] at every rim mint, and by
-/// [`require_cone_circle_spans`] wherever the cone reads a circle's span
+/// [`require_cone_conic_spans`] wherever the cone reads a circle's span
 /// without minting a rim.
 fn require_rim_span<T: Decide>(e: &LoopEdge<T>, r_c: T, band: Band) -> Result<(), PropsError> {
     require_span_within_period(
@@ -3306,6 +3581,10 @@ fn require_meridian_span<T: Decide>(
 /// * a meridian, through [`require_meridian_span`];
 /// * a rim of any kind, and every circle the cone reads, through
 ///   [`require_rim_span`];
+/// * every ellipse arc the cone reads, at the smaller semi-axis
+///   magnitude, `props_cone_ellipse_span_forward` /
+///   `props_cone_ellipse_span_winding`, refusing as
+///   [`PropsError::ConeLoop`] ([`require_cone_conic_spans`]);
 /// * every arc of the sphere's flux lane ([`sphere_loop`]) at the arc's
 ///   own radius, `props_sphere_arc_span_forward` /
 ///   `props_sphere_arc_span_winding`, refusing as
@@ -3540,7 +3819,7 @@ fn sphere_boundary<T: Decide>(
                 // must also point ALONG the axis (w ∥ â) with the
                 // carrier axis parallel — together they place the
                 // circle on the sphere as the iso-v rim.
-                require_rim_incidence(w, n_c, r_c, axis, band, Premise::Inventory)?;
+                require_rim_incidence(w, n_c, r_c, axis, band)?;
                 let sin_v = w.dot(axis) / radius;
                 let cos_v = r_c / radius;
                 // Dimensionless latitude DIRECTION pair, both
@@ -4115,7 +4394,7 @@ fn torus_classify<'a, T: Decide>(
                     band,
                     Premise::Inventory,
                 )?;
-                require_rim_incidence(c_c - center, n_c, r_c, axis, band, Premise::Inventory)?;
+                require_rim_incidence(c_c - center, n_c, r_c, axis, band)?;
                 // Dimensionless minor-angle direction pair.
                 let level = RimLevel::Unit(sin_v, cos_v);
                 classified.push(TorusEdge::Rim(Rim::decided(
@@ -4345,7 +4624,7 @@ fn fold_chain<T: Decide>(
 /// about `−τ̂` at its minor center, so `dv/dt = −orient`. Definite by
 /// construction (the `Zero` arm refuses typed).
 ///
-/// `τ̂ = â × ρ̂` is the frame [`OrthoFrame::from_aim_and_reference`]
+/// `τ̂ = â × ρ̂` is the frame [`RigidMotion::from_aim_and_reference`]
 /// mints about the torus axis with the meridian centre's offset as the
 /// reference, so both lengths are decided before the orientation is:
 /// the axis under `props_torus_axis`, the radial under
@@ -4373,7 +4652,7 @@ fn torus_meridian_orient<T: Decide>(
             what: UNIT_DIRECTION_ARM,
         },
     })?;
-    let frame = OrthoFrame::from_aim_and_reference(
+    let frame = RigidMotion::from_aim_and_reference(
         center,
         aim,
         c_c - center,

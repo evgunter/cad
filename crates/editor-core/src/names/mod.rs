@@ -49,7 +49,9 @@ pub(crate) mod words;
 
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;
-pub(crate) use discriminate::{FAMILY, decision_words};
+pub(crate) use discriminate::{
+    CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE, ON_SEAM_LINE, ORDER_ALONG,
+};
 pub use emit::{NamingError, RimShare};
 pub(crate) use emit::{
     check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body, to_u32,
@@ -77,8 +79,9 @@ pub use nest::NameTextError;
 pub(crate) use nest::{read_door, write_door};
 pub use role::{
     CapEnd, EntityKind, FaceName, MeridianEnd, NameRef, NotAFaceName, PieceRole, PieceRun,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SectionCircle,
-    Sense, SplitHalf, StableName, band, band_pi, band_rim, band_rim_pi, carried, meridian_vertex,
+    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, RunLine,
+    SectionCircle, Sense, SplitHalf, StableName, band, band_pi, band_rim, band_rim_pi, carried,
+    meridian_vertex,
 };
 pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{FOLD_A, FOLD_B, read_edge};

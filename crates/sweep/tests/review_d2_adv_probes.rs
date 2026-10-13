@@ -102,22 +102,35 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
+    topo::transform_rigid(
+        &ball,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 fn ball_top(r: f64, c: Vec3<f64>) -> Body<f64> {
     let ball = ball_at(r, Vec3::new(0.0, 0.0, 0.0));
     let rot = topo::transform_rigid(
         &ball,
-        &Affine3::rotation_about_axis(
-            geom_core::Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            PI / 2.0,
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                PI / 2.0,
+            ),
+            Tol::witness(),
         ),
         Tol::witness(),
     )
     .unwrap();
-    topo::transform_rigid(&rot, &Affine3::translation(c), Tol::witness()).unwrap()
+    topo::transform_rigid(
+        &rot,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
@@ -158,10 +171,13 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
     // so no predicate can be riding an axis-aligned accident.
     if let Ok(t) = topo::transform_rigid(
         &c,
-        &Affine3::rotation_about_axis(
-            geom_core::Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 1.0, 1.0).normalize(),
-            0.7,
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 1.0, 1.0).normalize(),
+                0.7,
+            ),
+            Tol::witness(),
         ),
         Tol::witness(),
     ) {
@@ -401,6 +417,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::UnjoinedOperand { .. } => "UnjoinedOperand(row 1)",
         BlendError::SurgeryInvariant { .. } => "SurgeryInvariant(row 4)",
         BlendError::RingClearance { .. } => "RingClearance",
+        BlendError::WhollyInside { .. } => "WhollyInside(row 2)",
         BlendError::Certify { .. } => "Certify",
         BlendError::Op { .. } => "Op",
         BlendError::Join { .. } => "Join",
@@ -577,7 +594,7 @@ fn d2_a_grafted_destination_blends_inside_its_own_shell() {
     // origin would lie inside it, where the destination's bands reach.
     let apart = topo::transform_rigid(
         &cube(0.5, Tol::witness()),
-        &Affine3::translation(Vec3::new(3.0, 0.0, 0.0)),
+        &geom_core::RigidMotion::translation(Vec3::new(3.0, 0.0, 0.0)).unwrap(),
         Tol::witness(),
     )
     .expect("a translation is rigid");
