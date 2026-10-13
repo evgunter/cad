@@ -2344,10 +2344,12 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ContinuationContradicted
         | BooleanErrorKind::UnsupportedDeclarationClass
         | BooleanErrorKind::RimCuspArmUnbuilt
+        | BooleanErrorKind::HeldPierceUnbuilt
         | BooleanErrorKind::InvalidInput
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchRaysInAFace
+        | BooleanErrorKind::CrossingsAlongAContactLine
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::PartnerAlongFace
         | BooleanErrorKind::NestingUnread
@@ -2921,6 +2923,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "vtxfac.rs",
         "classify_vertex_on_face",
         "Coincide::TangentSide",
+        1,
+    ),
+    ("vtxfac.rs", "faces_holding_pierce", "Coincide::Sectors", 1),
+    (
+        "vtxfac.rs",
+        "faces_holding_pierce",
+        "Coincide::VertexOnFace",
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),

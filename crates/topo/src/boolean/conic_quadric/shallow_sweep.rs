@@ -226,7 +226,7 @@ fn no_certified_root_of_a_shallow_ladder_crossing_is_placed_past_the_band() {
         let (carrier_i, surface_i) = lifted(&pose);
         for eps in [1e-6, 1e-9, 1e-12] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
-            if truth.depth < 10.0 * eps {
+            if truth.residual_depth < 10.0 * eps {
                 continue;
             }
             let at = Interval::from_f64;

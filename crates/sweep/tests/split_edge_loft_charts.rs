@@ -196,9 +196,9 @@ fn the_mint_pass_re_derives_a_split_line_wall_and_refuses_a_split_arc_rim() {
         body.split_edge(edge, (t0 + t1) * 0.5, tol()).unwrap();
         let minted = topo::mint_pcurves(&mut body, tol());
         match (which, &minted) {
-            // The arc rim's own arm refuses typed: its two candidate
-            // images are the chart's whole `u` domain in each
-            // direction, and a half-rim matches neither.
+            // The arc rim's own arm refuses typed: each candidate
+            // image maps the chart's whole `u` domain, in either
+            // direction, and a half-rim matches none.
             (
                 "IsoArc",
                 Err(PcurveMintError::Certify {
