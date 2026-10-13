@@ -726,7 +726,9 @@ macro_rules! nurbs_curve {
             /// here are a validated curve's own (or its knots on
             /// another domain, or all three under a lift that keeps
             /// every point) and `control` is that curve's net under
-            /// such a map.
+            /// such a map — or, from [`Self::apply_plans`], a
+            /// knot-algebra plan's own knots and weights, whose every
+            /// written weight the plan admitted (same module docs).
             fn from_validated_parts(
                 knots: Knots<T>,
                 control: Vec<$Point<T>>,
@@ -855,7 +857,10 @@ macro_rules! nurbs_curve {
             /// constant it is ([`Self::inserted`]), or, for a removal's
             /// reinsertion, the held value the removal took out. The
             /// weights' value channel is the final plan's, which the
-            /// plans computed on the channel with the same operations.
+            /// plans computed on the channel with the same operations,
+            /// and whose every written weight the plan admitted
+            /// (`geom_core::spline::algebra`'s written-weight check:
+            /// strictly positive and finite, or the plan refused).
             /// Empty chain ⇒ clone.
             fn apply_plans(&self, plans: &[spline::CurvePlan], fresh: &dyn Fn(f64) -> T) -> Self {
                 let Some(last) = plans.last() else {
@@ -882,8 +887,10 @@ macro_rules! nurbs_curve {
             /// # Errors
             ///
             /// [`KnotAlgebraError`]: out-of-domain `u`, interior
-            /// multiplicity budget (`degree`) exceeded, or structure
-            /// mismatch.
+            /// multiplicity budget (`degree`) exceeded, structure
+            /// mismatch, or [`KnotAlgebraError::WeightCollapse`] when an
+            /// inserted weight rounds out of the positive regime (both
+            /// blend terms underflowing, on subnormal weights).
             pub fn insert_knot(&self, u: f64, times: usize) -> Result<Self, KnotAlgebraError> {
                 let plans = spline::algebra::insert_knot_plan(self.knots(), &self.weight_channel, u, times)?;
                 Ok(self.apply_plans(&plans, &Self::inserted))
@@ -904,7 +911,9 @@ macro_rules! nurbs_curve {
             /// [`KnotAlgebraError`]: `u` outside the open knot domain
             /// (boundary splits are refused — a clamped end already
             /// has full multiplicity and an empty child is not a
-            /// curve), or the insertion path's structure refusals.
+            /// curve), or the insertion path's refusals, its
+            /// [`KnotAlgebraError::WeightCollapse`] included
+            /// ([`Self::insert_knot`]).
             pub fn split_at(&self, u: f64) -> Result<(Self, Self), KnotAlgebraError> {
                 let p = self.knots.degree();
                 let (d0, d1) = self.domain();
@@ -960,7 +969,7 @@ macro_rules! nurbs_curve {
             /// # Errors
             ///
             /// As [`Self::insert_knot`], against the cumulative
-            /// structure.
+            /// structure, [`KnotAlgebraError::WeightCollapse`] included.
             pub fn refine_knots(&self, add: &[f64]) -> Result<Self, KnotAlgebraError> {
                 let plans = spline::algebra::refine_plan(self.knots(), &self.weight_channel, add)?;
                 Ok(self.apply_plans(&plans, &Self::inserted))
@@ -1018,8 +1027,10 @@ macro_rules! nurbs_curve {
             /// # Errors
             ///
             /// [`KnotAlgebraError`]: `u` not an interior knot (exact
-            /// f64 identity), removing past its multiplicity, or a
-            /// weight collapsing out of the positive regime.
+            /// f64 identity), removing past its multiplicity, or
+            /// [`KnotAlgebraError::WeightCollapse`]: a weight the
+            /// removal chain writes, or one its reinsertion writes,
+            /// out of the positive regime.
             pub fn remove_knot(&self, u: f64, times: usize) -> Result<(Self, T), KnotAlgebraError> {
                 let steps = spline::algebra::remove_knot_plan(self.knots(), &self.weight_channel, u, times)?;
                 let mut cur = self.clone();
@@ -1534,9 +1545,7 @@ macro_rules! nurbs_curve {
                 if p == 0 || self.control.len() < 2 {
                     return poison;
                 }
-                // `!(w > 0.0)` catches NaN too.
-                #[allow(clippy::neg_cmp_op_on_partial_ord)]
-                if self.weight_channel.iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+                if !self.weight_channel.iter().all(|w| spline::weight_in_regime(*w)) {
                     return poison;
                 }
                 self.rational_piece_assembly()
@@ -1718,9 +1727,11 @@ macro_rules! nurbs_curve {
             ///
             /// # Errors
             ///
-            /// [`KnotAlgebraError`] (structure refusals; a floating-
-            /// point weight collapse in recomposition surfaces
-            /// honestly).
+            /// [`KnotAlgebraError`]: structure refusals, or
+            /// [`KnotAlgebraError::WeightCollapse`] when floating point
+            /// writes a weight out of the positive regime in any stage
+            /// (the Bézier decomposition's insertions, the elevation's
+            /// blends, the recomposition's removals); surfaced honestly.
             pub fn elevate_degree(&self, raise: usize) -> Result<Self, KnotAlgebraError> {
                 let mut cur = self.clone();
                 for _ in 0..raise {

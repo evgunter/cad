@@ -6011,7 +6011,10 @@ fn weight_ratio_factor<T: Real>(channel: &[f64], held: &[T]) -> T {
     if channel.is_empty() || channel.len() != held.len() {
         return T::from_f64(f64::NAN);
     }
-    if channel.iter().any(|w| !(*w > 0.0 && w.is_finite())) {
+    if !channel
+        .iter()
+        .all(|w| geom_core::spline::weight_in_regime(*w))
+    {
         return T::from_f64(f64::NAN);
     }
     let (mut lo, mut hi) = (held[0], held[0]);
