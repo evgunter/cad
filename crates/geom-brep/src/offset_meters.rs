@@ -312,8 +312,8 @@ impl core::fmt::Display for MeterError {
                 verdict,
             } => write!(
                 f,
-                "the face's normal is not shown non-zero at this tolerance (margin {:e} m: \
-                 normal length {floor:e} m² per unit parameter area over speed {speed_lever:e} m)",
+                "the face's normal is not shown non-zero (margin {:e} m: normal length {floor:e} \
+                 m² per unit parameter area over speed {speed_lever:e} m)",
                 verdict.margin()
             ),
             Self::CurvatureHeadroom {
@@ -332,8 +332,8 @@ impl core::fmt::Display for MeterError {
             } => write!(
                 f,
                 "the offset distance's magnitude is not shown below the face's radius of \
-                 curvature on the side it bends toward ({reach:e} m) at this tolerance (margin \
-                 {:e} m), so the offset may fold",
+                 curvature on the side it bends toward, {reach:e} m (margin {:e} m), so the \
+                 offset may fold",
                 verdict.margin()
             ),
             Self::Escalated { source, .. } => write!(
@@ -1122,14 +1122,14 @@ mod tests {
         let rows = [
             (
                 floor_zero(5e-10),
-                "the face's normal is not shown non-zero at this tolerance (margin 5e-10 m: \
-                 normal length 1e-9 m² per unit parameter area over speed 2e0 m)",
+                "the face's normal is not shown non-zero (margin 5e-10 m: normal length 1e-9 m² \
+                 per unit parameter area over speed 2e0 m)",
             ),
             (
                 headroom(zero(5e-10)),
                 "the offset distance's magnitude is not shown below the face's radius of \
-                 curvature on the side it bends toward (1e-3 m) at this tolerance (margin 5e-10 \
-                 m), so the offset may fold",
+                 curvature on the side it bends toward, 1e-3 m (margin 5e-10 m), so the offset \
+                 may fold",
             ),
             (
                 headroom(negative(-1e-4)),

@@ -21,9 +21,9 @@ Since that unit, geom-brep's Zero-arm payloads print their margin and claim no s
   - `NotSecondOrderSeparated`: "its faces agree to second order, so they do not fix where it runs, which its description says they do".
 
   `IntervalNotForward { Zero }`'s "its length is within the tolerance of zero" is true of a band-decided zero, though not literally of a symbolic-tier proved zero whose rounded number lies past the zero band.
-- Same file, `impl Display for ValidationError`, `Self::NoDihedralArm`: "an edge is not {DIHEDRAL_ARM_CLAUSE}", with no margin. The certify payload it mirrors now reads "the edge is not shown {DIHEDRAL_ARM_CLAUSE} at this tolerance (margin … m)" (`CertifyError::ArmCollapsed`).
-- Same file, the offset-meter lead (`M::NormalFloor { verdict: R::Negative { .. } }`): "the face's surface normal degenerates, so it has no offset". The thinness is never negative (`MeterError::NormalFloor`'s field doc), so this arm is unreachable or says more than its verdict. The meter's own payload now reads "the face's normal is not shown non-zero at this tolerance (margin … m: …)" and leaves the offset's refusal to the fit's lead.
+- Same file, `impl Display for ValidationError`, `Self::NoDihedralArm`: "an edge is not {DIHEDRAL_ARM_CLAUSE}", with no margin. The certify payload it mirrors now reads "the edge is not shown {DIHEDRAL_ARM_CLAUSE} (margin … m)" (`CertifyError::ArmCollapsed`).
+- Same file, the offset-meter lead (`M::NormalFloor { verdict: R::Negative { .. } }`): "the face's surface normal degenerates, so it has no offset". The thinness is never negative (`MeterError::NormalFloor`'s field doc), so this arm is unreachable or says more than its verdict. The meter's own payload now reads "the face's normal is not shown non-zero (margin … m: …)" and leaves the offset's refusal to the fit's lead.
 
 ## Repair shape
 
-Say "not shown … at this tolerance" of the reading and print `(margin … m)`, as `CertifyError`'s and `MeterError`'s Displays do; leave any no-size claim to the ending. Pins: the `validate.rs` tests asserting `text.starts_with("an edge is not long enough")`, and the row at "an edge is not long enough, for how its faces curve".
+Say "not shown …" of the reading and print `(margin … m)`, as `CertifyError`'s and `MeterError`'s Displays do; leave any no-size claim to the ending. Pins: the `validate.rs` tests asserting `text.starts_with("an edge is not long enough")`, and the row at "an edge is not long enough, for how its faces curve".

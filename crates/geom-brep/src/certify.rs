@@ -609,8 +609,7 @@ impl core::fmt::Display for CertifyError {
                 verdict: Refused::Zero(Classified { margin, .. }),
             } => write!(
                 f,
-                "the stored parameter interval is not shown to run forward at this tolerance \
-                 (margin {margin:e} m)"
+                "the stored parameter interval is not shown to run forward (margin {margin:e} m)"
             ),
             Self::IntervalNotForward {
                 verdict: Refused::Negative { .. },
@@ -622,13 +621,13 @@ impl core::fmt::Display for CertifyError {
             Self::SpanMeterCollapsed { verdict } => write!(
                 f,
                 "the spline carrier's knot domain, metered at its certified speed floor, is not \
-                 shown above zero at this tolerance (margin {:e} m), so its stored interval has \
-                 no certified metre scale",
+                 shown above zero (margin {:e} m), so its stored interval has no certified \
+                 metre scale",
                 verdict.margin()
             ),
             Self::ArmCollapsed { sample, verdict } => write!(
                 f,
-                "at sample {sample} the edge is not shown {} at this tolerance (margin {:e} m)",
+                "at sample {sample} the edge is not shown {} (margin {:e} m)",
                 crate::DIHEDRAL_ARM_CLAUSE,
                 verdict.margin()
             ),
@@ -668,22 +667,21 @@ impl core::fmt::Display for CertifyError {
                 lever,
                 verdict,
             } => {
-                write!(f, "at sample {sample} the faces are not shown to cross")?;
-                if let Some(lever) = lever {
-                    write!(f, ", their angle levered by {lever},")?;
-                }
                 write!(
                     f,
-                    " at this tolerance (margin {:e} m), where the edge's description says they \
-                     cross",
+                    "at sample {sample} the faces are not shown to cross (margin {:e} m",
                     verdict.margin()
-                )
+                )?;
+                if let Some(lever) = lever {
+                    write!(f, ", their angle levered by {lever}")?;
+                }
+                write!(f, "), where the edge's description says they cross")
             }
             Self::NotSecondOrderSeparated { sample, verdict } => write!(
                 f,
-                "at sample {sample} the faces are not shown to curve apart at second order at \
-                 this tolerance (margin {:e} m), so they are not shown to fix where the edge \
-                 runs, which its description says they do",
+                "at sample {sample} the faces are not shown to curve apart at second order \
+                 (margin {:e} m), so they are not shown to fix where the edge runs, which its \
+                 description says they do",
                 verdict.margin()
             ),
             Self::TubeNotSeparated {
@@ -691,8 +689,8 @@ impl core::fmt::Display for CertifyError {
             } => write!(
                 f,
                 "the certified lower bound on how far the faces curve apart along the edge \
-                 is not shown above zero at this tolerance (margin {:e} m), so the certificate \
-                 cannot prove they fix where the edge runs, which its description says they do",
+                 is not shown above zero (margin {:e} m), so the certificate cannot prove they \
+                 fix where the edge runs, which its description says they do",
                 verdict.margin()
             ),
             Self::TubeNotSeparated {
@@ -6094,7 +6092,7 @@ mod tests {
         assert_eq!(
             text,
             "at sample 4 the edge is not shown long enough, for how its faces curve, to measure \
-             their angle at this tolerance (margin 0e0 m). Recourse: move the geometry so that edge is clearly \
+             their angle (margin 0e0 m). Recourse: move the geometry so that edge is clearly \
              longer and no face curves tightly there; an edge of no length, or a face curving to \
              a point as a cone does, leaves no angle to measure",
         );
@@ -6155,57 +6153,55 @@ mod tests {
         let rows = [
             (
                 forward(zero(sized)),
-                "the stored parameter interval is not shown to run forward at this tolerance \
-                 (margin 5e-10 m)",
+                "the stored parameter interval is not shown to run forward (margin 5e-10 m)",
             ),
             (
                 forward(zero(across)),
-                "the stored parameter interval is not shown to run forward at this tolerance \
-                 (margin [-2e-10, 3e-10] m)",
+                "the stored parameter interval is not shown to run forward (margin [-2e-10, \
+                 3e-10] m)",
             ),
             (
                 forward(proved),
-                "the stored parameter interval is not shown to run forward at this tolerance \
-                 (margin 3.725290298461914e-9 m)",
+                "the stored parameter interval is not shown to run forward (margin \
+                 3.725290298461914e-9 m)",
             ),
             (
                 meter(zero(sized)),
                 "the spline carrier's knot domain, metered at its certified speed floor, is not \
-                 shown above zero at this tolerance (margin 5e-10 m), so its stored interval has \
-                 no certified metre scale",
+                 shown above zero (margin 5e-10 m), so its stored interval has no certified \
+                 metre scale",
             ),
             (
                 arm(zero(across)),
                 "at sample 4 the edge is not shown long enough, for how its faces curve, to \
-                 measure their angle at this tolerance (margin [-2e-10, 3e-10] m)",
+                 measure their angle (margin [-2e-10, 3e-10] m)",
             ),
             (
                 crossing(None, zero(sized)),
-                "at sample 4 the faces are not shown to cross at this tolerance (margin 5e-10 m), \
-                 where the edge's description says they cross",
-            ),
-            (
-                crossing(Some(crate::ssi::PointLever::Extent), zero(sized)),
-                "at sample 4 the faces are not shown to cross, their angle levered by the \
-                 feature extent, at this tolerance (margin 5e-10 m), where the edge's \
+                "at sample 4 the faces are not shown to cross (margin 5e-10 m), where the edge's \
                  description says they cross",
             ),
             (
+                crossing(Some(crate::ssi::PointLever::Extent), zero(sized)),
+                "at sample 4 the faces are not shown to cross (margin 5e-10 m, their angle \
+                 levered by the feature extent), where the edge's description says they cross",
+            ),
+            (
                 crossing(None, below),
-                "at sample 4 the faces are not shown to cross at this tolerance (margin -5e-9 m), \
-                 where the edge's description says they cross",
+                "at sample 4 the faces are not shown to cross (margin -5e-9 m), where the edge's \
+                 description says they cross",
             ),
             (
                 second(zero(sized)),
-                "at sample 4 the faces are not shown to curve apart at second order at this \
-                 tolerance (margin 5e-10 m), so they are not shown to fix where the edge runs, \
-                 which its description says they do",
+                "at sample 4 the faces are not shown to curve apart at second order (margin \
+                 5e-10 m), so they are not shown to fix where the edge runs, which its \
+                 description says they do",
             ),
             (
                 tube(zero(sized)),
                 "the certified lower bound on how far the faces curve apart along the edge is \
-                 not shown above zero at this tolerance (margin 5e-10 m), so the certificate \
-                 cannot prove they fix where the edge runs, which its description says they do",
+                 not shown above zero (margin 5e-10 m), so the certificate cannot prove they \
+                 fix where the edge runs, which its description says they do",
             ),
             (
                 tube(below),

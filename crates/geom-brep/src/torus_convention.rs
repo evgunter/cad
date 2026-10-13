@@ -76,13 +76,12 @@ impl TorusConvention {
     pub fn refused(self, whose: &str, verdict: Refused) -> String {
         let margin = verdict.margin();
         match (self, verdict) {
-            (Self::Tube, Refused::Zero(_)) => format!(
-                "{whose} tube radius is not shown above zero at this tolerance \
-                 (margin {margin:e} m)"
-            ),
+            (Self::Tube, Refused::Zero(_)) => {
+                format!("{whose} tube radius is not shown above zero (margin {margin:e} m)")
+            }
             (Self::Tube, Refused::Negative { .. }) => format!("{whose} tube radius is negative"),
             (Self::Ring, Refused::Zero(_)) => format!(
-                "{whose} tube radius is not shown smaller than its ring radius at this tolerance \
+                "{whose} tube radius is not shown smaller than its ring radius \
                  (margin {margin:e} m)"
             ),
             (Self::Ring, Refused::Negative { .. }) => {
@@ -113,13 +112,11 @@ mod tests {
         });
         assert_eq!(
             TorusConvention::Tube.refused("a torus face's", zero),
-            "a torus face's tube radius is not shown above zero at this tolerance \
-             (margin 5e-10 m)"
+            "a torus face's tube radius is not shown above zero (margin 5e-10 m)"
         );
         assert_eq!(
             TorusConvention::Ring.refused("a torus face's", zero),
-            "a torus face's tube radius is not shown smaller than its ring radius at this \
-             tolerance (margin 5e-10 m)"
+            "a torus face's tube radius is not shown smaller than its ring radius (margin 5e-10 m)"
         );
     }
 }

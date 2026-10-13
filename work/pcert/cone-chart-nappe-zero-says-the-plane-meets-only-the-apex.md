@@ -10,7 +10,7 @@ cost: E
 
 (Filed by the ENCL implementer of `zero-arm-payloads-overclaim-and-print-no-margin`, from PR 4976's review of its sweep's blind spot: a Zero verdict carried as a bare `Sign::Zero`, whose refusal states the zero as an exact fact.)
 
-A `Sign::Zero` from `decide` is a band-decided reading — an exact zero, a straddling enclosure, or a nonzero size inside the zero band — not a proof of equality. The refusals below state it as exact, hedge nothing, and print no margin (D4 ¶1 (i): the margin rides the payload). geom-brep's Zero-arm payloads now say "… is not shown … at this tolerance (margin … m)".
+A `Sign::Zero` from `decide` is a band-decided reading — an exact zero, a straddling enclosure, or a nonzero size inside the zero band — not a proof of equality. The refusals below state it as exact, hedge nothing, and print no margin (D4 ¶1 (i): the margin rides the payload). geom-brep's Zero-arm payloads now say "… is not shown … (margin … m)".
 
 ## What
 
@@ -18,4 +18,4 @@ A `Sign::Zero` from `decide` is a band-decided reading — an exact zero, a stra
 
 ## Repair shape
 
-Say the rim's height "is not shown away from the apex at this tolerance (margin … m)", carrying the margin into `off_chart`'s text.
+Say the rim's height "is not shown away from the apex (margin … m)", carrying the margin into `off_chart`'s text.

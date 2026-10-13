@@ -14,9 +14,9 @@ Since that unit, geom-brep's Zero-arm payloads print their margin and claim no s
 
 ## What
 
-- `crates/geom-brep/src/edge_nurbs.rs`, `impl Display for PlaneNurbsRefusal`, `Self::NotTransverse`: "the plane and the NURBS wall have coincident tangent planes at interior sample {sample}, …". The verdict is a Zero (or Negative) classification of the levered angle, not a proof the planes coincide, and the margin is not printed. The analytic lane's `CertifyError::NotTransverse` now reads "the faces meet tangentially at sample {sample}, within the tolerance (margin … m), …".
+- `crates/geom-brep/src/edge_nurbs.rs`, `impl Display for PlaneNurbsRefusal`, `Self::NotTransverse`: "the plane and the NURBS wall have coincident tangent planes at interior sample {sample}, …". The verdict is a Zero (or Negative) classification of the levered angle, not a proof the planes coincide, and the margin is not printed. 
 - Same file, `impl Display for AnalyticRung3Refusal`, `Self::TubeStraddles`: "— it straddles zero, from a near-tangency …". It prints the margin, but asserts a straddle whatever the reading is; a positive sub-band point margin is not a straddle.
 
 ## Repair shape
 
-Say "within the tolerance" (or "not shown") of the reading and print `verdict.margin()`; describe the reading the margin shows rather than the arm.
+Say "not shown to cross" of the reading and print `(margin … m)`, as `CertifyError::NotTransverse` now does ("at sample {s} the faces are not shown to cross (margin … m, their angle levered by …), where the edge's description says they cross"); describe the reading the margin shows rather than the arm.
