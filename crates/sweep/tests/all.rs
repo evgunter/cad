@@ -1131,9 +1131,9 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "a_cone_with_a_tilted_seam.rs"]
+mod a_cone_with_a_tilted_seam;
 #[path = "join_lever_is_the_joined_edge.rs"]
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]
 mod review_4737_span_probes;
-#[path = "a_cone_with_a_tilted_seam.rs"]
-mod a_cone_with_a_tilted_seam;

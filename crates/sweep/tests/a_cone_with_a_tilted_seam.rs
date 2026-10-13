@@ -118,7 +118,10 @@ fn a_cone_with_a_tilted_seam_builds_its_true_body_or_refuses_typed() {
         let cone = match tilted_cone(tilt) {
             Ok(c) => c,
             Err(e) => {
-                assert!(tilt > quarter, "tilt {tilt:e}: the cone refused at rest: {e}");
+                assert!(
+                    tilt > quarter,
+                    "tilt {tilt:e}: the cone refused at rest: {e}"
+                );
                 eprintln!("tilt {tilt:e}: the cone refused at rest: {e}");
                 continue;
             }
@@ -143,10 +146,7 @@ fn a_cone_with_a_tilted_seam_builds_its_true_body_or_refuses_typed() {
                         continue;
                     }
                 };
-                let b = &r
-                    .body()
-                    .unwrap_or_else(|| panic!("{what}: empty"))
-                    .body;
+                let b = &r.body().unwrap_or_else(|| panic!("{what}: empty")).body;
                 assert_eq!(
                     topo::validate_geometric(b, Tol::witness()),
                     Ok(()),

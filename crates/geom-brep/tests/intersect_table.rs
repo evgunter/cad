@@ -2513,9 +2513,7 @@ fn a_cones_tilted_seam_serves_its_circles_in_their_planes() {
         ("1e-20 off the axis", axis + u_ref * 1e-20),
     ] {
         let cone = cone_43(apex, axis, seam);
-        let refused = |r: Result<(), SectionError>| {
-            matches!(r, Err(SectionError::DegenerateOperand { what }) if what.contains("seam"))
-        };
+        let refused = |r: Result<(), SectionError>| matches!(r, Err(SectionError::DegenerateOperand { what }) if what.contains("seam"));
         let coc = cone_cylinder_section(&cone, &cyl, 1.0, band()).map(|_| ());
         let pn = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).map(|_| ());
         assert!(refused(coc.clone()), "{which}: cone×cylinder {coc:?}");
