@@ -6045,7 +6045,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     cut_ins: &[SphereCutIn<T>],
     band: Band,
     tol: Tol,
-) -> Result<[ChartCuts; 2], BooleanError> {
+) -> Result<CutsPerOperand, BooleanError> {
     const ROWS: super::circle_roots::FirstHarmonicRows = super::circle_roots::FirstHarmonicRows {
         noise: "bool_sphere_cut_roots_noise",
         coaxial: "bool_sphere_cut_roots_coaxial",
@@ -6057,7 +6057,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     // The faces each scanned face has been cut into so far, beside its
     // own key: `(operand, scanned face, piece)`.
     let mut pieces: Vec<(Operand, FaceKey, FaceKey)> = Vec::new();
-    let mut made: [ChartCuts; 2] = Default::default();
+    let mut made: CutsPerOperand = Default::default();
     for cut in cut_ins {
         let body = match cut.operand {
             Operand::A => &mut *a,
@@ -6470,6 +6470,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     }
     Ok(made)
 }
+
+/// What [`apply_cut_ins`] made in each operand, A's then B's.
+type CutsPerOperand = [ChartCuts; 2];
 
 /// What [`apply_cut_ins`] made in one operand.
 #[derive(Default)]
