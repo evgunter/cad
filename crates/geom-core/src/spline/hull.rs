@@ -95,12 +95,14 @@
 //!   B-spline coefficient form is the fitting side's work (M5 PR 4/7);
 //!   building it now would guess its shape. These primitives consume
 //!   whatever coefficient brackets that work produces.
-//! - **No rational derivative coefficients.** The knot-difference
-//!   formula in [`SplineCoeffs::derivative_coeffs`] is the nonrational
-//!   one; a rational derivative needs the homogeneous curve plus a
-//!   quotient rule, whose enclosure belongs with the consumer that owns
-//!   the homogeneous form. That is why [`RationalCoeffs`] has no
-//!   derivative door at all rather than one that ignores its weights.
+//! - **No rational derivative door on [`RationalCoeffs`].** The
+//!   knot-difference formula in [`SplineCoeffs::derivative_coeffs`] is
+//!   the nonrational one, and a door here that ignored the weights
+//!   would be wrong. The rational derivative's bound is stated once in
+//!   [`super::derivative`] ([`super::derivative::rational_speed_sup`],
+//!   the pair-term bound), over a span of held values at any `Real`:
+//!   this module's pair holds its weights as `f64` structure and cannot
+//!   carry a weight that moves with a parameter.
 //! - **No comparisons on a generic scalar.** The coefficient type is
 //!   read only through the certified door, and only by handing it to
 //!   [`Interval::from_certified`] — so nothing here can accidentally
@@ -976,12 +978,10 @@ impl<E: CertifiedBounds> RationalWindow<'_, E> {
     /// a rational spline (module docs).
     fn weights_positive(self) -> bool {
         let (first, last) = (self.span.first_control(), self.span.index());
-        // `w > 0.0` is false for NaN, so a NaN weight refuses (the spline
-        // substrate's NaN-catching discipline, in its positive form).
         // Indexing justified: last ≤ control_count() − 1 = weights.len() − 1.
         self.pair.weights[first..=last]
             .iter()
-            .all(|w| *w > 0.0 && w.is_finite())
+            .all(|w| crate::spline::weight_in_regime(*w))
     }
 
     /// Enclosure of the **rational** scalar spline's values over this
