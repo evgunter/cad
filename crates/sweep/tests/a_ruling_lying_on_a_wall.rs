@@ -627,7 +627,12 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
     let spin = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 1.3);
     let rod = finished(
         "the rod",
-        topo::transform_rigid(&rod_z(1.0, 2.0), &spin, tol).unwrap(),
+        topo::transform_rigid(
+            &rod_z(1.0, 2.0),
+            &geom_core::test_support::rigid(&spin, tol),
+            tol,
+        )
+        .unwrap(),
         tol,
     );
     for (op, res, moves) in [
