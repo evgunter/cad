@@ -68,3 +68,45 @@ reads the axes before taking `Cylinders`, so a coplanar crossing pair
 goes to a lane that holds its plane sections, or a typed frontier
 refusal where no lane does. A `JoinDesync` is a kernel invariant, and
 valid input must not reach one.
+
+## Built (branch cleave/crossing-cylinders-join)
+
+Measured first on `1b2ae6356d`, at ε = 1e-9, 1e-6 and 1e-12, at spins
+`(0.4, 0.3)`, `(1.0, −0.7)` and `(0, 0)` and with `B` from `x = 0.5`:
+all 24 runs refuse the row's `JoinDesync`. A probe at the `Cylinders`
+arm showed the germ is `OnEdge` on the ellipse's solid and `InFace` on
+the other's. `germ_section_loops` therefore reads the edge's ellipse
+frame (`along_edge_conic`), and the face-pair frame dispatch, which
+reads the axes, is never asked of this pair. `kind_arm` then sent the
+pair to `Cylinders` on kinds alone.
+
+The fix is in `boolean/join.rs`:
+
+- `segment_arm` reads each segment's kind arm in `bool_connect` before
+  any surgery. A cylinder pair keeps `KindArm::Cylinders` only when its
+  axes read parallel. Otherwise it falls through to the edge-plane
+  lane.
+- The axes are read by `cylinder_pair_axes`, the frame dispatch's own
+  reading, factored out of it. Both callers read from the same point
+  and lever (`frame_lever`).
+- In band, the reading escalates `Escalated { Coincidence(Section,
+  Moot) }`, the frame's own refusal for that margin. Its lever is filed
+  as `cleave/an-in-band-axis-parallelism-offers-a-proximity-lever`.
+
+The scene now reaches the edge-plane lane and refuses at its copy of
+the ellipse edge, at every ε and pose above. That copy is filed as
+`cleave/the-edge-plane-lane-copies-no-ellipse-edge`, with what lies
+behind it.
+
+Pins:
+
+- `crates/sweep/tests/crossing_equal_rods.rs` holds every op to that
+  exact ending, under that row's id.
+- `parallel_cylinder_join::seams_lying_on_the_walls_read_the_axes_at_the_walls_span`
+  reaches the in-band arm through a door. Two parallel rods, each
+  rod's seam ruling lying on the other's wall, B tipped so the tip reads
+  in band over the walls' span and parallel at the radius. The pin goes
+  red when the escalation is read as parallel, and when the join reads
+  at the radius.
+- Unit row:
+  `frame_dispatch_tests::cylinder_pair_axes_read_parallel_apart_and_in_band_by_their_lever`.
