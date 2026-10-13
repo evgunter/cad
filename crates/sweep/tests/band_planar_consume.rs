@@ -528,11 +528,7 @@ fn a_blind_bore_inside_the_planar_sliver_refuses_as_a_bound() {
 /// The tilted bore through the leaning prism at `s = 0` whose axis is a
 /// chord of the fillet arc's circle, touching it at mid-length, its ends
 /// `h = 0.0255` either side, of radius `a = 0.002`: the bored body and
-/// the axis's ends, or `None` where the fixture cannot be built. The
-/// Boolean cuts each wall in an ellipse whose axes differ by
-/// `a·(ℓ/2 − 1)`, `ℓ` the axis's length between the walls; where that is
-/// within the tolerance band's escalate width the cut cannot tell them
-/// apart and escalates, so the row stands down at that ε.
+/// the axis's ends, or `None` where [`bored_tilted`] stands down.
 /// [`tilted_bore`]'s body, the axis's two ends in `(y, z)`, and the radius.
 type TiltedBore = (topo::AtRestBody<f64>, (f64, f64), (f64, f64), f64);
 
@@ -544,7 +540,23 @@ fn tilted_bore(what: &str) -> Option<TiltedBore> {
     let mid = (r - r / s2, 1.0 - r + r / s2);
     let p = (mid.0 - h / s2, mid.1 - h / s2);
     let q = (mid.0 + h / s2, mid.1 + h / s2);
-    let axis = (4.0 + (2.0 * h).powi(2)).sqrt();
+    let body = bored_tilted(p, q, a, Vec3::new(0.0, 1.0, 1.0), what)?;
+    Some((body, p, q, a))
+}
+
+/// [`bored`] at `s = 0` along the tilted axis `p → q`, or `None`, stood
+/// down, where the Boolean cannot cut it: the walls cut the bore in
+/// ellipses whose axes differ by `a·(ℓ/2 − 1)`, `ℓ` the axis's length
+/// between the walls, and within the band's escalate width the cut
+/// cannot tell them apart.
+fn bored_tilted(
+    p: (f64, f64),
+    q: (f64, f64),
+    a: f64,
+    u: Vec3<f64>,
+    what: &str,
+) -> Option<topo::AtRestBody<f64>> {
+    let axis = (4.0 + (q.0 - p.0).powi(2) + (q.1 - p.1).powi(2)).sqrt();
     let axes_apart = a * (axis / 2.0 - 1.0);
     let escalate = geom_core::Band::linear(tol())
         .expect("the witness band")
@@ -559,7 +571,7 @@ fn tilted_bore(what: &str) -> Option<TiltedBore> {
         );
         return None;
     }
-    Some((bored(0.0, p, q, a, Vec3::new(0.0, 1.0, 1.0)), p, q, a))
+    Some(bored(0.0, p, q, a, u))
 }
 
 /// **A tilted bore inside the sliver at both caps that dips into the
@@ -900,7 +912,8 @@ fn a_bore_a_hair_across_the_chord_at_an_oblique_cap_crosses_and_one_inside_goes(
 /// (`FaceClearance` measured). The first pose under the fillet lies in
 /// the kept ball at both caps (`≈ 0.086` and `0.051` from the ball's
 /// centre, radius `D`): clear of the band, it is kept, and the band
-/// takes its section alone, `ΔV = −A·2`, leaving genus 1.
+/// takes its section alone, `ΔV = −A·2`, leaving genus 1. A pose
+/// stands down where the Boolean cannot cut it ([`bored_tilted`]).
 #[test]
 fn a_tilted_bore_leaving_the_chamfers_prism_refuses() {
     let a = 0.003;
@@ -919,7 +932,9 @@ fn a_tilted_bore_leaving_the_chamfers_prism_refuses() {
             false,
         ),
     ] {
-        let body = bored(0.0, inside, far, a, Vec3::new(0.0, 1.0, 0.0));
+        let Some(body) = bored_tilted(inside, far, a, Vec3::new(0.0, 1.0, 0.0), what) else {
+            continue;
+        };
         let got = Verb::Chamfer
             .run_finished(&body, &[front(&body)])
             .map(|_| ());
@@ -930,7 +945,10 @@ fn a_tilted_bore_leaving_the_chamfers_prism_refuses() {
         };
         assert!(pinned, "{what}: a measured crossing, got {got:?}");
     }
-    let body = bored(0.0, inside, kept, a, Vec3::new(0.0, 1.0, 0.0));
+    let Some(body) = bored_tilted(inside, kept, a, Vec3::new(0.0, 1.0, 0.0), "the kept bore")
+    else {
+        return;
+    };
     let out = Verb::Fillet
         .run_finished(&body, &[front(&body)])
         .unwrap_or_else(|e| panic!("the fillet keeps the bore in its ball, got {e}"));
