@@ -697,9 +697,10 @@ residual bound against the described locus (D4). The type is
 ```text
 EdgeDescription =
   | Intersection        { pair, witness }    -- transverse surface–surface
-                                             -- intersection: the connected
-                                             -- component of S₁∩S₂ selected by
-                                             -- the witness (also the marching seed);
+                                             -- intersection: the branch of
+                                             -- S₁∩S₂ through the witness, between
+                                             -- the edge's vertices (the witness is
+                                             -- also the marching seed);
                                              -- `pair` is the set {S₁, S₂}, unordered
   | TangentIntersection { pair, witness }    -- tangential contact locus; same
                                              -- shape, margin one order up
@@ -750,7 +751,12 @@ for a fallback.
 *transversality*: normals of S₁, S₂ linearly independent along the
 locus, so the implicit function theorem makes S₁∩S₂ locally a
 1-manifold; the margin (angle between normals) governs the conditioning
-of every derived cache. `TangentIntersection`'s validity sits one
+of every derived cache. A branch may end at a *node*, a point where
+it crosses another branch of the same pair and the two surfaces are
+tangent (two equal cylinders with intersecting axes: their section is
+two ellipses crossing at p ± r·unit(â₁×â₂)); there the section is one
+connected set, so the witness selects the branch, and transversality
+holds on the open edge, which is where certification samples it. `TangentIntersection`'s validity sits one
 differential order up: surfaces coincident within ε and normal-parallel
 within the derived angular threshold ε·κ_rel (D4 ¶1: lever arm
 r = 1/κ_rel) *along* the locus, separating quadratically *transverse*
