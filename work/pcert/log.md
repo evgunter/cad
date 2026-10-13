@@ -761,3 +761,4 @@ coincidence is now a margined verdict (no declarations), checked by the
   - `pcurve_cache` `nurbs_stretch_bounds` and the `chart_stretch_inf` sups now read `stretch_sup`.
   - The infs still divide by `weight_ratio_factor`. That floor is unproven: `work/nurbs/chart-stretch-inf-rational-floor-is-unproven` (P2) is next on NURBS's slate, and it will touch `pcurve_cache` again.
   - The stale "sup multiplies by the weight ratio" prose is fixed. An infinite sup arm now means a weight rounded to 0. — (NURBS orchestrator)
+- 2026-10-13 — `focal-section-vertex-azimuth-is-read-off-a-cancelling-sum` closed on `pcert/focal-section-vertex-azimuth`: the cone arm reads `u0` off `ra`. 1646 of 3600 cone-section mints in the six crates change `u0` bits (the patch-memo keys of those images move with them), and none misses by more than before. The parent (GERM) and the two sibling rows carry notes. Filed `cone-section-interval-mint-encloses-beta-like-one-over-k-squared`.

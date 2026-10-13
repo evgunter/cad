@@ -2,12 +2,12 @@
 id: focal-section-vertex-azimuth-is-read-off-a-cancelling-sum
 kind: issue
 title: chart_pcurve reads a cone ellipse's vertex azimuth off r0 + ra, a sum that cancels to (1 − e)·ra near a parabola, so the image's error grows like u·A/k² where u·A/k is reachable
-status: dispatched
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: M
 refs: [conic-section-just-past-its-band-fails-certification-downstream]
-branch: pcert/focal-section-vertex-azimuth
+closed: 2026-10-13
 ---
 
 
@@ -62,3 +62,23 @@ Read `u0` off `ra·ns` (or off `u_major` directly) where the arm reads
 it off `r0 + ra`; re-measure the parent's sweep and the
 `FocalSection` rows (`pcurve_cone_section.rs`,
 `envelope_lemma_fuzz.rs`) with it.
+
+## Closed
+
+`chart_pcurve`'s cone arm reads `u0` off `ra·ns`. Re-measured with the
+probe at `ROT=1`, scale 1, ε = 1e-9: the minted image's whole-turn miss
+is the table's "`u0` off `ra`" column to the digit, and three rows that
+refused now certify (`α = 0.2` and `atan ½` at `f = 0.99999`, `α = 1` at
+`f = 0.9999`). The rest still refuse; that residue is the parent's and
+the two siblings'.
+
+Rows in `geom-brep/tests/pcurve_cone_section.rs`:
+`a_skew_section_near_the_parabola_certifies` (`α = atan ½`, scale 0.1,
+`f = 0.999999`, `k = 2.35e-3`: read off the sum the image misses by
+9.2e-7 and refuses; minted, 1.2e-10, and certifies at `f64` and lifted
+to `Interval`), and
+`a_near_circular_section_off_its_plane_misses_by_its_offset_not_twice`
+(a centre `δ` off the major-axis plane: `δ` minted, `2δ` read off the
+sum). Minted AT `Interval` the image's `β` encloses like `u/k²`, which
+is filed as
+`cone-section-interval-mint-encloses-beta-like-one-over-k-squared`.
