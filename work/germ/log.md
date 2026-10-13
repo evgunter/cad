@@ -1126,3 +1126,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Filed by the lane:** a FLUX item on volume with a spiric ring; INSIDE evidence; a GERM pinched-oval winding item; a SECT travel-slack item.
   - **Frozen; CONCURRENT pair** r4927a and r4927b, local Opus. Brief template sha256 `4c45d94212a2`. Coding byte 188, even → A = r4927a.
   - **Note:** PR 4910 also touches `ring_path`, so expect a merge overlap with 4927.
+- 2026-10-13 01:01 — **r4910 in: APPROVE-WITH-FIXES, 0 MAJOR** (saved scratchpad/dr4910/R1.md).
+  - **Held:** 0 wrong decisions in the fuzz wherever coordinates resolve the band; 0 main answers changed; 2256 ops/ε with 0 wrong bodies (198 newly built).
+  - **MINORs:** `segment_apart`'s terms are unpinned (two unsound mutants green; the same-circle gate is unpinned). At 1e-12 far frames (~8e5) decide wrong parities: 384 of them main's, 8 added by this PR's readings, past the coordinate resolution; pre-existing, unfiled.
+  - **NIT:** escalation can now surface where main said RingHomingAmbiguous.
+  - **S4:** a vertex-on-plane coincidence pose now builds, true. The fix pass must check D10 and pin or refuse.
+  - **Style:** three duplicated spellings, one dead link.
+  - Fix pass dispatched: session_01Y2makTfM78TWLg5k8XrRqd. No second review (no MAJOR). Row at merge: sequential, M, byte 221, tallied 0, major false.
