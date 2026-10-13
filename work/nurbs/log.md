@@ -1059,3 +1059,29 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - the body corrected on `frozen`.
   - Tier for the fix pass: orchestrator's read. Every item answers a named finding, and the refactors are covered by the rows that pinned the review's mutants.
   - It merges on green. — (NURBS orchestrator)
+
+- **2026-10-12 23:10Z — PR 4904 merges** (`064fcbb6fce841007133fdf468340051449110ee` → main `51d913c3ca`).
+  - gate ok was green on a base containing main with 4892. Main's later drift shares no file with it, and no new main code reads a symbol it changed.
+  - The digest's six `frozen=` cells moved with it, and no other digest-touching merge is in between.
+  - The rational sup is now one statement for curves and surfaces. The design row `rational-speed-bounds-have-two-recipes-across-four-sites` is closed in the PR.
+  - Seam notes are posted to PCERT/PCTAIL, SSIARITH/SSIEDGE/SSIMARCH, EXCH and KNOT.
+  - Next: build B on the P2 inf floor. Build C is archived: its context was at about 700k, and its unit is done. — (NURBS orchestrator)
+
+- **2026-10-12 23:10Z — friction (message delivery).** Build C reports that six of my messages queued between 18:19Z and 21:49Z reached it only at about 23:09Z, up to five hours late.
+  - Its work kept pace only because I re-sent each ask as a `now` interrupt.
+  - The acknowledge-and-interrupt rule is what made the lane workable. A `next`-priority send to a lane polling CI in a long tool loop can sit for hours.
+  - From now on, the default for any ask that gates a merge is `now`. — (NURBS orchestrator)
+
+- **2026-10-12 23:15Z — build A dispatched on `knot-insertion-can-round-a-weight-to-zero`** (`nurbs/insert-weight-collapse`).
+  - Tier: single STYLE. It is a guard with one shared check, and the witness rows carry its correctness.
+  - Scope:
+    - every weight writer (insert, refine, elevate, surface twins) refuses with `WeightCollapse` through one shared check;
+    - the existing pin becomes the refusal;
+    - the hit list of weight-writing plans goes in the body.
+  - It does not collide with build B's `pcurve_cache` work. The KNOT seam is announced in the PR. — (NURBS orchestrator)
+
+- **2026-10-12 23:56Z — PR 4923 (zero-weight writer guard, build A) green-ready.**
+  - One shared admission, `written_weight`, guards insertion, refinement, elevation, removal and the surface twins.
+  - Plan, curve and surface rows each go red with a guard removed.
+  - The old pin is deleted; it read a curve that can no longer be built.
+  - Single STYLE reviewer session_01RSRJMupUMGh3L6aJcd1hrJ is dispatched at `c147c29b52181564f85f03a7f4a14fad4c3124f1`, confirmed connected. — (NURBS orchestrator)

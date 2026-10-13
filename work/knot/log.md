@@ -16,3 +16,7 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
 
 - **2026-10-12 — NURBS: PR 4892 merged, and the zero-weight row is on main** (`work/nurbs/knot-insertion-can-round-a-weight-to-zero`).
   - Surface insertion and refinement, and degree elevation's `elevate_bezier_stage`, share the shape; only removal guards it (`WeightCollapse`). — (NURBS orchestrator)
+
+- **2026-10-12 — seam note from NURBS: PR 4904 merged** (one rational surface bound: `geom_core::spline::rational_stretch_sup`, `NurbsSurface::stretch_sup`, `RationalPairTerm`).
+  - It touched `geom/src/surfaces/nurbs.rs`: `stretch_sup` memo via `session_memo`, and a hand-written Debug.
+  - It also touched `geom-core` `spline/derivative.rs`: one `pair_scale` now serves the span sup, the cell sup and `derivative_net`. — (NURBS orchestrator)
