@@ -2,10 +2,11 @@
 id: pcurve-cache-gained-three-endpoint-reads-the-census-does-not-count
 kind: issue
 title: pcurve_cache.rs reads five certification endpoints where the census counts two, so main's endpoint census is red
-status: open
+status: closed
 opened: 2026-10-13
 priority: P0
 cost: E
+closed: 2026-10-13
 ---
 
 
@@ -27,3 +28,5 @@ census went red. The census's own message asks for each new read to be
 counted and dispositioned, not for the number to be moved: a
 one-sided read of a bracket that may not certify takes the certifying
 branch.
+
+Closed 2026-10-13: fixed by PR 4953 (`pcert/endpoint-census-fitted-domain-gate`), which put the roster entry at (5, 2) with dispositions; `every_production_endpoint_read_is_counted_and_dispositioned` is green on main at `68b07af9`.
