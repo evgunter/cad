@@ -734,6 +734,38 @@ fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f64)>
 mod tests {
     use super::*;
 
+    /// SYM-17 review R2 probe (not for merge): the plain lane's reach,
+    /// bisected in log σ over one leaf at the whole box, plus the
+    /// symbolic chain row's counts. `R2_LINKS` (default 1).
+    #[test]
+    #[ignore]
+    fn r2_reach_probe() {
+        let tol = Tol::witness();
+        let links: usize = std::env::var("R2_LINKS")
+            .map(|v| v.parse().unwrap())
+            .unwrap_or(1);
+        let ok = |s: f64| {
+            let built = chain(links, s, POSITION_BOUND, tol);
+            interval_leaf(links, &built.doc)
+        };
+        let (mut lo, mut hi) = (1e-12_f64, 1e-2_f64);
+        assert!(ok(lo).certifies, "the floor must certify");
+        let top = ok(hi);
+        eprintln!("R2 links {links} sigma 0.01: refused={} first={:?}", top.refused, top.first);
+        for _ in 0..40 {
+            let mid = (lo * hi).sqrt();
+            if ok(mid).certifies { lo = mid } else { hi = mid }
+        }
+        let past = ok(hi);
+        eprintln!("R2 links {links} reach: certifies {lo:.4e}, refuses {hi:.4e}: {:?}", past.first);
+        let built = chain(links, JOINT_SIGMA, POSITION_BOUND, tol);
+        let row = sym_leaf(links, &built.doc);
+        eprintln!(
+            "R2 links {links} sym: certifies={} {:.3}s first={:?} counts={:?}",
+            row.certifies, row.cost.as_secs_f64(), row.first, row.counts
+        );
+    }
+
     /// **What BOUNDS the certifiable box is `dihedral_wedge`.**
     ///
     /// Not `dihedral_arm`, which is what the first refusal over the

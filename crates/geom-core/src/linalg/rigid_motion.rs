@@ -372,10 +372,22 @@ fn rigid_defect(check: &str) -> &'static str {
     }
 }
 
+/// R2 review mutant switch (probe branch only).
+fn r2_mut(name: &str) -> bool {
+    std::env::var("R2_MUT").is_ok_and(|v| v == name)
+}
+
 /// `Ok(x)` when the value channel reads every component of `p` as a
 /// finite number, `Err` naming `part` otherwise.
 fn finite<T: Real>(p: Point3<T>, part: MotionPart) -> Result<Point3<T>, RigidMotionError> {
-    if is_finite_length(p.x) && is_finite_length(p.y) && is_finite_length(p.z) {
+    let skip = match part {
+        MotionPart::Inverse => r2_mut("inv"),
+        MotionPart::Product => r2_mut("cmp"),
+        MotionPart::Translation => r2_mut("tr"),
+        MotionPart::Anchor => r2_mut("anc"),
+        MotionPart::Angle => false,
+    };
+    if skip || (is_finite_length(p.x) && is_finite_length(p.y) && is_finite_length(p.z)) {
         Ok(p)
     } else {
         Err(RigidMotionError::NonFinite(part))
@@ -574,7 +586,7 @@ impl<T: Real> RigidMotion<T> {
         angle: T,
         t: Vec3<T>,
     ) -> Result<Self, RigidMotionError> {
-        if !is_finite_length(angle) {
+        if !r2_mut("ang") && !is_finite_length(angle) {
             return Err(RigidMotionError::NonFinite(MotionPart::Angle));
         }
         let origin = finite(at(t), MotionPart::Translation)?;
@@ -600,7 +612,7 @@ impl<T: Real> RigidMotion<T> {
         axis: UnitVec3<T>,
         angle: T,
     ) -> Result<Self, RigidMotionError> {
-        if !is_finite_length(angle) {
+        if !r2_mut("ang") && !is_finite_length(angle) {
             return Err(RigidMotionError::NonFinite(MotionPart::Angle));
         }
         let q = finite(point, MotionPart::Anchor)? - Point3::origin();
@@ -678,6 +690,9 @@ impl<T: Decide> RigidMotion<T> {
     /// check.
     pub fn check_rigid(map: &Affine3<T>, band: Band) -> Result<Self, RigidMotionError> {
         let l = &map.linear;
+        if r2_mut("open") {
+            return Ok(Self::from_linear(*l, at(map.translation)));
+        }
         let one = T::one();
         // A table of K row names: they reach the funnel through the loop
         // variable below, so no grep for a literal at the decide site finds
@@ -703,6 +718,7 @@ impl<T: Decide> RigidMotion<T> {
                 Ok(Sign::Positive | Sign::Negative) => {
                     return Err(RigidMotionError::NotRigid { check });
                 }
+                Err(_) if r2_mut("fold") => return Err(RigidMotionError::NotRigid { check }),
                 Err(source) => return Err(RigidMotionError::Undecided { check, source }),
             }
         }
@@ -1437,5 +1453,60 @@ mod motion_rows {
             [turned.x, turned.y, turned.z].map(f64::to_bits),
             [by_hand.x, by_hand.y, by_hand.z].map(f64::to_bits)
         );
+    }
+}
+
+/// SYM-17 review R2 probes (probe branch only, not for merge).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r2_probes {
+    use super::*;
+    use crate::tolerance::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The inverse's finiteness refusal is reachable from finite
+    /// inputs: `Rᵀ·t` sums two components near `f64::MAX`.
+    #[test]
+    fn r2_inverse_overflow_is_reachable() {
+        let z = UnitVec3::exact_z();
+        let m = RigidMotion::rotation_then_translation(
+            z,
+            core::f64::consts::FRAC_PI_4,
+            Vec3::new(f64::MAX, f64::MAX, 0.0),
+        )
+        .unwrap();
+        assert!(matches!(
+            m.inverse(),
+            Err(RigidMotionError::NonFinite(MotionPart::Inverse))
+        ));
+    }
+
+    /// Products of door-admitted maps are never decided again, so a
+    /// defect each factor carries inside the band's zero accumulates
+    /// past the band: the door admits a 4e-10 axis scale, and the
+    /// 64-fold product of the witness is one the door refuses.
+    #[test]
+    fn r2_products_of_admitted_maps_drift_past_the_band() {
+        let s = 1.0 + 4.0e-10;
+        let near = Affine3::from_parts(
+            Mat3::from_cols(Vec3::new(s, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_z()),
+            Vec3::zero(),
+        );
+        let one = RigidMotion::check_rigid(&near, band()).expect("inside the band: admitted");
+        let mut product = one;
+        for _ in 1..64 {
+            product = product.compose(one).unwrap();
+        }
+        let c0 = product.u().get();
+        eprintln!("R2 drift: |c0|^2 - 1 = {:e}", c0.dot(c0) - 1.0);
+        assert!(matches!(
+            RigidMotion::check_rigid(&product.to_affine(), band()),
+            Err(RigidMotionError::NotRigid {
+                check: "transform_rigid_col0_unit"
+            })
+        ));
     }
 }
