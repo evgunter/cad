@@ -6464,11 +6464,11 @@ fn confirm_edge_face<T: Decide>(
 ///   both faces' extents along it, and the `Tangent` table where those
 ///   meet, material sides included
 ///   ([`crate::boolean::tangent_pair_at_rest`]). Extents definitely
-///   apart are stale. Where they meet, the line is placed in both faces
-///   at the middle of that span by each face's containment door: in
-///   both, the faces' interiors meet there and the record is confirmed;
-///   off either, it is stale. A trim the line enters only elsewhere is
-///   read stale rather than blessed. Refused typed where no line derives.
+///   apart are stale. Where they meet, the line is read through both
+///   faces the way the op reads it
+///   ([`crate::boolean::line_through_both_faces`]): some station inside
+///   both confirms the record, every station out of either is stale.
+///   Refused typed where no line derives.
 fn confirm_face_pair<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -6562,16 +6562,15 @@ fn confirm_face_pair<T: Decide>(
             return;
         }
     };
-    let q = carrier.eval((t0 + t1) * T::from_f64(0.5));
-    for face in [a, b] {
-        match face_holds(body, face, q, band, "pm_census_confirm_ff", errors) {
-            Some(Some(FaceContainment::In)) => {}
-            Some(Some(_)) => {
-                errors.push(stale);
-                return;
-            }
-            Some(None) => {
-                errors.push(ValidationError::CensusUnsupported {
+    let through = crate::boolean::line_through_both_faces(
+        [(body, a), (body, b)],
+        &carrier,
+        (t0, t1),
+        band,
+        |i, unread| {
+            let mut held = Vec::new();
+            match unread {
+                None => held.push(ValidationError::CensusUnsupported {
                     subject: CensusSubject::FacePair(a, b),
                     cause: CensusUnsupportedCause::ContactLane(
                         crate::contact::ContactRefusal::NotCertifiable {
@@ -6579,11 +6578,21 @@ fn confirm_face_pair<T: Decide>(
                                    containment door does not read",
                         },
                     ),
-                });
-                return;
+                }),
+                Some(crate::boolean::PlacementError::OnPlane(cause)) => {
+                    held.push(ValidationError::CensusEscalated { cause });
+                }
+                Some(crate::boolean::PlacementError::Door(e)) => {
+                    read_containment([a, b][i], Err::<(), _>(e), &mut held);
+                }
             }
-            None => return,
-        }
+            held
+        },
+    );
+    match through {
+        Ok(true) => {}
+        Ok(false) => errors.push(stale),
+        Err(held) => errors.extend(held),
     }
 }
 
@@ -12597,6 +12606,73 @@ mod two_carrier_records {
     fn a_two_carrier_record_of_faces_two_metres_apart_is_not_confirmed() {
         let (errors, wall, side) = tangent_plane((2.0, 3.0), (0.0, 1.0), (0.0, 1.0));
         assert!(names(&errors, wall, side), "{errors:?}");
+    }
+
+    /// A plate whose top face (z = 1) is notched across the tangent
+    /// ruling's middle, and a cylinder sheet resting on it along y = 0
+    /// over x in (0.5, 3.5): the ruling runs through the face's interior
+    /// at both ends of that span and over the notch (x in (1.5, 2.5)) at
+    /// its middle. The faces' interiors meet, and the record is
+    /// confirmed. Red when the confirm reads the overlap's middle alone.
+    #[test]
+    fn a_two_carrier_record_whose_line_misses_a_notch_at_its_middle_is_confirmed() {
+        let tol = Tol::witness();
+        let notched = [
+            (0.0, -1.0),
+            (4.0, -1.0),
+            (4.0, 1.0),
+            (2.5, 1.0),
+            (2.5, -0.5),
+            (1.5, -0.5),
+            (1.5, 1.0),
+            (0.0, 1.0),
+        ];
+        let mut body = crate::test_support_fixtures::prism::<f64>(&notched, 1.0, tol).body;
+        let top = body
+            .faces()
+            .find(|(_, f)| match body.get_surface(f.surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
+                }
+                _ => false,
+            })
+            .map(|(k, _)| k)
+            .unwrap();
+        let frame = CylFrame {
+            origin: geom_core::Point3::new(0.0, 0.0, 2.0),
+            axis: geom_core::Vec3::unit_x(),
+            radius: 1.0,
+            u_ref: -geom_core::Vec3::unit_z(),
+        };
+        let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.5, 3.5), tol);
+        body.get_face_mut(wall).unwrap().sense = true;
+        let placed = |x: f64| {
+            crate::boolean::face_placement(
+                &body,
+                top,
+                geom_core::Point3::new(x, 0.0, 1.0),
+                band(),
+                "test_notch",
+            )
+        };
+        assert!(
+            matches!(
+                placed(2.0),
+                Ok(crate::boolean::CurvedPlacement::Trim(Some(FaceContainment::Out)))
+            ) && matches!(
+                placed(1.0),
+                Ok(crate::boolean::CurvedPlacement::Trim(Some(FaceContainment::In)))
+            ),
+            "the ruling is over the notch at x = 2 and in the face at x = 1"
+        );
+        let errors = census_and_certify(
+            &body,
+            &one(&body, Cell::Face(wall), Cell::Face(top)),
+            band(),
+            tol,
+            None,
+        );
+        assert!(!names(&errors, wall, top), "{errors:?}");
     }
 
     /// The brick's face x = 1 + 3ε, past the zero band of the

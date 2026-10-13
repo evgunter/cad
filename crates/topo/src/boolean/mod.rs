@@ -6250,16 +6250,17 @@ fn witness_span<T: Decide>(
     ))
 }
 
-/// Whether a verified tangent line runs through both faces' interiors:
-/// some point of it, sampled on the certificate schedule over `overlap`
-/// (where both faces' extents along it meet, along a length), lies
-/// strictly inside each face ([`contain::face_placement`]). A line along a face's boundary is
-/// the edge form of the touch, which the edge records carry.
+/// Whether a verified tangent line runs through both faces' interiors
+/// over `overlap` (where both faces' extents along it meet, along a
+/// length): the op's read, [`line_through_both_faces`] under the
+/// op's refusals. A line along a face's boundary is the edge form of
+/// the touch, which the edge records carry.
 ///
 /// # Errors
 ///
-/// The placement's refusal: a margin in band, the containment door's own
-/// refusal, or a curved trim the chart door gives no verdict for
+/// The overlap's length in band, or what [`line_through_both_faces`]
+/// leaves unread: a placement margin in band, the containment door's
+/// own refusal, or a curved trim the chart door gives no verdict for
 /// ([`BooleanError::CurvedBooleanUnsupported`]).
 fn locus_through_both_faces<T: Decide>(
     faces: [(&Body<T>, FaceKey, Operand, geom::SurfaceKind); 2],
@@ -6283,31 +6284,82 @@ fn locus_through_both_faces<T: Decide>(
             ));
         }
     }
-    let inside = |(body, face, operand, kind): (&Body<T>, FaceKey, Operand, _), p| {
-        use contain::{CurvedPlacement, PlacementError};
+    line_through_both_faces(
+        faces.map(|(body, face, ..)| (body, face)),
+        locus,
+        overlap,
+        band,
+        |i, unread| {
+            let (_, face, operand, kind) = faces[i];
+            match unread {
+                None => BooleanError::CurvedBooleanUnsupported {
+                    operand,
+                    face,
+                    kind,
+                },
+                Some(contain::PlacementError::OnPlane(diag)) => {
+                    BooleanError::coincidence(Coincide::TangentLocus, read, diag)
+                }
+                Some(contain::PlacementError::Door(e)) => reduce::esc(e, operand, face),
+            }
+        },
+    )
+}
+
+/// **Whether a tangent line runs through two faces' interiors**: some
+/// point of it, sampled on the certificate schedule over `overlap`,
+/// lies strictly inside both faces ([`contain::face_placement`], a
+/// point off a face's carrier out). The one reading the op's glue
+/// door ([`locus_through_both_faces`]) and the census's face–face
+/// confirm (`census::confirm_face_pair`) make of it.
+///
+/// Each station reads both faces: either face deciding the station
+/// out settles it whatever the other left unread, both in answers
+/// `true`. A station neither face decides out but one leaves unread
+/// is held, and only where no station answers is the first held one
+/// the refusal: a station in band of one face's boundary does not
+/// stop the line answering at the next.
+///
+/// `unread(i, why)` names face `i`'s refusal at a station: `None` for
+/// a curved trim the chart door gives no verdict for, else the
+/// placement's error.
+///
+/// # Errors
+///
+/// The first held station's refusal, where no station answers `true`.
+pub(crate) fn line_through_both_faces<T: Decide, E>(
+    faces: [(&Body<T>, FaceKey); 2],
+    locus: &geom::Curve3<T>,
+    overlap: (T, T),
+    band: Band,
+    unread: impl Fn(usize, Option<contain::PlacementError>) -> E,
+) -> Result<bool, E> {
+    use contain::CurvedPlacement;
+    let inside = |i: usize, p| {
+        let (body, face) = faces[i];
         match contain::face_placement(body, face, p, band, "bool_tangent_line_in_face") {
             Ok(CurvedPlacement::Trim(Some(at))) => Ok(at == FaceContainment::In),
             Ok(CurvedPlacement::OffCarrier) => Ok(false),
-            Ok(CurvedPlacement::Trim(None)) => Err(BooleanError::CurvedBooleanUnsupported {
-                operand,
-                face,
-                kind,
-            }),
-            Err(PlacementError::OnPlane(diag)) => Err(BooleanError::coincidence(
-                Coincide::TangentLocus,
-                read,
-                diag,
-            )),
-            Err(PlacementError::Door(e)) => Err(reduce::esc(e, operand, face)),
+            Ok(CurvedPlacement::Trim(None)) => Err(unread(i, None)),
+            Err(e) => Err(unread(i, Some(e))),
         }
     };
-    for i in 0..geom_brep::CERT_SAMPLES {
-        let p = locus.eval(geom_brep::sample_param(overlap.0, overlap.1, i));
-        if inside(faces[0], p)? && inside(faces[1], p)? {
-            return Ok(true);
+    let mut held = None;
+    for s in 0..geom_brep::CERT_SAMPLES {
+        let p = locus.eval(geom_brep::sample_param(overlap.0, overlap.1, s));
+        let first = match inside(0, p) {
+            Ok(false) => continue,
+            read => read,
+        };
+        match (first, inside(1, p)) {
+            (_, Ok(false)) => {}
+            (Ok(_), Ok(true)) => return Ok(true),
+            (Err(e), _) | (Ok(_), Err(e)) => {
+                held.get_or_insert(e);
+            }
         }
     }
-    Ok(false)
+    held.map_or(Ok(false), Err)
 }
 
 /// The face's boundary vertex positions (outer loop then rings, cycle
