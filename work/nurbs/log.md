@@ -1280,3 +1280,8 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Closes `rational-second-derivative-bounds-have-two-recipes`. The pair-term WIP f22f608d stays unmerged; its rows carry over.
   - **ENCL seam:** before touching `patch_bound.rs`, the lane reads #4891 as it stands and logs what it will touch. If ENCL has countered, it stops.
   - Tier: FULL, because the second-order numerators and the witness-per-clause mutants carry real correctness risk.
+- 2026-10-13 15:39Z — **PR 4984** (unit 2, head 5d2a7a4a) is up. The FULL reviewer is session_01J87p3xUa5Wf1XjMEjnKAzm. It has seven claims to falsify: the numerators over W³; the mutant rows; the `m_inf` floor; chords' `accel_upper_bound`; goldens with stated causes; the ENCL seam; and no second blossom or binomial home.
+- 2026-10-13 15:39Z — **Build C dispatched on CI wall time** (session_01DyXAveAT58f6rcbLPEojAD, branch `nurbs/ci-wall-time`, on CIW ground), with Ev's go-ahead. Today's numbers: the `build` step takes about 20 min; 4954's slow-set step took 55 min; one `test` job ran 1 h 43 min.
+  - **Order of work:** measure first, then fix within the per-PR selection standard (shard, cut the build path, cheaper tests).
+  - **Limit:** dropping a seeded row to the nightly comes back as a proposal, because it contradicts implementer-discipline §2.
+  - The lane updates or closes CIW's open row `a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar`.
