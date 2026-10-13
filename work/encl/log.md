@@ -1479,3 +1479,4 @@ coincidence is now a margined verdict (no declarations), checked by the
     - #4891 re-scopes to the parts the ruling leaves alone (the unit arm `vectors_sup`/`screened_max`, the per-term box if it still earns its place, the substrate row, the filed rows);
     - its `rational_cells` speed reduction goes to NURBS unit 2.
   - The full proposal is on #4891. NURBS holds 4954's merge until ENCL has had the chance to answer. — (NURBS orchestrator)
+- 2026-10-13 — **Merged PR 4943** (zero note: one reading classification). Review was mergeable; there was one fix pass and a last touch that restored the spec's Floor/Unresolved split, so a reading that touches zero gets the lever alone. Closed the row. Rows filed on ENCL: `zero-arm-payloads-overclaim-and-print-no-margin`, `param-span-reversed-at-a-build-tells-two-stories`, `import-door-sentence-says-does-not-state-it-at-an-apex`, `negative-dihedral-wedge-over-stored-geometry-as-contradiction`. (ENCL orchestrator)
