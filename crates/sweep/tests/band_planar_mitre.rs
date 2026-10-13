@@ -201,39 +201,32 @@ fn an_extruded_pentagon_cap_rim_turns_at_every_vertex() {
     }
 }
 
-/// **A turn whose feet stand apart refuses typed** (`leaning_turn`):
-/// the leaning wall's dihedral is not the end face's, so one band's
-/// foot on the lateral edge is further and that band runs on past the
-/// mitre — the overrun, which is not built. The refusal names the far
-/// band: at a lean of `0.5` the end face's for both verbs (its right
-/// dihedral has the larger sine and the smaller angle); at `−0.5` the
-/// end face's for the chamfer (the larger sine) and the leaning wall's
-/// for the fillet (the smaller angle).
+/// **A fillet turn whose feet stand apart refuses typed**
+/// (`leaning_turn`): the leaning wall's dihedral is not the end face's,
+/// so one band's foot on the lateral edge is further and that band runs
+/// on past the mitre — a fillet's overrun, which is not built (a
+/// chamfer's builds: `band_turn_overrun_chamfer`). The refusal names the
+/// far band, by the fillet's smaller angle: the end face's at a lean of
+/// `0.5`, the leaning wall's at `−0.5`.
 #[test]
-fn a_turn_whose_feet_stand_apart_refuses_naming_its_far_band() {
-    for (s, far) in [(0.5, [0, 0]), (-0.5, [0, 1])] {
+fn a_fillet_turn_whose_feet_stand_apart_refuses_naming_its_far_band() {
+    for (s, far) in [(0.5, 0), (-0.5, 1)] {
         let (body, turn) = leaning_turn(s);
-        for (verb, far) in [Verb::Chamfer, Verb::Fillet].into_iter().zip(far) {
-            let closed = match verb {
-                Verb::Chamfer => probe::Verb::Chamfer,
-                Verb::Fillet => probe::Verb::Fillet,
-            };
-            assert_eq!(
-                far_band(&body, turn, closed),
-                far,
-                "{verb:?} at {s}: the closed forms' far band"
-            );
-            match verb.run(&body, &turn) {
-                Err(BlendError::UnsupportedRunOut { at, detail }) => {
-                    assert_eq!(detail, TURN_OVERRUN, "{verb:?} at {s}");
-                    assert_eq!(
-                        at,
-                        topo::EntityId::Edge(turn[far]),
-                        "{verb:?} at {s}: the far band"
-                    );
-                }
-                other => panic!("{verb:?} at {s}: the overrun refuses as a run-out, got {other:?}"),
+        assert_eq!(
+            far_band(&body, turn, probe::Verb::Fillet),
+            far,
+            "fillet at {s}: the closed forms' far band"
+        );
+        match Verb::Fillet.run(&body, &turn) {
+            Err(BlendError::UnsupportedRunOut { at, detail }) => {
+                assert_eq!(detail, TURN_OVERRUN, "fillet at {s}");
+                assert_eq!(
+                    at,
+                    topo::EntityId::Edge(turn[far]),
+                    "fillet at {s}: the far band"
+                );
             }
+            other => panic!("fillet at {s}: the overrun refuses as a run-out, got {other:?}"),
         }
     }
 }
@@ -357,7 +350,9 @@ fn an_isosceles_turn_is_recorded_as_a_value_decided_coincidence() {
             "{kind:?}: one record per turn"
         );
         for turn in &verdict.turns {
-            let row = &turn.coincidence;
+            let row = turn
+                .coincidence()
+                .expect("a mitred turn records its coincidence");
             let cell = |e| topo::RowCell::Input {
                 input: topo::Operand::A,
                 cell: topo::Cell::Edge(e),
