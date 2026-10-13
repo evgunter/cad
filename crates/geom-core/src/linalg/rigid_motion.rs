@@ -258,6 +258,9 @@ pub enum MotionPart {
     Product,
     /// The translation of an inverse.
     Inverse,
+    /// An entry of the linear part of a map the decided door was
+    /// handed ([`RigidMotion::check_rigid`]).
+    Linear,
 }
 
 impl MotionPart {
@@ -268,6 +271,7 @@ impl MotionPart {
             Self::Anchor => "rotation axis's anchor point, or the translation it makes",
             Self::Product => "translation of a composition of two motions",
             Self::Inverse => "translation of an inverse motion",
+            Self::Linear => "linear part",
         }
     }
 }
@@ -278,9 +282,9 @@ impl MotionPart {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RigidMotionError {
     /// A part that is not a finite number: a mint by construction's
-    /// input or product, or the translation of a map the decided door
-    /// was handed ([`MotionPart::Translation`], after its finiteness
-    /// probes).
+    /// input or product, or a part of a map the decided door was handed
+    /// ([`MotionPart::Linear`] before any margin is decided,
+    /// [`MotionPart::Translation`] after).
     NonFinite(MotionPart),
     /// [`RigidMotion::check_rigid`] decided a rigidity margin NON-zero:
     /// the map scales an axis, shears, or mirrors at tolerance.
@@ -318,6 +322,11 @@ impl core::fmt::Display for RigidMotionError {
                 "the map is not rigid at tolerance: {}. Recourse: {RIGID_RECOURSE}",
                 rigid_defect(check)
             ),
+            // The door refuses a non-finite entry before any margin, so a
+            // poisoned margin here is the kernel's arithmetic; at f64 none
+            // is reachable past that probe, since finite entries give
+            // finite or infinite (decided) column norms and decided-unit
+            // columns bound the rest.
             Self::Undecided { check, source } => source
                 .undecided(
                     format_args!("whether the map is rigid ({})", not_rigid_reading(check)),
@@ -335,9 +344,7 @@ impl std::error::Error for RigidMotionError {}
 /// that did NOT decide `Zero`, whether it decided a defect or could
 /// not decide, so the reading says what the check found possible, not
 /// a verdict. The checks run in order: the mirror check is reached
-/// only by columns decided orthonormal, and a linear entry that is not
-/// a finite number poisons the first margin, which then reads
-/// undecided — so the first check's reading names that case too.
+/// only by columns decided orthonormal.
 #[must_use]
 pub fn not_rigid_reading(check: &str) -> &'static str {
     match check {
@@ -345,7 +352,7 @@ pub fn not_rigid_reading(check: &str) -> &'static str {
         | "transform_rigid_col12_orth"
         | "transform_rigid_col02_orth" => "it may shear",
         "transform_rigid_det_plus_one" => "it may mirror",
-        _ => "it may scale an axis, or an entry is not a finite number, which no margin decides",
+        _ => "it may scale an axis",
     }
 }
 
@@ -648,6 +655,11 @@ impl<T: Decide> RigidMotion<T> {
     /// home of that rule, asked of a literal placement frame, a STEP
     /// placement, or a library caller's matrix.
     ///
+    /// First the linear part's finiteness, asked of each entry as the
+    /// mints ask it ([`Real::is_bounded`]): a non-finite entry is the
+    /// caller's input, refused [`RigidMotionError::NonFinite`] naming
+    /// [`MotionPart::Linear`] rather than read as a poisoned margin.
+    ///
     /// The seven margins, in order: the three column norms less one,
     /// the three pairwise orthogonalities, the determinant less one.
     /// A margin decided non-zero refuses [`RigidMotionError::NotRigid`];
@@ -655,9 +667,7 @@ impl<T: Decide> RigidMotion<T> {
     /// with the decision's own diagnostic. Then the translation's
     /// finiteness, asked exactly as the mints ask it
     /// ([`Real::is_bounded`] of each component: both endpoints at an
-    /// enclosure), which is not a band decision and logs no row. A
-    /// non-finite linear entry needs no separate probe: it poisons the
-    /// margins above.
+    /// enclosure), which is not a band decision and logs no row.
     ///
     /// The admitted motion carries the map's columns and translation
     /// verbatim, so [`Self::to_affine`] gives back `map`, bit for bit.
@@ -666,9 +676,12 @@ impl<T: Decide> RigidMotion<T> {
     ///
     /// [`RigidMotionError::NotRigid`] or [`RigidMotionError::Undecided`]
     /// naming the check, or [`RigidMotionError::NonFinite`] naming
-    /// [`MotionPart::Translation`].
+    /// [`MotionPart::Linear`] or [`MotionPart::Translation`].
     pub fn check_rigid(map: &Affine3<T>, band: Band) -> Result<Self, RigidMotionError> {
         let l = &map.linear;
+        for column in [l.c0, l.c1, l.c2] {
+            finite(at(column), MotionPart::Linear)?;
+        }
         let one = T::one();
         // A table of K row names: they reach the funnel through the loop
         // variable below, so no grep for a literal at the decide site finds
@@ -1360,9 +1373,48 @@ mod motion_rows {
         );
     }
 
+    /// **A non-finite linear entry is the caller's input, refused by
+    /// name before any margin is decided**, in every column and at an
+    /// enclosure, so its refusal never reads as a poisoned margin.
+    #[test]
+    fn a_non_finite_linear_entry_is_refused_as_the_input() {
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            for column in 0..3 {
+                let mut cols = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()];
+                cols[column].y = bad;
+                let map =
+                    Affine3::from_parts(Mat3::from_cols(cols[0], cols[1], cols[2]), Vec3::zero());
+                assert_eq!(
+                    RigidMotion::check_rigid(&map, band()).map(|_| ()),
+                    Err(RigidMotionError::NonFinite(MotionPart::Linear)),
+                    "{bad} in column {column}"
+                );
+            }
+        }
+        let unbounded = Affine3::from_parts(
+            Mat3::from_cols(
+                Vec3::new(
+                    Interval::from_bounds(1.0, f64::INFINITY),
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(0.0),
+                ),
+                Vec3::unit_y().map(Interval::from_f64),
+                Vec3::unit_z().map(Interval::from_f64),
+            ),
+            Vec3::zero().map(Interval::from_f64),
+        );
+        assert_eq!(
+            RigidMotion::check_rigid(&unbounded, band()).map(|_| ()),
+            Err(RigidMotionError::NonFinite(MotionPart::Linear)),
+            "an enclosure with an unbounded endpoint"
+        );
+    }
+
     /// **An undecided rigidity check ends in the map's lever alone**, a
     /// residual being no size the user chose, and a poisoned margin adds
-    /// the unreadable-margin note after it.
+    /// the unreadable-margin note after it. The poisoned margin is
+    /// injected through the funnel: past the door's finiteness probe
+    /// none is reachable at f64.
     #[test]
     fn an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin() {
         let check = "transform_rigid_col0_unit";

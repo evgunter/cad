@@ -160,8 +160,8 @@ use core::fmt;
 
 use geom_core::k_stats::decide;
 use geom_core::{
-    Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    Margin, MarginDiag, Point2, Real, Sign, Tol, Vec2,
+    Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, EndingKind, Indeterminate,
+    KERNEL_DEFECT_ENDING, Margin, MarginDiag, Point2, Real, Sign, Tol, Vec2,
 };
 
 /// The recourse of [`ProfileError::ArcBelowSceneResolution`]: the arc's
@@ -707,27 +707,6 @@ pub fn fillet_recourse_for(predicate: &str) -> Option<&'static str> {
     })
 }
 
-/// How the generic doors ([`ProfileError::Escalated`], the fall-through
-/// of [`crate::PathError::Escalated`]) end an undecided decision of this
-/// crate (D4 ¶1 (i)).
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EndingKind {
-    /// A size the user may have chosen: [`Indeterminate::ending`] under
-    /// [`COINCIDENCE_RECOURSE`], tolerance arm included.
-    Sized,
-    /// No size the user chose: this lever alone, noted where the margin
-    /// could not be read.
-    Lever(&'static str),
-}
-
 /// One decision this crate decides, and how its undecided refusal ends.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
@@ -1048,17 +1027,11 @@ pub(crate) struct EscalationEnding<'a>(pub(crate) &'a Indeterminate);
 impl fmt::Display for EscalationEnding<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let source = self.0;
-        let row = source.predicate.and_then(decision_ending);
-        match row.map(|row| row.kind) {
-            Some(EndingKind::Lever(lever)) => f.write_str(&source.lever_ending(lever)),
-            Some(EndingKind::Sized) => f.write_str(&source.ending(COINCIDENCE_RECOURSE)),
-            None => write!(
-                f,
-                "{} — {}",
-                source.ending(COINCIDENCE_RECOURSE),
-                geom_core::MissingRecourse(source.predicate)
-            ),
-        }
+        let kind = source
+            .predicate
+            .and_then(decision_ending)
+            .map(|row| row.kind);
+        f.write_str(&source.ending_by(kind, source.predicate))
     }
 }
 
