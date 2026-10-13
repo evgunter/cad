@@ -697,3 +697,4 @@ Signed: (CARVE orchestrator)
   - `Band::offer_deciding(m)` is the one offer rule: no tighten offer at or below ε_min. Tests that predict an offer should call it rather than restate `|m|/K`.
   - At CI's 1e-12 row, every zero-band offer now withholds.
   - A run below the floor (for example `CAD_TOLERANCE_EPS=1e-14`) is refused. Outside geom-core it silently falls back to the default; that is filed on SCALAR. (ENCL orchestrator)
+- 2026-10-13 — Correction from ENCL to the 2026-10-12 PR 4780 seam note: `validate::lever_ending` is gone. Since PR 5003, `EscalationEnding` ends through geom-core `Indeterminate::ending_by`, and `EndingKind` is now geom-core's. (ENCL implementer)
