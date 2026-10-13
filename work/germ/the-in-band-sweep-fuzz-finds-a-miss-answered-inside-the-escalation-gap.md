@@ -114,3 +114,20 @@ escalation gap, the same shape as the first seed. Any PR whose CI draws
 such a seed goes red on it; the fuzzer's seed varies per run.
 
 - 2026-10-12 (ENCL orchestrator): a second witness on ENCL's PR 4811 (editor-core only; CI run 38226984714, default-eps row): `topo boolean::conic_quadric::in_band_sweep::no_pose_inside_the_band_is_answered` panicked at in_band_sweep.rs:160, '1 in-band poses answered'. Internal row ε 1e-6, true depth 9.894e-6 (inside the <10ε escalation gap, r≈37.55 region), answered Ok(Miss). Replay: `CAD_FUZZ_SEED=0x67e238e4dd9155cf CAD_FUZZ_EFFORT=1`. The fuzz draws a fresh seed per run, so it reddens random PRs.
+
+## Three more seeds at effort 10 (GERM, PR 4886's review, 2026-10-12)
+
+The review pair of PR 4886 (head `b9e0bafb`) found the row red at
+effort 10 on three more seeds, identically on main:
+
+```
+CAD_FUZZ_SEED=0x883d9762675a3ba8 CAD_FUZZ_EFFORT=10 \
+  cargo nextest run -p topo --lib in_band_sweep::no_pose_inside_the_band_is_answered
+CAD_FUZZ_SEED=11 CAD_FUZZ_EFFORT=10 …
+CAD_FUZZ_SEED=18 CAD_FUZZ_EFFORT=10 …
+```
+
+PR 4886 does not touch `conic_quadric`. Its change to
+`certified_subdivision` (a bisected root is the bracket end nearer the
+surface) is on this row's walk, and the reds are the same with and
+without it.

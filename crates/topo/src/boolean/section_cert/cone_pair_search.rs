@@ -25,7 +25,8 @@
 //!   (`essential_f`), and on the partner's chart the same
 //!   (`essential_g`);
 //! - `single` only on one traced component;
-//! - every witness on both carriers, and on a traced component of its
+//! - every witness on both carriers to within its own rounding
+//!   ([`WITNESS_ROUNDING`]), and on a traced component of its
 //!   part's class — distinct components for distinct parts;
 //! - the swapped order the same classification.
 //!
@@ -83,6 +84,9 @@ impl Ruled {
     }
 }
 
+/// A ruling chart's line at an angle, as `(B, v)`.
+type LineAt<'a> = &'a dyn Fn(f64) -> (Point3<f64>, Vec3<f64>);
+
 /// The share of a column's width the columns stand off `θ = 0`: `2/φ³`,
 /// no short dyadic share, so a doubled grid shares no column with the
 /// last, and a pose symmetric about a dyadic angle puts no root on one.
@@ -93,11 +97,7 @@ const SHIFT: f64 = 0.472_135_954_999_579_4;
 /// from `720 × 721` cells up that [`resolves`] the section, each refusal
 /// doubling the cells round the turn, along the lines, or both; `None`
 /// past [`GRID_BUDGET`].
-fn ruled(
-    line: &dyn Fn(f64) -> (Point3<f64>, Vec3<f64>),
-    scale: f64,
-    partner: &Surface<f64>,
-) -> Option<Ruled> {
+fn ruled((line, slop): (LineAt<'_>, Slop), scale: f64, partner: &Surface<f64>) -> Option<Ruled> {
     let window = (-FRAC_PI_2 + EDGE, FRAC_PI_2 - EDGE);
     let (mut nu, mut nv) = (720, 721);
     while nu * nv <= GRID_BUDGET {
@@ -105,7 +105,7 @@ fn ruled(
         let shift = SHIFT * TAU / nu as f64;
         // The column lines alone first; the grid is traced only on a
         // size they accept.
-        let short = match resolves(grid, None, line, scale, partner) {
+        let short = match resolves(grid, None, (line, slop), scale, partner) {
             Ok(()) => {
                 let traced = trace(
                     &|u, psi| {
@@ -117,7 +117,7 @@ fn ruled(
                     nu,
                     nv,
                 );
-                match resolves(grid, Some(&traced), line, scale, partner) {
+                match resolves(grid, Some(&traced), (line, slop), scale, partner) {
                     Ok(()) => return Some(Ruled { traced, shift }),
                     Err(short) => short,
                 }
@@ -145,11 +145,45 @@ enum Short {
     Both,
 }
 
+/// How far a chart's computed line at a column stands from the exact
+/// line at the exact column angle (metres, and unit): its base within
+/// `base` plus two units of rounding of its distance from the origin,
+/// its direction within `dir`. A column angle `2π(i + s)/N` rounds by
+/// at most `20ε` rad, each sine and cosine by `ε`, and a sum or product
+/// by `ε` of its size: a cone's generator is within `64ε` (its base is
+/// the apex), a wall's ruling's base within `64ε·r` of its own radius.
+#[derive(Clone, Copy)]
+struct Slop {
+    base: f64,
+    dir: f64,
+}
+
+/// The [`Slop`] of the ruling chart on `carrier`.
+fn slop_of(carrier: &Surface<f64>) -> Slop {
+    let unit = 64.0 * f64::EPSILON;
+    match *carrier {
+        Surface::Cone { .. } => Slop {
+            base: 0.0,
+            dir: unit,
+        },
+        Surface::Cylinder { radius, .. } => Slop {
+            base: unit * radius,
+            dir: 0.0,
+        },
+        _ => unreachable!("the search's charts rule cylinders and cones"),
+    }
+}
+
 /// `(Q₂, Q₁, Q₀)`: the partner's quadric `Q` along the line `B + t·v`,
 /// `Q` positive off the carrier as its implicit residual is — against a
 /// cone `|w|²cos²α − (w·a)²`, against a cylinder `|w|² − (w·d)² − r²` —
-/// and the magnitudes of the terms each sums, which bound its rounding.
-fn along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>) -> ([f64; 3], [f64; 3]) {
+/// and a bound on how far each stands from its value on the exact line
+/// `slop` puts within reach: the line's own error moves `Q₂` by at most
+/// `4|δv|`, `Q₁` by `4(|δB| + |w||δv| + |δB||δv|)` and `Q₀` by
+/// `4|w||δB| + 2|δB|²` (`w = B − P`, `|v| = 1`, the form's matrix of norm
+/// at most one), and each sum rounds within `16ε` of its terms'
+/// magnitudes.
+fn along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>, slop: Slop) -> ([f64; 3], [f64; 3]) {
     let (w0, n, k, r2) = match *partner {
         Surface::Cone {
             apex,
@@ -167,6 +201,9 @@ fn along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>) -> ([f64; 3], [f6
     };
     let (hw, hv) = (w0.dot(n), v.dot(n));
     let (ww, wv) = (w0.dot(w0), w0.norm());
+    let rounding = |x: f64| 16.0 * f64::EPSILON * x;
+    let db = slop.base + 2.0 * f64::EPSILON * (b - Point3::origin()).norm();
+    let dv = slop.dir;
     (
         [
             k * v.dot(v) - hv * hv,
@@ -174,9 +211,9 @@ fn along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>) -> ([f64; 3], [f6
             k * ww - hw * hw - r2,
         ],
         [
-            k + hv * hv,
-            2.0 * (k * wv + (hw * hv).abs()),
-            k * ww + hw * hw + r2,
+            rounding(k + hv * hv) + 4.0 * dv,
+            rounding(2.0 * (k * wv + (hw * hv).abs())) + 4.0 * (db + wv * dv + db * dv),
+            rounding(k * ww + hw * hw + r2) + 4.0 * wv * db + 2.0 * db * db,
         ],
     )
 }
@@ -193,6 +230,16 @@ fn along(partner: &Surface<f64>, b: Point3<f64>, v: Vec3<f64>) -> ([f64; 3], [f6
 /// end magnitudes less `B·w²/2`, over a half of width `w`. A strip whose
 /// halves both keep `f′`'s sign holds one root if its ends differ in sign
 /// and none if they agree; one whose halves both keep `f`'s holds none.
+///
+/// **What each harmonic is charged.** Harmonic `k` turned to any phase,
+/// `(2/N)·Σ fᵢ·cos(k(u − 2πi/N) + φ)`, moves by at most `2·noise` with
+/// the samples, a single sum of their errors (so its cosine and sine
+/// parts together, not `√2` times each). Its two sums round, each of
+/// `N` terms whose angle `k·h·i` (under `8π`) rounds within `50ε` rad,
+/// by at most `(N + 52)ε·Σ|fᵢ|`: `2(N + 52)ε` times the samples' mean
+/// magnitude once halved by `N`, and `√2` that for the pair. A
+/// derivative's own sum rounds within `16ε` of its terms, and so does
+/// `keeps`' arithmetic.
 fn strip_roots(samples: &[f64], noise: f64) -> Option<Vec<u8>> {
     let n = samples.len();
     let h = TAU / n as f64;
@@ -209,12 +256,17 @@ fn strip_roots(samples: &[f64], noise: f64) -> Option<Vec<u8>> {
     let [h1, h2, h3, h4] = [1, 2, 3, 4].map(harmonic);
     let amp = |(c, s): (f64, f64)| c.hypot(s);
     let mean = samples.iter().sum::<f64>() / n as f64;
+    let magnitude = samples.iter().map(|f| f.abs()).sum::<f64>() / n as f64;
+    let summed = core::f64::consts::SQRT_2 * 2.0 * (n as f64 + 52.0) * f64::EPSILON * magnitude;
+    let per_harmonic = 2.0 * noise + summed;
     assert!(
-        amp(h3) + amp(h4) <= 1e-9 * (mean.abs() + amp(h1) + amp(h2)) + 4.0 * noise,
+        amp(h3) + amp(h4) <= 1e-9 * (mean.abs() + amp(h1) + amp(h2)) + 2.0 * per_harmonic,
         "a chart's coefficient of degree past 2: harmonics {h3:?} {h4:?}"
     );
+    let rounded = |x: f64| 16.0 * f64::EPSILON * x;
     // `f`'s `m`-th derivative at column `i`, from the harmonics, and its
-    // ceiling round the turn; each carries `2·Σ kᵐ` of the noise.
+    // ceiling round the turn, each charged `(1 + 2ᵐ)` harmonics' error
+    // and its own sum's rounding.
     let derivative = |m: i32, i: usize| {
         let u = h * i as f64;
         [(1.0, h1), (2.0, h2)]
@@ -230,14 +282,17 @@ fn strip_roots(samples: &[f64], noise: f64) -> Option<Vec<u8>> {
                 acc + k.powi(m) * turned
             })
     };
-    let charge = |m: i32| 2.0 * (1.0 + 2f64.powi(m)) * noise;
-    let ceiling = |m: i32| amp(h1) + 2f64.powi(m) * amp(h2) + charge(m);
+    let ceiling = |m: i32| amp(h1) + 2f64.powi(m) * amp(h2);
+    let charge = |m: i32| (1.0 + 2f64.powi(m)) * per_harmonic + rounded(ceiling(m));
+    let ceiling = |m: i32| ceiling(m) + charge(m);
     let w = h / 2.0;
     // Whether `g`, read from one end at `(g₀, g₁)` with `|g″| ≤ bend`,
     // keeps one sign over the half next to it.
     let keeps = |g0: f64, g1: f64, bend: f64, slack: f64| {
         let far = g0 + g1 * w;
-        (g0 > 0.0) == (far > 0.0) && g0.abs().min(far.abs()) - slack > bend * w * w / 2.0
+        let curve = bend * w * w / 2.0;
+        (g0 > 0.0) == (far > 0.0)
+            && g0.abs().min(far.abs()) - slack - rounded(g0.abs() + (g1 * w).abs() + curve) > curve
     };
     (0..n)
         .map(|i| {
@@ -288,21 +343,21 @@ fn strip_roots(samples: &[f64], noise: f64) -> Option<Vec<u8>> {
 fn resolves(
     (n, nv, (v0, v1)): (usize, usize, (f64, f64)),
     traced: Option<&Traced>,
-    line: &dyn Fn(f64) -> (Point3<f64>, Vec3<f64>),
+    (line, slop): (LineAt<'_>, Slop),
     scale: f64,
     partner: &Surface<f64>,
 ) -> Result<(), Short> {
     if traced.is_some_and(|t| t.saddles > 0) {
         return Err(Short::Both);
     }
-    let (coefficients, terms): (Vec<[f64; 3]>, Vec<[f64; 3]>) = (0..n)
+    let (coefficients, errors): (Vec<[f64; 3]>, Vec<[f64; 3]>) = (0..n)
         .map(|i| {
             let (b, v) = line(TAU * (i as f64 + SHIFT) / n as f64);
-            along(partner, b, v)
+            along(partner, b, v, slop)
         })
         .unzip();
-    // Each coefficient is true to within `16ε` of its terms' magnitude,
-    // and `E` to within what those errors and its own two products move.
+    // `E` is true to within what its coefficients' errors and its own two
+    // products move.
     let rounding = |x: f64| 16.0 * f64::EPSILON * x;
     let e: Vec<f64> = coefficients
         .iter()
@@ -310,23 +365,22 @@ fn resolves(
         .collect();
     let e_noise = coefficients
         .iter()
-        .zip(&terms)
-        .map(|(&[a, b, c], &[ma, mb, mc])| {
-            let (da, db, dc) = (rounding(ma), rounding(mb), rounding(mc));
+        .zip(&errors)
+        .map(|(&[a, b, c], &[da, db, dc])| {
             (2.0 * b.abs() + db) * db
                 + 4.0 * (a.abs() * dc + c.abs() * da + da * dc)
                 + rounding(b * b + 4.0 * (a * c).abs())
         })
         .fold(0.0, f64::max);
     let lead: Vec<f64> = coefficients.iter().map(|c| c[0]).collect();
-    let lead_noise = terms.iter().map(|t| rounding(t[0])).fold(0.0, f64::max);
+    let lead_noise = errors.iter().map(|t| t[0]).fold(0.0, f64::max);
     // Against a twin (`Q₂` vanishing on every line) each line meets the
     // partner once, at `−Q₀/Q₁`, and that root leaves along an asymptote
     // where `Q₁` vanishes.
     let twin = lead.iter().all(|a| a.abs() <= lead_noise);
     let (folds, asymptotes) = if twin {
         let middle: Vec<f64> = coefficients.iter().map(|c| c[1]).collect();
-        let middle_noise = terms.iter().map(|t| rounding(t[1])).fold(0.0, f64::max);
+        let middle_noise = errors.iter().map(|t| t[1]).fold(0.0, f64::max);
         (Some(vec![0; n]), strip_roots(&middle, middle_noise))
     } else {
         (strip_roots(&e, e_noise), strip_roots(&lead, lead_noise))
@@ -919,11 +973,11 @@ fn against_the_trace(
     let cone = k.surface();
     let (s, c) = k.alpha.sin_cos();
     let mine = ruled(
-        &|u| (k.apex, k.a * c + k.radial(u) * s),
+        (&|u| (k.apex, k.a * c + k.radial(u) * s), slop_of(&cone)),
         k.scale,
         &partner.surface,
     )?;
-    let theirs = ruled(&*partner.line, k.scale, &cone)?;
+    let theirs = ruled((&*partner.line, slop_of(&partner.surface)), k.scale, &cone)?;
     for (side, traced, flag) in [("cone", &mine, true), ("partner", &theirs, false)] {
         let mut want = traced.traced.classes.clone();
         want.sort();
@@ -968,6 +1022,13 @@ fn against_the_trace(
     }
     Some(bad)
 }
+
+/// How far a witness may stand off each carrier, in units of rounding
+/// of its distance from the cone's apex (plus the scale): the section's
+/// premise that a witness is within rounding of the section
+/// (`section_cert.rs`). Measured over `1.7·10⁴` draws across the three
+/// ε: at most `4.1`.
+const WITNESS_ROUNDING: f64 = 64.0;
 
 /// The mismatches of one pose, as sentences.
 fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
@@ -1018,9 +1079,10 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
             }
             continue;
         };
+        let rounding = WITNESS_ROUNDING * f64::EPSILON * ((w - k.apex).norm() + k.scale);
         for surf in [&cone, partner] {
             let r = geom_brep::implicit_residual(surf, w);
-            if r.abs() > 1e-9 * k.scale {
+            if r.abs() > rounding {
                 bad.push(format!("the witness {w:?} is {r} off {surf:?}"));
             }
         }
@@ -1207,7 +1269,7 @@ fn dump_for_the_mpmath_oracle() {
 }
 
 /// A pinned pose: `check` finds no mismatch, and an answer is traced.
-fn agrees(k: &Frame, pose: &Pose) {
+fn agrees(k: &Frame, pose: &Pose) -> Outcome {
     let (outcome, bad) = check(k, pose);
     assert!(bad.is_empty(), "{}: {}", pose.what, bad.join("\n"));
     assert!(
@@ -1215,6 +1277,22 @@ fn agrees(k: &Frame, pose: &Pose) {
         "{}: answered, and no grid within the budget resolves it",
         pose.what
     );
+    outcome
+}
+
+/// A pinned pose whose subject is its answer — the trace, or its
+/// witnesses — and which refuses at some `ε`: [`agrees`], and a
+/// refusal at this run's says so by name.
+fn answers_or_stands_down(k: &Frame, pose: &Pose) {
+    if let Outcome::Refused(row) = agrees(k, pose) {
+        test_utils::vacuity::stood_down(
+            &pose.what,
+            &format!(
+                "refused {row} at a zero band of {:e} m: no answer here to compare",
+                band().zero()
+            ),
+        );
+    }
 }
 
 fn generic(what: &str, partner: Partner) -> Pose {
@@ -1228,6 +1306,8 @@ fn generic(what: &str, partner: Partner) -> Pose {
 /// A needle cone (α 0.055) parallel to a wide one (α 0.98) pokes one
 /// loop through it, null on the wide cone and 0.49° of its turn: inside
 /// one column of the first grid. Seed `0x924171afe325def2` at effort 1.
+/// Traced at the default ε and 1e-6; it refuses its precision floor at
+/// 1e-12.
 #[test]
 fn a_parallel_needle_pokes_a_loop_narrower_than_a_column() {
     let k = frame(
@@ -1242,12 +1322,13 @@ fn a_parallel_needle_pokes_a_loop_narrower_than_a_column() {
         0.0547163656830942,
         k.scale,
     ));
-    agrees(&k, &generic("parallel cone", partner));
+    answers_or_stands_down(&k, &generic("parallel cone (0x9241…)", partner));
 }
 
 /// The needle as the first carrier (α 0.064) against an antiparallel
 /// wide cone (α 1.07): the loop is 0.41° of the wide cone's turn.
-/// Seed `0xc70ed950ae541691` at effort 1.
+/// Seed `0xc70ed950ae541691` at effort 1. Traced at the default ε; it
+/// refuses at 1e-6 and 1e-12.
 #[test]
 fn an_antiparallel_wide_cone_takes_a_loop_narrower_than_a_column() {
     let k = frame(
@@ -1266,12 +1347,12 @@ fn an_antiparallel_wide_cone_takes_a_loop_narrower_than_a_column() {
         1.0732269008406512,
         k.scale,
     ));
-    agrees(&k, &generic("parallel cone", partner));
+    answers_or_stands_down(&k, &generic("parallel cone (0xc70e…)", partner));
 }
 
 /// A needle (α 0.085) tilted 28° off a wide cone's axis (α 0.94): a
 /// loop 0.47° of the wide cone's turn. Seed `0x36a100199db4330e` at
-/// effort 1.
+/// effort 1. Traced at the default ε; it refuses at 1e-6 and 1e-12.
 #[test]
 fn a_tilted_needle_pokes_a_loop_narrower_than_a_column() {
     let k = frame(
@@ -1290,13 +1371,14 @@ fn a_tilted_needle_pokes_a_loop_narrower_than_a_column() {
         0.08454365565732458,
         k.scale,
     ));
-    agrees(&k, &generic("tilted cone", partner));
+    answers_or_stands_down(&k, &generic("tilted cone (0x36a1…)", partner));
 }
 
 /// A needle (α 0.076, scale 114) through a wall of radius 14.1: on the
 /// wall's chart the loop is under a cell thick along the rulings
 /// (`scale·tan ψ` stretches a cell to a metre there), and its witness
-/// sits at its tip. Seed `0x8cb02b1f1a051f77` at effort 1.
+/// sits at its tip. Seed `0x8cb02b1f1a051f77` at effort 1. Traced at the
+/// default ε and 1e-6; it refuses its precision floor at 1e-12.
 #[test]
 fn a_needle_through_a_wall_cuts_a_loop_thinner_than_a_row() {
     let k = frame(
@@ -1315,7 +1397,7 @@ fn a_needle_through_a_wall_cuts_a_loop_thinner_than_a_row() {
         14.141020393308477,
         k.scale,
     );
-    agrees(&k, &generic("oblique cylinder", partner));
+    answers_or_stands_down(&k, &generic("oblique cylinder (0x8cb0…)", partner));
 }
 
 /// A wall 6.3e-4 rad off a generator's direction, 0.103 m off the
@@ -1468,4 +1550,316 @@ fn an_apex_by_a_tangent_plane_at_infinity_refuses_the_asymptote() {
         "the apex's distance off the tangent plane at infinity: {clear}"
     );
     agrees(&k, &generic("tilted cone", partner));
+}
+
+/// A wall 7.2e-4 rad off a generator's direction, 0.128 m off the
+/// aperture degeneracy at scale 10: `E` has a close pair 7.2e-4 rad
+/// apart on the cone's chart, 0.03 m at the reach speed, but there the
+/// clearance turns at 1e4 m/rad and steps 4.3e-12 m between adjacent
+/// `f64` angles, past twice the zero band at ε 1e-12, so no angle reads
+/// ON. Answering or refusing the precision floor are both true; refusing
+/// a fold is not. Seed `0x870` at effort 1, ε 1e-12.
+#[test]
+fn a_wall_by_a_generator_with_a_close_fold_pair_refuses_its_representation() {
+    let k = frame(
+        Point3::new(-2.609741815146366, 3.2782193258260204, 3.2082599255876882),
+        Vec3::new(-0.7253581497355058, 0.20710007646723827, 0.6564793316925884),
+        1.0661581755130216,
+        10.093963919997702,
+    );
+    let partner = cylinder(
+        Point3::new(5.322661375079078, -2.973112552486236, -3.4648815632328605),
+        Vec3::new(
+            -0.7069885006214471,
+            0.6607447610653276,
+            -0.25215792811998045,
+        ),
+        3.2894046612474663,
+        k.scale,
+    );
+    agrees(
+        &k,
+        &Pose {
+            what: "cylinder near the aperture".to_owned(),
+            partner,
+            margin: Some(-0.12780809882403693),
+        },
+    );
+}
+
+/// A needle (α 0.053) whose apex stands 0.031 m off a cone of α 0.43
+/// at scale 6.4, 1.9 of the must-answer floor. One of `E`'s roots on the
+/// wide cone's chart lies just past the half-turn, where the walk's
+/// bracket closes, and is reported reduced by `τ`, which is `2π` only to
+/// rounding; the clearance turns fast enough there that the reduced
+/// angle reads off the surface by more than its running bound, which
+/// the bracket's own end covered. Answering or refusing the precision
+/// floor are both true; refusing a fold is not. Seed
+/// `0x572bf2ae01e17032` at effort 1, ε 1e-12.
+#[test]
+fn a_needle_by_an_apex_with_a_root_past_the_half_turn_refuses_its_representation() {
+    let k = frame(
+        Point3::new(4.89405100235706, 0.41071804295093983, 5.809918875679815),
+        Vec3::new(
+            -0.6622538544332499,
+            -0.36045557775128784,
+            0.6568802088328505,
+        ),
+        0.42807173332581183,
+        6.385682302301973,
+    );
+    let partner = cone(frame(
+        Point3::new(-3.254792372349779, -2.8168292596737783, 8.469314693292194),
+        Vec3::new(0.10084839967860032, -0.4412079243489156, 0.8917203416845366),
+        0.05318633425268832,
+        k.scale,
+    ));
+    agrees(
+        &k,
+        &Pose {
+            what: "cone near an apex".to_owned(),
+            partner,
+            margin: Some(0.03103554640036772),
+        },
+    );
+}
+
+/// A wall 3.3e-6 rad off a generator's direction cuts the cone in two
+/// essential loops that run kilometres out along that generator, and
+/// each is witnessed where it crosses the generator at `θ = 0`: 1.7e3 m
+/// and 2.4e4 m from the apex, where the quadric form's coefficients
+/// round as the square of that reach. Each witness stands on both
+/// carriers to within its own rounding. Seed `0xc7c` at effort 1, ε
+/// 1e-12; at the wider bands the pose refuses.
+#[test]
+fn far_loops_along_a_generator_are_witnessed_on_both_carriers() {
+    let k = frame(
+        Point3::new(-2.959649161888848, 10.094646702735995, -6.407224945785446),
+        Vec3::new(
+            -0.6590448592312982,
+            0.18085875974150137,
+            -0.7300342338175412,
+        ),
+        0.1976598600240478,
+        10.095503538065289,
+    );
+    let partner = cylinder(
+        Point3::new(-0.014701251428220541, 19.2492506498769, -6.539425000908243),
+        Vec3::new(
+            -0.7918717701256246,
+            0.17816400892102396,
+            -0.5841204375839792,
+        ),
+        11.031335478189714,
+        k.scale,
+    );
+    answers_or_stands_down(
+        &k,
+        &Pose {
+            what: "cylinder near the aperture (0xc7c)".to_owned(),
+            partner,
+            margin: Some(-0.0001310711404777768),
+        },
+    );
+}
+
+/// A needle (α 0.057) beside a wall of radius 3.8 it nearly touches
+/// (0.21 m off at scale 2.8): on the wall's chart the section is one
+/// loop, which the first grid reads as two unless the strips about its
+/// tip are certified, by Taylor's theorem over each whole half-strip.
+/// Seed `0x7f5` at effort 1. Traced at the default ε; it refuses at 1e-6
+/// and 1e-12.
+#[test]
+fn a_needle_by_a_tangent_wall_reads_one_loop_once_its_strips_are_certified() {
+    let k = frame(
+        Point3::new(1.6746122268362504, 2.3879445553066465, 2.2105850668630107),
+        Vec3::new(-0.5090458070579811, 0.5273353750005444, -0.6802865341822694),
+        0.05682130246444809,
+        2.8132633005687366,
+    );
+    let q = Point3::new(1.1502064488726855, 2.940870688940655, 1.4186465344299397);
+    let n = geom_brep::implicit_gradient(&k.surface(), q);
+    let n = n / n.norm();
+    let (r, shift) = (3.8358826743617307, -0.21385489039692648);
+    let partner = cylinder(
+        q + n * (-r + shift),
+        Vec3::new(
+            -0.7568754963190673,
+            0.03238056845668981,
+            -0.6527564491126743,
+        ),
+        r,
+        k.scale,
+    );
+    answers_or_stands_down(
+        &k,
+        &Pose {
+            what: "cylinder near a tangency (0x7f5)".to_owned(),
+            partner,
+            margin: Some(shift),
+        },
+    );
+}
+
+/// `x` turned by `angle` about `about`'s axis through its apex.
+fn turned(about: &Frame, x: &Frame, angle: f64) -> Frame {
+    let a = about.a;
+    let (s, c) = angle.sin_cos();
+    let turn = |v: Vec3<f64>| v * c + a.cross(v) * s + a * (a.dot(v) * (1.0 - c));
+    frame(
+        about.apex + turn(x.apex - about.apex),
+        turn(x.a),
+        x.alpha,
+        x.scale,
+    )
+}
+
+/// The three needle rows' needles turned about the wide cone's axis by
+/// a share of a first-grid column (`2π/720`): there each loop falls
+/// between two columns of whichever chart it is narrow on, and only the
+/// strip certificate, reading `E` between columns, refines the grid. Of
+/// 48 turns per needle across two columns, these are the first each
+/// needle needs it at. Traced at the default ε, the first also at 1e-6;
+/// each refuses its precision floor at 1e-12.
+#[test]
+fn turned_needles_put_their_loops_between_columns() {
+    let column = TAU / 720.0;
+    let wide = frame(
+        Point3::new(-1.2242364198117168, 2.6908604663467344, 2.2697869874119023),
+        Vec3::new(-0.7766578854319418, 0.6257266832420425, 0.07258544534062752),
+        0.9780387075993603,
+        3.480389269348853,
+    );
+    let needle = frame(
+        Point3::new(3.1463864208946175, 3.8911479163575393, -1.0672946609789895),
+        wide.a,
+        0.0547163656830942,
+        wide.scale,
+    );
+    let n = turned(&wide, &needle, column / 24.0);
+    answers_or_stands_down(&wide, &generic("parallel needle, 1/24 column", cone(n)));
+
+    let a = Vec3::new(
+        -0.36028068755660553,
+        -0.8366754476210794,
+        0.41251911655316803,
+    );
+    let wide = frame(
+        Point3::new(0.07693663316657151, 2.32856615980017, -3.306580468032254),
+        a * -1.0,
+        1.0732269008406512,
+        2.0304779108234405,
+    );
+    let needle = frame(
+        Point3::new(1.7607851645201547, 0.6830273125948181, -1.406044550949951),
+        a,
+        0.0641900968100325,
+        wide.scale,
+    );
+    let n = turned(&wide, &needle, column * 6.0 / 24.0);
+    answers_or_stands_down(&n, &generic("antiparallel needle, 6/24 column", cone(wide)));
+
+    let wide = frame(
+        Point3::new(-0.03741468578592999, 0.7404188176378705, -0.871689350005166),
+        Vec3::new(
+            -0.48238260865339555,
+            0.3281324536304198,
+            -0.8121798518451596,
+        ),
+        0.9443691848509118,
+        1.01447310159946,
+    );
+    let needle = frame(
+        Point3::new(-0.8756810204060506, -0.2863071260418617, 0.5783643361779968),
+        Vec3::new(0.6388220151868295, -0.6278931744885514, 0.44458586835765235),
+        0.08454365565732458,
+        wide.scale,
+    );
+    let n = turned(&wide, &needle, column * 9.0 / 24.0);
+    answers_or_stands_down(&wide, &generic("tilted needle, 9/24 column", cone(n)));
+}
+
+/// A needle (α 0.067) whose apex stands 0.27 m inside a cone of α 0.81
+/// at scale 8.9: the loop about it is narrower than a first-grid
+/// column on the wide cone's chart, at ε 1e-6, where most needle rows
+/// above refuse. Seed `0x2a22bc5af3d38eb6` at effort 1,
+/// ε 1e-6; it refuses its precision floor at the default ε and 1e-12.
+#[test]
+fn a_needle_by_an_apex_pokes_a_loop_narrower_than_a_column() {
+    let k = frame(
+        Point3::new(7.007927717132548, 5.935038939797888, 1.0683566068835955),
+        Vec3::new(0.11787840712768272, 0.9498930025192974, 0.28949605333737183),
+        0.8074463415124604,
+        8.895543835409493,
+    );
+    let partner = cone(frame(
+        Point3::new(12.195667561631637, 12.158543985662424, 11.593116202396011),
+        Vec3::new(0.4762337488272966, -0.7122064037179582, 0.5157164482358809),
+        0.06739976359492808,
+        k.scale,
+    ));
+    answers_or_stands_down(
+        &k,
+        &Pose {
+            what: "cone near an apex (0x2a22…)".to_owned(),
+            partner,
+            margin: Some(-0.27355885024405024),
+        },
+    );
+}
+
+/// A needle (α 0.061) 0.57 m off a wall of radius 14.9 at scale 9.8:
+/// on the wall's chart the loop about the needle's apex falls between
+/// two columns. Seed `0x4d4a748fe1ea09f3` at effort 1, ε 1e-6. Traced
+/// at the default ε and 1e-6; it refuses its precision floor at 1e-12.
+#[test]
+fn a_needle_by_a_wall_pokes_a_loop_between_its_columns() {
+    let k = frame(
+        Point3::new(-1.9565185656439894, 9.341628564204072, -7.691738381156591),
+        Vec3::new(-0.5671111761686662, 0.40442484612043345, 0.717513385035468),
+        0.061487051760289235,
+        9.784580737670684,
+    );
+    let partner = cylinder(
+        Point3::new(-8.528892498158598, 21.428434512782083, -3.8355493001087804),
+        Vec3::new(0.7091524552411419, 0.171159149913717, 0.6839644293574585),
+        14.85710036669459,
+        k.scale,
+    );
+    answers_or_stands_down(
+        &k,
+        &Pose {
+            what: "cylinder near the apex (0x4d4a…)".to_owned(),
+            partner,
+            margin: Some(0.5688147518486038),
+        },
+    );
+}
+
+/// A needle (α 0.053) 0.30 m off a wall of radius 2.7 at scale 4.9: the
+/// loop about its apex is narrower than a first-grid column on the
+/// wall's chart. Seed `0x6d588b00cc85b2e5` at effort 1, ε 1e-12. Traced
+/// at the default ε and 1e-12; it refuses at 1e-6.
+#[test]
+fn a_needle_by_a_wall_pokes_a_loop_narrower_than_a_column_at_the_tightest_band() {
+    let k = frame(
+        Point3::new(4.02766137773561, 3.3345851995018396, 4.44327040420503),
+        Vec3::new(0.7720196820782566, -0.05865340811414651, 0.6328865523933837),
+        0.05343852982314742,
+        4.880615277204269,
+    );
+    let partner = cylinder(
+        Point3::new(8.558256209321769, 5.070386816120662, -0.6322328209182313),
+        Vec3::new(0.8702771530629149, 0.16305044896520904, -0.4647926720043585),
+        2.737549314299164,
+        k.scale,
+    );
+    answers_or_stands_down(
+        &k,
+        &Pose {
+            what: "cylinder near the apex (0x6d58…)".to_owned(),
+            partner,
+            margin: Some(0.30066148297649686),
+        },
+    );
 }
