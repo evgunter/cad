@@ -118,3 +118,16 @@ of its test steps brings the job under it.
 - **The bar itself is Ev's.** A deep-kernel PR's cold build is 16–20 min
   on 4-vCPU hosted runners, so no arrangement of its tests brings it
   under 15. The `[ev]` PR states the choice.
+
+## A persistent incremental target, measured
+
+Local, 4 cores, ci profile, 4954's 17-crate closure, one target
+directory, in sequence:
+
+| build | wall | workspace crates recompiled |
+|---|---|---|
+| cold, `CARGO_INCREMENTAL=0` (deps warm) | 18m19s | all |
+| cold, `CARGO_INCREMENTAL=1` | 21m26s | 19 |
+| a one-function body edit in `geom-core/src/spline/knots.rs` | 11m10s | 16 |
+| then a one-line edit in `topo/src/readback.rs` | 8m43s | 11 |
+| no change | 2 s | 0 |
