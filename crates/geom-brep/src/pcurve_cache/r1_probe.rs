@@ -44,13 +44,13 @@ fn conic(rng: &mut Lcg, center: Point3<f64>, normal: Vec3<f64>, r: f64, d: f64, 
     }
 }
 
-fn run(name: &str, surface: &Surface<f64>, mut gen: impl FnMut(&mut Lcg) -> Curve3<f64>, want: fn(&Derivation) -> bool) {
+fn run(name: &str, surface: &Surface<f64>, mut mk: impl FnMut(&mut Lcg) -> Curve3<f64>, want: fn(&Derivation) -> bool) {
     let mut rng = Lcg(0x4952_0001 ^ name.len() as u64 * 7919);
     let (mut n, mut worst_f, mut worst_i, mut tight) = (0, f64::INFINITY, f64::INFINITY, 0.0f64);
     let ideal = orthonormal_chart(surface);
     let f = Interval::from_f64;
     for _ in 0..4000 {
-        let carrier = gen(&mut rng);
+        let carrier = mk(&mut rng);
         let Ok((image, derivation)) = derive_harmonic(&carrier, &ideal, wide()) else { continue };
         if !want(&derivation) { continue; }
         let form = carrier_harmonic(&carrier).unwrap();
@@ -154,10 +154,10 @@ fn r1_fidelity_hypot() {
         ("torus meridian", Surface::Torus { center: Point3::origin(), axis: Vec3::unit_z(), major_radius: 2.0, minor_radius: 0.5, u_ref: Vec3::unit_x() },
             Box::new(|g: &mut Lcg| { let az = g.r(0.0, TAU); Curve3::Circle { center: Point3::new(2.0 * az.cos(), 2.0 * az.sin(), 0.0), axis: Vec3::new(-az.sin(), az.cos(), 0.0), radius: 0.5, u_ref: Vec3::new(az.cos(), az.sin(), 0.0) } })),
     ];
-    for (name, s, gen) in cases {
+    for (name, s, mk) in cases {
         let mut n = 0; let mut tight = 0.0f64;
         for _ in 0..400 {
-            let carrier = gen(&mut g);
+            let carrier = mk(&mut g);
             let Ok(Pcurve::Harmonic { p0, pa, pb, pl }) = chart_pcurve(&carrier, &s, wide()) else { continue };
             let (du, dv) = (g.r(-3e-4, 3e-4), g.r(-3e-4, 3e-4));
             let (ea, eb) = (Vec2::new(g.r(-1e-4, 1e-4), g.r(-1e-4, 1e-4)), Vec2::new(g.r(-1e-4, 1e-4), g.r(-1e-4, 1e-4)));
@@ -178,5 +178,46 @@ fn r1_fidelity_hypot() {
         }
         eprintln!("R1PROBE fidelity {name}: n={n} max res/env={tight:.4}");
         assert!(n > 50);
+    }
+}
+
+/// Leftover ℓ1 #1: a torus parallel circle moved δ along the tube's
+/// normal at tube angle 45°. True residual δ; envelope reads
+/// |h·κ| + σ = δ(sin v + cos v) ≈ 1.41δ.
+#[test]
+fn r1_torus_parallel_normal_shift_at_45_degrees() {
+    let (big, r) = (2.0, 0.5);
+    let s = Surface::Torus { center: Point3::origin(), axis: Vec3::unit_z(), major_radius: big, minor_radius: r, u_ref: Vec3::unit_x() };
+    let z = super::harmonic_sup_rows::zero();
+    let v = core::f64::consts::FRAC_PI_4;
+    for k in [0.5, 0.6, 0.75, 0.9] {
+        let d = k * z;
+        let carrier = Curve3::Circle { center: Point3::new(0.0, 0.0, (r + d) * v.sin()), axis: Vec3::unit_z(), radius: big + (r + d) * v.cos(), u_ref: Vec3::unit_x() };
+        let band = super::harmonic_sup_rows::band();
+        let image = chart_pcurve(&carrier, &s, band);
+        let res = image.as_ref().map(|i| residual(i, &carrier, &s));
+        let env = image.as_ref().ok().and_then(|i| periodic_envelope(i, &carrier, carrier_harmonic(&carrier).unwrap(), &s, (0.0, TAU), TAU, band).ok()).map(|t| (t.total(), t.0));
+        let cert = image.as_ref().ok().map(|i| PcurveCache::certify(i.clone(), 0.0, TAU, &carrier, &s, band).map(|_| ()));
+        eprintln!("R1PROBE torus-par-45 k={k}: residual/zero={:?} env/zero={:?} cert={cert:?}", res.map(|x| x / z), env.map(|(e, t)| (e / z, t.map(|x| x / z))));
+    }
+}
+
+/// Leftover ℓ1 #2: a torus meridian circle translated (d, d) in its
+/// meridian plane (radial, axial). True residual √2·d; Centre reads
+/// |R − ‖w_r‖| + |h| = 2d.
+#[test]
+fn r1_torus_meridian_centre_offset_both_ways() {
+    let (big, r) = (2.0, 0.5);
+    let s = Surface::Torus { center: Point3::origin(), axis: Vec3::unit_z(), major_radius: big, minor_radius: r, u_ref: Vec3::unit_x() };
+    let z = super::harmonic_sup_rows::zero();
+    let band = super::harmonic_sup_rows::band();
+    for k in [0.35, 0.45, 0.55, 0.65] {
+        let d = k * z;
+        let carrier = Curve3::Circle { center: Point3::new(big + d, 0.0, d), axis: Vec3::unit_y(), radius: r, u_ref: Vec3::unit_x() };
+        let image = chart_pcurve(&carrier, &s, band);
+        let res = image.as_ref().map(|i| residual(i, &carrier, &s));
+        let env = image.as_ref().ok().and_then(|i| periodic_envelope(i, &carrier, carrier_harmonic(&carrier).unwrap(), &s, (0.0, TAU), TAU, band).ok()).map(|t| (t.total(), t.0));
+        let cert = image.as_ref().ok().map(|i| PcurveCache::certify(i.clone(), 0.0, TAU, &carrier, &s, band).map(|_| ()));
+        eprintln!("R1PROBE torus-mer-centre k={k}: residual/zero={:?} env/zero={:?} cert={cert:?}", res.map(|x| x / z), env.map(|(e, t)| (e / z, t.map(|x| x / z))));
     }
 }
