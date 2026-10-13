@@ -14,7 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Bounds, Decide, Interval, Point2, Point3, Vec3};
-use sweep::blend::battery::{BlendRequest, TURN_OVERRUN, run_battery_for};
+use sweep::blend::battery::{BlendRequest, TURN_OVERRUN, TurnRunOut, run_battery_for};
 use sweep::blend::{BlendDecision, BlendError, BlendKind};
 use sweep::test_support::{
     prism_on, realized, sketch_from_axes, turn_readings, turn_readings_interval,
@@ -42,7 +42,7 @@ fn vector(v: V) -> Vec3<f64> {
 /// `L`'s two faces, cut by the shared face's plane through the vertex
 /// (the origin), and the two requested edges there, `e₁` then `e₂`.
 /// Its faces stand `R` from the vertex, wide of every band at `D`.
-fn corner(c: &Cone) -> (Body<f64>, [EdgeKey; 2]) {
+pub(crate) fn corner(c: &Cone) -> (Body<f64>, [EdgeKey; 2]) {
     const R: f64 = 10.0;
     let l = c.l;
     let ray = [across(c.e[0], l), across(c.e[1], l)];
@@ -204,9 +204,22 @@ fn outcome<T: Decide + Bounds>(body: &Body<T>, edges: [EdgeKey; 2], verb: Verb) 
             let [turn] = &verdict.turns[..] else {
                 panic!("{verb:?}: one turn, got {}", verdict.turns.len())
             };
-            assert_eq!(turn.coincidence.relation, topo::Relation::CommonFoot);
-            assert_eq!(turn.coincidence.site, topo::DecisionSite::BatteryTurn);
-            Outcome::Mitre
+            match &turn.run_out {
+                TurnRunOut::Mitre(row) => {
+                    assert_eq!(row.relation, topo::Relation::CommonFoot);
+                    assert_eq!(row.site, topo::DecisionSite::BatteryTurn);
+                    Outcome::Mitre
+                }
+                TurnRunOut::Overrun(o) => {
+                    assert_eq!(verb, Verb::Chamfer, "only a chamfer's overrun is admitted");
+                    Outcome::Overrun(
+                        edges
+                            .iter()
+                            .position(|x| *x == turn.requested[o.far])
+                            .expect("the overrun's far band is a requested edge"),
+                    )
+                }
+            }
         }
         Err(BlendError::UnsupportedRunOut {
             at: EntityId::Edge(e),
@@ -482,23 +495,22 @@ type Witness = (&'static str, Body<f64>, [EdgeKey; 2], [f64; 2]);
 
 /// **The witnesses' readings** against the probe's table
 /// (`d = r = 0.1`): the bracket's two section-face corners (its closed
-/// form, `(45°, 90°)` and `(135°, 90°)` at `γ = 90°`), the sheared
+/// form, `(45°, 90°)` and `(135°, 90°)` at `γ = 90°`: the leaning prism
+/// at a lean of `∓1`), the sheared
 /// box's supplementary corner and the leaning prism at `±0.5`. Each
 /// overrun names the band the table puts further.
 #[test]
 fn the_witnesses_read_the_probes_table() {
-    let cone =
-        |p1: f64, p2: f64| Cone::angles([p1.to_radians(), p2.to_radians()], 90f64.to_radians());
     let s = 0.3;
     let sheared = parallelepiped(s);
     let w = [2.0 + s, s, 1.0];
     let rows: Vec<Witness> = vec![
         {
-            let (b, e) = corner(&cone(45.0, 90.0));
+            let (b, e) = leaning_turn(-1.0);
             ("bracket y = 0", b, e, [0.414, 1.000])
         },
         {
-            let (b, e) = corner(&cone(135.0, 90.0));
+            let (b, e) = leaning_turn(1.0);
             ("bracket y = 1", b, e, [0.414, 1.000])
         },
         {

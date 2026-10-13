@@ -2,10 +2,12 @@
 id: reach-displaces-is-a-sole-bracket-door-missing-from-the-bounds-roster
 kind: issue
 title: blend/reach.rs's displaces landed without a bounds_census roster line, so every_sole_bracket_bound_door_is_in_the_roster is red on main
-status: open
+status: closed
 opened: 2026-10-13
 priority: P0
 cost: E
+closed: 2026-10-13
+pr: 4959
 ---
 
 Filed by the TANG orchestrator. TANG's PR 4413 lane found it, and checked it
