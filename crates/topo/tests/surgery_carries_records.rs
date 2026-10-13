@@ -458,14 +458,17 @@ fn an_offset_doors_lineage_reads_through_its_join() {
 
 /// **A record at a conventional vertex is read on its closed edge.** A
 /// disc planted in a brick's top is bounded by one closed circle whose
-/// one vertex has no other edge; a record of that vertex is put to the
-/// census as the circle's, which the census has no lane to confirm
-/// against the bottom face. Red if the carry reads the vertex.
+/// one vertex has no other edge; a record of that vertex against a far
+/// lid's underside, on the circle's plane, is put to the census as the
+/// circle's: a circle lying in a plane, which the census has no lane to
+/// confirm. Red if the carry reads the vertex, which is stale there.
 #[test]
 fn a_record_at_a_conventional_vertex_is_read_on_its_closed_edge() {
     let mut body = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol());
     let top = face_at_z(&body, 1.0);
-    let bottom = face_at_z(&body, 0.0);
+    let lid = brick::<f64>((5.0, 6.0), (0.0, 2.0), (1.0, 2.0), tol());
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &lid).unwrap();
+    let under = keys.face(face_at_z(&lid, 1.0)).unwrap();
     let f = body.get_face(top).unwrap();
     let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
         panic!("the top loop is a cycle");
@@ -476,12 +479,12 @@ fn a_record_at_a_conventional_vertex_is_read_on_its_closed_edge() {
         .unwrap()
         .start;
     assert!(topo::is_conventional_vertex(&body, v));
-    let records = one_record(&body, Cell::Vertex(v), Cell::Face(bottom));
+    let records = one_record(&body, Cell::Vertex(v), Cell::Face(under));
     assert_eq!(
         records.carried_through(0, &topo::Lineage::new(), &body, band(), region()),
         Err(CarryRefusal::Unread {
             record: 0,
-            cells: [Cell::Edge(disc.edge), Cell::Face(bottom)]
+            cells: [Cell::Edge(disc.edge), Cell::Face(under)]
         })
     );
 }

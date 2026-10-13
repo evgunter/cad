@@ -28,6 +28,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::band_planar_consume::poly;
 use crate::common::interval::iv;
 use geom_core::{Bounds, Decide, Interval, Point2, Real, Sign, Tol};
 use profile::{ProfileLoop, SketchPlane, test_support::bulge_loop};
@@ -499,16 +500,6 @@ fn a_bore_clear_of_the_d_rods_sliver_carves_at_the_closed_form() {
         let want = -2.0 * rod_section_cut(ROD_R, ROD_FLAT, ROD_FILLET) * ROD_L;
         assert!((dv - want).abs() < 1e-12, "{what}: ΔV {dv} vs {want}");
     }
-}
-
-/// A closed polygonal profile loop through `pts`.
-fn poly<T: Real>(pts: &[(f64, f64)]) -> ProfileLoop<T> {
-    let f = T::from_f64;
-    bulge_loop(
-        pts.iter()
-            .map(|&(x, y)| (Point2::new(f(x), f(y)), f(0.0)))
-            .collect(),
-    )
 }
 
 /// The D-rod's own outline.
