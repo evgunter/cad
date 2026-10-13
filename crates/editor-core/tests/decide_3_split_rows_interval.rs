@@ -41,7 +41,8 @@ fn total(t: &BTreeMap<&'static str, [u64; 2]>) -> [u64; 2] {
 /// **Per predicate, the discharged count never falls** — the
 /// acceptance's own clause, asserted per predicate and printed whole,
 /// so a re-baseline reads the row rather than the reviewer's
-/// arithmetic.
+/// arithmetic — and the two predicates the dials move are pinned
+/// exactly, on both sides.
 #[test]
 fn decide_3_no_predicate_loses_a_decision() {
     let tol = Tol::witness();
@@ -75,6 +76,50 @@ fn decide_3_no_predicate_loses_a_decision() {
                 "  {p}: {b:?} -> {a:?}{}",
                 if a == *b { "" } else { "  <- moved" }
             );
+            // **TWO predicates are pinned at their numbers, with their
+            // reasons**, both on R2's link, `[symbolic, numeric]` on both
+            // sides, so any further drift reds and says which. Neither
+            // loses a decision; they are the ones this unit's dials
+            // MOVE, and a pin on both sides is what tells a re-baseline
+            // from a drift.
+            //
+            // `carrier_on_surface_1`/`_2` is rule G's trade: the tangent
+            // arc's quarter-tangent `2w / sqrt(4w²)`, which rule G
+            // re-keys as a sign quotient the tier does not hold, so the
+            // shipped side reaches through the door what the G-shut side
+            // proves outright, and four of each slot's twelve numeric
+            // decisions go symbolic. The two slots are the pair's key
+            // order (`geom_brep::SurfacePair`), so the trade lands half
+            // on each. The whole measurement and its remedy record is
+            // `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`.
+            //
+            // `carrier_matches_mapped_source` is the other side of the
+            // arc's span spelled from the decided turn (`sweep`'s
+            // `arc_span`): the carrier's span meets the pushforward's
+            // atom on the shipped side, four more decisions out of
+            // `numeric`.
+            //
+            // The sums are the split columns of the day before DECIDE-10
+            // made them one (`[96, 0, 0, 12] -> [92, 0, 8, 8]` and
+            // `[108, 0, 44, 28] -> [144, 0, 12, 24]` as theorem / gated /
+            // registered / numeric). Both sides run one attempt per rung
+            // (`split_at_the_nominal`, no ladder); what the ladder does
+            // is pinned where the ladder is
+            // (`sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`).
+            let pinned: Option<([u64; 2], [u64; 2])> = match (*name, *p) {
+                ("r2_link", "carrier_on_surface_1" | "carrier_on_surface_2") => {
+                    Some(([96, 12], [100, 8]))
+                }
+                ("r2_link", "carrier_matches_mapped_source") => Some(([152, 28], [156, 24])),
+                _ => None,
+            };
+            if let Some(expected) = pinned {
+                assert_eq!(
+                    (*b, a),
+                    expected,
+                    "{name}/{p}: the pinned predicate moved: re-measure it and say what"
+                );
+            }
             if a[0] < b[0] {
                 lost.push(format!("{name}/{p}: discharges fell {b:?} -> {a:?}"));
             }

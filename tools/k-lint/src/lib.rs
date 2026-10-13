@@ -581,7 +581,7 @@ pub struct Flag {
 pub struct Scan {
     /// Samples considered (every non-header, non-empty line).
     pub scanned: usize,
-    /// How many of [`Scan::scanned`] were `symbolic_zero` — decisions
+    /// How many of [`Scan::scanned`] were `symbolic` — decisions
     /// the symbolic identity tier answered, however it reached the
     /// zero, which answer to no rule here ([`lint_sample`]'s arm says why) and are reported as their
     /// own number rather than folded into the clean count.
@@ -642,7 +642,7 @@ pub const ACCEPTED_OUTCOMES: [&str; 6] = [
     "negative",
     "indeterminate",
     "invalid",
-    "symbolic_zero",
+    "symbolic",
 ];
 
 /// What a numeric column of the sweep may say.
@@ -772,7 +772,7 @@ pub fn lint_sample(
         // family alike: `zero_arm_usage`.
         "zero" => {}
         // **Never a rule sample, and not because it is uninteresting.**
-        // A `symbolic_zero` row is a decision the symbolic identity tier
+        // A `symbolic` row is a decision the symbolic identity tier
         // answered (ERROR-DESIGN E12): the margin's expression is zero
         // wherever the construction takes the decisions it took, so
         // `Zero` was proven and the margin was never CLASSIFIED against
@@ -784,7 +784,7 @@ pub fn lint_sample(
         // make. The row still counts — in its own column, `Scan::
         // symbolic` — because the ratio of symbolic to numeric
         // decisions is the evidence the tier exists to produce.
-        "symbolic_zero" => {}
+        "symbolic" => {}
         "positive" | "negative" if band_zero >= AMBIENT_BAND_MIN => {
             if is_eps_coupled(predicate) {
                 if m < EPS_COUPLED_FLOOR_RATIO * band_zero {
@@ -914,7 +914,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
             });
         }
         scanned += 1;
-        if out == "symbolic_zero" {
+        if out == "symbolic" {
             symbolic += 1;
         }
         // Counted for EVERY outcome, not just the definite arm: the

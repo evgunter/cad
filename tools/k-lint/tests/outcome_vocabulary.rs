@@ -80,16 +80,16 @@ fn the_two_vocabularies_are_the_same_size() {
     );
 }
 
-/// **A `symbolic_zero` row parses, counts in its own column, and
+/// **A `symbolic` row parses, counts in its own column, and
 /// answers to no rule.** The regression this file exists for, stated as
 /// behaviour rather than as a list comparison.
 #[test]
-fn a_symbolic_zero_row_is_linted_rather_than_refused() {
+fn a_symbolic_row_is_linted_rather_than_refused() {
     let csv = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
-               driver/slab_narrow,witness_at_mid_parameter,0e0,1e-100,1e-50,symbolic_zero\n\
+               driver/slab_narrow,witness_at_mid_parameter,0e0,1e-100,1e-50,symbolic\n\
                driver/slab_narrow,carrier_endpoint_start,1e-3,1e-9,1e-8,positive\n";
     let scan = k_lint::lint_csv(csv).expect(
-        "a `symbolic_zero` row is a row this lint understands; refusing it as harness \
+        "a `symbolic` row is a row this lint understands; refusing it as harness \
          breakage is what disarmed the E6 driver gate",
     );
     assert_eq!(scan.scanned, 2, "both rows counted");
@@ -107,13 +107,13 @@ fn a_symbolic_zero_row_is_linted_rather_than_refused() {
 
 /// **The retired tokens are no longer a sweep's vocabulary.** The
 /// symbolic tier answers one fact, that a margin is zero, and writes it
-/// as `symbolic_zero` however it reached the zero; `sign_gated` and
-/// `registered` are tokens no recorder writes, so a file carrying one
-/// is a sweep this lint does not understand and is refused as harness
-/// breakage, as any unknown token is.
+/// as `symbolic` however it reached the zero; `symbolic_zero`,
+/// `sign_gated` and `registered` are tokens no recorder writes, so a
+/// file carrying one is a sweep this lint does not understand and is
+/// refused as harness breakage, as any unknown token is.
 #[test]
 fn the_retired_discharge_tokens_are_refused() {
-    for token in ["sign_gated", "registered"] {
+    for token in ["symbolic_zero", "sign_gated", "registered"] {
         let csv = format!(
             "shape,predicate,margin,band_zero,band_escalate,outcome\n\
              driver/plate,carrier_endpoint_start,0e0,1e-100,1e-50,{token}\n"

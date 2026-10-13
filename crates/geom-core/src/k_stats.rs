@@ -1394,7 +1394,7 @@ pub enum SampleOutcome {
     /// in-band landing and never evidence about K. What it is evidence
     /// about is the ratio of symbolic to numeric decisions, which is
     /// what the tier exists to move.
-    SymbolicZero,
+    Symbolic,
 }
 
 #[cfg(feature = "probe")]
@@ -1412,7 +1412,7 @@ impl SampleOutcome {
         Self::Definite(Sign::Positive),
         Self::Indeterminate,
         Self::Invalid,
-        Self::SymbolicZero,
+        Self::Symbolic,
     ];
 
     /// **The one spelling of this outcome**, and the K sweep's CSV
@@ -1420,7 +1420,7 @@ impl SampleOutcome {
     ///
     /// It exists because there were five hand-kept copies of this
     /// `match` — four in Rust test harnesses that write the CSV, one in
-    /// `tools/k-lint` that reads it — and when `SymbolicZero` arrived
+    /// `tools/k-lint` that reads it — and when the symbolic outcome arrived
     /// the writers learned it and the reader did not. The reader was
     /// right to refuse a token it did not know; nobody noticed, because
     /// the CI row that would have said so could not fail. A vocabulary
@@ -1435,7 +1435,7 @@ impl SampleOutcome {
             Self::Definite(Sign::Positive) => "positive",
             Self::Indeterminate => "indeterminate",
             Self::Invalid => "invalid",
-            Self::SymbolicZero => "symbolic_zero",
+            Self::Symbolic => "symbolic",
         }
     }
 }
@@ -1492,8 +1492,9 @@ fn record(margin: f64, band: Band, outcome: SampleOutcome) {
 }
 
 /// **Re-tags the sample just recorded as `outcome`** —
-/// [`SampleOutcome::SymbolicZero`], the symbolic tier's door into the SAME funnel population (`crate::sym`'s
-/// `Decide` impl calls it where the tier overrides the numeric answer).
+/// [`SampleOutcome::Symbolic`], the symbolic tier's door into the SAME
+/// funnel population (`crate::sym`'s `Decide` impl calls it where the
+/// tier overrides the numeric answer).
 ///
 /// A re-tag rather than a second `record`, and that is the whole design:
 /// `Sym<T>` asks its base scalar first (its domain refusal is clause 1
@@ -1808,7 +1809,7 @@ mod tests {
     /// each one: a variant added without a roster entry stops compiling
     /// here rather than leaving whatever derives from `ALL` silently
     /// short — which is exactly how `tools/k-lint`'s accepted-token list
-    /// came to be missing `symbolic_zero`.
+    /// came to be missing the symbolic tier's token.
     #[cfg(feature = "probe")]
     #[test]
     fn all_lists_every_variant_and_every_token_is_distinct() {
@@ -1820,7 +1821,7 @@ mod tests {
                 | SampleOutcome::Definite(Sign::Positive)
                 | SampleOutcome::Indeterminate
                 | SampleOutcome::Invalid
-                | SampleOutcome::SymbolicZero => true,
+                | SampleOutcome::Symbolic => true,
             };
             assert!(seen, "{o:?} is listed in ALL");
         }

@@ -329,11 +329,15 @@ pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
 /// | --- | --- | --- | --- | --- | --- | --- |
 /// | two-hole plate (`1e2·ε`) | 0.09 s | 0.35 s | 0.35 s | 0.38 s¹ | 0.38 s¹ | nothing |
 /// | R1's annulus (`1e1·ε`) | 0.06 s | 0.37 s | 0.38 s | 0.40 s¹ | 0.39 s¹ | nothing |
-/// | R2's filleted bracket (`1e1·ε`) | 0.28 s | 2.86 s | 3.88 s | 3.53 s | 3.25 s | 6 decisions, all `registered` (rule A's attempt) |
-/// | R2's link (`1e1·ε`) | 0.23 s | 17.28 s | 19.71 s | 18.94 s | 17.93 s | 12 decisions, all `symbolic_zero` (rule G's attempt) |
+/// | R2's filleted bracket (`1e1·ε`) | 0.28 s | 2.86 s | 3.88 s | 3.53 s | 3.25 s | 6 decisions (rule A's attempt) |
+/// | R2's link (`1e1·ε`) | 0.23 s | 17.28 s | 19.71 s | 18.94 s | 17.93 s | 12 decisions (rule G's attempt) |
 /// | R2's rounded pad (`1e2·ε`) | 0.75 s | 131.3 s | 147.7 s | 144.0 s¹ | 139.2 s¹ | nothing |
 ///
 /// ¹ One take, not three.
+///
+/// The table is SYM-9's measurement, taken while the receipt still
+/// split its zeros by kind (the six were `registered`, the twelve
+/// `symbolic_zero`); every one of them is in `symbolic` now.
 ///
 /// **The trade, on the balance.** The line is 1.6 s. The bracket, the
 /// link and the pad are over it at ONE attempt per rung — the shipped
@@ -344,25 +348,24 @@ pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
 /// above certifies whole with it and without it); with the decision read
 /// shut (`SymRules::without_the_reads`) the same columns move by less
 /// than the takes' spread, so the read is not what it costs. What it
-/// buys is the link's twelve theorems, ten of them exactly the ten
+/// buys is the link's twelve decisions, ten of them exactly the ten
 /// rule G costs the `carrier_on_surface_1`/`_2` pair at one attempt per
 /// rung
 /// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`)
 /// — so the rule-G attempt pays back what the default rule G takes.
 ///
-/// **The rule-A attempt is the WEAKER half and is named as such.** On
-/// the only document it acts on it buys six REGISTRATIONS and no theorem
-/// — decisions moved from `numeric` to a constructor's axiom — for about
-/// 0.4 s of the bracket's 1.0 s (rule-A mask alone 3.25 s against 2.86).
-/// It ships with the rule-G attempt on the same balance, disclosed here
-/// rather than dropped.
+/// **The rule-A attempt ships for its reach.** On the only document it
+/// acts on it moves six decisions out of `numeric` for about 0.4 s of
+/// the bracket's 1.0 s (rule-A mask alone 3.25 s against 2.86), and it
+/// ships with the rule-G attempt on the same balance: decisions taken
+/// from the numeric channel at the cost named here.
 ///
 /// **The masks' order is a tie**: the other order recovers the same
 /// decisions on every measured document (the nominal replay, dev:
 /// bracket 1.47× against 1.44×, link 1.22× against 1.21×; the leaf:
 /// 3.88 against 3.76 s and 19.71 against 19.51 s, inside the takes'
-/// spread), so rule G's attempt — the one that buys theorems — goes
-/// first.
+/// spread), so the order is carried by neither reach nor cost and
+/// rule G's attempt goes first as SYM-9 shipped it.
 ///
 /// **One mask would not do**: rule A and rule G shut in ONE attempt
 /// keeps the bracket's six and recovers NONE of the link's twelve at
@@ -2023,7 +2026,7 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     };
     // The replay runs at the SAME TIER the drive did (E12): with the
     // tier on the recording scalar is `Sym<Probe>`, so a margin that is
-    // an identity lands in the funnel as `SampleOutcome::SymbolicZero`
+    // an identity lands in the funnel as `SampleOutcome::Symbolic`
     // and the hosted K row reports the symbolic/numeric split of the
     // driver's own population. Running it at bare `Probe` would report a
     // population the driver did not produce.

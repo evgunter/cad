@@ -508,12 +508,14 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
 /// **Why the tier cannot prove it for itself, measured.** The squared
 /// identity is a plain-form theorem wherever the coefficient ring can
 /// afford the expansion, and the unsquared one needs the outer `sqrt`
-/// discharged against an `abs` — rule C's shape, which folds on no
-/// document at the shipped 256-bit ring and needs ~640 bits and up at
-/// a leaf cost of minutes (`geom_core::sym`'s module docs,
-/// M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`).
-/// The ring width is a COST wall, and
-/// this door is the recourse E12 named for exactly that case.
+/// discharged against an `abs` — `sqrt(X) = R` where `X = R²`, which
+/// holds only under a sign of `R` over the box. That is not a decision
+/// the construction takes, so no shipped rule folds it (M10-8's rule C
+/// did, folded on no document at the shipped 256-bit ring, needed ~640
+/// bits and up at a leaf cost of minutes, and is retired:
+/// `geom_core::sym`'s module docs, M10's closed
+/// `plate-rim-residual-needs-the-wide-coefficient-ring`). This door is
+/// the recourse E12 named for exactly that case.
 ///
 /// **What it touches: nothing.** `rim.norm()` is the node
 /// `rim.normalize()` already divides by (`Vec3::normalize` is

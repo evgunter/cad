@@ -388,6 +388,15 @@ fn sym_9_what_each_retry_recovers() {
 /// costs, `decide_3_split_rows_interval` pins that trade one attempt per
 /// rung) and `witness_on_surface_2` `[14, 0, 0, 2]` → `[16, 0, 0, 0]`.
 ///
+/// **The history below is a record.** Each paragraph is in the
+/// receipt's columns of its day — the quadruples are `[theorem,
+/// sign_gated, registered, numeric]` — and DECIDE-10 made the first
+/// three one column, `symbolic`, beside `numeric`; the pin asserts the
+/// pairs. Where a paragraph calls a zero "the door's axiom and not a
+/// theorem", or counts a move between the zero columns, it records
+/// which walk answered then: no receipt reports that now, and a move
+/// between them is no move.
+///
 /// The link's row is the arc's span spelled from the decided turn
 /// (`sweep`'s `arc_span`): `[541, 0, 96, 465]` → `[545, 0, 108, 449]`
 /// without the ladder and `[553, 0, 96, 453]` → `[549, 0, 120, 433]`
@@ -529,15 +538,15 @@ fn sym_9_what_each_retry_recovers() {
 /// any more, so the half that shows the ladder RECOVERING something is
 /// [`sym_9_the_drive_writes_the_ladders_receipt`]'s: on the pad's leaf
 /// at `1e1·ε` the ladder takes four decisions the first attempt left
-/// numeric (1340 → 1344 theorems, `retried` 4 against 0).
+/// numeric (`symbolic` 1372 → 1376, `retried` 4 against 0).
 ///
 /// Every extruded cap decides `cap_plane_orientation` once, numeric
 /// on both sides: the plate's `numeric` 704 → 710, the annulus's
 /// 451 → 455, the boss's 414 → 418, the bracket's 1050 → 1056 and the
 /// link's 679 → 683, with the ladder and without it alike.
 ///
-/// `numeric` can only FALL and `symbolic` can only rise: a retry is asked only into the first attempt's silence
-/// (`geom_core::SymRetry`). A row here that moved the other way is a
+/// `numeric` can only FALL and `symbolic` can only rise: a retry is
+/// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
 #[test]
 fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {

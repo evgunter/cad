@@ -213,6 +213,12 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// identity is the door's here (`carrier_endpoint_start` 12/0/12/0),
 /// as is the chart phase, as on the plate.
 ///
+/// **This history is a record**, each paragraph in the receipt's
+/// columns of its day (theorem / gated / registered / numeric, or
+/// `sign_gated` by name); DECIDE-10 made the first three one column,
+/// `symbolic`. A move between them recorded below is which walk
+/// answered then, and is no move in today's receipt.
+///
 /// **DECIDE-3 takes one more of `arc_span`**, 4/0/0/2 -> 5/0/0/1, and
 /// **DECIDE-3 takes the `abs` wall the paragraph above describes.**
 /// The canonical root spells `sqrt(L²)` as `|L|`, which is the atom

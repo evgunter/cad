@@ -112,7 +112,7 @@ fn decisions(c: SymCounts) -> (u64, u64) {
 /// walk, so nothing downstream can rescue the form (under
 /// `SymRules::shipped` the EARLY walk, which stays per leaf, re-folds it
 /// and hides the move). Before the fix leaf B came back
-/// `symbolic_zero 0 / numeric 1`; the reference — the same leaf with no
+/// `symbolic 0 / numeric 1`; the reference — the same leaf with no
 /// memo at all — is `1 / 0`.
 #[test]
 fn an_unrecorded_freeze_is_never_published_to_the_drive_memo() {

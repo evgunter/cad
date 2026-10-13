@@ -184,7 +184,7 @@ fn main() {
         total_scanned += scanned;
         total_symbolic += scan.symbolic;
         say(format_args!(
-            "k-lint: {path}: {scanned} samples ({} symbolic_zero, {} classified), {} flagged \
+            "k-lint: {path}: {scanned} samples ({} symbolic, {} classified), {} flagged \
              — rule 1 (undecided/invalid): {}, rule 2 (near a threshold): {}, rule 3 (below \
              a floor): {}; rule 2 zero arm (tallied, not gating): {zero_arm}",
             scan.symbolic,
@@ -280,7 +280,7 @@ fn main() {
     }
     say(format_args!(
         "k-lint: TOTAL over {} file(s): {total_scanned} samples ({total_symbolic} \
-         symbolic_zero, {} classified), rule 1 (undecided/invalid) {}, rule 2 (near a threshold) {}, rule 3 \
+         symbolic, {} classified), rule 1 (undecided/invalid) {}, rule 2 (near a threshold) {}, rule 3 \
          (below a floor) {}, rule 2 zero arm (tallied, not gating) {total_zero_arm}",
         paths.len(),
         total_scanned - total_symbolic,

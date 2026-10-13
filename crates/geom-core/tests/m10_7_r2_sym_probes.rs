@@ -521,7 +521,7 @@ fn r2_a_symbolic_zero_retags_rather_than_double_counting() {
     });
     let s = take_samples();
     assert_eq!(s.len(), 2, "expected exactly two samples, got {s:?}");
-    assert_eq!(s[0].outcome, SampleOutcome::SymbolicZero);
+    assert_eq!(s[0].outcome, SampleOutcome::Symbolic);
     assert_eq!(s[0].margin, 0.0, "the re-tagged sample lost its margin");
     assert_eq!(s[1].outcome, SampleOutcome::Definite(Sign::Positive));
     assert_eq!(counts.symbolic, 1);

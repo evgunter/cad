@@ -102,11 +102,11 @@
 //! **Rules A and B** — `sqrt(X)² = X` and `sin² + cos² = 1`
 //! (`algebra`) — add no discharge over the top residual on any
 //! measured document, and PER NODE in the early walk they are what
-//! closes the ring behind rule D (the M10-10 section below). **Rule C** —
-//! `sqrt(X) = R` where `X = R²` as forms and `R`'s sign is certified
-//! over the box, clause 3, the one fold that reads a value (`signed`)
-//! — is sound, unit-pinned, folds on no document at the shipped bound,
-//! moves no ceiling at any bound, and stays dial-off.
+//! closes the ring behind rule D (the M10-10 section below). No rule
+//! folds an atom on a sign of the box: the one that did (M10-8's rule
+//! C, `sqrt(X) = R` where `X = R²` and `R`'s sign is certified over the
+//! box) folded on no measured document and is retired (DECIDE-10),
+//! because a sign of the box is not a decision the construction takes.
 //!
 //! # The registered-identity door (M10-9)
 //!
@@ -121,9 +121,14 @@
 //! walk beside the plain one and the early one.
 //!
 //! A registered `Zero` rests on the registrant's argument as well as on
-//! exact rational arithmetic, and it is E12's claim all the same: zero
-//! wherever the construction takes the decisions it took, the axiom
-//! checked at the witness. It is counted with every other zero
+//! exact rational arithmetic: zero wherever the construction takes the
+//! decisions it took AND the registrant's theorem holds. The witness
+//! does not establish that theorem — it refuses only a lie visible at
+//! the point or one whose two certified enclosures are disjoint over the
+//! box, and it cannot tell an identity from a coincidence (ERROR-DESIGN
+//! E12) — so the zero is exactly as good as the proof in the
+//! registrant's doc comment, which is why the call sites are an
+//! allowlist (below). It is counted with every other zero
 //! ([`SymCounts::symbolic`]). The door is asked only where the plain
 //! form and the early form have both declined, and what it buys a
 //! document is the differential with [`SymRules::registered`] off.
@@ -230,13 +235,15 @@
 //! M10-9's tier bit for bit, and `m10_9_pins_interval` holds M10-9's
 //! rows under it.
 //!
-//! **What it reaches on the plate, at the nominal** (theorem / gated /
-//! registered / numeric, `m10_10_pins_interval`): `carrier_on_surface_2`
+//! **What it reached on the plate, at the nominal** — a record, in the
+//! receipt's columns of the day (theorem / gated / registered /
+//! numeric), whose first three DECIDE-10 made one, `symbolic`
+//! (`m10_10_pins_interval` pins the sums): `carrier_on_surface_2`
 //! 108/0/0/72 → 180/0/0/0 and `witness_on_surface_2` 12/0/0/8 →
 //! 20/0/0/0 as THEOREMS; `carrier_matches_mapped_source` 180/0/16/56 →
 //! 180/0/72/0, every sample through the DOOR — rule D makes the trig
 //! meet, and the rim identity `‖q − c‖ = r` the registrant states is
-//! what closes it, so the count is `registered`, honestly. The fourth
+//! what closes it, so the count was `registered` then. The fourth
 //! residual the staged walk names, `pcurve_map_residual`, 0/0/0/36 →
 //! 0/0/36/0 through the door as well: it carries the chart's phase
 //! `atan2(0, r²/sqrt(r²))` from the cylinder chart derivation
@@ -340,10 +347,12 @@
 //! as theorems under [`SymRules::shipped`] (rules A and B, over the top
 //! residual and per node), and `sin`/`cos` of `q · atan X` fold to closed
 //! forms (rule D). What still stands with the shipped set is what needs a
-//! SIGN: `|x| − x` on a nonnegative `x` is rule C's, and rule C is
-//! dial-off. These are limits of the tier and not bugs in it — over-refusal
-//! is the safe direction, and every such margin falls to the numeric
-//! channel exactly as before. What the PLAIN form alone reaches is
+//! SIGN OF THE BOX: `|x| − x` on a nonnegative `x` is zero only by a fact
+//! about the bracket, not by a decision the construction takes, and no
+//! rule folds it (M10-8's rule C did, and is retired). These are limits
+//! of the tier and not bugs in it — over-refusal is the safe direction,
+//! and every such margin falls to the numeric channel exactly as
+//! before. What the PLAIN form alone reaches is
 //! [`form`]'s own docs.
 //!
 //! # Rule E — the quotient's common factor (SYM-5)
@@ -462,8 +471,9 @@
 //! digest-identical — which is the same statement as "it fires nowhere
 //! on them", and is not a pin on the order.
 //!
-//! **What it reached, measured on Duff's basis** (the tilt-`u` derived frame,
-//! `editor-core/tests/m10_derived_frame_tilted_interval`'s
+//! **What it reached, measured on Duff's basis** (a record, in SYM-8's
+//! columns: `symbolic_zero` is `symbolic` now) on the tilt-`u` derived
+//! frame (`editor-core/tests/m10_derived_frame_tilted_interval`'s
 //! `sym8_phase1_*` rows — the document SYM-5's rule E turned a DEGREE
 //! wall into a TERM wall on and stopped). At `half = 1e-3` under
 //! `Guided` the refused `carrier_endpoint_end` residual is
@@ -537,10 +547,12 @@
 //! by both arms, as it must be: its sign is a fact of the box, not of
 //! the form.
 //!
-//! **What it moves on the measured documents: nothing, with one
-//! exception.** Every per-predicate split at the nominal is
-//! BIT-IDENTICAL with the rule on and off on seven of the eight
-//! (plate, annulus, bracket, link, R1's segment boss, both D-tabs; the
+//! **What it moved on the measured documents: nothing, with one
+//! exception** — a record, in SYM-8's receipt columns (`symbolic_zero`
+//! and `registered` are one column, `symbolic`, since DECIDE-10).
+//! Every per-predicate split at the nominal is BIT-IDENTICAL with the
+//! rule on and off on seven of the eight (plate, annulus, bracket,
+//! link, R1's segment boss, both D-tabs; the
 //! pad's nominal split with the shape report installed exhausts the
 //! measuring box's memory at BOTH dials and is not takeable there),
 //! and every whole-certifying ceiling is identical to the digit on all
@@ -553,11 +565,12 @@
 //! `numeric` and `frozen` currently measure off them by a drift not
 //! yet attributed,
 //! `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`).
-//! Those four are the unit's finding: opening an
-//! atom the early walk was cancelling OVER can cost that walk a
-//! theorem, which is
-//! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s class.
-//! No decision is lost: the registry re-takes all four.
+//! In today's single column the receipt reads `symbolic` 993 → 1013
+//! and `numeric` 1078 → 1058: the four do not show. What they record is
+//! a fact about the WALKS, not the receipt — opening an atom the early
+//! walk was cancelling OVER can cost that walk a cancellation, which is
+//! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s class —
+//! and no decision is lost: the door re-takes all four.
 //!
 //! **The difference from rule E, stated rather than glossed**: rule E
 //! also loses a theorem to an opened form, and that loss is
@@ -634,9 +647,10 @@
 //! fold AT ITS NODE and answers there: two nodes whose early forms are
 //! equal mint one atom with the read shut and cancel, while with it on
 //! each is read first and the same zero is reached through their arms.
-//! A zero is a zero either way. The arm the read takes is the arm the
-//! construction takes at every point of the box, so a zero through it
-//! is E12's claim — zero wherever the construction takes the decisions
+//! A zero is a zero either way. At an exact witness the arm the read
+//! takes is the arm the construction takes at every point of the box
+//! (at an inexact one the read is not asked: `Session::witness`), so a
+//! zero through it is E12's claim — zero wherever the construction takes the decisions
 //! it took — like every other discharge, and the receipt counts it
 //! with them; what the read buys a document is the differential
 //! against [`SymRules::without_the_reads`]. [`signed`] owns the
@@ -878,16 +892,16 @@
 //! bracket, the link and the pad are over it at the first attempt, and
 //! the ladder takes no document from under it to over it; it adds 36 %,
 //! 14 % and 12.5 % on those three, and it recovers six decisions on the
-//! bracket (`registered`, the rule-A attempt), twelve on the link
-//! (`symbolic_zero`, the rule-G attempt) and nothing on the pad. **It
+//! bracket (the rule-A attempt), twelve on the link (the rule-G
+//! attempt) and nothing on the pad. **It
 //! SHIPS ON ACROSS THE LINE as a disclosed trade, as rule E did** (the
 //! rule-E section above): the shipped rules alone put those three over
 //! the line — the bracket at 10× and the link at 75× their M10-9 leaf —
 //! the ladder adds 1.0 s, 2.4 s and 16 s there and changes no
 //! certification, and the rule-G attempt returns exactly the ten
-//! theorems the default rule G costs the link's `carrier_on_surface_2`.
-//! The rule-A attempt is the weaker half — six registrations and no
-//! theorem, for about 0.4 s of the bracket's 1.0 s — and ships on the
+//! decisions the default rule G costs the link's `carrier_on_surface_2`.
+//! The rule-A attempt ships for its reach — the bracket's six decisions
+//! out of `numeric`, for about 0.4 s of the bracket's 1.0 s — on the
 //! same balance, named. `editor_core::drive::DEFAULT_SYM_RETRY` carries
 //! the table per mask, the reads-off reading that says the decision read
 //! is not what the ladder costs, and the argument.
@@ -1380,8 +1394,8 @@ pub struct SymCounts {
     /// way of reaching the zero: a symbolic discharge answers that the
     /// margin is zero and nothing about how. What a rule, the decision
     /// read or the registry buys a document is the differential against
-    /// the tier with that dial off. The matching K token is
-    /// `symbolic_zero`.
+    /// the tier with that dial off. The matching K token and report row
+    /// are `symbolic` too.
     pub symbolic: u64,
     /// **Registrations the door REFUSED** — `Contradicted` or
     /// `Disputed` (the lane scalar's witness separated the two values,
@@ -1415,11 +1429,12 @@ pub struct SymCounts {
     /// (`editor-core/tests/m10_9_pins_interval.rs`,
     /// `m10_9_no_registrant_lies_on_any_measured_document`).
     pub registrations_refused: u64,
-    /// **Decisions where a REGISTERED zero met a DEFINITE numeric
-    /// sign** — the two channels in contradiction, which for a
-    /// registered form means the axiom is wrong over this box. The
-    /// numeric answer is returned (never the fold), and this column is
-    /// how the run says so.
+    /// **Decisions where a zero that rests on a registration met a
+    /// DEFINITE numeric sign** — the door form is zero and the tier's
+    /// algebra without the registry does not prove it ([`door_zero`]),
+    /// so the axiom is what the numeric channel denies over this box.
+    /// The numeric answer is returned (never the fold), and this column
+    /// is how the run says so.
     ///
     /// It is not a K token: the sample the funnel records is the
     /// numeric channel's own `Definite(sign)`, a classified margin
@@ -1446,15 +1461,10 @@ pub struct SymCounts {
     /// returned, the form's answer is not, and this column is how the
     /// run says the two disagreed.
     ///
-    /// **One decision can be charged HERE and in
-    /// [`SymCounts::registrations_contradicted`] at once**, by design:
-    /// the door is asked first and raises that column when a REGISTERED
-    /// zero meets the definite sign, and the walks then run and raise
-    /// this one if the form also discharges as a theorem without the
-    /// registry. They are two different claims about one decision — an
-    /// axiom this box denies, and a theorem this channel cannot see —
-    /// and a reader summing the two columns is counting events, not
-    /// decisions.
+    /// **No decision is charged HERE and in
+    /// [`SymCounts::registrations_contradicted`] at once**: this column
+    /// counts a zero the tier's algebra proves without the registry,
+    /// and that one a zero only the registry reaches ([`door_zero`]).
     ///
     /// **It is zero at [`crate::Interval`] by construction, and not by
     /// measurement**: there the witness is EXACT, a definite non-zero
@@ -1588,7 +1598,7 @@ impl SymCounts {
 /// the plain quotient form, each switchable so that its effect on a
 /// document is a measurement rather than an assumption, and so that
 /// every dial off ([`Self::none`]) is the plain quotient form bit for
-/// bit: the atom-algebra rules A, B and C; the constant fold A0
+/// bit: the atom-algebra rules A and B; the constant fold A0
 /// (`const_fold`) and the early walk it runs in (`early`); rules A/B
 /// applied PER NODE inside that walk (`early_ab`); rule D, trig of
 /// `atan` in closed form with amendment A1's `atan2` and half-π folds
@@ -1597,9 +1607,10 @@ impl SymCounts {
 /// Every rule is an equality of reals under clause 1 of the theorem
 /// ([`Decide::sign_within`]'s docs), so a zero reached through any of
 /// them is still a zero of the real margin; what a rule can cost is
-/// only a cancellation it fails to find. The rules are named A, B, C
-/// and D where the tier's module docs discuss them; the door is an
-/// axiom rather than a rule and is counted apart (`registered`).
+/// only a cancellation it fails to find. The rules are named A, B, D,
+/// E, F and G where the tier's module docs discuss them (M10-8's C is
+/// retired); the door is an axiom rather than a rule, and what it buys
+/// is the differential with it off (`registered`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SymRules {
     /// **A — `sqrt(X)² = X`.** An even power of a `sqrt` atom reduces
@@ -1732,9 +1743,8 @@ pub struct SymRules {
     ///
     /// It reads no value on its own: the content split is arithmetic
     /// on the coefficients, and the side condition's first three
-    /// sources are facts about the form and about what the session has
-    /// already minted. Its fourth source is a certified read and rides
-    /// rule C's dial, not this one.
+    /// sources are facts about the form, and no source reads a value
+    /// ([`root`]'s header says why).
     ///
     /// **A canonical FORM, not a rewrite that fires somewhere**: what
     /// it changes is the identity of the indeterminate, so two
@@ -1774,10 +1784,10 @@ pub struct SymRules {
     /// content split above it stands.
     ///
     /// The second measured half of the link's trade: six of its
-    /// sixteen go this way, re-taken by the rim registrant's axiom, so
-    /// the document ends with six fewer theorems and six more
-    /// `registered` (the row above). The kept-atom retry's second
-    /// shape.
+    /// sixteen go this way and are re-taken through the door by the rim
+    /// registrant's axiom, so they stay zeros (SYM-9's split receipt
+    /// read them as six fewer theorems and six more `registered`; the
+    /// row above). The kept-atom retry's second shape.
     pub root_magnitude: bool,
     /// **Rule G's EXACT QUOTIENT** ([`root`]'s `exact_quotient_root`):
     /// a root whose argument `N/D` has a denominator that divides its
@@ -1807,10 +1817,13 @@ pub struct SymRules {
     /// whose comparison is certified takes the arm it picks — `max(A,
     /// B)` IS `select(B − A, A, B)`, so the two are one read.
     ///
-    /// The arm a certified read takes is the arm the construction takes
-    /// at every point of the box, so a zero through it holds wherever
-    /// the construction takes the decisions it took: E12's claim, the
-    /// same claim every other discharge makes.
+    /// At an exact witness the arm a certified read takes is the arm
+    /// the construction takes at every point of the box, so a zero
+    /// through it holds wherever the construction takes the decisions
+    /// it took: E12's claim, the same claim every other discharge makes.
+    /// At an inexact witness (`f64`, a probe) the construction compares
+    /// a rounded value and can take the other arm, so the read is not
+    /// asked there (`Session::witness`), whatever this dial says.
     ///
     /// **Ordered behind every value-free fold AT ITS NODE** — after A0,
     /// after rule F, and over kids whose roots rule G has already
@@ -1829,8 +1842,9 @@ pub struct SymRules {
     /// states — and it is a dial for exactly the reason they are: with
     /// it off the tier is M10-8's, bit for bit, so what the door buys a
     /// document is a measurement. Needs `early`: the registry is
-    /// consulted in the early memo only, never in the plain one, so a
-    /// theorem the plain form reaches is never re-labelled as an axiom.
+    /// consulted in the early memo only, never in the plain one, so the
+    /// plain walk, the cheapest, answers what it reaches without paying
+    /// for the registry.
     pub registered: bool,
 }
 
@@ -2139,10 +2153,11 @@ impl SymRules {
 /// here moves it. A retry is asked ONLY where every rung of the first
 /// attempt declined, so it can take a decision out of
 /// [`SymCounts::numeric`] and never move one the first attempt
-/// answered. The plain
-/// rung is left out because a plain theorem is the strongest claim the
-/// tier makes and re-asking it could only re-label it. The top-residual
-/// rung is IN, because its residual is the plain form — unchanged on
+/// answered. The plain rung is left out for COST: it applies no rule a
+/// mask can shut (A0 only), so a masked attempt would re-walk it to the
+/// same answer. A wider-ring attempt could reach past a freeze the
+/// first plain walk hit; no shipped ladder makes one, and that reach is
+/// unmeasured. The top-residual rung is IN, because its residual is the plain form — unchanged on
 /// every attempt — and what an attempt changes there is only the rules
 /// the reduction applies and the ring it runs at, so a zero it reaches
 /// is a theorem exactly as the first attempt's would be.
@@ -2265,9 +2280,10 @@ impl SymRetry {
     /// rule G shut and then one with rule A's `sqrt(X)² = X` shut, and no
     /// wider-ring attempt. It is the drive's default ladder;
     /// `editor_core::drive::DEFAULT_SYM_RETRY`
-    /// carries the measurement that chose the shapes, the order (a tie,
-    /// so rule G's attempt — the one that buys theorems — goes first) and
-    /// the cost against the 1.6 s line it ships across.
+    /// carries the measurement that chose the shapes, the order (a tie
+    /// on reach and inside the takes' spread on cost, so either would
+    /// do; rule G's attempt goes first as SYM-9 shipped it) and the cost
+    /// against the 1.6 s line it ships across.
     ///
     /// The rule-G mask spells rule G's conjunct dials (`abs_square`,
     /// `root_magnitude`, `root_quotient`) shut with it, as every constructor that shuts
@@ -2420,15 +2436,15 @@ struct Session {
     forms_early: IdMap<Arc<Form>>,
     /// **The DOOR-reduced forms** ([`SymRules::registered`]): the early
     /// walk again, this time with the session's registry applied — a
-    /// THIRD memo, beside the plain one and the early one, and the
-    /// reason the receipt can say which decisions actually NEEDED the
-    /// door. A zero found here that the early memo did not find is one
-    /// the registration was necessary for; asking the two in order is
-    /// what makes `registered` an honest column instead of "every form
-    /// that happened to touch a registered node". Measured, that
-    /// distinction is most of the column: on R2's pad at its nominal
-    /// the sticky-flag attribution moved 40 of 368 theorems into it
-    /// that A0 had already proved.
+    /// THIRD memo, beside the plain one and the early one, so the early
+    /// memo stays free of the registry. That buys two things: a
+    /// decision the early form answers never pays for the registry, and
+    /// [`door_zero`] can tell a zero that RESTS on a registration (the
+    /// registry-free rungs decline it) from one that merely touched a
+    /// registered node — the line `registrations_contradicted` counts
+    /// on. Measured, that line matters: on R2's pad at its nominal a
+    /// sticky-flag attribution (one memo, the registry in it) charged
+    /// the registry 40 of 368 zeros that A0 had already proved.
     ///
     /// Built lazily like the others, and never at all while the
     /// registry is empty — so a document with no registrants (all of
@@ -2436,10 +2452,18 @@ struct Session {
     forms_door: IdMap<Arc<Form>>,
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
-    /// by [`Sym::param_over`], read by rule C, by the decision read and
-    /// by rule G's certified side-condition source — the three value
-    /// reads [`signed`] owns, and nothing else.
+    /// by [`Sym::param_over`] and read by the decision read
+    /// ([`signed`]) alone.
     params: IndetMap<(f64, f64)>,
+    /// **The witness kind of the scalar this session decides at**
+    /// ([`crate::Witness`]), noted by the first decision and the same at
+    /// every later one. The decision read takes an arm only at an EXACT
+    /// witness: there the construction's comparison is a certified sign
+    /// of the same real the read encloses, so the arm the read takes is
+    /// the arm the construction takes. At an inexact witness the
+    /// construction compares a ROUNDED value, which can lie on the other
+    /// side of zero from the exact one, and the read declines.
+    witness: Option<crate::real::Witness>,
     /// Every opaque atom minted so far, by its indeterminate id.
     atoms: IndetMap<AtomInfo>,
     /// **The registered-identity registry** ([`Sym::register_equal`]):
@@ -2650,6 +2674,7 @@ impl Session {
             params: IndetMap::default(),
             atoms: IndetMap::default(),
             registry: IdMap::default(),
+            witness: None,
             trig_closed: IndetMap::default(),
             reductions: IndetMap::default(),
             reductions_held: 0,
@@ -3250,8 +3275,10 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
     let f_sign = early && sess.rules.manifest_sign;
     // Rule G, the canonical root, likewise (`SymRules::canonical_root`).
     let g_root = early && sess.rules.canonical_root;
-    // The decision read, likewise (`SymRules::decision_read`).
-    let read = early && sess.rules.decision_read;
+    // The decision read, likewise (`SymRules::decision_read`), and only
+    // at an exact witness (`Session::witness`).
+    let read =
+        early && sess.rules.decision_read && sess.witness == Some(crate::real::Witness::Exact);
     let atom1 = |op: SymOp, sess: &mut Session| {
         // A function OF an expression with no value has no value
         // either, and `a.is_zero()` is already false for a poisoned
@@ -3576,7 +3603,7 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
 /// `SymRules::early`) applies rules A/B per node under [`EARLY_STEPS`]
 /// and the rest of the algebra — ALONGSIDE the plain memo,
 /// never replacing it, so a rule can only ADD a discharge and never
-/// re-label one the plain form reached. That split is measured, not
+/// lose one the plain form reached. That split is measured, not
 /// assumed: the first cut of this unit let a ruled form REPLACE the
 /// plain one and lost an `arc_span` cancellation and a straight edge's
 /// endpoint theorem to it.
@@ -3657,11 +3684,10 @@ fn form_in(
         }
         // **The registered-identity door** ([`Sym::register_equal`]),
         // and the whole of where it acts: a node a constructor
-        // registered against another takes THAT node's form, marked
-        // `registered` so the decision it answers is counted as the
-        // axiom it is. Consulted in the EARLY walk only, so the plain
-        // form — the one a decision is asked of first — is M10-8's
-        // exactly and no theorem is ever re-labelled.
+        // registered against another takes THAT node's form.
+        // Consulted in the EARLY walk only, so the plain form — the one
+        // a decision is asked of first — is M10-8's exactly and pays
+        // nothing for the registry.
         if registry {
             let to = sess.alias(id);
             if to != id {
@@ -3894,7 +3920,7 @@ fn mint_atom(sess: &mut Session, id: u128, early: bool, info: impl FnOnce() -> A
 ///
 /// **Keyed on the form, not on its digest**: the digest picks the
 /// bucket, and a hit needs the whole form equal (`Form`'s equality: the
-/// canonical terms, the poison flag and the gate), so a collision costs
+/// canonical terms and the poison flag), so a collision costs
 /// a miss and never an answer.
 ///
 /// **A form none of whose squared ids is in the atom table is its own
@@ -3999,7 +4025,8 @@ const EARLY_AB_TERMS: usize = 512;
 /// The early-reduced form of `root` (`SymRules::early`), memoized in
 /// its own table beside the plain one: the same walk as
 /// [`plain_form`], with rules A/B applied per node under
-/// [`EARLY_STEPS`] and rule C's fold at each `sqrt`/`abs`.
+/// [`EARLY_STEPS`], the rest of the shipped algebra, and the decision
+/// read at each `Select`/`min`/`max`.
 fn early_form(sess: &mut Session, root: SymId) -> Arc<Form> {
     let first = (sess.rules, rational::COEFF_BITS);
     walk(sess, root, WalkKind::Early, 0, first)
@@ -4174,32 +4201,49 @@ fn walk(
 /// the early walk, rules A/B over the top residual, or the
 /// registered-identity door.
 ///
-/// The order is the ladder's own, and it is the order that keeps a
-/// stronger claim from being re-labelled as a weaker one: `discharge`'s
-/// docs argue it. Recorded per decision by the cost profile
+/// Every rung answers the same claim; the order is cost and reach
+/// ([`rungs`]). Recorded per decision by the cost profile
 /// (`profile::DecisionRecord`) so that "where the refusals are" is a
-/// count and not a reading of the code; carried outside the profile's
-/// feature because `ladder` answers it whether or not anything is
-/// listening.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Rung {
-    /// The PLAIN form — every atom opaque, rule A0 only. Never retried.
-    Plain,
-    /// The EARLY walk — the session's rules per node.
-    Early,
-    /// Rules A/B over the TOP residual, once the walks have declined.
-    Top,
-    /// The registered-identity DOOR.
-    Door,
+/// count and not a reading of the code. **Nameable outside this crate
+/// only under `sym-profile-testing`**, the test-only feature the cost
+/// profile lives behind: no shipped build can read which rung answered,
+/// and no decision type carries it.
+#[cfg(feature = "sym-profile-testing")]
+pub use rung::Rung;
+#[cfg(not(feature = "sym-profile-testing"))]
+use rung::Rung;
+
+mod rung {
+    /// See the re-export's docs.
+    #[cfg_attr(
+        not(feature = "sym-profile-testing"),
+        expect(
+            unreachable_pub,
+            reason = "re-exported `pub` only under the profile's feature"
+        )
+    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    pub enum Rung {
+        /// The PLAIN form — every atom opaque, rule A0 only. Never
+        /// retried.
+        Plain,
+        /// The EARLY walk — the session's rules per node.
+        Early,
+        /// Rules A/B over the TOP residual, once the walks have
+        /// declined.
+        Top,
+        /// The registered-identity DOOR.
+        Door,
+    }
 }
 
 /// **The identity test, as the contradiction check asks it**: does the
 /// tier's own algebra prove this node's expression zero — the plain
 /// form, then the first attempt's early and top rungs?
 ///
-/// The registered-identity door is not asked. A registered zero under a
-/// definite numeric sign is an axiom the box denies, which the door
-/// counts on its own ([`door_zero`],
+/// The registered-identity door is not asked. A zero only the registry
+/// reaches, under a definite numeric sign, is an axiom the box denies,
+/// which the door counts on its own ([`door_zero`],
 /// [`SymCounts::registrations_contradicted`]); a zero the algebra
 /// proves under one is a contradiction between two channels, which is
 /// what this asks. Each rung is memoized per session, so a decision
@@ -4208,7 +4252,7 @@ pub enum Rung {
 /// `false` outside a session, and at a zero-term budget — the tier
 /// switched off inside the scalar.
 fn discharge(id: SymId) -> bool {
-    discharge_in(id, false).is_some()
+    discharge_in(id, Path::Contradiction).is_some()
 }
 
 /// **The identity test on the decision path**: whether the tier proves
@@ -4228,7 +4272,22 @@ fn discharge(id: SymId) -> bool {
 /// against the numeric channel; the cross-check is taken at the first
 /// attempt, where it always was.
 fn discharge_retried(id: SymId) -> Option<u8> {
-    discharge_in(id, true)
+    discharge_in(id, Path::Decision)
+}
+
+/// **Which question the identity test answers**, and so which rungs it
+/// asks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Path {
+    /// Whether the tier proves the margin zero, to DECIDE it: every
+    /// rung, the registered-identity door last, and the retry ladder
+    /// into the first attempt's silence ([`discharge_retried`]).
+    Decision,
+    /// Whether the tier's own algebra proves the margin zero, to CHECK
+    /// a definite numeric sign against it: the first attempt alone and
+    /// no door, because a registered zero under a definite sign is the
+    /// door's own event ([`discharge`], [`door_zero`]).
+    Contradiction,
 }
 
 /// **Whether the early form of `id` keeps an opaque value**
@@ -4300,9 +4359,8 @@ fn keeps_an_opaque_atom(id: SymId) -> Option<bool> {
     })
 }
 
-/// `decision` asks every rung and the ladder; otherwise the first
-/// attempt alone, the door not asked ([`discharge`]).
-fn discharge_in(id: SymId, decision: bool) -> Option<u8> {
+/// The identity test along `path`, inside the installed session.
+fn discharge_in(id: SymId, path: Path) -> Option<u8> {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
         let sess = slot.as_mut()?;
@@ -4311,7 +4369,7 @@ fn discharge_in(id: SymId, decision: bool) -> Option<u8> {
         }
         #[cfg(feature = "sym-profile-testing")]
         let mark = profile::decision_begin();
-        let out = ladder(sess, id, decision);
+        let out = ladder(sess, id, path);
         #[cfg(feature = "sym-profile-testing")]
         profile::decision_end(mark, out);
         out.map(|(_, attempt)| attempt)
@@ -4321,7 +4379,7 @@ fn discharge_in(id: SymId, decision: bool) -> Option<u8> {
 /// **The ladder**: the plain rung once, then the rungs of the first
 /// attempt, then — only into their silence, and on the decision path
 /// only — each retry's rungs in [`SymRetry::attempts`]'s order.
-fn ladder(sess: &mut Session, id: SymId, decision: bool) -> Option<(Rung, u8)> {
+fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
     // **THE PLAIN RUNG, and the first attempt's alone.** No attempt
     // above the first builds a plain form ([`SymRetry`]).
     let plain = plain_form(sess, id);
@@ -4329,10 +4387,10 @@ fn ladder(sess: &mut Session, id: SymId, decision: bool) -> Option<(Rung, u8)> {
         return Some((Rung::Plain, 0));
     }
     let first = (sess.rules, rational::COEFF_BITS);
-    if let Some(rung) = rungs(sess, id, &plain, 0, first, decision) {
+    if let Some(rung) = rungs(sess, id, &plain, 0, first, path) {
         return Some((rung, 0));
     }
-    if !decision {
+    if path == Path::Contradiction {
         return None;
     }
     for (attempt, rules, bits) in sess.retry.attempts(sess.rules) {
@@ -4348,7 +4406,7 @@ fn ladder(sess: &mut Session, id: SymId, decision: bool) -> Option<(Rung, u8)> {
         {
             continue;
         }
-        if let Some(rung) = rungs(sess, id, &plain, attempt, (rules, bits), true) {
+        if let Some(rung) = rungs(sess, id, &plain, attempt, (rules, bits), path) {
             sess.counts.retried += 1;
             return Some((rung, attempt));
         }
@@ -4356,17 +4414,20 @@ fn ladder(sess: &mut Session, id: SymId, decision: bool) -> Option<(Rung, u8)> {
     None
 }
 
-/// The EARLY rung, the TOP-RESIDUAL rung and, where `door`, the DOOR
-/// rung of one attempt, cheapest first — and, for an attempt above the
-/// first, in that attempt's own memos, under its rules and its ring
-/// bound.
+/// The EARLY rung, the TOP-RESIDUAL rung and, on the decision path, the
+/// DOOR rung of one attempt — and, for an attempt above the first, in
+/// that attempt's own memos, under its rules and its ring bound. Every
+/// rung answers the same claim, so the order is cost and reach: the
+/// early walk is the one every decision already pays for, the
+/// top-residual reduction runs once over a form already built, and the
+/// door is a third walk asked only where a registration exists.
 fn rungs(
     sess: &mut Session,
     id: SymId,
     plain: &Form,
     attempt: u8,
     (rules, bits): (SymRules, u64),
-    door: bool,
+    path: Path,
 ) -> Option<Rung> {
     if rules.early && walk(sess, id, WalkKind::Early, attempt, (rules, bits)).is_zero() {
         return Some(Rung::Early);
@@ -4389,7 +4450,7 @@ fn rungs(
     }
     // THE DOOR, asked last and only where there is a registration to
     // ask about ([`Sym::register_equal`]).
-    if door
+    if path == Path::Decision
         && rules.registered
         && rules.early
         && !sess.registry.is_empty()
@@ -4400,18 +4461,20 @@ fn rungs(
     None
 }
 
-/// **Is this node's DOOR form the zero form** — the registry applied,
-/// and nothing else asked?
+/// **Does this node's zero rest on a registration** — the DOOR form
+/// is the zero form, and the tier's own algebra, without the registry,
+/// does not prove it ([`Path::Contradiction`])?
 ///
 /// The one question a decision the numeric channel has already proved
-/// NON-ZERO still has to ask (`Decide for Sym<T>`). A plain or early
-/// zero under a definite numeric sign is a contradiction between two
-/// channels that read no axioms, and stays what it was: a debug
-/// assertion, because it can only be a bug in the tier itself. A
-/// REGISTERED zero under a definite sign is a different animal — it
-/// means the axiom a constructor stated is false over this box — and it
-/// is the one M10-9 makes possible, so it is checked in release,
-/// counted, and never folded.
+/// NON-ZERO still has to ask about the registry (`Decide for Sym<T>`).
+/// A zero the algebra proves under a definite numeric sign is a
+/// contradiction between two channels that read no axioms
+/// ([`contradicts`]). A zero that needs the registry under a definite
+/// sign is a different animal: the axiom a constructor stated is false
+/// over this box. It is checked in release, counted
+/// ([`SymCounts::registrations_contradicted`]), and never folded. The
+/// two questions are disjoint, so one decision is charged to one of
+/// them.
 ///
 /// Answers `false` immediately when the registry is empty, which is
 /// every document with no arc in it and therefore most of the corpus:
@@ -4429,7 +4492,7 @@ fn door_zero(id: SymId) -> bool {
         {
             return false;
         }
-        door_form(sess, id).is_zero()
+        door_form(sess, id).is_zero() && ladder(sess, id, Path::Contradiction).is_none()
     })
 }
 
@@ -4476,6 +4539,22 @@ fn count_theorem_disputed() {
     SESSION.with(|s| {
         if let Some(sess) = s.borrow_mut().as_mut() {
             sess.counts.theorems_disputed += 1;
+        }
+    });
+}
+
+/// Notes the witness kind of the scalar a decision is taken at
+/// ([`Session::witness`]). A session decides at one scalar, so a second
+/// kind is a session reused across lanes, and the early forms it built
+/// under the first kind would answer for the second: asserted.
+fn note_witness(witness: crate::real::Witness) {
+    SESSION.with(|s| {
+        if let Some(sess) = s.borrow_mut().as_mut() {
+            let seen = *sess.witness.get_or_insert(witness);
+            debug_assert_eq!(
+                seen, witness,
+                "one symbolic session decided at two witness kinds"
+            );
         }
     });
 }
@@ -4557,9 +4636,10 @@ impl<T> Sym<T> {
     }
 
     /// A value bound as the document PARAMETER `symbol` — the one door
-    /// that introduces an indeterminate. No bracket is recorded, so
-    /// rule C ([`signed`]) can fold nothing over this parameter; a
-    /// caller holding the box's bounds uses [`Self::param_over`].
+    /// that introduces an indeterminate. No bracket is recorded, so the
+    /// decision read ([`signed`]) can certify no decision over this
+    /// parameter; a caller holding the box's bounds uses
+    /// [`Self::param_over`].
     #[must_use]
     pub fn param(symbol: ParamSymbol, value: T) -> Self {
         Self {
@@ -4575,9 +4655,10 @@ impl<T> Sym<T> {
     /// [`Self::param`] over the bracket `[lo, hi]` the value was built
     /// from — the analysis box's own two `f64`s, which the caller that
     /// mints a parameter axis already holds. The bracket is recorded in
-    /// the installed session for rule C's sign read ([`signed`]); it is
+    /// the installed session for the decision read ([`signed`]); it is
     /// the ONLY value the symbolic tier ever reads, and it is read as
-    /// two floats through a certification enclosure, never as the lane scalar.
+    /// two floats through a certification enclosure, never as the lane
+    /// scalar.
     /// Outside a session the bracket is dropped and this is `param`.
     #[must_use]
     pub fn param_over(symbol: ParamSymbol, value: T, lo: f64, hi: f64) -> Self {
@@ -5120,6 +5201,7 @@ impl<T: Decide> Sym<T> {
         // base scalar records it (`k_stats::sink_mark`).
         #[cfg(feature = "probe")]
         let mark = crate::k_stats::sink_mark();
+        note_witness(T::WITNESS);
         let numeric = self.value.sign_within(band);
         if let Some(deferred) = deferred::defer(self.node, numeric) {
             count_decision(false);
@@ -5134,7 +5216,8 @@ impl<T: Decide> Sym<T> {
             })
         );
         if definitely_nonzero {
-            // **A REGISTERED zero here is a CONTRADICTED AXIOM**, and it
+            // **A zero only the registry reaches, here, is a
+            // CONTRADICTED AXIOM** (`door_zero`), and it
             // is checked in release rather than asserted in debug: a
             // constructor stated an identity this box's numeric answer
             // denies, and the numeric answer wins — but the run has to
@@ -5144,9 +5227,9 @@ impl<T: Decide> Sym<T> {
             // witness kind decides is how strong the denial is, and
             // this column records the event rather than grading it.
             //
-            // Ordering matters: this asks the DOOR memo only, and only
-            // where a registration exists, so a document with no arc
-            // pays one `is_empty()`.
+            // It asks the door walk and the registry-free rungs, and
+            // only where a registration exists, so a document with no
+            // arc pays one `is_empty()`.
             if door_zero(self.node) {
                 count_registration_contradicted();
             }
@@ -5204,7 +5287,7 @@ impl<T: Decide> Sym<T> {
         count_decision(proven);
         if proven {
             #[cfg(feature = "probe")]
-            crate::k_stats::retag_at(mark, crate::k_stats::SampleOutcome::SymbolicZero);
+            crate::k_stats::retag_at(mark, crate::k_stats::SampleOutcome::Symbolic);
             report::record(&numeric, true, None, self.value.enclosure_probe());
             // The form decided; what the numeric channel saw is still
             // the reading a refusal reports.
@@ -5644,7 +5727,7 @@ mod tests {
         assert_eq!(rational::coeff_bound(), rational::COEFF_BITS);
     }
 
-    /// **A retry never re-labels what the first attempt proved.** The
+    /// **A retry never moves what the first attempt proved.** The
     /// same margin, decided with the ladder and without it, is the same
     /// discharge in the same column — the ladder is asked only into the
     /// first attempt's silence, so a plain theorem is never re-asked.
@@ -5921,13 +6004,16 @@ mod tests {
         assert_eq!(counts.symbolic, 3, "{counts:?}");
     }
 
-    /// **A sign of the box proves nothing.** `sqrt(r²) − r` and
-    /// `abs(r) − r` are zero wherever `r > 0`, and `r`'s bracket here is
-    /// strictly positive — but that is a sign of the box, not a decision
-    /// the construction took, so a zero through it would not be E12's
-    /// claim. With every rule on, both decide numerically.
+    /// **A root and a magnitude over a signed bracket are not folded.**
+    /// `sqrt(r²) − r` and `abs(r) − r` are zero wherever `r > 0`, and
+    /// `r`'s bracket here is strictly positive — but that is a sign of
+    /// the box, not a decision the construction took, so a zero through
+    /// it would not be E12's claim. With every rule on, both decide
+    /// numerically. (`max(r, −r) − r` over the same bracket IS proven at
+    /// an exact witness: `max` is a decision the construction takes —
+    /// `sym_root_rows`'s `a_max_is_a_decision_and_a_magnitude_is_not`.)
     #[test]
-    fn a_sign_of_the_box_proves_nothing() {
+    fn a_root_and_a_magnitude_over_a_signed_bracket_are_not_folded() {
         let (out, counts) = with_session_rules(budget(), SymRules::all(), || {
             let r = Sym::param_over(
                 ParamSymbol::new(test_utils::symbol_id("r")),
@@ -6470,7 +6556,7 @@ mod tests {
     /// for `k ∈ {1, 2, 3, 4}`** — each against the closed form spelled
     /// by hand through the scalar's own ops, at a positive, a negative
     /// and a zero-valued `X` — and each is counted a THEOREM: no value
-    /// read, so `symbolic_zero` and nothing else.
+    /// read.
     #[test]
     fn rule_d_decides_the_multiples_against_their_closed_forms() {
         for xv in [1.0, -0.6, 2.75, 0.0] {

@@ -145,8 +145,8 @@ fn m10_9_ceilings_with_and_without_the_door() {
 /// **The per-predicate split at each document's NOMINAL**, door OFF
 /// against door ON: theorem / sign-gated / REGISTERED / numeric. Every
 /// decide site decides at a point, so this is the complete table, and
-/// it is where "the count is honest" is read — a `registered` column
-/// that grows while `symbolic_zero` does not shrink.
+/// it is where the door's differential is read, predicate by
+/// predicate.
 #[test]
 #[ignore = "evidence-only: prints the per-predicate discharge split at the nominal"]
 fn m10_9_per_predicate_split_at_the_nominal() {

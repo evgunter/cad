@@ -322,6 +322,153 @@ fn sym11_a_contradicted_registration_is_not_a_disputed_theorem() {
     );
 }
 
+/// **R1's decision at a point: the exact sign and the rounded one
+/// disagree.** `d = (x + 1e17) − 1e17 − 0.25` at `x = 0.5` is exactly
+/// `+0.25`, and `−0.25` in `f64`, so the point construction takes
+/// `select_le_zero`'s `when_le` arm while the decision read, which signs
+/// the EXACT form over the point box, would take `when_gt`. Over a point
+/// box `param_over` hands the read a bracket of zero width, which is
+/// what made it answer.
+///
+/// `w` is the gap between the arms (`z + w` against `z`).
+fn rounded_decision<T: Real>(w: f64, atan: bool) -> Sym<T> {
+    let pt = |name: &str, v: f64| {
+        Sym::<T>::param_over(
+            ParamSymbol::new(test_utils::symbol_id(name)),
+            T::from_f64(v),
+            v,
+            v,
+        )
+    };
+    let (x, z, w) = (pt("x", 0.5), pt("z", 1.0), pt("w", w));
+    let big = Sym::<T>::from_f64(1.0e17);
+    let d = (x + big) - big - Sym::from_f64(0.25);
+    let s = d.select_le_zero(z + w, z);
+    if atan { s.atan() - z.atan() } else { s - z }
+}
+
+/// R1's three cases: (a) `select(d, z + w, z) − z` at `w = 1e-15`,
+/// (b) the same under `atan` on both sides, and (c) `w = 1e-3`, a gap
+/// the band sees.
+const ROUNDED_CASES: [(&str, f64, bool); 3] = [
+    ("(a) select - z, w = 1e-15", 1.0e-15, false),
+    ("(b) atan(select) - atan(z), w = 1e-15", 1.0e-15, true),
+    ("(c) select - z, w = 1e-3", 1.0e-3, false),
+];
+
+/// **At an inexact witness the decision read declines** (DECIDE-10's
+/// fix pass, R1's MINOR-1). The read's arm is the construction's only
+/// where the construction's comparison is a certified sign of the real
+/// the read encloses — an exact witness. At `Sym<f64>` the construction
+/// compared a rounded value and took the other arm, so a zero through
+/// the read would be a zero of a function the construction did not
+/// evaluate: case (a) was `proven` though its value is `1e-15`, (b) was
+/// `proven` once atoms stopped carrying the read's gate, and (c) was a
+/// "theorem" the value channel disputed. Each now reads exactly what it
+/// reads with the read shut, and no theorem is disputed.
+#[test]
+fn sym11_the_decision_read_declines_at_sym_f64() {
+    let x = std::hint::black_box(0.5_f64);
+    assert!(
+        (x + 1.0e17) - 1.0e17 - 0.25 < 0.0,
+        "the premise: f64 rounds the decision to the other side of zero"
+    );
+    for (what, w, atan) in ROUNDED_CASES {
+        let on = decide_under(SymRules::shipped(), move || {
+            rounded_decision::<f64>(w, atan)
+        })
+        .expect("an inexact witness never panics on a contradiction");
+        let shut = decide_under(SymRules::without_the_reads(), move || {
+            rounded_decision::<f64>(w, atan)
+        })
+        .expect("an inexact witness never panics on a contradiction");
+        println!("  {what}: read on {on:?} | read shut {shut:?}");
+        assert_ne!(on.0, "proven", "{what}: the read answered at a point");
+        assert_eq!(
+            (on.1.symbolic, on.1.theorems_disputed),
+            (0, 0),
+            "{what}: {:?}",
+            on.1
+        );
+        assert_eq!(on.0, shut.0, "{what}: the read shut answers the same");
+    }
+}
+
+/// [`sym11_the_decision_read_declines_at_sym_f64`] at `Sym<Probe>`,
+/// whose value channel is an `f64` too — the scalar of the K replay
+/// (`editor_core::drive`'s `Sym<Probe>` replay over the midpoint box),
+/// where a read zero would have reached K telemetry as a `symbolic`
+/// sample.
+#[cfg(feature = "probe")]
+#[test]
+fn sym11_the_decision_read_declines_at_sym_probe() {
+    use geom_core::Probe;
+    for (what, w, atan) in ROUNDED_CASES {
+        let on = decide_under(SymRules::shipped(), move || {
+            rounded_decision::<Probe>(w, atan)
+        })
+        .expect("an inexact witness never panics on a contradiction");
+        println!("  {what}: {on:?}");
+        assert_ne!(on.0, "proven", "{what}: the read answered at a point");
+        assert_eq!(
+            (on.1.symbolic, on.1.theorems_disputed),
+            (0, 0),
+            "{what}: {:?}",
+            on.1
+        );
+    }
+}
+
+/// **A zero the registry did not need is not a contradicted
+/// registration** (DECIDE-10's fix pass, R1's MINOR-2). With one true,
+/// unrelated registration in the session the registry is non-empty, so
+/// every decision under a definite sign asks the door's form. Case (c)
+/// above, R1's probe, now reaches no zero at all at a point, so it
+/// counts nothing; R2's adversary is a zero by rule F's algebra, which
+/// the registry-free rungs prove, so it is the dispute it is without
+/// the registration and NOT a contradicted axiom. Each zero is charged
+/// to one column, the one its proof rests on.
+#[test]
+fn sym11_a_zero_that_rests_on_no_registration_is_not_a_contradicted_one() {
+    let unrelated = || {
+        let q = Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("q")), 2.0);
+        let reg = (q * Sym::from_f64(1.0)).register_equal(q, Tol::witness());
+        assert_eq!(reg, SymRegistration::Recorded, "a true registration");
+    };
+    let read = decide_on_a_thread(move || {
+        unrelated();
+        rounded_decision::<f64>(1.0e-3, false)
+    })
+    .expect("an inexact witness never panics on a contradiction");
+    println!("  R1's read zero, registry non-empty: {read:?}");
+    assert_eq!(
+        (
+            read.1.registrations_contradicted,
+            read.1.theorems_disputed,
+            read.1.symbolic
+        ),
+        (0, 0, 0),
+        "R1's probe: {:?}",
+        read.1
+    );
+    let algebra = decide_on_a_thread(move || {
+        unrelated();
+        adversary::<f64>(ADVERSARY_X[0])
+    })
+    .expect("an inexact witness never panics on a contradiction");
+    println!("  R2's adversary, registry non-empty: {algebra:?}");
+    assert_eq!(algebra.0, "numeric Negative");
+    assert_eq!(
+        (
+            algebra.1.registrations_contradicted,
+            algebra.1.theorems_disputed
+        ),
+        (0, 1),
+        "rule F's zero is a disputed theorem, not a contradicted axiom: {:?}",
+        algebra.1
+    );
+}
+
 /// **THE POLE (R1's residue), both arms.** At `t = 1` the tier answers
 /// the form's THEOREM on a box where the function has no value at all.
 /// Nothing false is reported and nothing is disputed — the numeric

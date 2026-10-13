@@ -6,10 +6,10 @@
 //! becomes `−X` wherever the form shows `X` NEGATIVE. Nothing here
 //! reads a value: the condition is a fact about the form's syntax, and
 //! all four rewrites are equalities of reals at every point clause 1
-//! admits, so a zero reached through this rule is a THEOREM and lands
-//! in `symbolic_zero`. One rule with two arms under one dial: the
-//! negative arm is the positive one reflected, term for term, and a
-//! reader who wants them apart reads the argument's leading sign.
+//! admits, so a zero reached through this rule is a THEOREM. One rule
+//! with two arms under one dial: the negative arm is the positive one
+//! reflected, term for term, and a reader who wants them apart reads
+//! the argument's leading sign.
 //!
 //! # The invariant, and then where the atoms come from
 //!

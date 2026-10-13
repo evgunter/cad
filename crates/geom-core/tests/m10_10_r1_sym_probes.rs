@@ -438,8 +438,8 @@ fn r1_rule_a_over_odd_powers_and_in_the_denominator() {
 /// − x` does not" — written when `sqrt_square`, `pythagoras` and
 /// `early_ab` were all dial-off. `SymRules::shipped()` turns all three
 /// on, and both decide as THEOREMS. Only the third sentence of that
-/// paragraph (`|x| − x` on a nonnegative `x`, which is rule C's) still
-/// holds.
+/// paragraph (`|x| − x` on a nonnegative `x`, zero only by a sign of
+/// the box, which no rule folds) still holds.
 #[test]
 fn r1_two_of_the_headers_documented_limits_no_longer_hold() {
     let sqrt_square = how(|| {
@@ -465,6 +465,6 @@ fn r1_two_of_the_headers_documented_limits_no_longer_hold() {
     assert_eq!(pythagoras, "proven", "the header says this does not decide");
     assert_ne!(
         abs_of_nonneg, "proven",
-        "rule C is dial-off, so this one still stands"
+        "no rule folds on a sign of the box, so this one still stands"
     );
 }

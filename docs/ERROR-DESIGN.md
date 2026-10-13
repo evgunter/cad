@@ -610,7 +610,7 @@ number.
   a session-level record that two DAG NODES denote one function of the
   parameters, made by the site that guarantees it. A zero through it
   is counted with every other symbolic zero (`SymCounts::symbolic`,
-  the K token `symbolic_zero`), and what the registry buys a document
+  the K token `symbolic`), and what the registry buys a document
   is the differential with the door shut (`SymRules::registered`).
   The numeric channel is untouched — a registration
   reads no value except its own witness and writes none — and the

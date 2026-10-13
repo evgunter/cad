@@ -24,13 +24,19 @@
 //! # Why a zero through it is E12's claim
 //!
 //! E12's claim is a zero at every value where the construction takes
-//! the decisions it took. A certified read answers which arm the
-//! construction takes at every point of the box, so the form with the
+//! the decisions it took. At an EXACT witness ([`crate::Witness`]) the
+//! construction's comparison is a certified sign of the same real the
+//! read encloses, so a certified read answers which arm the
+//! construction takes at every point of the box: the form with the
 //! node replaced by that arm is equal to the node wherever the
 //! construction takes that decision, and a zero reached through it is
-//! a zero there. A bracket that straddles zero, or a refused one, takes
-//! no arm; the node stays an atom and the numeric channel answers,
-//! which is the conservative direction.
+//! a zero there. At an inexact witness (`f64`, a probe) the
+//! construction compares a ROUNDED value, which can sit on the other
+//! side of zero from the exact one, so the read's arm need not be the
+//! construction's; there the session never asks the read (`combine`'s
+//! `read`, behind `Session::witness`). A bracket that straddles zero,
+//! or a refused one, takes no arm; the node stays an atom and the
+//! numeric channel answers, which is the conservative direction.
 //!
 //! # Where it runs
 //!

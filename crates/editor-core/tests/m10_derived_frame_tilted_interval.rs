@@ -1321,8 +1321,9 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
 ///   to fold. A frame construction that minted one again would make
 ///   the arm load-bearing here, and this half reds.
 ///
-/// Measured at the merge of `main` into `props/sign-hull` (1e-9): all
-/// three read `572 / 400 sign_gated / 510` with `carrier_endpoint_end`
+/// Measured at the merge of `main` into `props/sign-hull` (1e-9; a
+/// record, in that day's columns — `sign_gated` is part of `symbolic`
+/// since DECIDE-10): all three read `572 / 400 sign_gated / 510` with `carrier_endpoint_end`
 /// `[32, 16, 0, 0]` and `newell_plane_residual` `[24, 24, 0, 0]`, at
 /// both dials.
 ///
@@ -1484,8 +1485,9 @@ fn m10_what_the_read_buys_on_the_tilted_caps() {
 /// either: receipt, refusals and the `carrier_endpoint_end` /
 /// `newell_plane_residual` splits are the same at both dials.
 ///
-/// Measured at the merge of `main` into `props/sign-hull` (1e-9):
-/// `FlipX` `Pinned` `604 / 272 sign_gated / 446` and certifies;
+/// Measured at the merge of `main` into `props/sign-hull` (1e-9; a
+/// record, in that day's columns — `sign_gated` is part of `symbolic`
+/// since DECIDE-10): `FlipX` `Pinned` `604 / 272 sign_gated / 446` and certifies;
 /// `Guided` `548 / 144 / 308` and refuses at the wall join of loop 0
 /// vertex 0, `carrier_endpoint_end` `[28, 8, 0, 0]`,
 /// `newell_plane_residual` `[24, 20, 0, 0]`. It prints the end cap at

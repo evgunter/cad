@@ -157,7 +157,7 @@ fn a_retrys_wider_ring_does_not_leak_into_the_next_session() {
 /// the second decision asks the same nodes the first one's retry
 /// built. If a retry's forms went into `forms_early`/`forms_door`, the
 /// second decision would close on its FIRST attempt and `retried`
-/// would read 1 while `symbolic_zero` read 2.
+/// would read 1 while `symbolic` read 2.
 #[test]
 fn a_retrys_form_never_serves_the_first_attempt() {
     let retry = SymRetry {

@@ -832,6 +832,61 @@ fn what_only_the_read_answers() {
     }
 }
 
+/// **A `max` is a decision and a magnitude is not** (R1's S4). Over
+/// `r ∈ [1e-3, 2e-3]`, `|r| − r`, `sqrt(r²) − r` and `max(r, −r) − r`
+/// are one real function, zero everywhere on the box. `max(r, −r)` is a
+/// comparison the construction TAKES: the read certifies `−r − r < 0`
+/// and the arm it takes is the arm the construction takes at every
+/// point, so the zero is E12's claim and is proven. `abs` and `sqrt`
+/// take no decision: `r ≥ 0` is a sign of the box, and no rule folds on
+/// one (M10-8's rule C did, and is retired), so those two are the
+/// numeric channel's. The line between them is the construction's own
+/// spelling, which is the claim's own line: "where the construction
+/// takes the decisions it took". The lib row
+/// `a_root_and_a_magnitude_over_a_signed_bracket_are_not_folded` is the
+/// same two at a point.
+#[test]
+fn a_max_is_a_decision_and_a_magnitude_is_not() {
+    type Shape = (&'static str, fn() -> Sym<Interval>);
+    let shapes: [(Shape, (bool, bool)); 4] = [
+        (
+            ("max(r, -r) - r", || {
+                let r = over("r", 1.0e-3, 2.0e-3);
+                r.max(-r) - r
+            }),
+            (true, false),
+        ),
+        (
+            ("sqrt(r²) - max(r, -r)", || {
+                let r = over("r", 1.0e-3, 2.0e-3);
+                (r * r).sqrt() - r.max(-r)
+            }),
+            (false, false),
+        ),
+        (
+            ("|r| - r", || {
+                let r = over("r", 1.0e-3, 2.0e-3);
+                r.abs() - r
+            }),
+            (false, false),
+        ),
+        (
+            ("sqrt(r²) - r", || {
+                let r = over("r", 1.0e-3, 2.0e-3);
+                (r * r).sqrt() - r
+            }),
+            (false, false),
+        ),
+    ];
+    for ((what, build), want) in shapes {
+        assert_eq!(
+            proven_both(what, build),
+            want,
+            "{what}: (read on, read shut) proven"
+        );
+    }
+}
+
 /// **A freeze keyed by its node (S13).** At a four-term budget the
 /// read's arm `P = x + y + w` makes `P · Q` six terms, so both products
 /// freeze, each to its own node's indeterminate, and the difference is
