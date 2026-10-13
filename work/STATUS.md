@@ -2664,7 +2664,7 @@ area `kernel`; prefix `tang/`; tag `(TANG orchestrator)`; ab_band `6100-6199`.
 
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
-| P1 | `five-conventions-pick-a-conventional-smooth-edges-chart` | issue | M +design | open | five conventions decide which adjacent chart a conventional smooth edge rests in |  |  |
+| P1 | `five-conventions-pick-a-conventional-smooth-edges-chart` | issue | M | open | five conventions decide which adjacent chart a conventional smooth edge rests in |  |  |
 | P1 | `pinch-carrying-machinery-valence-4` | issue | H +design | open | design - pinch-carrying machinery to support the intersecting equal-radius boolean family (valence-4 section vertices) |  |  |
 | P1 | `a-declared-seam-subtract-and-intersect-stop-at-the-fallback-extent` | issue | M | parked | The sphere-capped tube declared a Seam builds its union, and its subtract and intersect stop at the fallback extent | intent-stage4-is-built |  |
 | P1 | `a-torus-seam-graze-needs-the-rim-root-deflated` | issue | M | parked | A G1 torus chain declared a Seam stops at the graze of an edge leaving the rim: a torus×torus seam certifies no side | a-torus-meridian-rims-span-bound-is-wider-than-the-band, intent-stage4-is-built |  |
