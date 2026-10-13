@@ -540,3 +540,28 @@ fn a_bar_on_the_donuts_meridian_plane_builds_its_true_body() {
         &PARTIAL,
     );
 }
+
+/// **A one-face torus whose vertex lies on the box's face builds its
+/// true body**, in all six ops: the box `x ≥ 0 ∧ y ≥ −0.3` against the
+/// one-face torus with its vertex at `π + asin 0.6`, the point
+/// `(1.6, −0.3)` of its profile. So its wrap parallel is the section's
+/// inner circle on the face `y = −0.3`, and its vertex lies inside that
+/// face. The face cuts the tube transversally there. The coincidence is
+/// an edge and a vertex on a face, decided Zero by the crossing layer's
+/// margins, not a sector of the torus lying on the plane. The join
+/// glues it, and the ring the edge `x = 0, y = −0.3` pierces is homed
+/// as in [`a_box_edge_piercing_a_one_face_torus_builds_its_true_body`].
+#[test]
+fn a_one_face_torus_whose_vertex_lies_on_the_box_face_builds_its_true_body() {
+    let (big_r, r, h) = (2.0, 0.5, -0.3);
+    let t = ring(one_face_torus(big_r, r, PI + (0.6f64).asin()), (big_r, r));
+    let p = boxed((0.0, 6.0), (h, h + 12.0), (-6.0, 6.0));
+    holds_to_the_truth_but(
+        "the vertex on y = −0.3",
+        &t,
+        &p,
+        cap(big_r, r, h) / 2.0,
+        about_the_tube(big_r, r),
+        &PARTIAL,
+    );
+}
