@@ -44,7 +44,7 @@ pub use linalg::{
 };
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, DIRECTION_LENGTH_SUBJECT, Decide,
-    Decided, ErrorTextReading, FileCoincidence, Indeterminate, IndeterminatePayload,
+    Decided, EndingKind, ErrorTextReading, FileCoincidence, Indeterminate, IndeterminatePayload,
     IndeterminateUnder, InfSpeed, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT,
     KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Margin, MarginDiag, MarginKind,
     MissReading, MissSource, MissingRecourse, NOT_YET_ENDING, RANGE_RECOURSE, Recourse,

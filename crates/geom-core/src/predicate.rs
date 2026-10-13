@@ -2139,6 +2139,31 @@ macro_rules! kernel_or_file_defect_ending {
     };
 }
 
+/// **How an undecided decision's refusal ends** (D4 ¶1 (i)), by what
+/// its margin measures: the kind a door's decision table records for
+/// each decision it renders.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EndingKind {
+    /// A size the user may have chosen: [`Indeterminate::ending`] under
+    /// [`COINCIDENCE_RECOURSE`], tolerance arm included.
+    Sized,
+    /// No size the user chose (an angle, a gauge, a curve parameter):
+    /// this lever alone, noted where the margin could not be read
+    /// ([`Indeterminate::lever_ending`]).
+    Lever(&'static str),
+}
+
+impl EndingKind {
+    /// The ending of `source` under this kind, read at the build.
+    #[must_use]
+    pub fn end(self, source: &Indeterminate) -> String {
+        match self {
+            Self::Sized => source.ending(COINCIDENCE_RECOURSE),
+            Self::Lever(lever) => source.lever_ending(lever),
+        }
+    }
+}
+
 /// The one answer a refusal gives when the table that routes its
 /// recourse by predicate name does not carry the name that escalated:
 /// it states the hole. The name is routing, so it rides `Debug` (this
@@ -2370,6 +2395,22 @@ impl Indeterminate {
     #[must_use]
     pub fn lever_ending(&self, levers: &str) -> String {
         lever_recourse(levers, self.margin.unreadable_note(UNREADABLE_MARGIN_NOTE))
+    }
+
+    /// **The ending a door's decision table gives this escalation**, read
+    /// at the build: its row's kind ([`EndingKind::end`]), or, with no
+    /// row, the sized ending followed by the hole under `named`
+    /// ([`MissingRecourse`]).
+    #[must_use]
+    pub fn ending_by(&self, kind: Option<EndingKind>, named: Option<&str>) -> String {
+        match kind {
+            Some(kind) => kind.end(self),
+            None => format!(
+                "{} — {}",
+                self.ending(COINCIDENCE_RECOURSE),
+                MissingRecourse(named)
+            ),
+        }
     }
 
     /// The ending, with `poisoned` the lever an unreadable margin puts

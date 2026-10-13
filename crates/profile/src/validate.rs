@@ -27,7 +27,12 @@
 //!    crossing, the pair touches wherever a segment end stands within
 //!    ε of the other segment (`circle_side` or `chord_side`, then its
 //!    span): the carriers stay within ε for ≈ √(2rε) about a tangency,
-//!    and for ≈ ε/sin φ about a crossing at angle φ.
+//!    and for ≈ ε/sin φ about a crossing at angle φ. A span that reads
+//!    a candidate in band settles it the same way when its end nearest
+//!    the candidate (`nearer_end`) stands within ε of the other carrier
+//!    and definitely nearer that candidate than the carriers' other one
+//!    (`own_candidate`), so inside the candidate's own stretch;
+//!    otherwise the pair escalates.
 //! 4. **Tangent joints** (D1's profile tangency) — every *joint*
 //!    (adjacent-segment junction at its shared vertex) is classified by
 //!    the same carrier predicates the simplicity pass uses — the
@@ -105,6 +110,8 @@
 //! | `chord_side` | ⟂ distance to chord line | direct |
 //! | `circle_side` | ‖q − c‖ − r | direct |
 //! | `line_span` | min(t, L−t) along carrier | direct |
+//! | `nearer_end` | (q − a)·û − L/2 along the chord | direct |
+//! | `own_candidate` | ‖e − q′‖ − ‖e − q‖ | direct |
 //! | `arc_span` | chordal defect from apex | ×1/cos(θ/4) near full arcs |
 //! | `carrier_line_circle` | r − |h| clearance | tangency: r·φ²/2 |
 //! | `carrier_circles_identity` | d + |Δr| | direct |
@@ -160,8 +167,8 @@ use core::fmt;
 
 use geom_core::k_stats::decide;
 use geom_core::{
-    Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    Margin, MarginDiag, Point2, Real, Sign, Tol, Vec2,
+    Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, EndingKind, Indeterminate,
+    KERNEL_DEFECT_ENDING, Margin, MarginDiag, Point2, Real, Sign, Tol, Vec2,
 };
 
 /// The recourse of [`ProfileError::ArcBelowSceneResolution`]: the arc's
@@ -707,27 +714,6 @@ pub fn fillet_recourse_for(predicate: &str) -> Option<&'static str> {
     })
 }
 
-/// How the generic doors ([`ProfileError::Escalated`], the fall-through
-/// of [`crate::PathError::Escalated`]) end an undecided decision of this
-/// crate (D4 ¶1 (i)).
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(
-        unreachable_pub,
-        reason = "re-exported by the crate root only under \
-     `test-support`; interior in every other build"
-    )
-)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EndingKind {
-    /// A size the user may have chosen: [`Indeterminate::ending`] under
-    /// [`COINCIDENCE_RECOURSE`], tolerance arm included.
-    Sized,
-    /// No size the user chose: this lever alone, noted where the margin
-    /// could not be read.
-    Lever(&'static str),
-}
-
 /// One decision this crate decides, and how its undecided refusal ends.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
@@ -868,6 +854,18 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
     DecisionEnding {
         name: "loop_orientation",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
+    },
+    // which end of a segment a point projects nearer, as its offset along the chord from the
+    // chord's bisector
+    DecisionEnding {
+        name: "nearer_end",
+        kind: EndingKind::Sized,
+    },
+    // how much nearer a segment end lies to the candidate contact it settles than to the
+    // carriers' other candidate
+    DecisionEnding {
+        name: "own_candidate",
+        kind: EndingKind::Sized,
     },
     // an authored bulge told apart from zero
     DecisionEnding {
@@ -1048,28 +1046,12 @@ pub(crate) struct EscalationEnding<'a>(pub(crate) &'a Indeterminate);
 impl fmt::Display for EscalationEnding<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let source = self.0;
-        let row = source.predicate.and_then(decision_ending);
-        match row.map(|row| row.kind) {
-            Some(EndingKind::Lever(lever)) => f.write_str(&lever_ending(source, lever)),
-            Some(EndingKind::Sized) => f.write_str(&source.ending(COINCIDENCE_RECOURSE)),
-            None => write!(
-                f,
-                "{} — {}",
-                source.ending(COINCIDENCE_RECOURSE),
-                geom_core::MissingRecourse(source.predicate)
-            ),
-        }
+        let kind = source
+            .predicate
+            .and_then(decision_ending)
+            .map(|row| row.kind);
+        f.write_str(&source.ending_by(kind, source.predicate))
     }
-}
-
-/// `lever` alone, noted where `source`'s margin could not be read.
-fn lever_ending(source: &Indeterminate, lever: &str) -> String {
-    geom_core::lever_recourse(
-        lever,
-        source
-            .margin
-            .unreadable_note(geom_core::UNREADABLE_MARGIN_NOTE),
-    )
 }
 
 /// The subject a door states for an escalation whose name has no words
@@ -1124,6 +1106,8 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "contact_at_shared_vertex" => "whether a contact point is a loop vertex",
         "line_span" => "whether a point falls inside a segment",
         "loop_orientation" => "which way round a loop runs",
+        "nearer_end" => "which end of a segment a point lies nearer",
+        "own_candidate" => "which of two candidate contacts a segment end lies nearer",
         "path_arc_bulge" => "whether an authored bulge is zero",
         "path_arc_center_equidistant" => {
             "whether an authored centre is as far from one end of its arc as from the other"
