@@ -311,6 +311,8 @@ mod band_ruled_d_hole;
 mod band_turn_overrun_chamfer;
 #[path = "band_turn_overrun_fillet.rs"]
 mod band_turn_overrun_fillet;
+#[path = "band_turn_overrun_fillet_model.rs"]
+mod band_turn_overrun_fillet_model;
 #[path = "band_turn_overrun_oracles.rs"]
 mod band_turn_overrun_oracles;
 #[path = "band_turn_overrun_probe.rs"]

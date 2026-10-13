@@ -56,7 +56,9 @@ use topo::boolean::BooleanOp;
 use topo::{Body, ContactRecords, EdgeKey, mass_properties, validate_geometric};
 use topo::{VertexKey, validate_pseudomanifold};
 
-use crate::band_planar_cut_off::{D, arc_residual, edge, pad_ceiling, tol, volume_enclosure};
+use crate::band_planar_cut_off::{
+    D, arc_residual, edge, midpoint_tol, pad_ceiling, tol, volume_enclosure,
+};
 use crate::band_turn_overrun_chamfer::{
     Half, Witness, ends, ends_iv, halves_of, overrun_cells, placed, point_at, witnesses,
 };
@@ -74,6 +76,7 @@ use crate::common::operands::{
     parallelepiped_at,
 };
 use crate::common::poses::poses;
+use crate::common::quadrature::gk15;
 
 // ------------------------------------------------------------------
 // The oracle.
@@ -246,48 +249,10 @@ fn overlap_length(halves: &[Half], x: V, tau: V, two: &Section) -> f64 {
 /// panel with the largest error estimate is halved until the estimates
 /// sum under `tol` (or a thousand panels stand).
 fn integrate(f: &dyn Fn(f64) -> f64, a: f64, b: f64, tol: f64) -> f64 {
-    const XK: [f64; 8] = [
-        0.991_455_371_120_812_6,
-        0.949_107_912_342_758_5,
-        0.864_864_423_359_769_1,
-        0.741_531_185_599_394_4,
-        0.586_087_235_467_691_1,
-        0.405_845_151_377_397_2,
-        0.207_784_955_007_898_5,
-        0.0,
-    ];
-    const WK: [f64; 8] = [
-        0.022_935_322_010_529_22,
-        0.063_092_092_629_978_55,
-        0.104_790_010_322_250_18,
-        0.140_653_259_715_525_92,
-        0.169_004_726_639_267_9,
-        0.190_350_578_064_785_4,
-        0.204_432_940_075_298_9,
-        0.209_482_141_084_727_83,
-    ];
-    const WG: [f64; 4] = [
-        0.129_484_966_168_869_7,
-        0.279_705_391_489_276_7,
-        0.381_830_050_505_118_9,
-        0.417_959_183_673_469_4,
-    ];
     // A panel: its ends, its Kronrod estimate and its error estimate.
     let panel = |a: f64, b: f64| {
-        let (c, h) = ((a + b) / 2.0, (b - a) / 2.0);
-        let (mut k, mut g) = (0.0, 0.0);
-        for i in 0..8 {
-            let y = if XK[i] == 0.0 {
-                f(c)
-            } else {
-                f(c + h * XK[i]) + f(c - h * XK[i])
-            };
-            k += WK[i] * y;
-            if i % 2 == 1 {
-                g += WG[i / 2] * y;
-            }
-        }
-        (a, b, k * h, ((k - g) * h).abs())
+        let (k, err) = gk15(f, a, b);
+        (a, b, k, err)
     };
     let mut panels = vec![panel(a, b)];
     while panels.iter().map(|p| p.3).sum::<f64>() > tol && panels.len() < 1000 {
@@ -462,9 +427,10 @@ fn fillet(body: &Body<f64>, edges: &[EdgeKey], what: &str) -> Blended<f64> {
 }
 
 /// **What a build took**, `before − after` (negative where it filled),
-/// held to `want`: the volume of a fillet's band is certified, its
-/// enclosure's half-width under [`pad_ceiling`], so the row admits
-/// `slack` plus that half-width.
+/// held to `want`: the enclosure's half-width under [`pad_ceiling`], and
+/// apart from it the midpoint within the oracle's own error `slack` plus
+/// [`midpoint_tol`] (the rows here measure within `3.9e-9`), so a row
+/// cannot pass by its enclosure widening.
 fn assert_delta(before: &Body<f64>, after: &Body<f64>, want: f64, slack: f64, what: &str) {
     let (v0, pad0) = volume_enclosure(before);
     let (v1, pad1) = volume_enclosure(after);
@@ -474,7 +440,7 @@ fn assert_delta(before: &Body<f64>, after: &Body<f64>, want: f64, slack: f64, wh
         "{what}: the enclosure is a claim, ±{pad:e}"
     );
     assert!(
-        (v0 - v1 - want).abs() < slack + pad,
+        (v0 - v1 - want).abs() < slack + midpoint_tol(),
         "{what}: ΔV {} against the oracle's {want} (±{pad:e})",
         v0 - v1
     );
@@ -735,8 +701,16 @@ fn the_overrun_carves_at_the_certified_scalar() {
             removed.lo() - pad <= want && want <= removed.hi() + pad,
             "{what}: ΔV {removed:?} ± {pad} brackets {want}"
         );
+        // Apart from the bracket, which loosens as the enclosure widens:
+        // the midpoint (measured within `1.5e-10`) and the width
+        // (measured under `2.7e-8`) each against their own bound.
+        let mid = 0.5 * (removed.lo() + removed.hi());
         assert!(
-            removed.hi() - removed.lo() + 2.0 * pad < 1e-5,
+            (mid - want).abs() < midpoint_tol(),
+            "{what}: ΔV's midpoint {mid} against the oracle's {want}"
+        );
+        assert!(
+            removed.hi() - removed.lo() + 2.0 * pad < 2.0 * pad_ceiling(),
             "{what}: the enclosure is a claim: {removed:?} ± {pad}"
         );
     }
@@ -1197,5 +1171,153 @@ fn a_later_fillet_of_l_refuses_at_the_far_bands_curved_face() {
             ),
             Ok(_) => panic!("{what}: L later must refuse"),
         }
+    }
+}
+
+/// **A short near edge refuses `FOOT_INSIDE_A_FACE` for the fillet as
+/// for the chamfer** (`work/band/an-overruns-sliver-refuses-a-short-near-edge.md`):
+/// the step-2 hexahedron `(s 0.4, c 1)`, `θ_S ≈ 136.1°`, its top–wall
+/// edge cut short. At `0.40` down to `0.16` the turn builds at the
+/// oracle; at `0.14` and `0.12` it refuses at the far band's foot on the
+/// shared face, which lands past the near edge's end, while the near
+/// band alone builds — and the far band takes beyond the near one what
+/// it takes on the long fixture, so the true body is the ordinary
+/// overrun. The row pins the refusals; the item's fix flips them.
+#[test]
+fn a_short_near_edge_refuses_foot_inside_a_face_for_the_fillet_too() {
+    let base = Hex {
+        c: 1.0,
+        depth: 4.0,
+        x1: 3.0,
+        ..HEX
+    };
+    let long = hexahedron(base);
+    let v = long.edge(TURN[1]).1;
+    let short = |len: f64| {
+        hexahedron(Hex {
+            depth: len - v[1],
+            ..base
+        })
+    };
+    let beyond_near = |p: &Poly| poly_taken(p, &TURN, D) - poly_taken(p, &TURN[1..], D);
+    let local = beyond_near(&long);
+    for len in [0.40, 0.30, 0.25, 0.22, 0.20, 0.18, 0.16] {
+        let p = short(len);
+        let what = format!("the near edge at {len}");
+        let out = filleted(&p.body, &p.edges(&TURN), D, &what)
+            .unwrap_or_else(|e| panic!("{what}: builds, got {e}"));
+        assert_delta(&p.body, &out.body, poly_taken(&p, &TURN, D), 1e-11, &what);
+    }
+    for len in [0.14, 0.12] {
+        let p = short(len);
+        let what = format!("the near edge at {len}");
+        assert!(
+            (beyond_near(&p) - local).abs() < 1e-10,
+            "{what}: the far band takes beyond the near one what it takes on the long fixture"
+        );
+        match filleted(&p.body, &p.edges(&TURN), D, &what) {
+            Err(e) => assert!(
+                foot_inside_a_face(&e),
+                "{what}: refuses FOOT_INSIDE_A_FACE, got {e}"
+            ),
+            Ok(_) => panic!(
+                "{what} built: `an-overruns-sliver-refuses-a-short-near-edge` is fixed, flip this \
+                 row to hold the build to the oracle"
+            ),
+        }
+        filleted(&p.body, &p.edges(&TURN[1..]), D, &what)
+            .unwrap_or_else(|e| panic!("{what}: the near band alone builds, got {e}"));
+    }
+}
+
+/// **The needle through the surgery**: two requested edges turning
+/// `180° − ε` on the shared face (`band_turn_overrun_verdict`'s needle,
+/// which never mitres). The fillet builds the overrun at the oracle at
+/// `10°`, `3°` and `1°`, and at `0.3°` and `0.1°` refuses
+/// `FOOT_INSIDE_A_FACE` at the turn, the far band's trimline meeting the
+/// near band's face before its end face. At `0.03°` and `0.01°` the
+/// default band escalates `CapEllipse` first, but at the bands' other
+/// ends, whose end faces the fixture tilts by `ε` off square — not at
+/// the turn. A run whose band is coarser may escalate a build on
+/// another reading away from the turn too; one whose band is finer
+/// refuses at the turn's foot there instead. Every outcome is pinned at
+/// the default band.
+#[test]
+fn the_needle_builds_then_refuses_at_the_turn_as_it_flattens() {
+    let band = geom_core::Band::linear(tol()).expect("the run's band");
+    let mut seen = Vec::new();
+    for eps in [10.0, 3.0, 1.0, 0.3, 0.1, 0.03, 0.01] {
+        let e = f64::to_radians(eps);
+        let (body, edges) = corner(&Cone::of(
+            [0.0, 0.5, 1.0],
+            [1.0, 0.0, 0.0],
+            [-e.cos(), e.sin(), 0.0],
+        ));
+        let what = format!("the needle at {eps}°");
+        let v = turn_vertex(&body, edges);
+        let line = match filleted(&body, &edges, D, &what) {
+            Ok(out) => {
+                assert!(
+                    eps >= 1.0,
+                    "{what}: builds where the far foot is inside a face"
+                );
+                assert!(
+                    out.coincidences
+                        .iter()
+                        .all(|r| r.relation != topo::Relation::CommonFoot),
+                    "{what}: the needle never mitres"
+                );
+                let want = taken_on(&halves_of(&body), &body, &edges, D);
+                assert_delta(&body, &out.body, want, 1e-11, &what);
+                "builds"
+            }
+            Err(e @ BlendError::UnsupportedRunOut { at, .. }) => {
+                assert!(
+                    foot_inside_a_face(&e) && at == topo::EntityId::Vertex(v) && eps < 1.0,
+                    "{what}: refuses at the turn's far foot, got {e}"
+                );
+                "refuses at the turn"
+            }
+            Err(BlendError::Escalated { site, decision, .. }) => {
+                assert!(
+                    site != sweep::blend::BlendSite::Joint { vertex: v }
+                        && !matches!(
+                            decision,
+                            BlendDecision::TurnFeetGap
+                                | BlendDecision::TurnOverrunChord
+                                | BlendDecision::TurnFeet
+                        ),
+                    "{what}: escalates away from the turn, got {decision:?} at {site:?}"
+                );
+                if decision == BlendDecision::CapEllipse {
+                    "escalates CapEllipse elsewhere"
+                } else {
+                    "escalates elsewhere"
+                }
+            }
+            // The attachment gate's escalation, at a contact edge.
+            Err(e @ BlendError::Op { .. })
+                if band.zero() > 1e-9 && e.to_string().contains("escalated") =>
+            {
+                "escalates elsewhere"
+            }
+            Err(e) => panic!("{what}: builds, refuses at its foot, or escalates; got {e}"),
+        };
+        seen.push(line);
+    }
+    if band.zero() == 1e-9 {
+        assert_eq!(
+            seen,
+            [
+                "builds",
+                "builds",
+                "builds",
+                "refuses at the turn",
+                "refuses at the turn",
+                "escalates CapEllipse elsewhere",
+                "escalates CapEllipse elsewhere"
+            ],
+            "the needle at the default band"
+        );
     }
 }

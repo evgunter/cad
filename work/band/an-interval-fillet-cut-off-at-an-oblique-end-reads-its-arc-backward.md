@@ -31,6 +31,16 @@ from `u_ref` (`cap_transverse` puts `u_ref` on the major axis). An
 `0`, which would leave `tb` before `ta`. The measure-first step is to
 print `ta`, `tb` and the feet's enclosures at the raising site.
 
+**A second reader of the same window.** The description pass
+(`crates/sweep/src/blend/surgery.rs` `attach_contact`, its
+`ContactCarrier::Transverse` arm) windows every cut-off arc between the
+edge's two vertices with the same hint, `param_near(p0, T::zero())`, and
+since PR 4962 that includes a fillet overrun's edge. An `Interval` foot
+at a major vertex can read the other branch there too once
+`CapSliver::of` stops refusing first: where `(t1 − t0).lo() > 0` fails
+the carrier is run back, so a wrong branch would describe the long way
+round rather than refuse. A fix closes both readers.
+
 **Pinned** by
 `crates/sweep/tests/band_turn_overrun_fillet.rs`
 `the_skewed_boxs_fillet_refuses_at_interval_as_its_plain_cut_off_does`;

@@ -488,9 +488,16 @@ definite. `TURN_OVERRUN` is gone.
   kind and no new role. The design reports' final state ("k's cut-off at
   Fⱼ clipped at q", same carrier) and the probe's G1 finding left no
   choice open.
-- **Recourse.** `FILLET3_TURN_RECOURSE`'s middle leg names both verbs.
-  Its followability row runs the fillet's legs at a `60°` corner skewed
-  into the turn's band.
+- **Recourse.** `FILLET3_TURN_RECOURSE`'s middle leg names both verbs,
+  and says a fillet's far band may then end in an ellipse too near a
+  circle, whose own recourse follows. Its followability row runs the
+  fillet's legs at a `60°` corner skewed into the turn's band, and at a
+  box corner leaning its wall, where a larger setback or a slightly more
+  asymmetric corner escalates `CapEllipse` and that recourse's legs
+  build (tilted past the ellipse's edge, the overrun; squared, the
+  mitre). `FILLET3_CAP_ELLIPSE_RECOURSE` says squaring at a turn may
+  bring the feet together instead, and `FILLET3_CORNER_RECOURSE` names
+  any two edges whose feet meet or stand clearly apart.
 
 **Rows** (`crates/sweep/tests/band_turn_overrun_fillet.rs`, `r = 0.1`).
 The oracle is `B ∩ (W₁ ∪ W₂)`, each `Wᵢ` the infinite prism over the
@@ -502,8 +509,9 @@ The oracle matches a hand form at the box corner
 kernel's box mitre.
 - **Witnesses**: the bracket's corners, the leaning prism at `±0.5`,
   the skewed box, and the sheared box's supplementary corner.
-  - Tiers 3 and 3′, naming total, trivalent, `ΔV` at the oracle within
-    the certified pad (fillet volumes carry pads to `≈1e-8`).
+  - Tiers 3 and 3′, naming total, trivalent, `ΔV`'s midpoint at the
+    oracle within `midpoint_tol` (measured within `3.9e-9`) and its
+    enclosure under its ceiling, each on its own.
   - `p_k` and `q` where the probe puts them; the arc the probe's circle
     or ellipse, tangent to the mitre at `q` and to L at `p_k`.
   - Also at six poses and at `Interval` (leaning `±0.5`, `±1`).
@@ -512,18 +520,33 @@ kernel's box mitre.
 - **Leaning prisms** over leans, radii, scales and orders, and generic
   hexahedra. A trimline running into a face before its end face refuses
   `FOOT_INSIDE_A_FACE`, read off the oracle's section.
-- **Features** in and clear of the overrun.
+- **Features** in and clear of the overrun, and about its arc.
+- **A second model** (`band_turn_overrun_fillet_model.rs`, from a
+  review's probe): spines solved from the planes, bands by Cartesian
+  quadrature, the overlap along a generic direction. Every witness
+  builds at it; the built body agrees with it point by point, convex and
+  concave; the overrun arc runs the `f64` way at `Interval`.
+- **A short near edge** refuses `FOOT_INSIDE_A_FACE` as the chamfer's
+  does (the filed residue), and **the needle** builds at the oracle to
+  `1°`, then refuses at the turn's far foot.
 - **Escalations**: the in-band leans escalate (the leaning prism on
   `CapEllipse`, the `60°` corner on the turn readings). L filleted later
   refuses `END_FACE_CURVED`.
 
 **What moved.** Every fillet overrun that refused builds. Near a box
-corner the fillet's overrun escalates `CapEllipse` past its turn band, to
-`θ = √(2·escalate/r)` (`≈0.0256°` at `r = d`), as a plain cut-off at that
-tilt does. The window row brackets that edge.
+corner, on the side where the far band is cut off at the leaning wall
+(a positive lean), the fillet's overrun escalates `CapEllipse` past its
+turn band, to `sec θ = 1 + escalate/r` (`≈0.0256°` at `r = d`), as a
+plain cut-off at that tilt does. On the other side the far band is cut
+off square, in a circle, and the overrun builds from just past the
+turn's band (`≈1e-5°`). The window row brackets the first edge and pins
+the second side.
 
 **Filed**: `an-interval-fillet-cut-off-at-an-oblique-end-reads-its-arc-backward`.
 At `Interval` the skewed box's top edge filleted alone refuses
 `BodyNotIntact` where `f64` builds, on main too. The fillet turn there
-refuses the same way, pinned. The two step-2 residues stay open.
+refuses the same way, pinned. The two step-2 residues stay open, now
+covering the fillet too: a short near edge refuses the fillet the same
+way, and arm (c) adds no refusal the reach does not make for it either,
+though its round sliver does not over-refuse at the bracket's corner.
 

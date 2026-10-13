@@ -1,12 +1,12 @@
 ---
 id: an-overruns-sliver-refuses-a-short-near-edge
 kind: issue
-title: blend: a chamfer overrun's sliver refuses FOOT_INSIDE_A_FACE where the far band's trimline meets the near edge past its far end
+title: blend: a turn overrun's sliver refuses FOOT_INSIDE_A_FACE where the far band's trimline meets the near edge past its far end
 status: open
 opened: 2026-10-12
 ---
 
-A chamfer turn's overrun is metered as the far band `k`'s whole cut-off
+A turn's overrun, chamfer or fillet, is metered as the far band `k`'s whole cut-off
 sliver on the near band's face `Fⱼ` (`crates/sweep/src/blend/open/planar.rs`
 `turn_plan`, through `end_face.rs` `EndCut::plan`). That sliver's feet
 are `p_k` on L and `E`, band `k`'s trimline on the shared face `S` met
@@ -39,6 +39,17 @@ lies between `p_j`, `q` and `p_k`, far from `E`).
   `0.14` refuse `FOOT_INSIDE_A_FACE` at the vertex while the near band
   alone builds; `0.16` builds; `ℓ ≤ 0.1` refuses `FaceClearance`
   first.
+
+**The fillet too** (both reviews of PR 4962; pinned by
+`crates/sweep/tests/band_turn_overrun_fillet.rs`
+`a_short_near_edge_refuses_foot_inside_a_face_for_the_fillet_too`):
+the same hexahedron at `c = 1`, near edge `0.40`, `0.30`, `0.25`,
+`0.22`, `0.20`, `0.18` and `0.16` builds at the fillet oracle; `0.14`
+and `0.12` refuse `FOOT_INSIDE_A_FACE` while the near band alone builds,
+and the far band takes beyond the near one what it takes on the long
+fixture (the fillet oracle, to `1e-10`). The far band filleted alone
+refuses the same way there: the refusal is the far band's foot `E`, not
+anything the overrun needs.
 
 **The refusals are spurious.** At every one of them the far band's
 half-space takes beyond the near band's exactly what it takes on the

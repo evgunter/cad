@@ -95,6 +95,9 @@
 //!   and the check of a boolean's body against it (volume, tier 3,
 //!   `point_in_solid`): a truth plus the check against it, so beside
 //!   [`differential`];
+//! - [`quadrature`] — the 7–15 Gauss–Kronrod panel the volume oracles
+//!   integrate with: a tool for deriving a truth without the kernel,
+//!   so beside [`oracles`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -274,6 +277,9 @@ pub mod solid_truth;
 /// what a touch owes (the operand back, empty, two solids with the
 /// edge–edge record): a check of a body, so beside [`solid_truth`].
 pub mod touch_union;
+
+/// The 7–15 Gauss–Kronrod panel the volume oracles integrate with.
+pub mod quadrature;
 
 /// A station cut back into a rim by hand, and the reader that finds a
 /// body's stations, curved carriers included. Body authoring plus the

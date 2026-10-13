@@ -627,10 +627,12 @@ BOUNDS_ALLOWLIST=(
   # as before), and `face_clearance_margin` is `face_clearance` with its
   # margin formed by the caller, the door the surgery's strip meter
   # refuses through; both decide only through `classify`.
-  # 18 -> 19: `turn_at` picks a fillet overrun's far-band section through
-  # `cap_transverse`, the cut-off's own kind-picker (`classify` and the
-  # ellipse door), and reads no bracket of its own.
-  'crates/sweep/src/blend/battery.rs 19 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 18 -> 20: `turn_at` picks a fillet overrun's far-band section through
+  # `cut_off_section`, which a chain end's cut-off picks its section
+  # through too: both reach `cap_transverse`, the cut-off's own
+  # kind-picker (`classify` and the ellipse door), and read no bracket of
+  # their own.
+  'crates/sweep/src/blend/battery.rs 20 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
   # carry-through pass's support-boundary arm split into its own

@@ -760,8 +760,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                 .map(|c| (&c.end.sliver, c.link.convexity(), None)),
         )
         .chain(turns.iter().filter_map(|t| {
-            let far = t.turn.overrun()?.far;
-            Some((&t.overrun.as_ref()?.1, t.links[far].convexity(), None))
+            let o = t.overrun.as_ref()?;
+            Some((&o.sliver, t.links[o.of.far].convexity(), None))
         }))
         .collect();
     let unclear = ring_clearance_pass(source, &opens, &rims, &slivers, &supports, band)?;

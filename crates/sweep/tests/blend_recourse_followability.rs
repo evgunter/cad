@@ -64,11 +64,11 @@ use sweep::blend::battery::corner_config;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
     ALL_RECOURSES, BlendDecision, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig,
-    FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
-    FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE, FILLET3_CORNER_RECOURSE,
-    FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
-    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
-    FILLET3_TURN_RECOURSE,
+    FILLET3_ASSEMBLY_RECOURSE, FILLET3_CAP_ELLIPSE_RECOURSE, FILLET3_CHAIN_RECOURSE,
+    FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE,
+    FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE,
+    FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
+    FILLET3_TANGENTIAL_RECOURSE, FILLET3_TURN_RECOURSE,
 };
 use sweep::test_support::{
     ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
@@ -356,9 +356,9 @@ fn the_chain_recourse_is_followed_by_a_tangent_continuous_chain() {
 /// An edge ending at a curved end face refuses as a run-out with this
 /// sentence. Its three positive clauses are then executed on a cube: the
 /// edge alone, cut off in the plane end faces at both ends; two edges
-/// of one corner, whose faces are symmetric about the third, meeting in
-/// a mitre; and every edge of every corner, the corner patch. A turn
-/// whose bands' feet stand apart builds its overrun. Of the residue, the
+/// of one corner whose feet on the third meet (a cube's, symmetric about
+/// it), meeting in a mitre, or stand clearly apart, the far band
+/// overrunning it; and every edge of every corner, the corner patch. Of the residue, the
 /// third edge of a mitred corner blended in a later call refuses with
 /// this sentence — whose last clause, requesting it in the same call,
 /// builds.
@@ -447,7 +447,10 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
 /// `60°` corner skewed by a few millionths of a degree (its gap is linear
 /// in the skew), and its ends build the same way: equal face angles, a
 /// more asymmetric corner, a five times larger radius at the same skew,
-/// and the third edge requested too.
+/// and the third edge requested too. At a box corner leaning its wall
+/// (`fillet_turn_recourse_at_a_box_corner`) a larger setback or a
+/// slightly more asymmetric corner hands on to the far band's ellipse
+/// in band, whose own recourse is then followed to a build.
 #[test]
 fn the_turn_recourse_builds_at_each_end_it_names() {
     use crate::band_planar_cut_off::edge;
@@ -514,6 +517,7 @@ fn the_turn_recourse_builds_at_each_end_it_names() {
         "the third edge in the same call",
     );
     fillet_turn_recourse();
+    fillet_turn_recourse_at_a_box_corner();
 }
 
 /// [`the_turn_recourse_builds_at_each_end_it_names`]'s fillet legs.
@@ -588,6 +592,80 @@ fn fillet_turn_recourse() {
         &[bands[0], bands[1], third],
         0.1,
         "a fillet's third edge in the same call",
+    );
+}
+
+/// [`the_turn_recourse_builds_at_each_end_it_names`]'s fillet legs at
+/// a box corner whose wall leans a few millionths of a degree
+/// (`leaning_turn`, positive), where the far band is cut off at the
+/// leaning wall. A five times larger radius, or a lean past the turn's
+/// band but short of `θ = acos(1 / (1 + e/r))`, leaves the far band's
+/// ellipse in band (`CapEllipse`), carrying
+/// [`FILLET3_CAP_ELLIPSE_RECOURSE`] as the turn sentence says. Its legs
+/// build: tilted twice past that edge, the overrun at either radius;
+/// squared, the feet meet and the corner mitres.
+fn fillet_turn_recourse_at_a_box_corner() {
+    use crate::common::operands::leaning_turn;
+    let band = Band::linear(tol()).expect("the run's band");
+    let z = band.zero() / 1e-9;
+    let lean = |deg: f64| leaning_turn(deg.to_radians().tan());
+    let ellipse_edge = |r: f64| (1.0 / (1.0 + band.escalate() / r)).acos().to_degrees();
+    let fillet = |deg: f64, r: f64| {
+        let (body, turn) = lean(deg);
+        fillet_edges(&sweep::test_support::at_rest(&body, tol()), &turn, r, tol())
+    };
+    let (body, turn) = lean(2e-6 * z);
+    let err = refusal(&body, &turn, 0.1, "a box fillet turn in band", false);
+    assert!(
+        matches!(
+            err,
+            BlendError::Escalated {
+                decision: BlendDecision::TurnFeetGap
+                    | BlendDecision::TurnOverrunChord
+                    | BlendDecision::TurnFeet,
+                ..
+            }
+        ),
+        "a box fillet turn in band escalates on its readings, got {err:?}"
+    );
+    carries(&err, FILLET3_TURN_RECOURSE, "a box fillet turn in band");
+    for (what, deg, r) in [
+        ("a larger setback", 2e-6 * z, 0.5),
+        ("a more asymmetric corner", ellipse_edge(0.1) / 2.0, 0.1),
+    ] {
+        let err = fillet(deg, r)
+            .map(|_| ())
+            .expect_err("the ellipse is in band")
+            .error;
+        assert!(
+            matches!(
+                err,
+                BlendError::Escalated {
+                    decision: BlendDecision::CapEllipse,
+                    ..
+                }
+            ),
+            "{what}: the far band's ellipse in band, got {err:?}"
+        );
+        carries(&err, FILLET3_CAP_ELLIPSE_RECOURSE, what);
+        let out = fillet(2.0 * ellipse_edge(r), r)
+            .unwrap_or_else(|e| panic!("{what}, tilted further: builds, got {:?}", e.error));
+        validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("{what}, tilted further: tier 3, got {e:?}"));
+        assert!(
+            !out.coincidences
+                .iter()
+                .any(|c| c.relation == topo::Relation::CommonFoot),
+            "{what}, tilted further: the overrun"
+        );
+    }
+    let out = fillet(0.0, 0.1).unwrap_or_else(|e| panic!("squared: builds, got {:?}", e.error));
+    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("squared: tier 3, got {e:?}"));
+    assert!(
+        out.coincidences
+            .iter()
+            .any(|c| c.relation == topo::Relation::CommonFoot),
+        "squared, the feet meet: the mitre"
     );
 }
 

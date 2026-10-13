@@ -331,7 +331,12 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   the sign picks; anything else escalates, with a recourse that makes the
   feet meet (equal, or for a chamfer supplementary, face angles), moves
   them clearly apart (a larger setback, a more asymmetric corner), or
-  requests L too for the patch. A fillet's overrun arc is tangent to the
+  requests L too for the patch. The overrun's section escalates as any
+  cut-off's does: near a box corner, where the far band's cut-off face
+  is tilted just off square to its axis, a fillet's ellipse stays in
+  band out to `sec θ = 1 + escalate / r`, so moving the feet apart there
+  hands on to that ellipse's own recourse; where the face is square the
+  section is a circle and the overrun builds once the feet are apart. A fillet's overrun arc is tangent to the
   mitre at its end and to L at the far foot, so band `k`'s boundary runs
   G1 from the crossing to L. A Zero verdict is a coincidence
   decided from values, the two feet being one point, so the verdict

@@ -1,13 +1,13 @@
 ---
 id: a-turns-overrun-meters-the-whole-cut-off-sliver
 kind: issue
-title: blend: a chamfer overrun's arm (c) meters the far band's whole cut-off sliver, refusing features the overrun clears and adding no refusal the reach does not make
+title: blend: a turn overrun's arm (c) meters the far band's whole cut-off sliver, refusing features the overrun clears and adding no refusal the reach does not make
 status: open
 opened: 2026-10-13
 ---
 
 
-At a chamfer turn's overrun, `turn_plan` (`crates/sweep/src/blend/open/planar.rs`)
+At a turn's overrun, `turn_plan` (`crates/sweep/src/blend/open/planar.rs`)
 plans the far band `k` cut off at the near band's face of L, `Fⱼ`,
 through `cut_off_plan`, and hands that cut-off's whole sliver to the ring
 pass (`crates/sweep/src/blend/surgery.rs` `blend_surgery`, the `turns`
@@ -44,6 +44,20 @@ turn's sliver dropped from the ring pass (`.filter(|_| false)` on the
 No row of the suite, nor either review's probes, found a feature only
 arm (c) refuses; a flush or imprinted ring only arm (c) would see is
 not ruled out.
+
+**The fillet** (both reviews of PR 4962) hands arm (c) its own round
+sliver, and the same mutant leaves every fillet feature row passing
+(`band_turn_overrun_fillet::features_in_and_around_the_overrun_refuse_or_build_as_their_regions_say`,
+`a_void_in_the_overruns_volume_refuses`,
+`band_turn_overrun_fillet_model::features_about_the_arc_build_clear_and_refuse_where_they_straddle`):
+straddling pins refuse through the reach (`FaceClearance` or
+`FaceClearanceUncertified`) instead of `RingClearance`. So for the
+fillet too arm (c) carries no refusal of its own. Its over-refusal did
+NOT reproduce for the fillet at the bracket's `y = 0` corner: bosses and
+holes inside the far band's circle clear of the arc, below `q` and
+right of the circle build at the feature-free `ΔV` (`|Δ| ≤ 4.4e-16`),
+because the round sliver beyond the overrun lies in band `j`'s strip
+there. The bound's cost is the chord sliver's.
 
 **Options.** Meter only the overrun's own triangle (`p_j`, `p_k`, `q`),
 as a region of its own

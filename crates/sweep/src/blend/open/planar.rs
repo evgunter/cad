@@ -364,11 +364,21 @@ pub(in crate::blend) struct TurnPlan<'a, T: Real> {
     /// The mitre's carrier: the chord where two plane bands cross, or
     /// the ellipse where two cylinder bands do.
     mitre: ContactCarrier<T>,
-    /// At an overrun, the far band's cut-off at the near band's face of
-    /// the third edge ([`EndCut::plan`]): the carrier of the overrun
-    /// edge, a piece of its end curve, and its whole sliver there, which
-    /// arm (c) meters.
-    pub(in crate::blend) overrun: Option<(ContactCarrier<T>, CapSliver<T>)>,
+    /// The turn's overrun with its planned cut-off, present exactly
+    /// when the battery decided one: the plan's readers take the overrun
+    /// from here, never from [`Turn::overrun`].
+    pub(in crate::blend) overrun: Option<PlannedOverrun<'a, T>>,
+}
+
+/// **An overrun with its far band's cut-off at the near band's face of
+/// the third edge** ([`EndCut::plan`]).
+pub(in crate::blend) struct PlannedOverrun<'a, T: Real> {
+    /// The battery's overrun.
+    pub(in crate::blend) of: &'a Overrun<T>,
+    /// The overrun edge's carrier, a piece of the cut-off's end curve.
+    pub(in crate::blend) carrier: ContactCarrier<T>,
+    /// The cut-off's whole sliver at that face, which arm (c) meters.
+    pub(in crate::blend) sliver: CapSliver<T>,
 }
 
 /// The refusal for a fillet turn whose two cylinders the section door
@@ -473,9 +483,13 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
     };
     let overrun = match turn.overrun() {
         None => None,
-        Some(o) => {
-            let end = cut_off_plan(body, links[o.far], vertex, o.section.clone())?.end;
-            Some((end.carrier(), end.sliver))
+        Some(of) => {
+            let end = cut_off_plan(body, links[of.far], vertex, of.section.clone())?.end;
+            Some(PlannedOverrun {
+                of,
+                carrier: end.carrier(),
+                sliver: end.sliver,
+            })
         }
     };
     Ok(TurnPlan {
@@ -586,8 +600,8 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     for t in turns {
         let foot = turn_split(body, t, rec, tol)?;
         let mut feet = [foot; 2];
-        if let Some(o) = t.turn.overrun() {
-            feet[o.near()] = overrun_cut(body, t, o, foot, &mut described, rec, tol)?;
+        if let Some(o) = &t.overrun {
+            feet[o.of.near()] = overrun_cut(body, t, o, foot, &mut described, rec, tol)?;
         }
         for (f, x) in t.turn.others.into_iter().zip(feet) {
             once(
@@ -902,7 +916,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds + topo::AtRestPolicy>(
         // strip holds the overrun, and folded into the far one; it runs
         // from the crossing to that band's foot on its face of the third
         // edge (the mitre's end there).
-        let near = t.turn.overrun().map_or(0, Overrun::near);
+        let near = t.overrun.as_ref().map_or(0, |o| o.of.near());
         let v = t.turn.vertex;
         let ends = [
             foot_at(&foot_of, v, t.turn.shared)?,
@@ -1056,18 +1070,13 @@ fn turn_split<T: Decide + topo::AtRestPolicy>(
 fn overrun_cut<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     t: &TurnPlan<'_, T>,
-    o: &Overrun<T>,
+    planned: &PlannedOverrun<'_, T>,
     foot: VertexKey,
     described: &mut Described<T>,
     rec: &mut BlendNaming,
     tol: Tol,
 ) -> Result<VertexKey, BlendError> {
-    let (carrier, _) = t.overrun.as_ref().ok_or_else(|| {
-        not_intact(
-            EntityId::Vertex(t.turn.vertex),
-            "an overrun's planned cut-off",
-        )
-    })?;
+    let o = planned.of;
     let near = t.turn.others[o.near()];
     let he = half_from(body, near, foot)?;
     let p =
@@ -1081,7 +1090,7 @@ fn overrun_cut<T: Decide + topo::AtRestPolicy>(
         )
         .map_err(|e| op("overrun mev", e))?;
     let crease = t.links[o.far].edge();
-    described.push((created.edge, carrier.clone(), crease));
+    described.push((created.edge, planned.carrier.clone(), crease));
     rec.arcs.push((created.edge, t.turn.vertex, crease));
     rec.feet.push((created.vertex, t.turn.vertex, near));
     Ok(created.vertex)
