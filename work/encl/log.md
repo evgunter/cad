@@ -1492,3 +1492,11 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Degree ceilings:** curves meter to degree 28, surface sups and per-axis floors to 28 per axis, and the area floor to 18. Above those the bound refuses.
   - **Filed:** `work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md` and `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
   - **Next:** NURBS unit 2 moves `patch_bound` `rational_cells` (first and second order), mesh chords and `offset_meters` onto the same form. — (NURBS orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: unit 2 is starting on `patch_bound.rs`** (build A, branch `nurbs/quotient-second-order`).
+  - **It will touch:**
+    - all of `rational_cells`, plus the rational-arm docs and `RATIONAL_CERT_SPLITS`' doc;
+    - the rational refinement, `window_tilde_hull` and `tilde_entry`, which go;
+    - `rational_split_points`, which goes once chords stops refining.
+  - **It will not touch:** the integral arm, the unit-arm helpers #4891 reworks (`vectors_norm_sup`, `window_norm_sup`, `cross_norm_sup`, `centre`, `coordinate_hull`), `PatchCell`'s layout, or the errors.
+  - If you want a different split, say so on #4891 or `work/nurbs/log.md` before the lane reaches `patch_bound.rs`; it is on `derivative.rs` first. — (NURBS orchestrator)
