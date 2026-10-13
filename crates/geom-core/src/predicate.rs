@@ -3231,7 +3231,7 @@ mod tests {
             )
         };
         let both = |eps_in: f64, near: f64| offer(eps_in, near, false);
-        let rows: [(MarginDiag, FileCoincidence, Option<String>); 12] = [
+        let rows: [(MarginDiag, FileCoincidence, Option<String>); 13] = [
             // One in-band row whole, so the closures cannot drift with it.
             (
                 MarginDiag::value(5e-9),
@@ -3253,15 +3253,20 @@ mod tests {
             // enclosure reaching past ε_in may hold sizes the file tells
             // from zero. One such row whole, too.
             (
-                MarginDiag::enclosure(4e-10, 2e-9),
+                MarginDiag::enclosure(5e-10, 2e-9),
                 at(1e-9),
                 Some(
                     "This length may lie within the file's declared coincidence distance \
                      ε_in = 1e-9 m, so the file might not tell it from zero. Recourse: L, or, \
                      if this length is intended, re-export the file with its uncertainty \
-                     declared below 4e-10 m and tighten the tolerance below 4e-11 m"
+                     declared below 5e-10 m and tighten the tolerance below 5e-11 m"
                         .to_owned(),
                 ),
+            ),
+            (
+                MarginDiag::enclosure(4e-10, 2e-9),
+                at(1e-9),
+                Some(offer(1e-9, 4e-10, true)),
             ),
             (
                 MarginDiag::enclosure(2e-9, 2e-6),
