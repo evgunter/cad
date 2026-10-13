@@ -5975,6 +5975,59 @@ mod stretch_meter {
         }
     }
 
+    /// **A narrow cone's joint clear of the apex takes its own image.**
+    /// At `α = 0.01` a vertex `d` from the apex is decided `Off` the
+    /// singular set from `d` past the band's escalate edge on, while its
+    /// lever is `d·sin α`, a hundredth of that: under the band until
+    /// `d` is a hundred times the edge. A continuous joint there (gap 0,
+    /// a thousandth of a radian) reads every mark Zero, and decides its
+    /// branch at that lever; a gap of a whole turn takes either lift of
+    /// the one point.
+    #[test]
+    fn a_narrow_cone_joint_clear_of_the_apex_takes_its_own_image() {
+        use super::{JointElement, decide_joint};
+        use geom_brep::Pcurve;
+        use geom_core::{Point2, Vec2};
+        let alpha = 0.01f64;
+        let cone: Surface<f64> = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let zero = Vec2::new(0.0, 0.0);
+        let tau = std::f64::consts::TAU;
+        for d in [2.0, 5.0, 10.0, 100.0, 1000.0].map(|m| m * band().escalate()) {
+            let vertex = Point3::new(d * alpha.sin(), 0.0, d * alpha.cos());
+            assert!(
+                matches!(singular_at(chart(&cone), vertex, band()), Singular::Off),
+                "d = {d:e}: the vertex is decided clear of the apex"
+            );
+            for (gap, turns) in [(0.0, [0, 0]), (1e-3, [0, 0]), (tau, [0, 1])] {
+                let at = Point2::new(0.0, d);
+                let image = Pcurve::Harmonic {
+                    p0: at,
+                    pa: zero,
+                    pb: zero,
+                    pl: zero,
+                };
+                let prev = Point2::new(gap, d);
+                let out = decide_joint(chart(&cone), &image, 0.0, prev, vertex, Some(tau), band());
+                assert!(
+                    matches!(out, Ok(JointElement::Shift(deck))
+                        if turns.contains(&deck.u) && deck.v == 0 && !deck.twin),
+                    "d = {d:e} (lever {:e}), gap {gap}: a lift of the joint's point, read {:?}",
+                    d * alpha.sin(),
+                    out.as_ref().map_err(|miss| match miss {
+                        super::PinMiss::Discontinuity => "Discontinuity",
+                        super::PinMiss::Escalated(_) => "Escalated",
+                        super::PinMiss::OutOfReach => "OutOfReach",
+                    })
+                );
+            }
+        }
+    }
+
     /// A placeholder payload has no net to bound, so it has no arms:
     /// it is not a [`DescribedChart`], and these meters cannot be
     /// asked about it.
