@@ -6013,8 +6013,8 @@ pub(crate) enum RestTangent<T: Real> {
 /// [`crate::contact::ContactRefusal::Contradicted`] where the pair is
 /// definitely not tangent, labelled with the row that refused it, or the
 /// table contradicts it; `Escalated` where a margin is in band; and
-/// `NotCertifiable` where no closed-form locus derives, a face cannot be
-/// read (naming why), or the extents meet at one point.
+/// `NotCertifiable` where no closed-form locus derives or a face cannot
+/// be read (naming why).
 pub(crate) fn tangent_pair_at_rest<T: Decide>(
     body: &Body<T>,
     fa: FaceKey,
@@ -6064,14 +6064,9 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
         }
     };
     let (t0, t1) = line.overlap;
-    match crate::validate::decide("pm_census_tangent_overlap", Margin::of(t1 - t0), band) {
-        Ok(Sign::Positive) => {}
-        Ok(Sign::Negative) => return Ok(RestTangent::Apart),
-        Ok(Sign::Zero) => {
-            return Err(ContactRefusal::NotCertifiable {
-                what: "the faces' extents along their tangent line meet at one point",
-            });
-        }
+    match tangent_extents_meet((t0, t1), band) {
+        Ok(true) => {}
+        Ok(false) => return Ok(RestTangent::Apart),
         Err(diag) => return Err(ContactRefusal::Escalated { diag }),
     }
     contact_verify::tangent_locus_relation(
@@ -6428,18 +6423,39 @@ fn witness_span<T: Decide>(
     ))
 }
 
+/// Whether two faces' extents along their tangent line meet along a
+/// length: the one gate the op's interiors read
+/// ([`locus_through_both_faces`]) and the census's face–face confirm
+/// ([`tangent_pair_at_rest`]) pass before reading the line. Extents
+/// meeting at one point meet at an end of each, on both faces'
+/// boundaries, where the interiors do not meet: `false`, as for extents
+/// apart.
+///
+/// # Errors
+///
+/// The overlap's length in band.
+pub(crate) fn tangent_extents_meet<T: Decide>(
+    overlap: (T, T),
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    Ok(crate::validate::decide(
+        "bool_tangent_line_overlap",
+        Margin::of(overlap.1 - overlap.0),
+        band,
+    )? == Sign::Positive)
+}
+
 /// Whether a verified tangent line runs through both faces' interiors
-/// over `overlap` (where both faces' extents along it meet, along a
-/// length): the op's read, [`line_through_both_faces`] under the
+/// over `overlap`: the op's read, [`line_through_both_faces`] under the
 /// op's refusals. A line along a face's boundary is the edge form of
 /// the touch, which the edge records carry.
 ///
 /// # Errors
 ///
-/// The overlap's length in band, or what [`line_through_both_faces`]
-/// leaves unread: a placement margin in band, the containment door's
-/// own refusal, or a curved trim the chart door gives no verdict for
-/// ([`BooleanError::CurvedBooleanUnsupported`]).
+/// The overlap's length in band ([`tangent_extents_meet`]), or what
+/// [`line_through_both_faces`] leaves unread: a placement margin in
+/// band, the containment door's own refusal, or a curved trim the chart
+/// door gives no verdict for ([`BooleanError::CurvedBooleanUnsupported`]).
 fn locus_through_both_faces<T: Decide>(
     faces: [(&Body<T>, FaceKey, Operand, geom::SurfaceKind); 2],
     locus: &geom::Curve3<T>,
@@ -6447,97 +6463,229 @@ fn locus_through_both_faces<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    match crate::validate::decide(
-        "bool_tangent_line_overlap",
-        Margin::of(overlap.1 - overlap.0),
-        band,
-    ) {
-        Ok(Sign::Positive) => {}
-        Ok(Sign::Negative | Sign::Zero) => return Ok(false),
-        Err(diag) => {
-            return Err(BooleanError::coincidence(
-                Coincide::TangentLocus,
-                read,
-                diag,
-            ));
-        }
+    let refused = |diag| BooleanError::coincidence(Coincide::TangentLocus, read, diag);
+    if !tangent_extents_meet(overlap, band).map_err(refused)? {
+        return Ok(false);
     }
     line_through_both_faces(
         faces.map(|(body, face, ..)| (body, face)),
         locus,
         overlap,
         band,
-        |i, unread| {
+        |i, why, held: &mut Vec<BooleanError>| {
             let (_, face, operand, kind) = faces[i];
-            match unread {
-                None => BooleanError::CurvedBooleanUnsupported {
+            held.push(match why {
+                FaceUnread::Trim => BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
                     kind,
                 },
-                Some(contain::PlacementError::OnPlane(diag)) => {
-                    BooleanError::coincidence(Coincide::TangentLocus, read, diag)
+                FaceUnread::Placement(contain::PlacementError::OnPlane(diag)) => refused(diag),
+                FaceUnread::Placement(contain::PlacementError::Door(e)) => {
+                    reduce::esc(e, operand, face)
                 }
-                Some(contain::PlacementError::Door(e)) => reduce::esc(e, operand, face),
-            }
+            });
         },
     )
+    .map_err(|held| {
+        held.into_iter()
+            .next()
+            .unwrap_or(BooleanError::ClassificationInvariant {
+                what: "a held tangent-line station with nothing pushed",
+            })
+    })
+}
+
+/// Why one face left a point of a tangent line unread
+/// ([`line_through_both_faces`]).
+pub(crate) enum FaceUnread {
+    /// A curved trim the chart door gives no verdict for.
+    Trim,
+    /// The placement's own refusal.
+    Placement(contain::PlacementError),
 }
 
 /// **Whether a tangent line runs through two faces' interiors**: some
-/// point of it, sampled on the certificate schedule over `overlap`,
-/// lies strictly inside both faces ([`contain::face_placement`], a
-/// point off a face's carrier out). The one reading the op's glue
-/// door ([`locus_through_both_faces`]) and the census's face–face
-/// confirm (`census::confirm_face_pair`) make of it.
+/// point of it over `overlap` lies strictly inside both faces
+/// ([`contain::face_placement`], a point off a face's carrier out). The
+/// one reading the op's glue door ([`locus_through_both_faces`]) and
+/// the census's face–face confirm (`census::confirm_face_pair`) make
+/// of it.
 ///
-/// Each station reads both faces: either face deciding the station
-/// out settles it whatever the other left unread, both in answers
-/// `true`. A station neither face decides out but one leaves unread
-/// is held, and only where no station answers is the first held one
-/// the refusal: a station in band of one face's boundary does not
-/// stop the line answering at the next.
+/// The overlap is cut wherever either face's boundary can meet the line
+/// ([`boundary_cuts`]), so no boundary crosses the open run between two
+/// cuts and one station, its middle, answers for each run: the reading
+/// is exact wherever both trims' carriers meet the line in closed form.
+/// Where one does not (a spiric or spline edge) or the locus is not a
+/// line, the certificate schedule's parameters are cuts too, and a run
+/// of that face's interior shorter than their spacing can be missed.
 ///
-/// `unread(i, why)` names face `i`'s refusal at a station: `None` for
-/// a curved trim the chart door gives no verdict for, else the
-/// placement's error.
+/// Each station is read by both faces under [`crate::census::in_both`]:
+/// either face deciding it out settles it, both in answers `true`. A
+/// station neither decides out but one leaves unread is held, and only
+/// where no station answers are the first held station's refusals
+/// returned, so a run in band of one face's boundary does not stop the
+/// line answering at the next.
+///
+/// `unread(i, why, held)` pushes face `i`'s refusal at a station.
 ///
 /// # Errors
 ///
-/// The first held station's refusal, where no station answers `true`.
+/// The first held station's refusals, where no station answers `true`.
 pub(crate) fn line_through_both_faces<T: Decide, E>(
     faces: [(&Body<T>, FaceKey); 2],
     locus: &geom::Curve3<T>,
     overlap: (T, T),
     band: Band,
-    unread: impl Fn(usize, Option<contain::PlacementError>) -> E,
-) -> Result<bool, E> {
+    unread: impl Fn(usize, FaceUnread, &mut Vec<E>),
+) -> Result<bool, Vec<E>> {
     use contain::CurvedPlacement;
-    let inside = |i: usize, p| {
+    let inside = |i: usize, p, held: &mut Vec<E>| {
         let (body, face) = faces[i];
-        match contain::face_placement(body, face, p, band, "bool_tangent_line_in_face") {
-            Ok(CurvedPlacement::Trim(Some(at))) => Ok(at == FaceContainment::In),
-            Ok(CurvedPlacement::OffCarrier) => Ok(false),
-            Ok(CurvedPlacement::Trim(None)) => Err(unread(i, None)),
-            Err(e) => Err(unread(i, Some(e))),
-        }
-    };
-    let mut held = None;
-    for s in 0..geom_brep::CERT_SAMPLES {
-        let p = locus.eval(geom_brep::sample_param(overlap.0, overlap.1, s));
-        let first = match inside(0, p) {
-            Ok(false) => continue,
-            read => read,
+        let why = match contain::face_placement(body, face, p, band, "bool_tangent_line_in_face") {
+            Ok(CurvedPlacement::Trim(Some(at))) => return Some(at == FaceContainment::In),
+            Ok(CurvedPlacement::OffCarrier) => return Some(false),
+            Ok(CurvedPlacement::Trim(None)) => FaceUnread::Trim,
+            Err(e) => FaceUnread::Placement(e),
         };
-        match (first, inside(1, p)) {
-            (_, Ok(false)) => {}
-            (Ok(_), Ok(true)) => return Ok(true),
-            (Err(e), _) | (Ok(_), Err(e)) => {
-                held.get_or_insert(e);
+        unread(i, why, held);
+        None
+    };
+    let mut cuts = vec![overlap.0, overlap.1];
+    let exact = match *locus {
+        geom::Curve3::Line { origin, dir } => faces.iter().all(|&(body, face)| {
+            boundary_cuts(body, face, origin, dir).is_some_and(|ts| {
+                cuts.extend(ts);
+                true
+            })
+        }),
+        _ => false,
+    };
+    if !exact {
+        cuts.extend(
+            (0..geom_brep::CERT_SAMPLES).map(|s| geom_brep::sample_param(overlap.0, overlap.1, s)),
+        );
+    }
+    let mut cuts: Vec<T> = cuts
+        .into_iter()
+        .filter(|t| !t.is_poison())
+        .map(|t| t.max(overlap.0).min(overlap.1))
+        .collect();
+    // A compare-exchange sort: `min`/`max` order any scalar.
+    for i in 0..cuts.len() {
+        for j in (i + 1)..cuts.len() {
+            let (lo, hi) = (cuts[i].min(cuts[j]), cuts[i].max(cuts[j]));
+            cuts[i] = lo;
+            cuts[j] = hi;
+        }
+    }
+    let mut held = None;
+    for run in cuts.windows(2) {
+        // A run no longer than the zero band is a cut counted twice.
+        if matches!(
+            crate::validate::decide("bool_tangent_line_run", Margin::of(run[1] - run[0]), band),
+            Ok(Sign::Zero | Sign::Negative)
+        ) {
+            continue;
+        }
+        let p = locus.eval((run[0] + run[1]) * T::from_f64(0.5));
+        let mut station = Vec::new();
+        match crate::census::in_both(|h| inside(0, p, h), |h| inside(1, p, h), &mut station) {
+            Some(true) => return Ok(true),
+            Some(false) => {}
+            None => {
+                held.get_or_insert(station);
             }
         }
     }
     held.map_or(Ok(false), Err)
+}
+
+/// Every parameter along `origin + t·dir` (`dir` unit) where `face`'s
+/// boundary can meet that line: its vertices' projections, and each
+/// edge's carrier against the line in closed form — two lines at their
+/// nearest approach, a circle or ellipse where the line meets its plane
+/// and where it meets the conic within that plane. A parameter that is
+/// no meeting only cuts a run in two, so the list may hold more than
+/// the meetings and never fewer. `None` where the boundary cannot be
+/// walked or an edge's carrier (a spiric, a spline, null scaffolding)
+/// has no closed form here.
+fn boundary_cuts<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    origin: Point3<T>,
+    dir: geom_core::Vec3<T>,
+) -> Option<Vec<T>> {
+    let along = |p: Point3<T>| (p - origin).dot(dir);
+    let roots = |a: T, b: T, c: T, out: &mut Vec<T>| {
+        let disc = b * b - T::from_f64(4.0) * a * c;
+        let r = disc.max(T::zero()).sqrt();
+        let two_a = a + a;
+        out.extend([(-b - r) / two_a, (-b + r) / two_a]);
+    };
+    let plane =
+        |center: Point3<T>, axis: geom_core::Vec3<T>| (center - origin).dot(axis) / dir.dot(axis);
+    let f = body.get_face(face)?;
+    let mut out = Vec::new();
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let first = match body.get_loop(lk)?.boundary {
+            crate::entity::LoopBoundary::Empty { vertex } => {
+                out.push(along(*body.get_point(body.get_vertex(vertex)?.point)?));
+                continue;
+            }
+            crate::entity::LoopBoundary::Cycle { first } => first,
+        };
+        for he in body.loop_cycle(first)? {
+            let he = body.get_half_edge(he)?;
+            out.push(along(*body.get_point(body.get_vertex(he.start)?.point)?));
+            let edge = body.get_edge(he.edge)?;
+            match *body.get_curve_geom(edge.curve)?.certified()?.carrier() {
+                geom::Curve3::Line { origin: p, dir: u } => {
+                    // The line's parameter nearest the edge's carrier.
+                    let w = origin - p;
+                    let b = dir.dot(u);
+                    let c = u.dot(u);
+                    out.push((b * u.dot(w) - c * dir.dot(w)) / (c - b * b));
+                }
+                geom::Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    ..
+                } => {
+                    out.push(plane(center, axis));
+                    let w = origin - center;
+                    roots(
+                        T::one(),
+                        w.dot(dir) + w.dot(dir),
+                        w.dot(w) - radius * radius,
+                        &mut out,
+                    );
+                }
+                geom::Curve3::Ellipse {
+                    center,
+                    axis,
+                    major,
+                    minor,
+                    u_ref,
+                } => {
+                    out.push(plane(center, axis));
+                    let v_ref = axis.cross(u_ref);
+                    let w = origin - center;
+                    let (wu, wv) = (w.dot(u_ref) / major, w.dot(v_ref) / minor);
+                    let (du, dv) = (dir.dot(u_ref) / major, dir.dot(v_ref) / minor);
+                    roots(
+                        du * du + dv * dv,
+                        (wu * du + wv * dv) * T::from_f64(2.0),
+                        wu * wu + wv * wv - T::one(),
+                        &mut out,
+                    );
+                }
+                _ => return None,
+            }
+        }
+    }
+    Some(out)
 }
 
 /// The face's boundary vertex positions (outer loop then rings, cycle

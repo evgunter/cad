@@ -31,3 +31,32 @@ depends on which reading is written first.
 Not measured on a fixture; read from the code. The fix is the rule
 `census::curved::in_both` states: read both, a decided `false` on
 either side drops the other's escalation.
+
+## More candidates (unverified)
+
+Found by the review of PR 5006. The pattern above has blind spots: it
+misses conjunctions whose operands start with `!`, disjunctions (`||`,
+where a decided `true` on either side settles it), and conjunctions
+that wrap across lines. A second look found these. None of them is
+checked yet for whether the order of the operands can change the answer:
+
+- `offset_axial::` the carrier-hold test in the edge re-read,
+  `!chart_moves(ca.distance, band)? && !chart_moves(cb.distance, band)?`
+  (`offset_axial.rs`).
+- `offset_axial::` the coaxial screens,
+  `!sine(parallel(..), ..)? || !on_axis(..)?` (`offset_axial.rs`, four
+  arms: cylinder, cone, sphere, torus).
+- `editor_core::names::emit_topo` `walk_cover`,
+  `!ahead(hi, start)? || !ahead(end, lo)?` and
+  `!ahead(lo, start)? && !ahead(end, hi)?`, plus `on_line(..)? &&
+  on_line(..)?` (twice) in the line-overlap reads. This file belongs to
+  editor-core, not the boolean; it is listed here only as part of the
+  same class.
+- `boolean::solid_contain` the wall-section seat test,
+  `zero(.., tilt)? || !zero(.., seat)?`, and the sphere iso-rim test,
+  `!zero(..)? || !zero(..)? || !zero(..)?`. Both span several lines
+  (`solid_contain.rs`).
+
+None of these searches can see a conjunction that is built up across
+statements, such as `let a = x?; if !a { return }; let b = y?;`. That
+shape only shows up by reading the code.

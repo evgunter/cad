@@ -6567,32 +6567,52 @@ fn confirm_face_pair<T: Decide>(
         &carrier,
         (t0, t1),
         band,
-        |i, unread| {
-            let mut held = Vec::new();
-            match unread {
-                None => held.push(ValidationError::CensusUnsupported {
-                    subject: CensusSubject::FacePair(a, b),
-                    cause: CensusUnsupportedCause::ContactLane(
-                        crate::contact::ContactRefusal::NotCertifiable {
-                            what: "a face of a two-carrier face-face record whose trim the \
-                                   containment door does not read",
-                        },
-                    ),
-                }),
-                Some(crate::boolean::PlacementError::OnPlane(cause)) => {
-                    held.push(ValidationError::CensusEscalated { cause });
-                }
-                Some(crate::boolean::PlacementError::Door(e)) => {
-                    read_containment([a, b][i], Err::<(), _>(e), &mut held);
-                }
+        |i, why, held| match why {
+            crate::boolean::FaceUnread::Trim => held.push(ValidationError::CensusUnsupported {
+                subject: CensusSubject::FacePair(a, b),
+                cause: CensusUnsupportedCause::ContactLane(
+                    crate::contact::ContactRefusal::NotCertifiable {
+                        what: "a face of a two-carrier face-face record whose trim the \
+                               containment door does not read",
+                    },
+                ),
+            }),
+            crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::OnPlane(
+                cause,
+            )) => held.push(ValidationError::CensusEscalated { cause }),
+            crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::Door(e)) => {
+                read_containment([a, b][i], Err::<(), _>(e), held);
             }
-            held
         },
     );
     match through {
         Ok(true) => {}
         Ok(false) => errors.push(stale),
         Err(held) => errors.extend(held),
+    }
+}
+
+/// Whether a point is in two cells, each reading pushing what stopped
+/// it: `Some(false)` where either reads it out, whatever the other
+/// pushed (a decided answer drops the other's escalations); `Some(true)`
+/// where both read it in; `None` otherwise, with what both pushed.
+pub(crate) fn in_both<E>(
+    a: impl FnOnce(&mut Vec<E>) -> Option<bool>,
+    b: impl FnOnce(&mut Vec<E>) -> Option<bool>,
+    errors: &mut Vec<E>,
+) -> Option<bool> {
+    let mut held = Vec::new();
+    let on_a = a(&mut held);
+    if on_a == Some(false) {
+        return Some(false);
+    }
+    match (on_a, b(&mut held)) {
+        (_, Some(false)) => Some(false),
+        (Some(true), Some(true)) => Some(true),
+        _ => {
+            errors.extend(held);
+            None
+        }
     }
 }
 
@@ -12870,6 +12890,316 @@ mod two_carrier_records {
             names(&recorded, a, b),
             "recorded, the record is refused: {recorded:?}"
         );
+    }
+
+    /// A face–face record whose sheet and brick face abut along their
+    /// tangent ruling at the one height z = 1: the extents meet at an
+    /// end of each, where the interiors do not meet, and the record is
+    /// stale, not refused.
+    #[test]
+    fn a_two_carrier_record_whose_extents_meet_at_one_point_is_stale() {
+        let (errors, wall, side) = tangent_plane((-0.5, 0.5), (0.0, 1.0), (1.0, 2.0));
+        let stale = ValidationError::StaleContactDeclaration {
+            declaration: StaleDeclaration::Patch {
+                face_a: wall.min(side),
+                face_b: wall.max(side),
+            },
+        };
+        let flipped = ValidationError::StaleContactDeclaration {
+            declaration: StaleDeclaration::Patch {
+                face_a: wall.max(side),
+                face_b: wall.min(side),
+            },
+        };
+        assert!(
+            (errors.contains(&stale) || errors.contains(&flipped))
+                && !errors.iter().any(|e| matches!(
+                    e,
+                    ValidationError::CensusUnsupported {
+                        subject: CensusSubject::FacePair(..),
+                        ..
+                    }
+                )),
+            "{errors:?}"
+        );
+    }
+
+    /// **How the tangent line is read through a plate's top face**
+    /// (`boolean::line_through_both_faces`): a prism plate with top face
+    /// z = 1 and outline `outline`, a cylinder sheet (axis x through
+    /// (0, 0, 2), radius 1) resting on it along y = 0 over x in `wx`,
+    /// angles `u` from the ruling; the census of the face–face record in
+    /// either cell order, at three bands.
+    mod line_through_faces {
+        use super::*;
+
+        struct Rig {
+            body: Body<f64>,
+            wall: FaceKey,
+            top: FaceKey,
+        }
+
+        fn rig(outline: &[(f64, f64)], wx: (f64, f64), u: (f64, f64)) -> Rig {
+            let tol = Tol::witness();
+            let mut body = crate::test_support_fixtures::prism::<f64>(outline, 1.0, tol).body;
+            let top = body
+                .faces()
+                .find(|(_, f)| match body.get_surface(f.surface) {
+                    Some(geom::Surface::Plane { origin, normal, .. }) => {
+                        normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
+                    }
+                    _ => false,
+                })
+                .map(|(k, _)| k)
+                .unwrap();
+            let frame = CylFrame {
+                origin: geom_core::Point3::new(0.0, 0.0, 2.0),
+                axis: geom_core::Vec3::unit_x(),
+                radius: 1.0,
+                u_ref: -geom_core::Vec3::unit_z(),
+            };
+            let wall = cyl_wall_sheet(&mut body, frame, u, wx, tol);
+            body.get_face_mut(wall).unwrap().sense = true;
+            Rig { body, wall, top }
+        }
+
+        fn bands() -> [Band; 3] {
+            [
+                Band::new(1e-10, 1e-9).unwrap(),
+                Band::linear(Tol::witness()).unwrap(),
+                Band::new(1e-6, 1e-5).unwrap(),
+            ]
+        }
+
+        /// The census of the record at each band, both cell orders:
+        /// `(band's escalation width, swapped, errors)`.
+        fn census(r: &Rig) -> Vec<(f64, bool, Vec<ValidationError>)> {
+            let mut out = Vec::new();
+            for b in bands() {
+                for swap in [false, true] {
+                    let (x, y) = if swap {
+                        (r.top, r.wall)
+                    } else {
+                        (r.wall, r.top)
+                    };
+                    let rec = one(&r.body, Cell::Face(x), Cell::Face(y));
+                    out.push((
+                        b.escalate(),
+                        swap,
+                        census_and_certify(&r.body, &rec, b, Tol::witness(), None),
+                    ));
+                }
+            }
+            out
+        }
+
+        fn stale(errors: &[ValidationError]) -> bool {
+            errors.iter().any(|e| {
+                matches!(
+                    e,
+                    ValidationError::StaleContactDeclaration {
+                        declaration: StaleDeclaration::Patch { .. }
+                    }
+                )
+            })
+        }
+
+        /// Every row confirms the record (nothing names the pair).
+        fn confirmed(outline: &[(f64, f64)], wx: (f64, f64)) {
+            let r = rig(outline, wx, (-0.5, 0.5));
+            for (b, swap, errors) in census(&r) {
+                assert!(
+                    !names(&errors, r.wall, r.top),
+                    "band {b:e} swap {swap}: {errors:?}"
+                );
+            }
+        }
+
+        /// Every row reads the record stale.
+        fn read_stale(outline: &[(f64, f64)], wx: (f64, f64), u: (f64, f64)) {
+            let r = rig(outline, wx, u);
+            for (b, swap, errors) in census(&r) {
+                assert!(stale(&errors), "band {b:e} swap {swap}: {errors:?}");
+            }
+        }
+
+        /// A plate whose top face crosses y = 0 only over a tab
+        /// x in (lo, hi); the rest of the outline is y < −0.5.
+        fn tab(lo: f64, hi: f64) -> Vec<(f64, f64)> {
+            vec![
+                (0.0, -1.0),
+                (4.0, -1.0),
+                (4.0, -0.5),
+                (hi, -0.5),
+                (hi, 1.0),
+                (lo, 1.0),
+                (lo, -0.5),
+                (0.0, -0.5),
+            ]
+        }
+
+        const PLAIN: [(f64, f64); 4] = [(0.0, -1.0), (4.0, -1.0), (4.0, 1.0), (0.0, 1.0)];
+
+        /// The interiors meet along x in (1.1, 1.4) only, a run between
+        /// two of the certificate schedule's stations over the overlap
+        /// [0, 4]: the record is confirmed. Red when the line is read
+        /// at the schedule's stations rather than once per run between
+        /// the faces' boundary crossings.
+        #[test]
+        fn a_tab_between_schedule_stations_is_confirmed() {
+            confirmed(&tab(1.1, 1.4), (-1.0, 5.0));
+        }
+
+        /// A tab holding the schedule's station x = 1: confirmed.
+        #[test]
+        fn a_tab_on_a_schedule_station_is_confirmed() {
+            confirmed(&tab(0.9, 1.1), (-1.0, 5.0));
+        }
+
+        /// The notched witness in every row: confirmed.
+        #[test]
+        fn the_notch_is_confirmed_in_every_row() {
+            confirmed(
+                &[
+                    (0.0, -1.0),
+                    (4.0, -1.0),
+                    (4.0, 1.0),
+                    (2.5, 1.0),
+                    (2.5, -0.5),
+                    (1.5, -0.5),
+                    (1.5, 1.0),
+                    (0.0, 1.0),
+                ],
+                (0.5, 3.5),
+            );
+        }
+
+        /// An overlap 1e-4 long (the sheet over x in (3.9999, 5) on a
+        /// plain plate [0, 4]), the line inside the plate along it:
+        /// confirmed.
+        #[test]
+        fn a_short_overlap_is_confirmed() {
+            confirmed(&PLAIN, (3.9999, 5.0));
+        }
+
+        /// The sheet over a plain plate, the line inside both along the
+        /// whole overlap: confirmed.
+        #[test]
+        fn a_plain_plate_is_confirmed() {
+            confirmed(&PLAIN, (0.5, 3.5));
+        }
+
+        /// The line runs along the plate's edge y = 0: no run of it is
+        /// inside the face, and the record is stale.
+        #[test]
+        fn the_line_along_the_plates_edge_is_stale() {
+            read_stale(
+                &[(0.0, 0.0), (4.0, 0.0), (4.0, 1.0), (0.0, 1.0)],
+                (0.5, 3.5),
+                (-0.5, 0.5),
+            );
+        }
+
+        /// The line grazes the outline's only point on y ≥ 0, the apex
+        /// (2, 0) of a notch: the interiors meet nowhere, and the record
+        /// is stale.
+        #[test]
+        fn the_line_grazing_a_vertex_is_stale() {
+            read_stale(
+                &[
+                    (0.0, -1.0),
+                    (4.0, -1.0),
+                    (4.0, -0.5),
+                    (2.0, 0.0),
+                    (0.0, -0.5),
+                ],
+                (-1.0, 5.0),
+                (-0.5, 0.5),
+            );
+        }
+
+        /// The plate's edge 3ε past the line (y ≤ 3ε at the witness
+        /// band), so the plate reads every station in band, and the
+        /// sheet over angles (0.05, 0.5), off the ruling, so the sheet
+        /// decides every station out: the record is stale in both cell
+        /// orders. Red when a station returns the first face's
+        /// escalation without reading the second.
+        #[test]
+        fn a_station_the_second_face_decides_out_reads_stale_in_both_orders() {
+            let y = 3.0 * Tol::witness().eps();
+            let r = rig(
+                &[(0.0, -1.0), (4.0, -1.0), (4.0, y), (0.0, y)],
+                (0.5, 3.5),
+                (0.05, 0.5),
+            );
+            let b = Band::linear(Tol::witness()).unwrap();
+            for swap in [false, true] {
+                let (x, z) = if swap {
+                    (r.top, r.wall)
+                } else {
+                    (r.wall, r.top)
+                };
+                let errors = census_and_certify(
+                    &r.body,
+                    &one(&r.body, Cell::Face(x), Cell::Face(z)),
+                    b,
+                    Tol::witness(),
+                    None,
+                );
+                assert!(stale(&errors), "swap {swap}: {errors:?}");
+            }
+        }
+
+        /// Two spikes whose apexes stand 20ε above the line, near its
+        /// ends (x = 0.6 and x = 3.4), and a wide tab (2, 2.4): each
+        /// spike holds the line over runs a few ε long whose middles
+        /// the plate reads in band, held, and the wide tab's run
+        /// answers, whichever way the line runs. Red when the first
+        /// held station's refusal is returned before a later station is
+        /// read.
+        #[test]
+        fn a_held_station_does_not_stop_a_later_one_answering() {
+            let h = 20.0 * Tol::witness().eps();
+            let outline = [
+                (0.0, -1.0),
+                (4.0, -1.0),
+                (4.0, -0.5),
+                (3.5, -0.5),
+                (3.4, h),
+                (3.3, -0.5),
+                (2.4, -0.5),
+                (2.4, 1.0),
+                (2.0, 1.0),
+                (2.0, -0.5),
+                (0.7, -0.5),
+                (0.6, h),
+                (0.5, -0.5),
+                (0.0, -0.5),
+            ];
+            let r = rig(&outline, (-1.0, 5.0), (-0.5, 0.5));
+            let b = Band::linear(Tol::witness()).unwrap();
+            let Ok(crate::boolean::RestTangent::Line { carrier, overlap }) =
+                crate::boolean::tangent_pair_at_rest(&r.body, r.wall, r.top, b)
+            else {
+                panic!("the sheet and the plate derive their tangent line");
+            };
+            let held = core::cell::Cell::new(0);
+            let read = crate::boolean::line_through_both_faces(
+                [(&r.body, r.top), (&r.body, r.wall)],
+                &carrier,
+                overlap,
+                b,
+                |_, _, out: &mut Vec<()>| {
+                    held.set(held.get() + 1);
+                    out.push(());
+                },
+            );
+            assert!(
+                matches!(read, Ok(true)) && held.get() >= 1,
+                "{read:?}, {} refusals held",
+                held.get()
+            );
+        }
     }
 }
 
