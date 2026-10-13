@@ -2,11 +2,12 @@
 id: derived-frame-placement-freezes-on-the-symbolic-lane
 kind: issue
 title: A profile placed on a derived frame whose AXES carry a widened parameter does not certify on the symbolic lane: the re-normalised stored unit vectors freeze on degree and the identity is not reached (on a purely TRANSLATED derived frame the chain is constant and rule A0 folds it)
-status: open
+status: closed
 opened: 2026-09-04
 parent: SYM-5
 priority: P0
 cost: H
+closed: 2026-10-13
 ---
 
 
@@ -505,3 +506,40 @@ a sign that is the box's and not the form's — both are the atom
 algebra's next shapes if anyone wants them, and neither is a predicate
 this row's mechanism names.
 
+## Re-taken on `main` and closed (2026-10-13)
+
+SYM re-ran every row of `m10_derived_frame_tilted_interval` on `main`
+at `621e036e19` (release, ε default, `--include-ignored`: 18 rows, all
+pass). This item's claim is answered:
+- **The document it was filed on certifies.** The tilt about `v`
+  certifies under `Guided` (half-width ceiling 1.55e-3) and under
+  `Pinned` (5e-2).
+- **So does the tilt-`u` family.** Both caps, `FlipZ` and `tiltNZ`
+  certify at `1e-3` under both lifts.
+- **The degree freeze is no longer what refuses.** Rules E and F
+  removed it. The budget sweep confirms this: at the default budget
+  (frozen 1380) and at 4096/65536 (frozen 63), both certify with the
+  same symbolic/numeric split, 972/514.
+
+The reach table (`sym5_the_reach_on_documents_the_unit_did_not_build`,
+half `1e-3`, `Guided`), rule E off → on:
+
+| document | off | on |
+| --- | --- | --- |
+| tilt about `u`, derived | 1 refusal | certifies |
+| non-unit authored axes, authored twins | certify | certify |
+| two derived frames stacked | 4 | **1** |
+| in-plane spin, derived | 1 | **1**, a wall-join refusal; it certified on 2026-09-14 |
+| half spin, derived | 1 | **1**, a wall-join refusal; it certified on 2026-09-14 |
+| `FaceFrame` on a revolved cap | 4 | **1**, the boss's `carrier_endpoint_start`; the revolve no longer refuses |
+
+Separately, tilt-UV still refuses at every width
+(`sym8_the_reviews_documents_the_unit_did_not_measure`).
+
+What stands is filed as two successors, so this umbrella does not stay
+open as a P0 over shapes it never named:
+- `derived-frame-spin-documents-stopped-certifying-under-guided` (P1):
+  the two spin documents moved from certifying to refusing,
+  unattributed, and nothing went red because the row is evidence-only.
+- `derived-frame-guided-boss-residue-after-rules-e-and-f` (P2): tilt-UV,
+  the stacked pair, and the revolved cap's boss.
