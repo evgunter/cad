@@ -8,6 +8,7 @@ priority: P3
 cost: E
 refs: [null-edge-copy-rows-are-checked-for-a-cycle-by-their-reader]
 closed: 2026-10-13
+pr: 5022
 ---
 
 Found by the sweep of `fuse/join-refusals-hold-at-their-type`, which
