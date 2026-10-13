@@ -960,3 +960,34 @@ fn a_measure_observes_a_world_copy_and_a_construction_does_not() {
         Ok(_) => panic!("a construction read a world copy"),
     }
 }
+
+/// R2 review probe (PR 4823): every document's product row, and for
+/// each product its vertex coordinates (sorted), vertex, point-key,
+/// edge and face counts, for a base/head diff.
+#[test]
+#[ignore = "R2 probe"]
+fn r2_print_product_geometry() {
+    for (name, doc) in documents() {
+        let ev = corpus::eval::<f64>(&doc);
+        match product(&doc, &ev, Tol::witness()) {
+            Ok(body) => {
+                let mut pts: Vec<String> = body
+                    .vertex_points()
+                    .map(|(_, p)| format!("{:?},{:?},{:?}", p.x, p.y, p.z))
+                    .collect();
+                pts.sort();
+                let keys: BTreeSet<_> = body.vertices().map(|(_, v)| v.point).collect();
+                println!(
+                    "R2 {name}: verts={} keys={} edges={} faces={} solids={}",
+                    body.vertices().count(),
+                    keys.len(),
+                    body.edges().count(),
+                    body.faces().count(),
+                    body.solids().count()
+                );
+                println!("R2 {name} pts: {}", pts.join(" "));
+            }
+            Err(e) => println!("R2 {name}: refused {:?}", e.kind()),
+        }
+    }
+}

@@ -2948,3 +2948,220 @@ fn a_cube_less_a_pinched_operand_whose_splits_cross_the_seams_faces_builds() {
         assert_eq!(finding, Some(None), "{pose}: one vertex per cone, meshing");
     }
 }
+
+/// R2 review probe (PR 4823): `touch` (two cubes whose corners touch
+/// only at `v`) and `dbl3` (three such cubes united by plain booleans,
+/// then a cube whose face holds `v`), every op in both orders, with the
+/// number of vertices and point keys at `v`. Written from the FLUSH row's
+/// description of PR 4207's review probe, not ported from it.
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn r2_touch_dbl3_battery() {
+    let v = notch343().v;
+    let at_v = |b: &Body<f64>| {
+        let ks: Vec<_> = b
+            .vertex_points()
+            .filter(|(_, p)| {
+                let d = [p.x - v[0], p.y - v[1], p.z - v[2]];
+                (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt() < 1e-9
+            })
+            .map(|(k, _)| b.get_vertex(k).unwrap().point)
+            .collect();
+        let distinct: std::collections::BTreeSet<_> = ks.iter().copied().collect();
+        format!("v{}k{}", ks.len(), distinct.len())
+    };
+    for i in 0..12 {
+        for j in 0..7 {
+            let n = unit(direction(i, j));
+            for k in 0..2 {
+                let psi = 0.3 + 0.9 * f64::from(k);
+                // touch
+                let f1 = corner_diagonal_frame(n, psi);
+                let f2 = corner_diagonal_frame(n.map(|c| -c), psi + 0.4);
+                let a = finished("a", cube_sized(v, f1, [0.0; 3], 2.0));
+                let b = finished("b", cube_sized(v, f2, [0.0; 3], 2.0));
+                let pa = vec![cube_planes_sized(v, f1, [0.0; 3], 2.0)];
+                let pb = vec![cube_planes_sized(v, f2, [0.0; 3], 2.0)];
+                let common = common_volume(&pa, &pb);
+                for (tag, r, want) in every_op(["ab", "ba"], (&a, 8.0), (&b, 8.0), common) {
+                    let at = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| at_v(&bb.body));
+                    println!("touch i={i} j={j} k={k} {tag}: {} {at:?}", outcome(r, want, tol()));
+                }
+                // dbl3
+                let [p, q, _] = frame(n, psi);
+                for (t, tilt) in [0.0, 0.25, -0.25].into_iter().enumerate() {
+                    let fs: Vec<Frame> = (0..3)
+                        .map(|c| {
+                            let th = std::f64::consts::TAU * f64::from(c) / 3.0;
+                            let d = [0, 1, 2].map(|x| th.cos() * p[x] + th.sin() * q[x] + tilt * n[x]);
+                            corner_diagonal_frame(d, 0.2 + f64::from(c))
+                        })
+                        .collect();
+                    let pose = format!("dbl3 i={i} j={j} k={k} t={t}");
+                    if (0..3).any(|x| (x + 1..3).any(|y| octants_overlap(fs[x], fs[y]))) {
+                        println!("{pose}: SKIP overlap");
+                        continue;
+                    }
+                    let Some(pinch) = unite_all(fs.iter().map(|&f| cube_sized(v, f, [0.0; 3], 2.0)).collect()) else {
+                        println!("{pose}: SKIP the cubes do not unite");
+                        continue;
+                    };
+                    println!("{pose} pinch: {}", at_v(&pinch));
+                    let pp: Pieces = fs.iter().map(|&f| cube_planes_sized(v, f, [0.0; 3], 2.0)).collect();
+                    let g = frame(n, 0.7 * f64::from(k) + 0.1);
+                    let cube = finished("c", cube_sized(v, g, [-1.5, -1.5, 0.0], 3.0));
+                    let pc = vec![cube_planes_sized(v, g, [-1.5, -1.5, 0.0], 3.0)];
+                    let common = common_volume(&pp, &pc);
+                    for (tag, r, want) in every_op(["pc", "cp"], (&pinch, 24.0), (&cube, 27.0), common) {
+                        let at = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| at_v(&bb.body));
+                        println!("{pose} {tag}: {} {at:?}", outcome(r, want, tol()));
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// R2 review probe (PR 4823): `dbl3` with the pinch's cubes tilted
+/// toward `n` and the cube on either side of the face through `v`.
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn r2_dbl3_face_battery() {
+    let v = notch343().v;
+    let at_v = |b: &Body<f64>| {
+        let ks: Vec<_> = b
+            .vertex_points()
+            .filter(|(_, p)| {
+                let d = [p.x - v[0], p.y - v[1], p.z - v[2]];
+                (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt() < 1e-9
+            })
+            .map(|(k, _)| b.get_vertex(k).unwrap().point)
+            .collect();
+        let distinct: std::collections::BTreeSet<_> = ks.iter().copied().collect();
+        format!("v{}k{}", ks.len(), distinct.len())
+    };
+    for i in 0..12 {
+        for j in 0..7 {
+            let n = unit(direction(i, j));
+            for k in 0..2 {
+                let psi = 0.3 + 0.9 * f64::from(k);
+                let [p, q, _] = frame(n, psi);
+                for (t, tilt) in [0.6, 1.0, 1.6].into_iter().enumerate() {
+                    let fs: Vec<Frame> = (0..3)
+                        .map(|c| {
+                            let th = std::f64::consts::TAU * f64::from(c) / 3.0;
+                            let d = [0, 1, 2].map(|x| th.cos() * p[x] + th.sin() * q[x] + tilt * n[x]);
+                            corner_diagonal_frame(d, 0.2 + f64::from(c))
+                        })
+                        .collect();
+                    let pose = format!("dbl3f i={i} j={j} k={k} t={t}");
+                    if (0..3).any(|x| (x + 1..3).any(|y| octants_overlap(fs[x], fs[y]))) {
+                        println!("{pose}: SKIP overlap");
+                        continue;
+                    }
+                    let Some(pinch) = unite_all(fs.iter().map(|&f| cube_sized(v, f, [0.0; 3], 2.0)).collect()) else {
+                        println!("{pose}: SKIP the cubes do not unite");
+                        continue;
+                    };
+                    println!("{pose} pinch: {}", at_v(&pinch));
+                    let pp: Pieces = fs.iter().map(|&f| cube_planes_sized(v, f, [0.0; 3], 2.0)).collect();
+                    let g = frame(n, 0.7 * f64::from(k) + 0.1);
+                    for (side, lo) in [("below", [-1.5, -1.5, -3.0]), ("above", [-1.5, -1.5, 0.0])] {
+                        let cube = finished("c", cube_sized(v, g, lo, 3.0));
+                        let pc = vec![cube_planes_sized(v, g, lo, 3.0)];
+                        let common = common_volume(&pp, &pc);
+                        for (tag, r, want) in every_op(["pc", "cp"], (&pinch, 24.0), (&cube, 27.0), common) {
+                            let at = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| at_v(&bb.body));
+                            println!("{pose} {side} {tag}: {} {at:?}", outcome(r, want, tol()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// R2 review probe (PR 4823): the tier-3′ errors of every `four_pairs`
+/// union that builds but fails tier 3′, by kind.
+#[test]
+#[ignore = "differential battery; run with --ignored --nocapture"]
+fn r2_four_pairs_t3p_kinds() {
+    let v = notch343().v;
+    for i in 0..12 {
+        for j in 0..7 {
+            let n = unit(direction(i, j));
+            let [p, q, _] = frame(n, 0.0);
+            for (t, tilt) in [-0.36, -0.2, -0.5].into_iter().enumerate() {
+                for k in 0..4 {
+                    let spin = f64::from(k) * 0.7 + 0.1;
+                    let mut fs: Vec<Frame> = (0..3)
+                        .map(|c| {
+                            let a = std::f64::consts::TAU * f64::from(c) / 3.0 + 0.3 * f64::from(k);
+                            let d = [0, 1, 2].map(|x| a.cos() * p[x] + a.sin() * q[x] + tilt * n[x]);
+                            corner_diagonal_frame(d, spin + 1.3 * f64::from(c))
+                        })
+                        .collect();
+                    fs.push(corner_diagonal_frame(n, spin + 0.5));
+                    let pose = format!("four i={i} j={j} t={t} k={k}");
+                    if (0..4).any(|x| (x + 1..4).any(|y| octants_overlap(fs[x], fs[y]))) {
+                        continue;
+                    }
+                    let Some(pinch) = unite_all(fs.iter().map(|&f| cube_sized(v, f, [0.0; 3], SIDE)).collect()) else {
+                        continue;
+                    };
+                    let pinch_pieces: Pieces = fs.iter().map(|&f| cube_planes_sized(v, f, [0.0; 3], SIDE)).collect();
+                    let (runs, _) = notch_against(&pinch, &pinch_pieces);
+                    for (tag, r, _) in runs {
+                        let Some(bb) = r.as_ref().ok().and_then(BooleanResult::body) else { continue };
+                        if let Err(errs) = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()) {
+                            let kinds: Vec<String> = errs
+                                .iter()
+                                .map(|e| match e {
+                                    topo::ValidationError::CensusUndecidable { what, .. } => format!("Undecidable[{}]", what.split(' ').take(5).collect::<Vec<_>>().join(" ")),
+                                    other => format!("{:?}", other).split([' ', '{', '(']).next().unwrap().to_string(),
+                                })
+                                .collect();
+                            println!("T3P {pose} {tag}: {kinds:?}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// R2 review probe (PR 4823): fillet and chamfer every edge of a
+/// corner kiss, one at a time and the three at the kissing corner of
+/// each cube together.
+#[test]
+#[ignore = "R2 probe"]
+fn r2_blend_a_kiss() {
+    let a = finished("a", fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()));
+    let b = finished("b", fixtures::brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), tol()));
+    let Ok(BooleanResult::Body(kiss)) = topo::union(&a, &b, tol()) else { panic!() };
+    let near = |e: topo::EdgeKey| {
+        let d = kiss.body.get_edge(e).unwrap();
+        let h = kiss.body.get_half_edge(d.he_plus).unwrap();
+        let t = kiss.body.get_half_edge(d.he_minus).unwrap();
+        [h.start, t.start].into_iter().any(|v| {
+            let p = kiss.body.vertex_points().find(|(k, _)| *k == v).unwrap().1;
+            [p.x, p.y, p.z] == [1.0, 1.0, 1.0]
+        })
+    };
+    let edges: Vec<topo::EdgeKey> = kiss.body.edges().map(|(e, _)| e).filter(|&e| near(e)).collect();
+    let mut sets: Vec<Vec<topo::EdgeKey>> = edges.iter().map(|&e| vec![e]).collect();
+    sets.push(edges[..3].to_vec());
+    sets.push(edges[3..].to_vec());
+    sets.push(edges.clone());
+    for (n, set) in sets.iter().enumerate() {
+        let f = sweep::blend::build::fillet_edges(&kiss.body, set, 0.1, tol());
+        let c = sweep::chamfer::chamfer_edges(&kiss.body, set, 0.1, tol());
+        let show = |ok: bool, e: String| if ok { "OK".to_string() } else { e.chars().take(140).collect() };
+        println!(
+            "R2B set#{n} len={}: fillet {} | chamfer {}",
+            set.len(),
+            show(f.is_ok(), format!("{:?}", f.as_ref().err())),
+            show(c.is_ok(), format!("{:?}", c.as_ref().err()))
+        );
+    }
+}
