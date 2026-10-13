@@ -824,3 +824,21 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Why this one:** an ellipse or spiric edge can hold a record through the public API (a tilted cylinder section).
   - **The two spline P1s** stay behind the operand gate.
   - **Brief:** reproduce first; one reading over `Curve3` rather than per-kind copies of the circle's; no candidate missed silently.
+- 2026-10-13 — PR 4946 (the census reads a record on a curved edge of every carrier kind) merges at 49ff025b, from head c292934a8.
+  - **CI:** green except FLUSH's tolerated 1e-12 ring row.
+  - **Closes:** `census-curved-record-lanes-read-circles-only` (P1).
+  - **Review:** three rounds, Opus + Fable.
+    - Round 0: `interior_at` decided "at the end" on the lo speed; an ellipse `param_near` is not a foot; line/circle tangency regressed onto the budget; an undisclosed copy of carrier_touch's bisection.
+    - Round 1: on one shared `topo::bisect` core, with a second-order clear and a tangency floor. Opus then found the end check ignored the side, so a point 15ε outside an arc's start read interior.
+    - Round 2: the side is decided first, and a poison floor or sup refuses typed. Opus probed both ends, both sides and five carriers (ellipse aspect 20/50, spirics, a loose rational spline): 0 wrong reads.
+  - **Rows filed by the lane:**
+    - restread: `the-census-edge-face-cut-crosses-chords-and-conics-only`
+    - cleave: `the-touch-and-cross-doors-read-no-speed-for-a-spiric-or-spline-carrier`
+    - fuse:
+      - `near-concentric-arcs-…-past-its-budget`
+      - `a-tangency-of-a-spline-edge-…`
+      - `two-curve-curve-meeting-finders`
+      - `the-census-spline-speed-floor-refuses-whole-arcs`
+      - `the-localization-core-is-half-unified`
+      - `a-tangency-at-an-edges-end-confirms-two-records` (design)
+  - **Filed by the orchestrator:** `the-census-curved-span-decision-escalates-near-a-fast-end` (P3).
