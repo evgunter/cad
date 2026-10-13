@@ -1397,6 +1397,40 @@ mod tests {
         assert!(near.is_ok(), "open by 2ε at the junction: {near:?}");
     }
 
+    /// **Red on 55b187ac.** Reviewer probe (PR 4938): a whole oval on a fat torus (R = 1,
+    /// r = 0.5) started at the inner equator and closed by a meridian
+    /// back; the closing junction opened by 2 m-epsilon IN AZIMUTH at the
+    /// inner equator (rho = R - r). A 2-epsilon gap is inside the stated
+    /// vertex slack, so it should measure.
+    #[test]
+    fn review4938_azimuth_gap_at_the_inner_equator() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let tau = 2.0 * PI;
+        let (big, r, d) = (1.0, 0.5, 0.05);
+        let (e, _) = framed((big, r, d), [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0; 3], [0.0; 3], (PI, PI + tau), true);
+        let arc = SpiricEdgeQ { wall: Some(WallImageQ { sense: 1.0, v0: Interval::zero(), env: Interval::zero() }), ..e };
+        let ends = spiric_wall_ends(&arc, Interval::zero()).unwrap();
+        for (k, gap_eps) in [0.0, 1.0, 2.0, 2.5].into_iter().enumerate() {
+            let shift = pt(gap_eps * tol.eps() / (big - r));
+            let back = ChartEndsQ { start: (ends.end.0 + shift, ends.end.1), end: (ends.end.0 + shift, ends.start.1), env: Interval::zero() };
+            let face = SpiricFaceQ {
+                closed_va: [Interval::zero(); 3],
+                spirics: vec![arc],
+                lever: [Interval::zero(); 3],
+                perimeter: 20.0,
+                wall: Some(WallChartQ {
+                    major: pt(big), minor: pt(r), rims: vec![],
+                    meridians: vec![MeridianQ { dv: ends.start.1 - ends.end.1, env: Interval::zero() }],
+                    ends: vec![ends, back],
+                }),
+            };
+            let got = wall_windings::<f64>(face.wall.as_ref().unwrap(), band);
+            let got_iv = wall_windings::<Interval>(face.wall.as_ref().unwrap(), band);
+            assert!(got.is_ok() && got_iv.is_ok(), "k={k} gap={gap_eps}eps f64={got:?} iv={got_iv:?}");
+        }
+    }
+
     /// **Non-thin endpoint brackets**: the enclosure holds the integral
     /// for every endpoint pair inside the brackets, and each thin
     /// reading — the pad is the only thing covering the bracket.
