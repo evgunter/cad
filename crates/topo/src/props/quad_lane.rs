@@ -542,6 +542,8 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
             // traversal end when reversed (`he_plus` start either way).
             let p_start = start_point(body, *he, le.forward)?;
             let trig0 = trig_at_start(&le.carrier, p_start, eps)?;
+            let p_end = start_point(body, *he, !le.forward)?;
+            let trig1 = Some(trig_at_start(&le.carrier, p_end, eps)?);
             edges.push(TrimEdgeQ {
                 u: chan(p0.x, pa.x, pb.x, pl.x)?,
                 v: chan(p0.y, pa.y, pb.y, pl.y)?,
@@ -549,6 +551,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
                 t1: Interval::from_certified(t1),
                 forward: le.forward,
                 trig0,
+                trig1,
                 env: Interval::from_certified(cache.certificate().envelope),
             });
         }

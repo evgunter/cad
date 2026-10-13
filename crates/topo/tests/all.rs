@@ -376,6 +376,8 @@ mod replace_face_band_probes;
 mod a_corner_flat_at_its_short_bounds;
 #[path = "a_meridian_witness_contradicts_only_off_its_locus.rs"]
 mod a_meridian_witness_contradicts_only_off_its_locus;
+#[path = "a_seamless_pipe_cut_by_an_oblique_plane_measures.rs"]
+mod a_seamless_pipe_cut_by_an_oblique_plane_measures;
 #[path = "a_vertex_read_again_classes_every_edge.rs"]
 mod a_vertex_read_again_classes_every_edge;
 #[path = "a_vertex_read_by_two_sector_passes.rs"]
