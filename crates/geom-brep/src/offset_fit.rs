@@ -154,8 +154,8 @@
 //! the cell and the componentwise assembly collapses, while the
 //! projection reads `‖E‖ ≈ |d|`. On the quarter cylinder at
 //! `d = 1e-6` the sup cell's two readings are `1.58e-8` and
-//! `5.64e-7`, and the cell's bound is `1.70e-5` rather than
-//! `3.22e-4`.
+//! `5.64e-7`, and the cell's bound is `1.51e-5` rather than
+//! `2.63e-4`.
 //!
 //! The `τ²/‖E‖` term takes the same floor, or `|d| − dist` when that
 //! is larger — three lower bounds on one norm, whose max is one too.
@@ -169,7 +169,7 @@
 //! does. What that bought is translation invariance, which the
 //! residual always had and the bound did not: a micron offset on a
 //! metre patch a kilometre from the origin certified as `inf` and now
-//! certifies at the same `1.7e-5` the patch gives at the origin.
+//! certifies at the same `1.5e-5` the patch gives at the origin.
 //!
 //! What it does not reach is the floor on `‖E‖`: that one is not a
 //! rounding problem at any origin, and it is answered above by the
@@ -2596,7 +2596,7 @@ mod tests {
     /// where `‖E‖ ≈ 1e-6`. The projection through the sign witness,
     /// `|D|/(w̃·‖M̃‖)`, reads the same cell at `5.64e-7` — within a
     /// factor of two of `|d|` — and the `τ²/‖E‖` term that carried
-    /// 96% of the cell's bound falls with it.
+    /// 95% of the cell's bound falls with it.
     ///
     /// The row measures the two readings on ONE composite, so the
     /// only thing that differs between them is the expression under
@@ -2640,7 +2640,7 @@ mod tests {
             "the sup cell {:?} is one of a tie: {tie:?}",
             (su, sv)
         );
-        assert!(near(sup, 1.7006e-5), "sup cell bound is {sup:e}");
+        assert!(near(sup, 1.5141e-5), "sup cell bound is {sup:e}");
         assert!(
             near(cert.hull_sup, sup),
             "the certificate carries another cell's bound"
@@ -2651,7 +2651,7 @@ mod tests {
             "the floor on ‖E‖ reads {e_lo:e} where ‖E‖ ≈ {d:e}"
         );
         assert!(near(e_lo, 5.6395e-7), "floor is {e_lo:e}");
-        assert!(near(dist, 6.0900e-6) && near(tau, 2.2152e-6) && near(t3, 8.7009e-6));
+        assert!(near(dist, 6.0900e-6) && near(tau, 1.9948e-6) && near(t3, 7.0563e-6));
 
         // The same cell read componentwise: the collapsed floor, and
         // the `τ²/‖E‖` term it inflates. `τ` is untouched — it divides
@@ -2659,14 +2659,14 @@ mod tests {
         let (dist_c, tau_c, t3_c, e_mig, sup_c) =
             decompose(&comp, su, sv, reg.floor, d, ELow::Componentwise);
         assert!(near(e_mig, 1.5814e-8), "componentwise floor is {e_mig:e}");
-        assert!(near(sup_c, 3.2189e-4) && near(dist_c, 9.3762e-6) && near(t3_c, 3.1030e-4));
+        assert!(near(sup_c, 2.6302e-4) && near(dist_c, 9.3762e-6) && near(t3_c, 2.5165e-4));
         assert!(near(tau_c, tau), "τ moved: {tau_c:e} against {tau:e}");
         assert!(
-            t3_c > 0.96 * sup_c,
+            t3_c > 0.95 * sup_c,
             "the componentwise reading's sup is not its τ²/‖E‖ term"
         );
         assert!(
-            near(sup_c / sup, 18.928),
+            near(sup_c / sup, 17.371),
             "the bound moved by {}",
             sup_c / sup
         );
@@ -2675,7 +2675,7 @@ mod tests {
         // over the one it replaces, and the row measures that rather
         // than resting on the argument.
         let worst = no_cell_loosens(&comp, reg.floor, d);
-        assert!(near(worst, 18.928), "the widest cell gain is {worst}");
+        assert!(near(worst, 17.371), "the widest cell gain is {worst}");
 
         // One round finer — the grid the `1e-9` request stops on at
         // the sample cap. The cells are small enough that the
@@ -2691,10 +2691,12 @@ mod tests {
         // `a_micron_scale_offset_certifies_and_names_its_limit` pins as
         // the cap stop's `achieved`, and it is pinned there to 5e-11
         // absolute. Re-measured here rather than left to ride `near`'s
-        // 5e-4: one number must not have two precisions, and under the
-        // convex insertion form it moved (3.7544e-7 before).
-        assert!(near(sup5, 3.74718e-7), "cap-grid sup is {sup5:e}");
-        assert!(near(e_lo5, 8.39898e-7) && near(dist5, 1.21528e-7) && near(t35, 4.79507e-8));
+        // 5e-4: one number must not have two precisions. It moved
+        // under the convex insertion form (3.7544e-7 before) and again
+        // when the regularity floor became the area quotient's inf
+        // (3.74718e-7 before): `τ` divides by that floor.
+        assert!(near(sup5, 3.45243e-7), "cap-grid sup is {sup5:e}");
+        assert!(near(e_lo5, 8.39898e-7) && near(dist5, 1.21528e-7) && near(t35, 3.88872e-8));
         assert!(
             tau5 > dist5 && tau5 > t35,
             "τ = {tau5:e} no longer carries the cap grid's sup"
@@ -2704,7 +2706,7 @@ mod tests {
             near(e_mig5, 7.79946e-7),
             "componentwise floor is {e_mig5:e}"
         );
-        assert!(near(sup5_c, 3.79036e-7) && near(sup5_c / sup5, 1.01152));
+        assert!(near(sup5_c, 3.49518e-7) && near(sup5_c / sup5, 1.01238));
         let worst5 = no_cell_loosens(&comp5, reg.floor, d);
         assert!(worst5 >= 1.0, "the cap grid's widest cell gain is {worst5}");
     }

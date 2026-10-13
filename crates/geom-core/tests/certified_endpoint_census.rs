@@ -279,18 +279,17 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/offset_meters.rs",
-        11,
-        11,
-        "the mignitude, the norm assemblies and the curvature join all refuse by name",
+        7,
+        7,
+        "the mignitude and the curvature join refuse by name",
     ),
     (
         "crates/geom-brep/src/patch_bound.rs",
         3,
         2,
-        "two are in `rational_cells`, guarded by the `is_certified()` this counts: \
-         the refined weight licence, which asks by name before reading `lo`, and the \
-         cell's weight hull `w_cell.lo()`, read only after `w_cell` and both \
-         weight-partial hulls have asked. The remainder is `centre`, safe because a \
+        "two are the rational arm's quotient readings, each guarded by the \
+         `is_certified()` this counts: `certified_sup` reads `hi` and `certified_inf` \
+         reads `lo` only after asking by name. The remainder is `centre`, safe because a \
          centre is a translation choice and no enclosure rests on it: it takes \
          midpoints, contributes `0` for a non-finite one and answers `0` for a \
          non-finite mean, so a refused input still yields a finite centre and the \
@@ -426,6 +425,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          construction",
     ),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
+    ("crates/mesh/src/chords.rs", 1, 1, ""),
     ("crates/topo/src/props/quad_lane.rs", 7, 7, ""),
 ];
 

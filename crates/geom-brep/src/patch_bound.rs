@@ -311,16 +311,18 @@ pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundEr
 /// in **both** arms.
 ///
 /// Why a consumer would ask for more than [`patch_cells`] gives: a
-/// B-spline coefficient hull over one knot span covers the whole
-/// `(p + 1)`-span support of the basis functions active there, so its
-/// width shrinks only LINEARLY in the span size, with a constant
-/// `p + 1` times the cell. A sup-side consumer barely notices; an
-/// inf-side one does, because the width is subtracted from the
-/// quantity it is trying to prove positive. The measured case is the
-/// exactly-umbilic sphere band: at 16 splits the first fundamental
-/// form's own `F` — identically zero on an orthogonal chart —
-/// encloses as `[−0.82, 0.81]`, and the certified curvature range
-/// comes out twenty times wider than the surface's single value.
+/// cell's enclosure is as wide as its coefficients spread — on the
+/// integral arm a hull over the `(p + 1)`-span support of the basis
+/// functions active there, on the rational arm the coefficient ratios
+/// of a piece — and that width shrinks only LINEARLY in the cell size.
+/// A sup-side consumer barely notices; an inf-side one does, because
+/// the width is subtracted from the quantity it is trying to prove
+/// positive. The measured case is the exactly-umbilic sphere band
+/// (`r = 2`): at 16 splits the first fundamental form's own `F` —
+/// identically zero on an orthogonal chart — encloses as
+/// `[−0.094, 0.094]` on its widest cell, and the certified curvature
+/// range `[−0.75, −0.27]` is about as wide as the surface's single
+/// value `−0.5`.
 /// Refinement is exact in ℝ, so this buys tightness and nothing else.
 ///
 /// # Errors
@@ -1047,11 +1049,11 @@ mod tests {
     /// whose `S − c` is not collinear with `Ã_u`, and a rational patch of
     /// bidegree `(2, 1)` whose weights vary along the degree-1 direction,
     /// which a Möbius reparameterization makes genuinely curve in
-    /// parameter. Dropping the `(S − c)·w_d` term of either rational
-    /// speed, either `w_d·Ã_d × (S − c)` term of `m_sup`, or any of the
-    /// centred cross bound's three spread terms reads under a sampled
-    /// magnitude; a speed or `m_sup` loosened by half reads over its box
-    /// ceiling.
+    /// parameter. Dropping any of the integral arm's centred cross
+    /// bound's three spread terms reads under a sampled magnitude; a
+    /// speed or `m_sup` loosened by a fifth reads over its box ceiling.
+    /// The rational arm's terms are the quotient statement's, whose own
+    /// rows drop them (`geom_core::spline::derivative`).
     ///
     /// The samples are `f64` evaluations, so the soundness comparison
     /// allows `1e-12` of the sampled value for their rounding, decades
@@ -1060,15 +1062,15 @@ mod tests {
     fn the_meter_sups_bound_every_sampled_magnitude() {
         use geom_core::interval::{dot, norm_sq};
         // Measured worst over the fixtures at four splits per span, against
-        // the box reading in the fixture's own frame: the speeds at `1.125`×
-        // (the strong-`v` fixture; the integral arm's at `1.0`), `m_sup` at
-        // `1.24`× (the degree-1 fixture; `1.18`× strong-`v`, `1.12`× the
-        // rational twin, `1.02`× integral). The rational readings take the
-        // triangle inequality where the box keeps the cancellation between
-        // `Ã_d` and the `S − c` terms. Each ceiling is that worst with
-        // about a tenth to spare.
-        const SPEED_CEILING: f64 = 1.25;
-        const M_CEILING: f64 = 1.35;
+        // the box reading in the fixture's own frame: the speeds at `1.0`×
+        // on every fixture (to an ulp: on the rational arm the box is the
+        // same quotient's coordinate range), `m_sup` at `1.024`× (the
+        // integral arm; at most `1.0`× on the rational fixtures, `0.90`×
+        // strong-`v`, where the box cross product loses the correlation
+        // the area quotient keeps). Each ceiling is that worst with about
+        // a tenth to spare.
+        const SPEED_CEILING: f64 = 1.1;
+        const M_CEILING: f64 = 1.13;
         let biquadratic = |rational: bool| {
             let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0], 2)
                 .expect("valid");
