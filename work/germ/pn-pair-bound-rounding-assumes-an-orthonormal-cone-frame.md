@@ -48,16 +48,22 @@ this arm.
 
 ## Fixed (`germ/pn-apex-reach-pico-eps`)
 
-The second shape: `intersect.rs` `square_seam` takes the cone's `u_ref`
-less its component along the axis, renormalised, and every reader of
-the cone's seam in the arm reads it through that. The readers are
-`plane_cone_section`'s line pair and tangent line (`φ`, `v_ref`, the
-generator directions), its `AxisNormalCircle` carrier, and
-`cone_cylinder_section`'s `CoaxialCircles` carriers, whose doc claimed
-the seam "⊥ the axis as stored". `pair_bound` step 5 charges the
-squared seam's residual tilt (`< 6u`): `φ`'s term goes from `5u/s` to
-`11u/s`, and the per-unit sum from `12·sin α` to `18·sin α`. Step 6's
-coverage moves from `α ≈ 78°` to `≈ 81°`.
+The second shape: `geom::square_frame` takes the cone's stored frame to
+a unit axis and the seam `a × (u_ref × a)` square to it, which leaves a
+tilt under `6u` wherever the seam stands `16u` or more off the axis
+(`u_ref − a·(a·u_ref)` leaves `98u` at `u_ref·a = 0.99`, and reads a
+non-unit axis wrong). Both cone arms square the frame once where they
+destructure the cone, and refuse typed (`pn_seam_off_axis`,
+`coc_seam_off_axis`) where the seam does not definitely leave the
+axis. The readers are `plane_cone_section`'s line pair and tangent
+line (`φ`, `v_ref`, the generator directions), its `AxisNormalCircle`
+carrier, and `cone_cylinder_section`'s `CoaxialCircles` carriers,
+whose doc claimed the seam "⊥ the axis as stored"; `section_cert`'s
+`Cone::new` and `pcurve_cache`'s `orthonormal_chart` square through
+the same function. `pair_bound` step 5 charges the frame: the unit
+axis' `u` off the stored direction and the seam's tilt `τ` (`6u`, or
+whole below `16u`). Step 6's coverage stays at `α ≈ 78°`, on the terms
+that charge no frame error.
 
 Rows:
 
@@ -66,5 +72,7 @@ Rows:
   `−7.6e-15`, `ε = 1e-12`) over spans out to `6`. Pre-fix the pair is
   served `2.72·ε` off the section; post-fix `8.1e-4·ε`.
 - `intersect_table::a_cones_tilted_seam_serves_its_circles_in_their_planes`:
-  a seam tilted `1e-6`. Pre-fix each circle carries the tilted seam.
+  seams tilted `1e-6`, `0.9`, `0.99`, `−0.999999` and a `1.5`-long axis,
+  each circle's seam within `6u` of square; a seam along the axis, or
+  `1e-20` off it, refuses typed in both arms.
 - the span fuzzer draws tilted seams too (pre-fix: red 1 run in 3).
