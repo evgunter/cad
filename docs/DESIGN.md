@@ -374,9 +374,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      face, a join's edge, a seam); divided, into its pieces and the
      cells the op minted between them, the division exhaustive or with
      its remainder removed; or removed. One carry, for the boolean and
-     every surgery verb alike, puts each pair drawn from a record's two
-     cells' images to the census's record confirm, and the record lands
-     on every pair whose interiors meet, each landing citing it. Two
+     every surgery verb alike, lands a record whose two cells the op kept
+     or substituted on their images by lineage, unread, their geometry
+     unchanged and the record read where it was minted; it puts each
+     pair drawn from a divided cell's images to the census's record
+     confirm, and the record lands on every such pair whose interiors
+     meet, each landing citing it. Two
      cells an op minted on a record's two cells and that meet at a point
      meet where the record puts them when one cut made both, as the
      split's one plane does, and the landing cites the record alone; an
