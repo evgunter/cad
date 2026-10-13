@@ -734,6 +734,56 @@ fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f64)>
 mod tests {
     use super::*;
 
+    /// SYM-17 review R1's reach probe: bisect, in log σ, the largest
+    /// joint σ whose one-leaf plain-`Interval` row certifies whole, at
+    /// `R1_LINKS` links, between `R1_LO` (certifies) and `R1_HI`
+    /// (refuses). Prints the bracket and the first refusal above it.
+    #[test]
+    #[ignore]
+    fn r1_reach_probe() {
+        let tol = Tol::witness();
+        let env = |k: &str, d: &str| std::env::var(k).unwrap_or_else(|_| d.to_string());
+        let links: usize = env("R1_LINKS", "1").parse().unwrap();
+        let mut lo: f64 = env("R1_LO", "1e-12").parse().unwrap();
+        let mut hi: f64 = env("R1_HI", "1e-2").parse().unwrap();
+        let steps: usize = env("R1_STEPS", "14").parse().unwrap();
+        let run = |s: f64| interval_leaf(links, &chain(links, s, POSITION_BOUND, tol).doc);
+        assert!(run(lo).certifies, "lo {lo:e} must certify");
+        let top = run(hi);
+        assert!(!top.certifies, "hi {hi:e} must refuse");
+        eprintln!(
+            "R1 links {links} at hi {hi:e}: refused={} first={:?}",
+            top.refused, top.first
+        );
+        let mut first_hi = top.first;
+        for _ in 0..steps {
+            let mid = (lo.ln() * 0.5 + hi.ln() * 0.5).exp();
+            let r = run(mid);
+            if r.certifies {
+                lo = mid;
+            } else {
+                hi = mid;
+                first_hi = r.first;
+            }
+        }
+        eprintln!(
+            "R1 RESULT links {links}: certifies {lo:.4e}, refuses {hi:.4e}, first={first_hi:?}"
+        );
+    }
+
+    /// SYM-17 review R1: the chain's rows at σ = 0.01, both lanes, one
+    /// to four links, printed with their counts.
+    #[test]
+    #[ignore]
+    fn r1_chain_rows_probe() {
+        let tol = Tol::witness();
+        for links in 1..=4 {
+            let built = chain(links, 0.01, POSITION_BOUND, tol);
+            print_row(&interval_leaf(links, &built.doc));
+            print_row(&sym_leaf(links, &built.doc));
+        }
+    }
+
     /// **What BOUNDS the certifiable box is `dihedral_wedge`.**
     ///
     /// Not `dihedral_arm`, which is what the first refusal over the
