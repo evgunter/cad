@@ -446,7 +446,9 @@ mod tests {
     /// a two-radian span's end control is wide by its remainder, a
     /// thousandth-wide span's start is tight, and either one alone
     /// misses the other span's carrier near the break. The hull holds
-    /// both, in either order of widths.
+    /// both, in either order of widths: a joint that keeps only the
+    /// wider span's end, or only the narrower one's, leaves a circle
+    /// point outside the net.
     #[test]
     fn r2_uneven_spans_need_the_joint_hull() {
         let circle = Curve3::Circle {
@@ -455,9 +457,13 @@ mod tests {
             radius: 0.8,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        for breaks in [[-0.4, 1.6, 1.601], [-0.4, -0.399, 1.6]] {
+        for breaks in [
+            &[-0.4, 1.6, 1.601][..],
+            &[-0.4, -0.399, 1.6],
+            &[-0.4, 0.0, 2.0, 2.0001, 4.0],
+        ] {
             assert_eq!(
-                encloses(&circle, &breaks, None),
+                encloses(&circle, breaks, None),
                 Ok(()),
                 "the circle's net encloses it across the joint of {breaks:?}"
             );
