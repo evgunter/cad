@@ -29,8 +29,10 @@ on the partner face" }`, raised in `sectors::along`. The sector is the
 round's coplanar BOTTOM sector at the rim vertex (its edges, the bottom
 profile edge and the rim, both lie on the slab's top): the wall touches
 the top along the rim and lumps whole as a tangent sector, and a run
-boundary lands beside it on the bottom sector. The union refuses
-`TangentSlitArmUnbuilt` with the auto-declared `Tangent` pair.
+boundary lands beside it on the bottom sector. The union refused
+`TangentSlitArmUnbuilt` with the auto-declared `Tangent` pair then; that
+refusal is retired (`contacthold/face-face-touch-row`, PR 4921), and the
+union answers one solid (the PR 4831 section below).
 
 This is not the arc's reading (PR 4575's descent leaves it, the lump
 keys on first-order ties), and not

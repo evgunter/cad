@@ -229,13 +229,14 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
 /// meet does not. A row is kept where the faces meet whether or not the
 /// decision shaped the result: two faces meeting at one corner keep
 /// theirs (`intent/a-face-pair-row-only-where-its-decision-shaped-the-result`).
-/// Rows of any other shape are kept as they are.
+/// Rows of any other shape are kept as they are. Returns the kept rows'
+/// indices in `rows`, ascending.
 pub(crate) fn touched<T: geom_core::Real>(
     rows: &[crate::Coincidence],
     pending: &[super::reduce::PendingRow],
     splits: &[super::EdgeSplit],
     [a, b]: [&Body<T>; 2],
-) -> Vec<crate::Coincidence> {
+) -> Vec<usize> {
     use crate::{Cell, RowCell};
     // Each face's closure in its input, read once: the face, its edges
     // and their ends.
@@ -261,7 +262,8 @@ pub(crate) fn touched<T: geom_core::Real>(
         .map(|row| row.cells.map(|end| super::ops::input_cell(end, splits)))
         .collect();
     rows.iter()
-        .filter(|row| {
+        .enumerate()
+        .filter(|(_, row)| {
             let [
                 RowCell::Input {
                     input: Operand::A,
@@ -284,6 +286,6 @@ pub(crate) fn touched<T: geom_core::Real>(
                     || (on(y, Operand::A, on_a) && on(x, Operand::B, on_b))
             })
         })
-        .cloned()
+        .map(|(i, _)| i)
         .collect()
 }

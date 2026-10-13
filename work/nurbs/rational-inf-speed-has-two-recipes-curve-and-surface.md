@@ -6,7 +6,6 @@ status: closed
 opened: 2026-10-13
 priority: P3
 cost: M
-design: true
 branch: nurbs/quotient-bound
 closed: 2026-10-13
 ---
@@ -36,6 +35,10 @@ apart is a reach question: neither is known to dominate. The two
 should be compared on the curve meter's frontier rows
 (`geom/tests/curves/m5_pr7_speed_meter.rs`,
 `geom/tests/curves/swaying_corner_meter.rs`) before anything moves.
+
+## Ruling (2026-10-13, orchestrator, designers convergent)
+
+Both rows close into ONE statement: the Bernstein quotient (coefficient-ratio) bound on dyadic pieces, in `geom_core::spline::derivative`. Each derivative quantity is written as a numerator over a power of `W`, both raised to one degree. Then `inf (·)·d ≥ min_k (a_k·d)/b_k` and `sup ‖·‖ ≤ max_k ‖a_k‖/b_k`, read on exact dyadic Bézier pieces, never on refined knot vectors. The full ruling is in `work/nurbs/log.md`, 2026-10-13 03:00Z.
 
 ## Closed (2026-10-13)
 

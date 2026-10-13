@@ -197,6 +197,8 @@ mod eval6_placers_over_instances;
 mod eval6_placers_over_instances_interval;
 #[path = "eval9_nominal_in_the_key.rs"]
 mod eval9_nominal_in_the_key;
+#[path = "face_face_touch_carry.rs"]
+mod face_face_touch_carry;
 #[path = "fix_loop_polygon_expr.rs"]
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
