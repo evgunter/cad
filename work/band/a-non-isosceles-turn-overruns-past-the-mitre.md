@@ -362,7 +362,7 @@ the ratified end state. When the chamfer's overrun builds, restore the leg
 for the chamfer (and its followability row), and make the README's
 "both definite builds the overrun" true per verb as each verb lands.
 
-## Step 2 — the chamfer's overrun (PR on `band/turn-overrun-chamfer`)
+## Step 2 — the chamfer's overrun (PR 4926)
 
 Both convexities build where both readings are definite and the bands
 are planes; a fillet's overrun still refuses `TURN_OVERRUN` (its text now
