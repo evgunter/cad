@@ -28,10 +28,13 @@ fillet declared `Tangent`:
 
 The same box placed with the ruling in the middle of its wall builds its
 subtracts and intersect in both orders, exact (that row in the test
-above). Its union refuses `TangentSlitArmUnbuilt` since CLEAVE's
-interim (`work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md`):
-the ruling runs through the wall's interior. The corner pose keeps the
-ruling on the wall's boundary edge, so that interim does not reach it.
+above). Its union answers two solids carrying the face–face record of
+the wall and the fillet, the ruling running through both faces'
+interiors (`reach_continuation::a_tangent_beside_a_fillet_builds_every_op_in_either_order`,
+`contacthold/face-face-touch-row`, PR 4921; it refused
+`TangentSlitArmUnbuilt` before). The corner pose keeps the ruling on the
+wall's boundary edge, so it is the edge form of that touch, and the
+refusal above is upstream of any record.
 
 ## Not yet measured
 
