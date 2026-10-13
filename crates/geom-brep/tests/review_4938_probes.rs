@@ -188,3 +188,32 @@ fn review_4938_differential() {
     let path = std::env::var("PROBE_OUT").unwrap_or_else(|_| "/tmp/probe_out.txt".into());
     std::fs::write(path, out.join("\n")).unwrap();
 }
+
+/// Siblings out of the PR's scope: a ±2 pair (each loop two whole rims)
+/// on a cone frustum and on a sphere zone, and the legal single-turn band.
+#[test]
+fn review_4938_pm2_siblings() {
+    let band = Band::linear_at(Tol::witness(), 1e-9).unwrap();
+    let f = Frame { o: [0.0; 3], z: [0.0, 0.0, 1.0], x: [1.0, 0.0, 0.0] };
+    let ta = 0.5f64.tan();
+    let cone = Surface::<f64>::Cone { apex: p(f.o), axis: v(f.z), half_angle: 0.5, u_ref: v(f.x) };
+    let rim = |h: f64, rad: f64, a: f64, b: f64| edge::<f64>(Curve3::Circle { center: p([0.0, 0.0, h]), axis: v(f.z), radius: rad, u_ref: v(f.x) }, a, b);
+    let one = (vec![rim(1.0, ta, 0.0, TAU)], vec![rim(2.0, 2.0 * ta, TAU, 0.0)]);
+    let two = (vec![rim(1.0, ta, 0.0, TAU), rim(1.0, ta, 0.0, TAU)], vec![rim(2.0, 2.0 * ta, TAU, 0.0), rim(2.0, 2.0 * ta, TAU, 0.0)]);
+    for (name, (a, b)) in [("cone band", one.clone()), ("cone pm2", two.clone())] {
+        for sense in [true, false] {
+            let r = curved_face_loops(&cone, &[&a, &b], sense, band);
+            eprintln!("REVIEW4938 {name} sense={sense}: {}", show(r, None));
+        }
+    }
+    let sph = Surface::<f64>::Sphere { center: p(f.o), radius: 1.0, axis: v(f.z), u_ref: v(f.x) };
+    let lat = |la: f64, a: f64, b: f64| rim(la.sin(), la.cos(), a, b);
+    let one = (vec![lat(0.2, 0.0, TAU)], vec![lat(0.7, TAU, 0.0)]);
+    let two = (vec![lat(0.2, 0.0, TAU), lat(0.2, 0.0, TAU)], vec![lat(0.7, TAU, 0.0), lat(0.7, TAU, 0.0)]);
+    for (name, (a, b)) in [("sphere band", one), ("sphere pm2", two)] {
+        for sense in [true, false] {
+            let r = curved_face_loops(&sph, &[&a, &b], sense, band);
+            eprintln!("REVIEW4938 {name} sense={sense}: {}", show(r, None));
+        }
+    }
+}
