@@ -978,9 +978,10 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
 
 // ---- The recorded ε ----
 
-/// **An ε that is not strictly positive — both doors.** ε parameterizes
-/// every predicate band the document is read through, so a zero or
-/// negative one leaves every geometric answer undefined. The edit door
+/// **An ε that is not strictly positive, or below the floor — both
+/// doors.** ε parameterizes every predicate band the document is read
+/// through, so a zero or negative one leaves every geometric answer
+/// undefined, and one below `EPS_MIN` is no run's (D4 ¶4). The edit door
 /// names it `InvalidTolerance` and the load door
 /// `SnapshotError::EpsilonInvalid`.
 ///
@@ -988,7 +989,7 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
 /// JSON carries no such token — and in memory it refuses one walk
 /// earlier, as `PersistError::NonFinite` at `NonFiniteSite::Epsilon`.
 #[test]
-fn a_non_positive_epsilon_is_refused_at_both_doors() {
+fn an_inadmissible_epsilon_is_refused_at_both_doors() {
     let (doc, _) = with_value();
     match apply(
         &doc,
@@ -998,6 +999,16 @@ fn a_non_positive_epsilon_is_refused_at_both_doors() {
     ) {
         Err(EditError::InvalidTolerance { value }) => assert_eq!(value, 0.0),
         other => panic!("a zero ε must refuse typed, got {other:?}"),
+    }
+    let below = geom_core::tolerance::EPS_MIN.next_down();
+    match apply(
+        &doc,
+        &DocEdit::SetTolerance { eps: below },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
+        Err(EditError::InvalidTolerance { value }) => assert_eq!(value, below),
+        other => panic!("an ε below the floor must refuse typed, got {other:?}"),
     }
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
@@ -1015,6 +1026,15 @@ fn a_non_positive_epsilon_is_refused_at_both_doors() {
             assert_eq!(value, 0.0);
         }
         other => panic!("a zero ε must refuse typed at load, got {other:?}"),
+    }
+    let corrupt = doctored(&text, |wire| {
+        wire["snapshot"]["epsilon"] = serde_json::json!(below);
+    });
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value })) => {
+            assert_eq!(value, below);
+        }
+        other => panic!("an ε below the floor must refuse typed at load, got {other:?}"),
     }
 }
 

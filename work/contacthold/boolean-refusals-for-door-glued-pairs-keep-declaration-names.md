@@ -28,8 +28,9 @@ because each rename reaches the public kind list and the Python tags
   from test-built glue alone (`TangencyFailure::refusal`, `route_rim`'s
   unplaced junction);
 - the `crate::contact::DeclaredContact` payload type of
-  `ContactContradicted`, `RimCuspArmUnbuilt` and `TangentSlitArmUnbuilt`,
-  and those variants' docs that still say "declared";
+  `ContactContradicted` and `RimCuspArmUnbuilt`, and those variants'
+  docs that still say "declared" (`TangentSlitArmUnbuilt` is retired,
+  `contacthold/face-face-touch-row`, PR 4921);
 - `ContactContradicted` on a door-glued `Rest` pair keeps the
   "correct or remove the declaration" recourse
   (`crate::contact::CONTRADICTION_RECOURSE`); `vtxfac`'s decided-tilt arm

@@ -2679,21 +2679,12 @@ pub(crate) fn witness_site_fault<P>(doc: &Doc<P>, node: RecipeNodeId) -> Option<
     }
 }
 
-/// **The recorded ε's admission rule, stated once**: finite and
-/// strictly positive.
-///
-/// One predicate with one home, asked by the edit door that records an
-/// ε ([`crate::DocEdit::SetTolerance`]) and by the save/load
-/// validator's snapshot walk, each naming the answer in its own
-/// vocabulary. ε parameterizes every predicate band in the document, so
-/// a value the two doors disagreed about would be a document whose
-/// every geometric answer depends on which door it came through.
-///
-/// A free function beside the field rather than a `Doc` method: the
-/// edit door decides the value BEFORE it is a document's ε, and a
-/// method would have nothing to be called on there.
+/// **The recorded ε's admission rule**: the run's own, whose home is
+/// [`geom_core::tolerance::eps_admissible`]. Asked by the edit door that
+/// records an ε ([`crate::DocEdit::SetTolerance`]) and by the save/load
+/// validator's snapshot walk, so the two doors cannot disagree.
 pub(crate) fn epsilon_admissible(eps: f64) -> bool {
-    eps.is_finite() && eps > 0.0
+    geom_core::tolerance::eps_admissible(eps)
 }
 
 /// The strict ancestors of `from` in ONE document, visited depth-first

@@ -22,10 +22,10 @@ use super::emit::{
     Incidence, NamingError, Rim, RimShare, edge_ends, ent, face_half_edges, name1, rim_between,
     rims_between, vertex_point,
 };
-use super::groups::{CrossingSenses, Emitted, GroupRecord, Parent};
+use super::groups::{Emitted, GroupRecord, Parent};
 use super::merged::{self, NESTED_MERGED};
 use super::role::{
-    EntityKind, NameRef, Qualifier, RoleSeg, Sense, SplitHalf, StableName, edge_line,
+    EntityKind, NameRef, Qualifier, RoleSeg, RunLine, Sense, SplitHalf, StableName, edge_line,
 };
 use super::seam_pair;
 use super::table::{EntityKey, Entry, NameTable};
@@ -772,7 +772,8 @@ fn oriented<T: geom_core::Real>(
 
 /// A crossed seam edge with no first side: neither way along it is a
 /// fact of the names, so neither is a crossing's sense.
-const UNORIENTED: &str = "a crossed seam edge has no first side to orient its crossings by";
+pub(super) const UNORIENTED: &str =
+    "a crossed seam edge has no first side to orient its crossings by";
 
 /// One boolean operand under naming.
 pub(crate) struct OperandCtx<'a, T: Decide> {
@@ -1248,7 +1249,7 @@ pub(crate) fn name_boolean<T: Decide>(
         &merged_descents,
         bnd,
     )?;
-    let senses = name_boolean_vertices(
+    name_boolean_vertices(
         node,
         &mut t,
         &mut tie,
@@ -1280,7 +1281,7 @@ pub(crate) fn name_boolean<T: Decide>(
     tie.flush(&mut t)?;
 
     super::emit::check_total(&t, body, 0)?;
-    Ok(Emitted::new(t, rec).with_senses(senses))
+    Ok(Emitted::new(t, rec))
 }
 
 /// A merged parent in a pair boolean: its `Merged` name, the faces it
@@ -1861,8 +1862,7 @@ struct EdgeGroup {
 /// crossing minted them — derived from the already-named incident edges
 /// (combinatorial wiring facts) — and, where an edge crosses, by its
 /// sense ([`senses_at`]): `Crossing`, `EdgeCrossing`, or `Seam` for
-/// every other meeting. Returns the senses read at each seam vertex, for
-/// a union's fold ([`CrossingSenses`]).
+/// every other meeting.
 #[allow(clippy::too_many_arguments)]
 fn name_boolean_vertices<T: Decide>(
     node: RecipeNodeId,
@@ -1881,7 +1881,7 @@ fn name_boolean_vertices<T: Decide>(
         &[VertexKey],
     ) -> Result<BTreeMap<Vec<StableName>, Vec<VertexKey>>, NamingError>,
     bnd: geom_core::Band,
-) -> Result<CrossingSenses, NamingError> {
+) -> Result<(), NamingError> {
     let bug = |what| NamingError::Emission { what };
     // Each edge's parent, the head a vertex cites it by, and whether
     // that descends from a tie.
@@ -1947,7 +1947,6 @@ fn name_boolean_vertices<T: Decide>(
     // Candidate seam-vertex names, grouped for multiplicity: the key
     // is the (A, B) parent pair, the value (descends-from-a-tie,
     // vertices).
-    let mut senses = CrossingSenses::new();
     let mut groups: BTreeMap<RoleSeg, (bool, Vec<(VertexKey, Along)>)> = BTreeMap::new();
     // Operand vertices → the operand keys read there and the result
     // vertices that are each of them: several where the boolean leaves
@@ -1993,17 +1992,8 @@ fn name_boolean_vertices<T: Decide>(
             continue;
         }
         // What the boolean classified here: the senses a crossing is
-        // named by, and the evidence a union reads for a vertex its fold
-        // names some other way (`CrossingSenses`).
+        // named by.
         let at_v = senses_at(naming, &keys, a, b)?;
-        let crossed: Vec<(StableName, Sense)> = at_v
-            .iter()
-            .filter(|s| !(s.unoriented && s.sense.crosses()))
-            .map(|s| (s.name.clone(), s.sense))
-            .collect();
-        if !crossed.is_empty() {
-            senses.insert(v, crossed);
-        }
         // Seam vertex: parents from incident edges' names.
         let edges = inc
             .vertex_edges
@@ -2091,7 +2081,11 @@ fn name_boolean_vertices<T: Decide>(
             // operand pierce a face of the other at one vertex, so no
             // single edge is its parent; and so is a point edges of both
             // operands run through, one of them on one side, where no
-            // edge pair is.
+            // edge pair is. Those two N2 names by their lines, as a
+            // `Crossing` or an `EdgeCrossing` run; the pair boolean does
+            // not yet, because a line there can have no piece the
+            // boolean classified, so no sense to carry
+            // (`work/emit/a-pair-boolean-names-an-edge-bearing-meeting-as-a-seam-junction.md`).
             (aes, bes)
                 if seam_lines.len() >= 2
                     && match (aes.len(), bes.len()) {
@@ -2180,15 +2174,26 @@ fn name_boolean_vertices<T: Decide>(
                 },
                 Along::B(pb),
             ),
-            (EntityKind::Edge, EntityKind::Edge) => (
-                RoleSeg::EdgeCrossing {
-                    a: edge_line(&pa),
-                    a_sense: sense(topo::Operand::A, &pa)?,
-                    b: edge_line(&pb),
-                    b_sense: sense(topo::Operand::B, &pb)?,
-                },
-                Along::A(pa),
-            ),
+            // Two edges: the k = 2 run, in name order, ranked along its
+            // least line.
+            (EntityKind::Edge, EntityKind::Edge) => {
+                let la = RunLine {
+                    line: edge_line(&pa),
+                    sense: Some(sense(topo::Operand::A, &pa)?),
+                };
+                let lb = RunLine {
+                    line: edge_line(&pb),
+                    sense: Some(sense(topo::Operand::B, &pb)?),
+                };
+                let along = if la.line <= lb.line {
+                    Along::A(pa)
+                } else {
+                    Along::B(pb)
+                };
+                let mut run = vec![la, lb];
+                run.sort();
+                (RoleSeg::EdgeCrossing(run), along)
+            }
             (EntityKind::Face, EntityKind::Face) => {
                 (RoleSeg::Seam { a: pa, b: pb }, Along::Nowhere)
             }
@@ -2267,7 +2272,7 @@ fn name_boolean_vertices<T: Decide>(
         }
         rank_crossings(t, tie, from_tie, &base, &crossings, bnd)?;
     }
-    Ok(senses)
+    Ok(())
 }
 
 /// The edge a seam vertex is ranked along: an A-side edge, a B-side
