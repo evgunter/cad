@@ -7,7 +7,7 @@ arc_loft_1e11eps REFUSED at FaceKey(4v1): a face's share of the volume and surfa
 arc_loft_1e9eps v=4022487ed6a9d8a3 a=403995a3b53c3c40 vpad=3eb0783411700000 apad=3fb5fb0bfc1217c0 | verdicts n=15 h=fb22889cccf6acbb esc n=0 h=cbf29ce484222325
 thin_strip REFUSED at FaceKey(3v1): a face's share of the volume and surface area cannot be computed: a face's certified contribution stayed 9.504e-5 m wide after 1 refinement round(s), above the 1.024e-6 m this tolerance targets. Recourse: loosen the tolerance to 9.281e-8 m or more, as a last resort; this refusal may indicate a kernel bug worth reporting | verdicts n=2 h=bf6dcbf50767c0fd esc n=0 h=cbf29ce484222325
 # sym-session
-sym_arc_loft mass_properties OK decisions=15 sym=0 rref=0 rcon=0 num=15 disp=0 frozen=0 shapes=15
-sym_arc_loft validate_geometric OK decisions=652 sym=48 rref=0 rcon=0 num=604 disp=0 frozen=1520 shapes=652
-sym_thin_strip mass_properties REFUSED decisions=2 sym=0 rref=0 rcon=0 num=2 disp=0 frozen=0 shapes=2
-sym_thin_strip validate_geometric REFUSED decisions=660 sym=48 rref=0 rcon=0 num=612 disp=0 frozen=1640 shapes=660
+sym_arc_loft mass_properties OK decisions=15 sym=0 rref=0 rcon=0 num=15 disp=0 chk=15/15 frozen=0 shapes=15
+sym_arc_loft validate_geometric OK decisions=652 sym=412 rref=0 rcon=0 num=240 disp=0 chk=103/110 frozen=48 shapes=652
+sym_thin_strip mass_properties REFUSED decisions=2 sym=0 rref=0 rcon=0 num=2 disp=0 chk=2/2 frozen=0 shapes=2
+sym_thin_strip validate_geometric REFUSED decisions=660 sym=354 rref=0 rcon=0 num=306 disp=0 chk=104/116 frozen=228 shapes=660
