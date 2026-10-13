@@ -2589,8 +2589,12 @@ fn senses_at<T: Decide>(
     // (side, edge) → (the sides of the vertex in the closed body,
     // before it and after it).
     let mut sides: BTreeMap<(topo::Operand, EdgeKey), [BTreeSet<bool>; 2]> = BTreeMap::new();
+    // A chart cut is no edge of its operand, so no line of a vertex.
+    let cut = |row: &topo::EdgePieceClass| {
+        naming.chart_cuts[usize::from(row.operand == topo::Operand::B)].contains(&row.edge)
+    };
     for row in &naming.edge_classes {
-        if keys.contains(&(row.operand, row.vertex)) {
+        if keys.contains(&(row.operand, row.vertex)) && !cut(row) {
             sides.entry((row.operand, row.edge)).or_default()[usize::from(row.starts)]
                 .insert(row.class != topo::SideCode::Out);
         }
