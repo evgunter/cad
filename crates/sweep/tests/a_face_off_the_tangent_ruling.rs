@@ -8,7 +8,7 @@
 //! face back over the ruling, where the escalation stands.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point2, RigidMotion, Tol, UnitVec3, Vec3};
+use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
 use sweep::test_support::revolved_about_y;
 
 fn tol() -> Tol {
@@ -41,10 +41,9 @@ fn about_y(
     ];
     let rev = turn.map_or(sweep::Revolution::Full, sweep::Revolution::Partial);
     let body = revolved_about_y(profile, rev, tol());
-    let place =
-        RigidMotion::rotation_then_translation(UnitVec3::exact_y(), spin, Vec3::new(x, 0.0, 0.0))
-            .unwrap();
-    topo::transform_rigid(&body, &place, tol()).unwrap()
+    let place = Affine3::translation(Vec3::new(x, 0.0, 0.0))
+        * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), spin);
+    topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol()), tol()).unwrap()
 }
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::Body<f64> {
@@ -95,8 +94,8 @@ fn all_say(rows: &[[String; 2]], want: &str, why: &str) {
 }
 
 fn turned(b: topo::Body<f64>, angle: f64) -> topo::Body<f64> {
-    let t = RigidMotion::rotation(UnitVec3::exact_z(), angle).unwrap();
-    topo::transform_rigid(&b, &t, tol()).unwrap()
+    let t = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), angle);
+    topo::transform_rigid(&b, &geom_core::test_support::rigid(&t, tol()), tol()).unwrap()
 }
 
 /// The brick's top `5.5·ε` below the wall's carrier, slid off the
