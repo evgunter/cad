@@ -65,12 +65,15 @@ use crate::m10_9_pins_interval::measured_studies;
 /// 1869]`, pad `[340, 277, 314]` → `[1319, 1159, 2916]`. The
 /// attribution of those values, merge by merge, is in
 /// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
+/// The pcurve envelope's orthonormal chart squaring its frame by cross
+/// products (`geom::square_frame`) moves only the frozen counts: bracket
+/// 1869 → 1863, pad 2916 → 2907.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [1048, 654, 641]),
     ("r1_annulus", [566, 399, 828]),
     ("r2_link", [356, 259, 498]),
-    ("r2_filleted_bracket", [1453, 1008, 1869]),
-    ("r2_rounded_pad", [1319, 1159, 2916]),
+    ("r2_filleted_bracket", [1453, 1008, 1863]),
+    ("r2_rounded_pad", [1319, 1159, 2907]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
