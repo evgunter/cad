@@ -176,6 +176,24 @@ fn holds_to_the_truth(
     meet: f64,
     (lo, hi): (Point3<f64>, Point3<f64>),
 ) {
+    holds_to_the_truth_but(pose, t, p, meet, (lo, hi), &[]);
+}
+
+/// [`holds_to_the_truth`], but for the ops labelled in `partial`, whose
+/// torus walls are no chart rectangle or band, so that `point_in_solid`
+/// refuses `PartialTorusFace` at every point
+/// (`work/inside/point-in-solid-refuses-an-l-shaped-torus-face.md`):
+/// those bodies are held to their volume and tier 3, and the refusal is
+/// pinned at every sampled point, which goes red when containment reads
+/// such a wall.
+fn holds_to_the_truth_but(
+    pose: &str,
+    t: &Solid,
+    p: &Solid,
+    meet: f64,
+    (lo, hi): (Point3<f64>, Point3<f64>),
+    partial: &[&str],
+) {
     let n = 200_000;
     let hits = points(lo, hi, n)
         .filter(|&q| (t.inside)(q) == Some(true) && (p.inside)(q) == Some(true))
@@ -213,6 +231,17 @@ fn holds_to_the_truth(
             (v - want).abs() <= volume_tol(want),
             "{pose}, {label}: volume {v} against the truth {want}"
         );
+        if partial.contains(&label) {
+            let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
+            for q in points(lo, hi, 48) {
+                let got = topo::point_in_solid(b, q, band, Tol::witness());
+                assert!(
+                    matches!(got, Err(topo::PointInSolidError::PartialTorusFace { .. })),
+                    "{pose}, {label}: point_in_solid at {q:?} reads {got:?}"
+                );
+            }
+            continue;
+        }
         let mut read = 0usize;
         for q in points(lo, hi, 48) {
             let (Some(a), Some(c)) = ((x.inside)(q), (y.inside)(q)) else {
@@ -321,6 +350,154 @@ fn tori_of_one_face_pair(big_r: f64, r: f64) -> Vec<(String, AtRestBody<f64>, bo
         .collect();
     tori.push(("the seamed torus".to_string(), seamed_torus(big_r, r), true));
     tori
+}
+
+/// **A slab across a torus of one face pair builds its true body**: the
+/// slab `[−6, 6] × [h, h2] × [−6, 6]`, whose two faces each cut the
+/// torus in two concentric circles, against the one-face torus (its
+/// vertex at three phases) and the torus seamed on `y = 0`. Every circle
+/// crosses its face's wrap meridian once, so one face carries up to four
+/// one-site loops, and each loop's chord must keep the others' two
+/// halves on one side of it.
+#[test]
+fn a_slab_across_a_torus_of_one_face_pair_builds_its_true_body() {
+    let (big_r, r) = (2.0, 0.5);
+    let mut tori: Vec<_> = [0.0, 1.0, PI]
+        .into_iter()
+        .map(|phase| {
+            (
+                format!("the one-face torus, vertex at {phase}"),
+                one_face_torus(big_r, r, phase),
+            )
+        })
+        .collect();
+    tori.push(("the seamed torus".to_string(), seamed_torus(big_r, r)));
+    for (name, body) in tori {
+        let t = ring(body, (big_r, r));
+        for (h, h2) in [(0.1, 0.3), (-0.2, 0.3), (-0.4, -0.1), (0.05, 0.45)] {
+            holds_to_the_truth(
+                &format!("{name}, the slab {h} < y < {h2}"),
+                &t,
+                &boxed((-6.0, 6.0), (h, h2), (-6.0, 6.0)),
+                cap(big_r, r, h) - cap(big_r, r, h2),
+                about_the_tube(big_r, r),
+            );
+        }
+    }
+}
+
+/// The volume of the ring torus `(R, r)` above the height `h`, at any
+/// `h`: all of it under the tube, none over it.
+fn cap_at(big_r: f64, r: f64, h: f64) -> f64 {
+    cap(big_r, r, h.clamp(-r, r))
+}
+
+/// The comb whose teeth `[−3, 3.5] × [a, b] × [−3, 3]` (one per entry of
+/// `teeth`, ascending and apart) hang off the spine
+/// `[3, 3.5] × [a₀, bₙ] × [−3, 3]`, clear of a torus `R + r < 3`: the
+/// profile in `z = −3` extruded 6 m along `z`.
+fn comb(teeth: &[(f64, f64)]) -> Solid {
+    let (x0, x1, x2) = (-3.0, 3.0, 3.5);
+    let (lo, hi) = (teeth[0].0, teeth[teeth.len() - 1].1);
+    let mut ring = vec![
+        Point2::new(x0, lo),
+        Point2::new(x2, lo),
+        Point2::new(x2, hi),
+    ];
+    for (k, &(a, b)) in teeth.iter().enumerate().rev() {
+        ring.push(Point2::new(x0, b));
+        ring.push(Point2::new(x0, a));
+        if k > 0 {
+            ring.push(Point2::new(x1, a));
+            ring.push(Point2::new(x1, teeth[k - 1].1));
+        }
+    }
+    ring.pop();
+    let plane = profile::SketchPlane::new(Affine3::from_parts(
+        Mat3::from_cols(
+            Vec3::unit_x(),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
+        Vec3::new(0.0, 0.0, -3.0),
+    ));
+    let vp = profile::Profile::new(plane, vec![profile::ProfileLoop::polygon(ring)])
+        .validate(Tol::witness())
+        .expect("the comb's profile validates");
+    let body = sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: 6.0,
+            side: sweep::ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the comb extrudes")
+    .body;
+    let teeth = teeth.to_vec();
+    let area = teeth.iter().map(|(a, b)| (x2 - x0) * (b - a)).sum::<f64>()
+        + (x2 - x1) * ((hi - lo) - teeth.iter().map(|(a, b)| b - a).sum::<f64>());
+    Solid {
+        body: sweep::test_support::finished("the comb", body, Tol::witness()),
+        volume: area * 6.0,
+        inside: Box::new(move |p| {
+            let parts: Vec<_> = teeth
+                .iter()
+                .map(|&(a, b)| all(&[within(p.x, (x0, x2)), within(p.y, (a, b))]))
+                .chain([all(&[within(p.x, (x1, x2)), within(p.y, (lo, hi))])])
+                .collect();
+            let plan = if parts.contains(&Some(true)) {
+                Some(true)
+            } else {
+                parts.iter().all(|m| *m == Some(false)).then_some(false)
+            };
+            all(&[plan, within(p.z, (-3.0, 3.0))])
+        }),
+    }
+}
+
+/// **A comb across a torus of one face pair builds its true body**: the
+/// combs of two to four teeth, each tooth a slab across the tube or one
+/// with a face past it (or the whole tooth clear of it), against the
+/// one-face torus (its vertex at five phases) and the torus seamed on
+/// `y = 0`. Each comb's faces cut the torus in six or eight concentric
+/// circles, every one a one-site loop on one face, and each loop's chord
+/// must keep every other's two halves on one side of it.
+#[test]
+fn a_comb_across_a_torus_of_one_face_pair_builds_its_true_body() {
+    let (big_r, r) = (2.0, 0.5);
+    let combs: [&[(f64, f64)]; 4] = [
+        &[(-0.4, -0.15), (0.1, 0.35)],
+        &[(-0.7, -0.25), (0.15, 0.3)],
+        &[(-0.7, -0.3), (-0.1, 0.1), (0.3, 0.7)],
+        &[(-0.9, -0.6), (-0.4, -0.2), (0.05, 0.25), (0.6, 0.9)],
+    ];
+    let mut tori: Vec<_> = [0.0, 1.0, 2.0, PI, 5.5]
+        .into_iter()
+        .map(|phase| {
+            (
+                format!("the one-face torus, vertex at {phase}"),
+                one_face_torus(big_r, r, phase),
+            )
+        })
+        .collect();
+    tori.push(("the seamed torus".to_string(), seamed_torus(big_r, r)));
+    for (name, body) in tori {
+        let t = ring(body, (big_r, r));
+        for teeth in combs {
+            let meet = teeth
+                .iter()
+                .map(|&(a, b)| cap_at(big_r, r, a) - cap_at(big_r, r, b))
+                .sum();
+            holds_to_the_truth(
+                &format!("{name}, the comb {teeth:?}"),
+                &t,
+                &comb(teeth),
+                meet,
+                about_the_tube(big_r, r),
+            );
+        }
+    }
 }
 
 /// **A section circle along an equator edge of the torus refuses typed**
@@ -457,4 +634,82 @@ fn a_tilted_cap_builds_its_true_body_wherever_its_origin_is_stored() {
             about_the_tube(big_r, r),
         );
     }
+}
+
+/// The ops whose result keeps the torus less a box corner: its wall is
+/// no chart rectangle, and containment refuses it.
+const PARTIAL: [&str; 3] = ["T ∪ P", "P ∪ T", "T ∖ P"];
+
+/// **A box edge piercing a torus face leaves a ring the join homes**,
+/// in all six ops: the box `x ≥ 0 ∧ y ≥ h` against the one-face torus
+/// with its vertex on the inner equator, `h = −0.1, −0.3, −0.45`, whose
+/// edge `x = 0, y = h` pierces the tube's outer side in a point ring of
+/// the face. That point lies in the planes of two of the run's arcs (a
+/// box face's meridian circle, off its span, and the other loop of a
+/// box face's parallels), and the face's outer loop on the carriers of
+/// the other two (the wrap edges), so every path between them runs
+/// along an arc's plane. The meet is half the torus above `h`.
+/// Containment reads ∩ and `P ∖ T`, and refuses the rest typed
+/// ([`holds_to_the_truth_but`]).
+#[test]
+fn a_box_edge_piercing_a_one_face_torus_builds_its_true_body() {
+    let (big_r, r) = (2.0, 0.5);
+    for h in [-0.1, -0.3, -0.45] {
+        let t = ring(one_face_torus(big_r, r, PI), (big_r, r));
+        let p = boxed((0.0, 6.0), (h, h + 12.0), (-6.0, 6.0));
+        holds_to_the_truth_but(
+            &format!("x ≥ 0 ∧ y ≥ {h}"),
+            &t,
+            &p,
+            cap(big_r, r, h) / 2.0,
+            about_the_tube(big_r, r),
+            &PARTIAL,
+        );
+    }
+}
+
+/// **A bar whose face holds the donut's axis homes the ring its edge
+/// pierces**, in all six ops: `[−3, 3] × [0.2, 1.2] × [0, 3]`, whose
+/// edges `y = 0.2, z = 0` pierce the tube in point rings on the
+/// meridian plane `z = 0`, which holds the run's two arcs on the plane's
+/// other loop. The meet is half the donut above `y = 0.2`. Containment
+/// reads ∩ and `P ∖ T`, and refuses the rest typed.
+#[test]
+fn a_bar_on_the_donuts_meridian_plane_builds_its_true_body() {
+    let (big_r, r) = (2.0, 0.5);
+    let t = ring(torus(big_r, r), (big_r, r));
+    let p = boxed((-3.0, 3.0), (0.2, 1.2), (0.0, 3.0));
+    holds_to_the_truth_but(
+        "the bar on z = 0",
+        &t,
+        &p,
+        cap(big_r, r, 0.2) / 2.0,
+        about_the_tube(big_r, r),
+        &PARTIAL,
+    );
+}
+
+/// **A one-face torus whose vertex lies on the box's face builds its
+/// true body**, in all six ops: the box `x ≥ 0 ∧ y ≥ −0.3` against the
+/// one-face torus with its vertex at `π + asin 0.6`, the point
+/// `(1.6, −0.3)` of its profile. So its wrap parallel is the section's
+/// inner circle on the face `y = −0.3`, and its vertex lies inside that
+/// face. The face cuts the tube transversally there. The coincidence is
+/// an edge and a vertex on a face, decided Zero by the crossing layer's
+/// margins, not a sector of the torus lying on the plane. The join
+/// glues it, and the ring the edge `x = 0, y = −0.3` pierces is homed
+/// as in [`a_box_edge_piercing_a_one_face_torus_builds_its_true_body`].
+#[test]
+fn a_one_face_torus_whose_vertex_lies_on_the_box_face_builds_its_true_body() {
+    let (big_r, r, h) = (2.0, 0.5, -0.3);
+    let t = ring(one_face_torus(big_r, r, PI + (0.6f64).asin()), (big_r, r));
+    let p = boxed((0.0, 6.0), (h, h + 12.0), (-6.0, 6.0));
+    holds_to_the_truth_but(
+        "the vertex on y = −0.3",
+        &t,
+        &p,
+        cap(big_r, r, h) / 2.0,
+        about_the_tube(big_r, r),
+        &PARTIAL,
+    );
 }

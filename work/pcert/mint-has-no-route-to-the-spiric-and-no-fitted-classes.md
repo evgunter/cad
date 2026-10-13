@@ -52,3 +52,12 @@ that lane's PR closes `no-fitted-class-misuse-is-excused-by-not-owed`.
 This branch's reach measurement for it is in its PR body.
 The spiric-wall quadrature lane's refusal
 of a mirror wall is `the-spiric-wall-quadrature-lane-reads-only-the-own-torus`.
+
+**The NoFittedClass half closed with the class** on
+`pcert/fitted-row-reads-carrier-and-chart` (PR 4900). The fitted-grade
+row reads its carrier and chart alone, so a line, ellipse or spiric on
+a spline chart certifies its `General` image at the hull, or refuses
+there typed. The mint's `Intersection` arm gives such a carrier its
+`General` image after the exact candidates. With both classes routed,
+`UncoveredClass`, `PcurveCertifyError::UnsupportedCarrier` and
+`not_owed`'s class arm are deleted in that PR.

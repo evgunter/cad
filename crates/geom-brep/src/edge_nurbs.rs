@@ -586,41 +586,46 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // hook, so the ORDER in which the two refusals can fire is exactly
     // what it was when the two loops were one.
     let mut min_sin = T::from_f64(f64::MAX);
-    let pcurve = chart_image(carrier, wall, |i, foot| {
-        // Transversality at the INTERIOR samples only: an endpoint is
-        // shared with the neighbouring edges, where a vanishing angle
-        // is a vertex fact rather than this edge's — the analytic
-        // `Intersection` arm's own convention, kept verbatim.
-        if i == 0 || i == PXN_FIT_SAMPLES - 1 {
-            return Ok(());
-        }
-        let (u, v) = measured_foot(foot);
-        let jet = wall.ders(u, v);
-        let sin_theta = normal_angle_sine(normal, jet.du.cross(jet.dv));
-        // The point arm, the plane's curvature being zero.
-        let kappa = crate::shape_operator::max_principal_curvature(&jet);
-        let (arm, reach) = crate::ssi::point_arm(kappa, extent);
-        let margin = geom_core::Margin::levered(sin_theta, arm);
-        match crate::dihedral::decide_reported("plane_nurbs_transversality", margin, band) {
-            Ok(decided) => {
-                if let Some(verdict) = Refused::of(decided, band) {
-                    return Err(PlaneNurbsRefusal::NotTransverse {
-                        sample: i,
-                        lever: PointLever::of(Bounds::lo(reach)),
-                        verdict,
-                    });
+    let eval = |t| carrier.eval(t);
+    let pcurve = chart_image(
+        Schedule::new(&eval, carrier.domain(), carrier.knot_values().domain()),
+        wall,
+        |i, foot| {
+            // Transversality at the INTERIOR samples only: an endpoint is
+            // shared with the neighbouring edges, where a vanishing angle
+            // is a vertex fact rather than this edge's — the analytic
+            // `Intersection` arm's own convention, kept verbatim.
+            if i == 0 || i == PXN_FIT_SAMPLES - 1 {
+                return Ok(());
+            }
+            let (u, v) = measured_foot(foot);
+            let jet = wall.ders(u, v);
+            let sin_theta = normal_angle_sine(normal, jet.du.cross(jet.dv));
+            // The point arm, the plane's curvature being zero.
+            let kappa = crate::shape_operator::max_principal_curvature(&jet);
+            let (arm, reach) = crate::ssi::point_arm(kappa, extent);
+            let margin = geom_core::Margin::levered(sin_theta, arm);
+            match crate::dihedral::decide_reported("plane_nurbs_transversality", margin, band) {
+                Ok(decided) => {
+                    if let Some(verdict) = Refused::of(decided, band) {
+                        return Err(PlaneNurbsRefusal::NotTransverse {
+                            sample: i,
+                            lever: PointLever::of(Bounds::lo(reach)),
+                            verdict,
+                        });
+                    }
+                }
+                Err(cause) => {
+                    return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
                 }
             }
-            Err(cause) => {
-                return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
-            }
-        }
-        // `Real::min` PROPAGATES poison (unlike `f64::min`, which
-        // returns the non-NaN operand), so a poisoned sine cannot
-        // be dropped out of this fold — it reaches the guard below.
-        min_sin = min_sin.min(sin_theta);
-        Ok(())
-    })?;
+            // `Real::min` PROPAGATES poison (unlike `f64::min`, which
+            // returns the non-NaN operand), so a poisoned sine cannot
+            // be dropped out of this fold — it reaches the guard below.
+            min_sin = min_sin.min(sin_theta);
+            Ok(())
+        },
+    )?;
     // FAIL LOUD on a poisoned aggregate. A NaN sine cannot reach here
     // today — the per-sample `decide` above escalates on its levered
     // margin first — but the reported transversality must not depend on
@@ -696,44 +701,53 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     }
     .map_err(refusal)?;
     let mut feet_a: Vec<Point2<f64>> = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
-    let pcurve_a = chart_image(carrier, a, |_, foot| {
-        feet_a.push(foot);
-        Ok(())
-    })?;
+    let eval = |t| carrier.eval(t);
+    let pcurve_a = chart_image(
+        Schedule::new(&eval, carrier.domain(), carrier.knot_values().domain()),
+        a,
+        |_, foot| {
+            feet_a.push(foot);
+            Ok(())
+        },
+    )?;
     let mut min_sin = T::from_f64(f64::MAX);
-    let pcurve_b = chart_image(carrier, b, |i, foot| {
-        // Interior samples only, as the plane lane reads them.
-        if i == 0 || i == PXN_FIT_SAMPLES - 1 {
-            return Ok(());
-        }
-        let Some(fa) = feet_a.get(i as usize) else {
-            return Err(PlaneNurbsRefusal::PcurveFit);
-        };
-        let (ua, va) = measured_foot(*fa);
-        let (ub, vb) = measured_foot(foot);
-        let (ja, jb) = (a.ders(ua, va), b.ders(ub, vb));
-        let sin_theta = normal_angle_sine(ja.du.cross(ja.dv), jb.du.cross(jb.dv));
-        let kappa = crate::shape_operator::max_principal_curvature(&ja)
-            .max(crate::shape_operator::max_principal_curvature(&jb));
-        let (arm, reach) = crate::ssi::point_arm(kappa, extent);
-        let margin = geom_core::Margin::levered(sin_theta, arm);
-        match crate::dihedral::decide_reported("nurbs_pair_transversality", margin, band) {
-            Ok(decided) => {
-                if let Some(verdict) = Refused::of(decided, band) {
-                    return Err(PlaneNurbsRefusal::NotTransverse {
-                        sample: i,
-                        lever: PointLever::of(Bounds::lo(reach)),
-                        verdict,
-                    });
+    let pcurve_b = chart_image(
+        Schedule::new(&eval, carrier.domain(), carrier.knot_values().domain()),
+        b,
+        |i, foot| {
+            // Interior samples only, as the plane lane reads them.
+            if i == 0 || i == PXN_FIT_SAMPLES - 1 {
+                return Ok(());
+            }
+            let Some(fa) = feet_a.get(i as usize) else {
+                return Err(PlaneNurbsRefusal::PcurveFit);
+            };
+            let (ua, va) = measured_foot(*fa);
+            let (ub, vb) = measured_foot(foot);
+            let (ja, jb) = (a.ders(ua, va), b.ders(ub, vb));
+            let sin_theta = normal_angle_sine(ja.du.cross(ja.dv), jb.du.cross(jb.dv));
+            let kappa = crate::shape_operator::max_principal_curvature(&ja)
+                .max(crate::shape_operator::max_principal_curvature(&jb));
+            let (arm, reach) = crate::ssi::point_arm(kappa, extent);
+            let margin = geom_core::Margin::levered(sin_theta, arm);
+            match crate::dihedral::decide_reported("nurbs_pair_transversality", margin, band) {
+                Ok(decided) => {
+                    if let Some(verdict) = Refused::of(decided, band) {
+                        return Err(PlaneNurbsRefusal::NotTransverse {
+                            sample: i,
+                            lever: PointLever::of(Bounds::lo(reach)),
+                            verdict,
+                        });
+                    }
+                }
+                Err(cause) => {
+                    return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
                 }
             }
-            Err(cause) => {
-                return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
-            }
-        }
-        min_sin = min_sin.min(sin_theta);
-        Ok(())
-    })?;
+            min_sin = min_sin.min(sin_theta);
+            Ok(())
+        },
+    )?;
     let min_sin =
         geom_core::k_stats::gate_measured("nurbs_pair_transversality_reported", min_sin, band)
             .map_err(PlaneNurbsRefusal::ReportedTransversalityPoisoned)?;
@@ -848,7 +862,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         // The tube's extent, from the object being certified: the
         // piece's control-net diameter (a closed carrier's chord says
         // nothing about its size).
-        crate::pcurve_cache::carrier_diameter(&piece),
+        carrier_diameter(&piece),
         band,
         crate::ssi::certify::Limbs::Tube,
         &mut crate::ssi::certify::Refused::default(),
@@ -1245,6 +1259,48 @@ impl core::fmt::Display for AnalyticRung3Refusal {
     }
 }
 
+/// The control-net diameter of a carrier, in metres — a convexity fact
+/// (the hull property), not an evaluation.
+fn carrier_diameter<T: geom_core::Real>(carrier: &NurbsCurve3<T>) -> T {
+    let mut ctl = carrier.control().iter();
+    let Some(first) = ctl.next() else {
+        return T::zero();
+    };
+    let (mut lo, mut hi) = (*first, *first);
+    for p in ctl {
+        lo = geom_core::Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
+        hi = geom_core::Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+    }
+    (hi - lo).norm()
+}
+
+/// What [`chart_image`] reads of a carrier: its evaluator, the `f64`
+/// domain the schedule spans, and that domain's ends as the carrier
+/// holds them. A spline's domain is its own knot domain
+/// (`Schedule::new(&eval, net.domain(), net.knot_values().domain())`);
+/// a closed-form carrier's is the one its caller states.
+pub(crate) struct Schedule<'a, T: geom_core::Real> {
+    eval: &'a dyn Fn(T) -> geom_core::Point3<T>,
+    domain: (f64, f64),
+    ends: (T, T),
+}
+
+impl<'a, T: geom_core::Real> Schedule<'a, T> {
+    /// The schedule of `eval` over `domain`, held at `ends`.
+    pub(crate) fn new(
+        eval: &'a dyn Fn(T) -> geom_core::Point3<T>,
+        domain: (f64, f64),
+        ends: (T, T),
+    ) -> Self {
+        Self { eval, domain, ends }
+    }
+
+    /// The `f64` domain the schedule spans.
+    pub(crate) fn domain(&self) -> (f64, f64) {
+        self.domain
+    }
+}
+
 /// **The chart image of a declared carrier on a NURBS wall** — the one
 /// derivation of this object in the tree.
 ///
@@ -1282,8 +1338,11 @@ impl core::fmt::Display for AnalyticRung3Refusal {
 /// whose projection does not converge (never a best-effort foot);
 /// [`PlaneNurbsRefusal::PcurveFit`] when the interpolation refuses; or
 /// whatever `per_sample` returns.
+///
+/// The carrier enters as its [`Schedule`]: [`net_schedule`] for a
+/// spline, its own knot domain and held ends.
 pub(crate) fn chart_image<T, F>(
-    carrier: &NurbsCurve3<T>,
+    schedule: Schedule<'_, T>,
     wall: &NurbsSurface<T>,
     mut per_sample: F,
 ) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>
@@ -1291,6 +1350,11 @@ where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
     F: FnMut(u32, Point2<f64>) -> Result<(), PlaneNurbsRefusal>,
 {
+    let Schedule {
+        eval,
+        domain: (t0, t1),
+        ends: (h0, h1),
+    } = schedule;
     if wall.is_placeholder() {
         // The same refusal `plane_nurbs_limbs` states before it gets here, kept at
         // the producer too: the placeholder has no description
@@ -1301,7 +1365,6 @@ where
             what: geom::PLACEHOLDER_SURFACE,
         });
     }
-    let (t0, t1) = carrier.domain();
     let domain_refusal = |e| PlaneNurbsRefusal::CarrierDomain(CarrierDomainRefusal::of(t0, t1, &e));
     // The domain door, asked first on a vector with no interior knots
     // (so only the interval itself can refuse): a domain whose width
@@ -1320,12 +1383,11 @@ where
     // The fit's parameters are the schedule's `f64` fractions (the
     // image's knots are the fit's); the carrier is read at the same
     // station, its ends held (`held_station`).
-    let (h0, h1) = carrier.knot_values().domain();
     let mut uv = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     let mut params = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     for i in 0..PXN_FIT_SAMPLES {
         let frac = schedule_fraction(i, PXN_FIT_SAMPLES);
-        let p = carrier.eval(crate::certify::held_station(
+        let p = eval(crate::certify::held_station(
             (t0, t1),
             (h0, h1),
             i,
