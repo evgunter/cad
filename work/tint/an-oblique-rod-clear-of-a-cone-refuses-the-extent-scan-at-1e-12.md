@@ -36,3 +36,10 @@ tangency reading is charging f64 rounding as nearness at this ε (a
 kernel lever, the owner of the extent scan's), or the row is
 eps-sensitive and wants a loud skip at that row — decide which, as for
 `a-far-origin-rod-cut-escalates-its-mapped-source-at-eps-1e-12`.
+
+## 2026-10-13 — still red at both ε on main
+
+The FLUX cylinder-band lane (PR 4839) re-ran the row alone by name on
+clean main `e71d719f1`. It fails at `CAD_TOLERANCE_EPS=1e-6` and at 1e-12,
+and is green at the default. That lane's diff does not reach the cone
+extent scan.

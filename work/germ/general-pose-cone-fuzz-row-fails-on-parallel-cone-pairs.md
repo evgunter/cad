@@ -42,3 +42,19 @@ same shape as above. So the arm at fault is not the parallel one alone:
 
 About 1% of fresh seeds fail, so a red can land on any PR that runs this
 row.
+
+## Another seed, another arm (2026-10-12)
+
+Hosted CI on PR 4897 (`pcert/mint-routes-spiric-nofitted`, which does
+not touch `section_cert`), slow-set step, failed on a fourth pose. It
+reproduces identically on main `1f7ef8844e`, freshly compiled in its own
+target dir:
+
+- `0x6e080f554162efc0` (`CAD_FUZZ_EFFORT=1`), **cylinder near the
+  apex**: a cone with apex `(45.4816, -30.8284, -11.2321)`, axis
+  `(-0.3959, 0.9173, 0.0436)`, α `0.0573` and scale `62.14`, against a
+  cylinder with origin `(-16.4605, -11.0784, -27.7851)`, direction
+  `(0.4818, 0.7208, 0.4984)`, r `66.18` and margin `3.4743`. On the
+  partner's chart it traced [Null] and classified [Null, Null], and the
+  witness `(47.2421, -34.3392, -11.4032)` of a Null part lies on no
+  traced component.
