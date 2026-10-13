@@ -182,7 +182,11 @@ fn probe_brick_beside_the_ruling() {
     }
     // Every op passed before PR 4918 (measured with the door's swallow
     // restored); the faces are centimetres apart at dx = 0.3.
-    assert!(refused.is_empty(), "faces that never touch refuse:\n{}", refused.join("\n"));
+    assert!(
+        refused.is_empty(),
+        "faces that never touch refuse:\n{}",
+        refused.join("\n")
+    );
 }
 
 /// The same brick beside the ruling, its top in the ZERO band of the
