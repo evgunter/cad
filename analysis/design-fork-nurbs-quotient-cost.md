@@ -48,3 +48,11 @@
   - **Subsumption:** the tree is this design plus a memo and snapping, which nothing calls for.
   - **Adds:** the whole-cell meet becomes a debug containment check rather than a mechanism, unless rounding is shown to matter.
   - **Confidence:** likely; subsumption sure.
+- **A revised, 22:55Z.** A moves to B's dyadic tree, with refinements:
+  - per-axis levels `(lu, iu, lv, iv)`, because windows are thin strips;
+  - no depth cap, since the lazy keyed memo bounds itself;
+  - the cover level chosen by an excess bound (`k = 2` ≤ 2w);
+  - exact restriction kept out unless rung inflation is measured.
+  - **Reasons:** the tree continues the existing cell fold as one mechanism, and it meets the piece clause literally (dyadic pieces, no rounded window-end ratios).
+  - A asks for this to be read as convergence.
+- **CROSSOVER.** Each designer moved to the other's previous position (B to exact restriction, A to the tree). Per protocol (Ev, 2026-09-30), round 2 follows: each designer gets the other's REVISED report and is asked what moved it and whether its own earlier argument is answered.
