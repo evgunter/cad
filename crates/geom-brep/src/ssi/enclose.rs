@@ -1345,7 +1345,10 @@ impl CellNet {
 /// One adjacent pair's term of the quotient numerator `A_d − S·w_d`:
 /// the rational speed bound's own term,
 /// [`geom_core::spline::RationalPairTerm`], so this enclosure and
-/// `NurbsSurface::stretch_sup` read one formula.
+/// `NurbsSurface::stretch_sup` read one term formula. They reduce it
+/// apart: here through [`RationalForm::speed_sup`], there through
+/// geom-core's own unscreened `pair_sup`, which divides after the norm
+/// (`work/nurbs/the-rational-pair-term-reduction-has-two-homes.md`).
 type PairTerm = geom_core::spline::RationalPairTerm<Interval, 3>;
 
 /// The term as an [`Affine`] in the offset `S − c`
