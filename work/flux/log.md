@@ -283,3 +283,16 @@ The rest moved by `git mv`, ids and bodies unchanged:
 - 2026-10-13 — **Wave 4, iso parse: PR 4932 merges** (orchestrator's read). The cone and cylinder iso parses now decide a rim circle's incidence at its true distance from the surface first: the cone through `require_on_cone`'s circle arm, now shared as `require_cone_circle`, and the cylinder through the new `props_cylinder_circle_tilt`/`_off_axis`, `r·(1 − cos θ)` and `o`. Then they ask whether it is the iso rim as inventory. So a circle tilted within band of the surface refuses `NotIsoRectangle`, as the sphere and torus already did, rather than `OffSurface`.
   - **Re-baselined:** `review_m2_pr7`'s off-surface rim names the new decide; the voided-rod census and the thread-count digest's `bulged_extrusion` each gained the cylinder's two decides on two rims (verdicts 22 → 26, values unchanged).
   - **Filed:** the line half (`cylinder-meridian-axial-refuses-a-line-within-band-as-off-surface`), and on LIB the main-side python red its CI met (`runline-is-curated-in-the-facade-and-unbound-in-python`, from PR 4922). One row closes. — (FLUX orchestrator)
+- 2026-10-13 — **Wave 4, periodic closure: PR 4938 merges.**
+  - **One decision for "a loop closes and winds as a face's boundary does" on a periodic chart** (`geom_brep::props::closure`), read by the quadrature, the cylinder and torus closed forms, and the spiric wall.
+    - Per junction, the chart gap less whole periods is decided against a stated slack. Turns are counted as exact integers (`|k| ≤ 1`, `Σk = 0`), and a connected face has at most two winding loops.
+    - Each edge's own turn about the surface axis is carried, so the whole-turn decide `props_chart_loop_whole` holds W to kτ. `props_chart_axis_inside` keeps those turns clear of the branch cut.
+    - The interval junction walk has one home (`interval_loop_turns`), and the bracket helpers moved to `props/bracket.rs`.
+    - Real defects fixed on the way: the cylinder closed form measured a ±2 pair as twice the band, and four rims wound `++−−` as 8π. Both now refuse `LoopsWindChart`.
+  - **Review.** Dual tier M, holdout arm (byte 201). Both reviews APPROVE-WITH-FIXES, 0 MAJOR. The blinded coder (byte 35) tallied 0. It noted a possible under-grade of the `++−−` finding, recorded only.
+  - **Verifier.** Across four fix passes it caught three things no review had raised:
+    - a silent wrong area from a loop of many ε-slanted rulings, whose own turns were read as 0;
+    - a regression of the first whole-turn fix on rims whose centre sits ε off the axis;
+    - a 2ε escalation window in the axis decide.
+    Each is fixed and pinned.
+  - **Filed:** the f64 spiric ends near tangency (P3); closed-form loop_whole charging near-axis rounding at the largest radius (P3); the cone closure as a fifth spelling. One row closes. — (FLUX orchestrator)
