@@ -497,6 +497,24 @@ impl<T: Real, const D: usize> Grid<T, D> {
         self.restrict(&block(du, counts.0, iu)?, &block(dv, counts.1, iv)?)
     }
 
+    /// The grid restricted to piece `at` of `cut`, by the table of its
+    /// own degree on each axis.
+    fn cut(&self, cut: &Cut, (iu, iv): (usize, usize)) -> Option<Self> {
+        self.cut_u(cut, iu)?.cut_v(cut, iv)
+    }
+
+    /// The grid restricted along `u` to the `iu`-th piece of `cut`.
+    fn cut_u(&self, cut: &Cut, iu: usize) -> Option<Self> {
+        let block = Cut::block(&cut.u, self.degree().0, iu)?;
+        self.map_u(|col| restrict(block, col))
+    }
+
+    /// The grid restricted along `v` to the `iv`-th piece of `cut`.
+    fn cut_v(&self, cut: &Cut, iv: usize) -> Option<Self> {
+        let block = Cut::block(&cut.v, self.degree().1, iv)?;
+        self.map_v(|row| restrict(block, row))
+    }
+
     /// The grid raised to the degrees `(du, dv)` by elevation: its
     /// product with a grid of ones.
     fn raised_to(&self, (du, dv): (usize, usize)) -> Option<Self> {
@@ -776,7 +794,7 @@ pub struct CellSecondQuotients<T> {
 impl<T: Real> Homogeneous<T> {
     /// The first-order grids restricted to piece `(iu, iv)` of `counts`
     /// per axis (the second order is cut after it is formed:
-    /// [`SecondRaised::on_piece`]).
+    /// [`SecondRaised::cut`]).
     fn restrict(&self, at: (usize, usize), counts: (usize, usize)) -> Option<Self> {
         let r3 = |g: &Grid<T, 3>| g.on_piece(at, counts);
         let r1 = |g: &Grid<T, 1>| g.on_piece(at, counts);
@@ -864,10 +882,10 @@ impl<T: Real, const D: usize> Raised<T, D> {
         })
     }
 
-    fn on_piece(&self, at: (usize, usize), counts: (usize, usize)) -> Option<Self> {
+    fn cut(&self, cut: &Cut, at: (usize, usize)) -> Option<Self> {
         Some(Self {
-            numer: self.numer.on_piece(at, counts)?,
-            denom: self.denom.on_piece(at, counts)?,
+            numer: self.numer.cut(cut, at)?,
+            denom: self.denom.cut(cut, at)?,
         })
     }
 
@@ -879,6 +897,86 @@ impl<T: Real, const D: usize> Raised<T, D> {
     }
 }
 
+/// A cut into exact dyadic pieces, `counts` per axis, with the
+/// [`piece_weights`] table of each degree it reads formed once: a
+/// table is the cut's, not a grid's, so the grids of one cell share it.
+struct Cut {
+    u: Vec<(usize, Vec<f64>)>,
+    v: Vec<(usize, Vec<f64>)>,
+}
+
+impl Cut {
+    /// The tables of the degrees `du` along `u` and `dv` along `v`.
+    fn new(counts: (usize, usize), (du, dv): (&[usize], &[usize])) -> Option<Self> {
+        let tables = |count: usize, degrees: &[usize]| {
+            degrees
+                .iter()
+                .map(|&d| Some((d, piece_weights(d, count)?)))
+                .collect::<Option<Vec<_>>>()
+        };
+        Some(Self {
+            u: tables(counts.0, du)?,
+            v: tables(counts.1, dv)?,
+        })
+    }
+
+    /// Piece `i`'s block of the degree-`deg` table.
+    fn block(tables: &[(usize, Vec<f64>)], deg: usize, i: usize) -> Option<&[f64]> {
+        let (_, table) = tables.iter().find(|(d, _)| *d == deg)?;
+        let n = (deg + 1).pow(2);
+        table.get(i * n..(i + 1) * n)
+    }
+}
+
+/// Both orders' quotients on every piece of `cut`, row-major in `u`
+/// then `v`. Each grid is cut along `u` once per `u` piece and along
+/// `v` per piece, and the weight powers once per piece: the first
+/// order's two quotients share `W²`, and the area and the three second
+/// partials share `W³` (one product of the same factors, bit for bit).
+fn cut_both<T: Real>(
+    first: &FirstRaised<T>,
+    second: &SecondRaised<T>,
+    cut: &Cut,
+    counts: (usize, usize),
+) -> Option<PiecePairs<T>> {
+    let area = first.area.as_ref()?;
+    let mut out = Vec::with_capacity(counts.0 * counts.1);
+    for iu in 0..counts.0 {
+        let along = |g: &Grid<T, 3>| g.cut_u(cut, iu);
+        let numers = [
+            along(&first.u.numer)?,
+            along(&first.v.numer)?,
+            along(&area.numer)?,
+            along(&second.uu.numer)?,
+            along(&second.uv.numer)?,
+            along(&second.vv.numer)?,
+        ];
+        let (w2, w3) = (first.u.denom.cut_u(cut, iu)?, area.denom.cut_u(cut, iu)?);
+        for iv in 0..counts.1 {
+            let scalars = |g: &Grid<T, 1>| -> Option<Vec<T>> {
+                Some(g.cut_v(cut, iv)?.c.iter().map(|w| w.0[0]).collect())
+            };
+            let (b2, b3) = (scalars(&w2)?, scalars(&w3)?);
+            let piece = |k: usize, b: &[T]| {
+                QuotientPiece::new(numers.get(k)?.cut_v(cut, iv)?.arrays(), b.to_vec())
+            };
+            out.push((
+                CellQuotients {
+                    u: piece(0, &b2)?,
+                    v: piece(1, &b2)?,
+                    area: Some(piece(2, &b3)?),
+                },
+                Some(CellSecondQuotients {
+                    uu: piece(3, &b3)?,
+                    uv: piece(4, &b3)?,
+                    vv: piece(5, &b3)?,
+                }),
+            ));
+        }
+    }
+    Some(out)
+}
+
 /// [`CellQuotients`] before it is cut.
 struct FirstRaised<T> {
     u: Raised<T, 3>,
@@ -887,17 +985,6 @@ struct FirstRaised<T> {
 }
 
 impl<T: Real> FirstRaised<T> {
-    fn on_piece(&self, at: (usize, usize), counts: (usize, usize)) -> Option<Self> {
-        Some(Self {
-            u: self.u.on_piece(at, counts)?,
-            v: self.v.on_piece(at, counts)?,
-            area: match &self.area {
-                Some(a) => Some(a.on_piece(at, counts)?),
-                None => None,
-            },
-        })
-    }
-
     fn pieces(&self) -> Option<CellQuotients<T>> {
         Some(CellQuotients {
             u: self.u.piece()?,
@@ -915,24 +1002,6 @@ struct SecondRaised<T> {
     uu: Raised<T, 3>,
     uv: Raised<T, 3>,
     vv: Raised<T, 3>,
-}
-
-impl<T: Real> SecondRaised<T> {
-    fn on_piece(&self, at: (usize, usize), counts: (usize, usize)) -> Option<Self> {
-        Some(Self {
-            uu: self.uu.on_piece(at, counts)?,
-            uv: self.uv.on_piece(at, counts)?,
-            vv: self.vv.on_piece(at, counts)?,
-        })
-    }
-
-    fn pieces(&self) -> Option<CellSecondQuotients<T>> {
-        Some(CellSecondQuotients {
-            uu: self.uu.piece()?,
-            uv: self.uv.piece()?,
-            vv: self.vv.piece()?,
-        })
-    }
 }
 
 /// **The curve statement's pieces** (module docs): on each of the
@@ -1272,9 +1341,10 @@ pub fn polynomial_area_pieces<T: Real>(
     let denom = Grid::new(mv + 1, vec![Vector([T::one()]); (mu + 1) * (mv + 1)])?;
     let whole = Raised { numer, denom };
     let counts = (piece_count(mu, splits.0), piece_count(mv, splits.1));
+    let cut = Cut::new(counts, (&[mu], &[mv]))?;
     (0..counts.0)
         .flat_map(|iu| (0..counts.1).map(move |iv| (iu, iv)))
-        .map(|at| whole.on_piece(at, counts)?.piece())
+        .map(|at| whole.cut(&cut, at)?.piece())
         .collect()
 }
 
@@ -1388,16 +1458,8 @@ fn cell_pieces<T: Real>(
         let first = whole.first_raised(area)?;
         let second = whole.second_raised()?;
         let counts = (piece_count(3 * p, splits.0), piece_count(3 * q, splits.1));
-        let mut out = Vec::with_capacity(counts.0 * counts.1);
-        for iu in 0..counts.0 {
-            for iv in 0..counts.1 {
-                out.push((
-                    first.on_piece((iu, iv), counts)?.pieces()?,
-                    Some(second.on_piece((iu, iv), counts)?.pieces()?),
-                ));
-            }
-        }
-        return Some((counts, out));
+        let cut = Cut::new(counts, (&[2 * p, 3 * p], &[2 * q, 3 * q]))?;
+        return Some((counts, cut_both(&first, &second, &cut, counts)?));
     }
     let counts = (piece_count(p, splits.0), piece_count(q, splits.1));
     let mut out = Vec::with_capacity(counts.0 * counts.1);
@@ -1410,11 +1472,11 @@ fn cell_pieces<T: Real>(
 }
 
 /// A cell's pieces per direction, and its pieces row-major in `u`
-/// then `v`, each with its second order when asked for.
-type CellPieces<T> = (
-    (usize, usize),
-    Vec<(CellQuotients<T>, Option<CellSecondQuotients<T>>)>,
-);
+/// then `v`.
+type CellPieces<T> = ((usize, usize), PiecePairs<T>);
+
+/// A cell's pieces, each with its second order when asked for.
+type PiecePairs<T> = Vec<(CellQuotients<T>, Option<CellSecondQuotients<T>>)>;
 
 /// **The surface statement's pieces** over every nonempty cell of the
 /// rational tensor patch over `knots_u` × `knots_v` with row-major
