@@ -74,6 +74,7 @@
 use geom_brep::OutwardNormal;
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
+use super::contain::FaceContainment;
 use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
 use std::collections::BTreeMap;
@@ -1525,6 +1526,202 @@ pub(super) fn mint_ring<T: Decide + crate::props::AtRestPolicy>(
             a_edge,
             b_edge,
             site,
+        });
+    }
+    Ok(out)
+}
+
+/// A pierce [`faces_holding_pierce`] adds: its strut, its half of the
+/// ring, and the margin that put the point on the face's plane, which
+/// the ring's tie to the pierce it shares the point with cites.
+#[derive(Debug)]
+pub(super) struct HeldPierce<T: geom_core::Real> {
+    pub strut: BoolNullEdgeRecord<T>,
+    pub plan: RingPlan<T>,
+    pub on: geom_core::MarginDiag,
+}
+
+/// **A pierce point inside a face of the piercing body's own** that
+/// does not bound the piercing vertex: an operand whose lumps touch,
+/// one's edge lying in another's face, pierces the other operand's
+/// face where that face crosses its own. The section of the two faces
+/// passes the point, and the result holds one vertex there on both
+/// lumps, so the face the point lies in takes a ring vertex at it: a
+/// second pierce of the pierced face at the point, whose one Out run
+/// is the half of the face above the pierced one. [`ring_groups`] puts
+/// it in the pierce's ring, and the zips fuse it with the piercing
+/// vertex through the ring's vertex.
+///
+/// Mints each such ring vertex and its run's strut in `piercing_body`
+/// and returns them with the pierce's half of its ring. Reads planes
+/// only: a point inside a curved face of the piercing body, or inside
+/// a plane face where the pierced face is curved, refuses typed.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] or a coincidence where the point's side
+/// of a face's plane, its place in the face, or the two planes' angle
+/// is in band; [`BooleanError::ClassificationInvariant`] where the
+/// face lies in the pierced face's plane, or a face is curved.
+pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
+    piercing_body: &mut Body<T>,
+    pierced_body: &Body<T>,
+    plan: &RingPlan<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<Vec<HeldPierce<T>>, BooleanError> {
+    let (p, piercing, pierced) = (plan.point, plan.piercing, plan.contact.face);
+    // The pierce's own neighbourhood meters each reading: the shortest
+    // arm its runs were ordered at.
+    let arm = plan
+        .runs
+        .iter()
+        .flat_map(|run| run.order.map(|(_, arm)| arm))
+        .reduce(T::min)
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "a pierce ring's pierce has no run",
+        })?;
+    let faces: Vec<_> = piercing_body.faces().map(|(k, _)| k).collect();
+    let mut out = Vec::new();
+    for face in faces {
+        let Some(plane) = face_plane(piercing_body, face) else {
+            let (placement, _) =
+                super::contain::curved_face_placement_decided(piercing_body, face, p, band)
+                    .map_err(|e| super::reduce::esc(e, piercing, face))?;
+            if placement == super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a pierce point lies inside a curved face of the piercing operand \
+                           (unbuilt)",
+                });
+            }
+            continue;
+        };
+        let side = geom_core::k_stats::decide_reported(
+            "bool_vertex_face_side",
+            Margin::of((p - plane.origin).dot(plane.normal)),
+            band,
+        );
+        if matches!(side, Ok(ref d) if d.sign != Sign::Zero) {
+            continue;
+        }
+        // A plane the point is in band of matters only where the point
+        // lies in the face. On the face's boundary the point is a vertex
+        // or an edge of the piercing body: the sweep's pierces and
+        // splits hold it.
+        let (at, _) = super::contain::contfp_decided(piercing_body, face, plane.normal, p, band)
+            .map_err(|e| super::reduce::esc(e, piercing, face))?;
+        if at != FaceContainment::In {
+            continue;
+        }
+        let side = side.map_err(|diag| {
+            BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag)
+        })?;
+        if face_plane(pierced_body, pierced).is_none() {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a pierce point inside a face of the piercing operand lies on a curved \
+                       face (unbuilt)",
+            });
+        }
+        let int = plane.normal.cross(plan.normal);
+        match decide("bool_germ_line", Margin::levered(int.norm(), arm), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a pierce point lies inside a face of the piercing operand in the \
+                           pierced face's plane",
+                });
+            }
+            Err(diag) => {
+                return Err(BooleanError::coincidence(
+                    Coincide::Sectors,
+                    DeclarationRead::Moot,
+                    diag,
+                ));
+            }
+        }
+        // The ring vertex, as `mint_ring` mints one: a chord strut from
+        // the outer loop's anchor, detached as an empty-loop ring.
+        let face_data = proven(&piercing_body.faces, face, EntityId::Face);
+        let crate::entity::LoopBoundary::Cycle { first: anchor } = linked(
+            &piercing_body.loops,
+            face_data.outer,
+            EntityId::Loop,
+            EntityId::Face(face),
+            "outer",
+        )
+        .boundary
+        else {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a face holding a pierce point has no outer cycle",
+            });
+        };
+        let u = linked(
+            &piercing_body.half_edges,
+            anchor,
+            EntityId::HalfEdge,
+            EntityId::Loop(face_data.outer),
+            "first",
+        )
+        .start;
+        let p_u = piercing_body.linked_vertex_point(u, EntityId::HalfEdge(anchor), "start");
+        let chord = piercing_body.mev(
+            MevSite::Fan {
+                he1: anchor,
+                he2: anchor,
+            },
+            p,
+            geom_brep::EdgeCurveSpec::line_between(p_u, p),
+            tol,
+        )?;
+        let kemr = piercing_body.kemr(chord.he_plus, chord.he_minus)?;
+        let w = chord.vertex;
+        // The face's one run is its half above the pierced face, from
+        // the germ `n × n_pierced` round to its opposite, as a sector's
+        // transitions read (`pierce_germ_dir`).
+        let d = int.normalize();
+        let cells = match piercing {
+            Operand::A => (
+                (face, pierced),
+                (super::Locus::InFace(face), super::Locus::InFace(pierced)),
+            ),
+            Operand::B => (
+                (pierced, face),
+                (super::Locus::InFace(pierced), super::Locus::InFace(face)),
+            ),
+        };
+        let germs: (Germ<T>, Germ<T>) = ((cells, d), (cells, -d));
+        let mint = piercing_body.mev_null_run(
+            MevSite::Lone { r#loop: kemr.ring },
+            w,
+            NewVertexSide::Above,
+            true,
+        )?;
+        let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
+        let rec = BoolNullEdgeRecord {
+            operand: piercing,
+            at_vertex: w,
+            edge: created.edge,
+            attr,
+            dangling: true,
+            germs: [half_germ(start_he, germs.0), half_germ(end_he, germs.1)],
+        };
+        out.push(HeldPierce {
+            strut: rec,
+            on: side.margin,
+            plan: RingPlan {
+                contact: VfContact {
+                    vertex: w,
+                    face: pierced,
+                },
+                piercing,
+                point: p,
+                normal: plan.normal,
+                runs: vec![PlannedRun {
+                    edge: created.edge,
+                    germs,
+                    order: [(d, arm), (-d, arm)],
+                }],
+            },
         });
     }
     Ok(out)

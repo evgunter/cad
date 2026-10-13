@@ -4737,6 +4737,27 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 )?);
             }
         }
+        // A pierce point inside a face of the piercing body's own adds a
+        // pierce there, which its ring serves (`vtxfac::faces_holding_pierce`).
+        let (piercing_body, pierced_body) = match operand {
+            Operand::A => (&mut a, &b),
+            Operand::B => (&mut b, &a),
+        };
+        let mut held = Vec::new();
+        for (_, plan) in &minted {
+            if let Some(plan) = plan {
+                held.extend(vtxfac::faces_holding_pierce(
+                    piercing_body,
+                    pierced_body,
+                    plan,
+                    band,
+                    tol,
+                )?);
+            }
+        }
+        let held_on: std::collections::BTreeMap<_, _> =
+            held.iter().map(|h| (h.plan.contact.vertex, h.on)).collect();
+        minted.extend(held.into_iter().map(|h| (vec![h.strut], Some(h.plan))));
         // Each ring is minted, and its records read, where its first
         // pierce was: a face pierced at one point alone mints as it
         // would beside its piercing side.
@@ -4752,11 +4773,18 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         };
         let mut rings = std::collections::BTreeMap::new();
         let (groups, ties) = vtxfac::ring_groups(&only, band)?;
-        ring_ties.extend(ties.into_iter().map(|(i, j, margin)| RingTie {
-            operand,
-            a: only[i].contact.vertex,
-            b: only[j].contact.vertex,
-            margin,
+        // A held pierce stands at its pierce's point because the point
+        // lies on its face: that decision is the tie's.
+        ring_ties.extend(ties.into_iter().map(|(i, j, margin)| {
+            RingTie {
+                operand,
+                a: only[i].contact.vertex,
+                b: only[j].contact.vertex,
+                margin: [i, j]
+                    .iter()
+                    .find_map(|&k| held_on.get(&only[k].contact.vertex).copied())
+                    .unwrap_or(margin),
+            }
         }));
         for group in groups {
             let members: Vec<_> = group.iter().map(|&k| plans[k].1).collect();

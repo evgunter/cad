@@ -53,3 +53,11 @@ Member 0 is the plate and member 3 the third prism. Those orders refuse
 identically on main (8fd03fce), so this is not that PR's change. The
 row asserts the refusal by order.
 
+Two more orders of that row join them (2026-10-13): [3, 2, 0, 1] and
+[2, 3, 0, 1] at step 3. Those used to refuse `ResultInvalid { RingMeetsRing }`
+at step 2, and step 2 now builds
+(`an-edge-lying-in-a-face-at-a-pierce-refuses-ring-meets-ring`).
+Step 3 adds the 0° prism: its vertex on the line touches a face of the
+body and pairs with the body's vertex there (`reads: [Pierce(_),
+Pair(_)]`).
+

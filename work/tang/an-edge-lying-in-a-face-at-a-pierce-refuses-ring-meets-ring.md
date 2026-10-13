@@ -2,8 +2,9 @@
 id: an-edge-lying-in-a-face-at-a-pierce-refuses-ring-meets-ring
 kind: issue
 title: A prism whose side face holds another's edge at a pierce refuses ResultInvalid RingMeetsRing in six member orders
-status: open
+status: closed
 opened: 2026-10-08
+closed: 2026-10-13
 priority: P2
 cost: M
 ---
@@ -36,4 +37,32 @@ Unmeasured: which ring meets which, and whether the result's ring
 placement or the classification before it is wrong. The tier-3 check
 refusing the result is the fail-loud backstop. The row asserts the
 refusal by order, and fails when an order builds.
+
+## Closed (2026-10-13, TANG)
+
+The ring that meets a ring is on the plate's top. With the third prism
+and the 120° prism one operand, the 120° prism's edge on the line
+pierces the top at (1.5, 1, 1). The third's side face crosses the top
+along a section through that point. The reduction read the pierce
+against the top alone, so the join chorded the third's section straight
+past the pierce's ring vertex. The top was left with two rings, one
+standing on the other's edge (`VertexOnEdge`). The classification was
+right. The first wrong decision was the missing site on that section:
+the pierce point lies inside a face of the piercing operand's own that
+does not bound the pierce.
+
+`vtxfac::faces_holding_pierce` now mints a ring vertex in each such
+plane face at the point. Its one Out run is the face's half above the
+pierced face, and it joins the pierce's ring as a second pierce. The
+join chords the section to that vertex, and the zips fuse it with the
+pierce through the ring's vertex. The top's section is one ring through
+the point twice, as the orders that fold the plate earlier build it.
+Four of the six orders now build: [2, 1, 3, 0], [3, 1, 2, 0],
+[1, 3, 2, 0] and [1, 2, 3, 0]. They give the same body as every other
+building order. The other two, [3, 2, 0, 1] and [2, 3, 0, 1], now build
+step 2 and refuse step 3 `VertexReadTwice`
+(`a-touching-vertex-beside-a-partner-along-the-face-refuses`). A point
+inside a curved face of the piercing operand, or a plane face holding
+it over a curved pierced face, refuses typed (unbuilt)
+(`a-pierce-point-inside-a-curved-face-of-the-piercing-operand-refuses-unbuilt`).
 

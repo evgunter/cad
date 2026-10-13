@@ -2921,6 +2921,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "Coincide::TangentSide",
         1,
     ),
+    ("vtxfac.rs", "faces_holding_pierce", "Coincide::Sectors", 1),
+    (
+        "vtxfac.rs",
+        "faces_holding_pierce",
+        "Coincide::VertexOnFace",
+        1,
+    ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
     (
