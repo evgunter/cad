@@ -702,3 +702,4 @@ Signed: (CARVE orchestrator)
 - 2026-10-13 — `arc-arc-secant-arm-misses-crossings-at-unequal-radii` (P0, M) is dispatched on `paths/arc-arc-secant-unequal-radii`.
   - D10 check: it is the numerics of a crossing's placement and records no declared contact, so it may start.
   - Review tier: dual. It is a silent false acceptance in validation's core. Difficulty letter M; the arm is drawn by `/dev/urandom` byte 63 (mod 3 = 0): HOLDOUT (concurrent pair).
+- 2026-10-13 — `arc-arc-secant-arm-misses-crossings-at-unequal-radii` closes on `paths/arc-arc-secant-unequal-radii`. `arc_arc` places its crossings from the clearances (`radical_chord`), the `rivals` fuzz reaches a radius ratio of 10¹², and three sibling sites are filed on RESTFRONT, HONE and ROOTS.
