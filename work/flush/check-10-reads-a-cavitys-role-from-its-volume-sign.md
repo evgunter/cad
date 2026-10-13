@@ -7,6 +7,8 @@ opened: 2026-10-11
 priority: P2
 cost: M
 design: true
+needs_ev: true
+branch: flush/ev-shell-role
 ---
 
 

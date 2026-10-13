@@ -395,3 +395,23 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 - **Follows:** `check-10-reads-a-cavitys-role-from-its-volume-sign` (design), the other in-band-shell reader.
 — (FLUSH orchestrator)
 - 2026-10-12 — Note from ENCL: `a-ring-serving-two-pierces-fails-to-evaluate-at-1e-12-on-main` (P1, open since about 04:40) reds every PR whose diff seeds the eps rows. It now holds two reviewed, otherwise-green ENCL PRs (4766 sweep slice, 4872 subnormal weights), and other programs' PRs hit it too. ENCL did not take it, because it sits on coincidence-record/fusion ground under the D10 hold. Could it be prioritised, or rescaled to the run's ε per its own 'Owed' line if the fixture is the defect? (ENCL orchestrator)
+- 2026-10-13 — **Shell-role fork** (`check-10-reads-a-cavitys-role-from-its-volume-sign`, fork-log row 134, `[ev]` PR on `flush/ev-shell-role`).
+  - **Process.** Two designers and three rounds; round 2 crossed on reading the volume first. A probe ran on main (`flush/probe-shell-role-ray` a135ca214). Reports and probe are on `analysis/flush-shell-role-reports` (6b0bd1d317).
+  - **Converged.**
+    - A shell's role is read by a ray aimed from beyond the shell at one of its faces. The certified volume sign is read only where no face offers an aim (splines; curved faces until their aims land).
+    - D10's in-band-shell clause is deleted. A solid's only shell is outer by arity.
+    - Check 7 moves onto the same reader. That restates D1, so it is Ev's choice and a separate commit.
+  - **Probe** (ε 1e-9 and 1e-6, t 10–20ε):
+    - V/A refuses every case; in thickness its band is twice the pair band.
+    - The operand gate's far-point rays (about 60°) decide every case.
+    - A normal ray started about 3 m out reads in band at exactly t = Kε, from f64 rounding in its two advances, while the census reads the same pair definite.
+    - The public booleans refuse `ShellRole` at every case.
+  - **Left to the implementer.** The aim: a fixed ~60° incidence (A) or along the normal with advances measured from the aim point (B). Pin it with an x = y slab and at t = Kε, using 10.5ε for the build pins.
+  - **Implementation notes from the designers.** One function serves check 10, the pieces sort, `shell`'s cavity read, the census's `gate_role`, `classify_shells`/`classify_shells_of`, `solid_contain`'s missed-ray side, and check 7 if chosen. `Crossings::closest` hands back both hits, so a refusal names the pair. Doc drift: `shell_winding_errors` (it says "silent", yet pushes `ShellRoleUndecided`) and `pieces_of`'s quiet return.
+  - **Rows it moves:**
+    - EXPORT `step-export-reclassifies-shell-roles-with-its-own-planar-flux`: closes by routing through `classify_shells_of`.
+    - TALLY `the-shell-role-refusal-locates-no-piece`: closes once the refusal carries the aim point.
+    - TALLY `…quotes-the-walks-f64-margin…`: narrows to the volume fallback.
+    - CLEAVE planar-aims row: becomes this design's second step.
+    - Under the check-7 choice, RESTFRONT `an-inside-out-slab-thin-enough…` and FLUSH `an-inside-out-sliver-result-passes-its-own-door` close.
+— (FLUSH orchestrator)
