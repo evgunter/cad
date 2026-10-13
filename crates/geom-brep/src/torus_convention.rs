@@ -74,16 +74,48 @@ impl TorusConvention {
     /// colon or dash of its own.
     #[must_use]
     pub fn refused(self, whose: &str, verdict: Refused) -> String {
-        let fact = match (self, verdict) {
-            (Self::Tube, Refused::Zero(_)) => "tube radius is zero at this tolerance",
-            (Self::Tube, Refused::Negative { .. }) => "tube radius is negative",
-            (Self::Ring, Refused::Zero(_)) => {
-                "tube radius equals its ring radius at this tolerance (a horn torus)"
-            }
-            (Self::Ring, Refused::Negative { .. }) => {
-                "tube radius is larger than its ring radius (a spindle torus)"
-            }
-        };
-        format!("{whose} {fact}")
+        let margin = verdict.margin();
+        match (self, verdict) {
+            (Self::Tube, Refused::Zero(_)) => format!(
+                "{whose} tube radius does not classify above zero at this tolerance ({margin:e} m)"
+            ),
+            (Self::Tube, Refused::Negative { .. }) => format!("{whose} tube radius is negative"),
+            (Self::Ring, Refused::Zero(_)) => format!(
+                "{whose} tube radius is not shown smaller than its ring radius at this tolerance \
+                 (difference {margin:e} m)"
+            ),
+            (Self::Ring, Refused::Negative { .. }) => format!(
+                "{whose} tube radius is larger than its ring radius (a spindle torus)"
+            ),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use geom_core::{Band, MarginDiag};
+
+    use super::TorusConvention;
+    use crate::recourse::{Classified, Refused};
+
+    /// **A zero verdict prints its reading and names no shape**: a
+    /// positive difference inside the zero band is no horn, nor a tube
+    /// within it no tube, so the clause says only what the band did.
+    #[test]
+    fn a_zero_verdict_prints_its_reading() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let zero = Refused::Zero(Classified {
+            margin: MarginDiag::value(5e-10),
+            band,
+        });
+        assert_eq!(
+            TorusConvention::Tube.refused("a torus face's", zero),
+            "a torus face's tube radius does not classify above zero at this tolerance (5e-10 m)"
+        );
+        assert_eq!(
+            TorusConvention::Ring.refused("a torus face's", zero),
+            "a torus face's tube radius is not shown smaller than its ring radius at this \
+             tolerance (difference 5e-10 m)"
+        );
     }
 }

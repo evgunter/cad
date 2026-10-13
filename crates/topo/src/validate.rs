@@ -11768,8 +11768,9 @@ mod tests {
                         band,
                     }),
                 },
-                "a torus face's tube radius equals its ring radius at this tolerance (a horn \
-                 torus). Recourse: make the tube radius clearly smaller than the ring radius"
+                "a torus face's tube radius is not shown smaller than its ring radius at this \
+                 tolerance (difference 0e0 m). Recourse: make the tube radius clearly smaller than \
+                 the ring radius"
                     .to_owned(),
             ),
             (
