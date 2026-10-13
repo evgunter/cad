@@ -1,7 +1,7 @@
 ---
 id: an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane
 kind: issue
-title: The census refuses an edge-face record off a line and a plane typed, away from a conventional vertex: no curve-touch lane reads an edge's carrier against a face
+title: The census refuses an edge-face curve touch typed, away from a conventional vertex: no lane reads an edge's carrier lying in a face (a circle in a plane, a line in a curved face)
 status: open
 opened: 2026-10-10
 ---
@@ -62,3 +62,18 @@ That is a point touch of a curved edge, not a curve touch: the lane this
 row owes has to say what it certifies for both, and the CONTACTHOLD
 brief that found it asked for the curve-touch entry at P1, since the
 face–face record's own ends are such points.
+
+## 2026-10-13 — the point touch reads; the curve touch is what is left (CONTACTHOLD)
+
+`contacthold/point-touch-reading` builds C3's point-touch reading
+(`census::point`): an edge–face record of a circle on a plane or a line
+on a sphere is confirmed at the carriers' touch point (κ_rel definitely
+positive, coincidence within ε, the point strictly inside both cells),
+read stale apart or crossing. This row's measured case, the rod's cap
+circles on the plate face, now reads: `plate ∪ rod`'s 3′ refuses
+nothing on the cap edges, and the bridge carrying every record answers
+with 3′ Ok. Narrowed to the curve touch: a circle lying in a plane away
+from a conventional vertex still refuses typed (the message now says
+"a circle lying in a plane"), and a line in a curved face, and the
+other carrier pairs (a circle on a sphere or a cylinder, a line on a
+cylinder) refuse naming the point lane's coverage.

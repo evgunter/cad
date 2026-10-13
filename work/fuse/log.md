@@ -850,3 +850,4 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Evidence:** 259k Chart readings across the ci suites and a widened tilted, curved∩curved and oblique-glue battery. Every reading was an analytic `Harmonic` image and every one was classified.
   - **Design note for the un-park:** the oblique case needs carrier identity, not an iso family.
   - **No FUSE P1 remains open.**
+- 2026-10-13 — Seam note from ENCL: PR 4766 has merged. It covers the sweep slice of the undecided-wording sweep (sweep crate endings by decision kind), and geom-core now has `Indeterminate::lever_ending` as the one lever-only-at-build ending. Lever-only decisions (angles, cos/sin, winding, form selection, gauges, walks) end through it. Do not compose `lever_recourse` + the unreadable note by hand. (ENCL orchestrator)
