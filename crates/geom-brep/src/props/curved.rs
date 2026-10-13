@@ -32,6 +32,7 @@ use geom_core::{
     UnitVec3, UnitVec3Error, Vec3,
 };
 
+use super::closure::{self, ChartLoop, Joint};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
@@ -1244,16 +1245,15 @@ struct CylinderChart<T> {
 /// about the outward radial (`∂u × ∂v = R·r̂`), so `A` is positive
 /// exactly when the outward normal is `+r̂`.
 ///
-/// **Closure is checked, not assumed.** Each loop must close (every
-/// traversal end meets the next edge's start, `props_loop_closed`), and
-/// the face's loops together must wind the cylinder zero times
-/// (`Σ∮ du = 0`, `props_chart_loops_closed`): a closed face's boundary
-/// bounds it. That check catches a face handed without a ring that
-/// WINDS the cylinder (a band's second rim); a contractible ring left
-/// out leaves a closed boundary of its own and cannot be seen here —
-/// the callers hand every loop. A contractible ring wound the same way
-/// as its face refuses (`props_ring_winding`,
-/// [`require_holes_wound_against`]). That second fact is what makes the sum anchor-free, and
+/// **Closure is checked, not assumed** ([`cylinder_windings`]): every
+/// loop closes on the chart and the loops wind it as a face's boundary
+/// does — each at most once, all of them zero times together. That
+/// catches a face handed without a ring that WINDS the cylinder (a
+/// band's second rim); a contractible ring left out leaves a closed
+/// boundary of its own and cannot be seen here — the callers hand every
+/// loop. A contractible ring wound the same way as its face refuses
+/// (`props_ring_winding`, [`require_holes_wound_against`]). The zero
+/// total winding is what makes the sum anchor-free, and
 /// the sum is formed against the anchor `v_m` at the middle of the
 /// face's level range — `−Σ (v − v_m)·Δu`, equal to `−Σ v·Δu` in exact
 /// arithmetic — so a short face far along the axis keeps the
@@ -1281,13 +1281,7 @@ fn cylinder_chart<T: Decide>(
         // The carriers first: an edge off the surface, or one this
         // closed form has no arm for, refuses as itself.
         let b = cylinder_boundary(origin, axis, radius, edges, band)?;
-        for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
-            require_zero(
-                "props_loop_closed",
-                Margin::of((e.traversal_ends().1 - next.traversal_ends().0).norm()),
-                band,
-                Premise::Inventory,
-            )?;
+        for e in edges.iter() {
             if let Curve3::Line { .. } = e.carrier {
                 length = length + (e.p1() - e.p0()).norm();
             }
@@ -1303,6 +1297,7 @@ fn cylinder_chart<T: Decide>(
         levels.extend(b.levels);
         spans.push((first_rim, length - length_before));
     }
+    let windings = cylinder_windings(origin, axis, radius, loops, &rims, &spans, band)?;
     let (lo, hi) = min_max(&levels)?;
     require_extent(Margin::of(hi - lo), band)?;
     if rims.is_empty() {
@@ -1310,13 +1305,6 @@ fn cylinder_chart<T: Decide>(
             what: "curved face without a rim (non-sphere)",
         });
     }
-    let winding = rims.iter().fold(T::zero(), |acc, &(_, du)| acc + du);
-    require_zero(
-        "props_chart_loops_closed",
-        Margin::levered(winding, radius),
-        band,
-        Premise::Inventory,
-    )?;
     let anchor = lo + (hi - lo) * T::from_f64(0.5);
     // One loop's anchored chart area and boundary length.
     let loop_chart = |rims: &[(T, T)], lines: T| {
@@ -1326,7 +1314,7 @@ fn cylinder_chart<T: Decide>(
     };
     let (area, length) = loop_chart(&rims, length);
     if spans.len() > 1 {
-        let holes = cylinder_holes(&rims, &spans, loop_chart, radius, band)?;
+        let holes = cylinder_holes(&rims, &spans, &windings, loop_chart, radius);
         require_holes_wound_against(
             "props_chart_area_side",
             (radius * area, length),
@@ -1337,57 +1325,113 @@ fn cylinder_chart<T: Decide>(
     Ok(CylinderChart { area, length })
 }
 
+/// **A cylinder face's loops close on its chart and wind it as a face's
+/// boundary does** ([`closure::closed_form_windings`]): per loop, the
+/// azimuth each edge turns between its own ends, and at each junction the turn about the axis
+/// from the edge before's end to the edge after's start, metered at the
+/// radius, beside the gap in level. Returns each loop's turns.
+fn cylinder_windings<T: Decide>(
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    loops: &[&[LoopEdge<T>]],
+    rims: &[(T, T)],
+    spans: &[(usize, T)],
+    band: Band,
+) -> Result<Vec<[i64; 1]>, PropsError> {
+    closure::require_axis_inside(radius, band)?;
+    let chart_loops: Vec<ChartLoop<T, 1>> = loops
+        .iter()
+        .enumerate()
+        .map(|(i, edges)| -> Result<ChartLoop<T, 1>, PropsError> {
+            let start = spans[i].0;
+            let end = spans.get(i + 1).map_or(rims.len(), |&(next, _)| next);
+            // Every edge's turn about the axis between its own ends: a
+            // rim's stored turn about its own centre, carried to the axis
+            // at each end; a ruling's short turn, which a ruling certified
+            // axial may still make by `ε/R`.
+            let mut rim_turns = rims[start..end].iter().map(|&(_, du)| du);
+            let sweep = edges.iter().try_fold(T::zero(), |acc, e| {
+                let (a, b) = e.traversal_ends();
+                Ok(match e.carrier {
+                    Curve3::Circle { center, .. } => {
+                        let du = rim_turns.next().ok_or(PropsError::NotIsoRectangle {
+                            what: "a cylinder loop with more circles than parsed rims",
+                        })?;
+                        acc + du + about_axis(axis, center, origin, b)
+                            - about_axis(axis, center, origin, a)
+                    }
+                    _ => acc + turn_about(axis, a - origin, b - origin),
+                })
+            })?;
+            let joints = edges
+                .iter()
+                .zip(edges.iter().cycle().skip(1))
+                .map(|(e, next)| {
+                    let a = e.traversal_ends().1 - origin;
+                    let b = next.traversal_ends().0 - origin;
+                    Joint {
+                        turn: [(turn_about(axis, a, b), radius)],
+                        flat: (b - a).dot(axis),
+                    }
+                })
+                .collect();
+            Ok(ChartLoop {
+                sweep: [sweep],
+                joints,
+            })
+        })
+        .collect::<Result<_, _>>()?;
+    closure::closed_form_windings(&chart_loops, band)
+}
+
+/// How much farther round the unit `axis` (through `origin`) the point
+/// `p` sits than round a circle's own centre `center`: the turn from
+/// `p − center` to `p − origin`. A stored turn about the circle's centre
+/// plus its value at the end less its value at the start is the turn
+/// about the axis. It is read clear of the branch cut while the axis
+/// passes inside the circle, less than a quarter turn from any point of
+/// it: decided for the face by [`closure::require_axis_inside`].
+fn about_axis<T: Real>(axis: Vec3<T>, center: Point3<T>, origin: Point3<T>, p: Point3<T>) -> T {
+    turn_about(axis, p - center, p - origin)
+}
+
+/// The signed angle about the unit `axis` from the offset `a` to the
+/// offset `b`, both from a point of the axis, the short way round.
+fn turn_about<T: Real>(axis: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
+    let (a, b) = (a - axis * a.dot(axis), b - axis * b.dot(axis));
+    a.cross(b).dot(axis).atan2(a.dot(b))
+}
+
 /// A cylinder face's holes: each ring that does not wind the cylinder
-/// (`props_ring_contractible` Zero), as its chart area in m² (`R·A`)
-/// and boundary length. A ring that winds it is a band's rim, whose
-/// chart area alone depends on the anchor, so it is no hole and is
-/// passed over: the face's zero-winding check
-/// (`props_chart_loops_closed`) makes the face's whole anchor-free. On
-/// such a band the first loop stored is a hole too when it does not
-/// wind, so it is read as one.
+/// ([`cylinder_windings`]), as its chart area in m² (`R·A`) and
+/// boundary length. A ring that winds it is a band's rim, whose chart
+/// area alone depends on the anchor, so it is no hole and is passed
+/// over: the face's loops winding zero times together makes the face's
+/// whole anchor-free. On such a band the first loop stored is a hole
+/// too when it does not wind, so it is read as one.
 fn cylinder_holes<T: Decide>(
     rims: &[(T, T)],
     spans: &[(usize, T)],
+    windings: &[[i64; 1]],
     loop_chart: impl Fn(&[(T, T)], T) -> (T, T),
     radius: T,
-    band: Band,
-) -> Result<Vec<(T, T)>, PropsError> {
-    let span = |i: usize| {
+) -> Vec<(T, T)> {
+    let hole = |i: usize| {
         let (start, lines) = spans[i];
         let end = spans.get(i + 1).map_or(rims.len(), |&(next, _)| next);
-        (&rims[start..end], lines)
+        let (a, l) = loop_chart(&rims[start..end], lines);
+        (radius * a, l)
     };
-    let contractible = |ring: &[(T, T)]| {
-        let winding = ring.iter().fold(T::zero(), |acc, &(_, du)| acc + du);
-        classify(
-            "props_ring_contractible",
-            Margin::levered(winding, radius),
-            band,
-            PropsCheck::Inventory,
-        )
-        .map(|sign| sign == Sign::Zero)
-    };
-    let mut holes = Vec::with_capacity(spans.len());
-    let mut band_face = false;
-    for i in 1..spans.len() {
-        let (ring, lines) = span(i);
-        if contractible(ring)? {
-            let (a, l) = loop_chart(ring, lines);
-            holes.push((radius * a, l));
-        } else {
-            band_face = true;
-        }
-    }
+    let contractible = |i: &usize| windings[*i] == [0];
+    let band_face = (1..spans.len()).any(|i| !contractible(&i));
     // On a band every loop that does not wind is a hole, the first one
     // stored included.
-    if band_face {
-        let (ring, lines) = span(0);
-        if contractible(ring)? {
-            let (a, l) = loop_chart(ring, lines);
-            holes.push((radius * a, l));
-        }
-    }
-    Ok(holes)
+    (1..spans.len())
+        .chain(band_face.then_some(0))
+        .filter(contractible)
+        .map(hole)
+        .collect()
 }
 
 /// **Every hole winds against its face**, the meter the cylinder's,
@@ -3058,10 +3102,13 @@ fn sphere_loops<T: Decide>(
 /// one certification produces, `0 < Δt ≤ τ`
 /// ([`require_span_within_period`], at the circle's radius);
 /// each arc ends where the next begins
-/// (`props_loop_closed`, the cylinder's and cone's closure decide on
+/// (`props_loop_closed`, the cone's closure decide on
 /// the same gap, refused here as [`PropsError::SphereLoop`]:
 /// Gauss–Bonnet reads a closed curve, so closure is checked rather
-/// than trusted from the vertex tags); and no
+/// than trusted from the vertex tags). It is decided in space, not as
+/// the periodic-chart closure ([`closure`]): the sphere has no global
+/// chart whose periods a loop can wind, since its azimuth is undefined
+/// at the poles, and Gauss–Bonnet needs only the curve closed; and no
 /// junction is a cusp ([`require_cusp_free`]). Gauss–Bonnet reads a
 /// SIMPLE loop, and simplicity is not decided here: a loop that
 /// crosses itself, or visits a vertex twice (two whole circles joined
@@ -3446,7 +3493,10 @@ fn pole_against_arc<T: Decide>(
 ///   circulation.
 ///
 /// The sum is a whole turn up to rounding and is decided by its sign,
-/// levered by `R` (`props_sphere_pole_winding`).
+/// levered by `R` (`props_sphere_pole_winding`). It is a winding about a
+/// point, which side of the loop the pole is on, and not a loop's turns
+/// about a periodic direction: [`closure`]'s face-boundary facts have no
+/// sphere analogue to check.
 fn pole_side<T: Decide>(
     center: Point3<T>,
     radius: T,
@@ -4061,17 +4111,19 @@ fn torus_angle<T: Decide>(sin_v: T, cos_v: T, band: Band) -> T {
 /// **lift**: walked from its first rim, a meridian moves the running
 /// `v` by its own signed span (`dv/dt = −orient`,
 /// [`torus_meridian_orient`]), and each rim is placed on the branch of
-/// its level that the running `v` reaches (`props_torus_lift_joint`).
+/// its level that the running `v` reaches.
 /// A wrap edge's two halves land a period apart that way, as the loop
 /// walk places them.
 ///
-/// **Each loop's lift must close** in both directions
-/// (`props_torus_lift_closed_u`, `props_torus_lift_closed_v`): then it
-/// bounds a region of the lifted chart and the sums are exact. A loop
-/// that winds the torus (a seamless band's rim) has no such region, and
-/// which way round the torus the face runs between two winding loops
-/// is not a fact about either loop, so it refuses. A ring wound the
-/// same way as its face refuses (`props_ring_winding`).
+/// **Each loop must close and wind the torus not at all**
+/// ([`torus_chart_loop`]): then it bounds a region of the lifted chart
+/// and the sums are exact. Loops that do not close, or wind as no
+/// boundary does, are defects ([`closure`]); a loop that winds the torus
+/// as a boundary may (a seamless band's rim) has no region under it,
+/// and which way round the torus the face runs between two winding
+/// loops is not a fact about either loop, so it refuses as the
+/// inventory's. A ring wound the same way as its face refuses
+/// (`props_ring_winding`).
 ///
 /// Each loop's sums are formed against the anchor `v_m` at the middle
 /// of its rims' lifted levels, `−Σ (F(v) − F(v_m))·Δu`, equal to the
@@ -4097,6 +4149,9 @@ fn torus_chart<T: Decide>(
         length: T::zero(),
     };
     let mut per_loop: Vec<(T, T)> = Vec::with_capacity(loops.len());
+    let mut loop_pieces: Vec<Vec<TorusPiece<T>>> = Vec::with_capacity(loops.len());
+    closure::require_axis_inside(minor, band)?;
+    let mut chart_loops: Vec<ChartLoop<T, 2>> = Vec::with_capacity(loops.len());
     for edges in loops {
         // Every edge is certified rim or meridian first, so a face this
         // inventory has no arm for refuses as itself.
@@ -4140,14 +4195,23 @@ fn torus_chart<T: Decide>(
                 sign,
             });
         }
-        for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
-            require_zero(
-                "props_loop_closed",
-                Margin::of((e.traversal_ends().1 - next.traversal_ends().0).norm()),
-                band,
-                Premise::Inventory,
-            )?;
-        }
+        chart_loops.push(torus_chart_loop(
+            center, axis, major, minor, edges, &pieces, band,
+        )?);
+        loop_pieces.push(pieces);
+    }
+    // The torus's real question, which lift a band's second rim takes,
+    // is one this form does not answer: a winding loop refuses here as
+    // the inventory's, once the closure decision has passed it as a
+    // boundary.
+    let windings = closure::closed_form_windings(&chart_loops, band)?;
+    if windings.iter().any(|&k| k != [0, 0]) {
+        return Err(PropsError::NotIsoRectangle {
+            what: "a torus face whose loops wind the torus (a seamless band): its chart \
+                   Green form folds no winding loop",
+        });
+    }
+    for pieces in loop_pieces {
         let mut steps = fold_torus_pieces(pieces, minor);
         let Some(first) = steps
             .iter()
@@ -4165,7 +4229,6 @@ fn torus_chart<T: Decide>(
         // walk began: the turns are counted from the loop's lowest.
         let mut rims: Vec<(T, T, T)> = Vec::new();
         let mut running = None;
-        let (mut wind_u, mut wind_v) = (T::zero(), T::zero());
         let mut length = T::zero();
         for step in &steps {
             match *step {
@@ -4176,48 +4239,22 @@ fn torus_chart<T: Decide>(
                     rho,
                 } => {
                     let angle = torus_angle(sin_v, cos_v, band);
-                    let at = match running {
-                        None => angle,
-                        Some(at) => {
-                            // The turn from the running `v` to the
-                            // rim's level must be no turn at all.
-                            let (s, c) = T::sin_cos(at);
-                            let delta = (sin_v * c - cos_v * s).atan2(cos_v * c + sin_v * s);
-                            require_zero(
-                                "props_torus_lift_joint",
-                                Margin::levered(delta, minor),
-                                band,
-                                Premise::Inventory,
-                            )?;
-                            at
-                        }
-                    };
+                    // The running `v` reaches the rim's level within the
+                    // junctions' slack, every junction being decided
+                    // closed: it picks the branch, not the level.
+                    let at = running.unwrap_or(angle);
                     let turns = (at - angle).periodic_branch(T::tau());
                     let v = angle + T::tau() * turns;
                     running = Some(v);
-                    wind_u = wind_u + du;
                     length = length + rho * du.abs();
                     rims.push((angle, turns, du));
                 }
                 TorusStep::Meridian { dv } => {
                     running = running.map(|at| at + dv);
-                    wind_v = wind_v + dv;
                     length = length + r * dv.abs();
                 }
             }
         }
-        require_zero(
-            "props_torus_lift_closed_u",
-            Margin::levered(wind_u, major),
-            band,
-            Premise::Inventory,
-        )?;
-        require_zero(
-            "props_torus_lift_closed_v",
-            Margin::levered(wind_v, minor),
-            band,
-            Premise::Inventory,
-        )?;
         let base = rims
             .iter()
             .map(|&(_, turns, _)| turns)
@@ -4249,6 +4286,94 @@ fn torus_chart<T: Decide>(
         )?;
     }
     Ok(total)
+}
+
+/// One torus loop for the closure decision ([`closure::closed_form_windings`]):
+/// the azimuth and the tube angle each piece turns between its ends,
+/// and at each junction the turn about the axis from the edge before's
+/// end to the edge after's start, metered at the after's distance from
+/// the axis, beside the turn about the tube, metered at the minor
+/// radius.
+fn torus_chart_loop<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major: T,
+    minor: T,
+    edges: &[LoopEdge<T>],
+    pieces: &[TorusPiece<T>],
+    band: Band,
+) -> Result<ChartLoop<T, 2>, PropsError> {
+    // A point's place on the tube: its distance out from the core
+    // circle and its height, the tube angle's cosine and sine arms.
+    let tube = |w: Vec3<T>| {
+        let h = w.dot(axis);
+        ((w - axis * h).norm() - major, h)
+    };
+    // The signed tube angle from `a` to `b`, the short way round.
+    let tube_turn = |a: Vec3<T>, b: Vec3<T>| {
+        let ((xa, ya), (xb, yb)) = (tube(a), tube(b));
+        (xa * yb - ya * xb).atan2(xa * xb + ya * yb)
+    };
+    // How much farther round the tube a point sits about the core circle
+    // than about a meridian's own centre: the turn, in the point's own
+    // meridian plane, from `d` (the point less the meridian's centre) to
+    // `w` (the point less the torus's centre), read on the tube's arms.
+    let about_core = |d: Vec3<T>, w: Vec3<T>| {
+        let h = w.dot(axis);
+        let radial = w - axis * h;
+        let out = radial * (T::one() / radial.norm());
+        let (xd, yd) = (d.dot(out), d.dot(axis));
+        let (xw, yw) = tube(w);
+        (xd * yw - yd * xw).atan2(xd * xw + yd * yw)
+    };
+    // Each piece's turn between its own ends: a parallel's stored azimuth
+    // turn about its own centre carried to the axis at each end, and its
+    // short tube turn; a meridian's stored tube turn about its own centre
+    // carried to the core circle at each end, and its short azimuth turn.
+    let sweep = pieces.iter().try_fold([T::zero(); 2], |[u, v], p| {
+        let (a, b) = p.edge.traversal_ends();
+        let Curve3::Circle {
+            center: centre,
+            radius: r_c,
+            ..
+        } = p.edge.carrier
+        else {
+            return Err(PropsError::NotIsoRectangle {
+                what: "a torus piece that is no circle",
+            });
+        };
+        let (wa, wb) = (a - center, b - center);
+        Ok(match p.step {
+            TorusStep::Rim { du, .. } => {
+                closure::require_axis_inside(r_c, band)?;
+                [
+                    u + du + about_axis(axis, centre, center, b)
+                        - about_axis(axis, centre, center, a),
+                    v + tube_turn(wa, wb),
+                ]
+            }
+            TorusStep::Meridian { dv } => [
+                u + turn_about(axis, wa, wb),
+                v + dv + about_core(b - centre, wb) - about_core(a - centre, wa),
+            ],
+        })
+    })?;
+    let joints = edges
+        .iter()
+        .zip(edges.iter().cycle().skip(1))
+        .map(|(e, next)| {
+            let a = e.traversal_ends().1 - center;
+            let b = next.traversal_ends().0 - center;
+            Joint {
+                turn: [
+                    (turn_about(axis, a, b), (b - axis * b.dot(axis)).norm()),
+                    (tube_turn(a, b), minor),
+                ],
+                flat: T::zero(),
+            }
+        })
+        .collect();
+    Ok(ChartLoop { sweep, joints })
 }
 
 /// A torus face's flux and area over all its loops, from its chart
