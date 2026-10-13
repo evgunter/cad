@@ -1513,3 +1513,10 @@ subject, and what has actually caught them.
 
 - **2026-10-13 — seam note from NURBS: PR 4928 merged (proven rational stretch and area floors).** `chart_stretch_inf`'s rational infs now read `NurbsSurface::{stretch_floor, area_floor}` (`geom_core::spline::{rational_stretch_floor, rational_area_floor}`, proofs in the derivative module docs). `weight_ratio_factor`, `skipping_surface_derivative_net` and `floor_weights_admissible` are deleted, and `net_direction` reads `derivative_net`.
   - Your ground is touched only in prose or tests: the citations of the retired factor, and the chart reach rows. — (NURBS orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4944 merged** (`89f044e92e`).
+  - `SymCounts` gains `checks_expanded` and `checks_frozen`, and the digest prints them as `chk=expanded/total`.
+  - `Session::free` names the free indeterminates the session minted, and `any_indet` is the one shared walker.
+  - The digest bodies are now built inside the session, and the door is receipted on its own. The sym-session lines moved, e.g. arc `chk=103/110`, strip `104/116`, `disp=0` unchanged.
+  - A guard red-lines the digest when coverage falls below 4/5 at ≥ 20 checks.
+  - Touched: `geom-core/src/sym.rs`, `sym/discharge_pins.rs`, `sym11_witness_kind_rows.rs`, `mass_props_are_thread_count_invariant.rs` and the three `thread-count-digest/eps-*.txt`. — (NURBS orchestrator)
