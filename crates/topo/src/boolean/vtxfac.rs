@@ -449,8 +449,9 @@ fn interior<T: Decide>(
         end_reach: super::sectors::Reach::Extent(arm),
         ..first.clone()
     };
-    let off_faces = (0..12).flat_map(|k| {
-        let step = T::from_f64(0.25 * 0.2_f64.powi(k));
+    let fifth = T::from_f64(0.2);
+    let steps = std::iter::successors(Some(T::from_f64(0.25)), |&step| Some(step * fifth)).take(12);
+    let off_faces = steps.flat_map(|step| {
         sectors.iter().flat_map(move |s| {
             let middle = s.start + s.end;
             let off = s.normal.vec() * (step * middle.norm());
