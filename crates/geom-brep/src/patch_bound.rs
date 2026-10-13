@@ -159,7 +159,8 @@ pub enum PatchBoundError {
     /// [`QUOTIENT_MAX_DEGREE`] of `56` its exact Bernstein products
     /// reach (module docs, "Refusal").
     DegreeAboveCeiling,
-    /// The quotient statement refused a block under its degree ceiling.
+    /// The quotient statement refused a block under its degree ceiling,
+    /// on either arm (the rational cells, or the integral area floor).
     /// Outside the certified inventory: a block of a C¹-gated direction
     /// with proven-positive weights and a degree under the ceiling is
     /// one the statement always forms.
@@ -206,8 +207,8 @@ impl PatchBoundError {
                  Recourse: describe the face at degree 18 or below in each direction"
             }
             Self::QuotientRefused => concat!(
-                "rational NURBS face whose derivative bound could not be formed under its \
-                 degree ceiling, which a valid face always allows. ",
+                "NURBS face whose derivative bound could not be formed under its degree \
+                 ceiling, which a valid face always allows. ",
                 geom_core::kernel_defect_ending!()
             ),
             Self::DerivedKnots => concat!(

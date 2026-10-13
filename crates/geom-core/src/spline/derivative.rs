@@ -849,16 +849,25 @@ impl<T: Real> Homogeneous<T> {
         let u = Raised::of(&first(&self.au, &self.wu)?, w2.clone())?;
         let v = Raised::of(&first(&self.av, &self.wv)?, w2.clone())?;
         let area = if area {
-            let w3 = product(&w2, &self.w, weight_times)?;
-            let scaled = |w: &Grid<T, 1>, x: &Grid<T, 3>| product(w, x, weighted);
-            let m = scaled(&self.w, &product(&self.au, &self.av, cross)?)?
-                .minus(&scaled(&self.wv, &product(&self.au, &self.a, cross)?)?)?
-                .minus(&scaled(&self.wu, &product(&self.a, &self.av, cross)?)?)?;
-            Some(Raised::of(&m, w3)?)
+            Some(self.area_raised()?)
         } else {
             None
         };
         Some(FirstRaised { u, v, area })
+    }
+
+    /// `S_u × S_v = M̃/W³` before it is cut.
+    fn area_raised(&self) -> Option<Raised<T, 3>> {
+        let w3 = product(
+            &product(&self.w, &self.w, weight_times)?,
+            &self.w,
+            weight_times,
+        )?;
+        let scaled = |w: &Grid<T, 1>, x: &Grid<T, 3>| product(w, x, weighted);
+        let m = scaled(&self.w, &product(&self.au, &self.av, cross)?)?
+            .minus(&scaled(&self.wv, &product(&self.au, &self.a, cross)?)?)?
+            .minus(&scaled(&self.wu, &product(&self.a, &self.av, cross)?)?)?;
+        Raised::of(&m, w3)
     }
 }
 
@@ -934,12 +943,11 @@ impl Cut {
 /// order's two quotients share `W²`, and the area and the three second
 /// partials share `W³` (one product of the same factors, bit for bit).
 fn cut_both<T: Real>(
-    first: &FirstRaised<T>,
+    (first, area): (&FirstRaised<T>, &Raised<T, 3>),
     second: &SecondRaised<T>,
     cut: &Cut,
     counts: (usize, usize),
 ) -> Option<PiecePairs<T>> {
-    let area = first.area.as_ref()?;
     let mut out = Vec::with_capacity(counts.0 * counts.1);
     for iu in 0..counts.0 {
         let along = |g: &Grid<T, 3>| g.cut_u(cut, iu);
@@ -1454,12 +1462,14 @@ fn cell_pieces<T: Real>(
     if whole.second.is_some() {
         // Both orders formed once over the cell and cut: the pieces are
         // counted for the second-order quotients' degree `3p`, so every
-        // row cut is cut exactly.
-        let first = whole.first_raised(area)?;
+        // row cut is cut exactly. The area is formed whatever `area`
+        // asks: it shares `W³` with the second partials, and
+        // `CellSecondQuotients` readers take it beside them.
+        let (first, area) = (whole.first_raised(false)?, whole.area_raised()?);
         let second = whole.second_raised()?;
         let counts = (piece_count(3 * p, splits.0), piece_count(3 * q, splits.1));
         let cut = Cut::new(counts, (&[2 * p, 3 * p], &[2 * q, 3 * q]))?;
-        return Some((counts, cut_both(&first, &second, &cut, counts)?));
+        return Some((counts, cut_both((&first, &area), &second, &cut, counts)?));
     }
     let counts = (piece_count(p, splits.0), piece_count(q, splits.1));
     let mut out = Vec::with_capacity(counts.0 * counts.1);
