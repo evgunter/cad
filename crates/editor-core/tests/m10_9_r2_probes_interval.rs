@@ -245,8 +245,8 @@ pub(crate) fn fixtures(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
 /// **Claim 1 / claim 5 at document scale, on every fixture**: a drive
 /// with the door on and the same drive with it off serialize the SAME
 /// leaves, verdict-vector keys, witness vector, masses and refusals —
-/// only the receipt's `decisions` line may differ, and it may differ
-/// only by a `registered=` field.
+/// only the receipt's `decisions` line may differ, and only by
+/// decisions the door moves from `numeric=` to `symbolic=`.
 #[test]
 fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
     let tol = Tol::witness();
@@ -295,8 +295,7 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
             on_body, off_body,
             "{name}: every line but the receipt is byte-identical door on and off"
         );
-        // The receipt may differ ONLY by `registered=`, and numeric
-        // must shrink by exactly that count.
+        // The receipt may differ ONLY in `symbolic=` and `numeric=`.
         let fields = |l: &Option<String>| -> BTreeMap<String, u64> {
             l.as_deref()
                 .map(|l| {
@@ -311,18 +310,21 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
         };
         let (fon, foff) = (fields(&on_dec), fields(&off_dec));
         let g = |m: &BTreeMap<String, u64>, k: &str| m.get(k).copied().unwrap_or(0);
-        assert_eq!(
-            g(&foff, "registered"),
-            0,
-            "{name}: the door-off receipt registers nothing"
+        assert!(
+            on_dec.is_none() || fon.contains_key("symbolic"),
+            "{name}: the receipt line names its `symbolic=` column: {on_dec:?}"
         );
-        for k in ["symbolic_zero", "sign_gated"] {
-            assert_eq!(
-                g(&fon, k),
-                g(&foff, k),
-                "{name}: `{k}` is the door-off count"
-            );
-        }
+        let rest = |m: &BTreeMap<String, u64>| {
+            m.iter()
+                .filter(|(k, _)| !matches!(k.as_str(), "symbolic" | "numeric" | "frozen"))
+                .map(|(k, v)| (k.clone(), *v))
+                .collect::<BTreeMap<_, _>>()
+        };
+        assert_eq!(
+            rest(&fon),
+            rest(&foff),
+            "{name}: no column but `symbolic`, `numeric` and `frozen` moves with the door"
+        );
         // `frozen` is a plain-walk count and the two replays decide the
         // same population only when every leaf certifies (below).
         if g(&fon, "frozen") != g(&foff, "frozen") {
@@ -333,26 +335,26 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
             );
         }
         // On a drive whose leaves all certify, the two replays decide
-        // the same population and `numeric` shrinks by exactly the
-        // registered count. On a REFUSING drive the door-on replay
-        // gets past the discharged identity and decides more before it
-        // refuses, so only the inequalities hold (the unit's own pin
-        // says the same).
+        // the same population and the door moves decisions from
+        // `numeric` to `symbolic` one for one. On a REFUSING drive the
+        // door-on replay gets past the discharged identity and decides
+        // more before it refuses, so only the inequalities hold.
         let refused_leaves = on_body
             .first()
             .and_then(|l| l.split(' ').find_map(|w| w.strip_prefix("refused=")))
             .and_then(|v| v.parse::<u64>().ok())
             .unwrap_or(0);
+        let bought = g(&fon, "symbolic").saturating_sub(g(&foff, "symbolic"));
         if refused_leaves == 0 {
             assert_eq!(
-                g(&fon, "numeric") + g(&fon, "registered"),
-                g(&foff, "numeric"),
+                (g(&fon, "numeric") + bought, g(&fon, "symbolic")),
+                (g(&foff, "numeric"), g(&foff, "symbolic") + bought),
                 "{name}: the door moves decisions out of `numeric` and out of nothing else"
             );
         } else {
             assert!(
                 g(&fon, "numeric") <= g(&foff, "numeric")
-                    && g(&fon, "numeric") + g(&fon, "registered") >= g(&foff, "numeric"),
+                    && g(&fon, "symbolic") >= g(&foff, "symbolic"),
                 "{name}: refusing drive — {fon:?} vs {foff:?}"
             );
         }
@@ -532,9 +534,15 @@ fn r2_link_end_to_end_with_and_without_the_door() {
         tol,
     );
     assert!(refusal.is_none(), "{refusal:?}");
+    let (_, _, shut_counts) = replay(
+        &certifying,
+        &ParamBox::of(&analyzed),
+        SymRules::shipped_without_the_door(),
+        tol,
+    );
     assert!(
-        counts.registered > 0,
-        "the door registers on the link: {counts:?}"
+        counts.symbolic > shut_counts.symbolic,
+        "the door discharges on the link: {counts:?} against {shut_counts:?}"
     );
     println!("   link at 0.5x its ceiling, door on: {counts:?}");
 }
@@ -566,10 +574,7 @@ fn envelopes(shapes: &[geom_core::sym::report::DecisionShape]) -> BTreeMap<&'sta
             numeric: 0,
         });
         e.n += 1;
-        if matches!(
-            s.outcome,
-            ShapeOutcome::Theorem | ShapeOutcome::SignGated | ShapeOutcome::Registered
-        ) {
+        if s.outcome == ShapeOutcome::Symbolic {
             continue;
         }
         e.numeric += 1;
@@ -874,13 +879,6 @@ fn r2_evidence_r1_bracket_frozen_moves_with_the_door() {
             *split.entry(format!("{:?}", s.outcome)).or_default() += 1;
         }
         println!("== r1 bracket 0.5mm {label}: {counts:?}\n   refusal {refusal:?}\n   {split:?}");
-        for s in shapes
-            .iter()
-            .filter(|s| matches!(s.outcome, ShapeOutcome::Registered))
-            .take(3)
-        {
-            println!("   registered: {}", s.predicate);
-        }
         let last: Vec<String> = shapes
             .iter()
             .rev()

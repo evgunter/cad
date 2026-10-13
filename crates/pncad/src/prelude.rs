@@ -54,7 +54,7 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 //
 // Every kernel verb derives its band from `Band::linear(tol)` at its
 // own entry (the paragraph above), which is `Band::new(ε, K·ε)`.
-// `Tol`'s invariant is ε finite and strictly positive and K finite
+// `Tol`'s invariant is ε finite and at least `EPS_MIN` and K finite
 // and greater than one, so `Band::new`'s `zero` check cannot fire —
 // the only `InvalidValue` reachable from a prelude door is
 // `field: Escalate`, the K·ε overflow residue that `Band::linear`'s
@@ -103,7 +103,7 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // `RevolveError`, `SelectRefusal`, `TubeError`, `ValidationError` —
 // against one carrier for the payload CUR3 carried and one apiece
 // for CUR4's four. (`geom_core::UnitVec3Error`, the unit-vector
-// witness's refusal, and `geom_core::OrthoFrameError`, the frame
+// witness's refusal, and `geom_core::OrthonormalizeError`, the frame
 // witness's, carry it too and are reached at `pncad::geom_core`
 // beside the types they refuse for, not through this prelude —
 // kernel types' refusals, not curated façade names.) A caller holding an
@@ -150,8 +150,8 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // margin out of the kernel's prose again: then the type is telemetry
 // with no consumer, which is what a curated list does not publish.
 pub use geom_core::{
-    Affine3, Band, BandError, Indeterminate, MarginDiag, MarginKind, Mat3, OrthoFrame, Point2,
-    Point3, Real, Tol, Tolerance, Vec2, Vec3,
+    Affine3, Band, BandError, Indeterminate, MarginDiag, MarginKind, Mat3, Point2, Point3, Real,
+    RigidMotion, Tol, Tolerance, Vec2, Vec3,
 };
 // The D6 quantity layer: value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this
@@ -736,10 +736,10 @@ pub use crate::select::{
     CurveKind, CurveKindSet, DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL, GeomPred,
     InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
     PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
-    SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side,
-    SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    attribute, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame,
-    face_name, select, select_where, vertex_position,
+    RunLine, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense,
+    Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
+    all_vertices, attribute, denotation, edge_carrier_kind, edge_frame, edge_name,
+    face_carrier_kind, face_frame, face_name, select, select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

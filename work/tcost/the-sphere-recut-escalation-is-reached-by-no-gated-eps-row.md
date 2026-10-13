@@ -57,3 +57,10 @@ A decision: either give the arm a row that reaches it (a per-process
 `Tolerance::init` at 1e-13, which holds under nextest's one process
 per test but not under `cargo test`), or accept that it is documentation
 of a sub-matrix ε and say so there.
+
+## Evidence: no admissible ε reaches the arm (ENCL, `encl/eps-floor`)
+
+D4 ¶4 now gives ε a floor: `geom_core::tolerance::EPS_MIN` = 1 km · 2⁻⁵² ≈ 2.2e-13 m. `Tolerance` refuses any ε below it at every door, the env path included, where a below-floor `CAD_TOLERANCE_EPS` falls back to the default and is reported. Every ε the escalation arm owns (`< RECUT_DECIDES_FROM` = 1e-13) is below that floor, so no run reaches the arm, by hand or otherwise. The `5e-14` reproduction is gone from `common/sphere_recut.rs`'s doc.
+
+What is owed narrows to deleting the arm and its pinned constants (`RECUT_PIN_EPS`, `RECUT_MAPPED_ENCLOSURE_HI`, `RECUT_HI_PER_EPS`). The other option is to re-measure at an admissible ε.
+

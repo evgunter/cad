@@ -2439,9 +2439,9 @@ fn forward_window<T: Decide>(
 ) -> Result<T, ReplaceFaceError<T>> {
     let speeds = param_speeds(carrier);
     let t1 = match speeds {
-        Some((_, ceiling)) => {
+        Some((floor, ceiling)) => {
             let old = old_span.1 - old_span.0;
-            let kept = keep_turn(old, t1 - t0);
+            let kept = keep_turn(old, t1 - t0, floor, edge, band)?;
             // Zero or a whole number of turns, so never near the band.
             match decide(
                 "offset_axial_edge_turn",
@@ -2505,8 +2505,58 @@ fn param_speeds<T: Real>(carrier: &Curve3<T>) -> Option<(T, T)> {
 /// the `old` sweep it replaces — the moved edge keeps the old one's
 /// side of every cut. Shared by [`forward_window`] and an arc's
 /// re-authored sweep in [`reauthor`].
-fn keep_turn<T: Real>(old: T, read: T) -> T {
-    old + (read - old).reduce_periodic_centred(T::tau())
+///
+/// The number of turns is decided as structure
+/// ([`geom_brep::whole_period_count`]): sign decisions at the half-turn
+/// marks of `read − old`, levered at `lever`, so it is a literal at every
+/// scalar, and [`forward_window`]'s `offset_axial_edge_turn` reads
+/// `kept − read` as the constant it is. A mark decided either way admits
+/// a turn, so the lever is the carrier's speed FLOOR ([`param_speeds`]'
+/// rule for a decision whose sign admits); an arc's re-authored sweep
+/// levers at its circle's radius.
+///
+/// **Why a miss refuses rather than reading both branches** (as
+/// `chart_region`'s fold, `solid_contain`'s torus walk and the loop
+/// walk's near-pole read do): the two branches astride a mark keep two
+/// forward spans a whole turn apart, two different moved edges, so no
+/// answer is shared to keep.
+///
+/// # Errors
+///
+/// - [`ReplaceFaceError::Escalated`] where a mark is in band.
+/// - [`ReplaceFaceError::TogetherAxialEdge`] where a mark decides Zero
+///   or the gap is past the branch reach. A mark decides Zero where
+///   `read` sits half a turn from `old`, and everywhere on a carrier
+///   whose slowest speed is under the band per half turn: there no turn
+///   is told from the next.
+fn keep_turn<T: Decide>(
+    old: T,
+    read: T,
+    lever: T,
+    edge: EdgeKey,
+    band: Band,
+) -> Result<T, ReplaceFaceError<T>> {
+    let (gap, tau) = (read - old, T::tau());
+    match geom_brep::whole_period_count(
+        "offset_axial_keep_turn",
+        gap,
+        tau,
+        |g| Margin::levered(g, lever),
+        band,
+    ) {
+        Ok(k) => Ok(old + (gap - tau * T::from_f64(f64::from(k)))),
+        Err(geom_brep::BranchMiss::Undecided(source)) => {
+            Err(ReplaceFaceError::Escalated { source })
+        }
+        Err(geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach) => {
+            Err(ReplaceFaceError::TogetherAxialEdge {
+                edge,
+                what: "a moved edge's re-read sweep cannot be told a turn of its carrier from the \
+                       old one: it sits half a turn out, or the carrier is too slow for half a \
+                       turn to clear the band",
+            })
+        }
+    }
 }
 
 /// A point's signed distance to a moved surface, in meters — the
@@ -2606,7 +2656,13 @@ fn reauthor<T: Decide>(
                             arc: Arc2 {
                                 centre,
                                 radius: *radius,
-                                sweep: keep_turn(covered, u.perp_dot(v).atan2(u.dot(v))),
+                                sweep: keep_turn(
+                                    covered,
+                                    u.perp_dot(v).atan2(u.dot(v)),
+                                    *radius,
+                                    edge,
+                                    band,
+                                )?,
                             },
                         }
                     }
@@ -3358,5 +3414,146 @@ mod tests {
                 "the re-authored arc at s = {s} is {got:?}, off the moved edge's {want:?}"
             );
         }
+    }
+}
+
+/// **A re-read sweep keeps a literal turn.** Over a box, a read `k`
+/// turns from the old sweep as polynomials that are not constants, at
+/// `k` either side of zero: the kept sweep less the old one is the zero
+/// polynomial. At `f64`, a read half a turn from the old one names no
+/// nearer turn and refuses typed, and one in the band of that half turn
+/// escalates.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod keep_turn_rows {
+    use super::*;
+    use geom_core::Sym;
+
+    #[test]
+    fn a_kept_turn_is_a_literal_over_a_box() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        for k in [-1.0, 0.0, 1.0, 2.0] {
+            let (out, counts) =
+                crate::test_support_fixtures::whole_period_gap_over_a_box(k, |read, old| {
+                    let kept =
+                        keep_turn(old, read, Sym::from_f64(2.0), EdgeKey::default(), band).unwrap();
+                    decide("keep_turn_row", Margin::of(kept - old), band)
+                });
+            assert!(
+                matches!(out, Ok(Sign::Zero)),
+                "k = {k}: the kept sweep is the old one: {out:?}"
+            );
+            assert_eq!(
+                counts.symbolic, 1,
+                "k = {k}: the kept sweep less the old one is the zero polynomial"
+            );
+        }
+    }
+
+    /// The window `forward_window` keeps, over a box: a read `k` turns
+    /// from the old span lands on the old span, as the zero polynomial,
+    /// at `k` either side of zero — `offset_axial_edge_turn` reading
+    /// `kept − read` as the constant it is.
+    #[test]
+    fn a_moved_window_keeps_the_old_turn_as_a_theorem_over_a_box() {
+        use geom_core::{Interval, Vec3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        for k in [-1.0, 0.0, 1.0, 2.0] {
+            let (out, counts) =
+                crate::test_support_fixtures::whole_period_gap_over_a_box(k, |read, old| {
+                    let f = Sym::<Interval>::from_f64;
+                    let carrier = Curve3::Circle {
+                        center: Point3::new(f(0.0), f(0.0), f(0.0)),
+                        axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
+                        radius: f(2.0),
+                        u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
+                    };
+                    // A unit added to both spans keeps the forward decision
+                    // clear of zero over the box.
+                    let (old, read) = (old + f(1.0), read + f(1.0));
+                    let t1 = forward_window(
+                        &carrier,
+                        (f(0.0), old),
+                        f(0.0),
+                        read,
+                        EdgeKey::default(),
+                        band,
+                    )
+                    .unwrap();
+                    decide("forward_window_row", Margin::of(t1 - old), band)
+                });
+            assert!(
+                matches!(out, Ok(Sign::Zero)),
+                "k = {k}: the window keeps the old span: {out:?}"
+            );
+            // At `k = 0` the turn decision reads `kept − read` Zero as a
+            // theorem too; elsewhere it is the definite constant `−kτ`.
+            let want = if k == 0.0 { 2 } else { 1 };
+            assert_eq!(
+                counts.symbolic, want,
+                "k = {k}: the kept window less the old span is the zero polynomial"
+            );
+        }
+    }
+
+    /// A spiric's marks lever at its speed FLOOR, its minor radius: a gap
+    /// in the band of the half-turn mark at the floor escalates, though
+    /// at its ceiling (`r(R − r)/√((R − r)² − d²)`, larger) the mark
+    /// would decide.
+    #[test]
+    fn a_spiric_window_levers_its_turn_at_the_speed_floor() {
+        use geom_core::Vec3;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let carrier = Curve3::Spiric {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            offset: 0.5,
+        };
+        let (floor, ceiling) = param_speeds(&carrier).unwrap();
+        assert!(
+            ceiling > 1.1 * floor,
+            "the floor and ceiling part: {floor} against {ceiling}"
+        );
+        // In the band at the floor, past it at the ceiling.
+        let off = 0.95 * band.escalate() / floor;
+        assert!(off * ceiling > band.escalate() && off * floor > band.zero());
+        let old = 0.3;
+        let got = forward_window(
+            &carrier,
+            (0.0, old),
+            0.0,
+            old + core::f64::consts::PI + off,
+            EdgeKey::default(),
+            band,
+        );
+        assert!(
+            matches!(got, Err(ReplaceFaceError::Escalated { .. })),
+            "a mark in band at the floor escalates: {got:?}"
+        );
+    }
+
+    #[test]
+    fn a_read_half_a_turn_out_refuses_and_one_in_band_escalates() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (old, pi) = (0.3, core::f64::consts::PI);
+        assert!(
+            matches!(
+                keep_turn(old, old + pi, 2.0, EdgeKey::default(), band),
+                Err(ReplaceFaceError::TogetherAxialEdge { .. })
+            ),
+            "half a turn out names no nearer turn"
+        );
+        // Midway through the band from the half-turn mark, levered at 2.
+        let in_band = old + pi + 0.5 * (band.zero() + band.escalate()) / 2.0;
+        assert!(
+            matches!(
+                keep_turn(old, in_band, 2.0, EdgeKey::default(), band),
+                Err(ReplaceFaceError::Escalated { .. })
+            ),
+            "a read in the band of the half-turn mark escalates"
+        );
     }
 }

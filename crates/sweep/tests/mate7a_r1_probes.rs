@@ -158,8 +158,9 @@ fn dist_to_stem_center_arc(p: Point3<f64>) -> f64 {
 /// crossing layer has a circle × torus root lane, so the two seams that
 /// cross the other tube's carrier (the stem's inner equator, the arch's
 /// outer equator) are decided rather than refused. What this row
-/// re-derives now is: (a) wall 1 is past the gate AND the crossing
-/// layer, and stops at the join's plane × torus chord; (b)
+/// re-derives now is: (a) wall 1 is past the gate, the crossing layer
+/// and the join, and stops at the interior-loop guard on its two tube
+/// walls; (b)
 /// the far cap stands ~2 m clear of the stem wall's exact locus; (c) it
 /// is no longer inside the wall's box either; (d) the weld still has no
 /// torus×torus contact (tube 0.060 vs 0.052 — the walls
@@ -175,26 +176,28 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     );
 
     let err = topo::union(&s, &a, Tol::witness())
-        .expect_err("the stem glue still refuses, two doors further on");
+        .expect_err("the stem glue still refuses, past the join");
     // **Wall 1 is no longer the crossing layer's.** The circle × torus
     // root lane (`topo::boolean::circle_torus`) certifies that each
     // seam crosses the other tube's carrier only outside that face's
     // window, so neither pair is an event; the op reaches the join,
     // whose germ pair of the stem's weld cap against the arch's wall
-    // takes the plane × wall arm and refuses at the cap's chord, whose
-    // guard has no torus partner: a plane face divided against a torus,
-    // which only the arch carries, so the plane is the stem's weld cap.
-    // The far-cap claims below are geometry and stand on their own.
+    // takes the plane × wall arm and its chord, an arc of the arch's
+    // meridian circle. Past the join the interior-loop guard refuses the
+    // stem's tube wall against the arch's, two tori with parallel axes
+    // apart, which the section certificate has no arm for. The far-cap
+    // claims below are geometry and stand on their own.
     assert!(
         matches!(
             err,
-            BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
-                divided: geom::SurfaceKind::Plane,
-                wall: geom::SurfaceKind::Torus,
+            BooleanError::CurvedPairUnsupported {
+                site: topo::PairRefusalSite::InteriorLoopGuard,
+                kind: geom::SurfaceKind::Torus,
+                other_kind: geom::SurfaceKind::Torus,
                 ..
-            })
+            }
         ),
-        "wall 1 stops at the join's plane × torus chord, on the stem's cap: {err:?}"
+        "wall 1 stops at the interior-loop guard on its two tube walls: {err:?}"
     );
     let frame = arch_frame();
     let far_cap = plane_faces(&a)

@@ -585,13 +585,29 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
             "[{lo:e}, {hi:e}] lane: its own condition and one recourse: {msg}"
         );
 
-        let mint = FittedLane::<f64>::certified().general_image(&carrier, &wall);
-        let Err(PcurveCertifyError::CarrierDomain(r)) = mint else {
-            panic!("[{lo:e}, {hi:e}] the mint must refuse as the domain door: {mint:?}");
+        // The mint's image of the spline over its own domain, and of a
+        // line over the same interval: one domain door for both.
+        let line = Curve3::Line {
+            origin: Point3::new(1.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
         };
-        assert!(
-            refused(&r),
-            "[{lo:e}, {hi:e}] mint: domain and fault: {r:?}"
-        );
+        for (name, carrier) in [
+            (
+                "spline",
+                Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+            ),
+            ("line", line),
+        ] {
+            let mint = FittedLane::<f64>::certified().general_image(&carrier, (lo, hi), &wall);
+            let Err(PcurveCertifyError::CarrierDomain(r)) = mint else {
+                panic!(
+                    "[{lo:e}, {hi:e}] {name}: the mint must refuse as the domain door: {mint:?}"
+                );
+            };
+            assert!(
+                refused(&r),
+                "[{lo:e}, {hi:e}] {name} mint: domain and fault: {r:?}"
+            );
+        }
     }
 }

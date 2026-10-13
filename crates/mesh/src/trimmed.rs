@@ -1033,7 +1033,7 @@ fn trim_polygon(
         match &image {
             Pcurve::Harmonic { .. } => {}
             // The spiric's two images are closed forms of the
-            // carrier's own parameter on the two charts it lives on,
+            // carrier's own parameter on every chart it lives on,
             // so the walk below — which samples the image at the
             // chord pass's parameters — reads them exactly as it reads
             // a harmonic one. Unreachable at this head for a different

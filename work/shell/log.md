@@ -1448,3 +1448,22 @@ Ev said go.
 - 2026-10-11 — Seam note from ENCL (PR 4687, merged at `aaf011d01b`): `offset_meters::CellNormal::sup` is gone; readers take `PatchCell::m_sup`, a certified coefficient-norm bound on ‖S_u×S_v‖ (with the rational quotient terms) that is rigid-invariant to rounding. The rational chart speeds are coefficient-vector norms too. At rest the bounds are up to ~1.8% looser than the box in a frame that suits it. A NaN `m_sup` now refuses where the box/Gram fallback used to answer. (ENCL orchestrator)
 - 2026-10-12 — Seam note from ENCL (PR 4745, merged at `512ef4b6c7`): `shell.rs` and `replace_face.rs` escalations now end `ending(..)` rather than `under(..)`: the same levers, minus the ' — {reading}; ' clause. `ReplaceFaceError::Escalated`'s doc says why it offers the geometry lever alone. (ENCL orchestrator)
 - 2026-10-12 — Seam note from ENCL (PR 4800, merged at `428057bb7c`): `OffsetFitError::SampleCapReached` is now `WallReached { wall: OffsetFitWall::{SampleCap{cap} | Work{budget, spent}} }`, with "split the face" as the recourse for both. A new cumulative `OFFSET_FIT_WORK` = 16 384 samples is measured against the corpus's largest run (8851) and guarded by `a_bound_found_then_lost_carries_the_bound_it_lost`. `RefinementStalled` fires on two idle rounds against the lowest bound; a both-directions fallback marking is not an idle round, so one sequence that refused on main now certifies (pinned). No corpus row flipped. (ENCL orchestrator)
+- 2026-10-12 — Seam note from NURBS: PR 4866 (`nurbs/one-derivative-scale`) gives the span derivative-net scale `p/(u_{i+p+1} − u_{i+1})` one home, `geom_core::spline::derivative::span_derivative_scale`, beside a moved `derivative_net`. It routes the inline copies in `topo/src/shell.rs` `spline_speed`, `geom-brep/src/pcurve_cache.rs` (the surface net and `curve_rate_bound`) and `geom-brep/src/ssi/enclose.rs` (`pair_scales`, `bezier_scales`) through it. The claim is bit-identical, with no golden moved, and it is under single FULL review. (NURBS orchestrator)
+- 2026-10-12 — Seam note from SYM: SYM-17 Phase 2 (Ev's answer on PR 4902; `docs/SYM-17-SPEC.md` §Phase 2) replaces `OrthoFrame` with `RigidMotion<T>`, a proper rigid motion carried by construction. `topo::transform_rigid` will take it and ask nothing about rigidity; `check_rigid` becomes its one decided door, for raw maps. The type acts on `UnitVec3`, and pose inverses become transposes. Branch `sym/17-rotation-readout`. Touches linalg, `transform.rs`, `eval/wire`, placement, the mate solve's representatives and inverses (not `member_of` or `check_offsets`, which stage 3 retires), and the revolve, sweep and pattern rigid maps.
+
+- **2026-10-12 — seam note from NURBS: PR 4892 merged (one rational speed bound, `geom_core::spline::rational_speed_sup`, `NurbsCurve*::speed_upper_bound`).**
+  - `topo/src/shell.rs` `spline_speed` now reads the pair-term bound in place of the homogeneous recipe.
+  - Its balls only shrink: per term, pair-term ≤ recipe A. `speed_fuzz` stays green.
+  - A new reader of a rational curve's sup‖C′‖ should call `speed_upper_bound()`. — (NURBS orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4954 merged** (`092b30227f`). Every first-order rational derivative bound now reads one Bernstein quotient bound on exact dyadic Bézier pieces (`geom_core::spline::derivative::QuotientPiece`, with the pieces in `geom_core::spline::pieces`).
+  - **Retired:**
+    - `rational_speed_sup`, `rational_stretch_sup`, `rational_stretch_floor` and `rational_area_floor`;
+    - `RationalPairTerm`, `pair_sup`, `Cell` and `over_cells`;
+    - enclose's `pair_norm_sup`, `Centred`, `Affine` and `screen_bound`;
+    - `pcurve_cache`'s `net_direction` and `floor_along`.
+  - **API change:** `NurbsSurface::stretch_floor(along_u)` and `area_floor()` are norm floors and lost their `d` argument.
+  - **Tighter readings:** `speed_upper_bound`, `stretch_sup`, `chart_stretch_inf` and enclose's `deriv_box` / `speed_sup` / `transverse_readings`. So iso slacks shrink and floors rise.
+  - **Degree ceilings:** curves meter to degree 28, surface sups and per-axis floors to 28 per axis, and the area floor to 18. Above those the bound refuses.
+  - **Filed:** `work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md` and `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
+  - **Next:** NURBS unit 2 moves `patch_bound` `rational_cells` (first and second order), mesh chords and `offset_meters` onto the same form. — (NURBS orchestrator)

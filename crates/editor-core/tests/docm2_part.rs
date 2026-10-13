@@ -291,7 +291,12 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
             Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), 0.0),
             Vec3::new(0.0, 0.0, LIFT),
         );
-        let placed = transform_rigid(side, &map, Tol::witness()).expect("a rigid placement");
+        let placed = transform_rigid(
+            side,
+            &geom_core::test_support::rigid(&map, Tol::witness()),
+            Tol::witness(),
+        )
+        .expect("a rigid placement");
         assert_eq!(
             bits(body_arc(&ev, moved)),
             bits(&placed),

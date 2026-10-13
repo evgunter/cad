@@ -94,6 +94,7 @@
 //! comparison it reaches.
 
 use geom_core::Bounds;
+use std::borrow::Cow;
 use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
@@ -101,6 +102,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, max_bound, norm_sup};
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::net::{TensorChannels, TensorCoeffs, TensorNet};
+use geom_core::spline::weight_scale::unit_scale_exact;
 use geom_core::spline::{C1Break, Derived, KnotVector};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
@@ -299,6 +301,30 @@ pub struct PatchCell {
 /// weight not bitwise `1.0`) — the arm selection, on f64 STRUCTURE.
 pub fn is_rational(n: &NurbsSurface<f64>) -> bool {
     n.weights().iter().any(|w| *w != 1.0)
+}
+
+/// `n` with its weights at unit scale
+/// ([`geom_core::spline::weight_scale::unit_scale_exact`]), or `n`
+/// itself where that rescale is a no-op or would drop a bit. The
+/// rescaled net describes the same surface; what it buys is range for
+/// the weight powers the enclosures form (`w²` here, up to `w⁴` in
+/// [`crate::offset_fit`]'s composite). Which arm reads a net is decided
+/// on the DESCRIBED weights ([`is_rational`]), before this runs.
+pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface<f64>> {
+    let Some((_, scaled)) = unit_scale_exact(n.weights()) else {
+        return Cow::Borrowed(n);
+    };
+    match NurbsSurface::new(
+        n.knots_u().clone(),
+        n.knots_v().clone(),
+        n.control().to_vec(),
+        scaled,
+    ) {
+        Ok(rescaled) => Cow::Owned(rescaled),
+        Err(e) => unreachable!(
+            "the door refused an exact power-of-two rescale of weights it admitted: {e}"
+        ),
+    }
 }
 
 /// **The per-cell certified bounds** on a described NURBS patch's
@@ -816,14 +842,18 @@ fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>
 /// refinement (module docs).
 #[allow(clippy::too_many_lines)]
 fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>, PatchBoundError> {
-    // The convex-combination licence, on f64 STRUCTURE. `!(w > 0.0)`
-    // catches NaN. (`NurbsSurface::new` refuses these at the door;
-    // re-checked here so THIS bound never divides by an unproven
-    // denominator.)
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if n.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+    // The convex-combination licence, on f64 STRUCTURE.
+    // (`NurbsSurface::new` refuses these at the door; re-checked here so
+    // THIS bound never divides by an unproven denominator.)
+    if !n
+        .weights()
+        .iter()
+        .all(|w| geom_core::spline::weight_in_regime(*w))
+    {
         return Err(PatchBoundError::NonPositiveWeight);
     }
+    let scaled = unit_scaled_weights(n);
+    let n = &*scaled;
     // THE REFINEMENT IS PART OF THE ENCLOSURE. The homogeneous nets `w`
     // and `w·P` are refined IN INTERVAL ARITHMETIC from point intervals of the
     // DESCRIBED net, so insertion widens outward like every later step
@@ -1022,9 +1052,10 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used)]
-mod tests {
+#[allow(clippy::expect_used, clippy::panic)]
+pub(crate) mod tests {
     use super::*;
+    use geom_core::spline::weight_scale::pow2_scaled;
 
     /// **`RefinedWeightLostPositivity` is not reached from a door-valid
     /// face, even at the minimum subnormal.** The arm's prose claims the
@@ -1065,6 +1096,65 @@ mod tests {
                 "weight {w:e} beside 1e2 lost positivity in the refinement: a step reached \
                  below the hull of its two sources"
             );
+        }
+    }
+
+    /// `n` with every weight multiplied by `2^k`.
+    pub(crate) fn weights_times_pow2(n: &NurbsSurface<f64>, k: i32) -> NurbsSurface<f64> {
+        NurbsSurface::new(
+            n.knots_u().clone(),
+            n.knots_v().clone(),
+            n.control().to_vec(),
+            n.weights().iter().map(|&w| pow2_scaled(w, k)).collect(),
+        )
+        .expect("an exact power-of-two scale of door-valid weights")
+    }
+
+    /// The rational quarter cylinder, weights `1, 1, s, s, 1, 1`.
+    fn quarter_cylinder() -> NurbsSurface<f64> {
+        let s = core::f64::consts::FRAC_PI_4.cos();
+        let kv2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("kv2");
+        let kv1 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("kv1");
+        let control = vec![
+            geom_core::Point3::new(1.0, 0.0, 0.0),
+            geom_core::Point3::new(1.0, 0.0, 1.0),
+            geom_core::Point3::new(1.0, 1.0, 0.0),
+            geom_core::Point3::new(1.0, 1.0, 1.0),
+            geom_core::Point3::new(0.0, 1.0, 0.0),
+            geom_core::Point3::new(0.0, 1.0, 1.0),
+        ];
+        NurbsSurface::new(kv2, kv1, control, vec![1.0, 1.0, s, s, 1.0, 1.0]).expect("door")
+    }
+
+    /// **One power of two on every weight moves no cell**, at either
+    /// end of the `f64` range. At `2⁻³⁰⁰` the `w²` the cross-product
+    /// sup divides by underflows to zero, at `2³⁰⁰` it overflows, and
+    /// at `2⁻¹⁰⁷⁰` the weights themselves are subnormal — on the
+    /// dyadic net, whose weights keep every bit there. Each scale
+    /// describes the same surface, so every cell is the unit face's to
+    /// the bit.
+    #[test]
+    fn a_uniform_weight_scale_moves_no_cell() {
+        let cylinder = quarter_cylinder();
+        let dyadic = NurbsSurface::new(
+            cylinder.knots_u().clone(),
+            cylinder.knots_v().clone(),
+            cylinder.control().to_vec(),
+            vec![1.0, 1.0, 0.75, 0.75, 1.0, 1.0],
+        )
+        .expect("door");
+        for (name, unit, scales) in [
+            ("cylinder", &cylinder, &[-1000, -300, -1, 1, 300, 1000][..]),
+            ("dyadic", &dyadic, &[-1070][..]),
+        ] {
+            let want = format!("{:?}", patch_cells(unit).expect("the unit face's cells"));
+            for &k in scales {
+                let scaled = weights_times_pow2(unit, k);
+                let got = patch_cells(&scaled).unwrap_or_else(|e| {
+                    panic!("{name} at 2^{k}: a uniformly scaled face refused: {e}")
+                });
+                assert_eq!(format!("{got:?}"), want, "{name} at 2^{k}: the cells moved");
+            }
         }
     }
 

@@ -809,7 +809,7 @@ impl SectionRadius {
             size: "radius",
             passes: SizedPass::Positive,
             stored: StoredDefinite::Lever,
-            at_zero: None,
+            no_size: None,
         }
     }
 }
@@ -973,51 +973,53 @@ pub(crate) enum RuledSection<T: Real> {
     Empty,
 }
 
-/// Steps 1–2 of [`plane_cylinder_section`]: the axis-in-plane lane.
-/// `None` where the axis definitely leaves the plane (step 3 not run).
-/// The gap is read at the foot of `reach`'s point on the axis and the
-/// tilt levered from there. The tangent-locus lane reads its ruling
-/// tangency here, so the section and the witness never decide it apart.
-pub(crate) fn plane_cylinder_ruled<T: Decide>(
-    pc: &PlaneCylinder<T>,
-    reach: &Reach<T>,
-    band: Band,
-) -> Result<Option<RuledSection<T>>, Indeterminate> {
-    plane_cylinder_ruled_read(pc, reach, band).map(|(_, ruled)| ruled)
-}
-
-/// [`plane_cylinder_ruled`], with `pc_axis_plane_parallel`'s verdict.
+/// Steps 1–2 of [`plane_cylinder_section`]: the axis-in-plane lane, at
+/// `reach`'s frame ([`ruled_frame`]): the tilt row
+/// ([`ruled_parallel`]), then, with the axis in the plane, the gap row
+/// ([`ruled_section`]). The tangent-locus lane reads its ruling
+/// tangency through the same two rows on the same frame, so the
+/// section and the witness never decide it apart.
 fn plane_cylinder_ruled_read<T: Decide>(
     pc: &PlaneCylinder<T>,
     reach: &Reach<T>,
     band: Band,
 ) -> Result<(Decided, Option<RuledSection<T>>), Indeterminate> {
-    let &PlaneCylinder { q, n, o, a, r } = pc;
-    let o = reach.foot_on(o, a);
-    let c = a.dot(n);
-    let gap_signed = (o - q).dot(n);
-    // The rulings this lane mints stand on the hinge through `o − n·gap`,
-    // `−gap·c` along the axis from the foot; the reach is levered from
-    // there (`geom_brep::extent`'s module docs).
-    let hinge = o - n * gap_signed;
-    let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
-    let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
-    // A tangent line's Zero is one only with this one, so its margin
-    // stands for both.
-    let parallel = decide_reported("pc_axis_plane_parallel", Margin::levered(c, lever), band)?;
-    if parallel.sign != Sign::Zero {
-        return Ok((parallel, None));
-    }
-    // A consumed point of the ruling stands off the plane by the tilt
-    // levered from the hinge, and the wall stands `r − |gap|` off the
-    // plane at the foot: the ruling stands at most their sum off the
-    // section, so the gap is read across the reach with the tilt beside it.
-    let section = match decide_across_reported(
-        ["pc_parallel_gap", "pc_parallel_gap_floor"],
-        r - gap_signed.abs(),
-        Margin::levered(c, lever).value(),
+    let frame = ruled_frame(pc, reach);
+    let parallel = ruled_parallel(&frame, band)?;
+    Ok((parallel, ruled_section(pc, &frame, parallel, band)?))
+}
+
+/// `pc_axis_plane_parallel`: the axis' normal component levered from
+/// the frame's hinge.
+pub(crate) fn ruled_parallel<T: Decide>(
+    frame: &RuledFrame<T>,
+    band: Band,
+) -> Result<Decided, Indeterminate> {
+    decide_reported(
+        "pc_axis_plane_parallel",
+        Margin::levered(frame.c, frame.lever),
         band,
-    )? {
+    )
+}
+
+/// The axis-in-plane lane's answer once the tilt row has read
+/// `parallel`: `None` where the axis definitely leaves the plane (step
+/// 3 not run); otherwise the gap row ([`ruled_gap`]) mints the rulings,
+/// the tangency ruling or none.
+pub(crate) fn ruled_section<T: Decide>(
+    pc: &PlaneCylinder<T>,
+    frame: &RuledFrame<T>,
+    parallel: Decided,
+    band: Band,
+) -> Result<Option<RuledSection<T>>, Indeterminate> {
+    // A tangent line's Zero is one only with the tilt's, so its margin
+    // stands for both.
+    if parallel.sign != Sign::Zero {
+        return Ok(None);
+    }
+    let &RuledFrame { o, gap_signed, .. } = frame;
+    let (n, a, r) = (pc.n, pc.a, pc.r);
+    Ok(Some(match ruled_gap(pc, frame, band)? {
         (Sign::Positive, _) => {
             // Cross-section chord: the plane cuts the circle at
             // foot ± w·half, foot the axis' plane projection.
@@ -1041,8 +1043,61 @@ fn plane_cylinder_ruled_read<T: Decide>(
             gap: gap.jointly(parallel.margin),
         },
         (Sign::Negative, _) => RuledSection::Empty,
-    };
-    Ok((parallel, Some(section)))
+    }))
+}
+
+/// The axis-in-plane lane's frame: the foot of `reach`'s point on the
+/// axis, the axis' normal component `c`, the foot's signed height over
+/// the plane, and the lever the tilt is read at.
+pub(crate) struct RuledFrame<T: Real> {
+    pub(crate) o: Point3<T>,
+    pub(crate) c: T,
+    pub(crate) gap_signed: T,
+    pub(crate) lever: T,
+}
+
+/// [`RuledFrame`] of the pair at `reach`.
+pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) -> RuledFrame<T> {
+    let &PlaneCylinder { q, n, o, a, .. } = pc;
+    let o = reach.foot_on(o, a);
+    let c = a.dot(n);
+    let gap_signed = (o - q).dot(n);
+    // The rulings this lane mints stand on the hinge through `o − n·gap`,
+    // `−gap·c` along the axis from the foot; the reach is levered from
+    // there (`geom_brep::extent`'s module docs).
+    let hinge = o - n * gap_signed;
+    let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
+    let lever = reach.hinge_lever(o, -(gap_signed * c)) + reach.turn_lever(hinge, (n, a), c, cos);
+    RuledFrame {
+        o,
+        c,
+        gap_signed,
+        lever,
+    }
+}
+
+/// **The axis-in-plane lane's gap row**, `pc_parallel_gap`: a consumed
+/// point of a ruling stands off the plane by the tilt levered from the
+/// hinge, and the wall stands `r − |gap|` off the plane at the foot, so
+/// the ruling stands at most their sum off the section and the gap is
+/// read across the reach with the tilt beside it. Positive crosses,
+/// Negative clears, Zero touches along the ruling.
+///
+/// It reads whatever `pc_axis_plane_parallel` decides: a definite sign
+/// here is a crossing or a clearance no tilt within the swing closes,
+/// which is how the tangent-locus lane refuses a pair the axis row
+/// leaves in band ([`crate::tangent_locus`]).
+pub(crate) fn ruled_gap<T: Decide>(
+    pc: &PlaneCylinder<T>,
+    frame: &RuledFrame<T>,
+    band: Band,
+) -> Result<(Sign, MarginDiag), Indeterminate> {
+    decide_across_reported(
+        ["pc_parallel_gap", "pc_parallel_gap_floor"],
+        pc.r - frame.gap_signed.abs(),
+        Margin::levered(frame.c, frame.lever).value(),
+        band,
+    )
 }
 
 /// A plane×cylinder pair: the plane's origin `q` and unit normal `n`,
@@ -2604,8 +2659,10 @@ pub enum PlaneTorusSection<T: Real> {
 ///    the plane, metered at the operand extent): Zero ⇒ the axis
 ///    DIRECTION lies in the plane; then `pt_axis_plane_gap` — margin
 ///    the stand-off `d = n·q − n·c` (meters, the plane's constant less
-///    the centre's): Zero ⇒ the plane CONTAINS the axis ⇒
-///    [`PlaneTorusSection::MeridianCircles`]; definite ⇒ the
+///    the centre's), read with the meridian circles' lean `r·(a·n)`
+///    beside it ([`decide_across`]): Zero ⇒ the plane CONTAINS the
+///    axis ⇒ [`PlaneTorusSection::MeridianCircles`], each standing at
+///    most that sum off the plane; definite (`pt_axis_plane_gap_floor`) ⇒ the
 ///    axis-parallel plane OFF the axis, and then `pt_spiric_two_ovals`
 ///    — margin `(R − r) − |d|` (meters, `d` that same gap), read across
 ///    the extent with that tilt displacement beside it
@@ -2614,11 +2671,16 @@ pub enum PlaneTorusSection<T: Real> {
 ///    [`PlaneTorusSection::SpiricOvals`], minted through
 ///    [`Curve3::spiric`]; otherwise the section is a node, a folded
 ///    loop or empty, and refuses as routed to the general rung.
-/// 3. `pt_axis_normal` — margin `‖a×n‖·R` (the tilt angle's sine,
-///    metered at the would-be circle radius): Zero ⇒ the plane is
+/// 3. `pt_axis_normal` — margin `‖a×n‖·(R + r)` (the tilt angle's
+///    sine, metered at the largest radius a circle of the section can
+///    have, which it stands off the plane by that sine times): Zero ⇒
+///    the plane is
 ///    perpendicular to the axis; then `pt_cap_gap` — margin `r − |h|`
-///    (meters, `h = (q − c)·a` the station's depth into the tube), read
-///    with that tilt displacement beside it ([`decide_across`]):
+///    (meters, `h = d/(a·n)` the depth of the plane's crossing of the
+///    axis, `d` the stand-off, so independent of where the plane's
+///    origin is stored), read with that tilt displacement beside it
+///    ([`decide_across`]); each circle is minted at that crossing and
+///    stands at most the levered tilt off the plane:
 ///    Positive ⇒ [`PlaneTorusSection::ConcentricCircles`], Zero ⇒
 ///    [`PlaneTorusSection::TangentCircle`] (classification data),
 ///    Negative ⇒ [`PlaneTorusSection::Empty`].
@@ -2678,30 +2740,28 @@ pub fn plane_torus_section<T: Decide>(
         Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
     }
 
-    // Lever CONDITION, measured (fix-pass R2): just inside the Zero
-    // band the raw sine can be as large as ε/extent, so the meridian
-    // circles minted below can sit off their own PLANE by up to
-    // r·ε/extent — 27ε measured at extent = 0.01 (the TORUS residual
-    // stays machine-zero: the circles are on the torus, tilted off
-    // the plane). This cannot bite with a real operand: the extent is
-    // the operand extent, ≥ R + r for any plane that reaches the
-    // torus, so r/extent < 1 and the planarity error stays under ε.
-    // The predicate-dimension-audit row carries the same caveat.
+    // The axis tilt is levered at the extent for the fork alone. Each
+    // served row below decides the displacement it puts on its minted
+    // curves beside its own position datum, so no served circle leans on
+    // the extent being long.
     let tilt = Margin::levered(a.dot(n), extent);
     match decide("pt_axis_in_plane", tilt, band).map_err(SectionError::Escalated)? {
         Sign::Zero => {
             // The axis direction lies in the plane: containing vs
-            // offset, by the stand-off `d` — the one spelling this arm
-            // decides on and mints from. The meridian circles are
-            // minted parallel to the plane, `d` off it at every point,
-            // and the tilt turns them about their own centres' radial
-            // line, along the torus rather than off it: only `d` is
-            // read here. An oval is minted in a plane that the tilt does
-            // move off the real one, so the two-oval row reads the tilt
-            // beside its gap.
+            // offset, by the stand-off `d`. A meridian circle is minted
+            // on the torus about its centre, which stands `d` off the
+            // plane, and its points lean off the plane by up to
+            // `r·|a·n|` more, so the two are decided as one sum. An oval
+            // is minted in a plane that the tilt moves off the real one
+            // by up to the levered tilt, read beside its own gap.
             let d = n.dot(q - Point3::origin()) - n.dot(c - Point3::origin());
-            match decide("pt_axis_plane_gap", Margin::of(d), band)
-                .map_err(SectionError::Escalated)?
+            match decide_across(
+                ["pt_axis_plane_gap", "pt_axis_plane_gap_floor"],
+                d,
+                r * a.dot(n),
+                band,
+            )
+            .map_err(SectionError::Escalated)?
             {
                 Sign::Zero => {
                     // The plane contains the axis: the two meridian
@@ -2761,15 +2821,19 @@ pub fn plane_torus_section<T: Decide>(
             }
         }
         Sign::Positive | Sign::Negative => {
-            let tilt = Margin::levered(a.cross(n).norm(), big_r);
+            let tilt = Margin::levered(a.cross(n).norm(), big_r + r);
             match decide("pt_axis_normal", tilt, band).map_err(SectionError::Escalated)? {
                 Sign::Zero => {
                     // The plane is perpendicular to the axis: the
-                    // concentric-circle lane, by the station's depth
-                    // into the tube. The tilt moves the plane's depth by
-                    // at most its displacement at the circles, so a
-                    // circle minted at `h` stands at most the sum off.
-                    let h = (q - c).dot(a);
+                    // concentric-circle lane, by the depth `h` of the
+                    // plane's crossing of the axis, wherever its origin
+                    // is stored. The circles are minted there, so a
+                    // circle of radius `ρ ≤ R + r` stands at most
+                    // `ρ·‖a×n‖`, under the levered tilt, off the plane,
+                    // and the plane's depth into the tube moves by at
+                    // most as much across them: the cap gap is decided
+                    // beside it.
+                    let h = (n.dot(q - Point3::origin()) - n.dot(c - Point3::origin())) / a.dot(n);
                     let center = c + a * h;
                     match decide_across(
                         ["pt_cap_gap", "pt_cap_gap_floor"],

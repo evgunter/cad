@@ -32,8 +32,8 @@
 //! lane's `torus_chart`, same antiderivatives). A rim at lifted level
 //! `V` turning `Δu` gives `−F(V)·Δu` exactly; a meridian gives
 //! nothing. A spiric's lifted image is exact
-//! (`SpiricImage::Wall`: `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t`,
-//! `v₀ = k·τ`), so `sin v = σ sin t`, `cos v = cos t` and
+//! (`SpiricImage::Wall` on the carrier's own torus:
+//! `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t`, `v₀ = k·τ`), so `sin v = σ sin t`, `cos v = cos t` and
 //! `u′ = −σ·d·r·sin t/(ρ·f)`, and its terms are
 //!
 //! ```text
@@ -318,8 +318,12 @@ pub struct SpiricEdgeQ {
     pub wall: Option<WallImageQ>,
 }
 
-/// A spiric's lifted image on its torus wall
-/// (`SpiricImage::Wall`): `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t`.
+/// A spiric's lifted image on its OWN torus wall
+/// (`SpiricImage::Wall` tagged `WallTorus::Own`):
+/// `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t`. A wall on the mirror torus
+/// (`WallTorus::Mirror`, azimuth sign `−σ`) has no terms here yet, and
+/// `topo`'s quad lane refuses it typed before building one
+/// (FLUX's `the-spiric-wall-quadrature-lane-reads-only-the-own-torus`).
 #[derive(Clone, Copy, Debug)]
 pub struct WallImageQ {
     /// `σ = ±1`.
@@ -577,17 +581,23 @@ pub fn spiric_face_rounds<T: Decide>(
     window: RoundWindow,
 ) -> Result<RoundOutcome, PropsError> {
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    let first = window.first.min(QUAD_MAX_ROUNDS);
+    let schedule = super::quad::Schedule::to(QUAD_MAX_ROUNDS);
+    let first = schedule.first(window);
     let mut pieces = QUAD_INIT_PIECES << first;
-    for round in first..=QUAD_MAX_ROUNDS {
+    for round in first..=schedule.last() {
         let (bounds, [du, dv]) = face_bounds(face, pieces)?;
         let width_len = mean_boundary_displacement(bounds.flux, bounds.area)?;
-        let converged = classify_len::<T>(
-            "props_quad_converged",
-            Margin::of(target_len - width_len),
+        let converged = schedule.converged::<T>(
+            round,
+            classify_len::<T>(
+                "props_quad_converged",
+                Margin::of(target_len - width_len),
+                band,
+                PropsCheck::Converged,
+            ),
+            (target_len, width_len),
             band,
-            PropsCheck::Converged,
-        )? == Sign::Positive;
+        )?;
         let out = if converged {
             match classify_len::<T>(
                 "props_quad_face_extent",
@@ -602,7 +612,7 @@ pub fn spiric_face_rounds<T: Decide>(
         } else {
             round_exit(
                 round,
-                QUAD_MAX_ROUNDS,
+                schedule.last(),
                 window,
                 bounds,
                 (width_len, target_len),

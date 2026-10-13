@@ -165,3 +165,57 @@ fn between_encloses_every_exact_combination() {
     );
     println!("between: {checked} exact checks, {refused} refusals over {draws} draws");
 }
+
+/// **The door's own clamp is the only thing its ratio meets.** For
+/// ratios inside, on and outside `[0, 1]` (points and brackets, signed
+/// zeros, subnormals, an ulp past either end) and sources of every
+/// shape, the door's answer is bit for bit the answer to the same
+/// question with the ratio clamped first: a ratio it reads unclamped
+/// must be one the clamp leaves as it is.
+#[test]
+fn a_ratio_is_read_as_its_clamp() {
+    let edges = [
+        -1.0,
+        ulps(0.0, -1),
+        -0.0,
+        0.0,
+        5e-324,
+        1e-300,
+        0.1,
+        1.0 / 3.0,
+        ulps(0.5, -1),
+        0.5,
+        ulps(0.5, 1),
+        0.875,
+        ulps(1.0, -1),
+        1.0,
+        ulps(1.0, 1),
+        2.0,
+    ];
+    let sources = [
+        (1.0, 1.0),
+        (-3.0, 2.5),
+        (1e300, 1e300),
+        (-0.0, 5e-324),
+        (0.1, 0.3),
+    ];
+    let mut checked = 0;
+    for (i, &ll) in edges.iter().enumerate() {
+        for &lh in &edges[i..] {
+            let l = Interval::from_bounds(ll, lh);
+            let clamped = l.clamped_to(0.0, 1.0);
+            for &(xl, xh) in &sources {
+                for &(yl, yh) in &sources {
+                    let (x, y) = (Interval::from_bounds(xl, xh), Interval::from_bounds(yl, yh));
+                    assert_eq!(
+                        Interval::between(x, y, l).repr_bits(),
+                        Interval::between(x, y, clamped).repr_bits(),
+                        "between({x:?}, {y:?}, {l:?}) differs from the clamped ratio {clamped:?}"
+                    );
+                    checked += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(checked, 136 * 25, "every ratio and source pair was asked");
+}

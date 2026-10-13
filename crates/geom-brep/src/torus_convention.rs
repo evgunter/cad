@@ -66,7 +66,7 @@ impl TorusConvention {
             size,
             passes: SizedPass::Positive,
             stored: StoredDefinite::Lever,
-            at_zero: None,
+            no_size: None,
         }
     }
 

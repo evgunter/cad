@@ -134,18 +134,16 @@ pub(super) fn sector_face<T: Decide>(
 /// - **Line** carriers: the chord `p(final) − p(base)` — the M3 path,
 ///   bit-identical (the chord IS the direction, and its length the
 ///   extent).
-/// - **Circle/Ellipse** carriers (M5 PR 5): the carrier's outgoing
-///   unit tangent at the base vertex (`+deriv(t₀)` when `he` is the
-///   plus half, `−deriv(t₁)` when the minus half — the `he_plus`
-///   forward contract), scaled by [`geom_brep::edge_extent`] (the
-///   certified point-set-diameter lower bound; the chord collapses on
-///   near-closed arcs).
-#[allow(clippy::type_complexity)] // (far vertex, scaled dir, conic jet) — one internal tuple
+/// - **Conic** carriers: the departure [`geom_brep::ConicDeparture`]
+///   reads, the outgoing unit tangent scaled by
+///   [`geom_brep::edge_extent`] (the chord collapses on near-closed
+///   arcs), with the edge's [`geom_brep::ConicBend`] there.
+#[allow(clippy::type_complexity)] // (far vertex, scaled dir, conic bend) — one internal tuple
 pub(super) fn chord<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
-) -> Result<(VertexKey, Vec3<T>, Option<(Vec3<T>, T)>), SplitReduceError> {
+) -> Result<(VertexKey, Vec3<T>, Option<geom_brep::ConicBend<T>>), SplitReduceError> {
     let final_vertex = body.proven_half_edge_end(he);
     let p_base = body.resolve_vertex_point(vertex, Proven);
     let p_final = body.resolve_vertex_point(final_vertex, Proven);
@@ -170,20 +168,9 @@ pub(super) fn chord<T: Decide>(
         geom::Curve3::Circle { .. }
         | geom::Curve3::Ellipse { .. }
         | geom::Curve3::Spiric { .. } => {
-            let (t0, t1) = curve.params();
-            // The base-endpoint jet: outgoing tangent, plus the raw
-            // second derivative and squared speed for the C12.2
-            // second-order descent (M5 PR 9).
-            let (tangent, _) = curve.walk_tangents(he == edge.he_plus);
-            let deriv2 = curve.walk_departure_deriv2(he == edge.he_plus);
-            let speed_sq = tangent.norm_squared();
-            let chord_len = p_final.distance(p_base);
-            let extent = geom_brep::edge_extent(curve.carrier(), t0, t1, chord_len);
-            Ok((
-                final_vertex,
-                tangent.normalize() * extent,
-                Some((deriv2, speed_sq)),
-            ))
+            let departure =
+                geom_brep::ConicDeparture::of(curve, he == edge.he_plus, p_final.distance(p_base));
+            Ok((final_vertex, departure.dir, Some(departure.bend)))
         }
     }
 }
@@ -239,33 +226,32 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
     let mut entries = Vec::with_capacity(orbit.len());
     let mut dirs = Vec::with_capacity(orbit.len());
     for (i, &he) in orbit.iter().enumerate() {
-        let (final_vertex, dir_a, conic_jet) = chord(body, vertex, he)?;
+        let (final_vertex, dir_a, conic_bend) = chord(body, vertex, he)?;
         // Entry class — "which side does this edge lead to":
-        // - LINE edges: the far vertex's cached verdict, bit-identical
-        //   to M3 (a straight edge's interior is the chord).
-        // - CONIC edges (M1 fix, M5 PR 5 review): the OUTGOING TANGENT
-        //   side through the named trilean `split_conic_departure`
-        //   (margin `t̂·n̂` metered at the edge's honest extent — dir_a
-        //   is exactly t̂·extent). The far vertex misleads on conics:
-        //   a belly arc between ON vertices departs into its own side
-        //   while both endpoints read On. Post-root-insertion the
-        //   interior is sign-constant (every interior crossing was
-        //   split out), so the departure IS the interior side; a Zero
-        //   margin (in-plane departure — an in-plane arc or a graze
-        //   contact) classifies On for rule (b)'s adjudication;
-        //   in-band escalates typed.
-        let class = if let Some((deriv2, speed_sq)) = conic_jet {
+        // - LINE edges: the far vertex's cached verdict (a straight
+        //   edge's interior is the chord).
+        // - CONIC edges: the OUTGOING TANGENT side through the named
+        //   trilean `split_conic_departure` (margin `t̂·n̂` metered at
+        //   the edge's extent — dir_a is exactly t̂·extent). The far
+        //   vertex misleads on conics: a belly arc between ON vertices
+        //   departs into its own side while both endpoints read On.
+        //   Post-root-insertion the interior is sign-constant (every
+        //   interior crossing was split out), so the departure IS the
+        //   interior side; a Zero margin (in-plane departure — an
+        //   in-plane arc or a graze contact) reads one order down,
+        //   below; in-band escalates typed.
+        let class = if let Some(bend) = conic_bend {
             let margin = Margin::of(dir_a.dot(plane.normal.get()));
             match decide("split_conic_departure", margin, band) {
                 Ok(Sign::Negative) => PlaneSide::Below,
                 Ok(Sign::Positive) => PlaneSide::Above,
-                // An in-plane departure ties at first order. The C12.2
-                // descent (M5 PR 9): classify by which side the arc
-                // CURVES to — the named second-order trilean, margin
-                // the displacement the curvature induces at the edge's
-                // honest extent (D4 ¶1). A second-order tie stays On
-                // for rule (b)'s adjudication (never guess); in-band
-                // escalates (F6 — an osculating pair is a sliver).
+                // An in-plane departure ties at first order: the arc
+                // reads by which side it BENDS to, certified as the
+                // boolean's vertex-on-face pass reads it
+                // ([`geom_brep::conic_bend_side`]). A whole edge within
+                // the band of the plane stays On for rule (b)'s
+                // adjudication; a bend the band does not separate from
+                // the first-order residue escalates (F6).
                 Ok(Sign::Zero) => {
                     // The reference side here is the SPLIT PLANE's
                     // normal: an operation input that DEFINES
@@ -273,22 +259,22 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
                     // `sense` bit to fold in. Its type says so —
                     // `enters_material`'s face slot would not accept
                     // it, and this slot does not accept a bare vector.
-                    match geom_brep::enters_material_order2(
-                        deriv2,
-                        speed_sq,
-                        geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
+                    match geom_brep::conic_bend_side(
+                        dir_a,
                         dir_a.norm(),
+                        bend,
+                        geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
                         band,
                     ) {
                         Ok(geom_brep::EntersMaterial::Enters) => PlaneSide::Below,
                         Ok(geom_brep::EntersMaterial::Exits) => PlaneSide::Above,
                         Ok(geom_brep::EntersMaterial::Tangent) => PlaneSide::On,
-                        Err(escalation) => {
+                        Err(diag) => {
                             let (face, _, _) = sector_face(body, vertex, he)?;
                             return Err(SplitReduceError::SliverSector {
                                 vertex,
                                 face,
-                                reading: SectorReading::Escalated(escalation.diag()),
+                                reading: SectorReading::Escalated(diag),
                             });
                         }
                     }

@@ -100,20 +100,21 @@ impl ContactClass {
 }
 
 /// **What a boolean glues a cross-operand face pair as** (C4's
-/// continuation and seam clauses): a contact, a continuation, or a
-/// seam — the class its decided relation makes it
-/// ([`crate::Relation::glued_class`]). Public as what a refusal's
-/// read of a glued pair names ([`crate::DeclarationRead`]); nothing
-/// takes it as an input.
+/// continuation clause and its claim-free `Tangent`): the class its
+/// decided relation makes it ([`crate::Relation::glued_class`]).
+/// Public as what a refusal's read of a glued pair names
+/// ([`crate::DeclarationRead`]); nothing takes it as an input.
 ///
-/// - [`Contact`](Self::Contact) — the pair touches, of that class.
+/// - [`Rest`](Self::Rest) — the pair lies on ONE carrier with its senses
+///   OPPOSED: a conformal contact.
 /// - [`Continuation`](Self::Continuation) — the pair lies on ONE
 ///   carrier with its senses ALIGNED: one surface carried on, whether
 ///   the two abut along a boundary curve or overlap on a patch; a union
 ///   merges it.
-/// - [`Seam`](Self::Seam) — the pair lies on DISTINCT carriers tangent
-///   along a curve with its senses ALIGNED: the two surfaces join G1,
-///   material wedge π, and the zip mints the smooth seam.
+/// - [`Tangent`](Self::Tangent) — the pair lies on DISTINCT carriers
+///   tangent along a locus the witness lane certifies. It says nothing
+///   of the materials: whether the pair is a contact, an overlap, a seam
+///   or a nested touch is read where it is consumed (C7).
 ///
 /// **NOT carried to the façade's curated list, and that is a decision
 /// rather than an omission** (`scripts/payload-rung-sweep.py` names
@@ -131,65 +132,33 @@ impl ContactClass {
 /// and this paragraph and the disposition row go with it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum GlueClass {
-    /// The pair is in contact, of this class.
-    Contact(ContactClass),
-    /// The pair is one surface carried on, abutting or overlapping:
-    /// one carrier, aligned senses.
+    /// One carrier, senses opposed.
+    Rest,
+    /// One carrier, senses aligned.
     Continuation,
-    /// The pair joins G1 along a curve: distinct carriers tangent
-    /// there, aligned senses.
-    Seam,
+    /// Distinct carriers tangent along a certified locus.
+    Tangent,
 }
 
-/// [`GlueClass::ALL`]'s storage: every contact class in
-/// [`ContactClass::ALL`]'s order, then the continuation, then the seam,
-/// built from that list at compile time.
-#[cfg(test)]
-const GLUE_CLASSES: [GlueClass; ContactClass::ALL.len() + 2] = {
-    let mut out = [GlueClass::Continuation; ContactClass::ALL.len() + 2];
-    out[ContactClass::ALL.len() + 1] = GlueClass::Seam;
-    let mut i = 0;
-    while i < ContactClass::ALL.len() {
-        out[i] = GlueClass::Contact(ContactClass::ALL[i]);
-        i += 1;
-    }
-    out
-};
-
 impl GlueClass {
-    /// Every class: each contact class in [`ContactClass::ALL`]'s
-    /// order, then the continuation, then the seam.
+    /// Every class.
     #[cfg(test)]
-    pub(crate) const ALL: &'static [GlueClass] = &GLUE_CLASSES;
-
-    /// The conformal contact, `Contact(Rest)`.
-    pub const REST: Self = Self::Contact(ContactClass::Rest);
-    /// The tangent contact, `Contact(Tangent)`.
-    pub const TANGENT: Self = Self::Contact(ContactClass::Tangent);
+    pub(crate) const ALL: &'static [GlueClass] = &[Self::Rest, Self::Continuation, Self::Tangent];
 
     /// The class's name, for messages.
     pub fn name(self) -> &'static str {
         match self {
-            Self::Contact(class) => class.name(),
+            Self::Rest => "Rest",
             Self::Continuation => "Continuation",
-            Self::Seam => "Seam",
-        }
-    }
-
-    /// The contact class, when the pair is a contact.
-    pub fn contact(self) -> Option<ContactClass> {
-        match self {
-            Self::Contact(class) => Some(class),
-            Self::Continuation | Self::Seam => None,
+            Self::Tangent => "Tangent",
         }
     }
 
     /// Whether the class is ONE carrier (`Rest` or a continuation) —
     /// what the classification stages' same-carrier treatment and the
-    /// merge stage consume. A `Tangent` or seam pair's carriers are
-    /// distinct.
+    /// merge stage consume. A `Tangent` pair's carriers are distinct.
     pub fn is_one_carrier(self) -> bool {
-        matches!(self, Self::REST | Self::Continuation)
+        matches!(self, Self::Rest | Self::Continuation)
     }
 
     /// **The one-carrier class two faces' senses make them**, the one
@@ -199,7 +168,7 @@ impl GlueClass {
     pub(crate) fn of_senses(relation: crate::boolean::CarrierRelation) -> Option<Self> {
         match relation {
             crate::boolean::CarrierRelation::SameOriented => Some(Self::Continuation),
-            crate::boolean::CarrierRelation::SameOpposite => Some(Self::REST),
+            crate::boolean::CarrierRelation::SameOpposite => Some(Self::Rest),
             crate::boolean::CarrierRelation::Distinct => None,
         }
     }
@@ -207,7 +176,10 @@ impl GlueClass {
 
 impl From<ContactClass> for GlueClass {
     fn from(class: ContactClass) -> Self {
-        Self::Contact(class)
+        match class {
+            ContactClass::Rest => Self::Rest,
+            ContactClass::Tangent => Self::Tangent,
+        }
     }
 }
 
@@ -224,12 +196,6 @@ impl From<ContactClass> for GlueClass {
 /// question really is "is this margin decidable"; contact sites ask
 /// "did anyone declare this", and answer with these two arms.
 pub const CONTACT_RECOURSE: &str = "declare the named contact class, or move the geometry";
-
-/// The steer on a `Tangent` declaration contradicted by aligned senses
-/// at a G1 rim: the class that fits is the seam, which a boolean node
-/// declares.
-pub const SEAM_STEER: &str = "the faces join smoothly with their material on the same side, \
-     which is a `Seam`: declare that on the boolean node";
 
 /// **The `Fit` deferral, named** (AQ6): the recourse sentence for a
 /// declared contact whose carriers are value-equal by authoring but
@@ -481,6 +447,7 @@ mod tests {
         assert_eq!(ContactClass::Rest.name(), "Rest");
         assert_eq!(ContactClass::Tangent.name(), "Tangent");
         assert_eq!(GlueClass::Continuation.name(), "Continuation");
-        assert_eq!(GlueClass::Seam.name(), "Seam");
+        assert_eq!(GlueClass::Rest.name(), "Rest");
+        assert_eq!(GlueClass::Tangent.name(), "Tangent");
     }
 }

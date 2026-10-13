@@ -993,7 +993,7 @@ mod scope_walks {
     use crate::replace_face::ReplaceFaceError;
     use crate::splitting::reassembly::quad_prism;
     use crate::test_support_fixtures::UNIT_SQUARE;
-    use geom_core::{Affine3, Band, Point3, Tol, Vec3};
+    use geom_core::{Band, Point3, Tol, Vec3};
 
     /// Two unit boxes, ten apart, as two solids of one body — grafted
     /// through the public disjoint-graft door, so the operand is one a
@@ -1005,7 +1005,7 @@ mod scope_walks {
         let other = quad_prism(&UNIT_SQUARE, 1.0, tol);
         let placed = crate::transform_rigid(
             &other,
-            &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),
+            &geom_core::RigidMotion::translation(Vec3::new(10.0, 0.0, 0.0)).unwrap(),
             tol,
         )
         .unwrap();

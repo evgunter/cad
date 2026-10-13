@@ -2,12 +2,13 @@
 id: face-lineage-rows-are-checked-by-their-readers-not-where-they-are-added
 kind: issue
 title: The boolean's face lineage rows (Descendants.faces, face_fragments_*, merge_groups) are checked by their readers, not where they are added — the move Fusions made for vertices
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
 refs: [join-desync-is-the-catch-all-for-cyclic-lineage-records, 4116]
-branch: fuse/face-lineage-at-append
+closed: 2026-10-12
+pr: 4868
 ---
 
 Found by the review of PR 4116 (ZIP, `zip/survivor-and-recourse`), as

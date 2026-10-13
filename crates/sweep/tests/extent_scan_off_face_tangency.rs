@@ -32,7 +32,12 @@ pub(crate) fn ball(r: f64, c: Vec3<f64>) -> Body<f64> {
         Revolution::Full,
         Tol::witness(),
     );
-    topo::transform_rigid(&b, &Affine3::translation(c), Tol::witness()).unwrap()
+    topo::transform_rigid(
+        &b,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// A rod of radius `r` along z through `(x, y)`, from `z0` to `z1`: two
@@ -76,7 +81,7 @@ fn rod_x(r: f64, (y, z): (f64, f64), (x0, x1): (f64, f64), seams_beside: bool) -
     );
     topo::transform_rigid(
         &rod_z(r, (-z, y), (x0, x1)),
-        &(quarter * own),
+        &geom_core::test_support::rigid(&(quarter * own), Tol::witness()),
         Tol::witness(),
     )
     .unwrap()
@@ -387,7 +392,14 @@ fn a_plate_whose_hole_holds_the_touch_builds() {
 #[test]
 fn the_off_face_touches_build_in_a_tilted_frame() {
     let turn = Affine3::rotation_about_axis(Point3::origin(), dir(1.0, 2.0, 3.0), 0.7);
-    let tilt = |b: &Body<f64>| topo::transform_rigid(b, &turn, Tol::witness()).unwrap();
+    let tilt = |b: &Body<f64>| {
+        topo::transform_rigid(
+            b,
+            &geom_core::test_support::rigid(&turn, Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+    };
     let v_snowman = ball_volume(R1) + ball_volume(R2) - lens_volume(R1, R2, D);
     let snowman = tilt(&snowman());
     let brick: Body<f64> =

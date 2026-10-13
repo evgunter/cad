@@ -219,11 +219,7 @@ fn stretches(
 /// The operand face of `a` (operand B) that discarded clone face `f` is
 /// a fragment of.
 fn a_face(out: &topo::BooleanBody<f64>, f: FaceKey) -> FaceKey {
-    let rows = &out.naming.face_fragments_b;
-    topo::lineage_root(f, rows.len(), |k| {
-        rows.iter().find(|(new, _)| *new == k).map(|&(_, up)| up)
-    })
-    .expect("the fragment rows do not cycle")
+    out.naming.face_fragments_b.root(f)
 }
 
 /// **A held edge goes only to the fragment it enters.** As above, with

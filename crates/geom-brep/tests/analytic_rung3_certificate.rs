@@ -710,3 +710,82 @@ fn limb_two_halves_then_stops_on_a_breaks_miss() {
     );
     assert!(refused(&got), "Interval: {got:?}");
 }
+
+/// **A cone or a torus operand refuses the tube by name, once limb 2
+/// holds.** The unit circle in `z = 0` lies on the plane exactly, on
+/// the torus `R = 5/4, r = 1/4` as its inner equator, and on the cone
+/// with apex `(0, 0, −1)` and half-angle `π/4`; its limbs hold against
+/// both operands of each pair. The tube's ℝ³ enclosure has no arm for
+/// either kind, so every box's margin is refused at every rung; the
+/// edge says which operand it has no enclosure of rather than reading
+/// that refusal as a sliver.
+#[test]
+fn a_cone_or_torus_operand_refuses_the_tube_by_name() {
+    let carrier = bulged(8, 0.0);
+    let torus = Surface::Torus {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: 1.25,
+        minor_radius: 0.25,
+        u_ref: Vec3::unit_x(),
+    };
+    let cone = Surface::Cone {
+        apex: Point3::new(0.0, 0.0, -1.0),
+        axis: Vec3::unit_z(),
+        half_angle: core::f64::consts::FRAC_PI_4,
+        u_ref: Vec3::unit_x(),
+    };
+    for (wall, kind) in [
+        (torus, geom::SurfaceKind::Torus),
+        (cone, geom::SurfaceKind::Cone),
+    ] {
+        let got = certify(&carrier, plane(), wall, true).map(|_| ());
+        assert_eq!(
+            got,
+            Err(CertifyError::AnalyticRung3(
+                AnalyticRung3Refusal::NoTubeEnclosure { operand: kind }
+            )),
+            "{kind:?}"
+        );
+    }
+}
+
+/// **A dense export-shaped spline certifies where the tube has an
+/// enclosure.** The STEP writer's stand-in for a spiric is a cubic
+/// interpolant through 513 points of the section, 510 spans, which the
+/// tube reads as a chain of 510 boxes at a ladder whose widest rung is
+/// an eighth of the control net's diameter. The same construction on a
+/// plane × cylinder section at the vessel's scale (radius `9/128` m,
+/// the arc `θ ∈ [−0.89, 0.89]`) certifies, limbs and tube: neither the
+/// chain's length nor the ladder's scale refuses such a carrier.
+#[test]
+fn a_dense_interpolant_of_a_section_certifies_its_tube() {
+    let r = 9.0 / 128.0;
+    let n = Vec3::new(0.0, 0.6, 0.8);
+    let oblique = Surface::Plane {
+        origin: Point3::origin(),
+        normal: n,
+        u_ref: Vec3::unit_x(),
+    };
+    let wall = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    let nodes = 512;
+    #[allow(clippy::cast_precision_loss)]
+    let params: Vec<f64> = (0..=nodes).map(|i| i as f64 / nodes as f64).collect();
+    let points: Vec<Point3<f64>> = params
+        .iter()
+        .map(|f| {
+            let a = -0.89 + 1.78 * f;
+            let (x, y) = (r * a.cos(), r * a.sin());
+            Point3::new(x, y, -n.y * y / n.z)
+        })
+        .collect();
+    let spline = NurbsCurve3::interpolate_with_params(&points, 3, &params).unwrap();
+    assert_eq!(spline.control().len(), nodes + 1, "the export's net size");
+    let got = certify(&spline, oblique, wall, true).map(|_| ());
+    assert_eq!(got, Ok(()));
+}

@@ -20,10 +20,10 @@ and nothing downstream can tell.
 
 ## Shape
 
-`geom_core::OrthoFrame::from_aim_and_reference` (or `UnitVec3::new` on
+`geom_core::RigidMotion::from_aim_and_reference` (or `UnitVec3::new` on
 the residual) is the ladder written once: the residual's length
 decided under a K name the blend lane owns, refusing typed
-(`OrthoFrameError` naming `OrthoAxis::V`) where it decides zero or
+(`OrthonormalizeError` naming `OrthoAxis::V`) where it decides zero or
 escalates in band. Found by the `linalg/decided-not-minted` sweep for
 the hand Gram–Schmidt shape (`- a * a.dot(x)).normalize()`); the
 `linalg` branch fixed the same shape in `geom-brep`'s

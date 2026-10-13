@@ -2,10 +2,12 @@
 id: the-span-derivative-net-is-spelled-three-times
 kind: issue
 title: The span derivative net is spelled three times in nurbs.rs, and the span control centroid twice
-status: open
+status: closed
 opened: 2026-10-12
 priority: P4
 cost: E
+branch: nurbs/one-speed-meter-arm
+closed: 2026-10-12
 ---
 
 ## What
@@ -27,3 +29,12 @@ delta. One helper per formula, generic over the coefficient type like
 `blossom`. The integral arm's reading is pinned bit for bit
 (`piece_coverage_meter.rs`), so the shared helper must keep its
 operation order.
+
+## Closed (2026-10-12)
+
+`derivative_net` (generic over the coefficient type, like `blossom`)
+forms every span derivative net, and `span_centroid` every span
+centroid, in `crates/geom/src/curves/nurbs.rs`. Each site keeps its
+operation order: at the old 16-piece schedule the whole geom suite,
+`piece_coverage_meter.rs`'s bit pins included, passed unchanged on the
+refactor alone (its own commit).

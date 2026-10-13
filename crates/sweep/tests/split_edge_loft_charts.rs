@@ -7,16 +7,17 @@
 //! profile's arc rims). The carry restricts both exactly, like any
 //! other kind, and the split body is tier-3 valid with no caller mint.
 //!
-//! What a spline chart does not have is the RECOVERY step. `mint_pcurves`
-//! — the pass every "this face is left rowless" caveat names — mints
-//! these bodies happily UNSPLIT and refuses on the body a split
-//! produces, because the iso derivation's rim arms map an edge's WHOLE
-//! carrier interval onto the chart's whole `u` domain, which a sub-edge
-//! no longer spans. The refusal is the arms' and not the carry's: that
-//! pass CLEARS the map before it derives, so no row this op wrote is
-//! an input to it, and the same call refuses the same way on a tree
-//! where the split leaves the children rowless. Filed on TRIM's slate
-//! as `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain`
+//! What a spline chart does not yet have for an ARC rim is the
+//! RECOVERY step. `mint_pcurves` — the pass every "this face is left
+//! rowless" caveat names — mints both bodies UNSPLIT. After a split it
+//! re-derives the square prism's sub-edges, whose straight carriers the
+//! iso schedule measures from their end feet, and refuses the bulged
+//! prism's half-rim, because the arc-rim arm maps an edge's WHOLE
+//! carrier interval onto the chart's whole `u` domain, which a sub-arc
+//! no longer spans. The refusal is the arm's and not the carry's: that
+//! pass CLEARS the map before it derives, so no row this op wrote is an
+//! input to it. Filed on ISO's slate as
+//! `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain`
 //! and pinned below, so the frontier is stated rather than silent.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -81,6 +82,12 @@ fn kind(p: &Pcurve<f64>) -> &'static str {
         Pcurve::FocalSection(_) => "FocalSection",
         Pcurve::Projected(_) => "Projected",
     }
+}
+
+fn on_spline(body: &Body<f64>, he: topo::HalfEdgeKey) -> bool {
+    let face = body.face_of_half_edge(he).unwrap();
+    let surface = body.get_face(face).unwrap().surface;
+    body.get_surface(surface).unwrap().spline_chart().is_some()
 }
 
 fn body_of(which: &str) -> Body<f64> {
@@ -163,14 +170,19 @@ fn a_split_on_a_spline_chart_carries_the_parents_image() {
 }
 
 /// **The frontier, pinned as the current behaviour.** `mint_pcurves`
-/// mints either loft body UNSPLIT — so the pass has nothing against
-/// these charts — and refuses on the body a split of one of their wall
-/// edges produces, naming the sub-edge that no longer spans the
-/// chart's `u` domain. The refusals are the iso derivation's, filed on
-/// TRIM's slate; this row exists so that a fix there reds here and the
-/// state is never read off a silent suite.
+/// mints either loft body UNSPLIT, so the pass has nothing against these
+/// charts. After a split of one of their wall edges:
+///
+/// - the square prism re-mints: each straight sub-edge no longer spans
+///   its boundary row, so the closed-form candidates miss it at the
+///   probe, and the row its end feet measure holds. Every row it stores
+///   is an exact `IsoLine`, and tier 3 re-certifies them;
+/// - the bulged prism refuses, naming the half-rim that no longer spans
+///   the chart's `u` domain. That refusal is the arc-rim arm's, filed on
+///   ISO's slate; this row exists so that a fix there reds here and the
+///   state is never read off a silent suite.
 #[test]
-fn the_mint_pass_accepts_these_charts_unsplit_and_refuses_after_a_split() {
+fn the_mint_pass_re_derives_a_split_line_wall_and_refuses_a_split_arc_rim() {
     for which in ["IsoLine", "IsoArc"] {
         let mut control = body_of(which);
         assert_eq!(
@@ -182,8 +194,8 @@ fn the_mint_pass_accepts_these_charts_unsplit_and_refuses_after_a_split() {
         let mut body = body_of(which);
         let (edge, (t0, t1)) = edge_with_kind(&body, which);
         body.split_edge(edge, (t0 + t1) * 0.5, tol()).unwrap();
-        let refusal = topo::mint_pcurves(&mut body, tol());
-        match (which, &refusal) {
+        let minted = topo::mint_pcurves(&mut body, tol());
+        match (which, &minted) {
             // The arc rim's own arm refuses typed: its two candidate
             // images are the chart's whole `u` domain in each
             // direction, and a half-rim matches neither.
@@ -194,11 +206,23 @@ fn the_mint_pass_accepts_these_charts_unsplit_and_refuses_after_a_split() {
                     ..
                 }),
             ) => {}
-            // The line arm mints an image for the sub-edge that spans
-            // the whole column, so the refusal arrives one step later,
-            // as the loop walk's discontinuity.
-            ("IsoLine", Err(PcurveMintError::LoopDiscontinuity { .. })) => {}
-            _ => panic!("{which}: the mint pass after a split read {refusal:?}"),
+            ("IsoLine", Ok(())) => {
+                let kinds: Vec<_> = body
+                    .pcurves()
+                    .filter(|(he, _)| on_spline(&body, *he))
+                    .map(|(_, c)| kind(c.pcurve()))
+                    .collect();
+                assert!(
+                    !kinds.is_empty() && kinds.iter().all(|k| *k == "IsoLine"),
+                    "IsoLine: every wall row the re-mint stores is exact: {kinds:?}"
+                );
+                assert_eq!(
+                    topo::validate_geometric(&body, tol()),
+                    Ok(()),
+                    "IsoLine: tier 3 after the re-mint"
+                );
+            }
+            _ => panic!("{which}: the mint pass after a split read {minted:?}"),
         }
     }
 }
