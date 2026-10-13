@@ -6180,7 +6180,10 @@ mod touch_reread_rows {
             .into_iter()
             .chain(along_lying_ray().map(|(label, base)| (label, p(base))))
             {
-                named += names(label, &x, &lying, pose);
+                let n = names(label, &x, &lying, pose);
+                named.built += n.built;
+                named.fragmented += n.fragmented;
+                named.tied_corners += n.tied_corners;
             }
         }
         named
