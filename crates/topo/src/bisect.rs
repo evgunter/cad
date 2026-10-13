@@ -1,20 +1,23 @@
-//! **The bisection walk** every localization here takes: a stack of
-//! pieces read depth first, earlier half first, each either settled by
-//! its visit or cut in two, under one piece budget (D9). The visit is
-//! the parameter: what clears a piece (a first- or second-order bound
-//! on a distance), how small a piece may get, and what a piece too small
-//! to cut answers are the caller's — `boolean::carrier_touch` (a curve
-//! against a surface's carrier) and `census::curved` (a curve against a
-//! point or another curve).
+//! **A bisection walk**: a stack of pieces read depth first, earlier
+//! half first, each either settled by its visit or cut in two, under one
+//! piece budget (D9). The visit is the parameter: what clears a piece (a
+//! first- or second-order bound on a distance), how small a piece may
+//! get, and what a piece too small to cut answers are the caller's.
+//! `boolean::carrier_touch` (a curve against a surface's carrier) and
+//! `census::curved` (a curve against a point or another curve) walk it;
+//! `boolean::circle_roots` (`SUBDIVISION_BUDGET`) and
+//! `splitting::spiric_arc` (`MAX_PIECES`) keep walks of their own.
 
-/// The most pieces one walk reads before it gives up. Measured at ε
-/// 1e-6, 1e-9 and 1e-12 (K = 10): `pierce_tangent_off_face` spends 70 to
-/// 150 pieces a meeting, and `census::curved`'s rows at most 447 a walk
-/// (at 1e-12), its tangency rows 43 to 191. The
-/// tangency floor `√(escalate/κ)/8` and the tangency's own half-length
-/// `√(2·escalate/κ)` both scale with `√(K·ε)`, so the pieces a touch
-/// keeps open per level do not depend on K; the levels down to the floor
-/// grow as `½·log₂(1/(K·ε))`, a few more per decade of either.
+/// The most pieces one walk reads before it gives up. Sized from a
+/// measurement taken once, on 2026-10-13 at ε 1e-6, 1e-9 and 1e-12 (K =
+/// 10), with nothing that re-takes it — no row counts a walk's pieces,
+/// since a count is a property of the bounds and not a contract, so the
+/// figures are dated: `pierce_tangent_off_face` spent 70 to 150 pieces a
+/// meeting, and `census::curved`'s rows at most 447 a walk, its tangency
+/// rows 43 to 191. The tangency floor and the tangency's own half-length
+/// both scale with `√(K·ε)`, so the pieces a touch keeps open per level
+/// do not depend on K; the levels down to the floor grow as
+/// `½·log₂(1/(K·ε))`, a few more per decade of either.
 pub(crate) const PIECE_BUDGET: usize = 4096;
 
 /// What a visit makes of a piece.

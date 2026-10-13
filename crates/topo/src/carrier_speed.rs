@@ -41,10 +41,31 @@ pub(crate) fn speed_hi<T: SpanLocate>(carrier: &geom::Curve3<T>) -> Option<T> {
 pub(crate) fn speed_range<T: SpanLocate>(carrier: &geom::Curve3<T>) -> (InfSpeed<T>, SupSpeed<T>) {
     let (lo, hi) = match carrier {
         geom::Curve3::Line { dir, .. } => (dir.norm(), dir.norm()),
-        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => match Conic::of(carrier) {
-            Some(c) => (c.speed_lo(), c.speed_hi()),
-            None => (T::from_f64(f64::NAN), T::from_f64(f64::NAN)),
-        },
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => {
+            let c = Conic::circle(*center, *axis, *radius, *u_ref);
+            (c.speed_lo(), c.speed_hi())
+        }
+        geom::Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        } => {
+            let c = Conic {
+                center: *center,
+                axis: *axis,
+                u_ref: *u_ref,
+                major: *major,
+                minor: *minor,
+            };
+            (c.speed_lo(), c.speed_hi())
+        }
         geom::Curve3::Spiric {
             major_radius,
             minor_radius,

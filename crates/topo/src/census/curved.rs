@@ -15,7 +15,8 @@
 //! is cleared when the parameter's distance from it, metered by the
 //! carrier's least speed ([`crate::carrier_speed::speed_range`]), decides
 //! positive, and reached when it decides negative; between the two the
-//! point's distance from the end's point decides.
+//! same distance metered by the greatest speed decides the side, and on
+//! the inner side the point's distance from the end's point decides.
 //!
 //! Two edges' interiors meet when one candidate is on both: each edge's
 //! midpoint and the points halfway between one edge's end and the
@@ -159,6 +160,10 @@ fn read<T: Decide>(
     let (lo, hi) = crate::carrier_speed::speed_range(&carrier);
     let accel = crate::carrier_speed::accel_hi(&carrier);
     let span = curve.params();
+    if hi.get().is_poison() {
+        refuse(edge, "a record on a curved edge whose speed has no upper bound", errors);
+        return None;
+    }
     let length = Margin::metered((span.1 - span.0).abs(), lo);
     if decided("pm_census_curved_speed_floor", length, band, errors)? != Sign::Positive {
         refuse(
@@ -194,8 +199,9 @@ fn polish_foot<T: Decide>(r: &Read<T>, q: Point3<T>, mut t: T, slack: T) -> T {
 }
 
 /// Gauss–Newton from `(s, t)` toward where `a` and `b` meet, kept as
-/// [`polish_foot`]'s steps are. At a tangency the step is singular and
-/// is dropped; the feet that follow it in [`meet_at`] still land.
+/// [`polish_foot`]'s steps are. At a tangency the step is singular: a
+/// step that comes out poison ends the polish where it stands, and the
+/// feet that follow it in [`meet_at`] still land.
 fn polish_pair<T: Decide>(a: &Read<T>, b: &Read<T>, (mut s, mut t): (T, T), slack: T) -> (T, T) {
     let bound = slack * T::from_f64(16.0);
     for _ in 0..POLISH_STEPS {
@@ -206,6 +212,9 @@ fn polish_pair<T: Decide>(a: &Read<T>, b: &Read<T>, (mut s, mut t): (T, T), slac
         let (ad, bd) = (da.dot(d), db.dot(d));
         let det = aa * bb - ab.powi(2);
         let (ds, dt) = ((ab * bd - bb * ad) / det, (aa * bd - ab * ad) / det);
+        if ds.is_poison() || dt.is_poison() {
+            break;
+        }
         let keep = da.norm() * ds.abs() + db.norm() * dt.abs() - bound;
         s = keep.select_le_zero(s + ds, s);
         t = keep.select_le_zero(t + dt, t);
@@ -327,10 +336,12 @@ fn interior_at<T: Decide>(
 }
 
 /// Whether `q`, at parameter distance `m` inside the span from its end
-/// at `end`, is clear of that end (module docs): the parameter distance
+/// at `end`, is clear of that end (module docs). The parameter distance
 /// metered by the least speed understates the arc, so it decides clear
-/// and past, and the point's distance from the end's point decides the
-/// rest.
+/// and past; where it reads zero, the same distance metered by the
+/// greatest speed decides the side (past, or within the band of the
+/// end, is not inside), and on the inner side the point's distance
+/// from the end's point decides the rest.
 fn clear_of_end<T: Decide>(
     r: &Read<T>,
     q: Point3<T>,
@@ -347,10 +358,18 @@ fn clear_of_end<T: Decide>(
     )? {
         Sign::Positive => Some(true),
         Sign::Negative => Some(false),
-        Sign::Zero => {
-            let chord = Margin::norm3(q - r.curve.eval(end));
-            gap_is_zero("pm_census_ve_curved_end", chord, band, errors).map(|at| !at)
-        }
+        Sign::Zero => match decided(
+            "pm_census_ve_curved_side",
+            Margin::metered_sup(m, r.hi),
+            band,
+            errors,
+        )? {
+            Sign::Negative | Sign::Zero => Some(false),
+            Sign::Positive => {
+                let chord = Margin::norm3(q - r.curve.eval(end));
+                gap_is_zero("pm_census_ve_curved_end", chord, band, errors).map(|at| !at)
+            }
+        },
     }
 }
 
@@ -471,6 +490,17 @@ fn reads_meet<T: Decide>(
         return Some(true);
     }
     let floor = floor(ra, rb, band);
+    // A floor that is poison, infinite or zero (`f − f`, or `1/f − 1/f`,
+    // poison) would stop every piece at the root or none: refuse rather
+    // than read the spans whole. One below the band stops pieces at the
+    // band, as no floor does.
+    let unread = |x: T| (x - x).is_poison();
+    if floor.is_some_and(|f| unread(f) || unread(T::one() / f)) {
+        let what = "the census's tangency floor for two curved edges is not a finite positive length";
+        refuse(ra.edge, what, errors);
+        refuse(rb.edge, what, errors);
+        return None;
+    }
     let mut met = false;
     let walk = bisect(
         (Piece::whole(ra.span), Piece::whole(rb.span)),
@@ -697,9 +727,14 @@ mod tests {
     /// **A tangency and a shallow crossing are decided.** A line tangent
     /// to a circle, two coplanar circles touching from outside, and a
     /// line crossing a circle at 0.01 rad each meet; the line moved
-    /// `1e-4` off the circle does not. Red when the search stops its
-    /// pieces at the band rather than at the tangency floor, or clears
-    /// them by the first-order bound alone: each runs past the budget.
+    /// `1e-4` off the circle does not. An arc ending where a circle
+    /// touches it from outside meets it too: the arc stays within ε of
+    /// the circle over its last few hundredths of a millimetre, and the
+    /// pieces beyond the end read their feet past it, so the walk runs
+    /// down to the floor before a piece inside the arc decides. Red when
+    /// the search clears by the first-order bound alone, and, through
+    /// that row, when its pieces stop at the band rather than at the
+    /// tangency floor: each runs past the budget, at every ε.
     #[test]
     fn a_tangency_and_a_shallow_crossing_are_decided() {
         let o = Point3::new(0.0, 0.0, 0.0);
@@ -728,6 +763,11 @@ mod tests {
                 Some(true),
             ),
             (
+                "a circle touching it from outside at the end of an arc of it",
+                read(circle(Point3::new(0.0, 2.0, 0.0), 1.0), (-2.9, -0.3)),
+                Some(true),
+            ),
+            (
                 "a line 1e-4 off it",
                 read(
                     line(Point3::new(-1.0, 1.0 + 1e-4, 0.0), Vec3::unit_x()),
@@ -737,7 +777,12 @@ mod tests {
             ),
         ];
         for (what, other, want) in cases {
-            assert_eq!(meet(&unit(), &other), (want, vec![]), "{what}");
+            let arc = if what.contains("end of an arc") {
+                read(circle(o, 1.0), (0.3, core::f64::consts::FRAC_PI_2))
+            } else {
+                unit()
+            };
+            assert_eq!(meet(&arc, &other), (want, vec![]), "{what}");
         }
     }
 
@@ -757,6 +802,32 @@ mod tests {
         let mut errors = Vec::new();
         let inside = super::interior_at(&Body::new(), &r, r.curve.eval(t), t, band(), &mut errors);
         assert_eq!((inside, errors), (Some(true), vec![]));
+    }
+
+    /// **A point past the band outside an ellipse arc's start is not on
+    /// it, and nor is a line crossing there.** The mirror of
+    /// [`a_point_past_the_band_from_an_ellipse_end_is_inside`]: the point
+    /// 15ε before `π/2` on the `1 × 0.05` ellipse reads a parameter gap
+    /// of 0.75ε at the minor semi-axis, zero, and its distance from the
+    /// end's point is 15ε, past the band, but it lies outside the span.
+    /// A line crossing the `1 × 0.02` ellipse 30ε before the start reads
+    /// the same way (0.6ε metered, 30ε away), with the overlap
+    /// candidates halfway to the start 15ε out, past the band too. Red
+    /// when the distance from the end's point decides without the side.
+    #[test]
+    fn a_point_past_the_band_outside_an_ellipse_start_is_off_it() {
+        let eps = Tol::witness().eps();
+        let t0 = core::f64::consts::FRAC_PI_2;
+        let r = read(ellipse(1.0, 0.05, Vec3::unit_x()), (t0, t0 + 1.0));
+        let q = r.curve.eval(t0 - 15.0 * eps);
+        let mut errors = Vec::new();
+        let on = super::on_interior(&Body::new(), &r, q, band(), &mut errors);
+        assert_eq!((on, errors), (Some(false), vec![]), "the vertex reading");
+        let thin = read(ellipse(1.0, 0.02, Vec3::unit_x()), (t0, t0 + 1.0));
+        let (q, d) = thin.curve.ders1(t0 - 30.0 * eps);
+        let across = Vec3::unit_z().cross(d).normalize();
+        let crossing = read(line(q - across * 0.1, across), (0.0, 0.2));
+        assert_eq!(meet(&thin, &crossing), (Some(false), vec![]), "the crossing reading");
     }
 
     /// **A point within the band of a long thin ellipse is on it.** The
