@@ -86,10 +86,9 @@ use geom::surfaces::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, max_bound, norm_sup};
 use geom_core::spline::net::{TensorChannels, TensorCoeffs, TensorNet};
-use geom_core::spline::pieces::piece_count;
 use geom_core::spline::{
-    C1Break, CellAxis, CellBlock, Derived, KnotVector, QuotientPiece, Span, cell_quotients,
-    cell_second_quotients,
+    C1Break, CellAxis, CellBlock, Derived, KnotVector, QUOTIENT_MAX_DEGREE, QuotientPiece, Span,
+    cell_second_quotients, polynomial_area_pieces,
 };
 
 /// The fixed piece count of the RATIONAL arm: every nonempty span of
@@ -130,20 +129,22 @@ pub enum PatchBoundError {
     /// surface refuses these already, so a face reaching this bound
     /// carrying one is also a finding.
     NonPositiveWeight,
-    /// The same, discovered after the fixed rational refinement: the
-    /// refined weight ENCLOSURE reaches zero. Outside the certified
-    /// inventory: every insertion step is met with the hull of its two
-    /// sources, so each refined weight's enclosure lies within the
-    /// described weights' range, whose lower end the door has already
-    /// proven positive — even at the smallest subnormal, where a
-    /// product with a ratio below one underflows to zero.
-    RefinedWeightLostPositivity,
-    /// The fixed rational refinement failed to materialise. Outside
-    /// the certified inventory: the fixed schedule inserts knots into a
-    /// direction that already passed the C¹ gate, and insertion into a
+    /// A refinement's knot-insertion chain failed to materialise.
+    /// Outside the certified inventory: the schedule inserts knots into
+    /// a direction that already passed the C¹ gate, and insertion into a
     /// valid clamped vector is total, so the description that reached
     /// this is reported rather than repaired.
     RefinementFailed,
+    /// A rational direction of degree above 18: the rational arm reads
+    /// the second partials as quotients of degree `3p`, past the
+    /// [`QUOTIENT_MAX_DEGREE`] of `56` its exact Bernstein products
+    /// reach (module docs, "Refusal").
+    DegreeAboveCeiling,
+    /// The quotient statement refused a block under its degree ceiling.
+    /// Outside the certified inventory: a block of a C¹-gated direction
+    /// with proven-positive weights and a degree under the ceiling is
+    /// one the statement always forms.
+    QuotientRefused,
     /// A direction whose differenced knot vector failed to
     /// materialise. In the patch lanes a valid face reaches this when a
     /// span only a few ulps wide is cut by the equal-split schedule:
@@ -175,14 +176,19 @@ impl PatchBoundError {
                 "rational NURBS face with a non-positive or non-finite weight, which \
                  describes no valid surface. Recourse: supply strictly positive, finite weights"
             }
-            Self::RefinedWeightLostPositivity => concat!(
-                "rational NURBS face whose refined weights lost positivity, which the \
-                 refinement of positive weights never does. ",
-                geom_core::kernel_defect_ending!()
-            ),
             Self::RefinementFailed => concat!(
                 "NURBS face that could not be subdivided for bounding, which a valid face \
                  always allows. ",
+                geom_core::kernel_defect_ending!()
+            ),
+            Self::DegreeAboveCeiling => {
+                "rational NURBS face of degree above 18 in a direction, past the degree its \
+                 second-derivative bound reaches (three times the degree, at most 56). \
+                 Recourse: describe the face at degree 18 or below in each direction"
+            }
+            Self::QuotientRefused => concat!(
+                "rational NURBS face whose derivative bound could not be formed under its \
+                 degree ceiling, which a valid face always allows. ",
                 geom_core::kernel_defect_ending!()
             ),
             Self::DerivedKnots => concat!(
@@ -663,6 +669,7 @@ fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>
         .map(DNets::build)
         .collect::<Result<Vec<_>, _>>()?;
     let zero = Interval::zero();
+    let (held_u, held_v) = (held(kv_u), held(kv_v));
     let mut cells = Vec::new();
     for su in kv_u.first_span()..=kv_u.last_span() {
         let Some(span_u) = kv_u.span(su) else {
@@ -715,7 +722,7 @@ fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>
                 &window_vectors(&w.u_d1, &w.v_val, |c, i, j| nets[c].d10.get(i, j)),
                 &window_vectors(&w.u_val, &w.v_d1, |c, i, j| nets[c].d01.get(i, j)),
             );
-            let m_inf = integral_area_floor(base_nets, span_u, span_v)?;
+            let m_inf = integral_area_floor(base_nets, (&held_u, &held_v), span_u, span_v)?;
             cells.push(cell_from(
                 (span_extent(kv_u, su), span_extent(kv_v, sv)),
                 [s_u, s_v, s_uu, s_uv, s_vv],
@@ -740,24 +747,21 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
         return Err(PatchBoundError::NonPositiveWeight);
     }
     let (kv_u, kv_v) = (n.knots_u(), n.knots_v());
-    let held = |kv: &KnotVector| -> Vec<Interval> {
-        kv.knots().iter().map(|k| Interval::point(*k)).collect()
-    };
+    // The second order is read at three times each degree.
+    if 3 * kv_u.degree().max(kv_v.degree()) > QUOTIENT_MAX_DEGREE {
+        return Err(PatchBoundError::DegreeAboveCeiling);
+    }
     let (held_u, held_v) = (held(kv_u), held(kv_v));
     let nv = kv_v.control_count();
     let mut cells: Vec<PatchCell> = Vec::new();
     for su in (kv_u.first_span()..=kv_u.last_span()).filter_map(|i| kv_u.span(i)) {
         for sv in (kv_v.first_span()..=kv_v.last_span()).filter_map(|i| kv_v.span(i)) {
-            let mut points = Vec::with_capacity((su.degree() + 1) * (sv.degree() + 1));
-            let mut weights = Vec::with_capacity(points.capacity());
-            for iu in su.window() {
-                for iv in sv.window() {
-                    let (pt, w) = (n.control()[iu * nv + iv], n.weights()[iu * nv + iv]);
-                    points.push([pt.x, pt.y, pt.z].map(Interval::point));
-                    weights.push(Interval::point(w));
-                }
-            }
-            let pieces = cell_second_quotients(
+            let points = on_window(su, sv, |iu, iv| {
+                let pt = n.control()[iu * nv + iv];
+                [pt.x, pt.y, pt.z].map(Interval::point)
+            });
+            let weights = on_window(su, sv, |iu, iv| Interval::point(n.weights()[iu * nv + iv]));
+            let (counts, pieces) = cell_second_quotients(
                 (CellAxis::Span(su, &held_u), CellAxis::Span(sv, &held_v)),
                 CellBlock::Points {
                     origin: points[0],
@@ -766,13 +770,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 },
                 (splits, splits),
             )
-            .ok_or(PatchBoundError::RefinementFailed)?;
-            // The pieces are counted for the second-order quotients'
-            // degree (`cell_second_quotients`).
-            let counts = (
-                piece_count(3 * su.degree(), splits),
-                piece_count(3 * sv.degree(), splits),
-            );
+            .ok_or(PatchBoundError::QuotientRefused)?;
             let (eu, ev) = (span_extent(kv_u, su.index()), span_extent(kv_v, sv.index()));
             for (k, (first, second)) in pieces.iter().enumerate() {
                 let (iu, iv) = (k / counts.1, k % counts.1);
@@ -844,49 +842,59 @@ fn certified_inf(q: &QuotientPiece<Interval, 3>) -> f64 {
 }
 
 /// The integral arm's [`PatchCell::m_inf`] on the span cell
-/// `span_u × span_v`: the area quotient over unit weights, one piece
-/// ([`cell_quotients`] at splits `(1, 1)`), so both arms read the floor
-/// by one statement.
+/// `span_u × span_v`: the area's least ratio along each piece's own
+/// direction, `A_u × A_v` over one on a single piece
+/// ([`polynomial_area_pieces`] at splits `(1, 1)`). Past the statement's
+/// ceiling (`2p − 1` above [`QUOTIENT_MAX_DEGREE`], a degree above 28)
+/// the floor is the conservative `0.0`: the cell's sup-side readings do
+/// not need it, so the arm still certifies, and an inf-side consumer
+/// reads a floor that separates nothing.
 ///
 /// # Errors
 ///
-/// [`PatchBoundError::RefinementFailed`] when the statement refuses
-/// the block (a degree above its ceiling).
+/// [`PatchBoundError::QuotientRefused`] when the statement refuses a
+/// block under its ceiling.
 fn integral_area_floor(
     nets: &TensorChannels<'_, 3>,
+    (held_u, held_v): (&[Interval], &[Interval]),
     span_u: Span<'_>,
     span_v: Span<'_>,
 ) -> Result<f64, PatchBoundError> {
-    let held = |kv: &KnotVector| -> Vec<Interval> {
-        kv.knots().iter().map(|k| Interval::point(*k)).collect()
-    };
-    let (held_u, held_v) = (held(nets.knots_u()), held(nets.knots_v()));
-    let channels = nets.channels();
-    let mut points = Vec::new();
-    for iu in span_u.window() {
-        for iv in span_v.window() {
-            points.push(core::array::from_fn(|c| channels[c].net().get(iu, iv)));
-        }
+    let over = |sp: &Span<'_>| 2 * sp.degree() - 1 > QUOTIENT_MAX_DEGREE;
+    if over(&span_u) || over(&span_v) {
+        return Ok(0.0);
     }
-    let weights = vec![Interval::point(1.0); points.len()];
-    let pieces = cell_quotients(
+    let channels = nets.channels();
+    let points = on_window(span_u, span_v, |iu, iv| {
+        core::array::from_fn(|c| channels[c].net().get(iu, iv))
+    });
+    let pieces = polynomial_area_pieces(
         (
-            CellAxis::Span(span_u, &held_u),
-            CellAxis::Span(span_v, &held_v),
+            CellAxis::Span(span_u, held_u),
+            CellAxis::Span(span_v, held_v),
         ),
-        CellBlock::Points {
-            origin: points[0],
-            points: &points,
-            weights: &weights,
-        },
+        &points,
         (1, 1),
-        true,
     )
-    .ok_or(PatchBoundError::RefinementFailed)?;
+    .ok_or(PatchBoundError::QuotientRefused)?;
     Ok(pieces
         .iter()
-        .map(|q| q.area.as_ref().map_or(0.0, certified_inf))
+        .map(certified_inf)
         .fold(f64::INFINITY, f64::min))
+}
+
+/// A knot vector's knots held as certification points.
+fn held(kv: &KnotVector) -> Vec<Interval> {
+    kv.knots().iter().map(|k| Interval::point(*k)).collect()
+}
+
+/// `at(i, j)` over the control window of the span cell `su × sv`,
+/// row-major in `u` then `v`: the block a cell's quotients read.
+fn on_window<X>(su: Span<'_>, sv: Span<'_>, at: impl Fn(usize, usize) -> X) -> Vec<X> {
+    su.window()
+        .flat_map(|iu| sv.window().map(move |iv| (iu, iv)))
+        .map(|(iu, iv)| at(iu, iv))
+        .collect()
 }
 
 #[cfg(test)]
@@ -894,46 +902,44 @@ fn integral_area_floor(
 mod tests {
     use super::*;
 
-    /// **`RefinedWeightLostPositivity` is not reached from a door-valid
-    /// face, even at the minimum subnormal.** The arm's prose claims the
-    /// refinement keeps every weight's enclosure inside the described
-    /// weights' range. The sharpest witness is the smallest subnormal
-    /// beside `1e2` — a ratio of 1e304 — where `β·w` alone underflows
-    /// to zero: only the step's meet with its sources' hull keeps the
-    /// enclosure's lower end at `w`. The walk up the scale covers
-    /// everywhere a real description could sit.
+    /// **The degree ceilings are the statement's, and each arm meets its
+    /// own.** An integral bidegree `(19, 2)` Bézier certifies: its area
+    /// floor reads `A_u × A_v` at degree `(37, 3)`, under the `56`
+    /// ceiling, and its sups need no quotient at all. The same net with
+    /// one weight off `1` refuses typed, `DegreeAboveCeiling`, because the
+    /// rational arm reads its second partials at `3 · 19 = 57`; the
+    /// refusal is a description the caller changes, not a kernel defect.
     #[test]
-    fn refined_weight_lost_positivity_is_not_reached_from_a_valid_face() {
+    fn each_arm_meets_its_own_degree_ceiling() {
+        let ku = KnotVector::clamped([vec![0.0; 20], vec![1.0; 20]].concat(), 19).expect("kv");
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("kv");
-        let control: Vec<geom_core::Point3<f64>> = (0..9)
-            .map(|i| geom_core::Point3::new(f64::from(i), 0.0, 0.0))
-            .collect();
-        let refuse = |w: f64| {
-            let mut weights = vec![w; 9];
-            weights[4] = 1.0e2;
-            let s = NurbsSurface::new(kv.clone(), kv.clone(), control.clone(), weights)
-                .expect("the door admits any positive finite weight");
-            matches!(
-                patch_cells(&s),
-                Err(PatchBoundError::RefinedWeightLostPositivity)
-            )
-        };
-        for w in [
-            f64::from_bits(1),
-            1.0e-320,
-            1.0e-300,
-            1.0e-200,
-            1.0e-30,
-            1.0e-2,
-            1.0,
-            1.0e2,
-        ] {
-            assert!(
-                !refuse(w),
-                "weight {w:e} beside 1e2 lost positivity in the refinement: a step reached \
-                 below the hull of its two sources"
-            );
+        let mut control = Vec::new();
+        for i in 0..20u32 {
+            for j in 0..3u32 {
+                let (u, v) = (f64::from(i) / 19.0, f64::from(j) / 2.0);
+                control.push(geom_core::Point3::new(u, v, 0.2 * u * v + 0.1 * u * u));
+            }
         }
+        let integral =
+            NurbsSurface::new(ku.clone(), kv.clone(), control.clone(), vec![1.0; 60]).expect("ok");
+        let cells = patch_cells(&integral).expect("an integral (19, 2) patch certifies");
+        assert!(
+            cells.iter().all(|c| c.m_inf > 0.0 && c.m_inf <= c.m_sup),
+            "the integral floor read {:?}",
+            cells.iter().map(|c| c.m_inf).collect::<Vec<_>>()
+        );
+        let mut weights = vec![1.0; 60];
+        weights[7] = 1.5;
+        let rational = NurbsSurface::new(ku, kv, control, weights).expect("ok");
+        let refusal = patch_cells(&rational).map(|c| c.len());
+        assert_eq!(refusal, Err(PatchBoundError::DegreeAboveCeiling));
+        let msg = PatchBoundError::DegreeAboveCeiling.to_string();
+        assert!(
+            msg.contains("18")
+                && msg.contains("56")
+                && !msg.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+            "{msg}"
+        );
     }
 
     /// Every patch-bound refusal names what the caller changes in the
@@ -951,27 +957,33 @@ mod tests {
             PatchBoundError::Degree1Crease,
             PatchBoundError::Crease,
             PatchBoundError::NonPositiveWeight,
-            PatchBoundError::RefinedWeightLostPositivity,
             PatchBoundError::RefinementFailed,
+            PatchBoundError::DegreeAboveCeiling,
+            PatchBoundError::QuotientRefused,
             PatchBoundError::DerivedKnots,
         ];
-        assert_eq!(arms.len(), 7, "an arm was added without a row here");
+        assert_eq!(arms.len(), 8, "an arm was added without a row here");
         for arm in arms {
             let msg = arm.to_string();
             assert_eq!(msg, arm.note(), "Display is the shared note");
-            // One ending: a labelled repair, or on the two arms only a
+            // One ending: a labelled repair, or on the three arms only a
             // kernel defect reaches, the shared dead end.
             assert_eq!(
                 test_utils::refusal::recourse_markers(&msg),
                 1,
                 "not exactly one ending: {msg}"
             );
-            if matches!(
+            let defect = matches!(
                 arm,
-                PatchBoundError::RefinementFailed | PatchBoundError::DerivedKnots
-            ) {
-                assert!(msg.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{msg}");
-            }
+                PatchBoundError::RefinementFailed
+                    | PatchBoundError::QuotientRefused
+                    | PatchBoundError::DerivedKnots
+            );
+            assert_eq!(
+                msg.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                defect,
+                "only a kernel defect ends on the dead end: {msg}"
+            );
             let lower = msg.to_lowercase();
             assert!(
                 RECOURSE_WORDS.iter().any(|w| lower.contains(w)),

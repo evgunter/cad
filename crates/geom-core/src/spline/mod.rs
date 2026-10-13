@@ -67,8 +67,8 @@ pub use compose::{
 };
 pub use derivative::{
     CellAxis, CellBlock, CellQuotients, CellSecondQuotients, QUOTIENT_MAX_DEGREE, QuotientPiece,
-    accel_pieces, cell_quotients, cell_second_quotients, derivative_net, span_derivative_scale,
-    speed_pieces, stretch_pieces,
+    accel_pieces, cell_quotients, cell_second_quotients, derivative_net, polynomial_area_pieces,
+    span_derivative_scale, speed_pieces, stretch_pieces,
 };
 pub use hull::{
     C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,

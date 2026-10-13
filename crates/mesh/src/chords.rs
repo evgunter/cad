@@ -259,7 +259,7 @@ fn nurbs_chord_count(
     let refuse = |note| TessellateError::UnsupportedCurve { edge: ek, note };
     let m_bound = match geom::nonrational_second_derivative_sup(n) {
         Ok(bound) => bound,
-        Err(geom::SecondDerivativeUnbounded::Rational) => rational_carrier_m_bound(n),
+        Err(geom::SecondDerivativeUnbounded::Rational) => rational_carrier_m_bound(n, ek)?,
         Err(geom::SecondDerivativeUnbounded::DegreeBelowTwo) => {
             return Err(refuse(
                 "B-spline carrier of degree below 2 — the hull sagitta bound \
@@ -293,14 +293,37 @@ fn nurbs_chord_count(
 /// point, so the bound's upper end is certified. `C″ = M/W³` on each
 /// exact dyadic piece of each span, and the bound is the largest
 /// `‖m_k‖/b_k` over them. A refusal (a degree above the statement's
-/// ceiling, a poisoned piece) flows to the caller's finite check as
-/// `NaN`.
-fn rational_carrier_m_bound(n: &geom::NurbsCurve3<f64>) -> f64 {
+/// ceiling, a poisoned piece) refuses typed.
+///
+/// # Errors
+///
+/// [`TessellateError::UnsupportedCurve`] — a degree above 18 (`C″`'s
+/// quotient sits at `3p`, past [`geom_core::spline::QUOTIENT_MAX_DEGREE`]),
+/// or a bound that does not certify: at degree 17 and above a weight
+/// spread near `1e6` lets the weight power's coefficient enclosures
+/// reach zero.
+fn rational_carrier_m_bound(
+    n: &geom::NurbsCurve3<f64>,
+    ek: EdgeKey,
+) -> Result<f64, TessellateError> {
+    if 3 * n.knots().degree() > geom_core::spline::QUOTIENT_MAX_DEGREE {
+        return Err(TessellateError::UnsupportedCurve {
+            edge: ek,
+            note: "rational B-spline carrier of degree above 18, past the degree its \
+                   second-derivative bound reaches (three times the degree, at most 56); \
+                   describe the edge at degree 18 or below",
+        });
+    }
     let bound = n.map_scalar(Interval::point).accel_upper_bound();
-    if bound.is_certified() {
-        bound.hi()
+    if bound.is_certified() && bound.hi().is_finite() {
+        Ok(bound.hi())
     } else {
-        f64::NAN
+        Err(TessellateError::UnsupportedCurve {
+            edge: ek,
+            note: "rational B-spline carrier whose second-derivative bound does not certify: \
+                   at high degree a wide weight spread lets the weight power reach zero \
+                   within its rounding — outside the certified chord inventory",
+        })
     }
 }
 
@@ -1160,7 +1183,7 @@ mod tests {
     fn r1_check(name: &str, n: &NurbsCurve3<f64>, deltas: &[f64]) {
         // (a) m-bound vs dense-sampled true sup|C''|. δ-free: every
         // carrier gets this arm in full.
-        let m = rational_carrier_m_bound(n);
+        let m = rational_carrier_m_bound(n, EdgeKey::default()).expect("in inventory");
         let (d0, d1) = n.knots().domain();
         let mut truth = 0.0f64;
         for k in 0..=4000 {
@@ -1264,6 +1287,31 @@ mod tests {
             .collect();
         let w: Vec<f64> = (0..pts.len()).map(|i| [1.4, 0.5, 2.2][i % 3]).collect();
         NurbsCurve3::new(kv, pts, w).expect("legal rational cubic")
+    }
+
+    /// **A rational carrier past the second-order ceiling refuses
+    /// typed.** A rational Bézier of degree 19 reads `C″` at
+    /// `3 · 19 = 57`, past the statement's `56`: the chord pass names the
+    /// ceiling rather than sizing a count from a `NaN` bound.
+    #[test]
+    fn a_rational_carrier_past_the_ceiling_refuses_typed() {
+        let kv = KnotVector::clamped([vec![0.0; 20], vec![1.0; 20]].concat(), 19).unwrap();
+        let pts = (0..20)
+            .map(|i| {
+                let t = f64::from(i) / 19.0;
+                Point3::new(t, t * t, 0.0)
+            })
+            .collect();
+        let mut w = vec![1.0; 20];
+        w[3] = 2.0;
+        let n = NurbsCurve3::new(kv, pts, w).unwrap();
+        match nurbs_chord_count(&n, 1.0, 1e-3, EdgeKey::default()) {
+            Err(TessellateError::UnsupportedCurve { note, .. }) => assert!(
+                note.contains("degree above 18") && note.contains("56"),
+                "{note}"
+            ),
+            other => panic!("a degree-19 rational carrier was not refused typed: {other:?}"),
+        }
     }
 
     /// The row that pins the deletion of the two runtime refusals

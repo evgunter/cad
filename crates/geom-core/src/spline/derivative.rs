@@ -1183,6 +1183,7 @@ pub fn cell_quotients<T: Real>(
 ) -> Option<Vec<CellQuotients<T>>> {
     Some(
         cell_pieces(axes, block, splits, area, false)?
+            .1
             .into_iter()
             .map(|(first, _)| first)
             .collect(),
@@ -1191,17 +1192,57 @@ pub fn cell_quotients<T: Real>(
 
 /// **The surface statement's pieces at both orders** on one cell block
 /// (module docs, "The second order"): [`cell_quotients`] with
-/// `S_u × S_v`, and beside each piece its [`CellSecondQuotients`]. `None`
-/// as [`cell_quotients`], with the common degree `3·max(p, q)` against
-/// [`QUOTIENT_MAX_DEGREE`].
+/// `S_u × S_v`, and beside each piece its [`CellSecondQuotients`], with
+/// the piece count per direction the cut used: [`piece_count`] at the
+/// second order's degrees `(3p, 3q)`. `None` as [`cell_quotients`], with
+/// the common degree `3·max(p, q)` against [`QUOTIENT_MAX_DEGREE`].
+#[allow(clippy::type_complexity)]
 pub fn cell_second_quotients<T: Real>(
     axes: (CellAxis<'_, T>, CellAxis<'_, T>),
     block: CellBlock<'_, T>,
     splits: (usize, usize),
-) -> Option<Vec<(CellQuotients<T>, CellSecondQuotients<T>)>> {
-    cell_pieces(axes, block, splits, true, true)?
+) -> Option<(
+    (usize, usize),
+    Vec<(CellQuotients<T>, CellSecondQuotients<T>)>,
+)> {
+    let (counts, pieces) = cell_pieces(axes, block, splits, true, true)?;
+    let pieces = pieces
         .into_iter()
         .map(|(first, second)| Some((first, second?)))
+        .collect::<Option<_>>()?;
+    Some((counts, pieces))
+}
+
+/// **The integral area's pieces** on one cell block: with unit
+/// weights `S_u × S_v = A_u × A_v`, a polynomial of degree
+/// `(2p − 1, 2q − 1)`, read as a quotient over one (every `b_k` exactly
+/// one) on [`piece_count`] exact dyadic pieces per direction, row-major
+/// in `u` then `v`. The rational form's `M̃/W³` would carry degree `3p`
+/// for nothing, so an integral patch reaches `p = 28` here, where the
+/// rational area stops at `18`. `None` on a degree below one, a block
+/// of the wrong size, or a degree above [`QUOTIENT_MAX_DEGREE`].
+pub fn polynomial_area_pieces<T: Real>(
+    axes: (CellAxis<'_, T>, CellAxis<'_, T>),
+    points: &[[T; 3]],
+    splits: (usize, usize),
+) -> Option<Vec<QuotientPiece<T, 3>>> {
+    let (au, av) = (Axis::of(axes.0)?, Axis::of(axes.1)?);
+    let (p, q) = (au.p(), av.p());
+    if p == 0 || q == 0 || points.len() != (p + 1) * (q + 1) {
+        return None;
+    }
+    let c = Vector(*points.first()?);
+    let g = Grid::new(q + 1, points.iter().map(|x| Vector(*x) - c).collect())?;
+    let du = cell_grid(&g.map_u(|col| au.derive(col))?, (&au, 1), (&av, 0))?;
+    let dv = cell_grid(&g.map_v(|row| av.derive(row))?, (&au, 0), (&av, 1))?;
+    let numer = product(&du, &dv, cross)?;
+    let (mu, mv) = numer.degree();
+    let denom = Grid::new(mv + 1, vec![Vector([T::one()]); (mu + 1) * (mv + 1)])?;
+    let whole = Raised { numer, denom };
+    let counts = (piece_count(mu, splits.0), piece_count(mv, splits.1));
+    (0..counts.0)
+        .flat_map(|iu| (0..counts.1).map(move |iv| (iu, iv)))
+        .map(|at| whole.on_piece(at, counts)?.piece())
         .collect()
 }
 
@@ -1212,7 +1253,7 @@ fn cell_pieces<T: Real>(
     splits: (usize, usize),
     area: bool,
     second: bool,
-) -> Option<Vec<(CellQuotients<T>, Option<CellSecondQuotients<T>>)>> {
+) -> Option<CellPieces<T>> {
     let (au, av) = (Axis::of(axes.0)?, Axis::of(axes.1)?);
     let (p, q) = (au.p(), av.p());
     let count = (p + 1) * (q + 1);
@@ -1324,7 +1365,7 @@ fn cell_pieces<T: Real>(
                 ));
             }
         }
-        return Some(out);
+        return Some((counts, out));
     }
     let counts = (piece_count(p, splits.0), piece_count(q, splits.1));
     let mut out = Vec::with_capacity(counts.0 * counts.1);
@@ -1333,8 +1374,15 @@ fn cell_pieces<T: Real>(
             out.push((whole.restrict((iu, iv), counts)?.quotients(area)?, None));
         }
     }
-    Some(out)
+    Some((counts, out))
 }
+
+/// A cell's pieces per direction, and its pieces row-major in `u`
+/// then `v`, each with its second order when asked for.
+type CellPieces<T> = (
+    (usize, usize),
+    Vec<(CellQuotients<T>, Option<CellSecondQuotients<T>>)>,
+);
 
 /// **The surface statement's pieces** over every nonempty cell of the
 /// rational tensor patch over `knots_u` × `knots_v` with row-major
