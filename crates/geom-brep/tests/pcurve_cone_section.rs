@@ -492,3 +492,140 @@ fn a_near_circular_section_off_its_plane_misses_by_its_offset_not_twice() {
         "minted {minted:e}, read off the sum {summed:e}, centre off by {off:e}"
     );
 }
+
+// ===================== review/4960-r probes =====================
+
+fn with_u0(image: &Pcurve<f64>, du: f64) -> Pcurve<f64> {
+    let &Pcurve::FocalSection(f) = image else { unreachable!() };
+    Pcurve::FocalSection(FocalImage { u0: f.u0 + du, ..f })
+}
+
+fn lift_image(image: &Pcurve<f64>) -> Pcurve<Interval> {
+    let lift = <Interval as Real>::from_f64;
+    let &Pcurve::FocalSection(f) = image else { unreachable!() };
+    Pcurve::FocalSection(FocalImage {
+        u0: lift(f.u0), t0: lift(f.t0), v0: lift(f.v0), va: lift(f.va), vb: lift(f.vb),
+        vl: lift(f.vl), beta: lift(f.beta), sense: lift(f.sense),
+    })
+}
+
+fn cert_both(image: &Pcurve<f64>, c: &Curve3<f64>, s: &Surface<f64>) -> (String, String) {
+    let lift = <Interval as Real>::from_f64;
+    let f = match PcurveCache::certify(image.clone(), -1.0, 1.0, c, s, band()) {
+        Ok(k) => format!("ok env {:e}", k.certificate().envelope),
+        Err(e) => format!("ERR {e}"),
+    };
+    let (lc, ls) = (c.map_scalar(lift), s.map_scalar(lift));
+    let i = match PcurveCache::certify(lift_image(image), lift(-1.0), lift(1.0), &lc, &ls, band()) {
+        Ok(k) => format!("ok env {:e}", k.certificate().envelope.hi()),
+        Err(e) => format!("ERR {e}"),
+    };
+    (f, i)
+}
+
+#[test]
+fn review_4960_u0_perturbation() {
+    let mut cases: Vec<(String, Curve3<f64>, Surface<f64>)> = vec![
+        ("generic".into(), section(), cone(1.0)),
+        ("mirror nappe".into(), section(), cone(-1.0)),
+    ];
+    if let Ok((c, s, _)) = skew_section(0.5_f64.atan(), 0.1, 0.999_999) {
+        cases.push(("skew".into(), c, s));
+    }
+    for (name, c, s) in &cases {
+        let image = chart_pcurve(c, s, band()).unwrap();
+        let &Pcurve::FocalSection(f) = &image else { unreachable!() };
+        for du in [0.0, 4.0 * f64::EPSILON * f.u0.abs().max(1.0), 1e-9, 1e-6] {
+            let p = with_u0(&image, du);
+            let miss = whole_turn_miss(&p, c, s);
+            let span_miss = (0..=2048).map(|i| { let t = -1.0 + 2.0 * f64::from(i) / 2048.0; let uv = p.eval(t); s.eval(uv.x, uv.y).distance(c.eval(t)) }).fold(0.0, f64::max);
+            let (fr, ir) = cert_both(&p, c, s);
+            println!("PROBE span_miss {span_miss:e}");
+            println!("PROBE u0 {name} du {du:e} miss {miss:e} | f64 {fr} | Interval {ir}");
+            if du >= 1e-6 {
+                assert!(fr.starts_with("ERR") && ir.starts_with("ERR"), "{name} du {du:e} certified");
+            }
+            if ir.starts_with("ok") {
+                let env: f64 = ir[7..].parse().unwrap();
+                assert!(env >= span_miss, "{name} du {du:e}: Interval envelope {env:e} < span miss {span_miss:e}");
+            }
+        }
+    }
+}
+
+/// Never-worse-than-1.5x census over a sweep: plane_cone_section rows
+/// (both nappes, both tilt signs), and hand-built near-circles.
+#[test]
+fn review_4960_ratio_sweep() {
+    let mut worst: f64 = 0.0;
+    let mut n = 0;
+    let mut sweep = |name: String, c: &Curve3<f64>, s: &Surface<f64>| {
+        let Ok(image) = chart_pcurve(c, s, band()) else { return; };
+        let minted = whole_turn_miss(&image, c, s);
+        let summed = whole_turn_miss(&read_off_the_sum(&image, c, s), c, s);
+        let &Pcurve::FocalSection(f) = &image else { unreachable!() };
+        let r = minted / summed.max(1e-300);
+        n += 1;
+        if r > worst || r > 1.5 {
+            println!("PROBE ratio {name} beta {:e} minted {minted:e} summed {summed:e} ratio {r:.3}", f.beta);
+        }
+        worst = worst.max(r);
+    };
+    for ha in [0.1, 0.45, 0.9, 1.3] {
+        for tilt in [-1.2, -0.7, -0.3, -0.05, 0.05, 0.3, 0.7, 1.2] {
+            if tilt.abs() >= core::f64::consts::FRAC_PI_2 - ha { continue; }
+            for sg in [1.0, -1.0] {
+                let surface = cone_at(sg, ha);
+                let Surface::Cone { apex, axis, .. } = cone_at(1.0, ha) else { unreachable!() };
+                let side = axis.cross(Vec3::unit_x()).normalize();
+                let normal = (axis * tilt.cos() + side * tilt.sin()).normalize();
+                for h in [2.5, -2.5] {
+                    let plane = Surface::Plane { origin: apex + axis * h, normal, u_ref: side.cross(normal) };
+                    if let Ok(PlaneConeSection::TiltedEllipse(c)) =
+                        plane_cone_section(&plane, &surface, &at_apex(&surface, 40.0), band())
+                    {
+                        sweep(format!("ha {ha} tilt {tilt} sg {sg} h {h}"), &c, &surface);
+                    }
+                }
+            }
+        }
+    }
+    for f in [0.9, 0.99, 0.999, 0.9999, 0.99999, 0.999_999] {
+        if let Ok((c, s, _)) = skew_section(0.5_f64.atan(), 0.1, f) {
+            sweep(format!("skew f {f}"), &c, &s);
+        }
+    }
+    let alpha = 0.5_f64.atan();
+    for e in [1e-11, -1e-11, 1e-9, 1e-6, 0.1, -0.3] {
+        for off in [0.0, 0.01 * eps(), 0.1 * eps(), 0.5 * eps()] {
+            let (c, s) = skew_near_circle(alpha, 2.0, (e / alpha.tan()).atan(), off);
+            sweep(format!("near-circle e {e:e} off {off:e}"), &c, &s);
+        }
+    }
+    println!("PROBE ratio worst {worst:.3} over {n}");
+    assert!(worst < 1.5, "worst {worst}");
+}
+
+/// What a user gets AT Interval: the mint at Interval, then certify.
+#[test]
+fn review_4960_interval_mint() {
+    let lift = <Interval as Real>::from_f64;
+    for f in [0.99, 0.9999, 0.999_999] {
+        let Ok((c, s, k)) = skew_section(0.5_f64.atan(), 0.1, f) else {
+            println!("PROBE imint f {f}: unreached");
+            continue;
+        };
+        let (lc, ls) = (c.map_scalar(lift), s.map_scalar(lift));
+        match chart_pcurve(&lc, &ls, band()) {
+            Err(e) => println!("PROBE imint f {f} k {k:e}: mint ERR {e}"),
+            Ok(img) => {
+                let Pcurve::FocalSection(fi) = &img else { unreachable!() };
+                println!("PROBE imint f {f} k {k:e}: u0 width {:e} beta width {:e}", fi.u0.hi() - fi.u0.lo(), fi.beta.hi() - fi.beta.lo());
+                match PcurveCache::certify(img.clone(), lift(-1.0), lift(1.0), &lc, &ls, band()) {
+                    Ok(kk) => println!("PROBE imint f {f}: cert ok env {:e}", kk.certificate().envelope.hi()),
+                    Err(e) => println!("PROBE imint f {f}: cert ERR {e}"),
+                }
+            }
+        }
+    }
+}
