@@ -12979,7 +12979,15 @@ mod review_4956_point_probe {
     /// The rim at v = 0 of `frame` over `u`, against the brick face
     /// x = `x` (the brick on +x of it when `plus`, else on −x), its
     /// region y over `y`, z over `z`.
-    fn run(frame: CylFrame, u: (f64, f64), x: f64, plus: bool, y: (f64, f64), z: (f64, f64), swap: bool) -> R {
+    fn run(
+        frame: CylFrame,
+        u: (f64, f64),
+        x: f64,
+        plus: bool,
+        y: (f64, f64),
+        z: (f64, f64),
+        swap: bool,
+    ) -> R {
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
         cyl_wall_sheet(&mut body, frame, u, (0.0, frame.radius), tol);
@@ -13060,25 +13068,169 @@ mod review_4956_point_probe {
                     let xmin = f.at::<f64>(core::f64::consts::PI, 0.0);
                     let du = |m: f64| m / r; // metres along the arc → radians
                     let rows: Vec<(&str, (f64, f64), f64, bool, (f64, f64), (f64, f64), R)> = vec![
-                        ("touch, brick outside", (-0.5, 0.5), xt, true, yb, zb, R::Met),
-                        ("touch, brick on the circle's side", (-0.5, 0.5), xt, false, yb, zb, R::Met),
-                        ("apart 1e-3 s", (-0.5, 0.5), xt + 1e-3 * s, true, yb, zb, R::Stale),
-                        ("crossing 1e-3 s", (-0.5, 0.5), xt - 1e-3 * s, true, yb, zb, R::Stale),
-                        ("off 0.5 eps (coincident)", (-0.5, 0.5), xt + 0.5 * eps, true, yb, zb, R::Met),
-                        ("in band +3eps", (-0.5, 0.5), xt + 3.0 * eps, true, yb, zb, if k > 3.0 { R::Esc } else { R::Stale }),
-                        ("in band -3eps", (-0.5, 0.5), xt - 3.0 * eps, true, yb, zb, if k > 3.0 { R::Esc } else { R::Stale }),
-                        ("past band +2k eps", (-0.5, 0.5), xt + 2.0 * k * eps, true, yb, zb, R::Stale),
-                        ("past band -2k eps", (-0.5, 0.5), xt - 2.0 * k * eps, true, yb, zb, R::Stale),
+                        (
+                            "touch, brick outside",
+                            (-0.5, 0.5),
+                            xt,
+                            true,
+                            yb,
+                            zb,
+                            R::Met,
+                        ),
+                        (
+                            "touch, brick on the circle's side",
+                            (-0.5, 0.5),
+                            xt,
+                            false,
+                            yb,
+                            zb,
+                            R::Met,
+                        ),
+                        (
+                            "apart 1e-3 s",
+                            (-0.5, 0.5),
+                            xt + 1e-3 * s,
+                            true,
+                            yb,
+                            zb,
+                            R::Stale,
+                        ),
+                        (
+                            "crossing 1e-3 s",
+                            (-0.5, 0.5),
+                            xt - 1e-3 * s,
+                            true,
+                            yb,
+                            zb,
+                            R::Stale,
+                        ),
+                        (
+                            "off 0.5 eps (coincident)",
+                            (-0.5, 0.5),
+                            xt + 0.5 * eps,
+                            true,
+                            yb,
+                            zb,
+                            R::Met,
+                        ),
+                        (
+                            "in band +3eps",
+                            (-0.5, 0.5),
+                            xt + 3.0 * eps,
+                            true,
+                            yb,
+                            zb,
+                            if k > 3.0 { R::Esc } else { R::Stale },
+                        ),
+                        (
+                            "in band -3eps",
+                            (-0.5, 0.5),
+                            xt - 3.0 * eps,
+                            true,
+                            yb,
+                            zb,
+                            if k > 3.0 { R::Esc } else { R::Stale },
+                        ),
+                        (
+                            "past band +2k eps",
+                            (-0.5, 0.5),
+                            xt + 2.0 * k * eps,
+                            true,
+                            yb,
+                            zb,
+                            R::Stale,
+                        ),
+                        (
+                            "past band -2k eps",
+                            (-0.5, 0.5),
+                            xt - 2.0 * k * eps,
+                            true,
+                            yb,
+                            zb,
+                            R::Stale,
+                        ),
                         ("at arc end", (0.0, 0.5), xt, true, yb, zb, R::Stale),
-                        ("just past arc end", (du(2.0 * k * eps), 0.5), xt, true, yb, zb, R::Stale),
-                        ("arc end in band", (-du(3.0 * eps), 0.5), xt, true, yb, zb, if k > 3.0 { R::Esc } else { R::Met }),
-                        ("inside arc by 2k eps", (-du(2.0 * k * eps), 0.5), xt, true, yb, zb, R::Met),
-                        ("at face edge y", (-0.5, 0.5), xt, true, (tp.y, tp.y + s), zb, R::Stale),
-                        ("face edge y in band", (-0.5, 0.5), xt, true, (tp.y - 3.0 * eps, tp.y + s), zb, if k > 3.0 { R::Esc } else { R::Met }),
-                        ("inside face by 2k eps", (-0.5, 0.5), xt, true, (tp.y - 2.0 * k * eps, tp.y + s), zb, R::Met),
-                        ("past face edge 2k eps", (-0.5, 0.5), xt, true, (tp.y + 2.0 * k * eps, tp.y + s), zb, R::Stale),
-                        ("face corner at point", (-0.5, 0.5), xt, true, (tp.y, tp.y + s), (tp.z, tp.z + s), R::Stale),
-                        ("min-x side touch", (2.6, 3.6), xmin.x, false, (xmin.y - 0.5 * s, xmin.y + 0.5 * s), (xmin.z - 0.5 * s, xmin.z + 0.5 * s), R::Met),
+                        (
+                            "just past arc end",
+                            (du(2.0 * k * eps), 0.5),
+                            xt,
+                            true,
+                            yb,
+                            zb,
+                            R::Stale,
+                        ),
+                        (
+                            "arc end in band",
+                            (-du(3.0 * eps), 0.5),
+                            xt,
+                            true,
+                            yb,
+                            zb,
+                            if k > 3.0 { R::Esc } else { R::Met },
+                        ),
+                        (
+                            "inside arc by 2k eps",
+                            (-du(2.0 * k * eps), 0.5),
+                            xt,
+                            true,
+                            yb,
+                            zb,
+                            R::Met,
+                        ),
+                        (
+                            "at face edge y",
+                            (-0.5, 0.5),
+                            xt,
+                            true,
+                            (tp.y, tp.y + s),
+                            zb,
+                            R::Stale,
+                        ),
+                        (
+                            "face edge y in band",
+                            (-0.5, 0.5),
+                            xt,
+                            true,
+                            (tp.y - 3.0 * eps, tp.y + s),
+                            zb,
+                            if k > 3.0 { R::Esc } else { R::Met },
+                        ),
+                        (
+                            "inside face by 2k eps",
+                            (-0.5, 0.5),
+                            xt,
+                            true,
+                            (tp.y - 2.0 * k * eps, tp.y + s),
+                            zb,
+                            R::Met,
+                        ),
+                        (
+                            "past face edge 2k eps",
+                            (-0.5, 0.5),
+                            xt,
+                            true,
+                            (tp.y + 2.0 * k * eps, tp.y + s),
+                            zb,
+                            R::Stale,
+                        ),
+                        (
+                            "face corner at point",
+                            (-0.5, 0.5),
+                            xt,
+                            true,
+                            (tp.y, tp.y + s),
+                            (tp.z, tp.z + s),
+                            R::Stale,
+                        ),
+                        (
+                            "min-x side touch",
+                            (2.6, 3.6),
+                            xmin.x,
+                            false,
+                            (xmin.y - 0.5 * s, xmin.y + 0.5 * s),
+                            (xmin.z - 0.5 * s, xmin.z + 0.5 * s),
+                            R::Met,
+                        ),
                     ];
                     for (what, u, x, plus, y, z, want) in rows {
                         let got = run(f, u, x, plus, y, z, swap);
@@ -13096,10 +13248,20 @@ mod review_4956_point_probe {
         }
         // κ_rel near zero: θ near π/2, the circle nearly parallel to x = const.
         for &(what, cos, off, want) in &[
-            ("kappa sagitta 0.5 eps, plane through centre", 0.5, Some(0.0), R::Unsup),
+            (
+                "kappa sagitta 0.5 eps, plane through centre",
+                0.5,
+                Some(0.0),
+                R::Unsup,
+            ),
             ("kappa sagitta 3 eps, touching", 3.0, None, R::Esc),
             ("kappa sagitta 0.5 eps, 1 m off", 0.5, Some(1.0), R::Stale),
-            ("kappa sagitta 0.5 eps, 1.5k eps off centre", 0.5, Some(1.5 * k * eps), R::Stale),
+            (
+                "kappa sagitta 0.5 eps, 1.5k eps off centre",
+                0.5,
+                Some(1.5 * k * eps),
+                R::Stale,
+            ),
             ("kappa sagitta 2k eps, touching", 2.0 * k, None, R::Met),
         ] {
             // sagitta = r·cosθ/2 = cos·eps for r = 1.
@@ -13107,12 +13269,23 @@ mod review_4956_point_probe {
             let theta = cth.acos();
             let f = frame(Point3::new(0.0, 0.0, 0.0), 1.0, theta);
             let tp = f.at::<f64>(0.0, 0.0);
-            let got = run(f, (-0.5, 0.5), off.unwrap_or(tp.x), true, (tp.y - 0.5, tp.y + 0.5), (tp.z - 0.5, tp.z + 0.5), false);
+            let got = run(
+                f,
+                (-0.5, 0.5),
+                off.unwrap_or(tp.x),
+                true,
+                (tp.y - 0.5, tp.y + 0.5),
+                (tp.z - 0.5, tp.z + 0.5),
+                false,
+            );
             let ok = got == want;
             if !ok {
                 bad += 1;
             }
-            eprintln!("R4956 {} {what}: got {got:?} want {want:?}", if ok { "ok " } else { "BAD" });
+            eprintln!(
+                "R4956 {} {what}: got {got:?} want {want:?}",
+                if ok { "ok " } else { "BAD" }
+            );
         }
         eprintln!("R4956 bad = {bad}");
     }

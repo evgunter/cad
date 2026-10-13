@@ -206,8 +206,6 @@ mod pocket_wall_crossing_a_side_face;
 mod point_in_loop_arc_cap;
 #[path = "point_touch_records.rs"]
 mod point_touch_records;
-#[path = "review_4956.rs"]
-mod review_4956;
 #[path = "pole_slit_window.rs"]
 mod pole_slit_window;
 #[path = "r1_lane0_e2e.rs"]
@@ -222,6 +220,8 @@ mod r2_mesh1_donut_probes;
 mod rehome_rings_lune;
 #[path = "review_4704_flush_round_oracle.rs"]
 mod review_4704_flush_round_oracle;
+#[path = "review_4956.rs"]
+mod review_4956;
 #[path = "review_r2_vv_probes.rs"]
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]
