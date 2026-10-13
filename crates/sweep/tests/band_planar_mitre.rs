@@ -19,7 +19,6 @@ use core::f64::consts::PI;
 
 use geom_core::k_stats::Bracket;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Sign, Vec3};
-use sweep::blend::battery::TURN_OVERRUN;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
     BlendDecision, BlendError, CornerConfig, FILLET3_CORNER_RECOURSE, run_battery_for,
@@ -201,15 +200,15 @@ fn an_extruded_pentagon_cap_rim_turns_at_every_vertex() {
     }
 }
 
-/// **A fillet turn whose feet stand apart refuses typed**
+/// **A fillet turn whose feet stand apart builds its overrun**
 /// (`leaning_turn`): the leaning wall's dihedral is not the end face's,
 /// so one band's foot on the lateral edge is further and that band runs
-/// on past the mitre — a fillet's overrun, which is not built (a
-/// chamfer's builds: `band_turn_overrun_chamfer`). The refusal names the
-/// far band, by the fillet's smaller angle: the end face's at a lean of
-/// `0.5`, the leaning wall's at `−0.5`.
+/// on past the mitre, cut off by the other band's face of it. The far
+/// band is the fillet's smaller angle: the end face's at a lean of
+/// `0.5`, the leaning wall's at `−0.5`. Volumes are
+/// `band_turn_overrun_fillet`'s.
 #[test]
-fn a_fillet_turn_whose_feet_stand_apart_refuses_naming_its_far_band() {
+fn a_fillet_turn_whose_feet_stand_apart_builds_its_overrun_on_its_far_band() {
     for (s, far) in [(0.5, 0), (-0.5, 1)] {
         let (body, turn) = leaning_turn(s);
         assert_eq!(
@@ -217,17 +216,18 @@ fn a_fillet_turn_whose_feet_stand_apart_refuses_naming_its_far_band() {
             far,
             "fillet at {s}: the closed forms' far band"
         );
-        match Verb::Fillet.run(&body, &turn) {
-            Err(BlendError::UnsupportedRunOut { at, detail }) => {
-                assert_eq!(detail, TURN_OVERRUN, "fillet at {s}");
-                assert_eq!(
-                    at,
-                    topo::EntityId::Edge(turn[far]),
-                    "fillet at {s}: the far band"
-                );
-            }
-            other => panic!("fillet at {s}: the overrun refuses as a run-out, got {other:?}"),
-        }
+        let out = Verb::Fillet
+            .run(&body, &turn)
+            .unwrap_or_else(|e| panic!("fillet at {s}: the overrun builds, got {e}"));
+        validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("fillet at {s}: tier 3, {e:?}"));
+        assert_naming_totality(&body, &out, &turn, "leaning");
+        assert!(
+            out.coincidences
+                .iter()
+                .all(|r| r.relation != topo::Relation::CommonFoot),
+            "fillet at {s}: an overrun records no common foot"
+        );
     }
 }
 
@@ -796,7 +796,7 @@ fn concave_mitres_beside_an_island_refuse_where_their_bands_reach_it() {
 /// chamfer's foot stands `d / sin φ` down the lateral edge, so its two
 /// feet are one point and it mitres too, at its own half-spaces'
 /// volume, the coincidence recorded as at any mitre. A fillet's feet
-/// stand apart there, so it overruns and refuses, naming the far band.
+/// stand apart there, so it builds its overrun.
 #[test]
 fn a_sheared_box_chamfer_mitres_both_corners_and_its_fillet_overruns_the_supplementary_one() {
     let s = 0.3;
@@ -871,11 +871,17 @@ fn a_sheared_box_chamfer_mitres_both_corners_and_its_fillet_overruns_the_supplem
                     .unwrap_or_else(|e| panic!("fillet at the {what} corner: tier 3, {e:?}"));
                 assert_naming_totality(&body, &out, &edges, what);
             }
-            ("supplementary", Err(BlendError::UnsupportedRunOut { at, detail })) => {
-                assert_eq!(detail, TURN_OVERRUN);
+            // The chamfer's feet coincide here and the fillet's do not:
+            // the fillet builds its overrun.
+            ("supplementary", Ok(out)) => {
+                validate_geometric(&out.body, tol())
+                    .unwrap_or_else(|e| panic!("fillet at the {what} corner: tier 3, {e:?}"));
+                assert_naming_totality(&body, &out, &edges, what);
                 assert!(
-                    edges.iter().any(|e| at == topo::EntityId::Edge(*e)),
-                    "the fillet's overrun names a requested edge, got {at:?}"
+                    out.coincidences
+                        .iter()
+                        .all(|r| r.relation != topo::Relation::CommonFoot),
+                    "fillet at the {what} corner: an overrun records no common foot"
                 );
             }
             (_, other) => panic!("fillet at the {what} corner: got {:?}", other.map(|_| ())),

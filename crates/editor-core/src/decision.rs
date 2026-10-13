@@ -13,8 +13,7 @@
 //! (`profile::decision_subject`). This function only consults them, so
 //! a predicate is given words in one place, where it is decided.
 
-use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
-use geom_core::{COINCIDENCE_RECOURSE, Indeterminate};
+use geom_core::{COINCIDENCE_RECOURSE, EndingKind, Indeterminate};
 
 /// The words for `predicate`, from whichever owner holds them; `None`
 /// when no owner has words for it (the caller then states
@@ -34,18 +33,12 @@ fn lookup<V: Copy>(table: &[(&str, V)], predicate: &str) -> Option<V> {
         .map(|(_, v)| *v)
 }
 
-/// **How an undecided decision's refusal ends** (D4 ¶1 (i)), by what its
-/// margin measures.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Ending {
-    /// A size the user may have chosen: the levers, with the tolerance
-    /// arm a value gives ([`Indeterminate::ending`]).
-    Sized,
-    /// No size the user chose — an angle, a direction's gauge, a curve
-    /// parameter: the lever alone, noted where the margin could not be
-    /// read ([`LeverOnly`]).
-    Lever,
-}
+/// A size the user may have chosen: the levers, with the tolerance arm
+/// a value gives.
+const SIZED: EndingKind = EndingKind::Sized;
+/// No size the user chose (an angle, a direction's gauge, a curve
+/// parameter): the coincidence lever alone.
+const LEVER: EndingKind = EndingKind::Lever(COINCIDENCE_RECOURSE);
 
 /// Declares [`Decision`] from one table, so each decision's name and
 /// kind are written once, side by side, and [`Decision::ALL`] holds
@@ -74,9 +67,9 @@ macro_rules! decisions {
             }
 
             /// How its undecided refusal ends.
-            pub(crate) const fn ending(self) -> Ending {
+            pub(crate) const fn ending(self) -> EndingKind {
                 match self {
-                    $(Self::$variant => Ending::$ending,)*
+                    $(Self::$variant => $ending,)*
                 }
             }
         }
@@ -85,25 +78,25 @@ macro_rules! decisions {
 
 decisions! {
     /// A direction vector's length, decided at the evaluation's door: a gauge.
-    DirectionNorm => crate::eval::EVAL_DIRECTION_NORM, Lever;
+    DirectionNorm => crate::eval::EVAL_DIRECTION_NORM, LEVER;
     /// Whether a revolve makes a full turn: an angle.
-    RevolveFullTurn => "revolve_full_vs_partial", Lever;
+    RevolveFullTurn => "revolve_full_vs_partial", LEVER;
     /// Whether a linear pattern's spacing is positive: a length the user wrote.
-    PatternSpacing => crate::eval::PATTERN_SPACING, Sized;
+    PatternSpacing => crate::eval::PATTERN_SPACING, SIZED;
     /// Whether a circular pattern's step is zero: an angle.
-    PatternStep => crate::eval::PATTERN_STEP, Lever;
+    PatternStep => crate::eval::PATTERN_STEP, LEVER;
     /// How many whole turns a circular pattern's step holds: an angle.
-    PatternStepTurn => crate::eval::PATTERN_STEP_TURN, Lever;
+    PatternStepTurn => crate::eval::PATTERN_STEP_TURN, LEVER;
     /// The order of two crossings along an edge: a curve parameter.
-    OrderAlong => crate::names::ORDER_ALONG, Lever;
+    OrderAlong => crate::names::ORDER_ALONG, LEVER;
     /// A point's place along a member edge: a distance in the result.
-    OnMemberEdge => crate::names::ON_MEMBER_EDGE, Sized;
+    OnMemberEdge => crate::names::ON_MEMBER_EDGE, SIZED;
     /// Whether a point lies on a seam's line: a distance in the result.
-    OnSeamLine => crate::names::ON_SEAM_LINE, Sized;
+    OnSeamLine => crate::names::ON_SEAM_LINE, SIZED;
     /// Whether a chord lies on its rim: a distance in the result.
-    ChordOnRim => crate::names::CHORD_ON_RIM, Sized;
+    ChordOnRim => crate::names::CHORD_ON_RIM, SIZED;
     /// A datum distance against a stated value: a length the user wrote.
-    SelDatumDistance => crate::pose::SEL_DATUM_DISTANCE, Sized;
+    SelDatumDistance => crate::pose::SEL_DATUM_DISTANCE, SIZED;
 }
 
 impl Decision {
@@ -118,18 +111,10 @@ impl Decision {
 /// a sized one and says no recourse is recorded for it
 /// ([`geom_core::MissingRecourse`]).
 pub(crate) fn ending(predicate: &str, source: &Indeterminate) -> String {
-    match Decision::named(predicate).map(Decision::ending) {
-        Some(Ending::Lever) => LeverOnly {
-            lever: COINCIDENCE_RECOURSE,
-        }
-        .recourse(RefusedArm::Undecided(source), Reading::Build),
-        Some(Ending::Sized) => source.ending(COINCIDENCE_RECOURSE),
-        None => format!(
-            "{} — {}",
-            source.ending(COINCIDENCE_RECOURSE),
-            geom_core::MissingRecourse(Some(predicate))
-        ),
-    }
+    source.ending_by(
+        Decision::named(predicate).map(Decision::ending),
+        Some(predicate),
+    )
 }
 
 #[cfg(test)]
