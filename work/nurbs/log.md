@@ -1085,3 +1085,14 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Plan, curve and surface rows each go red with a guard removed.
   - The old pin is deleted; it read a curve that can no longer be built.
   - Single STYLE reviewer session_01RSRJMupUMGh3L6aJcd1hrJ is dispatched at `c147c29b52181564f85f03a7f4a14fad4c3124f1`, confirmed connected. — (NURBS orchestrator)
+
+- **2026-10-13 00:01Z — PR 4923 STYLE review: mergeable.**
+  - Both guard-removal mutants turn all three rows red, and the reviewer's own weight-arithmetic sweep found every `f64` writer guarded.
+  - **Fix pass sent to build A:**
+    - the `from_validated_parts` premise doc is false for the plan path (the code had drifted from the invariant, and is now repaired in code but not in the sentence);
+    - removal's reinsertion is a new, unlisted route to `WeightCollapse`, and its index means a reinsertion slot;
+    - the doors' `# Errors` omit the new refusal (a class: `insert_knot`, `refine_knots`, `split_at`, surface twins);
+    - `written_weight` is a fourth spelling of positive-and-finite, so `check_weights`, compose, tensor and hull get one predicate;
+    - the surface row pins the index;
+    - optionally, a subnormal-positive least-weight row for `speed_upper_bound`.
+  - The T-channel note and the unreachable `?` stay as they are. — (NURBS orchestrator)
