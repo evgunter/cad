@@ -669,3 +669,99 @@ fn a_torus_loop_of_many_meridians_turns_by_their_own_turns() {
         "the zig-zag alone at the interval scalar"
     );
 }
+
+/// **A torus face whose parallels and meridians are long chains of arcs
+/// off centre measures**, at `f64` and at the interval scalar. A torus
+/// rectangle `u ∈ [0, U]`, `v ∈ [v_c − V, v_c + V]` about the inner or
+/// the outer equator: its lower parallel in `n` arcs, each centred `0.9ε`
+/// off the axis toward the arc's middle azimuth, and its far meridian in
+/// `n` arcs, each centred `0.9ε` off the core circle toward the arc's
+/// middle tube angle, so the stored turns overshoot their ends' turns
+/// about the axis (the core circle) the same way along each chain. A
+/// loop's turns carry each arc's stored turn to the axis (the core
+/// circle) at its ends; read off the stored turns alone, these faces
+/// left their loop past a whole turn's slack.
+#[test]
+fn torus_chains_of_arcs_off_centre_measure() {
+    fn face<T: geom_core::Decide>(
+        (big, r): (f64, f64),
+        vc: f64,
+        n: usize,
+        off: f64,
+        (u_span, v_half): (f64, f64),
+    ) -> Result<(), PropsError> {
+        let (v0, v1) = (vc - v_half, vc + v_half);
+        let parallel = |v: f64, c: [f64; 2], u0: f64, u1: f64| {
+            edge::<T>(
+                Curve3::Circle {
+                    center: p3(c[0], c[1], r * v.sin()),
+                    axis: v3(0.0, 0.0, 1.0),
+                    radius: T::from_f64(big + r * v.cos()),
+                    u_ref: v3(1.0, 0.0, 0.0),
+                },
+                u0,
+                u1,
+                0,
+                0,
+            )
+        };
+        let meridian = |u: f64, grow: f64, a: f64, b: f64| {
+            let m = 0.5 * (a + b);
+            let (gx, gz) = (grow * m.cos(), grow * m.sin());
+            edge::<T>(
+                Curve3::Circle {
+                    center: p3((big + gx) * u.cos(), (big + gx) * u.sin(), gz),
+                    axis: v3(u.sin(), -u.cos(), 0.0),
+                    radius: T::from_f64(r),
+                    u_ref: v3(u.cos(), u.sin(), 0.0),
+                },
+                a,
+                b,
+                0,
+                0,
+            )
+        };
+        let mut l = Vec::new();
+        let du = u_span / n as f64;
+        for i in 0..n {
+            let (a, b) = (i as f64 * du, (i + 1) as f64 * du);
+            let m = 0.5 * (a + b);
+            l.push(parallel(v0, [off * m.cos(), off * m.sin()], a, b));
+        }
+        let dv = (v1 - v0) / n as f64;
+        for i in 0..n {
+            let (a, b) = (v0 + i as f64 * dv, v0 + (i + 1) as f64 * dv);
+            l.push(meridian(u_span, off, a, b));
+        }
+        l.push(parallel(v1, [0.0, 0.0], u_span, 0.0));
+        l.push(meridian(0.0, 0.0, v1, v0));
+        let s = Surface::Torus {
+            center: p3(0.0, 0.0, 0.0),
+            axis: v3(0.0, 0.0, 1.0),
+            major_radius: T::from_f64(big),
+            minor_radius: T::from_f64(r),
+            u_ref: v3(1.0, 0.0, 0.0),
+        };
+        curved_face_loops(&s, &[&l], true, band()).map(|_| ())
+    }
+    let e = eps();
+    for radii in [(0.02, 0.005), (0.01, 0.008)] {
+        for vc in [core::f64::consts::PI, 0.0] {
+            for spans in [(6.0, 0.3), (1.0, 3.0), (6.0, 3.0)] {
+                for n in [20usize, 50] {
+                    for off in [0.0, 0.9 * e] {
+                        let what = format!(
+                            "{radii:?}, v_c {vc:.2}, spans {spans:?}, {n} arcs, off {off:e}"
+                        );
+                        assert_eq!(face::<f64>(radii, vc, n, off, spans), Ok(()), "{what}, f64");
+                        assert_eq!(
+                            face::<geom_core::Interval>(radii, vc, n, off, spans),
+                            Ok(()),
+                            "{what}, interval"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
