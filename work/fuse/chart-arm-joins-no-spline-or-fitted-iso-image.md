@@ -2,10 +2,11 @@
 id: chart-arm-joins-no-spline-or-fitted-iso-image
 kind: issue
 title: The curved join's Chart arm reads iso families off the analytic mint only: two pieces of one iso line on a spline chart, or of a fitted image, are left unjoined
-status: open
+status: parked
 opened: 2026-10-07
-priority: P1
+priority: P2
 cost: H
+blocked_on: [a-tilted-plug-union-refuses-at-the-germ-segment-and-section-copy-rosters, nurbs-edge-crossing-rung-is-the-ring-composite]
 ---
 
 ## The finding
@@ -26,3 +27,22 @@ The iso family of an `IsoLine` / `IsoArc` row read off its variant
 (the structure the mint chose), and a regularity reading at a spline
 chart's point (its partials' cross product, or the chart's degenerate
 boundaries).
+
+## Parked (2026-10-13, FUSE orchestrator, on a lane probe)
+
+Nothing reaches the arm's `None` today. A temporary log in `locus_of` recorded every Chart reading:
+
+- **Probe 1, `ci` suites.** Across topo, sweep and editor-core `ci` (8,462 tests), 258,976 readings came back. All were analytic `Harmonic` images and all were classified. No Nurbs or torus chart appeared, and no `Fitted`, `General`, `IsoLine` or `IsoArc` pcurve.
+- **Probe 2, tilted sections.** Cylinder, cone, ball and donut against 48 tilted bricks: 716 bodies built and 1,468 readings, all classified.
+- **Probe 3, two curved operands.** Seven pairs: 0 of 42 built (`GermFrameUnsupported`, `CurvedPierceUnsupported`, `CurvedBooleanUnsupported`, `FallbackExtentUnsupported`).
+- **Probe 4, oblique cut.** The same-surface glue across an oblique cut built 0 of 144 (`GermEdgeCarrierUnsupported`).
+
+Why nothing reaches it:
+
+- **Fitted image:** it exists only on a spline chart.
+- **Spline chart:** it reaches no join candidate, the same as the spline join.
+- **Oblique section:** it lies on no iso line, so `None` is geometrically right for it. Joining two pieces of one oblique section needs carrier identity, not an iso family. Its only route is cleave's germ roster.
+
+This row therefore waits on the first lanes that could mint such an edge: cleave's germ roster for the oblique case, and REACHHOLD's NURBS crossing rung for the spline case.
+
+**For when it un-parks:** the row's "read the family off the minted `IsoLine`/`IsoArc` variant" covers only the spline-chart half. Even there, reading u-versus-v off `IsoLine`'s `pl` is a zero test on `T` unless the mint records the family beside the variant. The oblique half wants carrier identity instead. That is a design question to weigh with designers then.

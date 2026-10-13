@@ -385,7 +385,7 @@ fn r2_a_zero_term_budget_reproduces_the_tier_off_verdict() {
     // tier-off run installs no session and counts nothing.
     let strip = |s: &str| {
         s.lines()
-            .filter(|l| !l.starts_with("decisions symbolic_zero"))
+            .filter(|l| !l.starts_with("decisions symbolic="))
             .collect::<Vec<_>>()
             .join("\n")
     };
@@ -546,7 +546,7 @@ fn r2_collinear_walls_should_discharge_side_planes_cosurface() {
         for s in geom_core::k_stats::take_samples() {
             let e = rows.entry(s.predicate).or_default();
             match s.outcome {
-                geom_core::k_stats::SampleOutcome::SymbolicZero => e.0 += 1,
+                geom_core::k_stats::SampleOutcome::Symbolic => e.0 += 1,
                 _ => e.1 += 1,
             }
         }

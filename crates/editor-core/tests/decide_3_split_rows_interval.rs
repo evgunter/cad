@@ -33,18 +33,16 @@ fn before() -> SymRules {
 /// One measured document, by name and by the door that builds it.
 type Document = (&'static str, Box<dyn Fn() -> editor_core::ProfileDoc>);
 
-fn total(t: &BTreeMap<&'static str, [u64; 4]>) -> [u64; 4] {
-    t.values().fold([0u64; 4], |a, s| {
-        [a[0] + s[0], a[1] + s[1], a[2] + s[2], a[3] + s[3]]
-    })
+fn total(t: &BTreeMap<&'static str, [u64; 2]>) -> [u64; 2] {
+    t.values()
+        .fold([0u64; 2], |a, s| [a[0] + s[0], a[1] + s[1]])
 }
 
-/// **Per predicate, `symbolic_zero` never falls and the discharged
-/// count never falls.** The first is the direction the receipt may
-/// never move in (a theorem re-labelled as a gated read or as an
-/// axiom is a claim WEAKENED); the second is the acceptance's own
-/// clause. Both are asserted per predicate and printed whole, so a
-/// re-baseline reads the row rather than the reviewer's arithmetic.
+/// **Per predicate, the discharged count never falls** — the
+/// acceptance's own clause, asserted per predicate and printed whole,
+/// so a re-baseline reads the row rather than the reviewer's
+/// arithmetic — and the two predicates the dials move are pinned
+/// exactly, on both sides.
 #[test]
 fn decide_3_no_predicate_loses_a_decision() {
     let tol = Tol::witness();
@@ -73,100 +71,56 @@ fn decide_3_no_predicate_loses_a_decision() {
             total(&on)
         );
         for (p, b) in &off {
-            let a = on.get(p).copied().unwrap_or([0; 4]);
+            let a = on.get(p).copied().unwrap_or([0; 2]);
             println!(
                 "  {p}: {b:?} -> {a:?}{}",
                 if a == *b { "" } else { "  <- moved" }
             );
-            let discharged = |s: [u64; 4]| s[0] + s[1] + s[2];
-            // **TWO predicates are re-baselined, at their numbers, with
-            // their reasons**, all on R2's link. It is a re-baseline and
-            // not an exemption: the numbers are asserted on both sides,
-            // so any further drift reds and says which.
+            // **TWO predicates are pinned at their numbers, with their
+            // reasons**, both on R2's link, `[symbolic, numeric]` on both
+            // sides, so any further drift reds and says which. Neither
+            // loses a decision; they are the ones this unit's dials
+            // MOVE, and a pin on both sides is what tells a re-baseline
+            // from a drift.
             //
-            // `carrier_on_surface_2` is rule G's trade: with G and the
-            // read shut this predicate proves 88 theorems, with them on
-            // 84 (and 10 through the door; 8 until the certification
-            // schedule began assigning its end samples exactly,
-            // `geom_brep::schedule_param`, which moved two of this
-            // predicate's numeric decisions into the door on the shipped
-            // side and none on the G-shut side). The whole measurement, the
-            // remedy record, and DECIDE-5's re-take of it, is
+            // `carrier_on_surface_1`/`_2` is rule G's trade: the tangent
+            // arc's quarter-tangent `2w / sqrt(4w²)`, which rule G
+            // re-keys as a sign quotient the tier does not hold, so the
+            // shipped side reaches through the door what the G-shut side
+            // proves outright, and four of each slot's twelve numeric
+            // decisions go symbolic. The two slots are the pair's key
+            // order (`geom_brep::SurfacePair`), so the trade lands half
+            // on each. The whole measurement and its remedy record is
             // `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`.
-            // At the DOCUMENT level rule G is a gain here —
-            // `[505, 0, 110, 487]` becomes `[545, 0, 108, 449]` — and a
-            // change that makes the code right is not skipped for the
-            // re-baseline it costs.
             //
             // `carrier_matches_mapped_source` is the other side of the
             // arc's span spelled from the decided turn (`sweep`'s
-            // `arc_span`): the carrier's span meets the
-            // pushforward's atom, so this predicate's door answers rise
-            // under BOTH tiers — 40 to 60 with G shut, 40 to 50 with it
-            // on — so ten decisions the G-shut tier sends through the
-            // door stay numeric on the shipped side, where before the
-            // two sides were equal at `[108, 0, 40, 32]`. The shipped
-            // ladder takes the shipped side to `[108, 0, 62, 10]`, past
-            // the G-shut tier (`m10_10_evidence_interval` at
-            // `CAD_M10_10_DOC=r2_link CAD_M10_10_RETRY=default`).
+            // `arc_span`): the carrier's span meets the pushforward's
+            // atom on the shipped side, four more decisions out of
+            // `numeric`.
             //
-            // Since the tangent arc stores its own carrier with
-            // Δθ = 4·atan(across / (|d| + along)), the link's half-turns
-            // read their quarter-tangent as `2w / sqrt(4w²)`.
-            // `carrier_matches_mapped_source` moved to
-            // `[108, 0, 44, 28] -> [144, 0, 12, 24]` (from
-            // `[108, 0, 60, 12] -> [108, 0, 50, 22]`): 36 more theorems on
-            // the shipped side, and four fewer numeric.
-            // `carrier_on_surface_2` moved with it, to
-            // `[84, 0, 0, 24] -> [76, 0, 16, 16]` (from
-            // `[88, 0, 0, 20] -> [84, 0, 10, 14]`). Toggling the tangent
-            // arc back to an `atan2` quarter-tangent restores both
-            // predicates' old numbers. (`arc_span` moved with them,
-            // `[8, 0, 0, 0] -> [4, 0, 0, 4]`, until the merge that
-            // brought in the extrude's pcurve mint and PCERT's
-            // certificate; it reads `[8, 0, 0, 0]` on both sides since.)
-            //
-            // The two `carrier_on_surface_*` slots are the pair's key
-            // order (`geom_brep::SurfacePair`), not the order the
-            // extrude named the surfaces in, so the trade above now
-            // lands half on each slot: both read
-            // `[96, 0, 0, 12] -> [92, 0, 8, 8]`, which sums to the old
-            // `_1` (`[108, 0, 0, 0]` on both sides) plus the old `_2`,
-            // and the document totals did not move
-            // (`work/carverest/certify-residual-predicates-still-name-a-slot`).
-            //
-            // The decision read no longer answers any of this
-            // document's theorems first (DECIDE-9's early zero arm), so
-            // `dihedral_wedge` and `path_seam_arrival_turn` read the same
-            // on both sides. At the document level the shipped side
-            // gains: `[705, 0, 102, 748] -> [824, 0, 52, 679]`.
-            //
-            // Both sides here run one attempt per rung
-            // (`split_at_the_nominal`, no retry ladder), because this is
-            // rule G's trade and a ladder on the `on` side would read it
-            // as recovered. What the measured retry ladder does about it
-            // is pinned where the ladder is:
-            // `sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`.
-            let rebaselined: Option<([u64; 4], [u64; 4])> = match (*name, *p) {
+            // The sums are the split columns of the day before DECIDE-10
+            // made them one (`[96, 0, 0, 12] -> [92, 0, 8, 8]` and
+            // `[108, 0, 44, 28] -> [144, 0, 12, 24]` as theorem / gated /
+            // registered / numeric). Both sides run one attempt per rung
+            // (`split_at_the_nominal`, no ladder); what the ladder does
+            // is pinned where the ladder is
+            // (`sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`).
+            let pinned: Option<([u64; 2], [u64; 2])> = match (*name, *p) {
                 ("r2_link", "carrier_on_surface_1" | "carrier_on_surface_2") => {
-                    Some(([96, 0, 0, 12], [92, 0, 8, 8]))
+                    Some(([96, 12], [100, 8]))
                 }
-                ("r2_link", "carrier_matches_mapped_source") => {
-                    Some(([108, 0, 44, 28], [144, 0, 12, 24]))
-                }
+                ("r2_link", "carrier_matches_mapped_source") => Some(([152, 28], [156, 24])),
                 _ => None,
             };
-            if let Some(expected) = rebaselined {
+            if let Some(expected) = pinned {
                 assert_eq!(
                     (*b, a),
                     expected,
-                    "{name}/{p}: the re-baselined predicate moved: re-measure it and say what"
+                    "{name}/{p}: the pinned predicate moved: re-measure it and say what"
                 );
-                continue;
             }
             if a[0] < b[0] {
-                lost.push(format!("{name}/{p}: THEOREMS fell {b:?} -> {a:?}"));
-            } else if discharged(a) < discharged(*b) {
                 lost.push(format!("{name}/{p}: discharges fell {b:?} -> {a:?}"));
             }
         }
@@ -200,7 +154,7 @@ fn decide_3_which_dial_moves_the_links_split() {
         println!(
             "  {name}: total {:?}, carrier_on_surface_2 {:?}",
             total(&t),
-            t.get("carrier_on_surface_2").copied().unwrap_or([0; 4])
+            t.get("carrier_on_surface_2").copied().unwrap_or([0; 2])
         );
     }
 }
@@ -242,9 +196,7 @@ fn decide_3_the_links_carrier_on_surface_2_rendered() {
             if s.predicate != "carrier_on_surface_2"
                 || !matches!(
                     s.outcome,
-                    ShapeOutcome::NumericZero
-                        | ShapeOutcome::Indeterminate
-                        | ShapeOutcome::Registered
+                    ShapeOutcome::NumericZero | ShapeOutcome::Indeterminate
                 )
             {
                 continue;
@@ -256,7 +208,10 @@ fn decide_3_the_links_carrier_on_surface_2_rendered() {
             println!("== {name} blocked #{shown}: {:?}", s.outcome);
             if let Some(f) = &s.early_form {
                 println!("   early [{}]", census(f));
-                println!("   {}", &f[..f.len().min(600)]);
+                // The first 600 characters: a rendered form carries
+                // multi-byte glyphs, so a byte bound can split one.
+                let cut = f.char_indices().nth(600).map_or(f.len(), |(i, _)| i);
+                println!("   {}", &f[..cut]);
             }
             if let Some(f) = &s.form {
                 println!("   plain [{}]", census(f));

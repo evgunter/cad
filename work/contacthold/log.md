@@ -329,3 +329,4 @@ the text-only option's wording. Both found
 - 2026-10-12 Ev took the self-touch record form on `[ev]` PR 4914 ("sounds good!"); fork row 129 filled.
 - 2026-10-12 The self-touch fork row is 129 (main took 127 and 128 while PR 4914 waited).
 - 2026-10-13 PR 4921 merged (the face–face touch row, the carried ef/ff kinds); the bridge row closed. The carried-unread-record fork went to a designer pair (byte 127), who converged in two rounds.
+- 2026-10-13 PR 4918 merged (the glue door escalates in-band tangencies typed; the identity ladder's one home): its row, the sag-route row and TANG's capped-tube row closed.

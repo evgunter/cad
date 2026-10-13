@@ -1038,7 +1038,7 @@ fn an_untoleranced_variable_is_a_constant_in_the_symbolic_lane() {
 /// cannot tell the lane's binding apart (reviews r1 m1, r2 MINOR-2).
 fn assert_constants(counts: &geom_core::SymCounts, what: &str) {
     assert_eq!(
-        (counts.symbolic_zero, counts.numeric),
+        (counts.symbolic, counts.numeric),
         (1, 0),
         "{what}: an untoleranced variable binds a constant, so its difference is a \
          theorem, not a numeric zero between two symbols: {counts:?}"
@@ -1069,9 +1069,9 @@ fn a_toleranced_variable_is_an_axis_and_a_symbol_named_or_anonymous() {
     assert_eq!(analyzed.params().keys().copied().collect::<Vec<_>>(), axes);
     for (a, b) in [(x, y), (x, w)] {
         let (_, same) = sym_difference(&doc, a, a);
-        assert_eq!(same.symbolic_zero, 1, "{a} − {a} is a theorem");
+        assert_eq!(same.symbolic, 1, "{a} − {a} is a theorem");
         let (_, apart) = sym_difference(&doc, a, b);
-        assert_eq!(apart.symbolic_zero, 0, "{a} − {b} is two symbols");
+        assert_eq!(apart.symbolic, 0, "{a} − {b} is two symbols");
     }
 }
 
