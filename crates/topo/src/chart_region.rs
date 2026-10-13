@@ -5310,7 +5310,7 @@ mod inf_arms {
 }
 
 /// **The inf-arm rows under the INTERVAL scalar** (review item 4:
-/// nothing in the original diff ran `net_inf`, `chart_stretch_inf` or
+/// nothing in the original diff ran `chart_stretch_inf` or
 /// `certified_arms` under anything but `f64`, and both reviewers had
 /// to write their own probes to find out whether they work at all).
 ///

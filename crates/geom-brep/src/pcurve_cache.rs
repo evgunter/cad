@@ -5762,52 +5762,31 @@ pub struct ChartStretchInf<T> {
 /// [`chart_stretch_sup`] is explicitly not, for the claims it is
 /// explicitly unsafe for.
 ///
-/// # The nets, and the inf read along a direction
+/// # The floors, read along a direction
 ///
-/// The polynomial derivative nets, per direction,
-/// `Qᵢⱼ = p·(Pᵢ₊₁ⱼ − Pᵢⱼ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)`, and `S_u(u, v)` is a
-/// **convex combination** of them (partition of unity over the
-/// degree-reduced basis; a zero divisor is a support the basis
-/// function vanishes on identically, so dropping it is exact on both
-/// sides rather than safe on one).
-///
-/// A convex combination's norm is NOT bounded below by the smallest
-/// `|Qᵢⱼ|` — a net whose columns cancel has combinations of every
-/// norm down to zero — so the inf is read **along a direction**: for
-/// the net's own summed direction `d`, every combination projects to
-/// at least `minᵢⱼ (Qᵢⱼ·d)` ([`net_inf`]). A **zero-crossing net** —
-/// a wall with a fold — has some entry on the far side of `d`, or no
+/// A derivative's norm is not bounded below by its smallest control
+/// difference (a net whose columns cancel has combinations of every
+/// norm down to zero), so the inf is read **along a direction**: for
+/// the unit `d = c/‖c‖`, `‖S_u‖ ≥ S_u·d`, and
+/// [`geom::NurbsSurface::stretch_floor`] lower-bounds `S_u·c` over the
+/// whole chart: per nonempty cell, the least projection of the
+/// rational pair terms at the cell's active points, over the cell's
+/// greatest weight (its least when that projection is negative). The
+/// proof is `geom_core::spline::derivative`'s; at unit weights the pair
+/// terms are the polynomial derivative-net entries. `c` is the sum of
+/// the polynomial net (`net_direction`). A **zero-crossing net** — a
+/// wall with a fold — has some term on the far side of `d`, or no
 /// direction at all, and gets exactly zero. That zero is the honest
 /// answer and the caller must refuse on it: no positive bound is
 /// invented for a net whose derivative genuinely vanishes.
 ///
-/// `area_inf` is the same read on the **pairwise cross products**:
-/// `S_u × S_v = Σₐ_b λₐ μ_b (Qᵘₐ × Qᵛ_b)` is a convex combination of
-/// them (a product of two convex combinations), so [`net_inf`] over
-/// that set lower-bounds the area element. A chart whose two
-/// derivative directions can align somewhere gets zero here even
-/// though both per-axis infs are healthy — which is exactly the case
-/// the per-axis pair alone cannot see.
-///
-/// **The rational factor, on the inf side only.** The rational
-/// derivative identity (Floater 1992) writes `S_u` as `Σᵢ γᵢ ΔPᵢ`
-/// with non-negative `γ` whose sum lies in `[1/ratio, ratio]` for
-/// `ratio = (w_max/w_min)²` ([`weight_ratio_factor`]); the infs
-/// **divide** by it and the area element — a product of two such
-/// factors — divides by `ratio²`. The sup components do not use the
-/// bracket: they are the pair-term statement
-/// [`geom::NurbsSurface::stretch_sup`], which [`chart_stretch_sup`]
-/// reads too.
-///
-/// *Provenance, stated because the citation does not cover all of
-/// it.* Floater's result is a CURVE statement, and the tensor-product
-/// reading applies it per direction with the patch's own weight
-/// bracket. What is quoted from Floater is the two-sidedness of the
-/// bracket; whether its lower end holds as stated is
-/// `work/nurbs/chart-stretch-inf-rational-floor-is-unproven.md`. A
-/// rational chart earns a weaker inf reading than a unit-weight one;
-/// on a unit-weight net the factor is exactly 1, so nothing here
-/// moves for the polynomial charts.
+/// `area_inf` is the same read of the area element along `c_u × c_v`
+/// ([`geom::NurbsSurface::area_floor`]): `W²·(S_u × S_v)` is a convex
+/// combination of the crosses of a `u` and a `v` term value, each at
+/// any active point of the cell, divided by the squared weight. A chart
+/// whose two derivative directions can align somewhere gets zero here
+/// even though both per-axis infs are healthy — which is exactly the
+/// case the per-axis pair alone cannot see.
 ///
 /// # The assembly a caller owes: per-axis infs are not lever arms
 ///
@@ -5884,61 +5863,36 @@ pub fn chart_stretch_inf<T: Real>(surface: &Surface<T>) -> ChartStretchInf<T> {
     }
 }
 
-/// A certified lower bound on `|Σ λₐ Qₐ|` over every convex
-/// combination of a derivative net, and the direction it is read
-/// along.
-///
-/// The net's own **sum** `c = Σ Qₐ` names the direction: for the unit
-/// `d = c/|c|`, every convex combination satisfies
-/// `|Σ λₐ Qₐ| ≥ (Σ λₐ Qₐ)·d ≥ minₐ (Qₐ·d)`, which is
-/// `minₐ (Qₐ·c) / |c|`. A net that CROSSES ZERO fails this at one of
-/// two places and gets exactly zero either way: a net straddling the
-/// origin has some `Qₐ·d` negative, and a net whose entries cancel
-/// outright has `|c| = 0`, whose quotient is poison. The answer is
-/// capped at the net's own `sup`, which is finite by construction, so
-/// an ill-conditioned quotient can never leak an inflated arm.
-fn net_inf<T: Real>(q: &[Vec3<T>], sup: T) -> T {
-    if q.is_empty() {
-        return T::zero();
-    }
-    let mut c = Vec3::zero();
-    for &v in q {
-        c = c + v;
-    }
-    let mut min_dot = q[0].dot(c);
-    for &v in &q[1..] {
-        min_dot = min_dot.min(v.dot(c));
-    }
-    let raw = min_dot / c.norm();
+/// A floor of `S·c` read as a floor of `‖S‖`: `floor/‖c‖`, clamped to
+/// `[0, cap]`. A negative floor (a net straddling the origin) clamps to
+/// zero, and a poison one — a direction whose entries cancel outright
+/// (`‖c‖ = 0`), or a refused floor — is exactly zero. The cap is a sup
+/// of the same quantity, so an ill-conditioned quotient can never leak
+/// an inflated arm.
+fn floor_along<T: Real>(floor: T, c: Vec3<T>, cap: T) -> T {
+    let raw = floor / c.norm();
     if raw.is_poison() {
         T::zero()
     } else {
-        raw.max(T::zero()).min(sup)
+        raw.max(T::zero()).min(cap)
     }
 }
 
-/// The `u`-direction derivative control net of a spline patch:
-/// `Qᵢⱼ = p·(Pᵢ₊₁ⱼ − Pᵢⱼ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)`, degenerate supports
-/// dropped (their basis function is identically zero, so the drop is
-/// exact on both sides rather than safe on one). Pass `along_v` to
-/// read the `v` direction through the same code. Unlike a curve's
-/// [`geom_core::spline::derivative_net`], which refuses a degenerate
-/// support, this net skips it: its readers fold sups and infs over the
-/// entries, where a dropped zero-basis pair is the exact answer.
-fn skipping_surface_derivative_net<T: Real>(
-    s: &geom::NurbsSurface<T>,
-    along_v: bool,
-) -> Vec<Vec3<T>> {
+/// The direction the inf side reads `S_u` along (`S_v` with
+/// `along_v`): the sum of the polynomial derivative-net entries
+/// `p·(Pᵢ₊₁ⱼ − Pᵢⱼ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)` over the pairs a nonempty span
+/// reads, each once. Any direction gives a sound floor; this is the
+/// net's own mean, the direction a chart that does not fold moves in.
+fn net_direction<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec3<T> {
     let (nu, nv) = s.control_counts();
     let ctl = s.control();
-    let (n_out, n_in) = if along_v { (nv, nu) } else { (nu, nv) };
+    let n_in = if along_v { nu } else { nv };
     let knots = if along_v {
         s.knot_values_v()
     } else {
         s.knot_values_u()
     };
-    // The skip reads the structure; the factor the held knots.
-    let (p, k, held) = (knots.degree(), knots.structure().knots(), knots.values());
+    let (kv, held, p) = (knots.structure(), knots.values(), knots.degree());
     let at = |i: usize, j: usize| -> geom_core::Point3<T> {
         if along_v {
             ctl[j * nv + i]
@@ -5946,77 +5900,36 @@ fn skipping_surface_derivative_net<T: Real>(
             ctl[i * nv + j]
         }
     };
-    let mut out = Vec::with_capacity(n_out.saturating_sub(1) * n_in);
-    for i in 0..n_out.saturating_sub(1) {
-        let denom = k[i + p + 1] - k[i + 1];
-        if denom == 0.0 {
-            continue;
-        }
-        let factor = geom_core::spline::span_derivative_scale(p, held[i + 1], held[i + p + 1]);
-        for j in 0..n_in {
-            out.push((at(i + 1, j) - at(i, j)) * factor);
+    let mut c = Vec3::zero();
+    let mut next = 0;
+    for span in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
+        for i in span.first_derived_window() {
+            if i < next {
+                continue;
+            }
+            next = i + 1;
+            let factor = geom_core::spline::span_derivative_scale(p, held[i + 1], held[i + p + 1]);
+            for j in 0..n_in {
+                c = c + (at(i + 1, j) - at(i, j)) * factor;
+            }
         }
     }
-    out
+    c
 }
 
 /// [`chart_stretch_inf`]'s spline arm — the derivation lives there.
 fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
-    let ratio = weight_ratio_factor::<T>(s.weight_channel(), s.weights());
-    // The polynomial derivative nets the inf side reads; the sup side
-    // is the chart's own statement, so `sup_u`/`sup_v` below ARE
-    // [`nurbs_stretch_bounds`]' components.
-    let (q_u, q_v) = (
-        skipping_surface_derivative_net(s, false),
-        skipping_surface_derivative_net(s, true),
-    );
-    let sup_of = |q: &[Vec3<T>]| q.iter().fold(T::zero(), |m, v| m.max(v.norm()));
-    let (poly_sup_u, poly_sup_v) = (sup_of(&q_u), sup_of(&q_v));
-    let mut crosses = Vec::with_capacity(q_u.len() * q_v.len());
-    for &a in &q_u {
-        for &b in &q_v {
-            crosses.push(a.cross(b));
-        }
-    }
-    let cross_sup = sup_of(&crosses);
-    // The infs divide by the weight bracket and the area element
-    // carries one factor per net; the sups are the pair-term statement.
     let (sup_u, sup_v) = nurbs_stretch_bounds(s);
+    let (sup_u, sup_v) = (sup_u.get(), sup_v.get());
+    let (c_u, c_v) = (net_direction(s, false), net_direction(s, true));
+    let normal = c_u.cross(c_v);
     ChartStretchInf {
-        inf_u: net_inf(&q_u, poly_sup_u) / ratio,
-        inf_v: net_inf(&q_v, poly_sup_v) / ratio,
-        sup_u: sup_u.get(),
-        sup_v: sup_v.get(),
-        area_inf: net_inf(&crosses, cross_sup) / ratio.powi(2),
+        inf_u: floor_along(s.stretch_floor(true, c_u), c_u, sup_u),
+        inf_v: floor_along(s.stretch_floor(false, c_v), c_v, sup_v),
+        sup_u,
+        sup_v,
+        area_inf: floor_along(s.area_floor(normal), normal, sup_u * sup_v),
     }
-}
-
-/// `(w_max/w_min)²` — exactly 1 on a unit-weight net — formed in the
-/// scalar over the `held` weights; `channel` is their value channel,
-/// which the admissibility read below decides on.
-///
-/// The constructors validate weights strictly positive and finite
-/// (`geom`'s `net::validate_counts`), but a refinement can write values
-/// they would refuse: knot insertion on a net of subnormal weights
-/// rounds an inserted weight to `0`. A list that is empty or holds a
-/// weight that is not strictly positive and finite therefore answers
-/// POISON — any number here divides an INF arm, and one below the
-/// true ratio over-states it in the unsafe direction. A ratio that
-/// overflows answers `+inf`, which drives the inf to zero (the safe
-/// direction).
-fn weight_ratio_factor<T: Real>(channel: &[f64], held: &[T]) -> T {
-    if channel.is_empty() || channel.len() != held.len() {
-        return T::from_f64(f64::NAN);
-    }
-    if channel.iter().any(|w| !(*w > 0.0 && w.is_finite())) {
-        return T::from_f64(f64::NAN);
-    }
-    let (mut lo, mut hi) = (held[0], held[0]);
-    for w in &held[1..] {
-        lo = lo.min(*w);
-        hi = hi.max(*w);
-    }
-    (hi / lo).powi(2)
 }
 
 /// Check 3 for every lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
@@ -10191,35 +10104,6 @@ mod cone_azimuth_sup {
             (chord - rate.to_meters(dv)).abs() <= 4.0 * f64::EPSILON * dv,
             "a slant step of {dv} moves {chord} m, metred as {} m",
             rate.to_meters(dv)
-        );
-    }
-}
-
-/// **A weight list no constructor admits answers poison, not a factor.**
-#[cfg(test)]
-mod weight_ratio_poison {
-    use super::weight_ratio_factor;
-
-    #[test]
-    fn an_inadmissible_weight_list_is_poison_and_a_wide_one_over_states() {
-        assert_eq!(
-            weight_ratio_factor::<f64>(&[1.0, 2.0], &[1.0, 2.0]),
-            4.0,
-            "the ratio, squared"
-        );
-        for (name, w) in [
-            ("a zero weight", vec![f64::from_bits(1), 0.0]),
-            ("a negative weight", vec![1.0, -1.0]),
-            ("a NaN weight", vec![1.0, f64::NAN]),
-            ("an infinite weight", vec![1.0, f64::INFINITY]),
-            ("no weights", vec![]),
-        ] {
-            assert!(weight_ratio_factor::<f64>(&w, &w).is_nan(), "{name}: {w:?}");
-        }
-        assert_eq!(
-            weight_ratio_factor::<f64>(&[1e-200, 1.0], &[1e-200, 1.0]),
-            f64::INFINITY,
-            "an overflowing ratio over-states"
         );
     }
 }
