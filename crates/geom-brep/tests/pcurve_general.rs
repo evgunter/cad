@@ -378,9 +378,11 @@ fn bowed_image(carrier: &Curve3<f64>, (t0, t1): (f64, f64), bow: f64) -> Arc<Nur
 /// **Check 4 holds a curved carrier's image to its chart between the
 /// samples.** A circle and an ellipse on the rational quarter-cylinder,
 /// their images exact at every certificate sample and bowed 1e-3,
-/// 1e-5 and 1e-7 m-scale in `u` between them: checks 1–3 see an exact
-/// image, and the hull refuses it (`FittedCertificate`, check 4) at
-/// `f64` and at `Interval`. The exact images certify at both.
+/// 1e-5 and 1e-7 in `u` between them (each where it clears the band):
+/// checks 1–3 see an exact image, and the hull refuses it
+/// (`FittedCertificate`, check 4) at `f64` and at `Interval`. The exact
+/// images certify at both, except at Interval under the tightest band
+/// (body comment).
 #[test]
 fn a_curved_carriers_image_bowed_between_samples_refuses_at_the_hull_at_every_scalar() {
     use geom_core::Real;
@@ -412,6 +414,17 @@ fn a_curved_carriers_image_bowed_between_samples_refuses_at_the_hull_at_every_sc
         )
         .map(|_| ())
     };
+    // A bow is only a defect past the band: at ε = 1e-6 a 1e-7 bow is
+    // inside it and certifies, as it should. Each bow is read where it
+    // clears the escalation edge by a decade.
+    let bows: Vec<f64> = [1e-3, 1e-5, 1e-7]
+        .into_iter()
+        .filter(|bow| *bow > 10.0 * band().escalate())
+        .collect();
+    assert!(
+        !bows.is_empty(),
+        "at least the 1e-3 bow clears every CI band"
+    );
     for (name, carrier) in [("circle", circle(0.5)), ("ellipse", ellipse())] {
         let exact = stated_image(&carrier, span);
         assert_eq!(
@@ -419,17 +432,25 @@ fn a_curved_carriers_image_bowed_between_samples_refuses_at_the_hull_at_every_sc
             Ok(()),
             "{name}: the exact image certifies at f64"
         );
-        assert_eq!(
-            at_interval(&exact, &carrier),
-            Ok(()),
-            "{name}: the exact image certifies at Interval"
-        );
-        for bow in [1e-3, 1e-5, 1e-7] {
+        // At Interval the rational wall's own evaluation is a few 1e-12
+        // m wide, so at the tightest band the exact image's sampled
+        // checks escalate before check 4 is asked: there the Interval
+        // leg has no hull to reach, and says so rather than passing.
+        let interval = match at_interval(&exact, &carrier) {
+            Ok(()) => true,
+            Err(PcurveCertifyError::Escalated {
+                check: geom_brep::PcurveCheck::MapResidual,
+                ..
+            }) if band().escalate() < 1e-10 => false,
+            other => panic!("{name}: the exact image certifies at Interval: {other:?}"),
+        };
+        for &bow in &bows {
             let bent = bowed_image(&carrier, span, bow);
-            for (scalar, got) in [
-                ("f64", at_f64(&bent, &carrier)),
-                ("Interval", at_interval(&bent, &carrier)),
-            ] {
+            let mut legs = vec![("f64", at_f64(&bent, &carrier))];
+            if interval {
+                legs.push(("Interval", at_interval(&bent, &carrier)));
+            }
+            for (scalar, got) in legs {
                 assert!(
                     matches!(got, Err(PcurveCertifyError::FittedCertificate { .. })),
                     "{name} bowed {bow:e} at {scalar}: refused at the hull (check 4), no \
