@@ -917,7 +917,8 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
 /// The re-descriptions a section face's re-chart takes: every edge of
 /// `face` among those the re-chart strands (`stranded`, from
 /// [`Body::stranded_by`]) whose description names the chart the face
-/// wears now, stated as an image in that chart. The re-chart reads
+/// wears now, stated as an image in that chart, or, for a conventional
+/// pair, as the pair it is. The re-chart reads
 /// that image as the chart the face moves onto, or, where the edge's
 /// other face keeps the chart, as that chart itself
 /// ([`Body::set_face_surfaces_describing`]). Carrier, interval and a
@@ -951,12 +952,17 @@ fn section_plane_restatements<T: Decide>(
             if !Named::of(geom).keys().any(|k| k == chart) {
                 continue;
             }
-            let image = geom_brep::EdgeDescriptionSpec::chart(chart);
             let mut spec = curve.restated_spec();
-            spec.description = match curve.authority() {
-                geom_brep::EdgeAuthority::Declared(mc) => image.declared_by(mc),
-                geom_brep::EdgeAuthority::Derived => image,
-            };
+            // A pair names no chart to restate it in: listed as it
+            // stands, its key for this face stands for the chart the
+            // face moves onto.
+            if !matches!(curve.description(), geom_brep::EdgeDescription::OnPair { .. }) {
+                let image = geom_brep::EdgeDescriptionSpec::chart(chart);
+                spec.description = match curve.authority() {
+                    geom_brep::EdgeAuthority::Declared(mc) => image.declared_by(mc),
+                    geom_brep::EdgeAuthority::Derived => image,
+                };
+            }
             out.push((edge, spec));
         }
     }
