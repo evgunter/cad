@@ -262,7 +262,7 @@ fn digest() -> String {
 /// or the typed refusal naming its face, then the verdict and
 /// escalation channels' counts and hashes. The `# sym-session` block is
 /// one line per `Sym` body and door ([`counts_line`]): the session's
-/// receipt by outcome (`sz`, `sg`, `reg`, `rref`, `rcon`, `num`), its
+/// receipt by outcome (`sym`, `rref`, `rcon`, `num`), its
 /// disputes (`disp`), the nodes it froze (`frozen`) and the shape
 /// report's length.
 ///

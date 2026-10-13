@@ -5886,7 +5886,7 @@ mod period_fold_rows {
                 "k = {k}: the fold is {k} periods: {out:?}"
             );
             assert_eq!(
-                counts.symbolic_zero, 1,
+                counts.symbolic, 1,
                 "k = {k}: the shift less kτ is the zero polynomial"
             );
         }

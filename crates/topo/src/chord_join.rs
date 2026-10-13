@@ -6500,7 +6500,7 @@ mod nearest_branch_rows {
                 "k = {k}: the branch is {k} periods: {out:?}"
             );
             assert_eq!(
-                counts.symbolic_zero, 1,
+                counts.symbolic, 1,
                 "k = {k}: the branch less k is the zero polynomial"
             );
         }
