@@ -54,7 +54,17 @@ use crate::net;
 /// [`NurbsSurface::stretch_floor`] and [`NurbsSurface::area_floor`] read
 /// each nonempty cell as this many equal pieces along each axis, or
 /// fewer where the restriction weights would not be exact
-/// ([`geom_core::spline::pieces::piece_count`]). @@MEASURE@@
+/// ([`geom_core::spline::pieces::piece_count`]).
+///
+/// Measured on the written chart nets of `sweep/tests/r2_probe_cert8.rs`
+/// (the flat, bowed and sheared rational biquadratic cells, weights
+/// steepened to `1.6×`, `4×`, `8×` and `16×`), as the share of the
+/// sampled least `‖S_u‖`, `‖S_v‖` and area element each floor reads: one
+/// piece per direction reads as little as `0.49` (`‖S_v‖` on the
+/// sheared cell at `16×`), two read at least `0.88` on every row, and
+/// four gain at most `0.04` more, and less on some rows, at three to
+/// four times the cost (in release, about `1 ms` a surface at `f64` and
+/// `9 ms` at `Interval`, against `0.3` and `2.2`).
 const STRETCH_PIECE_SPLITS: usize = 2;
 
 /// The point and every partial with `k + l ≤ 2` at one parameter pair.

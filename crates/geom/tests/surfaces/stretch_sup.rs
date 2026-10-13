@@ -1,8 +1,8 @@
 //! **The rational stretch bound** (`NurbsSurface::stretch_sup`, the
-//! tensor-cell pair-term bound of
-//! `geom_core::spline::rational_stretch_sup`) dominates the true
-//! `‖S_u‖` and `‖S_v‖`, never reads above the homogeneous recipe it
-//! replaced (`step-import`'s whole-patch `derivative_sup`), and is the
+//! quotient bound of `geom_core::spline::derivative` on each cell's
+//! dyadic pieces) dominates the true `‖S_u‖` and `‖S_v‖`, never reads
+//! above the homogeneous recipe the pair-term bound replaced
+//! (`step-import`'s whole-patch `derivative_sup`), and never above the
 //! polynomial control-difference bound at unit weights.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -117,7 +117,7 @@ fn check(name: &str, s: &NurbsSurface<f64>) {
         );
         assert!(
             m <= a * (1.0 + 1e-12),
-            "{name} ({dir}): the pair-term bound {m} above recipe A's {a}"
+            "{name} ({dir}): the quotient bound {m} above recipe A's {a}"
         );
     }
 }
@@ -184,13 +184,14 @@ fn the_bound_covers_the_named_carriers_and_never_reads_above_recipe_a() {
     );
 }
 
-/// **At unit weights the bound is the polynomial control-difference
-/// bound**: `max_{i,j} k_i‖P_{i+1,j} − P_{i,j}‖` per direction, to
-/// rounding (the weight step is an exact zero, so no hull point
-/// contributes, and the divisor is an exact one; recipe A agrees, its
-/// reach term multiplied by an exact zero).
+/// **At unit weights the bound is at most the polynomial
+/// control-difference bound** `max_{i,j} k_i‖P_{i+1,j} − P_{i,j}‖` per
+/// direction: every piece's coefficient of `S_u` is a convex
+/// combination of the derivative net's entries, and the weight power's
+/// are exact ones. On this net, whose largest difference is a boundary
+/// row's, it reads that bound to rounding.
 #[test]
-fn at_unit_weights_the_bound_is_the_control_difference_bound() {
+fn at_unit_weights_the_bound_is_at_most_the_control_difference_bound() {
     let pts: Vec<Point3<f64>> = (0..4)
         .flat_map(|i| {
             (0..3).map(move |j| {
@@ -270,14 +271,13 @@ fn the_bound_covers_random_rational_nets() {
     }
 }
 
-/// **The pair's own points do not suffice, on a surface.** The curve
-/// `speed_upper_bound`'s `reading_the_pair_terms_at_the_pairs_own_points_is_unsound`
-/// pins (`P₀ = P₁`, weights over six decades, sup near `658.6`
-/// against a pair-only reading below `4.9`), ruled along `v` between
-/// two equal rows, so `S_u` is that curve's derivative: reading `j`
-/// over each pair's own two points would be unsound by `136×`.
+/// **Six decades of weight are covered, on a surface.** The curve
+/// `speed_upper_bound`'s `six_decades_of_weight_are_covered` net
+/// (`P₀ = P₁`, sup near `658.6` against a pair-only reading below
+/// `4.9`), ruled along `v` between two equal rows, so `S_u` is that
+/// curve's derivative.
 #[test]
-fn reading_the_pair_terms_at_the_pairs_own_points_is_unsound() {
+fn six_decades_of_weight_are_covered() {
     let (p0, p2) = (
         Point3::new(-0.76958, 0.67766, 0.0),
         Point3::new(-0.21312, -0.94362, 0.0),
@@ -320,11 +320,11 @@ fn reading_the_pair_terms_at_the_pairs_own_points_is_unsound() {
 
 /// **The bound is local, per cell.** Two `u` cells (bilinear, the two
 /// rows `10⁻³` apart), the far column's weight `10⁻³` and its points
-/// `10⁻³` from the middle column's: each cell's bound reads its own least weight, so the near
-/// cell's `‖P₁ − P₀‖ = 1` stays near `1`, and the far cell's tiny step
-/// over its tiny weight near `1` too. Dividing the near cell's terms by
-/// the patch's least weight instead — sound, but global — reads
-/// `1000`.
+/// `10⁻³` from the middle column's: each cell's bound reads its own
+/// weight power, so the near cell's `‖P₁ − P₀‖ = 1` stays near `1`, and
+/// the far cell's tiny step over its tiny weight near `1` too. Dividing
+/// the near cell's terms by the patch's least weight instead — sound,
+/// but global — reads `1000`.
 #[test]
 fn each_cell_reads_its_own_least_weight() {
     let (tiny, step) = (1e-3, 1e-3);

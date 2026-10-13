@@ -135,9 +135,9 @@ fn the_bound_covers_the_named_carriers_and_never_reads_above_recipe_a() {
 }
 
 /// **The pin: the bound is the true sup on the weight-40 parabola.** Its
-/// speed peaks at the ends, `C′(0) = 2·40·(P₁ − P₀)`, and the pair term
-/// `i = 0, j = 0` is exactly that vector: `80√5`, which the bound reads
-/// to rounding and the sampled sup meets.
+/// speed peaks at the ends, `C′(0) = 2·40·(P₁ − P₀)`, and the first
+/// piece's first coefficient ratio is exactly that vector: `80√5`, which
+/// the bound reads to rounding and the sampled sup meets.
 #[test]
 fn the_bound_is_the_true_sup_on_the_weight_forty_parabola() {
     let c = curve(
@@ -268,16 +268,14 @@ fn a_subnormal_least_weight_reads_no_low_bound() {
     }
 }
 
-/// **The pair's own points do not suffice.** On this quadratic
-/// (`P₀ = P₁`, weights over six decades) the speed peaks near
-/// `658.6` while every pair term read at the pair's own two points
-/// stays below `4.9`: reading `j` over the pair only would be unsound
-/// by `136×`. `j` runs over every active point, and the row checks the
-/// sampled sup against the bound and against that pair-only reading.
-/// (Part 1's search for such a carrier drew weights over too narrow a
-/// range to find one.)
+/// **Six decades of weight are covered.** On this quadratic
+/// (`P₀ = P₁`, weights over six decades) the speed peaks near `658.6`,
+/// a peak a relaxation over each control pair's own two points misses
+/// by `136×` (it reads below `4.9`); the bound covers it, and the row
+/// checks the sampled sup against the bound and against that pair-only
+/// reading.
 #[test]
-fn reading_the_pair_terms_at_the_pairs_own_points_is_unsound() {
+fn six_decades_of_weight_are_covered() {
     let (p0, p2) = ((-0.76958, 0.67766), (-0.21312, -0.94362));
     let w = [563.52, 1.1505e-3, 1.6169e-3];
     let c = curve(

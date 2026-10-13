@@ -392,7 +392,7 @@ fn the_conservative_frontier_is_stated_not_hidden() {
     // below refuses with a comfortably positive true minimum speed, so
     // what it pins is the schedules' conservatism, not a property of
     // the geometry — stated out loud so the frontier moves visibly if
-    // `RATIONAL_PIECE_SPLITS` is ever
+    // `SPEED_PIECE_SPLITS` is ever
     // revisited. Refusing is always sound; it is only ever a usability
     // cost.
     let sharp_turn = {

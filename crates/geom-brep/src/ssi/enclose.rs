@@ -77,7 +77,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
-    CellAxis, CellQuotients, KnotVector, ParamRange, QuotientPiece, RingRefinement, Span,
+    CellAxis, CellBlock, CellQuotients, KnotVector, ParamRange, QuotientPiece, RingRefinement, Span,
     TensorNet, cell_quotients, span_derivative_scale,
 };
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
@@ -1069,15 +1069,29 @@ impl CellNet {
             hom,
             quotients: None,
         };
-        let h = net.translated()?.1;
+        let (c, h) = net.translated()?;
         let (held_u, held_v) = (held(spu), held(spv));
-        net.quotients = quotients_of(
-            &h,
-            (
-                CellAxis::Span(spu, &held_u),
-                CellAxis::Span(spv, &held_v),
-            ),
+        let axes = (
+            CellAxis::Span(spu, &held_u),
+            CellAxis::Span(spv, &held_v),
         );
+        net.quotients = if net.hom.is_some() {
+            quotients_of(&h, axes)
+        } else {
+            // Exact points: the pair form reads equal points with equal
+            // weights as an exact zero, which differencing their
+            // translated channels would not.
+            first_piece(cell_quotients(
+                axes,
+                CellBlock::Points {
+                    points: &net.pts,
+                    weights: &net.wts,
+                    origin: c,
+                },
+                (1, 1),
+                false,
+            ))
+        };
         Some(net)
     }
 
@@ -1260,9 +1274,17 @@ fn quotients_of(
 ) -> Option<CellQuotients<Interval>> {
     let a: Vec<[Interval; 3]> = h.iter().map(|c| [c[0], c[1], c[2]]).collect();
     let w: Vec<Interval> = h.iter().map(|c| c[3]).collect();
-    cell_quotients(axes, (&a, &w), (1, 1), false)?
-        .into_iter()
-        .next()
+    first_piece(cell_quotients(
+        axes,
+        CellBlock::Homogeneous { a: &a, w: &w },
+        (1, 1),
+        false,
+    ))
+}
+
+/// The one piece of a block read whole.
+fn first_piece(pieces: Option<Vec<CellQuotients<Interval>>>) -> Option<CellQuotients<Interval>> {
+    pieces?.into_iter().next()
 }
 
 /// The axis of a block cut to `cut` along `span`: a Bézier block of the

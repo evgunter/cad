@@ -321,25 +321,42 @@ impl<T: Real, const D: usize> Grid<T, D> {
         self.c.get(i.checked_mul(self.nv)?.checked_add(j)?).copied()
     }
 
-    /// Every column mapped by `f` (along `u`).
-    fn map_u(&self, f: impl Fn(&[Vector<T, D>]) -> Option<Vec<Vector<T, D>>>) -> Option<Self> {
-        let cols: Vec<Vec<Vector<T, D>>> = (0..self.nv)
-            .map(|j| f(&(0..self.nu()).map(|i| self.get(i, j)).collect::<Option<Vec<_>>>()?))
-            .collect::<Option<_>>()?;
+    /// The columns (along `u`), each `nu` long.
+    fn columns(&self) -> Option<Vec<Vec<Vector<T, D>>>> {
+        (0..self.nv)
+            .map(|j| (0..self.nu()).map(|i| self.get(i, j)).collect())
+            .collect()
+    }
+
+    /// The grid whose columns are `cols`, all one length.
+    fn from_columns(cols: &[Vec<Vector<T, D>>]) -> Option<Self> {
         let nu = cols.first()?.len();
+        cols.iter().all(|c| c.len() == nu).then_some(())?;
         let c = (0..nu)
             .flat_map(|i| cols.iter().map(move |col| col.get(i).copied()))
             .collect::<Option<Vec<_>>>()?;
-        Self::new(self.nv, c)
+        Self::new(cols.len(), c)
+    }
+
+    /// The grid whose rows are `rows`, all one length.
+    fn from_rows(rows: &[Vec<Vector<T, D>>]) -> Option<Self> {
+        let nv = rows.first()?.len();
+        rows.iter().all(|r| r.len() == nv).then_some(())?;
+        Self::new(nv, rows.concat())
+    }
+
+    /// Every column mapped by `f` (along `u`).
+    fn map_u(&self, f: impl Fn(&[Vector<T, D>]) -> Option<Vec<Vector<T, D>>>) -> Option<Self> {
+        let cols: Vec<Vec<Vector<T, D>>> =
+            self.columns()?.iter().map(|c| f(c)).collect::<Option<_>>()?;
+        Self::from_columns(&cols)
     }
 
     /// Every row mapped by `f` (along `v`).
     fn map_v(&self, f: impl Fn(&[Vector<T, D>]) -> Option<Vec<Vector<T, D>>>) -> Option<Self> {
         let rows: Vec<Vec<Vector<T, D>>> =
             self.c.chunks_exact(self.nv).map(&f).collect::<Option<_>>()?;
-        let nv = rows.first()?.len();
-        rows.iter().all(|r| r.len() == nv).then_some(())?;
-        Self::new(nv, rows.concat())
+        Self::from_rows(&rows)
     }
 
     /// `self − other`, coefficient by coefficient, at one shape.
@@ -425,22 +442,6 @@ fn scale_by<T: Real, const D: usize>(v: Vector<T, D>, w: Vector<T, 1>) -> Vector
     v * w.0[0]
 }
 
-/// The degree-`p` window `active` (coefficients `first …`) differenced
-/// into its derivative's window: [`derivative_net`]'s entries, the knot
-/// differences positive by the span contract (module docs).
-fn derivative_window<T: Real, const D: usize>(
-    active: &[Vector<T, D>],
-    held: &[T],
-    p: usize,
-    first: usize,
-) -> Option<Vec<Vector<T, D>>> {
-    active
-        .windows(2)
-        .enumerate()
-        .map(|(k, w)| Some((w[1] - w[0]) * pair_scale(held, p, first + k)?))
-        .collect()
-}
-
 /// One axis of a cell block: a span of a knot vector, whose window
 /// the blossom reads into the span's Bernstein row, or a Bézier block
 /// already in Bernstein form.
@@ -507,12 +508,51 @@ impl<'a, T: Real> Axis<'a, T> {
         }
     }
 
-    /// The window's derivative window.
-    fn derive<const D: usize>(&self, w: &[Vector<T, D>]) -> Option<Vec<Vector<T, D>>> {
+    /// The derivative scale of the window's pair `k`: the span's
+    /// [`pair_scale`] (its knot difference positive by the span
+    /// contract, module docs), or the Bézier block's one scale.
+    fn scale(&self, k: usize) -> Option<T> {
         match *self {
-            Self::Span { held, p, first, .. } => derivative_window(w, held, p, first),
-            Self::Bezier { scale, .. } => Some(w.windows(2).map(|x| (x[1] - x[0]) * scale).collect()),
+            Self::Span { held, p, first, .. } => pair_scale(held, p, first + k),
+            Self::Bezier { scale, .. } => Some(scale),
         }
+    }
+
+    /// The window's derivative window: each pair's difference times
+    /// its [`Self::scale`].
+    fn derive<const D: usize>(&self, w: &[Vector<T, D>]) -> Option<Vec<Vector<T, D>>> {
+        w.windows(2)
+            .enumerate()
+            .map(|(k, x)| Some((x[1] - x[0]) * self.scale(k)?))
+            .collect()
+    }
+
+    /// The derivative windows of the homogeneous `w·(P − c)` and of
+    /// `w`, read off the points and weights in the pair form
+    /// `w₁·(P₁ − P₀) + (w₁ − w₀)·(P₀ − c)`: every point enters as a
+    /// difference with another, so equal points with equal weights read
+    /// an exact zero at any scalar, and a translation moves a term by
+    /// its rounding alone.
+    #[allow(clippy::type_complexity)]
+    fn derive_pairs<const D: usize>(
+        &self,
+        pts: &[Vector<T, D>],
+        ws: &[Vector<T, 1>],
+        c: Vector<T, D>,
+    ) -> Option<(Vec<Vector<T, D>>, Vec<Vector<T, 1>>)> {
+        pts.windows(2)
+            .zip(ws.windows(2))
+            .enumerate()
+            .map(|(k, (p, w))| {
+                let s = self.scale(k)?;
+                let dw = w[1] - w[0];
+                Some((
+                    (scale_by(p[1] - p[0], w[1]) + scale_by(p[0] - c, dw)) * s,
+                    dw * s,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()
+            .map(|v| v.into_iter().unzip())
     }
 }
 
@@ -630,11 +670,12 @@ pub fn speed_pieces<T: Real, const D: usize>(
                 let c = *pts.first()?;
                 let a: Vec<Vector<T, D>> =
                     pts.iter().zip(&ws).map(|(x, w)| scale_by(*x - c, *w)).collect();
+                let (da, dw) = axis.derive_pairs(&pts, &ws, c)?;
                 let rows = (
                     axis.row(&a, false)?,
                     axis.row(&ws, false)?,
-                    axis.row(&axis.derive(&a)?, true)?,
-                    axis.row(&axis.derive(&ws)?, true)?,
+                    axis.row(&da, true)?,
+                    axis.row(&dw, true)?,
                 );
                 let count = piece_count(p, splits);
                 let (wp, wq) = (piece_weights(p, count)?, piece_weights(p - 1, count)?);
@@ -653,34 +694,102 @@ pub fn speed_pieces<T: Real, const D: usize>(
     Some(out)
 }
 
+/// A cell block's control net, row-major `(p + 1) × (q + 1)`.
+#[derive(Clone, Copy, Debug)]
+pub enum CellBlock<'a, T> {
+    /// Cartesian points and weights, read in the frame of `origin`:
+    /// the derivatives in the pair form `w₁·(P₁ − P₀) + (w₁ − w₀)·(P₀ − c)`,
+    /// so equal points with equal weights read an exact zero.
+    Points {
+        /// The control points.
+        points: &'a [[T; 3]],
+        /// Their weights.
+        weights: &'a [T],
+        /// The frame `c`, any one point.
+        origin: [T; 3],
+    },
+    /// The homogeneous channels `w·(P − c)` and `w`, for one frame `c`:
+    /// the derivatives are their differences.
+    Homogeneous {
+        /// `w·(P − c)`.
+        a: &'a [[T; 3]],
+        /// `w`.
+        w: &'a [T],
+    },
+}
+
 /// **The surface statement's pieces on one cell block** (module docs):
-/// the block along `axes`, in homogeneous form — `a` the row-major
-/// `(p + 1) × (q + 1)` block of `w·(P − c)` for any one point `c`, `w`
-/// the weights — cut into [`piece_count`]`(p, splits.0)` ×
-/// [`piece_count`]`(q, splits.1)` exact dyadic pieces, row-major in
-/// `u` then `v`. `area` asks for `S_u × S_v` as well. `None` on a
-/// degree below one, a block of the wrong size, or a common degree
-/// above [`QUOTIENT_MAX_DEGREE`].
+/// the `block` along `axes`, cut into [`piece_count`]`(p, splits.0)` ×
+/// [`piece_count`]`(q, splits.1)` exact dyadic pieces, row-major in `u`
+/// then `v`. `area` asks for `S_u × S_v` as well. `None` on a degree
+/// below one, a block of the wrong size, or a common degree above
+/// [`QUOTIENT_MAX_DEGREE`].
 pub fn cell_quotients<T: Real>(
     axes: (CellAxis<'_, T>, CellAxis<'_, T>),
-    (a, w): (&[[T; 3]], &[T]),
+    block: CellBlock<'_, T>,
     splits: (usize, usize),
     area: bool,
 ) -> Option<Vec<CellQuotients<T>>> {
     let (au, av) = (Axis::of(axes.0)?, Axis::of(axes.1)?);
     let (p, q) = (au.p(), av.p());
-    if p == 0 || q == 0 || a.len() != (p + 1) * (q + 1) {
+    let count = (p + 1) * (q + 1);
+    if p == 0 || q == 0 {
         return None;
     }
-    let a = Grid::new(q + 1, a.iter().map(|x| Vector(*x)).collect())?;
-    let w = Grid::new(q + 1, w.iter().map(|x| Vector([*x])).collect())?;
+    let grid3 = |x: &[[T; 3]]| Grid::new(q + 1, x.iter().map(|v| Vector(*v)).collect());
+    let grid1 = |x: &[T]| Grid::new(q + 1, x.iter().map(|v| Vector([*v])).collect());
+    let (a, w, (au_w, wu_w), (av_w, wv_w)) = match block {
+        CellBlock::Points {
+            points,
+            weights,
+            origin,
+        } => {
+            if points.len() != count || weights.len() != count {
+                return None;
+            }
+            let (pg, wg, c) = (grid3(points)?, grid1(weights)?, Vector(origin));
+            let a = Grid::new(
+                q + 1,
+                pg.c.iter().zip(&wg.c).map(|(x, w)| scale_by(*x - c, *w)).collect(),
+            )?;
+            let (pc, wc) = (pg.columns()?, wg.columns()?);
+            let along_u = pc
+                .iter()
+                .zip(&wc)
+                .map(|(x, w)| au.derive_pairs(x, w, c))
+                .collect::<Option<Vec<_>>>()?;
+            let along_v = pg
+                .c
+                .chunks_exact(q + 1)
+                .zip(wg.c.chunks_exact(q + 1))
+                .map(|(x, w)| av.derive_pairs(x, w, c))
+                .collect::<Option<Vec<_>>>()?;
+            let (ua, uw): (Vec<_>, Vec<_>) = along_u.into_iter().unzip();
+            let (va, vw): (Vec<_>, Vec<_>) = along_v.into_iter().unzip();
+            (
+                a,
+                wg,
+                (Grid::from_columns(&ua)?, Grid::from_columns(&uw)?),
+                (Grid::from_rows(&va)?, Grid::from_rows(&vw)?),
+            )
+        }
+        CellBlock::Homogeneous { a, w } => {
+            if a.len() != count || w.len() != count {
+                return None;
+            }
+            let (a, w) = (grid3(a)?, grid1(w)?);
+            let u = (a.map_u(|c| au.derive(c))?, w.map_u(|c| au.derive(c))?);
+            let v = (a.map_v(|r| av.derive(r))?, w.map_v(|r| av.derive(r))?);
+            (a, w, u, v)
+        }
+    };
     let whole = Homogeneous {
         a: cell_grid(&a, (&au, false), (&av, false))?,
         w: cell_grid(&w, (&au, false), (&av, false))?,
-        au: cell_grid(&a.map_u(|c| au.derive(c))?, (&au, true), (&av, false))?,
-        wu: cell_grid(&w.map_u(|c| au.derive(c))?, (&au, true), (&av, false))?,
-        av: cell_grid(&a.map_v(|r| av.derive(r))?, (&au, false), (&av, true))?,
-        wv: cell_grid(&w.map_v(|r| av.derive(r))?, (&au, false), (&av, true))?,
+        au: cell_grid(&au_w, (&au, true), (&av, false))?,
+        wu: cell_grid(&wu_w, (&au, true), (&av, false))?,
+        av: cell_grid(&av_w, (&au, false), (&av, true))?,
+        wv: cell_grid(&wv_w, (&au, false), (&av, true))?,
     };
     let counts = (piece_count(p, splits.0), piece_count(q, splits.1));
     let mut out = Vec::with_capacity(counts.0 * counts.1);
@@ -695,8 +804,8 @@ pub fn cell_quotients<T: Real>(
 /// **The surface statement's pieces** over every nonempty cell of the
 /// rational tensor patch over `knots_u` × `knots_v` with row-major
 /// `points` and `weights` (`[iu·nv + iv]`): [`cell_quotients`] per cell
-/// in ascending `(su, sv)`, each cell's window translated to its first
-/// active point. `None` as [`cell_quotients`] or on an index past an
+/// in ascending `(su, sv)`, each cell's window read in the frame of its
+/// first active point. `None` as [`cell_quotients`] or on an index past an
 /// array; empty when no cell is nonempty.
 pub fn stretch_pieces<T: Real>(
     (knots_u, knots_v): (&Knots<T>, &Knots<T>),
@@ -717,18 +826,17 @@ pub fn stretch_pieces<T: Real>(
                     block.push((*points.get(k)?, *weights.get(k)?));
                 }
             }
-            let c = block.first()?.0;
-            let a: Vec<[T; 3]> = block
-                .iter()
-                .map(|(x, w)| core::array::from_fn(|i| (x[i] - c[i]) * *w))
-                .collect();
-            let w: Vec<T> = block.iter().map(|b| b.1).collect();
+            let (points, weights): (Vec<[T; 3]>, Vec<T>) = block.into_iter().unzip();
             out.extend(cell_quotients(
                 (
                     CellAxis::Span(su, knots_u.values()),
                     CellAxis::Span(sv, knots_v.values()),
                 ),
-                (&a, &w),
+                CellBlock::Points {
+                    origin: *points.first()?,
+                    points: &points,
+                    weights: &weights,
+                },
                 splits,
                 area,
             )?);
