@@ -44,9 +44,10 @@ from the origin, its crossings sat off the smaller carrier by up to
 
 ## Where to look
 
-`seg.rs` `radical_chord` takes `a` and `h²` from the clearances,
+`seg.rs` `Circles` (`radical`, `crossings`) takes `a` and `h²` from the clearances,
 `r₁ − a = (r₁ + r₂ − d)(d − r₁ + r₂)/2d` and
 `h² = (r₁ + r₂ − d)(d − r₁ + r₂)(d + r₁ − r₂)(d + r₁ + r₂)/4d²`:
 at most 3.6 ulps off either carrier across the same range, and an
-identity, so Interval encloses. A shared home for it, rather than one
-copy per crate, is the owner's call.
+identity, so Interval encloses. A shared `geom_core` home for it is
+`work/issues/circle-pair-radical-chord-has-no-shared-home.md`; fixing
+these sites before it lands mints a copy at each.

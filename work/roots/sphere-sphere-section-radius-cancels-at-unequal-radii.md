@@ -32,8 +32,11 @@ to 1.9e8 ulps of the largest of the radii and the centres' coordinates.
 
 ## Where to look
 
-`seg.rs` `radical_chord`: `r₁ − a = (r₁ + r₂ − d)(d − r₁ + r₂)/2d` and
+`seg.rs` `Circles` (`radical`, `crossings`): `r₁ − a = (r₁ + r₂ − d)(d − r₁ + r₂)/2d` and
 `h² = (r₁ + r₂ − d)(d − r₁ + r₂)(d + r₁ − r₂)(d + r₁ + r₂)/4d²`, at most
 3.6 ulps off either carrier across the same range, and an identity, so
 Interval encloses. The Zero arms' tangent point is
-`decided-tangent-point-is-the-radical-foot`'s matter.
+`decided-tangent-point-is-the-radical-foot`'s matter. A shared
+`geom_core` home for the algebra is
+`work/issues/circle-pair-radical-chord-has-no-shared-home.md`; fixing
+this site before it lands mints another copy.

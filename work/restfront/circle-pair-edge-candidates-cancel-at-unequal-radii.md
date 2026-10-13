@@ -1,17 +1,49 @@
 ---
 id: circle-pair-edge-candidates-cancel-at-unequal-radii
 kind: issue
-title: The at-rest validator's circle x circle edge-pair candidates are placed by differences of squares, so at radii orders of magnitude apart they sit off the smaller circle and a crossing can read apart
+title: The at-rest validator's circle x circle edge-pair candidates are placed by differences of squares, so at radii orders of magnitude apart they sit off the smaller circle and a crossing reads apart
 status: open
 opened: 2026-10-13
-priority: P1
+priority: P0
 cost: E
 ---
 
 
 Found by the sweep of `paths/arc-arc-secant-arm-misses-crossings-at-unequal-radii`,
-which fixed the same algebra in the profile validator. Not reproduced at
-this site; the algebra is the one measured there.
+which fixed the same algebra in the profile validator, and reproduced
+here by a review of that PR (#5032) and again by its fix pass. It is a
+live false acceptance: arm 5 reads two crossing edges apart, so a face
+loop that crosses itself passes the validator's check 9.
+
+## Reproduction
+
+`segments_meet`, called directly (a `validate::tests` row, `z = 0`,
+axis `+z`, `u_ref` `+x`) with the profile issue's second pair as
+`MeetSegment::Arc`s, each trim `[t0, t1]` counter-clockwise:
+
+```rust
+let big = seg((6.744_101_644_309_793, 79.705_363_072_029_3), 80.443_149_988_593_5,
+    5.633_354_791_777_812 - 0.902_846_282_788_287_3, 5.633_354_791_777_812);
+let small = seg((8.183_130_461_020_52, -0.750_331_493_417_868_4), 0.031_696_690_544_870_94,
+    2.274_954_781_868_850_7, 2.274_954_781_868_850_7 + 4.970_712_391_069_452);
+segments_meet(big, small, n, band)
+```
+
+The circles cross 2.0e-11 inside the large arc's end and 0.157 inside
+the small one (a 50-digit check, in the profile issue). Measured on
+#5032's fix-pass head:
+
+| ε | `(big, small)` | `(small, big)` |
+|---|---|---|
+| 1e-9 | `Meet` | `Meet` |
+| 1e-12 | **`Apart`** | `Meet` |
+
+Only the order with the larger circle first is wrong, because the
+cancellation is at `c₁`'s scale. The first profile pair (r = 62.76
+against 1.28e-7) reads `Meet` both ways at both ε. The half-chord's
+`.max(T::zero())` clamp also hides a radicand the rounding drove
+negative: the candidates then collapse onto the foot with nothing
+saying so.
 
 ## The shape
 
@@ -37,7 +69,7 @@ cross validated.
 
 ## Where to look
 
-`seg.rs` `radical_chord` takes both from the clearances:
+`seg.rs` `Circles` (`radical`, `crossings`) takes both from the clearances:
 `r₁ − a = (r₁ + r₂ − d)(d − r₁ + r₂)/2d` and
 `h² = (r₁ + r₂ − d)(d − r₁ + r₂)(d + r₁ − r₂)(d + r₁ + r₂)/4d²`, with
 `r₁ − r₂` and `r₁ + r₂` formed once. Measured there at no more than 3.6
@@ -45,3 +77,7 @@ ulps of the same scale off either carrier across the whole range, and
 Interval encloses (it is an identity). The tangent arm's foot
 (`a = ±r₁`) is `decided-tangent-point-is-the-radical-foot`'s matter,
 not this one's.
+
+A shared `geom_core` home for that algebra is
+`work/issues/circle-pair-radical-chord-has-no-shared-home.md`; fixing
+this site before it lands mints another copy.

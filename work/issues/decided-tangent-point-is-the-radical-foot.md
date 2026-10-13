@@ -45,7 +45,7 @@ tangent's one point, each its owner's to weigh:
   arcs, and the chordal `arc_span` reading of that point refuses
   `TangentialContact` between arcs that are 1–3 cm apart, so the
   radial place does decide a verdict there. Its `a` now comes from the
-  clearances (`radical_chord`), which takes out rounding of about
+  clearances (`Circles::foot`), which takes out rounding of about
   `u·r²/d` but keeps the point at the foot, so the amplification here
   is unchanged. The external arm takes
   `c₁ + û·r₁` and is already gap-optimal. **This point is read as a
