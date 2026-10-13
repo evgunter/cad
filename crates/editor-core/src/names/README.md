@@ -316,7 +316,11 @@ lies on, read off the finished body and the members' own bodies
   a piece of the first minted of them (the least in name order, since name
   order compares the minting node's id first and ids order as minted), so a
   member added later never takes a stretch from an earlier one, whatever the
-  fold named it.
+  fold named it. An edge lies within a member edge when it lies on that edge's
+  segment and both of its faces descend from that member edge's two faces. An
+  edge one of whose member faces was glued away, another member's face lying
+  over it, does not: it is the seam of the faces it separates, as a subtract's
+  pocket rim is, and it vanishes when the junction does.
 - An edge that lies within none, but runs along several member edges that
   together cover it, is named for that set: `Merged` of those member edges,
   flat and in name order, the shape faces have (N3). Such an edge is a flush

@@ -936,7 +936,10 @@ fn two_tori_meeting_in_an_oval_are_not_an_assembly() {
     let d = donut();
     let far = topo::transform_rigid(
         &d,
-        &Affine3::from_parts(Mat3::identity(), Vec3::new(0.0, 0.0, 4.9)),
+        &geom_core::test_support::rigid(
+            &Affine3::from_parts(Mat3::identity(), Vec3::new(0.0, 0.0, 4.9)),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .expect("the donut translates");
@@ -1200,7 +1203,10 @@ fn subtract_and_intersect_refuse_where_union_does() {
     }
     let far = topo::transform_rigid(
         &d,
-        &Affine3::from_parts(Mat3::identity(), Vec3::new(0.0, 0.0, 4.9)),
+        &geom_core::test_support::rigid(
+            &Affine3::from_parts(Mat3::identity(), Vec3::new(0.0, 0.0, 4.9)),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .expect("the donut translates");

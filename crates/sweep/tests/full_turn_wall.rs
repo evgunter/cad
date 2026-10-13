@@ -21,7 +21,7 @@
 
 use crate::common::approx::band;
 use geom::Surface;
-use geom_core::{OrthoFrame, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Point2, Point3, RigidMotion, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{
@@ -45,7 +45,7 @@ impl Pose {
         } else {
             (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0))
         };
-        let f = OrthoFrame::gram_schmidt(o, u, v, "full_turn_wall", band()).unwrap();
+        let f = RigidMotion::gram_schmidt(o, u, v, "full_turn_wall", band()).unwrap();
         Self {
             o,
             u: f.u().get(),
@@ -61,7 +61,7 @@ impl Pose {
 
     fn plane(&self) -> SketchPlane<f64> {
         SketchPlane::from_frame(
-            OrthoFrame::gram_schmidt(self.o, self.u, self.v, "full_turn_wall", band()).unwrap(),
+            RigidMotion::gram_schmidt(self.o, self.u, self.v, "full_turn_wall", band()).unwrap(),
         )
     }
 }

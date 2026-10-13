@@ -281,7 +281,12 @@ fn probe() {
             for (pose, map) in poses(s) {
                 let posed = finished(
                     "the posed body",
-                    transform_rigid(&body, &map, Tol::witness()).unwrap(),
+                    transform_rigid(
+                        &body,
+                        &geom_core::test_support::rigid(&map, Tol::witness()),
+                        Tol::witness(),
+                    )
+                    .unwrap(),
                     Tol::witness(),
                 );
                 let mut t = Tally::default();
@@ -429,17 +434,18 @@ fn a_cut_clear_of_the_face_splits_in_every_pose() {
             let d = lo - 1e-3 * s - 100.0 * Tol::witness().eps();
             for (pose, map) in &poses(s)[pose_set.clone()] {
                 let tol = Tol::witness();
-                let posed = match transform_rigid(&body, map, tol) {
-                    Ok(posed) => finished("the posed body", posed, tol),
-                    Err(e) if tol.eps() < geom_core::tolerance::DEFAULT_EPS => {
-                        test_utils::vacuity::stood_down(
-                            &format!("{} at scale {s}, {pose}, eps = {:e}", f.name, tol.eps()),
-                            &format!("posing the body refused ({e}) before any cut"),
-                        );
-                        continue;
-                    }
-                    Err(e) => panic!("{} at scale {s}, {pose}: posing refused: {e}", f.name),
-                };
+                let posed =
+                    match transform_rigid(&body, &geom_core::test_support::rigid(map, tol), tol) {
+                        Ok(posed) => finished("the posed body", posed, tol),
+                        Err(e) if tol.eps() < geom_core::tolerance::DEFAULT_EPS => {
+                            test_utils::vacuity::stood_down(
+                                &format!("{} at scale {s}, {pose}, eps = {:e}", f.name, tol.eps()),
+                                &format!("posing the body refused ({e}) before any cut"),
+                            );
+                            continue;
+                        }
+                        Err(e) => panic!("{} at scale {s}, {pose}: posing refused: {e}", f.name),
+                    };
                 for (cut, plane) in [
                     (
                         "square",
@@ -506,7 +512,12 @@ fn a_cut_into_the_face_refuses_in_every_pose() {
         for (pose, map) in poses(s) {
             let posed = finished(
                 "the posed body",
-                transform_rigid(&body, &map, Tol::witness()).unwrap(),
+                transform_rigid(
+                    &body,
+                    &geom_core::test_support::rigid(&map, Tol::witness()),
+                    Tol::witness(),
+                )
+                .unwrap(),
                 Tol::witness(),
             );
             for &(cut, plane) in &cuts {
