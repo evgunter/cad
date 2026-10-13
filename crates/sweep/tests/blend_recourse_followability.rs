@@ -357,10 +357,10 @@ fn the_chain_recourse_is_followed_by_a_tangent_continuous_chain() {
 /// sentence. Its three positive clauses are then executed on a cube: the
 /// edge alone, cut off in the plane end faces at both ends; two edges
 /// of one corner, whose faces are symmetric about the third, meeting in
-/// a mitre; and every edge of every corner, the corner patch. Of the
-/// residue, a turn whose bands' feet stand apart refuses with this
-/// sentence too, and so does the third edge of a mitred corner blended
-/// in a later call — whose last clause, requesting it in the same call,
+/// a mitre; and every edge of every corner, the corner patch. A turn
+/// whose bands' feet stand apart builds its overrun. Of the residue, the
+/// third edge of a mitred corner blended in a later call refuses with
+/// this sentence — whose last clause, requesting it in the same call,
 /// builds.
 #[test]
 fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
@@ -378,9 +378,9 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
     builds(&body, &corner[..2], 0.1, "two edges of a symmetric corner");
     builds(&body, &edges, 0.1, "every corner fully requested");
     // Of the turns whose bands' feet stand apart, the leaning wall's and
-    // the sheared box's supplementary corner's fillets each overrun the
-    // mitre, and each refusal names a band of its own request. The
-    // supplementary corner's chamfer feet coincide, so it mitres.
+    // the sheared box's supplementary corner's fillets each build the
+    // overrun past the mitre. The supplementary corner's chamfer feet
+    // coincide, so it mitres.
     let (leaning, _) = crate::common::operands::leaning_turn(0.5);
     let sheared = crate::common::operands::parallelepiped(0.3);
     let pair = |body: &topo::Body<f64>, v: [f64; 3], a: [f64; 3], b: [f64; 3]| {
@@ -390,25 +390,13 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
         ]
     };
     let supplementary = pair(&sheared, [2.3, 0.3, 1.0], [0.3, 0.3, 1.0], [2.3, 1.8, 1.0]);
-    for (what, body, edges) in [
-        (
-            "an asymmetric turn",
-            &leaning,
-            pair(&leaning, [0.5, 0.0, 1.0], [2.0, 0.0, 1.0], [0.5, -1.5, 1.0]),
-        ),
-        ("a supplementary turn", &sheared, supplementary),
-    ] {
-        let refused = refusal(body, &edges, 0.1, what, false);
-        let BlendError::UnsupportedRunOut { at, .. } = refused else {
-            panic!("{what} is a run-out, got {refused:?}")
-        };
-        carries(&refused, FILLET3_CORNER_RECOURSE, what);
-        let text = refused.to_string();
-        assert!(
-            text.contains("overrun") && edges.iter().any(|e| at == topo::EntityId::Edge(*e)),
-            "{what}: the refusal is the overrun, at a requested band ({at:?}): {text}"
-        );
-    }
+    builds(
+        &leaning,
+        &pair(&leaning, [0.5, 0.0, 1.0], [2.0, 0.0, 1.0], [0.5, -1.5, 1.0]),
+        0.1,
+        "an asymmetric turn",
+    );
+    builds(&sheared, &supplementary, 0.1, "a supplementary turn");
     chamfers(
         &sheared,
         &supplementary,
@@ -455,7 +443,11 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
 /// (the sheared box's corner), the feet clearly apart by a more
 /// asymmetric corner (a lean of `0.5`) and by a larger setback (the same
 /// lean at `0.5`), each the overrun, and the third edge requested in the
-/// same call, the corner patch.
+/// same call, the corner patch. The fillet's turn reads in band at a
+/// `60°` corner skewed by a few millionths of a degree (its gap is linear
+/// in the skew), and its ends build the same way: equal face angles, a
+/// more asymmetric corner, a five times larger radius at the same skew,
+/// and the third edge requested too.
 #[test]
 fn the_turn_recourse_builds_at_each_end_it_names() {
     use crate::band_planar_cut_off::edge;
@@ -520,6 +512,82 @@ fn the_turn_recourse_builds_at_each_end_it_names() {
         &[bands[0], bands[1], third],
         0.1,
         "the third edge in the same call",
+    );
+    fillet_turn_recourse();
+}
+
+/// [`the_turn_recourse_builds_at_each_end_it_names`]'s fillet legs.
+fn fillet_turn_recourse() {
+    use crate::band_turn_overrun_probe::Cone;
+    use crate::band_turn_overrun_verdict::corner;
+    let z = Band::linear(tol()).expect("the run's band").zero() / 1e-9;
+    let at = |b: f64| {
+        corner(&Cone::angles(
+            [60f64.to_radians(), b.to_radians()],
+            90f64.to_radians(),
+        ))
+    };
+    let (skewed, bands) = at(60.0 + 2e-6 * z);
+    let err = refusal(&skewed, &bands, 0.1, "a fillet turn in band", false);
+    assert!(
+        matches!(
+            err,
+            BlendError::Escalated {
+                decision: BlendDecision::TurnFeetGap
+                    | BlendDecision::TurnOverrunChord
+                    | BlendDecision::TurnFeet,
+                ..
+            }
+        ),
+        "a fillet turn in band escalates on its readings, got {err:?}"
+    );
+    carries(&err, FILLET3_TURN_RECOURSE, "a fillet turn in band");
+    let (equal, turn) = at(60.0);
+    builds(&equal, &turn, 0.1, "a fillet's equal face angles");
+    let (apart, turn) = at(80.0);
+    builds(
+        &apart,
+        &turn,
+        0.1,
+        "a fillet's feet apart, a more asymmetric corner",
+    );
+    let larger = fillet_edges(
+        &sweep::test_support::at_rest(&skewed, tol()),
+        &bands,
+        0.5,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("a fillet's larger radius: the request must build, got {e:?}"));
+    validate_geometric(&larger.body, tol())
+        .unwrap_or_else(|e| panic!("a fillet's larger radius: tier 3, got {e:?}"));
+    assert!(
+        !larger
+            .coincidences
+            .iter()
+            .any(|r| r.relation == topo::Relation::CommonFoot),
+        "a larger radius moves the feet apart: the overrun, not a mitre"
+    );
+    // The corner is the origin; its third edge is the other one there.
+    let at_origin = |v: topo::VertexKey| {
+        let p = skewed
+            .get_point(skewed.get_vertex(v).unwrap().point)
+            .unwrap();
+        p.x.abs() + p.y.abs() + p.z.abs() < 1e-12
+    };
+    let third = query::all_edges(&skewed)
+        .into_iter()
+        .find(|e| {
+            let he = skewed.get_edge(*e).unwrap().he_plus;
+            !bands.contains(e)
+                && (at_origin(skewed.get_half_edge(he).unwrap().start)
+                    || at_origin(skewed.half_edge_end(he).unwrap()))
+        })
+        .expect("the corner's third edge");
+    builds(
+        &skewed,
+        &[bands[0], bands[1], third],
+        0.1,
+        "a fillet's third edge in the same call",
     );
 }
 

@@ -1120,13 +1120,12 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end chains at trivalent vertices of o
 /// point, clearly apart, or the corner patch, which the third edge
 /// requested alongside builds. A chamfer's foot stands `d / sin φ` down
 /// the third edge, so its feet also meet at supplementary face angles.
-/// Feet clearly apart are a way out for a chamfer alone, whose overrun
-/// builds; a fillet's refuses ([`battery::TURN_OVERRUN`]). Held to it by
+/// Feet clearly apart build the overrun, for either verb. Held to it by
 /// `blend_recourse_followability::the_turn_recourse_builds_at_each_end_it_names`.
 pub const FILLET3_TURN_RECOURSE: &str = "make the two bands' feet on the vertex's third edge meet \
-     (equal face angles beside that edge, or for a chamfer supplementary ones), for a chamfer move \
-     them clearly apart (a larger setback, or a more asymmetric corner), or request that edge too, \
-     which builds the corner patch";
+     (equal face angles beside that edge, or for a chamfer supplementary ones), move them clearly \
+     apart (a larger setback, or a more asymmetric corner), or request that edge too, which builds \
+     the corner patch";
 /// The lever of `fillet3_cap_transverse`: its in-band arm is the one
 /// refusal, between the two kinds it builds, so the way out is either
 /// kind, plainly.

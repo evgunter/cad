@@ -364,11 +364,11 @@ pub(in crate::blend) struct TurnPlan<'a, T: Real> {
     /// The mitre's carrier: the chord where two plane bands cross, or
     /// the ellipse where two cylinder bands do.
     mitre: ContactCarrier<T>,
-    /// At an overrun, the region the far band's cut-off at the near
-    /// band's face of the third edge takes from that face: the far
-    /// band's whole cut-off sliver there, which arm (c) meters
-    /// ([`EndCut::plan`]).
-    pub(in crate::blend) sliver: Option<CapSliver<T>>,
+    /// At an overrun, the far band's cut-off at the near band's face of
+    /// the third edge ([`EndCut::plan`]): the carrier of the overrun
+    /// edge, a piece of its end curve, and its whole sliver there, which
+    /// arm (c) meters.
+    pub(in crate::blend) overrun: Option<(ContactCarrier<T>, CapSliver<T>)>,
 }
 
 /// The refusal for a fillet turn whose two cylinders the section door
@@ -391,10 +391,12 @@ const MITRE_NOT_AN_ELLIPSE: &str = "a turn's two cylinder bands do not meet in a
 /// `at` is the foot's parameter on the third edge, read by the caller.
 ///
 /// At an overrun the far band is planned cut off at the near band's
-/// face of the third edge, as any cut-off is ([`EndCut::plan`]): its
-/// feet are the far foot on the third edge and its trimline on the
-/// shared face met with the near band's requested edge, and the sliver
-/// between them and the vertex is what the ring pass meters.
+/// face of the third edge, as any cut-off is ([`EndCut::plan`]), in the
+/// section the battery picked ([`Overrun::section`]): its feet are the
+/// far foot on the third edge and its trimline on the shared face met
+/// with the near band's requested edge, the overrun edge is its end
+/// curve's piece from the mitre's end to the far foot, and the sliver
+/// between the feet and the vertex is what the ring pass meters.
 ///
 /// # Errors
 ///
@@ -469,20 +471,19 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
             ContactCarrier::Transverse(e1)
         }
     };
-    let sliver = match turn.overrun() {
+    let overrun = match turn.overrun() {
         None => None,
-        Some(o) => Some(
-            cut_off_plan(body, links[o.far], vertex, EndSection::Chord)?
-                .end
-                .sliver,
-        ),
+        Some(o) => {
+            let end = cut_off_plan(body, links[o.far], vertex, o.section.clone())?.end;
+            Some((end.carrier(), end.sliver))
+        }
     };
     Ok(TurnPlan {
         turn,
         links,
         at,
         mitre,
-        sliver,
+        overrun,
     })
 }
 
@@ -1043,8 +1044,9 @@ fn turn_split<T: Decide + topo::AtRestPolicy>(
 /// far band's cut-off at the near band's face of the third edge, from
 /// the turn foot `foot` on that edge out into the face to the mitre's
 /// end, which is where the near band's trimline there starts. The edge
-/// is the far band's end curve (a chamfer's chord) and its end that
-/// band's foot on the face, as at any cut-off. Returns the mitre's end.
+/// is the far band's end curve (a chamfer's chord, a fillet's arc of a
+/// circle or an ellipse) and its end that band's foot on the face, as at
+/// any cut-off. Returns the mitre's end.
 ///
 /// # Errors
 ///
@@ -1060,6 +1062,12 @@ fn overrun_cut<T: Decide + topo::AtRestPolicy>(
     rec: &mut BlendNaming,
     tol: Tol,
 ) -> Result<VertexKey, BlendError> {
+    let (carrier, _) = t.overrun.as_ref().ok_or_else(|| {
+        not_intact(
+            EntityId::Vertex(t.turn.vertex),
+            "an overrun's planned cut-off",
+        )
+    })?;
     let near = t.turn.others[o.near()];
     let he = half_from(body, near, foot)?;
     let p =
@@ -1073,7 +1081,7 @@ fn overrun_cut<T: Decide + topo::AtRestPolicy>(
         )
         .map_err(|e| op("overrun mev", e))?;
     let crease = t.links[o.far].edge();
-    described.push((created.edge, ContactCarrier::Chord, crease));
+    described.push((created.edge, carrier.clone(), crease));
     rec.arcs.push((created.edge, t.turn.vertex, crease));
     rec.feet.push((created.vertex, t.turn.vertex, near));
     Ok(created.vertex)

@@ -14,13 +14,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Bounds, Decide, Interval, Point2, Point3, Vec3};
-use sweep::blend::battery::{BlendRequest, TURN_OVERRUN, TurnRunOut, run_battery_for};
+use sweep::blend::battery::{BlendRequest, TurnRunOut, run_battery_for};
 use sweep::blend::{BlendDecision, BlendError, BlendKind};
 use sweep::test_support::{
     prism_on, realized, sketch_from_axes, turn_readings, turn_readings_interval,
 };
 use topo::boolean::BooleanOp;
-use topo::{Body, EdgeKey, EntityId};
+use topo::{Body, EdgeKey};
 
 use crate::band_planar_cut_off::{D, edge, tol, volume};
 use crate::band_turn_overrun_probe::{
@@ -210,26 +210,14 @@ fn outcome<T: Decide + Bounds>(body: &Body<T>, edges: [EdgeKey; 2], verb: Verb) 
                     assert_eq!(row.site, topo::DecisionSite::BatteryTurn);
                     Outcome::Mitre
                 }
-                TurnRunOut::Overrun(o) => {
-                    assert_eq!(verb, Verb::Chamfer, "only a chamfer's overrun is admitted");
-                    Outcome::Overrun(
-                        edges
-                            .iter()
-                            .position(|x| *x == turn.requested[o.far])
-                            .expect("the overrun's far band is a requested edge"),
-                    )
-                }
+                TurnRunOut::Overrun(o) => Outcome::Overrun(
+                    edges
+                        .iter()
+                        .position(|x| *x == turn.requested[o.far])
+                        .expect("the overrun's far band is a requested edge"),
+                ),
             }
         }
-        Err(BlendError::UnsupportedRunOut {
-            at: EntityId::Edge(e),
-            detail,
-        }) if detail == TURN_OVERRUN => Outcome::Overrun(
-            edges
-                .iter()
-                .position(|x| *x == e)
-                .expect("the overrun names a requested edge"),
-        ),
         Err(BlendError::Escalated { decision, .. }) => Outcome::Escalated(decision),
         Err(e) => Outcome::Refused(e.to_string()),
     }
@@ -323,7 +311,8 @@ struct Window {
 
 /// The run's verdicts at increasing `skews`, each the outcome of `at`;
 /// panics unless they run mitre, then escalate (on one of the turn's
-/// own decisions), then overrun, never back.
+/// own decisions, or a fillet's overrun on its cut-off's section kind),
+/// then overrun, never back.
 fn window(what: &str, skews: &[f64], at: impl Fn(f64) -> Outcome) -> Window {
     let mut w = Window::default();
     let mut stage = 0;
@@ -336,7 +325,9 @@ fn window(what: &str, skews: &[f64], at: impl Fn(f64) -> Outcome) -> Window {
             Outcome::Escalated(
                 BlendDecision::TurnFeetGap
                 | BlendDecision::TurnOverrunChord
-                | BlendDecision::TurnFeet,
+                | BlendDecision::TurnFeet
+                | BlendDecision::CapTransverse
+                | BlendDecision::CapEllipse,
             ) => {
                 let (lo, _) = w.escalated.unwrap_or((skew, skew));
                 w.escalated = Some((lo, skew));
@@ -368,7 +359,13 @@ fn window(what: &str, skews: &[f64], at: impl Fn(f64) -> Outcome) -> Window {
 /// the lean `s` and the chord `√2` times it, so it mitres until the
 /// chord leaves the zero band (`≈0.0068°` at the default band) and
 /// overruns once the gap is definite (`≈0.0256°`); its row brackets
-/// both edges, computed from the run's band.
+/// both edges, computed from the run's band. The box corner's fillet
+/// leaves the turn's band within the decade, but its overrun is the far
+/// band's cut-off at a face all but perpendicular to its axis, tilted
+/// by the skew: `fillet3_cap_transverse` reads the tilt definite at
+/// once, and the ellipse's axes, `r·(sec θ − 1) ≈ r·θ²/2` apart, stay in
+/// band (`CapEllipse`) until `θ = √(2·escalate / r)`, the same `≈0.0256°`
+/// at `r = d`, as any cut-off at that tilt does; it overruns from there.
 #[test]
 fn the_verdict_escalates_only_in_a_narrow_band_around_a_coincidence() {
     // Where the readings are linear in the skew, the skews scale with
@@ -429,8 +426,27 @@ fn the_verdict_escalates_only_in_a_narrow_band_around_a_coincidence() {
         "the box chamfer mitres to {mitre_end:e}° and overruns from {overrun_from:e}°: \
          {chamfer_box:?}"
     );
-    let fillet_box = window("box fillet", &linear, at_box(Verb::Fillet));
-    inside(&fillet_box, (1e-6 * z, 1e-5 * z), "box fillet");
+    let ellipse_from = overrun_from;
+    let fillet_skews: Vec<f64> = linear
+        .iter()
+        .copied()
+        .chain(
+            (0..=48)
+                .map(|i| ellipse_from / 10.0 * 10f64.powf(f64::from(i) / 24.0))
+                .filter(|s| *s > linear[linear.len() - 1]),
+        )
+        .collect();
+    let fillet_box = window("box fillet", &fillet_skews, at_box(Verb::Fillet));
+    assert!(
+        fillet_box
+            .escalated
+            .is_some_and(|(a, b)| 1e-6 * z <= a && a <= 1e-5 * z && ellipse_from / step <= b)
+            && fillet_box
+                .overrun
+                .is_some_and(|o| ellipse_from / 1.01 <= o && o <= ellipse_from * step),
+        "the box fillet escalates from the turn's band to the ellipse's at {ellipse_from:e}°, \
+         then overruns: {fillet_box:?}"
+    );
     for verb in [Verb::Chamfer, Verb::Fillet] {
         let w = window(&format!("60° {verb:?}"), &linear, at_sixty(verb));
         inside(&w, (1e-6 * z, 1e-5 * z), &format!("60° {verb:?}"));

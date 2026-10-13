@@ -43,19 +43,19 @@ use crate::common::operands::{
 use crate::common::poses::poses;
 
 /// A closed half-space `{x : n·x ≤ c}`, `n` a unit.
-type Half = (V, f64);
+pub(crate) type Half = (V, f64);
 
 fn arr(p: Point3<f64>) -> V {
     [p.x, p.y, p.z]
 }
 
-fn point_at(body: &Body<f64>, v: VertexKey) -> V {
+pub(crate) fn point_at(body: &Body<f64>, v: VertexKey) -> V {
     arr(*body
         .get_point(body.get_vertex(v).expect("a vertex").point)
         .expect("a point"))
 }
 
-fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
+pub(crate) fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
     let he = body.get_edge(e).expect("an edge").he_plus;
     [
         body.get_half_edge(he).expect("a half-edge").start,
@@ -65,7 +65,7 @@ fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
 
 /// **A convex body's half-spaces**, read off its stored planes, each
 /// faced away from the mean of its vertices (inside a convex body).
-fn halves_of(body: &Body<f64>) -> Vec<Half> {
+pub(crate) fn halves_of(body: &Body<f64>) -> Vec<Half> {
     let points: Vec<V> = body
         .vertices()
         .map(|(v, _)| v)
@@ -133,7 +133,7 @@ fn chamfer_half(halves: &[Half], a: V, b: V, d: f64) -> Half {
 /// every triple of planes met, the points inside all kept, and each
 /// face's polygon, ordered about its centroid, summed as
 /// `⅓ · c · area`.
-fn polytope_volume(halves: &[Half]) -> f64 {
+pub(crate) fn polytope_volume(halves: &[Half]) -> f64 {
     let n = halves.len();
     let mut points: Vec<V> = Vec::new();
     for i in 0..n {
@@ -210,7 +210,7 @@ fn closed_form(halves: &[Half], body: &Body<f64>, edges: &[EdgeKey], d: f64) -> 
 /// trivalent vertex at `p_k`, the mitre's end a trivalent vertex at
 /// `q`, and one edge joins them — the far band's cut-off chord, named
 /// as its `EndArc`, its end a `FootVertex` on the near face.
-fn overrun_cells(out: &Blended<f64>, p_k: V, q: V, what: &str) {
+pub(crate) fn overrun_cells(out: &Blended<f64>, p_k: V, q: V, what: &str) {
     let body = &out.body;
     let at = |x: V| {
         body.vertices()
@@ -262,11 +262,11 @@ fn chamfer(body: &Body<f64>, edges: &[EdgeKey], what: &str) -> Blended<f64> {
     out
 }
 
-/// The probe's turn on `body`'s corner, placed: the far band, its foot
-/// `p_k` and the mitre's end `q`, in the body's frame.
-fn placed(body: &Body<f64>, edges: [EdgeKey; 2]) -> (usize, V, V) {
+/// The probe's turn of `verb` on `body`'s corner, placed: the far band,
+/// its foot `p_k` and the mitre's end `q`, in the body's frame.
+pub(crate) fn placed(body: &Body<f64>, edges: [EdgeKey; 2], verb: Verb) -> (usize, V, V) {
     let c = cone_of(body, edges);
-    let t = measure(&c, Verb::Chamfer, D, 2);
+    let t = measure(&c, verb, D, 2);
     let k = t.far.expect("an overrun");
     let [a, b] = [ends(body, edges[0]), ends(body, edges[1])];
     let vertex = a
@@ -278,12 +278,12 @@ fn placed(body: &Body<f64>, edges: [EdgeKey; 2]) -> (usize, V, V) {
 }
 
 /// A witness: its name, its body, and its two requested edges.
-type Witness = (&'static str, Body<f64>, [EdgeKey; 2]);
+pub(crate) type Witness = (&'static str, Body<f64>, [EdgeKey; 2]);
 
 /// The skewed box's overrun corner: on `parallelepiped(0.3)`, the top
 /// edge and the lateral edge out of `(s, s, 1)`, the other top edge
 /// unrequested — face angles `90°` and `≈106.7°` at it.
-fn skewed_box() -> Witness {
+pub(crate) fn skewed_box() -> Witness {
     let s = 0.3;
     let body = parallelepiped(s);
     let v = [s, s, 1.0];
@@ -297,7 +297,7 @@ fn skewed_box() -> Witness {
 /// The witnesses: the bracket's two section-face corners — `(45°, 90°)`
 /// and `(135°, 90°)` at `γ = 90°`, a leaning prism's corner at a lean
 /// of `∓1` — the leaning prism at `±0.5`, and the skewed box.
-fn witnesses() -> Vec<Witness> {
+pub(crate) fn witnesses() -> Vec<Witness> {
     let lean = |what, s| {
         let (body, edges) = leaning_turn(s);
         (what, body, edges)
@@ -325,7 +325,7 @@ fn the_three_witnesses_build_at_their_closed_form_volumes() {
             (removed - want).abs() < 1e-10,
             "{what}: ΔV {removed} against the half-spaces' {want}"
         );
-        let (k, p_k, q) = placed(&body, edges);
+        let (k, p_k, q) = placed(&body, edges, Verb::Chamfer);
         assert_eq!(
             k,
             far_band(&body, edges, Verb::Chamfer),
@@ -423,7 +423,7 @@ fn the_overrun_carves_at_the_certified_scalar() {
 }
 
 /// An `Interval` edge's two ends, at their midpoints.
-fn ends_iv(body: &Body<Interval>, e: EdgeKey) -> [[f64; 3]; 2] {
+pub(crate) fn ends_iv(body: &Body<Interval>, e: EdgeKey) -> [[f64; 3]; 2] {
     let he = body.get_edge(e).expect("an edge").he_plus;
     [
         body.get_half_edge(he).expect("a half-edge").start,
@@ -492,7 +492,7 @@ fn a_concave_overrun_fills_at_its_closed_form() {
             (added - want).abs() < 1e-10,
             "{what}, concave: ΔV {added} against the air's {want}"
         );
-        let (_, p_k, q) = placed(&pocket, edges);
+        let (_, p_k, q) = placed(&pocket, edges, Verb::Chamfer);
         overrun_cells(&out, p_k, q, what);
     }
 }
@@ -528,7 +528,7 @@ fn the_sweep_builds_every_convex_overrun_at_the_probes_closed_forms() {
                     (removed - want).abs() < 1e-10,
                     "{what}: ΔV {removed} against the half-spaces' {want}"
                 );
-                let (_, p_k, q) = placed(&body, edges);
+                let (_, p_k, q) = placed(&body, edges, Verb::Chamfer);
                 overrun_cells(&out, p_k, q, &what);
                 built += 1;
             }
@@ -574,7 +574,7 @@ fn the_sweep_fills_concave_overruns() {
                     (added - want).abs() < 1e-9,
                     "{what}: ΔV {added} against the air's {want}"
                 );
-                let (_, p_k, q) = placed(&void, edges);
+                let (_, p_k, q) = placed(&void, edges, Verb::Chamfer);
                 overrun_cells(&out, p_k, q, &what);
                 built += 1;
             }

@@ -71,7 +71,7 @@ fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
 
 /// The edge whose ends lie within `1e-9` of `a` and `b`, relative to
 /// their scale.
-fn edge_near(body: &Body<f64>, a: V, b: V) -> EdgeKey {
+pub(crate) fn edge_near(body: &Body<f64>, a: V, b: V) -> EdgeKey {
     let scale = norm(a).max(norm(b)).max(1.0);
     let near = |p: V, q: V| norm(sub(p, q)) < 1e-9 * scale;
     topo::query::all_edges(body)
@@ -100,14 +100,14 @@ fn chamfered(
 }
 
 /// How many of a body's vertices are not trivalent.
-fn non_trivalent(body: &Body<f64>) -> usize {
+pub(crate) fn non_trivalent(body: &Body<f64>) -> usize {
     body.vertices()
         .filter(|(v, _)| body.edges_of_vertex(*v).expect("a fan").len() != 3)
         .count()
 }
 
 /// Whether a refusal is one of the clearance meters'.
-fn a_clearance(e: &BlendError) -> bool {
+pub(crate) fn a_clearance(e: &BlendError) -> bool {
     matches!(
         e,
         BlendError::FaceClearance { .. }
@@ -118,7 +118,7 @@ fn a_clearance(e: &BlendError) -> bool {
 
 /// Whether a refusal is a cut-off's foot landing inside a face
 /// (`end_face.rs`'s `FOOT_INSIDE_A_FACE`).
-fn foot_inside_a_face(e: &BlendError) -> bool {
+pub(crate) fn foot_inside_a_face(e: &BlendError) -> bool {
     matches!(e, BlendError::UnsupportedRunOut { detail, .. }
         if detail.contains("trimline meets the end face's plane past its rim"))
 }
@@ -128,7 +128,7 @@ fn foot_inside_a_face(e: &BlendError) -> bool {
 // ------------------------------------------------------------------
 
 /// The half-space through `p` with outward normal along `n`.
-fn half(n: V, p: V) -> Half {
+pub(crate) fn half(n: V, p: V) -> Half {
     let n = unit(n);
     (n, dot(n, p))
 }
@@ -256,7 +256,7 @@ fn chamfer_plane(na: V, nb: V, a: V, b: V, d: f64) -> Half {
 }
 
 /// The point where three planes meet.
-fn corner_of(h: [Half; 3]) -> V {
+pub(crate) fn corner_of(h: [Half; 3]) -> V {
     let [(a, ca), (b, cb), (c, cc)] = h;
     let det = dot(a, cross(b, c));
     mul(
@@ -271,23 +271,23 @@ fn corner_of(h: [Half; 3]) -> V {
 /// A requested edge as the two faces it lies on and its two ends' third
 /// faces, each an index into a [`Poly`]'s halves.
 #[derive(Clone, Copy)]
-struct Req {
-    faces: [usize; 2],
-    ends: [usize; 2],
+pub(crate) struct Req {
+    pub(crate) faces: [usize; 2],
+    pub(crate) ends: [usize; 2],
 }
 
-const fn req(faces: [usize; 2], ends: [usize; 2]) -> Req {
+pub(crate) const fn req(faces: [usize; 2], ends: [usize; 2]) -> Req {
     Req { faces, ends }
 }
 
 /// A convex polytope fixture: the body and its own analytic half-spaces.
-struct Poly {
-    body: Body<f64>,
-    halves: Vec<Half>,
+pub(crate) struct Poly {
+    pub(crate) body: Body<f64>,
+    pub(crate) halves: Vec<Half>,
 }
 
 impl Poly {
-    fn edge(&self, r: Req) -> (EdgeKey, V, V) {
+    pub(crate) fn edge(&self, r: Req) -> (EdgeKey, V, V) {
         let h = |i: usize| self.halves[i];
         let a = corner_of([h(r.faces[0]), h(r.faces[1]), h(r.ends[0])]);
         let b = corner_of([h(r.faces[0]), h(r.faces[1]), h(r.ends[1])]);
@@ -312,7 +312,7 @@ impl Poly {
         clipped_volume(&self.halves) - clipped_volume(&kept)
     }
 
-    fn edges(&self, reqs: &[Req]) -> Vec<EdgeKey> {
+    pub(crate) fn edges(&self, reqs: &[Req]) -> Vec<EdgeKey> {
         reqs.iter().map(|r| self.edge(*r).0).collect()
     }
 }
@@ -321,7 +321,7 @@ impl Poly {
 /// in `xz`, extruded from `y = 0` to `y = −1.5`, all scaled by `k`.
 /// Halves: 0 bottom, 1 right, 2 top, 3 leaning wall, 4 front (`y = 0`),
 /// 5 back.
-fn leaning(s: f64, h: f64, k: f64) -> Poly {
+pub(crate) fn leaning(s: f64, h: f64, k: f64) -> Poly {
     let plane = sketch_from_axes(
         pt([0.0; 3]),
         vc([1.0, 0.0, 0.0]),
@@ -351,17 +351,17 @@ fn leaning(s: f64, h: f64, k: f64) -> Poly {
 /// face's angle at the turn vertex obtuse or acute). Halves as
 /// [`leaning`]'s.
 #[derive(Clone, Copy)]
-struct Hex {
-    s: f64,
-    h: f64,
-    a: f64,
-    b: f64,
-    c: f64,
-    x1: f64,
-    depth: f64,
+pub(crate) struct Hex {
+    pub(crate) s: f64,
+    pub(crate) h: f64,
+    pub(crate) a: f64,
+    pub(crate) b: f64,
+    pub(crate) c: f64,
+    pub(crate) x1: f64,
+    pub(crate) depth: f64,
 }
 
-const HEX: Hex = Hex {
+pub(crate) const HEX: Hex = Hex {
     s: 0.4,
     h: 1.0,
     a: 0.2,
@@ -371,7 +371,7 @@ const HEX: Hex = Hex {
     depth: 1.5,
 };
 
-fn hexahedron(x: Hex) -> Poly {
+pub(crate) fn hexahedron(x: Hex) -> Poly {
     let Hex {
         s,
         h,
@@ -422,7 +422,7 @@ fn hexahedron(x: Hex) -> Poly {
 }
 
 /// The top face's angle at the turn vertex, degrees.
-fn theta_s(p: &Poly) -> f64 {
+pub(crate) fn theta_s(p: &Poly) -> f64 {
     let h = |i: usize| p.halves[i];
     let v = corner_of([h(2), h(3), h(4)]);
     let e1 = sub(corner_of([h(2), h(4), h(1)]), v);
@@ -432,7 +432,7 @@ fn theta_s(p: &Poly) -> f64 {
 
 /// The turn at the top–front–wall vertex: the top edge along the front
 /// (wall to right face), and the top edge along the wall (front to back).
-const TURN: [Req; 2] = [req([2, 4], [3, 1]), req([2, 3], [4, 5])];
+pub(crate) const TURN: [Req; 2] = [req([2, 4], [3, 1]), req([2, 3], [4, 5])];
 
 /// Chamfer `reqs` of the convex `p` at `d`, built, its `ΔV` the clip
 /// oracle's to `1e-10` relative to the cube of the scale; returns the
@@ -878,7 +878,7 @@ fn the_bracket_corners_carve_at_the_certified_scalar() {
 /// The bracket's `y = 0` corner with a round pin of radius `0.004` on
 /// the face through `at` of unit outward normal `n`: a boss standing
 /// `0.03` out (`boss`), or a blind hole `depth` deep.
-fn pinned(at: V, n: V, boss: bool, depth: f64) -> (Body<f64>, [EdgeKey; 2]) {
+pub(crate) fn pinned(at: V, n: V, boss: bool, depth: f64) -> (Body<f64>, [EdgeKey; 2]) {
     let (plain, _) = leaning_turn(-1.0);
     let n = unit(n);
     let seed = if n[0].abs() < 0.9 {
@@ -919,7 +919,7 @@ fn pinned(at: V, n: V, boss: bool, depth: f64) -> (Body<f64>, [EdgeKey; 2]) {
 /// The point `(a·d along L, b·d across)` on the bracket's `y = 0`
 /// corner's leaning wall, from its vertex `(−1, 0, 1)`, and the wall's
 /// outward normal.
-fn on_wall(a: f64, b: f64) -> (V, V) {
+pub(crate) fn on_wall(a: f64, b: f64) -> (V, V) {
     let r2 = core::f64::consts::FRAC_1_SQRT_2;
     (
         [-1.0 + a * D * r2, -b * D, 1.0 - a * D * r2],
