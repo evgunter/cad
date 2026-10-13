@@ -2974,11 +2974,14 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 },
             )
             .map_err(NodeErrorKind::Naming)?;
-            let verdicts = pair_verdicts(p, q, &judged);
             match out.record {
-                verbs::VerbRecord::Boolean { naming, .. } => {
-                    Ok(Some(((naming, out.body), rows, verdicts)))
-                }
+                verbs::VerbRecord::Boolean {
+                    naming, verdicts, ..
+                } => Ok(Some((
+                    (naming, out.body),
+                    rows,
+                    pair_verdicts(p, q, &verdicts, &judged)?,
+                ))),
                 _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: verb.foreign_record,
                 })),
@@ -3045,6 +3048,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     kind,
                     contacts,
                     naming,
+                    verdicts: _,
                 } = out.record
                 else {
                     return Err(NodeErrorKind::Naming(names::NamingError::Emission {
@@ -3086,7 +3090,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                                 what: UNION_STEP_UNDECIDED_CITE,
                             }),
                         )?;
-                        let given = given_rows(&verdicts, step + 1, &fold, &row);
+                        let given = given_rows(&verdicts, step + 1, &fold, &row)?;
                         if given.is_none() {
                             cited.push(row);
                         }
@@ -3370,52 +3374,55 @@ fn judge_pairwise_contact<T: Decide>(
     Ok(Some((links, rows, verdicts)))
 }
 
-/// **One carrier pair a union's pairwise judgement glued**: a face of
-/// each of two members, by member index, and the relation it decided.
+/// **One carrier pair a union's pairwise judgement glued**: the
+/// kernel's verdict and the two members it judged, by member index.
 /// The fold reads it through lineage ([`given_pairs`]) and decides
 /// the pair nowhere else.
 #[derive(Clone, Copy, Debug)]
 struct PairVerdict {
-    /// The listed-first member's face: `(member index, face)`.
-    a: (usize, topo::FaceKey),
-    /// The other member's face.
-    b: (usize, topo::FaceKey),
-    /// The relation the judgement decided.
-    relation: topo::Relation,
-    /// The margin it read.
-    margin: geom_core::MarginDiag,
+    /// The listed-first member, the judgement's operand A.
+    p: usize,
+    /// The other member, its operand B.
+    q: usize,
+    /// The verdict, in the two members' keys.
+    verdict: topo::GlueVerdict,
     /// The row recording the decision, in the node's coincidences.
     row: u32,
 }
 
 /// The carrier pairs the judgement of members `p` (operand A) and `q`
-/// (operand B) glued, read off its rows: each face pair of the two
-/// operands a row relates as one carrier or a tangency, its row by its
-/// index in `rows`.
-fn pair_verdicts(p: usize, q: usize, rows: &[topo::Coincidence]) -> Vec<PairVerdict> {
-    rows.iter()
-        .enumerate()
-        .filter_map(|(i, row)| {
-            let [
-                topo::RowCell::Input {
-                    input: topo::Operand::A,
-                    cell: topo::Cell::Face(fa),
-                },
-                topo::RowCell::Input {
-                    input: topo::Operand::B,
-                    cell: topo::Cell::Face(fb),
-                },
-            ] = row.cells
-            else {
-                return None;
-            };
-            row.relation.glued_class()?;
-            Some(PairVerdict {
-                a: (p, fa),
-                b: (q, fb),
-                relation: row.relation,
-                margin: row.margin,
-                row: u32::try_from(i).unwrap_or(u32::MAX),
+/// (operand B) glued: the kernel's verdicts ([`topo::GlueVerdict`]),
+/// each with the index in `rows`, the judgement's rows, of the row
+/// recording it.
+///
+/// # Errors
+///
+/// An emission bug ([`UNION_VERDICT_UNRECORDED`]) where a verdict has no
+/// row.
+fn pair_verdicts(
+    p: usize,
+    q: usize,
+    verdicts: &[topo::GlueVerdict],
+    rows: &[topo::Coincidence],
+) -> Result<Vec<PairVerdict>, NodeErrorKind> {
+    verdicts
+        .iter()
+        .map(|&verdict| {
+            let cells = [
+                topo::RowCell::face(topo::Operand::A, verdict.a()),
+                topo::RowCell::face(topo::Operand::B, verdict.b()),
+            ];
+            let row = rows
+                .iter()
+                .position(|row| row.cells == cells && row.relation == verdict.relation())
+                .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: UNION_VERDICT_UNRECORDED,
+                }))?;
+            Ok(PairVerdict {
+                p,
+                q,
+                verdict,
+                row: u32::try_from(row).unwrap_or(u32::MAX),
             })
         })
         .collect()
@@ -3425,7 +3432,7 @@ fn pair_verdicts(p: usize, q: usize, rows: &[topo::Coincidence]) -> Vec<PairVerd
 /// `member`**, the step's given pairs ([`BooleanInputs::given`]): each
 /// verdict whose second face is `member`'s, between that face and
 /// every accumulation face whose lineage holds the verdict's first
-/// face, on the margin of the first such verdict.
+/// face, the first such verdict's decision where several meet there.
 ///
 /// # Errors
 ///
@@ -3439,22 +3446,20 @@ fn given_pairs<T: Decide>(
     acc: &topo::Body<T>,
 ) -> Result<Vec<topo::GivenPair>, NodeErrorKind> {
     let bug = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
-    let mut given: std::collections::BTreeMap<
-        (topo::FaceKey, topo::FaceKey),
-        (topo::Relation, geom_core::MarginDiag),
-    > = std::collections::BTreeMap::new();
+    let mut given: std::collections::BTreeMap<(topo::FaceKey, topo::FaceKey), topo::GlueVerdict> =
+        std::collections::BTreeMap::new();
     for (f, _) in acc.faces() {
         let parents = fold.member_faces(f).ok_or(bug(UNION_FACE_NO_LINEAGE))?;
-        for v in verdicts.iter().filter(|v| v.b.0 == member) {
-            if !parents.contains(&v.a) {
+        for v in verdicts.iter().filter(|v| v.q == member) {
+            if !parents.contains(&(v.p, v.verdict.a())) {
                 continue;
             }
-            match given.entry((f, v.b.1)) {
+            match given.entry((f, v.verdict.b())) {
                 std::collections::btree_map::Entry::Vacant(slot) => {
-                    slot.insert((v.relation, v.margin));
+                    slot.insert(v.verdict);
                 }
                 std::collections::btree_map::Entry::Occupied(held) => {
-                    if held.get().0 != v.relation {
+                    if held.get().relation() != v.verdict.relation() {
                         return Err(bug(UNION_VERDICTS_DISAGREE));
                     }
                 }
@@ -3463,12 +3468,7 @@ fn given_pairs<T: Decide>(
     }
     Ok(given
         .into_iter()
-        .map(|((a, b), (relation, margin))| topo::GivenPair {
-            a,
-            b,
-            relation,
-            margin,
-        })
+        .map(|((a, _), verdict)| verdict.given_at(a))
         .collect())
 }
 
@@ -3477,12 +3477,17 @@ fn given_pairs<T: Decide>(
 /// through both faces' interiors, which a face–face record cites): the
 /// row of each verdict [`given_pairs`] handed the step for that pair,
 /// read through the same lineage. `None` for a row the step decided.
+///
+/// # Errors
+///
+/// An emission bug ([`UNION_FACE_NO_LINEAGE`]) where the row's
+/// accumulation face carries no lineage.
 fn given_rows(
     verdicts: &[PairVerdict],
     member: usize,
     fold: &names::UnionFold,
     row: &topo::Coincidence,
-) -> Option<Vec<u32>> {
+) -> Result<Option<Vec<u32>>, NodeErrorKind> {
     let [
         topo::RowCell::Input {
             input: topo::Operand::A,
@@ -3494,19 +3499,28 @@ fn given_rows(
         },
     ] = row.cells
     else {
-        return None;
+        return Ok(None);
     };
-    let parents = fold.member_faces(fa)?;
+    let parents =
+        fold.member_faces(fa)
+            .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+                what: UNION_FACE_NO_LINEAGE,
+            }))?;
     let rows: Vec<u32> = verdicts
         .iter()
-        .filter(|v| v.b == (member, fb) && v.relation == row.relation && parents.contains(&v.a))
+        .filter(|v| {
+            v.q == member
+                && v.verdict.b() == fb
+                && v.verdict.relation() == row.relation
+                && parents.contains(&(v.p, v.verdict.a()))
+        })
         .map(|v| v.row)
         .collect();
-    (!rows.is_empty()).then_some(rows)
+    Ok((!rows.is_empty()).then_some(rows))
 }
 
-/// **A fold step records no face-pair row of its own** (DM4, the fold
-/// re-glues no carrier pair): the verdict reuse, asserted where the
+/// **A fold step's face-pair rows restate its given pairs** (DM4, the
+/// fold re-glues no carrier pair): the verdict reuse, asserted where the
 /// step's rows come back. A step seeds its glue from its given pairs
 /// unmeasured, so the pairwise pass's rows are the union's and the step
 /// adds none; the one face-pair row it returns restates a given pair on
@@ -3532,9 +3546,7 @@ fn debug_assert_given(rows: &[topo::Coincidence], inputs: &BooleanInputs) {
                 },
             ] = row.cells
             {
-                let restates = inputs.given.iter().flatten().any(|g| {
-                    (g.a, g.b, g.relation, g.margin) == (fa, fb, row.relation, row.margin)
-                });
+                let restates = inputs.given.iter().flatten().any(|g| g.restated_by(row));
                 debug_assert!(
                     restates,
                     "a union fold step judged the carrier pair {fa:?}/{fb:?} itself: its \
@@ -3544,6 +3556,10 @@ fn debug_assert_given(rows: &[topo::Coincidence], inputs: &BooleanInputs) {
         }
     }
 }
+
+/// A pairwise judgement's verdict that none of its rows records.
+const UNION_VERDICT_UNRECORDED: &str =
+    "a union's pairwise judgement glued a pair no row of it records";
 
 /// An accumulation face the fold's lineage does not hold.
 const UNION_FACE_NO_LINEAGE: &str = "a union fold's accumulation face has no member-face lineage";

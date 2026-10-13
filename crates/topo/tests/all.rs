@@ -127,6 +127,8 @@ mod euler_site_pcurve_rows;
 mod fused_into_live_cells;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
+#[path = "given_pairs_are_the_folds_alone.rs"]
+mod given_pairs_are_the_folds_alone;
 #[path = "graft_disjoint.rs"]
 mod graft_disjoint;
 #[path = "h14_census_deferrals.rs"]

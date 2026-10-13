@@ -369,33 +369,18 @@ fn a_given_tangency_through_both_interiors_records_the_face_face_touch() {
         Ok(BooleanResult::Body(u)) => u,
         other => panic!("plate ∪ rod: {:?}", other.map(|_| ())),
     };
-    let given: Vec<topo::GivenPair> = decided
+    assert_eq!(
+        decided.verdicts.len(),
+        1,
+        "plate ∪ rod: one verdict, the tangency"
+    );
+    let verdict = decided.verdicts[0];
+    let given: Vec<topo::GivenPair> = vec![verdict.given_at(verdict.a())];
+    let decision = *decided
         .coincidences
         .iter()
-        .filter_map(|row| match row.cells {
-            [
-                topo::RowCell::Input {
-                    input: topo::Operand::A,
-                    cell: topo::Cell::Face(a),
-                },
-                topo::RowCell::Input {
-                    input: topo::Operand::B,
-                    cell: topo::Cell::Face(b),
-                },
-            ] => Some(topo::GivenPair {
-                a,
-                b,
-                relation: row.relation,
-                margin: row.margin,
-            }),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(
-        given.len(),
-        1,
-        "plate ∪ rod: one face-pair row, the tangency"
-    );
+        .find(|row| row.relation == topo::Relation::SurfaceTangent)
+        .unwrap();
     let stepped = match topo::boolean_op_with(
         topo::BooleanOp::Union,
         &plate,
@@ -428,17 +413,13 @@ fn a_given_tangency_through_both_interiors_records_the_face_face_touch() {
         panic!("plate ∪ rod, given: the face–face record cites {cites:?}");
     };
     let row = stepped.coincidences[k as usize];
-    let g = given[0];
     assert_eq!(
         (row.cells, row.relation, row.site, row.margin),
         (
-            [
-                topo::RowCell::face(topo::Operand::A, g.a),
-                topo::RowCell::face(topo::Operand::B, g.b),
-            ],
-            topo::Relation::SurfaceTangent,
-            topo::DecisionSite::TangentWitness,
-            g.margin,
+            decision.cells,
+            decision.relation,
+            decision.site,
+            decision.margin
         ),
         "plate ∪ rod, given: the cited row restates the given decision"
     );
