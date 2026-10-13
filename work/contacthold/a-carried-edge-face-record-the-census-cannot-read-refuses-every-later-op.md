@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-13
 priority: P1
 design: true
+needs_ev: true
 ---
 
 
@@ -70,3 +71,7 @@ whole ships them unread (PR 4921's review probe
   at a point, so the confirm reads these records. Both clauses then
   hold as written. RESTREAD's row already holds this, and it calls what
   the lane certifies "a design question".
+
+## Weighed (2026-10-13)
+
+A designer pair (fork log row 130) converged in two rounds: a point-touch reading in the census for any cell pair (C3); every door that mints a record reads it with the census's record confirm and refuses typed one no reading covers, the search for unrecorded touches staying parked (D1 tier 3); the carry lands a record whose cells the op kept or substituted by lineage, unread, and confirms only pairs drawn from a divided cell (D1's carry clause). `[ev]` PR for the D1/C3 text. Sequencing either way: the point-touch reading lands before the mint-time confirm, so the rod-on-plate union never refuses in between.

@@ -296,11 +296,14 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    contact records: none, for a body that touches nothing, where the
    census must find no coincidence at all. Every door that returns or
    consumes one pays that gate once, at the door that built it.
-   The Boolean door's result meets tier 3 without the census: its
-   contact records, each citing the coincidence that backs it, ride
-   beside it (`BooleanBody::contacts`), and the
-   census over them is parked on CONTACT's cross-solid curved lane
-   (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
+   The Boolean door's result meets tier 3 without the census's search
+   for touches nothing records: its contact records, each citing the
+   coincidence that backs it, ride beside it (`BooleanBody::contacts`),
+   and the search over them is parked on CONTACT's cross-solid curved
+   lane (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
+   Every door that mints a record reads it with the census's record
+   confirm, and refuses typed a record no reading covers, so a body
+   carries only records read where they were made.
    Construction state (tier 1, or tier 2 without geometric
    certification) is what Euler operators hand back, and becomes a
    finished body only through the at-rest gate.
@@ -374,9 +377,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      face, a join's edge, a seam); divided, into its pieces and the
      cells the op minted between them, the division exhaustive or with
      its remainder removed; or removed. One carry, for the boolean and
-     every surgery verb alike, puts each pair drawn from a record's two
-     cells' images to the census's record confirm, and the record lands
-     on every pair whose interiors meet, each landing citing it. Two
+     every surgery verb alike, lands a record whose two cells the op kept
+     or substituted on their images by lineage, unread, their geometry
+     unchanged and the record read where it was minted; it puts each
+     pair drawn from a divided cell's images to the census's record
+     confirm, and the record lands on every such pair whose interiors
+     meet, each landing citing it. Two
      cells an op minted on a record's two cells and that meet at a point
      meet where the record puts them when one cut made both, as the
      split's one plane does, and the landing cites the record alone; an
