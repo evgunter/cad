@@ -16,15 +16,18 @@ Found by lane A's review of PR 4893. Read, not measured.
 Two routines answer "is this point inside this face":
 
 - `boolean::solid_contain::point_in_face`
-  (`crates/topo/src/boolean/solid_contain.rs:3751`) is the
+  (`crates/topo/src/boolean/solid_contain.rs:3822`) is the
   point-in-solid walk's face test. It is planar only, and reports a
   boundary as `None`. `test_support::point_in_face`
   (`crates/topo/src/lib.rs:821`) is a thin door onto it.
 - `boolean::contain::face_placement`
   (`crates/topo/src/boolean/contain.rs:870`) is the census's confirm of
-  a vertex-on-face record. It places on a plane through `contfp`, on a
-  curved face through the chart trim, and is what the boolean's carry
-  reads (`boolean::ops::piece_holds`).
+  a vertex-on-face record (`census.rs:6601`). It places on a plane
+  through `contfp`, on a curved face through the chart trim. The
+  boolean's carry reads through it twice: in the census's record
+  confirm, which `records::landings` asks for each pair of a divided
+  face's pieces, and in `boolean::ops::span_held`, through
+  `piece_holds`.
 
 The lattice corpus row
 `every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell`
