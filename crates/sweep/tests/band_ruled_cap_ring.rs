@@ -337,7 +337,27 @@ fn tilted_bored_d_rod(p: (f64, f64), q: (f64, f64), a: f64) -> Body<f64> {
 /// prism over them is not the band's material. These rows hold
 /// `prism_inside`'s line slack and its `diagonal·|a × τ|` term: without
 /// them each bore is consumed.
+///
+/// The fixture's Boolean cuts each cap in an ellipse whose axes differ by
+/// `a·(|d|/L − 1)`. Where that is within the tolerance band's escalate
+/// width, the cut cannot tell the axes apart and escalates, so the row
+/// stands down at that ε.
 fn assert_tilted_bore_refuses(what: &str, p: (f64, f64), q: (f64, f64), a: f64) {
+    let run = (q.0 - p.0).hypot(q.1 - p.1);
+    let axes_apart = a * (run.hypot(ROD_L) / ROD_L - 1.0);
+    let escalate = geom_core::Band::linear(tol())
+        .expect("the witness band")
+        .escalate();
+    if axes_apart < escalate {
+        test_utils::vacuity::stood_down(
+            what,
+            &format!(
+                "the cap ellipses' axes differ by {axes_apart:e}, inside the band's escalate \
+                 width {escalate:e}: the Boolean that cuts the bore escalates"
+            ),
+        );
+        return;
+    }
     let body = sweep::test_support::finished(what, tilted_bored_d_rod(p, q, a), tol());
     let got = fillet_edges(&body, &rod_creases(&body), ROD_FILLET, tol()).map(|_| ());
     assert!(
