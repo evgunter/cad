@@ -346,8 +346,10 @@ fn r1_min_and_max_of_one_form_are_that_form() {
     ] {
         let (_, on) = with_session_rules(budget(), SymRules::shipped(), || zero(build()));
         assert_eq!(on.symbolic, 1, "a fact of the FORM: {on:?}");
-        // With A0 shut the certified READ still answers it: the same
-        // zero, reached through the arm.
+        // With A0 shut, at this POINT scalar nothing answers it: the
+        // decision read declines at an inexact witness
+        // (DECIDE-10's fix pass), even where, as here, both arms are
+        // one form. At an exact witness it answers — the row below.
         let (_, read_only) = with_session_rules(
             budget(),
             SymRules {
@@ -357,8 +359,8 @@ fn r1_min_and_max_of_one_form_are_that_form() {
             || zero(build()),
         );
         assert_eq!(
-            read_only.symbolic, 1,
-            "the read answers what A0 does not: {read_only:?}"
+            read_only.symbolic, 0,
+            "the read declines at a point scalar: {read_only:?}"
         );
         let (_, neither) = with_session_rules(
             budget(),
@@ -372,6 +374,57 @@ fn r1_min_and_max_of_one_form_are_that_form() {
         assert_eq!(
             neither.symbolic, 0,
             "and with both shut the atom is opaque: {neither:?}"
+        );
+    }
+}
+
+/// [`r1_min_and_max_of_one_form_are_that_form`] at an EXACT witness
+/// (`Sym<Interval>` over a box): with A0 shut the certified READ still
+/// answers it — the same zero, reached through the arm — and with both
+/// shut the atom is opaque.
+#[test]
+fn r1_min_and_max_of_one_form_at_an_exact_witness_are_the_reads_with_a0_shut() {
+    use geom_core::Interval;
+    fn x() -> Sym<Interval> {
+        Sym::param_over(
+            ParamSymbol::new(test_utils::symbol_id("x")),
+            Interval::from_bounds(0.3, 0.5),
+            0.3,
+            0.5,
+        )
+    }
+    let decided = |m: Sym<Interval>| decide("r1_probe", Margin::of(m), band()) == Ok(Sign::Zero);
+    for (what, build) in [
+        (
+            "min(x, x) - x",
+            (|| x().min(x()) - x()) as fn() -> Sym<Interval>,
+        ),
+        ("max(x, x) - x", || x().max(x()) - x()),
+    ] {
+        let (_, read_only) = with_session_rules(
+            budget(),
+            SymRules {
+                const_fold: false,
+                ..SymRules::shipped()
+            },
+            || decided(build()),
+        );
+        assert_eq!(
+            read_only.symbolic, 1,
+            "{what}: the read answers what A0 does not: {read_only:?}"
+        );
+        let (_, neither) = with_session_rules(
+            budget(),
+            SymRules {
+                const_fold: false,
+                decision_read: false,
+                ..SymRules::shipped()
+            },
+            || decided(build()),
+        );
+        assert_eq!(
+            neither.symbolic, 0,
+            "{what}: with both shut the atom is opaque: {neither:?}"
         );
     }
 }

@@ -112,12 +112,11 @@ fn documents() -> Vec<(&'static str, ProfileDoc)> {
         // leaf whose certified-midpoint replay exercises the symbolic
         // tier on the holes' cylindrical carriers — the population
         // wants the arc family present, not a split. The slabs above
-        // contribute `symbolic` samples
-        // too (their straight-walled identities discharge through the
-        // plain form); what only this fixture contributes is the ARC
-        // family's — the constant fold A0's, rule D's, the per-node A/B
-        // discharges and the door's, all `symbolic` rows. The
-        // scale is epsilon-RELATIVE like the slabs': written as the
+        // contribute `symbolic` samples too (their straight-walled
+        // identities discharge through the plain form); what only this
+        // fixture contributes is the ARC family's — the constant fold
+        // A0's, rule D's, the per-node A/B discharges and the door's,
+        // all `symbolic` rows. The scale is epsilon-RELATIVE like the slabs': written as the
         // constant `1e-6` it was 1280x the ceiling at `eps = 1e-12`,
         // where the driver certified nothing and the fixture fell out
         // of the linted population on that row. Cost: ~40 s per

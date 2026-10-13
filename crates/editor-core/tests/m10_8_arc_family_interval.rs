@@ -4,8 +4,8 @@
 //! miss — the tour's two-hole plate, R2's filleted L-bracket with two
 //! bores and R1's parametric bracket — which of the BUILDABLE
 //! atom-algebra rules (`geom_core::SymRules`: A `sqrt(X)² = X`,
-//! B `sin² + cos² = 1`; rule C, the clause-3 sign fold, is filed
-//! unbuilt) discharges it, and for the sites that stay numeric with
+//! B `sin² + cos² = 1`; M10-8's rule C, a sign fold since retired,
+//! was filed unbuilt then) discharges it, and for the sites that stay numeric with
 //! every rule on, the SHAPE of the residual that blocks them.
 //!
 //! Two replays per document, because they answer different questions:
@@ -61,7 +61,8 @@ fn budget() -> SymBudget {
 /// The rule LADDER the table is cut against, each rung adding one
 /// mechanism to the last: `none` is M10-7's tier; `A0` the constant
 /// fold in the plain form; `A0+AB_top` rules A/B over the top residual;
-/// `A0+C_early` rule C's fold in the early walk (the SHIPPED set);
+/// `shipped` the shipped set (M10-8's rung was rule C's fold in the
+/// early walk; the rule is retired and the rung is the shipped set);
 /// `+AB_top` both. Reading the columns left to right says what each
 /// mechanism reaches that the previous ones did not. The per-node A/B
 /// reduction (`early_ab`) is not a rung: minutes per replay on the
@@ -86,7 +87,7 @@ fn rule_sets() -> [(&'static str, SymRules); 5] {
                 ..n
             },
         ),
-        ("A0+C_early", SymRules::shipped()),
+        ("shipped", SymRules::shipped()),
         (
             "+AB_top",
             SymRules {
@@ -300,7 +301,7 @@ pub(crate) fn ceiling(
 /// **Claim 7 — the cost per LEAF, per rule set**: one whole-box replay
 /// of the plate and of R2's bracket at a scale each certifies, timed
 /// under the plain tier (M10-7's D17 baseline), A0 alone, the early
-/// walk without rule C, and the shipped set. EVIDENCE-ONLY (prints).
+/// walk with no rule in it, and the shipped set. EVIDENCE-ONLY (prints).
 #[test]
 #[ignore = "evidence-only: prints the leaf cost per rule set"]
 fn m10_8_leaf_cost_per_rule_set() {

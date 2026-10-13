@@ -551,7 +551,7 @@ mass has no valid build" — is not sayable about any macroscopic box.
   constructor that fails to build what it claims is still caught
   where widening cannot hide it.
 - **The K instrument sees it.** A symbolic `Zero` is recorded in the
-  k_stats funnel as its OWN outcome (`SymbolicZero`), never as a
+  k_stats funnel as its OWN outcome (`Symbolic`), never as a
   vanished sample — the driver population E6 promised K stays
   complete, and the ratio of symbolic to numeric decisions is itself
   the E12 evidence.

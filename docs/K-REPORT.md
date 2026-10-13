@@ -3028,3 +3028,21 @@ what gates. The ceiling stays as the re-cut trigger that
 `docs/k-report-data/README.md` names, and nothing mechanical fires
 it any more: a fresh sweep past it shows up only as a larger tally in
 the printed output.
+
+## DECIDE-10 addendum (2026-10-13): one symbolic token
+
+The symbolic tier's three K tokens are one. A decision the tier
+discharged is recorded as `symbolic` (`SampleOutcome::Symbolic`),
+however the walk reached the zero; `symbolic_zero`, `sign_gated`
+(M10-8) and `registered` (M10-9) are retired, and `k-lint` refuses each
+by name (`tools/k-lint/tests/outcome_vocabulary.rs`). The per-file and
+TOTAL lines print `(N symbolic, M classified)`. Like the tokens it
+replaces, `symbolic` is never a rule sample.
+
+What moved, measured on the driver dump (`k_report_driver_dump`,
+`--features probe`, ε = 1e-9) before and after: nothing but the
+spelling. The three fixtures' 57,124 samples are row-for-row identical
+with `symbolic_zero` read as `symbolic` (37,420 of them; 19,620
+positive, 52 negative and 32 zero classified on both sides). The
+decision read, which now declines at a point scalar such as the
+replay's `Sym<Probe>`, answered none of them.
