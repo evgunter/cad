@@ -2,7 +2,10 @@
 id: the-localization-core-is-half-unified
 kind: issue
 title: The bisection localizations share a walk but not their spellings: the tangency floor, a piece's reach, the budget and the stop reason each live in more than one place
-status: open
+status: closed
+branch: fuse/the-localization-core
+pr: 4980
+closed: 2026-10-13
 opened: 2026-10-13
 priority: P3
 cost: M
@@ -29,3 +32,17 @@ PR 4946 put `boolean::carrier_touch` and `census::curved` on one walk,
   the `f64` sizing bound should read the generic one.
 - **`bisect::Step::Stop` loses its reason.** `carrier_touch` (`over`) and
   `census::curved` (`met`) carry side flags to say why a walk stopped.
+
+## 2026-10-13, closed: PR 4980
+
+All five cites. `circle_roots` and `spiric_arc` (three walks) run on
+`topo::bisect`, whose `Step::Stop(R)` carries the answer (the side
+flags are gone); `bisect::reach` and `bisect::tangency_floor(ρ, …)` are
+the one spelling (ρ a radius; `carrier_touch` bit-identical);
+`carrier_speed::curvature_hi` reads `Conic::curvature_hi`;
+`geom::spiric_period_rate_bounds` is the generic bound
+`spiric_curvature_sup` and `carrier_speed` read. Walk-by-walk piece
+counts over `topo` + `sweep` are identical before and after (fuzzers
+replayed on their seeds) save one budget-edge reading, whose answer is
+unchanged. `geom-brep`'s six walks filed:
+`work/issues/geom-brep-keeps-six-subdivision-walks-of-its-own.md`.
