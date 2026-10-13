@@ -2275,4 +2275,4 @@ The pair converged after one round:
 - the glued-rim edge is a seam, and the README defines "lies within" by the two-face test, with no code change;
 - the one-line shape moves to the `Emission` residue, and its row closes as unreached.
 
-This is fork-log row 130. Also filed: `a-run-of-seams-says-every-seam-after-the-first-as-an-edge`.
+This is fork-log row 131 (renumbered at merge; Ev: "sounds good!"). Also filed: `a-run-of-seams-says-every-seam-after-the-first-as-an-edge`.
