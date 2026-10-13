@@ -318,10 +318,9 @@ fn the_boolean_reads_a_grazing_vertex_against_its_section() {
                         matches!(r, Err(BooleanError::CurvedBooleanUnsupported { .. }))
                     } else {
                         matches!(
-                            r,
-                            Err(BooleanError::Join(SplitJoinError::UnpairedLooseEnds {
-                                count: 2
-                            }))
+                            &r,
+                            Err(BooleanError::Join(join))
+                                if matches!(join.error(), SplitJoinError::UnpairedLooseEnds { count: 2 })
                         )
                     };
                     assert!(want, "{label}: {:?}", r.err());
