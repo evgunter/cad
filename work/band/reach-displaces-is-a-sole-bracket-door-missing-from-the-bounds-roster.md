@@ -7,6 +7,7 @@ opened: 2026-10-13
 priority: P0
 cost: E
 closed: 2026-10-13
+pr: 4959
 ---
 
 Filed by the TANG orchestrator. TANG's PR 4413 lane found it, and checked it
