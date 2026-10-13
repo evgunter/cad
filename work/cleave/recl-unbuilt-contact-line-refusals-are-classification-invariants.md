@@ -23,7 +23,7 @@ inputs as `BooleanError::ClassificationInvariant`:
   (unbuilt)";
 - "a contact line's ray holds a subdivision bisector (unbuilt)",
   reached by `crates/topo/tests/three_solids_on_one_line.rs`,
-  `a_prism_whose_face_holds_the_line_builds_or_refuses_typed`, in three
+  `a_prism_whose_face_holds_the_line_builds_or_refuses_typed`, in six
   orders (`ON_A_BISECTOR`);
 - "an edge crosses two wedges about a contact line on one ray
   (unbuilt)", reached by

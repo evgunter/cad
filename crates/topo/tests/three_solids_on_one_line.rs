@@ -528,20 +528,20 @@ const ON_A_BISECTOR: &str = "a contact line's ray holds a subdivision bisector (
 /// 0.4 at 350°, its side through the line in no other face's plane.
 /// Folded last onto the plate, the third and the 120° prism, the 0°
 /// prism meets a contact line whose ray holds the third's subdivision
-/// bisector, and refuses typed (unbuilt). Five orders refuse
-/// `VertexReadTwice` at a step whose vertex on the line pairs with a
-/// partner and touches the third's face
-/// (`work/tang/a-touching-vertex-beside-a-partner-along-the-face-refuses.md`).
-/// The other sixteen build. Where the plate joins a body holding the
-/// third and the 120° prism, the 120° prism's edge pierces the plate's
-/// top inside the third's face, whose section passes the point, so the
-/// top's section is one ring through the point twice. They pass tier 3′
+/// bisector, and refuses typed (unbuilt), in six orders. The other
+/// eighteen build. Where the plate joins a body holding the third and
+/// the 120° prism, the 120° prism's edge pierces the plate's top inside
+/// the third's face, whose section passes the point, so the top's
+/// section is one ring through the point twice. They pass tier 3′
 /// against the last step's records whichever member folds last: the
 /// step that folds the third last records the others' corners resting
 /// on its face on the piece of it that holds them, and the plate folded
 /// last drops the 120° prism's edge in the third's face and its corner
 /// at the edge's top end, which no step but the one that joined them
-/// reads.
+/// reads. In three orders a step reads the line's foot touching the top
+/// beside a partner whose link runs along it (`vtxfac::partner_side`),
+/// the second, which builds sound: [3, 2, 1, 0] and [2, 3, 1, 0] then
+/// build, and [2, 0, 3, 1] refuses at the bisector.
 #[test]
 fn a_prism_whose_face_holds_the_line_builds_or_refuses_typed() {
     let face = Prism {
@@ -556,12 +556,61 @@ fn a_prism_whose_face_holds_the_line_builds_or_refuses_typed() {
         face,
     ];
     let refuses = |order: &[usize]| match order {
-        [3, 0, 2, 1] | [0, 3, 2, 1] | [0, 2, 3, 1] => Some(ON_A_BISECTOR),
-        [3, 2, 1, 0] | [2, 3, 1, 0] | [2, 0, 3, 1] | [3, 2, 0, 1] | [2, 3, 0, 1] => {
-            Some("VertexReadTwice")
+        [3, 0, 2, 1] | [0, 3, 2, 1] | [0, 2, 3, 1] | [2, 0, 3, 1] | [3, 2, 0, 1] | [2, 3, 0, 1] => {
+            Some(ON_A_BISECTOR)
         }
         _ => None,
     };
+    // The orders whose pair beside a partner along the top is read, the
+    // step that reads it, sound, and what the fold does after.
+    let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
+    let mut members = vec![finished("the plate", p, t())];
+    members.extend(prisms.iter().map(Prism::body));
+    let probes = probes();
+    for (order, step, after) in [
+        ([3, 2, 1, 0], 2, None),
+        ([2, 3, 1, 0], 2, None),
+        ([2, 0, 3, 1], 2, Some(ON_A_BISECTOR)),
+    ] {
+        let what = format!("a face through the line, member order {order:?}");
+        match (fold(&members, &order), after) {
+            (Err((k, e)), Some(want)) => assert!(
+                k == step + 1 && format!("{e:?}").contains(want),
+                "{what}: refuses {want} at step {}, got step {k}: {e:?}",
+                step + 1
+            ),
+            (Ok(_), None) => {}
+            (Ok(_), Some(want)) => panic!("{what}: built where it refuses {want}"),
+            (Err((k, e)), None) => panic!("{what}: step {k} refused: {e:?}"),
+        }
+        let r = fold(&members, &order[..=step])
+            .unwrap_or_else(|(k, e)| panic!("{what}: step {k} refused: {e:?}"));
+        assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
+        let plate = order[..=step].contains(&0);
+        let held: Vec<Prism> = order[..=step]
+            .iter()
+            .filter(|&&i| i > 0)
+            .map(|&i| prisms[i - 1])
+            .collect();
+        let v = topo::mass_properties(&r.body, t()).unwrap().volume;
+        let want_v = union_volume(&held, plate);
+        assert!(
+            (v - want_v).abs() < 1e-9,
+            "{what}: step {step}, volume {v}, closed form {want_v}"
+        );
+        let holds = |q| (plate && in_plate(q)) || held.iter().any(|p| p.holds(q));
+        let mut read = 0;
+        for &q in &probes {
+            if let Some(got) = inside_of(&r.body, q) {
+                assert_eq!(got, holds(q), "{what}: step {step}, material at {q:?}");
+                read += 1;
+            }
+        }
+        assert!(
+            read * 100 >= 99 * probes.len(),
+            "{what}: step {step}, {read} probes read"
+        );
+    }
     every_order(
         "a face through the line",
         &prisms,
