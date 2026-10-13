@@ -747,16 +747,16 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
 /// **A tube is minted AND built from prelude names alone.** The frame
 /// witness made the tube doors take a type instead of three vectors,
 /// and the facade's claim is that this costs a modeller no module hop:
-/// `OrthoFrame::from_axis_and_reference` takes the two RAW directions
+/// `RigidMotion::from_axis_and_reference` takes the two RAW directions
 /// a program actually holds - there is no `UnitVec3` step to import -
-/// and `Band`, `Tol`, `Point3`, `Vec3`, `OrthoFrame`, `TubeWindow` and
+/// and `Band`, `Tol`, `Point3`, `Vec3`, `RigidMotion`, `TubeWindow` and
 /// `tube_along_arc` are all bare prelude names. Nothing below reaches
 /// through a module path, and adding one is the regression this row
 /// catches.
 #[test]
 fn a_tube_is_minted_and_built_from_prelude_names_alone() {
     let tol = Tol::witness();
-    let frame = OrthoFrame::from_axis_and_reference(
+    let frame = RigidMotion::from_axis_and_reference(
         p3::<f64>(0.0, 0.0, 0.0),
         Vec3::new(0.0, 0.0, 3.0),
         Vec3::new(2.0, 0.0, 1.0),
@@ -1482,7 +1482,7 @@ fn a_boolean_result_validates_at_tier_3_prime() {
             .and_then(|t| t.line_to(p2(x.0, y.1), Tol::witness()))
             .and_then(|t| t.line_to(Start, Tol::witness()))
             .expect("the slab rectangle authors");
-        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3::<f64>(0.0, 0.0, z.0)));
+        let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3::<f64>(0.0, 0.0, z.0)));
         let profile = validated(plane, vec![rect.into()], Tol::witness()).expect("slab profile");
         let body = extrude(
             &profile,

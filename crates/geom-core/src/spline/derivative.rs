@@ -6,100 +6,97 @@
 //! [`span_derivative_scale`] takes the two knot values and checks
 //! nothing.
 //!
-//! # The rational speed bound
+//! # The quotient bound
 //!
-//! [`rational_speed_sup`] is the one statement of an upper bound
-//! on a rational spline's derivative, the **pair-term bound**. On a
-//! nonempty span of degree `p`, with `kᵢ = p/(u_{i+p+1} − u_{i+1})`,
-//!
-//! ```text
-//! C′ = Σᵢ N_{i,p−1} · kᵢ · [ w_{i+1}(P_{i+1} − Pᵢ) − (w_{i+1} − wᵢ)(C − Pᵢ) ] / w
-//! ```
-//!
-//! over the span's active pairs `i`. Each bracket is affine in `C`,
-//! and `C` lies in the convex hull of the span's active points `P_j`
-//! (positive weights), so its norm is largest at one of them; the
-//! `N_{i,p−1}` sum to one and `w` is at least the least active weight.
-//! So
+//! Every first-order quantity of a rational spline is a polynomial over
+//! a power of its weight. With `A = Σ N wP` the homogeneous numerator
+//! and `W = Σ N w` its weight,
 //!
 //! ```text
-//! sup ‖C′‖ ≤ max_{i, j} kᵢ·‖w_{i+1}(P_{i+1} − Pᵢ) − (w_{i+1} − wᵢ)(P_j − Pᵢ)‖ / min_j w_j
+//! C′      = N / W²,    N   = A′·W − A·W′
+//! S_u     = N_u / W²,  N_u = A_u·W − A·W_u      (S_v likewise)
+//! S_u×S_v = M̃ / W³,    M̃   = W·(A_u×A_v) − W_v·(A_u×A) − W_u·(A×A_v)
 //! ```
 //!
-//! with no centre to choose. At unit weights it is exactly the
-//! polynomial control-difference bound `max kᵢ·‖P_{i+1} − Pᵢ‖`. A
-//! domain's bound is the max over its nonempty spans, a window's over
-//! the spans it meets.
+//! — the last because `W·S_u = A_u − W_u·S` and `W·S_v = A_v − W_v·S`
+//! cross to `W²·(S_u×S_v) = A_u×A_v − W_v·(A_u×S) − W_u·(S×A_v)`, the
+//! `S×S` term vanishing, and `S = A/W`.
 //!
-//! A tensor patch's `S_u` is, on a nonempty cell, the same sum over the
-//! `u` pairs of each of the cell's active columns, with `S` in the hull
-//! of the cell's active points: [`rational_stretch_sup`] is the
-//! same bound per direction, per cell. Both read one
-//! [`RationalPairTerm`].
-//!
-//! **No zero knot difference is reachable.** A span is walked only
-//! when it is nonempty, and its active pairs are `i ∈ [s − p, s − 1]`
-//! ([`Span::first_derived_window`](super::Span::first_derived_window),
-//! total): each pair's knot difference `u_{i+p+1} − u_{i+1}` spans
-//! `[u_s, u_{s+1}]`, so it is positive. Nothing here checks it.
-//!
-//! # The rational floors
-//!
-//! The same sums bound the derivative from **below** along any
-//! direction `d`. On a nonempty cell,
+//! On a Bézier piece numerator and weight power are Bernstein
+//! polynomials. **Raise both to one degree** `n` (elevation does not
+//! change a polynomial), with coefficients `a_k` and `b_k`. Then
 //!
 //! ```text
-//! W·S_u = A_u − W_u·S = Σ_{i, b} λ_{ib} · T_{ib}(S)
+//! Q = Σ_k B_k a_k / Σ_k B_k b_k = Σ_k λ_k · (a_k / b_k),   λ_k = B_k b_k / Σ_j B_j b_j
 //! ```
 //!
-//! with `A = Σ w P` the homogeneous numerator, `W` its weight, `T_{ib}`
-//! the `u` pair term of pair `i` in active column `b` (affine in `S`),
-//! and `λ_{ib} ≥ 0` summing to one (pair `i`'s degree-`(p−1)` basis
-//! function times column `b`'s). `S` itself is `Σⱼ νⱼ Pⱼ` over the
-//! cell's active points, `νⱼ = Bⱼ wⱼ / W ≥ 0` with `Bⱼ` the tensor basis
-//! function of `Pⱼ`, summing to one, and an affine map carries that combination through,
-//! so `W·S_u = Σ λ_{ib} νⱼ T_{ib}(Pⱼ)` is a convex combination of the
-//! values `T_{ib}(Pⱼ)`. Its projection on `d` is at least the least
-//! projected value `m`, and `W` lies between the cell's least and
-//! greatest active weight, so
+//! and with every `b_k > 0` the `λ_k` are non-negative and sum to one:
+//! `Q` is a convex combination of the ratios `a_k/b_k`. So for any unit
+//! `d`, `‖Q‖ ≥ Q·d ≥ min_k (a_k·d)/b_k`, and since the norm is convex,
+//! `‖Q‖ ≤ max_k ‖a_k‖/b_k` — [`QuotientPiece::inf_norm`] (along the
+//! piece's own direction) and [`QuotientPiece::sup_norm`].
 //!
-//! ```text
-//! S_u·d ≥ m / w_max   (m ≥ 0)      S_u·d ≥ m / w_min   (m < 0)
-//! ```
+//! Each clause carries the proof. The ratio pairs `a_k` with **its own**
+//! `b_k`: the `λ_k` weigh one index on both sides. Both sides sit at
+//! **one degree**: a ratio of coefficients in two bases is no
+//! combination. `d` is any unit vector, so each piece **picks its own**
+//! ([`QuotientPiece::inf_norm`]: the direction of `Σ_k a_k`). The `b_k`
+//! are positive because the weight power's coefficients on a piece are
+//! the Bernstein product of the weight's own piece coefficients — sums
+//! of products with non-negative factors — and those are convex
+//! combinations of the positive control weights. There is no weight
+//! range, no sign split and no control-point hull.
 //!
-//! — [`rational_stretch_floor`], the min over the nonempty cells. Each
-//! clause carries the proof: `j` runs over **every** active point
-//! because `S` can sit anywhere in their hull, and the divisor follows
-//! the sign of `m`, the lattice min of both so an interval `m` that
-//! straddles zero takes both.
+//! **The pieces** are exact dyadic Bézier pieces of each nonempty span
+//! or cell ([`super::pieces`]), read off the span's blossom and one
+//! exact-weight combination, never off a refined knot vector: as they
+//! shrink, the coefficient ratios converge on the quantity's range.
+//! Each derivative row is read off the B-spline derivative net (its
+//! knot differences span the whole support), not off a piece's own
+//! differences, whose `degree/width` scale would amplify their rounding.
 //!
-//! **The area element.** With `W·S_v = Σ μ_{ka} U_{ka}(S)` the same way,
-//! `W²·(S_u × S_v) = Σ λ_{ib} μ_{ka} · T_{ib}(S) × U_{ka}(S)`. Each
-//! cross is **affine** in `S`: writing `T(S) = c − g·S` and
-//! `U(S) = e − h·S` (scalars `g`, `h`), the quadratic part is
-//! `g·h·(S × S) = 0`. So it too carries `S = Σ νⱼ Pⱼ` through,
+//! **The weights are read over their greatest** per span or block: every
+//! quotient is homogeneous of degree zero in the weights, so the scaling
+//! is exact in ℝ (outward at `Interval`), and it keeps the weight
+//! powers' products clear of underflow.
 //!
-//! ```text
-//! W²·(S_u × S_v) = Σ λ_{ib} μ_{ka} νⱼ · T_{ib}(Pⱼ) × U_{ka}(Pⱼ)
-//! ```
+//! **At equal weights** the curve meter passes the polynomial
+//! derivative over the constant one ([`speed_pieces`] with no weights):
+//! every `b_k` is exactly one, and the reading is the polynomial piece
+//! row's own.
 //!
-//! a convex combination of the crosses with **both factors at the same
-//! active point**. So `(S_u × S_v)·d` is at least their least projection
-//! over `w_max²` or `w_min²` by its sign — [`rational_area_floor`]. The
-//! element is `‖W·A_u×A_v − W_v·A_u×A − W_u·A×A_v‖ / W³`, a homogeneous
-//! polynomial over `W³`; the pair terms read its floor without forming
-//! that product spline.
+//! # Degree ceiling
 //!
-//! At unit weights every `T(Pⱼ)` is the polynomial derivative-net entry,
-//! so both floors are the polynomial net's, cell by cell.
+//! The Bernstein product of rows of degrees `m` and `n` has coefficients
+//! `c_k = Σ_{i+j=k} C(m,i)·C(n,j)·a_i·b_j / C(m+n, k)`, and elevation is
+//! the product with a row of ones. Every pair product `C(m,i)·C(n,j)` is
+//! at most `C(m+n, k)` (Vandermonde), so every factor the statement
+//! forms is an exact `f64` integer while the result degree is at most
+//! [`QUOTIENT_MAX_DEGREE`] ([`super::pieces::binomial`]); above it the
+//! builders refuse (`None`). At `Interval` each factor is a point and
+//! every product and quotient rounds outward; at `f64` the same
+//! expression rounds to nearest, and the reading can sit past the
+//! bound by more than an ulp: measured up to `5.3e-12` relative at a
+//! weight spread of `10³`, growing with the spread. `Interval` is the
+//! certified lane.
+//!
+//! **No zero knot difference is reachable.** A span is walked only when
+//! it is nonempty, and its active pairs are `i ∈ [s − p, s − 1]`
+//! ([`Span::first_derived_window`], total): each pair's knot difference
+//! `u_{i+p+1} − u_{i+1}` spans `[u_s, u_{s+1}]`, so it is positive.
+//! Nothing here checks it.
 
-use core::ops::{Mul, Sub};
+use core::ops::{Add, Mul, Sub};
 
 use crate::real::Real;
 
 use super::knot_values::Knots;
 use super::knots::Span;
-use super::locate::SpanLocate;
+use super::pieces::{binomial, piece_count, piece_weights, restrict, span_row};
+
+/// The degree ceiling of the quotient bound (module docs): the highest
+/// common degree whose binomials are all exact `f64`s, `C(56, 28) < 2⁵³`.
+pub const QUOTIENT_MAX_DEGREE: usize = 56;
 
 /// `p / (hi − lo)` in `T`, for the pair whose knot difference runs from
 /// `lo = u_{i+1}` to `hi = u_{i+p+1}`.
@@ -137,68 +134,6 @@ pub fn derivative_net<T: Real, P: Copy + Sub<Output = V>, V: Mul<T, Output = V>>
         .collect()
 }
 
-/// The Euclidean norm of a `D`-vector, `√Σ xₖ²`.
-fn norm<T: Real, const D: usize>(v: [T; D]) -> T {
-    v.iter()
-        .map(|x| x.powi(2))
-        .fold(T::zero(), |a, b| a + b)
-        .sqrt()
-}
-
-/// **One pair term** of the rational derivative (module docs): the pair
-/// `(P₀, w₀) → (P₁, w₁)` with scale `k`, as the affine map
-/// `S ↦ k·[lever − dw·(S − p0)]` with `lever = w₁(P₁ − P₀)` and
-/// `dw = w₁ − w₀`. The one statement of the term: the sups below
-/// evaluate it at points, and a reader that carries it through a rigid
-/// map (`geom-brep`'s SSI enclosure) reads it about a centre
-/// ([`Self::about`]).
-#[derive(Clone, Copy, Debug)]
-pub struct RationalPairTerm<T, const D: usize> {
-    scale: T,
-    lever: [T; D],
-    dw: T,
-    p0: [T; D],
-}
-
-impl<T: Real, const D: usize> RationalPairTerm<T, D> {
-    /// The pair `(p0, w0) → (p1, w1)` at scale `scale`.
-    #[must_use]
-    pub fn new(scale: T, (p0, w0): ([T; D], T), (p1, w1): ([T; D], T)) -> Self {
-        Self {
-            scale,
-            lever: core::array::from_fn(|c| w1 * (p1[c] - p0[c])),
-            dw: w1 - w0,
-            p0,
-        }
-    }
-
-    /// The term as an affine function of the offset `q = S − c`:
-    /// `(k, g)` with term `= k − g·q`, `k = scale·[lever + dw·(p0 − c)]`
-    /// and `g = scale·dw`. Every point enters as a difference with
-    /// another, so a translation moves `k` by its rounding width alone.
-    #[must_use]
-    pub fn about(&self, c: [T; D]) -> ([T; D], T) {
-        (
-            core::array::from_fn(|i| (self.lever[i] + self.dw * (self.p0[i] - c[i])) * self.scale),
-            self.dw * self.scale,
-        )
-    }
-
-    /// The term at the point `s`: [`Self::about`] `s` itself,
-    /// `scale·[lever − dw·(s − p0)]`.
-    #[must_use]
-    pub fn at(&self, s: [T; D]) -> [T; D] {
-        self.about(s).0
-    }
-
-    /// The weight step `w₁ − w₀`: exactly zero where the pair's weights
-    /// agree, so the term does not read `S`.
-    #[must_use]
-    pub fn weight_step(&self) -> T {
-        self.dw
-    }
-}
-
 /// The derivative scale of pair `i` of a degree-`p` spline over the
 /// `held` knot values: [`span_derivative_scale`] over
 /// `u_{i+1} … u_{i+p+1}`, `None` past the vector.
@@ -210,204 +145,16 @@ fn pair_scale<T: Real>(held: &[T], p: usize, i: usize) -> Option<T> {
     ))
 }
 
-/// `max_{term, point} ‖term(point)‖ / least`, or poison when there is
-/// no term.
-fn pair_sup<T: Real, const D: usize>(
-    terms: impl Iterator<Item = RationalPairTerm<T, D>>,
-    points: &[[T; D]],
-    least: T,
-) -> T {
-    let mut sup: Option<T> = None;
-    for t in terms {
-        for pj in points {
-            let n = norm(t.at(*pj));
-            sup = Some(sup.map_or(n, |s| s.max(n)));
-        }
-    }
-    sup.map_or_else(|| T::from_f64(f64::NAN), |s| s / least)
-}
-
-/// The pair-term bound on `sup ‖C′‖` over one nonempty `span` (module
-/// docs: the derivation and why no knot difference is checked), for the
-/// rational spline with control `points` and `weights` over the `held`
-/// knot values of the vector `span` indexes; poison (NaN) on an index
-/// past an array, never a refusal. Private: `span` and `held` must
-/// index one vector, which [`rational_speed_sup`] pairs from one
-/// [`Knots`].
-fn rational_span_speed_sup<T: Real, const D: usize>(
-    span: Span<'_>,
-    held: &[T],
-    points: &[[T; D]],
-    weights: &[T],
-) -> T {
-    let poison = T::from_f64(f64::NAN);
-    let p = span.degree();
-    let (Some(active), Some(ws)) = (points.get(span.window()), weights.get(span.window())) else {
-        return poison;
-    };
-    let Some(least) = ws.iter().copied().reduce(T::min) else {
-        return poison;
-    };
-    let terms: Option<Vec<RationalPairTerm<T, D>>> = span
-        .first_derived_window()
-        .map(|i| {
-            Some(RationalPairTerm::new(
-                pair_scale(held, p, i)?,
-                (*points.get(i)?, *weights.get(i)?),
-                (*points.get(i + 1)?, *weights.get(i + 1)?),
-            ))
-        })
-        .collect();
-    terms.map_or(poison, |t| pair_sup(t.into_iter(), active, least))
-}
-
-/// One nonempty cell `(su, sv)` of a rational tensor patch with
-/// row-major `points` and `weights` (`[iu·nv + iv]`) over the `held_u` /
-/// `held_v` knot values of the vectors the spans index: the cell's
-/// active points and the least and greatest active weight, and its pair
-/// terms along either direction ([`Cell::terms`]). The one per-pair
-/// builder of the tensor statements: the sup and both floors read it.
-struct Cell<'a, T, const D: usize> {
-    spans: (Span<'a>, Span<'a>),
-    held: (&'a [T], &'a [T]),
-    points: &'a [[T; D]],
-    weights: &'a [T],
-    nv: usize,
-    active: Vec<[T; D]>,
-    least: T,
-    most: T,
-}
-
-impl<'a, T: Real, const D: usize> Cell<'a, T, D> {
-    /// The cell, or `None` on an index past an array.
-    fn new(
-        spans: (Span<'a>, Span<'a>),
-        held: (&'a [T], &'a [T]),
-        points: &'a [[T; D]],
-        weights: &'a [T],
-        nv: usize,
-    ) -> Option<Self> {
-        let mut cell = Self {
-            spans,
-            held,
-            points,
-            weights,
-            nv,
-            active: Vec::with_capacity((spans.0.degree() + 1) * (spans.1.degree() + 1)),
-            least: T::zero(),
-            most: T::zero(),
-        };
-        let mut range: Option<(T, T)> = None;
-        for iu in spans.0.window() {
-            for iv in spans.1.window() {
-                let (pt, w) = cell.at(iu, iv)?;
-                cell.active.push(pt);
-                range = Some(range.map_or((w, w), |(lo, hi)| (lo.min(w), hi.max(w))));
-            }
-        }
-        (cell.least, cell.most) = range?;
-        Some(cell)
-    }
-
-    fn at(&self, iu: usize, iv: usize) -> Option<([T; D], T)> {
-        let k = iu.checked_mul(self.nv)?.checked_add(iv)?;
-        Some((*self.points.get(k)?, *self.weights.get(k)?))
-    }
-
-    /// The pair terms along `u` (`along_u`) in each of the cell's active
-    /// columns, or along `v` in each active row; `None` on an index past
-    /// an array.
-    fn terms(&self, along_u: bool) -> Option<Vec<RationalPairTerm<T, D>>> {
-        let ((su, sv), (held_u, held_v)) = (self.spans, self.held);
-        let (run, other, held) = if along_u {
-            (su, sv, held_u)
-        } else {
-            (sv, su, held_v)
-        };
-        run.first_derived_window()
-            .flat_map(|i| other.window().map(move |b| (i, b)))
-            .map(|(i, b)| {
-                let (a0, a1) = if along_u {
-                    (self.at(i, b)?, self.at(i + 1, b)?)
-                } else {
-                    (self.at(b, i)?, self.at(b, i + 1)?)
-                };
-                Some(RationalPairTerm::new(
-                    pair_scale(held, run.degree(), i)?,
-                    a0,
-                    a1,
-                ))
-            })
-            .collect()
-    }
-}
-
-/// `per_cell` over the nonempty cells of the patch over `knots_u` ×
-/// `knots_v`, handed each cell's spans, the held values and the `v`
-/// control count, folded by `fold`; poison when no cell is nonempty.
-fn over_cells<T: Real>(
-    (knots_u, knots_v): (&Knots<T>, &Knots<T>),
-    mut per_cell: impl FnMut((Span<'_>, Span<'_>), (&[T], &[T]), usize) -> T,
-    fold: fn(T, T) -> T,
-) -> T {
-    let (ku, kv) = (knots_u.structure(), knots_v.structure());
-    let nv = kv.control_count();
-    let mut acc: Option<T> = None;
-    for su in (ku.first_span()..=ku.last_span()).filter_map(|i| ku.span(i)) {
-        for sv in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
-            let b = per_cell((su, sv), (knots_u.values(), knots_v.values()), nv);
-            acc = Some(acc.map_or(b, |m| fold(m, b)));
-        }
-    }
-    acc.unwrap_or_else(poison)
-}
-
 fn poison<T: Real>() -> T {
     T::from_f64(f64::NAN)
 }
 
-/// The pair-term bound on `sup ‖C′‖` (module docs) over the nonempty
-/// spans `spans` of `knots` (indices into its vector, empty ones
-/// skipped): their max, or poison when none is nonempty. The weights
-/// are positive by construction; a refinement that rounds one to zero
-/// divides by a zero least weight, which reads `+∞` or NaN, never a
-/// low finite number.
-#[must_use]
-pub fn rational_speed_sup<T: SpanLocate, const D: usize>(
-    knots: &Knots<T>,
-    points: &[[T; D]],
-    weights: &[T],
-    spans: core::ops::RangeInclusive<usize>,
-) -> T {
-    let kv = knots.structure();
-    spans
-        .filter_map(|index| kv.span(index))
-        .map(|span| rational_span_speed_sup(span, knots.values(), points, weights))
-        .reduce(T::max)
-        .unwrap_or_else(|| T::from_f64(f64::NAN))
-}
-
-/// The pair-term bound on `sup ‖S_u‖` (`along_u`) or `sup ‖S_v‖` of
-/// the rational tensor patch over `knots_u` × `knots_v` (module docs),
-/// with row-major `points` and `weights` (`[iu·nv + iv]`): the max over
-/// the nonempty cells, or poison when none is nonempty. A zero weight
-/// reads as it does in [`rational_speed_sup`].
-#[must_use]
-pub fn rational_stretch_sup<T: Real, const D: usize>(
-    knots: (&Knots<T>, &Knots<T>),
-    points: &[[T; D]],
-    weights: &[T],
-    along_u: bool,
-) -> T {
-    over_cells(
-        knots,
-        |spans, held, nv| {
-            Cell::new(spans, held, points, weights, nv)
-                .and_then(|c| Some(pair_sup(c.terms(along_u)?.into_iter(), &c.active, c.least)))
-                .unwrap_or_else(poison)
-        },
-        T::max,
-    )
+/// The Euclidean norm of a `D`-vector, `√Σ xₖ²`.
+fn norm<T: Real, const D: usize>(v: [T; D]) -> T {
+    v.iter()
+        .map(|x| x.powi(2))
+        .fold(T::zero(), |a, b| a + b)
+        .sqrt()
 }
 
 fn dot<T: Real, const D: usize>(a: [T; D], b: [T; D]) -> T {
@@ -422,93 +169,752 @@ fn cross<T: Real>(a: [T; 3], b: [T; 3]) -> [T; 3] {
     ]
 }
 
-/// The least of `values`, or poison when there is none.
-fn least_of<T: Real>(values: impl Iterator<Item = T>) -> T {
-    values.reduce(T::min).unwrap_or_else(poison)
+/// **The quotient bound on one piece** (module docs): a quantity
+/// `Σ B_k a_k / Σ B_k b_k`, its numerator's coefficients `a_k` and its
+/// weight power's `b_k > 0` at one degree and one layout. Minted only
+/// by this module's builders ([`speed_pieces`], [`cell_quotients`],
+/// [`stretch_pieces`]), which hold both preconditions.
+#[derive(Clone, Debug)]
+pub struct QuotientPiece<T, const D: usize> {
+    numer: Vec<[T; D]>,
+    denom: Vec<T>,
 }
 
-/// `m/w` at its least over `w ∈ [least, most]` (module docs): `m/most`
-/// for `m ≥ 0` and `m/least` for `m < 0`, spelled as their lattice min
-/// so an interval `m` that straddles zero takes both.
-fn over_weight<T: Real>(m: T, least: T, most: T) -> T {
-    (m / most).min(m / least)
+impl<T: Real, const D: usize> QuotientPiece<T, D> {
+    /// The piece with numerator coefficients `numer` and weight-power
+    /// coefficients `denom`, paired by index; `None` when the counts
+    /// differ or there is none. Private: one degree on both sides and a
+    /// positive `denom` (module docs) are what the builders here hold,
+    /// raising the numerator to the weight power's degree and forming
+    /// the weight power as a product of positive weights.
+    fn new(numer: Vec<[T; D]>, denom: Vec<T>) -> Option<Self> {
+        (!numer.is_empty() && numer.len() == denom.len()).then_some(Self { numer, denom })
+    }
+
+    /// The numerator's coefficients.
+    #[must_use]
+    pub fn numer(&self) -> &[[T; D]] {
+        &self.numer
+    }
+
+    /// The weight power's coefficients.
+    #[must_use]
+    pub fn denom(&self) -> &[T] {
+        &self.denom
+    }
+
+    /// `max_k ‖a_k‖/b_k`, an upper bound on the quantity's norm over
+    /// the piece.
+    #[must_use]
+    pub fn sup_norm(&self) -> T {
+        self.ratios(norm).reduce(T::max).unwrap_or_else(poison)
+    }
+
+    /// `min_k (a_k·d)/b_k`, a lower bound on the quantity's projection
+    /// on `d` over the piece; for a unit `d`, on its norm.
+    #[must_use]
+    pub fn floor_along(&self, d: [T; D]) -> T {
+        self.ratios(|a| dot(a, d))
+            .reduce(T::min)
+            .unwrap_or_else(poison)
+    }
+
+    /// The piece's own direction: `Σ_k a_k` over its norm, poison when
+    /// the sum is zero.
+    #[must_use]
+    pub fn direction(&self) -> [T; D] {
+        let sum = self
+            .numer
+            .iter()
+            .fold([T::zero(); D], |s, a| core::array::from_fn(|c| s[c] + a[c]));
+        let n = norm(sum);
+        sum.map(|x| x / n)
+    }
+
+    /// A lower bound on the quantity's norm over the piece:
+    /// [`Self::floor_along`] its own [`Self::direction`]. Signed: a
+    /// piece whose ratios straddle the direction reads at most zero;
+    /// poison where the direction is.
+    #[must_use]
+    pub fn inf_norm(&self) -> T {
+        self.floor_along(self.direction())
+    }
+
+    fn ratios<'a>(&'a self, f: impl Fn([T; D]) -> T + 'a) -> impl Iterator<Item = T> + 'a {
+        self.numer
+            .iter()
+            .zip(&self.denom)
+            .map(move |(a, b)| f(*a) / *b)
+    }
 }
 
-/// A lower bound on `S_u·d` (`along_u`) or `S_v·d` over the rational
-/// tensor patch over `knots_u` × `knots_v` (module docs: the floor), for
-/// any `d`, signed: the min over the nonempty cells of the least
-/// projected term value over the cell's weight, or poison when no cell
-/// is nonempty or an index runs past an array. `points` and `weights`
-/// as [`rational_stretch_sup`]'s. For a unit `d` it floors `‖S_u‖` once
-/// clamped at zero. A lower bound under `Interval`; at `f64`, rounded to
-/// nearest, it can sit an ulp above.
-#[must_use]
-pub fn rational_stretch_floor<T: Real, const D: usize>(
-    knots: (&Knots<T>, &Knots<T>),
-    points: &[[T; D]],
-    weights: &[T],
-    along_u: bool,
-    d: [T; D],
-) -> T {
-    over_cells(
-        knots,
-        |spans, held, nv| {
-            Cell::new(spans, held, points, weights, nv)
-                .and_then(|c| {
-                    let terms = c.terms(along_u)?;
-                    let m = least_of(
-                        terms
-                            .iter()
-                            .flat_map(|t| c.active.iter().map(move |pj| dot(t.at(*pj), d))),
-                    );
-                    Some(over_weight(m, c.least, c.most))
-                })
-                .unwrap_or_else(poison)
-        },
-        T::min,
-    )
+/// The three first-order quotients of a tensor patch on one piece:
+/// `S_u`, `S_v` and, when asked for, `S_u × S_v`.
+#[derive(Clone, Debug)]
+pub struct CellQuotients<T> {
+    /// `S_u = N_u/W²`.
+    pub u: QuotientPiece<T, 3>,
+    /// `S_v = N_v/W²`.
+    pub v: QuotientPiece<T, 3>,
+    /// `S_u × S_v = M̃/W³`, when the builder was asked for it.
+    pub area: Option<QuotientPiece<T, 3>>,
 }
 
-/// A lower bound on `(S_u × S_v)·d` over the rational tensor patch over
-/// `knots_u` × `knots_v` (module docs: the area element), for any `d`,
-/// signed: the min over the nonempty cells of the least projected cross
-/// of a `u` and a `v` term, both at one active point, over the cell's
-/// weight squared; poison as [`rational_stretch_floor`]. For a unit `d`
-/// it floors `‖S_u × S_v‖` once clamped at zero. A lower bound under
-/// `Interval`; at `f64` it can sit an ulp above.
-#[must_use]
-pub fn rational_area_floor<T: Real>(
-    knots: (&Knots<T>, &Knots<T>),
-    points: &[[T; 3]],
-    weights: &[T],
-    d: [T; 3],
-) -> T {
-    over_cells(
-        knots,
-        |spans, held, nv| {
-            let Some(c) = Cell::new(spans, held, points, weights, nv) else {
-                return poison();
-            };
-            let (Some(tu), Some(tv)) = (c.terms(true), c.terms(false)) else {
-                return poison();
-            };
-            let mut m: Option<T> = None;
-            for pj in &c.active {
-                // `(a × b)·d = a·(b × d)`: one cross per `v` term.
-                let e: Vec<[T; 3]> = tv.iter().map(|b| cross(b.at(*pj), d)).collect();
-                for a in &tu {
-                    let a = a.at(*pj);
-                    for eb in &e {
-                        let x = dot(a, *eb);
-                        m = Some(m.map_or(x, |m| m.min(x)));
-                    }
+/// A `D`-vector with the ring operations a blossom and a restriction
+/// combine with; a scalar row is `D = 1`.
+#[derive(Clone, Copy, Debug)]
+struct Vector<T, const D: usize>([T; D]);
+
+impl<T: Real, const D: usize> Add for Vector<T, D> {
+    type Output = Self;
+    fn add(self, o: Self) -> Self {
+        Self(core::array::from_fn(|c| self.0[c] + o.0[c]))
+    }
+}
+
+impl<T: Real, const D: usize> Sub for Vector<T, D> {
+    type Output = Self;
+    fn sub(self, o: Self) -> Self {
+        Self(core::array::from_fn(|c| self.0[c] - o.0[c]))
+    }
+}
+
+impl<T: Real, const D: usize> Mul<T> for Vector<T, D> {
+    type Output = Self;
+    fn mul(self, k: T) -> Self {
+        Self(self.0.map(|x| x * k))
+    }
+}
+
+impl<T: Real, const D: usize> Vector<T, D> {
+    /// The vector times the exact integer `k`, skipped at one.
+    fn times(self, k: f64) -> Self {
+        if k == 1.0 {
+            self
+        } else {
+            self * T::from_f64(k)
+        }
+    }
+
+    /// The vector over the exact integer `k`, skipped at one.
+    fn over(self, k: f64) -> Self {
+        if k == 1.0 {
+            self
+        } else {
+            let k = T::from_f64(k);
+            Self(self.0.map(|x| x / k))
+        }
+    }
+}
+
+/// A tensor coefficient grid, `nu × nv`, row-major `[i·nv + j]` with
+/// `i` along `u`; a curve's row is one column (`nv = 1`). Never empty.
+#[derive(Clone, Debug)]
+struct Grid<T, const D: usize> {
+    nv: usize,
+    c: Vec<Vector<T, D>>,
+}
+
+impl<T: Real, const D: usize> Grid<T, D> {
+    /// The grid from its row-major coefficients, `None` unless `nv`
+    /// divides a nonempty count.
+    fn new(nv: usize, c: Vec<Vector<T, D>>) -> Option<Self> {
+        (nv > 0 && !c.is_empty() && c.len().is_multiple_of(nv)).then_some(Self { nv, c })
+    }
+
+    /// A column of `n` coefficients.
+    fn column(c: Vec<Vector<T, D>>) -> Option<Self> {
+        Self::new(1, c)
+    }
+
+    fn nu(&self) -> usize {
+        self.c.len() / self.nv
+    }
+
+    /// The degrees `(nu − 1, nv − 1)`.
+    fn degree(&self) -> (usize, usize) {
+        (self.nu() - 1, self.nv - 1)
+    }
+
+    fn get(&self, i: usize, j: usize) -> Option<Vector<T, D>> {
+        (j < self.nv).then_some(())?;
+        self.c.get(i.checked_mul(self.nv)?.checked_add(j)?).copied()
+    }
+
+    /// The columns (along `u`), each `nu` long.
+    fn columns(&self) -> Option<Vec<Vec<Vector<T, D>>>> {
+        (0..self.nv)
+            .map(|j| (0..self.nu()).map(|i| self.get(i, j)).collect())
+            .collect()
+    }
+
+    /// The grid whose columns are `cols`, all one length.
+    fn from_columns(cols: &[Vec<Vector<T, D>>]) -> Option<Self> {
+        let nu = cols.first()?.len();
+        cols.iter().all(|c| c.len() == nu).then_some(())?;
+        let c = (0..nu)
+            .flat_map(|i| cols.iter().map(move |col| col.get(i).copied()))
+            .collect::<Option<Vec<_>>>()?;
+        Self::new(cols.len(), c)
+    }
+
+    /// The grid whose rows are `rows`, all one length.
+    fn from_rows(rows: &[Vec<Vector<T, D>>]) -> Option<Self> {
+        let nv = rows.first()?.len();
+        rows.iter().all(|r| r.len() == nv).then_some(())?;
+        Self::new(nv, rows.concat())
+    }
+
+    /// Every column mapped by `f` (along `u`).
+    fn map_u(&self, f: impl Fn(&[Vector<T, D>]) -> Option<Vec<Vector<T, D>>>) -> Option<Self> {
+        let cols: Vec<Vec<Vector<T, D>>> = self
+            .columns()?
+            .iter()
+            .map(|c| f(c))
+            .collect::<Option<_>>()?;
+        Self::from_columns(&cols)
+    }
+
+    /// Every row mapped by `f` (along `v`).
+    fn map_v(&self, f: impl Fn(&[Vector<T, D>]) -> Option<Vec<Vector<T, D>>>) -> Option<Self> {
+        let rows: Vec<Vec<Vector<T, D>>> = self
+            .c
+            .chunks_exact(self.nv)
+            .map(&f)
+            .collect::<Option<_>>()?;
+        Self::from_rows(&rows)
+    }
+
+    /// `self − other`, coefficient by coefficient, at one shape.
+    fn minus(&self, other: &Self) -> Option<Self> {
+        (self.nv == other.nv && self.c.len() == other.c.len()).then_some(())?;
+        Self::new(
+            self.nv,
+            self.c.iter().zip(&other.c).map(|(a, b)| *a - *b).collect(),
+        )
+    }
+
+    /// The grid restricted to one piece: `bu` and `bv` are the piece's
+    /// [`piece_weights`] blocks for this grid's degree along each axis.
+    fn restrict(&self, bu: &[f64], bv: &[f64]) -> Option<Self> {
+        self.map_u(|col| restrict(bu, col))?
+            .map_v(|row| restrict(bv, row))
+    }
+
+    /// The grid raised to the degrees `(du, dv)` by elevation: its
+    /// product with a grid of ones.
+    fn raised_to(&self, (du, dv): (usize, usize)) -> Option<Self> {
+        let (mu, mv) = self.degree();
+        let ones = Grid::new(
+            dv.checked_sub(mv)? + 1,
+            vec![Vector([T::one()]); (du.checked_sub(mu)? + 1) * (dv - mv + 1)],
+        )?;
+        product(self, &ones, |a, _| a)
+    }
+
+    fn arrays(&self) -> Vec<[T; D]> {
+        self.c.iter().map(|v| v.0).collect()
+    }
+}
+
+/// The Bernstein product of the grids `a` and `b` under the bilinear
+/// `mul` (module docs: the degree ceiling): coefficient `(k, l)` is
+/// `Σ C(ma,i)C(mb,k−i)·C(na,j)C(nb,l−j)·mul(a_ij, b_{k−i,l−j})` over
+/// `C(ma+mb, k)·C(na+nb, l)`, folded in ascending `(i, j)` then
+/// ascending `b` index (D9). `None` above [`QUOTIENT_MAX_DEGREE`].
+fn product<T: Real, const A: usize, const B: usize, const C: usize>(
+    a: &Grid<T, A>,
+    b: &Grid<T, B>,
+    mul: impl Fn([T; A], [T; B]) -> [T; C],
+) -> Option<Grid<T, C>> {
+    let ((ma, na), (mb, nb)) = (a.degree(), b.degree());
+    let (mu, mv) = (ma + mb, na + nb);
+    if mu > QUOTIENT_MAX_DEGREE || mv > QUOTIENT_MAX_DEGREE {
+        return None;
+    }
+    let mut acc: Vec<Option<Vector<T, C>>> = vec![None; (mu + 1) * (mv + 1)];
+    for i in 0..=ma {
+        for j in 0..=na {
+            let x = a.get(i, j)?.0;
+            for k in 0..=mb {
+                for l in 0..=nb {
+                    let term = Vector(mul(x, b.get(k, l)?.0))
+                        .times(binomial(ma, i) * binomial(mb, k))
+                        .times(binomial(na, j) * binomial(nb, l));
+                    let slot = acc.get_mut((i + k) * (mv + 1) + j + l)?;
+                    *slot = Some(slot.map_or(term, |s| s + term));
                 }
             }
-            let m = m.unwrap_or_else(poison);
-            over_weight(m, c.least.powi(2), c.most.powi(2))
-        },
-        T::min,
-    )
+        }
+    }
+    let c = acc
+        .into_iter()
+        .enumerate()
+        .map(|(n, s)| {
+            Some(
+                s?.over(binomial(mu, n / (mv + 1)))
+                    .over(binomial(mv, n % (mv + 1))),
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Grid::new(mv + 1, c)
+}
+
+/// `numer` raised to `denom`'s degrees, as one [`QuotientPiece`].
+fn quotient<T: Real, const D: usize>(
+    numer: &Grid<T, D>,
+    denom: &Grid<T, 1>,
+) -> Option<QuotientPiece<T, D>> {
+    let numer = numer.raised_to(denom.degree())?;
+    QuotientPiece::new(numer.arrays(), denom.c.iter().map(|w| w.0[0]).collect())
+}
+
+fn scale_by<T: Real, const D: usize>(v: Vector<T, D>, w: Vector<T, 1>) -> Vector<T, D> {
+    v * w.0[0]
+}
+
+/// The weights `ws` over their greatest. Every quotient is homogeneous
+/// of degree zero in the weights (`N/W²` and `M̃/W³` scale alike), so
+/// this is exact in ℝ and changes no bound, while the weight powers'
+/// products stay clear of underflow and overflow wherever the weights'
+/// spread allows: a block of equal subnormal weights reads as one of
+/// ones. `None` when there is none.
+fn normalised<T: Real>(ws: &[T]) -> Option<(Vec<T>, T)> {
+    let most = ws.iter().copied().reduce(T::max)?;
+    Some((ws.iter().map(|w| *w / most).collect(), most))
+}
+
+/// One axis of a cell block: a span of a knot vector, whose window
+/// the blossom reads into the span's Bernstein row, or a Bézier block
+/// already in Bernstein form.
+#[derive(Clone, Copy, Debug)]
+pub enum CellAxis<'a, T> {
+    /// The window of `span`, over the `held` knot values of the vector
+    /// it indexes.
+    Span(Span<'a>, &'a [T]),
+    /// A Bézier block of degree `degree`, whose derivative scale is
+    /// `degree/width` of its window.
+    Bezier {
+        /// The block's degree along the axis.
+        degree: usize,
+        /// `degree/width`.
+        scale: T,
+    },
+}
+
+/// A [`CellAxis`] resolved: its degree and how it reads a window.
+#[derive(Clone, Copy)]
+enum Axis<'a, T> {
+    Span {
+        held: &'a [T],
+        p: usize,
+        first: usize,
+        ends: (T, T),
+    },
+    Bezier {
+        p: usize,
+        scale: T,
+    },
+}
+
+impl<'a, T: Real> Axis<'a, T> {
+    fn of(axis: CellAxis<'a, T>) -> Option<Self> {
+        Some(match axis {
+            CellAxis::Span(span, held) => {
+                let s = span.index();
+                Self::Span {
+                    held,
+                    p: span.degree(),
+                    first: span.first_control(),
+                    ends: (*held.get(s)?, *held.get(s + 1)?),
+                }
+            }
+            CellAxis::Bezier { degree, scale } => Self::Bezier { p: degree, scale },
+        })
+    }
+
+    fn p(&self) -> usize {
+        match *self {
+            Self::Span { p, .. } | Self::Bezier { p, .. } => p,
+        }
+    }
+
+    /// The span's Bernstein row of a window of this axis's degree
+    /// (`derived`: of its derivative's, one lower).
+    fn row<const D: usize>(&self, w: &[Vector<T, D>], derived: bool) -> Option<Vec<Vector<T, D>>> {
+        match *self {
+            Self::Span {
+                held, first, ends, ..
+            } => span_row(w, held, first + usize::from(derived), ends),
+            Self::Bezier { .. } => Some(w.to_vec()),
+        }
+    }
+
+    /// The derivative scale of the window's pair `k`: the span's
+    /// [`pair_scale`] (its knot difference positive by the span
+    /// contract, module docs), or the Bézier block's one scale.
+    fn scale(&self, k: usize) -> Option<T> {
+        match *self {
+            Self::Span { held, p, first, .. } => pair_scale(held, p, first + k),
+            Self::Bezier { scale, .. } => Some(scale),
+        }
+    }
+
+    /// The window's derivative window: each pair's difference times
+    /// its [`Self::scale`].
+    fn derive<const D: usize>(&self, w: &[Vector<T, D>]) -> Option<Vec<Vector<T, D>>> {
+        w.windows(2)
+            .enumerate()
+            .map(|(k, x)| Some((x[1] - x[0]) * self.scale(k)?))
+            .collect()
+    }
+
+    /// The derivative windows of the homogeneous `w·(P − c)` and of
+    /// `w`, read off the points and weights in the pair form
+    /// `w₁·(P₁ − P₀) + (w₁ − w₀)·(P₀ − c)`: every point enters as a
+    /// difference with another, so equal points with equal weights read
+    /// an exact zero at any scalar, and a translation moves a term by
+    /// its rounding alone.
+    #[allow(clippy::type_complexity)]
+    fn derive_pairs<const D: usize>(
+        &self,
+        pts: &[Vector<T, D>],
+        ws: &[Vector<T, 1>],
+        c: Vector<T, D>,
+    ) -> Option<(Vec<Vector<T, D>>, Vec<Vector<T, 1>>)> {
+        pts.windows(2)
+            .zip(ws.windows(2))
+            .enumerate()
+            .map(|(k, (p, w))| {
+                let s = self.scale(k)?;
+                let dw = w[1] - w[0];
+                Some((
+                    (scale_by(p[1] - p[0], w[1]) + scale_by(p[0] - c, dw)) * s,
+                    dw * s,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()
+            .map(|v| v.into_iter().unzip())
+    }
+}
+
+/// The span's Bernstein grid of a window grid, along `u` with `du`'s
+/// degree (`derived`: one lower) and along `v` with `dv`'s.
+fn cell_grid<T: Real, const D: usize>(
+    g: &Grid<T, D>,
+    (au, du): (&Axis<'_, T>, bool),
+    (av, dv): (&Axis<'_, T>, bool),
+) -> Option<Grid<T, D>> {
+    g.map_u(|col| au.row(col, du))?.map_v(|row| av.row(row, dv))
+}
+
+/// A cell's homogeneous Bernstein grids on one piece: `A`, `W` and
+/// their `u` and `v` derivatives.
+struct Homogeneous<T> {
+    a: Grid<T, 3>,
+    w: Grid<T, 1>,
+    au: Grid<T, 3>,
+    wu: Grid<T, 1>,
+    av: Grid<T, 3>,
+    wv: Grid<T, 1>,
+}
+
+impl<T: Real> Homogeneous<T> {
+    /// The grids restricted to piece `(iu, iv)` of `counts` per axis.
+    fn restrict(&self, (iu, iv): (usize, usize), counts: (usize, usize)) -> Option<Self> {
+        let block = |deg: usize, count: usize, i: usize| -> Option<Vec<f64>> {
+            let n = (deg + 1).pow(2);
+            piece_weights(deg, count)?
+                .get(i * n..(i + 1) * n)
+                .map(<[f64]>::to_vec)
+        };
+        let on = |g: (usize, usize)| -> Option<(Vec<f64>, Vec<f64>)> {
+            Some((block(g.0, counts.0, iu)?, block(g.1, counts.1, iv)?))
+        };
+        let r3 = |g: &Grid<T, 3>| {
+            let (bu, bv) = on(g.degree())?;
+            g.restrict(&bu, &bv)
+        };
+        let r1 = |g: &Grid<T, 1>| {
+            let (bu, bv) = on(g.degree())?;
+            g.restrict(&bu, &bv)
+        };
+        Some(Self {
+            a: r3(&self.a)?,
+            w: r1(&self.w)?,
+            au: r3(&self.au)?,
+            wu: r1(&self.wu)?,
+            av: r3(&self.av)?,
+            wv: r1(&self.wv)?,
+        })
+    }
+
+    /// The quotients on this piece (module docs): `N_u = A_u·W − A·W_u`
+    /// and `N_v` over `W²`, and `M̃` over `W³`.
+    fn quotients(&self, area: bool) -> Option<CellQuotients<T>> {
+        let first = |d: &Grid<T, 3>, dw: &Grid<T, 1>| -> Option<Grid<T, 3>> {
+            product(d, &self.w, |x, w| (Vector(x) * w[0]).0)?.minus(&product(
+                &self.a,
+                dw,
+                |x, w| (Vector(x) * w[0]).0,
+            )?)
+        };
+        let w2 = product(&self.w, &self.w, |x, y| [x[0] * y[0]])?;
+        let u = quotient(&first(&self.au, &self.wu)?, &w2)?;
+        let v = quotient(&first(&self.av, &self.wv)?, &w2)?;
+        let area = if area {
+            let w3 = product(&w2, &self.w, |x, y| [x[0] * y[0]])?;
+            let scaled = |w: &Grid<T, 1>, x: &Grid<T, 3>| {
+                product(w, x, |w, x| scale_by(Vector(x), Vector(w)).0)
+            };
+            let m = scaled(&self.w, &product(&self.au, &self.av, cross)?)?
+                .minus(&scaled(&self.wv, &product(&self.au, &self.a, cross)?)?)?
+                .minus(&scaled(&self.wu, &product(&self.a, &self.av, cross)?)?)?;
+            Some(quotient(&m, &w3)?)
+        } else {
+            None
+        };
+        Some(CellQuotients { u, v, area })
+    }
+}
+
+/// **The curve statement's pieces** (module docs): on each of the
+/// nonempty spans of the spline with control `points` over `knots`, its
+/// derivative's quotient on each of [`piece_count`]`(·, splits)` exact
+/// dyadic pieces, in ascending span then piece order. With `weights`,
+/// `C′ = N/W²` (`N` of degree `2p − 1` raised to `2p`), the pieces
+/// counted for degree `p`; without, the polynomial derivative over one
+/// (degree `p − 1`, every `b_k` exactly one), counted for `p − 1`.
+/// `None` on a degree below one, an index past an array, or a common
+/// degree above [`QUOTIENT_MAX_DEGREE`]; empty when no span is
+/// nonempty.
+pub fn speed_pieces<T: Real, const D: usize>(
+    knots: &Knots<T>,
+    points: &[[T; D]],
+    weights: Option<&[T]>,
+    splits: usize,
+) -> Option<Vec<QuotientPiece<T, D>>> {
+    let kv = knots.structure();
+    let mut out = Vec::new();
+    for span in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
+        let axis = Axis::of(CellAxis::Span(span, knots.values()))?;
+        let p = axis.p();
+        if p == 0 {
+            return None;
+        }
+        let pts: Vec<Vector<T, D>> = points
+            .get(span.window())?
+            .iter()
+            .map(|x| Vector(*x))
+            .collect();
+        match weights {
+            None => {
+                let row = axis.row(&axis.derive(&pts)?, true)?;
+                let count = piece_count(p - 1, splits);
+                for block in piece_weights(p - 1, count)?.chunks_exact(p.pow(2)) {
+                    let numer = Grid::column(restrict(block, &row)?)?;
+                    out.push(quotient(
+                        &numer,
+                        &Grid::column(vec![Vector([T::one()]); p])?,
+                    )?);
+                }
+            }
+            Some(ws) => {
+                let ws: Vec<Vector<T, 1>> = normalised(ws.get(span.window())?)?
+                    .0
+                    .into_iter()
+                    .map(|w| Vector([w]))
+                    .collect();
+                let c = *pts.first()?;
+                let a: Vec<Vector<T, D>> = pts
+                    .iter()
+                    .zip(&ws)
+                    .map(|(x, w)| scale_by(*x - c, *w))
+                    .collect();
+                let (da, dw) = axis.derive_pairs(&pts, &ws, c)?;
+                let rows = (
+                    axis.row(&a, false)?,
+                    axis.row(&ws, false)?,
+                    axis.row(&da, true)?,
+                    axis.row(&dw, true)?,
+                );
+                let count = piece_count(p, splits);
+                let (wp, wq) = (piece_weights(p, count)?, piece_weights(p - 1, count)?);
+                for (bp, bq) in wp
+                    .chunks_exact((p + 1).pow(2))
+                    .zip(wq.chunks_exact(p.pow(2)))
+                {
+                    let a = Grid::column(restrict(bp, &rows.0)?)?;
+                    let w = Grid::column(restrict(bp, &rows.1)?)?;
+                    let da = Grid::column(restrict(bq, &rows.2)?)?;
+                    let dw = Grid::column(restrict(bq, &rows.3)?)?;
+                    let n = product(&da, &w, |x, w| scale_by(Vector(x), Vector(w)).0)?
+                        .minus(&product(&a, &dw, |x, w| scale_by(Vector(x), Vector(w)).0)?)?;
+                    out.push(quotient(&n, &product(&w, &w, |x, y| [x[0] * y[0]])?)?);
+                }
+            }
+        }
+    }
+    Some(out)
+}
+
+/// A cell block's control net, row-major `(p + 1) × (q + 1)`.
+#[derive(Clone, Copy, Debug)]
+pub enum CellBlock<'a, T> {
+    /// Cartesian points and weights, read in the frame of `origin`:
+    /// the derivatives in the pair form `w₁·(P₁ − P₀) + (w₁ − w₀)·(P₀ − c)`,
+    /// so equal points with equal weights read an exact zero.
+    Points {
+        /// The control points.
+        points: &'a [[T; 3]],
+        /// Their weights.
+        weights: &'a [T],
+        /// The frame `c`, any one point.
+        origin: [T; 3],
+    },
+    /// The homogeneous channels `w·(P − c)` and `w`, for one frame `c`:
+    /// the derivatives are their differences.
+    Homogeneous {
+        /// `w·(P − c)`.
+        a: &'a [[T; 3]],
+        /// `w`.
+        w: &'a [T],
+    },
+}
+
+/// **The surface statement's pieces on one cell block** (module docs):
+/// the `block` along `axes`, cut into [`piece_count`]`(p, splits.0)` ×
+/// [`piece_count`]`(q, splits.1)` exact dyadic pieces, row-major in `u`
+/// then `v`. `area` asks for `S_u × S_v` as well. `None` on a degree
+/// below one, a block of the wrong size, or a common degree above
+/// [`QUOTIENT_MAX_DEGREE`].
+pub fn cell_quotients<T: Real>(
+    axes: (CellAxis<'_, T>, CellAxis<'_, T>),
+    block: CellBlock<'_, T>,
+    splits: (usize, usize),
+    area: bool,
+) -> Option<Vec<CellQuotients<T>>> {
+    let (au, av) = (Axis::of(axes.0)?, Axis::of(axes.1)?);
+    let (p, q) = (au.p(), av.p());
+    let count = (p + 1) * (q + 1);
+    if p == 0 || q == 0 {
+        return None;
+    }
+    let grid3 = |x: &[[T; 3]]| Grid::new(q + 1, x.iter().map(|v| Vector(*v)).collect());
+    let grid1 = |x: &[T]| Grid::new(q + 1, x.iter().map(|v| Vector([*v])).collect());
+    let (a, w, (au_w, wu_w), (av_w, wv_w)) = match block {
+        CellBlock::Points {
+            points,
+            weights,
+            origin,
+        } => {
+            if points.len() != count || weights.len() != count {
+                return None;
+            }
+            let (pg, wg, c) = (
+                grid3(points)?,
+                grid1(&normalised(weights)?.0)?,
+                Vector(origin),
+            );
+            let a = Grid::new(
+                q + 1,
+                pg.c.iter()
+                    .zip(&wg.c)
+                    .map(|(x, w)| scale_by(*x - c, *w))
+                    .collect(),
+            )?;
+            let (pc, wc) = (pg.columns()?, wg.columns()?);
+            let along_u = pc
+                .iter()
+                .zip(&wc)
+                .map(|(x, w)| au.derive_pairs(x, w, c))
+                .collect::<Option<Vec<_>>>()?;
+            let along_v =
+                pg.c.chunks_exact(q + 1)
+                    .zip(wg.c.chunks_exact(q + 1))
+                    .map(|(x, w)| av.derive_pairs(x, w, c))
+                    .collect::<Option<Vec<_>>>()?;
+            let (ua, uw): (Vec<_>, Vec<_>) = along_u.into_iter().unzip();
+            let (va, vw): (Vec<_>, Vec<_>) = along_v.into_iter().unzip();
+            (
+                a,
+                wg,
+                (Grid::from_columns(&ua)?, Grid::from_columns(&uw)?),
+                (Grid::from_rows(&va)?, Grid::from_rows(&vw)?),
+            )
+        }
+        CellBlock::Homogeneous { a, w } => {
+            if a.len() != count || w.len() != count {
+                return None;
+            }
+            let (w, most) = normalised(w)?;
+            let a: Vec<[T; 3]> = a.iter().map(|x| x.map(|c| c / most)).collect();
+            let (a, w) = (grid3(&a)?, grid1(&w)?);
+            let u = (a.map_u(|c| au.derive(c))?, w.map_u(|c| au.derive(c))?);
+            let v = (a.map_v(|r| av.derive(r))?, w.map_v(|r| av.derive(r))?);
+            (a, w, u, v)
+        }
+    };
+    let whole = Homogeneous {
+        a: cell_grid(&a, (&au, false), (&av, false))?,
+        w: cell_grid(&w, (&au, false), (&av, false))?,
+        au: cell_grid(&au_w, (&au, true), (&av, false))?,
+        wu: cell_grid(&wu_w, (&au, true), (&av, false))?,
+        av: cell_grid(&av_w, (&au, false), (&av, true))?,
+        wv: cell_grid(&wv_w, (&au, false), (&av, true))?,
+    };
+    let counts = (piece_count(p, splits.0), piece_count(q, splits.1));
+    let mut out = Vec::with_capacity(counts.0 * counts.1);
+    for iu in 0..counts.0 {
+        for iv in 0..counts.1 {
+            out.push(whole.restrict((iu, iv), counts)?.quotients(area)?);
+        }
+    }
+    Some(out)
+}
+
+/// **The surface statement's pieces** over every nonempty cell of the
+/// rational tensor patch over `knots_u` × `knots_v` with row-major
+/// `points` and `weights` (`[iu·nv + iv]`): [`cell_quotients`] per cell
+/// in ascending `(su, sv)`, each cell's window read in the frame of its
+/// first active point. `None` as [`cell_quotients`] or on an index past an
+/// array; empty when no cell is nonempty.
+pub fn stretch_pieces<T: Real>(
+    (knots_u, knots_v): (&Knots<T>, &Knots<T>),
+    points: &[[T; 3]],
+    weights: &[T],
+    splits: (usize, usize),
+    area: bool,
+) -> Option<Vec<CellQuotients<T>>> {
+    let (ku, kv) = (knots_u.structure(), knots_v.structure());
+    let nv = kv.control_count();
+    let mut out = Vec::new();
+    for su in (ku.first_span()..=ku.last_span()).filter_map(|i| ku.span(i)) {
+        for sv in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
+            let mut block = Vec::with_capacity((su.degree() + 1) * (sv.degree() + 1));
+            for iu in su.window() {
+                for iv in sv.window() {
+                    let k = iu.checked_mul(nv)?.checked_add(iv)?;
+                    block.push((*points.get(k)?, *weights.get(k)?));
+                }
+            }
+            let (points, weights): (Vec<[T; 3]>, Vec<T>) = block.into_iter().unzip();
+            out.extend(cell_quotients(
+                (
+                    CellAxis::Span(su, knots_u.values()),
+                    CellAxis::Span(sv, knots_v.values()),
+                ),
+                CellBlock::Points {
+                    origin: *points.first()?,
+                    points: &points,
+                    weights: &weights,
+                },
+                splits,
+                area,
+            )?);
+        }
+    }
+    Some(out)
 }
 
 #[cfg(test)]

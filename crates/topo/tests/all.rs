@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
+mod an_off_iso_straight_edge_takes_its_general_row;
 #[path = "analytic_rung3_at_rest.rs"]
 mod analytic_rung3_at_rest;
 #[path = "at_rest_pcurve_rows.rs"]
@@ -386,6 +388,8 @@ mod a_vertex_read_by_two_sector_passes;
 mod a_whole_spiric_oval_bounds_its_mirror_torus;
 #[path = "a_whole_villarceau_circle_bounds_a_torus_face.rs"]
 mod a_whole_villarceau_circle_bounds_a_torus_face;
+#[path = "a_widened_rotation_moves_a_body.rs"]
+mod a_widened_rotation_moves_a_body;
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
 #[path = "cleave_mint_doors.rs"]

@@ -947,7 +947,12 @@ fn a_sharp_plate_offset_over_a_rounded_one_unions_in_either_order() {
         (-0.25, 0.0),
     ] {
         let shift = geom_core::Affine3::translation(geom_core::Vec3::new(dx, dy, 0.0));
-        let moved = topo::transform_rigid(&plate(sharp(), 1.0), &shift, tol()).unwrap();
+        let moved = topo::transform_rigid(
+            &plate(sharp(), 1.0),
+            &geom_core::test_support::rigid(&shift, tol()),
+            tol(),
+        )
+        .unwrap();
         let upper = finished("the offset plate", moved, tol());
         for (order, a, b) in [
             ("upper ∪ lower", &upper, &lower),

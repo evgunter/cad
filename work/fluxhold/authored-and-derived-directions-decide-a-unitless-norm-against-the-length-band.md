@@ -44,7 +44,7 @@ megametre.
   within rounding, so this is the carrier case: a pure number.
 - `geom-core/src/linalg/frame.rs` `frame_point_at_aim`,
   `frame_path_start_tangent`, `frame_mirror_normal`, and
-  `ortho_frame.rs`'s mints: these inherit whatever dimension the
+  `rigid_motion.rs`'s mints: these inherit whatever dimension the
   caller's vector carries.
 - `sweep/src/revolve/axis.rs` `revolve_axis_direction`
   (`Margin::norm2(axis.dir)`): an authored revolve axis.

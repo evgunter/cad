@@ -1240,6 +1240,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Blend { .. }
         | NodeErrorKind::Boolean(_)
         | NodeErrorKind::Transform(_)
+        | NodeErrorKind::Motion(_)
         | NodeErrorKind::Skin(_)
         | NodeErrorKind::Loft(_)
         | NodeErrorKind::CurvedSolidFrontier { .. }

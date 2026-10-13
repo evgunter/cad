@@ -130,7 +130,12 @@ fn turned(b: &topo::Body<f64>, angle: f64) -> AtRestBody<f64> {
     let b = if angle == 0.0 {
         b.clone()
     } else {
-        topo::transform_rigid(b, &rot(angle), tol()).unwrap()
+        topo::transform_rigid(
+            b,
+            &geom_core::test_support::rigid(&rot(angle), tol()),
+            tol(),
+        )
+        .unwrap()
     };
     finished("op", b, tol())
 }

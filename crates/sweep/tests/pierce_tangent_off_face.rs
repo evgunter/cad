@@ -53,7 +53,12 @@ fn ball(r: f64, y: f64) -> Body<f64> {
 }
 
 fn moved(b: &Body<f64>, m: &Affine3<f64>) -> Body<f64> {
-    topo::transform_rigid(b, m, Tol::witness()).unwrap()
+    topo::transform_rigid(
+        b,
+        &geom_core::test_support::rigid(m, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 fn boolean(

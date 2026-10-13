@@ -26,8 +26,8 @@ use std::borrow::Cow;
 use geom_core::{Band, Bounds, Decide};
 
 use super::{
-    BooleanError, CarrierRelation, DeclarationRead, Glue, GluedPair, Operand, PairUnread, boxes,
-    carrier_pair_relation, glued_tangency,
+    BooleanError, CarrierRelation, DeclarationRead, Glue, GluedPair, Operand, PairUnread,
+    TangencyFailure, boxes, carrier_pair_relation, glued_tangency,
 };
 use crate::body::Body;
 use crate::contact::GlueClass;
@@ -79,9 +79,19 @@ pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
 /// locus ([`glued_tangency`]), asked only of a pair it has a locus for:
 /// a plane and a cylinder, two cylinders, or two faces ending on one
 /// circle. Along a rim the routing must also read the junction the two
-/// faces make as one the zip builds, the smooth seam. Any refusal is no
-/// tangency, an escalation included (filed:
-/// `work/contacthold/the-glue-doors-tangency-swallows-its-escalations.md`).
+/// faces make as one the zip builds, the smooth seam.
+///
+/// Counter-evidence, a pair outside the lane and a junction the routing
+/// places outside what the zip builds are no tangency. A refusal no
+/// reading of the pair settles (an in-band margin, an undecidable rim
+/// identity, an unreadable face) is the operation's: a pair the lane has
+/// a locus for never reaches a later stage unglued on a reading the
+/// door could not take (C8).
+///
+/// # Errors
+///
+/// That refusal, typed; [`BooleanError::ClassificationInvariant`] where
+/// an enumerated face has no surface.
 fn tangency<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -97,15 +107,23 @@ fn tangency<T: Decide>(
                 what: "the glue door: a face it enumerated has no surface",
             })
     };
+    let read = DeclarationRead::Moot;
     if !ruled((kind(a, fa)?, kind(b, fb)?))
-        && !matches!(
-            super::rim_wedge::shared_rim(a, fa, b, fb, band),
-            Ok(Some(_))
-        )
+        && super::rim_wedge::shared_rim(a, fa, b, fb, band)
+            .map_err(|diag| BooleanError::coincidence(super::Coincide::Rim, read, diag))?
+            .is_none()
     {
         return Ok(false);
     }
-    Ok(glued_tangency(a, fa, b, fb, DeclarationRead::Moot, band).is_ok())
+    match glued_tangency(a, fa, b, fb, read, band) {
+        Ok(_) => Ok(true),
+        Err(TangencyFailure::Refused(e)) => Err(e),
+        Err(
+            TangencyFailure::Contradicted { .. }
+            | TangencyFailure::Unsupported
+            | TangencyFailure::Unrouted(_),
+        ) => Ok(false),
+    }
 }
 
 /// Whether two carriers' kinds are the witness lane's line pairs: a

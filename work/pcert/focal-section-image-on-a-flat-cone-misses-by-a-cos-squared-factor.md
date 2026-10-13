@@ -49,3 +49,5 @@ channel is stored in.
 Measure which of the image's numbers carries the `1/cos²α`, and
 re-derive it from the carrier where it does not have to divide by
 `cos α`.
+
+**Not touched by the vertex-azimuth fix** (`focal-section-vertex-azimuth-is-read-off-a-cancelling-sum`, closed 2026-10-13): at `α = 1.55` it moves the whole-turn miss at most 3× (generic pose, `f = 0.9999`: 3.6e-6 → 8.8e-7), so the `1/cos²α` mechanism stands.

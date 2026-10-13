@@ -40,9 +40,11 @@ re-checks the refined weights and returns poison. On the surface side,
 any consumer that trusts the `validate_counts` precondition is wrong
 about refined payloads. `geom_brep`'s `weight_ratio_factor` (in
 `pcurve_cache.rs`) trusted it until PR 3614 made it return poison for
-such a list; PR 4928 retired that factor, and `chart_stretch_inf`'s
-pair-term floors rely on the producers' weight regime
-(`geom_core::spline::weight_in_regime`, PR 4923).
+such a list; PR 4928 retired that factor. `chart_stretch_inf` now reads
+the quotient bound (PR 4954): a weight rounded to zero gives a zero
+weight-power coefficient, so a sup reads `+∞` and a floor `−∞` or NaN,
+which the door clamps to zero. That is a refusal, never a low finite
+bound, but it is still a consumer standing in for the producer.
 
 The fix belongs at the producer: the refinement doors should
 re-validate their output and refuse with a typed `KnotAlgebraError`,
