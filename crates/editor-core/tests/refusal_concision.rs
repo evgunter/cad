@@ -629,6 +629,13 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "CrossingsAlongAContactLine",
+            BooleanError::CrossingsAlongAContactLine {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+            },
+        ),
+        (
             "PinchConesOnSeparateKeys",
             BooleanError::PinchConesOnSeparateKeys {
                 operand: Operand::A,

@@ -2158,11 +2158,19 @@ fn name_boolean_vertices<T: Decide>(
                         )
                     }
                     // One line meeting several faces of the other
-                    // operand, no edge of it: N2 has no pair spelling
-                    // for it, so it is a missing rule
-                    // (`work/emit/a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces.md`).
+                    // operand and no edge of it. Several faces of one
+                    // operand meet at a point only along that operand's
+                    // edges, and with planar faces the region a pair
+                    // keeps about the line either keeps a piece of such
+                    // an edge at the point, holds one of its faces
+                    // there, or pinches into two vertices, each one
+                    // line meeting one face. A manifold pair does not
+                    // reach this shape, so it is an emission bug.
                     ([_], []) | ([], [_]) => {
-                        return Err(NamingError::SeamVertexParentage { vertex: v });
+                        return Err(bug(
+                            "one operand line meets several faces of the other operand and none \
+                             of its edges at a seam vertex",
+                        ));
                     }
                     _ => return Err(bug("a seam vertex's operand edges hold no line")),
                 };
@@ -2182,11 +2190,11 @@ fn name_boolean_vertices<T: Decide>(
             // document reaches the arm now
             // (`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`).
             //
-            // **So `SeamVertexParentage` is raised on both sides where
-            // two or more seam lines meet, and on the A side alone where
-            // fewer do.** The B side's lone edge with fewer than two seam
-            // lines falls to the residue below, and the reason is the
-            // finish's asymmetry, scoped to ZIPPED vertices. The witness
+            // **So `SeamVertexParentage` is raised on the A side alone,
+            // where fewer than two seam lines meet.** The B side's lone
+            // edge with fewer than two seam lines falls to the residue
+            // below, and the reason is the finish's asymmetry, scoped to
+            // ZIPPED vertices. The witness
             // is a vertex whose B structure a shared plane consumed: Eq.
             // 15.3 lumps every B on-sector to the discarded side
             // (`topo::boolean::tables::eq15_3_lump`), so on a shared
@@ -2420,29 +2428,23 @@ enum Along {
 struct Fused {
     partners: BTreeMap<VertexKey, Vec<VertexKey>>,
     one_point: Vec<((topo::Operand, VertexKey), (topo::Operand, VertexKey))>,
-    split_from: BTreeMap<VertexKey, VertexKey>,
+    cones: topo::ConeCopies,
 }
 
 impl Fused {
     fn of(naming: &topo::BooleanNaming) -> Self {
         let mut fused = Self::from_rows(naming.vertex_merges.rows(), &naming.null_copies);
-        fused.split_from = naming
-            .cone_splits
-            .iter()
-            .map(|&(split, new)| (new, split))
-            .collect();
+        fused.cones = naming.cone_splits.clone();
         fused
     }
 
     /// The result vertex `k` is a copy of: the vertex a split per cone
     /// copied it from, through every split, or `k` itself. A split's
     /// copy is minted on the result, so it is the operand vertex it
-    /// copies, not a key of either operand.
-    fn origin(&self, mut k: VertexKey) -> VertexKey {
-        while let Some(&from) = self.split_from.get(&k) {
-            k = from;
-        }
-        k
+    /// copies, not a key of either operand. Total: the splits were
+    /// checked as each was made, so they cannot cycle.
+    fn origin(&self, k: VertexKey) -> VertexKey {
+        self.cones.root(k)
     }
 
     /// From the zips' fusions `(dead, kept)` and the null copies, each
@@ -2460,7 +2462,7 @@ impl Fused {
         Self {
             partners: fused_partners(merges),
             one_point,
-            split_from: BTreeMap::new(),
+            cones: topo::ConeCopies::default(),
         }
     }
 }

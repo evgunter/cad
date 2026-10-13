@@ -755,7 +755,7 @@ fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
 /// face says there is no number, and prints none.
 ///
 /// One decade up the face is not reached: `d = 1e-7` certifies at
-/// `5.8231e-7` on the fifth round's 1144 cells. The row pins that
+/// `5.2539e-7` on the fifth round's 1144 cells. The row pins that
 /// boundary, because the two faces are one decade apart and a change
 /// that moved either would otherwise move it silently.
 #[test]
@@ -765,7 +765,7 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
         .unwrap_or_else(|e| panic!("d = 1e-7 no longer certifies: {e}"));
     assert_eq!((cert.rounds, cert.cells), (5, 1144));
     assert!(
-        (cert.hull_sup - 5.82313e-7).abs() < 5e-11,
+        (cert.hull_sup - 5.25391e-7).abs() < 5e-11,
         "d = 1e-7 certifies at {:e}",
         cert.hull_sup
     );
@@ -833,8 +833,8 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
 /// The floor on `‖E‖` reads the three components TOGETHER, through
 /// the sign witness `D` (module docs), which is what keeps the bound
 /// near `|d|`'s own scale: at `d = 1e-6` the certified sup is
-/// `1.701e-5`, seventeen times `|d|`, on the same 308-cell grid a
-/// componentwise floor certified at `3.219e-4`. The sup cell's
+/// `1.514e-5`, fifteen times `|d|`, on the same 308-cell grid a
+/// componentwise floor certified at `2.630e-4`. The sup cell's
 /// decomposition and the two readings of `‖E‖` behind that factor are
 /// `offset_fit`'s own row.
 ///
@@ -842,9 +842,10 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
 /// unreachable one refuses typed rather than reporting a number it
 /// cannot support. `1e-9` is the second half — the fit's own absolute
 /// accuracy does not reach it, and the grid the bound wants exceeds
-/// the sample cap first, at `achieved = 3.7472e-7`. That bound is
-/// carried by `τ` (`2.05e-7` of it), the tangential term, which
-/// divides by the regularity floor rather than by `‖E‖`.
+/// the sample cap first, at `achieved = 2.1241e-8`. The round-5
+/// grid's bound, `3.4524e-7`, is carried by `τ` (`1.85e-7` of it), the
+/// tangential term, which divides by the regularity floor rather than
+/// by `‖E‖`.
 #[test]
 fn a_micron_scale_offset_certifies_and_names_its_limit() {
     let base = quarter_cylinder(1.0, 1.0);
@@ -863,7 +864,7 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
         cert.hull_sup
     );
     assert!(
-        (cert.hull_sup - 1.70060e-5).abs() < 5e-9,
+        (cert.hull_sup - 1.51411e-5).abs() < 5e-9,
         "the certified sup is {:e}",
         cert.hull_sup
     );
@@ -893,7 +894,7 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
         }) => {
             assert_eq!(rounds, 7);
             assert!(
-                (achieved - 2.24527e-8).abs() < 5e-12,
+                (achieved - 2.12411e-8).abs() < 5e-12,
                 "the cap stop carries {achieved:e}"
             );
             eprintln!(
@@ -954,7 +955,7 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
 /// ring's rounding on the intermediates scaled with the base's
 /// coordinate magnitude, and a micron offset on a metre part a
 /// kilometre from the origin certified as `inf` while the same part
-/// at the origin certified at 1.7e-5.
+/// at the origin certified at 1.5e-5.
 ///
 /// The composite now builds every net against one recentring origin
 /// (the base control net's bbox midpoint), which is exact in ℝ and
@@ -965,12 +966,12 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
 /// station on the SAME 308-cell grid:
 ///
 /// ```text
-/// 1e0..1e4   1.7006e-5   flat to five figures
-/// 1e5        1.7007e-5   1.00006x the origin
-/// 1e6        1.7017e-5   1.0006x
-/// 1e7        1.7102e-5   1.0056x
-/// 1e8        1.8152e-5   1.0674x
-/// 1e9        4.6766e-5   2.750x
+/// 1e0..1e4   1.5141e-5   flat to five figures
+/// 1e5        1.5142e-5   1.00007x the origin
+/// 1e6        1.5150e-5   1.0006x
+/// 1e7        1.5223e-5   1.0054x
+/// 1e8        1.6110e-5   1.0640x
+/// 1e9        3.9769e-5   2.627x
 /// 1e10       refused: BoundNotFinite, best None — no grid reached one
 /// ```
 ///
@@ -1041,7 +1042,7 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
             at_origin = cert.hull_sup;
         } else if e <= 7 {
             // The invariance band, where the claim is meaningful.
-            // Measured worst over this range is 1.0056x at 1e7.
+            // Measured worst over this range is 1.0054x at 1e7.
             assert!(
                 cert.hull_sup <= at_origin * 1.05,
                 "shift 1e{e}: hull_sup {} is more than 5% above the same patch at the \
@@ -1164,7 +1165,7 @@ fn a_bound_found_then_lost_carries_the_bound_it_lost() {
             // it on an earlier round.
             assert_eq!((rounds, grid, best.grid), (10, (56, 29), (52, 29)));
             assert!(
-                (best.bound - 4.987e-6).abs() < 1e-9,
+                (best.bound - 4.4774e-6).abs() < 1e-9,
                 "the lost bound is {:e}",
                 best.bound
             );
@@ -1186,7 +1187,7 @@ fn a_round_whose_bound_rose_takes_the_both_directions_step() {
     let (_, at5) = fit_offset_at(&base, d, 2e-9, band())
         .unwrap_or_else(|e| panic!("the bumpy patch refused 2e-9: {e}"));
     assert!(
-        at5.rounds == 5 && (at5.hull_sup - 1.1283921e-9).abs() < 1e-14,
+        at5.rounds == 5 && (at5.hull_sup - 1.1285881e-9).abs() < 1e-14,
         "round {} carries {:e}",
         at5.rounds,
         at5.hull_sup

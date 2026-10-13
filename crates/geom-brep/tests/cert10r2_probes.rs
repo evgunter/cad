@@ -1,7 +1,7 @@
 //! CERT-10 R2 blinded-review probes (reviewer-local, branch
 //! cert/10r2-probes — NOT for merge into the unit branch).
 //!
-//! 1. `probe1_*`: the signed quotient-rule reading is a genuine
+//! 1. `probe1_*`: the signed quotient reading is a genuine
 //!    ENCLOSURE — per-cell, per-channel, SIGNED containment of densely
 //!    sampled true partials on adversarial rational patches (extreme
 //!    weight ratios, sign-alternating nets), plus a randomized sweep.
@@ -23,6 +23,7 @@ use geom::NurbsSurface;
 use geom_brep::patch_bound::{self, PatchCell};
 use geom_core::Bounds;
 use geom_core::Point3;
+
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
@@ -32,17 +33,39 @@ fn contains(iv: Interval, x: f64) -> bool {
     iv.lo() <= x && x <= iv.hi()
 }
 
+/// One partial's sampled f64 value, its interval jet and its cell
+/// enclosure, named.
+type Reading<'a> = (&'a str, [f64; 3], [Interval; 3], [Interval; 3]);
+
+/// The least magnitude `iv` admits: a value certainly at least this
+/// far from zero.
+fn least(iv: Interval) -> f64 {
+    if iv.lo() > 0.0 {
+        iv.lo()
+    } else if iv.hi() < 0.0 {
+        -iv.hi()
+    } else {
+        0.0
+    }
+}
+
 /// Dense signed-containment check with two ledgers:
 /// - the NORM claim (what the tessellation consumes): |truth| must
 ///   never exceed the enclosure's magnitude sup — hard assert, since a
-///   single sampled point above that bound falsifies the unit;
-/// - the SIGNED-enclosure claim as the field docs state it: containment
-///   violations are measured and must stay at insertion-rounding dust
-///   scale (the rational arm encloses the REFINED f64 net's surface,
-///   not the described one — found by this probe on quarter_cylinder,
-///   where s_vv's z enclosure is [-4.1e-15, -3.4e-15] but true
-///   S_vv == 0).
+///   single sampled point above that bound falsifies the unit. Truth
+///   is read as an interval jet of the described net ([`least`]): an
+///   f64 `ders()` carries its own rounding, which on a structural zero
+///   (quarter_cylinder's `s_uv`, whose quotient reading is exact) sits
+///   above a sup that is itself right;
+/// - the SIGNED-enclosure claim as the field docs state it: the cells
+///   enclose the DESCRIBED patch, so a violation of the sampled f64
+///   jet is that jet's own rounding, and must stay at dust scale. (This
+///   probe first found the rational arm enclosing a refined `f64` net
+///   rather than the described one — quarter_cylinder's `s_vv.z` read
+///   `[-4.1e-15, -3.4e-15]` where `S_vv == 0`; the arm now reads the
+///   described net's quotient, and that `s_vv` is the exact zero.)
 fn assert_cells_enclose(name: &str, s: &NurbsSurface<f64>, cells: &[PatchCell], m: usize) {
+    let lifted = s.map_scalar(<Interval as geom_core::Real>::from_f64);
     let mut checked = 0usize;
     let mut worst_gap = 0.0f64;
     let mut worst_rel = 0.0f64;
@@ -56,23 +79,27 @@ fn assert_cells_enclose(name: &str, s: &NurbsSurface<f64>, cells: &[PatchCell], 
                 let u = c.u.0 + (c.u.1 - c.u.0) * fu;
                 let v = c.v.0 + (c.v.1 - c.v.0) * fv;
                 let jet = s.ders(u, v);
-                let per: [(&str, [f64; 3], [Interval; 3]); 5] = [
-                    ("s_u", jet.du.to_array(), c.s_u),
-                    ("s_v", jet.dv.to_array(), c.s_v),
-                    ("s_uu", jet.duu.to_array(), c.s_uu),
-                    ("s_uv", jet.duv.to_array(), c.s_uv),
-                    ("s_vv", jet.dvv.to_array(), c.s_vv),
+                let held = lifted.ders(
+                    <Interval as geom_core::Real>::from_f64(u),
+                    <Interval as geom_core::Real>::from_f64(v),
+                );
+                let per: [Reading<'_>; 5] = [
+                    ("s_u", jet.du.to_array(), held.du.to_array(), c.s_u),
+                    ("s_v", jet.dv.to_array(), held.dv.to_array(), c.s_v),
+                    ("s_uu", jet.duu.to_array(), held.duu.to_array(), c.s_uu),
+                    ("s_uv", jet.duv.to_array(), held.duv.to_array(), c.s_uv),
+                    ("s_vv", jet.dvv.to_array(), held.dvv.to_array(), c.s_vv),
                 ];
-                for (what, truth, enc) in per {
+                for (what, truth, held, enc) in per {
                     for k in 0..3 {
                         checked += 1;
                         let sup = enc[k].lo().abs().max(enc[k].hi().abs());
                         assert!(
-                            truth[k].abs() <= sup,
-                            "{name}: |{what}[{k}]| = {:.17e} EXCEEDS the magnitude sup \
+                            least(held[k]) <= sup,
+                            "{name}: |{what}[{k}]| ≥ {:.17e} EXCEEDS the magnitude sup \
                              {:.17e} at (u,v)=({u},{v}), cell u{:?} v{:?} — the bound \
                              is wrong, not merely offset",
-                            truth[k].abs(),
+                            least(held[k]),
                             sup,
                             c.u,
                             c.v
@@ -97,8 +124,8 @@ fn assert_cells_enclose(name: &str, s: &NurbsSurface<f64>, cells: &[PatchCell], 
          {worst_gap:.3e} (rel {worst_rel:.3e})",
         cells.len()
     );
-    // Dust scale: the documented f64/insertion-rounding slack lives
-    // well under 1e-12 relative; anything larger is a real hole.
+    // Dust scale: the sampled jet's f64 rounding lives well under
+    // 1e-12 relative; anything larger is a real hole.
     assert!(
         worst_rel < 1e-12,
         "{name}: signed containment violated beyond rounding dust (rel {worst_rel:.3e})"
@@ -243,16 +270,26 @@ fn probe1_quarter_cylinder_fold_norms_dominate() {
             .next_up()
     };
     let (muu, muv, mvv) = (comp(|c| c.s_uu), comp(|c| c.s_uv), comp(|c| c.s_vv));
+    // Sampled as interval jets of the described net, each norm read at
+    // its certain floor: an f64 `ders()` lands its rounding on the
+    // structural zero `S_uv`, whose quotient sup is exact.
+    let lifted = s.map_scalar(<Interval as geom_core::Real>::from_f64);
+    let floor = |d: geom_core::Vec3<Interval>| {
+        geom_core::interval::norm_sq(&d.to_array())
+            .lo()
+            .max(0.0)
+            .sqrt()
+    };
     let n = 700usize;
     let (mut wuu, mut wuv, mut wvv) = (0.0f64, 0.0f64, 0.0f64);
     for i in 0..=n {
         for j in 0..=n {
-            let u = i as f64 / n as f64;
-            let v = j as f64 / n as f64;
-            let jet = s.ders(u, v);
-            wuu = wuu.max(jet.duu.norm());
-            wuv = wuv.max(jet.duv.norm());
-            wvv = wvv.max(jet.dvv.norm());
+            let u = <Interval as geom_core::Real>::from_f64(i as f64 / n as f64);
+            let v = <Interval as geom_core::Real>::from_f64(j as f64 / n as f64);
+            let jet = lifted.ders(u, v);
+            wuu = wuu.max(floor(jet.duu));
+            wuv = wuv.max(floor(jet.duv));
+            wvv = wvv.max(floor(jet.dvv));
         }
     }
     println!(

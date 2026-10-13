@@ -645,10 +645,12 @@ enum WallImage {
 }
 
 /// A wall half-edge as [`spiric_wall`] reads it: its carrier, its
-/// lifted image, its certificate envelope and its carrier span.
+/// lifted image, where its traversal starts and ends on that image
+/// `(u, v)`, its certificate envelope and its carrier span.
 struct WallHalf {
     edge: LoopEdge<Interval>,
     image: WallImage,
+    ends: [(Interval, Interval); 2],
     env: Interval,
     span: Interval,
 }
@@ -714,6 +716,9 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                 let (t0, t1) = cache.params();
                 let pair = |p: geom_core::Point2<T>| (iv(p.x), iv(p.y));
                 let vec = |v: geom_core::Vec2<T>| (iv(v.x), iv(v.y));
+                // The traversal's ends through the image's own evaluator,
+                // on the lane, crossed into certification arithmetic.
+                let (a, b) = (pair(image.eval(t0)), pair(image.eval(t1)));
                 halves.push(WallHalf {
                     edge: lift(le),
                     image: match image {
@@ -737,6 +742,7 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                         }
                         _ => WallImage::Other,
                     },
+                    ends: if le.forward { [a, b] } else { [b, a] },
                     env: iv(cache.certificate().envelope),
                     span: iv(t1) - iv(t0),
                 });
@@ -821,6 +827,7 @@ fn spiric_wall(
         minor,
         rims: Vec::new(),
         meridians: Vec::new(),
+        ends: Vec::with_capacity(halves.len()),
     };
     let mut closed_va = [Interval::zero(); 3];
     let mut spirics = Vec::new();
@@ -882,7 +889,15 @@ fn spiric_wall(
                     v0: *v0,
                     env: h.env,
                 };
-                spirics.extend(spiric_edge_q(e, c, Some(wall)));
+                let q = spiric_edge_q(e, c, Some(wall)).ok_or_else(|| {
+                    unsupported("a spiric wall image on an edge whose carrier is no spiric")
+                })?;
+                chart.ends.push(spiric::ChartEndsQ {
+                    start: h.ends[0],
+                    end: h.ends[1],
+                    env: h.env,
+                });
+                spirics.push(q);
                 continue;
             }
             (WallImage::Harmonic([p0, pa, pb, pl]), _) => {
@@ -893,6 +908,11 @@ fn spiric_wall(
                          line of its chart — the spiric lane reads rims and meridians",
                     ));
                 }
+                chart.ends.push(spiric::ChartEndsQ {
+                    start: h.ends[0],
+                    end: h.ends[1],
+                    env: h.env,
+                });
                 if zero(pl.1) {
                     chart.rims.push(spiric::RimQ {
                         v: p0.1,

@@ -106,6 +106,8 @@ mod a_thin_cap_keeps_its_digits;
 mod a_tube_ending_on_a_ball;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
+mod an_arc_rim_picks_the_row_it_lies_on;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
 mod an_arc_tangent_at_a_boolean_vertex;
 #[path = "an_inside_out_thin_tube_operand.rs"]
@@ -152,6 +154,8 @@ mod cone_join_lane;
 mod cone_operand_rows;
 #[path = "continuation_pose.rs"]
 mod continuation_pose;
+#[path = "crossing_equal_rods.rs"]
+mod crossing_equal_rods;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]
@@ -317,6 +321,10 @@ mod band_ruled_cap_ring;
 mod band_ruled_d_hole;
 #[path = "band_turn_overrun_chamfer.rs"]
 mod band_turn_overrun_chamfer;
+#[path = "band_turn_overrun_fillet.rs"]
+mod band_turn_overrun_fillet;
+#[path = "band_turn_overrun_fillet_model.rs"]
+mod band_turn_overrun_fillet_model;
 #[path = "band_turn_overrun_oracles.rs"]
 mod band_turn_overrun_oracles;
 #[path = "band_turn_overrun_probe.rs"]
@@ -1137,6 +1145,8 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "a_cone_with_a_tilted_seam.rs"]
+mod a_cone_with_a_tilted_seam;
 #[path = "join_lever_is_the_joined_edge.rs"]
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]
