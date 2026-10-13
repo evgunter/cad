@@ -1283,9 +1283,9 @@ fn arc_clear_of_carrier<T: Decide>(
 ///   internal clearance. Negative ⇒ nested, no contact; Zero ⇒
 ///   internally tangent (contact on the center line beyond both
 ///   centers); Positive (with external Negative) ⇒ two proper
-///   intersections at the standard radical-line closed form — the
-///   radicand h² = r₁² − a² factors through both clearances, so it is
-///   definitely positive in this branch and cannot poison.
+///   intersections, on the radical line ([`radical_chord`]), whose
+///   half-chord's square is a product of the two clearances, each
+///   definite in this branch, so it cannot poison.
 ///
 /// Divisions by d occur only in branches where the identity margin was
 /// definitely positive with the relevant clearances pinned, so d is
@@ -1347,9 +1347,7 @@ fn arc_arc<T: Decide>(
                             // Internally tangent: d = |Δr| and the
                             // identity margin d + |Δr| = 2d is definite,
                             // so d is bounded away from zero.
-                            let two_d = d + d;
-                            let a =
-                                (d.powi(2) + g1.arc.radius.powi(2) - g2.arc.radius.powi(2)) / two_d;
+                            let (a, _) = radical_chord(g1.arc.radius, g2.arc.radius, d);
                             let q = g1.arc.centre + (delta / d) * a;
                             candidates(
                                 &mut contacts,
@@ -1362,13 +1360,11 @@ fn arc_arc<T: Decide>(
                         }
                         Sign::Positive => {
                             // Proper secant: d > |Δr| definitely, so
-                            // d > 0. Radical-line closed form.
+                            // d > 0.
                             let u = delta / d;
                             let n = perp(u);
-                            let two_d = d + d;
-                            let a =
-                                (d.powi(2) + g1.arc.radius.powi(2) - g2.arc.radius.powi(2)) / two_d;
-                            let h = (g1.arc.radius.powi(2) - a.powi(2)).sqrt();
+                            let (a, h) = radical_chord(g1.arc.radius, g2.arc.radius, d);
+                            let h = h.sqrt();
                             let foot = g1.arc.centre + u * a;
                             let crossings = [foot + n * h, foot - n * h];
                             candidates(
@@ -1386,6 +1382,28 @@ fn arc_arc<T: Decide>(
             Ok(PairOutcome::Contacts(contacts))
         }
     }
+}
+
+/// Where the radical line of two circles, radii `r1` and `r2` and
+/// centres `d` apart, crosses the line of centres, as the signed
+/// distance `a` from the first centre, and the square of the half-chord
+/// it cuts from both circles, `h²`.
+///
+/// Both come from the clearances: `r₁ − a = (r₁ + r₂ − d)(d − r₁ +
+/// r₂)/2d` and `h² = (r₁ + r₂ − d)(d − r₁ + r₂)(d + r₁ − r₂)(d + r₁ +
+/// r₂)/4d²`. The textbook `(d² + r₁² − r₂²)/2d` and `r₁² − a²` are
+/// differences of squares, and where the radii differ by orders of
+/// magnitude they take the crossings off both carriers at `f64` by up to
+/// the smaller radius. Each clearance rounds at the inputs' own scale,
+/// so the crossings sit on both carriers to a few ulps of the largest of
+/// `d` and the radii.
+fn radical_chord<T: Real>(r1: T, r2: T, d: T) -> (T, T) {
+    let (sum, diff) = (r1 + r2, r1 - r2);
+    let (lens, near, far) = (sum - d, d - diff, d + diff);
+    let two_d = d + d;
+    let a = r1 - lens * near / two_d;
+    let h2 = lens * near * (far * (sum + d)) / (two_d * two_d);
+    (a, h2)
 }
 
 /// Reads the candidate contacts of two carriers, `points`, each from
