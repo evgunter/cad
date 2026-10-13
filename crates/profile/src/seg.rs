@@ -2522,7 +2522,7 @@ mod circles_accuracy_tests {
                     let x = (x.x, x.y);
                     for (c, r) in [first, second] {
                         let off = ulps(off_circle(x, c, r), at);
-                        if !(off <= ULPS) {
+                        if off.is_nan() || off > ULPS {
                             wrong.push(format!(
                                 "secant {name}{order}: crossing {x:?} sits {off:.3e} ulps off \
                                  the circle at {c:?}, r = {r:e}"
@@ -2542,7 +2542,7 @@ mod circles_accuracy_tests {
                     .value()
                     .hypot(Dd::of(foot.y).sub(y).value());
                 let off = ulps(err, at);
-                if !(off <= ULPS) {
+                if off.is_nan() || off > ULPS {
                     wrong.push(format!(
                         "internal tangency {name}{order}: foot ({}, {}) sits {off:.3e} ulps \
                          from the radical foot",
