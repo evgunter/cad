@@ -2,8 +2,10 @@
 id: the-localization-core-is-half-unified
 kind: issue
 title: The bisection localizations share a walk but not their spellings: the tangency floor, a piece's reach, the budget and the stop reason each live in more than one place
-status: open
+status: closed
+branch: fuse/the-localization-core-2
 refs: [4980]
+closed: 2026-10-13
 opened: 2026-10-13
 priority: P3
 cost: M
@@ -49,3 +51,14 @@ Its review found more copies of the same class. They are this row's scope now:
 - **An unpinned polish guard.** The `16·slack` guard (`census::curved::step_kept`'s bound) has no row: keeping every step leaves the suite green.
 
 The walk-shaped sweep that found the first five cites could not see duplicated arithmetic, which is how these escaped. Sweep the constants and the formulas (`spiric_rate_bounds(`, `f_min`, `* h`, `speed *`), not only the stacks.
+
+## 2026-10-13, closed: branch `fuse/the-localization-core-2`
+
+- **`containment::spiric_speed` is gone.** `carrier_ball`'s spiric arm reads `bisect::reach` of `carrier_speed::speed_range`. `shell`'s two `ArcPiece` speeds (spiric, and spline) read `speed_range`, and `ArcPiece::ball` reads `bisect::reach`.
+- **`offset_axial::param_speeds` reads `speed_range`** on the circle and the spiric, and its doc no longer claims the spelling. Its `None` for an ellipse turned out to be a dimension gap, filed on `work/offset/an-ellipse-edges-offset-window-decides-radians-as-metres.md`.
+- **The test copies read `geom::spiric_period_rate_bounds`.** These are `sweep`'s `pis_arc_capped_poses` and `contfp_reads_arcs_on_their_carriers`, and a census test.
+- **`feet` stops on `census::curved::stops`.**
+- **The depth idioms stay per walk**, for the reason now written at `bisect`'s module doc.
+- **The `16·slack` guard is not pinned**, for the reason now written at `step_kept`.
+
+Every replacement is bit-identical, shown at `f64` and `Interval` on 60000 random spirics and circles.

@@ -238,6 +238,18 @@ pub(super) fn carrier<T: Decide>(
 /// and not a jump to a far branch), decided exactly. A singular step —
 /// a tangency's — comes out poison and is dropped with the rest, at
 /// every scalar.
+///
+/// **The `16·slack` bound has no row, and cannot have one.** A polished
+/// parameter is read, never trusted: the reading decides the point's
+/// gap at it, so a step the bound drops or keeps can lose a foot but
+/// never invent one. And it binds only where it could matter least: a
+/// step moves the point at most `(hi/lo)·|C(t) − q|`, so on a carrier
+/// whose speeds stay within a factor of 16 it never binds, and on the
+/// seeds these lanes give a thin ellipse (`param_near`'s, or a search
+/// leaf's middle) the foot is reached with or without it — measured on
+/// 12000 points within half an ε of ellipses of aspect 20 to 1000, none
+/// lost either way. It is a backstop against a far seed, which no lane
+/// hands it.
 fn step_kept<T: Decide>(moved: T, bound: T) -> bool {
     crate::splitting::order::exact_band().is_ok_and(|exact| {
         surely(
@@ -312,7 +324,7 @@ fn feet<T: Decide>(
             ) {
                 return Step::Settled;
             }
-            if surely("pm_census_ve_curved_piece", reach, band, Sign::Zero) {
+            if stops("pm_census_ve_curved_piece", reach, None, band) {
                 out.push(polish_foot(r, q, m, gap + reach));
                 return Step::Settled;
             }
@@ -475,15 +487,15 @@ fn floor<T: Decide>(a: &Read<T>, b: &Read<T>, band: Band) -> Option<T> {
     ))
 }
 
-/// Whether a piece of reach `reach` is small enough to stop at: within
-/// the floor, decided — an enclosure of the floor is read at its lower
-/// end, so a wide one halves on rather than stopping a long piece. A
-/// floor that is not a finite length (two straight carriers' `κ = 0`) is
-/// no floor: pieces stop at the band.
-fn stops<T: Decide>(reach: T, floor: Option<T>, band: Band) -> bool {
+/// Whether a piece of reach `reach` is small enough to stop at, decided
+/// on `row`: within the floor — an enclosure of the floor is read at its
+/// lower end, so a wide one halves on rather than stopping a long piece.
+/// No floor, or one that is not a finite length (two straight carriers'
+/// `κ = 0`), stops pieces at the band.
+fn stops<T: Decide>(row: &'static str, reach: T, floor: Option<T>, band: Band) -> bool {
     let within = |margin: T| {
         matches!(
-            geom_core::k_stats::decide("pm_census_ee_curved_piece", Margin::of(margin), band),
+            geom_core::k_stats::decide(row, Margin::of(margin), band),
             Ok(Sign::Negative | Sign::Zero)
         )
     };
@@ -576,8 +588,8 @@ fn reads_meet<T: Decide>(
             if pieces_apart((ra, pa), (rb, pb), band) {
                 return Step::Settled;
             }
-            let stop_a = stops(pa.reach(ra.hi), floor, band);
-            let stop_b = stops(pb.reach(rb.hi), floor, band);
+            let stop_a = stops("pm_census_ee_curved_piece", pa.reach(ra.hi), floor, band);
+            let stop_b = stops("pm_census_ee_curved_piece", pb.reach(rb.hi), floor, band);
             if stop_a && stop_b {
                 return if meet_at(body, (ra, pa), (rb, pb), band, &mut held) {
                     Step::Stop(Met)
@@ -960,7 +972,9 @@ mod tests {
     fn a_piece_stops_only_within_a_finite_floors_lower_end() {
         use geom_core::Interval;
         let at = |x: f64| Interval::from_bounds(x, x);
-        let stops = |reach: f64, floor: Interval| super::stops(at(reach), Some(floor), band());
+        let stops = |reach: f64, floor: Interval| {
+            super::stops("test_piece", at(reach), Some(floor), band())
+        };
         let wide = Interval::from_bounds(0.01, 1e3);
         assert!(
             !stops(1.0, wide),
@@ -972,11 +986,16 @@ mod tests {
         );
         assert!(stops(1.0, at(2.0)), "a piece within a point floor stops");
         assert!(
-            !super::stops(1.0, Some(f64::INFINITY), band()),
+            !super::stops("test_piece", 1.0, Some(f64::INFINITY), band()),
             "an infinite floor stops no piece at f64"
         );
         assert!(
-            super::stops(band().zero() / 2.0, Some(f64::INFINITY), band()),
+            super::stops(
+                "test_piece",
+                band().zero() / 2.0,
+                Some(f64::INFINITY),
+                band()
+            ),
             "a piece within the band stops"
         );
     }

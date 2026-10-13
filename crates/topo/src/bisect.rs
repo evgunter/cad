@@ -9,6 +9,15 @@
 //! a ray) and `census::curved` (a curve against a point or another
 //! curve). Beside it, the two lengths a walk near a tangency reads
 //! alike: a piece's [`reach`] and the [`tangency_floor`].
+//!
+//! The core owns the budget and not a depth: what "too deep" means is
+//! each walk's. `spiric_arc` caps a piece at the depth past which `f64`
+//! cannot halve its window, and answers there as at the budget;
+//! `census::curved` counts a piece's cuts only to halve the pair's
+//! shallower side first, and stops on a length (the floor, the band);
+//! `circle_roots` stops on a decided width in metres. A cap the core
+//! imposed would be a second budget, binding where the first already
+//! does.
 
 use geom_core::{Margin, Real, SupSpeed};
 

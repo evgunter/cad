@@ -4396,7 +4396,7 @@ impl<T: Decide> ArcPiece<T> {
     fn ball(&self) -> (geom_core::Point3<T>, T) {
         let (t0, t1) = self.window;
         let centre = self.carrier.mid_point(t0, t1);
-        let radius = self.speed * (t1 - t0).abs() * T::from_f64(0.5);
+        let radius = crate::bisect::reach(geom_core::SupSpeed::new(self.speed), (t0, t1));
         let Some((hull_centre, hull_radius)) = self.hull else {
             return (centre, radius);
         };
@@ -4701,25 +4701,16 @@ fn moved_walls<T: Decide>(
                                 minor,
                                 u_ref,
                             } => conic(center, axis, u_ref, major, minor),
-                            geom::Curve3::Spiric {
-                                major_radius,
-                                minor_radius,
-                                offset,
-                                ..
-                            } => EdgeArc::Arc(ArcPiece::along(
+                            geom::Curve3::Spiric { .. } => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                crate::splitting::containment::spiric_speed(
-                                    major_radius,
-                                    minor_radius,
-                                    offset,
-                                ),
+                                crate::carrier_speed::speed_range(curve.carrier()).1.get(),
                                 None,
                                 (t0, t1),
                                 edge.he_plus == he,
                             )),
-                            geom::Curve3::Nurbs(ref spline) => EdgeArc::Arc(ArcPiece::along(
+                            geom::Curve3::Nurbs(_) => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                spline.speed_upper_bound().get(),
+                                crate::carrier_speed::speed_range(curve.carrier()).1.get(),
                                 crate::splitting::containment::carrier_ball(
                                     curve.carrier(),
                                     (t0, t1),
@@ -5242,20 +5233,7 @@ mod tests {
                     end,
                     curve: EdgeArc::Arc(ArcPiece::along(
                         carrier,
-                        match carrier {
-                            geom::Curve3::Nurbs(spline) => spline.speed_upper_bound().get(),
-                            geom::Curve3::Spiric {
-                                major_radius,
-                                minor_radius,
-                                offset,
-                                ..
-                            } => crate::splitting::containment::spiric_speed(
-                                *major_radius,
-                                *minor_radius,
-                                *offset,
-                            ),
-                            _ => unreachable!("the helper takes a spiric or a spline"),
-                        },
+                        crate::carrier_speed::speed_range(carrier).1.get(),
                         crate::splitting::containment::carrier_ball(carrier, params)
                             .filter(|_| matches!(carrier, geom::Curve3::Nurbs(_))),
                         params,
