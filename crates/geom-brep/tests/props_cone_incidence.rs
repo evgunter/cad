@@ -432,15 +432,15 @@ const PERTURBED: [Perturbed; 7] = [
         build: rim_off_axis,
     },
     Perturbed {
-        name: "props_meridian_generator",
+        name: "props_meridian_on_surface",
         build: generator_turned,
     },
     Perturbed {
-        name: "props_meridian_generator",
+        name: "props_meridian_on_surface",
         build: generator_turned_far,
     },
     Perturbed {
-        name: "props_meridian_apex",
+        name: "props_meridian_on_surface",
         build: generator_off_apex,
     },
     Perturbed {
@@ -490,11 +490,12 @@ fn every_cone_incidence_decide_meters_the_true_distance() {
     assert!(bad.is_empty(), "{} wrong:\n{}", bad.len(), bad.join("\n"));
 }
 
-/// **The generator decide meters the angle off the generator, not its
-/// cosine.** At `α = 10⁻⁶` the cosine difference `|dir·axis| − cos α`
-/// reads a generator `δ` off as `sin α·δ`, so the generator stated
-/// `2·escalate` off at its far end reads as on the cone, and the loop is
-/// refused only at the joint it opens (`props_loop_closed`).
+/// **A generator turned off the cone at the needle refuses as incidence
+/// by its own name.** At `α = 10⁻⁶` a reading of the turn by the cosine
+/// difference `|dir·axis| − cos α` sees a generator `δ` off as
+/// `sin α·δ`, so the generator stated `2·escalate` off at its far end
+/// would read as on the cone, and the loop be refused only at the joint
+/// it opens (`props_loop_closed`).
 #[test]
 fn the_needle_generator_refuses_by_its_own_name() {
     let b = band();
@@ -504,7 +505,7 @@ fn the_needle_generator_refuses_by_its_own_name() {
             assert_eq!(
                 got,
                 Err(PropsError::OffSurface {
-                    what: "props_meridian_generator"
+                    what: "props_meridian_on_surface"
                 }),
                 "{c:?} {lane}"
             );
