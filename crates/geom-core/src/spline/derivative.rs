@@ -48,9 +48,10 @@
 //!
 //! with `A = Σ w P` the homogeneous numerator, `W` its weight, `T_{ib}`
 //! the `u` pair term of pair `i` in active column `b` (affine in `S`),
-//! and `λ_{ib} = N_{i,p−1}(u)·M_b(v) ≥ 0` summing to one. `S` itself is
-//! `Σⱼ νⱼ Pⱼ` over the cell's active points with `νⱼ = Nⱼ Mⱼ wⱼ / W ≥ 0`
-//! summing to one, and an affine map carries that combination through,
+//! and `λ_{ib} ≥ 0` summing to one (pair `i`'s degree-`(p−1)` basis
+//! function times column `b`'s). `S` itself is `Σⱼ νⱼ Pⱼ` over the
+//! cell's active points, `νⱼ = Bⱼ wⱼ / W ≥ 0` with `Bⱼ` the tensor basis
+//! function of `Pⱼ`, summing to one, and an affine map carries that combination through,
 //! so `W·S_u = Σ λ_{ib} νⱼ T_{ib}(Pⱼ)` is a convex combination of the
 //! values `T_{ib}(Pⱼ)`. Its projection on `d` is at least the least
 //! projected value `m`, and `W` lies between the cell's least and

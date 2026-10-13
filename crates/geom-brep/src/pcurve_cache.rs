@@ -5782,8 +5782,9 @@ pub struct ChartStretchInf<T> {
 ///
 /// `area_inf` is the same read of the area element along `c_u × c_v`
 /// ([`geom::NurbsSurface::area_floor`]): `W²·(S_u × S_v)` is a convex
-/// combination of the crosses of a `u` and a `v` term value, each at
-/// any active point of the cell, divided by the squared weight. A chart
+/// combination of the crosses of a `u` and a `v` term, both read at one
+/// active point of the cell, so the least projected cross over the
+/// cell's squared weight (chosen by its sign, as above) floors it. A chart
 /// whose two derivative directions can align somewhere gets zero here
 /// even though both per-axis infs are healthy — which is exactly the
 /// case the per-axis pair alone cannot see.
