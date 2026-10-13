@@ -789,10 +789,11 @@ impl core::fmt::Display for CapPlaneError {
             Self::Newell(e) => write!(f, "a cap is not planar: {e}"),
             Self::Orientation(cause) => write!(
                 f,
-                "whether a cap's plane faces along the profile's winding or against it could \
-                 not be decided: {}. {}",
-                cause.payload(),
-                geom_core::KERNEL_DEFECT_ENDING
+                "{}",
+                cause.undecided(
+                    "whether a cap's plane faces along the profile's winding or against it",
+                    geom_core::KERNEL_DEFECT_ENDING,
+                )
             ),
             Self::EdgeOn => write!(
                 f,
@@ -1460,6 +1461,23 @@ mod tests {
     use geom_core::sym::{session_counts, with_session_rules};
     use geom_core::{Bounds, Interval, ParamSymbol, Sym, SymBudget};
 
+    /// **A cap's undecided orientation ends in the defect ending on every
+    /// reading**: a validated profile never reaches it.
+    #[test]
+    fn a_caps_undecided_orientation_ends_as_a_defect() {
+        let defect = "There is no way through: this is a kernel defect; report it";
+        let texts = undecided_fixtures::expected(
+            "whether a cap's plane faces along the profile's winding or against it",
+            [defect; 3],
+        );
+        for (cause, text) in undecided_fixtures::readings("cap_plane_orientation")
+            .into_iter()
+            .zip(texts)
+        {
+            assert_eq!(CapPlaneError::Orientation(cause).to_string(), text);
+        }
+    }
+
     /// **A must-carry escalation keeps which question escalated**: the
     /// first-order arm and wedge by rung, the second-order sagitta as the
     /// bend, each with its own diagnostics.
@@ -1984,5 +2002,75 @@ pub(crate) mod must_carry_fixtures {
             origin: Point3::new(0.0, 0.0, 0.0),
             dir: Vec3::new(0.0, 0.0, 1.0),
         }
+    }
+}
+
+/// The readings an undecided refusal's pins render, one escalation per
+/// kind of margin it can carry, and the literal text each ending class
+/// gives them.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+pub(crate) mod undecided_fixtures {
+    use geom_core::{Band, Decided, Indeterminate, MarginDiag, Sign};
+
+    /// The three readings an escalation of `name` can carry against
+    /// `(1e-9, 1e-8)`: a value in the band, a straddle of the band, and
+    /// a margin nobody could read.
+    pub(crate) fn readings(name: &'static str) -> [Indeterminate; 3] {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let value = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band,
+            predicate: Some(name),
+            terminal_sliver: false,
+        };
+        let straddle = geom_core::k_stats::straddle(
+            name,
+            Decided {
+                sign: Sign::Zero,
+                margin: MarginDiag::value(0.5e-9),
+            },
+            Decided {
+                sign: Sign::Positive,
+                margin: MarginDiag::value(3e-8),
+            },
+            band,
+        );
+        let poison = Indeterminate {
+            margin: MarginDiag::INVALID,
+            ..value
+        };
+        [value, straddle, poison]
+    }
+
+    /// The payload of each of [`readings`].
+    const PAYLOADS: [&str; 3] = [
+        "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). ",
+        "enclosure [5e-10, 3e-8] cannot be classified against the ambiguity band (1e-9, 1e-8). ",
+        "margin is invalid (NaN or a refused enclosure) against the ambiguity band (1e-9, 1e-8). ",
+    ];
+
+    /// A size's ending on each of [`readings`]: the tolerance a value
+    /// gives, the subdividable enclosure, the inputs and the note.
+    pub(crate) const SIZED: [&str; 3] = [
+        "Recourse: move the geometry, or, if this size is intended, tighten the tolerance below \
+         5e-10 m",
+        "Recourse: subdivide the parameter box for a tighter enclosure, or move the geometry, or, \
+         if this size is intended, tighten the tolerance below 5e-11 m",
+        "Recourse: check the operation's inputs upstream, then move the geometry; an unreadable \
+         margin may indicate a kernel bug worth reporting",
+    ];
+
+    /// The lever-only ending on each of [`readings`].
+    pub(crate) const LEVER: [&str; 3] = [
+        "Recourse: move the geometry",
+        "Recourse: move the geometry",
+        "Recourse: move the geometry; an unreadable margin may indicate a kernel bug worth \
+         reporting",
+    ];
+
+    /// The sentence `subject` gives each of [`readings`] under `endings`.
+    pub(crate) fn expected(subject: &str, endings: [&str; 3]) -> [String; 3] {
+        [0, 1, 2].map(|k| format!("{subject} is undecided: {}{}", PAYLOADS[k], endings[k]))
     }
 }
