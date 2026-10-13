@@ -5,10 +5,8 @@
 //! record for each cap circle touching the plate's face at one point
 //! (`crates/topo/README.md` C7). The wire hands every record to the
 //! next boolean on the body (`ContactRecords::carried`), and the one
-//! carry lands a record whose cells the op kept by lineage, unread: so a
-//! later op that touches neither cell answers with every record, none
-//! re-read
-//! (`work/contacthold/a-carried-edge-face-record-the-census-cannot-read-refuses-every-later-op.md`).
+//! carry lands a record whose cells the op kept on them by lineage,
+//! unread: a later op that touches neither cell carries all three.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, failure, run};
@@ -75,20 +73,17 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
     else {
         panic!("plate ∪ rod: a boolean body")
     };
-    let kinds = |contacts: &topo::ContactRecords| {
-        let mut kinds: Vec<_> = contacts
-            .kinds()
-            .map(|k| match k {
-                ContactKind::EdgeFace(..) => "edge–face",
-                ContactKind::FaceFace(..) => "face–face",
-                _ => "other",
-            })
-            .collect();
-        kinds.sort_unstable();
-        kinds
-    };
+    let mut kinds: Vec<_> = contacts
+        .kinds()
+        .map(|k| match k {
+            ContactKind::EdgeFace(..) => "edge–face",
+            ContactKind::FaceFace(..) => "face–face",
+            _ => "other",
+        })
+        .collect();
+    kinds.sort_unstable();
     assert_eq!(
-        kinds(contacts),
+        kinds,
         ["edge–face", "edge–face", "face–face"],
         "plate ∪ rod: the wall's face–face record and the two cap circles' edge–face records"
     );
@@ -96,15 +91,21 @@ fn a_later_op_on_a_rod_resting_on_a_plate_carries_its_cap_records() {
         ("∪ a far block", joined),
         ("∖ a hole in the plate", drilled),
     ] {
-        let Some(ValuePayload::Boolean(BooleanValue::Body { contacts, .. })) =
-            ev.value(node).map(|v| &v.payload)
+        assert!(
+            failure(&ev, node).is_none(),
+            "{what}: answers: {:?}",
+            failure(&ev, node)
+        );
+        let ValuePayload::Boolean(BooleanValue::Body {
+            contacts: carried, ..
+        }) = &ev.value(node).expect("the op evaluates").payload
         else {
-            panic!("{what}: a boolean body: {:?}", failure(&ev, node))
+            panic!("{what}: a boolean body")
         };
         assert_eq!(
-            kinds(contacts),
-            ["edge–face", "edge–face", "face–face"],
-            "{what}: every record lands on the cells the op kept"
+            (carried.edge_face().count(), carried.face_face().count()),
+            (2, 1),
+            "{what}: the two cap records and the wall's record ride through"
         );
     }
 }
