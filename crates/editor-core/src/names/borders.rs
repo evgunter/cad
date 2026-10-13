@@ -223,12 +223,23 @@ impl<K: Ord + Clone> Obstacles<K> {
                     self.split_from.insert(w[0], w[1]);
                 }
             }
-            let touches = chains
-                .iter()
-                .flatten()
-                .filter(|k| earlier.contains(k))
-                .copied()
-                .collect();
+            // A chain edge an earlier seam was split into since that
+            // seam's step still touches it: its lineage reaches the seam.
+            let mut touches = Vec::new();
+            for &k in chains.iter().flatten() {
+                let mut up = k;
+                let mut seen = BTreeSet::new();
+                while seen.insert(up) {
+                    if earlier.contains(&up) {
+                        touches.push(up);
+                        break;
+                    }
+                    match self.split_from.get(&up) {
+                        Some(&next) => up = next,
+                        None => break,
+                    }
+                }
+            }
             let parents = parents_of(row.operand, row.face)?;
             for k in &parents {
                 self.by_parent

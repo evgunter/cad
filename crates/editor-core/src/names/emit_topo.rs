@@ -1511,6 +1511,22 @@ fn name_boolean_edges<T: Decide>(
             (OpSide::B(_), OpSide::A(_)) => {
                 ChordKind::Cross(operand_face_name(d1)?, operand_face_name(d0)?)
             }
+            // Two faces of one operand that share no edge there meet
+            // only where the other operand filled the gap between them
+            // and was consumed: they are its seam, in name order.
+            (OpSide::A(f0), OpSide::A(f1)) | (OpSide::B(f0), OpSide::B(f1))
+                if matches!(
+                    rim_between(d0.of(a, b).0.body, f0, f1)?,
+                    Rim::NotOne(RimShare::NotAdjacent)
+                ) =>
+            {
+                let (n0, n1) = (operand_face_name(d0)?, operand_face_name(d1)?);
+                if n1.name < n0.name {
+                    ChordKind::Cross(n1, n0)
+                } else {
+                    ChordKind::Cross(n0, n1)
+                }
+            }
             // Two faces of one operand: the rim they share
             // (`same_side_rim`).
             (OpSide::A(fa0), OpSide::A(fa1)) => {
