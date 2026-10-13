@@ -598,3 +598,27 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
     );
 }
+
+/// Review R1 probe (not for merge): the same three replays on the PR.
+#[test]
+fn r1_three_replays() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    for study in measured_studies(tol) {
+        if !["r2_link", "r2_filleted_bracket", "r2_rounded_pad"].contains(&study.name) {
+            continue;
+        }
+        let name = study.name;
+        let doc = (study.at)(study.certifies_at * eps);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let box_ = ParamBox::of(&analyzed);
+        let (on_refusal, on) = replay_counts(&doc, &box_, SymRules::shipped(), tol);
+        let (off_refusal, off) =
+            replay_counts(&doc, &box_, SymRules::shipped_without_the_door(), tol);
+        let (r_refusal, r) =
+            replay_counts(&doc, &box_, SymRules::without_the_reads(), tol);
+        println!("R1PR {name} eps={eps:e}: shipped {on:?} -> {on_refusal:?}");
+        println!("R1PR {name} eps={eps:e}: door shut {off:?} -> {off_refusal:?}");
+        println!("R1PR {name} eps={eps:e}: read shut {r:?} -> {r_refusal:?}");
+    }
+}
