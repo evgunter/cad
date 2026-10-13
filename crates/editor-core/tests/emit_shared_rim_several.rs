@@ -18,8 +18,8 @@ use crate::corpus::body_of;
 use crate::fixture::{edge_of, out, table};
 
 use editor_core::{
-    CapEnd, EntityKind, NodeErrorKind, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
-    StableName, VarId,
+    CapEnd, EntityKind, NodeErrorKind, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg, StableName,
+    VarId,
 };
 use geom_core::Tol;
 

@@ -33,11 +33,8 @@
 //!
 //! **Scope.** The corpus is planar blocks: rests, continuations, a
 //! transverse union and an in-band sliver. Unions known to decide by
-//! member order are pinned where their issues own them, not here:
-//! `emit_shared_rim_several`'s `RESIDUES` (`cross` reaches an emitter
-//! residue in some orders and builds in the others;
-//! `work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`),
-//! and the capsule's rod ending on its joint
+//! member order are pinned where their issues own them, not here: the
+//! capsule's rod ending on its joint
 //! (`work/tang/the-capsule-rod-ending-on-the-joint-parts-by-member-order.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
