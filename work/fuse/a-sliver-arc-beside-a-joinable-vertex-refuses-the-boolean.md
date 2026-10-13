@@ -1,12 +1,11 @@
 ---
 id: a-sliver-arc-beside-a-joinable-vertex-refuses-the-boolean
 kind: issue
-title: A curved arc a few ε long beside a joinable vertex refuses the whole boolean JoinUndecided, where main built the body
+title: The join levers its vertex reading over the shorter edge, a scale that is not the joined edge's (a few-ε arc beside a joinable vertex cannot reach it: its own certification refuses first)
 status: open
 opened: 2026-10-07
 priority: P3
 cost: E
-design: false
 ---
 
 ## The finding
