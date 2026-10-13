@@ -28,7 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::k_stats::{self, Probe};
-use geom_core::{Affine3, Point2, Real, Tol, Vec3};
+use geom_core::{Point2, Real, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y_at;
 use topo::{Body, BooleanResult};
@@ -52,7 +52,12 @@ fn ball(r: f64, c: Vec3<f64>) -> Body<Probe> {
         Tol::witness(),
     );
     let to = Vec3::new(p(c.x), p(c.y), p(c.z));
-    topo::transform_rigid(&b, &Affine3::translation(to), Tol::witness()).unwrap()
+    topo::transform_rigid(
+        &b,
+        &geom_core::RigidMotion::translation(to).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 #[test]

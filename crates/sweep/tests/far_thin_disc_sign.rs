@@ -166,7 +166,8 @@ fn tilted_cut(h: f64, tilt: f64, tol: Tol) -> Option<Body<f64>> {
         let cylinder = cylinder_of_arcs_at(4, R, Point2::new(0.0, 0.0), -3e-3, 6e-3, tol);
         let slab = brick::<f64>((-4e-3, 4e-3), (-4e-3, 4e-3), (0.0, h), tol);
         let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), tilt);
-        let slab = transform_rigid(&slab, &tilt, tol).expect("the slab tilts");
+        let slab = transform_rigid(&slab, &geom_core::test_support::rigid(&tilt, tol), tol)
+            .expect("the slab tilts");
         intersect(
             &finished("the cylinder", cylinder, tol),
             &finished("the slab", slab, tol),
@@ -253,8 +254,11 @@ fn far_tilted_cut_discs_are_read_by_their_exact_volume() {
                         angle,
                     );
                     let out = Affine3::translation(Vec3::new(0.6 * d, 0.48 * d, 0.64 * d));
-                    let Ok(upright) = transform_rigid(&cut, &turn, tol)
-                        .and_then(|b| transform_rigid(&b, &out, tol))
+                    let Ok(upright) =
+                        transform_rigid(&cut, &geom_core::test_support::rigid(&turn, tol), tol)
+                            .and_then(|b| {
+                                transform_rigid(&b, &geom_core::test_support::rigid(&out, tol), tol)
+                            })
                     else {
                         test_utils::vacuity::stood_down(
                             "a placement the rigid map refuses",

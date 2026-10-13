@@ -2266,3 +2266,13 @@ Filed:
   - `a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces` (design);
   - `a-union-edge-in-a-face-whose-member-face-glued-is-a-seam-not-a-member-edge-piece` (design);
   - `the-cone-split-relation-has-two-homes-and-the-vertex-pass-two-ladders` (P4).
+
+## 2026-10-13 — the glued-rim fork goes to Ev
+
+A designer pair weighed whether a union edge lying on a member edge whose own face was glued away is a seam or a piece of that rim. They also weighed the unspelled pair-boolean shape of one line meeting several faces.
+
+The pair converged after one round:
+- the glued-rim edge is a seam, and the README defines "lies within" by the two-face test, with no code change;
+- the one-line shape moves to the `Emission` residue, and its row closes as unreached.
+
+This is fork-log row 131 (renumbered at merge; Ev: "sounds good!"). Also filed: `a-run-of-seams-says-every-seam-after-the-first-as-an-edge`.

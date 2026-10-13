@@ -332,19 +332,14 @@ fn m10_10_the_four_residuals_rendered_at_the_nominal() {
             .iter()
             .filter(|s| s.predicate == pred)
             .map(|s| match s.outcome {
-                ShapeOutcome::Theorem => 'T',
-                ShapeOutcome::SignGated => 'G',
-                ShapeOutcome::Registered => 'R',
+                ShapeOutcome::Symbolic => 'S',
                 _ => 'n',
             })
             .collect();
         println!("-- {pred} in evaluation order: {sequence}");
         let mut seen = 0;
         for s in shapes.iter().filter(|s| s.predicate == pred) {
-            if matches!(
-                s.outcome,
-                ShapeOutcome::Theorem | ShapeOutcome::SignGated | ShapeOutcome::Registered
-            ) {
+            if s.outcome == ShapeOutcome::Symbolic {
                 continue;
             }
             seen += 1;
@@ -370,7 +365,7 @@ fn m10_10_the_four_residuals_rendered_at_the_nominal() {
 /// (`m10_8_harness::split`), printed.
 fn print_split(shapes: &[DecisionShape]) {
     for (pred, row) in &crate::m10_8_harness::split(shapes) {
-        println!("   {pred:<34} {row:?} (theorem/gated/registered/numeric)");
+        println!("   {pred:<34} {row:?} (symbolic/numeric)");
     }
 }
 
@@ -901,8 +896,8 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
             let d = leaf.1;
             println!(
                 "   {name:<20} x{scale:<10.3e} {label}: certifies_whole={} in {best:.3}s \
-                 [{}, {}, {}, {}] retried {}",
-                leaf.0, d.symbolic_zero, d.sign_gated, d.registered, d.numeric, d.retried
+                 [{}, {}] retried {}",
+                leaf.0, d.symbolic, d.numeric, d.retried
             );
         }
     }

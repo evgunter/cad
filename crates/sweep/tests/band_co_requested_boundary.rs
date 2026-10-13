@@ -49,7 +49,8 @@ fn boolean(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 }
 
 fn moved(b: &Body<f64>, m: &Affine3<f64>) -> Body<f64> {
-    topo::transform_rigid(b, m, tol()).expect("a rigid motion")
+    topo::transform_rigid(b, &geom_core::test_support::rigid(m, tol()), tol())
+        .expect("a rigid motion")
 }
 
 /// A block standing on the `zx` sketch from `y = −0.5` to `1.5`, over

@@ -38,9 +38,9 @@ pub use interval::Interval;
 #[cfg(feature = "probe")]
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
 pub use linalg::{
-    Affine3, FrameError, FrameInput, FrameVector, LeveredUnitError, Mat3, OrthoAxis, OrthoFrame,
-    OrthoFrameError, Point2, Point3, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3,
-    decide_unit_direction,
+    Affine3, FrameError, FrameInput, FrameVector, LeveredUnitError, Mat3, MotionPart, OrthoAxis,
+    OrthonormalizeError, Point2, Point3, RigidMotion, RigidMotionError, UNIT_DIRECTION_ARM,
+    UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction, not_rigid_reading,
 };
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, DIRECTION_LENGTH_SUBJECT, Decide,
@@ -48,7 +48,7 @@ pub use predicate::{
     IndeterminateUnder, InfSpeed, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT,
     KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Margin, MarginDiag, MarginKind,
     MissReading, MissSource, MissingRecourse, NOT_YET_ENDING, RANGE_RECOURSE, Recourse,
-    SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords, SupSpeed, Theorem, UNNAMED_DECISION,
+    SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords, SupSpeed, UNNAMED_DECISION,
     UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE, UndecidedRefusal, UnderTail, floor_note,
     lever_recourse, noted,
 };

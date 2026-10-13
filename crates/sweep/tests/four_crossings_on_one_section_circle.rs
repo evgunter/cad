@@ -49,7 +49,12 @@ fn ball(axis: Vec3<f64>, turn: f64) -> AtRestBody<f64> {
         b
     } else {
         let t = Affine3::rotation_about_axis(Point3::origin(), axis, turn);
-        topo::transform_rigid(&b, &t, Tol::witness()).expect("a rigid pose")
+        topo::transform_rigid(
+            &b,
+            &geom_core::test_support::rigid(&t, Tol::witness()),
+            Tol::witness(),
+        )
+        .expect("a rigid pose")
     };
     finished("the ball", b, Tol::witness())
 }
