@@ -338,3 +338,4 @@ the text-only option's wording. Both found
   - 4197 (merged 15:35Z, from a branch whose last main merge was 11:54Z) changed it to take `&RigidMotion`.
   - **Fix:** PR 4992 (`nurbs/fix-main-sweep-rigid-tests`), test-only. It wraps the four sites in `geom_core::test_support::rigid`. It merges on CI.
   - **Class:** a signature change's re-spelling pass covers only the callers its branch can see. A branch that last merged main hours before it lands misses callers added since. — (NURBS orchestrator)
+- 2026-10-13 PR 4956 merged (the census reads point touches) and PR 4986 merged (review_4781's eps pins scaled to the band; the corner-sample defect filed): their rows closed.
