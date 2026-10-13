@@ -923,6 +923,44 @@ mod tests {
         );
     }
 
+    /// **Near-concentric arcs: coincident meet, far apart do not, and
+    /// the window between refuses loudly.** Two coplanar concentric
+    /// arcs `Δr` apart: at half the band's coincidence threshold they
+    /// meet; at `1e-3` they are apart; at `1e-5`, past the band at every
+    /// ε row, the search clears near-parallel pieces only once their
+    /// bend `h²` fits under `Δr` and runs past the budget, refusing on
+    /// both edges (`work/fuse/near-concentric-arcs-run-the-census-meeting-search-past-its-budget.md`).
+    /// Red when that window answers silently.
+    #[test]
+    fn near_concentric_arcs_meet_part_or_refuse_loudly() {
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let pair = |dr: f64| {
+            meet(
+                &read(circle(o, 1.0), (0.3, 2.9)),
+                &read(circle(o, 1.0 + dr), (0.5, 3.1)),
+            )
+        };
+        assert_eq!(
+            pair(band().zero() / 2.0),
+            (Some(true), vec![]),
+            "coincident"
+        );
+        assert_eq!(pair(1e-3), (Some(false), vec![]), "far apart");
+        assert!(
+            1e-5 > band().escalate(),
+            "the window row needs K·ε below 1e-5"
+        );
+        let (met, errors) = pair(1e-5);
+        assert_eq!(met, None, "the near window answers silently: {errors:?}");
+        assert!(
+            errors.len() == 2
+                && errors
+                    .iter()
+                    .all(|e| format!("{e:?}").contains("ran past its budget")),
+            "the near window refuses on the budget, naming both edges: {errors:?}"
+        );
+    }
+
     /// **A point within the band of a long thin ellipse is on it.** The
     /// ellipse `1 × 0.02` and a point half an ε off it along its normal:
     /// `param_near`'s eccentric anomaly reads it about 25 times farther
