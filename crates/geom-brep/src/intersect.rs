@@ -2436,10 +2436,10 @@ pub fn plane_cone_section<T: Decide>(
             {
                 Sign::Negative => {
                     // K = −D·(cos α·|c| + sin α·s) > 0 here.
-                    let k = c.powi(2) - sin_a.powi(2);
+                    let k = (cos_a - s) * (cos_a + s);
                     let major = apex_gap.abs() * sin_a * cos_a / k;
                     let minor = apex_gap.abs() * sin_a / k.sqrt();
-                    let center = apex - (a * c - n * sin_a.powi(2)) * (apex_gap / k);
+                    let center = apex - (n * cos_a.powi(2) - s_vec.cross(a)) * (apex_gap / k);
                     // The axis-normal trilean above made `s`
                     // definite, so the minor direction is.
                     let v_minor = s_vec / s;
