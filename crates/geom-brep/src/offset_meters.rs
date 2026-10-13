@@ -153,7 +153,7 @@ use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 use crate::dihedral::decide_reported;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
 use crate::recourse::{
-    AtZero, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+    NoSize, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
 use crate::shape_operator::FundamentalForms;
 
@@ -213,7 +213,7 @@ impl Meter {
                 size: "thinness",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: Some(AtZero::same(
+                no_size: Some(NoSize::same(
                     "if it has none, this may indicate a kernel bug worth reporting",
                 )),
             },
@@ -222,7 +222,7 @@ impl Meter {
                 size: "clearance",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             },
         }
     }
@@ -978,10 +978,11 @@ mod tests {
     /// on every arm; the conditional tighten, valued at `m/K`, only on
     /// a band-decided arm whose margin is positive (a zero verdict
     /// inside the band, or an undecided margin); the lever alone on the
-    /// sign-certain arm, on a margin on the refused side, and straddling
-    /// zero; the report clause on a zero floor, which no tolerance
-    /// resolves; and a poisoned margin keeps the lever and says what it
-    /// may mean. Read with another lever, each ending keeps its shape
+    /// sign-certain arm and straddling zero; the report clause on a floor
+    /// that shows no size — zero, or in band on the refused side — which
+    /// no tolerance resolves, and where the decision has none, the lever
+    /// alone there; and a poisoned margin keeps the lever and says what
+    /// it may mean. Read with another lever, each ending keeps its shape
     /// and swaps the lever alone.
     #[test]
     fn each_meter_arm_ends_in_its_decisions_recourse() {
@@ -1006,7 +1007,7 @@ mod tests {
             (escalated(Meter::NormalFloor, straddle), SPLIT.to_owned()),
             (
                 escalated(Meter::NormalFloor, MarginDiag::value(-5e-9)),
-                SPLIT.to_owned(),
+                format!("{SPLIT}{REPORT}"),
             ),
             (
                 escalated(Meter::NormalFloor, MarginDiag::INVALID),
