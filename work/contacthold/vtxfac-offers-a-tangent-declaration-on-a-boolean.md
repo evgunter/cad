@@ -2,12 +2,13 @@
 id: vtxfac-offers-a-tangent-declaration-on-a-boolean
 kind: issue
 title: vtxfac's admitted offer list proposes a GlueClass::TANGENT declaration on a boolean, which D10 retires
-status: review
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
 branch: contacthold/claim-free-tangent-glue
 pr: 4831
+closed: 2026-10-12
 ---
 
 

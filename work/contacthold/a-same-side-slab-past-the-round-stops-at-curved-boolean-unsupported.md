@@ -2,11 +2,12 @@
 id: a-same-side-slab-past-the-round-stops-at-curved-boolean-unsupported
 kind: issue
 title: A same-side slab running past a quarter round's ends (sameside-flush, beyond) stops at CurvedBooleanUnsupported, a separate door from the short-circuit
-status: review
+status: closed
 opened: 2026-10-11
 priority: P3
 branch: contacthold/claim-free-tangent-glue
 pr: 4831
+closed: 2026-10-12
 ---
 
 

@@ -1237,12 +1237,7 @@ impl CellNet {
             .map(|(i0, i1, scale)| {
                 let (p0, p1) = (*self.pts.get(i0)?, *self.pts.get(i1)?);
                 let (w0, w1) = (*self.wts.get(i0)?, *self.wts.get(i1)?);
-                Some(PairTerm {
-                    scale,
-                    lever: core::array::from_fn(|k| w1 * (p1[k] - p0[k])),
-                    dw: w1 - w0,
-                    p0,
-                })
+                Some(PairTerm::new(scale, (p0, w0), (p1, w1)))
             })
             .collect()
     }
@@ -1267,11 +1262,10 @@ impl CellNet {
     /// skipped).
     fn s_offsets(&self, terms: &[&[PairTerm]]) -> Option<([Interval; 3], Vec<[Interval; 3]>)> {
         let c = *self.pts.first()?;
-        let flat = terms
-            .iter()
-            .flat_map(|t| t.iter())
-            .all(|t| t.dw.is_certified() && t.dw.lo() == 0.0 && t.dw.hi() == 0.0)
-            && self.pts.iter().flatten().all(|x| x.is_certified());
+        let flat = terms.iter().flat_map(|t| t.iter()).all(|t| {
+            let dw = t.weight_step();
+            dw.is_certified() && dw.lo() == 0.0 && dw.hi() == 0.0
+        }) && self.pts.iter().flatten().all(|x| x.is_certified());
         if flat {
             return Some((c, vec![[Interval::point(0.0); 3]]));
         }
@@ -1307,7 +1301,7 @@ impl CellNet {
         };
         // Divided after scaling: `scale / floor` alone overflows on a
         // subnormal weight, where the scaled term over it does not.
-        let ts: Vec<Affine> = terms.iter().map(|t| t.about(c).per(floor)).collect();
+        let ts: Vec<Affine> = terms.iter().map(|t| about(t, c).per(floor)).collect();
         let zero = [Affine {
             k: [Interval::point(0.0); 3],
             g: Interval::point(0.0),
@@ -1341,7 +1335,7 @@ impl CellNet {
             return (Interval::refused(), f64::NAN);
         };
         let side = |terms: &[PairTerm], e: Interval| -> Vec<Affine> {
-            terms.iter().map(|t| t.about(c).times(e)).collect()
+            terms.iter().map(|t| about(t, c).times(e)).collect()
         };
         let (au, bv) = (side(&tu, ex), side(&tv, ey));
         // Each term's `n·` is affine in the scalar `d = n·(S − c)`:
@@ -1380,35 +1374,17 @@ impl CellNet {
     }
 }
 
-/// One adjacent pair's term of the quotient numerator `A_d − S·w_d`,
-/// `k·(w₁·(P₁ − P₀) + (w₁ − w₀)·(P₀ − S))` as a function of `S`: the
-/// scale `k`, the lever `w₁·(P₁ − P₀)`, the weight step `w₁ − w₀` and
-/// `P₀`.
-#[derive(Clone, Copy, Debug)]
-struct PairTerm {
-    scale: Interval,
-    lever: [Interval; 3],
-    dw: Interval,
-    p0: [Interval; 3],
-}
+/// One adjacent pair's term of the quotient numerator `A_d − S·w_d`:
+/// the rational speed bound's own term,
+/// [`geom_core::spline::RationalPairTerm`], so this enclosure and
+/// `NurbsSurface::stretch_sup` read one formula.
+type PairTerm = geom_core::spline::RationalPairTerm<Interval, 3>;
 
-impl PairTerm {
-    /// The term as a function of the offset `S − c`:
-    /// `k·(lever + dw·(P₀ − c)) − k·dw·(S − c)`. Every point still enters
-    /// as a difference with another.
-    fn about(&self, c: [Interval; 3]) -> Affine {
-        Affine {
-            k: core::array::from_fn(|i| {
-                (self.lever[i] + self.dw * (self.p0[i] - c[i])) * self.scale
-            }),
-            g: self.dw * self.scale,
-        }
-    }
-
-    /// The term at `S = s`: [`PairTerm::about`] `s` itself.
-    fn at(&self, s: [Interval; 3]) -> [Interval; 3] {
-        self.about(s).k
-    }
+/// The term as an [`Affine`] in the offset `S − c`
+/// ([`geom_core::spline::RationalPairTerm::about`]).
+fn about(t: &PairTerm, c: [Interval; 3]) -> Affine {
+    let (k, g) = t.about(c);
+    Affine { k, g }
 }
 
 /// A vector affine in the offset `q = S − c`: `k − g·q`.

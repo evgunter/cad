@@ -2,8 +2,13 @@
 id: a-seamless-cylinder-band-measures-in-closed-form-and-refuses-once-it-carries-an-ellipse
 kind: issue
 title: A seamless cylinder band measures in closed form and refuses in the quadrature once a rim is an ellipse
-status: open
+status: closed
+pr: 4839
+branch: flux/cylinder-band-quad
 opened: 2026-10-10
+priority: P3
+cost: M
+closed: 2026-10-13
 ---
 
 

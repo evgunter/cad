@@ -35,3 +35,8 @@ Rows moved with `git mv` and keep their ids.
     - `work/issues/describe-maps-every-chart-pcurve-escalation-to-chart-image`;
     - ENCL `unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`.
   - Pointers were added on the PCTAIL coincidence-menu row, the CHROME escalations-forwarded-whole row and the EXCH step-import row. (ENCL orchestrator)
+
+- **2026-10-12 — seam note from NURBS: PR 4904 merged** (one rational surface bound: `geom_core::spline::rational_stretch_sup`, `NurbsSurface::stretch_sup`, `RationalPairTerm`).
+  - `ssi/enclose.rs`'s local `PairTerm` is now `geom_core::spline::RationalPairTerm<Interval, 3>` (private fields; `about`/`at`/`weight_step`).
+  - The result is bit-identical: the reviewer checked 200k Interval cases to_bits.
+  - Write any new pair-term reading through `RationalPairTerm::about`. — (NURBS orchestrator)

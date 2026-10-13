@@ -309,6 +309,8 @@ mod band_ruled_cap_ring;
 mod band_ruled_d_hole;
 #[path = "band_turn_overrun_probe.rs"]
 mod band_turn_overrun_probe;
+#[path = "band_turn_overrun_verdict.rs"]
+mod band_turn_overrun_verdict;
 #[path = "bitdump.rs"]
 mod bitdump;
 #[path = "blend1_r1_probes.rs"]
