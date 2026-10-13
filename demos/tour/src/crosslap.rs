@@ -14,7 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::v3;
-use pncad::geom_core::Affine3;
+use pncad::geom_core::RigidMotion;
 use pncad::topo::BooleanBody;
 
 use crate::bool_bodies::slab;
@@ -83,7 +83,7 @@ pub(crate) fn build<S: Scalar>(
 
     // Exploded: beam B lifted by a rigid transform (#84 — every moved
     // edge witness is re-minted, and the moved body revalidates).
-    let lift = Affine3::translation(v3(0.0, 0.0, 1.25));
+    let lift = RigidMotion::translation(v3(0.0, 0.0, 1.25)).expect("a finite lift");
     let b_lifted = pncad::topo::transform_rigid(&b.body, &lift, tol).expect("lift beam B");
     (a, b, glued, b_lifted)
 }

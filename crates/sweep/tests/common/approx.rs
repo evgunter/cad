@@ -151,7 +151,7 @@ pub fn unit_box() -> Body<f64> {
 pub fn moved_box() -> Body<f64> {
     topo::transform_rigid(
         &unit_box(),
-        &Affine3::translation(Vec3::new(0.7, 0.3, 0.4)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.7, 0.3, 0.4)).unwrap(),
         Tol::witness(),
     )
     .expect("a planar box transforms")

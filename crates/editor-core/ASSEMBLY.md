@@ -49,8 +49,8 @@ refuse typed), evaluates the pinned document at the ambient ε, takes its
 world (A10), one `Body` per world placement, all in one space (no body
 has world coordinates: the world sets only the coordinates export
 writes), and materializes it through `topo::transform_rigid`
-(rigidity re-decided, every carrier re-certified) and the disjoint
-graft. A resolved document whose recorded ε disagrees refuses
+(rigidity carried by the witness or decided at the door, every
+carrier re-certified) and the disjoint graft. A resolved document whose recorded ε disagrees refuses
 `ResolveFault::EpsilonSeam`. `PartCache` memoizes per `(DocRef, ε)`
 within one evaluation; a reference already on the descent chain is a
 cycle and refuses naming the loop. Which solids are one part and which

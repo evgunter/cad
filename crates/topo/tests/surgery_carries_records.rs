@@ -6,7 +6,7 @@
 
 use crate::common;
 use common::{brick, describe_as_intersections, finished, geometric_cube, line};
-use geom_core::{Affine3, Point3, Tol, Vec3};
+use geom_core::{Point3, Tol, Vec3};
 use topo::{
     AtRestBody, Backing, Body, BooleanBody, BooleanResult, CarryRefusal, Cell, Cited, Cites,
     Contact, ContactRecords, FaceKey, FaceSurface, MefSite, Surface, ValidationError, union,
@@ -95,7 +95,7 @@ fn every_surgery_verb_carries_a_corner_kiss() {
     // Key-stable: every cell is itself.
     let moved = topo::transform_rigid(
         &base.body,
-        &Affine3::translation(Vec3::new(0.3, 0.2, 0.1)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.3, 0.2, 0.1)).unwrap(),
         tol(),
     )
     .expect("a rigid move");
