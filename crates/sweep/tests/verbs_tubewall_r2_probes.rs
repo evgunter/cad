@@ -269,13 +269,13 @@ fn r2_escalation_from_a_wall_predicate_reports_the_hollow_doors_name() {
     let err = build(2.0, TubeWindow::Full, 0.5, f64::NAN).expect_err("a poisoned wall refuses");
     let msg = err.to_string();
     assert!(matches!(err, TubeError::Escalated { .. }), "{msg}");
-    let TubeError::Escalated { source } = &err else {
+    let TubeError::Escalated { decision, source } = &err else {
         unreachable!()
     };
-    assert!(
-        matches!(source.predicate, Some("tube_wall")),
-        "the poisoned wall escalates at tube_wall, got {:?}",
-        source.predicate
+    assert_eq!(
+        (*decision, source.predicate),
+        (sweep::TubeDecision::Wall, Some("tube_wall")),
+        "the poisoned wall escalates at tube_wall"
     );
     assert!(
         msg.starts_with("whether the hollow tube's "),

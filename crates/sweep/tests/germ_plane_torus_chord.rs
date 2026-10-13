@@ -25,35 +25,35 @@ use topo::{AtRestBody, BooleanOp};
 
 /// An operand's analytic membership at a point: `None` within `MARGIN`
 /// of its boundary, where the sampled check reads nothing.
-type Inside = Box<dyn Fn(Point3<f64>) -> Option<bool>>;
+pub(crate) type Inside = Box<dyn Fn(Point3<f64>) -> Option<bool>>;
 
 /// How far off every operand's boundary a sampled point must lie: far
 /// past the band at every ε row, so the kernel's answer is definite.
-const MARGIN: f64 = 1e-4;
+pub(crate) const MARGIN: f64 = 1e-4;
 
 /// `x` against the open interval `(lo, hi)`, `None` within the margin of
 /// either end.
-fn within(x: f64, (lo, hi): (f64, f64)) -> Option<bool> {
+pub(crate) fn within(x: f64, (lo, hi): (f64, f64)) -> Option<bool> {
     let d = (x - lo).min(hi - x);
     (d.abs() > MARGIN).then_some(d > 0.0)
 }
 
 /// Every membership in `all` decided, and all inside.
-fn all(of: &[Option<bool>]) -> Option<bool> {
+pub(crate) fn all(of: &[Option<bool>]) -> Option<bool> {
     of.iter()
         .try_fold(true, |acc, m| m.map(|inside| acc && inside))
 }
 
 /// A solid of a row: its body, its closed-form volume and its analytic
 /// membership.
-struct Solid {
-    body: AtRestBody<f64>,
-    volume: f64,
-    inside: Inside,
+pub(crate) struct Solid {
+    pub(crate) body: AtRestBody<f64>,
+    pub(crate) volume: f64,
+    pub(crate) inside: Inside,
 }
 
 /// The ring torus `(R, r)` about `y` through the origin, as `body`.
-fn ring(body: AtRestBody<f64>, (big_r, r): (f64, f64)) -> Solid {
+pub(crate) fn ring(body: AtRestBody<f64>, (big_r, r): (f64, f64)) -> Solid {
     Solid {
         body,
         volume: 2.0 * PI * PI * big_r * r * r,
@@ -66,7 +66,7 @@ fn ring(body: AtRestBody<f64>, (big_r, r): (f64, f64)) -> Solid {
 }
 
 /// The box `x × y × z`.
-fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Solid {
+pub(crate) fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Solid {
     Solid {
         body: bar(x, y, z),
         volume: (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0),
@@ -76,7 +76,7 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Solid {
 
 /// The half-space bar of `half_space(o, n)`: 12 m along `n` from the
 /// plane, 12 m square about `o` across it (`operands::framed_bar`).
-fn half(o: Point3<f64>, n: Vec3<f64>) -> Solid {
+pub(crate) fn half(o: Point3<f64>, n: Vec3<f64>) -> Solid {
     let d = n.normalize();
     let u = d.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
     let v = d.cross(u);
@@ -128,7 +128,11 @@ pub(crate) fn volume_tol(v: f64) -> f64 {
 /// A fixed stream of points in the box `lo..hi`: a Weyl sequence, so the
 /// Monte Carlo and the sampled checks read the same points on every run
 /// (a cross-check of a closed form, not a search).
-fn points(lo: Point3<f64>, hi: Point3<f64>, n: usize) -> impl Iterator<Item = Point3<f64>> {
+pub(crate) fn points(
+    lo: Point3<f64>,
+    hi: Point3<f64>,
+    n: usize,
+) -> impl Iterator<Item = Point3<f64>> {
     let alpha = [
         0.754_877_666_246_692_7,
         0.569_840_290_998_053,
@@ -145,21 +149,11 @@ fn points(lo: Point3<f64>, hi: Point3<f64>, n: usize) -> impl Iterator<Item = Po
 }
 
 /// What `op` keeps of two memberships, `x` the first member's.
-fn kept(op: BooleanOp, x: bool, y: bool) -> bool {
+pub(crate) fn kept(op: BooleanOp, x: bool, y: bool) -> bool {
     match op {
         BooleanOp::Union => x || y,
         BooleanOp::Intersect => x && y,
         BooleanOp::Subtract => x && !y,
-    }
-}
-
-/// `b`'s containment of `q`, `None` where it does not decide.
-fn in_solid(b: &topo::Body<f64>, q: Point3<f64>) -> Option<bool> {
-    let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
-    match topo::point_in_solid(b, q, band, Tol::witness()) {
-        Ok(topo::SolidContainment::In) => Some(true),
-        Ok(topo::SolidContainment::Out) => Some(false),
-        _ => None,
     }
 }
 
@@ -169,14 +163,14 @@ fn in_solid(b: &topo::Body<f64>, q: Point3<f64>) -> Option<bool> {
 /// point either operand holds there. Then each op's body: its volume
 /// against the closed form, tier 3, and `point_in_solid` at sampled
 /// points of `(lo, hi)` against the analytic memberships under the op.
-fn holds_to_the_truth(
+pub(crate) fn holds_to_the_truth(
     pose: &str,
     t: &Solid,
     p: &Solid,
     meet: f64,
-    (lo, hi): (Point3<f64>, Point3<f64>),
+    within: (Point3<f64>, Point3<f64>),
 ) {
-    holds_to_the_truth_but(pose, t, p, meet, (lo, hi), &[]);
+    holds_to_the_truth_but(pose, t, p, meet, within, &[]);
 }
 
 /// [`holds_to_the_truth`], but for the ops labelled in `partial`, whose
@@ -191,8 +185,42 @@ fn holds_to_the_truth_but(
     t: &Solid,
     p: &Solid,
     meet: f64,
-    (lo, hi): (Point3<f64>, Point3<f64>),
+    within: (Point3<f64>, Point3<f64>),
     partial: &[&str],
+) {
+    meet_is_the_monte_carlo(pose, t, p, meet, within);
+    for ((label, r), &(_, op, swap)) in six(&t.body, &p.body).into_iter().zip(&SIX) {
+        let r = r.unwrap_or_else(|e| panic!("{pose}, {label}: refused {e:?}"));
+        let b = &r
+            .body()
+            .unwrap_or_else(|| panic!("{pose}, {label}: empty"))
+            .body;
+        let what = format!("{pose}, {label}");
+        if !partial.contains(&label) {
+            body_holds(&what, (op, swap), (t, p), meet, b, within);
+            continue;
+        }
+        volume_and_points(&what, (op, swap), (t, p), meet, b, within, true);
+        let (lo, hi) = within;
+        for q in points(lo, hi, 48) {
+            let got = contains(b, q);
+            assert!(
+                matches!(got, Err(topo::PointInSolidError::PartialTorusFace { .. })),
+                "{what}: point_in_solid at {q:?} reads {got:?}"
+            );
+        }
+    }
+}
+
+/// `meet`, the volume `t` and `p` share, against a Monte Carlo of the
+/// analytic operands over `(lo, hi)`, which must hold every point either
+/// operand holds there.
+pub(crate) fn meet_is_the_monte_carlo(
+    pose: &str,
+    t: &Solid,
+    p: &Solid,
+    meet: f64,
+    (lo, hi): (Point3<f64>, Point3<f64>),
 ) {
     let n = 200_000;
     let hits = points(lo, hi, n)
@@ -207,59 +235,94 @@ fn holds_to_the_truth_but(
         (estimate - meet).abs() <= 5.0 * sigma,
         "{pose}: the closed form {meet} against the Monte Carlo {estimate} ± {sigma}"
     );
-    for ((label, r), &(_, op, swap)) in six(&t.body, &p.body).into_iter().zip(&SIX) {
-        let (x, y) = if swap { (p, t) } else { (t, p) };
-        let want = match op {
-            BooleanOp::Union => x.volume + y.volume - meet,
-            BooleanOp::Intersect => meet,
-            BooleanOp::Subtract => x.volume - meet,
-        };
-        let r = r.unwrap_or_else(|e| panic!("{pose}, {label}: refused {e:?}"));
-        let b = &r
-            .body()
-            .unwrap_or_else(|| panic!("{pose}, {label}: empty"))
-            .body;
-        assert_eq!(
-            topo::validate_geometric(b, Tol::witness()),
-            Ok(()),
-            "{pose}, {label}: tier 3"
-        );
-        let v = topo::mass_properties(b, Tol::witness())
-            .unwrap_or_else(|e| panic!("{pose}, {label}: the volume: {e:?}"))
-            .volume;
-        assert!(
-            (v - want).abs() <= volume_tol(want),
-            "{pose}, {label}: volume {v} against the truth {want}"
-        );
-        if partial.contains(&label) {
-            let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
-            for q in points(lo, hi, 48) {
-                let got = topo::point_in_solid(b, q, band, Tol::witness());
-                assert!(
-                    matches!(got, Err(topo::PointInSolidError::PartialTorusFace { .. })),
-                    "{pose}, {label}: point_in_solid at {q:?} reads {got:?}"
-                );
-            }
+}
+
+/// **`b`, the body `op` built of `t` against `p`, is the truth**
+/// (`swap`: `p` is the first member): its volume against `meet`'s
+/// arithmetic under the op, tier 3, and `point_in_solid` at sampled
+/// points of `(lo, hi)` against the analytic memberships under the op,
+/// at least 40 of them read.
+pub(crate) fn body_holds(
+    what: &str,
+    ops: (BooleanOp, bool),
+    solids: (&Solid, &Solid),
+    meet: f64,
+    b: &topo::Body<f64>,
+    within: (Point3<f64>, Point3<f64>),
+) {
+    let read = volume_and_points(what, ops, solids, meet, b, within, false);
+    assert!(read >= 40, "{what}: {read} points read");
+}
+
+/// [`body_holds`]'s volume and tier 3, and its `point_in_solid` reading
+/// at every sampled point where it answers: a refusal at a point is
+/// `PartialTorusFace` where `torus_chart_trimmed` (a torus face of the
+/// body is not a chart rectangle,
+/// `work/inside/point-in-solid-refuses-an-l-shaped-torus-face.md`), and
+/// reads nothing; any other refusal fails. The points read.
+pub(crate) fn volume_and_points(
+    what: &str,
+    (op, swap): (BooleanOp, bool),
+    (t, p): (&Solid, &Solid),
+    meet: f64,
+    b: &topo::Body<f64>,
+    (lo, hi): (Point3<f64>, Point3<f64>),
+    torus_chart_trimmed: bool,
+) -> usize {
+    let (x, y) = if swap { (p, t) } else { (t, p) };
+    let want = match op {
+        BooleanOp::Union => x.volume + y.volume - meet,
+        BooleanOp::Intersect => meet,
+        BooleanOp::Subtract => x.volume - meet,
+    };
+    assert_eq!(
+        topo::validate_geometric(b, Tol::witness()),
+        Ok(()),
+        "{what}: tier 3"
+    );
+    let v = topo::mass_properties(b, Tol::witness())
+        .unwrap_or_else(|e| panic!("{what}: the volume: {e:?}"))
+        .volume;
+    assert!(
+        (v - want).abs() <= volume_tol(want),
+        "{what}: volume {v} against the truth {want}"
+    );
+    let mut read = 0usize;
+    for q in points(lo, hi, 48) {
+        let (Some(a), Some(c)) = ((x.inside)(q), (y.inside)(q)) else {
             continue;
+        };
+        match contains(b, q) {
+            Err(topo::PointInSolidError::PartialTorusFace { .. }) if torus_chart_trimmed => {}
+            got => {
+                assert_eq!(
+                    got.ok(),
+                    Some(kept(op, a, c)),
+                    "{what}: point_in_solid at {q:?}"
+                );
+                read += 1;
+            }
         }
-        let mut read = 0usize;
-        for q in points(lo, hi, 48) {
-            let (Some(a), Some(c)) = ((x.inside)(q), (y.inside)(q)) else {
-                continue;
-            };
-            assert_eq!(
-                in_solid(b, q),
-                Some(kept(op, a, c)),
-                "{pose}, {label}: point_in_solid at {q:?}"
-            );
-            read += 1;
-        }
-        assert!(read >= 40, "{pose}, {label}: {read} points read");
+    }
+    read
+}
+
+/// `b`'s containment of `q`: inside, outside, or its refusal; a point
+/// it reads on the boundary fails.
+pub(crate) fn contains(
+    b: &topo::Body<f64>,
+    q: Point3<f64>,
+) -> Result<bool, topo::PointInSolidError> {
+    let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
+    match topo::point_in_solid(b, q, band, Tol::witness())? {
+        topo::SolidContainment::In => Ok(true),
+        topo::SolidContainment::Out => Ok(false),
+        other => panic!("a sampled point off every boundary reads {other:?} at {q:?}"),
     }
 }
 
 /// The donut's box: every point of the tube, and room round it.
-fn about_the_tube(big_r: f64, r: f64) -> (Point3<f64>, Point3<f64>) {
+pub(crate) fn about_the_tube(big_r: f64, r: f64) -> (Point3<f64>, Point3<f64>) {
     let w = big_r + r + 0.2;
     (Point3::new(-w, -r - 0.2, -w), Point3::new(w, r + 0.2, w))
 }
@@ -337,7 +400,7 @@ fn two_loops_on_one_face_pair_build_their_true_bodies() {
 /// seamed on `y = 0`, each named, and whether an equator (`y = 0`) is
 /// one of its edges: the one-face torus's wrap parallel where its vertex
 /// lies on an equator, and both of the seamed torus's.
-fn tori_of_one_face_pair(big_r: f64, r: f64) -> Vec<(String, AtRestBody<f64>, bool)> {
+pub(crate) fn tori_of_one_face_pair(big_r: f64, r: f64) -> Vec<(String, AtRestBody<f64>, bool)> {
     let mut tori: Vec<_> = [0.0, 1.0, PI]
         .into_iter()
         .map(|phase| {
