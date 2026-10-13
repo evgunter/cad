@@ -915,7 +915,7 @@ const PARTNER_FACES: SizedDecision = SizedDecision {
     size: "gap between their faces",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The one move that lengthens the arm a corner's reading is metered
