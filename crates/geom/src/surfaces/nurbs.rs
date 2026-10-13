@@ -1193,7 +1193,10 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
     ///
     /// # Errors
     ///
-    /// As the curve op ([`geom_core::spline::algebra::insert_knot_plan`]).
+    /// As the curve op ([`geom_core::spline::algebra::insert_knot_plan`]),
+    /// [`KnotAlgebraError::WeightCollapse`] included: an inserted weight
+    /// rounding out of the positive regime in any column, at its index
+    /// along `u`.
     pub fn insert_knot_u(&self, u: f64, times: usize) -> Result<Self, KnotAlgebraError> {
         self.map_u_columns(|kv, w| spline::algebra::insert_knot_plan(kv, w, u, times))
     }
@@ -1202,7 +1205,8 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
     ///
     /// # Errors
     ///
-    /// As [`NurbsSurface::insert_knot_u`].
+    /// As [`NurbsSurface::insert_knot_u`], `WeightCollapse`'s index
+    /// along `v`.
     pub fn insert_knot_v(&self, v: f64, times: usize) -> Result<Self, KnotAlgebraError> {
         Ok(self.transposed().insert_knot_u(v, times)?.transposed())
     }
@@ -1211,7 +1215,8 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
     ///
     /// # Errors
     ///
-    /// As [`NurbsSurface::insert_knot_u`], against cumulative structure.
+    /// As [`NurbsSurface::insert_knot_u`], against cumulative structure,
+    /// [`KnotAlgebraError::WeightCollapse`] included.
     pub fn refine_knots_u(&self, add: &[f64]) -> Result<Self, KnotAlgebraError> {
         self.map_u_columns(|kv, w| spline::algebra::refine_plan(kv, w, add))
     }
@@ -1220,7 +1225,8 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
     ///
     /// # Errors
     ///
-    /// As [`NurbsSurface::refine_knots_u`].
+    /// As [`NurbsSurface::refine_knots_u`], `WeightCollapse`'s index
+    /// along `v`.
     pub fn refine_knots_v(&self, add: &[f64]) -> Result<Self, KnotAlgebraError> {
         Ok(self.transposed().refine_knots_u(add)?.transposed())
     }
@@ -1229,7 +1235,9 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
     ///
     /// # Errors
     ///
-    /// As the curve op ([`geom_core::spline::algebra::elevate_plan`]).
+    /// As the curve op ([`geom_core::spline::algebra::elevate_plan`]),
+    /// [`KnotAlgebraError::WeightCollapse`] from any of its stages
+    /// included.
     pub fn elevate_degree_u(&self, raise: usize) -> Result<Self, KnotAlgebraError> {
         let mut cur = self.clone();
         for _ in 0..raise {
@@ -1258,8 +1266,9 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
     ///
     /// # Errors
     ///
-    /// As the curve op (`KnotNotPresent`, multiplicity, weight
-    /// collapse, structure).
+    /// As the curve op (`KnotNotPresent`, multiplicity,
+    /// [`KnotAlgebraError::WeightCollapse`] from the chain or its
+    /// reinsertion, structure).
     pub fn remove_knot_u(&self, u: f64, times: usize) -> Result<(Self, T), KnotAlgebraError> {
         let mut cur = self.clone();
         let mut bound = T::zero();
