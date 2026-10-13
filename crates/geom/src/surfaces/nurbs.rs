@@ -64,8 +64,24 @@ use crate::net;
 /// sheared cell at `16×`), two read at least `0.88` on every row, and
 /// four gain at most `0.04` more, and less on some rows, at three to
 /// four times the cost (in release, about `1 ms` a surface at `f64` and
-/// `9 ms` at `Interval`, against `0.3` and `2.2`).
+/// `9 ms` at `Interval`, against `0.3` and `2.2`). The two-piece share
+/// is held at `0.85` or more at `4×` and `8×` by `sweep`'s
+/// `r2_probe_cert8::probe_rational_charts_enter_at_wide_spreads`, and a
+/// single piece's loss on a wide arc by `geom`'s
+/// `surfaces/stretch_floor.rs::the_piece_schedule_reaches_a_wide_arc`;
+/// the four-piece numbers are this measurement's alone.
 const STRETCH_PIECE_SPLITS: usize = 2;
+
+/// The least of `read` over the pieces, poison when the statement
+/// refused (`None`) or there is no piece.
+fn least_of<T: Real>(
+    pieces: Option<&[geom_core::spline::CellQuotients<T>]>,
+    read: impl Fn(&geom_core::spline::CellQuotients<T>) -> T,
+) -> T {
+    pieces
+        .and_then(|ps| ps.iter().map(read).reduce(T::min))
+        .unwrap_or_else(|| T::from_f64(f64::NAN))
+}
 
 /// The point and every partial with `k + l ≤ 2` at one parameter pair.
 ///
@@ -555,9 +571,12 @@ pub struct NurbsSurface<T: Real> {
     /// symbolic session; on the same terms as the curve's speed memos
     /// (nothing mutates the fields above after construction).
     stretch: OnceLock<(geom_core::SupSpeed<T>, geom_core::SupSpeed<T>)>,
-    /// [`NurbsSurface::stretch_floor`] along `u` and `v` and
-    /// [`NurbsSurface::area_floor`], memoised as `stretch` is.
-    floors: OnceLock<[T; 3]>,
+    /// [`NurbsSurface::stretch_floor`] along `u` and `v`, memoised as
+    /// `stretch` is.
+    axis_floors: OnceLock<(T, T)>,
+    /// [`NurbsSurface::area_floor`], memoised apart: its pieces reach
+    /// degree 18 per axis where the per-axis floors reach 28.
+    area_floor: OnceLock<T>,
 }
 
 /// The surface's value, without the stretch memo.
@@ -570,7 +589,8 @@ impl<T: Real> core::fmt::Debug for NurbsSurface<T> {
             weights,
             weight_channel,
             stretch: _,
-            floors: _,
+            axis_floors: _,
+            area_floor: _,
         } = self;
         f.debug_struct("NurbsSurface")
             .field("knots_u", knots_u)
@@ -610,7 +630,8 @@ impl<T: SpanLocate> NurbsSurface<T> {
             weights,
             weight_channel,
             stretch: OnceLock::new(),
-            floors: OnceLock::new(),
+            axis_floors: OnceLock::new(),
+            area_floor: OnceLock::new(),
         })
     }
 }
@@ -649,36 +670,29 @@ impl<T: Real> NurbsSurface<T> {
     /// floors the norm; poison where a piece's numerator sums to zero
     /// or the statement refuses. Memoised as [`Self::stretch_sup`] is.
     pub fn stretch_floor(&self, along_u: bool) -> T {
-        self.floors()[usize::from(!along_u)]
+        let (u, v) = crate::curves::nurbs::session_memo(&self.axis_floors, || {
+            let pieces = self.pieces(false);
+            let least = |read: fn(&geom_core::spline::CellQuotients<T>) -> T| {
+                least_of(pieces.as_deref(), read)
+            };
+            (least(|c| c.u.inf_norm()), least(|c| c.v.inf_norm()))
+        });
+        if along_u { u } else { v }
     }
 
     /// A lower bound on the area element `‖S_u × S_v‖` over the whole
     /// domain, signed: [`Self::stretch_floor`]'s reading of
-    /// `S_u × S_v = M̃/W³`; poison as there (and above degree 18 along
-    /// either axis, where `3p` passes the statement's ceiling).
+    /// `S_u × S_v = M̃/W³`; poison as there, and above degree 18 along
+    /// either axis, where `3p` passes the statement's ceiling (the
+    /// per-axis floors still read there). Memoised as
+    /// [`Self::stretch_sup`] is.
     pub fn area_floor(&self) -> T {
-        self.floors()[2]
-    }
-
-    /// `[stretch_floor(u), stretch_floor(v), area_floor]`, memoised.
-    fn floors(&self) -> [T; 3] {
-        crate::curves::nurbs::session_memo(&self.floors, || {
-            let pieces = self.pieces(true);
-            let least = |read: fn(&geom_core::spline::CellQuotients<T>) -> T| {
-                pieces
+        crate::curves::nurbs::session_memo(&self.area_floor, || {
+            least_of(self.pieces(true).as_deref(), |c| {
+                c.area
                     .as_ref()
-                    .and_then(|ps| ps.iter().map(read).reduce(T::min))
-                    .unwrap_or_else(|| T::from_f64(f64::NAN))
-            };
-            [
-                least(|c| c.u.inf_norm()),
-                least(|c| c.v.inf_norm()),
-                least(|c| {
-                    c.area
-                        .as_ref()
-                        .map_or_else(|| T::from_f64(f64::NAN), |a| a.inf_norm())
-                }),
-            ]
+                    .map_or_else(|| T::from_f64(f64::NAN), |a| a.inf_norm())
+            })
         })
     }
 
@@ -715,7 +729,8 @@ impl<T: Real> NurbsSurface<T> {
             weights: vec![T::one(); 4],
             weight_channel: vec![1.0; 4],
             stretch: OnceLock::new(),
-            floors: OnceLock::new(),
+            axis_floors: OnceLock::new(),
+            area_floor: OnceLock::new(),
         }
     }
 
@@ -834,7 +849,8 @@ impl<T: Real> NurbsSurface<T> {
             weights,
             weight_channel,
             stretch: OnceLock::new(),
-            floors: OnceLock::new(),
+            axis_floors: OnceLock::new(),
+            area_floor: OnceLock::new(),
         }
     }
 
@@ -1907,12 +1923,12 @@ mod memo_tests {
     use super::*;
     use geom_core::Sym;
 
-    /// A read inside a symbolic session leaves the floors memo empty, as
+    /// A read inside a symbolic session leaves the floor memos empty, as
     /// the curve's speed memo is left (`curves::nurbs`'s
     /// `a_session_never_fills_the_speed_memo`); a read outside one fills
     /// it.
     #[test]
-    fn a_session_never_fills_the_floors_memo() {
+    fn a_session_never_fills_the_floor_memos() {
         use geom_core::SymBudget;
         use geom_core::sym::with_session;
         let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -1933,12 +1949,15 @@ mod memo_tests {
             max_terms: 64,
             max_degree: 8,
         };
-        let _ = with_session(budget, || s.stretch_floor(true));
-        assert!(s.floors.get().is_none(), "a session's read filled the memo");
-        let _ = s.stretch_floor(false);
+        let _ = with_session(budget, || (s.stretch_floor(true), s.area_floor()));
         assert!(
-            s.floors.get().is_some(),
-            "a read outside a session left the memo empty"
+            s.axis_floors.get().is_none() && s.area_floor.get().is_none(),
+            "a session's read filled a memo"
+        );
+        let _ = (s.stretch_floor(false), s.area_floor());
+        assert!(
+            s.axis_floors.get().is_some() && s.area_floor.get().is_some(),
+            "a read outside a session left a memo empty"
         );
     }
 }

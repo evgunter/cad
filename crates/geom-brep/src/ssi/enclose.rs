@@ -1269,7 +1269,9 @@ impl CellNet {
 /// derivative box keeps its degree-elevated hull, which on
 /// `m5_pr7_ssi`'s bent-path flat wall reads the slope across the
 /// `v = 0` side at two thirds of its true least (`5.3e-9` against
-/// `8e-9`, inside the band at `ε = 1e-9`); two pieces read it exactly.
+/// `8e-9`, inside the band at `ε = 1e-9`); two pieces read it exactly
+/// (`tests::a_block_is_read_on_its_pieces` re-takes the two-piece
+/// reading; the one-piece `5.3e-9` is this measurement's alone).
 const BLOCK_PIECE_SPLITS: usize = 2;
 
 /// The first-order quotients of a homogeneous block `h` along `axes`,

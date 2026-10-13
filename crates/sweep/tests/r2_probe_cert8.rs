@@ -385,11 +385,36 @@ fn spread_to(w: &[f64; 9], spread: f64) -> [f64; 9] {
     w.map(|x| 1.0 + k * (x - 1.0))
 }
 
+/// The least `‖S_u‖`, `‖S_v‖` and `‖S_u × S_v‖` of `s` sampled on a
+/// `41²` grid, boundary included: at least the true minima, to `ders`'
+/// rounding.
+fn sampled_least(s: &geom::NurbsSurface<f64>) -> [f64; 3] {
+    let mut least = [f64::INFINITY; 3];
+    for a in 0..=40 {
+        for b in 0..=40 {
+            let jet = s.ders(f64::from(a) / 40.0, f64::from(b) / 40.0);
+            for (l, x) in
+                least
+                    .iter_mut()
+                    .zip([jet.du.norm(), jet.dv.norm(), jet.du.cross(jet.dv).norm()])
+            {
+                *l = l.min(x);
+            }
+        }
+    }
+    least
+}
+
+/// The share of the sampled least each floor must read at the wide
+/// spreads: the floors measured at `0.92` of it or more on these nets
+/// (`geom`'s `STRETCH_PIECE_SPLITS` docs), with margin.
+const SHARE: f64 = 0.85;
+
 /// **The written rational nets enter at wide weight spreads.** The
 /// three rational charts with their weights steepened to `4×` and `8×`
-/// (from the witness set's `1.6×`): every floor is positive, the
-/// assembly enters, and [`check_certified_arms`] holds every floor
-/// below the sampled truth. The pair-term floor this statement replaced
+/// (from the witness set's `1.6×`): every floor reads at least
+/// [`SHARE`] of the sampled least, the assembly enters, and
+/// [`check_certified_arms`] holds every floor below the sampled truth. The pair-term floor this statement replaced
 /// refused all three from about `1.7×`
 /// (`work/nurbs/rational-inf-floor-reach-refines-before-reading.md`).
 #[test]
@@ -410,14 +435,18 @@ fn probe_rational_charts_enter_at_wide_spreads() {
                 w.to_vec(),
             )
             .unwrap_or_else(|e| panic!("{note}: the net must build: {e:?}"));
+            let truth = sampled_least(&surf);
             let i = geom_brep::chart_stretch_inf(&Surface::Nurbs(std::sync::Arc::new(surf)));
-            assert!(
-                i.inf_u > 0.0 && i.inf_v > 0.0 && i.area_inf > 0.0,
-                "{note}: floors ({}, {}, {}) — every floor must be positive",
-                i.inf_u,
-                i.inf_v,
-                i.area_inf
-            );
+            for (which, floor, t) in [
+                ("inf_u", i.inf_u, truth[0]),
+                ("inf_v", i.inf_v, truth[1]),
+                ("area_inf", i.area_inf, truth[2]),
+            ] {
+                assert!(
+                    floor >= SHARE * t,
+                    "{note}: {which} {floor} is below {SHARE} of the sampled least {t}"
+                );
+            }
             assert!(
                 check_certified_arms(ctl, &w, &note).is_some(),
                 "{note}: the assembly must enter"

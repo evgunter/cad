@@ -358,3 +358,48 @@ fn the_floors_hold_on_curved_rational_nets() {
         }
     }
 }
+
+/// **The per-axis floors reach past the area floor's ceiling.** A
+/// rational Bézier sheet of degree `p` along `u`, ruled along `v`: the
+/// area quotient `M̃/W³` sits at degree `3p`, past
+/// `QUOTIENT_MAX_DEGREE` (56) from `p = 19`, so the area floor refuses
+/// there; `N_u/W²` and `N_v/W²` sit at `2p` and read to `p = 28`, below
+/// the sampled truth. At `p = 18` the area floor still reads.
+#[test]
+fn the_per_axis_floors_reach_past_the_area_ceiling() {
+    let sheet = |p: usize| {
+        let xs: Vec<f64> = (0..=p).map(|i| i as f64 / p as f64).collect();
+        let ws: Vec<f64> = (0..=p).map(|i| 1.0 + 0.3 * (i % 2) as f64).collect();
+        let mut k = vec![0.0; p + 1];
+        k.extend(vec![1.0; p + 1]);
+        let (mut pts, mut w) = (Vec::new(), Vec::new());
+        for (i, (x, wi)) in xs.iter().zip(&ws).enumerate() {
+            for z in [0.0, 1.0] {
+                pts.push(Point3::new(*x, 0.1 * (i % 3) as f64, z));
+                w.push(*wi);
+            }
+        }
+        surface((k, p), (vec![0.0, 0.0, 1.0, 1.0], 1), pts, w)
+    };
+    let s = sheet(18);
+    floor_holds("p 18 area", s.area_floor(), sampled_area(&s), None);
+    assert!(s.area_floor() > 0.0, "p 18: area floor {}", s.area_floor());
+    for p in [19, 28] {
+        let s = sheet(p);
+        for (which, along_u) in [("S_u", true), ("S_v", false)] {
+            let f = s.stretch_floor(along_u);
+            assert!(f > 0.0, "p {p} {which}: floor {f}");
+            floor_holds(
+                &format!("p {p} {which}"),
+                f,
+                sampled_stretch(&s, along_u),
+                None,
+            );
+        }
+        assert!(
+            s.area_floor().is_nan(),
+            "p {p}: area floor {} past its ceiling",
+            s.area_floor()
+        );
+    }
+}

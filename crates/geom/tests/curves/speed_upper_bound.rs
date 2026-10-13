@@ -1,7 +1,7 @@
 //! **The rational speed bound** (`NurbsCurve3::speed_upper_bound`, the
 //! quotient bound of `geom_core::spline::derivative` on each span's
 //! dyadic pieces) dominates the true speed, never reads above the
-//! homogeneous recipe the pair-term bound replaced, and is the true sup
+//! whole-net homogeneous recipe ([`recipe_a`]), and is the true sup
 //! where a piece's end ratio attains it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -40,7 +40,7 @@ fn sampled_sup_floor(c: &NurbsCurve3<f64>, n: usize) -> f64 {
         .fold(0.0, f64::max)
 }
 
-/// The homogeneous recipe the pair-term bound replaced, about the first
+/// The whole-net homogeneous recipe, about the first
 /// control point `c`: `(max ‖A′ᵢ‖ + d·max |w′ᵢ|)/min w`, `A = w·(P − c)`,
 /// `d` the net's reach from `c`, over the coefficients of nonempty
 /// spans.
@@ -200,7 +200,7 @@ fn the_bound_covers_random_rational_nets() {
 /// `(0, 0)`, `(1, 0)`, `(2, 0)` with weights `4, 1, 1` the speed peaks
 /// at `3.3191`; the bound reads every piece's largest coefficient
 /// ratio and sits within `0.1%` of it. Read as each span's one Bézier
-/// piece it reads `5`, and the retired pair-term bound read `14`.
+/// piece it reads `5`.
 #[test]
 fn the_pieces_converge_on_the_sup() {
     let c = curve(
@@ -269,11 +269,8 @@ fn a_subnormal_least_weight_reads_no_low_bound() {
 }
 
 /// **Six decades of weight are covered.** On this quadratic
-/// (`P₀ = P₁`, weights over six decades) the speed peaks near `658.6`,
-/// a peak a relaxation over each control pair's own two points misses
-/// by `136×` (it reads below `4.9`); the bound covers it, and the row
-/// checks the sampled sup against the bound and against that pair-only
-/// reading.
+/// (`P₀ = P₁`, weights over six decades) the speed peaks sharply near
+/// `658.6`, and the bound covers the sampled sup.
 #[test]
 fn six_decades_of_weight_are_covered() {
     let (p0, p2) = ((-0.76958, 0.67766), (-0.21312, -0.94362));
@@ -284,23 +281,5 @@ fn six_decades_of_weight_are_covered() {
         &[p0, p0, p2],
         w.to_vec(),
     );
-    let pts = [p0, p0, p2];
-    let least = w.iter().copied().fold(f64::INFINITY, f64::min);
-    let mut pair_only = 0.0f64;
-    for i in 0..2 {
-        for j in [i, i + 1] {
-            let v: [f64; 2] = core::array::from_fn(|k| {
-                let at = |p: (f64, f64)| if k == 0 { p.0 } else { p.1 };
-                w[i + 1] * (at(pts[i + 1]) - at(pts[i]))
-                    - (w[i + 1] - w[i]) * (at(pts[j]) - at(pts[i]))
-            });
-            pair_only = pair_only.max(2.0 * v[0].hypot(v[1]) / least);
-        }
-    }
-    let floor = sampled_sup_floor(&c, 4000);
-    assert!(
-        floor > 10.0 * pair_only,
-        "sampled sup {floor} vs the pair-only reading {pair_only}"
-    );
-    check("pair-only counterexample", &c);
+    check("six decades of weight", &c);
 }

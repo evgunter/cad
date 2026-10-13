@@ -1,8 +1,8 @@
 //! **The rational stretch bound** (`NurbsSurface::stretch_sup`, the
 //! quotient bound of `geom_core::spline::derivative` on each cell's
 //! dyadic pieces) dominates the true `‖S_u‖` and `‖S_v‖`, never reads
-//! above the homogeneous recipe the pair-term bound replaced
-//! (`step-import`'s whole-patch `derivative_sup`), and never above the
+//! above the whole-patch homogeneous recipe ([`recipe_a`], as
+//! `step-import`'s `derivative_sup` spelled it), and never above the
 //! polynomial control-difference bound at unit weights.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -54,8 +54,8 @@ fn sampled_sup_floor(s: &NurbsSurface<f64>, n: usize) -> (f64, f64) {
     (fu, fv)
 }
 
-/// The homogeneous recipe the pair-term bound replaced, as
-/// `step-import`'s `derivative_sup` spelled it: about the control
+/// The whole-patch homogeneous recipe, as `step-import`'s
+/// `derivative_sup` spelled it: about the control
 /// centroid `c`, `(max ‖A_d‖ + d·max |w_d|)/min w` per direction, with
 /// `A = w·(P − c)` and `d` the net's reach from `c`, over the
 /// nonempty-support coefficients of the whole patch.
@@ -273,9 +273,8 @@ fn the_bound_covers_random_rational_nets() {
 
 /// **Six decades of weight are covered, on a surface.** The curve
 /// `speed_upper_bound`'s `six_decades_of_weight_are_covered` net
-/// (`P₀ = P₁`, sup near `658.6` against a pair-only reading below
-/// `4.9`), ruled along `v` between two equal rows, so `S_u` is that
-/// curve's derivative.
+/// (`P₀ = P₁`, a sharp sup near `658.6`), ruled along `v` between two
+/// equal rows, so `S_u` is that curve's derivative.
 #[test]
 fn six_decades_of_weight_are_covered() {
     let (p0, p2) = (
@@ -289,33 +288,7 @@ fn six_decades_of_weight_are_covered() {
         vec![p0, p0, p0, p0, p2, p2],
         w.iter().flat_map(|&x| [x, x]).collect(),
     );
-    let pts = [p0, p0, p2];
-    let least = w.iter().copied().fold(f64::INFINITY, f64::min);
-    let mut pair_only = 0.0f64;
-    for i in 0..2 {
-        for j in [i, i + 1] {
-            let v = (pts[i + 1] - pts[i]) * w[i + 1] - (pts[j] - pts[i]) * (w[i + 1] - w[i]);
-            pair_only = pair_only.max(2.0 * v.norm() / least);
-        }
-    }
-    // `S_u` does not depend on `v` (the rows are equal), and its peak
-    // is sharp: one `u` line, finely.
-    let si = s.map_scalar(<Interval as Real>::from_f64);
-    #[allow(clippy::cast_precision_loss)]
-    let floor_u = (0..=4000)
-        .map(|i| {
-            let u = (f64::from(i) / 4000.0).clamp(0.0, 1.0);
-            si.ders(Interval::from_f64(u), Interval::from_f64(0.0))
-                .du
-                .norm()
-                .lo()
-        })
-        .fold(0.0, f64::max);
-    assert!(
-        floor_u > 10.0 * pair_only,
-        "sampled sup {floor_u} vs the pair-only reading {pair_only}"
-    );
-    check("ruled pair-only counterexample", &s);
+    check("ruled six decades of weight", &s);
 }
 
 /// **The bound is local, per cell.** Two `u` cells (bilinear, the two

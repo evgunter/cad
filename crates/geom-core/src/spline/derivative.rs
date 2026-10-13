@@ -75,8 +75,10 @@
 //! [`QUOTIENT_MAX_DEGREE`] ([`super::pieces::binomial`]); above it the
 //! builders refuse (`None`). At `Interval` each factor is a point and
 //! every product and quotient rounds outward; at `f64` the same
-//! expression rounds to nearest, and the reading can sit an ulp past
-//! the bound.
+//! expression rounds to nearest, and the reading can sit past the
+//! bound by more than an ulp: measured up to `5.3e-12` relative at a
+//! weight spread of `10³`, growing with the spread. `Interval` is the
+//! certified lane.
 //!
 //! **No zero knot difference is reachable.** A span is walked only when
 //! it is nonempty, and its active pairs are `i ∈ [s − p, s − 1]`
@@ -169,7 +171,9 @@ fn cross<T: Real>(a: [T; 3], b: [T; 3]) -> [T; 3] {
 
 /// **The quotient bound on one piece** (module docs): a quantity
 /// `Σ B_k a_k / Σ B_k b_k`, its numerator's coefficients `a_k` and its
-/// weight power's `b_k > 0` at one degree and one layout.
+/// weight power's `b_k > 0` at one degree and one layout. Minted only
+/// by this module's builders ([`speed_pieces`], [`cell_quotients`],
+/// [`stretch_pieces`]), which hold both preconditions.
 #[derive(Clone, Debug)]
 pub struct QuotientPiece<T, const D: usize> {
     numer: Vec<[T; D]>,
@@ -179,10 +183,11 @@ pub struct QuotientPiece<T, const D: usize> {
 impl<T: Real, const D: usize> QuotientPiece<T, D> {
     /// The piece with numerator coefficients `numer` and weight-power
     /// coefficients `denom`, paired by index; `None` when the counts
-    /// differ or there is none. The caller owes one degree on both
-    /// sides and positive `denom` (module docs).
-    #[must_use]
-    pub fn new(numer: Vec<[T; D]>, denom: Vec<T>) -> Option<Self> {
+    /// differ or there is none. Private: one degree on both sides and a
+    /// positive `denom` (module docs) are what the builders here hold,
+    /// raising the numerator to the weight power's degree and forming
+    /// the weight power as a product of positive weights.
+    fn new(numer: Vec<[T; D]>, denom: Vec<T>) -> Option<Self> {
         (!numer.is_empty() && numer.len() == denom.len()).then_some(Self { numer, denom })
     }
 
