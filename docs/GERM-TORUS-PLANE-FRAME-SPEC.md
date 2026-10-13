@@ -167,7 +167,7 @@ every pose:
   torus the face's outer loop lies on the other arcs' carriers, so
   every path between them runs along an arc's plane; the ring lane
   reads such a piece apart from the arc (§1.3), and both build their
-  true bodies in every op. So does the box `y ≥ −0.3` against the
+  true bodies in every op. So does the box `x ≥ 0 ∧ y ≥ −0.3` against the
   one-face torus with its vertex at `π + asin 0.6`, whose wrap parallel
   and vertex lie on the box's face: an edge and a vertex on a face that
   cuts the tube transversally, decided Zero by the crossing layer's
