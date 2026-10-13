@@ -61,7 +61,7 @@ fn pin(r: f64, x: f64, y0: f64, y1: f64) -> Body<f64> {
     let body = revolved(&[(0.0, y0), (r, y0), (r, y1), (0.0, y1)], None);
     topo::transform_rigid(
         &body,
-        &Affine3::translation(Vec3::new(x, 0.0, 0.0)),
+        &geom_core::RigidMotion::translation(Vec3::new(x, 0.0, 0.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap()
@@ -213,13 +213,16 @@ fn an_oblique_rod_bites_one_loop_interior_to_both_faces() {
     let cone = cone();
     let along_x = topo::transform_rigid(
         &pin(0.3, 0.0, -2.0, 2.0),
-        &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), -PI / 2.0),
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), -PI / 2.0),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap();
     let rod = topo::transform_rigid(
         &along_x,
-        &Affine3::translation(Vec3::new(0.0, 0.45, 0.8)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.45, 0.8)).unwrap(),
         Tol::witness(),
     )
     .unwrap();
@@ -258,7 +261,10 @@ fn an_oblique_rod_bites_one_loop_interior_to_both_faces() {
 fn a_tilted_slab_cuts_ellipses_cleared_by_w2() {
     let slab = topo::transform_rigid(
         &brick::<f64>((-2.0, 2.0), (0.2, 0.3), (-2.0, 2.0), Tol::witness()),
-        &Affine3::rotation_about_axis(Point3::new(0.0, 0.25, 0.0), Vec3::unit_z(), 0.2),
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(Point3::new(0.0, 0.25, 0.0), Vec3::unit_z(), 0.2),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap();
@@ -370,7 +376,12 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
+    topo::transform_rigid(
+        &ball,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// **W4 through the door: a ball on the quarter cone's generator

@@ -370,8 +370,12 @@ fn r2_a_rigid_transform_preserves_every_authority() {
             ),
             Vec3::new(0.25, -1.5, 3.0),
         );
-        let moved = topo::transform_rigid(&base, &map, Tol::witness())
-            .unwrap_or_else(|e| panic!("{name} transforms: {e:?}"));
+        let moved = topo::transform_rigid(
+            &base,
+            &geom_core::test_support::rigid(&map, Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{name} transforms: {e:?}"));
         let after = declared_map(&moved);
         assert_eq!(
             before.len(),
