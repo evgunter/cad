@@ -7264,6 +7264,71 @@ mod turn_miss {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
+mod review_4983_probe {
+    use super::turn_element;
+    use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+    use crate::{Body, LoopBoundary, MevSite, NewVertexSide};
+    use geom::Surface;
+    use geom_core::{Band, Tol};
+
+    /// Review probe (PR 4983): the restated turn_miss row reads only
+    /// `he_plus`, whose turn's gap is `-tau`. The reverse half reads
+    /// `+tau`, whose first mark is `pi*r`, so for `pi*r <= eps < tau*r`
+    /// the count decides OnMark and the near-pole read does not close:
+    /// a decided miss (`Err(None)`) the row's doc calls unreachable.
+    #[test]
+    fn the_reverse_half_misses_as_decided_in_the_band() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = Body::<f64>::new();
+        let frame = CylFrame::canonical(1.0);
+        let face = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), tol);
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!()
+        };
+        let v = body.get_half_edge(first).unwrap().start;
+        let p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let null = body
+            .mev_null(
+                MevSite::Fan {
+                    he1: first,
+                    he2: first,
+                },
+                NewVertexSide::Above,
+            )
+            .unwrap();
+        let t0 = p.y.atan2(p.x);
+        let circle = geom::Curve3::Circle {
+            center: frame.origin + frame.axis * p.z,
+            axis: frame.axis,
+            radius: frame.radius,
+            u_ref: frame.u_ref,
+        };
+        let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle, t0, t0 + core::f64::consts::TAU)
+            .unwrap();
+        body.set_edge_curve(null.edge, spec, tol).unwrap();
+        let key = body.get_face(face).unwrap().surface;
+        let he_minus = body.get_edge(null.edge).unwrap().he_minus;
+        let eps = band.zero();
+        let at = |he, r: f64| {
+            let mut shrunk = body.clone();
+            let Some(Surface::Cylinder { radius, .. }) = shrunk.surfaces.get_mut(key) else {
+                panic!()
+            };
+            *radius = r * eps;
+            turn_element(&shrunk, he, band)
+        };
+        assert!(matches!(at(null.he_plus, 0.2), Err(Some(_))));
+        assert!(
+            matches!(at(he_minus, 0.2), Err(None)),
+            "the reverse half decides a miss"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod room_fence_tests {
     use super::{DescribedChart, joint_has_room};
     use geom::Surface;
