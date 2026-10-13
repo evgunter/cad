@@ -296,17 +296,17 @@ const SLAB_LEDGER: [&str; 3] = [
      Plain/Decision calls 981 forms 9426 frozen 0 digest 509f76009e2fdeda65fed3469e5b4c9a\n\
      Plain/Assertion calls 514 forms 1186 frozen 0 digest 6cc3925553d39ab11afdd6f49e2e95fc\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2229 frozen 0 digest c1a337dfb3fddea52f0b602dee5ce284",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest 78f9da753bcbf13302396be314a2326a",
     "\
      Plain/Decision calls 981 forms 9426 frozen 0 digest d5fda03dcfd46c23e618d14b01521812\n\
      Plain/Assertion calls 514 forms 1186 frozen 0 digest e01dd6ba526d880e783c1591e8ec918d\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2229 frozen 0 digest 07d7408b59196363c53b96cbc8093e55",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest a46526317b8db75f798dfec4841a3faf",
     "\
      Plain/Decision calls 981 forms 9426 frozen 0 digest 12eb2d77e98670e393dd86ec271d5c3b\n\
      Plain/Assertion calls 514 forms 1186 frozen 0 digest ed52a22cbba70cd084174fda0dd6d15c\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 2229 frozen 0 digest 567124dbedb7c16baa8e3ed1ec024203",
+     Early/Assertion calls 514 forms 2229 frozen 0 digest 319b9bb461d5031e9da6c0bbc966174c",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -579,13 +579,19 @@ const PLATE_MAX_TERMS: usize = 28;
 /// `Plain/Decision` 15735 → 15749 and `Early/Decision` 8657 → 8671
 /// (+14 forms each) and those lines' digests; calls, freezes and every
 /// other line hold.
+///
+/// A form's digest no longer carries a read's gate (DECIDE-10), so the
+/// `Early/Assertion` and `Door/Decision` digests move on every form the
+/// decision read built, with every count held; and the contradiction
+/// check asks the tier's algebra without the door, so the
+/// `Door/Assertion` line, 396 calls that built nothing, is gone. The
+/// slab's `Early/Assertion` digests move the same way at each ε row.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 1048 forms 16048 frozen 324 digest f89ef49f722b34fae182cdf42193f5b8\n\
      Plain/Assertion calls 654 forms 4542 frozen 405 digest 3c4fc6a4bbbcee24d316349a6cc2996f\n\
      Early/Decision calls 352 forms 8970 frozen 0 digest 7331ca9ce50daa679d9117fae6863d1a\n\
-     Early/Assertion calls 654 forms 5505 frozen 0 digest f269ea0d98b363db1a637afa17caf594\n\
-     Door/Decision calls 396 forms 7377 frozen 0 digest a8da80a66f4d786105cc71ef44022df3\n\
-     Door/Assertion calls 396 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Early/Assertion calls 654 forms 5505 frozen 0 digest 9e115d316f094da06cfb34dd062c14d0\n\
+     Door/Decision calls 396 forms 7377 frozen 0 digest cd68ef595d7f324c874b3f5aec2e3bbb";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

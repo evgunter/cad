@@ -1403,6 +1403,15 @@ fn axial_floor<T: Real>(z: (f64, f64), nappe: Nappe) -> T {
 }
 
 /// The distance of an angle from the nearest point of `shift + τℤ`.
+///
+/// Sound at every scalar on its own terms: a lattice distance is
+/// continuous in the angle and the same on either branch at a tie, so
+/// the floor's pick never shows in it, and an `Interval` straddle widens
+/// it but still encloses. Its readers (`projected_envelope`'s fidelity
+/// terms) pass a deck offset (a whole number of turns, or a reflection's
+/// zero) against a shift of 0 or π (the sphere's twin), all form-definite
+/// constants at `Sym`, and add the distance to an envelope bound: no
+/// identity reads it.
 fn off_period<T: Real>(angle: T, shift: T) -> T {
     (angle - shift).reduce_periodic_centred(T::tau()).abs()
 }

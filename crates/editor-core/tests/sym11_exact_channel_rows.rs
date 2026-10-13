@@ -28,7 +28,7 @@ use geom_core::{SymCounts, SymRules, Tol};
 use crate::m10_9_pins_interval::measured_studies;
 
 /// **THE RECEIPTS PAST EACH CEILING**, in `measured_studies`' order,
-/// as `[symbolic_zero, registered, numeric, frozen]`. Identical at
+/// as `[symbolic, numeric, frozen]`. Identical at
 /// ε = 1e-6, 1e-9 and 1e-12: the atoms a residual carries do not
 /// depend on the band, and neither does what the tier proves about
 /// them.
@@ -45,7 +45,7 @@ use crate::m10_9_pins_interval::measured_studies;
 /// INTENT-LITERALS PR C (a slot holds a variable) adds one theorem per
 /// formula written at a slot, an anonymous definition bound through the
 /// non-finite door: plate +1, annulus +2, link +2, bracket +3, the pad
-/// unmoved; `registered`, `numeric` and `frozen` hold. The same deltas
+/// unmoved; `numeric` and `frozen` hold. The same deltas
 /// move `m10_9_pins_interval`'s and `sym_9_retry_interval`'s rows.
 ///
 /// An intrinsic edge description's surfaces becoming a set
@@ -66,12 +66,12 @@ use crate::m10_9_pins_interval::measured_studies;
 /// 641 → 729, 828 → 904, 498 → 542, 830 → 906, 314 → 358. The fidelity
 /// channels' norm and the retired `Tilt` and `Orientation` slots move
 /// no column here.
-const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
-    ("two_hole_plate", [1048, 0, 654, 729]),
-    ("r1_annulus", [566, 0, 399, 904]),
-    ("r2_link", [347, 9, 259, 542]),
-    ("r2_filleted_bracket", [623, 0, 464, 906]),
-    ("r2_rounded_pad", [340, 0, 277, 358]),
+const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
+    ("two_hole_plate", [1048, 654, 729]),
+    ("r1_annulus", [566, 399, 904]),
+    ("r2_link", [356, 259, 542]),
+    ("r2_filleted_bracket", [626, 464, 906]),
+    ("r2_rounded_pad", [340, 277, 358]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
@@ -151,12 +151,7 @@ fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
         match replay_on_a_thread(doc, ParamBox::of(&analyzed), tol) {
             Ok((refusal, counts)) => {
                 println!("   {name} at eps={eps:e}, ceiling + δ: {counts:?} -> {refusal:?}");
-                let got = [
-                    counts.symbolic_zero,
-                    counts.registered,
-                    counts.numeric,
-                    counts.frozen,
-                ];
+                let got = [counts.symbolic, counts.numeric, counts.frozen];
                 if got != want.1 {
                     moved.push(format!("{name}: {got:?}, stored {:?}", want.1));
                 }
@@ -192,8 +187,7 @@ fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
     );
     assert!(
         moved.is_empty(),
-        "at eps={eps:e}, past the ceiling (a receipt is [symbolic_zero, registered, \
-         numeric, frozen]). This row is the measurement SYM-11 argued the dispute column's \
+        "at eps={eps:e}, past the ceiling (a receipt is [symbolic, numeric, frozen]). This row is the measurement SYM-11 argued the dispute column's \
          zero from, so a number that moved is a decision that moved and is a finding, not a \
          table to refresh:\n{}",
         moved.join("\n")
