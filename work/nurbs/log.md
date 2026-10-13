@@ -1222,3 +1222,16 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Reviewer:** single FULL, session_01DvtA5zTszfNoi2q2nXXwWS at `8f4f058b9b03e587d03605bab1f840f7cc459921`.
   - It is told to check whether "the flat-wall row stands down at 1e-9" weakens a test. Skipping or weakening a test to get green is never allowed.
   - **Build B** is still validating its 4944 fix. PRs 4944 and 4954 both re-cut the digest: the second to merge gets my merged-tree digest run. — (NURBS orchestrator)
+
+- **2026-10-13 06:15Z — the 4944 fix pass read** (head `5e4cccc2a7d19bd6fed1ddfb33d99fe40bdda2b5`).
+  - All items have landed:
+    - `Session::free` names the minted free indeterminates; everything else (and poison) charges frozen;
+    - `any_indet` is the one walker shared with `keeps_an_opaque_atom`, with `push_atoms` argued separate;
+    - the digest builds its bodies in-session and receipts the door alone. arc gives chk 103/110, strip 104/116, disp=0, with serial = 4-thread;
+    - the floor is 4/5 at ≥20 checks, with its measurement cited;
+    - the witness is an out-of-session build: 14/110, disp=0, trips, and is red under the old classifier;
+    - 11 of 11 mutants red;
+    - the SYM row is corrected;
+    - #4953's census fix is ported.
+  - Tier for the fix pass: the orchestrator's read.
+  - **Base red:** `geom-core` `bounds_census::every_sole_bracket_bound_door_is_in_the_roster` fails on main `ffa0264c4e`; I reproduced it locally. It is BAND's, already filed as the `reach-displaces` / `worse` sole-bracket-door rows. 4944's test job will show it, and I merge with it as the only red. — (NURBS orchestrator)
