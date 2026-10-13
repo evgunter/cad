@@ -367,7 +367,6 @@ impl RoleSeg {
             | RoleSeg::Crossing {
                 edge: a, face: b, ..
             }
-            | RoleSeg::EdgeCrossing { a, b, .. }
             | RoleSeg::TrimEdge {
                 edge: a,
                 support: b,
@@ -380,6 +379,7 @@ impl RoleSeg {
                 f(Shared(a));
                 f(Shared(b));
             }
+            RoleSeg::EdgeCrossing(run) => run.iter().for_each(|l| f(Shared(&l.line))),
             RoleSeg::Merged(set) | RoleSeg::BandFace(set) => set.iter().for_each(|n| f(Owned(n))),
             RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
                 f(Shared(edge));
@@ -419,7 +419,6 @@ impl RoleSeg {
             | RoleSeg::Crossing {
                 edge: a, face: b, ..
             }
-            | RoleSeg::EdgeCrossing { a, b, .. }
             | RoleSeg::TrimEdge {
                 edge: a,
                 support: b,
@@ -432,6 +431,7 @@ impl RoleSeg {
                 f(Shared(a));
                 f(Shared(b));
             }
+            RoleSeg::EdgeCrossing(run) => run.iter_mut().for_each(|l| f(Shared(&mut l.line))),
             RoleSeg::Merged(set) | RoleSeg::BandFace(set) => {
                 set.iter_mut().for_each(|n| f(Owned(n)));
             }
@@ -1866,12 +1866,16 @@ pub(super) mod tests {
                     face: r(b),
                     sense: crate::names::Sense::Enters,
                 },
-                R::EdgeCrossing {
-                    a: r(a),
-                    a_sense: crate::names::Sense::Leaves,
-                    b: r(b),
-                    b_sense: crate::names::Sense::Enters,
-                },
+                R::EdgeCrossing(vec![
+                    RunLine {
+                        line: r(a),
+                        sense: Some(crate::names::Sense::Leaves),
+                    },
+                    RunLine {
+                        line: r(b),
+                        sense: None,
+                    },
+                ]),
                 R::Merged(vec![a.clone(), b.clone()]),
                 R::Fragment(Qualifier::Borders(vec![a.clone(), b.clone()])),
                 R::Fragment(Qualifier::Keeps(vec![a.clone(), b.clone()])),
@@ -2004,7 +2008,8 @@ pub(super) mod tests {
     mod ours {
         pub(super) use super::super::super::role::{
             CapEnd, EntityKind, MeridianEnd, NameRef, PieceRole, PieceRun, ProfileEdgeRef,
-            ProfileVertexRef, Qualifier, RimSupport, RoleSeg, SectionCircle, SplitHalf, StableName,
+            ProfileVertexRef, Qualifier, RimSupport, RoleSeg, RunLine, SectionCircle, SplitHalf,
+            StableName,
         };
         use crate::node::{RecipeNodeId, StepId};
 

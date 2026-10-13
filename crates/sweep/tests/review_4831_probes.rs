@@ -436,8 +436,8 @@ fn p6_the_nested_aligned_touch_by_membership() {
 }
 
 /// Opposed normals, VOID crescent, a line through a plane face's
-/// interior: a disc (r 2 about the origin) against the face `x = 2` of a
-/// slab. The union refuses `TangentSlitArmUnbuilt`; ∖ and ∩ answer.
+/// interior along the disc's edge there: a disc (r 2 about the origin)
+/// against the face `x = 2` of a slab. Every op answers.
 #[test]
 fn p7_a_disc_against_a_slab_face() {
     let pi = std::f64::consts::PI;
@@ -456,12 +456,7 @@ fn p7_a_disc_against_a_slab_face() {
         [Some(4.0 * pi + 36.0), Some(4.0 * pi), Some(36.0), None],
         &grid(),
     );
-    assert!(
-        got[0].starts_with("REFUSED TangentSlitArmUnbuilt"),
-        "p7 ∪: {}",
-        got[0]
-    );
-    all_answer("p7 ∖ and ∩", &got[1..]);
+    all_answer("p7", &got);
 }
 
 /// The nested aligned touch with the thin disc run past the fat one both
@@ -732,7 +727,7 @@ fn p13_two_discs_touching_outside_one_long() {
 
 /// Opposite senses, void crescent, plane × cylinder with a staggered
 /// edge: a block's face x = 1 over z ∈ [0.5, 2] against a unit disc
-/// over z ∈ [0, 1]. ∖ and ∩ answer; ∪ refuses the slit it does not build.
+/// over z ∈ [0, 1]. Every op answers.
 #[test]
 fn p14_a_block_resting_on_a_disc_wall_staggered() {
     let pi = std::f64::consts::PI;
@@ -751,11 +746,7 @@ fn p14_a_block_resting_on_a_disc_wall_staggered() {
         [Some(pi + 12.0), Some(pi), Some(12.0), None],
         &grid(),
     );
-    assert!(
-        got[0].starts_with("REFUSED TangentSlitArmUnbuilt"),
-        "p14 ∪: {got:#?}"
-    );
-    all_answer("p14 ∖ and ∩", &got[1..]);
+    all_answer("p14", &got);
 }
 
 /// Opposite senses, SHARED crescent, staggered: a bore (r 1 about (1, 0))

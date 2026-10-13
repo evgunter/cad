@@ -900,3 +900,34 @@ that the box-corner chamfer chord is the gap times a corner-fixed ratio —
 the `[ev]` analysis had said linear — and the README and PR 4245's comment
 were corrected before Ev ratified. The turn recourse drops its "clearly
 apart" leg until step 2 builds the overrun; step 2 restores it.
+
+## 2026-10-13 — the bore ruling's step 3: a ruled cut-off's sliver consumes a through-feature wholly inside it (PR 4896)
+
+A through-feature between the two caps of a convex ruled cut-off, wholly
+inside the sliver the band removes, now goes with it: a prism reading
+(`reach::prism_inside`) reads the feature's faces through the cap cycles
+read inside — the cap's sliver is the prism's slice, so the two readings
+agree — and the carve (`consume`) retires its faces, edges and rings.
+`consume::plan` admits only an annulus of one-cycle faces and refuses
+`WhollyInside` for anything else; a blind bore refuses as a bound. The two
+witness bores build at `ΔV = −2·A·L + π·a²·L`. Step 2's remainder landed:
+a consumed name resolves `Vanished { PredicateFlip }`, and `WhollyInside
+{ at }` is canonical by `EntityId`. Cost H, a concurrent dual (DR row
+`PR-4896`), both APPROVE-WITH-FIXES, tally 0. Both showed by mutant that
+nothing pinned the prism's slack and tilt terms; two rows now do. The
+reviews contradicted each other on a one-edge bore: the fix pass found the
+seamed one-edge bore builds (one face, one cycle) while a seamless wall
+(two cycles) would have been admitted and then refused untyped, so `plan`
+now refuses faces with rings. Step 4 (planar band, concave fill, chamfer)
+has its owed list on the unit.
+
+## 2026-10-13 — the bounds roster line PR 4896 owed (`reach::displaces`)
+
+PR 4896 added `reach::displaces`, a sole-bracket bound door, with no
+`bounds_census` roster line; geom-core's census turned main red (filed
+three times: P0 by FLUX and TANG lanes, P1 by PCERT). The PR's own CI and
+the orchestrator's local gate (sweep + editor-core) never ran the census,
+which carries no `gated_to!` marker and so runs only when a diff seeds
+geom-core. The line's disposition is Selection, inheriting `Unclear`'s.
+Before merging a blend PR that adds a `Bounds` site, run
+`cargo nextest run -p geom-core -E 'test(bounds_census)'`.

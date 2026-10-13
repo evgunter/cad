@@ -37,3 +37,14 @@ or a narrower refusal that leaves the rest of the body answerable. Then
 `contact11_torus_chart_l` asserts `Out` in the notch and `In` under it,
 which `work/contacthold/notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands.md`
 is parked on.
+
+## More evidence (GERM, `germ/one-face-torus-pierce-ring`)
+
+The torus less a box corner refuses `PartialTorusFace` at every one
+of 48 sampled points, in the ∪ and `T ∖ P` bodies (∩ and `P ∖ T` read
+at every point): the box `x ≥ 0 ∧ y ≥ h` against the one-face torus
+with its vertex on the inner equator (`h = −0.1, −0.3, −0.45`), and the
+bar `[−3, 3] × [0.2, 1.2] × [0, 3]` against the donut. Both are pinned
+in `crates/sweep/tests/germ_plane_torus_chord.rs`
+(`holds_to_the_truth_but`, `PARTIAL`), and go red when containment
+reads such a wall.
