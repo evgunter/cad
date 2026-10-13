@@ -2201,9 +2201,8 @@ mod tests {
     /// `Out`, as the line is, and the partner lies outside.
     #[test]
     fn a_touching_partner_reads_its_tangent_arc_by_its_bend() {
-        use super::super::sectors::{
-            Bend, BoolSector, FaceShape, NO_CURVATURE, PierceLever, Reach,
-        };
+        use super::super::sectors::{BoolSector, FaceShape, NO_CURVATURE, PierceLever, Reach};
+        use geom_brep::ConicBend;
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
@@ -2217,7 +2216,7 @@ mod tests {
         };
         let span = core::f64::consts::FRAC_PI_2;
         let extent = geom_brep::edge_extent(&arc, 0.0, span, 2f64.sqrt());
-        let bend = Bend::of(&arc, arc.deriv(0.0), arc.deriv2(0.0), span);
+        let bend = ConicBend::of(&arc, arc.deriv(0.0), arc.deriv2(0.0), span);
         let partner = [BoolSector {
             he: HalfEdgeKey::default(),
             start: z,

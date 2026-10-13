@@ -457,14 +457,12 @@ pub enum SplitReduceError {
     /// Two cyclically-consecutive entries remained ON after rule (a) —
     /// the "no consecutive ONs" invariant failed. For a planar operand
     /// this means a coplanar sector escaped the gate (documented
-    /// invariant, checked loudly rather than assumed). Since M5 PR 9
-    /// the conic in-plane-departure chain resolves ONE ORDER DOWN
-    /// first (the C12.2 second-order trilean,
-    /// `tangent_sector_order2`: an arc grazing the plane classifies
-    /// by which side it CURVES to), so reaching this refusal on a
-    /// conic boundary means the chain tied at second order too — a
-    /// genuinely osculating configuration this machinery will not
-    /// guess at (in-band second order escalates F6 upstream instead).
+    /// invariant, checked loudly rather than assumed). A conic's
+    /// in-plane departure reads one order down first
+    /// ([`geom_brep::conic_bend_side`]: an arc grazing the plane
+    /// classifies by which side it bends to), so reaching this refusal
+    /// on a conic boundary means a whole conic edge lay within the band
+    /// of the plane (an undecided bend escalates upstream instead).
     ConsecutiveOnSectors {
         /// The ON vertex whose neighborhood violated the invariant.
         vertex: VertexKey,

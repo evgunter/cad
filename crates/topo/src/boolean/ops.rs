@@ -1993,11 +1993,10 @@ pub(crate) fn volume_backstop<T: Decide>(
     // A bound applies only against a certified-bounded operand
     // (positive flux volume, at its enclosure's lower end); complement
     // operands (certified negative) make it vacuous. Poison refuses.
-    // Metered `V/A` — the operand's MEAN THICKNESS (fn docs). Surface
+    // Metered `V/A`, the volume's margin as a length (fn docs). Surface
     // area is unsigned (props.rs), so the quotient keeps V's sign and
-    // the complement arm is unchanged. An in-band quotient is an
-    // operand thinner than the model's own resolution — no bound is
-    // certifiable from it, skip.
+    // the complement arm is unchanged. An in-band quotient certifies no
+    // bound: skip.
     // The backstops live on the INVARIANT LANE (Ev's #213 layering
     // ruling): consistency inequalities between integral results are
     // outside the length seam by design — no door, bare T — and a
@@ -4567,14 +4566,10 @@ pub(super) fn declared_surface_pairs<T: Real>(
 /// act is tiers 1 and 2), so the verdict rides the result and is taken
 /// on the bits the caller receives. Where the scalar runs no at-rest
 /// gate, [`structural_gate`] runs in its place. The at-rest gate's
-/// findings are typed by [`finished_body_refusal`], and a solid it
-/// passed whose only shell is certified in band
-/// ([`crate::AtRestBody::slivers`]) is refused as the in-band shell it
-/// is: the at-rest invariant exempts it, and a result may not hold
-/// it (D10, Booleans). A scalar that runs no at-rest gate
-/// ([`crate::AtRestOutcome::NotRunAtThisScalar`], a dual) reads no
-/// slivers. The structural
-/// gate's are structure alone, the kernel's.
+/// findings are typed by [`finished_body_refusal`]; the structural
+/// gate's are structure alone, the kernel's. A solid whose only shell
+/// check 7 certified in band passes: how thin a result is gets judged
+/// by its pairs alone (D10, Booleans).
 ///
 /// # Errors
 ///
@@ -4601,9 +4596,6 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
         kept.as_ref().map(|_| ()).map_err(Vec::as_slice),
     ));
     let kept = kept.map_err(finished_body_refusal)?;
-    if let Some(refusal) = escalated(kept.slivers()) {
-        return Err(refusal);
-    }
     if kept.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
         structural_gate(&kept, band)?;
     }
@@ -4627,9 +4619,9 @@ fn finished_body_refusal(errors: Vec<ValidationError>) -> BooleanError {
         .unwrap_or(BooleanError::ResultInvalid { errors })
 }
 
-/// The refusal for `shells`, the result's shells certified in band: on
-/// the one whose enclosure binds the offer, naming how many more there
-/// are. `None` where there are none.
+/// The refusal for `shells`, the result's in-band shells: on the one
+/// whose enclosure binds the offer, naming how many more there are.
+/// `None` where there are none.
 fn escalated(shells: &[InBandShell]) -> Option<BooleanError> {
     let binding = shells.iter().copied().reduce(|a, b| {
         if a.sliver
