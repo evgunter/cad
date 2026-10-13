@@ -887,6 +887,10 @@ fn integral_area_floor(
 ) -> Result<f64, PatchBoundError> {
     let over = |sp: &Span<'_>| 2 * sp.degree() - 1 > QUOTIENT_MAX_DEGREE;
     if over(&span_u) || over(&span_v) {
+        // The conservative floor: `A_u × A_v` is past the statement's
+        // degree ceiling, so no floor can be formed, and `0.0` separates
+        // nothing from zero. The sups need no quotient, so the cell still
+        // certifies (`the_integral_floor_is_zero_past_degree_28`).
         return Ok(0.0);
     }
     let channels = nets.channels();
@@ -964,6 +968,46 @@ mod tests {
                 && msg.contains("56")
                 && !msg.ends_with(geom_core::KERNEL_DEFECT_ENDING),
             "{msg}"
+        );
+    }
+
+    /// **Past degree 28 the integral floor is the conservative zero.**
+    /// The integral area `A_u × A_v` sits at degree `2p − 1`, so a
+    /// degree-28 direction reads it at `55` and floors it, and a
+    /// degree-29 one would read `57`, past [`QUOTIENT_MAX_DEGREE`]. There
+    /// the arm still certifies (its sups need no quotient) and every
+    /// cell's `m_inf` is exactly `0.0`: a floor that separates nothing,
+    /// so an inf-side consumer refuses rather than reading a number the
+    /// statement cannot form.
+    #[test]
+    fn the_integral_floor_is_zero_past_degree_28() {
+        let floors = |p: usize| -> Vec<f64> {
+            let ku =
+                KnotVector::clamped([vec![0.0; p + 1], vec![1.0; p + 1]].concat(), p).expect("kv");
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("kv");
+            let mut control = Vec::new();
+            for i in 0..=p {
+                for j in 0..2u32 {
+                    #[allow(clippy::cast_precision_loss)]
+                    let u = i as f64 / p as f64;
+                    let v = f64::from(j);
+                    control.push(geom_core::Point3::new(u, v, 0.1 * u * u + 0.2 * u * v));
+                }
+            }
+            let n = NurbsSurface::new(ku, kv, control, vec![1.0; 2 * (p + 1)]).expect("ok");
+            let cells = patch_cells(&n).expect("an integral patch certifies at any degree");
+            assert!(cells.iter().all(|c| c.m_sup.is_finite()), "p = {p}");
+            cells.iter().map(|c| c.m_inf).collect()
+        };
+        assert!(
+            floors(28).iter().all(|m| *m > 0.0),
+            "p = 28 floors: {:?}",
+            floors(28)
+        );
+        assert!(
+            floors(29).iter().all(|m| *m == 0.0),
+            "p = 29 floors: {:?}",
+            floors(29)
         );
     }
 
