@@ -2268,7 +2268,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ContinuationContradicted
         | BooleanErrorKind::UnsupportedDeclarationClass
         | BooleanErrorKind::RimCuspArmUnbuilt
-        | BooleanErrorKind::TangentSlitArmUnbuilt
         | BooleanErrorKind::InvalidInput
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
@@ -2622,7 +2621,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("mod.rs", "unsettled_rest", "Coincide::DeclaredReach", 1),
     ("mod.rs", "route_rim", "Coincide::Rim", 2),
-    ("mod.rs", "verify_tangency", "Coincide::Contact", 2),
+    (
+        "mod.rs",
+        "locus_through_both_faces",
+        "Coincide::TangentLocus",
+        2,
+    ),
+    ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
     (
