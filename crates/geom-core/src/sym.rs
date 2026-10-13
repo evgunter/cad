@@ -1351,6 +1351,18 @@ impl SymNode {
         &self.kids[..self.op.arity()]
     }
 
+    /// The free indeterminate this node's form IS, where it is one —
+    /// a parameter, an opaque value or a hull — and `None` for every
+    /// other op, whose form is built from its children's.
+    fn free_indet(&self) -> Option<u128> {
+        match self.op {
+            SymOp::Param => Some(indet_param(self.payload)),
+            SymOp::Opaque => Some(indet_opaque(self.payload)),
+            SymOp::Hull => Some(indet_hull(self.kids[0], self.kids[1])),
+            _ => None,
+        }
+    }
+
     fn id(&self) -> SymId {
         SymId(
             Hash128::new()
@@ -1543,6 +1555,40 @@ pub struct SymCounts {
     /// residuals at `Sym<Interval>`, where every one of them is a
     /// plain theorem.
     pub theorems_disputed: u64,
+    /// **Contradiction checks that saw the whole of a form** — the
+    /// checks a zero in `theorems_disputed` speaks for.
+    ///
+    /// The contradiction check (both witness kinds, [`Decide::sign_within`])
+    /// can only find a theorem the form can represent. A form that
+    /// carries an unknown standing for structure it could not build is
+    /// zero only where that unknown cancels against itself, so as such
+    /// unknowns spread a check stops being able to dispute anything, and
+    /// `theorems_disputed == 0` reads the same over a run that checked
+    /// everything and one that checked nothing. These two columns split
+    /// the checks so a reader can tell those runs apart.
+    ///
+    /// A check lands HERE when its plain form, or its early form where
+    /// the session runs the early walk, is not poisoned and reaches,
+    /// through any atom's arguments, only FREE indeterminates: π and
+    /// the parameters, opaque values and hulls of nodes this session
+    /// recorded. Every other indeterminate charges the check to
+    /// [`SymCounts::checks_frozen`]: a node the walk froze on its
+    /// budget, and a node minted OUTSIDE the session, which the walk
+    /// can only freeze. The second is the class to watch: any caller
+    /// that builds `Sym` values before installing a session and decides
+    /// on them in it reads its checks frozen, because over those nodes
+    /// they are. The classification is conservative in one more place:
+    /// an atom a rule-B reduction names without minting reads as an
+    /// unknown.
+    ///
+    /// A check is counted only where it ran — inside a session with a
+    /// non-zero budget — so at an exact witness with debug assertions
+    /// off both columns read 0.
+    pub checks_expanded: u64,
+    /// **Contradiction checks that saw no form whole** — every form
+    /// they read was poisoned or carried an unknown the session could
+    /// not see into. [`SymCounts::checks_expanded`] argues the split.
+    pub checks_frozen: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
     /// **Decisions closed by a RETRY** ([`SymRetry`]) — the first
@@ -1636,6 +1682,8 @@ impl SymCounts {
         self.registrations_refused += other.registrations_refused;
         self.registrations_contradicted += other.registrations_contradicted;
         self.theorems_disputed += other.theorems_disputed;
+        self.checks_expanded += other.checks_expanded;
+        self.checks_frozen += other.checks_frozen;
         self.numeric += other.numeric;
         self.retried += other.retried;
     }
@@ -2526,6 +2574,14 @@ struct Session {
     params: IndetMap<(f64, f64)>,
     /// Every opaque atom minted so far, by its indeterminate id.
     atoms: IndetMap<AtomInfo>,
+    /// **The free indeterminates this session's table names** — the
+    /// key of each `Param`, `Opaque` and `Hull` node it recorded,
+    /// written as the node is interned. Every other non-atom
+    /// indeterminate a form carries is an unknown the session cannot
+    /// see into: a node the walk froze, or one minted outside the
+    /// session ([`SymCounts::checks_expanded`]). π is free everywhere
+    /// and is not kept here ([`names_free`]).
+    free: IndetMap<()>,
     /// **The registered-identity registry** ([`Sym::register_equal`]):
     /// `node -> the node it was registered equal to`, resolved
     /// transitively by [`Session::alias`]. Keyed by content hashes and
@@ -2733,6 +2789,7 @@ impl Session {
             forms_door: IdMap::default(),
             params: IndetMap::default(),
             atoms: IndetMap::default(),
+            free: IndetMap::default(),
             registry: IdMap::default(),
             trig_closed: IndetMap::default(),
             reductions: IndetMap::default(),
@@ -3223,6 +3280,9 @@ fn intern(node: SymNode) -> SymId {
             // not of the build.
             if let std::collections::hash_map::Entry::Vacant(e) = sess.nodes.entry(id) {
                 e.insert(node);
+                if let Some(key) = node.free_indet() {
+                    sess.free.insert(key, ());
+                }
                 if sess.memo.is_some() {
                     for kid in node.kids() {
                         if !sess.nodes.contains_key(kid) {
@@ -3257,6 +3317,16 @@ fn indet_param(symbol: u64) -> u128 {
     Hash128::new()
         .word(0x5041_5241_4d5f_494e)
         .word(symbol)
+        .finish()
+}
+
+/// The indeterminate a `Hull` node enters the form as: keyed by its
+/// two CHILD IDS, never by their forms (the op's docs).
+fn indet_hull(a: SymId, b: SymId) -> u128 {
+    Hash128::new()
+        .word(SymOp::Hull.tag())
+        .wide(a.bits())
+        .wide(b.bits())
         .finish()
 }
 
@@ -3711,13 +3781,7 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
         // poison crosses this door like every other.
         SymOp::Hull if a.tainted(b) => Some(Form::poison()),
         SymOp::Hull => {
-            let mut f = Form::poly(Poly::indet(
-                Hash128::new()
-                    .word(SymOp::Hull.tag())
-                    .wide(node.kids[0].bits())
-                    .wide(node.kids[1].bits())
-                    .finish(),
-            ));
+            let mut f = Form::poly(Poly::indet(indet_hull(node.kids[0], node.kids[1])));
             f.gated = a.gated || b.gated;
             Some(f)
         }
@@ -4550,31 +4614,45 @@ fn keeps_an_opaque_atom(id: SymId) -> Option<bool> {
         if early.poisoned {
             return Some(reaches_opaque(sess, id));
         }
-        let mut stack = vec![early];
-        let mut seen = std::collections::HashSet::new();
-        while let Some(form) = stack.pop() {
-            for poly in [&form.num, &form.den] {
-                for (mono, _) in poly.terms() {
-                    for &(x, _) in mono {
-                        if !seen.insert(x) {
-                            continue;
-                        }
-                        if opaque.contains(&x) {
-                            return Some(true);
-                        }
-                        if let Some(atom) = sess.atoms.get(&x) {
-                            stack.extend(atom.args.iter().flatten().cloned());
-                        } else if sess.nodes.contains_key(&SymId(x))
-                            && reaches_opaque(sess, SymId(x))
-                        {
-                            return Some(true);
-                        }
+        Some(any_indet(sess, &early, |x| {
+            opaque.contains(&x)
+                || (sess.nodes.contains_key(&SymId(x)) && reaches_opaque(sess, SymId(x)))
+        }))
+    })
+}
+
+/// **Whether any indeterminate `form` reaches answers `hit`** — the
+/// one walk over a form's indeterminates, descending through every
+/// atom's argument forms ([`Session::atoms`]) and asking `hit` of each
+/// distinct non-atom indeterminate it meets, once.
+fn any_indet(sess: &Session, form: &Form, mut hit: impl FnMut(u128) -> bool) -> bool {
+    let mut stack = vec![form];
+    let mut seen = std::collections::HashSet::new();
+    while let Some(form) = stack.pop() {
+        for poly in [&form.num, &form.den] {
+            for (mono, _) in poly.terms() {
+                for &(x, _) in mono {
+                    if !seen.insert(x) {
+                        continue;
+                    }
+                    if let Some(atom) = sess.atoms.get(&x) {
+                        stack.extend(atom.args.iter().flatten().map(|a| &**a));
+                    } else if hit(x) {
+                        return true;
                     }
                 }
             }
         }
-        Some(false)
-    })
+    }
+    false
+}
+
+/// **Whether `x` is a free indeterminate this session can name** — π,
+/// or the key of a `Param`, `Opaque` or `Hull` node in its table
+/// ([`Session::free`]). An indeterminate that is neither this nor an
+/// atom stands for structure the session cannot see.
+fn names_free(sess: &Session, x: u128) -> bool {
+    x == INDET_PI || sess.free.contains_key(&x)
 }
 
 fn discharge_in(id: SymId, retries: bool) -> Option<(Discharge, u8)> {
@@ -4771,12 +4849,43 @@ fn count_registration_contradicted() {
 /// ([`SymCounts::registrations_contradicted`], raised just above this
 /// call).
 ///
-/// It RUNS THE WALKS ([`discharge`]), which is the cost each arm pays.
+/// It RUNS THE WALKS ([`discharge`]), which is the cost each arm pays,
+/// and charges the check to [`SymCounts::checks_expanded`] or
+/// [`SymCounts::checks_frozen`].
 fn contradicts(id: SymId) -> bool {
-    matches!(
+    let out = matches!(
         discharge(id),
         Some(Discharge::Theorem | Discharge::SignGated)
-    )
+    );
+    count_check(id);
+    out
+}
+
+/// Charges one contradiction check on `id` to the column its forms
+/// put it in ([`SymCounts::checks_expanded`]). Reads the forms
+/// [`discharge`] left in the session's plain and early memos rather
+/// than asking a walk for them, so the check costs no walk call: a
+/// form `discharge` did not store is a form the check did not see.
+fn count_check(id: SymId) {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let Some(sess) = slot.as_mut() else {
+            return;
+        };
+        if sess.budget.max_terms == 0 {
+            return;
+        }
+        let saw = |form: Option<&Arc<Form>>| {
+            form.is_some_and(|f| !f.poisoned && !any_indet(sess, f, |x| !names_free(sess, x)))
+        };
+        let expanded =
+            saw(sess.forms.get(&id)) || (sess.rules.early && saw(sess.forms_early.get(&id)));
+        if expanded {
+            sess.counts.checks_expanded += 1;
+        } else {
+            sess.counts.checks_frozen += 1;
+        }
+    });
 }
 
 /// Records a decision whose form was a THEOREM or a GATED theorem under

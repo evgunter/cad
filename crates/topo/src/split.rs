@@ -63,7 +63,7 @@ pub(crate) const SPLIT_PARAM_INTERIOR: SizedDecision = SizedDecision {
     size: CROSSING_SIZE,
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The one ending of [`SPLIT_PARAM_INTERIOR`]'s refused `arm`, at the
