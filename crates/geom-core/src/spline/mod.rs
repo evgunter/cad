@@ -66,8 +66,9 @@ pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
 pub use derivative::{
-    CellAxis, CellBlock, CellQuotients, QUOTIENT_MAX_DEGREE, QuotientPiece, cell_quotients,
-    derivative_net, span_derivative_scale, speed_pieces, stretch_pieces,
+    CellAxis, CellBlock, CellQuotients, CellSecondQuotients, QUOTIENT_MAX_DEGREE, QuotientPiece,
+    accel_pieces, cell_quotients, cell_second_quotients, derivative_net, span_derivative_scale,
+    speed_pieces, stretch_pieces,
 };
 pub use hull::{
     C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,

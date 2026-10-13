@@ -65,6 +65,55 @@
 //! every `b_k` is exactly one, and the reading is the polynomial piece
 //! row's own.
 //!
+//! # The second order
+//!
+//! The same statement, one order up. Differentiate `C′ = N/W²`:
+//!
+//! ```text
+//! C″ = (N′·W − 2·N·W′) / W³,   N′ = A″·W + A′·W′ − A′·W′ − A·W″ = A″·W − A·W″
+//! C″ = M / W³,   M = A″·W² − A·W″·W − 2·A′·W·W′ + 2·A·W′²
+//! ```
+//!
+//! On a degree-`p` piece every term of `M` has degree `3p − 2`
+//! (`A″` is `p − 2`, `A′` and `W′` are `p − 1`, `A` and `W` are `p`), and
+//! `W³` has degree `3p`. A tensor patch reads it per direction, and
+//! the mixed partial by differentiating `S_u = N_u/W²` along `v`:
+//!
+//! ```text
+//! S_uu = M_uu / W³,  M_uu = A_uu·W² − A·W_uu·W − 2·A_u·W·W_u + 2·A·W_u²   (S_vv likewise)
+//! S_uv = M_uv / W³,  M_uv = A_uv·W² − A·W_uv·W − A_u·W·W_v − A_v·W·W_u + 2·A·W_u·W_v
+//! ```
+//!
+//! from `∂_v N_u = A_uv·W + A_u·W_v − A_v·W_u − A·W_uv` and
+//! `S_uv = (∂_v N_u·W − 2·N_u·W_v)/W³`. Every term of `M_uu` has
+//! bidegree `(3p − 2, 3q)`, of `M_uv` `(3p − 1, 3q − 1)`, against `W³`'s
+//! `(3p, 3q)`.
+//!
+//! Then the first-order argument, clause by clause:
+//! - **Raised to one degree.** `M` is raised to `W³`'s degree by
+//!   elevation, which changes no polynomial, so `Σ B_k m_k / Σ B_k b_k`
+//!   is `C″` itself and the `λ_k = B_k b_k / Σ_j B_j b_j` are its
+//!   weights.
+//! - **Each `m_k` over its own `b_k`.** `C″ = Σ_k λ_k·(m_k/b_k)` with
+//!   `λ_k ≥ 0` summing to one, so `‖C″‖ ≤ max_k ‖m_k‖/b_k`, and each
+//!   coordinate lies between its ratios'
+//!   ([`QuotientPiece::coordinate_range`]).
+//! - **The `b_k` are positive.** `W³`'s coefficients are Bernstein
+//!   products of the piece's weight coefficients, which are convex
+//!   combinations of the positive control weights.
+//! - **Every term of `M` is kept.** A dropped term is a different
+//!   polynomial: `A″·W²` alone is the polynomial bound, and the three
+//!   weight terms are what make a rational curve's `C″` differ from it.
+//!   At degree 1, `A″` and `W″` are identically zero and `M` is the
+//!   doubled cross term alone.
+//!
+//! `C″` needs no first-order bound in between: `C′` enters `M` through
+//! `A′` and `W′`, polynomially. The derivative rows are the B-spline's
+//! derivative nets read twice ([`derivative_net`]'s scale at degree
+//! `p − 1` over the vector from its second knot for the second
+//! differences), each into the span's Bernstein row at its own degree,
+//! and restricted to the piece by the same exact weights.
+//!
 //! # Degree ceiling
 //!
 //! The Bernstein product of rows of degrees `m` and `n` has coefficients
@@ -240,6 +289,19 @@ impl<T: Real, const D: usize> QuotientPiece<T, D> {
         self.floor_along(self.direction())
     }
 
+    /// Per coordinate, `(min_k a_k^c/b_k, max_k a_k^c/b_k)`: each
+    /// coordinate of the quantity is the same convex combination of its
+    /// coordinate ratios (module docs), so it lies between them over the
+    /// piece. A signed box; poison when there is no coefficient.
+    #[must_use]
+    pub fn coordinate_range(&self) -> [(T, T); D] {
+        core::array::from_fn(|c| {
+            let mut r = self.ratios(move |a| a[c]);
+            let first = r.next().unwrap_or_else(poison);
+            r.fold((first, first), |(lo, hi), x| (lo.min(x), hi.max(x)))
+        })
+    }
+
     fn ratios<'a>(&'a self, f: impl Fn([T; D]) -> T + 'a) -> impl Iterator<Item = T> + 'a {
         self.numer
             .iter()
@@ -383,6 +445,20 @@ impl<T: Real, const D: usize> Grid<T, D> {
             .map(&f)
             .collect::<Option<_>>()?;
         Self::from_rows(&rows)
+    }
+
+    /// `self + other`, coefficient by coefficient, at one shape.
+    fn plus(&self, other: &Self) -> Option<Self> {
+        (self.nv == other.nv && self.c.len() == other.c.len()).then_some(())?;
+        Self::new(
+            self.nv,
+            self.c.iter().zip(&other.c).map(|(a, b)| *a + *b).collect(),
+        )
+    }
+
+    /// The grid times the exact integer `k`.
+    fn times(&self, k: f64) -> Option<Self> {
+        Self::new(self.nv, self.c.iter().map(|v| v.times(k)).collect())
     }
 
     /// `self − other`, coefficient by coefficient, at one shape.
@@ -539,13 +615,15 @@ impl<'a, T: Real> Axis<'a, T> {
         }
     }
 
-    /// The span's Bernstein row of a window of this axis's degree
-    /// (`derived`: of its derivative's, one lower).
-    fn row<const D: usize>(&self, w: &[Vector<T, D>], derived: bool) -> Option<Vec<Vector<T, D>>> {
+    /// The span's Bernstein row of a window of this axis's degree less
+    /// `order`: of its `order`-th derivative's window. The derived
+    /// spline of degree `p − r` reads the same knot vector from index
+    /// `first + r` (Eq. 3.4).
+    fn row<const D: usize>(&self, w: &[Vector<T, D>], order: usize) -> Option<Vec<Vector<T, D>>> {
         match *self {
             Self::Span {
                 held, first, ends, ..
-            } => span_row(w, held, first + usize::from(derived), ends),
+            } => span_row(w, held, first + order, ends),
             Self::Bezier { .. } => Some(w.to_vec()),
         }
     }
@@ -554,10 +632,44 @@ impl<'a, T: Real> Axis<'a, T> {
     /// [`pair_scale`] (its knot difference positive by the span
     /// contract, module docs), or the Bézier block's one scale.
     fn scale(&self, k: usize) -> Option<T> {
+        self.scale_at(1, k)
+    }
+
+    /// The derivative scale of pair `k` of the window differenced
+    /// `order − 1` times: the degree-`p − order + 1` spline's own
+    /// [`pair_scale`], read over the knot vector from index `order − 1`
+    /// (on a span, `(p − r)/(u_{i+p+1} − u_{i+r+1})` with `r = order − 1`;
+    /// positive by the same span contract); on a Bézier block,
+    /// `(p − r)/width`.
+    fn scale_at(&self, order: usize, k: usize) -> Option<T> {
+        let r = order.checked_sub(1)?;
         match *self {
-            Self::Span { held, p, first, .. } => pair_scale(held, p, first + k),
-            Self::Bezier { scale, .. } => Some(scale),
+            Self::Span { held, p, first, .. } => {
+                pair_scale(held.get(r..)?, p.checked_sub(r)?, first + k)
+            }
+            Self::Bezier { p, scale } => {
+                if r == 0 {
+                    Some(scale)
+                } else {
+                    #[allow(clippy::cast_precision_loss)]
+                    let (deg, top) = (T::from_f64(p.checked_sub(r)? as f64), T::from_f64(p as f64));
+                    Some(scale * deg / top)
+                }
+            }
         }
+    }
+
+    /// A window already differenced `order − 1` times, differenced once
+    /// more: each pair's difference times its [`Self::scale_at`].
+    fn derive_at<const D: usize>(
+        &self,
+        order: usize,
+        w: &[Vector<T, D>],
+    ) -> Option<Vec<Vector<T, D>>> {
+        w.windows(2)
+            .enumerate()
+            .map(|(k, x)| Some((x[1] - x[0]) * self.scale_at(order, k)?))
+            .collect()
     }
 
     /// The window's derivative window: each pair's difference times
@@ -599,17 +711,18 @@ impl<'a, T: Real> Axis<'a, T> {
 }
 
 /// The span's Bernstein grid of a window grid, along `u` with `du`'s
-/// degree (`derived`: one lower) and along `v` with `dv`'s.
+/// degree less the derivative order `du`, and along `v` with `dv`'s.
 fn cell_grid<T: Real, const D: usize>(
     g: &Grid<T, D>,
-    (au, du): (&Axis<'_, T>, bool),
-    (av, dv): (&Axis<'_, T>, bool),
+    (au, du): (&Axis<'_, T>, usize),
+    (av, dv): (&Axis<'_, T>, usize),
 ) -> Option<Grid<T, D>> {
     g.map_u(|col| au.row(col, du))?.map_v(|row| av.row(row, dv))
 }
 
 /// A cell's homogeneous Bernstein grids on one piece: `A`, `W` and
-/// their `u` and `v` derivatives.
+/// their `u` and `v` derivatives, and, when asked for, their second
+/// ones.
 struct Homogeneous<T> {
     a: Grid<T, 3>,
     w: Grid<T, 1>,
@@ -617,6 +730,27 @@ struct Homogeneous<T> {
     wu: Grid<T, 1>,
     av: Grid<T, 3>,
     wv: Grid<T, 1>,
+    second: Option<SecondGrids<T>>,
+}
+
+/// The second derivatives of a cell's `A` and `W`: `uu` absent along a
+/// degree-1 `u` (identically zero there), `vv` likewise.
+struct SecondGrids<T> {
+    uu: Option<(Grid<T, 3>, Grid<T, 1>)>,
+    uv: (Grid<T, 3>, Grid<T, 1>),
+    vv: Option<(Grid<T, 3>, Grid<T, 1>)>,
+}
+
+/// The three second-order quotients of a tensor patch on one piece,
+/// each over `W³` (module docs, "The second order").
+#[derive(Clone, Debug)]
+pub struct CellSecondQuotients<T> {
+    /// `S_uu`.
+    pub uu: QuotientPiece<T, 3>,
+    /// `S_uv`.
+    pub uv: QuotientPiece<T, 3>,
+    /// `S_vv`.
+    pub vv: QuotientPiece<T, 3>,
 }
 
 impl<T: Real> Homogeneous<T> {
@@ -639,6 +773,23 @@ impl<T: Real> Homogeneous<T> {
             let (bu, bv) = on(g.degree())?;
             g.restrict(&bu, &bv)
         };
+        let pair = |(x, y): &(Grid<T, 3>, Grid<T, 1>)| Some((r3(x)?, r1(y)?));
+        let second = match &self.second {
+            Some(g) => Some(SecondGrids {
+                uu: g
+                    .uu
+                    .as_ref()
+                    .map(pair)
+                    .map_or(Some(None), |x| x.map(Some))?,
+                uv: pair(&g.uv)?,
+                vv: g
+                    .vv
+                    .as_ref()
+                    .map(pair)
+                    .map_or(Some(None), |x| x.map(Some))?,
+            }),
+            None => None,
+        };
         Some(Self {
             a: r3(&self.a)?,
             w: r1(&self.w)?,
@@ -646,7 +797,39 @@ impl<T: Real> Homogeneous<T> {
             wu: r1(&self.wu)?,
             av: r3(&self.av)?,
             wv: r1(&self.wv)?,
+            second,
         })
+    }
+
+    /// The second-order quotients on this piece (module docs, "The
+    /// second order"):
+    /// `M_uu = A_uu·W² − A·W_uu·W − 2·A_u·W·W_u + 2·A·W_u²` and `M_vv`
+    /// likewise, `M_uv = A_uv·W² − A·W_uv·W − A_u·W·W_v − A_v·W·W_u +
+    /// 2·A·W_u·W_v`, each over `W³`. `None` when the grids were not
+    /// built.
+    fn second_quotients(&self) -> Option<CellSecondQuotients<T>> {
+        let g = self.second.as_ref()?;
+        let (a, w) = (&self.a, &self.w);
+        // `−X·W·Y` for a vector grid `X` and scalar grid `Y`.
+        let xwy =
+            |x: &Grid<T, 3>, y: &Grid<T, 1>| product(x, &product(w, y, weight_times)?, by_weight);
+        // `A·Y·Z` for scalar grids `Y`, `Z`.
+        let ayz =
+            |y: &Grid<T, 1>, z: &Grid<T, 1>| product(a, &product(y, z, weight_times)?, by_weight);
+        let diagonal = |d: &Grid<T, 3>, dw: &Grid<T, 1>, xy: Option<&(Grid<T, 3>, Grid<T, 1>)>| {
+            let cross = ayz(dw, dw)?.minus(&xwy(d, dw)?)?.times(2.0)?;
+            let (m, w3) = second_numerator(a, w, xy.map(|(x, y)| (x, y)), cross)?;
+            quotient(&m, &w3)
+        };
+        let uu = diagonal(&self.au, &self.wu, g.uu.as_ref())?;
+        let vv = diagonal(&self.av, &self.wv, g.vv.as_ref())?;
+        let cross = ayz(&self.wu, &self.wv)?
+            .times(2.0)?
+            .minus(&xwy(&self.au, &self.wv)?)?
+            .minus(&xwy(&self.av, &self.wu)?)?;
+        let (m, w3) = second_numerator(a, w, Some((&g.uv.0, &g.uv.1)), cross)?;
+        let uv = quotient(&m, &w3)?;
+        Some(CellSecondQuotients { uu, uv, vv })
     }
 
     /// The quotients on this piece (module docs): `N_u = A_u·W − A·W_u`
@@ -709,7 +892,7 @@ pub fn speed_pieces<T: Real, const D: usize>(
             .collect();
         match weights {
             None => {
-                let row = axis.row(&axis.derive(&pts)?, true)?;
+                let row = axis.row(&axis.derive(&pts)?, 1)?;
                 let count = piece_count(p - 1, splits);
                 for block in piece_weights(p - 1, count)?.chunks_exact(p.pow(2)) {
                     let numer = Grid::column(restrict(block, &row)?)?;
@@ -733,10 +916,10 @@ pub fn speed_pieces<T: Real, const D: usize>(
                     .collect();
                 let (da, dw) = axis.derive_pairs(&pts, &ws, c)?;
                 let rows = (
-                    axis.row(&a, false)?,
-                    axis.row(&ws, false)?,
-                    axis.row(&da, true)?,
-                    axis.row(&dw, true)?,
+                    axis.row(&a, 0)?,
+                    axis.row(&ws, 0)?,
+                    axis.row(&da, 1)?,
+                    axis.row(&dw, 1)?,
                 );
                 let count = piece_count(p, splits);
                 let (wp, wq) = (piece_weights(p, count)?, piece_weights(p - 1, count)?);
@@ -753,6 +936,130 @@ pub fn speed_pieces<T: Real, const D: usize>(
                     out.push(quotient(&n, &product(&w, &w, |x, y| [x[0] * y[0]])?)?);
                 }
             }
+        }
+    }
+    Some(out)
+}
+
+/// `x·w` for a vector row `x` and a scalar row `w`: the bilinear map of
+/// a weight-scaled [`product`].
+fn by_weight<T: Real, const D: usize>(x: [T; D], w: [T; 1]) -> [T; D] {
+    x.map(|c| c * w[0])
+}
+
+/// `w·v` for two scalar rows.
+fn weight_times<T: Real>(w: [T; 1], v: [T; 1]) -> [T; 1] {
+    [w[0] * v[0]]
+}
+
+/// The second-order numerator over `W³` (module docs, "The second
+/// order"): `M = X·W² − A·Y·W − 2·Xa·W·Ya + 2·A·Ya·Yb`, at one degree,
+/// for the second partial along `(a, b)`: `X = A_ab`, `Y = W_ab`
+/// (absent along a degree-1 direction's own second partial, where both
+/// are identically zero), `Xa = A_a`, `Ya = W_a`, `Yb = W_b`. At `a = b`
+/// the `Xa·W·Ya` term is the one doubled cross term; at `a ≠ b` the
+/// caller passes the two halves of it as the cross form. Returns the
+/// numerator and `W³`.
+#[allow(clippy::many_single_char_names)]
+fn second_numerator<T: Real, const D: usize>(
+    a: &Grid<T, D>,
+    w: &Grid<T, 1>,
+    xy: Option<(&Grid<T, D>, &Grid<T, 1>)>,
+    cross: Grid<T, D>,
+) -> Option<(Grid<T, D>, Grid<T, 1>)> {
+    let w2 = product(w, w, weight_times)?;
+    let w3 = product(&w2, w, weight_times)?;
+    let m = match xy {
+        Some((x, y)) => product(x, &w2, by_weight)?
+            .minus(&product(a, &product(y, w, weight_times)?, by_weight)?)?
+            .plus(&cross)?,
+        None => cross,
+    };
+    Some((m, w3))
+}
+
+/// **The curve's second-order pieces** (module docs, "The second
+/// order"): on each nonempty span of the RATIONAL spline with control
+/// `points` and `weights` over `knots`, `C″ = M/W³` on each of
+/// [`piece_count`]`(p, splits)` exact dyadic pieces, in ascending span
+/// then piece order, `M` of degree `3p − 2` raised to `3p`. `None` on a
+/// degree below one, an index past an array, or a common degree above
+/// [`QUOTIENT_MAX_DEGREE`]; empty when no span is nonempty.
+pub fn accel_pieces<T: Real, const D: usize>(
+    knots: &Knots<T>,
+    points: &[[T; D]],
+    weights: &[T],
+    splits: usize,
+) -> Option<Vec<QuotientPiece<T, D>>> {
+    let kv = knots.structure();
+    let mut out = Vec::new();
+    for span in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
+        let axis = Axis::of(CellAxis::Span(span, knots.values()))?;
+        let p = axis.p();
+        if p == 0 {
+            return None;
+        }
+        let pts: Vec<Vector<T, D>> = points
+            .get(span.window())?
+            .iter()
+            .map(|x| Vector(*x))
+            .collect();
+        let ws: Vec<Vector<T, 1>> = normalised(weights.get(span.window())?)?
+            .0
+            .into_iter()
+            .map(|w| Vector([w]))
+            .collect();
+        let c = *pts.first()?;
+        let a: Vec<Vector<T, D>> = pts
+            .iter()
+            .zip(&ws)
+            .map(|(x, w)| scale_by(*x - c, *w))
+            .collect();
+        let (da, dw) = axis.derive_pairs(&pts, &ws, c)?;
+        let second = if p >= 2 {
+            Some((
+                axis.row(&axis.derive_at(2, &da)?, 2)?,
+                axis.row(&axis.derive_at(2, &dw)?, 2)?,
+            ))
+        } else {
+            None
+        };
+        let rows = (
+            axis.row(&a, 0)?,
+            axis.row(&ws, 0)?,
+            axis.row(&da, 1)?,
+            axis.row(&dw, 1)?,
+        );
+        let count = piece_count(p, splits);
+        let blocks = |deg: usize| -> Option<Vec<Vec<f64>>> {
+            Some(
+                piece_weights(deg, count)?
+                    .chunks_exact((deg + 1).pow(2))
+                    .map(<[f64]>::to_vec)
+                    .collect(),
+            )
+        };
+        let (b0, b1) = (blocks(p)?, blocks(p - 1)?);
+        let b2 = if p >= 2 { blocks(p - 2)? } else { Vec::new() };
+        for k in 0..count {
+            let on = |b: &[Vec<f64>], row: &[Vector<T, D>]| Grid::column(restrict(b.get(k)?, row)?);
+            let on1 =
+                |b: &[Vec<f64>], row: &[Vector<T, 1>]| Grid::column(restrict(b.get(k)?, row)?);
+            let a = on(&b0, &rows.0)?;
+            let w = on1(&b0, &rows.1)?;
+            let da = on(&b1, &rows.2)?;
+            let dw = on1(&b1, &rows.3)?;
+            // `−2·A′·W·W′ + 2·A·W′²`: the doubled cross term of
+            // `M = A″·W² − A·W″·W − 2·A′·W·W′ + 2·A·W′²`.
+            let cross = product(&a, &product(&dw, &dw, weight_times)?, by_weight)?
+                .minus(&product(&da, &product(&w, &dw, weight_times)?, by_weight)?)?
+                .times(2.0)?;
+            let xy = match &second {
+                Some((dda, ddw)) => Some((on(&b2, dda)?, on1(&b2, ddw)?)),
+                None => None,
+            };
+            let (m, w3) = second_numerator(&a, &w, xy.as_ref().map(|(x, y)| (x, y)), cross)?;
+            out.push(quotient(&m, &w3)?);
         }
     }
     Some(out)
@@ -794,6 +1101,38 @@ pub fn cell_quotients<T: Real>(
     splits: (usize, usize),
     area: bool,
 ) -> Option<Vec<CellQuotients<T>>> {
+    Some(
+        cell_pieces(axes, block, splits, area, false)?
+            .into_iter()
+            .map(|(first, _)| first)
+            .collect(),
+    )
+}
+
+/// **The surface statement's pieces at both orders** on one cell block
+/// (module docs, "The second order"): [`cell_quotients`] with
+/// `S_u × S_v`, and beside each piece its [`CellSecondQuotients`]. `None`
+/// as [`cell_quotients`], with the common degree `3·max(p, q)` against
+/// [`QUOTIENT_MAX_DEGREE`].
+pub fn cell_second_quotients<T: Real>(
+    axes: (CellAxis<'_, T>, CellAxis<'_, T>),
+    block: CellBlock<'_, T>,
+    splits: (usize, usize),
+) -> Option<Vec<(CellQuotients<T>, CellSecondQuotients<T>)>> {
+    cell_pieces(axes, block, splits, true, true)?
+        .into_iter()
+        .map(|(first, second)| Some((first, second?)))
+        .collect()
+}
+
+#[allow(clippy::type_complexity)]
+fn cell_pieces<T: Real>(
+    axes: (CellAxis<'_, T>, CellAxis<'_, T>),
+    block: CellBlock<'_, T>,
+    splits: (usize, usize),
+    area: bool,
+    second: bool,
+) -> Option<Vec<(CellQuotients<T>, Option<CellSecondQuotients<T>>)>> {
     let (au, av) = (Axis::of(axes.0)?, Axis::of(axes.1)?);
     let (p, q) = (au.p(), av.p());
     let count = (p + 1) * (q + 1);
@@ -855,19 +1194,51 @@ pub fn cell_quotients<T: Real>(
             (a, w, u, v)
         }
     };
+    let second = if second {
+        let uu = if p >= 2 {
+            Some((
+                cell_grid(&au_w.map_u(|c| au.derive_at(2, c))?, (&au, 2), (&av, 0))?,
+                cell_grid(&wu_w.map_u(|c| au.derive_at(2, c))?, (&au, 2), (&av, 0))?,
+            ))
+        } else {
+            None
+        };
+        let vv = if q >= 2 {
+            Some((
+                cell_grid(&av_w.map_v(|r| av.derive_at(2, r))?, (&au, 0), (&av, 2))?,
+                cell_grid(&wv_w.map_v(|r| av.derive_at(2, r))?, (&au, 0), (&av, 2))?,
+            ))
+        } else {
+            None
+        };
+        let uv = (
+            cell_grid(&au_w.map_v(|r| av.derive_at(1, r))?, (&au, 1), (&av, 1))?,
+            cell_grid(&wu_w.map_v(|r| av.derive_at(1, r))?, (&au, 1), (&av, 1))?,
+        );
+        Some(SecondGrids { uu, uv, vv })
+    } else {
+        None
+    };
     let whole = Homogeneous {
-        a: cell_grid(&a, (&au, false), (&av, false))?,
-        w: cell_grid(&w, (&au, false), (&av, false))?,
-        au: cell_grid(&au_w, (&au, true), (&av, false))?,
-        wu: cell_grid(&wu_w, (&au, true), (&av, false))?,
-        av: cell_grid(&av_w, (&au, false), (&av, true))?,
-        wv: cell_grid(&wv_w, (&au, false), (&av, true))?,
+        second,
+        a: cell_grid(&a, (&au, 0), (&av, 0))?,
+        w: cell_grid(&w, (&au, 0), (&av, 0))?,
+        au: cell_grid(&au_w, (&au, 1), (&av, 0))?,
+        wu: cell_grid(&wu_w, (&au, 1), (&av, 0))?,
+        av: cell_grid(&av_w, (&au, 0), (&av, 1))?,
+        wv: cell_grid(&wv_w, (&au, 0), (&av, 1))?,
     };
     let counts = (piece_count(p, splits.0), piece_count(q, splits.1));
     let mut out = Vec::with_capacity(counts.0 * counts.1);
     for iu in 0..counts.0 {
         for iv in 0..counts.1 {
-            out.push(whole.restrict((iu, iv), counts)?.quotients(area)?);
+            let piece = whole.restrict((iu, iv), counts)?;
+            let second = if piece.second.is_some() {
+                Some(piece.second_quotients()?)
+            } else {
+                None
+            };
+            out.push((piece.quotients(area)?, second));
         }
     }
     Some(out)
