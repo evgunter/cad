@@ -8,6 +8,7 @@ priority: P2
 cost: M
 closed: 2026-10-13
 branch: nurbs/rational-inf-floor
+pr: 4928
 ---
 
 ## What
