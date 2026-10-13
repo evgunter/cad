@@ -6,6 +6,7 @@ status: review
 branch: germ/flat-cone-tilted-ellipse
 refs: [conic-section-just-past-its-band-fails-certification-downstream]
 opened: 2026-10-13
+pr: 5043
 ---
 
 `plane_cone_section`'s `TiltedEllipse` lane
