@@ -46,3 +46,14 @@ Whether the two lanes take a closed-form carrier, and how:
 
 D7 recognition's Line promotion lands on the same wall
 (`work/exch/d7-promotes-an-off-iso-straight-spline-the-intersection-rung-then-refuses.md`).
+
+## A premise that moves with the answer
+
+`topo::pcurves::nurbs_iso_derive`'s circle fall-through returns the
+arc-rim pick without falling through to `General`, on the premise that
+no door certifies an `Intersection` circle on a spline chart (PR 4988).
+A closed-form carrier the spline-pair lanes take would end that premise:
+`an_intersection_circle_on_a_spline_wall_is_refused_at_the_door`
+(`crates/sweep/tests/an_arc_rim_picks_the_row_it_lies_on.rs`) goes red
+then, and the fall-through has to reach `General` where the arc-rim
+certification refuses.

@@ -34,6 +34,7 @@ use core::f64::consts::PI;
 
 use crate::common::differential::{clip_convex, disc_clip_area, outcome};
 use crate::common::germ_pair::cyl;
+use crate::common::quadrature::gk15;
 use crate::conic_edge_curved_face::{DRUM_RADIUS, TILT, ball, drum_lower};
 use geom_core::{Affine3, Point3, Tol, Vec3};
 use sweep::test_support::finished;
@@ -65,46 +66,11 @@ const LOWER: Drum = Drum {
 
 /// `∫ f` over `[a, b]` to `tol`, by adaptive 7–15 Gauss–Kronrod.
 fn gk(f: &dyn Fn(f64) -> f64, a: f64, b: f64, tol: f64, depth: u32) -> f64 {
-    const XK: [f64; 8] = [
-        0.991_455_371_120_812_6,
-        0.949_107_912_342_758_5,
-        0.864_864_423_359_769_1,
-        0.741_531_185_599_394_4,
-        0.586_087_235_467_691_1,
-        0.405_845_151_377_397_2,
-        0.207_784_955_007_898_5,
-        0.0,
-    ];
-    const WK: [f64; 8] = [
-        0.022_935_322_010_529_2,
-        0.063_092_092_629_979_0,
-        0.104_790_010_322_250_2,
-        0.140_653_259_715_525_9,
-        0.169_004_726_639_267_9,
-        0.190_350_578_064_785_4,
-        0.204_432_940_075_298_9,
-        0.209_482_141_084_728,
-    ];
-    const WG: [f64; 4] = [
-        0.129_484_966_168_869_7,
-        0.279_705_391_489_276_7,
-        0.381_830_050_505_118_9,
-        0.417_959_183_673_469_4,
-    ];
-    let (c, h) = ((a + b) / 2.0, (b - a) / 2.0);
-    let fc = f(c);
-    let (mut k, mut g) = (WK[7] * fc, WG[3] * fc);
-    for i in 0..7 {
-        let s = f(c - h * XK[i]) + f(c + h * XK[i]);
-        k += WK[i] * s;
-        if i % 2 == 1 {
-            g += WG[i / 2] * s;
-        }
-    }
-    let (k, g) = (k * h, g * h);
-    if (k - g).abs() <= tol || depth == 0 {
+    let (k, err) = gk15(f, a, b);
+    if err <= tol || depth == 0 {
         k
     } else {
+        let c = (a + b) / 2.0;
         gk(f, a, c, tol / 2.0, depth - 1) + gk(f, c, b, tol / 2.0, depth - 1)
     }
 }
