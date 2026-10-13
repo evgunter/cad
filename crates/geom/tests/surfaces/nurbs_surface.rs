@@ -298,10 +298,14 @@ fn a_surface_knot_operation_that_would_write_a_zero_weight_is_refused() {
         vec![w; 4],
     )
     .expect("a least-subnormal weight is positive and finite");
+    // Index 1 in both directions: the slot each operation writes along
+    // its own direction, so a `v` index mis-mapped through the
+    // transpose reads another slot.
     let refused = |what: &str, r: Result<NurbsSurface<f64>, KnotAlgebraError>| {
-        assert!(
-            matches!(r, Err(KnotAlgebraError::WeightCollapse { .. })),
-            "{what}: {r:?}"
+        assert_eq!(
+            r.map(|_| ()),
+            Err(KnotAlgebraError::WeightCollapse { index: 1 }),
+            "{what}"
         );
     };
     refused("insert_knot_u", s.insert_knot_u(0.5, 1));

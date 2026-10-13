@@ -76,3 +76,22 @@ elevation guard removed. The pin
 the insertion it read is now refused, so its speed-bound half has no
 curve to read.
 
+The review's fix pass (same PR) folded the predicate into one home.
+`geom_core::spline::weight_in_regime` (strictly positive and finite) and
+`check_weight_values` (the constructors' named refusal) are now what
+these read:
+- `written_weight`, `check_weights`, `compose`'s and `compose/tensor`'s
+  constructors, and `hull`'s licence;
+- `geom`'s `validate_counts` and the speed meter's rational guard;
+- `geom-brep`'s `patch_bound` and `pcurve_cache` guards;
+- `mesh`'s two chord guards.
+
+Further changes in that pass:
+- The `from_validated_parts` premise in `geom/src/scalar_lift.rs` names
+  the plan path.
+- Every door that reaches a plan names `WeightCollapse` in its
+  `# Errors`, removal's reinsertion included.
+- The surface row pins the index.
+- `a_subnormal_least_weight_reads_no_low_bound` keeps the speed-bound
+  neighbour the deleted pin had guarded.
+

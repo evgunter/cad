@@ -97,7 +97,11 @@ pub enum KnotAlgebraError {
     /// (both terms underflowing, on a net of subnormal weights). The
     /// operation is refused rather than returning an invalid curve.
     WeightCollapse {
-        /// New-polygon index of the collapsed weight.
+        /// New-polygon index of the collapsed weight: in the polygon the
+        /// writing pass builds. For a removal that is the removal's own
+        /// polygon, or, when the bound's reinsertion
+        /// ([`remove_knot_plan`] re-inserts `u` to measure the bound) is
+        /// the writer, the reinserted polygon's slot.
         index: usize,
     },
 }
@@ -520,12 +524,9 @@ pub(super) fn boehm_step(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> 
     Interval::between(x, y, ratio)
 }
 
-/// Validates weights against a knot vector: count, positivity,
-/// finiteness (the shared precondition of every plan constructor).
-// `!(x > 0)`-shaped guards below are deliberate: the negated form is
-// NaN-catching (`NaN > 0` is false, so NaN refuses), where `x <= 0`
-// would silently pass NaN through — the fail-loud direction.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
+/// Validates weights against a knot vector: count, then the weight
+/// regime ([`super::knots::check_weight_values`]) — the shared
+/// precondition of every plan constructor.
 fn check_weights(kv: &KnotVector, weights: &[f64]) -> Result<(), KnotAlgebraError> {
     if weights.len() != kv.control_count() {
         return Err(KnotAlgebraError::Structure(
@@ -535,35 +536,23 @@ fn check_weights(kv: &KnotVector, weights: &[f64]) -> Result<(), KnotAlgebraErro
             },
         ));
     }
-    for (index, w) in weights.iter().enumerate() {
-        if !(*w > 0.0) {
-            return Err(KnotAlgebraError::Structure(
-                SplineError::NonPositiveWeight { index, weight: *w },
-            ));
-        }
-        if !w.is_finite() {
-            return Err(KnotAlgebraError::Structure(SplineError::NonFiniteWeight {
-                index,
-                weight: *w,
-            }));
-        }
-    }
-    Ok(())
+    super::knots::check_weight_values(weights).map_err(KnotAlgebraError::Structure)
 }
 
-/// **The one admission of a weight a plan writes**: strictly positive
-/// and finite, or [`KnotAlgebraError::WeightCollapse`] at its
-/// new-polygon `index`. [`check_weights`] holds a plan's INPUT to the
-/// same regime, but a combination of two admitted weights can still
-/// leave it (an insertion's convex blend rounds to zero when both terms
-/// underflow; a removal's unblend can go negative), so every writer —
-/// insertion, elevation, removal — passes what it writes through here.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
+/// **The one admission of a weight a plan writes**: in the weight
+/// regime ([`super::knots::weight_in_regime`]), or
+/// [`KnotAlgebraError::WeightCollapse`] at its new-polygon `index`.
+/// [`check_weights`] holds a plan's INPUT to the same regime, but a
+/// combination of two admitted weights can still leave it (an
+/// insertion's convex blend rounds to zero when both terms underflow; a
+/// removal's unblend can go negative), so every writer — insertion,
+/// elevation, removal — passes what it writes through here.
 fn written_weight(index: usize, w: f64) -> Result<f64, KnotAlgebraError> {
-    if !(w > 0.0) || !w.is_finite() {
-        return Err(KnotAlgebraError::WeightCollapse { index });
+    if super::knots::weight_in_regime(w) {
+        Ok(w)
+    } else {
+        Err(KnotAlgebraError::WeightCollapse { index })
     }
-    Ok(w)
 }
 
 /// Single knot insertion (Book §5.2, Boehm), `times`-fold: returns a
@@ -1092,7 +1081,10 @@ pub struct RemovalStep {
 /// [`KnotAlgebraError::KnotNotPresent`] if `u` is not an interior knot
 /// (exact `f64` identity), [`KnotAlgebraError::RemovalExceedsMultiplicity`],
 /// [`KnotAlgebraError::WeightCollapse`] if a pass leaves the
-/// positive-weight regime, plus the shared structure refusals.
+/// positive-weight regime — the removal chain's written weights, or the
+/// reinsertion's ([`insert_knot_plan`] of `u` into the removed curve,
+/// which the bound is measured on), whose `index` is then the
+/// reinserted polygon's slot — plus the shared structure refusals.
 pub fn remove_knot_plan(
     kv: &KnotVector,
     weights: &[f64],
@@ -1133,8 +1125,6 @@ pub fn remove_knot_plan(
 
 /// One removal pass (fn docs on [`remove_knot_plan`] for the chain
 /// derivation; preconditions established there).
-// NaN-catching negated comparisons — see `check_weights`' note.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, KnotAlgebraError> {
     let p = kv.degree();
     let knots = kv.knots();
