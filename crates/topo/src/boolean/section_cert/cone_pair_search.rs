@@ -1962,7 +1962,8 @@ fn a_root_past_the_half_turn_of_a_wide_cone_is_read_where_it_is_reported() {
 /// the wall's chart the section is two essential loops, and they pass
 /// within a cell of each other where the first witness stands. Each
 /// witness is on a component of its own, though one of them is near
-/// both. Seed `0x6dd3eb9ff55f6ca3` at effort 1. Traced at the default ε.
+/// both. Seed `0x6dd3eb9ff55f6ca3` at effort 1. Traced at the default ε
+/// and 1e-6; it refuses its precision floor at 1e-12.
 #[test]
 fn two_wall_loops_passing_within_a_cell_each_hold_a_witness() {
     let k = frame(
