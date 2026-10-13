@@ -2,7 +2,8 @@
 id: periodic-branch-floor-remains-at-the-raw-picks
 kind: issue
 title: a whole-period branch is still picked by floor at fourteen sites the structural sweep did not name, and reduce_periodic carries the same atom
-status: open
+status: dispatched
+branch: pcert/periodic-branch-raw-picks
 opened: 2026-10-12
 priority: P2
 cost: M
