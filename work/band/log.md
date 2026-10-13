@@ -947,3 +947,21 @@ makes no refusal the reach does not, and one that it refuses a boss clear
 of the overrun: filed as `a-turns-overrun-meters-the-whole-cut-off-sliver`
 (the fix revises the README's ratified clause, so it is Ev's). The
 short-near-edge spurious `FOOT_INSIDE_A_FACE` is now executed on its item.
+
+## 2026-10-13 — the bore ruling's step 4: the planar band and the chamfer consume a through-feature wholly inside their sliver (PR 4957)
+
+The planar band hands its crease to the cap meter, so step 3's prism
+reading and carve take a through-feature wholly inside the material a
+convex plane–plane cut-off removes. A chord end's sliver is read as its
+exact triangle, so the chamfer's convex section takes no slack (keyed on the
+sliver, not the verb). The concave fill split to its own fork,
+`a-concave-fill-and-a-whole-shell-inside-a-bands-region` (`[ev]` PR 4963);
+a void inside a convex band's material is owed and still refuses
+`WhollyInside`. Cost H: a concurrent dual (DR row `PR-4957`), both
+APPROVE-WITH-FIXES, tally 0. Each found one of the triangle's terms unpinned
+(the outside witness; the two rim sides), killed only by its own probe; both
+are rows now. Filed `a-chord-ends-triangle-could-read-a-cycle-outside` (a
+missed loosening). The overrun's sliver, built through the same chord end,
+keeps crease `None`, pinned by a slot row. Merged on its fix-pass head with
+main's PR 4197 `transform_rigid` break outstanding (PR 4992, not this
+unit's); the PR adds no caller.
