@@ -101,3 +101,28 @@ One site is outside TINT's fence and outside this grep's crate list:
 ## Re-homed to CIW (2026-09-28)
 
 Moved from BLIND when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.
+
+## Evidence: the runtime-ε stand-downs (TANG, PR 4909, 2026-10-12)
+
+A row that skips a pose at the ε it runs at has no door that reaches
+a reader. `test_utils::loud_skip_marker!` gates on a build feature
+only, and `test_utils::vacuity::stood_down` is a `println!`. Four
+sites stand down at runtime ε. Three of them hand-roll the print and
+bypass `stood_down`, each worded differently:
+
+- `crates/sweep/tests/near_tangent_pierce_poses.rs`, `the_edge_and_twin_witnesses_build`
+- `crates/sweep/tests/split_through_a_ruling.rs`, two rows
+  (`"SKIPPED at this ε: no near-tangent pose answers …"`)
+- `crates/sweep/tests/verbs_shell.rs`,
+  `the_tilted_read_turns_at_the_crossing_foot_at_metre_and_millimetre_extents`
+
+The fourth, `parallel_cylinder_join::a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings`
+(PR 4909), uses `stood_down`. At 1e-12 it drops its 1e5 pose. The row
+is in the `ci` profile's slow-set exclusion, so it runs only nightly,
+under the default profile, where no line it prints is kept.
+
+So any repair here also needs a runtime-ε arm: a door that a
+pose-dropping row calls, which a gating run can see. One option is
+`--success-output` on the ε rows. Another is a door that names its
+skip the way `loud_skip_marker!` names its row. Whichever is chosen,
+the three hand-rolled prints move onto it.

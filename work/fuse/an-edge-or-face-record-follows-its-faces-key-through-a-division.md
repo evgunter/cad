@@ -2,11 +2,12 @@
 id: an-edge-or-face-record-follows-its-faces-key-through-a-division
 kind: issue
 title: An edge-face or face-face record follows its face's key through the section's division, not the piece the contact lies on
-status: dispatched
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
-branch: fuse/records-read-the-piece
+closed: 2026-10-13
+pr: 4893
 ---
 
 
@@ -40,3 +41,43 @@ carried edge-in-face record on a face a second body's section cuts),
 measured on main; then the same lineage read with this record kind's
 question: the live piece whose interior the edge's interior meets
 (for a face-face record, the pieces that still overlap).
+
+## Evidence (CONTACTHOLD, PR 4820)
+
+The reduction's own records now read a face the join divided through
+its pieces and chords (`ops::place_found`, the one carry's placement):
+a vertex-face or two-cell row lands on each pair the census confirms.
+An operand's carried edge-face and face-face records still never enter
+the boolean (`work/wire/a-boolean-drops-its-operands-curve-and-patch-records.md`),
+so that half stays open; no pose here was measured.
+
+## 2026-10-13, closed as no path for the found half (FUSE, PR 4893)
+
+The evidence note above (CONTACTHOLD, PR 4820) covers the reduction's
+own records: a two-cell row on a face the join divided goes through
+`boolean::ops::place_found`, which lands it on every pair of pieces
+and chords the census confirms. No other edge-face or face-face record
+reaches the carry's last loop:
+
+- **No carried kind.** `ContactRecords::carried`
+  (`crates/topo/src/boolean/records.rs`) gives an edge-face or
+  face-face record no carried kind, so the carried two-cell rows are
+  edge-edge only.
+- **Vertex-group pairs.** An edge-face pair a vertex group implies has
+  its face end from a vertex the merge pruned, or from a vertex-edge
+  row's edge the merge swallowed. The merge's substitution row names
+  the group's kept face, which is live and undivided after the merge,
+  by construction.
+- **Spans.** `record_spans` mints edge-face records from the result's
+  geometry after the carry, and reads no key.
+
+Measured on ea1088c5, before 4820, with instrumentation that was then
+reverted: no face cell entered the two-cell loop. The run covered the
+2,721-body lattice, the two-stage carried corpus (4,536 runs), a
+hand-built edge-in-divided-face prism pose, the topo/sweep/editor-core
+suites (8,342 tests) and 2,940 random star-prism scenes under four ops.
+
+The carried edge-face and face-face half belongs to WIRE's
+`a-boolean-drops-its-operands-curve-and-patch-records`. Its row now
+says such a record, once it has a carried kind, lands through
+`operand_fate` and `records::landings`.

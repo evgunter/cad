@@ -30,8 +30,8 @@
 //!   (`CurvedPierceUnsupported`).
 //! - **Tube ∪ ball** (overlapping, ball centred on the top cap) stops at
 //!   the crossing layer.
-//! - **The stadium** (slab ∪ cylinder whose wall the slab's top and
-//!   bottom are tangent to along a ruling) stops at the crossing layer.
+//! - **The stadium** (a slab whose top and bottom are tangent to a
+//!   rod's wall along a ruling, the rod half inside it) answers every op.
 //!   The D-bar on the slab, whose half-rod wall ends at the line,
 //!   verifies as a line seam and builds.
 //! - **The dodge plate** (a plate whose outline leaves a line on one
@@ -898,8 +898,15 @@ fn the_tube_and_an_overlapping_ball_refuse_at_the_crossing_layer() {
     }
 }
 
+/// **The stadium: a slab whose top and bottom end on a rod's rulings.**
+/// Each is tangent to the rod along its ruling with their outward
+/// normals agreeing, so the glue door glues the pair `Tangent`; the
+/// slab's top edge runs along the rod wall's interior there, an
+/// edge–sector site the tangent lump resolves. Every op answers at its
+/// closed form, tier 3 clean, the union in both orders: the rod's half
+/// past the slab's end is `π/8` of the rod's `π/4`.
 #[test]
-fn the_stadium_refuses_at_the_crossing_layer() {
+fn the_stadium_answers_every_op() {
     let tol = Tol::witness();
     let slab: AtRestBody<f64> = finished(
         "the slab",
@@ -927,14 +934,24 @@ fn the_stadium_refuses_at_the_crossing_layer() {
     .unwrap()
     .body;
     let rod = finished("the rod", rod, tol);
-    for e in union_both_orders(&slab, &rod) {
-        // Which of the two the run's band lands on is ε-dependent: the
-        // `B ∪ A` order escalates at the default ε on a contact-vertex
-        // margin and pierces at 1e-6 and 1e-12.
-        assert!(
-            is_pierce(&e) || matches!(e, BooleanError::Escalated { .. }),
-            "the crossing layer's refusal: {e:?}"
+    let half = PI / 8.0;
+    for (what, got, want) in [
+        ("slab ∪ rod", topo::union(&slab, &rod, tol), 3.0 + half),
+        ("rod ∪ slab", topo::union(&rod, &slab, tol), 3.0 + half),
+        ("slab ∖ rod", topo::subtract(&slab, &rod, tol), 3.0 - half),
+        ("rod ∖ slab", topo::subtract(&rod, &slab, tol), half),
+        ("slab ∩ rod", topo::intersect(&slab, &rod, tol), half),
+    ] {
+        let Ok(BooleanResult::Body(r)) = got else {
+            panic!("{what}: {got:?}")
+        };
+        assert_eq!(
+            topo::validate_geometric(&r.body, tol),
+            Ok(()),
+            "{what}: tier 3"
         );
+        let v = topo::mass_properties(&r.body, tol).unwrap().volume;
+        assert!((v - want).abs() < 1e-9, "{what}: volume {v} vs {want}");
     }
 }
 
@@ -1053,9 +1070,11 @@ fn a_puck_and_its_rounding_ring_build_as_a_seam() {
     }
 }
 
-/// **A rod in a bore refuses at the crossing layer at every turn.** A rod of radius 0.5 seated in the bore of
-/// radius 1 of a revolved tube, touching along a ruling, at thirty
-/// turns of the touching ruling: pinned per refusal. Its covered ends
+/// **A rod in a bore refuses at the crossing layer at all but one
+/// turn.** A rod of radius 0.5 seated in the bore of radius 1 of a
+/// revolved tube, touching along a ruling, at thirty turns of the
+/// touching ruling: pinned per outcome, and the union that builds is
+/// the tube and the rod, tier 3 clean. Its covered ends
 /// lie on the certified side, so this row holds with or without the
 /// cover's side gate; the gate is carried by the unit row
 /// `a_cover_admits_an_off_point_only_on_its_certified_side`, which is
@@ -1089,7 +1108,18 @@ fn a_rod_in_a_bore_refuses_at_the_crossing_layer() {
             tol,
         );
         let key = match topo::union(&tube, &rod, tol) {
-            Ok(_) => "built".to_owned(),
+            Ok(BooleanResult::Body(r)) => {
+                assert_eq!(
+                    topo::validate_geometric(&r.body, tol),
+                    Ok(()),
+                    "turn {k}: tier 3"
+                );
+                let v = topo::mass_properties(&r.body, tol).unwrap().volume;
+                let want = 6.0 * PI + PI / 4.0;
+                assert!((v - want).abs() < 1e-9, "turn {k}: volume {v} vs {want}");
+                "built".to_owned()
+            }
+            Ok(BooleanResult::Empty) => panic!("turn {k}: empty"),
             Err(e) => format!("{:?}", e.kind()),
         };
         *kinds.entry(key).or_default() += 1;
@@ -1097,8 +1127,8 @@ fn a_rod_in_a_bore_refuses_at_the_crossing_layer() {
     assert_eq!(
         kinds,
         [
-            ("CurvedBooleanUnsupported".to_owned(), 1),
-            ("CurvedPierceUnsupported".to_owned(), 29)
+            ("CurvedPierceUnsupported".to_owned(), 29),
+            ("built".to_owned(), 1)
         ]
         .into_iter()
         .collect(),

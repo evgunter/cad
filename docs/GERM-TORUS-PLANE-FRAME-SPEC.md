@@ -449,10 +449,38 @@ Each oval runs from corner to corner across the end square:
 - so the square holds a lens of the tube on each side, bounded by oval
   arcs whose only events are the corners.
 
-The certificate clears those pairs as `Essential` (W2), so **nothing
-upstream guards that lens**. Once the spiric chord lands, the join
-traces the arcs from the corner germs or returns a wrong body. That
-obligation is U-T4's (§3). Its mechanism is Q1, a fork.
+The certificate clears those pairs as `Essential` (W2), and that is
+its whole contract: a component evidenced by an event is left to the
+join to trace (its lemma L1). Nothing upstream needs to guard the lens,
+because the join already pairs it. Measured on main, B5 and B5′ in
+all six ops and both orders: the crossing layer records eight corner
+events, the matcher consumes all eight, and each segment joins the two
+corners of one oval, `(±w, w, ±z) → (±w, −w, ±z)`. Two face pairs
+share each site pair (the end square and the bar's side `x = ±w`, each
+against the torus), because the corner edge dips into the tube. So the
+pairing is decided before any chord exists. U-T4 cannot mis-pair the
+lens; it can only mis-curve it.
+
+The lens is then traced by the rule every curved chord uses, with no
+mechanism of its own (Q1):
+
+- which arc of a closed section the chord takes is the pairing's
+  answer, read as the germ's departure (`chord_join::arc_leaving`
+  decides `leave · tangent(p₁)`, and `oriented_arc` runs from the start
+  site's parameter to the matched site's). At a corner the departure
+  points into the end square along the oval;
+- a curved wall never defaults to a straight chord: an unarmed section
+  is a typed refusal, so chording the end square along its own edges is
+  a mutant, not a state the lane can drift into.
+
+The same class builds true bodies on main for the other kinds: a box
+edge dipping into a sphere, an oblique cylinder or a cone frustum, its
+two ends on the curved face and nothing else touching, builds the true
+body in all six ops (volume against a Monte Carlo of the operands, tier
+3, `point_in_solid`). Whether such a component carries only vertex
+events depends on where the other body's seam falls: on a cylinder with
+its seam turned across the lens the same lens carries an edge event and
+builds the same bodies.
 
 ## 2. The D10 check, per arm
 
@@ -471,7 +499,7 @@ the carrier pair … and refuses what falls in the sliver band".
 | the dispatch (U-T2) | **not held** | pure geometry: a germ plane and a wall. **The lily's declared `Rest` cap pair is not read on this path**: the undeclared union reaches the same doors in both orders (§0.1), so U-T2's rows run the lily undeclared |
 | the chord arms (U-T3, U-T4) | **not held** | sections of the C5 table; a tangent section keeps today's touching refusal |
 | TANG's rim (the edge-plane lane, F3b) | **not held** | the rim is ON the torus by the crossing layer's margined verdict, not by a declaration |
-| the lens (U-T4) | **not held** | either answer to Q1 is a traced join or a margined certificate rule on the undeclared path |
+| the lens (U-T4) | **not held** | a traced join on the undeclared path (Q1): margined geometry, no declaration read |
 | **a torus sector ON the plane: the touching poses P3, S2, S4, V1 (F0)** | **HELD** | `vtxfac.rs` :721: the C8 rule opens a curved on-carrier sector "by a VERIFIED declaration and by nothing else". Under D10 that coincidence is a margined verdict at stage 4's coincidence door, built there, not here |
 | **the second-order reading at a tangency** (`sectors::tangent_lump` for a torus) | **HELD** | runs only for a declared-`Tangent` pair; D10 makes tangency a construction (stage 6) |
 
@@ -600,31 +628,33 @@ Rows run in-crate, against `pair_section_frame_at` and
    that chords the end square along its own edges**, skipping the oval
    arcs between the corners: that body misses the lens. Measure the lens
    volume first and show it well above the rows' tolerance, as
-   `the_oval_lens_is_well_above_the_rows_tolerance` does for the oval.
+   `the_oval_lens_is_well_above_the_rows_tolerance` does for the oval
+   (measured: `6.6e-5 m³` on B5, `9.3e-3` on B5′). The spiric arc goes
+   through `arc_leaving` and `oriented_arc`, not a rule of its own: the
+   oval exposes its parameter and tangent, and a lever for the departure
+   cosine in place of a conic's semi-major axis (the oval's own extent).
+   Pin B5's segment listing (eight records, corner to corner on one
+   loop) beside `every_segment_joins_two_sites_of_one_loop`, and name
+   in review that the matcher's `off_conic_slack` assumes a conic.
 4. **Bodies** for S1, B1 and B2, against the truth.
 
 ## 4. Open questions (⚑ = design fork)
 
-- **Q1 ⚑ The fat corner bar's lens: trace it, or guard it?** On B5 the
-  frame and the section certificate both pass a lens whose arcs carry no
-  event but its corners (§1.4). U-T4 owns it either way, and its row 3
-  holds for both answers.
-  - **Trace.** The join chords the oval arcs from the corner germs,
-    because the frame pairs the corner germs along the oval. Then B5 is
-    a body. What it makes true: a corner-only contact is joined like any
-    other germ pair, and nothing is added to the certificate. What it
-    leaves possible: a pairing defect at corner-only germs shows as a
-    wrong body that only a truth row catches.
-  - **Guard.** The certificate's W2 and W4 stop clearing a component
-    whose only events are vertex contacts: such a component refuses, or
-    goes to `interior-loop-cut-in`. What it makes true: no body rests on
-    a section traced only at its corners. What it costs: poses that build
-    correctly today, wherever a corner touches a curved face, would
-    refuse. Which ones has not been measured. It is also a change to a
-    GERM module that other kinds read.
-
-  Both are reversible. The choice decides whether corner-only contact is
-  a join case or a certificate case.
+- **Q1 The fat corner bar's lens** (answered: traced, through the
+  chord's arc rule; no guard in any layer). On B5 the frame and the
+  section certificate both pass a lens whose arcs carry no event but its
+  corners (§1.4). The join already pairs its corners on one loop, and
+  U-T4's spiric arc follows the departure rule every curved chord uses.
+  No certificate, frame or join rule reads whether a component's events
+  are vertex contacts: after the reduction every event is a vertex
+  contact, and whether one is minted or brought by the operand depends
+  on how the input is meshed and where a seam falls, not on the pose.
+  A margined rule refusing such components was measured: it would
+  refuse the sphere, cylinder and cone corner lenses that build true
+  bodies today, and, by a census over the sweep suite, up to 93 rows
+  and 634 six-op runs that return bodies now (an upper bound: the
+  census's criterion also catches rims and flush contacts). U-T4's row 3
+  is the obligation's pin.
 - **Q2 Where the general pose refuses** (answered: at the frame). A
   frame exists for two loops round the axis (§1.2's proof), and the
   cylinder × sphere arm serves a frame for a quartic and refuses at the

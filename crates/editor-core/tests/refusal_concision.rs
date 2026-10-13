@@ -480,7 +480,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::Escalated {
                 decision: topo::BooleanDecision::Coincidence(
                     topo::Coincide::TangentSide,
-                    topo::DeclarationRead::Spent(topo::GlueClass::TANGENT),
+                    topo::DeclarationRead::Spent(topo::GlueClass::Tangent),
                 ),
                 diag: enclosed,
             },
@@ -545,7 +545,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::Escalated {
                 decision: topo::BooleanDecision::Coincidence(
                     topo::Coincide::TangentSide,
-                    topo::DeclarationRead::Spent(topo::GlueClass::TANGENT),
+                    topo::DeclarationRead::Spent(topo::GlueClass::Tangent),
                 ),
                 diag: in_band,
             },
@@ -568,60 +568,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 on_boundary: 20,
                 in_band: 6,
                 first_in_band: Some(topo::PointInSolidError::RayExhausted),
-            },
-        ),
-        (
-            "SeamContradicted",
-            BooleanError::SeamContradicted {
-                a: face,
-                b: face,
-                fact: None,
-                margin: diag,
-            },
-        ),
-        (
-            "SeamContradicted (one carrier)",
-            BooleanError::SeamContradicted {
-                a: face,
-                b: face,
-                fact: Some(topo::Contradiction::OneCarrier),
-                margin: diag,
-            },
-        ),
-        (
-            "SeamContradicted (cusp)",
-            BooleanError::SeamContradicted {
-                a: face,
-                b: face,
-                fact: Some(topo::Contradiction::SeamCusp),
-                margin: diag,
-            },
-        ),
-        (
-            "SeamContradicted (sides mixed)",
-            BooleanError::SeamContradicted {
-                a: face,
-                b: face,
-                fact: Some(topo::Contradiction::SeamSidesMixed),
-                margin: diag,
-            },
-        ),
-        (
-            "SeamContradicted (face runs on)",
-            BooleanError::SeamContradicted {
-                a: face,
-                b: face,
-                fact: Some(topo::Contradiction::SeamFaceRunsOn),
-                margin: diag,
-            },
-        ),
-        (
-            "SeamContradicted (untouched)",
-            BooleanError::SeamContradicted {
-                a: face,
-                b: face,
-                fact: Some(topo::Contradiction::SeamUntouched),
-                margin: diag,
             },
         ),
         (
@@ -651,14 +597,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "RimCuspArmUnbuilt",
             BooleanError::RimCuspArmUnbuilt {
-                declaration,
+                pair: declaration,
                 wedge: MaterialWedge::Slit,
             },
         ),
         (
             "TangentSlitArmUnbuilt",
             BooleanError::TangentSlitArmUnbuilt {
-                declaration,
+                pair: declaration,
                 interior: Operand::A,
             },
         ),

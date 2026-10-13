@@ -1,128 +1,176 @@
-# DECIDE-10 — the read at its node relabels a cancellation above it: settle the parent first (spec)
+# DECIDE-10 — delete the label kind: a symbolic discharge answers "zero" and nothing about how (spec)
 
 **Program:** DECIDE (`work/decide/plan.md`). **Item:**
 `work/decide/the-read-at-its-node-relabels-a-cancellation-above-it.md`
-(P2, filed by DECIDE-9's review). **Unit:** `work/decide/DECIDE-10.md`.
-**Branch:** `decide/10-read-behind-the-parent`, cut from `main`.
-**Implementer:** Opus. **Review tier:** single FULL review (§Review).
+(P2). **Unit:** `work/decide/DECIDE-10.md`.
+**Branch:** `decide/10-delete-the-kind`, cut from `main`.
+**Implementer:** Opus. **Review tier:** dual, concurrent arm,
+difficulty H (§Review).
 
 **Read first, in full:**
 - `docs/prompts/implementer-discipline.md`;
-- the item whole;
-- `crates/geom-core/src/sym.rs`:
-  - the header section "The decision read";
-  - `SymRules::decision_read` and its rules-table row, which since
-    DECIDE-9 say "behind every value-free fold AT ITS NODE";
-  - `combine`'s `read` arms at `Select`, `min` and `max`;
-  - `form_in`;
-  - `zero_factors_gate`;
-- `crates/geom-core/src/sym/signed.rs`: `decision` and `order`;
-- `crates/geom-core/tests/sym_root_rows.rs`: the DECIDE-9 rows, in
-  particular `the_read_relabels_a_cancellation_above_its_node_filed_defect`;
-- DECIDE-9's spec, which listed this unit's candidates:
-  `git show 99a5b30ca:docs/DECIDE-9-SPEC.md`.
+- the item, whole. Its section "Question, and Ev's answer" is the
+  ruling this unit builds;
+- the closed draft PR #4095: its body, and its copy of the item
+  (branch `decide/10-read-behind-the-parent`, sections "What Phase 1
+  found" and "The fix pass"). That is the measured record of the
+  shapes S1–S13 and C1–C7;
+- `crates/geom-core/src/predicate.rs`: `Theorem`, `Zero`, `ZeroWord`,
+  `MarginDiag` (`theorem`, `proven`, `jointly`, `tightens_below`);
+- `crates/geom-core/src/sym.rs`, whole:
+  - the header's "The decision read" and the rules table;
+  - `Discharge`, `count_decision`, `SymCounts`, `rungs`, `discharge`,
+    `discharge_retried`, `form_in`;
+  - `zero_factors_gate`, `door_zero`, and `signed_root` (rule C);
+- `crates/geom-core/src/sym/form.rs` (`Form::gated`, `Form::digest`),
+  `sym/signed.rs`, `sym/deferred.rs` (`discharged`), `sym/report.rs`
+  and `sym/revalue.rs`;
+- `crates/geom-core/src/k_stats.rs` (`SampleOutcome`), and
+  `tools/k-lint`'s vocabulary;
+- `crates/topo/src/` `Discharge`, `Coincidence`, `Proof`;
+- `crates/editor-core/src/coincide.rs` and `coincide/replay.rs`
+  (`Rung::MarginIdentity`, `Rung::CarrierVerdict`), and `drive.rs`'s
+  summary text.
 
-## The claim
+## The ruling
 
-The read answers a `min`/`max`/`Select` node at the node. With the read
-shut, two distinct nodes with equal early forms mint as ONE atom, and
-their difference cancels as a theorem. With the read on, each is read
-first, the same zero arrives through the arms, and it counts
-`sign_gated`:
-- `max(x + Z, 3) − max(x, 3)`;
-- `min(x + Z, 3) − min(x, 3)`;
-- `max(x + Z, y) − max(x, y)`.
+Ev, on the `[ev]` PR (2026-10-12), took the designers' answer:
+- **The label kind is deleted.** The kinds are `symbolic_zero`,
+  `sign_gated` and `registered`: how a zero was proved.
+- **A symbolic discharge answers one fact: "this margin is zero".**
+- **Nothing may be able to branch on how.** That is certain by type,
+  because no type a decision travels in holds the kind.
 
-Here `x ∈ [1, 2]`, `y ∈ [3, 4]` and `Z = sqrt(x)² − x`.
+**Why deleting the kind loses nothing.** Each kind discharges E12's
+claim: zero at every value where the construction takes the decisions
+it took.
+- **A theorem:** zero everywhere.
+- **A read's zero:** a polynomial identity with a `min`/`max`/`Select`
+  replaced by the arm the construction took.
+- **A registered zero:** it rests on a constructor's axiom, which is
+  checked at the witness.
 
-No measured document carries the shape today (DECIDE-9's Phase 1
-hook), so this unit restores the contract for the class, not a count.
+**Rule C (`signed_root`) is the exception.** Its condition is a sign of
+the box, not a branch the construction took.
 
-**Ratified and not re-litigated:**
-- the read itself (DECIDE-3), its enclosure and its `sign_gated` label;
-- that it decides interior `Select`, `min` and `max` nodes;
-- SYM-9's ladder;
-- rule G;
-- DECIDE-9's zero-product rule.
+## The change
 
-## Phase 1 — the candidates, measured
+1. **Decision types carry "proven", not "how".**
+   - `Theorem`'s kinds go, and `Zero::Proven` carries nothing.
+   - `MarginDiag::theorem()` becomes a "proven" bit.
+   - `jointly` is proven if both are: no `Ord`, no `max`.
+   - `ZeroWord` re-encodes.
+   - `deferred::discharged` answers proven or not.
+   - `topo::Discharge` becomes `{Numeric, Proven}`, and
+     `Rung::MarginIdentity` and `Rung::CarrierVerdict` carry nothing.
+   - `sym::revalue`'s recorder stores "proven".
+2. **The read's `gated` flag on forms goes, with its bit in
+   `Form::digest`.**
+   - An atom is then keyed by its argument's polynomial, which fixes
+     S8 and C6.
+   - `zero_factors_gate` retires. It is DECIDE-9's zero-product rule,
+     which only ever chose a label; it retires by Ev's ruling, and the
+     PR says so.
+   - The door's refusal of a gated zero goes (S12), and `door_zero`
+     sees the read's zeros.
+3. **Rule C retires.** Delete `signed_root` and its dial: a zero it
+   reaches is not E12's claim. If any measured row or shipped
+   configuration depends on it, stop and report.
+4. **The receipt and the K vocabulary lose the split.**
+   - `SymCounts` keeps `symbolic`, `numeric`, `frozen`, `retried`,
+     and the two registry soundness columns, `registrations_refused`
+     and `registrations_contradicted`.
+   - The K tokens `sign_gated` and `registered` retire, and `k-lint`
+     follows.
+   - `drive.rs`'s summary text says one number for the tier.
+5. **What a dial buys is a differential.** A row per measured family
+   asserts, in decisions and verdicts, the evaluation with the dial off:
+   - the read off (`SymRules::without_the_reads`), on the tilted
+     derived-frame family: the end cap refuses at
+     `newell_plane_residual` with the read off; the start cap does not;
+   - the registry off (`registered: false`), on the documents whose
+     `registered` column was non-zero.
 
-For each candidate the item names, report:
-- what it restores on the three shapes (and on any further shape you
-  find in the class);
-- whether any decision's VALUE moves, or any `numeric` or `registered`
-  count, on the bracket replay at `certifies_at`, the pad's release leaf
-  at `1e2·ε` and `m10_10_pins` (dev);
-- its leaf cost: pad, release, best of 3, against `main`.
+   These replace the per-kind columns as the measurement of what the
+   read and the registry buy.
+6. **Docs.** Say only what the code now does:
+   - the read's doc and rules-table row, and the header's "The decision
+     read" (the read answers at its node, and a zero is a zero);
+   - `signed.rs` "Where it runs";
+   - `Form`'s docs;
+   - `SymCounts`' docs;
+   - any crate README design page that states the label kinds (DESIGN's
+     companion table names them).
 
-The three candidates:
-1. **Settle read-free first.** Try the decision form read-free, and read
-   only where that does not settle.
-2. **Read at the decision form, not at interior nodes.** This withdraws
-   the read from interior nodes, which DECIDE-3 ratified.
-   - Measure it only as a comparison.
-   - It is not shippable in this unit: shipping it changes a ratified
-     decision, and that is an `[ev]` question.
-3. **Keep the node symbolic until its parent has folded.** Mint the
-   atom, keep the arm beside it, and substitute only where the parent
-   does not settle.
+   The text that goes was written by agents (the designers checked with
+   `git log -S`). DECIDE-9's rule is the one ratified clause that
+   retires, and it retires by Ev's ruling.
 
-Recommend one, with its costs. Put a minimal row for every shape you
-add.
+**Rows:**
+- **The shapes.** S1–S13 and C1–C7, from #4095's record, become rows
+  asserting *answered* or *refused* with the read on, and the same with
+  it off. S8 and S12 become answered. S13 stays refused: a freeze is
+  keyed by its node. File it as its own P3 on DECIDE, naming its two
+  candidates: a freeze keyed by its content, or a measured read-free
+  retry mask.
+- **No decision's value and no verdict moves** on the measured
+  documents: the bracket replay at `certifies_at`, the pad's release
+  leaf at `1e2·ε`, `m10_10_pins`, and the tilted family. The receipts
+  re-baseline to totals; the sum of the old columns is the new
+  `symbolic`, and each pin says so with before and after. Any document
+  whose `numeric` count moves is a finding: report it, and do not
+  absorb it into a re-baseline. Removing the gate bit from atom keys
+  may merge atoms; C6 moves from numeric to answered by design.
+- **The leaf cost:** the pad, release, best of 3, against `main`. It
+  should not rise.
+- Ev's standing words: "never skip out on a change that would make the
+  code better because it would require rebaselining".
+
+**Sweep.** Grep for every reader of the kind: `Theorem::`, `.theorem()`,
+`sign_gated`, `registered` as a count, `SignGated`, `jointly`,
+`weakest`, and `gated` on forms. Put the hit list and each hit's
+disposition in the PR body. A crate outside the workspace (`tools/*`,
+`demos/*`, `pncad-py`) is not in `--workspace`; grep it too.
 
 **Stop rules.**
-- If no shippable candidate (1 or 3) restores the shapes without moving
-  a decision's value or a `numeric` count, stop after Phase 1 and
-  report.
-- If the only one that works is candidate 2, stop after Phase 1 and
-  report. The orchestrator takes it to Ev.
-
-## Phase 2 — the candidate Phase 1 justifies
-
-- **The invariant:** every decision the read-free walk proves is a
-  theorem with the read on, for the shapes and the class. `sign_gated`
-  keeps only what no form settles. No `numeric` or `registered` count
-  moves.
-- **Rows:**
-  - `the_read_relabels_a_cancellation_above_its_node_filed_defect`
-    flips to `theorem`; rename it to say what it now pins;
-  - one row per shape;
-  - the read still `sign_gated` on a comparison no form settles.
-- **The doc.** The read's doc and its rules-table row state the ordering
-  the code now keeps; drop "at its node" if it no longer qualifies the
-  claim.
-- **Re-baselines:** every pin that moves, said. Ev's standing words:
-  "never skip out on a change that would make the code better because
-  it would require rebaselining".
-- **Leaf cost,** best of 3, release, `ON + the ladder`, before and after.
+- Rule C is depended on (item 3): stop and report.
+- A `numeric` count or a verdict moves on a measured document: report
+  it, with the decision's identity. The orchestrator decides.
 
 ## Scope
 
 - **Files:**
-  - `crates/geom-core/src/sym.rs`, `sym/signed.rs` and `sym/form.rs`;
-  - tests under `crates/*/tests`;
-  - the unit and item files.
-- **Not in scope:**
-  - the read's enclosure, its depth, and any dial's default;
-  - the ladder;
-  - `Form::mul`'s gate OR (`form-mul-carries-the-gate-of-a-factor-a-zero-annihilates`,
-    its own P3).
+  - `geom-core` (`predicate.rs`, `sym.rs`, `sym/*`, `k_stats.rs`);
+  - `topo`'s discharge types;
+  - `editor-core` (`coincide*`, `drive.rs`);
+  - `tools/k-lint`;
+  - `pncad-py`, if it names a kind;
+  - every test that pins a per-kind count;
+  - the item, the unit, and the new S13 item.
+- **Territory:** run `python3 scripts/work.py territory --base
+  origin/main` and announce every seam.
 
 ## Review
 
-**Single FULL review**, recorded in `work/decide/log.md` at spec time.
-It is a contract-restoring change to the tier's labels, settled by
-minimal rows and receipts, and reversible, as DECIDE-9 was. Claims to
-falsify:
-1. each shape a theorem with the read on, and the class closed (build
-   one the implementer did not);
-2. no decision's value and no `numeric` count moves;
-3. `sign_gated` still fires where no form settles;
-4. the cost;
-5. plus `docs/prompts/reviewer-style-lane.md` in full.
+**Dual review, concurrent arm, difficulty H**, recorded in
+`work/decide/log.md` at spec time, per `docs/DUAL-REVIEW-PROTOCOL.md`.
+It is a soundness argument (every kind is E12's claim) carried by a
+type change across five crates. Claims to falsify:
+1. **No reader can branch on how a zero was proved.** Find a path that
+   still can.
+2. **Each deleted kind was E12's claim.** Build a zero that the read,
+   or the registry, reaches and that does not hold wherever the
+   construction takes the decisions it took.
+3. **Removing the gate bit from atom keys is sound within a leaf.** It
+   merges atoms that stand for the same real at every point of the box.
+4. **No value or verdict moves on the measured documents,** and every
+   re-baseline is a sum.
+5. **The differential rows measure what the read and the registry buy.**
+6. Plus `docs/prompts/reviewer-style-lane.md` in full.
 
 ## Landing
 
-- When the PR opens, the unit's status becomes `review`.
+- When the PR opens, the unit's status becomes `review`, and #4095 is
+  closed unmerged with a pointer to the new PR.
 - At merge the orchestrator closes the unit, deletes this spec (with a
   note under `docs/doc-ledger/`), and closes the item.

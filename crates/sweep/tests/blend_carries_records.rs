@@ -108,13 +108,15 @@ fn a_blend_away_from_the_kiss_carries_it() {
     );
 }
 
-/// **A record on the edge a blend consumes is refused, typed, never
-/// dropped or kept on the dead key** (review of PR 4694). The record is
-/// bookkeeping (no touch: the far cube's top face), so only the carry's
-/// lineage is read. Red if the carry drops the record, or keeps it on
-/// the excised edge.
+/// **A record on the edge a blend consumes is consumed with it** (D1).
+/// The blend removes the edge it replaces with a band, and the band face
+/// holds none of the edge's points, so it takes no record from it: the
+/// record (bookkeeping against the far cube's top, no touch) lands on no
+/// pair, and the lineage's stated removal consumes it, while the kiss
+/// carries. Red on the carry that refuses the record `Unmapped`, or keeps
+/// it on the excised edge or the band face.
 #[test]
-fn a_record_on_the_blended_edge_is_refused() {
+fn a_record_on_the_blended_edge_is_consumed() {
     let base = kiss();
     let edge = edge_between(
         &base.body,
@@ -149,16 +151,27 @@ fn a_record_on_the_blended_edge_is_refused() {
         ),
     ] {
         assert_eq!(
-            out.carry_contacts(
+            out.lineage().fate(topo::Cell::Edge(edge)),
+            topo::Fate::Removed,
+            "{what}: the band removes the edge"
+        );
+        let carried = out
+            .carry_contacts(
                 &records,
                 geom_core::Band::linear(tol()).unwrap(),
-                Some(topo::RegionLane::certified())
-            ),
-            Err(topo::CarryRefusal::Unmapped {
-                record: 1,
-                cell: topo::Cell::Edge(edge)
-            }),
-            "{what}: the consumed edge's record is refused"
+                Some(topo::RegionLane::certified()),
+            )
+            .unwrap_or_else(|refusal| panic!("{what}: {refusal:?}"));
+        assert_eq!(
+            carried
+                .cites()
+                .map(|c| c.iter().collect())
+                .collect::<Vec<Vec<_>>>(),
+            [vec![topo::Backing::Carried {
+                input: 0,
+                record: 0
+            }]],
+            "{what}: the kiss alone carries"
         );
     }
 }
@@ -172,7 +185,8 @@ fn a_record_on_the_blended_edge_is_refused() {
 /// key (`BlendNaming::meridian_remnants`). The record lands on that
 /// piece, and the result passes at rest. Red on the carry that reads the
 /// rim by its key: the key is dead, and the record is refused
-/// `Unmapped`.
+/// `Unmapped`. A bookkeeping record on the rim is consumed by the carved
+/// span.
 #[test]
 fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
     let a = finished(
@@ -198,6 +212,24 @@ fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
     let corner = Point3::new(0.0, 0.0, 0.0);
     let y = edge_between(&base.body, corner, Point3::new(0.0, 1.0, 0.0));
     let z = edge_between(&base.body, corner, Point3::new(0.0, 0.0, 1.0));
+    // A bookkeeping record on the rim, against a's far corner (no
+    // touch): the rim's division removes its carved span, so the record
+    // is consumed. Red where the division is read as exhaustive (stale).
+    let rim = edge_between(&base.body, corner, Point3::new(1.0, 0.0, 0.0));
+    let far = base
+        .body
+        .vertices()
+        .find(|(_, v)| {
+            let p = base.body.get_point(v.point).unwrap();
+            (*p - Point3::new(1.0, 1.0, 1.0)).norm() < 1e-9
+        })
+        .map(|(k, _)| k)
+        .unwrap();
+    let mut records = base.contacts.clone();
+    records.extend([topo::Cited::new(
+        topo::Contact::new(&base.body, topo::Cell::Vertex(far), topo::Cell::Edge(rim)).unwrap(),
+        topo::Cites::decided(7),
+    )]);
     let band = geom_core::Band::linear(tol()).unwrap();
     for (what, out) in [
         (
@@ -215,7 +247,7 @@ fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
             .expect("birth records")
             .meridian_remnants;
         let carried = out
-            .carry_contacts(&base.contacts, band, Some(topo::RegionLane::certified()))
+            .carry_contacts(&records, band, Some(topo::RegionLane::certified()))
             .unwrap_or_else(|refusal| panic!("{what}: the records land: {refusal:?}"));
         let before: Vec<_> = base.contacts.vertex_edge().collect();
         let after: Vec<_> = carried.vertex_edge().collect();
@@ -231,6 +263,97 @@ fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
             validate_pseudomanifold(&out.body, &carried, tol()),
             Ok(()),
             "{what}: the carried records pass at rest"
+        );
+    }
+}
+
+/// **A record on a support face is consumed by the strip the blend
+/// carves off it.** A bookkeeping record (the far cube's top corner
+/// against `a`'s bottom face, no touch) through a fillet and a chamfer of
+/// `a`'s bottom front edge, whose support the bottom face is: the face is
+/// divided into itself and the trimline, its remainder removed, so the
+/// record lands on no pair and is consumed while the kiss carries. Red
+/// where the support face's division is read as exhaustive: the record
+/// is then refused stale. The blend refuses a real touch inside its
+/// strip before any carry (`work/band/a-blend-refuses-a-touch-in-its-strip-so-no-real-touch-reaches-its-consumption.md`).
+#[test]
+fn a_record_on_a_support_face_is_consumed() {
+    let base = kiss();
+    let edge = edge_between(
+        &base.body,
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
+    );
+    let face_at_z = |z: f64| {
+        base.body
+            .faces()
+            .find(|(_, f)| {
+                matches!(
+                    base.body.get_surface(f.surface),
+                    Some(topo::Surface::Plane { origin, normal, .. })
+                        if normal.z.abs() == 1.0 && origin.z == z
+                )
+            })
+            .map(|(k, _)| k)
+            .unwrap()
+    };
+    let bottom = face_at_z(0.0);
+    let far = base
+        .body
+        .vertices()
+        .find(|(_, v)| {
+            let p = base.body.get_point(v.point).unwrap();
+            (*p - Point3::new(2.0, 2.0, 2.0)).norm() < 1e-9
+        })
+        .map(|(k, _)| k)
+        .unwrap();
+    let mut records = base.contacts.clone();
+    records.extend([topo::Cited::new(
+        topo::Contact::new(
+            &base.body,
+            topo::Cell::Vertex(far),
+            topo::Cell::Face(bottom),
+        )
+        .unwrap(),
+        topo::Cites::decided(7),
+    )]);
+    for (what, out) in [
+        (
+            "fillet",
+            fillet_edges(&base.body, &[edge], R, tol()).expect("the fillet builds"),
+        ),
+        (
+            "chamfer",
+            chamfer_edges(&base.body, &[edge], R, tol()).expect("the chamfer builds"),
+        ),
+    ] {
+        assert!(
+            matches!(
+                out.lineage().fate(topo::Cell::Face(bottom)),
+                topo::Fate::Divided(topo::Division {
+                    remainder: topo::Remainder::Removed,
+                    ..
+                })
+            ),
+            "{what}: the bottom is a support face"
+        );
+        let carried = out
+            .carry_contacts(
+                &records,
+                geom_core::Band::linear(tol()).unwrap(),
+                Some(topo::RegionLane::certified()),
+            )
+            .unwrap_or_else(|refusal| panic!("{what}: {refusal:?}"));
+        assert_eq!(
+            carried
+                .cites()
+                .map(|c| c.iter().collect())
+                .collect::<Vec<Vec<_>>>(),
+            [vec![topo::Backing::Carried {
+                input: 0,
+                record: 0
+            }]],
+            "{what}: the record is consumed, the kiss carries"
         );
     }
 }
