@@ -426,6 +426,44 @@ puts it back, numeric 276 → 277 at every ε: a definite miss of the
 foot by either span now leaves the pair's ends to read, so both spans
 are read before the in-band `line_span` escalates. The pad still
 refuses there, between its segments 0 and 1.
+The shallow arc×arc corner P0
+(`work/paths/arc-arc-shallow-corner-legs-escalate-arc-span`) moves
+both documents past validation. A candidate a span reads in band is now
+settled by the segments' ends when the in-band segment's nearer end
+lies on the other carrier, as it does on these two documents. So the bracket replays whole,
+`[623,0,464,806]` → `[1380,48,990,1811]`. The pad reaches its extrude
+and stops at `pcurve_envelope`, `[340,0,277,302]` → `[1196,59,1067,2805]`.
+Both are identical at ε = 1e-6, 1e-9 and 1e-12 (release). Both ceilings
+re-measure unchanged (bracket 7.622e2..7.624e2·ε, over-band `arc_span`;
+pad 2.778e3·ε, over-band `line_span` and `pcurve_envelope`).
+Merging `main` (`8192224a78`) into that branch moved both again, in
+stages the validation prefix never reached. Bisected over main's
+first-parent merges with the P0's change applied to each, every other
+value held:
+- #4304 (`111782d66d`, the projected image on every analytic chart):
+  pad `symbolic_zero` 1196 → 1198;
+- #4189 (`ac6543e24a`, an edge's surfaces are a set): `frozen`,
+  bracket 1811 → 1853, pad 2805 → 2866 (main's own validation-prefix
+  rows moved 806 → 830 and 302 → 314 on it);
+- #4640 (`b82d9ce48a`, a served Tangent reads the pair's touch):
+  bracket `[1380,48,990,1853]` → `[1390,58,1008,1865]`, pad
+  `[1198,59,1067,2866]` → `[1248,69,1159,2914]`.
+
+The merged head reads bracket `[1390,58,1008,1865]` (whole) and pad
+`[1248,69,1159,2914]` (`pcurve_envelope`). Main between #4591 and #4700
+(`fbee5ef1ac`..`59833a173e`) did not compile `sweep`; those merges were
+read with #4700's fix applied.
+Merging `main` (`b2333f2120`) again took the row to three columns,
+`[symbolic, numeric, frozen]`: #4929 (`ee5c82a643`, DECIDE-10) deleted
+the label kind, so a registered discharge now counts in `symbolic`
+(main's link `[347,9,…]` → `[356,…]`), and moved main's own bracket
+prefix 623 → 626. The merged head reads bracket `[1453,1008,1869]`
+(whole) and pad `[1319,1159,2916]` (`pcurve_envelope`), identical at
+ε = 1e-6, 1e-9 and 1e-12 (release). The fold accounts for bracket 1448
+and pad 1317; the rest (bracket `symbolic` +5, `frozen` +4; pad
+`symbolic` +2, `frozen` +2) moved in main's merges and was not bisected
+merge by merge. With `crates/profile/src/seg.rs` reverted to main's on
+that tree, the row reads main's `[626,464,830]` and `[340,277,314]`.
 
 ## Closed (SYM-16, PR #4155, 2026-10-06)
 
