@@ -1,11 +1,12 @@
 //! Check 4's exact norms read as the sum of their parts again, one site
 //! at a time: a test build takes the sum in place of the norm at the
-//! site `PCERT_RADIAL_PAIR_MUTANT` names at compile time ([`SITES`]),
-//! and `fidelity-cone` reads the cone's two fidelity channels as
-//! orthogonal. Each production site keeps a one-line hook that asks its
-//! own function here, which answers `None` unless its site is named.
-//! The rows that refuse each are in `radial_pair_rows`. `option_env!`
-//! because `scripts/gates/no-ambient-env.sh` forbids a runtime read in
+//! site `PCERT_RADIAL_PAIR_MUTANT` names at compile time ([`SITES`]);
+//! `fidelity-cone` reads the cone's two fidelity channels as
+//! orthogonal, and `pole-start-under` under-reads the pole start. Each
+//! production site keeps a one-line hook that asks its own function
+//! here, which answers `None` unless its site is named. The rows that
+//! refuse each are in `radial_pair_rows`. `option_env!` because
+//! `scripts/gates/no-ambient-env.sh` forbids a runtime read in
 //! `crates/*/src`.
 
 use geom::Surface;
@@ -18,14 +19,16 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 11] = [
+pub(super) const SITES: [&str; 13] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
+    "torus-parallel-constant",
     "torus-meridian",
     "torus-meridian-centre",
     "sphere-meridian",
     "pole-start",
+    "pole-start-under",
     "fidelity",
     "fidelity-cone",
     "cone-drift",
@@ -65,6 +68,12 @@ pub(super) fn torus_parallel<T: Real>(
 ) -> Option<T> {
     on("torus-parallel")
         .then(|| w_r.norm() + tube + (b_r - turn).norm() + harmonic_sup_scalar(aa, bb))
+}
+
+/// The torus parallel's constant and pair read by the triangle
+/// inequality, `‖C‖ + σ(A, B)`.
+pub(super) fn torus_parallel_constant<T: Real>(c: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> Option<T> {
+    on("torus-parallel-constant").then(|| c.norm() + harmonic_sup(a, b))
 }
 
 /// The torus meridian: tube gap, tilt out of the meridian plane and
@@ -107,6 +116,13 @@ pub(super) fn sphere_meridian<T: Real>(
     } else {
         on("sphere-meridian").then(|| gap() + (jb - b).norm())
     }
+}
+
+/// An under-read, not a sum: the pole start's `cos t` difference read
+/// as `a·k`, the non-pole meridian's, dropping `a′ − a`. The
+/// off-circle sweep (`envelope_lemma_fuzz`) is what refuses it.
+pub(super) fn pole_start_under<T: Real>(a: Vec3<T>, k: T) -> Option<Vec3<T>> {
+    on("pole-start-under").then(|| a * k)
 }
 
 /// The two fidelity channels added.

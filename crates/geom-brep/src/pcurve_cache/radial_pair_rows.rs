@@ -141,6 +141,65 @@ fn a_tilted_torus_parallel_reads_its_radial_and_axial_halves_together() {
     own_image_certifies("tilted torus parallel", &carrier, &ring_torus());
 }
 
+/// `torus-parallel-constant`: a parallel moved `δ = 0.6·zero` along
+/// the tube's normal at tube angle 45° stands `δ` off its image: the
+/// constant's axial part `δ·sin 45°` and the pair's radial `δ·cos 45°`
+/// are orthogonal, and read as one displacement. Their triangle sum
+/// reads `√2·δ`.
+#[test]
+fn a_torus_parallel_off_the_tube_at_45_degrees_reads_one_displacement() {
+    let (big, r, d) = (2.0, 0.5, 0.6 * zero());
+    let v = core::f64::consts::FRAC_PI_4;
+    let carrier = circle(
+        Point3::new(0.0, 0.0, (r + d) * v.sin()),
+        Vec3::unit_z(),
+        big + (r + d) * v.cos(),
+        Vec3::unit_x(),
+    );
+    own_image_certifies(
+        "torus parallel off the tube at 45°",
+        &carrier,
+        &ring_torus(),
+    );
+}
+
+/// The torus parallel's reading stays a bound when the constant is not
+/// orthogonal to the pair: the same 45° parallel, `0.4·zero` off the
+/// tube and its plane tilted so its axial pair's sup is `0.4·zero`,
+/// certifies at `f64` and at `Interval` with its envelope over its
+/// sampled residual.
+#[test]
+fn a_tilted_torus_parallel_off_the_tube_stays_a_bound() {
+    let (big, r, d) = (2.0, 0.5, 0.4 * zero());
+    let v = core::f64::consts::FRAC_PI_4;
+    let radius = big + (r + d) * v.cos();
+    let carrier = tilted_circle(
+        Point3::new(0.0, 0.0, (r + d) * v.sin()),
+        radius,
+        (d / radius).asin(),
+    );
+    own_image_certifies(
+        "tilted torus parallel off the tube",
+        &carrier,
+        &ring_torus(),
+    );
+}
+
+/// `torus-meridian-centre`: a tube meridian translated `δ = 0.6·zero`
+/// radially and `δ` axially in its meridian plane stands `√2·δ` off;
+/// the centre's radial and axial parts read `2·δ`.
+#[test]
+fn a_torus_meridian_off_the_spine_both_ways_reads_one_offset() {
+    let d = 0.6 * zero();
+    let carrier = circle(
+        Point3::new(2.0 + d, 0.0, d),
+        Vec3::unit_y(),
+        0.5,
+        Vec3::unit_x(),
+    );
+    own_image_certifies("torus meridian off the spine", &carrier, &ring_torus());
+}
+
 /// A circle of radius `r + δ` about `center` in the plane `x–z` turned
 /// by the angle whose sine is `δ/(r + δ)` about `x`: its `cos t`
 /// coefficient is in the meridian plane and its `sin t` coefficient

@@ -4518,7 +4518,10 @@ fn incidence<T: Decide>(
                     terms.add(Centre, w.norm());
                     let cos_part = if pole {
                         let ja = d * s_r + axis * aa;
-                        ja * k + (ja - a)
+                        let cos_part = ja * k + (ja - a);
+                        #[cfg(test)]
+                        let cos_part = mutants::pole_start_under(a, k).unwrap_or(cos_part);
+                        cos_part
                     } else {
                         a * k
                     };
@@ -4576,13 +4579,17 @@ fn incidence<T: Decide>(
                             let kappa = (minor_sq - m_sq) / ((minor_radius + m) * m);
                             let k = core * kappa / rho;
                             let turn = axis.cross(a_r) * beta.value();
-                            let whole = constant_and_pair(
+                            let (constant, cos_part, sin_part) = (
                                 axis * (h * kappa) - w_r,
                                 a_r * k - axis * aa,
                                 turn * k + (turn - b_r) - axis * bb,
                             );
+                            let whole = constant_and_pair(constant, cos_part, sin_part);
                             #[cfg(test)]
                             let whole = mutants::torus_parallel(w_r, tube, b_r, turn, (aa, bb))
+                                .or_else(|| {
+                                    mutants::torus_parallel_constant(constant, cos_part, sin_part)
+                                })
                                 .unwrap_or(whole);
                             terms.add(Radius, whole);
                         }
