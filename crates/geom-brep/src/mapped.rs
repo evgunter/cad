@@ -153,7 +153,7 @@ pub struct MappedCurve<T: Real> {
 /// Rigidity of the placement (orthonormal linear part) is not decided
 /// here and not re-examined here: what arrives is whatever built the
 /// map, and a placement minted from a frame witness
-/// (`profile::SketchPlane::from_frame`, over `geom_core::OrthoFrame`)
+/// (`profile::SketchPlane::from_frame`, over `geom_core::RigidMotion`)
 /// carries that decision with it while one assigned by hand carries
 /// only its own source's.
 #[derive(Clone, Copy, Debug)]
