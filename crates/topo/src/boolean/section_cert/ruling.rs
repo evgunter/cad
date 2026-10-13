@@ -91,8 +91,7 @@
 //! is not inside the band's zero, or where the same reading with its
 //! rounding uncharged (no harmonic noise, no slack meter or slacks, and
 //! the residual's value, read on the surface where its running bound
-//! covers it or it changes sign within a few units of the angle's
-//! rounding) answers. Otherwise it refuses under the row that
+//! covers it or it changes sign between neighbouring scalars) answers. Otherwise it refuses under the row that
 //! refused.
 //!
 //! `p₂`'s roots (cone against cone) are decided on `p₂` times the
@@ -434,21 +433,15 @@ fn shrunk<T: Real>(x: Rounded<T>, charged: bool) -> T {
     x.value.select_le_zero(T::zero() - mag, mag)
 }
 
-/// A walk's residual at `θ` with its rounding uncharged, the angle's
-/// included: its value, read on the surface where its running bound
-/// covers it at `θ` or a few units of `θ`'s rounding to either side, or
-/// where it changes sign between those two. No angle stands nearer a
-/// root than its neighbouring scalars, and a root reported past `π` is
-/// reduced by `τ`, which is `2π` only to rounding.
+/// A walk's residual at `θ` with its rounding uncharged: its value, read
+/// on the surface where its running bound covers it or where it changes
+/// sign between `θ`'s neighbouring scalars, nearer than which no angle
+/// stands to the root.
 fn uncharged<T: Real>(residual: &dyn Fn(T) -> Rounded<T>, theta: T) -> T {
     let at = residual(theta);
-    let step = theta.abs().max(T::one()) * T::from_f64(8.0 * geom_core::UNIT_ROUNDOFF);
-    let (below, above) = (residual(theta - step), residual(theta + step));
-    room(at)
-        .min(room(below))
-        .min(room(above))
-        .min(below.value * above.value)
-        .select_le_zero(T::zero(), at.value)
+    let step = theta.abs() * T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
+    let straddle = residual(theta - step).value * residual(theta + step).value;
+    room(at).min(straddle).select_le_zero(T::zero(), at.value)
 }
 
 /// A family of lines `B(θ) + t·v(θ)` ruling a carrier, one of `B`, `v`

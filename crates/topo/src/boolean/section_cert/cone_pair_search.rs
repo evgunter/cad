@@ -1863,3 +1863,61 @@ fn a_needle_by_a_wall_pokes_a_loop_narrower_than_a_column_at_the_tightest_band()
         },
     );
 }
+
+/// A wall 7.0e-3 rad off a needle's generator, 0.35 m off the aperture
+/// degeneracy at scale 48, 7.9 of the must-answer floor: on the cone's
+/// chart a root of `E` lies just past the half-turn, and the line its
+/// reduced angle reads is rounded apart from the bracket's by more than
+/// the band. Answering or refusing the precision floor are both true;
+/// refusing a fold is not. Seed `0x35cb9450aa39852b` at effort 1, ε
+/// 1e-12.
+#[test]
+fn a_root_past_the_half_turn_is_read_where_it_is_reported() {
+    let k = frame(
+        Point3::new(30.85256699820465, 33.399133183417774, -0.896160576511555),
+        Vec3::new(-0.6589461467203804, 0.223172319273962, 0.7183203266177587),
+        0.05136207766015525,
+        48.06445289585905,
+    );
+    let partner = cylinder(
+        Point3::new(-14.968395079601919, 12.500056053578433, -2.8029165224851975),
+        Vec3::new(-0.6916117517746735, 0.21262582048338052, 0.690263315895417),
+        40.17002597820959,
+        k.scale,
+    );
+    agrees(
+        &k,
+        &Pose {
+            what: "cylinder near the aperture".to_owned(),
+            partner,
+            margin: Some(-0.34669192291764195),
+        },
+    );
+}
+
+/// The same past a wider cone (α 0.48), 2.0e-3 rad off its generator,
+/// 0.16 m off the aperture degeneracy at scale 8.7, 8.7 of the
+/// must-answer floor. Seed `0x0f100caef54214cc` at effort 1, ε 1e-12.
+#[test]
+fn a_root_past_the_half_turn_of_a_wide_cone_is_read_where_it_is_reported() {
+    let k = frame(
+        Point3::new(5.461730655310266, -0.16590273772749597, -1.2234041130359126),
+        Vec3::new(-0.0861167243402746, 0.4366901588111214, -0.895480661425147),
+        0.4771665364737431,
+        8.683318541542752,
+    );
+    let partner = cylinder(
+        Point3::new(-1.7785859222751252, 2.2198749865757583, -7.100300325282606),
+        Vec3::new(0.37301133569430817, 0.3187888779729594, -0.871341606216695),
+        8.233289199833646,
+        k.scale,
+    );
+    agrees(
+        &k,
+        &Pose {
+            what: "cylinder near the aperture".to_owned(),
+            partner,
+            margin: Some(0.16306054356518696),
+        },
+    );
+}

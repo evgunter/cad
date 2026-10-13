@@ -719,14 +719,17 @@ pub(super) fn certified_subdivision<T: Decide>(
             // from its harmonics: the two share their zero set, and near a
             // graze `|F′|` is small enough that the harmonics' rounding
             // moves `F`'s sign change along the arc by more than the band.
-            let (mut lo, mut hi) = (l, r);
-            let at_lo = residual(l);
-            for _ in 0..BISECTIONS {
-                let c = (lo + hi) / two;
-                let product = residual(c) * at_lo;
-                lo = product.select_le_zero(lo, c);
-                hi = product.select_le_zero(c, hi);
-            }
+            let close = |l: T, r: T| {
+                let (mut lo, mut hi) = (l, r);
+                let at_lo = residual(l);
+                for _ in 0..BISECTIONS {
+                    let c = (lo + hi) / two;
+                    let product = residual(c) * at_lo;
+                    lo = product.select_le_zero(lo, c);
+                    hi = product.select_le_zero(c, hi);
+                }
+                (lo, hi)
+            };
             // Reported within `π` of the arc's midpoint, so a caller
             // compares it with `[t0, t1]` directly: the first cut's ends
             // are moved along their pieces, so the last piece runs past
@@ -735,11 +738,28 @@ pub(super) fn certified_subdivision<T: Decide>(
             // their midpoint rounds onto either.
             let mid = (t0 + t1) / two;
             let reported = |t: T| mid + (t - mid).reduce_periodic_centred(T::tau());
-            let (at_lo, at_hi) = (reported(lo), reported(hi));
-            let root = (residual(at_lo).abs() - residual(at_hi).abs()).select_le_zero(at_lo, at_hi);
-            match decide(rows.side, Margin::of(residual(root)), band) {
-                Ok(Sign::Zero) => {}
-                _ => return Ok(CircleRoots::Uncertain),
+            let nearer = |(lo, hi): (T, T)| {
+                let (at_lo, at_hi) = (reported(lo), reported(hi));
+                (residual(at_lo).abs() - residual(at_hi).abs()).select_le_zero(at_lo, at_hi)
+            };
+            let on = |t: T| {
+                matches!(
+                    decide(rows.side, Margin::of(residual(t)), band),
+                    Ok(Sign::Zero)
+                )
+            };
+            let (lo, hi) = close(l, r);
+            let mut root = nearer((lo, hi));
+            if !on(root) {
+                // Moved by the turn it is reported at, which is `2π` only to
+                // rounding, the root stands on a line read with rounding of
+                // its own: the bracket is closed again on the piece moved
+                // by that turn, on the scalars the root is reported at.
+                let turn = lo - reported(lo);
+                root = nearer(close(l - turn, r - turn));
+                if !on(root) {
+                    return Ok(CircleRoots::Uncertain);
+                }
             }
             if let Some(meter) = slack {
                 // `|F|` at the root, true to within `reach`: the true root
