@@ -619,9 +619,10 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 /// - several real edges of one solid ⇒ a **contact line** that solid
 ///   holds: each of its edges against each of the other solid's by the
 ///   edge-edge rule. Two crossings on the ray refuse typed
-///   ([`BooleanError::CrossingsAlongAContactLine`]); a contact line lying
+///   ([`BooleanError::CrossingsAlongAContactLine`]). A contact line lying
 ///   in a face of the other solid, and one whose ray holds a bisector,
-///   refuse as invariants (unbuilt).
+///   are arms not yet built, which refuse `ClassificationInvariant`
+///   until they are.
 ///
 /// A group is every mention the first one reads on its ray; three or
 /// more must read so pairwise too, or the event refuses.

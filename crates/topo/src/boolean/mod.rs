@@ -2447,13 +2447,13 @@ pub enum BooleanError {
         /// copy, as `vertex` is.
         partners: [VertexKey; 2],
     },
-    /// An edge runs along a line where the other operand holds two
-    /// coincident edges, two of its pieces touching along it (a contact
-    /// line), and its wedge crosses both of theirs: two edge-edge germs
-    /// along one ray of one vertex pair (`recl::recl_edges`), whose two
-    /// sections along the edge the insertion does not yet place apart.
-    /// The operation applied to the pieces before they are joined meets
-    /// no contact line there.
+    /// The operands meet along a ray where one or both hold coincident
+    /// edges, pieces of that operand touching along it (a contact line),
+    /// and more than one pair of the two operands' edges on the ray
+    /// crosses: two or more edge-edge germs along one ray of one vertex
+    /// pair (`recl::recl_edges`), whose sections along the line the
+    /// insertion does not yet place apart. The operation applied to the
+    /// pieces before they are joined meets no contact line there.
     CrossingsAlongAContactLine {
         /// A's vertex on the line: a key of A's working copy.
         a_vertex: VertexKey,
@@ -3987,11 +3987,11 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::CrossingsAlongAContactLine { .. } => write!(
                 f,
-                "one solid holds two pieces touching along a line, and an edge of the \
-                 other runs along that line and cuts into both pieces, which the Boolean \
-                 cannot yet join. Recourse: apply the operation to the pieces before \
-                 they are joined to each other, or move the other solid so its edge \
-                 leaves the line"
+                "the solids meet along a line where pieces of one or both touch, and \
+                 they cut into each other there across more than one piece, which the \
+                 Boolean cannot yet join. Recourse: apply the operation to the pieces \
+                 before they are joined to each other, or move one solid so its edges \
+                 leave the line"
             ),
             Self::PinchConesOnSeparateKeys { operand, .. } => write!(
                 f,
