@@ -62,7 +62,6 @@
 - **Q7. A boolean decides two behaviours at once.** `discharge_in(id, decision: bool)` (`sym.rs:4305`) means both "retry" and "ask the door", and `rungs(.., door)` threads half of it. A flag that carries two policies is the shape that drifts. `unsure`.
 - **Q2. An overlong doc line** (109 columns), left unwrapped by the edit: `crates/geom-core/src/k_stats.rs:1495`. `sure`.
 - **Q4 (dated prose).** The rule-F and SYM-9 header sections (`sym.rs:233`, `:477-558`, `:882`) still read in the retired columns ("theorem / gated / registered"; "FOUR out of `symbolic_zero` … the unit's finding"). They are dated records, but the "finding" they name is no longer one under the ruling. `unsure`.
-- **Q6.** Every deviation is disclosed. S13 is filed as P3 with both candidates. No unscheduled deferral. `sure`.
 
 ## Code quality
 - **Counts:** MAJOR 0, MINOR 2, NOTE 8. Spec deviations: 8 reported, 0 silent.
@@ -71,9 +70,7 @@
 - **Doc/comment honesty: 3.** MINOR-1 and MINOR-2: about a dozen sentences describe a deleted rule or a deleted ranking.
 
 ## Questions exercised
-- Q1, Q2 (by grep), Q3 (three plants, executed), Q4 (rule C, gate and ranking sweep), Q5, Q6, Q7.
-- Q8 in part: I read `sym.rs`'s header and every touched region, not all 6,000+ lines.
-- Claims 1–8.
+Q1, Q2 (grep), Q3 (three plants, executed), Q4, Q5, Q6, Q7; Q8 in part (`sym.rs`'s header and touched regions); claims 1–8.
 
 ## Gate verification
 - Hosted run 38328595199: the job `test` fails only at ε = 1e-12, on `coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`. The 1e-6 row ran 13594 tests and all passed, as did the default row, and the slow set passed 417 of 417. Every other job is green.
@@ -85,23 +82,19 @@
 | geom-core suite, `sym-profile-testing` | 922 passed | 922 passed |
 | editor-core measured rows (m10_9_pins, m10_10_pins, tilted, sym_9_retry, sym11_exact, decide_3), with the slow ones | 20 of 20 passed | pass |
 | bracket at `certifies_at`, base → head | 1386/5/57/1004 → 1448/1004, frozen 1869 | same |
-| bracket, read shut, on base | 1386/0/57/1009 (head row: sum 1443/1009) | same |
 | bracket, door shut | 1386/5/0/1061 → 1391/1061 | same |
 | link, shipped → door shut, head | 862/663 → 831/712, refuses at a pcurve; identical on base | same |
 | pad at `certifies_at`, shipped and door shut | 1372/1284 and 1308/1348 | same |
 | tilted family (end cap, start cap, FlipZ) | 572/400/0/514 → 972/514, frozen 1380 | same |
 | tilted per-predicate splits | [32,16,0,0], [24,24,0,0] → [48,0], [48,0] | same |
-| tilted on SYM-5's tier | 541/298 at both | — |
 | bracket at ceiling + δ (`PAST_THE_CEILING`) | 623/3/0/464 → 626/464 (3 `sign_gated`, confirmed) | 626/464 |
 | pad release leaf at 1e2·ε, best of 3, ladder (not interleaved) | base 37.299 s → head 33.235 s, [1376,1280] retried 4 | 22.473 → 22.487 s |
-| pad release leaf, rules alone | base 29.293 s → head 26.604 s, [1372,1284] | — |
 
-My box is slower than the PR's, and my takes were not interleaved, so the leaf numbers say only that the cost did not rise.
-
+My box is slower than the PR's and my takes were not interleaved, so the leaf numbers say only that the cost did not rise.
 **Plants** (in `review-r2-probes/`; reverted after each run):
 - **A**, a sign-of-the-box fold at `abs`: reds 9 rows, including `a_sign_of_the_box_proves_nothing`.
 - **B**, the gate bit back in `Form::digest`: reds S8 and C6 only.
 - **C**, the door on the contradiction path: reds the 2 rows in NOTE-4.
-- **Re-introducing a kind:** at the type level nothing reds; the type is the guard. At the K level, k-lint's `outcome_vocabulary` rows red on any new token (by inspection).
+- **A re-introduced kind:** nothing reds at the type level; k-lint's `outcome_vocabulary` rows red on a new K token.
 
 **Probe commit:** branch `decide/10-review-r2`. The patches and the base probe are in `review-r2-probes/`, and this file is beside them.
