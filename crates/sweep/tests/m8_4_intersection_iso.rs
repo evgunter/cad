@@ -500,7 +500,7 @@ fn an_interior_column_intersection_mints_a_general_image() {
         "the widened chart's own domain"
     );
     // The description must name the chart the face NOW carries, or the
-    // mint finds no mate and the join below would be untested.
+    // edge's own certificate reads a pair the face no longer holds.
     redescribe_against(&mut body, he, plane_key, key)
         .expect("the seam re-attaches against the widened chart");
     // ---- The derivation: U2's General arm, on the interior column. ----
@@ -529,25 +529,18 @@ fn an_interior_column_intersection_mints_a_general_image() {
             image.eval(t)
         );
     }
-    // ---- The certificate, at the door the mint pass uses, with the
-    // mate the mint itself would find. ----
+    // ---- The certificate, at the door the mint pass uses. ----
     let (carrier, t0, t1) = seam_carrier(&body, he);
-    let mate = mate_the_mint_would_find(&body, he, key).expect(
-        "mate_surface's precondition holds: the face's own surface is one of the \
-         described pair, so the mint reaches certify_general with an operand pair \
-         rather than FittedMateMissing",
-    );
     let cache = geom_brep::PcurveCache::certify_general(
         std::sync::Arc::clone(image),
         t0,
         t1,
         &carrier,
         &Surface::Nurbs(Arc::new(chart.clone())),
-        Some(&mate),
         band(),
         <f64 as topo::AtRestPolicy>::fitted_lane(),
     )
-    .expect("the interior column's image certifies against its operand pair");
+    .expect("the interior column's image certifies against its chart");
     let cert = cache.certificate();
     assert!(
         matches!(cache.pcurve(), Pcurve::General(_)),
@@ -559,9 +552,10 @@ fn an_interior_column_intersection_mints_a_general_image() {
         "its between-samples bound is inside ε: {:e} vs {eps:e}",
         cert.envelope
     );
-    assert!(
-        cert.ssi().is_some(),
-        "and it is the FULL C2 certificate, not the closed-form lane's: {cert:?}"
+    assert_eq!(
+        cert.statement,
+        geom_brep::EnvelopeStatement::MapResidualComposite,
+        "and it is the fitted grade's hull bound, not the closed-form lane's: {cert:?}"
     );
     // ---- The whole body, through the pass. ----
     topo::mint_pcurves(&mut body, Tol::witness())
@@ -672,32 +666,6 @@ fn an_interior_column_intersection_mints_a_general_image() {
     println!("M8-4 tessellate on the trimmed chart: {note}");
 }
 
-/// **The mate the MINT would find**, by `topo::pcurves::mate_surface`'s
-/// own rule rather than by hand: read the edge's `Intersection`
-/// description, and take whichever operand is NOT the face's CURRENT
-/// surface key. `None` when that precondition fails — which is exactly
-/// what `mint_face` sees, and what it turns into `FittedMateMissing`.
-///
-/// Hand-picking the plane here would have made the row assert a
-/// certificate the mint cannot reproduce: the join between derivation
-/// and certification is the thing under test, so it is read the way the
-/// mint reads it.
-fn mate_the_mint_would_find(
-    body: &Body<f64>,
-    he: topo::HalfEdgeKey,
-    own: topo::SurfaceKey,
-) -> Option<Surface<f64>> {
-    let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
-    let topo::CurveGeom::Certified(c) = body.get_curve_geom(edge.curve)? else {
-        return None;
-    };
-    let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
-        return None;
-    };
-    let other = pair.other(own)?;
-    body.get_surface(other).cloned()
-}
-
 /// The seam's certified carrier and its parameter interval.
 fn seam_carrier(body: &Body<f64>, he: topo::HalfEdgeKey) -> (Curve3<f64>, f64, f64) {
     let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
@@ -730,12 +698,10 @@ fn seam_plane(body: &Body<f64>, he: topo::HalfEdgeKey) -> (topo::SurfaceKey, Sur
 /// the face NOW carries.
 ///
 /// `rechart` mints a NEW surface key (there is no in-place variant of
-/// `FaceSurface`), and the description still names the OLD one — so
-/// `mate_surface`'s precondition, "the face's own surface is one of the
-/// pair", fails and the mint hands `certify_general` no mate at all.
-/// That is a fixture artefact of restating a chart after describing an
-/// edge, not a kernel fact, and this repairs it so the row measures the
-/// join instead of asserting it.
+/// `FaceSurface`), and the description still names the OLD one, so the
+/// edge's certificate would read a pair the face no longer carries. That
+/// is a fixture artefact of restating a chart after describing an edge,
+/// not a kernel fact, and this repairs it.
 fn redescribe_against(
     body: &mut Body<f64>,
     he: topo::HalfEdgeKey,
@@ -1409,16 +1375,14 @@ fn a_rim_run_back_on_a_decimal_symmetric_rows_own_knots_is_general() {
         Ok(Pcurve::General(image)) => image,
         other => panic!("the rim falls through to the General image: {other:?}"),
     };
-    let mate = body.get_surface(cap).cloned().unwrap();
     geom_brep::PcurveCache::certify_general(
         image,
         t0,
         t1,
         &carrier,
         &Surface::Nurbs(Arc::new(chart)),
-        Some(&mate),
         band(),
         <f64 as topo::AtRestPolicy>::fitted_lane(),
     )
-    .unwrap_or_else(|e| panic!("the General image certifies against the cap plane: {e}"));
+    .unwrap_or_else(|e| panic!("the General image certifies against its chart: {e}"));
 }

@@ -2546,8 +2546,11 @@ const SEPARATION: SizedDecision = SizedDecision {
 /// is the shared ending that names the file too.
 const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 
-/// The recourse for a tolerance that forms no usable band.
-const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
+/// The recourse for a tolerance that forms no usable band. A run's ε
+/// is finite and at least `EPS_MIN` (D4 ¶4), so the one way it fails to
+/// form a band is K·ε overflowing: the repair is a smaller ε.
+const TOLERANCE: &str = "Recourse: set a smaller tolerance, so that K times it stays finite; a \
+                         run admits none below the floor its session box sets";
 
 /// The recourse for a curve whose parameter range its image on a
 /// spline face cannot be expressed on — the lane's own.
@@ -3220,11 +3223,9 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         M::Certify { error, .. } => {
             let (why, own) = match error {
                 C::UnsupportedChart { .. }
-                | C::UnsupportedCarrier { .. }
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
-                | C::BranchOutOfReach
-                | C::FittedMateMissing => (KIND, NOT_YET_ENDING),
+                | C::BranchOutOfReach => (KIND, NOT_YET_ENDING),
                 C::PlaceholderChart => (
                     geom::PLACEHOLDER_SURFACE,
                     crate::pcurves::PLACEHOLDER_RECOURSE,
@@ -5093,7 +5094,10 @@ fn validate_geometric_kept<
 /// unbounded. **Check 2 makes no claim about an edge whose
 /// certificate needs the NURBS lane** ([`geom_brep::CertifyError::NurbsLaneNotSupplied`] lists the classes): such an
 /// edge re-derives only through that lane, which this door does not
-/// hold.
+/// hold. Nor does check 8 make it: a fitted row's check 4 bounds its
+/// image against its own chart alone, so neither a spline carrier's
+/// incidence with its mate (limbs 1 and 2) nor the uniqueness tube is
+/// re-derived here.
 /// Check 10 (shell winding) reads each shell's role off the same sums,
 /// and refuses a several-shell solid one of whose shells needed the
 /// quadrature or reads no role ([`ValidationError::ShellRoleUndecided`]).
@@ -11849,13 +11853,13 @@ mod tests {
                 ),
             ),
             (
-                "pcurve fitted certificate's tube, in band",
+                "pcurve fitted certificate's hull, in band",
                 pcurve(PcurveCertifyError::FittedEscalated {
-                    decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::Tube),
+                    decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
                     cause: in_band,
                 }),
-                "Recourse: move the geometry so the surfaces cross at a clearer angle, or, if \
-                 this angle is intended, tighten the tolerance below 5e-10 m"
+                "Recourse: loosen the tolerance, as a last resort; this refusal may indicate a \
+                 kernel bug worth reporting"
                     .to_owned(),
             ),
         ];

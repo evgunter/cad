@@ -31,7 +31,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::tolerance::{DEFAULT_K, Tolerance};
+use geom_core::tolerance::{DEFAULT_K, EPS_MIN, Tolerance, ToleranceError};
 use geom_core::{Band, BandError, BandField, Decide, MarginDiag, Sign};
 
 #[test]
@@ -145,23 +145,20 @@ fn commit(eps: f64, k: f64) -> Tol {
     tol
 }
 
-/// PROBE (own process). The COLLAPSE arm on the door the sentence is
-/// on: a committed ε of 2⁻¹⁰²³ with the least admitted K, and
-/// `Band::linear` itself returns `Empty`.
+/// **No run's ε collapses `Band::linear`**: every ε that collapses is
+/// subnormal, below [`EPS_MIN`], and the run's own validator refuses
+/// it. The collapse arm is reached through `linear_at` and `angular_at`
+/// alone (the probes below). `init` refuses before it commits, so this
+/// needs no process of its own.
 #[test]
-#[ignore]
-fn probe_collapse_arm_on_linear() {
-    let eps = collapse_boundary_eps();
-    let tol = commit(eps, least_k());
-    assert_eq!(
-        Band::linear(tol),
-        Err(BandError::Empty {
-            zero: eps,
-            escalate: eps,
-        }),
-        "K·ε rounds back onto ε at the boundary ε, so linear has no band"
-    );
-    println!("PROBE collapse-on-linear OK at eps={eps:e}");
+fn the_floor_refuses_every_eps_that_collapses_linear() {
+    for eps in [collapse_boundary_eps(), f64::from_bits(1)] {
+        assert_eq!(
+            Tolerance::init(Tolerance { eps, k: least_k() }),
+            Err(ToleranceError::BelowFloor { value: eps }),
+            "a collapsing ε is below the floor: {eps:e}"
+        );
+    }
 }
 
 /// PROBE (own process). The OVERFLOW arm on the same door, at the
@@ -262,49 +259,38 @@ fn probe_angular_collapse_through_the_lever_arm() {
     println!("PROBE angular-collapse OK: theta={theta:e}");
 }
 
-/// PROBE (own process). `angular_at`'s THIRD residue: the derived angle
-/// underflows to zero, refused on `zero` rather than on `escalate`. The
-/// rule is about the pair — θ ties to 0 at `lever_arm` ≥ ε·2¹⁰⁷⁵ — and
-/// the boundary is SHARP: one ulp under that arm the angle is a nonzero
-/// subnormal and the band forms.
+/// PROBE (own process). `angular_at`'s derived angle never underflows
+/// to zero at a run's ε: θ ties to 0 at `lever_arm` ≥ ε·2¹⁰⁷⁵, past
+/// `f64::MAX` at the floor, so even the largest finite arm leaves a
+/// nonzero subnormal angle and the band forms.
 #[test]
 #[ignore]
-fn probe_angular_underflow_third_residue() {
-    let tol = commit(1e-16, DEFAULT_K);
-    let boundary_arm = tol.eps() / f64::from_bits(1) * 2.0; // ε·2¹⁰⁷⁵
+fn probe_angular_never_underflows_at_a_runs_eps() {
+    let tol = commit(EPS_MIN, DEFAULT_K);
     assert_eq!(
-        boundary_arm, 4.048_045_066_146_212_3e307,
-        "the boundary arm at ε = 1e-16, as the `# Errors` text states it"
+        tol.eps() / f64::from_bits(1) * 2.0,
+        f64::INFINITY,
+        "the boundary arm ε·2¹⁰⁷⁵ is past f64::MAX at ε_min"
     );
-    assert_eq!(tol.eps() / boundary_arm, 0.0, "θ ties to even = 0 there");
-    assert_eq!(
-        Band::angular_at(tol, boundary_arm),
-        Err(BandError::InvalidValue {
-            field: BandField::Zero,
-            value: 0.0,
-        })
-    );
-    assert_eq!(
-        Band::angular_at(tol, f64::MAX),
-        Err(BandError::InvalidValue {
-            field: BandField::Zero,
-            value: 0.0,
-        }),
-        "and every larger arm with it"
-    );
-    let inside = f64::from_bits(boundary_arm.to_bits() - 1);
+    let theta = tol.eps() / f64::MAX;
     assert!(
-        tol.eps() / inside > 0.0 && Band::angular_at(tol, inside).is_ok(),
-        "one ulp under the boundary arm the angle survives and the band forms"
+        theta > 0.0,
+        "the angle at the largest arm survives: {theta:e}"
     );
-    println!("PROBE angular-underflow OK: boundary arm {boundary_arm:e}");
+    assert!(
+        Band::angular_at(tol, f64::MAX).is_ok(),
+        "and its band forms"
+    );
+    println!("PROBE angular-no-underflow OK: theta {theta:e}");
 }
 
 /// **Both arms of the constructors' `# Errors` are reachable from a
-/// tolerance the run's own validator admits** — the claim
-/// `Band::linear`'s `# Errors` makes, and the reason a refusal carries
-/// the `BandError` instead of discarding it: the two ends want opposite
-/// repairs (lower ε; raise ε or K).
+/// tolerance the run's own validator admits** — overflow through
+/// `Band::linear`, collapse through `linear_at` and `angular_at` at a
+/// scale the caller names — the claim `Band::linear`'s `# Errors`
+/// makes, and the reason a refusal carries the `BandError` instead of
+/// discarding it: the two ends want opposite repairs (lower ε; raise
+/// the scale or K).
 ///
 /// Each row is a re-exec'd child because each commits a different
 /// global. `editor-core`'s `band_refusals_name_which_band_failure_they_caught`
@@ -313,11 +299,10 @@ fn probe_angular_underflow_third_residue() {
 #[test]
 fn both_band_error_arms_are_reachable() {
     for probe in [
-        "probe_collapse_arm_on_linear",
         "probe_overflow_arm_on_linear",
         "probe_collapse_region_through_linear_at",
         "probe_angular_collapse_through_the_lever_arm",
-        "probe_angular_underflow_third_residue",
+        "probe_angular_never_underflows_at_a_runs_eps",
     ] {
         spawn_probe(probe);
     }

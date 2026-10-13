@@ -54,3 +54,13 @@ The gap therefore covers most of sweep's rows and every
 non-probe/golden row of any crate outside the hard-coded four: they
 first meet 1e-6 and 1e-12 at the nightly, and a PR that later touches
 a probe file inherits the red.
+
+## 2026-10-13: a crate's own source edits miss the rows too (ENCL, PR 4925)
+
+The gap is wider than new test files. `ci.yml`'s `change filter` hard-codes the ε crates (`for c in step-import geom-brep profile topo`) beside the `probe|golden` path match. A PR that changes geom-core's or editor-core's *source*, and re-baselines their existing tests, never runs those crates at 1e-6 or 1e-12.
+
+PR 4925 (the ε floor) is the case:
+- It changed `tolerance.rs` and `predicate.rs` and re-baselined `geom-core/tests/k_stats_doors.rs`. Both of that file's rows fail at 1e-12 without the re-baseline.
+- It changed four editor-core tests.
+
+The gate ran none of these at either extra row. They were exercised only by the lane's local `CAD_TOLERANCE_EPS=1e-12` and `1e-6` runs. A fix keyed to the seeded crates, instead of a fixed list, would cover both cases.

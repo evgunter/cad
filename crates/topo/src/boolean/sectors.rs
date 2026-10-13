@@ -5288,7 +5288,8 @@ mod tests {
     /// the margin the funnel read, and both end in the corner's lever
     /// and the tolerance that margin gives (the decision passes on
     /// either definite sign, so a zero-band margin is a size a smaller
-    /// tolerance decides). A clear arm reads the sense.
+    /// tolerance decides), the lever alone where that tolerance lies at
+    /// or below `EPS_MIN` (D4 ¶4). A clear arm reads the sense.
     #[test]
     fn a_direction_sense_refuses_its_decided_zero_as_its_in_band_arm() {
         let b = band();
@@ -5309,16 +5310,22 @@ mod tests {
                 "{arm:e}: the margin the funnel read"
             );
             let text = err.to_string();
+            let lever = "Recourse: make the edges at the corner where the two faces meet span \
+                         clearly more than the tolerance";
+            let ending = b.offer_deciding(arm).map_or_else(
+                || lever.to_owned(),
+                |offered| {
+                    format!(
+                        "{lever}, or, if this length of the corner's shorter edge is intended, \
+                         tighten the tolerance below {offered:e} m"
+                    )
+                },
+            );
             assert!(
                 text.starts_with(
                     "whether two parallel directions at a corner point the same way or opposite \
                      ways is undecided: "
-                ) && text.ends_with(&format!(
-                    "Recourse: make the edges at the corner where the two faces meet span \
-                     clearly more than the tolerance, or, if this length of the corner's shorter edge \
-                     is intended, tighten the tolerance below {:e} m",
-                    arm / (e / z)
-                )),
+                ) && text.ends_with(&ending),
                 "{arm:e}: {text}"
             );
         }
@@ -6061,6 +6068,23 @@ mod tests {
         )
         .expect_err("a zero-band extent refuses the arm gate");
         let text = err.to_string();
+        // The arm re-quotes the rise it meters only where it offers a
+        // tolerance to decide both (D4 ¶4's floor withholds one); else it
+        // keeps its own margin. Either way the offer obeys the floor.
+        let quoted = if b.offer_deciding(short).is_some() {
+            departure(short)
+        } else {
+            short
+        };
+        let ending = b.offer_deciding(quoted).map_or_else(
+            || "span clearly more than the tolerance".to_owned(),
+            |offered| {
+                format!(
+                    "if this edge's length or rise is intended, tighten the tolerance below \
+                     {offered:e} m"
+                )
+            },
+        );
         assert!(
             matches!(
                 err,
@@ -6068,13 +6092,9 @@ mod tests {
                     decision: BooleanDecision::LeverArm(LeverArm::SectorSide),
                     ..
                 }
-            ) && text.contains(&format!(
-                "margin {:e} lies within the zero band",
-                departure(short)
-            )) && text.ends_with(&format!(
-                "if this edge's length or rise is intended, tighten the tolerance below {:e} m",
-                departure(short) / (e / z)
-            )) && !text.contains("kernel bug"),
+            ) && text.contains(&format!("margin {quoted:e} lies within the zero band"))
+                && text.ends_with(&ending)
+                && !text.contains("kernel bug"),
             "{text}"
         );
         // A bound in the face's plane departs by exactly zero, which reads
