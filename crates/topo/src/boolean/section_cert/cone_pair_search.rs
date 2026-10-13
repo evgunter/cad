@@ -59,7 +59,7 @@ test_utils::gated_to![
 ];
 
 use super::cone_search::{Class, Frame, Traced, random_cone, trace};
-use super::search_kit::{band, offset, unit_vec};
+use super::search_kit::{band, matched, offset, unit_vec};
 use super::*;
 use core::f64::consts::{FRAC_PI_2, TAU};
 use geom::Surface;
@@ -959,35 +959,6 @@ pub(super) fn traced_mismatches(
     against_the_trace(&k, &partner_of(partner, scale), parts, single).unwrap_or_else(|| {
         vec!["no grid within the budget resolves the section on both charts".to_owned()]
     })
-}
-
-/// Whether every witness can take a component of its own from its
-/// `candidates`, no two the same (augmenting paths).
-fn matched(candidates: &[Vec<usize>]) -> bool {
-    fn augment(
-        w: usize,
-        candidates: &[Vec<usize>],
-        owner: &mut std::collections::BTreeMap<usize, usize>,
-        tried: &mut Vec<usize>,
-    ) -> bool {
-        for &c in &candidates[w] {
-            if tried.contains(&c) {
-                continue;
-            }
-            tried.push(c);
-            let free = match owner.get(&c) {
-                None => true,
-                Some(&other) => augment(other, candidates, owner, tried),
-            };
-            if free {
-                owner.insert(c, w);
-                return true;
-            }
-        }
-        false
-    }
-    let mut owner = std::collections::BTreeMap::new();
-    (0..candidates.len()).all(|w| augment(w, candidates, &mut owner, &mut Vec::new()))
 }
 
 /// The mismatches between `parts` and the traced section; `None` where

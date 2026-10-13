@@ -50,7 +50,7 @@ test_utils::gated_to![
     "crates/geom-core/src/linalg/",
 ];
 
-use super::search_kit::{band, offset, unit_vec};
+use super::search_kit::{band, matched, offset, unit_vec};
 use super::*;
 use core::f64::consts::{PI, TAU};
 use geom::Surface;
@@ -558,23 +558,26 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
     if single && want.len() != 1 {
         bad.push(format!("single, traced {want:?}"));
     }
-    let mut seen = Vec::new();
-    for c in &parts {
-        let Some(w) = c.witness else {
-            continue;
-        };
-        let (u, t) = k.chart(w);
-        let on: Vec<usize> = traced
-            .near(u, t)
-            .into_iter()
-            .filter(|&i| traced.classes[i] == class_of(c) && !seen.contains(&i))
-            .collect();
-        match on.first() {
-            Some(&i) => seen.push(i),
-            None => bad.push(format!(
-                "the witness {w:?} of a {:?} part is on no such traced component",
-                class_of(c)
-            )),
+    // Each witness's traced components of its part's class, matched one
+    // to one: two components can pass within a cell of one witness.
+    let near: Vec<(Point3<f64>, Class, Vec<usize>)> = parts
+        .iter()
+        .filter_map(|c| {
+            let w = c.witness?;
+            let (u, t) = k.chart(w);
+            let on = traced
+                .near(u, t)
+                .into_iter()
+                .filter(|&i| traced.classes[i] == class_of(c))
+                .collect();
+            Some((w, class_of(c), on))
+        })
+        .collect();
+    if !matched(&near.iter().map(|(_, _, on)| on.clone()).collect::<Vec<_>>()) {
+        for (w, class, on) in &near {
+            bad.push(format!(
+                "the witness {w:?} of a {class:?} part is on traced components {on:?}, not each on its own"
+            ));
         }
     }
     if let Surface::Cylinder {
