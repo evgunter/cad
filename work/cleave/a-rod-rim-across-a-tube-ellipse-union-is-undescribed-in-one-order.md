@@ -67,3 +67,20 @@ The pin is renamed
 `a_rim_across_a_walls_ellipse_builds_every_op_in_both_orders`: six
 turns of the rod, all six ops build at tiers 3 and 3′ at their closed
 forms, at ε 1e-9, 1e-6 and 1e-12 (run locally).
+
+Fix pass (review of PR 4856):
+- **One home for the restatement.**
+  `geom_brep::EdgeCurve::restated_in_chart` now builds the chart image
+  and carries the authority. The stale arm uses it, and so do both of
+  `splitting::finish`'s conventional restatements.
+- **The pin asserts the description.** It checks that every edge lying
+  across a wall rests in one of its faces' charts, and that each curved
+  one is derived. The turns `π/2`, `π` and `3π/2` are added.
+- **New pin:**
+  `a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face`.
+  - The half-rod-first union reaches the stale-line path.
+  - In the rod-first union, the flat face's offset of ±0.05 builds at
+    its closed form.
+  - Under the old made-up `Declared` lanes, that offset refuses
+    `CarrierLaneUnsupported`.
+  - Run locally at ε 1e-9, 1e-6 and 1e-12.

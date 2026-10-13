@@ -1128,10 +1128,10 @@ pub enum ValidationError {
         /// sample).
         cause: Indeterminate,
     },
-    /// Tier 3: a **definitely-transverse** edge carries a conventional
-    /// (`MappedCurve`) description at rest — the prefer-intrinsic rule
-    /// with teeth (D2; ratified with Ev 2026-07-19, M2 PR 4 fix
-    /// pass). Enforced only when the dihedral pass classified **every**
+    /// Tier 3: a **definitely-transverse** edge carries a chart image
+    /// whose authority record is a declaration
+    /// ([`geom_brep::EdgeAuthority::Declared`]) at rest — the
+    /// prefer-intrinsic rule with teeth (D2). Enforced only when the dihedral pass classified **every**
     /// interior sample definitely Transverse: definitely-smooth edges
     /// keep their conventional descriptions (the D2 conventional
     /// split), `Seam` edges are exempt by kind, and escalated dihedrals
@@ -6893,9 +6893,9 @@ pub(crate) fn tier3_local_checks_marked<
         // Check 4: dihedral — plus the prefer-intrinsic enforcement
         // (D2; ratified 2026-07-19): reusing the SAME per-sample
         // classifications (never classifying twice), an edge whose
-        // every interior sample is definitely Transverse must carry an
-        // `Intersection` description at rest. `Seam` is exempt by
-        // kind, definitely-smooth keeps `MappedCurve` (the D2
+        // every interior sample is definitely Transverse must not rest
+        // on a declared conventional description. `Seam` is exempt by
+        // kind, definitely-smooth keeps its conventional image (the D2
         // conventional split), an escalation reports `SliverDihedral`
         // and exempts the edge (ε-tightening escalates, it never flips
         // valid → invalid), and a mixed sample set is enforced as

@@ -760,9 +760,9 @@ jet-determinate tangency must carry `TangentIntersection`
 (`TangentNotIntrinsic`, where `geom_brep::tangent_certificate_lane`
 admits the class); a second-order-underdetermined join keeps its
 conventional form by the predicate itself. The check reads the edge's
-authority record, so a declared conventional description is exempt by
-its own declaration; escalated dihedrals, seam edges and
-NURBS/`Approx`-adjacent edges are exempt too, so ε-tightening can
+authority record: a declared conventional description on a
+definitely-transverse edge is what it refuses. Escalated dihedrals, seam
+edges and NURBS/`Approx`-adjacent edges are exempt, so ε-tightening can
 escalate but never flip a valid body to invalid. An unenforced
 preference drifts silently — exactly the failure shape this document
 exists to kill.

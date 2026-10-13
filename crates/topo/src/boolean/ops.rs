@@ -2628,23 +2628,13 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         of_attachment(edge, EdgeDescribeFailure::Tangency, c.carrier().kind(), e)
                     })?;
                 } else if stale {
-                    // The conventional re-description for a locus the
-                    // adjacent surfaces under-determine, whatever its
-                    // carrier's kind: an image in `s1`'s own chart on
-                    // the unchanged carrier (only the description
-                    // moves), its authority record carried as it was.
+                    // A locus the adjacent surfaces under-determine,
+                    // of any carrier kind, rests in `s1`'s chart.
                     let c = existing.as_ref().ok_or_else(corrupt)?;
-                    let chart = geom_brep::EdgeDescriptionSpec::chart(s1);
-                    let spec = geom_brep::EdgeCurveSpec {
-                        description: match c.authority() {
-                            geom_brep::EdgeAuthority::Declared(mc) => chart.declared_by(mc),
-                            geom_brep::EdgeAuthority::Derived => chart,
-                        },
-                        ..c.restated_spec()
-                    };
-                    body.set_edge_curve(edge, spec, tol).map_err(|e| {
-                        of_attachment(edge, EdgeDescribeFailure::Chart, c.carrier().kind(), e)
-                    })?;
+                    body.set_edge_curve(edge, c.restated_in_chart(s1), tol)
+                        .map_err(|e| {
+                            of_attachment(edge, EdgeDescribeFailure::Chart, c.carrier().kind(), e)
+                        })?;
                 }
             }
         }

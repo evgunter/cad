@@ -901,13 +901,7 @@ fn section_plane_restatements<T: Decide>(
             if !Named::of(geom).keys().any(|k| k == chart) {
                 continue;
             }
-            let image = geom_brep::EdgeDescriptionSpec::chart(chart);
-            let mut spec = curve.restated_spec();
-            spec.description = match curve.authority() {
-                geom_brep::EdgeAuthority::Declared(mc) => image.declared_by(mc),
-                geom_brep::EdgeAuthority::Derived => image,
-            };
-            out.push((edge, spec));
+            out.push((edge, curve.restated_in_chart(chart)));
         }
     }
     Ok(out)
@@ -1035,16 +1029,14 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     // Carrier and interval travel verbatim (restated,
                     // never rebuilt), as does a conventional image's
                     // declared authority (an intrinsic locus is derived).
-                    let mut spec = existing.as_ref().map_or_else(
-                        || {
-                            unreachable!(
-                                "{edge:?} read smooth at its witness has a certified carrier: \
-                                 null scaffolding has coincident ends, so its zero extent \
-                                 fails the dihedral's arm gate before this arm"
-                            )
-                        },
-                        geom_brep::EdgeCurve::restated_spec,
-                    );
+                    let curve = existing.as_ref().unwrap_or_else(|| {
+                        unreachable!(
+                            "{edge:?} read smooth at its witness has a certified carrier: \
+                             null scaffolding has coincident ends, so its zero extent \
+                             fails the dihedral's arm gate before this arm"
+                        )
+                    });
+                    let spec = curve.restated_spec();
                     // What the join stores is the must-carry rule's
                     // over the edge, and each refusal is this op's own.
                     let (pair, [sa, sb]) =
@@ -1097,17 +1089,17 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         // in to within the BAND: on a near-flush
                         // operand it is metered like any description
                         // (D4 ¶3).
-                        spec.description = match demanded {
-                            geom_brep::MustCarryDescription::Intrinsic(description) => description,
+                        let spec = match demanded {
+                            geom_brep::MustCarryDescription::Intrinsic(description) => {
+                                geom_brep::EdgeCurveSpec {
+                                    description,
+                                    ..spec
+                                }
+                            }
                             geom_brep::MustCarryDescription::Conventional => {
-                                geom_brep::EdgeDescriptionSpec::chart(s_self)
+                                curve.restated_in_chart(s_self)
                             }
                         };
-                        if let Some(geom_brep::EdgeAuthority::Declared(mc)) =
-                            existing.as_ref().map(|c| c.authority())
-                        {
-                            spec.description = spec.description.declared_by(mc);
-                        }
                         let carrier = spec.carrier.kind();
                         body.set_edge_curve(edge, spec, tol)
                             .map_err(|e| of_attachment(edge, carrier, e))?;
