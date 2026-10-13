@@ -115,9 +115,8 @@ fn documents() -> Vec<(&'static str, ProfileDoc)> {
         // contribute `symbolic_zero` samples
         // too (their straight-walled identities discharge through the
         // plain form); what only this fixture contributes is the ARC
-        // family's — the constant fold A0's, rule D's and the per-node
-        // A/B discharges (`symbolic_zero`), the door's (`registered`),
-        // and `sign_gated` rows the day rule C is switched on. The
+        // family's — the constant fold A0's, rule D's, the per-node A/B
+        // discharges and the door's, all `symbolic_zero` rows. The
         // scale is epsilon-RELATIVE like the slabs': written as the
         // constant `1e-6` it was 1280x the ceiling at `eps = 1e-12`,
         // where the driver certified nothing and the fixture fell out
