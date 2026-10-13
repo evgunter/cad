@@ -100,10 +100,10 @@ fn a_nested_disc_with_its_vertices_off_the_line_refuses_its_mid_arc_touch() {
 /// joins them into one solid, and the record, carried as the first
 /// union's, lands on the plate's face and the piece of the rod's wall
 /// still on it; the tier-3′ pass confirms it. Carried with the first
-/// union's edge–face records as well, the bridge refuses: the record
-/// of a cap circle touching the plate's face at a point is one the
-/// census's confirm cannot read
-/// (`work/restread/an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane.md`).
+/// union's edge–face records as well, the bottom cap circle's lands
+/// beside it, read as a point touch of the circle and the plate's face,
+/// and the top cap's, whose touch point the bridge swallows, is
+/// consumed.
 #[test]
 fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
     let pi = core::f64::consts::PI;
@@ -238,15 +238,117 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
         }
         other => panic!("∪ bridge: {:?}", other.map(|_| ())),
     }
+    match bridged(u.contacts.carried()) {
+        Ok(BooleanResult::Body(r)) => {
+            assert_eq!(
+                r.body.solids().count(),
+                1,
+                "∪ bridge, every record: one solid"
+            );
+            let ef: Vec<f64> = r
+                .contacts
+                .edge_face()
+                .map(|(e, _)| edge_ends(&r.body, e)[0][2])
+                .collect();
+            assert_eq!(
+                (face_pairs(&r).len(), ef),
+                (1, vec![0.25]),
+                "∪ bridge, every record: the face–face record and the bottom cap's land; the \
+                 top cap's touch point is inside the bridge"
+            );
+            assert_eq!(
+                topo::validate_pseudomanifold(&r.body, &r.contacts, tol()),
+                Ok(()),
+                "∪ bridge, every record: tier 3′ confirms the landed records"
+            );
+        }
+        other => panic!("∪ bridge, every record: {:?}", other.map(|_| ())),
+    }
+}
+
+/// The ends of `e`, from its half-edges' starts.
+fn edge_ends(body: &Body<f64>, e: topo::EdgeKey) -> Vec<[f64; 3]> {
+    body.half_edges()
+        .filter(|(_, h)| h.edge == e)
+        .map(|(_, h)| point(body, h.start))
+        .collect()
+}
+
+/// **A cap circle's point touch is read where it is.** The union of the
+/// rod and the plate passes its own 3′ on the cap circles' edge–face
+/// records (the cross-solid curved search stays undecided, RESTREAD's
+/// row, and is the only finding). A step block glued under the rod's
+/// bottom cap, past x = 0.2, divides that cap's circle at (0.4, 2.2):
+/// carrying every record, the union of the step lands the bottom cap's
+/// record on the piece from (−0.5, 2.5) to (0.4, 2.2), which holds the
+/// touch point (0, 2), and not on the piece past it.
+#[test]
+fn a_cap_circles_point_touch_is_read_and_lands_on_the_piece_holding_it() {
+    let plate = finished(
+        "plate",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.25, 0.5);
+    let u = match topo::union(&plate, &rod, tol()) {
+        Ok(BooleanResult::Body(u)) => u,
+        other => panic!("plate ∪ rod: {:?}", other.map(|_| ())),
+    };
+    let caps: Vec<topo::EdgeKey> = u.contacts.edge_face().map(|(e, _)| e).collect();
+    let findings = topo::validate_pseudomanifold(&u.body, &u.contacts, tol())
+        .err()
+        .unwrap_or_default();
     assert!(
-        matches!(
-            bridged(u.contacts.carried()),
-            Err(topo::BooleanError::CarryRefused {
-                refusal: topo::CarryRefusal::Unread { .. },
-                ..
-            })
-        ),
-        "∪ bridge carrying every record: the cap circle's edge–face record is unread"
+        findings
+            .iter()
+            .all(|f| matches!(f, topo::ValidationError::CensusUndecidable { .. })),
+        "plate ∪ rod: 3′ reads both cap records; only the cross-solid search is undecided: \
+         {findings:?}"
+    );
+    assert_eq!(caps.len(), 2, "plate ∪ rod: two cap records");
+    let step = finished(
+        "step",
+        brick::<f64>((0.2, 1.0), (2.2, 3.5), (-0.5, 0.25), tol()),
+        tol(),
+    );
+    let r = match topo::boolean_op_with(
+        topo::BooleanOp::Union,
+        &u.body,
+        &step,
+        &topo::BooleanInputs {
+            records_a: u.contacts.carried(),
+            ..topo::BooleanInputs::default()
+        },
+        topo::SweepStrategy::Realized,
+        tol(),
+    ) {
+        Ok(BooleanResult::Body(r)) => r,
+        other => panic!("∪ step: {:?}", other.map(|_| ())),
+    };
+    let landed: Vec<Vec<[f64; 3]>> = r
+        .contacts
+        .edge_face()
+        .map(|(e, _)| edge_ends(&r.body, e))
+        .filter(|ends| ends[0][2] == 0.25)
+        .collect();
+    let near = |p: [f64; 3], q: [f64; 3]| p.iter().zip(q).all(|(a, b)| (a - b).abs() < 1e-9);
+    let holds = |ends: &Vec<[f64; 3]>| {
+        let want = [[-0.5, 2.5, 0.25], [0.4, 2.2, 0.25]];
+        (near(ends[0], want[0]) && near(ends[1], want[1]))
+            || (near(ends[0], want[1]) && near(ends[1], want[0]))
+    };
+    assert!(
+        landed.len() == 1 && holds(&landed[0]),
+        "∪ step: the bottom cap's record is on the piece holding the touch point: {landed:?}"
+    );
+    let past = r.body.edges().any(|(e, _)| {
+        let ends = edge_ends(&r.body, e);
+        ends.iter().any(|&p| near(p, [0.5, 2.5, 0.25]))
+            && ends.iter().any(|&p| near(p, [0.4, 2.2, 0.25]))
+    });
+    assert!(
+        past,
+        "∪ step: the cap circle's piece past the cut is an edge of the result"
     );
 }
 

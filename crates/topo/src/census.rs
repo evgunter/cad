@@ -4021,6 +4021,7 @@ const TOUCH_SPAN: &str = "census_touch_span";
 /// normal scaled by a length would be a lever spelled as a plane; the
 /// source row states that blind spot.
 mod curved;
+mod point;
 
 mod metric {
     use super::{Band, Decide, Margin, Point3, Real, Sign, Vec3, decide};
@@ -6386,9 +6387,10 @@ fn conventional_vertices<T: Real>(geo: &Geo<T>, edge: EdgeKey) -> Vec<VertexKey>
 ///   Off the plane or outside the region, the record is stale.
 /// - **Otherwise** the touch is read where the record holds a point of
 ///   the edge's interior: a conventional vertex, inside the face
-///   ([`confirm_vertex_on_face`]'s two readings). A curve touch along
-///   the edge's carrier away from such a point is refused typed: the
-///   census builds no lane for it.
+///   ([`confirm_vertex_on_face`]'s two readings), or else the point
+///   touch of the two carriers ([`point::edge_face`]). A circle lying in
+///   a plane away from such a vertex is a curve touch, refused typed:
+///   the census builds no lane for it.
 fn confirm_edge_face<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -6447,22 +6449,17 @@ fn confirm_edge_face<T: Decide>(
             return;
         }
     }
-    errors.push(ValidationError::CensusUnsupported {
-        subject: CensusSubject::Entity(EntityId::Edge(edge)),
-        cause: CensusUnsupportedCause::ContactLane(
-            crate::contact::ContactRefusal::NotCertifiable {
-                what: "an edge resting on a face off a line and a plane, away from a \
-                       conventional vertex: the census builds no curve-touch lane along an \
-                       edge's carrier",
-            },
-        ),
-    });
+    if point::edge_face(body, edge, face, band, errors) == point::Read::Stale {
+        errors.push(stale);
+    }
 }
 
 /// One face–face record's witness, read from the two faces' carriers.
 ///
 /// - **One carrier, or two planes**: the patch doors ([`confirm_patch`]),
 ///   whose carrier door contradicts two distinct planes.
+/// - **A sphere and a plane, or two spheres**: their point touch
+///   ([`point::face_face`]).
 /// - **Two other carriers**: the closed-form tangent line they derive,
 ///   both faces' extents along it, and the `Tangent` table where those
 ///   meet, material sides included
@@ -6524,6 +6521,12 @@ fn confirm_face_pair<T: Decide>(
             });
             return;
         }
+    }
+    if let Some(read) = point::face_face(body, a, b, band, errors) {
+        if read == point::Read::Stale {
+            errors.push(stale);
+        }
+        return;
     }
     let (carrier, (t0, t1)) = match crate::boolean::tangent_pair_at_rest(body, a, b, band) {
         Ok(crate::boolean::RestTangent::Apart) => {
@@ -12218,10 +12221,10 @@ mod records_by_carrier {
     /// A disc's circle, closed at one conventional vertex, under a
     /// brick standing over it: the record of the circle and the brick's
     /// bottom face is confirmed at that vertex, and backs the vertex's
-    /// own touch there; against the brick's top face it is refused
-    /// typed, since the census builds no curve-touch lane along the
-    /// circle. Red when the conventional vertex is not read as the
-    /// edge's, or the record backs nothing.
+    /// own touch there; against the brick's top face, a metre above the
+    /// circle's plane and parallel to it, it is stale. Red when the
+    /// conventional vertex is not read as the edge's, or the record
+    /// backs nothing.
     #[test]
     fn a_curved_edge_on_a_face_is_read_at_its_conventional_vertex() {
         let tol = Tol::witness();
@@ -12255,8 +12258,8 @@ mod records_by_carrier {
         let lid_top = face_at_z(&body, 2.0, true);
         let errors = census(&body, &one(&body, Cell::Edge(circle), Cell::Face(lid_top)));
         assert!(
-            unsupported_edge(&errors, circle),
-            "away from its conventional vertex the curve touch is refused typed: {errors:?}"
+            stale_edge_face(&errors, circle, lid_top) && !unsupported_edge(&errors, circle),
+            "a circle parallel to a face a metre off is stale: {errors:?}"
         );
     }
 
@@ -12859,6 +12862,96 @@ mod edge_face_residual {
                 declaration: StaleDeclaration::EdgeFace { edge, face },
             }),
             "an edge a metre above the face is stale: {errors:?}"
+        );
+    }
+}
+
+/// **A point touch** (C3): a cylinder sheet's bottom rim, the arc of the
+/// unit circle about z at z = 0 over azimuths `u`, against a brick face
+/// x = `x` (y over `y`, z over −0.5..1.5), read by the record confirm.
+/// At x = 1 the circle touches the face's plane at (1, 0, 0).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod point_touch {
+    use super::*;
+    use crate::boolean::Cell;
+    use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
+    use geom_core::Tol;
+
+    fn rim_on_face(u: (f64, f64), x: f64, y: (f64, f64)) -> Result<bool, ValidationError> {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let frame = CylFrame::canonical(1.0);
+        cyl_wall_sheet(&mut body, frame, u, (0.0, 1.0), tol);
+        let xyz = |p: Point3<f64>| [p.x, p.y, p.z];
+        let (p, q) = (xyz(frame.at(u.0, 0.0)), xyz(frame.at(u.1, 0.0)));
+        let at = |v: VertexKey| xyz(*body.get_point(body.get_vertex(v).unwrap().point).unwrap());
+        let rim = body
+            .edges()
+            .find(|(_, e)| {
+                let ends =
+                    [e.he_plus, e.he_minus].map(|h| at(body.get_half_edge(h).unwrap().start));
+                ends == [p, q] || ends == [q, p]
+            })
+            .map(|(k, _)| k)
+            .expect("the bottom rim");
+        let block = brick::<f64>((x, x + 1.0), y, (-0.5, 1.5), tol);
+        let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
+        let side = block
+            .faces()
+            .find(|(_, f)| match block.get_surface(f.surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    normal.x.abs() > 0.5 && (origin.x - x).abs() < 1e-15
+                }
+                _ => false,
+            })
+            .and_then(|(k, _)| keys.face(k))
+            .expect("the brick's face x = x");
+        RecordConfirm::of(&body, Band::linear(tol).unwrap(), None)
+            .meets(crate::Contact::new(&body, Cell::Edge(rim), Cell::Face(side)).unwrap())
+    }
+
+    /// Touching at a point of the arc's interior, inside the face: the
+    /// record is confirmed. Red where the census has no point lane (the
+    /// record refused typed).
+    #[test]
+    fn a_circle_touching_a_plane_inside_both_cells_is_confirmed() {
+        assert_eq!(
+            rim_on_face((-0.5, 0.5), 1.0, (-0.5, 0.5)),
+            Ok(true),
+            "the rim touches the face at (1, 0, 0)"
+        );
+    }
+
+    /// Each reading the lane certifies, failed alone, reads stale: the
+    /// face half a metre off (the carriers apart), five centimetres in
+    /// (the circle crossing the plane), the face's region clear of the
+    /// touch point, and the arc clear of it.
+    #[test]
+    fn a_circle_off_crossing_or_beside_a_plane_face_is_stale() {
+        for (what, u, x, y) in [
+            ("apart", (-0.5, 0.5), 1.5, (-0.5, 0.5)),
+            ("crossing", (-0.5, 0.5), 0.95, (-0.5, 0.5)),
+            ("the point outside the face", (-0.5, 0.5), 1.0, (0.1, 0.6)),
+            ("the point outside the arc", (0.1, 0.6), 1.0, (-0.5, 0.5)),
+            ("the point at the arc's end", (0.0, 0.6), 1.0, (-0.5, 0.5)),
+        ] {
+            assert_eq!(rim_on_face(u, x, y), Ok(false), "{what}");
+        }
+    }
+
+    /// The face 3ε past the touch: whether the carriers coincide there
+    /// is undecided, and the confirm escalates.
+    #[test]
+    fn a_circle_touch_in_the_band_escalates() {
+        let x = 1.0 + 3.0 * Tol::witness().eps();
+        assert!(
+            matches!(
+                rim_on_face((-0.5, 0.5), x, (-0.5, 0.5)),
+                Err(ValidationError::CensusEscalated { .. })
+            ),
+            "{:?}",
+            rim_on_face((-0.5, 0.5), x, (-0.5, 0.5))
         );
     }
 }

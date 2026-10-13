@@ -376,4 +376,60 @@ mod tests {
             );
         }
     }
+
+    /// **Two circles kissing in their plane meet at the point**: the
+    /// unit circle's arc over ±30° against an arc over 150..210° of a
+    /// unit circle outside it or a half-unit one inside it, each touching
+    /// it at (1, 0, 0) (the point touch C3 names for two edges, its
+    /// `κ_rel` the two curvatures' sum or difference, never zero for two
+    /// distinct circles). Pushed 0.1 m apart they do not meet; pushed
+    /// 3ε, whether they meet is undecided and escalates.
+    #[test]
+    fn kissing_circles_meet_at_their_touch_point() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let eps = tol.eps();
+        for (what, (cx, r, t), meet) in [
+            ("outside", (2.0, 1.0, 180.0), Some(true)),
+            ("inside", (0.5, 0.5, 0.0), Some(true)),
+            ("outside, 0.1 m apart", (2.1, 1.0, 180.0), Some(false)),
+            ("inside, 0.1 m apart", (0.4, 0.5, 0.0), Some(false)),
+            ("outside, 3ε apart", (2.0 + 3.0 * eps, 1.0, 180.0), None),
+        ] {
+            let mut body = Body::<f64>::new();
+            let mut arc = |center: Point3<f64>, radius: f64, (t0, t1): (f64, f64)| {
+                let c = geom::Curve3::Circle {
+                    center,
+                    axis: Vec3::unit_z(),
+                    radius,
+                    u_ref: Vec3::unit_x(),
+                };
+                let (t0, t1) = (t0.to_radians(), t1.to_radians());
+                let born = body.mvfs(c.eval(t0), true).unwrap();
+                body.mev(
+                    MevSite::Lone {
+                        r#loop: born.r#loop,
+                    },
+                    c.eval(t1),
+                    EdgeCurveSpec::arc_of_circle(c.clone(), t0, t1).unwrap(),
+                    tol,
+                )
+                .unwrap()
+                .edge
+            };
+            let a = arc(Point3::new(0.0, 0.0, 0.0), 1.0, (-30.0, 30.0));
+            let b = arc(Point3::new(cx, 0.0, 0.0), r, (t - 30.0, t + 30.0));
+            let mut errors = Vec::new();
+            assert_eq!(
+                curved_interiors_meet(&body, a, b, band, &mut errors),
+                meet,
+                "{what}: {errors:?}"
+            );
+            assert_eq!(
+                meet.is_none(),
+                !errors.is_empty(),
+                "{what}: an escalation is pushed exactly where undecided: {errors:?}"
+            );
+        }
+    }
 }
