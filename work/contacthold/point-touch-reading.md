@@ -3,11 +3,12 @@ id: point-touch-reading
 kind: issue
 title: The census reads a point touch: a circle on a plane, a line or plane on a sphere, two spheres, found on the carriers' closed-form lane and certified there
 opened: 2026-10-13
-status: review
+status: closed
 priority: P1
 branch: contacthold/point-touch-reading
 pr: 4956
 refs: [a-carried-edge-face-record-the-census-cannot-read-refuses-every-later-op, an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane]
+closed: 2026-10-13
 ---
 
 
