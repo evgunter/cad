@@ -65,6 +65,8 @@ mod probe_support;
 
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
+#[path = "review_4955_probe.rs"]
+mod review_4955_probe;
 #[path = "analytic_rung3_at_rest.rs"]
 mod analytic_rung3_at_rest;
 #[path = "at_rest_pcurve_rows.rs"]
