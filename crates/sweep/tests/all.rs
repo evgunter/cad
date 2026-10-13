@@ -1119,3 +1119,5 @@ mod sphere_face_flips_are_refused;
 
 #[path = "review_4737_span_probes.rs"]
 mod review_4737_span_probes;
+#[path = "review_glue_door_escalates_probes.rs"]
+mod review_glue_door_escalates_probes;
