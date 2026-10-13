@@ -97,6 +97,8 @@ mod curves_n1r1_c24_dump;
 // without a `#[path]` line.
 #[path = "cert_n2r2_probes.rs"]
 mod cert_n2r2_probes;
+#[path = "curves/accel_upper_bound.rs"]
+mod curves_accel_upper_bound;
 #[path = "curves/curve3_r1_probes.rs"]
 mod curves_curve3_r1_probes;
 #[path = "curves/ders1_meter.rs"]
@@ -187,6 +189,8 @@ mod surfaces_review_m5_pr3_attack;
 mod surfaces_review_m5_pr3_attack_interval;
 #[path = "surfaces/s32_jet_projection.rs"]
 mod surfaces_s32_jet_projection;
+#[path = "surfaces/second_quotients.rs"]
+mod surfaces_second_quotients;
 #[path = "surfaces/span_window_pairing.rs"]
 mod surfaces_span_window_pairing;
 #[path = "surfaces/stretch_floor.rs"]

@@ -97,10 +97,9 @@ caller's, per `Reading`. Three render the whole escalation
 junction arm and both fall-through arms, `validate.rs`'s
 `ProfileError::Escalated`, now "{site}, {subject} is undecided: …").
 Both doors end a name by its row in `validate::DECISION_ENDINGS`
-(`EndingKind::Sized` or `Lever(lever)`), one row per decided name, held
-both ways against `src`; a name with no row names its hole at both.
-`validate::lever_ending` switches to geom-core's
-`Indeterminate::lever_ending` once PR 4766 lands.
+(geom-core's `EndingKind::Sized` or `Lever(lever)`), one row per decided
+name, held both ways against `src`; a name with no row names its hole at
+both. The ending is `Indeterminate::ending_by` (PR 5003).
 
 - Skipped: nothing on D10 ground in the slice.
 - Left: the hand-spelled decision-specific verdicts in `path.rs`'s
@@ -124,9 +123,8 @@ escalations are built from a `Decision`, and a name with no row ends
 sized plus `geom_core::MissingRecourse`. Lever: `eval_direction_norm` (a
 gauge), the angles, and `name_frag_order_along` (a curve parameter).
 Sized: the pattern spacing, naming's three distances and
-`sel_datum_distance`. The lever ending is composed through
-`geom_brep::recourse::LeverOnly`; it moves to
-`Indeterminate::lever_ending` once PR 4766 lands.
+`sel_datum_distance`. The ending is `Indeterminate::ending_by` over the
+decision's `geom_core::EndingKind` (PR 5003).
 
 - Skipped, held under D10. Each keeps its old sentence through a held
   arm at its door, pinned through that door:

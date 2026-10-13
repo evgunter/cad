@@ -550,6 +550,29 @@ const PLATE_MAX_TERMS: usize = 28;
 /// every decision tally hold (`m10_10_pins_interval` reads the pair's
 /// sum unchanged).
 ///
+/// Check 4 reading one vector at its norm where it summed its parts,
+/// each measured by reverting it alone on the tree holding the rest:
+/// - the turning cylinder's class circle (one `σ` for the radius and
+///   orientation terms): `Plain/Decision` +267 forms and +72 frozen,
+///   `Early/Decision` +267;
+/// - the cylinder class selector's radial circle at its exact sup
+///   (`radial_amplitude`, read at the door and on both walks):
+///   `Plain/Decision` +20, `Plain/Assertion` +193 forms and +16 frozen,
+///   `Early/Decision` +20, `Early/Assertion` +193, `Door/Decision`
+///   +196;
+/// - the two fidelity channels read as one displacement's legs (`√(u² +
+///   v²)` in the envelope's total): `Plain/Decision` and
+///   `Early/Decision` +36 each;
+/// - `EnvelopeTerm::Tilt` and `EnvelopeTerm::Orientation` retired, one
+///   zero summand fewer per envelope each: `Plain/Decision` and
+///   `Early/Decision` −12 per slot, −24 in all.
+///
+/// Together `Plain/Decision` 15749/252 → 16048/324, `Plain/Assertion`
+/// 4349/389 → 4542/405, `Early/Decision` 8671 → 8970, `Early/Assertion`
+/// 5312 → 5505, `Door/Decision` 7181 → 7377, and every digest of those
+/// lines; calls, every decision tally and the largest form hold, and
+/// the slab does not move.
+///
 /// Check 4 reading a `cos t`/`sin t` pair at its exact sup
 /// (`√(m + √(q² + (a·b)²))`, `√(a² + b²)`) instead of the sum of its
 /// coefficients' norms: a longer expression per envelope term, so
@@ -564,11 +587,11 @@ const PLATE_MAX_TERMS: usize = 28;
 /// `Door/Assertion` line, 396 calls that built nothing, is gone. The
 /// slab's `Early/Assertion` digests move the same way at each ε row.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1048 forms 15749 frozen 252 digest 066bebc5066c4c94ae93362a0873cb94\n\
-     Plain/Assertion calls 654 forms 4349 frozen 389 digest b82ea8fd0878e9410927c81ec1a03b95\n\
-     Early/Decision calls 352 forms 8671 frozen 0 digest eeaf8b06f90df22e99214afb32688acd\n\
-     Early/Assertion calls 654 forms 5312 frozen 0 digest eb3ac4c74cf6d7fe35ef56941bc369ef\n\
-     Door/Decision calls 396 forms 7181 frozen 0 digest bd6bd2d2acc05f6f831f152ebeed7d11";
+     Plain/Decision calls 1048 forms 16048 frozen 324 digest f89ef49f722b34fae182cdf42193f5b8\n\
+     Plain/Assertion calls 654 forms 4542 frozen 405 digest 3c4fc6a4bbbcee24d316349a6cc2996f\n\
+     Early/Decision calls 352 forms 8970 frozen 0 digest 7331ca9ce50daa679d9117fae6863d1a\n\
+     Early/Assertion calls 654 forms 5505 frozen 0 digest 9e115d316f094da06cfb34dd062c14d0\n\
+     Door/Decision calls 396 forms 7377 frozen 0 digest cd68ef595d7f324c874b3f5aec2e3bbb";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
