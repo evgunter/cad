@@ -6251,7 +6251,7 @@ mod tests {
         }
         for (error, note) in [
             (forward(zero(none)), "an edge of no length"),
-            (meter(zero(none)), "a vanishing speed floor"),
+            (meter(zero(none)), "the speed floor has reached its limit"),
             (arm(zero(none)), "an edge of no length"),
         ] {
             let text = error.render(Reading::Build);
