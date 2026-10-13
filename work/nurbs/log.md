@@ -1183,3 +1183,8 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     1. **Unit 1 (build A, FULL):** the statement plus the first-order readers. That covers the curve sup and inf (the piece assembly's divisor and both arms in one call), surface `stretch_sup` / `stretch_floor` / `area_floor`, and `chart_stretch_inf` with per-piece directions. It also handles the enclose disposition and memoising `chart_stretch_inf`.
     2. **Unit 2 (build A):** second order plus `offset_meters`, on the quotient form.
   - The witness rule binds both. — (NURBS orchestrator)
+- **2026-10-13 03:00Z — dispatch.**
+  - **Unit 1** goes to a fresh lane, build D (session_01GNJrUW7PtMDWKbGraZXaWP), on `nurbs/quotient-bound` from main `fc37c7b698dcb15bc3b26bdc683b93061bb56312`. Tier: FULL.
+    - Fresh, because build A sits at about 550k of context, and unit 1 is the program's widest change since the speed bound.
+  - **Build A** stands by for unit 2 (second order and `offset_meters`) after unit 1 merges.
+  - **Designers A and B** archived. — (NURBS orchestrator)
