@@ -106,24 +106,13 @@ pub(crate) fn check_counts(
 /// # Errors
 ///
 /// [`SplineError`] naming the exact violation.
-// `!(w > 0)` is deliberate (NaN-catching — NaN refuses; `w <= 0`
-// would pass NaN). Same note as geom-core::spline::algebra.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub(crate) fn validate_counts(
     expected: usize,
     control: usize,
     weights: &[f64],
 ) -> Result<(), SplineError> {
     check_counts(expected, control, weights.len())?;
-    for (index, w) in weights.iter().enumerate() {
-        if !(*w > 0.0) {
-            return Err(SplineError::NonPositiveWeight { index, weight: *w });
-        }
-        if !w.is_finite() {
-            return Err(SplineError::NonFiniteWeight { index, weight: *w });
-        }
-    }
-    Ok(())
+    geom_core::spline::check_weight_values(weights)
 }
 
 /// The all-poison point (every coordinate the scalar's poison) — the

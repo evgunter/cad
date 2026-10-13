@@ -19,6 +19,14 @@ crates/editor-core/src/mate/solve.rs	3	constant	<fn>	the identity's and the oppo
 crates/editor-core/src/placement.rs	1	constant	<fn>	a frame's stored coordinates, carried exactly (f64 by type in the document)
 crates/editor-core/src/ratio.rs	1	constant	self.den as f64	an authored ratio's denominator
 crates/editor-core/src/ratio.rs	1	constant	self.num as f64	an authored ratio's numerator
+crates/geom-brep/src/carrier_net.rs	1	constant	a	a span's start break, f64 structure, entered at the concrete Interval (never Sym)
+crates/geom-brep/src/carrier_net.rs	1	constant	b	a span's end break, f64 structure, entered at the concrete Interval (never Sym)
+crates/geom-brep/src/carrier_net.rs	1	constant	m	a span's Taylor node, a selection: the expansion is exact about whichever point it is handed
+crates/geom-brep/src/carrier_net.rs	1	constant	t	a line net's break, f64 structure, entered at the concrete Interval (never Sym)
+crates/geom-brep/src/carrier_net.rs	1	constant	j as f64	a factorial's integer factor
+crates/geom-brep/src/carrier_net.rs	1	constant	binom(j, k)	a binomial coefficient, an exact small integer
+crates/geom-brep/src/carrier_net.rs	1	constant	binom(i, k)	a binomial coefficient, an exact small integer
+crates/geom-brep/src/carrier_net.rs	1	constant	binom(n, k)	a binomial coefficient, an exact small integer
 crates/geom-brep/src/certify.rs	1	constant	f	a sample schedule's fraction
 crates/geom-brep/src/certify.rs	1	constant	schedule_param(domain.0, domain.1, i, samples)	held_station: an interior station of a fixed sample schedule, a point the schedule chose (the ends are the carrier's held ends)
 crates/geom-brep/src/certify.rs	2	constant	schedule_fraction(i, CERT_SAMPLES)	a sample schedule's fraction
@@ -119,12 +127,15 @@ crates/topo/src/boolean/sectors.rs	1	constant	2.0 * other.len() as f64	a count
 crates/topo/src/boolean/separating.rs	1	constant	2.0 * pad	the band's sweep pad, a tolerance
 crates/topo/src/boolean/separating.rs	1	constant	f64::from(n)	a count
 crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction of the schedule
+crates/topo/src/boolean/solid_contain.rs	1	constant	f64::from(k)	a decided whole-period count
 crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/boolean/sphere_region.rs	1	constant	share	a fixed split fraction
 crates/topo/src/chart_bound.rs	1	constant	<fn>	a fixed direction of the 2-D ray schedule (SCHEDULE_2D)
 crates/topo/src/chart_bound.rs	1	constant	k	a ring shift count (RING_SHIFTS)
 crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/chart_region.rs	1	constant	n as f64	a count
+crates/topo/src/chart_region.rs	1	constant	f64::from(k)	a decided whole-period count
+crates/topo/src/chord_join.rs	1	constant	f64::from(k)	a decided whole-period count
 crates/topo/src/joint.rs	1	constant	f64::from(self.u)	the element's integer period count
 crates/topo/src/joint.rs	1	constant	f64::from(self.v)	the element's integer polar-branch count
 crates/topo/src/loop_winding.rs	1	constant	f64::from(SPIRIC_PIECES)	the spiric quadrature's piece count

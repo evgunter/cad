@@ -48,3 +48,13 @@ The copies are told apart by the run each took (the run's sector face,
 or which piece of the side holds it); the name needs that qualifier, or
 the pair needs a tie (N2). Which one is a naming decision for the wire
 program.
+
+## Evidence: the boolean's answer to the same shape
+
+The pair boolean met the same shape, an operand corner held as several
+result vertices, and Ev ruled it (PR 4881, fork-log row 124): each copy
+is `From(x, v) + Fragment(Borders)` over the walls that divide the
+corner there (`crates/editor-core/src/names/README.md`, N2 *Vertices*),
+read by `borders::Obstacles::split_corner`. The Split's pieces are told
+apart by `Keeps`, not `Borders`, so the ruling does not settle this row,
+but it is the precedent a Split qualifier would be weighed against.

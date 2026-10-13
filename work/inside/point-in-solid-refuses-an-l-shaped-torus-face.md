@@ -60,3 +60,13 @@ bounded by spiric oval arcs, none a chart rectangle. Measured on
 When this lands those rows read `point_in_solid` at every sampled point
 and the stops move to bodies.
 
+## More evidence (GERM, `germ/one-face-torus-pierce-ring`)
+
+The torus less a box corner refuses `PartialTorusFace` at every one
+of 48 sampled points, in the ∪ and `T ∖ P` bodies (∩ and `P ∖ T` read
+at every point): the box `x ≥ 0 ∧ y ≥ h` against the one-face torus
+with its vertex on the inner equator (`h = −0.1, −0.3, −0.45`), and the
+bar `[−3, 3] × [0.2, 1.2] × [0, 3]` against the donut. Both are pinned
+in `crates/sweep/tests/germ_plane_torus_chord.rs`
+(`holds_to_the_truth_but`, `PARTIAL`), and go red when containment
+reads such a wall.

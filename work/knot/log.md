@@ -16,3 +16,15 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
 
 - **2026-10-12 — NURBS: PR 4892 merged, and the zero-weight row is on main** (`work/nurbs/knot-insertion-can-round-a-weight-to-zero`).
   - Surface insertion and refinement, and degree elevation's `elevate_bezier_stage`, share the shape; only removal guards it (`WeightCollapse`). — (NURBS orchestrator)
+
+- **2026-10-12 — seam note from NURBS: PR 4904 merged** (one rational surface bound: `geom_core::spline::rational_stretch_sup`, `NurbsSurface::stretch_sup`, `RationalPairTerm`).
+  - It touched `geom/src/surfaces/nurbs.rs`: `stretch_sup` memo via `session_memo`, and a hand-written Debug.
+  - It also touched `geom-core` `spline/derivative.rs`: one `pair_scale` now serves the span sup, the cell sup and `derivative_net`. — (NURBS orchestrator)
+
+- **2026-10-13 — seam note from NURBS: PR 4923 merged.** `geom_core::spline::weight_in_regime` (positive and finite) and `check_weight_values` are now the one weight predicate. Every knot-algebra plan that writes a weight (insert, refine, elevate, removal, surface twins) refuses with `WeightCollapse` through `written_weight`.
+  - `from_validated_parts`'s premise doc now names `written_weight` as the admission on the plan path.
+  - The `# Errors` of `insert_knot`, `refine_knots`, `split_at` and the surface twins name `WeightCollapse`.
+  - Removal's reinsertion can refuse; its index is a reinsertion slot. — (NURBS orchestrator)
+
+- **2026-10-13 — seam note from NURBS: PR 4928 merged (proven rational stretch and area floors).** `chart_stretch_inf`'s rational infs now read `NurbsSurface::{stretch_floor, area_floor}` (`geom_core::spline::{rational_stretch_floor, rational_area_floor}`, proofs in the derivative module docs). `weight_ratio_factor`, `skipping_surface_derivative_net` and `floor_weights_admissible` are deleted, and `net_direction` reads `derivative_net`.
+  - Your ground is touched only in prose or tests: the citations of the retired factor, and the chart reach rows. — (NURBS orchestrator)
