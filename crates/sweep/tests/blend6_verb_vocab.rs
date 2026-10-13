@@ -111,23 +111,25 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
 }
 
 /// The shared BATTERY refusal under the chamfer's verb: a turn whose
-/// bands' feet on its third edge stand apart, the overrun past the
-/// mitre that no band builds.
+/// bands' feet on its third edge are neither one point nor clearly
+/// apart, which escalates.
 #[test]
 fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_turn() {
-    let (body, turn) = crate::common::operands::leaning_turn(0.5);
+    let (body, turn) = crate::common::operands::leaning_turn_in_band(Tol::witness());
     let err = chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
         &turn,
         D,
         Tol::witness(),
     )
-    .expect_err("a turn whose faces are not symmetric overruns its mitre");
+    .expect_err("a turn read in band escalates");
     assert!(
         matches!(
             err.error,
-            BlendError::UnsupportedRunOut {
-                detail: sweep::blend::battery::TURN_OVERRUN,
+            BlendError::Escalated {
+                decision: sweep::blend::BlendDecision::TurnFeetGap
+                    | sweep::blend::BlendDecision::TurnOverrunChord
+                    | sweep::blend::BlendDecision::TurnFeet,
                 ..
             }
         ),

@@ -191,6 +191,19 @@ impl PendingRow {
             margin,
         }
     }
+
+    /// Face `a` of A tangent to face `b` of B, decided by `margin`
+    /// (the glue door's tangency, [`super::tangent_row`]'s decision).
+    pub(crate) fn tangent(a: FaceKey, b: FaceKey, margin: MarginDiag) -> Self {
+        Self {
+            cells: [
+                (Operand::A, super::Cell::Face(a)),
+                (Operand::B, super::Cell::Face(b)),
+            ],
+            relation: crate::Relation::SurfaceTangent,
+            margin: Some(margin),
+        }
+    }
 }
 
 impl ContactAcc {

@@ -610,13 +610,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "TangentSlitArmUnbuilt",
-            BooleanError::TangentSlitArmUnbuilt {
-                pair: declaration,
-                interior: Operand::A,
-            },
-        ),
-        (
             "SharedVertexCrossings",
             BooleanError::SharedVertexCrossings {
                 operand: Operand::B,
@@ -647,6 +640,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                     SectorRead::Pierce(FaceKey::default()),
                     SectorRead::Pair(VertexKey::default()),
                 ],
+            },
+        ),
+        (
+            "NestingUnread",
+            BooleanError::NestingUnread {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                partners: [VertexKey::default(); 2],
             },
         ),
         (

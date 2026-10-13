@@ -2672,9 +2672,12 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     // a spline: its evaluation clamps at its knot domain, so an edge's
     // end check reads `C(1)` at `t = 1.5` and passes. The domain ends
     // and the interval's outer ends are `f64` structure here (C6): the
-    // knot domain is stored `f64`, and the outer ends are the interval's
-    // certified bracket, so the comparison decides containment of every
-    // point the scalar admits and rounds nothing.
+    // knot domain is stored `f64`, and the outer ends are the edge
+    // interval's evaluation bracket (`Bounds`), so the comparison decides
+    // containment of every point the scalar admits and rounds nothing. A
+    // bracket whose decoration refuses never reaches here: check 2 of
+    // `run_fitted_checks`, this gate's only caller, has already decided
+    // `t1 − t0` through `decide`, which refuses an uncertified value.
     let (d0, d1) = image.knots().domain();
     if !(d0 <= t0.lo().min(t1.lo()) && t0.hi().max(t1.hi()) <= d1) {
         return Err(PcurveCertifyError::FittedCertificate {
