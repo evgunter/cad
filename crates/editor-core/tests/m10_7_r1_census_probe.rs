@@ -119,7 +119,7 @@ fn split_at_point(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static 
     for s in take_samples() {
         let row = out.entry(s.predicate).or_default();
         match s.outcome {
-            SampleOutcome::SymbolicZero => row.0 += 1,
+            SampleOutcome::Symbolic => row.0 += 1,
             _ => row.1 += 1,
         }
     }

@@ -2525,7 +2525,7 @@ const WEDGE: SizedDecision = SizedDecision {
     size: "angle",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// On a smooth edge, the faces' second-order separation: passes when
@@ -2537,7 +2537,7 @@ const SEPARATION: SizedDecision = SizedDecision {
     size: "curvature difference",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The ending a kernel defect gets: nothing the user can change in

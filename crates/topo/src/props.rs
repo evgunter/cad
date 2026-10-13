@@ -2966,7 +2966,7 @@ pub const SHELL_ROLE: SizedDecision = SizedDecision {
     size: "thickness",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// What a [`ShellClassifyError`] found, without the shell's key or a

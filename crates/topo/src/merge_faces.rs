@@ -1075,7 +1075,7 @@ const DECLARED_ORIENTATION: SizedDecision = SizedDecision {
     size: "span of the two faces",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The winding decision: its margin is the loop's signed area over its
@@ -1088,7 +1088,7 @@ const LOOP_WINDING: SizedDecision = SizedDecision {
     size: "area a loop encloses over its length",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 impl core::fmt::Display for MergeCoplanarError {
