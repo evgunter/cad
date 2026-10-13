@@ -493,7 +493,7 @@ fn an_edge_off_the_cone_refuses_as_incidence() {
         "rims replaced by chords",
         &[chords],
         &PropsError::OffSurface {
-            what: "props_meridian_generator",
+            what: "props_meridian_on_surface",
         },
     );
     let (s, c) = ALPHA.sin_cos();
@@ -532,7 +532,7 @@ fn an_edge_off_the_cone_refuses_as_incidence() {
         "a generator that misses the apex",
         &[missing],
         &PropsError::OffSurface {
-            what: "props_meridian_apex",
+            what: "props_meridian_on_surface",
         },
     );
 }

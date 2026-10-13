@@ -7,12 +7,19 @@
 //! the surface is refused `OffSurface`. Each in-band row is sized from
 //! the run's ε: the true distance at most `ε/10`, the deviation from the
 //! iso rim at least `2·K·ε`.
+//!
+//! **Lines likewise**: a line within band of the cylinder or cone but
+//! not a ruling or generator — tipped in the tangent plane, which leaves
+//! the surface to second order — is refused `NotIsoRectangle`, and the
+//! same tip toward the normal `OffSurface`, at `f64` and at the interval
+//! scalar.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::tol::{band, eps};
+use crate::shared::topo;
 use geom::{Curve3, Surface};
 use geom_brep::props::{LoopEdge, PropsError, require_iso_rectangle};
-use geom_core::{Point3, Vec3};
+use geom_core::{Decide, Interval, Point3, Real, Vec3};
 
 const TAU: f64 = core::f64::consts::TAU;
 const HALF_PI: f64 = core::f64::consts::FRAC_PI_2;
@@ -145,5 +152,195 @@ fn a_near_flat_cone_rim_off_axis_within_band_is_on_it_and_not_iso() {
     assert_eq!(
         require_iso_rectangle(&cone(alpha), &cone_band(alpha, 0.05, 0.0), band()),
         off_surface("props_cone_circle_off_axis"),
+    );
+}
+
+/// A loop as `(carrier, from, to)` edges at `f64`.
+type Spec = Vec<(Curve3<f64>, f64, f64)>;
+
+/// The iso parse of `spec` on `surface`, both lifted exactly into `T`.
+fn parse<T: Decide>(surface: &Surface<f64>, spec: &Spec) -> Result<(), PropsError> {
+    let n = u32::try_from(spec.len()).unwrap();
+    let edges: Vec<LoopEdge<T>> = spec
+        .iter()
+        .zip(0..)
+        .map(|((e, a, b), i)| topo::edge(e.map_scalar(T::from_f64), *a, *b, i, (i + 1) % n))
+        .collect();
+    require_iso_rectangle(&surface.map_scalar(T::from_f64), &edges, band())
+}
+
+/// `spec` parses to `want` at `f64` and at the interval scalar.
+fn parses_to(surface: &Surface<f64>, spec: &Spec, want: &Result<(), PropsError>, what: &str) {
+    assert_eq!(&parse::<f64>(surface, spec), want, "{what} at f64");
+    assert_eq!(
+        &parse::<Interval>(surface, spec),
+        want,
+        "{what} at the interval scalar"
+    );
+}
+
+fn unit(v: [f64; 3]) -> Vec3<f64> {
+    let n = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+    Vec3::new(v[0] / n, v[1] / n, v[2] / n)
+}
+
+/// A line from `p` along the unit `d` over `[0, len]`.
+fn line(p: Point3<f64>, d: Vec3<f64>, len: f64) -> (Curve3<f64>, f64, f64) {
+    (Curve3::Line { origin: p, dir: d }, 0.0, len)
+}
+
+/// A coaxial arc about `+z` at height `z`, radius `r`, from azimuth `a`
+/// to `b`.
+fn arc(z: f64, r: f64, a: f64, b: f64) -> (Curve3<f64>, f64, f64) {
+    (
+        Curve3::Circle {
+            center: Point3::new(0.0, 0.0, z),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        },
+        a,
+        b,
+    )
+}
+
+/// The unit cylinder's wall `u ∈ [0, 1]`, `z ∈ [0, 1]`, its ruling at
+/// `u = 0` replaced by `first` and stated first.
+fn cylinder_wall(first: (Curve3<f64>, f64, f64)) -> Spec {
+    let (s, c) = 1.0_f64.sin_cos();
+    vec![
+        first,
+        arc(1.0, 1.0, 0.0, 1.0),
+        line(Point3::new(c, s, 1.0), Vec3::new(0.0, 0.0, -1.0), 1.0),
+        arc(0.0, 1.0, 1.0, 0.0),
+    ]
+}
+
+/// The ruling at `u = 0` from `z = 0`, its direction tipped by `θ`
+/// toward `toward` (a unit vector normal to the axis).
+fn tipped_ruling(theta: f64, toward: [f64; 3]) -> (Curve3<f64>, f64, f64) {
+    let (s, c) = theta.sin_cos();
+    line(
+        Point3::origin() + Vec3::unit_x(),
+        unit([s * toward[0], s * toward[1], c]),
+        1.0,
+    )
+}
+
+/// The ruling tipped by `θ = √(ε/20)` in the tangent plane ends
+/// `θ²/2 = ε/40` off the cylinder and `sin θ` off the ruling, past
+/// `2·K·ε` at every committed ε: on the cylinder, not a ruling. Tipped
+/// as far toward the normal, outward or inward, it ends `sin θ` off. A
+/// chord between two rim points has its ends on the cylinder and sags
+/// `1 − cos ½` inside between them.
+#[test]
+fn a_cylinder_line_tipped_in_the_tangent_plane_is_on_it_and_not_a_ruling() {
+    let cyl = cylinder();
+    let theta = (eps() / 20.0).sqrt();
+    parses_to(
+        &cyl,
+        &cylinder_wall(tipped_ruling(0.0, [0.0, 1.0, 0.0])),
+        &Ok(()),
+        "the wall",
+    );
+    parses_to(
+        &cyl,
+        &cylinder_wall(tipped_ruling(theta, [0.0, 1.0, 0.0])),
+        &not_iso("props_meridian_axial"),
+        "tipped tangentially",
+    );
+    for toward in [[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]] {
+        parses_to(
+            &cyl,
+            &cylinder_wall(tipped_ruling(theta, toward)),
+            &off_surface("props_meridian_on_surface"),
+            &format!("tipped toward {toward:?}"),
+        );
+    }
+    let (s, c) = 1.0_f64.sin_cos();
+    let chord = [c - 1.0, s, 0.0];
+    let len = (chord[0] * chord[0] + chord[1] * chord[1]).sqrt();
+    parses_to(
+        &cyl,
+        &cylinder_wall(line(Point3::origin() + Vec3::unit_x(), unit(chord), len)),
+        &off_surface("props_meridian_on_surface"),
+        "a chord",
+    );
+}
+
+/// The wall `u ∈ [0, 1]`, slant `v ∈ [1, 2]` of `cone(alpha)`, its
+/// generator at `u = 0` replaced by `first` and stated first.
+fn cone_wall(alpha: f64, first: (Curve3<f64>, f64, f64)) -> Spec {
+    let (sa, ca) = alpha.sin_cos();
+    let (s, c) = 1.0_f64.sin_cos();
+    vec![
+        first,
+        arc(2.0 * ca, 2.0 * sa, 0.0, 1.0),
+        line(
+            Point3::new(2.0 * sa * c, 2.0 * sa * s, 2.0 * ca),
+            Vec3::new(-sa * c, -sa * s, -ca),
+            1.0,
+        ),
+        arc(ca, sa, 1.0, 0.0),
+    ]
+}
+
+/// The generator at `u = 0` from slant 1 to 2, its direction turned
+/// about its near end by `θ` toward `toward`.
+fn tipped_generator(alpha: f64, theta: f64, toward: Vec3<f64>) -> (Curve3<f64>, f64, f64) {
+    let (sa, ca) = alpha.sin_cos();
+    let (s, c) = theta.sin_cos();
+    let g = Vec3::new(sa, 0.0, ca);
+    let d = g * c + toward * s;
+    line(Point3::new(sa, 0.0, ca), unit([d.x, d.y, d.z]), 1.0)
+}
+
+/// At `α = ½`, the generator turned by `θ = √(ε/20)` in the tangent
+/// plane ends `cos α·θ²/(4·sin α) < ε/40` off the cone and misses the
+/// apex by `sin θ`, past `2·K·ε` at every committed ε: on the cone, not
+/// a generator. Turned as far toward the normal, it ends `sin θ` off.
+/// The line through both nappes at the generators' radius has its ends
+/// on the cone and is `sin α·cos α` off it where it crosses the apex's
+/// plane.
+#[test]
+fn a_cone_line_tipped_in_the_tangent_plane_is_on_it_and_not_a_generator() {
+    let alpha = 0.5;
+    let (sa, ca) = alpha.sin_cos();
+    let cone = cone(alpha);
+    let theta = (eps() / 20.0).sqrt();
+    let tangent = Vec3::unit_y();
+    let normal = Vec3::new(ca, 0.0, -sa);
+    parses_to(
+        &cone,
+        &cone_wall(alpha, tipped_generator(alpha, 0.0, tangent)),
+        &Ok(()),
+        "the wall",
+    );
+    parses_to(
+        &cone,
+        &cone_wall(alpha, tipped_generator(alpha, theta, tangent)),
+        &not_iso("props_meridian_apex"),
+        "turned tangentially",
+    );
+    for toward in [normal, -normal] {
+        parses_to(
+            &cone,
+            &cone_wall(alpha, tipped_generator(alpha, theta, toward)),
+            &off_surface("props_meridian_on_surface"),
+            &format!("turned toward {toward:?}"),
+        );
+    }
+    parses_to(
+        &cone,
+        &cone_wall(
+            alpha,
+            line(
+                Point3::new(sa, 0.0, ca),
+                Vec3::new(0.0, 0.0, -1.0),
+                2.0 * ca,
+            ),
+        ),
+        &off_surface("props_meridian_on_surface"),
+        "through both nappes",
     );
 }
