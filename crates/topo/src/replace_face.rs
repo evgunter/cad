@@ -3630,9 +3630,26 @@ fn plan_reanchors<T: Decide>(
             EdgeDescriptionSpec::TangentIntersection { pair, .. } => {
                 EdgeDescriptionSpec::TangentIntersection { pair, witness: mid }
             }
-            other @ (EdgeDescriptionSpec::OnPair { .. }
-            | EdgeDescriptionSpec::Chart { .. }
-            | EdgeDescriptionSpec::Scaffold(_)) => other,
+            // The re-anchor changes the edge's extent, which the
+            // must-carry verdict reads, so the pair is asked again over
+            // the edge as it now runs; its surfaces hold.
+            EdgeDescriptionSpec::OnPair { pair, declared } => {
+                let [ka, kb] = pair.keys();
+                let surface = |k| {
+                    body.get_surface(k).unwrap_or_else(|| {
+                        dangling_link(EntityId::Edge(edge), "description", GeomRef::Surface(k))
+                    })
+                };
+                crate::offset_restate::re_ask_on_pair(
+                    edge,
+                    [(ka, surface(ka)), (kb, surface(kb))],
+                    &carrier,
+                    (t0, t1),
+                    declared,
+                    band,
+                )?
+            }
+            other @ (EdgeDescriptionSpec::Chart { .. } | EdgeDescriptionSpec::Scaffold(_)) => other,
         };
         // A line or a clamped spline has no turn to choose, so a span
         // that stops being forward on it is the move's length alone.

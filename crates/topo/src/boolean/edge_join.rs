@@ -838,6 +838,7 @@ fn joined_spec<T: Decide>(
     body: &Body<T>,
     w: VertexKey,
     join: &Join,
+    band: Band,
 ) -> Result<geom_brep::EdgeCurveSpec<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let curve = |e: EdgeKey| {
@@ -887,6 +888,16 @@ fn joined_spec<T: Decide>(
             })?
     };
     let (a, b) = if backward { (tx, t1) } else { (t0, tx) };
+    // A declaration's parameter is affine in the carrier's, so the kept
+    // edge's runs on over the joined span exactly as a split restricts
+    // it; certification re-meters it.
+    let declared = match kept.authority() {
+        geom_brep::EdgeAuthority::Declared(mc) => {
+            let span = t1 - t0;
+            Some(mc.restrict((a - t0) / span, (b - t0) / span))
+        }
+        geom_brep::EdgeAuthority::Derived => None,
+    };
     let description = match kept.description() {
         geom_brep::EdgeDescription::Intersection { pair, .. } => {
             geom_brep::EdgeDescriptionSpec::Intersection {
@@ -900,30 +911,40 @@ fn joined_spec<T: Decide>(
                 witness: carrier.mid_point(a, b),
             }
         }
-        geom_brep::EdgeDescription::OnPair { pair } => geom_brep::EdgeDescriptionSpec::OnPair {
-            pair: *pair,
-            declared: match kept.authority() {
-                geom_brep::EdgeAuthority::Declared(mc) => {
-                    let span = t1 - t0;
-                    Some(mc.restrict((a - t0) / span, (b - t0) / span))
+        // The joined edge is longer than either piece, and the
+        // must-carry verdict reads its extent, so the pair is asked again
+        // over the joined span.
+        geom_brep::EdgeDescription::OnPair { pair } => {
+            let [ka, kb] = pair.keys();
+            let surface = |k| {
+                body.get_surface(k)
+                    .ok_or(desync("a joined edge's pair names a surface the body lacks"))
+            };
+            let chord = carrier.eval(a).distance(carrier.eval(b));
+            geom_brep::reask_pair(
+                [(ka, surface(ka)?), (kb, surface(kb)?)],
+                carrier,
+                (a, b),
+                chord,
+                declared,
+                band,
+            )
+            .map_err(|refusal| match refusal {
+                geom_brep::PairRefusal::InBand(escalation) => {
+                    let (reading, diag) = geom_brep::DihedralReading::of_must_carry(escalation);
+                    super::ops::seam_refusal(reading, diag)
                 }
-                geom_brep::EdgeAuthority::Derived => None,
-            },
-        },
+                geom_brep::PairRefusal::Mixed(stations) => BooleanError::MixedSeam {
+                    edge: join.kept,
+                    stations,
+                },
+            })?
+        }
         geom_brep::EdgeDescription::Chart(c) => geom_brep::EdgeDescriptionSpec::Chart {
             surface: c.surface,
             image: if c.wrap { None } else { Some(c.pcurve.clone()) },
             wrap: c.wrap,
-            // A declaration's parameter is affine in the carrier's, so
-            // the kept edge's runs on over the joined span exactly as a
-            // split restricts it; certification re-meters it.
-            declared: match kept.authority() {
-                geom_brep::EdgeAuthority::Declared(mc) => {
-                    let span = t1 - t0;
-                    Some(mc.restrict((a - t0) / span, (b - t0) / span))
-                }
-                geom_brep::EdgeAuthority::Derived => None,
-            },
+            declared,
         },
         geom_brep::EdgeDescription::Scaffold(_) => {
             return Err(desync("a joined edge is scaffolding at rest"));
@@ -960,7 +981,7 @@ fn join_one<T: Decide + crate::props::AtRestPolicy>(
                 what: "a joined edge is not the kill's merged member",
             })?
     } else {
-        joined_spec(body, w, join)?
+        joined_spec(body, w, join, band)?
     };
     let killed = body
         .kev_describing(join.he, &[(join.kept, spec)], tol)

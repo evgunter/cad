@@ -660,6 +660,163 @@ fn the_shoulder_seam_stores_one_description_through_the_chord_and_split_edge() {
     );
 }
 
+/// The cap of `piece` lying in `z = height`.
+fn cap_at(piece: &Body<f64>, height: f64) -> topo::FaceKey {
+    let caps: Vec<_> = piece
+        .faces()
+        .filter(|(_, f)| {
+            matches!(
+                piece.get_surface(f.surface),
+                Some(geom::Surface::Plane { origin, normal, .. })
+                    if normal.z.abs() > 0.5 && (origin.z - height).abs() < 1e-6
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    let [cap] = caps[..] else {
+        panic!("one cap at z = {height}, got {}", caps.len())
+    };
+    cap
+}
+
+/// **An offset that lengthens the pair re-asks it.** The thin
+/// shoulder's chord seam (`h = ½√(2ε)`, under-determined, `OnPair`) is
+/// re-anchored when either cap moves out by `d`; the seam is then
+/// `h + d` long, its sagitta far past `K·ε`, so the rule over the edge
+/// as it now runs demands the intrinsic tangency, and the body is valid
+/// at rest. Keeping the pair verbatim left a body tier 3 refuses
+/// (`TangentNotIntrinsic`).
+#[test]
+fn an_offset_cap_re_asks_the_shoulder_pair_over_its_new_length() {
+    let h = 0.5 * (2.0 * tol().eps()).sqrt();
+    let wall = topo::split(&shoulder(h), &shoulder_cut(), tol())
+        .expect("the thin shoulder cuts at its seam")
+        .above
+        .body()
+        .expect("material on the wall's side")
+        .clone();
+    assert_eq!(
+        shoulder_seam(&wall).0,
+        "OnPair",
+        "the short seam is the pair"
+    );
+    for height in [0.0, h] {
+        for d in [1e-3, 1e-2] {
+            let label = format!("the cap at z = {height:e} moved out by {d:e}");
+            let mut body = wall.clone();
+            topo::replace_faces_offset(&mut body, &[cap_at(&wall, height)], d, tol())
+                .unwrap_or_else(|e| panic!("{label}: the offset builds, got {e:?}"));
+            assert_eq!(
+                topo::validate_geometric(&body, tol()),
+                Ok(()),
+                "{label}: the body is valid at rest"
+            );
+            assert_eq!(
+                shoulder_seam(&body),
+                (
+                    "TangentIntersection",
+                    vec![geom::SurfaceKind::Cylinder, geom::SurfaceKind::Plane]
+                ),
+                "{label}: the lengthened seam is the determinate tangency"
+            );
+        }
+    }
+}
+
+/// **A join that lengthens the pair re-asks it.** The wall piece of a
+/// shoulder `7·√(2ε)` deep carries its seam as the intrinsic tangency;
+/// `split_edge` cuts two pieces `d = c·√(2ε)` long off its start, each
+/// under-determined (`OnPair`, `c² ≤ 1`), the rest determinate. The join
+/// takes the vertex between the two pieces (a pair and a tangency do not
+/// join) and asks the rule again over the joined seam, `2d` long:
+///
+/// - `(2c)² ≤ 1` — still under-determined: one `OnPair` seam;
+/// - `1 < (2c)² < K` — in band: the join refuses with the seam's own
+///   second-order decision, never storing the pair it no longer is.
+#[test]
+fn a_join_of_two_pair_pieces_re_asks_the_joined_seam() {
+    let unit = (2.0 * tol().eps()).sqrt();
+    let ruling = |piece: &Body<f64>| -> Vec<EdgeKey> {
+        let eps = tol().eps();
+        let on = |p: Point3<f64>| p.x.abs() <= eps && (p.y - 1.0).abs() <= eps;
+        let point = |v| *piece.get_point(piece.get_vertex(v).unwrap().point).unwrap();
+        piece
+            .edges()
+            .filter(|(_, e)| {
+                on(point(piece.get_half_edge(e.he_plus).unwrap().start))
+                    && on(point(piece.half_edge_end(e.he_plus).unwrap()))
+            })
+            .map(|(k, _)| k)
+            .collect()
+    };
+    let description = |piece: &Body<f64>, e: EdgeKey| {
+        let curve = piece.get_edge(e).unwrap().curve;
+        let c = piece.get_curve_geom(curve).unwrap().certified().unwrap();
+        (format!("{:?}", c.description()), c.params())
+    };
+    for (c, joined_in_band) in [(0.4, false), (0.9, true)] {
+        let d = c * unit;
+        let label = format!("d = {c}·√(2ε)");
+        let mut body = topo::split(&shoulder(7.0 * unit), &shoulder_cut(), tol())
+            .expect("the shoulder cuts at its seam")
+            .above
+            .body()
+            .expect("material on the wall's side")
+            .clone();
+        let [seam] = ruling(&body)[..] else {
+            panic!("{label}: one seam")
+        };
+        let cut = |body: &mut Body<f64>, e: EdgeKey, len: f64| {
+            let (_, (t0, t1)) = description(body, e);
+            body.split_edge(e, t0 + (t1 - t0) * (d / len), tol())
+                .unwrap_or_else(|err| panic!("{label}: the seam splits, got {err:?}"))
+                .new_edge
+        };
+        let rest = cut(&mut body, seam, 7.0 * unit);
+        cut(&mut body, rest, 7.0 * unit - d);
+        let pairs = ruling(&body)
+            .into_iter()
+            .filter(|&e| description(&body, e).0.starts_with("OnPair"))
+            .count();
+        assert_eq!(pairs, 2, "{label}: two pieces are the pair");
+        let band = geom_core::Band::linear(tol()).unwrap();
+        match body.join_edges(band, tol()) {
+            Ok(_) if !joined_in_band => {
+                assert_eq!(
+                    topo::validate_geometric(&body, tol()),
+                    Ok(()),
+                    "{label}: valid at rest"
+                );
+                let kinds: Vec<_> = ruling(&body)
+                    .into_iter()
+                    .map(|e| {
+                        description(&body, e)
+                            .0
+                            .split(' ')
+                            .next()
+                            .unwrap()
+                            .to_string()
+                    })
+                    .collect();
+                assert_eq!(
+                    kinds.iter().filter(|k| k.as_str() == "OnPair").count(),
+                    1,
+                    "{label}: the two pieces join into one pair, got {kinds:?}"
+                );
+            }
+            Err(topo::BooleanError::Escalated {
+                decision: topo::BooleanDecision::SeamJet,
+                diag,
+            }) if joined_in_band => assert_eq!(
+                diag.predicate,
+                Some("tangent_second_order"),
+                "{label}: the joined seam's sagitta decides"
+            ),
+            other => panic!("{label}: got {:?}", other.map(|_| ())),
+        }
+    }
+}
+
 /// **A cut turned about the tangent ruling refuses before the chord's
 /// first-order reading.** The section table reads the turned plane
 /// tangent while the wall's sag off it stays in the zero band, and the

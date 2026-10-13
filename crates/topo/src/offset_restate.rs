@@ -83,14 +83,11 @@ pub(crate) fn restate<T: Real>(
     })
 }
 
-/// **An `OnPair` edge moved onto `carrier`**, re-asked the must-carry
-/// rule against the pair as it now stands (D2): `surfaces` are the
-/// pair's two surfaces after the move, each with the key the edge's
-/// description names. The pair may now determine the locus — a corner
-/// (`Intersection`) or a jet-determinate tangency
-/// (`TangentIntersection`), each witnessed at the carrier's middle and
-/// derived, so a declaration does not ride it — or still
-/// under-determine it, when it stays `OnPair` with its declaration.
+/// **An `OnPair` edge whose pair or extent a door changed**, re-asked
+/// the must-carry rule as it now stands ([`geom_brep::reask_pair`]):
+/// `surfaces` are the pair's two surfaces after the door, each with the
+/// key the edge's description names, and `carrier` over `(t0, t1)` is
+/// the edge after it.
 ///
 /// # Errors
 ///
@@ -105,25 +102,15 @@ pub(crate) fn re_ask_on_pair<T: Decide>(
     declared: Option<MappedCurve<T>>,
     band: Band,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    use geom_brep::MustCarryVerdict as V;
-    let [(ka, a), (kb, b)] = surfaces;
-    let (pair, [sa, sb]) = SurfacePair::sorted(ka, a, kb, b);
-    let witness = carrier.mid_point(t0, t1);
-    let extent =
-        geom_brep::edge_extent(carrier, t0, t1, carrier.eval(t0).distance(carrier.eval(t1)));
-    Ok(
-        match geom_brep::must_carry_over_edge(sa, sb, carrier, t0, t1, extent, band) {
-            V::Transverse => EdgeDescriptionSpec::Intersection { pair, witness },
-            V::JetDeterminate => EdgeDescriptionSpec::TangentIntersection { pair, witness },
-            V::UnderDetermined => EdgeDescriptionSpec::OnPair { pair, declared },
-            V::Mixed(stations) => return Err(ReplaceFaceError::MixedEdge { edge, stations }),
-            V::InBand(escalation) => {
-                return Err(ReplaceFaceError::Escalated {
-                    source: escalation.diag(),
-                });
-            }
-        },
-    )
+    let chord = carrier.eval(t0).distance(carrier.eval(t1));
+    geom_brep::reask_pair(surfaces, carrier, (t0, t1), chord, declared, band).map_err(|refusal| {
+        match refusal {
+            geom_brep::PairRefusal::Mixed(stations) => ReplaceFaceError::MixedEdge { edge, stations },
+            geom_brep::PairRefusal::InBand(escalation) => ReplaceFaceError::Escalated {
+                source: escalation.diag(),
+            },
+        }
+    })
 }
 
 /// An edge whose description is an image in `held`'s chart, `held`

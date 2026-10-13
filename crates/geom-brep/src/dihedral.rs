@@ -1027,6 +1027,56 @@ pub fn must_carry_description<T: Decide, E>(
     }
 }
 
+/// Why a conventional pair re-asked the rule ([`reask_pair`]) has no
+/// description.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PairRefusal {
+    /// A station certifiable as neither, with its escalation.
+    InBand(MustCarryEscalation),
+    /// Neighbouring stations that disagree ([`MixedStations`]).
+    Mixed(MixedStations),
+}
+
+/// **A conventional pair re-asked the must-carry rule** after a door
+/// changed its edge: its extent (a split, a join, a re-anchored end) or
+/// its surfaces (an offset). The verdict reads the edge's extent as well
+/// as its pair, so an `OnPair` stays one only where the rule still reads
+/// the join under-determined over the edge as it now stands. A corner
+/// is the pair's `Intersection` and a determinate tangency its
+/// `TangentIntersection`, each witnessed at the carrier's middle and
+/// derived, so a declaration does not ride either; under-determined
+/// keeps the pair with `declared`.
+///
+/// # Errors
+///
+/// [`PairRefusal`] on an in-band or mixed verdict.
+pub fn reask_pair<T: Decide>(
+    surfaces: [(crate::SurfaceKey, &Surface<T>); 2],
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    chord: T,
+    declared: Option<crate::mapped::MappedCurve<T>>,
+    band: Band,
+) -> Result<crate::EdgeDescriptionSpec<T>, PairRefusal> {
+    let [(ka, a), (kb, b)] = surfaces;
+    let (pair, [sa, sb]) = crate::SurfacePair::sorted(ka, a, kb, b);
+    let witness = carrier.mid_point(t0, t1);
+    let extent = crate::edge_extent(carrier, t0, t1, chord);
+    match must_carry_over_edge(sa, sb, carrier, t0, t1, extent, band) {
+        MustCarryVerdict::Transverse => {
+            Ok(crate::EdgeDescriptionSpec::Intersection { pair, witness })
+        }
+        MustCarryVerdict::JetDeterminate => {
+            Ok(crate::EdgeDescriptionSpec::TangentIntersection { pair, witness })
+        }
+        MustCarryVerdict::UnderDetermined => {
+            Ok(crate::EdgeDescriptionSpec::OnPair { pair, declared })
+        }
+        MustCarryVerdict::Mixed(stations) => Err(PairRefusal::Mixed(stations)),
+        MustCarryVerdict::InBand(escalation) => Err(PairRefusal::InBand(escalation)),
+    }
+}
+
 /// Why a join entered as definitely smooth gets no description:
 /// [`must_carry_description`] routes it to its caller's typed refusals.
 #[derive(Clone, Copy, Debug, PartialEq)]

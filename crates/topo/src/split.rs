@@ -256,7 +256,9 @@ impl<T: Decide> Body<T> {
     /// jet-determinate.
     ///
     /// Under-determined stores the conventional pair over the parent's
-    /// pair ([`geom_brep::EdgeDescriptionSpec::OnPair`]).
+    /// pair ([`geom_brep::EdgeDescriptionSpec::OnPair`]). A pair child is
+    /// asked again too ([`geom_brep::reask_pair`]): its extent is not
+    /// its parent's, and the verdict reads it.
     ///
     /// The pair's keys are links of the parent's certified description,
     /// so a key that does not resolve is a torn body, not a refusal.
@@ -267,11 +269,6 @@ impl<T: Decide> Body<T> {
         [p0, p1]: [Point3<T>; 2],
         band: Band,
     ) -> Result<EdgeCurveSpec<T>, EulerOpError> {
-        let geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, witness } =
-            spec.description
-        else {
-            return Ok(spec);
-        };
         let surface = |k| {
             self.get_surface(k).unwrap_or_else(|| {
                 dangling_link(
@@ -280,6 +277,44 @@ impl<T: Decide> Body<T> {
                     GeomRef::Surface(k),
                 )
             })
+        };
+        let (pair, witness) = match spec.description {
+            geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, witness } => {
+                (pair, witness)
+            }
+            geom_brep::EdgeDescriptionSpec::OnPair { pair, declared } => {
+                let [ka, kb] = pair.keys();
+                let description = geom_brep::reask_pair(
+                    [(ka, surface(ka)), (kb, surface(kb))],
+                    &spec.carrier,
+                    (spec.param_start, spec.param_end),
+                    p0.distance(p1),
+                    declared,
+                    band,
+                )
+                .map_err(|refusal| match refusal {
+                    geom_brep::PairRefusal::InBand(geom_brep::MustCarryEscalation::FirstOrder(
+                        escalation,
+                    )) => EulerOpError::SplitTangentEscalated {
+                        edge,
+                        diag: escalation.diag(),
+                    },
+                    geom_brep::PairRefusal::InBand(geom_brep::MustCarryEscalation::SecondOrder(
+                        diag,
+                    )) => EulerOpError::SplitTangentBendEscalated { edge, diag },
+                    geom_brep::PairRefusal::Mixed(stations) => EulerOpError::SplitTangentRefuted {
+                        edge,
+                        mixed: Some(stations),
+                    },
+                })?;
+                return Ok(EdgeCurveSpec {
+                    description,
+                    ..spec
+                });
+            }
+            geom_brep::EdgeDescriptionSpec::Intersection { .. }
+            | geom_brep::EdgeDescriptionSpec::Chart { .. }
+            | geom_brep::EdgeDescriptionSpec::Scaffold(_) => return Ok(spec),
         };
         let [ka, kb] = pair.keys();
         let description = geom_brep::must_carry_description(

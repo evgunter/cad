@@ -57,11 +57,11 @@
 //! edge's adjacent pair. The describe pass restates each one in what
 //! the must-carry rule demands over its current pair
 //! (`describe_section_boundary`'s smooth arm) — for two flush planes,
-//! whose zero second order under-determines the locus, an image in the
-//! section chart — so a coplanar product's boundary descriptions are
+//! whose zero second order under-determines the locus, the pair
+//! (`OnPair`) — so a coplanar product's boundary descriptions are
 //! adjacency-coherent at rest; on a NEAR-flush operand the same
-//! restatement meters the section chart's containment, and a line chord
-//! the band cannot decide refuses as the edge's own reading
+//! restatement meters the edge's incidence on both planes, and a line
+//! chord the band cannot decide refuses as the edge's own reading
 //! ([`SplitFinishError::EdgeOnFacesEscalated`]).
 
 use geom_core::{Decide, Real, UnitVec3, Vec3};

@@ -130,6 +130,11 @@ fn an_edge_at_the_zero_bands_edge_refuses_typed_and_its_lever_builds() {
 /// At each ε row, each [`PAIR_POSES`] split builds, every piece tier-3
 /// valid: the smooth edge at the zero band's edge is the pair's
 /// conventional locus, and its incidence on both planes reads within ε.
+/// The section face and the flush prism face it meets there are left
+/// unmerged, as every coplanar artifact of a split is (F7, the module
+/// docs of `topo::splitting::finish`): the piece carrying them refuses
+/// as a boolean operand until the caller's `merge_coplanar_faces`, and
+/// is a legal one after it.
 #[test]
 fn a_smooth_edge_at_the_zero_bands_edge_states_the_pair_and_builds() {
     let tol = Tol::witness();
@@ -162,6 +167,45 @@ fn a_smooth_edge_at_the_zero_bands_edge_states_the_pair_and_builds() {
                 {
                     if let Err(errors) = topo::validate_geometric(piece, tol) {
                         wrong.push(format!("{tag}: a piece is invalid at rest: {errors:?}"));
+                        continue;
+                    }
+                    let operand = |b: &topo::Body<f64>| {
+                        let far = topo::AtRestBody::validate(
+                            sweep::test_support::brick(
+                                (50.0, 51.0),
+                                (50.0, 51.0),
+                                (50.0, 51.0),
+                                tol,
+                            ),
+                            tol,
+                        )
+                        .unwrap();
+                        topo::AtRestBody::validate(b.clone(), tol)
+                            .map_err(|e| format!("{e:?}"))
+                            .and_then(|a| {
+                                topo::union(&a, &far, tol)
+                                    .map(|_| ())
+                                    .map_err(|e| format!("{e:?}"))
+                            })
+                    };
+                    // The split leaves the section face and its flush
+                    // neighbour unmerged (F7: merging is the caller's
+                    // opt-in), so the piece carrying the pair is not yet an
+                    // operand; merged, it is.
+                    match operand(piece) {
+                        Ok(()) => {}
+                        Err(e) if e.starts_with("NonMaximalFaces") => {}
+                        Err(e) => {
+                            wrong.push(format!("{tag}: unmerged piece refuses otherwise: {e}"))
+                        }
+                    }
+                    let mut merged = piece.clone();
+                    if let Err(e) = merged.merge_coplanar_faces(tol) {
+                        wrong.push(format!("{tag}: the coplanar merge refuses: {e:?}"));
+                        continue;
+                    }
+                    if let Err(e) = operand(&merged) {
+                        wrong.push(format!("{tag}: merged piece is no operand: {e}"));
                     }
                 }
             }
