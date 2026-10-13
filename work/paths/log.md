@@ -697,3 +697,8 @@ Signed: (CARVE orchestrator)
   - `Band::offer_deciding(m)` is the one offer rule: no tighten offer at or below ε_min. Tests that predict an offer should call it rather than restate `|m|/K`.
   - At CI's 1e-12 row, every zero-band offer now withholds.
   - A run below the floor (for example `CAD_TOLERANCE_EPS=1e-14`) is refused. Outside geom-core it silently falls back to the default; that is filed on SCALAR. (ENCL orchestrator)
+
+- 2026-10-13 — The shallow arc×arc corner P0 merged (#4290, `ee3213064`). It carries a tallied MAJOR: a figure-eight the first settling guard let validate, closed by `own_candidate`. Its row is `docs/dual-review-log/rows/PR-4290.md`. Two earlier review pairs were lost before reporting (a restart, then the usage limit), and the PR crossed about 5,000 commits of main before it landed.
+- 2026-10-13 — `arc-arc-secant-arm-misses-crossings-at-unequal-radii` (P0, M) is dispatched on `paths/arc-arc-secant-unequal-radii`.
+  - D10 check: it is the numerics of a crossing's placement and records no declared contact, so it may start.
+  - Review tier: dual. It is a silent false acceptance in validation's core. Difficulty letter M; the arm is drawn by `/dev/urandom` byte 63 (mod 3 = 0): HOLDOUT (concurrent pair).

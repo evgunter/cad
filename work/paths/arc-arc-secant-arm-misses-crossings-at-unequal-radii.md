@@ -2,9 +2,11 @@
 id: arc-arc-secant-arm-misses-crossings-at-unequal-radii
 kind: issue
 title: At f64, arc_arc's secant arm misplaces the crossings of two circles whose radii differ by orders of magnitude, so arcs that cross read no contact and a self-crossing profile validates
-status: open
+status: dispatched
 opened: 2026-10-12
 priority: P0
+cost: M
+branch: paths/arc-arc-secant-unequal-radii
 ---
 
 
