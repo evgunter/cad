@@ -26,11 +26,11 @@ point), the gate passes, and the attach door refuses:
 
 ```
 replace_face_offset: the attach door refused EdgeKey(5v1): geometry
-attachment gate: the stored parameter interval spans no length at this
-tolerance — a degenerate zero-span interval, which the forward gate
-refuses. Recourse: move the geometry so this edge is not vanishingly
-short; an edge of no length, or a reversed one, is one no kernel
-construction mints, so this is a kernel defect worth reporting
+attachment gate: the stored parameter interval is not shown to run
+forward at this tolerance (margin 0e0 m). Recourse: move the geometry
+so this edge is not vanishingly short; an edge of no length, or a
+reversed one, is one no kernel construction mints, so this is a kernel
+defect worth reporting
 ```
 
 (`Op { edge: Some(EdgeKey(5v1)), error: Certification { error:

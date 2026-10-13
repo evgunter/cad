@@ -4,10 +4,8 @@ kind: issue
 title: geom-brep: PlaneNurbsRefusal::NotTransverse says the tangent planes coincide on a Zero verdict, and prints no margin
 status: open
 opened: 2026-10-13
----
-
 priority: P3
-cost: S
+cost: E
 ---
 
 (Filed by the ENCL implementer of `zero-arm-payloads-overclaim-and-print-no-margin`, from its sweep for Zero/collapse payload Displays.)

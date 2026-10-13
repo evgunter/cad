@@ -4,10 +4,8 @@ kind: issue
 title: topo: SplitParamNotInterior's Zero arm says the crossing lands on an end, and prints no margin
 status: open
 opened: 2026-10-13
----
-
 priority: P3
-cost: S
+cost: E
 ---
 
 (Filed by the ENCL implementer of `zero-arm-payloads-overclaim-and-print-no-margin`, from its sweep for Zero/collapse payload Displays.)

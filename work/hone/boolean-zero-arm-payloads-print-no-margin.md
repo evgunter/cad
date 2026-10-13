@@ -4,10 +4,8 @@ kind: issue
 title: topo: CurvedSectorSideUnsupported's and SpheresMeet's Zero arms print no margin
 status: open
 opened: 2026-10-13
----
-
 priority: P3
-cost: S
+cost: E
 ---
 
 (Filed by the ENCL implementer of `zero-arm-payloads-overclaim-and-print-no-margin`, from its sweep for Zero/collapse payload Displays.)
@@ -23,3 +21,7 @@ Since that unit, geom-brep's Zero-arm payloads print their margin and claim no s
 ## Repair shape
 
 Print `verdict.margin()` in each Zero arm, as geom-brep's `CertifyError` Zero arms do.
+
+## Also (PR 4976 review, a bare `Sign::Zero`)
+
+`crates/topo/src/boolean/ops.rs`, the `sign("bool_sphere_cut_vertex", Margin::of((q - p).norm()))` reads at the cut's vertex: when neither end reads Zero, the refusal says "the cut's meridian meets a boundary arc at its end, off its vertices", stated as exact, with no margin. A `Sign::Zero` from `from_lo`/`to_hi` is band-decided, so "at its end" is a reading inside the zero band, not a proved meeting. Repair shape as above: carry the margin and say "not shown … at this tolerance (margin … m)".
