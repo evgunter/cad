@@ -1416,12 +1416,14 @@ mod tests {
     /// **A gate's rejected Zero ends in the arm's zero note on the
     /// undecided arm** (`SizedDecision::recourse`): a reader that routes
     /// the arm gate's rejection as `RefusedArm::Undecided` ends it as the
-    /// Zero arm does, at a build, at rest and at the import door. A zero
-    /// with no size to tighten below — read, proved, or rounding whose
-    /// tolerance lies below `EPS_MIN` — takes the note; a rejected zero a
-    /// smaller tolerance decides passing is offered that tolerance and no
-    /// note; and neither an untagged in-band margin nor a rejected
-    /// Negative takes it.
+    /// Zero arm does, at a build, at rest and at the import door. A
+    /// reading that shows no size — a read or proved zero, or an untagged
+    /// in-band margin on the refused side — takes the note at a build and
+    /// at rest; a positive rounding whose tolerance lies below `EPS_MIN`
+    /// takes the floor's sentence instead; a rejected zero a smaller
+    /// tolerance decides passing is offered that tolerance; a rejected
+    /// Negative ends in the lever alone; and at the import door no
+    /// reading takes the note.
     #[test]
     fn a_gates_rejected_zero_ends_in_the_arms_zero_note() {
         use geom_core::sym::with_session;
@@ -1476,22 +1478,26 @@ mod tests {
             "{lever}, or, if this length or the gap its faces open is intended, tighten the \
              tolerance below 5e-11 m"
         );
+        let floor = format!(
+            "{lever}; {}",
+            geom_core::floor_note("length or the gap its faces open")
+        );
         let file = FileCoincidence::new(1e-8);
         let rows: [(&str, &Indeterminate, [String; 3]); 6] = [
             (
                 "a read zero",
                 &read,
-                [noted.clone(), noted.clone(), format!("{unstated}{noted}")],
+                [noted.clone(), noted.clone(), format!("{unstated}{lever}")],
             ),
             (
                 "a proved zero",
                 &proved,
-                [noted.clone(), noted.clone(), format!("{unstated}{noted}")],
+                [noted.clone(), noted.clone(), format!("{unstated}{lever}")],
             ),
             (
                 "a rounded zero",
                 &rounded,
-                [noted.clone(), noted.clone(), format!("{unstated}{noted}")],
+                [floor.clone(), floor, format!("{unstated}{lever}")],
             ),
             (
                 "a small size",
@@ -1507,13 +1513,9 @@ mod tests {
                 ],
             ),
             (
-                "an untagged in-band margin",
+                "an untagged in-band margin on the refused side",
                 &in_band,
-                [
-                    lever.to_owned(),
-                    lever.to_owned(),
-                    format!("{unstated}{lever}"),
-                ],
+                [noted.clone(), noted, format!("{unstated}{lever}")],
             ),
             (
                 "a rejected Negative",
@@ -2206,6 +2208,59 @@ mod tests {
                 Some(Sign::Zero)
             )
         );
+    }
+
+    /// **A cone's apex at the import door ends in the door's sentence and
+    /// the lever, without the arm's zero note** — the accepted cost of
+    /// one message below ε_in: the door cannot tell an apex the file
+    /// states exactly from a rounded zero, so the note that names the
+    /// apex rides only away from the door. The apex arm reads exactly
+    /// 0.0 on the `f64` lane; both routes a reader takes end alike. Red
+    /// if the note returns at the door or leaves the at-rest ending.
+    #[test]
+    fn a_cone_apex_at_the_import_door_keeps_its_lever_and_loses_its_note() {
+        use geom_core::FileCoincidence;
+
+        use crate::recourse::{Reading, RefusedArm};
+
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: std::f64::consts::FRAC_PI_6,
+            u_ref: Vec3::unit_x(),
+        };
+        let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
+        let err = classify_dihedral(&cone, &s1, Point3::origin(), 1.0, band()).unwrap_err();
+        let diag = err.diag();
+        let geom_core::ErrorTextReading::Value(m) = diag.margin.diagnostic_f64_for_error_text()
+        else {
+            panic!("the apex arm is a point reading: {err:?}");
+        };
+        assert_eq!(
+            m.to_bits(),
+            0.0_f64.to_bits(),
+            "the apex arm reads exactly +0.0"
+        );
+        let collapsed = err.collapsed_arm().expect("the apex's arm is decided zero");
+        let note = "leaves no angle to measure";
+        let lever = "Recourse: move the geometry so that edge is clearly longer and no face \
+                     curves tightly there";
+        let file = FileCoincidence::new(1e-6);
+        for arm in [RefusedArm::Undecided(&diag), collapsed.arm()] {
+            let at_rest = DIHEDRAL_ARM.recourse(arm, Reading::AtRest);
+            assert!(
+                at_rest.starts_with(lever) && at_rest.ends_with(note),
+                "{arm:?} at rest: {at_rest}"
+            );
+            assert_eq!(
+                DIHEDRAL_ARM.recourse(arm, file),
+                format!(
+                    "This length or the gap its faces open is below the file's declared \
+                     coincidence distance ε_in = 1e-6 m, so the file does not state it. {lever}"
+                ),
+                "{arm:?} at the import door"
+            );
+        }
     }
 
     /// Two coplanar faces on one tangent plane: material sides agree

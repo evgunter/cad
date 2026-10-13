@@ -978,10 +978,11 @@ mod tests {
     /// on every arm; the conditional tighten, valued at `m/K`, only on
     /// a band-decided arm whose margin is positive (a zero verdict
     /// inside the band, or an undecided margin); the lever alone on the
-    /// sign-certain arm, on a margin on the refused side, and straddling
-    /// zero; the report clause on a zero floor, which no tolerance
-    /// resolves; and a poisoned margin keeps the lever and says what it
-    /// may mean. Read with another lever, each ending keeps its shape
+    /// sign-certain arm and straddling zero; the report clause on a floor
+    /// that shows no size — zero, or in band on the refused side — which
+    /// no tolerance resolves, and where the decision has none, the lever
+    /// alone there; and a poisoned margin keeps the lever and says what
+    /// it may mean. Read with another lever, each ending keeps its shape
     /// and swaps the lever alone.
     #[test]
     fn each_meter_arm_ends_in_its_decisions_recourse() {
@@ -1006,7 +1007,7 @@ mod tests {
             (escalated(Meter::NormalFloor, straddle), SPLIT.to_owned()),
             (
                 escalated(Meter::NormalFloor, MarginDiag::value(-5e-9)),
-                SPLIT.to_owned(),
+                format!("{SPLIT}{REPORT}"),
             ),
             (
                 escalated(Meter::NormalFloor, MarginDiag::INVALID),

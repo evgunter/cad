@@ -608,8 +608,9 @@ mod tests {
     /// The two-sided decision through the table: a void-side margin is
     /// offered the tolerance at its magnitude, on either band-decided
     /// arm; an enclosure across zero names the lever alone; a zero of no
-    /// size names the lever and the decision's note; an unreadable
-    /// margin names the lever and says what it may mean.
+    /// size names the lever and the decision's note, save at the import
+    /// door, where the lever stands alone; an unreadable margin names the
+    /// lever and says what it may mean.
     #[test]
     fn a_two_sided_decision_ends_by_its_verdict() {
         let decision = SizedDecision {
@@ -693,14 +694,105 @@ mod tests {
                 1e-8
             ),
             "This thickness is below the file's declared coincidence distance ε_in = 1e-8 m, so \
-             the file does not state it. Recourse: L; at rest",
-            "a zero of no size names the lever and the decision's note"
+             the file does not state it. Recourse: L",
+            "a zero of no size at the import door names the lever and no decision's note"
         );
         assert_eq!(
             zero_in_file(1e-9),
             offer,
             "a size past ε_in reads as at rest"
         );
+    }
+
+    /// **Either route ends a reading alike** (`SizedDecision::recourse`):
+    /// what the ending adds is read from the number, so a gate's rejected
+    /// Zero routed as `RefusedArm::Undecided`, the same reading untagged
+    /// on that route, and the Zero arm end identically at a build, at
+    /// rest and at the import door, on both lanes — the decision's note on
+    /// a reading that shows no size, the floor's sentence on a sub-floor
+    /// size, the lever alone on an enclosure across zero, the offer on a
+    /// size — and the import door adds no note. Red if a route keys the
+    /// note on the tag rather than the reading.
+    #[test]
+    fn either_route_ends_a_reading_alike() {
+        use geom_core::{Interval, Margin, floor_note, k_stats::decide_positive};
+
+        let band = band();
+        let decision = SizedDecision {
+            lever: "L",
+            size: "length",
+            passes: SizedPass::Positive,
+            stored: StoredDefinite::Contradiction,
+            no_size: Some(NoSize {
+                build: "B",
+                stored: "S",
+            }),
+        };
+        let noted = "Recourse: L; B".to_owned();
+        let point = |m: f64| {
+            (
+                decide_positive("p", Margin::of(m), band).unwrap_err(),
+                MarginDiag::value(m),
+            )
+        };
+        let enclosure = |lo: f64, hi: f64| {
+            (
+                decide_positive("p", Margin::of(Interval::from_bounds(lo, hi)), band).unwrap_err(),
+                MarginDiag::enclosure(lo, hi),
+            )
+        };
+        let rows = [
+            (point(0.0), noted.clone()),
+            (point(-5e-10), noted.clone()),
+            (
+                point(2e-12),
+                format!("Recourse: L; {}", floor_note("length")),
+            ),
+            (
+                point(5e-10),
+                "Recourse: L, or, if this length is intended, tighten the tolerance below 5e-11 m"
+                    .to_owned(),
+            ),
+            (enclosure(-2e-12, 6e-12), "Recourse: L".to_owned()),
+            (enclosure(-5e-10, 0.0), noted.clone()),
+            (enclosure(0.0, 0.0), noted),
+        ];
+        let file = FileCoincidence::new(1e-8);
+        for ((tagged, margin), want) in rows {
+            assert_eq!(tagged.margin.rejected_sign(), Some(Sign::Zero), "{margin}");
+            let untagged = Indeterminate {
+                margin,
+                band,
+                predicate: None,
+                terminal_sliver: false,
+            };
+            let zero = Refused::rejected(&tagged).unwrap().arm();
+            for at in [
+                ReadAt::Run(Reading::Build),
+                ReadAt::Run(Reading::AtRest),
+                ReadAt::File(file),
+            ] {
+                let got = decision.recourse(RefusedArm::Undecided(&tagged), at);
+                assert_eq!(
+                    got,
+                    decision.recourse(zero, at),
+                    "{margin} at {at:?}: Zero arm"
+                );
+                assert_eq!(
+                    got,
+                    decision.recourse(RefusedArm::Undecided(&untagged), at),
+                    "{margin} at {at:?}: untagged"
+                );
+                match at {
+                    ReadAt::Run(Reading::Build) => assert_eq!(got, want, "{margin}"),
+                    ReadAt::File(_) => assert!(
+                        !got.ends_with("; S") && !got.contains("a run admits"),
+                        "{margin} at the import door: {got}"
+                    ),
+                    ReadAt::Run(Reading::AtRest) => {}
+                }
+            }
+        }
     }
 
     /// **A residual's sign-certain arm is read by the margin it carries**
