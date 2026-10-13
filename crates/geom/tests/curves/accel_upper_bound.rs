@@ -235,3 +235,100 @@ fn a_far_point_active_on_the_last_span_only_does_not_reach_the_first() {
         "the far point is not far"
     );
 }
+
+/// **The pieces are what makes the bound tight.** A quintic with
+/// interior knots `0.31` and `0.62` and weights spread across `10^±1.5`
+/// reads its sup within 5% of the sampled one at the curve's 32 pieces
+/// per span (measured `1.004`). A schedule cut to one piece per span
+/// keeps every soundness row green while the bound loosens to `50.7`×
+/// the sample, so this row is the one that sees the schedule.
+#[test]
+fn the_pieces_read_a_spread_quintic_within_five_percent() {
+    let pts = [
+        (0.0, 0.0),
+        (0.5, 1.0),
+        (1.5, 1.2),
+        (2.0, 0.0),
+        (2.5, -1.0),
+        (3.5, -1.2),
+        (4.0, 0.0),
+        (4.5, 1.0),
+    ];
+    let w = vec![1.0, 0.0316, 0.0316, 31.6, 31.6, 0.0316, 0.0316, 1.0];
+    let c = curve(
+        vec![
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.31, 0.62, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+        ],
+        5,
+        &pts,
+        w,
+    );
+    let (b, truth) = (bound(&c), sampled_floor(&c, 4000));
+    assert!(b >= truth, "bound {b} under the sampled {truth}");
+    assert!(
+        b <= 1.05 * truth,
+        "bound {b} is {}× the sampled sup {truth}",
+        b / truth
+    );
+}
+
+/// `Σ_k C(n,k) s^k (1 − s)^(n−k) · x_k`, the Bernstein value of `x` at `s`.
+fn bernstein(x: &[f64], s: f64) -> f64 {
+    let n = x.len() - 1;
+    let mut row = x.to_vec();
+    for level in 0..n {
+        for k in 0..n - level {
+            row[k] = row[k] * (1.0 - s) + row[k + 1] * s;
+        }
+    }
+    row[0]
+}
+
+/// **The pieces' quotient is `C″` itself, pointwise.** On a rational
+/// cubic with an interior knot, each piece's numerator and weight power
+/// evaluated as Bernstein sums at the piece's local parameter, `M/W³`,
+/// matches `deriv2` at `t ∈ {0, 0.13, 0.5, 0.77, 0.9999}` to `1e-8`
+/// of its scale. A dropped or mis-signed numerator term is a wrong
+/// function, which no soundness row against a sup need see.
+#[test]
+fn the_pieces_quotient_is_the_second_derivative_pointwise() {
+    let c = curve(
+        vec![0.0, 0.0, 0.0, 0.0, 0.4, 1.0, 1.0, 1.0, 1.0],
+        3,
+        &[(0.0, 0.0), (0.7, 1.2), (1.6, -0.4), (2.4, 0.9), (3.1, 0.1)],
+        vec![1.0, 2.5, 0.6, 1.8, 1.2],
+    );
+    let pts: Vec<[f64; 3]> = c.control().iter().map(|p| [p.x, p.y, p.z]).collect();
+    let pieces = geom_core::spline::accel_pieces(
+        &geom_core::spline::Knots::from(c.knots().clone()),
+        &pts,
+        c.weights(),
+        32,
+    )
+    .unwrap();
+    let per_span = pieces.len() / 2;
+    for t in [0.0, 0.13, 0.5, 0.77, 0.9999] {
+        let (span, lo, hi) = if t < 0.4 {
+            (0, 0.0, 0.4)
+        } else {
+            (1, 0.4, 1.0)
+        };
+        #[allow(clippy::cast_precision_loss)]
+        let x = (t - lo) / (hi - lo) * per_span as f64;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let k = (x.floor() as usize).min(per_span - 1);
+        #[allow(clippy::cast_precision_loss)]
+        let s = x - k as f64;
+        let q = &pieces[span * per_span + k];
+        let w3 = bernstein(q.denom(), s);
+        let truth = c.deriv2(t);
+        for (axis, want) in [truth.x, truth.y, truth.z].into_iter().enumerate() {
+            let m: Vec<f64> = q.numer().iter().map(|a| a[axis]).collect();
+            let got = bernstein(&m, s) / w3;
+            assert!(
+                (got - want).abs() <= 1e-8 * (1.0 + want.abs()),
+                "t = {t}, axis {axis}: the pieces read {got}, deriv2 {want}"
+            );
+        }
+    }
+}
