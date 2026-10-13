@@ -1112,3 +1112,18 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Seam notes posted to KNOT, CHORD, TESS, ENCL, PCERT and PCTAIL.
   - Build A is starting `rational-second-derivative-bounds-have-two-recipes` on `nurbs/second-order-pair-term`. It derives first and stops if no clean second-order statement exists. Tier FULL.
   - Build B is warned of the `weight_ratio_factor` conflict on 4928. — (NURBS orchestrator)
+
+- **2026-10-13 01:01Z — PR 4928 FULL review: MERGEABLE.**
+  - Both floor proofs check by hand. The Interval per-cell sweep found 0 violations in 65,622 checks, across weight spreads up to 1e3.
+  - **The witness rule caught one more gap.** The "every active column" clause has no FLOOR row. Its mutant is unsound (4,022 violations) and goes red only through the sup's rows, via the shared builder. A clause guarded only by a sibling's tests is unguarded once they diverge.
+  - **The reach figure is wrong.** The frontier is about 1.7×, and the AREA floor binds. The frontier row pins 3.7×+ and lumps refusal reasons together.
+  - **The `r2_probe_cert8` weight edit is judged legitimate.** It keeps the anti-vacuity class and masks no failure. Above-frontier soundness stays covered by the random rows.
+  - **Fix pass sent to build B:**
+    - a floor row for every active column;
+    - frontier rows at about 1.6×/1.8× with the refusal reason asserted, and the numbers corrected;
+    - option one named as the alternative in the reach row;
+    - the stale `work/knot` citation fixed;
+    - `floor_weights_admissible` deleted, now that #4923 guards producers;
+    - `net_direction` (a fourth derivative-net walk) routed through `derivative_net`, or filed;
+    - doc fixes.
+  - The f64 one-ulp overshoot of the floors predates this PR. It is documented, not fixed. — (NURBS orchestrator)
