@@ -115,13 +115,14 @@ pub(crate) fn label(
     }
 }
 
-/// One decision under `rules`, ON ITS OWN THREAD: the label, the
+/// One decision under `budget` and `rules`, ON ITS OWN THREAD: the label, the
 /// session's counts and the numeric channel's own sign — or the panic's
 /// own message, when the contradiction assertion fired. A panic inside
 /// `with_session_rules` leaves that thread's session installed, and the
 /// next case would refuse to nest
 /// ([`test_utils::own_thread`], which also keeps the message).
 fn decide_under<T>(
+    budget: SymBudget,
     rules: SymRules,
     build: impl FnOnce() -> Sym<T> + Send + 'static,
 ) -> Result<(String, SymCounts, f64), String>
@@ -129,7 +130,7 @@ where
     T: Real + Decide + Send + 'static,
 {
     test_utils::own_thread::caught(move || {
-        let ((out, probe), counts) = with_session_rules(budget(), rules, || {
+        let ((out, probe), counts) = with_session_rules(budget, rules, || {
             let m = build();
             (
                 geom_core::k_stats::decide("sym11_witness_kind", Margin::of(m), band()),
@@ -153,7 +154,7 @@ fn decide_on_a_thread<T>(
 where
     T: Real + Decide + Send + 'static,
 {
-    decide_under(SymRules::shipped(), build)
+    decide_under(budget(), SymRules::shipped(), build)
 }
 
 /// **THE TWO CONTRACTS, PINNED PER SCALAR AND NOT PER LITERAL.**
@@ -265,6 +266,68 @@ fn sym11_the_adversary_is_a_counted_dispute_at_sym_f64() {
     }
 }
 
+/// **A frozen check disputes nothing, and the receipt says it was
+/// frozen.** The same adversary twice at `Sym<f64>`: at [`budget`] its
+/// check sees the whole form and disputes; at a budget of two terms
+/// `(x + 1)²` freezes, the `copysign` reads an unknown, and the check
+/// finds no theorem to dispute. `theorems_disputed` reads 0 in the
+/// second run for a reason that is not agreement, and the split is
+/// what tells the two zeros apart.
+#[test]
+fn sym11_a_frozen_check_is_counted_frozen_and_disputes_nothing() {
+    let starved = SymBudget {
+        max_terms: 2,
+        max_degree: 128,
+    };
+    let x0 = ADVERSARY_X[0];
+    for (b, expanded, frozen, disputed) in [(budget(), 1, 0, 1), (starved, 0, 1, 0)] {
+        let (_, c, _) = decide_under(b, SymRules::shipped(), move || adversary::<f64>(x0))
+            .expect("an inexact witness never panics on a contradiction");
+        assert_eq!(
+            (c.checks_expanded, c.checks_frozen, c.theorems_disputed),
+            (expanded, frozen, disputed),
+            "at max_terms {}: (checks_expanded, checks_frozen, theorems_disputed): {c:?}",
+            b.max_terms
+        );
+    }
+}
+
+/// **A check whose plain form froze still sees its margin where the
+/// early walk does not freeze.** `(sin²t + cos²t)⁴ + x` at a budget of
+/// four terms: the plain form expands the power into five terms and
+/// freezes it, while the early walk folds `sin²t + cos²t` to `1`
+/// (rule B) and reads `1 + x`. Under every rule the check reads
+/// expanded; with every rule off there is no early form and it reads
+/// frozen, which is what shows the plain form froze — and at a budget
+/// the power fits, expanded on the plain form alone.
+#[test]
+fn sym11_a_check_the_early_walk_unfreezes_is_counted_expanded() {
+    let four = SymBudget {
+        max_terms: 4,
+        max_degree: 128,
+    };
+    let margin = || {
+        let t = Sym::param(ParamSymbol::new(test_utils::symbol_id("t")), 0.3);
+        let x = Sym::param(ParamSymbol::new(test_utils::symbol_id("x")), 1.0);
+        (t.sin().powi(2) + t.cos().powi(2)).powi(4) + x
+    };
+    for (b, rules, expanded, frozen) in [
+        (four, SymRules::shipped(), 1, 0),
+        (four, SymRules::none(), 0, 1),
+        (budget(), SymRules::none(), 1, 0),
+    ] {
+        let (l, c, _) = decide_under(b, rules, margin)
+            .expect("an inexact witness never panics on a contradiction");
+        let at = format!("max_terms {}, {rules:?}", b.max_terms);
+        assert_eq!(l, "numeric Positive", "{at}: the margin is 2 at the point");
+        assert_eq!(
+            (c.checks_expanded, c.checks_frozen),
+            (expanded, frozen),
+            "{at}: (checks_expanded, checks_frozen): {c:?}"
+        );
+    }
+}
+
 /// The same adversary at `Sym<Probe>`, whose value channel IS an
 /// `f64`: the same rounding reaches the same door, and the K sample the
 /// funnel records stays the numeric channel's own `Definite` at a
@@ -318,7 +381,7 @@ fn sym11_a_gated_theorem_disputes_into_the_same_column() {
         let d = Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("d")), 1.0e9);
         (((r + d) - d) * ((r + d) - d)).sqrt() - r
     };
-    let (l, c, n) = decide_under(SymRules::all(), resid)
+    let (l, c, n) = decide_under(budget(), SymRules::all(), resid)
         .expect("an inexact witness never panics on a contradiction");
     println!("  rule C on: {l} | numeric sign {n} | {c:?}");
     assert_eq!(
@@ -336,7 +399,7 @@ fn sym11_a_gated_theorem_disputes_into_the_same_column() {
         "and it is not a discharge — the fold did not answer, the numeric channel did: {c:?}"
     );
 
-    let (l, c, _) = decide_under(SymRules::shipped(), resid)
+    let (l, c, _) = decide_under(budget(), SymRules::shipped(), resid)
         .expect("an inexact witness never panics on a contradiction");
     println!("  shipped (rule C off): {l} | {c:?}");
     assert_eq!(

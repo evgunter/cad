@@ -1543,6 +1543,33 @@ pub struct SymCounts {
     /// residuals at `Sym<Interval>`, where every one of them is a
     /// plain theorem.
     pub theorems_disputed: u64,
+    /// **Contradiction checks that saw a form with no frozen node in
+    /// it** — the checks a zero in `theorems_disputed` speaks for.
+    ///
+    /// The contradiction check (both witness kinds, [`Decide::sign_within`])
+    /// can only find a theorem the form can represent. A form that
+    /// reads a frozen node's indeterminate is zero only where that
+    /// unknown cancels against itself, so as freezes rise a check stops
+    /// being able to dispute anything, and `theorems_disputed == 0`
+    /// reads the same over a run that checked everything and one that
+    /// checked nothing. These two columns split the checks so a reader
+    /// can tell those runs apart: a check lands HERE when its plain
+    /// form, or its early form where the session runs the early walk,
+    /// reaches no frozen node through any atom's arguments, and in
+    /// [`SymCounts::checks_frozen`] otherwise. A check is counted only
+    /// where it ran — inside a session with a non-zero budget — so at
+    /// an exact witness with debug assertions off both columns read 0.
+    ///
+    /// **A node this session never recorded is not seen as frozen**:
+    /// it enters a form as its own indeterminate like a freeze does,
+    /// but the session has no entry to recognise it by, so a check over
+    /// one reads expanded. Only a leaf of a drive handed a foreign id
+    /// meets one ([`SymCounts::frozen`]'s NEED).
+    pub checks_expanded: u64,
+    /// **Contradiction checks every form of which read a frozen node**
+    /// — the checks that could not see the margin they were asked
+    /// about. [`SymCounts::checks_expanded`] argues the split.
+    pub checks_frozen: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
     /// **Decisions closed by a RETRY** ([`SymRetry`]) — the first
@@ -1636,6 +1663,8 @@ impl SymCounts {
         self.registrations_refused += other.registrations_refused;
         self.registrations_contradicted += other.registrations_contradicted;
         self.theorems_disputed += other.theorems_disputed;
+        self.checks_expanded += other.checks_expanded;
+        self.checks_frozen += other.checks_frozen;
         self.numeric += other.numeric;
         self.retried += other.retried;
     }
@@ -4771,12 +4800,66 @@ fn count_registration_contradicted() {
 /// ([`SymCounts::registrations_contradicted`], raised just above this
 /// call).
 ///
-/// It RUNS THE WALKS ([`discharge`]), which is the cost each arm pays.
+/// It RUNS THE WALKS ([`discharge`]), which is the cost each arm pays,
+/// and charges the check to [`SymCounts::checks_expanded`] or
+/// [`SymCounts::checks_frozen`].
 fn contradicts(id: SymId) -> bool {
-    matches!(
+    let out = matches!(
         discharge(id),
         Some(Discharge::Theorem | Discharge::SignGated)
-    )
+    );
+    count_check(id);
+    out
+}
+
+/// Charges one contradiction check on `id` to the column its forms
+/// put it in ([`SymCounts::checks_expanded`]). Reads the forms
+/// [`discharge`] left in the session's plain and early memos rather
+/// than asking a walk for them, so the check costs no walk call: a
+/// form `discharge` did not store is a form the check did not see.
+fn count_check(id: SymId) {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let Some(sess) = slot.as_mut() else {
+            return;
+        };
+        if sess.budget.max_terms == 0 {
+            return;
+        }
+        let saw = |form: Option<&Arc<Form>>| form.is_some_and(|f| !reads_a_freeze(sess, f));
+        let expanded =
+            saw(sess.forms.get(&id)) || (sess.rules.early && saw(sess.forms_early.get(&id)));
+        if expanded {
+            sess.counts.checks_expanded += 1;
+        } else {
+            sess.counts.checks_frozen += 1;
+        }
+    });
+}
+
+/// **Whether `form` reads a frozen node** — an indeterminate that is a
+/// node id of this session, the key a walk freezes a node into, found
+/// in either half of the quotient or in any atom's argument forms.
+fn reads_a_freeze(sess: &Session, form: &Form) -> bool {
+    let mut stack = vec![form];
+    let mut seen = std::collections::HashSet::new();
+    while let Some(form) = stack.pop() {
+        for poly in [&form.num, &form.den] {
+            for (mono, _) in poly.terms() {
+                for &(x, _) in mono {
+                    if !seen.insert(x) {
+                        continue;
+                    }
+                    if let Some(atom) = sess.atoms.get(&x) {
+                        stack.extend(atom.args.iter().flatten().map(|a| &**a));
+                    } else if sess.nodes.contains_key(&SymId(x)) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 /// Records a decision whose form was a THEOREM or a GATED theorem under

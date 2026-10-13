@@ -169,20 +169,6 @@ fn budget() -> SymBudget {
 /// target reading refuses.
 fn sym_bodies() -> Vec<(String, Body<Sym<f64>>)> {
     let eps = Tol::witness().get().eps;
-    let arc = |s: f64| {
-        loft_body::<Sym<f64>>(
-            &sweep::test_support::lift_sections::<Sym<f64>>(&[
-                arc_section(s),
-                arc_section(s),
-                arc_section(s),
-            ]),
-            &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0, 2.0], s)),
-            2,
-            Tol::witness(),
-        )
-        .expect("the arc loft lofts at Sym")
-        .body
-    };
     let strip = loft_body::<Sym<f64>>(
         &sweep::test_support::lift_sections::<Sym<f64>>(&[
             strip_section(1.0e12 * eps, 1.0e9 * eps, false),
@@ -194,17 +180,32 @@ fn sym_bodies() -> Vec<(String, Body<Sym<f64>>)> {
     )
     .expect("the strip lofts at Sym")
     .body;
-    vec![
-        ("sym_arc_loft".to_string(), arc(1.0e9 * eps)),
-        ("sym_thin_strip".to_string(), strip),
-    ]
+    vec![sym_arc_loft(), ("sym_thin_strip".to_string(), strip)]
+}
+
+/// The arc loft at `Sym<f64>`, at scale `1e9·ε`.
+fn sym_arc_loft() -> (String, Body<Sym<f64>>) {
+    let s = 1.0e9 * Tol::witness().get().eps;
+    let body = loft_body::<Sym<f64>>(
+        &sweep::test_support::lift_sections::<Sym<f64>>(&[
+            arc_section(s),
+            arc_section(s),
+            arc_section(s),
+        ]),
+        &sweep::test_support::lift_places::<Sym<f64>>(&stacked(&[0.0, 1.0, 2.0], s)),
+        2,
+        Tol::witness(),
+    )
+    .expect("the arc loft lofts at Sym")
+    .body;
+    ("sym_arc_loft".to_string(), body)
 }
 
 /// `retried` is not a column: the session block opens `with_session`,
 /// which installs no retry ladder, so it would read zero by construction.
 fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usize) -> String {
     format!(
-        "{name} {door} {} decisions={} sz={} sg={} reg={} rref={} rcon={} num={} disp={} frozen={} shapes={}",
+        "{name} {door} {} decisions={} sz={} sg={} reg={} rref={} rcon={} num={} disp={} chk={}/{} frozen={} shapes={}",
         if refused { "REFUSED" } else { "OK" },
         c.decisions(),
         c.symbolic_zero,
@@ -214,6 +215,8 @@ fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usi
         c.registrations_contradicted,
         c.numeric,
         c.theorems_disputed,
+        c.checks_expanded,
+        c.checks_expanded + c.checks_frozen,
         c.frozen,
         shapes,
     )
@@ -231,12 +234,31 @@ fn counts_line(name: &str, door: &str, refused: bool, c: &SymCounts, shapes: usi
 /// thread whenever a session is installed and to short-circuit there
 /// exactly as `main` did (`topo::props`' `decide_faces`), and these
 /// lines are `main`'s numbers.
-fn session_block() -> String {
+fn session_block(receipts: &[Receipt]) -> String {
+    receipts
+        .iter()
+        .map(|r| counts_line(&r.name, r.door, r.refused, &r.counts, r.shapes))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// One body read through one door inside a session.
+struct Receipt {
+    name: String,
+    door: &'static str,
+    refused: bool,
+    counts: SymCounts,
+    shapes: usize,
+}
+
+/// Each body through both reporting doors, each in a session of its
+/// own under `budget`.
+fn receipts(bodies: Vec<(String, Body<Sym<f64>>)>, budget: SymBudget) -> Vec<Receipt> {
     let mut out = Vec::new();
-    for (name, body) in sym_bodies() {
+    for (name, body) in bodies {
         for door in ["mass_properties", "validate_geometric"] {
             geom_core::sym::report::start_shape_report();
-            let (refused, counts) = with_session(budget(), || {
+            let (refused, counts) = with_session(budget, || {
                 if door == "mass_properties" {
                     topo::mass_properties(&body, Tol::witness()).is_err()
                 } else {
@@ -244,15 +266,24 @@ fn session_block() -> String {
                 }
             });
             let shapes = geom_core::sym::report::take_shape_report().len();
-            out.push(counts_line(&name, door, refused, &counts, shapes));
+            out.push(Receipt {
+                name: name.clone(),
+                door,
+                refused,
+                counts,
+                shapes,
+            });
         }
     }
-    out.join("\n")
+    out
 }
 
 /// The whole digest, both blocks.
-fn digest() -> String {
-    format!("# f64\n{}\n# sym-session\n{}", f64_block(), session_block())
+fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
+    format!(
+        "# f64\n{f64_block}\n# sym-session\n{}",
+        session_block(receipts)
+    )
 }
 
 /// The committed digest for each ε row the matrix gates. Cut on the
@@ -265,8 +296,10 @@ fn digest() -> String {
 /// escalation channels' counts and hashes. The `# sym-session` block is
 /// one line per `Sym` body and door ([`counts_line`]): the session's
 /// receipt by outcome (`sz`, `sg`, `reg`, `rref`, `rcon`, `num`), its
-/// disputes (`disp`), the nodes it froze (`frozen`) and the shape
-/// report's length.
+/// disputes (`disp`), its contradiction checks as the ones that saw a
+/// form with no frozen node over all of them (`chk`), the nodes it
+/// froze (`frozen`) and the shape report's length. Every receipt also
+/// clears [`dispute_coverage`] before the table is read.
 ///
 /// **When a lane may re-cut here instead, and what licenses it.** The
 /// merge-base rule exists to stop a branch recording its own
@@ -292,7 +325,14 @@ fn expected(eps: f64) -> Option<&'static str> {
 
 fn check_against_golden(threads: usize) {
     let eps = Tol::witness().get().eps;
-    let got = on_pool(threads, digest);
+    let (f64_block, receipts) =
+        on_pool(threads, || (f64_block(), receipts(sym_bodies(), budget())));
+    for r in &receipts {
+        if let Err(why) = dispute_coverage(&r.counts) {
+            panic!("{} {}: {why}: {:?}", r.name, r.door, r.counts);
+        }
+    }
+    let got = digest(&f64_block, &receipts);
     let Some(want) = expected(eps) else {
         panic!("no committed digest for eps={eps:e}; this run produced\n{got}");
     };
@@ -342,5 +382,83 @@ fn the_roster_records_the_props_lanes_own_verdicts() {
         quad > 0,
         "the described-spline body recorded no props_quad verdict — the roster no longer \
          reaches the quadrature lane, so the golden above pins a walk that does nothing"
+    );
+}
+
+// ---------------------------------------------------------------- //
+// Dispute coverage: what a `disp=0` in the session block speaks for.  //
+// ---------------------------------------------------------------- //
+
+/// The least share of a receipt's contradiction checks that must have
+/// seen a form with no frozen node, as `(numerator, denominator)`.
+const COVERAGE_FLOOR: (u64, u64) = (3, 4);
+
+/// **The guard on `disp=0`.** A contradiction check over a frozen form
+/// cannot dispute (`SymCounts::checks_expanded`), so a receipt's zero
+/// disputes are evidence only for the checks that saw their form. The
+/// guard is a floor on that share, not on a count: it holds when the
+/// walk takes more or fewer decisions for reasons of its own, and
+/// fails when the checks it does take go blind. A receipt with no
+/// check at all fails too — its `disp=0` is about nothing.
+fn dispute_coverage(c: &SymCounts) -> Result<(), String> {
+    let checks = c.checks_expanded + c.checks_frozen;
+    let (n, d) = COVERAGE_FLOOR;
+    if checks == 0 {
+        return Err("no contradiction check ran, so disp=0 speaks for nothing".to_owned());
+    }
+    if c.checks_expanded * d < checks * n {
+        return Err(format!(
+            "{} of {checks} contradiction checks saw a form with no frozen node, under the \
+             floor of {n}/{d}: disp={} speaks for too few of them",
+            c.checks_expanded, c.theorems_disputed
+        ));
+    }
+    Ok(())
+}
+
+/// **The guard trips where the checks go blind, and `disp=0` alone
+/// does not.** The arc loft under a budget of two terms, where the
+/// forms its checks read freeze: both doors still read no dispute, and
+/// the guard fails on the door whose checks lost their forms. The same
+/// body at [`budget`] clears the guard inside the golden row.
+#[test]
+fn a_starved_budget_trips_the_guard_while_disp_still_reads_zero() {
+    let starved = SymBudget {
+        max_terms: 2,
+        max_degree: budget().max_degree,
+    };
+    let all = receipts(vec![sym_arc_loft()], starved);
+    for r in &all {
+        println!(
+            "{}",
+            counts_line(&r.name, r.door, r.refused, &r.counts, r.shapes)
+        );
+        assert_eq!(
+            r.counts.theorems_disputed, 0,
+            "{} {}: the starved run disputes nothing, so disp=0 cannot be the guard: {:?}",
+            r.name, r.door, r.counts
+        );
+    }
+    let tripped: Vec<_> = all
+        .iter()
+        .filter(|r| dispute_coverage(&r.counts).is_err())
+        .map(|r| format!("{} {}", r.name, r.door))
+        .collect();
+    assert_eq!(
+        tripped,
+        ["sym_arc_loft validate_geometric"],
+        "the doors whose checks a two-term budget freezes: {:?}",
+        all.iter().map(|r| (r.door, r.counts)).collect::<Vec<_>>()
+    );
+}
+
+/// A receipt whose session ran no contradiction check fails the guard:
+/// its `disp=0` counts the disputes of nothing.
+#[test]
+fn a_receipt_with_no_check_fails_the_guard() {
+    let none = SymCounts::default();
+    assert!(
+        dispute_coverage(&none).is_err(),
+        "a receipt with no check passed the guard: {none:?}"
     );
 }
