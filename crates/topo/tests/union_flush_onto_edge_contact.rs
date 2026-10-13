@@ -76,9 +76,10 @@ fn members(c_span: (f64, f64), tol: Tol) -> [AtRestBody<f64>; 3] {
 
 /// **Each edge piece the boolean classed beside a vertex of its
 /// operand reads one class, its side of the other operand just along
-/// it**: the other operand's material at 1e-4 along the edge from the
-/// vertex (`topo::point_in_solid`), the vertex's cone there, `On` where
-/// the point lies on its boundary. Pieces at a vertex the boolean
+/// it**: the other operand's material at the first of 1e-4, 1e-3 and
+/// 1e-2 along the edge from the vertex that `topo::point_in_solid`
+/// decides, the vertex's cone there, `On` where the point lies on its
+/// boundary. Pieces at a vertex the boolean
 /// minted are not read. A vertex in pairs alone layers its partners
 /// into one row per edge (`vtxfac::pair_classes`). Red when the
 /// layering keeps each pair's rows: an edge on two partners'
@@ -113,12 +114,19 @@ fn assert_classes(out: &BooleanBody<f64>, [a, b]: [&AtRestBody<f64>; 2], what: &
             continue;
         }
         let d = topo::readback::vertex_point(own, far).expect("its far end") - p;
-        let q = p + d * (1e-4 / d.norm());
-        let want = match topo::point_in_solid(other, q, band, tol).expect("the point reads") {
-            topo::SolidContainment::In => SideCode::In,
-            topo::SolidContainment::Out => SideCode::Out,
-            topo::SolidContainment::OnBoundary => SideCode::On,
-        };
+        // The nearest step the band decides, within the vertex's cone.
+        let want = [1e-4, 1e-3, 1e-2]
+            .iter()
+            .find_map(|&step| {
+                let q = p + d * (step / d.norm());
+                topo::point_in_solid(other, q, band, tol).ok()
+            })
+            .map(|read| match read {
+                topo::SolidContainment::In => SideCode::In,
+                topo::SolidContainment::Out => SideCode::Out,
+                topo::SolidContainment::OnBoundary => SideCode::On,
+            })
+            .unwrap_or_else(|| panic!("{what}: no step along {edge:?} reads decidedly"));
         assert_eq!(
             got,
             vec![want],
