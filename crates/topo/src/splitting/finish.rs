@@ -76,7 +76,6 @@ use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use geom::Surface;
-use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
 use geom_core::Tol;
 
 /// One side of a split result: a real body, or the typed empty side
@@ -529,7 +528,7 @@ impl core::fmt::Display for SplitFinishError {
             Self::DescribeEscalated { diag, .. } => diag
                 .undecided(
                     "the angle between two faces along the cut",
-                    super::split_lever_ending(diag),
+                    diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::DescribeSideEscalated { diag, .. } => diag
@@ -545,16 +544,13 @@ impl core::fmt::Display for SplitFinishError {
                 .undecided(
                     "whether two faces touching along the cut curve apart there or share their \
                      curvature",
-                    super::split_lever_ending(diag),
+                    diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::EdgeOnFacesEscalated { diag, .. } => diag
                 .undecided(
                     crate::merge_faces::edge_on_faces_subject!("an edge along the cut"),
-                    LeverOnly {
-                        lever: crate::merge_faces::EDGE_ON_PLANE_LEVER,
-                    }
-                    .recourse(RefusedArm::Undecided(diag), Reading::Build),
+                    diag.lever_ending(crate::merge_faces::EDGE_ON_PLANE_LEVER),
                 )
                 .fmt(f),
             Self::SmoothJoinRefuted { .. } => write!(
@@ -569,7 +565,7 @@ impl core::fmt::Display for SplitFinishError {
             } => diag
                 .undecided(
                     "which side of a cut face is material",
-                    super::split_lever_ending(diag),
+                    diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
             Self::SectionWindingUndecided { diag: None, .. } => write!(
