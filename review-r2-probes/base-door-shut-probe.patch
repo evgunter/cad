@@ -1,0 +1,29 @@
+diff --git a/crates/editor-core/tests/m10_9_pins_interval.rs b/crates/editor-core/tests/m10_9_pins_interval.rs
+index 2bda89ea2..080b40f6c 100644
+--- a/crates/editor-core/tests/m10_9_pins_interval.rs
++++ b/crates/editor-core/tests/m10_9_pins_interval.rs
+@@ -575,3 +575,24 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
+         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
+     );
+ }
++
++/// Review probe (DECIDE-10 R2): the link at `certifies_at`, door shut, on main.
++#[test]
++fn r2_review_probe_the_link_with_the_door_shut_on_main() {
++    let tol = Tol::witness();
++    let eps = tol.eps();
++    for study in measured_studies(tol) {
++        if !matches!(study.name, "r2_link" | "r2_filleted_bracket") {
++            continue;
++        }
++        let doc = (study.at)(study.certifies_at * eps);
++        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
++        let box_ = ParamBox::of(&analyzed);
++        let (r, on) = replay_counts(&doc, &box_, SymRules::shipped(), tol);
++        println!("PROBE {} shipped {on:?} -> {r:?}", study.name);
++        let (r, off) = replay_counts(&doc, &box_, SymRules::shipped_without_the_door(), tol);
++        println!("PROBE {} door shut {off:?} -> {r:?}", study.name);
++        let (r, rs) = replay_counts(&doc, &box_, SymRules::without_the_reads(), tol);
++        println!("PROBE {} read shut {rs:?} -> {r:?}", study.name);
++    }
++}

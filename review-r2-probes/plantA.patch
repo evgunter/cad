@@ -1,0 +1,14 @@
+diff --git a/crates/geom-core/src/sym.rs b/crates/geom-core/src/sym.rs
+index e102f75d0..21c106574 100644
+--- a/crates/geom-core/src/sym.rs
++++ b/crates/geom-core/src/sym.rs
+@@ -3346,6 +3346,9 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
+             {
+                 return Some(f);
+             }
++            if read && node.op == SymOp::Abs && let Some(le) = signed::decision(a, sess) {
++                return if le { a.neg() } else { Some(a.clone()) };
++            }
+             // **Rule G**, last of the `sqrt` folds: the ones above
+             // answer the node outright where they fire, and this one
+             // decides how the atom that is left is KEYED. `trig`'s

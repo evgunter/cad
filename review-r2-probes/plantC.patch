@@ -1,0 +1,13 @@
+diff --git a/crates/geom-core/src/sym.rs b/crates/geom-core/src/sym.rs
+index e102f75d0..fb69242dd 100644
+--- a/crates/geom-core/src/sym.rs
++++ b/crates/geom-core/src/sym.rs
+@@ -4389,7 +4389,7 @@ fn rungs(
+     }
+     // THE DOOR, asked last and only where there is a registration to
+     // ask about ([`Sym::register_equal`]).
+-    if door
++    if (door || true)
+         && rules.registered
+         && rules.early
+         && !sess.registry.is_empty()

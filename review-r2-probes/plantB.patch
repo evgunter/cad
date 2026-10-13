@@ -1,0 +1,166 @@
+diff --git a/crates/geom-core/src/sym.rs b/crates/geom-core/src/sym.rs
+index e102f75d0..d1c61f3ad 100644
+--- a/crates/geom-core/src/sym.rs
++++ b/crates/geom-core/src/sym.rs
+@@ -3265,12 +3265,15 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
+             return Some(f);
+         }
+         let id = indet_atom(op.tag(), node.payload, &[a.digest()]);
++        if std::env::var("PLANT_DBG").is_ok() { eprintln!("atom1 {:?} gated={} early={}", op, a.gated, early); }
+         mint_atom(sess, id, early, || AtomInfo {
+             op,
+             payload: node.payload,
+             args: [Some(Arc::new(a.clone())), None, None],
+         });
+-        Some(Form::poly(Poly::indet(id)))
++        let mut g = Form::poly(Poly::indet(id));
++        g.gated = a.gated;
++        Some(g)
+     };
+     match node.op {
+         SymOp::Param => Some(Form::poly(Poly::indet(indet_param(node.payload)))),
+@@ -3301,13 +3304,15 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
+                 && !a.tainted(b)
+                 && (a.is_zero() || b.is_zero()) =>
+         {
+-            Some(match (node.op, a.is_zero()) {
++            let mut f = match (node.op, a.is_zero()) {
+                 (SymOp::Mul, _) => Form::zero(),
+                 (SymOp::Add, true) => b.clone(),
+                 (SymOp::Add, false) => a.clone(),
+                 (_, true) => b.neg()?,
+                 (_, false) => a.clone(),
+-            })
++            };
++            if node.op != SymOp::Mul { f.gated = a.gated || b.gated; }
++            Some(f)
+         }
+         SymOp::Add => a.add(b, budget),
+         SymOp::Sub => a.add(&b.neg()?, budget),
+@@ -3489,8 +3494,9 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
+             // asked last, behind every fold that reads no value.
+             if read
+                 && matches!(node.op, SymOp::Min | SymOp::Max)
+-                && let Some(f) = signed::order(node.op, a, b, sess, budget)
++                && let Some(mut f) = signed::order(node.op, a, b, sess, budget)
+             {
++                f.gated = true;
+                 return Some(f);
+             }
+             let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
+@@ -3532,7 +3538,9 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
+             // box the arm is determined there, and the form the door
+             // takes is the arm's.
+             if read && let Some(le) = signed::decision(a, sess) {
+-                return Some(if le { b } else { third }.clone());
++                let mut f = if le { b } else { third }.clone();
++                f.gated = true;
++                return Some(f);
+             }
+             let id = indet_atom(
+                 node.op.tag(),
+@@ -3786,7 +3794,7 @@ fn form_in(
+                             even_powers(&f, &sess.atoms),
+                         );
+                     }
+-                    reduced.filter(|g| within(budget, g)).unwrap_or(f)
++                    reduced.filter(|g| within(budget, g)).map(|g| { let mut h = (*g).clone(); h.gated |= f.gated; Arc::new(h) }).unwrap_or(f)
+                 })
+             } else {
+                 combined
+diff --git a/crates/geom-core/src/sym/form.rs b/crates/geom-core/src/sym/form.rs
+index ec18b62f4..c4cbfe7d0 100644
+--- a/crates/geom-core/src/sym/form.rs
++++ b/crates/geom-core/src/sym/form.rs
+@@ -598,6 +598,7 @@ pub(super) struct Form {
+     /// `atan(+inf)` is `pi/2`, and the difference is an honest zero.
+     /// The two halves catch different things and both are needed.
+     pub(super) poisoned: bool,
++    pub(super) gated: bool,
+ }
+ 
+ impl Form {
+@@ -610,6 +611,7 @@ impl Form {
+             num,
+             den,
+             poisoned: false,
++            gated: false,
+         }
+     }
+ 
+@@ -625,6 +627,7 @@ impl Form {
+             num: Poly::one(),
+             den: Poly::one(),
+             poisoned: true,
++            gated: false,
+         }
+     }
+ 
+@@ -650,6 +653,7 @@ impl Form {
+                 num: self.num.add(&other.num)?,
+                 den: self.den.clone(),
+                 poisoned: false,
++            gated: self.gated || other.gated,
+             });
+         }
+         Some(Self {
+@@ -659,6 +663,7 @@ impl Form {
+                 .add(&other.num.mul(&self.den, budget)?)?,
+             den: self.den.mul(&other.den, budget)?,
+             poisoned: false,
++            gated: self.gated || other.gated,
+         })
+     }
+ 
+@@ -670,6 +675,7 @@ impl Form {
+             num: self.num.neg()?,
+             den: self.den.clone(),
+             poisoned: false,
++            gated: self.gated,
+         })
+     }
+ 
+@@ -681,6 +687,7 @@ impl Form {
+             num: self.num.mul(&other.num, budget)?,
+             den: self.den.mul(&other.den, budget)?,
+             poisoned: false,
++            gated: self.gated || other.gated,
+         })
+     }
+ 
+@@ -694,6 +701,7 @@ impl Form {
+             num: self.den.clone(),
+             den: self.num.clone(),
+             poisoned: false,
++            gated: self.gated,
+         })
+     }
+ 
+@@ -705,7 +713,7 @@ impl Form {
+     pub(super) fn digest(&self) -> u128 {
+         Hash128::new()
+             .word(0x464f_524d_5f4e_4652)
+-            .word(u64::from(self.poisoned))
++            .word(u64::from(self.poisoned) | (u64::from(self.gated) << 1))
+             .wide(self.num.digest())
+             .wide(self.den.digest())
+             .finish()
+diff --git a/crates/geom-core/src/sym/quotient.rs b/crates/geom-core/src/sym/quotient.rs
+index 784665e7e..076934112 100644
+--- a/crates/geom-core/src/sym/quotient.rs
++++ b/crates/geom-core/src/sym/quotient.rs
+@@ -354,12 +354,14 @@ fn cancelled(f: &Form) -> Option<Form> {
+             num: Poly::constant(r),
+             den: Poly::one(),
+             poisoned: false,
++            gated: f.gated,
+         });
+     }
+     Some(Form {
+         num,
+         den,
+         poisoned: false,
++            gated: f.gated,
+     })
+ }
+ 
