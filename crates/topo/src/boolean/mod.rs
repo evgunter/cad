@@ -6618,7 +6618,7 @@ fn boundary_cuts<T: Decide>(
 ) -> Option<Vec<T>> {
     let along = |p: Point3<T>| (p - origin).dot(dir);
     let roots = |a: T, b: T, c: T, out: &mut Vec<T>| {
-        let disc = b * b - T::from_f64(4.0) * a * c;
+        let disc = b.powi(2) - T::from_f64(4.0) * a * c;
         let r = disc.max(T::zero()).sqrt();
         let two_a = a + a;
         out.extend([(-b - r) / two_a, (-b + r) / two_a]);
@@ -6645,7 +6645,7 @@ fn boundary_cuts<T: Decide>(
                     let w = origin - p;
                     let b = dir.dot(u);
                     let c = u.dot(u);
-                    out.push((b * u.dot(w) - c * dir.dot(w)) / (c - b * b));
+                    out.push((b * u.dot(w) - c * dir.dot(w)) / (c - b.powi(2)));
                 }
                 geom::Curve3::Circle {
                     center,
@@ -6658,7 +6658,7 @@ fn boundary_cuts<T: Decide>(
                     roots(
                         T::one(),
                         w.dot(dir) + w.dot(dir),
-                        w.dot(w) - radius * radius,
+                        w.dot(w) - radius.powi(2),
                         &mut out,
                     );
                 }
@@ -6675,9 +6675,9 @@ fn boundary_cuts<T: Decide>(
                     let (wu, wv) = (w.dot(u_ref) / major, w.dot(v_ref) / minor);
                     let (du, dv) = (dir.dot(u_ref) / major, dir.dot(v_ref) / minor);
                     roots(
-                        du * du + dv * dv,
+                        du.powi(2) + dv.powi(2),
                         (wu * du + wv * dv) * T::from_f64(2.0),
-                        wu * wu + wv * wv - T::one(),
+                        wu.powi(2) + wv.powi(2) - T::one(),
                         &mut out,
                     );
                 }
