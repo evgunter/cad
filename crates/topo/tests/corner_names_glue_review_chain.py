@@ -1,5 +1,6 @@
 import subprocess,sys,os,re
-BIN="/home/user/tgt-head/release/deps/all-ddea738157d6fa05"
+BIN=os.environ["PROBE_BIN"]  # the topo `all` test binary
+# usage: PROBE_BIN=... python3 chain.py <eps> <theta> [corner]
 def run(eps,theta,phi,corner):
     env=dict(os.environ,CAD_TOLERANCE_EPS=repr(eps),PROBE_THETA=repr(theta),PROBE_OPENINGS=str(phi))
     if corner: env["PROBE_CORNER"]="1"
