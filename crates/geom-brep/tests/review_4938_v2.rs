@@ -254,3 +254,119 @@ fn review_4938_v2_seam_cut_wall() {
         }
     }
 }
+
+/// A torus rectangle `u ∈ [0, 1]`, `v ∈ [vc − 0.3, vc + 0.3]` whose lower
+/// parallel is `n` arcs, each centred `off·ε` off the axis toward the
+/// arc's middle azimuth, and whose far meridian is `n` arcs, each centred
+/// `off·ε` off the core circle (radially out), near the inner equator
+/// (`vc = π`) or the outer (`vc = 0`).
+fn torus_case<T: geom_core::Decide>(big: f64, r: f64, vc: f64, n: usize, off: f64) -> String {
+    torus_case_span::<T>(big, r, vc, n, off, 1.0, 0.3)
+}
+
+fn torus_case_span<T: geom_core::Decide>(
+    big: f64,
+    r: f64,
+    vc: f64,
+    n: usize,
+    off: f64,
+    uspan: f64,
+    vhalf: f64,
+) -> String {
+    let e = eps();
+    let (v0, v1) = (vc - vhalf, vc + vhalf);
+    let par = |v: f64, c: [f64; 2], u0: f64, u1: f64| {
+        edge::<T>(
+            Curve3::Circle {
+                center: p3(c[0], c[1], r * v.sin()),
+                axis: v3(0.0, 0.0, 1.0),
+                radius: T::from_f64(big + r * v.cos()),
+                u_ref: v3(1.0, 0.0, 0.0),
+            },
+            u0,
+            u1,
+            0,
+            0,
+        )
+    };
+    let mer = |u: f64, grow: f64, a: f64, b: f64| {
+        // Offset the centre toward the arc's middle in the meridian
+        // plane, `grow` metres.
+        let m = 0.5 * (a + b);
+        let (gx, gz) = (grow * m.cos(), grow * m.sin());
+        edge::<T>(
+            Curve3::Circle {
+                center: p3((big + gx) * u.cos(), (big + gx) * u.sin(), gz),
+                axis: v3(u.sin(), -u.cos(), 0.0),
+                radius: T::from_f64(r),
+                u_ref: v3(u.cos(), u.sin(), 0.0),
+            },
+            a,
+            b,
+            0,
+            0,
+        )
+    };
+    let mut l = Vec::new();
+    let du = uspan / n as f64;
+    for i in 0..n {
+        let (a, b) = (i as f64 * du, (i + 1) as f64 * du);
+        let m = 0.5 * (a + b);
+        l.push(par(v0, [off * e * m.cos(), off * e * m.sin()], a, b));
+    }
+    let dv = (v1 - v0) / n as f64;
+    for i in 0..n {
+        let (a, b) = (v0 + i as f64 * dv, v0 + (i + 1) as f64 * dv);
+        l.push(mer(uspan, off * e, a, b));
+    }
+    l.push(par(v1, [0.0, 0.0], uspan, 0.0));
+    l.push(mer(0.0, 0.0, v1, v0));
+    let s = Surface::Torus {
+        center: p3(0.0, 0.0, 0.0),
+        axis: v3(0.0, 0.0, 1.0),
+        major_radius: T::from_f64(big),
+        minor_radius: T::from_f64(r),
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    class(&curved_face_loops(&s, &[&l], true, band()).map(|c| c.area))
+}
+
+#[test]
+fn review_4938_v2_torus_off_centre_arcs() {
+    let e = eps();
+    for (big, r) in [(0.02, 0.005), (0.01, 0.008)] {
+        for vc in [std::f64::consts::PI, 0.0] {
+            for n in [1usize, 4, 20] {
+                for off in [0.0, 0.5, 0.9] {
+                    eprintln!(
+                        "REVIEW4938V2 eps={e:e} torus ({big},{r}) vc={vc:.2} n={n} off={off}ε: f64 {} | iv {}",
+                        torus_case::<f64>(big, r, vc, n, off),
+                        torus_case::<geom_core::Interval>(big, r, vc, n, off)
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn review_4938_v2_torus_long_chains() {
+    let e = eps();
+    for (big, r) in [(0.02, 0.005), (0.01, 0.008)] {
+        for vc in [std::f64::consts::PI, 0.0] {
+            for (uspan, vhalf) in [(6.0, 0.3), (1.0, 3.0), (6.0, 3.0)] {
+                for n in [20usize, 50] {
+                    for off in [0.0, 0.9] {
+                        eprintln!(
+                            "REVIEW4938V2 eps={e:e} toruslong ({big},{r}) vc={vc:.2} u={uspan} v=±{vhalf} n={n} off={off}ε: f64 {} | iv {}",
+                            torus_case_span::<f64>(big, r, vc, n, off, uspan, vhalf),
+                            torus_case_span::<geom_core::Interval>(
+                                big, r, vc, n, off, uspan, vhalf
+                            )
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
