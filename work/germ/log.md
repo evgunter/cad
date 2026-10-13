@@ -1232,3 +1232,20 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - Graded M. Arm byte 118, mod 3 = 1 → **SEQUENTIAL**. One local Opus review, r5012, on the frozen head; brief sha256 `6ed44f86b40d`.
   - 4966's fix pass pushed `5f4644d21e`; its hosted test is running and the PR body is not yet updated. 4964's fix pass has not pushed yet.
   - Next lane: wait for 4966's TiltedEllipse filing (a served ellipse 1e7·ε off flat cones, on main), then dispatch it. Re-armed for 20:19.
+- 2026-10-13 20:30 — Check-in. **Both holdout fix passes are done.**
+  - **4966** (`58d47a47e6`): all seven items handled.
+    - New `geom::square_frame`, one home for squaring a seam. It squares the seam as `a×(u×a)`, normalises the axis, and gives a width.
+    - The τ charge is re-derived, and a seam off the axis gets a typed `DegenerateOperand`.
+    - Step-6 coverage restored to 78°.
+    - Tilted-seam boolean measured: a seam tilted past ε/R is refused at rest. Nothing to fix in this PR.
+    - TiltedEllipse filed as `flat-cone-tilted-ellipse-stands-off-the-cone`.
+    - A golden moved: the m10 sym-profile ledger, form counts only, re-baselined and explained.
+  - **4964** (`6f8aea425f`): all six items handled.
+    - Miss judges tightened to Kε.
+    - New direct `extreme_sign` oracle row, red on 15/15 seeds under mutants A, C and D. The old fuzz rows stay 0/15, because they mostly reach the ladder rather than this arm.
+    - Torus oracle reads the residual at its own extremes, within 1e-6 ε of mpmath.
+    - Seeds replay their poses.
+    - `span_signs` is the one home for deciding a spread. `plane_height` now escalates in the zero-band/gap case, the fail-loud direction.
+  - **My call:** no delta reviews this time. Every answer-moving change goes toward a refusal or an escalation and was measured by the lane. I rely on local verify plus hosted CI.
+  - Local verify of both on head + main at three ε is running: `scratchpad/vpr.sh`, summaries in v4966/ and v4964/. Hosted test runs are in progress on both.
+  - r5012 is reviewing. TiltedEllipse lane: dispatch once 4966 merges, so the item is on main.
