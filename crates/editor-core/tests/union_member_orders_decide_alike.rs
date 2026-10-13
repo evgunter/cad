@@ -33,12 +33,8 @@
 //!
 //! **Scope.** The corpus is planar blocks: rests, continuations, a
 //! transverse union and an in-band sliver. Unions known to decide by
-//! member order are pinned where their issues own them, not here:
-//! `emit_shared_rim_several`'s `RESIDUES` (`row`, `rowids` and `cross`
-//! reach an emitter residue in some orders and build in the others;
-//! `work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`,
-//! `work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`),
-//! and the capsule's rod ending on its joint
+//! member order are pinned where their issues own them, not here: the
+//! capsule's rod ending on its joint
 //! (`work/tang/the-capsule-rod-ending-on-the-joint-parts-by-member-order.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -358,28 +354,16 @@ fn the_corpus_reaches_its_classes() {
     }
 }
 
-/// The emit corpus's unions that reach an emitter residue in some
-/// member orders, owned where their rows say and pinned in
-/// `emit_shared_rim_several`: `row` and `rowids` the seam-vertex
-/// parentage residue
-/// (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`),
-/// `cross` the held-edge residue
-/// (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
-const EMIT_RESIDUES: [&str; 3] = ["row", "rowids", "cross"];
-
 /// **Every union of the emit corpus decides alike in every member
 /// order** (`emit_shared_rim_several::probe_corpus`: blocks flush on
 /// each other, slabs cutting them and faces cut and merged by one
-/// step), but for [`EMIT_RESIDUES`]. Each is compared as
+/// step). Each is compared as
 /// [`every_union_decides_alike_in_every_member_order`] compares its own.
 #[test]
 fn every_union_of_the_emit_corpus_decides_alike_in_every_member_order() {
     let mut failures = Vec::new();
     let mut compared = 0;
     for (label, blocks, creation) in crate::emit_shared_rim_several::probe_corpus() {
-        if EMIT_RESIDUES.contains(&label.as_str()) {
-            continue;
-        }
         let fixture = |_: ProfileDoc| crate::emit_shared_rim_several::document(&blocks, &creation);
         let orders = orders(blocks.len());
         let first = decide(&fixture, &orders[0]);

@@ -455,8 +455,11 @@ fn joinable<T: Decide>(
     if matches!(locus, Locus::Iso(_)) {
         return Ok(Some(join(false)));
     }
-    // The pair's reading at `w`, levered over the shorter edge's extent,
-    // so it does not depend on which edge the arena lists first.
+    // The pair's reading at `w`, levered over the scale of the edge the
+    // join makes: it holds both edges, so the larger of their extents
+    // bounds its own from below. Both are read, so the lever does not
+    // depend on which edge the arena lists first, and a short edge
+    // beside a long one does not shrink it.
     let extent = [(e1, d1), (e2, d2)]
         .into_iter()
         .filter_map(|(e, d)| {
@@ -465,7 +468,7 @@ fn joinable<T: Decide>(
             let chord = c.carrier().eval(t0).distance(c.carrier().eval(t1));
             Some(geom_brep::edge_extent(c.carrier(), t0, t1, chord))
         })
-        .reduce(T::min);
+        .reduce(T::max);
     let Some(extent) = extent else {
         return Ok(None);
     };
@@ -560,10 +563,10 @@ pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<Vec<EdgeJoin>, BooleanError> {
     let joined = body.join_edges(band, tol)?;
     for j in &joined {
-        desc.substitute(Cell::Vertex(j.vertex), Cell::Edge(j.kept));
-        desc.substitute(Cell::Edge(j.gone), Cell::Edge(j.kept));
+        desc.substitute((Cell::Vertex(j.vertex), Cell::Edge(j.kept)))?;
+        desc.substitute((Cell::Edge(j.gone), Cell::Edge(j.kept)))?;
         if let Some(v) = j.conventional {
-            desc.substitute(Cell::Vertex(v), Cell::Edge(j.kept));
+            desc.substitute((Cell::Vertex(v), Cell::Edge(j.kept)))?;
         }
     }
     Ok(joined)

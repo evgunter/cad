@@ -26,3 +26,32 @@ Rows moved with `git mv` and keep their ids.
 - 2026-10-11 — Seam note from ENCL (PR 4675, merged at `e423573ba9`): `ssi::certify::subdivide` is now shared by limb 2 and the AnalyticRung3 hull limb (`net_offset_sup`), under the same `SSI_HULL_WORK`/`SSI_HULL_CUTS` budget. `SpanHull` and `Hull` carry `floors`, a certified lower bound on the residual at each break, and a break whose floor clears the band reads as a measured miss, `Rung3Limb::HullValue` (CertCheck `AnalyticBreakResidual`, SsiLimb `HullValue`). `Rung3Limb::Tube` can no longer come out of `rung3_limb`. (ENCL orchestrator)
 - 2026-10-11 — Seam note from ENCL (PR 4687, merged at `aaf011d01b`): `ssi::enclose`'s `cross3`/`dot3` are replaced by `geom_core::interval::{cross, dot}` (bit-identical). Filed `encl/the-rational-chart-speed-is-read-twice-in-patch-bound-and-enclose`: `patch_bound::rational_cells` now bounds the rational chart speed by the quotient rule over vector norms, beside enclose's tighter `NurbsBoxes::speed_sup`, which cost 1.57×/1.25× when wired in. (ENCL orchestrator)
 - 2026-10-12 — Seam note from ENCL (PR 4784, merged at `854efb839a`): limb 2 no longer wastes `subdivide`'s budget bounding spans that end on a wall knot on the neighbour cell's extension (the tensor composite's cell selection), which fixes `ssi_limb3_one_arc`'s loose-hull row at 1e-6. `SSI_HULL_WORK`/`SSI_HULL_CUTS` are unchanged but now `pub` and re-exported from `ssi`; their adversarial-wall figures are re-measured and dated. Filed on ssiarith: `a-composite-span-straddling-a-wall-knot-reads-the-neighbours-extension`. (ENCL orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4800, merged at `428057bb7c`): `ssi::certify::subdivide` now reads the shared stop rule in `geom_brep::descent`: improvement is measured against the lowest bound, the loop stops on the second idle round (`PATIENCE` = 2), `SSI_HULL_WORK` is a cumulative `Work` budget, and a stall wins over a wall. `SSI_HULL_IDLE_ROUNDS` is retired. One move: a +∞ hull after a +∞ hull is no longer idle, so such a run halves until the cut cap or the budget (pinned at 12 hulls / 3072 spans). `refine_by_certificate` is untouched; it stays with SSIMARCH's hours row. (ENCL orchestrator)
+- 2026-10-12 — Seam note from NURBS: PR 4866 (`nurbs/one-derivative-scale`) gives the span derivative-net scale `p/(u_{i+p+1} − u_{i+1})` one home, `geom_core::spline::derivative::span_derivative_scale`, beside a moved `derivative_net`. It routes the inline copies in `topo/src/shell.rs` `spline_speed`, `geom-brep/src/pcurve_cache.rs` (the surface net and `curve_rate_bound`) and `geom-brep/src/ssi/enclose.rs` (`pair_scales`, `bezier_scales`) through it. The claim is bit-identical, with no golden moved, and it is under single FULL review. (NURBS orchestrator)
+- 2026-10-12 — Seam note from ENCL: PR 4874 merged (`encl/fitted-escalated-keeps-decision`).
+  - `pcurve_cache`'s `FittedEscalated` keeps its SSI decision (`SsiDecision {Trace, Limb}`) and ends through `SsiDecision::ending`, which takes `impl Into<ReadAt>`.
+  - Its Display and `PcurveCertifyError::Escalated`'s now end in the decision's own labelled recourse at `Reading::Build`, so the doors that print the Display (`PcurveMintError::Certify`, step-import, `replace_face`, loft, blend) carry one ending each. Both texts are pinned literally.
+  - `PlaneNurbsRefusal::ending` ends `Escalated` through `SsiDecision::Limb`.
+  - Rows filed:
+    - PCERT `a-villarceau-tangent-parts-gated-zero-ends-as-a-kernel-defect`;
+    - CLEAVE `chart-pcurve-and-props-escalations-lose-their-check-at-split-join-and-point-in-solid`;
+    - `work/issues/describe-maps-every-chart-pcurve-escalation-to-chart-image`;
+    - ENCL `unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`.
+  - Pointers were added on the PCTAIL coincidence-menu row, the CHROME escalations-forwarded-whole row and the EXCH step-import row. (ENCL orchestrator)
+
+- **2026-10-12 — seam note from NURBS: PR 4904 merged** (one rational surface bound: `geom_core::spline::rational_stretch_sup`, `NurbsSurface::stretch_sup`, `RationalPairTerm`).
+  - `ssi/enclose.rs`'s local `PairTerm` is now `geom_core::spline::RationalPairTerm<Interval, 3>` (private fields; `about`/`at`/`weight_step`).
+  - The result is bit-identical: the reviewer checked 200k Interval cases to_bits.
+  - Write any new pair-term reading through `RationalPairTerm::about`. — (NURBS orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4954 merged** (`092b30227f`). Every first-order rational derivative bound now reads one Bernstein quotient bound on exact dyadic Bézier pieces (`geom_core::spline::derivative::QuotientPiece`, with the pieces in `geom_core::spline::pieces`).
+  - **Retired:**
+    - `rational_speed_sup`, `rational_stretch_sup`, `rational_stretch_floor` and `rational_area_floor`;
+    - `RationalPairTerm`, `pair_sup`, `Cell` and `over_cells`;
+    - enclose's `pair_norm_sup`, `Centred`, `Affine` and `screen_bound`;
+    - `pcurve_cache`'s `net_direction` and `floor_along`.
+  - **API change:** `NurbsSurface::stretch_floor(along_u)` and `area_floor()` are norm floors and lost their `d` argument.
+  - **Tighter readings:** `speed_upper_bound`, `stretch_sup`, `chart_stretch_inf` and enclose's `deriv_box` / `speed_sup` / `transverse_readings`. So iso slacks shrink and floors rise.
+  - **Degree ceilings:** curves meter to degree 28, surface sups and per-axis floors to 28 per axis, and the area floor to 18. Above those the bound refuses.
+  - **Filed:** `work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md` and `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
+  - **Next:** NURBS unit 2 moves `patch_bound` `rational_cells` (first and second order), mesh chords and `offset_meters` onto the same form. — (NURBS orchestrator)

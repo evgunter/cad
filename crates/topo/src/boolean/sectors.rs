@@ -46,7 +46,9 @@
 
 #[cfg(test)]
 use geom_brep::enters_material;
-use geom_brep::{EntersMaterial, OutwardNormal, enters_material_reported};
+use geom_brep::{
+    ConicBend, ConicDeparture, EntersMaterial, OutwardNormal, enters_material_reported,
+};
 use geom_core::k_stats::{Magnitude, NonzeroSign};
 use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
 
@@ -78,101 +80,18 @@ pub(super) enum Reach<T: geom_core::Real> {
     Extent(T),
     /// A conic edge: its departure tangent at the base vertex, levered
     /// at the edge's own extent, and how it bends off that tangent
-    /// ([`Bend`]), which [`pierce_side`] reads where the tangent lies in
+    /// ([`ConicBend`]), which [`pierce_side`] reads where the tangent lies in
     /// a plane face.
     Conic {
         /// The edge's extent ([`geom_brep::edge_extent`]): no longer
         /// than its arc, so a point at that arc length lies on the edge.
         extent: T,
         /// The edge's bend at the base vertex.
-        bend: Bend<T>,
+        bend: ConicBend<T>,
     },
     /// A subdivision bisector: a direction with no point behind it,
     /// levered at its sector's arm.
     Bisector(T),
-}
-
-/// **How a conic edge bends off its departure tangent** at the sector's
-/// base vertex: what [`pierce_side`] reads one order down where the
-/// tangent lies in a plane face ([`conic_side`]).
-#[derive(Clone, Copy, Debug)]
-pub(super) struct Bend<T: geom_core::Real> {
-    /// The carrier's curvature vector at the base vertex: its second
-    /// derivative's part normal to the tangent, per arc length squared.
-    pub curvature: Vec3<T>,
-    /// What the carrier's curvature is bounded by along the edge.
-    pub bounds: BendBounds<T>,
-}
-
-/// The bounds a conic's curvature keeps everywhere on its carrier.
-#[derive(Clone, Copy, Debug)]
-pub(super) enum BendBounds<T: geom_core::Real> {
-    /// A circle or an ellipse: a plane curve whose curvature lies in
-    /// `[least, most]`, both positive, and whose points all lie within
-    /// `reach` of the base vertex and within `rise` of its tangent line
-    /// there.
-    Planar {
-        /// The least curvature anywhere on the carrier.
-        least: T,
-        /// The greatest.
-        most: T,
-        /// A bound on every point's distance from the base vertex.
-        reach: T,
-        /// A bound on every point's distance from the tangent line at
-        /// the base vertex, toward the principal normal.
-        rise: T,
-    },
-    /// A spiric section: no curvature bound is certified here, so its
-    /// tie with a face's plane reads no side.
-    Unbounded,
-}
-
-impl<T: Decide> Bend<T> {
-    /// The bend of the conic `carrier` where the walk leaves it: `deriv`
-    /// and `deriv2` the carrier's first and second derivatives there,
-    /// `span` its parameter span (`t₁ − t₀`).
-    pub(super) fn of(carrier: &geom::Curve3<T>, deriv: Vec3<T>, deriv2: Vec3<T>, span: T) -> Self {
-        let speed_sq = deriv.norm_squared();
-        let t = deriv.normalize();
-        let curvature = (deriv2 - t * deriv2.dot(t)) / speed_sq;
-        let bounds = match *carrier {
-            // The parameter is the angle, so the arc is `radius·span`
-            // long, no point lies further than the diameter, and the arc
-            // rises `radius·(1 − cos θ) = 2·radius·sin²(θ/2)` off its
-            // tangent at angle `θ`, most at `θ = min(span, π)` (the sine
-            // form, since `1 − cos θ` cancels to nothing at a small `θ`).
-            geom::Curve3::Circle { radius, .. } => BendBounds::Planar {
-                least: T::one() / radius,
-                most: T::one() / radius,
-                reach: (radius * span).min(radius * T::from_f64(2.0)),
-                rise: radius
-                    * T::from_f64(2.0)
-                    * (span.min(T::pi()) * T::from_f64(0.5)).sin().powi(2),
-            },
-            // Semi-axes `a ≥ b`: the curvature runs from `b/a²` at the
-            // ends of the minor axis to `a/b²` at the ends of the major,
-            // and no point lies further than the major diameter. Off its
-            // tangent the arc rises `y' = sin φ ≤ φ ≤ most·s`, so at most
-            // `most·S²/2` over its length `S ≤ a·span` (the speed is at
-            // most `a`), and never past the major diameter.
-            geom::Curve3::Ellipse { major, minor, .. } => {
-                let (a, b) = (major.abs().max(minor.abs()), major.abs().min(minor.abs()));
-                let most = a / b.powi(2);
-                BendBounds::Planar {
-                    least: b / a.powi(2),
-                    most,
-                    reach: a * T::from_f64(2.0),
-                    rise: (most * (a * span).powi(2) * T::from_f64(0.5)).min(a * T::from_f64(2.0)),
-                }
-            }
-            geom::Curve3::Spiric { .. } => BendBounds::Unbounded,
-            geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => unreachable!(
-                "`Bend::of` reads a conic carrier, not a {:?}",
-                carrier.kind()
-            ),
-        };
-        Self { curvature, bounds }
-    }
 }
 
 impl<T: geom_core::Real> Reach<T> {
@@ -266,6 +185,21 @@ impl<T: geom_core::Real> BoolSector<T> {
     /// Whether `end` is a real edge.
     pub(super) fn end_edge(&self) -> bool {
         !matches!(self.end_reach, Reach::Bisector(_))
+    }
+
+    /// The two bounds, each with the length it reaches from the base
+    /// vertex: what a per-bound reading levers at.
+    pub(super) fn reached_bounds(&self) -> [(Vec3<T>, T); 2] {
+        [
+            (self.start, self.start_reach.length()),
+            (self.end, self.end_reach.length()),
+        ]
+    }
+
+    /// The sector's middle direction, unnormalized: its bounds' sum,
+    /// inside the sector, which is convex.
+    pub(super) fn middle(&self) -> Vec3<T> {
+        self.start + self.end
     }
 
     /// The farther of the sector's two bounds' reaches, in metres: how
@@ -443,18 +377,9 @@ pub(super) fn orbit_corners<T: Decide>(
             geom::Curve3::Circle { .. }
             | geom::Curve3::Ellipse { .. }
             | geom::Curve3::Spiric { .. } => {
-                let (t0, t1) = curve.params();
-                let walk = he == edge.he_plus;
-                let (tangent, _) = curve.walk_tangents(walk);
-                let extent =
-                    geom_brep::edge_extent(curve.carrier(), t0, t1, p_end.distance(p_base));
-                let bend = Bend::of(
-                    curve.carrier(),
-                    tangent,
-                    curve.walk_departure_deriv2(walk),
-                    t1 - t0,
-                );
-                (tangent.normalize() * extent, Reach::Conic { extent, bend })
+                let ConicDeparture { dir, extent, bend } =
+                    ConicDeparture::of(curve, he == edge.he_plus, p_end.distance(p_base));
+                (dir, Reach::Conic { extent, bend })
             }
         }
     };
@@ -830,92 +755,31 @@ fn read_side<T: Decide>(
 
 /// **A conic bound's side of a plane face one order down**, where its
 /// departure tangent read `Zero` against the plane ([`pierce_side`]):
-/// which side the arc BENDS to.
-///
-/// Put the arc in its own plane, in the frame of its unit tangent `t̂`
-/// and principal normal `N̂` at the base vertex: a point at arc length
-/// `s` sits at `x·t̂ + y·N̂`, so its height over the face's plane is
-/// `x·(t̂·n̂) + y·(N̂·n̂)` exactly. The first term is the first-order
-/// residue the Zero left (`|x| ≤ s`), the second the bend.
-///
-/// **The bend's lower bound.** The tangent turns at the curvature
-/// `κ(s) ∈ [least, most]`, so its angle `φ(s)` lies between
-/// `least·s` and `most·s`. While `most·s ≤ π/2`, `sin φ ≥ sin(least·s)`,
-/// and integrating, `y(s) ≥ (1 − cos(least·s))/least
-/// = 2·sin²(least·s/2)/least`. So at `l = min(extent, π/(2·most))` the
-/// arc stands at least
-///
-/// `|N̂·n̂|·2·sin²(least·l/2)/least − |t̂·n̂|·l`
-///
-/// off the plane on the side `N̂·n̂` names, and a margin that clears the
-/// band is the verdict: bending against the outward normal is `In`,
-/// along it `Out`. `l` is capped at the extent, so the witness point
-/// lies on the edge.
-///
-/// **On.** Every point of the arc lies in its own plane, within `reach`
-/// of the vertex and within `rise` of the tangent line there toward
-/// `N̂` ([`BendBounds::Planar`]), so its height is at most
-/// `|t̂·n̂|·reach + |N̂·n̂|·rise`; where that reads `Zero` the whole edge
-/// lies in the plane to the band, and the bound is `On` as a line
-/// edge's is.
-///
-/// Anything else refuses, typed ([`BooleanDecision::ConicBend`]): a
-/// bend the band does not separate from the residue, and every spiric
-/// section, whose curvature carries no bound here.
+/// [`geom_brep::conic_bend_side`] against the face's outward normal:
+/// bending into the material is `In`, out of it `Out`, and a whole edge
+/// within the band of the plane is `On` as a line edge's is. Anything
+/// else refuses, typed ([`BooleanDecision::ConicBend`]).
 fn conic_side<T: Decide>(
     dir: Vec3<T>,
     extent: T,
-    bend: Bend<T>,
+    bend: ConicBend<T>,
     face_normal: OutwardNormal<T>,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
-    let n = face_normal.vec();
-    let refused = |diag| BooleanError::Escalated {
-        decision: BooleanDecision::ConicBend,
-        diag,
-    };
-    let normal_part = bend.curvature.dot(n) / bend.curvature.norm();
-    // The bend's lower bound, signed as `N̂·n̂` is. A spiric section has
-    // no bend this reading certifies: it lifts nothing, and the margin
-    // below cannot clear.
-    let (lift, l) = match bend.bounds {
-        BendBounds::Planar {
-            least,
-            most,
-            reach,
-            rise: height,
-        } => {
-            if let Ok(Sign::Zero) = decide(
-                "bool_conic_flat",
-                Margin::of(rise(dir, n, reach).abs() + normal_part.abs() * height),
-                band,
-            ) {
-                return Ok(SideCode::On);
-            }
-            let l = extent.min(T::pi() * T::from_f64(0.5) / most);
-            let half_turn = (least * l * T::from_f64(0.5)).sin();
-            (
-                normal_part * half_turn.powi(2) * T::from_f64(2.0) / least,
-                l,
-            )
-        }
-        BendBounds::Unbounded => (T::zero(), extent),
-    };
-    crate::validate::decide_positive(
-        "bool_conic_bend",
-        Margin::of(lift.abs() - rise(dir, n, l).abs()),
+    match geom_brep::conic_bend_side(
+        dir,
+        extent,
+        bend,
+        geom_brep::ReferenceNormal::of_face_outward(face_normal),
         band,
-    )
-    .map_err(refused)?;
-    // The signed lift is the one that just cleared, so its sign is
-    // decided wherever the margin was; the arm refuses rather than
-    // trusting that.
-    match crate::validate::decide_nonzero("bool_conic_bend_side", Margin::of(lift), band) {
-        // Same mapping as `enters_material`: into the material is
-        // against the outward normal.
-        Ok(NonzeroSign::Negative) => Ok(SideCode::In),
-        Ok(NonzeroSign::Positive) => Ok(SideCode::Out),
-        Err(diag) => Err(refused(diag)),
+    ) {
+        Ok(EntersMaterial::Enters) => Ok(SideCode::In),
+        Ok(EntersMaterial::Exits) => Ok(SideCode::Out),
+        Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
+        Err(diag) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::ConicBend,
+            diag,
+        }),
     }
 }
 
@@ -1014,45 +878,51 @@ fn at_departure<T: Decide>(
 /// side does the sector's face CURVE to, relative to the other face's
 /// material?
 ///
-/// The margin is the existing second-order sector trilean's
-/// (`tangent_sector_order2{,_arm}`,
-/// [`geom_brep::enters_material_order2`]): the
-/// relative transverse curvature of the two carriers — the departing
-/// transverse curve's acceleration on the sector's carrier measured
-/// RELATIVE to the other carrier's own curving, signed against the
-/// other face's outward normal — as the displacement it induces at
-/// the sector's lever arm. Against a plane the partner curvature is
-/// zero and the margin is the departure's own normal curvature (the
-/// trilean's documented planar reading, reached bit-identically).
-/// The transverse direction comes from the DEV-1 closed-form locus
+/// The reading is [`tangent_relative_side`] along each of the
+/// sector's two `bounds`, levered at that bound's own reach — the
+/// length the first-order side code levers the same bound at. The
+/// relative curvature of every pair the DEV-1 closed-form locus
 /// ([`geom_brep::tangent_locus`], the same rows the door's witness
-/// derivation runs): the descent exists exactly where the witness
-/// lane reaches, and nowhere else.
+/// derivation runs) admits is transverse only, one-signed off the
+/// locus, so every bound off the locus reads the same side, and the
+/// one that reaches far enough for its departure to show decides it:
+/// a bound along a short edge, too short for its height off the
+/// tangent plane to show, is outvoted by any bound that does show it,
+/// and a bound riding the locus reads an exact `On`. The locus gates
+/// the descent: it exists exactly where the witness lane reaches, and
+/// nowhere else.
 ///
-/// Verdicts: definitely curving into the other body's material ⇒
-/// `In`; definitely away ⇒ `Out`; an EXACT second-order zero is the
-/// isolated osculating point whose residue the verified declaration
-/// bridges (C4's #175 clause) — the pair is locally conformal to
-/// every order the kernel measures, and the declaration's verified
-/// opposed material sides make that the Eq. 15.3 ⁻ lump; an in-band
-/// margin escalates (an osculating pair is a sliver at this ε — F6).
+/// The lump opens for every tangency the glue door decides, whichever
+/// side the two materials lie on (C7): an internal tangency reads `In`
+/// where an external one reads `Out`.
+///
+/// Verdicts: a bound definitely curving into the other body's
+/// material ⇒ `In`; definitely away ⇒ `Out`; otherwise an in-band
+/// bound escalates (an osculating pair is a sliver at this ε — F6),
+/// and both bounds at an EXACT second-order zero are an osculating
+/// sector, locally conformal to every order the kernel measures over
+/// its reach, so it lumps as a one-carrier pair does under the pair's
+/// sense bit (`sector_outward` against `other_outward`, levered at
+/// `arm`: opposed the Eq. 15.3 ⁻ lump, aligned the ⁺).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn tangent_lump<T: Decide>(
     sector_surface: &geom::Surface<T>,
     other_surface: &geom::Surface<T>,
     reach: geom_brep::ExtentBall<T>,
     other_outward: OutwardNormal<T>,
+    sector_outward: OutwardNormal<T>,
     p: geom_core::Point3<T>,
     op: super::BooleanOp,
     on_side: Operand,
     sector_face: FaceKey,
+    bounds: [(Vec3<T>, T); 2],
     arm: T,
     read: DeclarationRead,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
-    let locus_dir = match tangent_locus(sector_surface, other_surface, reach, band) {
-        Ok(TangentLocus::Line { dir, .. }) => dir,
+    match tangent_locus(sector_surface, other_surface, reach, band) {
+        Ok(TangentLocus::Line { .. }) => {}
         Err(TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,
@@ -1080,29 +950,57 @@ pub(super) fn tangent_lump<T: Decide>(
         }
     };
     let n_ref = other_outward.vec();
-    // Transverse in-tangent-plane direction (the jet family's d̂ =
-    // n̂ × τ̂; quadratic consumption, so τ̂'s sign is immaterial).
-    let d_hat = n_ref.cross(locus_dir).normalize();
-    match tangent_relative_side(
-        sector_surface,
-        other_surface,
-        other_outward,
-        p,
-        d_hat,
-        arm,
-        read,
-        band,
-    )? {
-        SideCode::In => Ok(SideCode::In),
-        SideCode::Out => Ok(SideCode::Out),
-        // The exact-zero osculating residue, bridged by the verified
-        // declaration (doc above): locally conformal with verified
-        // opposed senses IS the Eq. 15.3 ⁻ posture.
-        SideCode::On => Ok(super::tables::eq15_3_lump(
-            op,
-            on_side,
-            super::plane_eq::PlaneRelation::SameOpposite,
-        )),
+    let mut shown: Option<SideCode> = None;
+    let mut in_band = None;
+    for (dir, reached) in bounds {
+        match tangent_relative_side(
+            sector_surface,
+            other_surface,
+            other_outward,
+            p,
+            dir,
+            reached,
+            read,
+            band,
+        ) {
+            Ok(SideCode::On) => {}
+            Ok(code) => match shown {
+                Some(seen) if seen != code => {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "a tangent sector's two bounds curve to opposite sides",
+                    });
+                }
+                _ => shown = Some(code),
+            },
+            Err(escalation) => {
+                in_band.get_or_insert(escalation);
+            }
+        }
+    }
+    match (shown, in_band) {
+        (Some(code), _) => Ok(code),
+        (None, Some(escalation)) => Err(escalation),
+        // The exact-zero osculating residue (doc above): locally
+        // conformal, so the pair's sense bit picks the Eq. 15.3 posture.
+        (None, None) => {
+            let relation = match crate::validate::decide(
+                "tangent_lump_senses",
+                Margin::levered(sector_outward.vec().dot(n_ref), arm),
+                band,
+            ) {
+                Ok(Sign::Positive) => super::plane_eq::PlaneRelation::SameOriented,
+                Ok(Sign::Negative) => super::plane_eq::PlaneRelation::SameOpposite,
+                Ok(Sign::Zero) => {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "a tangent sector pair's outward normals are perpendicular",
+                    });
+                }
+                Err(diag) => {
+                    return Err(BooleanError::coincidence(Coincide::TangentSide, read, diag));
+                }
+            };
+            Ok(super::tables::eq15_3_lump(op, on_side, relation))
+        }
     }
 }
 
@@ -1199,16 +1097,63 @@ pub(super) fn within<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
-    let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
-    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, read, diag);
-    let t1 = decide("bool_sector_within", c1, band).map_err(escalate)?;
-    let t2 = decide("bool_sector_within", c2, band).map_err(escalate)?;
+    let (t1, t2) = within_signs(s, dir, read, band)?;
     Ok(if strict {
         t1 == Sign::Positive && t2 == Sign::Positive
     } else {
         t1 != Sign::Negative && t2 != Sign::Negative
     })
+}
+
+/// [`within`]'s two readings of `dir` against `s`'s bounds: which side
+/// of `start`, then of `end`, it lies on, `Positive` toward the other.
+fn within_signs<T: Decide>(
+    s: &BoolSector<T>,
+    dir: Vec3<T>,
+    read: DeclarationRead,
+    band: Band,
+) -> Result<(Sign, Sign), BooleanError> {
+    let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
+    let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
+    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, read, diag);
+    Ok((
+        decide("bool_sector_within", c1, band).map_err(escalate)?,
+        decide("bool_sector_within", c2, band).map_err(escalate)?,
+    ))
+}
+
+/// **The half-planes `other`'s faces leave `dir` in**, where `dir` lies
+/// on the boundary of `other`'s corner: for each sector whose face's
+/// plane holds `dir` and whose closure holds it, the unit direction
+/// square to `dir` into the face, on each side of `dir` the sector lies
+/// — one side where `dir` runs along a bound, both where it runs inside.
+/// Around `dir`, the corner's material changes side at exactly these.
+pub(super) fn half_planes<T: Decide>(
+    dir: Vec3<T>,
+    reach: Reach<T>,
+    other: &[BoolSector<T>],
+    band: Band,
+) -> Result<Vec<Vec3<T>>, BooleanError> {
+    let mut out = Vec::new();
+    for s in other {
+        if plane_side_code(dir, reach, s.normal, band)? != SideCode::On {
+            continue;
+        }
+        // CCW about the normal from `start` to `end` (module docs), so
+        // the face lies ahead of `start` and behind `end`.
+        let ahead = s.normal.vec().cross(dir).normalize();
+        match within_signs(s, dir, DeclarationRead::Moot, band)? {
+            (Sign::Positive, Sign::Positive) => out.extend([ahead, -ahead]),
+            (Sign::Zero, Sign::Positive) if direction_sense(s.start, dir, s.arm, band)? => {
+                out.push(ahead);
+            }
+            (Sign::Positive, Sign::Zero) if direction_sense(s.end, dir, s.arm, band)? => {
+                out.push(-ahead);
+            }
+            _ => {}
+        }
+    }
+    Ok(out)
 }
 
 /// The sector's bounds that are edges of its face, with their unit
@@ -1700,7 +1645,7 @@ fn sector_overlap<T: Decide>(
 
 /// A sector bound's side code against a face's PLANE ([`side_code`]
 /// with [`NO_CURVATURE`]): what the sector passes read a bound against.
-fn plane_side_code<T: Decide>(
+pub(super) fn plane_side_code<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
     face_normal: OutwardNormal<T>,
@@ -1981,6 +1926,17 @@ pub(super) fn wedge_classes<T: Decide>(
     }))
 }
 
+/// **A corner's link mean** `c`: the mean of its sectors' unit bounds,
+/// with its shortest arm, the lever a reading of `c` is metered over.
+/// `None` for a corner with no sectors.
+pub(super) fn link_mean<T: Decide>(sectors: &[BoolSector<T>]) -> Option<(Vec3<T>, T)> {
+    let arm = sectors.iter().map(|s| s.arm).reduce(|a, b| a.min(b))?;
+    let sum = sectors
+        .iter()
+        .fold(Vec3::zero(), |acc, s| acc + s.start + s.end);
+    Some((sum / T::from_f64(2.0 * sectors.len() as f64), arm))
+}
+
 /// **Each edge of `own`'s orbit against `other`'s corner read as a
 /// polygon cone**: the corner's faces bound its material whatever its
 /// shape, a dart's apex (a reflex edge) or a saddle as much as a convex
@@ -2013,13 +1969,9 @@ pub(super) fn cone_read<T: Decide>(
             None => return Ok(None),
         }
     }
-    let Some(arm) = other.iter().map(|s| s.arm).reduce(|a, b| a.min(b)) else {
+    let Some((mean, arm)) = link_mean(other) else {
         return Ok(None);
     };
-    let sum = other
-        .iter()
-        .fold(Vec3::zero(), |acc, s| acc + s.start + s.end);
-    let mean = sum / T::from_f64(2.0 * other.len() as f64);
     let away = match decide("bool_cone_pointed", Margin::levered(mean.norm(), arm), band) {
         // An in-band `−c` labels nothing, as no side read does: the cone
         // is the material.
@@ -2099,7 +2051,7 @@ fn cone_side<T: Decide>(
     let mut escalation = None;
     'reference: for (s0, base) in other.iter().zip(&codes) {
         let Some(base) = *base else { continue };
-        let p = (s0.start + s0.end).normalize();
+        let p = s0.middle().normalize();
         let p_reach = Reach::Bisector(s0.arm);
         let mut held = base == SideCode::In;
         for (s, code) in other.iter().zip(&codes) {
@@ -2246,7 +2198,7 @@ fn in_sector<T: Decide>(
 ) -> Result<bool, BooleanError> {
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     let (d, n) = (dir.normalize(), s.normal.vec());
-    let sum = s.start + s.end;
+    let sum = s.middle();
     let middle = sum.normalize();
     let (one, l_start, l_end) = (
         T::from_f64(1.0),
@@ -5396,7 +5348,9 @@ mod tests {
     /// the margin the funnel read, and both end in the corner's lever
     /// and the tolerance that margin gives (the decision passes on
     /// either definite sign, so a zero-band margin is a size a smaller
-    /// tolerance decides). A clear arm reads the sense.
+    /// tolerance decides), the lever and the floor's sentence where that
+    /// tolerance lies at or below `EPS_MIN` (D4 ¶4). A clear arm reads the
+    /// sense.
     #[test]
     fn a_direction_sense_refuses_its_decided_zero_as_its_in_band_arm() {
         let b = band();
@@ -5417,16 +5371,22 @@ mod tests {
                 "{arm:e}: the margin the funnel read"
             );
             let text = err.to_string();
+            let ending = geom_core::MarginDiag::value(arm).sized_recourse(
+                b,
+                geom_core::SizedWords {
+                    lever: "make the edges at the corner where the two faces meet span clearly \
+                            more than the tolerance",
+                    size: "length of the corner's shorter edge",
+                    passes: geom_core::SizedPass::NonZero,
+                    no_size: None,
+                    unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+                },
+            );
             assert!(
                 text.starts_with(
                     "whether two parallel directions at a corner point the same way or opposite \
                      ways is undecided: "
-                ) && text.ends_with(&format!(
-                    "Recourse: make the edges at the corner where the two faces meet span \
-                     clearly more than the tolerance, or, if this length of the corner's shorter edge \
-                     is intended, tighten the tolerance below {:e} m",
-                    arm / (e / z)
-                )),
+                ) && text.ends_with(&ending),
                 "{arm:e}: {text}"
             );
         }
@@ -5604,21 +5564,16 @@ mod tests {
     /// the plane `z = 0` and bending toward `bend` (unit, normal to
     /// `+x`): its tangent, and its reach as `orbit_corners` mints it.
     fn quarter_arc(bend: Vec3<f64>) -> (Vec3<f64>, Reach<f64>) {
+        let span = core::f64::consts::FRAC_PI_2;
         let carrier = geom::Curve3::Circle {
             center: geom_core::Point3::origin() + bend,
             axis: Vec3::new(1.0, 0.0, 0.0).cross(bend),
             radius: 1.0,
             u_ref: -bend,
         };
-        let extent =
-            geom_brep::edge_extent(&carrier, 0.0, core::f64::consts::FRAC_PI_2, 2f64.sqrt());
+        let extent = geom_brep::edge_extent(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
         let tangent = carrier.deriv(0.0);
-        let bend = Bend::of(
-            &carrier,
-            tangent,
-            carrier.deriv2(0.0),
-            core::f64::consts::FRAC_PI_2,
-        );
+        let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
         (tangent.normalize() * extent, Reach::Conic { extent, bend })
     }
 
@@ -5673,8 +5628,8 @@ mod tests {
     /// ends of an ellipse's axes: an `In` must put a point of the edge
     /// past the escalation band below the plane, an `Out` above it, and
     /// an `On` keep every point within the escalation band. `In` and
-    /// `Out` are checked at the witness the derivation names, the point
-    /// at arc length `min(extent, π/(2·κ_max))`, found here by sampling.
+    /// `Out` are checked at the witness the derivation names
+    /// ([`geom_brep::conic_bend_side`]), found here by sampling.
     #[test]
     fn a_conic_tie_verdict_is_true_of_the_sampled_arc() {
         let b = band();
@@ -5739,8 +5694,11 @@ mod tests {
                         let extent = geom_brep::edge_extent(&flat, 0.0, span, chord);
                         // The witness the derivation names, found
                         // independently: the sample at arc length
-                        // `l = min(extent, π/(2·κ_max))`, with `κ_max`
-                        // sampled over the whole carrier.
+                        // `l = min(max(extent, b·span), cap)`, `b` the
+                        // lesser semi-axis (the least speed) and `cap`
+                        // a half turn on a circle, `π/(2·κ_max)` on an
+                        // ellipse, with `κ_max` sampled over the whole
+                        // carrier.
                         let kmax = (0..=samples)
                             .map(|i| {
                                 let t = core::f64::consts::TAU * i as f64 / samples as f64;
@@ -5748,7 +5706,12 @@ mod tests {
                                 d1.cross(d2).norm() / d1.norm().powi(3)
                             })
                             .fold(0.0f64, f64::max);
-                        let l = extent.min(core::f64::consts::FRAC_PI_2 / kmax);
+                        let cap = if along_n == along_t {
+                            core::f64::consts::PI * along_n
+                        } else {
+                            core::f64::consts::FRAC_PI_2 / kmax
+                        };
+                        let l = extent.max(along_n.min(along_t) * span).min(cap);
                         // The arc length `l` is found to a step of
                         // `span / samples²`: coarse steps up to the one it
                         // falls in, fine ones within it, so the witness
@@ -5783,7 +5746,7 @@ mod tests {
                         let cg = sense * (q * b.zero() / depth).min(1.0);
                         let (carrier, _) = mk(beta, cg);
                         let tangent = carrier.deriv(0.0);
-                        let bend = Bend::of(&carrier, tangent, carrier.deriv2(0.0), span);
+                        let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
                         let dir = tangent.normalize() * extent;
                         let reach = Reach::Conic { extent, bend };
                         if enters_material(dir, n, extent, b) != Ok(EntersMaterial::Tangent) {
@@ -5868,7 +5831,7 @@ mod tests {
             "the arc is long beside the band (chord {chord:e}) and its far end in it ({far:e})"
         );
         let extent = geom_brep::edge_extent(&carrier, 0.0, span, chord);
-        let bend = Bend::of(&carrier, carrier.deriv(0.0), carrier.deriv2(0.0), span);
+        let bend = ConicBend::of(&carrier, carrier.deriv(0.0), carrier.deriv2(0.0), span);
         let dir = carrier.deriv(0.0).normalize() * extent;
         assert_eq!(
             pierce_side(
@@ -5915,13 +5878,35 @@ mod tests {
         let Reach::Conic { extent, bend } = reach else {
             unreachable!("`quarter_arc` mints a conic reach")
         };
-        // Lifts `2·sin²(extent/2) ≈ extent²/2`: a third of the zero band.
+        // The arc's length and extent bounded loosely, but soundly, by
+        // a length whose lift `2·sin²(short/2) ≈ short²/2` is a third
+        // of the zero band.
         let short = (2.0 * b.zero() / 3.0).sqrt();
+        let geom_brep::BendBounds::Planar {
+            least,
+            reach,
+            rise,
+            lifts_to,
+            ..
+        } = bend.bounds
+        else {
+            unreachable!("a circle's bend is planar")
+        };
+        let loose = ConicBend {
+            bounds: geom_brep::BendBounds::Planar {
+                least,
+                reach,
+                rise,
+                arc: short,
+                lifts_to,
+            },
+            ..bend
+        };
         let got = pierce_side(
             dir,
             Reach::Conic {
                 extent: short,
-                bend,
+                bend: loose,
             },
             n,
             FaceShape::Plane,
@@ -5931,8 +5916,8 @@ mod tests {
         assert!(conic_bend(&got), "a lift inside the band: {got:?}");
         let spiric = Reach::Conic {
             extent,
-            bend: Bend {
-                bounds: BendBounds::Unbounded,
+            bend: ConicBend {
+                bounds: geom_brep::BendBounds::Unbounded,
                 ..bend
             },
         };
@@ -6051,7 +6036,7 @@ mod tests {
             p,
             d,
             arm,
-            DeclarationRead::Spent(GlueClass::TANGENT),
+            DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
         .expect_err("an in-band sagitta escalates the reading");
@@ -6062,7 +6047,7 @@ mod tests {
             decision,
             BooleanDecision::Coincidence(
                 Coincide::TangentSide,
-                DeclarationRead::Spent(GlueClass::TANGENT)
+                DeclarationRead::Spent(GlueClass::Tangent)
             )
         );
         assert_eq!(diag.predicate, Some("tangent_sector_order2"));
@@ -6144,6 +6129,25 @@ mod tests {
         )
         .expect_err("a zero-band extent refuses the arm gate");
         let text = err.to_string();
+        // The arm re-quotes the rise it meters only where it offers a
+        // tolerance to decide both (D4 ¶4's floor withholds one); else it
+        // keeps its own margin. Either way the offer obeys the floor.
+        let quoted = if b.offer_deciding(short).is_some() {
+            departure(short)
+        } else {
+            short
+        };
+        let ending = geom_core::MarginDiag::value(quoted).sized_recourse(
+            b,
+            geom_core::SizedWords {
+                lever: "make the edges at the corner where the two faces meet span clearly more \
+                        than the tolerance",
+                size: "edge's length or rise",
+                passes: geom_core::SizedPass::Positive,
+                no_size: None,
+                unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+            },
+        );
         assert!(
             matches!(
                 err,
@@ -6151,13 +6155,9 @@ mod tests {
                     decision: BooleanDecision::LeverArm(LeverArm::SectorSide),
                     ..
                 }
-            ) && text.contains(&format!(
-                "margin {:e} lies within the zero band",
-                departure(short)
-            )) && text.ends_with(&format!(
-                "if this edge's length or rise is intended, tighten the tolerance below {:e} m",
-                departure(short) / (e / z)
-            )) && !text.contains("kernel bug"),
+            ) && text.contains(&format!("margin {quoted:e} lies within the zero band"))
+                && text.ends_with(&ending)
+                && !text.contains("kernel bug"),
             "{text}"
         );
         // A bound in the face's plane departs by exactly zero, which reads
@@ -6290,6 +6290,15 @@ mod tests {
         geom_brep::ExtentBall::new(geom_core::Point3::new(2.0, 0.5, 1.0), 4.0)
     }
 
+    /// A sector's two bounds at the fixtures' touch, both reaching
+    /// `reach`: one along the shared ruling (y), one across it (x).
+    fn fixture_bounds(reach: f64) -> [(Vec3<f64>, f64); 2] {
+        [
+            (Vec3::new(0.0, 1.0, 0.0), reach),
+            (Vec3::new(1.0, 0.0, 0.0), reach),
+        ]
+    }
+
     /// A y-axis cylinder at height `zc`, radius `r`.
     fn y_cyl(zc: f64, r: f64) -> geom::Surface<f64> {
         geom::Surface::Cylinder {
@@ -6315,12 +6324,14 @@ mod tests {
             &plate_top(),
             fixture_reach(),
             plate_out,
+            OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true),
             p,
             super::super::BooleanOp::Union,
             Operand::B,
             FaceKey::default(),
+            fixture_bounds(0.5),
             0.5,
-            DeclarationRead::Spent(GlueClass::TANGENT),
+            DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
         .unwrap();
@@ -6333,12 +6344,14 @@ mod tests {
             &y_cyl(1.5, 0.5),
             fixture_reach(),
             wall_out,
+            OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             p,
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
+            fixture_bounds(0.5),
             0.5,
-            DeclarationRead::Spent(GlueClass::TANGENT),
+            DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
         .unwrap();
@@ -6361,44 +6374,86 @@ mod tests {
             &y_cyl(1.5, 0.5),
             fixture_reach(),
             fat_out,
+            OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true),
             p,
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
+            fixture_bounds(0.25),
             0.25,
-            DeclarationRead::Spent(GlueClass::TANGENT),
+            DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
         .unwrap();
         assert_eq!(lump, SideCode::In);
+        // At an exact second-order zero the two outward normals AGREE
+        // here, so the osculating residue lumps as a continuation does,
+        // not as the opposed contact the external pair below lumps as.
+        let zero_arm = (b.zero() * 0.5).sqrt();
+        let at_zero = tangent_lump(
+            &y_cyl(1.25, 0.25),
+            &y_cyl(1.5, 0.5),
+            fixture_reach(),
+            fat_out,
+            OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true),
+            p,
+            super::super::BooleanOp::Union,
+            Operand::A,
+            FaceKey::default(),
+            fixture_bounds(zero_arm),
+            zero_arm,
+            DeclarationRead::Spent(GlueClass::Tangent),
+            b,
+        )
+        .unwrap();
+        let aligned = super::super::tables::eq15_3_lump(
+            super::super::BooleanOp::Union,
+            Operand::A,
+            super::super::plane_eq::PlaneRelation::SameOriented,
+        );
+        let opposed = super::super::tables::eq15_3_lump(
+            super::super::BooleanOp::Union,
+            Operand::A,
+            super::super::plane_eq::PlaneRelation::SameOpposite,
+        );
+        assert_ne!(
+            aligned, opposed,
+            "the fixture's op tells the two senses apart"
+        );
+        assert_eq!(
+            at_zero, aligned,
+            "an aligned exact zero lumps by its senses"
+        );
     }
 
     /// Three-outcome honesty on the metered row: the SAME external
     /// tangency at three lever arms — definite (Out), in-band
     /// (escalates, an osculating pair is a sliver at this ε), and
-    /// exactly-zero displacement (the isolated osculating residue the
-    /// verified declaration bridges: the Eq. 15.3 minus-lump, In for
-    /// a Union A-sector).
+    /// exactly-zero displacement (the isolated osculating residue, its
+    /// opposed senses the Eq. 15.3 minus-lump, In for a Union A-sector).
     #[test]
     fn tangent_lump_is_three_outcome_honest_on_the_arm() {
         let b = band();
         let p = geom_core::Point3::new(2.0, 0.5, 1.0);
         let plate_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-        let run = |arm: f64| {
+        let lump = |bounds: [(Vec3<f64>, f64); 2], arm: f64| {
             tangent_lump(
                 &y_cyl(1.5, 0.5),
                 &plate_top(),
                 fixture_reach(),
                 plate_out,
+                OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true),
                 p,
                 super::super::BooleanOp::Union,
                 Operand::A,
                 FaceKey::default(),
+                bounds,
                 arm,
-                DeclarationRead::Spent(GlueClass::TANGENT),
+                DeclarationRead::Spent(GlueClass::Tangent),
                 b,
             )
         };
+        let run = |arm: f64| lump(fixture_bounds(arm), arm);
         // sagitta = kappa_rel * arm^2 / 2 = arm^2 (kappa_rel = 2
         // here), so the arms are derived from the run's band and the
         // three rows hold at every sampled ε.
@@ -6412,6 +6467,23 @@ mod tests {
         }
         let zero_arm = (b.zero() * 0.5).sqrt();
         assert_eq!(run(zero_arm).unwrap(), SideCode::In);
+        // A sector whose ruling bound is too short for any departure to
+        // show still reads the side its long cross bound shows, not the
+        // senses' lump: each bound is read over its own reach.
+        let short_ruling = [
+            (Vec3::new(0.0, 1.0, 0.0), zero_arm),
+            (Vec3::new(1.0, 0.0, 0.0), 0.5),
+        ];
+        assert_eq!(lump(short_ruling, zero_arm).unwrap(), SideCode::Out);
+        // A short cross bound in band beside a ruling escalates.
+        let short_cross = [
+            (Vec3::new(0.0, 1.0, 0.0), 0.5),
+            (Vec3::new(1.0, 0.0, 0.0), inband_arm),
+        ];
+        assert!(
+            matches!(lump(short_cross, 0.5), Err(BooleanError::Escalated { .. })),
+            "an in-band cross bound beside a ruling escalates"
+        );
     }
 
     /// The self-contradiction and out-of-lane arms stay typed: a
@@ -6428,12 +6500,14 @@ mod tests {
             &plate_top(),
             fixture_reach(),
             plate_out,
+            OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true),
             p,
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
+            fixture_bounds(0.5),
             0.5,
-            DeclarationRead::Spent(GlueClass::TANGENT),
+            DeclarationRead::Spent(GlueClass::Tangent),
             b,
         ) {
             Err(BooleanError::ClassificationInvariant { .. }) => {}
@@ -6450,12 +6524,14 @@ mod tests {
             &plate_top(),
             fixture_reach(),
             plate_out,
+            OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true),
             p,
             super::super::BooleanOp::Union,
             Operand::A,
             FaceKey::default(),
+            fixture_bounds(0.5),
             0.5,
-            DeclarationRead::Spent(GlueClass::TANGENT),
+            DeclarationRead::Spent(GlueClass::Tangent),
             b,
         ) {
             Err(BooleanError::CurvedBooleanUnsupported { .. }) => {}

@@ -10,11 +10,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::SurfaceKind;
 use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::{finished, tube_frame};
 use sweep::{TubeWindow, tube_along_arc};
-use topo::query::{self, SurfaceKindSet};
 use topo::{AtRestBody, Body, BooleanError, FaceKey};
 
 const STEM_TUBE: f64 = 0.060;
@@ -118,13 +116,6 @@ fn plane_faces(body: &Body<f64>) -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
         .collect()
 }
 
-fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
-    query::all_faces(body)
-        .into_iter()
-        .filter(|&f| query::face_surface_matches(body, f, SurfaceKindSet::just(SurfaceKind::Torus)))
-        .collect()
-}
-
 /// The coplanar cross cap pairs at the fork (stem end cap against
 /// arch start cap), counted by POSITION: the weld's whole flush
 /// contact.
@@ -167,8 +158,9 @@ fn dist_to_stem_center_arc(p: Point3<f64>) -> f64 {
 /// crossing layer has a circle × torus root lane, so the two seams that
 /// cross the other tube's carrier (the stem's inner equator, the arch's
 /// outer equator) are decided rather than refused. What this row
-/// re-derives now is: (a) wall 1 is past the gate AND the crossing
-/// layer, and stops at the join on the plane × torus germ frame; (b)
+/// re-derives now is: (a) wall 1 is past the gate, the crossing layer
+/// and the join, and stops at the interior-loop guard on its two tube
+/// walls; (b)
 /// the far cap stands ~2 m clear of the stem wall's exact locus; (c) it
 /// is no longer inside the wall's box either; (d) the weld still has no
 /// torus×torus contact (tube 0.060 vs 0.052 — the walls
@@ -184,26 +176,28 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     );
 
     let err = topo::union(&s, &a, Tol::witness())
-        .expect_err("the stem glue still refuses, two doors further on");
+        .expect_err("the stem glue still refuses, past the join");
     // **Wall 1 is no longer the crossing layer's.** The circle × torus
     // root lane (`topo::boolean::circle_torus`) certifies that each
     // seam crosses the other tube's carrier only outside that face's
     // window, so neither pair is an event; the op reaches the join,
     // whose germ pair of the stem's weld cap against the arch's wall
-    // reads its frame off the arch's rim lying in the cap and has no
-    // join arm: it refuses on the arch's wall. The far-cap claims below
-    // are geometry and stand on their own.
-    let BooleanError::CurvedBooleanUnsupported {
-        operand: topo::Operand::B,
-        face,
-        kind: SurfaceKind::Torus,
-    } = err
-    else {
-        panic!("wall 1 stops at the join's plane × torus arm: {err:?}");
-    };
+    // takes the plane × wall arm and its chord, an arc of the arch's
+    // meridian circle. Past the join the interior-loop guard refuses the
+    // stem's tube wall against the arch's, two tori with parallel axes
+    // apart, which the section certificate has no arm for. The far-cap
+    // claims below are geometry and stand on their own.
     assert!(
-        torus_faces(&a).contains(&face),
-        "the arch's face is its tube wall: {face:?}"
+        matches!(
+            err,
+            BooleanError::CurvedPairUnsupported {
+                site: topo::PairRefusalSite::InteriorLoopGuard,
+                kind: geom::SurfaceKind::Torus,
+                other_kind: geom::SurfaceKind::Torus,
+                ..
+            }
+        ),
+        "wall 1 stops at the interior-loop guard on its two tube walls: {err:?}"
     );
     let frame = arch_frame();
     let far_cap = plane_faces(&a)

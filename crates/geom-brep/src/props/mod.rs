@@ -133,6 +133,7 @@ use crate::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite, Unsize
 pub use curved::{
     MaterialSign, boundary_material_sign, boundary_material_sign_loops, cone_face_closed_form,
     curved_face, curved_face_loops, require_iso_rectangle, require_one_chart_branch,
+    sphere_region_material_sign,
 };
 pub use loop_area::loop_vector_area;
 
@@ -381,13 +382,20 @@ pub enum PropsError {
     /// wrong, whichever lane reads it: the closed forms' and the
     /// cylinder quadrature's one decision (`curved::require_holes_wound_against`).
     RingWoundWithFace,
-    /// **A loop's stored chart images are a period apart at a junction**
-    /// (`props_quad_junction_period`): one edge's image starts a whole
-    /// turn of the azimuth from where the edge before it ends, so the
-    /// loop closes in space but not on the chart, and no Green form over
-    /// the chart reads it. Stored data that is wrong: a boundary's images
-    /// on one face are minted in one branch of its chart.
-    ChartPeriodJump,
+    /// **A loop's stored chart images do not close**
+    /// (`props_quad_junction_closed`): at one junction the edge after
+    /// starts definitely farther from where the edge before ends than
+    /// their two ends' certified slack allows, once whole turns of the
+    /// azimuth are taken off. Stored data that is wrong: consecutive
+    /// edges of a loop meet at their shared vertex.
+    ChartLoopOpen,
+    /// **A face's loops wind its cylinder as no face's boundary does**:
+    /// with every junction decided closed, one loop winds the cylinder
+    /// more than once, or the face's loops wind it a nonzero number of
+    /// times together, so they bound no region of it. Stored data that
+    /// is wrong: a face's boundary is simple closed curves that bound
+    /// it. A band's two rims, once each and opposite ways, are not this.
+    LoopsWindChart,
     /// A boundary edge's traversed **arc** leaves one branch of the
     /// chart, though its CARRIER is a certified iso curve: the arc's
     /// stored parameter span contains a chart singularity in its
@@ -574,7 +582,7 @@ pub const FACE_EXTENT: SizedDecision = SizedDecision {
     passes: SizedPass::Positive,
     // The stored description a lever edits IS the face's own extent.
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// **The one recourse a spent quadrature budget names** (D4 ¶1 (i)'s
@@ -685,11 +693,16 @@ impl core::fmt::Display for PropsError {
                  its area would be added to the face's rather than taken from it. \
                  {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
-            Self::ChartPeriodJump => write!(
+            Self::ChartLoopOpen => write!(
                 f,
-                "a face's stored boundary images on its surface's chart do not meet: one \
-                 edge's image starts a whole turn around the surface from where the edge \
-                 before it ends. {KERNEL_OR_FILE_DEFECT_ENDING}"
+                "a face's stored boundary does not close on its surface: one edge starts away \
+                 from where the edge before it ends. {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::LoopsWindChart => write!(
+                f,
+                "a face's stored boundary loops wind around its surface as no face's boundary \
+                 does: one winds more than once, or together they do not wind to zero, so they \
+                 bound no region of the face. {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::NappeSpanning => write!(
                 f,
@@ -995,7 +1008,8 @@ mod tests {
             PropsError::SenseContradicted,
             PropsError::SenseInverted,
             PropsError::RingWoundWithFace,
-            PropsError::ChartPeriodJump,
+            PropsError::ChartLoopOpen,
+            PropsError::LoopsWindChart,
             PropsError::NappeSpanning,
             PropsError::NotOneChartBranch {
                 edge: 0,
@@ -1020,7 +1034,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 16, "an arm was added without a row here");
+        assert_eq!(arms.len(), 17, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             assert_eq!(

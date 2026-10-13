@@ -106,6 +106,11 @@ fn the_cone_plane_union_refusal_names_the_conic_and_ends_on_its_recourse() {
 #[test]
 fn every_rewritten_boolean_refusal_renders_within_the_budget() {
     const BUDGET: usize = 75;
+    // The zero-band row's margin is half the zero threshold; its offer
+    // is withheld where that over K lies at or below `EPS_MIN` (D4 ¶4),
+    // as at the 1e-12 row.
+    let band = geom_core::Band::linear(geom_core::Tol::witness()).expect("the witness band");
+    let zero_band_offers = band.offer_deciding(0.5 * band.zero()).is_some();
     let mut problems = Vec::new();
     for (name, text) in rendered_boolean_refusals() {
         let words = text.split_whitespace().count();
@@ -126,9 +131,12 @@ fn every_rewritten_boolean_refusal_renders_within_the_budget() {
                 "{name} offers a tolerance no smaller one honours: {text}"
             ));
         }
-        if A_TOLERANCE_PASSES.contains(&name) && !text.contains("tolerance below") {
+        if A_TOLERANCE_PASSES.contains(&name)
+            && text.contains("tolerance below") != zero_band_offers
+        {
             problems.push(format!(
-                "{name} drops the tolerance a smaller one honours: {text}"
+                "{name} offers a tolerance exactly where one above EPS_MIN honours it \
+                 ({zero_band_offers}): {text}"
             ));
         }
     }
@@ -142,9 +150,9 @@ fn every_rewritten_boolean_refusal_renders_within_the_budget() {
 const NO_TOLERANCE_PASSES: &[&str] = &["SpheresMeet"];
 
 /// The rows whose refusal a smaller tolerance passes, so the sentence
-/// owes the value: a nesting clearance within the zero band is decided
-/// nested below it (executed: `sweep`'s `offer_rows`,
-/// `nested_in_the_zero_band`).
+/// owes the value where it lies above `EPS_MIN`: a nesting clearance
+/// within the zero band is decided nested below it (executed: `sweep`'s
+/// `offer_rows`, `nested_in_the_zero_band`).
 const A_TOLERANCE_PASSES: &[&str] = &["SpheresMeet (touching, nested within the zero band)"];
 
 /// Every rewritten arm, rendered the way the viewer renders a failed node.
@@ -480,7 +488,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::Escalated {
                 decision: topo::BooleanDecision::Coincidence(
                     topo::Coincide::TangentSide,
-                    topo::DeclarationRead::Spent(topo::GlueClass::TANGENT),
+                    topo::DeclarationRead::Spent(topo::GlueClass::Tangent),
                 ),
                 diag: enclosed,
             },
@@ -545,7 +553,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::Escalated {
                 decision: topo::BooleanDecision::Coincidence(
                     topo::Coincide::TangentSide,
-                    topo::DeclarationRead::Spent(topo::GlueClass::TANGENT),
+                    topo::DeclarationRead::Spent(topo::GlueClass::Tangent),
                 ),
                 diag: in_band,
             },
@@ -568,60 +576,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 on_boundary: 20,
                 in_band: 6,
                 first_in_band: Some(topo::PointInSolidError::RayExhausted),
-            },
-        ),
-        (
-            "SeamContradicted",
-            BooleanError::SeamContradicted {
-                a: face,
-                b: face,
-                fact: None,
-                margin: diag,
-            },
-        ),
-        (
-            "SeamContradicted (one carrier)",
-            BooleanError::SeamContradicted {
-                a: face,
-                b: face,
-                fact: Some(topo::Contradiction::OneCarrier),
-                margin: diag,
-            },
-        ),
-        (
-            "SeamContradicted (cusp)",
-            BooleanError::SeamContradicted {
-                a: face,
-                b: face,
-                fact: Some(topo::Contradiction::SeamCusp),
-                margin: diag,
-            },
-        ),
-        (
-            "SeamContradicted (sides mixed)",
-            BooleanError::SeamContradicted {
-                a: face,
-                b: face,
-                fact: Some(topo::Contradiction::SeamSidesMixed),
-                margin: diag,
-            },
-        ),
-        (
-            "SeamContradicted (face runs on)",
-            BooleanError::SeamContradicted {
-                a: face,
-                b: face,
-                fact: Some(topo::Contradiction::SeamFaceRunsOn),
-                margin: diag,
-            },
-        ),
-        (
-            "SeamContradicted (untouched)",
-            BooleanError::SeamContradicted {
-                a: face,
-                b: face,
-                fact: Some(topo::Contradiction::SeamUntouched),
-                margin: diag,
             },
         ),
         (
@@ -651,15 +605,8 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "RimCuspArmUnbuilt",
             BooleanError::RimCuspArmUnbuilt {
-                declaration,
+                pair: declaration,
                 wedge: MaterialWedge::Slit,
-            },
-        ),
-        (
-            "TangentSlitArmUnbuilt",
-            BooleanError::TangentSlitArmUnbuilt {
-                declaration,
-                interior: Operand::A,
             },
         ),
         (
@@ -693,6 +640,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                     SectorRead::Pierce(FaceKey::default()),
                     SectorRead::Pair(VertexKey::default()),
                 ],
+            },
+        ),
+        (
+            "NestingUnread",
+            BooleanError::NestingUnread {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                partners: [VertexKey::default(); 2],
             },
         ),
         (

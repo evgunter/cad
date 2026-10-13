@@ -6667,10 +6667,10 @@ fn confirm_vertex_on_face<T: Decide>(
 }
 
 /// One `(vertex, edge)` record's witness: both cells live, the vertex
-/// not an end of the edge, on the edge's line and strictly inside its
-/// span (pass 2's two decisions, so the two directions agree). The
-/// lane is pass 2's: a record on a live edge whose carrier is not a
-/// line refuses typed.
+/// not an end of the edge, on the edge's carrier and strictly inside its
+/// span: pass 2's two decisions on a line, so the two directions agree,
+/// and the curved lane's ([`curved::on_curved_interior`]) on any other
+/// carrier.
 fn confirm_vertex_on_edge<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -6711,9 +6711,9 @@ fn confirm_vertex_on_edge<T: Decide>(
 
 /// One edge-edge record's witness: both edges live, and
 /// their interiors meet — crossing inside both spans, or overlapping
-/// along a positive length — by the edge-edge lanes' own decisions. A
-/// record on a live non-line edge refuses typed, as a `(vertex, edge)`
-/// record's does.
+/// along a positive length — by the edge-edge lanes' own decisions on
+/// two lines, and the curved lane's
+/// ([`curved::curved_interiors_meet`]) where either is not one.
 fn confirm_edge_edge<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -6843,68 +6843,6 @@ impl<'b, T: Decide> RecordConfirm<'b, T> {
             None => Ok(errors.is_empty()),
         }
     }
-}
-
-/// [`interiors_meet`] over two segments: whether their interiors cross
-/// or overlap, decided as the confirm pass of an edge-edge record
-/// decides it, so a record placed by this answer is one the census
-/// confirms.
-///
-/// # Errors
-///
-/// The first escalated decision.
-pub(crate) fn segment_interiors_meet<T: Decide>(
-    a: (Point3<T>, Point3<T>),
-    b: (Point3<T>, Point3<T>),
-    band: Band,
-) -> Result<bool, Indeterminate> {
-    let mut errors = Vec::new();
-    let meet = interiors_meet(&segment(a), &segment(b), band, &mut errors);
-    escalation(meet, errors)
-}
-
-/// Whether `q` lies on a segment's interior, decided as the census's
-/// vertex-on-edge pass decides it.
-///
-/// # Errors
-///
-/// The first escalated decision.
-pub(crate) fn on_segment_interior<T: Decide>(
-    q: Point3<T>,
-    s: (Point3<T>, Point3<T>),
-    band: Band,
-) -> Result<bool, Indeterminate> {
-    let mut errors = Vec::new();
-    let on = on_edge_interior(q, &segment(s), band, &mut errors);
-    escalation(on, errors)
-}
-
-/// Whether `q` lies definitely past either end of a segment, read along
-/// it by [`on_edge_interior`]'s own span decision: such a point is on
-/// no part of the segment's interior, whatever its distance from the
-/// segment's line reads.
-pub(crate) fn past_segment<T: Decide>(q: Point3<T>, s: (Point3<T>, Point3<T>), band: Band) -> bool {
-    let e = segment(s);
-    let along = (q - e.p0).dot(e.dir);
-    [along, e.len - along]
-        .into_iter()
-        .any(|m| decide("pm_census_ve_span", Margin::of(m), band) == Ok(Sign::Negative))
-}
-
-/// Whether segment `b` lies definitely past either end of segment `a`,
-/// read along `a`: two such segments' interiors meet nowhere, whatever
-/// the gap between their lines reads.
-pub(crate) fn segments_apart<T: Decide>(
-    a: (Point3<T>, Point3<T>),
-    b: (Point3<T>, Point3<T>),
-    band: Band,
-) -> bool {
-    let e = segment(a);
-    let [t0, t1] = [b.0, b.1].map(|p| (p - e.p0).dot(e.dir));
-    let sign = |m: T| decide("pm_census_ee_apart", Margin::of(m), band);
-    let before = |t: T| sign(t) == Ok(Sign::Negative);
-    let after = |t: T| sign(t - e.len) == Ok(Sign::Positive);
-    (before(t0) && before(t1)) || (after(t0) && after(t1))
 }
 
 /// [`parallel`] over two segments: whether their lines are parallel,

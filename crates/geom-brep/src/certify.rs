@@ -70,7 +70,7 @@ use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
 use crate::recourse::{
-    AtZero, Classified, ReadAt, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+    Classified, NoSize, ReadAt, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
     Unsized,
 };
 
@@ -385,10 +385,19 @@ pub enum CertifyError {
     /// The **NURBS × NURBS** rung: two spline charts, through the same
     /// lane. A spline beside a curved analytic surface has none.
     Unimplemented,
-    /// An `Intersection` of a PLANE and a described NURBS wall (M7-8)
-    /// reached a door that supplied **no plane × NURBS lane**
-    /// ([`EdgeCurve::certify`], [`EdgeCurve::recertify`], or a `_via`
-    /// door handed `None`). That is all this crate knows at the raising
+    /// An edge whose certificate the [`NurbsLane`] states reached a
+    /// door that supplied **no lane** ([`EdgeCurve::certify`],
+    /// [`EdgeCurve::recertify`], or a `_via` door handed `None`).
+    ///
+    /// **The lane classes** — the one list of them; every other site
+    /// names the missing lane rather than the class:
+    ///
+    /// - an `Intersection` of a PLANE and a described NURBS wall (M7-8);
+    /// - an `Intersection` of two spline charts (NURBS × NURBS);
+    /// - a `Nurbs` carrier under an `Intersection` of two analytic
+    ///   surfaces (C2's limbs, [`crate::analytic_rung3`]).
+    ///
+    /// That is all this crate knows at the raising
     /// site: whether the caller could have supplied one is the caller's
     /// fact, which a caller that reads a scalar's policy states in its
     /// own refusal. It is raised before any other check of the edge
@@ -582,9 +591,8 @@ impl core::fmt::Display for CertifyError {
             ),
             Self::NurbsLaneNotSupplied => write!(
                 f,
-                "an Intersection of a plane and a described NURBS wall certifies only through \
-                 the plane x NURBS lane, and the door this check ran through supplied none, so \
-                 nothing about the edge was checked"
+                "this edge's certificate needs the NURBS lane, and the door this check ran \
+                 through supplied none, so nothing about the edge was checked"
             ),
             Self::IntersectionSameSurface { key } => write!(
                 f,
@@ -842,7 +850,7 @@ impl CertCheck {
                 size: "length",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
-                at_zero: Some(AtZero {
+                no_size: Some(NoSize {
                     build: "an edge of no length, or a reversed one, is one no kernel construction \
                             mints, so this is a kernel defect worth reporting",
                     stored: "an edge of no length, or a reversed one, is one no kernel \
@@ -859,7 +867,7 @@ impl CertCheck {
                 size: "length",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: Some(AtZero::same(
+                no_size: Some(NoSize::same(
                     "a vanishing speed floor means the spline stalls or turns back, or that the \
                      floor has reached its limit, which is worth reporting",
                 )),
@@ -869,14 +877,14 @@ impl CertCheck {
                 size: "arc",
                 passes: SizedPass::NonNegative,
                 stored: StoredDefinite::Contradiction,
-                at_zero: None,
+                no_size: None,
             }),
             Self::Transversality => Ending::Sized(SizedDecision {
                 lever: "move the geometry so the surfaces cross at a clearer angle",
                 size: "angle",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
-                at_zero: None,
+                no_size: None,
             }),
             Self::TransversalityArm => Ending::Sized(crate::DIHEDRAL_ARM),
             Self::TangentPlanes => Ending::Undefined(TANGENT_PLANES_RECOURSE),
@@ -885,7 +893,7 @@ impl CertCheck {
                 size: "curvature difference",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
-                at_zero: None,
+                no_size: None,
             }),
             // The tube's margin is a conservative lower bound, so a
             // definite refusal of it is the certificate's limit, which
@@ -895,7 +903,7 @@ impl CertCheck {
                 size: "curvature difference",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             }),
             // Exact constructions: the endpoints and witness the kernel
             // placed, the seam and the declared source it restates, the
@@ -924,7 +932,7 @@ impl CertCheck {
                 size: "degenerate face",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             }),
             // An unbounded derivative is the face's scale: the lever is
             // the model's size.
@@ -934,7 +942,7 @@ impl CertCheck {
                 size: "scale",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             }),
             // Approximations: a fitted intersection carrier on its
             // surfaces, and the plane × NURBS lane's on-locus limb. The
@@ -1304,14 +1312,18 @@ impl<T: Decide> EdgeCurve<T> {
     ///
     /// 1. Implementedness: described surfaces resolve and are not
     ///    `Nurbs`, except the described NURBS wall of a plane × NURBS
-    ///    `Intersection` (M7-8, through the [`NurbsLane`] —
-    ///    [`CertifyError::NurbsLaneNotSupplied`] with none in hand) and
+    ///    `Intersection` (M7-8, through the [`NurbsLane`]) and
     ///    the chart of an image the construction states; a `Nurbs`
     ///    carrier certifies only under an
     ///    `Intersection` description (the rung-3 class, M5 PR 9 —
     ///    its span is metered through `speed_lower_bound`, gated
     ///    definitely-positive by `nurbs_span_meter`); `Intersection`'s
-    ///    two surfaces are distinct; `Seam`'s surface is periodic.
+    ///    two surfaces are distinct; `Seam`'s surface is periodic. An
+    ///    edge whose certificate needs the [`NurbsLane`] refuses
+    ///    [`CertifyError::NurbsLaneNotSupplied`] here with no lane in
+    ///    hand, before any other check of the edge, so this door and
+    ///    [`EdgeCurve::recertify`] certify none (the classes are listed
+    ///    on that variant).
     /// 2. Interval span (M2 PR 3 fix pass): the stored interval is
     ///    **forward** — its arc length `(t₁ − t₀)` (`·r` for circle
     ///    carriers, metering radians into meters) is definitely
@@ -1356,14 +1368,9 @@ impl<T: Decide> EdgeCurve<T> {
     ///    traverses the witness's arc, not that the witness sits on
     ///    the component the modeler intended.
     /// 6. `Intersection` of two analytic surfaces over a `Nurbs`
-    ///    carrier, with a [`NurbsLane`] in hand
+    ///    carrier, through the [`NurbsLane`]
     ///    ([`EdgeCurve::certify_via`], [`EdgeCurve::recertify_via`]):
-    ///    C2's limbs over `[t₀, t₁]` ([`crate::analytic_rung3`]). This
-    ///    door holds no lane and does not state them; nor do
-    ///    [`EdgeCurve::recertify`], a scalar with no certification
-    ///    rights, the `_structural` at-rest doors, or the graft's
-    ///    `Bridge::Recertify` (`topo`), which calls this door
-    ///    (`work/pcert/lane-free-doors-skip-the-analytic-rung3-limbs.md`).
+    ///    C2's limbs over `[t₀, t₁]` ([`crate::analytic_rung3`]).
     ///
     /// # Errors
     ///
@@ -1378,10 +1385,10 @@ impl<T: Decide> EdgeCurve<T> {
         Self::certify_via(spec, start, end, surfaces, band, None)
     }
 
-    /// The shared certification body, with the plane × NURBS lane
+    /// The shared certification body, with the NURBS lane
     /// ([`NurbsLane`]) as its argument: `None` mints exactly what
-    /// [`EdgeCurve::certify`] does and `Some` also certifies the plane ×
-    /// NURBS class through the lane. A pass generic over its scalar
+    /// [`EdgeCurve::certify`] does and `Some` also certifies, through
+    /// the lane, every edge whose certificate needs it. A pass generic over its scalar
     /// fills the argument from that scalar's policy
     /// (`topo::AtRestPolicy::nurbs_lane`).
     ///
@@ -1389,7 +1396,7 @@ impl<T: Decide> EdgeCurve<T> {
     ///
     /// As [`EdgeCurve::certify`], plus the lane's own refusals when
     /// one is injected; [`CertifyError::NurbsLaneNotSupplied`] for an
-    /// edge of the M7-8 class with `None` in hand.
+    /// edge whose certificate needs the lane, with `None` in hand.
     pub fn certify_via(
         spec: EdgeCurveSpec<T>,
         start: Point3<T>,
@@ -1427,17 +1434,17 @@ impl<T: Decide> EdgeCurve<T> {
         run_checks(&self.spec(), start, end, &surfaces, None, band).map(|(cert, _)| cert)
     }
 
-    /// The shared re-certification body, with the plane × NURBS lane
+    /// The shared re-certification body, with the NURBS lane
     /// ([`NurbsLane`]) as its argument: `None` re-derives exactly what
-    /// [`EdgeCurve::recertify`] does and `Some` re-derives the plane ×
-    /// NURBS class through the lane.
+    /// [`EdgeCurve::recertify`] does and `Some` re-derives, through the
+    /// lane, every edge whose certificate needs it.
     ///
     /// # Errors
     ///
     /// As [`EdgeCurve::recertify`], plus the lane's own refusals when
     /// one is injected; [`CertifyError::NurbsLaneNotSupplied`] for an
-    /// edge of the M7-8 class with `None` in hand, raised before any
-    /// other check of that edge runs.
+    /// edge whose certificate needs the lane, with `None` in hand,
+    /// raised before any other check of that edge runs.
     pub fn recertify_via(
         &self,
         start: Point3<T>,
@@ -1461,9 +1468,10 @@ impl<T: Decide> EdgeCurve<T> {
 /// are the shared body every certification door runs, and they take
 /// `Option<NurbsLane>` as an argument; `topo`'s operations fill it from
 /// the scalar's policy (`topo::AtRestPolicy::nurbs_lane`). A body
-/// holding `None` meets an `Intersection` of a plane and a described
-/// NURBS wall with [`CertifyError::NurbsLaneNotSupplied`]: no door
-/// accepts the description without the certificate.
+/// holding `None` meets every edge whose certificate the lane states
+/// with [`CertifyError::NurbsLaneNotSupplied`] (that variant lists the
+/// classes): no door accepts such a description without its
+/// certificate.
 ///
 /// The same bracket read is what a NURBS carrier's foot point needs, so
 /// the lane also carries [`NurbsLane::carrier_foot`]: a door that moves
@@ -1867,6 +1875,13 @@ impl<T: SpanLocate> EdgeCurve<T> {
     /// re-minted as its own mid-parameter carrier point (the witness
     /// contract, bitwise the certification schedule's middle sample),
     /// a chart image keeps its chart, its parent's image and its wrap flag.
+    ///
+    /// A `TangentIntersection` child is the restriction, not yet its
+    /// description: the must-carry rule
+    /// ([`crate::must_carry_over_edge`]) meters its sagitta over the
+    /// child's own extent, so a short child may owe a chart image, or a
+    /// refusal, instead. `topo`'s `Body::split_edge` asks the rule of
+    /// each child before certifying it.
     ///
     /// The children are *specs*, not certified carriers: the caller
     /// must run each through [`EdgeCurve::certify`] against its own
@@ -2430,6 +2445,9 @@ fn run_checks<T: Decide>(
         Intersection {
             surfs: [(SurfaceKey, Surface<T>); 2],
             witness: Point3<T>,
+            /// The lane C2's limbs run through: `Some` exactly when the
+            /// carrier is a spline (the analytic rung-3 class).
+            rung3_lane: Option<NurbsLane<T>>,
         },
         Tangent {
             surfs: [(SurfaceKey, Surface<T>); 2],
@@ -2520,9 +2538,20 @@ fn run_checks<T: Decide>(
                     lane,
                 }
             } else {
+                let surfs = [(k1, resolve(k1)?), (k2, resolve(k2)?)];
+                // A spline carrier between two analytic surfaces: C2's
+                // limbs are this certificate's own and only the lane
+                // states them, so a door holding none refuses here,
+                // before any other check of the edge, as the NURBS
+                // pairs do.
+                let rung3_lane = match spec.carrier {
+                    Curve3::Nurbs(_) => Some(lane.ok_or(CertifyError::NurbsLaneNotSupplied)?),
+                    _ => None,
+                };
                 Resolved::Intersection {
-                    surfs: [(k1, resolve(k1)?), (k2, resolve(k2)?)],
+                    surfs,
                     witness,
+                    rung3_lane,
                 }
             }
         }
@@ -3236,21 +3265,17 @@ fn run_checks<T: Decide>(
     // ---- Intersection of two analytic surfaces over a rung-3 carrier:
     // C2's limbs, through the lane, which holds certification
     // arithmetic — the carrier's distance from each operand over the
-    // edge's interval, and the uniqueness tube over it. A door holding
-    // no lane does not state them
-    // (`work/pcert/lane-free-doors-skip-the-analytic-rung3-limbs.md`). A
-    // spline operand's pair is the plane × NURBS lane's above, whose
-    // limbs are its own. ----
+    // edge's interval, and the uniqueness tube over it. A spline
+    // operand's pair is the NURBS pairs' lane above, whose limbs are
+    // its own. ----
     if let (
         Resolved::Intersection {
             surfs: [(_, surf1), (_, surf2)],
+            rung3_lane: Some(lane),
             ..
         },
         Curve3::Nurbs(carrier),
-        Some(lane),
-    ) = (&resolved, &spec.carrier, lane)
-        && crate::edge_nurbs::is_analytic(surf1)
-        && crate::edge_nurbs::is_analytic(surf2)
+    ) = (&resolved, &spec.carrier)
     {
         lane.analytic_rung3(carrier, (t0, t1), surf1, surf2, band)
             .map_err(CertifyError::AnalyticRung3)?;
@@ -3263,6 +3288,7 @@ fn run_checks<T: Decide>(
     if let Resolved::Intersection {
         surfs: [(k1, surf1), (k2, surf2)],
         witness,
+        ..
     }
     | Resolved::Tangent {
         surfs: [(k1, surf1), (k2, surf2)],
@@ -5123,7 +5149,9 @@ mod tests {
     /// reading. A span a smaller tolerance decides forward quotes it; a
     /// span of no length ends in the lever and the note that no
     /// construction mints one, a kernel defect at a build and a kernel or
-    /// file defect over stored geometry; a reversed span and the winding
+    /// file defect over stored geometry, and an enclosure across zero,
+    /// which shows neither a size nor its absence, the lever alone; a
+    /// reversed span and the winding
     /// bound's only refusal are stored contradictions (the lever at a
     /// build, the file's defect ending over stored geometry). The
     /// tangent tube's Zero is band-decided and its Negative the
@@ -5172,7 +5200,9 @@ mod tests {
             let rows = [
                 (forward(zero(5e-10)), tightened(span, "length", "5e-11")),
                 (forward(zero(0.0)), no_span.clone()),
-                (forward(zero(-5e-10)), no_span.clone()),
+                (forward(zero(-5e-10)), no_span),
+                // An enclosure across zero shows no size, nor that there
+                // is none: the lever alone, its payload printing it.
                 (
                     CertifyError::IntervalNotForward {
                         verdict: Refused::Zero(Classified {
@@ -5180,7 +5210,7 @@ mod tests {
                             band,
                         }),
                     },
-                    no_span,
+                    span.to_owned(),
                 ),
                 (forward(negative(-1e-3)), definite(span)),
                 (CertifyError::WindingExceeded, definite(winding)),
@@ -5352,10 +5382,11 @@ mod tests {
     /// decision gives, pinned whole:
     /// - a sized decision (the span, the winding headroom) names its own
     ///   lever, and the tolerance below `m/K` only where the margin lies
-    ///   on the side the decision accepts; a margin on the refused side
-    ///   or a straddling enclosure, which no smaller tolerance passes,
-    ///   names the lever alone; a margin that could not be read keeps
-    ///   the lever and says what it may mean;
+    ///   on the side the decision accepts; a margin at zero or on the
+    ///   refused side shows no size and adds the decision's note where it
+    ///   has one, whichever arm routed it; an enclosure touching or
+    ///   straddling zero names the lever alone; a margin that could not be read keeps the lever
+    ///   and says what it may mean;
     /// - an exact residual (the endpoints, the chart image) ends in the
     ///   kernel-defect ending, the file's too at rest, and its definite
     ///   refusal ends the same;
@@ -5378,6 +5409,9 @@ mod tests {
         let straddle = MarginDiag::enclosure(-2.0e-9, 4.0e-9);
         let inside = MarginDiag::enclosure(2.0e-9, 4.0e-9);
         let below = MarginDiag::enclosure(-4.0e-9, -2.0e-9);
+        let no_span = "Recourse: move the geometry so this edge is not vanishingly short; an edge \
+                       of no length, or a reversed one, is one no kernel construction mints, so \
+                       this is a kernel defect worth reporting";
         let rows = [
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(5e-9)),
@@ -5386,7 +5420,7 @@ mod tests {
             ),
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(-5e-9)),
-                "Recourse: move the geometry so this edge is not vanishingly short",
+                no_span,
             ),
             (
                 undecided(CertCheck::ParamWinding, inside),
@@ -5436,13 +5470,14 @@ mod tests {
             ),
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(0.0)),
-                "Recourse: move the geometry so this edge is not vanishingly short",
+                no_span,
             ),
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(-0.0)),
-                "Recourse: move the geometry so this edge is not vanishingly short",
+                no_span,
             ),
             (
+                // Touching zero, its sign unresolved: the lever alone.
                 undecided(CertCheck::ParamWinding, MarginDiag::enclosure(0.0, 4.0e-9)),
                 "Recourse: move the geometry so this arc stays clearly short of a full turn",
             ),
@@ -5526,13 +5561,67 @@ mod tests {
         );
     }
 
+    /// **The floor's sentence is said once on the undecided route**: an
+    /// escalation of the span whose positive size only a tolerance at or
+    /// below `EPS_MIN` decides — a gate's rejected Zero, and an in-band
+    /// reading at a run near the floor — renders its payload and its
+    /// ending with the floor's sentence once, and neither the span's
+    /// no-length note nor an offer, at a build and at rest. Red if the
+    /// payload word says it again, or the note or an offer returns.
+    #[test]
+    fn the_floor_sentence_is_said_once_on_the_undecided_route() {
+        use geom_core::k_stats::decide_positive;
+        use geom_core::tolerance::EPS_MIN;
+        use geom_core::{Margin, floor_note};
+
+        let floor = floor_note("length");
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let rejected =
+            decide_positive("interval_span_forward", Margin::of(2e-12), band).unwrap_err();
+        let in_band = Indeterminate {
+            margin: MarginDiag::value(3.0 * EPS_MIN),
+            band: Band::new(2.0 * EPS_MIN, 20.0 * EPS_MIN).unwrap(),
+            predicate: Some("interval_span_forward"),
+            terminal_sliver: false,
+        };
+        assert_eq!(
+            CertifyError::Escalated {
+                check: CertCheck::ParamSpan,
+                sample: 0,
+                cause: rejected,
+            }
+            .render(Reading::Build),
+            "the stored interval's span at sample 0 escalated: margin 2e-12 lies within the zero \
+             band (±1e-9). Recourse: move the geometry so this edge is not vanishingly short; no \
+             tolerance a run admits decides this length",
+            "the whole sentence, so a second statement of the floor goes red"
+        );
+        for cause in [rejected, in_band] {
+            let error = CertifyError::Escalated {
+                check: CertCheck::ParamSpan,
+                sample: 0,
+                cause,
+            };
+            for reading in [Reading::Build, Reading::AtRest] {
+                let text = error.render(reading);
+                assert_eq!(text.matches(&floor).count(), 1, "{reading:?}: {text}");
+                assert!(
+                    !text.contains("no kernel construction mints") && !text.contains("tighten"),
+                    "{reading:?}: {text}"
+                );
+            }
+        }
+    }
+
     /// **The import door reads certification as at rest, with its ε_in
     /// words** (D4 ¶1), over every check and every arm: the door's ending
     /// is the at-rest one, except that a band-decided arm of a sized
     /// decision whose margin's nearer end lies at or below ε_in ends in
     /// one sentence, whichever arm the run's band placed it on: the file
     /// does not state the size, and keeping it takes declaring the file's
-    /// uncertainty below it and tightening, together — and a residual's
+    /// uncertainty below it and tightening, together, or else the lever
+    /// alone, with no decision's note, an enclosure across zero's
+    /// included — and a residual's
     /// miss within ε_in but beyond ε, or a certified bound on it wholly
     /// within ε_in, names setting ε to ε_in as a stopgap. An ε_in below every margin leaves every ending at rest
     /// but a reading at zero's. No ending at the door blames the kernel
@@ -5571,12 +5660,15 @@ mod tests {
             // ε_in: it ends at rest.
             arms.push((RefusedArm::SignCertain(None), false));
             arms.push((RefusedArm::SignCertain(Some(MarginDiag::value(5e-9))), true));
-            for m in [5e-10, 0.0, -5e-10] {
-                let zero = Classified {
-                    margin: MarginDiag::value(m),
-                    band,
-                };
-                arms.push((RefusedArm::Zero(zero), false));
+            // The Interval lane's zero verdicts too: one across zero, as
+            // a sub-ε_in span's enclosure reads.
+            for margin in [
+                MarginDiag::value(5e-10),
+                MarginDiag::value(0.0),
+                MarginDiag::value(-5e-10),
+                MarginDiag::enclosure(-2e-12, 6e-12),
+            ] {
+                arms.push((RefusedArm::Zero(Classified { margin, band }), false));
             }
             for (arm, miss) in arms {
                 let at_rest = recourse(check, arm, Reading::AtRest);
@@ -5588,9 +5680,9 @@ mod tests {
                 // A reading at or across zero has its nearer end below
                 // every ε_in, so even the narrow one reads it in the door's
                 // sentence: "is below" where the whole reading is, "may lie
-                // below" where only that end is, then the at-rest ending.
-                // Its `at_zero` note there is the open question of
-                // `work/encl/import-door-appends-a-defect-note-to-a-sub-eps-in-zero-span.md`.
+                // below" where only that end is, then the lever alone. The
+                // door cannot tell a zero the file stores from a rounded
+                // one, so no decision's note rides there.
                 let reaches_zero = match banded.map(MarginDiag::diagnostic_f64_for_error_text) {
                     Some(geom_core::ErrorTextReading::Value(0.0)) => Some(0.0),
                     Some(geom_core::ErrorTextReading::Enclosure { lo, hi })
@@ -5614,9 +5706,10 @@ mod tests {
                             narrow_door,
                             format!(
                                 "This {} {lies} the file's declared coincidence distance ε_in = \
-                                 {:e} m, so the file {states} it. {at_rest}",
+                                 {:e} m, so the file {states} it. Recourse: {}",
                                 sized.size,
-                                narrow.eps_in()
+                                narrow.eps_in(),
+                                sized.lever
                             ),
                             "{check:?} {arm:?}: a reading at zero lies below every ε_in"
                         );
@@ -5655,7 +5748,10 @@ mod tests {
                                 "{check:?} {arm:?}: {door}"
                             );
                         } else {
-                            assert!(door.ends_with(&at_rest), "{check:?} {arm:?}: {door}");
+                            assert!(
+                                door.ends_with(&format!("Recourse: {}", sized.lever)),
+                                "{check:?} {arm:?}: {door}"
+                            );
                         }
                     }
                     // A bound wholly within ε_in names itself, on its

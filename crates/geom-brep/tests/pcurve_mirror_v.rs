@@ -23,7 +23,7 @@ use std::sync::Arc;
 use geom::{Curve3, NurbsCurve2, Surface};
 use geom_brep::{
     CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FocalImage, Pcurve,
-    SpiricImage, SurfaceKey, SurfacePair,
+    SpiricImage, SurfaceKey, SurfacePair, WallTorus,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
@@ -132,6 +132,23 @@ fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
                     u0: core::f64::consts::FRAC_PI_2,
                     v0: 0.0,
                     sense: -1.0,
+                    torus: WallTorus::Own,
+                },
+            },
+            -0.4,
+            0.9,
+        ),
+        (
+            "Spiric/Wall on the mirror torus",
+            Pcurve::Spiric {
+                major: 0.09375,
+                minor: 0.0703125,
+                offset: 0.0078125,
+                image: SpiricImage::Wall {
+                    u0: -core::f64::consts::FRAC_PI_2,
+                    v0: 0.0,
+                    sense: -1.0,
+                    torus: WallTorus::Mirror,
                 },
             },
             -0.4,
@@ -274,7 +291,9 @@ fn mirror_v_is_the_exact_reflection_and_a_bitwise_involution_in_every_kind() {
 /// rides one `sense` on both channels, so the chart reflection
 /// `(u, v) ↦ (u, −v)` — `u` fixed, `v` negated — is unrepresentable,
 /// and the door answers `None` rather than an image whose `v` channel
-/// is wrong by the whole span.
+/// is wrong by the whole span. On EITHER torus: re-tagging the image
+/// to the other torus would fit the reflected locus's signs and hold
+/// on neither, so the mirror wall refuses exactly as the own one does.
 ///
 /// The number this row exists for: the arm that silently kept `sense`
 /// returned `v = −v0 + sense·t` where the reflection is
@@ -309,7 +328,11 @@ fn a_spiric_wall_image_has_no_reflection_and_the_door_says_so() {
             }
         }
     }
-    assert_eq!((walls, caps), (1, 1), "both spiric images were exercised");
+    assert_eq!(
+        (walls, caps),
+        (2, 1),
+        "both spiric images, and the wall on both tori, were exercised"
+    );
 }
 
 /// The NURBS arms go through `NurbsCurve2::map_points`, and that door

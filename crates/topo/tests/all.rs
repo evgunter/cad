@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
+mod an_off_iso_straight_edge_takes_its_general_row;
 #[path = "analytic_rung3_at_rest.rs"]
 mod analytic_rung3_at_rest;
 #[path = "at_rest_pcurve_rows.rs"]
@@ -121,6 +123,8 @@ mod cube_doors_agree;
 mod display_contract;
 #[path = "euler_site_pcurve_rows.rs"]
 mod euler_site_pcurve_rows;
+#[path = "fused_into_live_cells.rs"]
+mod fused_into_live_cells;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]
@@ -207,6 +211,8 @@ mod neighbours_across_a_closed_edge;
 mod offset_doors_read_charts_not_material;
 #[path = "on_verdict.rs"]
 mod on_verdict;
+#[path = "one_record_carry.rs"]
+mod one_record_carry;
 #[path = "pcurve_door_refusals.rs"]
 mod pcurve_door_refusals;
 #[path = "props_sphere_cap_door.rs"]
@@ -372,10 +378,14 @@ mod replace_face_band_probes;
 mod a_corner_flat_at_its_short_bounds;
 #[path = "a_meridian_witness_contradicts_only_off_its_locus.rs"]
 mod a_meridian_witness_contradicts_only_off_its_locus;
+#[path = "a_seamless_pipe_cut_by_an_oblique_plane_measures.rs"]
+mod a_seamless_pipe_cut_by_an_oblique_plane_measures;
 #[path = "a_vertex_read_again_classes_every_edge.rs"]
 mod a_vertex_read_again_classes_every_edge;
 #[path = "a_vertex_read_by_two_sector_passes.rs"]
 mod a_vertex_read_by_two_sector_passes;
+#[path = "a_whole_spiric_oval_bounds_its_mirror_torus.rs"]
+mod a_whole_spiric_oval_bounds_its_mirror_torus;
 #[path = "a_whole_villarceau_circle_bounds_a_torus_face.rs"]
 mod a_whole_villarceau_circle_bounds_a_torus_face;
 #[path = "certified_enclosure_impl_census.rs"]

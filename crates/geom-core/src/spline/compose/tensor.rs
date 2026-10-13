@@ -184,20 +184,7 @@ impl<'a> SurfaceCertData<'a> {
                 control: n,
             }));
         }
-        for (index, w) in weights.iter().enumerate() {
-            if !(*w > 0.0) {
-                return Err(ComposeError::Structure(SplineError::NonPositiveWeight {
-                    index,
-                    weight: *w,
-                }));
-            }
-            if !w.is_finite() {
-                return Err(ComposeError::Structure(SplineError::NonFiniteWeight {
-                    index,
-                    weight: *w,
-                }));
-            }
-        }
+        crate::spline::check_weight_values(weights).map_err(ComposeError::Structure)?;
         if coords.len() != 3 {
             return Err(ComposeError::DimensionMismatch {
                 dims: coords.len(),

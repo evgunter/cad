@@ -2,12 +2,14 @@
 id: a-blend-or-shell-that-consumes-a-recorded-cell-refuses-the-record
 kind: issue
 title: A surgery verb that removes a recorded touch's cell or material refuses the record; whether the record is consumed or inherited is undecided
-status: open
+status: closed
 opened: 2026-10-11
 priority: P2
 cost: M
-design: true
 refs: [topo-surgery-verbs-drop-a-bodys-contact-records, surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key]
+closed: 2026-10-12
+pr: 4809
+branch: contacthold/one-record-carry
 ---
 
 ## What
@@ -48,3 +50,12 @@ consumed cell and removed material. Weigh it before building it
 (`memories/orchestration-model.md`). Whatever is decided has to keep
 the census's rule that it never scans to bless: a record cannot be
 dropped because the census found no witness for it.
+
+## Resolved (PR 4809)
+
+Ev ruled on `[ev]` PR 4749: consumed where a cell was removed or
+divided with its remainder removed, stale otherwise; a blend face
+inherits nothing. `Shelled::lineage` and `Blended::lineage` state the
+removals; the rim under a resting corner and the record on a blended
+edge are now consumed (`surgery_carries_records`,
+`blend_carries_records`).

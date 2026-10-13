@@ -131,8 +131,10 @@
 //! ```
 
 pub mod attach;
+pub(crate) mod bisect;
 pub mod body;
 pub mod boolean;
+pub(crate) mod carrier_speed;
 pub(crate) mod census;
 pub mod chart;
 pub mod chart_bound;
@@ -168,7 +170,7 @@ pub mod geometry;
 pub(crate) mod source_walk;
 
 #[cfg(test)]
-mod cert_m3r1_probes;
+pub(crate) mod cert_m3r1_probes;
 pub mod instance;
 pub(crate) mod invalid_margin;
 #[cfg(test)]
@@ -394,8 +396,8 @@ pub mod test_support {
         crate::boolean::combine::take_bridges()
             .into_iter()
             .map(|b| match b {
-                crate::boolean::combine::Bridge::Recertify { .. } => GraftBridge::Recertify,
-                crate::boolean::combine::Bridge::RemapKeys => GraftBridge::RemapKeys,
+                crate::boolean::combine::BridgeKind::Recertify => GraftBridge::Recertify,
+                crate::boolean::combine::BridgeKind::RemapKeys => GraftBridge::RemapKeys,
             })
             .collect()
     }
@@ -711,11 +713,6 @@ pub mod test_support {
             true,
             "ball_beside_a_slab_in_band_subtract",
         ),
-        (
-            "Coincidence(EdgeOnCurvedFace)",
-            true,
-            "brick_below_a_tube_union",
-        ),
     ];
 
     /// The topology-arena lengths of `body`. A free function because
@@ -841,28 +838,32 @@ pub use boolean::{
     CarriedRecord, CarrierDesc, CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide,
     CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, Contact, ContactKind,
     ContactPairError, ContactRecords, ContainDecision, ContainError, Contradiction,
-    DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact, FaceContainment, Fusions,
-    GivenPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
-    LeverArm, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite,
-    PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation,
-    PlaneRung, PointInSolidError, ReductionContacts, SectorRead, SectorRung, SelfCheck, Settling,
-    ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops,
-    SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment,
-    VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with,
-    boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words, face_carrier,
-    flush_pair_relation, insert_void, insert_voids, intersect, is_conventional_vertex, join_covers,
-    joinable_vertices, joined_cell, joined_edge, lineage_root, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, tangent_pair_relation, union,
+    DeclarationRead, DiscardRow, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment,
+    FfContact, Fusions, GivenPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
+    JoinUndecided, LeverArm, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace,
+    PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
+    PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow,
+    SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
+    SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace,
+    TorusConvention, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp,
+    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
+    insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
+    joined_edge, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
+    subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
-pub use lineage::Divisions;
+pub use lineage::{
+    Division, FaceDivisions, Fate, Lineage, LineageError, LineageRows, Remainder, RowDefect,
+    RowRefusal, Substitutions,
+};
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{
-    PlantedDegradation, swap_split_roles, sweep_records, sweep_split, sweep_traces,
-    sweep_traces_with_pad, take_shared_points,
+    PlantedDegradation, StagePoints, arm_output_stage_points, swap_split_roles, sweep_records,
+    sweep_split, sweep_traces, sweep_traces_with_pad, take_output_stage_points, take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
 pub use chord_join::face_azimuth_window_traces;
@@ -878,7 +879,7 @@ pub use census::{census_traces, census_traces_planted};
 pub use contact::{
     CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactClass, ContactFinding,
     ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL, FIT_DEFERRAL_FOR_USERS,
-    GlueClass, SEAM_STEER,
+    GlueClass,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
