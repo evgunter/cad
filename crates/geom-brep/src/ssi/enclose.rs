@@ -30,12 +30,9 @@
 //!   assembled from control-net hulls: the rational surface's point box
 //!   is the *Cartesian* control hull over a span cell (positive weights
 //!   ⇒ convex combination), and the derivative box comes from the
-//!   homogeneous derivative net through the quotient rule
-//!   `S_u = (A_u − S·w_u)/w`, over each cell cut to the rectangle's
-//!   part of it, all in certification arithmetic. (`geom_core::spline::
-//!   hull` deliberately has no rational derivative path; this is that
-//!   path, assembled at the consumer from the primitives it does have,
-//!   which is where the surface-shaped bookkeeping belongs.)
+//!   quotient bound `S_u = N_u/W²` (`geom_core::spline::derivative`),
+//!   over each cell cut to the rectangle's part of it, all in
+//!   certification arithmetic.
 //!
 //! # Soundness posture
 //!
@@ -77,7 +74,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
-    CellAxis, CellBlock, CellQuotients, KnotVector, ParamRange, QuotientPiece, RingRefinement, Span,
+    CellAxis, CellBlock, CellQuotients, KnotVector, ParamRange, RingRefinement, Span,
     TensorNet, cell_quotients, span_derivative_scale,
 };
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
@@ -585,8 +582,8 @@ impl UvWindow {
 /// shrinks it. The point box uses the Cartesian net directly (positive
 /// weights make `S` a convex combination of the local control points,
 /// which is exactly the rational hull property); the derivative box
-/// goes through the homogeneous quotient rule over each cell's net cut
-/// to the rectangle ([`CellNet::cut`]), so it shrinks with the
+/// is the hull of the quotient bound's coefficient ratios over each
+/// cell's net cut to the rectangle ([`CellNet::cut`]), so it shrinks with the
 /// rectangle below a span cell too.
 ///
 /// The cells are the surface's own, or a [`CellGrid`]'s: the same
@@ -712,16 +709,14 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         }
     }
 
-    /// A certified box for `∂S/∂u` (or `∂S/∂v`) over the rectangle, via
-    /// the quotient rule `S_d = (A_d − S·w_d)/w` evaluated entirely on
-    /// hulls, per span cell, with `S` in that cell's point box
-    /// ([`CellNet::quotient_numerator`] gives the numerator's form).
-    /// Each cell is also cut to the part of the rectangle inside it
-    /// ([`CellNet::cut`]) and the two boxes met, so the box shrinks with
-    /// the rectangle below a span cell and is never wider than the whole
-    /// cell's. Refused
-    /// when the weight hull touches zero (interval arithmetic refuses
-    /// the divisor) or the net is malformed. The boundary pass reads a
+    /// A certified box for `∂S/∂u` (or `∂S/∂v`) over the rectangle: per
+    /// span cell, the hull of the quotient `S_d = N_d/W²`'s coefficient
+    /// ratios ([`CellNet::derivative_box`]). Each cell is also cut to the
+    /// part of the rectangle inside it ([`CellNet::cut`]) and the two
+    /// boxes met, so the box shrinks with the rectangle below a span
+    /// cell and is never wider than the whole cell's. Refused when a
+    /// weight-power coefficient touches zero (interval arithmetic
+    /// refuses the divisor) or the net is malformed. The boundary pass reads a
     /// directional partial off
     /// it; the chart readings take norms from the same cut
     /// ([`NurbsBoxes::speed_sup`]).
@@ -992,12 +987,13 @@ impl CellGrid {
 /// a sub-rectangle or whole: the Cartesian points and weights,
 /// `(pu + 1) × (pv + 1)` row-major, and the block's first-order
 /// quotients `S_u = N_u/W²` and `S_v = N_v/W²`
-/// ([`geom_core::spline::cell_quotients`]), read off its homogeneous
-/// net `(w·(P − c), w)` in a frame `c` at its first point. Every
-/// reading is a coefficient of `N_u` or `N_v`, which is
-/// translation-free (`A ↦ A + t·W` leaves `A_d·W − A·W_d` fixed) and
-/// carried by a rotation to its image, so a rigid map moves a reading
-/// by its rounding width alone.
+/// ([`geom_core::spline::cell_quotients`]), read in a frame `c` at its
+/// first point: off the points and weights for the surface's own cells,
+/// off the homogeneous channels `(w·(P − c), w)` for a grid's or a cut's.
+/// Every reading is a coefficient ratio of `N_u` or `N_v` over `W²`;
+/// `N_d` is translation-free (`A ↦ A + t·W` leaves `A_d·W − A·W_d`
+/// fixed) and carried by a rotation to its image, so a rigid map moves a
+/// reading by its rounding width alone.
 #[derive(Debug)]
 struct CellNet {
     nv: usize,
@@ -1009,9 +1005,10 @@ struct CellNet {
     /// rather than multiplying a quotient by `w` again, which widens.
     /// `None` for the surface's own cells, whose points are exact.
     hom: Option<Vec<[Interval; 4]>>,
-    /// `S_u` and `S_v` on the block, `None` where the statement refused
-    /// (every reading then refuses).
-    quotients: Option<CellQuotients<Interval>>,
+    /// `S_u` and `S_v` on each of the block's [`BLOCK_PIECE_SPLITS`]²
+    /// dyadic pieces, `None` where the statement refused (every reading
+    /// then refuses).
+    quotients: Option<Vec<CellQuotients<Interval>>>,
 }
 
 impl CellNet {
@@ -1081,16 +1078,16 @@ impl CellNet {
             // Exact points: the pair form reads equal points with equal
             // weights as an exact zero, which differencing their
             // translated channels would not.
-            first_piece(cell_quotients(
+            cell_quotients(
                 axes,
                 CellBlock::Points {
                     points: &net.pts,
                     weights: &net.wts,
                     origin: c,
                 },
-                (1, 1),
+                (BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS),
                 false,
-            ))
+            )
         };
         Some(net)
     }
@@ -1182,27 +1179,33 @@ impl CellNet {
         })
     }
 
-    /// The quotient along `u` (`along_u`) or `v`.
-    fn side(&self, along_u: bool) -> Option<&QuotientPiece<Interval, 3>> {
-        self.quotients
-            .as_ref()
-            .map(|q| if along_u { &q.u } else { &q.v })
+    /// The coefficient ratios `a_k/b_k` of `S_u` (`along_u`) or `S_v`
+    /// on every piece; `None` where the statement refused.
+    fn ratios(&self, along_u: bool) -> Option<Vec<[Interval; 3]>> {
+        Some(
+            self.quotients
+                .as_ref()?
+                .iter()
+                .flat_map(|q| {
+                    let q = if along_u { &q.u } else { &q.v };
+                    q.numer()
+                        .iter()
+                        .zip(q.denom())
+                        .map(|(a, b)| a.map(|x| x / *b))
+                })
+                .collect(),
+        )
     }
 
-    /// The box for `S_d` over the block's region: the hull of its
+    /// The box for `S_d` over the block's region: the hull of its pieces'
     /// coefficient ratios `a_k/b_k`, of which `S_d` is a convex
-    /// combination (`geom_core::spline::derivative`'s module docs).
+    /// combination on each piece (`geom_core::spline::derivative`'s
+    /// module docs).
     fn derivative_box(&self, along_u: bool) -> Box3 {
-        self.side(along_u)
-            .and_then(|q| {
-                q.numer()
-                    .iter()
-                    .zip(q.denom())
-                    .map(|(a, b)| Box3 {
-                        x: a[0] / *b,
-                        y: a[1] / *b,
-                        z: a[2] / *b,
-                    })
+        self.ratios(along_u)
+            .and_then(|r| {
+                r.into_iter()
+                    .map(|[x, y, z]| Box3 { x, y, z })
                     .reduce(Box3::hull)
             })
             .unwrap_or_else(refused_box)
@@ -1210,19 +1213,13 @@ impl CellNet {
 
     /// An upper bound on `‖S_d‖` over the block's region: the largest
     /// `‖a_k/b_k‖`, rounded outward ([`norm_sup`]); `NaN` when refused.
-    /// The norm is convex, so its max over the ratios' hull is at a
+    /// The norm is convex, so its max over a piece's ratio hull is at a
     /// ratio, and a rigid map carries every ratio to its image. In real
     /// arithmetic it is never above the norm of the box
     /// [`CellNet::derivative_box`] reads, which holds every ratio.
     fn derivative_norm_sup(&self, along_u: bool) -> f64 {
-        self.side(along_u)
-            .and_then(|q| {
-                q.numer()
-                    .iter()
-                    .zip(q.denom())
-                    .map(|(a, b)| norm_sup(&a.map(|x| x / *b)))
-                    .reduce(max_bound)
-            })
+        self.ratios(along_u)
+            .and_then(|r| r.iter().map(norm_sup).reduce(max_bound))
             .unwrap_or(f64::NAN)
     }
 
@@ -1232,26 +1229,28 @@ impl CellNet {
     /// enclosure and the second an upper bound rounded outward (`NaN`
     /// when refused).
     ///
-    /// `S_u` and `S_v` are quotients over the one weight power `W²` at
-    /// one degree, so `S_u·ex + S_v·ey` is the quotient of
+    /// On each piece `S_u` and `S_v` are quotients over the one weight
+    /// power `W²` at one degree, so `S_u·ex + S_v·ey` is the quotient of
     /// `ex·N_u + ey·N_v` over `W²`: a convex combination of the ratios
     /// `(ex·a_k + ey·a′_k)/b_k`, whose `n·` hull encloses it and whose
     /// largest norm bounds it.
     fn transverse_readings(&self, n: [Interval; 3], ex: Interval, ey: Interval) -> (Interval, f64) {
-        let Some(q) = self.quotients.as_ref() else {
+        let Some(pieces) = self.quotients.as_ref() else {
             return (Interval::refused(), f64::NAN);
         };
-        if q.u.denom().len() != q.v.denom().len() {
-            return (Interval::refused(), f64::NAN);
+        let mut ratios: Vec<[Interval; 3]> = Vec::new();
+        for q in pieces {
+            if q.u.denom().len() != q.v.denom().len() {
+                return (Interval::refused(), f64::NAN);
+            }
+            ratios.extend(
+                q.u.numer()
+                    .iter()
+                    .zip(q.v.numer())
+                    .zip(q.u.denom())
+                    .map(|((a, b), w)| core::array::from_fn(|k| (a[k] * ex + b[k] * ey) / *w)),
+            );
         }
-        let ratios: Vec<[Interval; 3]> = q
-            .u
-            .numer()
-            .iter()
-            .zip(q.v.numer())
-            .zip(q.u.denom())
-            .map(|((a, b), w)| core::array::from_fn(|k| (a[k] * ex + b[k] * ey) / *w))
-            .collect();
         let along = ratios
             .iter()
             .map(|r| dot(&n, r))
@@ -1266,25 +1265,30 @@ impl CellNet {
     }
 }
 
+/// The block reading's piece schedule per direction (D9: structure,
+/// never a decision): every block, whole or cut, is read on this many
+/// exact dyadic pieces along each axis, as `geom::NurbsSurface`'s
+/// stretch bounds read a cell. With one piece a polynomial wall's
+/// derivative box keeps its degree-elevated hull, which on
+/// `m5_pr7_ssi`'s bent-path flat wall reads the slope across the
+/// `v = 0` side at two thirds of its true least (`5.3e-9` against
+/// `8e-9`, inside the band at `ε = 1e-9`); two pieces read it exactly.
+const BLOCK_PIECE_SPLITS: usize = 2;
+
 /// The first-order quotients of a homogeneous block `h` along `axes`,
-/// one piece (the block itself); `None` where the statement refuses.
+/// on the block's pieces; `None` where the statement refuses.
 fn quotients_of(
     h: &[[Interval; 4]],
     axes: (CellAxis<'_, Interval>, CellAxis<'_, Interval>),
-) -> Option<CellQuotients<Interval>> {
+) -> Option<Vec<CellQuotients<Interval>>> {
     let a: Vec<[Interval; 3]> = h.iter().map(|c| [c[0], c[1], c[2]]).collect();
     let w: Vec<Interval> = h.iter().map(|c| c[3]).collect();
-    first_piece(cell_quotients(
+    cell_quotients(
         axes,
         CellBlock::Homogeneous { a: &a, w: &w },
-        (1, 1),
+        (BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS),
         false,
-    ))
-}
-
-/// The one piece of a block read whole.
-fn first_piece(pieces: Option<Vec<CellQuotients<Interval>>>) -> Option<CellQuotients<Interval>> {
-    pieces?.into_iter().next()
+    )
 }
 
 /// The axis of a block cut to `cut` along `span`: a Bézier block of the

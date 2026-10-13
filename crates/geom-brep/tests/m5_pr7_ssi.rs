@@ -5922,8 +5922,13 @@ fn bent_path_flat_wall(alpha: f64, width: f64, kappa: f64, mu: f64) -> NurbsSurf
 /// state's arm is the extent, and the march answers the line; a
 /// parameter line's own radius, about 9 mm here, would put `sin θ` times
 /// it inside the band at ε 1e-9, where the chart's reading refuses. One
-/// branch on the line at ε 1e-9 and 1e-12; at 1e-6 the angle is itself
-/// inside the band. (`μ` 0.1 refuses on limb 3 at ε 1e-12:
+/// branch on the line at ε 1e-12. At 1e-6 the angle is itself inside the
+/// band, and at 1e-9 the slope across the `v = 0` side is: the wall's
+/// `v` direction runs along `y`, in the plane, and the strip's
+/// derivative box reads that slope's margin exactly, `8e-9 m`, so the
+/// side refuses as possibly tangent
+/// (`work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md`).
+/// (`μ` 0.1 refuses on limb 3 at ε 1e-12:
 /// `work/ssimarch/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md`.)
 #[test]
 fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
@@ -5946,8 +5951,11 @@ fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
         let wall = bent_path_flat_wall(alpha, 0.01, 0.8, mu);
         let out = match ssi::plane_nurbs_ssi(&plane, &wall, dom, band()) {
             Ok(out) => out,
-            Err(e) if eps >= 1e-6 => {
-                vacuity::stood_down(&at, &format!("α is inside the band: {e}"));
+            Err(e) if eps >= 1e-9 => {
+                vacuity::stood_down(
+                    &at,
+                    &format!("the slope across the v = 0 side is inside the band: {e}"),
+                );
                 return;
             }
             Err(e) => panic!("{at}: expected the line, got {e}"),

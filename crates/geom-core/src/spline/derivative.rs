@@ -55,6 +55,11 @@
 //! knot differences span the whole support), not off a piece's own
 //! differences, whose `degree/width` scale would amplify their rounding.
 //!
+//! **The weights are read over their greatest** per span or block: every
+//! quotient is homogeneous of degree zero in the weights, so the scaling
+//! is exact in ℝ (outward at `Interval`), and it keeps the weight
+//! powers' products clear of underflow.
+//!
 //! **At equal weights** the curve meter passes the polynomial
 //! derivative over the constant one ([`speed_pieces`] with no weights):
 //! every `b_k` is exactly one, and the reading is the polynomial piece
@@ -442,6 +447,17 @@ fn scale_by<T: Real, const D: usize>(v: Vector<T, D>, w: Vector<T, 1>) -> Vector
     v * w.0[0]
 }
 
+/// The weights `ws` over their greatest. Every quotient is homogeneous
+/// of degree zero in the weights (`N/W²` and `M̃/W³` scale alike), so
+/// this is exact in ℝ and changes no bound, while the weight powers'
+/// products stay clear of underflow and overflow wherever the weights'
+/// spread allows: a block of equal subnormal weights reads as one of
+/// ones. `None` when there is none.
+fn normalised<T: Real>(ws: &[T]) -> Option<(Vec<T>, T)> {
+    let most = ws.iter().copied().reduce(T::max)?;
+    Some((ws.iter().map(|w| *w / most).collect(), most))
+}
+
 /// One axis of a cell block: a span of a knot vector, whose window
 /// the blossom reads into the span's Bernstein row, or a Bézier block
 /// already in Bernstein form.
@@ -666,7 +682,11 @@ pub fn speed_pieces<T: Real, const D: usize>(
                 }
             }
             Some(ws) => {
-                let ws: Vec<Vector<T, 1>> = ws.get(span.window())?.iter().map(|w| Vector([*w])).collect();
+                let ws: Vec<Vector<T, 1>> = normalised(ws.get(span.window())?)?
+                    .0
+                    .into_iter()
+                    .map(|w| Vector([w]))
+                    .collect();
                 let c = *pts.first()?;
                 let a: Vec<Vector<T, D>> =
                     pts.iter().zip(&ws).map(|(x, w)| scale_by(*x - c, *w)).collect();
@@ -747,7 +767,7 @@ pub fn cell_quotients<T: Real>(
             if points.len() != count || weights.len() != count {
                 return None;
             }
-            let (pg, wg, c) = (grid3(points)?, grid1(weights)?, Vector(origin));
+            let (pg, wg, c) = (grid3(points)?, grid1(&normalised(weights)?.0)?, Vector(origin));
             let a = Grid::new(
                 q + 1,
                 pg.c.iter().zip(&wg.c).map(|(x, w)| scale_by(*x - c, *w)).collect(),
@@ -777,7 +797,9 @@ pub fn cell_quotients<T: Real>(
             if a.len() != count || w.len() != count {
                 return None;
             }
-            let (a, w) = (grid3(a)?, grid1(w)?);
+            let (w, most) = normalised(w)?;
+            let a: Vec<[T; 3]> = a.iter().map(|x| x.map(|c| c / most)).collect();
+            let (a, w) = (grid3(&a)?, grid1(&w)?);
             let u = (a.map_u(|c| au.derive(c))?, w.map_u(|c| au.derive(c))?);
             let v = (a.map_v(|r| av.derive(r))?, w.map_v(|r| av.derive(r))?);
             (a, w, u, v)
