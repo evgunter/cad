@@ -1141,3 +1141,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Re-armed for 02:55.
 - 2026-10-13 03:00 — The 4906 fix pass is done (head `cf2e6d9f`; hosted red only on the known `coincidence_door` row). Local verify is running in /home/user/v4906 (head + main, `a793610b4b`; scratchpad/v4906/summary.txt). The row is drafted (scratchpad/dr4906/row.md). 4886 and 4910 fix passes and the r4927 pair are still running.
 - 2026-10-13 03:25 — **PR 4906 merged** (`46ff70015b`). Local verify on head + main: fmt, plus topo `join|torus|one_site|wrap` (281) and the touched sweep rows (42), green at three ε. Row `PR-4906.md` last: sequential, M, byte 227, tallied 0, major false.
+- 2026-10-13 04:05 — **PR 4910's fix pass is done** (head `b034172c`; hosted red only on the known row).
+  - It answered every item. On D10, it quotes the Booleans paragraph: the vertex-on-plane pose is a transverse cut, which is §2's not-held class, so it builds and is pinned. I accept that.
+  - **Merging main** (which now has 4906) conflicted in the slow set. **My slip:** my resolve script's assertion failed, yet the chained commit still went through with main's file alone. It was caught before any push, and the next commit re-added the PR's three entries (a set diff against main is verified).
+  - Local verify running in /home/user/v4910 (scratchpad/v4910/summary.txt). Row drafted (scratchpad/dr4910/row.md).
+  - 4886's fix pass is still running mutants and the effort-6 hunt. r4927a/b are alive (drafts at 02:36 and 02:44).
