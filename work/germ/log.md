@@ -1113,3 +1113,16 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - 1,512 ops per side against main: 594 refusals now build, 0 wrong bodies, the other 918 identical. The wrong-pairing mutant fails loud.
   - NITs: the slots-unconsumed guard is an equivalent mutant; the `partners` doc is stale; no row pins combs with more than two one-site loops per slab plane pair.
   - Fix pass for the NITs: session_01WhNhdX2mvh3kcQuUp4yeL7. No second review (no MAJOR). Row at merge: sequential, M, tallied 0, major false.
+- 2026-10-13 00:58 — **U-T4 is up as PR 4927** (head `736c91cf`, +2223/−453, 28 files); its lane is idle.
+  - **Hosted:** only the 1e-12 step's `coincidence_door` row is red (main's).
+  - **Claims:**
+    - spiric ovals served as `SectionCase::Loops` through the common arc rule (Q1 as decided);
+    - the torus ring lane reads oval arcs;
+    - a zero-length lead is read as a point;
+    - a spiric winding term with a Bernstein bound in the one winding home;
+    - no wrong body across the table;
+    - lens volumes corrected (7.08e-5 / 9.40e-3).
+  - **Caveat:** `point_in_solid` refuses (`PartialTorusFace`) on every body built, so the reviewers must bring their own membership oracle (in the brief).
+  - **Filed by the lane:** a FLUX item on volume with a spiric ring; INSIDE evidence; a GERM pinched-oval winding item; a SECT travel-slack item.
+  - **Frozen; CONCURRENT pair** r4927a and r4927b, local Opus. Brief template sha256 `4c45d94212a2`. Coding byte 188, even → A = r4927a.
+  - **Note:** PR 4910 also touches `ring_path`, so expect a merge overlap with 4927.
