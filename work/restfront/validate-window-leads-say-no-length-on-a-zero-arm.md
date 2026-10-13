@@ -22,7 +22,7 @@ Since that unit, geom-brep's Zero-arm payloads print their margin and claim no s
 
   `IntervalNotForward { Zero }`'s "its length is within the tolerance of zero" is true of a band-decided zero, though not literally of a symbolic-tier proved zero whose rounded number lies past the zero band.
 - Same file, `impl Display for ValidationError`, `Self::NoDihedralArm`: "an edge is not {DIHEDRAL_ARM_CLAUSE}", with no margin. The certify payload it mirrors now reads "the edge is not shown {DIHEDRAL_ARM_CLAUSE} (margin … m)" (`CertifyError::ArmCollapsed`).
-- Same file, the offset-meter lead (`M::NormalFloor { verdict: R::Negative { .. } }`): "the face's surface normal degenerates, so it has no offset". The thinness is never negative (`MeterError::NormalFloor`'s field doc), so this arm is unreachable or says more than its verdict. The meter's own payload now reads "the face's normal is not shown non-zero (margin … m: …)" and leaves the offset's refusal to the fit's lead.
+- Same file, the offset-meter lead (`M::NormalFloor { verdict: R::Negative { .. } }`): "the face's surface normal degenerates, so it has no offset". The thinness is never negative (`MeterError::NormalFloor`'s field doc), so this arm is unreachable or says more than its verdict. The meter's own payload now reads "the face's normal is not shown non-zero (margin … m, from normal length …)" and leaves the offset's refusal to the fit's lead.
 
 ## Repair shape
 
