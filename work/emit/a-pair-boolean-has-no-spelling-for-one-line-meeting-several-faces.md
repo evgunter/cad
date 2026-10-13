@@ -2,8 +2,10 @@
 id: a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces
 kind: issue
 title: A pair boolean has no N2 spelling for one operand line meeting several faces of the other operand and no edge of it
-status: open
+status: closed
 opened: 2026-10-13
+closed: 2026-10-13
+branch: emit/glued-rim-build
 priority: P3
 cost: E
 ---
@@ -82,3 +84,27 @@ emission bug. No test reaches either.
 Not named. Owed: move the shape from `SeamVertexParentage` to the `Emission` residue in both emitters, and state the link argument beside it. With planar faces, the kept region either keeps the other operand's edge, holds one of its faces, or pinches into two vertices, so a manifold pair does not reach this shape. Then close this row as unreached, citing both witnesses that pinched instead:
 - an L-prism with a box edge (union);
 - a V-cutter on a box edge (subtract).
+
+## Closed (branch `emit/glued-rim-build`, 2026-10-13): unreached
+
+The shape is now an `Emission` refusal in both emitters, with the link
+argument beside it:
+- `emit_topo::name_boolean_vertices`, the converted arm's
+  `([_], []) | ([], [_])`;
+- `emit_union::Flush::meeting`, one line with several faces.
+
+The argument: faces of the other operand (or of other members) meet at a
+point only along their edges through it. With planar faces, the region
+kept about the line either keeps a piece of such an edge at the point,
+holds one of its faces there, or pinches into two vertices, each one line
+meeting one face. A manifold pair does not reach this shape.
+
+Neither designer's witness reached it. Each pinched into two `Crossing`
+vertices instead (fork-log row 131):
+- an L-prism unioned with a box edge;
+- a V-cutter subtracted on a box edge.
+
+`NamingError::SeamVertexParentage` keeps one raiser:
+`name_boolean_vertices`' A-side arm for one A edge with no B edge and no
+seam at the vertex. Its doc and message now say exactly that.
+`refusal_concision_chains` and `display_contract` stay green.

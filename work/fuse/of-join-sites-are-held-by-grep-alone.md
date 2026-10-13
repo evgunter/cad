@@ -2,11 +2,13 @@
 id: of-join-sites-are-held-by-grep-alone
 kind: issue
 title: The Boolean's one route for a chord-join lineage refusal (BooleanError::of_join) is held at fifteen call sites by grep alone
-status: open
+status: closed
 opened: 2026-10-12
 priority: P3
 cost: E
 refs: [face-lineage-rows-are-checked-by-their-readers-not-where-they-are-added, 4868]
+closed: 2026-10-13
+pr: 4981
 ---
 
 
@@ -34,3 +36,15 @@ What is owed, one of:
 - or a source-scan row over `topo/src/boolean`, in the shape of the
   existing door guards (`crate::source_walk`), that refuses a
   `BooleanError::Join(` built anywhere but `of_join`.
+
+## Closed
+
+`BooleanError::Join` holds a `BooleanJoin` whose field is private to
+`boolean::join_lift`, and `From<SplitJoinError> for BooleanError` is
+its one constructor: a join lineage row becomes the Boolean's own
+`LineageRow`, everything else nests whole. `of_join` is gone and the
+fifteen sites are `?` or `BooleanError::from`. Mutant E
+(`.map_err(BooleanError::Join)` at one site) no longer compiles. The
+merge lift (`of_merge`) had the same shape and is held the same way
+(`BooleanMerge`); the Euler driver lift is filed as
+`topo/euler-driver-lift-is-held-by-convention`.

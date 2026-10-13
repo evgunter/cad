@@ -678,9 +678,13 @@ does not blend), which needs the plan's feet: it runs in the surgery
 after predicate 6 and before any mutation. Face clearance reads each face
 three ways, not two: clear of the band's material, wholly inside it (the
 face goes with that material, as a face wholly inside a Boolean's tool
-does), or crossing it (refused). At a convex ruled band's cut-off the
-carve takes a through-feature wholly inside the material, between the
-band's two caps. Every constant-radius arm
+does), or crossing it (refused). At a convex straight band's cut-off
+(the ruled fillet's, the plane–plane fillet's and chamfer's) the carve
+takes a through-feature wholly inside the material, between the band's
+two caps; a feature read wholly inside anywhere else (a void or an
+island with no cap cycle) refuses `WhollyInside`, and a hole whose
+mouth a concave fill covers, which is not wholly inside, refuses as a
+bound where its wall meets the end face's plane. Every constant-radius arm
 mints a torus or a cylinder (the envelope of equal spheres over a circle
 or a line spine); a cone belongs to the variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band
@@ -881,9 +885,9 @@ on the kind).
 claim is `sup_(u,v) ‖S_fit − (S + d·n)‖ ≤ ε_precision`, pointwise in the
 base's own chart parameters. Meters (`offset_meters.rs`, read off
 `patch_bound.rs`'s per-cell control-hull enclosures): the *regularity
-floor*, a certified lower bound on `‖S_u × S_v‖` (three assemblies, the
-largest wins: componentwise mignitude, fixed-direction projection, and
-the Gram determinant `EG − F²`), classified by `offset_normal_floor` with
+floor*, a certified lower bound on `‖S_u × S_v‖` (the area quotient's
+least coefficient ratio along each piece's own direction, the
+`PatchCell::m_inf` its sup is the companion of), classified by `offset_normal_floor` with
 the patch's faster chart speed as lever (read from the norms of
 coefficient vectors, D4 ¶2, as the floor's companion `sup‖S_u × S_v‖`
 is), deliberately not `|d|`, since
