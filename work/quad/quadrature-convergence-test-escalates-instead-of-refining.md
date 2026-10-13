@@ -2,9 +2,10 @@
 id: quadrature-convergence-test-escalates-instead-of-refining
 kind: issue
 title: the quadrature lanes escalate an in-band convergence test instead of refining another round, so a face measures in one boolean operand order and not the other
-status: review
+status: closed
 pr: 4839
 opened: 2026-10-01
+closed: 2026-10-13
 ---
 
 
