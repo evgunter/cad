@@ -21,8 +21,8 @@ That PR moves the three sites
 and eight through `Real::reduce_periodic_centred`
 (`self − p·self.periodic_branch(p)`, the same floor behind a wrapper,
 which the first sweep's pattern could not match; PR 4875's review,
-MINOR-4). At `Sym` each one carries an opaque `floor` atom into whatever
-decision reads the result.
+MINOR-4). At `Sym` each `floor` is an atom wherever its argument's form
+is not zero (see Closed for what that does and does not cost).
 
 Through `periodic_branch` or open-coded:
 
@@ -87,35 +87,69 @@ structure with `whole_periods`.
 
 ## Closed
 
-Closed by `pcert/periodic-branch-raw-picks`. The count is **13
-production picks**: `topo::splitting::classify`'s second
-`reduce_periodic_centred` is inside a test (the anchor-widening row that
-re-derives both anchors inline), not production code.
+Closed by `pcert/periodic-branch-raw-picks`.
 
-Measured first, with a scratch probe over the topo, sweep, step-import,
-mesh, editor-core, geom-brep and profile suites (11257 tests):
+**The count is 14 production picks:**
+- 13 from this list. `topo::splitting::classify`'s second
+  `reduce_periodic_centred` is inside a test (the anchor-widening row
+  that re-derives both anchors inline), not production code.
+- Plus one the census missed (PR 4941's review):
+  `sweep::blend::open::end_face`'s `first = −⌊−ta/π⌋`. Unexamined but it
+  looks sound: it is read through `.lo()` and errs to `far = major`.
+  BAND's code; noted on BAND's slate as
+  `work/band/end-face-vertex-window-picks-its-first-half-turn-by-floor.md`.
+
+**What a `floor` costs at `Sym`:** it folds only where its argument's
+form is the zero polynomial (`geom_core::sym`'s `unary_at_zero`). That is
+the exact tie of a `⌊x/p + ½⌋`, where the fold is the true `⌊0⌋` and
+agrees with `f64`. Elsewhere it is an atom keyed by its argument's form,
+so floors of form-equal arguments cancel. A reading of the pick is
+numeric unless such a fold or cancellation makes it an identity.
+
+**Measured first**, with a scratch probe over the topo, sweep,
+step-import, mesh, editor-core, geom-brep and profile suites (11257
+tests):
 - no pick is reached at `Sym<Interval>`;
 - most are hit at exact f64 half-period ties in ordinary suites
   (`circle_roots`' `near_mid` 67k times, the pole's strict branch 80k,
-  `ring_path::branch` 28k);
-- the `Interval` straddles at `circle_roots`' `near_mid` and the
-  Gauss–Bonnet fan are load-bearing.
+  `ring_path::branch` 28k).
 
-So a branch is decided as structure only where an identity reads it:
-- **Decided as structure:** `topo::offset_axial::keep_turn`, by
-  `geom_brep::whole_period_count`, levered at the carrier's speed ceiling.
-  `offset_axial_edge_turn` reads `kept − read` as zero or whole turns. A
-  read half a turn out refuses `TogetherAxialEdge`, and one in the mark's
-  band escalates. Rows: `offset_axial::keep_turn_rows`.
-- **Sound as-is, argued at the site:**
-  - `topo::ring_path::branch` carries the window re-centring argument;
-  - `chord_join`'s ring re-homing, `circle_torus`, `circle_roots` ×2,
-    `classify`'s midpoint anchor, `shell`'s run shift,
-    `profile::sugar::signed_swept` and `projected::off_period` cite it,
-    each with its own line.
-- **Moved:**
-  - FLUX's two `props::curved` sites, the torus lift and the Gauss–Bonnet
-    fan: `work/flux/props-torus-lift-and-gauss-bonnet-fan-pick-a-branch-by-floor.md`;
-  - the pole's strict branch and `reduce_periodic`, a design question:
-    `the-period-jump-has-no-ruling`.
+So a branch is decided as structure only where an identity reads it.
 
+**Decided as structure:** `topo::offset_axial::keep_turn`, by
+`geom_brep::whole_period_count`, levered at the carrier's speed floor.
+`offset_axial_edge_turn` reads `kept − read` as zero or whole turns. A
+mark decided Zero refuses `TogetherAxialEdge`, and one in band escalates.
+Rows: `offset_axial::keep_turn_rows`.
+
+**Sound as-is, each on its own premise:**
+- **The window re-centring argument** (written at `ring_path::branch`).
+  A tie lands on an end of the span, and on a whole-turn span `lo` and
+  `hi` are one point read alike. Cited by `ring_path::branch` itself,
+  `circle_torus`, `circle_roots` ×2 and `classify`'s midpoint anchor,
+  each naming its readers.
+- **chord_join's ring re-homing:** its own seam paragraph. A seam vertex
+  lands on `hi`, which reads as `lo` would only because such a run
+  carries seam rows along both edges.
+- **shell's run shift:** concentric pairs by construction. On pairs not
+  known to nest, the tie's placement is filed:
+  `work/shelf/shell-encloses-reads-a-tie-placed-run-on-pairs-not-known-to-nest.md`.
+- **`profile::sugar::signed_swept`:** the sign is the branch; ±π reads
+  behind, sound by the configuration argument at its doc. Added to the
+  period-jump question as a "which branch" case.
+- **`projected::off_period`:** a lattice distance, continuous at the tie;
+  its inputs are form-definite deck offsets.
+
+**Correction of PR 4941's first head:** it said `circle_roots`'
+`near_mid` `Interval` straddle was load-bearing for the slit dome's
+containment. The review's refuse-mutant passes all of `pole_slit_window`'s rows
+(straddled rays end in band and a later ray decides). The floor stays
+there because no identity reads the root.
+
+**Moved:**
+- FLUX's two `props::curved` sites:
+  `work/flux/props-torus-lift-and-gauss-bonnet-fan-pick-a-branch-by-floor.md`.
+- The pole's strict branch, `reduce_periodic` and sugar's ±π:
+  `the-period-jump-has-no-ruling`.
+- Found reading the readers: the section ruling's seam-blind root order,
+  `work/hone/ruling-root-order-compares-raw-parameters-across-the-seam.md`.

@@ -645,8 +645,11 @@ fn parallel_axes_roots<T: Decide>(
             Err(_) => return Ok(CircleRoots::Uncertain),
         }
         // Each root on the branch of the span's middle: sound at every
-        // scalar by `ring_path::branch`'s window re-centring argument (at
-        // `Sym` the caller's span reading is numeric, never an identity).
+        // scalar by `ring_path::branch`'s window re-centring argument.
+        // The one reader, `boolean::reduce`'s wall crossing, decides a
+        // root at either end of a closed edge's whole-turn span alike
+        // (`at_end`), and reads it only against the span's ends, never as
+        // an identity.
         for theta in [theta0 + spread, theta0 - spread] {
             thetas[count] = mid + (theta - mid).reduce_periodic_centred(T::tau());
             count += 1;

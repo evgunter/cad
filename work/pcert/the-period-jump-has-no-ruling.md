@@ -63,7 +63,9 @@ Sites:
 - `topo::shell`'s split (period π) and half reads;
 - `topo::boolean::boxes`' crest read;
 - `profile::sugar`'s `ccw` and extent;
-- `topo::boolean::rim_wedge`'s open-coded `x − τ·⌊x/τ⌋` (×4).
+- `topo::boolean::rim_wedge`'s open-coded `x − τ·⌊x/τ⌋` (×4);
+- `editor-core::names::emit_topo`'s `Track` offset and its `fwd`
+  closure, both open-coded `x − p·⌊x/p⌋`.
 
 Reached:
 - f64 at every site, many exactly on the jump (`rp_chord_join_arc`,
@@ -71,6 +73,17 @@ Reached:
 - `Sym<f64>` at `boxes` and the arc extent;
 - `Interval` **wide**, a whole turn, at `boxes` (8 tests), whose rows
   rely on the straddle to answer.
+
+## 3. A signed angle's half turn: which branch
+
+`profile::sugar::signed_swept` folds `(to − from)·turn` into `[−π, π)`,
+and its readers read the SIGN as the branch: the fillet reach and fit
+gates, and the path corner gates. At `d = ±π` both fold to `−π`, so a
+point exactly half a turn ahead reads behind. Reached at f64 147 times in
+the suites (scratch probe). Today's soundness is a configuration
+argument at its doc: a tangent point diametrically opposite the corner,
+which the reach and fit gates classify first. The question is the same
+one: what does the half turn owe, ahead, behind, or a refusal?
 
 ## The question
 
