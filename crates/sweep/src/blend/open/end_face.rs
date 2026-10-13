@@ -221,7 +221,7 @@ impl<T: Decide + Bounds> EndCut<T> {
     }
 
     /// The end curve's carrier, as the description pass reads it.
-    fn carrier(&self) -> ContactCarrier<T> {
+    pub(in crate::blend) fn carrier(&self) -> ContactCarrier<T> {
         match &self.curve {
             EndCurve::Chord => ContactCarrier::Chord,
             EndCurve::Round(curve) => ContactCarrier::Transverse(curve.clone()),
