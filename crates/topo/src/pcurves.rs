@@ -5246,6 +5246,12 @@ pub(crate) mod staleness_posture {
                 "a fixture builder composed of `Neither` operators, minting no row of its \
              own; `cyl_wall_sheet` is the door that runs the pass over what it grew",
             ),
+            (
+                "restate_surface",
+                Neither,
+                "a test-support door that overwrites one surface datum and leaves every row \
+                 as found; a row the new datum stales is the tier-3 pass's to report",
+            ),
             ("mvfs", Neither, "Euler operator"),
             (
                 "merge_unjoined",
