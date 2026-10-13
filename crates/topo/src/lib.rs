@@ -855,8 +855,8 @@ pub use boolean::{
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
-    Division, FaceDivisions, Fate, Lineage, LineageError, LineageRows, Remainder, RowDefect,
-    RowRefusal, Substitutions,
+    ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageRows, Remainder,
+    RowDefect, RowRefusal, Substitutions,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
