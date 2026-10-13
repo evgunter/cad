@@ -771,3 +771,56 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - `of-join-sites-are-held-by-grep-alone`.
   - `join-desync-is-the-catch-all-for-cyclic-lineage-records` stays open for the edge split-lineage sites and the naming tables they mix in.
 - 2026-10-12 — Three rows of one class are dispatched together on `fuse/records-read-the-piece`: a carried record reads a divided face by key, not by the piece its contact lies on (edge-face and face-face P1; vertex whose vertex the join or merge took P2; the older pit-and-spike vertex-on-face P1). The lane measures first. Carrying a killed vertex's point in its lineage row is a fork if it turns out to be needed.
+- 2026-10-12 — The `records-read-the-piece` measurement comes in, and each row is ruled.
+  - **Measurement:**
+    - the lattice through 3′: 0 failures;
+    - two-stage carries: 4,536 runs, 0 refusals;
+    - a hand pose for row 1;
+    - `carry_rows` instrumented over 8,342 tests: 0 by-key reads of a divided face.
+  - **Rulings:**
+    - **Pit-and-spike vertex-on-face row:** fixed on main by `Descendants::holder` (PR 4650); it closes.
+    - **Edge-face/face-face row:** no path, since no carried record kind holds a face cell and `cell_rows` is edge-edge only. It closes, cross-referenced to WIRE's carried-kind row, which takes the obligation.
+    - **Joined/merge-killed vertex row:** the code path is real but unreached. Build it: `holder(face, q)` as the one door, with the dead vertex's point read from the operand body. No geometry goes on lineage rows, so it is not a fork. A witness or unit row plus a mutant is required.
+- 2026-10-13 — `records-read-the-piece` is superseded by CONTACTHOLD's PR 4820, "the one carry".
+  - **What 4820 did:** it rebuilt the same code. `Descendants::holder` is deleted. A divided face is read by the census's confirm, `place_found` and `records::landings`, and carried records go through `operand_fate`.
+  - **What PR 4893 was:** the point-based `holder(face, rest)` with an `at_rest` guard. It had been reviewed (both lanes plus a delta check) and was ready to merge when the conflict showed.
+  - **Ruled (orchestrator):** take main's carry wholesale and drop 4893's code, since a second, point-based door beside the confirm would be the defect the unit closes. 4893 shrinks to the tracker plus its dead-vertex rows ported onto main's carry. A ported row that fails on main is filed on CONTACTHOLD's slate as a witness.
+  - **Kept as a finding:** `share_points` classes are a transitive closure. A class of three or more keys can span past the zero band; there were 36 such classes per eps in the ci suites, though none reached it.
+- 2026-10-13 — PR 4893 lands, slimmed onto 4820's one carry.
+  - **What it lands:**
+    - one test: a taken vertex's row on a divided face lands on the piece its edge lies in, killed by a by-key mutant;
+    - the rows closed against 4820 and PR 4650.
+  - **Green on its first CI run.**
+- 2026-10-13 — Two things are dispatched.
+  - **`fuse/carry-rows-after-4820`, a tracker re-measure:** the lane re-runs every carry-class row (several were parked behind INTENT stage 4, now open) against main after 4820, then closes, re-scopes or moves each to CONTACTHOLD.
+  - **The sliver-arc fork:** `a-sliver-arc-beside-a-joinable-vertex-refuses-the-boolean` (P1, design) goes to an Opus and a Fable designer, concurrently, with the same problem statement and no candidates.
+- 2026-10-13 — The sliver-arc designer pair report, and both agree: **not a fork; the premise fails.**
+  - **Why:** a few-ε arc's own certification, with the same margin and band over its own extent, refuses it at mint, split and seam. Measured on three pose families: the join's in-band window is empty on certified input, and "main built the body" was never observed.
+  - **Ruled (orchestrator), as both recommend:**
+    - lever the vertex reading over the joined edge's extent (lower bound: the longer edge's, `min` → `max`);
+    - correct `EDGE_JOIN_SITE`'s comment;
+    - land the boundary as a ci row.
+  - **Rejected by both:** a curvature-only lever, and dropping the vertex reading, which guards a locus crossing.
+  - **Row:** re-priced P3 / E, `design: false`.
+  - **No fork-log row:** the population is `[ev]` forks only (protocol rule 1).
+- 2026-10-13 — The carry-class re-measure on main 0d2117d0 comes in.
+  - **Coverage:** a temporary probe ran tier 3′ on every boolean result in ci (about 18k results), plus the Lcvx and pinched-operand review batteries. It found 0 `StaleContactDeclaration`.
+  - **Closing, five rows:**
+    - kissing-corner (P1);
+    - subtract-through-pinch (P1);
+    - records-no-longer-confirm (P2);
+    - two-pinch-union (P2);
+    - dip-inside-rest (P3).
+  - **Re-scoped:** the carried-vf-at-a-pinch P3, to 4820's names.
+  - **New finding:** 229 results that carry records still ship an *undeclared* contact, in 7 tests. They are green only because none of those tests asserts 3′.
+  - **Ruled:** trace one pose so the row lands with its owner (CONTACTHOLD for the carry, FUSE for the mint). File it at P1, with a P3 for the missing 3′ assertions. The lane also adds a line to the stale-citation rows of other programs.
+  - **The trace overturns the P1 ruling.** All 229 come from tests that fold through bare kernel ops without `BooleanInputs` records. Their allowances are documented, or a carried sibling asserts 3′ and passes. Re-folding `standing_pyramids…` with the records carried passes strict 3′ on 60/60 steps. No defect, and no P1.
+  - **Filed instead, P3 with `design: true`:** a result's tier-3′ currency is relative to the records passed in, so the `BooleanBody` contract can overstate it. Fixes to weigh: say so in the doc, refuse or flag the input, or make the type carry the relativity.
+- 2026-10-13 — PR 4939 (the join lever) merges at a1900fc0, from head afbb1b1e on green CI.
+  - **What:** the join levers a vertex's reading over the larger of its two edges' extents (`min` → `max`), and `EDGE_JOIN_SITE`'s comment is corrected.
+  - **Test:** a ci row pins the refusal boundary, at `Kε` on a line edge and at `10ε` on a cap arc.
+  - **Closes:** the sliver-arc row. Reverting `max` → `min` keeps every test green: the change fixes what the reading means, not any outcome, as ruled.
+- 2026-10-13 — Dispatched: `census-curved-record-lanes-read-circles-only` (P1/H) to a fresh lane, on branch `fuse/census-reads-every-curved-edge`.
+  - **Why this one:** an ellipse or spiric edge can hold a record through the public API (a tilted cylinder section).
+  - **The two spline P1s** stay behind the operand gate.
+  - **Brief:** reproduce first; one reading over `Curve3` rather than per-kind copies of the circle's; no candidate missed silently.

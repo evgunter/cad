@@ -155,8 +155,7 @@ a solution or a box about it, `ε/8` per axis at that axis's chart speed,
 holds one on its boundary (`ssi/four.rs`). At rest the edge certificate
 derives both charts' images of the carrier from the fixed foot schedule,
 decides each interior sample's two normals transversal, and certifies
-the pair with this tube (`edge_nurbs::nurbs_pair_limbs`); the pcurve
-cache derives the mate chart's image the same way. The certificate records the tube
+the pair with this tube (`edge_nurbs::nurbs_pair_limbs`). The certificate records the tube
 by kind, a radius in metres or the per-axis chart pad (`SsiTube`), and
 the exhaustiveness accounting banks exactly the region it records.
 A component outside the chain is C3's exhaustiveness obligation, a
@@ -480,7 +479,10 @@ test of `chart_image_harmonic ∘
 chart_pcurve = carrier_harmonic` over the covered classes, not in a
 certificate over a parameter box. Where no closed form exists, the
 image is the one the chart holds exactly. A fitted image on a NURBS
-chart is bounded between the shared schedule's samples by hull bounds.
+chart is bounded between the shared schedule's samples by hull bounds,
+whatever the carrier's kind: a spline carrier enters the composite as
+its own net, a line as its degree-1 net, and a circle, ellipse or
+spiric as a per-span enclosure in certification arithmetic (C9).
 On an analytic chart, a carrier with no closed-form image (a spline
 carrier, a sphere's general circle) stores the *projected image*, the
 chart's own inverse applied to the carrier, `P(t) = ψ(C(t))`: the
@@ -541,8 +543,8 @@ validity is judged on what the producer returns. Every class of carrier
 a chart can hold has a route into a certified row, and a face no route
 covers refuses at the producer rather than reaching rest uncached. A
 carrier whose route refuses (a spline or a circle whose projected image
-reaches a pole) refuses at the producer like any other refusal: the
-exemption excuses only a class no route reaches, and a scalar that holds
+reaches a pole) refuses at the producer like any other refusal: no
+class goes unrouted, so the exemption excuses only a scalar that holds
 no certified lane, at which a net's projected row cannot read its hull. The
 lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
 plane-cap and torus-wall images of a `Curve3::Spiric`, on its own torus
