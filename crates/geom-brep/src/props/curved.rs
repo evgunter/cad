@@ -1348,10 +1348,12 @@ fn cylinder_chart<T: Decide>(
 
 /// A cylinder face's holes: each ring that does not wind the cylinder
 /// (`props_ring_contractible` Zero), as its chart area in m² (`R·A`)
-/// and boundary length. A ring that winds it is a band's second rim,
-/// whose chart area alone depends on the anchor, so it is no hole and
-/// is passed over: the face's zero-winding check
-/// (`props_chart_loops_closed`) makes the face's whole anchor-free.
+/// and boundary length. A ring that winds it is a band's rim, whose
+/// chart area alone depends on the anchor, so it is no hole and is
+/// passed over: the face's zero-winding check
+/// (`props_chart_loops_closed`) makes the face's whole anchor-free. On
+/// such a band the first loop stored is a hole too when it does not
+/// wind, so it is read as one.
 fn cylinder_holes<T: Decide>(
     rims: &[(T, T)],
     spans: &[(usize, T)],
@@ -1359,18 +1361,37 @@ fn cylinder_holes<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<Vec<(T, T)>, PropsError> {
-    let mut holes = Vec::with_capacity(spans.len() - 1);
-    for (i, &(start, lines)) in spans.iter().enumerate().skip(1) {
+    let span = |i: usize| {
+        let (start, lines) = spans[i];
         let end = spans.get(i + 1).map_or(rims.len(), |&(next, _)| next);
-        let ring = &rims[start..end];
+        (&rims[start..end], lines)
+    };
+    let contractible = |ring: &[(T, T)]| {
         let winding = ring.iter().fold(T::zero(), |acc, &(_, du)| acc + du);
-        if classify(
+        classify(
             "props_ring_contractible",
             Margin::levered(winding, radius),
             band,
             PropsCheck::Inventory,
-        )? == Sign::Zero
-        {
+        )
+        .map(|sign| sign == Sign::Zero)
+    };
+    let mut holes = Vec::with_capacity(spans.len());
+    let mut band_face = false;
+    for i in 1..spans.len() {
+        let (ring, lines) = span(i);
+        if contractible(ring)? {
+            let (a, l) = loop_chart(ring, lines);
+            holes.push((radius * a, l));
+        } else {
+            band_face = true;
+        }
+    }
+    // On a band every loop that does not wind is a hole, the first one
+    // stored included.
+    if band_face {
+        let (ring, lines) = span(0);
+        if contractible(ring)? {
             let (a, l) = loop_chart(ring, lines);
             holes.push((radius * a, l));
         }

@@ -816,12 +816,14 @@ fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>
 /// refinement (module docs).
 #[allow(clippy::too_many_lines)]
 fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>, PatchBoundError> {
-    // The convex-combination licence, on f64 STRUCTURE. `!(w > 0.0)`
-    // catches NaN. (`NurbsSurface::new` refuses these at the door;
-    // re-checked here so THIS bound never divides by an unproven
-    // denominator.)
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if n.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+    // The convex-combination licence, on f64 STRUCTURE.
+    // (`NurbsSurface::new` refuses these at the door; re-checked here so
+    // THIS bound never divides by an unproven denominator.)
+    if !n
+        .weights()
+        .iter()
+        .all(|w| geom_core::spline::weight_in_regime(*w))
+    {
         return Err(PatchBoundError::NonPositiveWeight);
     }
     // THE REFINEMENT IS PART OF THE ENCLOSURE. The homogeneous nets `w`
