@@ -682,8 +682,9 @@ does), or crossing it (refused). At a convex straight band's cut-off
 (the ruled fillet's, the plane–plane fillet's and chamfer's) the carve
 takes a through-feature wholly inside the material, between the band's
 two caps; a feature read wholly inside anywhere else (a void or an
-island with no cap cycle, a hole whose mouth a concave fill covers)
-refuses. Every constant-radius arm
+island with no cap cycle) refuses `WhollyInside`, and a hole whose
+mouth a concave fill covers, which is not wholly inside, refuses as a
+bound where its wall meets the end face's plane. Every constant-radius arm
 mints a torus or a cylinder (the envelope of equal spheres over a circle
 or a line spine); a cone belongs to the variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band

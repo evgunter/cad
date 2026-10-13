@@ -20,7 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{ErrorTextReading, Point2, Point3, Vec3};
-use sweep::blend::{BlendDecision, BlendError, BlendSite};
+use sweep::blend::{BlendDecision, BlendError, BlendSite, Convexity};
 use sweep::test_support::{block, pocket_die, prism, prism_on, realized, sketch_from_axes};
 use topo::{Body, ContactRecords, EntityId, validate_geometric, validate_pseudomanifold};
 
@@ -70,16 +70,35 @@ fn a_hole_in_the_end_face_sliver_refuses_on_either_side() {
         &pin(Point3::new(-0.1, 0.28, 0.53), 0.01, 0.45),
         tol(),
     );
-    for (what, body, a, b) in [
-        ("convex", &convex, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
-        ("concave", &concave, [0.25, 0.25, 0.5], [0.75, 0.25, 0.5]),
+    for (what, body, a, b, convexity) in [
+        (
+            "convex",
+            &convex,
+            [0.0, 0.0, 1.0],
+            [2.0, 0.0, 1.0],
+            Convexity::Convex,
+        ),
+        (
+            "concave",
+            &concave,
+            [0.25, 0.25, 0.5],
+            [0.75, 0.25, 0.5],
+            Convexity::Concave,
+        ),
     ] {
         validate_geometric(body, tol())
             .unwrap_or_else(|e| panic!("{what}: the drilled input is tier-3 valid, got {e:?}"));
         let e = edge(body, a, b);
         for verb in [Verb::Chamfer, Verb::Fillet] {
             match (verb, verb.run(body, &[e])) {
-                (Verb::Chamfer, Err(BlendError::FaceClearance { bounded: true, .. })) => {}
+                (
+                    Verb::Chamfer,
+                    Err(BlendError::FaceClearance {
+                        bounded: true,
+                        chain,
+                        ..
+                    }),
+                ) if chain == convexity => {}
                 (Verb::Chamfer, Err(other)) => {
                     panic!("{what} (Chamfer): a bound at the hole's wall, got {other}")
                 }

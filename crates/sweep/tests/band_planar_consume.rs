@@ -38,10 +38,7 @@ use crate::band_planar_cut_off::{D, Verb, edge, midpoint_tol, pad_ceiling, tol, 
 
 /// The section `verb` at size `r` removes from a right dihedral.
 fn section(verb: Verb, r: f64) -> f64 {
-    match verb {
-        Verb::Fillet => (1.0 - PI / 4.0) * r * r,
-        Verb::Chamfer => r * r / 2.0,
-    }
+    verb.section_at(r, PI / 2.0)
 }
 
 /// `verb` at size `r` on `edges`, at any scalar.
@@ -61,7 +58,7 @@ fn blend<T: Decide + Bounds + AtRestPolicy>(
 const VERBS: [Verb; 2] = [Verb::Fillet, Verb::Chamfer];
 
 /// A closed polygonal profile loop through `pts`.
-fn poly<T: Real>(pts: &[(f64, f64)]) -> ProfileLoop<T> {
+pub(crate) fn poly<T: Real>(pts: &[(f64, f64)]) -> ProfileLoop<T> {
     let f = T::from_f64;
     bulge_loop(
         pts.iter()
@@ -689,16 +686,6 @@ fn dihedral<T: Decide + AtRestPolicy>(theta: f64, hole: ProfileLoop<T>) -> topo:
     )
 }
 
-/// The section `verb` at size `D` removes from a convex dihedral of
-/// interior angle `theta`: the chamfer's triangle `D²·sin θ / 2`, the
-/// fillet's kite less its sector `D²·(cot(θ/2) − (π − θ)/2)`.
-fn section_at(verb: Verb, theta: f64) -> f64 {
-    match verb {
-        Verb::Chamfer => D * D * theta.sin() / 2.0,
-        Verb::Fillet => D * D * (1.0 / (theta / 2.0).tan() - (PI - theta) / 2.0),
-    }
-}
-
 /// [`dihedral`]'s crease at `V`.
 fn crease_at_v<T: Real + Bounds>(body: &Body<T>) -> EdgeKey {
     let at = |p: Point3<T>| mid(p.x).abs() < 1e-12 && mid(p.y).abs() < 1e-12;
@@ -719,7 +706,7 @@ fn crease_at_v<T: Real + Bounds>(body: &Body<T>) -> EdgeKey {
 
 /// **A bore wholly inside the sliver of a dihedral other than a right
 /// one goes with it**, under both verbs, at `ΔV = −(A(θ) − π·a²)`
-/// ([`section_at`]). At 60° the chamfer's triangle is equilateral, the
+/// (`Verb::section_at`). At 60° the chamfer's triangle is equilateral, the
 /// bore at its incentre `D/√3` along the bisector; at 120° at the
 /// triangle's incentre too; the fillet's bores lie on the bisector
 /// between `V` and the arc, which is nearest `V` at `D` (60°) and
@@ -729,7 +716,7 @@ fn a_bore_inside_the_sliver_of_a_non_right_dihedral_goes_at_the_closed_form() {
     let s3 = 3f64.sqrt();
     let incentre = |theta: f64| {
         let side = 2.0 * D * (theta / 2.0).sin();
-        let r_in = section_at(Verb::Chamfer, theta) / ((2.0 * D + side) / 2.0);
+        let r_in = Verb::Chamfer.section_at(D, theta) / ((2.0 * D + side) / 2.0);
         r_in / (theta / 2.0).sin()
     };
     for (what, theta, verb, t, a) in [
@@ -748,7 +735,7 @@ fn a_bore_inside_the_sliver_of_a_non_right_dihedral_goes_at_the_closed_form() {
         let body = dihedral::<f64>(theta, round(t * half.cos(), t * half.sin(), a));
         let walls = curved_walls(&body);
         assert_eq!(walls.len(), 2, "{what}: the bore's two half-walls");
-        let removed = section_at(verb, theta) - PI * a * a;
+        let removed = verb.section_at(D, theta) - PI * a * a;
         assert_consumed(
             verb,
             &body,
@@ -794,7 +781,7 @@ fn a_bore_a_hair_across_the_end_curve_of_a_non_right_dihedral_crosses_and_one_in
     let consumed = |theta: f64, verb: Verb, at: (f64, f64), what: &str| {
         let body = dihedral::<f64>(theta, round(at.0, at.1, a));
         let walls = curved_walls(&body);
-        let removed = section_at(verb, theta) - PI * a * a;
+        let removed = verb.section_at(D, theta) - PI * a * a;
         assert_consumed(
             verb,
             &body,

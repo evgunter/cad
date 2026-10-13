@@ -747,18 +747,19 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // ---- The ring carry-through honesty check (module docs). ----
     // A convex band's cap carries its crease: a cycle wholly inside that
     // sliver goes with it (`reach::CapRing`).
-    let crease = |l: &AdmittedOpen<'_, T>| (l.convexity() == Convexity::Convex).then(|| l.edge());
+    let crease_of =
+        |l: &AdmittedOpen<'_, T>| (l.convexity() == Convexity::Convex).then(|| l.edge());
     let slivers: Vec<CapMeter<'_, T>> = ruled_plans
         .iter()
         .flat_map(|p| {
             let l = p.link();
-            let crease = crease(&l);
+            let crease = crease_of(&l);
             p.slivers().map(move |s| (s, l.convexity(), crease))
         })
         .chain(
             cut_offs
                 .iter()
-                .map(|c| (&c.end.sliver, c.link.convexity(), crease(&c.link))),
+                .map(|c| (&c.end.sliver, c.link.convexity(), crease_of(&c.link))),
         )
         .chain(turns.iter().filter_map(|t| {
             let far = t.turn.overrun()?.far;
@@ -773,7 +774,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // and the reach's make one verdict (`reach::Unclear`).
     let consumed = super::reach::band_reach(source, &verdict.chains, radius, kind, band, unclear)?;
     // ---- A request whose verdict is inside takes each feature wholly
-    // inside a convex ruled band's material, whole, or refuses
+    // inside a convex straight band's material, whole, or refuses
     // (`consume::plan`). ----
     let features = match &consumed {
         Some(consumed) => super::consume::plan(source, consumed)?,

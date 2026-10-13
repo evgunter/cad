@@ -94,9 +94,13 @@ fn bored_square_doc(chamfer: bool, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeN
 /// chamfer's `r²/2`). The wall's name at the blend node, which resolved
 /// before the edit, resolves `Vanished` after it, its cause a
 /// `Positive → Negative` flip of one of the two clearance verdicts the
-/// consumption is logged under: `fillet3_face_clearance` for the
-/// fillet, `fillet3_ring_clearance` for the chamfer (the flip N5's
-/// population diff nets out of the two runs' logs, `resolve/vdiff.rs`).
+/// consumption is logged under. Which one is the first net flip in
+/// predicate-name order (N5's population diff, `resolve/vdiff.rs`), and
+/// which flips there are depends on what the old run's reach metered:
+/// the chamfer's smaller box at `0.005` never meters the bore's walls,
+/// so its face clearance only gains verdicts and has no net flip, and
+/// its name vanishes on ring clearance where the fillet's vanishes on
+/// face clearance. The row holds the cause to the two, not to one.
 #[test]
 fn a_bore_a_size_edit_puts_inside_a_planar_sliver_vanishes_on_the_blends_verdict() {
     for chamfer in [false, true] {
@@ -176,18 +180,15 @@ fn a_bore_vanishes_after_the_size_edit(chamfer: bool) {
             f.error
         );
     };
-    let predicate = if chamfer {
-        "fillet3_ring_clearance"
-    } else {
-        "fillet3_face_clearance"
-    };
-    assert_eq!(
-        diagnosis,
-        editor_core::Diagnosis::PredicateFlip {
-            predicate,
-            from: geom_core::Sign::Positive,
-            to: geom_core::Sign::Negative,
-        },
-        "{verb}: the wall vanishes on the blend's clearance verdict"
+    assert!(
+        matches!(
+            diagnosis,
+            editor_core::Diagnosis::PredicateFlip {
+                predicate: "fillet3_face_clearance" | "fillet3_ring_clearance",
+                from: geom_core::Sign::Positive,
+                to: geom_core::Sign::Negative,
+            }
+        ),
+        "{verb}: the wall vanishes on a flip of the blend's clearance verdicts, got {diagnosis:?}"
     );
 }

@@ -78,14 +78,21 @@ refusal is the same in every read order). The cell walk never reads
 inside a face that touches the region's boundary, so on an exact core a
 through-feature's wall, which meets the window's end plane, reads as a
 bound whatever its rings read at the cap. A convex straight band's
-reach (the ruled band's, or the plane–plane band's past its exact
-core) reads such a wall through its caps instead: a face on a surface ruled
+reach reads such a wall through its caps instead: the ruled band's
+always, and the plane–plane band's for a wall its exact core read as a
+bound (that boundary reading runs first, so a wall with a point in
+kept material still refuses as a crossing). A face on a surface ruled
 near the spine (a cylinder's axis, a plane's direction nearest it),
 every edge of which is an edge of a cap cycle read inside the sliver or
 a line between two of their vertices, lies inside the prism the band
 removes when the cycles' least depth, projected along the spine,
 exceeds how far the face's rulings and lines stray from the spine over
-its extent (`reach::prism_inside`). The prism's slice in a cap's plane
+its extent (`reach::prism_inside`). Where the caps' slivers are read
+as a chord end's exact triangle (the chamfer's) the section is convex
+and the reading owes no such slack: every point of such a face is a
+convex combination of points at least the least depth inside, and the
+distance from a convex region's boundary is concave inside it, so the
+least depth is the reading. The prism's slice in a cap's plane
 is the sliver the cap meter reads, so the two readings agree on what
 dies by construction. A request whose verdict is then inside groups the
 faces read inside into features, joined by the edges they share, and
