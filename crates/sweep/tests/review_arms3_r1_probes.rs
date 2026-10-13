@@ -178,10 +178,15 @@ fn a_reposed_lentil_fillets_in_its_own_frame() {
     let r = 0.05;
     let map =
         Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.7);
-    let posed = transform_rigid(&symmetric_lentil(), &map, tol()).unwrap();
+    let posed = transform_rigid(
+        &symmetric_lentil(),
+        &geom_core::test_support::rigid(&map, tol()),
+        tol(),
+    )
+    .unwrap();
     let posed = transform_rigid(
         &posed,
-        &Affine3::translation(Vec3::new(0.3, -0.2, 0.5)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.3, -0.2, 0.5)).unwrap(),
         tol(),
     )
     .unwrap();

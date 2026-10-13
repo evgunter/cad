@@ -102,7 +102,7 @@ fn x4b_a_filleted_body_assembles_with_an_operand_off_its_carriers() {
     // Same far box, translated OFF the die's own plane carriers.
     let far = topo::transform_rigid(
         &box_at(4.0, 1.0),
-        &geom_core::Affine3::translation(geom_core::Vec3::new(0.0, 2.0, 2.0)),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(0.0, 2.0, 2.0)).unwrap(),
         Tol::witness(),
     )
     .unwrap();

@@ -17,10 +17,10 @@ and P1 rows; its P2, P3 and unbanded rows went to RULES
 | P0 | `a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity` | H | A boss on a FaceFrame taken from a revolved body's cap refuses on pcurve_loop_continuity at every symbolic dial |
 | P0 | `derived-frame-placement-freezes-on-the-symbolic-lane` | H | A profile placed on a derived frame whose AXES carry a widened parameter does not certify on the symbolic lane |
 | P1 | `a-chain-of-three-joints-straddles-dihedral-arm` | D | a chain of three or more joints straddles dihedral_arm on a mapped edge's re-certification |
-| P1 | `a-widened-rotation-angle-refuses-on-the-plain-interval-lane` | D | a widened rotation angle refuses on the plain Interval lane at the first Node::Transform |
 | P1 | `the-chain-demo-detects-no-self-intersection` | H | the chain demo detects no self-intersection (its certified half waits on CLEAR's `symbolic-tier-and-clearance-engine`) |
 
-In flight: `SYM-17` (`a-widened-rotation-angle-refuses-on-the-plain-interval-lane`).
+Nothing in flight. `SYM-17` merged 2026-10-13 (#4197), closing
+`a-widened-rotation-angle-refuses-on-the-plain-interval-lane`.
 
 ## SYM-14 — requested by Ev (2026-09-22, P1), MERGED
 
@@ -40,8 +40,7 @@ certified half blocked on CLEAR's `symbolic-tier-and-clearance-engine`).
 
 The 2026-10-02 triage (`work/sym/log.md`) set the order, and SYM-15
 (#3804) and SYM-16 took its first two rows. What remains:
-1. the rotation-angle readout
-   (`a-widened-rotation-angle-refuses-on-the-plain-interval-lane`);
+1. ~~the rotation-angle readout~~: SYM-17, merged 2026-10-13 (#4197);
 2. a re-take of `derived-frame-placement-freezes-on-the-symbolic-lane`
    on `main`, which may close it;
 3. the arm straddle (`a-chain-of-three-joints-straddles-dihedral-arm`),

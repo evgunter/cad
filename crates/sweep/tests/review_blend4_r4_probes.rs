@@ -266,10 +266,13 @@ fn arcs_at_reads_the_y_station_and_nothing_else() {
     let body = dome(1.0, tol());
     let posed = topo::transform_rigid(
         &body,
-        &geom_core::Affine3::rotation_about_axis(
-            geom_core::Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            core::f64::consts::FRAC_PI_2,
+        &geom_core::test_support::rigid(
+            &geom_core::Affine3::rotation_about_axis(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+                core::f64::consts::FRAC_PI_2,
+            ),
+            tol(),
         ),
         tol(),
     )

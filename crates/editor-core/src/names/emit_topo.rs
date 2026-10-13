@@ -4052,7 +4052,7 @@ mod tests {
     /// `BooleanNaming` they hand the emitter, and a row that merges
     /// faces hands it the body [`absorbed_into`] leaves.
     fn unit_cube() -> sweep::Extruded<f64> {
-        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
+        let plane = profile::SketchPlane::from_frame(geom_core::RigidMotion::axes_xy(
             geom_core::Point3::new(0.0, 0.0, 0.0),
         ));
         let square = profile::ProfileLoop::polygon(

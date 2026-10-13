@@ -7849,7 +7849,7 @@ mod tests {
         // The part lifted off the floor: z ∈ [1.2, 1.8].
         let part = crate::transform_rigid(
             &quad_prism(&[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)], 0.6, tol),
-            &geom_core::Affine3::translation(Vec3::new(0.0, 0.0, 1.2)),
+            &geom_core::RigidMotion::translation(Vec3::new(0.0, 0.0, 1.2)).unwrap(),
             tol,
         )
         .unwrap();
