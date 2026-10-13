@@ -1322,3 +1322,4 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Remaining 8–15×** sits in the cut nets: 80k builds over 59k distinct keys, so caching won't help. Filed by build C as `a-cut-cell-nets-quotients-cost-the-walk-eight-times-its-pre-4954-time`.
     - Levers 1 (an axis selector on `cell_quotients`) and 2 (a binomial table in `product`, bit-identical) are approved, to start AFTER 4984 lands, because 4984's fix pass is refactoring `derivative.rs`.
     - Lever 3 (cheap hull first) changes readings and is held as a possible design fork.
+- 2026-10-13 17:55Z — **Friction: CI queueing.** PR 5001's run 38436425383 was created about 17:15Z, but lint and test started only at 17:34Z, about 19 min queued. Earlier today every job started within 2 s. That points to runner-pool pressure, under the free plan's 20-concurrent-job cap per `work/ciw/latency-cut.md`. Passed to build C's CI wall-time measurements.
