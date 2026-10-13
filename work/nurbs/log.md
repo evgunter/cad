@@ -1387,3 +1387,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - The remainder is interval arithmetic in the O(n²) quotient products, against the old O(n) hull.
   - (a) L1+L2 lands as its own PR. (b) The interval scale fast path, at most 25%, is filed, not done.
   - (c) **Design fork dispatched:** "what the code should be given the quotient bound's per-call cost". Two designers, concurrent, same problem statement, no candidate options. The blinding record is on `analysis/design-fork/nurbs-quotient-cost`. A designer convergence needs no Ev; a split goes to an `[ev]` PR.
+- 2026-10-13 22:58Z — **Red main from 4984** (build C found it during its 3-ε sweep).
+  - **Failure:** `sweep saddle_wall_offset_fit::a_saddle_wall_certifies_on_a_grid_longer_in_one_direction_than_a_square_cap` certifies at 3.850263672224892e-10 against the pinned 3.8534e-10 ± 1e-13, at all three ε.
+  - **Why the gate missed it:** it's a sweep slow row, and 4984's gate didn't seed sweep.
+  - **Assigned to build A, ahead of its handover unit:** confirm the cause, check the new value is right on its own terms (re-baseline with its cause, or fix a bug), and sweep sibling pins on the paths 4984 moved in crates its gate didn't seed.
+  - **Class:** a change to a shared bound (`patch_bound`, offset) moves pinned values in crates the PR gate doesn't seed. The reviewers ran the seeded suites only.
+  - **Next time:** run the slow sets of the bound's downstream consumers (sweep, topo) locally before merging, or seed them.
+- 2026-10-13 22:58Z — **Build C's L1+L2** passes 427 of 428 rows clean across enclose, patch_bound, nurbs_cert, offset, derivative, stretch and the digest at three ε. The one red is the main red above. The PR is opening.
