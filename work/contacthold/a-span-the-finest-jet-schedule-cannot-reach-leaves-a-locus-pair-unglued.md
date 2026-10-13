@@ -2,7 +2,9 @@
 id: a-span-the-finest-jet-schedule-cannot-reach-leaves-a-locus-pair-unglued
 kind: issue
 title: A tangency whose span bound the finest jet schedule cannot reach is left unglued and meets the frontier refusal
-status: open
+status: review
+branch: contacthold/glue-door-escalates
+pr: 4918
 opened: 2026-10-13
 priority: P2
 ---
@@ -40,3 +42,16 @@ A meridian-aware span bound (one that is exact for a non-coaxial
 circle on two surfaces of revolution), or an adaptive schedule with a
 budget argued from the bound's own rate. Either is the certificate's
 lane, not the door's.
+
+## Resolved (PR 4918, second fix pass)
+
+The door refuses a sag-only `NotCertifiable` typed
+(`verify_tangency`: `UnsupportedDeclarationClass { Tangent }`), so the
+pair never meets a later stage unglued. Measured first: no fixture in
+topo, sweep, editor-core, verbs or pncad reaches the door with a
+sag-only refusal at ε = 10⁻⁹, nor topo or sweep at 10⁻⁶ or 10⁻¹². The
+G1 tube chain no longer does: read on every sample, it escalates
+`contact_tangent_second_order` at its meridian's poles, where the two
+tubes osculate (`κ_rel` exactly zero), and that escalation answers at
+the door (`Coincidence(Contact)`). No `Ok` answer moved.
+

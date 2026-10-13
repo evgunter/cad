@@ -124,12 +124,12 @@ pub(crate) enum RimRouting {
 /// pair whose radii disagree is about to be rejected on the radius
 /// margin regardless.
 ///
-/// **An in-band comparison ESCALATES; it never reads as "not this
-/// pair".** Two circles a hair apart are the sliver case, not a
-/// separation: answering `None` there would make an undecidable rim
-/// indistinguishable from a definitely absent one and hand the caller
-/// the bare class refusal as though the geometry had been examined and
-/// cleared. That is the silence this module's own docs forbid.
+/// **An in-band comparison ESCALATES where no pair of circles is
+/// decided one; it never reads as "not this pair".** Two circles a hair
+/// apart are the sliver case, not a separation: answering `None` there
+/// would make an undecidable rim indistinguishable from a definitely
+/// absent one and hand the caller the bare class refusal as though the
+/// geometry had been examined and cleared. That is the silence this module's own docs forbid.
 ///
 /// # Errors
 ///
@@ -142,48 +142,52 @@ pub(crate) fn shared_rim<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Option<(Rim<T>, geom_core::MarginDiag)>, Indeterminate> {
+    // A pair decided one answers whatever another pair read; an
+    // undecided pair refuses only where none is.
+    let mut undecided = None;
     for ra in face_boundary_circles(a, fa) {
         for rb in face_boundary_circles(b, fb) {
-            if let Some(margin) = same_circle(ra, rb, band)? {
-                return Ok(Some((ra, margin)));
+            match same_circle(ra, rb, band) {
+                Ok(Some(margin)) => return Ok(Some((ra, margin))),
+                Ok(None) => {}
+                Err(diag) => {
+                    undecided.get_or_insert(diag);
+                }
             }
         }
     }
-    Ok(None)
+    undecided.map_or(Ok(None), Err)
 }
 
-/// Whether two circles are one, on their own data at `band`: radius and
-/// centre first, angle last — the two LENGTH data separate almost every
-/// non-rim pair definitely and cheaply, so ordering them ahead of the
-/// angular row keeps the sliver band from being consulted at all on
-/// pairs that are not candidates. [`shared_rim`]'s docs carry the rest.
-/// The circles' one margin, where every datum decides Zero: the
-/// radius row's.
+/// Whether two circles are one, on their own data at `band`, by the
+/// identity ladder's rule ([`super::carrier_eq::identity_data`]): any
+/// datum decided apart answers no, so an in-band radius never hides a
+/// centre decided elsewhere. Radius and centre first, angle last — the
+/// two LENGTH data separate almost every non-rim pair definitely and
+/// cheaply. [`shared_rim`]'s docs carry the rest. The circles' one
+/// margin, where every datum decides Zero: the radius row's, standing
+/// jointly for the others.
 fn same_circle<T: Decide>(
     ra: Rim<T>,
     rb: Rim<T>,
     band: Band,
 ) -> Result<Option<geom_core::MarginDiag>, Indeterminate> {
-    let mut first = None;
-    for (name, margin) in [
-        ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
-        ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
-        (
-            "rim_circle_axis_parallel",
-            Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
-        ),
-    ] {
-        match crate::validate::decide_reported(name, margin, band)? {
-            geom_core::Decided {
-                sign: geom_core::Sign::Zero,
-                margin,
-            } => {
-                first = first.or(Some(margin));
-            }
-            geom_core::Decided { .. } => return Ok(None),
-        }
+    use super::carrier_eq::IdentityData;
+    match super::carrier_eq::identity_data(
+        [
+            ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
+            ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
+            (
+                "rim_circle_axis_parallel",
+                Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
+            ),
+        ],
+        band,
+    ) {
+        IdentityData::Distinct => Ok(None),
+        IdentityData::One(margin) => Ok(margin),
+        IdentityData::Undecided(measure) => Err(measure.reported()),
     }
-    Ok(first)
 }
 
 /// The curve two declared faces are tangent along: a shared rim circle,

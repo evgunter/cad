@@ -48,8 +48,10 @@ pair the lane has a locus for reaches the frontier refusal remain after
 this row: a rim junction the routing places outside what the zip builds
 (`TangencyFailure::Unrouted`, scheduled under
 `a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp.md`),
-and a span the finest jet schedule cannot reach
-(`a-span-the-finest-jet-schedule-cannot-reach-leaves-a-locus-pair-unglued.md`).
+and a pair the door glues in the zero band whose later stage then refuses
+(`a-brick-on-a-tube-ruling-in-the-zero-band-glues-then-meets-the-pierce-refusal.md`).
+A span the finest jet schedule cannot reach was a third; the door now
+refuses it typed (`a-span-the-finest-jet-schedule-cannot-reach-leaves-a-locus-pair-unglued.md`).
 
 ## Fixed (PR 4918)
 
@@ -61,13 +63,23 @@ door used to swallow, three kinds were not about the faces' geometry
 and are fixed where they start:
 
 - `contact_verify::tangent_table` reads a span whose only unsettled
-  reading is the jet schedule's sag again on finer schedules, up to
-  sixty-four spans to each of the nine-sample schedule's; past that a
-  sag beyond the band is `NotCertifiable` (the G1 tube chain, whose
-  meridian bound needs some 35 000 spans) and one in band escalates;
+  readings are span bounds (the witness's sag, the touch's, the drift of
+  `κ_rel`) again on finer schedules, up to sixty-four spans to each of
+  the nine-sample schedule's, reading every sample on each; past that a
+  bound beyond the band is `NotCertifiable` and one in band escalates.
+  The G1 tube chain, read on every sample, escalates on its meridian's
+  poles, where the two tubes osculate;
 - `geom_brep::tangent_locus` answers `NotTangent` on a definite gap
   before an in-band axis tilt (the leaned ruling);
 - `geom_brep::tangent_locus_of_faces` answers `NotTangent` on
   `tangent_locus_face_clear` where a face's extent across the locus
   stands definitely clear of the other carrier (a brick beside a
   tube's ruling, a cylinder wall turned off it).
+- `rim_wedge::same_circle` reads circles by the identity ladder's rule
+  (`carrier_eq::identity_data`, shared with the carrier ladder): a datum
+  decided apart answers no, so an in-band radius no longer refuses a
+  pair whose circles stand far apart (the pre-gate's frustum-and-plate
+  pose).
+- A span bound the finest schedule leaves beyond the band is refused at
+  the door, typed (`UnsupportedDeclarationClass { Tangent }`), rather
+  than read as no tangency.

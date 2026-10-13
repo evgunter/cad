@@ -49,9 +49,9 @@ fn meridian(lift: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
 fn read(lift: f64) -> Result<topo::contact::ContactVerdict, ContactRefusal> {
     let (torus, sphere, circle) = meridian(lift);
     let whole = core::f64::consts::TAU;
-    // The table's finest schedule: sixty-four spans to each of the
-    // nine-sample schedule's.
-    let sag = geom_brep::tangent_span_bounds(&torus, &sphere, &circle, 0.0, whole / 64.0)
+    // The table's finest schedule: `2^REFINE_HALVINGS` spans to each
+    // of the nine-sample schedule's.
+    let sag = geom_brep::tangent_span_bounds(&torus, &sphere, &circle, 0.0, whole / finest_spans())
         .unwrap()
         .residual_sag;
     assert!(
@@ -59,11 +59,14 @@ fn read(lift: f64) -> Result<topo::contact::ContactVerdict, ContactRefusal> {
         "the fixture's premise: a span bound wider than the band on the finest schedule \
          ({sag:e})"
     );
+    // The ball rests in the tube's hollow: the torus face looks into
+    // it (its material outside the tube), the ball's out of the ball,
+    // so the two materials touch from outside along the meridian.
     tangent_locus_relation(
         &torus,
-        true,
-        &sphere,
         false,
+        &sphere,
+        true,
         &circle,
         0.0,
         whole,
@@ -127,6 +130,47 @@ fn the_span_too_wide_refusal_is_not_on_the_escalation_log() {
         assert!(
             log.verdicts.iter().any(|v| v.predicate == name),
             "{name} decided and recorded"
+        );
+    }
+}
+
+/// How many spans the table's finest schedule reads to each of the
+/// nine-sample schedule's.
+fn finest_spans() -> f64 {
+    f64::from(1u32 << topo::boolean::contact_verify::REFINE_HALVINGS)
+}
+
+/// **No span bound masks a later reading.** A great circle of the
+/// sphere turned 0.3 rad about the point it shares with the torus's
+/// meridian: at that point the sample lies on both surfaces and only
+/// the span bound is unsettled, and further round the circle stands
+/// definitely off the torus. Started on the shared point or off it,
+/// the table reads every sample and the measured miss answers.
+#[test]
+fn a_sag_on_one_sample_does_not_mask_a_later_contradiction() {
+    let (torus, sphere, _) = meridian(0.0);
+    let alpha: f64 = 0.3;
+    let turned = Curve3::Circle {
+        center: Point3::new(1.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, alpha.cos(), alpha.sin()),
+        radius: 0.2,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    for start in [0.0, 1.0] {
+        let out = tangent_locus_relation(
+            &torus,
+            true,
+            &sphere,
+            false,
+            &turned,
+            start,
+            start + core::f64::consts::TAU,
+            true,
+            band(),
+        );
+        assert!(
+            matches!(out, Err(ContactRefusal::Contradicted { .. })),
+            "started at {start}: the circle leaves the torus: {out:?}"
         );
     }
 }

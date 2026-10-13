@@ -1050,10 +1050,9 @@ fn distance_to<T: geom_core::Real>(c: &CarrierDesc<T>, v: Point3<T>) -> T {
 }
 
 /// The curved arms' rungs in the undeclared posture, driven by the
-/// kind's margin list: a definitely-nonzero margin means `Distinct`,
-/// every datum decided Zero is one carrier (the first datum's decided
-/// margin rides), and a datum in band or poisoned is the typed
-/// `Undecided` refusal.
+/// kind's margin list ([`identity_data`]): a definitely-nonzero margin
+/// means `Distinct`, every datum decided Zero is one carrier, and a
+/// datum in band or poisoned is the typed `Undecided` refusal.
 fn data_rungs<T: Decide>(
     margins: &[Datum<T>],
     aligned: bool,
@@ -1064,23 +1063,56 @@ fn data_rungs<T: Decide>(
     } else {
         CarrierRelation::SameOpposite
     };
+    match identity_data(
+        margins.iter().map(|&(name, _, margin)| (name, margin)),
+        band,
+    ) {
+        IdentityData::Distinct => Ok((CarrierRelation::Distinct, ContactVerdict::Definite, None)),
+        IdentityData::One(first_zero) => Ok((same, ContactVerdict::Definite, first_zero)),
+        IdentityData::Undecided(coincidence) => Err(CarrierEqError::Undecided {
+            coincidence,
+            // The alignment this traversal was run under.
+            relation: same,
+        }),
+    }
+}
+
+/// What a list of identity data reads ([`identity_data`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum IdentityData {
+    /// Some datum decided definitely nonzero: two things.
+    Distinct,
+    /// Every datum decided Zero: one thing, the first datum's decided
+    /// margin standing for every one (`None` for no data).
+    One(Option<geom_core::MarginDiag>),
+    /// No datum decided nonzero and one did not decide: the first that
+    /// cannot be read, else the first in band.
+    Undecided(CoincidenceMeasure),
+}
+
+/// **The identity ladder's rule**: two descriptions are one only where
+/// every datum decides Zero, so any datum decided definitely nonzero
+/// answers `Distinct`, whatever another datum read before it. A datum
+/// in band or poisoned is kept, not returned, and refuses only where no
+/// later datum decides them apart. Every datum is read, in order.
+pub(crate) fn identity_data<T: Decide>(
+    data: impl IntoIterator<Item = (&'static str, Margin<T>)>,
+    band: Band,
+) -> IdentityData {
     let mut first_zero = None;
     // An unreadable datum is a limit no tolerance moves, ranked before an
     // in-band one by the walk's one ranking.
     let mut kept = crate::ray_walk::Evidence::default();
-    for &(name, _, margin) in margins {
+    for (name, margin) in data {
         match CoincidenceMeasure::decide(name, margin, band) {
             Ok(Decided {
                 sign: Sign::Positive | Sign::Negative,
                 ..
-            }) => {
-                return Ok((CarrierRelation::Distinct, ContactVerdict::Definite, None));
-            }
+            }) => return IdentityData::Distinct,
             Ok(Decided {
                 sign: Sign::Zero,
                 margin,
             }) => {
-                // The first datum's reading, standing for every one.
                 first_zero = Some(
                     first_zero.map_or(margin, |first: geom_core::MarginDiag| first.jointly(margin)),
                 );
@@ -1089,16 +1121,10 @@ fn data_rungs<T: Decide>(
             Err(in_band) => kept.in_band(in_band),
         }
     }
-    // A datum that cannot be read is reported first, then the first one
-    // in band; when every datum decided zero, the carriers are one.
     match kept.ranked() {
         crate::ray_walk::Ranked::Blocked(coincidence)
-        | crate::ray_walk::Ranked::InBand(coincidence) => Err(CarrierEqError::Undecided {
-            coincidence,
-            // The alignment this traversal was run under.
-            relation: same,
-        }),
-        crate::ray_walk::Ranked::Neither => Ok((same, ContactVerdict::Definite, first_zero)),
+        | crate::ray_walk::Ranked::InBand(coincidence) => IdentityData::Undecided(coincidence),
+        crate::ray_walk::Ranked::Neither => IdentityData::One(first_zero),
     }
 }
 

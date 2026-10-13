@@ -2351,9 +2351,10 @@ pub enum BooleanError {
     /// A glued pair names a coincidence in a configuration this op's
     /// classification cannot act on: a `Tangent` pair with no witness
     /// locus (neither the DEV-1 closed-form lane — plane×cylinder along a
-    /// ruling, parallel cylinders — nor a shared rim circle), or a rim
-    /// whose junction the routing cannot place, so no arm can consume
-    /// it. Refused at the door rather than carried into stages that would
+    /// ruling, parallel cylinders — nor a shared rim circle), a rim
+    /// whose junction the routing cannot place, or a locus whose span
+    /// bound the jet certificate's finest schedule leaves past the band,
+    /// so no arm can consume it. Refused at the door rather than carried into stages that would
     /// ignore it — the vocabulary is wider than this op's envelope, and
     /// the gap is typed, not silent.
     UnsupportedDeclarationClass {
@@ -6011,6 +6012,14 @@ fn verify_tangency<T: Decide>(
                 read,
                 diag,
             )));
+        }
+        // A pair in the lane whose span bound alone the finest schedule
+        // leaves past the band is the lane's to refuse, typed, rather
+        // than no tangency: it never meets a later stage unglued (C8).
+        Err(refusal) if contact_verify::sag_unreached(&refusal) => {
+            return Err(Refused(BooleanError::UnsupportedDeclarationClass {
+                class: GlueClass::Tangent,
+            }));
         }
         Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => return Err(Unsupported),
     };

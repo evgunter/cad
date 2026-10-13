@@ -23,9 +23,9 @@
 //! **The Tangent lane reuses the jet machinery, it does not restate
 //! it.** `tangent_jet`, `tangent_certificate_lane`,
 //! `tangent_span_bounds` and the certification schedule's own
-//! `sample_param` all come from `geom_brep` — the demanded set IS the
-//! certifiable set, which is C3's order-k boundary as a fact about
-//! the code rather than a promise about it. Outside the lane, this
+//! stations (`schedule_param`) all come from `geom_brep` — the
+//! demanded set IS the certifiable set, which is C3's order-k boundary
+//! as a fact about the code rather than a promise about it. Outside the lane, this
 //! refuses [`ContactRefusal::NotCertifiable`]: an order-k > 1 contact
 //! has no record type, so it gets no verdict either.
 //!
@@ -42,9 +42,10 @@
 //! **The residue is that margin and NOTHING else**, which is a claim
 //! about code and is enforced by its shape: the pair's separation
 //! along the shared normal (the touch), the witness's residual on each
-//! surface (each in band, or decided on the surface at a sample whose
-//! span bound is wider than the band) and the opposed-senses test
-//! return `Escalated` whether or not a declaration is in hand, and so
+//! surface (in band at a sample, or a span bound still in band on the
+//! finest schedule; one still beyond it is `NotCertifiable`) and the
+//! opposed-senses test return `Escalated` whether or not a declaration
+//! is in hand, and so
 //! does the first-order parallelism test — those are C4's
 //! must-verify-DEFINITE list, and a list you may bridge is not a
 //! must-verify list. Only the second-order arm consults `declared`.
@@ -214,8 +215,9 @@ pub(crate) fn rest_pair_reading<T: Decide>(
 /// **The Tangent verify door** — C4's `Tangent` table run over the
 /// jet schedule.
 ///
-/// Per sample on the certification schedule (the same 9 parameters,
-/// through `geom_brep::sample_param`):
+/// Per sample on the certification schedule (`geom_brep::schedule_param`:
+/// the nine stations, and the finer schedules a span past ε is read
+/// again on, [`tangent_table`]):
 ///
 /// - **must-verify-DEFINITE**: the two surfaces touch, their
 ///   separation along the shared normal within ε (`touching`, and the
@@ -233,9 +235,11 @@ pub(crate) fn rest_pair_reading<T: Decide>(
 ///   — in-band `κ_rel`, and exact zeros at isolated neutral points
 ///   (module docs, the #175 clause);
 /// - **escalates**: an in-band margin on ANY must-verify arm (the
-///   touch at a sample or across a span, a residual, opposition,
-///   first-order parallelism), declared or not, and the second-order
-///   residue when undeclared.
+///   touch at a sample, a residual, opposition, first-order
+///   parallelism), declared or not, the second-order residue when
+///   undeclared, and a span bound still in band on the finest schedule;
+/// - **is not certifiable**: a span bound still beyond the band on the
+///   finest schedule, every other reading decided.
 ///
 /// The span bounds between samples come from the same
 /// `tangent_span_bounds` the edge certifier uses, so the hull
@@ -451,12 +455,16 @@ fn tangent_table<T: Decide>(
     let mut halvings = 0;
     loop {
         let samples = (CERT_SAMPLES - 1) * (1 << halvings) + 1;
+        // Both arms of the span bounds read the carrier and the step and
+        // never where the span stands on it, so the schedule's first
+        // span bounds every one.
         let span_end = schedule_param(t0, t1, CERT_SAMPLES - 1, samples);
         let bounds = tangent_span_bounds(s1, s2, carrier, t0, span_end).ok_or(
             ContactRefusal::NotCertifiable {
                 what: "the jet schedule's span bounds are unavailable for this configuration",
             },
         )?;
+        let mut sag_logs = Vec::new();
         let (pass, log) = geom_core::k_stats::detached(|| {
             tangent_pass(
                 (s1, sense1),
@@ -466,8 +474,19 @@ fn tangent_table<T: Decide>(
                 extent,
                 (declared, claim),
                 band,
+                &mut sag_logs,
             )
         });
+        // The span bounds' own runs: what a sag-only answer rests on,
+        // and nothing a refusal or a finer pass does.
+        let settles = matches!(pass, Err(Unsettled::Sag(_))) && halvings == REFINE_HALVINGS;
+        for sag_log in sag_logs {
+            if settles {
+                geom_core::k_stats::splice(sag_log);
+            } else {
+                geom_core::k_stats::splice_superseded(sag_log);
+            }
+        }
         match pass {
             Err(Unsettled::Sag(_)) if halvings < REFINE_HALVINGS => {
                 geom_core::k_stats::splice_superseded(log);
@@ -494,7 +513,7 @@ fn tangent_table<T: Decide>(
 /// How many times [`tangent_table`] halves its schedule's step before a
 /// span bound refuses: sixty-four spans to each of the nine-sample
 /// schedule's, the sag down by 4096.
-const REFINE_HALVINGS: u32 = 6;
+pub const REFINE_HALVINGS: u32 = 6;
 
 /// Why a pass of the table did not settle.
 enum Unsettled {
@@ -522,10 +541,21 @@ fn tangent_pass<T: Decide>(
     extent: T,
     (declared, claim): (bool, Claim),
     band: Band,
+    sag_logs: &mut Vec<geom_core::k_stats::Detached>,
 ) -> Result<(ContactVerdict, geom_core::MarginDiag), Unsettled> {
     let mut bridged = false;
     let mut gap_max = T::zero();
     let mut aligned = None;
+    // A span bound left unsettled is the pass's answer only where every
+    // other reading on every sample decides: a later contradiction or
+    // escalation answers instead. An in-band bound's reading stands
+    // before one beyond the band.
+    let mut sag: Option<Option<Indeterminate>> = None;
+    let mut unsettled = |reading: Option<Indeterminate>| {
+        if !matches!(sag, Some(Some(_))) {
+            sag = Some(reading.or(sag.flatten()));
+        }
+    };
     for i in 0..samples {
         let t = schedule_param(t0, t1, i, samples);
         let (p, tau) = carrier.ders1(t);
@@ -603,7 +633,19 @@ fn tangent_pass<T: Decide>(
             ("contact_tangent_on_1", "contact_tangent_off_1", r1),
             ("contact_tangent_on_2", "contact_tangent_off_2", r2),
         ] {
-            on_surface([name, miss], r, bounds.residual_sag, band)?;
+            let (read, log) = geom_core::k_stats::detached(|| {
+                on_surface([name, miss], r, bounds.residual_sag, band)
+            });
+            match read {
+                Err(Unsettled::Sag(reading)) => {
+                    sag_logs.push(log);
+                    unsettled(reading);
+                }
+                read => {
+                    geom_core::k_stats::splice(log);
+                    read?;
+                }
+            }
         }
         let jet = tangent_jet(s1, s2, p, tau);
         // (3) and (4) are decided TOGETHER because C7's first-order
@@ -641,7 +683,27 @@ fn tangent_pass<T: Decide>(
         // first-order reading refuses on its own: a definite defect
         // contradicts, and an in-band one is the escalation returned.
         // Only a verified first order leaves the outcome resting on it.
-        if second_order.is_err() && !matches!(first_order, Ok(Sign::Zero)) {
+        // Undeclared, with `κ_rel` decided at the sample and only its
+        // drift bound between samples keeping the margin from deciding,
+        // the second order is the schedule's to settle, as the
+        // witness's sag is (its run kept with the sag's).
+        let deferred = !declared
+            && !matches!(second_order, Ok(Sign::Positive))
+            && matches!(first_order, Ok(Sign::Zero))
+            && {
+                let (at, log) = geom_core::k_stats::detached(|| {
+                    crate::validate::decide(
+                        "contact_tangent_second_order_at",
+                        Margin::sagitta(jet.kappa_rel.abs(), arm),
+                        band,
+                    )
+                });
+                geom_core::k_stats::splice_superseded(log);
+                matches!(at, Ok(Sign::Positive))
+            };
+        if deferred {
+            sag_logs.push(second_order_log);
+        } else if second_order.is_err() && !matches!(first_order, Ok(Sign::Zero)) {
             geom_core::k_stats::splice_superseded(second_order_log);
         } else {
             geom_core::k_stats::splice(second_order_log);
@@ -697,7 +759,9 @@ fn tangent_pass<T: Decide>(
             }
             Ok(Sign::Positive) => {}
             residue => {
-                if !declared {
+                if deferred {
+                    unsettled(residue.err());
+                } else if !declared {
                     return Err(Unsettled::Refused(ContactRefusal::Escalated {
                         diag: residue.err().unwrap_or(Indeterminate {
                             margin: geom_core::MarginDiag::INVALID,
@@ -706,12 +770,31 @@ fn tangent_pass<T: Decide>(
                             terminal_sliver: false,
                         }),
                     }));
+                } else {
+                    bridged = true;
                 }
-                bridged = true;
             }
         }
     }
-    let touch = span_touch(gap_max, bounds.gap_sag, band)?;
+    let (touch, log) = geom_core::k_stats::detached(|| span_touch(gap_max, bounds.gap_sag, band));
+    let touch = match touch {
+        Ok(touch) => {
+            geom_core::k_stats::splice(log);
+            Some(touch)
+        }
+        Err(Unsettled::Sag(reading)) => {
+            sag_logs.push(log);
+            unsettled(reading);
+            None
+        }
+        Err(refused) => {
+            geom_core::k_stats::splice(log);
+            return Err(refused);
+        }
+    };
+    let (Some(touch), None) = (touch, sag) else {
+        return Err(Unsettled::Sag(sag.flatten()));
+    };
     let verdict = if bridged {
         ContactVerdict::Bridged
     } else {
@@ -863,9 +946,19 @@ fn on_surface<T: Decide>(
 /// [`tangent_table`] reads: every sample decided, and only the bound
 /// between them beyond the band.
 const SAG_UNREACHED: ContactRefusal = ContactRefusal::NotCertifiable {
-    what: "the jet schedule's span sag does not reach: every sample is decided, and the \
-           bound between them stands beyond the band",
+    what: SAG_UNREACHED_WHAT,
 };
+
+/// [`SAG_UNREACHED`]'s text.
+const SAG_UNREACHED_WHAT: &str = "the jet schedule's span sag does not reach: every sample is \
+                                  decided, and the bound between them stands beyond the band";
+
+/// Whether `refusal` is [`SAG_UNREACHED`]: a pair the lane holds whose
+/// span bound alone the finest schedule leaves past the band, as
+/// opposed to a configuration outside the lane.
+pub(crate) fn sag_unreached(refusal: &ContactRefusal) -> bool {
+    matches!(refusal, ContactRefusal::NotCertifiable { what } if *what == SAG_UNREACHED_WHAT)
+}
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -1170,12 +1263,19 @@ mod tests {
     /// circle there, the G1 tube chain's junction: every sample lies on
     /// both tori, and the circle arm's span bound is the whole story.
     /// Over a span whose nine-sample sag stands at four times K·ε, the
-    /// table halves its step until the sag is within ε and verifies;
-    /// over the whole circle no schedule it reads gets there, and the
-    /// span is not certifiable rather than escalated.
+    /// table halves its step until the sag is within ε and verifies.
+    /// Over the arc between the poles about the outer equator no schedule
+    /// it reads gets there, every other reading decided, and the span
+    /// is not certifiable. The whole circle passes through the
+    /// meridian's poles, where the two tubes osculate (`κ_rel` exactly
+    /// zero at a sample), and that second-order reading answers, as an
+    /// escalation, whatever the span bound reads.
     #[test]
     fn a_finer_schedule_settles_a_sag_the_nine_samples_leave_past_eps() {
-        let b = band();
+        // The rows are about the schedule against the fixture's own
+        // bounds, so they read one band at every eps row: at a coarser
+        // one the finest schedule's bounds end inside it and escalate.
+        let b = Band::linear_at(Tol::witness(), 1e-9).unwrap();
         let torus = |x: f64| Surface::Torus {
             center: Point3::new(x, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
@@ -1207,11 +1307,34 @@ mod tests {
         if let Err(e) = read(short) {
             panic!("the finer schedule verifies the short span: {e:?}");
         }
-        match read(tau) {
+        // The arc about the outer equator, a quarter radian short of each
+        // pole.
+        let arc = core::f64::consts::PI - 0.5;
+        let finest = geom_brep::tangent_span_bounds(
+            &near,
+            &far,
+            &meridian,
+            0.0,
+            arc / f64::from(1u32 << REFINE_HALVINGS),
+        )
+        .unwrap()
+        .residual_sag;
+        assert!(
+            finest > b.escalate(),
+            "the finest schedule's sag stands past the band: {finest:e}"
+        );
+        let span = tangency_reading(&near, true, &far, true, &meridian, -0.5 * arc, 0.5 * arc, b);
+        match span {
             Err(ContactRefusal::NotCertifiable { what }) => {
                 assert!(what.contains("span sag does not reach"), "{what}");
             }
-            other => panic!("the whole circle is past the finest schedule: {other:?}"),
+            other => panic!("the arc about the equator is past the finest schedule: {other:?}"),
+        }
+        match read(tau) {
+            Err(ContactRefusal::Escalated { diag }) => {
+                assert_eq!(diag.predicate, Some("contact_tangent_second_order"));
+            }
+            other => panic!("the whole circle osculates at the poles: {other:?}"),
         }
     }
 

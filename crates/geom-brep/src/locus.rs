@@ -47,7 +47,11 @@ pub enum TangentLocusError {
     /// A margin landed in the sliver band.
     Escalated(Indeterminate),
     /// The pair is definitely NOT tangent: `apart` distinguishes the
-    /// definite-clearance side from the definite-crossing side.
+    /// definite-clearance side from the definite-crossing side. On
+    /// `tangent_locus_face_clear` ([`tangent_locus_of_faces`]) it is the
+    /// two faces that are definitely apart, one standing clear of the
+    /// other's carrier across an in-band locus; the carriers may touch
+    /// elsewhere.
     NotTangent {
         /// `true`: definite clearance; `false`: definite crossing.
         apart: bool,
@@ -135,13 +139,24 @@ pub fn tangent_locus<T: Decide>(
     reach: ExtentBall<T>,
     band: Band,
 ) -> Result<TangentLocus<T>, TangentLocusError> {
-    tangent_locus_of_faces(a, b, reach, band, |_| [None, None])
+    locus_of(
+        a,
+        b,
+        reach,
+        band,
+        None::<fn(UnitVec3<T>) -> [Option<(T, T)>; 2]>,
+    )
 }
 
 /// [`tangent_locus`] of two faces on `a` and `b`, whose extents settle
 /// an in-band reading: `extents` gives each face's least and greatest
 /// coordinate along a unit direction about the world origin, padded,
 /// `a`'s first (`None` where a face's extent does not read).
+///
+/// That contract is the caller's to keep: an extent narrower than its
+/// face reads a reaching face clear, and nothing here can tell, since
+/// the lane holds the carriers and not the faces. `topo` keeps it by
+/// the kernel's one face box rule read in the direction's frame.
 ///
 /// The carriers are read across `reach`, which encloses both faces,
 /// so an in-band reading is the carriers'. Where it escalates, the
@@ -161,25 +176,43 @@ pub fn tangent_locus_of_faces<T: Decide>(
     band: Band,
     extents: impl FnOnce(UnitVec3<T>) -> [Option<(T, T)>; 2],
 ) -> Result<TangentLocus<T>, TangentLocusError> {
+    locus_of(a, b, reach, band, Some(extents))
+}
+
+/// [`tangent_locus_of_faces`], or [`tangent_locus`] with no `extents`:
+/// then no cross-section is read.
+fn locus_of<T: Decide>(
+    a: &geom::Surface<T>,
+    b: &geom::Surface<T>,
+    reach: ExtentBall<T>,
+    band: Band,
+    extents: Option<impl FnOnce(UnitVec3<T>) -> [Option<(T, T)>; 2]>,
+) -> Result<TangentLocus<T>, TangentLocusError> {
     // The witness reads the ball its callers hand it
     // (`crate::extent`'s module docs).
     let reach = &Reach::Ball(reach);
-    let ((section, read), log) =
+    let ((pending, read), log) =
         geom_core::k_stats::detached(|| closed_form_locus(a, b, reach, band));
-    match (read, section) {
-        (Err(TangentLocusError::Escalated(diag)), Some(section)) => {
-            let (clear, clear_log) =
-                geom_core::k_stats::detached(|| section.faces_clear(extents, band));
+    match (read, pending) {
+        (Err(TangentLocusError::Escalated(diag)), Some(pending)) if extents.is_some() => {
+            // The section is read only behind an escalation. Its own
+            // readings decide the answer only through a face decided
+            // clear, which is a verdict, so their escalations are never
+            // what the outcome rests on.
+            let (clear, clear_log) = geom_core::k_stats::detached(|| {
+                extents
+                    .zip(pending.section(reach, band))
+                    .is_some_and(|(extents, section)| section.faces_clear(extents, band))
+            });
+            geom_core::k_stats::splice_superseded(clear_log);
             if clear {
                 geom_core::k_stats::splice_superseded(log);
-                geom_core::k_stats::splice(clear_log);
                 Err(TangentLocusError::NotTangent {
                     apart: true,
                     predicate: FACE_CLEAR,
                 })
             } else {
                 geom_core::k_stats::splice(log);
-                drop(clear_log);
                 Err(TangentLocusError::Escalated(diag))
             }
         }
@@ -193,8 +226,8 @@ pub fn tangent_locus_of_faces<T: Decide>(
 /// The row a face clear of the other carrier refuses the tangency on.
 const FACE_CLEAR: &str = "tangent_locus_face_clear";
 
-/// The two arms' readings, with the pair's cross-section where it has
-/// one.
+/// The two arms' readings, with what the pair's cross-section is read
+/// from where it has one.
 #[allow(clippy::type_complexity)]
 fn closed_form_locus<T: Decide>(
     a: &geom::Surface<T>,
@@ -202,7 +235,7 @@ fn closed_form_locus<T: Decide>(
     reach: &Reach<T>,
     band: Band,
 ) -> (
-    Option<Section<T>>,
+    Option<Pending<T>>,
     Result<TangentLocus<T>, TangentLocusError>,
 ) {
     match (a, b) {
@@ -241,8 +274,13 @@ fn closed_form_locus<T: Decide>(
             };
             let frame = ruled_frame(&pc, reach);
             let plane_first = matches!(a, Surface::Plane { .. });
-            let section = Section::plane_cylinder(&pc, &frame, plane_first, reach, band);
-            (section, plane_cylinder_locus(&pc, &frame, band))
+            let read = plane_cylinder_locus(&pc, &frame, band);
+            let pending = Pending::PlaneCylinder {
+                pc,
+                frame,
+                plane_first,
+            };
+            (Some(pending), read)
         }
         (
             &Surface::Cylinder {
@@ -260,9 +298,13 @@ fn closed_form_locus<T: Decide>(
         ) => {
             let axes = parallel_axes_at(reach, (o1, a1), (o2, a2));
             let swing = parallel_swing(reach, (o1, a1), (o2, a2), axes.d);
-            let section = Section::cylinders((r1, r2), (a1, a2), &axes, reach, band);
             let read = cylinders_locus(((o1, a1), (o2, a2)), (r1, r2), &axes, swing, reach, band);
-            (section, read)
+            let pending = Pending::Cylinders {
+                radii: (r1, r2),
+                dirs: (a1, a2),
+                axes,
+            };
+            (Some(pending), read)
         }
         _ => (
             None,
@@ -412,6 +454,40 @@ fn cylinders_locus<T: Decide>(
                 gap: gap.jointly(parallel),
                 dir: a1,
             })
+        }
+    }
+}
+
+/// What a closed-form pair's cross-section is read from, kept until a
+/// read escalates ([`Pending::section`]).
+enum Pending<T: Real> {
+    /// The plane×cylinder arm on its frame.
+    PlaneCylinder {
+        pc: PlaneCylinder<T>,
+        frame: RuledFrame<T>,
+        plane_first: bool,
+    },
+    /// The parallel-cylinder arm at its feet.
+    Cylinders {
+        radii: (T, T),
+        dirs: (Vec3<T>, Vec3<T>),
+        axes: ParallelAxes<T>,
+    },
+}
+
+impl<T: Decide> Pending<T> {
+    /// The cross-section ([`Section`]), `None` where its direction does
+    /// not decide.
+    fn section(&self, reach: &Reach<T>, band: Band) -> Option<Section<T>> {
+        match self {
+            Self::PlaneCylinder {
+                pc,
+                frame,
+                plane_first,
+            } => Section::plane_cylinder(pc, frame, *plane_first, reach, band),
+            Self::Cylinders { radii, dirs, axes } => {
+                Section::cylinders(*radii, *dirs, axes, reach, band)
+            }
         }
     }
 }
@@ -1014,5 +1090,125 @@ mod tests {
                 other => panic!("{why}: over the ruling the gap row escalates: {other:?}"),
             }
         }
+    }
+
+    /// **The face-clear bound at the band's edge.** Each pair's gap
+    /// row is in band (`5.5·ε`), and one face's extent across the locus
+    /// starts `s` off it, where the true clearance is the gap plus the
+    /// two walls' bend, `s²/2` per unit curvature summed. At an `s`
+    /// whose clearance stands inside the band the escalation stands; at
+    /// one a few band widths clear, the face is clear. A bound loose on
+    /// the unsound side by as little as `s` reads the first clear.
+    #[test]
+    fn the_face_clear_bound_holds_at_the_band_edge() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (eps, g) = (band.zero(), 5.5 * band.zero());
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let along = |origin: Point3<f64>, r: f64| Surface::Cylinder {
+            origin,
+            axis: Vec3::unit_x(),
+            radius: r,
+            u_ref: Vec3::unit_z(),
+        };
+        let reach = ExtentBall::new(Point3::new(0.5, 1.0, 0.0), 2.0);
+        // `across` is ±ŷ for the plane pair and ±ẑ for the cylinders;
+        // `which` is the face whose extent starts `s` off the ruling, the
+        // other spanning it.
+        let read = |a: &Surface<f64>, b: &Surface<f64>, z_across: bool, which: usize, s: f64| {
+            tangent_locus_of_faces(a, b, reach, band, move |dir: UnitVec3<f64>| {
+                let positive = if z_across { dir.get().z } else { dir.get().y } > 0.0;
+                let span = |(lo, hi): (f64, f64)| if positive { (lo, hi) } else { (-hi, -lo) };
+                let mut out = [Some(span((-1.0, 1.0))), Some(span((-1.0, 1.0)))];
+                out[which] = Some(span((s, 0.5)));
+                out
+            })
+        };
+        let lifted = along(Point3::new(0.0, 0.0, 1.0 + g), 1.0);
+        let unit = along(Point3::origin(), 1.0);
+        let outside = along(Point3::new(0.0, 2.0 + g, 0.0), 1.0);
+        let inside = along(Point3::new(0.0, 0.8 - g, 0.0), 0.2);
+        // (pair, across ẑ, face, curvature sum): the clearance at `s` is
+        // `g + κ·s²/2`.
+        let rows: [(&str, &Surface<f64>, &Surface<f64>, bool, usize, f64); 4] = [
+            ("plane face", &plane, &lifted, false, 0, 1.0),
+            ("wall face over a plane", &plane, &lifted, false, 1, 1.0),
+            ("outside wall", &unit, &outside, true, 1, 2.0),
+            ("inside rod", &unit, &inside, true, 1, 4.0),
+        ];
+        for (why, a, b, z_across, which, kappa) in rows {
+            let s_at = |clearance: f64| (2.0 * (clearance - g) / kappa).sqrt();
+            match read(a, b, z_across, which, s_at(7.5 * eps)) {
+                Err(TangentLocusError::Escalated(_)) => {}
+                other => panic!("{why}: a face in band of the wall escalates: {other:?}"),
+            }
+            match read(a, b, z_across, which, s_at(25.5 * eps)) {
+                Err(TangentLocusError::NotTangent { predicate, .. }) => {
+                    assert_eq!(predicate, "tangent_locus_face_clear", "{why}");
+                }
+                other => panic!("{why}: a face clear of the wall is no tangency: {other:?}"),
+            }
+        }
+    }
+
+    /// **An escalation the answer does not rest on stays off the log.**
+    /// Near-coaxial cylinders (radii 1 and 0.5, axes `3·ε` apart) are
+    /// definitely nested, so no cross-section is read; and where one
+    /// face reads clear, the other face's in-band clearance is spliced
+    /// superseded.
+    #[test]
+    fn a_definite_answer_leaves_no_escalation_on_the_log() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let reach = ExtentBall::new(Point3::new(0.5, 0.0, 0.0), 1.5);
+        let along = |origin: Point3<f64>, r: f64| Surface::Cylinder {
+            origin,
+            axis: Vec3::unit_x(),
+            radius: r,
+            u_ref: Vec3::unit_z(),
+        };
+        let bracket = geom_core::k_stats::Bracket::open();
+        let out = tangent_locus(
+            &along(Point3::origin(), 1.0),
+            &along(Point3::new(0.0, 3.0 * band.zero(), 0.0), 0.5),
+            reach,
+            band,
+        );
+        let log = bracket.finish();
+        assert!(
+            matches!(out, Err(TangentLocusError::NotTangent { .. })),
+            "{out:?}"
+        );
+        assert!(log.escalations.is_empty(), "nested: {:?}", log.escalations);
+
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let lifted = along(Point3::new(0.0, 0.0, 1.0 + 5.5 * band.zero()), 1.0);
+        let flip = |dir: UnitVec3<f64>, (lo, hi): (f64, f64)| {
+            if dir.get().y > 0.0 {
+                (lo, hi)
+            } else {
+                (-hi, -lo)
+            }
+        };
+        let bracket = geom_core::k_stats::Bracket::open();
+        let out = tangent_locus_of_faces(&plane, &lifted, reach, band, |d| {
+            [Some(flip(d, (1e-6, 0.5))), Some(flip(d, (0.5, 1.0)))]
+        });
+        let log = bracket.finish();
+        assert!(
+            matches!(out, Err(TangentLocusError::NotTangent { .. })),
+            "{out:?}"
+        );
+        assert!(
+            log.escalations.is_empty(),
+            "one face clear: {:?}",
+            log.escalations
+        );
     }
 }

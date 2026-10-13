@@ -75,10 +75,11 @@ fn the_touch_between_samples_charges_both_surfaces_sags() {
             read(delta)
         );
     }
-    // The table's finest schedule: sixty-four spans to each of the
-    // nine-sample schedule's. Between its two sags, every sample within
+    // The table's finest schedule: `2^REFINE_HALVINGS` spans to each
+    // of the nine-sample schedule's.
     // ε, the span line escalates on the sum and the max would pass.
-    let finest = geom_brep::tangent_span_bounds(&ball, &bore, &halfway, 0.0, tau / 64.0).unwrap();
+    let finest =
+        geom_brep::tangent_span_bounds(&ball, &bore, &halfway, 0.0, tau / finest_spans()).unwrap();
     // The window scales with ε; a unit circle's samples round by about
     // an ulp of 1, so under that the row has no window to stand in.
     let window = finest.gap_sag - finest.residual_sag;
@@ -99,4 +100,10 @@ fn the_touch_between_samples_charges_both_surfaces_sags() {
         }
         other => panic!("{delta:e}: the span line refuses on the sag: {other:?}"),
     }
+}
+
+/// How many spans the table's finest schedule reads to each of the
+/// nine-sample schedule's.
+fn finest_spans() -> f64 {
+    f64::from(1u32 << topo::boolean::contact_verify::REFINE_HALVINGS)
 }
