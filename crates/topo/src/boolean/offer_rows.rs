@@ -2300,6 +2300,12 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         .into_iter()
         .filter(|e| quoted_margin(&e.to_string()).is_some_and(|m| m >= 0.0))
         .collect(),
+        BooleanErrorKind::SectionUnresolved => vec![BooleanError::SectionUnresolved {
+            conditioning: geom_brep::recourse::UnsupportedConditioning {
+                subject: "whether a vertex lies on the section the plane cuts in a face at it",
+                resolution: diag.margin,
+            },
+        }],
         BooleanErrorKind::CurvedSectorSideUnsupported => refused()
             .into_iter()
             .map(|verdict| BooleanError::CurvedSectorSideUnsupported { verdict })
@@ -2838,7 +2844,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 3),
-    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 6),
+    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 3),
     (
         "reduce.rs",
         "vertex_on_curved_face_at",
@@ -2857,6 +2863,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Containment",
         1,
     ),
+    ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
+    ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
     (

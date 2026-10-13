@@ -14,11 +14,13 @@
 //! plane.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::revolve_common::{axis_y, validated};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use profile::{ProfileLoop, RawLoop};
+use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitJoinError, split};
 use topo::{
-    AtRestBody, Body, BooleanDecision, BooleanError, Coincide, EulerOpError, SplitReduceError,
-    mass_properties,
+    AtRestBody, Body, BooleanDecision, BooleanError, Coincide, SplitReduceError, mass_properties,
 };
 
 fn tol() -> Tol {
@@ -30,7 +32,9 @@ fn finished(body: Body<f64>) -> AtRestBody<f64> {
 }
 
 fn moved(body: &AtRestBody<f64>, by: Affine3<f64>) -> AtRestBody<f64> {
-    finished(topo::transform_rigid(body, &by, tol()).unwrap())
+    finished(
+        topo::transform_rigid(body, &geom_core::test_support::rigid(&by, tol()), tol()).unwrap(),
+    )
 }
 
 fn volume(body: &Body<f64>) -> f64 {
@@ -190,27 +194,31 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
                     }
                     Reading::Off => {
                         // Moved off the cap, the plane cuts the wall clear
-                        // of the vertex. Moved into it, the rim grazes the
-                        // plane over a stretch the root lane reads as a
-                        // touch (filed on the CLEAVE slate).
-                        let r = cut(d);
+                        // of the vertex. Moved into it, the rim lies in the
+                        // band of the plane over a stretch that the root
+                        // lane reads as a touch while the vertex reads off
+                        // by its section, and two ends go unpaired (filed:
+                        // `a-rim-grazing-the-plane-at-a-vertex-read-off-by-
+                        // its-section-leaves-two-ends-unpaired`).
                         if d > 0.0 {
                             let got = parts(d, &label);
                             assert!(
                                 (got.0 - base.0).abs() <= 1e-6 && (got.1 - base.1).abs() <= 1e-6,
                                 "{label}: {got:?} against {base:?} on the plane"
                             );
+                        } else {
+                            let r = cut(d);
+                            assert!(
+                                matches!(
+                                    r,
+                                    Err(SplitError::Join(SplitJoinError::UnpairedLooseEnds {
+                                        count: 2
+                                    }))
+                                ),
+                                "{label}: {:?}",
+                                r.err()
+                            );
                         }
-                        assert!(
-                            !matches!(
-                                r,
-                                Err(SplitError::Join(SplitJoinError::Euler(
-                                    EulerOpError::Certification { .. }
-                                )))
-                            ),
-                            "{label}: the miss is decided before the join's certificate: {:?}",
-                            r.err()
-                        );
                     }
                 }
             }
@@ -222,7 +230,7 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
 fn the_boolean_reads_a_grazing_vertex_against_its_section() {
     let e = tol().eps();
     let phi = 2.2;
-    for (name, psi) in ladder().into_iter().skip(1) {
+    for (name, psi) in ladder() {
         let (cyl, v, n) = pose(phi, psi);
         // The slab x ≥ 1 about the seam vertex of the unturned cylinder,
         // its face's outward normal −x turned onto −n, moved δ along n.
@@ -263,7 +271,7 @@ fn the_boolean_reads_a_grazing_vertex_against_its_section() {
         let below = {
             let plane = topo::test_support::split_plane(v, n, tol());
             let halves = split(&cyl, &plane, tol()).unwrap();
-            volume(halves.below.body().unwrap())
+            halves.below.body().map_or(0.0, volume)
         };
         let base = kept(0.0, &format!("ψ {name} on the plane"));
         assert!(
@@ -281,8 +289,9 @@ fn the_boolean_reads_a_grazing_vertex_against_its_section() {
                     let got = kept(d, &label);
                     assert!((got - base).abs() <= 1e-6, "{label}: {got} against {base}");
                 }
-                // Where the offset alone is in the band, an edge on the
-                // plane is read first; that is not this reading.
+                // Where the offset alone is in the band, an edge along the
+                // plane is read first (the cap's rim at 90°, an edge on
+                // the plane); that is not this reading.
                 Reading::Band {
                     offset_in_band: true,
                 } => {}
@@ -301,19 +310,176 @@ fn the_boolean_reads_a_grazing_vertex_against_its_section() {
                     assert_reads(&label, got, d / psi.sin(), psi.sin());
                 }
                 Reading::Off => {
+                    // Off the cap, the slab's face meets the wall in a
+                    // pairing the curved arm has no lane for; into it, the
+                    // rim's touch leaves two ends unpaired, as at the split.
                     let r = cut(d);
-                    assert!(
-                        !matches!(
+                    let want = if d > 0.0 {
+                        matches!(r, Err(BooleanError::CurvedBooleanUnsupported { .. }))
+                    } else {
+                        matches!(
                             r,
-                            Err(BooleanError::Join(SplitJoinError::Euler(
-                                EulerOpError::Certification { .. }
-                            )))
-                        ),
-                        "{label}: the miss is decided before the join's certificate: {:?}",
-                        r.err()
-                    );
+                            Err(BooleanError::Join(SplitJoinError::UnpairedLooseEnds {
+                                count: 2
+                            }))
+                        )
+                    };
+                    assert!(want, "{label}: {:?}", r.err());
                 }
             }
         }
     }
+}
+
+/// **A reading through a vanishing sine is the kernel's.** The plane
+/// runs exactly through the seam vertex at a dihedral `ψ` chosen a tenth
+/// of `K·u/ε`, its stored origin `L` along the rim's tangent, in the
+/// plane: the vertex's offset is the evaluation's rounding alone, a few
+/// ulps of `L`, and divided by `sin ψ` it lands about the band by the
+/// rounding's choice. No row offers a lever there; where the reading is
+/// not certainly within the zero band it refuses as the kernel's limit.
+#[test]
+fn a_reading_through_a_vanishing_sine_is_the_kernels() {
+    let (e, k) = (tol().eps(), tol().k());
+    let psi = (0.1 * k * geom_core::UNIT_ROUNDOFF / e).asin();
+    let phi = 2.2;
+    let (cyl, v, n) = pose(phi, psi);
+    if psi.sin() < 10.0 * k * e {
+        // So steep a section reads as rulings to the table at this ε:
+        // nothing here is the section reading's.
+        test_utils::vacuity::stood_down(
+            &format!("ψ = {psi:e} at ε = {e:e}"),
+            "a section the table reads in rulings is not the section reading's",
+        );
+        return;
+    }
+    let along = Vec3::new(-phi.sin(), phi.cos(), 0.0);
+    let mut unresolved = 0;
+    for i in 1..=25 {
+        let l = 0.1 * f64::from(i);
+        let label = format!("ψ {psi:e} L {l}");
+        let plane = topo::test_support::split_plane(v + along * l, n, tol());
+        match split(&cyl, &plane, tol()) {
+            Err(SplitError::Reduce(SplitReduceError::SectionUnresolved { .. })) => {
+                let text = split(&cyl, &plane, tol()).unwrap_err().to_string();
+                assert!(
+                    text.ends_with(geom_core::KERNEL_LIMIT_RECOURSE) && !text.contains("move"),
+                    "{label}: the kernel's limit names no lever: {text}"
+                );
+                unresolved += 1;
+            }
+            Err(SplitError::Reduce(SplitReduceError::SliverVertex { diag, .. })) => {
+                panic!("{label}: the kernel's rounding offered as the user's lever: {diag:?}")
+            }
+            _ => {}
+        }
+    }
+    assert!(unresolved > 0, "the family reaches the kernel's limit");
+}
+
+/// The unit cylinder's wall (`0 ≤ y ≤ 1`) under a cone wall rising to
+/// `(0.5, 1.5)`, revolved about `y`: its rim vertex `(1, 1, 0)`.
+fn capped_cylinder() -> AtRestBody<f64> {
+    let meridian = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.5, 1.5),
+        Point2::new(0.0, 1.5),
+    ]);
+    let body = revolve(
+        &validated(vec![meridian]),
+        axis_y(),
+        Revolution::Full,
+        tol(),
+    )
+    .expect("the meridian revolves")
+    .body;
+    finished(body)
+}
+
+/// **A plane touching the solid only at a vertex reads no section
+/// there.** Through the rim vertex, its normal `(cos θ, sin θ, 0)` leans
+/// above every face at the vertex for `θ` under 45°, so every edge leaves
+/// the vertex below it and no section enters a face: the vertex reads its
+/// offset alone, and the split lands the body whole below, at every
+/// offset within the zero band.
+#[test]
+fn a_supporting_plane_through_a_rim_vertex_builds() {
+    let e = tol().eps();
+    let body = capped_cylinder();
+    let v = Point3::new(1.0, 1.0, 0.0);
+    for theta in [5f64.to_radians(), 30f64.to_radians()] {
+        let n = Vec3::new(theta.cos(), theta.sin(), 0.0);
+        let below = |d: f64| {
+            let label = format!("θ {:.0}° δ {:+.1}ε", theta.to_degrees(), d / e);
+            let plane = topo::test_support::split_plane(v + n * d, n, tol());
+            let r = split(&body, &plane, tol())
+                .unwrap_or_else(|err| panic!("{label}: refused: {err:?}"));
+            assert!(r.above.body().is_none(), "{label}: nothing lands above");
+            volume(r.below.body().expect("the body lands below"))
+        };
+        let base = below(0.0);
+        for c in [0.3, 0.5, 0.9] {
+            for d in [c * e, -c * e] {
+                let got = below(d);
+                assert!(
+                    (got - base).abs() <= 1e-9 * base,
+                    "θ {theta}: δ {d:e}: {got} against {base}"
+                );
+            }
+        }
+    }
+}
+
+/// **The shallowest face a section enters decides.** A cone wall 2° off
+/// the axis below the rim vertex `(1, 1, 0)` and one 5° off above it,
+/// cut by a plane through the vertex tilted `β = 2°` off the meridian
+/// plane, so the trace enters both faces: at `8°` the lower face meets
+/// it at a dihedral of about 10°, the upper at about 3.6°. At `δ =
+/// 0.12ε` the steeper reading is within the zero band and the shallower
+/// one is in the band; the vertex refuses on the shallower.
+#[test]
+fn the_shallowest_entered_face_decides() {
+    let e = tol().eps();
+    let (lo, hi) = (2f64.to_radians(), 5f64.to_radians());
+    let meridian = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0 - lo.tan(), 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(1.0 - hi.tan(), 2.0),
+        Point2::new(0.0, 2.0),
+    ]);
+    let body = finished(
+        revolve(
+            &validated(vec![meridian]),
+            axis_y(),
+            Revolution::Full,
+            tol(),
+        )
+        .expect("the meridian revolves")
+        .body,
+    );
+    let (tilt, beta) = (8f64.to_radians(), 2f64.to_radians());
+    let n = Vec3::new(tilt.cos() * beta.cos(), tilt.sin() * beta.cos(), beta.sin());
+    let sine = |wall: Vec3<f64>| n.cross(wall).norm();
+    let lower = sine(Vec3::new(lo.cos(), -lo.sin(), 0.0));
+    let upper = sine(Vec3::new(hi.cos(), hi.sin(), 0.0));
+    let shallow = lower.min(upper);
+    let d = 0.12 * e;
+    let (steep, shallowest) = (d / lower.max(upper), d / shallow);
+    assert!(
+        steep <= 0.9 * e && shallowest >= 1.5 * e && shallowest * 1.5 <= tol().k() * e,
+        "the pose parts the two readings: {steep:e} and {shallowest:e}"
+    );
+    let v = Point3::new(1.0, 1.0, 0.0);
+    let plane = topo::test_support::split_plane(v + n * d, n, tol());
+    let Err(SplitError::Reduce(SplitReduceError::SliverVertex { diag, .. })) =
+        split(&body, &plane, tol())
+    else {
+        panic!("the vertex refuses on the shallower face");
+    };
+    let (predicate, got) = reported(&diag);
+    assert_eq!(predicate, "vertex_section_side");
+    assert_reads("the shallower face", got, -d / shallow, shallow);
 }

@@ -57,3 +57,16 @@ check waits for D4 ¶4's size range. So this unit's "admit only where
 consistent with it as a first step. The decision's text is in GERM's
 row.
 
+
+## Seam note from part 4 (2026-10-13): the kernel-limit ending has a home
+
+Part 4 (`the-split-reads-a-vertex-against-the-section-it-ends-not-the-plane`,
+PR 4858) needed the same ending for the vertex's section reading,
+`δ / sin ψ`, where its own rounding is past `ε/K`. Its home is
+`geom_brep::recourse::UnsupportedConditioning`. It carries the clause the
+reading decides and the admission's reading, and its `Display` ends in
+D4 ¶1 (i)'s last resort with no lever. Its `admit(name, subject, bound,
+band)` is the `ρ ≤ ε/K` admission: `K·ρ` decided Zero. Each door wraps it
+in its own variant (`SplitReduceError::SectionUnresolved`,
+`BooleanError::SectionUnresolved`). A `SectionError::UnsupportedConditioning`
+here would wrap the same payload instead of spelling a second ending.

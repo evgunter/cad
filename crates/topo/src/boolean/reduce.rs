@@ -72,8 +72,9 @@ use crate::coincidence::{Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::replace_face::ReplaceFaceError;
-use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane};
+use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane, PlaneSide as SplitSide};
 use crate::validate::decide;
+use crate::vertex_section::{SectionPlane, VertexRefusal};
 use geom_core::Tol;
 
 /// Which candidate-generation path the reduction sweep runs — the
@@ -763,26 +764,77 @@ pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Pla
 
 /// A vertex of the swept solid `x` against the planar `face` of the
 /// other, `y`, at `offset` from the face's plane: the split's rule
-/// ([`crate::vertex_section::decide_vertex_on_plane`]), the face's
-/// normal read into the section table as a unit direction over the
-/// face's reach ([`super::separating::planar_axis`]).
+/// ([`crate::vertex_section::decide_vertex_on_plane`]). The face's
+/// outward normal is read into the section table as a unit direction
+/// over the face's reach ([`super::separating::planar_axis`]), and a
+/// far vertex of `x` takes its side from its own offset, under this
+/// door's name.
 fn vertex_face_side<T: Decide>(
     (x, (vertex, at)): (&Body<T>, (VertexKey, Point3<T>)),
     (y, face, plane): (&Body<T>, FaceKey, &PlaneDesc<T>),
     offset: T,
     band: Band,
-) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-    let unit = || {
-        super::separating::planar_axis(y, face, || crate::census::face_reach(y, face, band), band)
+) -> Result<geom_core::Decided, VertexRefusal> {
+    let section_plane = || {
+        let outward = crate::face_normal::face_outward_normal(y, face).ok_or(
+            VertexRefusal::Plane("the face's plane has no outward normal (not a plane)"),
+        )?;
+        let normal = super::separating::planar_axis(
+            y,
+            face,
+            || crate::census::face_reach(y, face, band),
+            band,
+        )
+        .ok_or(VertexRefusal::Plane(
+            "the face's outward normal does not read as a unit direction over its reach",
+        ))?;
+        Ok(SectionPlane {
+            origin: plane.origin,
+            normal,
+            reference: geom_brep::ReferenceNormal::of_face_outward(outward),
+        })
+    };
+    let far = |far: VertexKey| {
+        let q = x.resolve_vertex_point(far, crate::live::Proven);
+        let decided = geom_core::k_stats::decide_reported(
+            "bool_vertex_face_side",
+            Margin::of((q - plane.origin).dot(plane.normal)),
+            band,
+        )
+        .map_err(VertexRefusal::Undecided)?;
+        Ok(match decided.sign {
+            Sign::Negative => SplitSide::Below,
+            Sign::Positive => SplitSide::Above,
+            Sign::Zero => SplitSide::On,
+        })
     };
     crate::vertex_section::decide_vertex_on_plane(
         "bool_vertex_face_side",
         x,
         (vertex, at),
-        (plane.origin, unit),
-        offset,
+        section_plane,
+        (offset, far),
         band,
     )
+}
+
+/// The Boolean's refusal of a vertex the rule could not place on a
+/// planar face, `read` being the declaration read of the pair.
+fn vertex_refusal(refusal: VertexRefusal, read: DeclarationRead) -> BooleanError {
+    match refusal {
+        VertexRefusal::Undecided(diag) => {
+            BooleanError::coincidence(Coincide::VertexOnFace, read, diag)
+        }
+        VertexRefusal::Sector { diag, .. } => {
+            BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag)
+        }
+        VertexRefusal::Walk(_) => BooleanError::ClassificationInvariant {
+            what: "the neighbourhood walk refused a vertex of an operand at rest (a null edge \
+                   or a degenerate chord where the operand gate admits none)",
+        },
+        VertexRefusal::Plane(what) => BooleanError::ClassificationInvariant { what },
+        VertexRefusal::Unresolved(conditioning) => BooleanError::SectionUnresolved { conditioning },
+    }
 }
 
 /// F7: the maximal-faces precondition through the coincidence ladder —
@@ -1208,9 +1260,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             geom_brep::implicit_residual(carrier, p),
                             band,
                         )
-                        .map_err(|diag| {
-                            BooleanError::coincidence(Coincide::VertexOnFace, read, diag)
-                        })
+                        .map_err(|refusal| vertex_refusal(refusal, read))
                     };
                     let (d1, d2) = (side(u, pu)?, side(v, pv)?);
                     let (s1, s2) = (d1.sign, d2.sign);
@@ -1369,8 +1419,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         };
                         let read =
                             edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
-                        let on_face =
-                            |diag| BooleanError::coincidence(Coincide::VertexOnFace, read, diag);
+                        let on_face = |refusal| vertex_refusal(refusal, read);
                         let s1 = side(u, pu).map_err(on_face)?;
                         let s2 = side(v, pv).map_err(on_face)?;
                         let mut hit = false;
@@ -1396,7 +1445,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 vertex_face_side((x, (w, p)), (y, face, &plane), offset, band)
             };
             let read = edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
-            let on_face = |diag| BooleanError::coincidence(Coincide::VertexOnFace, read, diag);
+            let on_face = |refusal| vertex_refusal(refusal, read);
             let d1 = side(u, pu).map_err(on_face)?;
             let d2 = side(v, pv).map_err(on_face)?;
             match (d1.sign, d2.sign) {

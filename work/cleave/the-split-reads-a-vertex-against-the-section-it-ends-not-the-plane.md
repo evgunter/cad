@@ -43,17 +43,26 @@ doors decide a vertex on a plane by: the split's vertex sweep
 vertex against a planar face of the other solid (the three
 `bool_vertex_face_side` sites of `boolean::reduce::sweep_direction`,
 through `vertex_face_side`). The plane offset is decided as before,
-under the door's own name. A Zero offset is then read against each
-curved face at the vertex whose section the C5 table
-(`chord_join::wall_section`) reads as a conic, `δ / sin ψ` at the
-shallowest such face, under `vertex_section_side`: Zero is ON, in band
-escalates typed (`SliverVertex` at the split, `Escalated {
-Coincidence(VertexOnFace) }` at the Boolean, each with its lever), and
-definite reads the vertex off on its offset's side. Planar faces,
-rulings and tangent rulings add no reading, nor does a face beside a conic edge at
-the vertex that the crossing lane reads parallel to the plane (its
-section there is that edge; `a_plane_along_an_elliptic_cut` pins it), so `ψ = 0` and a vertex
-with no curved face read as before.
+under the door's own name. A Zero offset is then read against the
+faces a section enters from the vertex, `δ / sin ψ` at the shallowest,
+under `vertex_section_side`: Zero is ON, in band escalates typed
+(`SliverVertex` at the split, `Escalated { Coincidence(VertexOnFace) }`
+at the Boolean, each with its lever), and definite reads the vertex off
+on its offset's side.
+
+- Which faces a section enters is the neighbourhood walk's own entry
+  reading (`splitting::entry_side`, factored out of the walk, and
+  `bisector_side` for a wide sector): a face's sector holds the trace
+  where its bounds leave on opposite sides. A bound in the plane, a
+  supporting plane, a planar face and a ruling the C5 table reads add
+  no reading.
+- The reading's own rounding is charged through the division
+  (`Rounded`, with `Rounded::quotient` now in `geom_core::running`). It
+  is the input's only where `K·ρ` reads Zero
+  (`geom_brep::recourse::UnsupportedConditioning::admit`). Past that,
+  only a verdict the rounding cannot move stands, and the rest refuses as
+  the kernel's limit with no lever (`SplitReduceError::SectionUnresolved`,
+  `BooleanError::SectionUnresolved`).
 
 Measured on `origin/main` first, the unit cylinder turned φ ∈ {0.9,
 2.2}, plane through its seam vertex `+ δ·n`, `n = cos ψ·w + sin ψ·ẑ`
@@ -72,9 +81,15 @@ Measured on `origin/main` first, the unit cylinder turned φ ∈ {0.9,
   (`a-rim-grazing-the-plane-at-a-vertex-read-off-by-its-section-leaves-two-ends-unpaired`).
 - ψ ∈ {0, 90°}, every δ: unchanged.
 
-Pinned in `crates/sweep/tests/a_vertex_on_a_grazing_plane.rs`, over the
-ψ ladder (90°, 30°, atan 0.1, 3°) at every ε row: ON rows build to the
-`δ = 0` halves, in-band rows refuse typed at the vertex with the
-closed-form reading `δ / sin ψ` and the lever, the `δ = 0` and
-`δ = +0.9ε` (ψ = 3°) rows show the lever builds, and no definite row
-reaches the join's certificate.
+Pinned in `crates/sweep/tests/a_vertex_on_a_grazing_plane.rs` at every
+ε row:
+- the ψ ladder (90°, 30°, atan 0.1, 3°), both doors: ON rows build to
+  the `δ = 0` halves, in-band rows refuse typed at the vertex with the
+  closed-form reading and the lever, the lever builds, and each definite
+  row ends exactly as measured;
+- a plane through the seam vertex at ψ = `0.1·K·u/ε`, its origin moved
+  along the rim's tangent: no row offers a lever, and some refuse as the
+  kernel's limit (stood down where the table reads rulings, at 1e-6);
+- a supporting plane through a rim vertex builds at every offset within
+  the zero band;
+- two cone walls both entered at a vertex refuse on the shallower.

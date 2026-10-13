@@ -29,13 +29,16 @@ at ε = 1e-9, 1e-6 and 1e-12, φ ∈ {0.9, 2.2}:
   difference refuses `CurvedBooleanUnsupported { kind: Cylinder }`.
 - `δ = ±20ε` builds at both doors.
 
-`vertex_section::decide_vertex_on_plane` reads `v` definitely off the
-plane here (`|δ| / sin ψ ≥ Kε`), which is the input's truth: the wall's
-section passes that far from `v`. For `δ < 0` the plane also dips
+The root cause is two decisions that read one place differently.
+`vertex_section::decide_vertex_on_plane` decides `v` by its section
+reading, definitely off the plane (`|δ| / sin ψ ≥ Kε`), which is the
+input's truth: the wall's section passes that far from `v`. The rim
+beside it is still read by its plane offset. For `δ < 0` the plane dips
 `|δ| < ε` into the cap, so the rim crosses it at `θ ≈ ±√(2|δ|)` and lies
-within the band of the plane between. The rim's crossings are read
-there as a touch, the wall's section has no rim crossing to end at, and
-two ends go unpaired.
+within the band of the plane between, and the root lane reads that
+stretch as an in-band touch with no crossing. The vertex is off, the rim
+is on, the wall's section has no rim crossing to end at, and the join
+ends `UnpairedLooseEnds`.
 
 ## Owed
 

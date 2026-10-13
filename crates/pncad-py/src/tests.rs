@@ -4879,6 +4879,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rim_cusp_arm_unbuilt",
             "scaffolding_operand",
             "seam_orientation",
+            "section_unresolved",
             "shared_vertex_crossings",
             "shell_witness_exhausted",
             "spheres_meet",

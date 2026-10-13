@@ -2048,6 +2048,14 @@ pub enum BooleanError {
         /// The charge's decided verdict at the sector's arm.
         verdict: geom_brep::recourse::Refused,
     },
+    /// A vertex on a planar face of the other solid reads its distance
+    /// from a section the face's plane ends at it through a sine too
+    /// small for the kernel to resolve (D9 row 2,
+    /// [`crate::vertex_section`]): the kernel's limit, with no lever.
+    SectionUnresolved {
+        /// The reading's conditioning.
+        conditioning: geom_brep::recourse::UnsupportedConditioning,
+    },
     /// A sweep event definitely lands on a CURVED face away from its
     /// boundary, a vertex sits ON a curved surface, or a curved-carrier
     /// edge cannot be cleared against a curved face, and the curved
@@ -3157,6 +3165,8 @@ pub enum BooleanErrorKind {
     DegenerateTorus,
     /// [`BooleanError::CurvedSectorSideUnsupported`].
     CurvedSectorSideUnsupported,
+    /// [`BooleanError::SectionUnresolved`].
+    SectionUnresolved,
     /// [`BooleanError::CurvedPierceUnsupported`].
     CurvedPierceUnsupported,
     /// [`BooleanError::CrossingAtConeApex`].
@@ -3423,6 +3433,7 @@ impl BooleanError {
             Self::CurvedSectorSideUnsupported { .. } => {
                 BooleanErrorKind::CurvedSectorSideUnsupported
             }
+            Self::SectionUnresolved { .. } => BooleanErrorKind::SectionUnresolved,
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
@@ -3618,6 +3629,7 @@ impl core::fmt::Display for BooleanError {
                  Recourse: move the parts so nothing meets the cone's tip",
                 operand_word(*operand),
             ),
+            Self::SectionUnresolved { conditioning } => conditioning.fmt(f),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
                 f,
                 "where an edge pierces a curved face, the Boolean cannot be sure which \
@@ -7496,6 +7508,7 @@ mod tests {
                 BooleanErrorKind::CurvedBooleanUnsupported => "CurvedBooleanUnsupported",
                 BooleanErrorKind::DegenerateTorus => "DegenerateTorus",
                 BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
+                BooleanErrorKind::SectionUnresolved => "SectionUnresolved",
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",

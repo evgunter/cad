@@ -77,6 +77,7 @@ pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
 mod neighborhood;
+pub(crate) use neighborhood::{EntryFault, bisector_side, entry_side};
 // `pub(crate)` for `order::exact_band` alone: the bit-hairline band is
 // a shared DEVICE (audit note N6), and the boolean backstop's
 // sign-certainty arm decides against the same one rather than minting
@@ -390,14 +391,25 @@ pub enum SplitReduceError {
         errors: Vec<ValidationError>,
     },
     /// Whether a vertex lies on the plane is undecided (F6): its distance
-    /// lies in the ambiguity band, beyond ε, or cannot be read. No
-    /// snapping — resolution is an explicit repair/adoption op (D7
-    /// machinery).
+    /// from the plane, or from a section the plane ends at it
+    /// ([`crate::vertex_section`]), lies in the ambiguity band, beyond ε,
+    /// or cannot be read. No snapping — resolution is an explicit
+    /// repair/adoption op (D7 machinery).
     SliverVertex {
         /// The offending vertex.
         vertex: VertexKey,
         /// The escalation diagnostics.
         diag: Indeterminate,
+    },
+    /// A vertex on the plane reads its distance from a section the plane
+    /// ends at it through a sine too small for the kernel to resolve
+    /// (D9 row 2, [`crate::vertex_section`]): the kernel's limit, with
+    /// no lever.
+    SectionUnresolved {
+        /// The vertex.
+        vertex: VertexKey,
+        /// The reading's conditioning.
+        conditioning: geom_brep::recourse::UnsupportedConditioning,
     },
     /// A sector-level reading at an ON vertex (the face's extent, the
     /// coplanarity gate, the material sense, wideness, the bisector side,
@@ -688,6 +700,7 @@ impl core::fmt::Display for SplitReduceError {
                     diag.lever_ending(SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
+            Self::SectionUnresolved { conditioning, .. } => conditioning.fmt(f),
             Self::SliverSector { reading, .. } => write!(
                 f,
                 concat!(

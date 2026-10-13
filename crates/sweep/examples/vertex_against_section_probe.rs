@@ -30,7 +30,12 @@ fn finished(body: Body<f64>) -> AtRestBody<f64> {
 
 fn turned(body: &AtRestBody<f64>, about: Point3<f64>, axis: Vec3<f64>, a: f64) -> AtRestBody<f64> {
     finished(
-        topo::transform_rigid(body, &Affine3::rotation_about_axis(about, axis, a), tol()).unwrap(),
+        topo::transform_rigid(
+            body,
+            &geom_core::test_support::rigid(&Affine3::rotation_about_axis(about, axis, a), tol()),
+            tol(),
+        )
+        .unwrap(),
     )
 }
 
@@ -120,7 +125,12 @@ fn main() {
                     };
                     let slab = turned(&slab, o, z, phi);
                     let slab = finished(
-                        topo::transform_rigid(&slab, &Affine3::translation(n * d), tol()).unwrap(),
+                        topo::transform_rigid(
+                            &slab,
+                            &geom_core::test_support::rigid(&Affine3::translation(n * d), tol()),
+                            tol(),
+                        )
+                        .unwrap(),
                     );
                     let line = match topo::subtract(&cyl, &slab, tol()) {
                         Ok(r) => format!("ok vol={:.9}", vol(r.body().map(|b| &*b.body))),
@@ -151,8 +161,12 @@ fn main() {
                     };
                     let corner = turned(&corner, o, z, phi);
                     let corner = finished(
-                        topo::transform_rigid(&corner, &Affine3::translation(n * d), tol())
-                            .unwrap(),
+                        topo::transform_rigid(
+                            &corner,
+                            &geom_core::test_support::rigid(&Affine3::translation(n * d), tol()),
+                            tol(),
+                        )
+                        .unwrap(),
                     );
                     let line = match topo::subtract(&cyl, &corner, tol()) {
                         Ok(r) => format!("ok vol={:.9}", vol(r.body().map(|b| &*b.body))),
