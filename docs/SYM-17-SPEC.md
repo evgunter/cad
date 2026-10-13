@@ -4,7 +4,7 @@
 `work/sym/a-widened-rotation-angle-refuses-on-the-plain-interval-lane.md`
 (P1; on the chain Ev asked for). **Unit:** `work/sym/SYM-17.md`.
 **Branch:** `sym/17-rotation-readout`, cut from `main`.
-**Implementer:** Opus. **Review tier:** single FULL review (§Review).
+**Implementer:** Opus. **Review tier:** Phase 1 single FULL; Phase 2 dual, concurrent arm (§Review).
 
 **Read first, in full:**
 - `docs/prompts/implementer-discipline.md`;
@@ -69,21 +69,120 @@ a hypothesis.
 - If (c) is the answer, it states a scope of the plain lane. That is
   Ev's to rule: stop after Phase 1 and report.
 
-## Phase 2 — the answer Phase 1 justifies (when no stop rule applies)
+## Phase 2 — the rigid-motion witness (Ev's answer, 2026-10-12)
 
-- The change.
-- The chain's plain-lane row in `chaintol.rs` re-baselined, and said.
-- A minimal row outside the chain for the shape.
+Phase 1 stopped on both stop rules. Two designers weighed the question
+and converged, and Ev answered on the `[ev]` PR. The final state is in
+the item's section "Question, and Ev's answer"; read it whole. In
+short:
+
+1. **One type, `RigidMotion<T>`**, in `geom-core`'s linalg: a proper
+   rigid motion (orthonormal linear part, determinant +1, finite).
+   - It replaces `OrthoFrame`. A frame is the rigid motion that places
+     the world frame, so `OrthoFrame`'s accessors (`origin`, and
+     `u`/`v`/`w` as `UnitVec3`), its decided mints (`gram_schmidt`,
+     aim-and-reference, axis-and-reference) and its exact world frames
+     carry over unchanged in meaning.
+   - The name `OrthoFrame` retires; every caller follows, demos
+     included. Nothing is released, so compatibility is not a reason
+     to keep it.
+2. **Mints by construction.** Each of these decides only finiteness,
+   and names what was not finite:
+   - rotation about a `UnitVec3` by an angle;
+   - rotation about an axis through a point;
+   - translation;
+   - the exact half-turns;
+   - compose;
+   - the inverse as the transpose.
+3. **One decided door: today's `check_rigid`, moved onto the type.** It
+   admits a raw `Affine3` (a literal `Frame`, a STEP placement, a
+   library caller's matrix).
+   - It keeps its predicate names and its ledger-row F10 flag.
+   - It returns an undecided margin as undecided, not folded into
+     "not rigid".
+4. **Closed under the action:**
+   - `RigidMotion × UnitVec3 → UnitVec3`, `RigidMotion × RigidMotion
+     → RigidMotion`, and `RigidMotion × Point3`.
+   - The revolve (`sweep/revolve/partial.rs`'s rotated normal), the
+     sweep (`swept.rs`) and the patterns (`eval/wire/stepped.rs`) build
+     `RigidMotion`s where they build rigid maps today.
+5. **Callers.**
+   - `topo::transform_rigid` takes `&RigidMotion<T>` and asks nothing
+     about rigidity. `TransformError::NotRigid` leaves that door.
+   - Placements mint by construction: `eval::wire`'s `transform_map`
+     and `Step::Rigid`, and `placement.rs`'s `chain_motion` and
+     `Motion<T>`.
+   - A literal `Frame` goes through the decided door.
+   - `editor-core`'s persisted `Frame` stays a general linear part, so
+     an improper map stays representable and refusable.
+   - The mate solve's representatives (`candidate_rotation` /
+     `candidate_translation`, `opposed`'s half-turns, a face base) are
+     typed as the witness. Every solve-side inverse (`mate_coset`,
+     `invert`, `clocking_about`) is the transpose. Leave `member_of`
+     and `check_offsets` themselves to INTENT stage 3, which retires
+     them.
+6. **Products of admitted frames are not decided again.**
+7. **Not in this unit:**
+   - SHELF's `transform-rigid-recertifies-images-enclosed-apart` (its
+     own question; correct its "one design, land together" sentence:
+     the witness is its prerequisite, not a co-lander);
+   - the box-replay recourse ending (`work/issues/an-undecided-margin-over-an-interval-box-ends-as-a-kernel-defect.md`);
+   - any mirror or scale type.
+
+**Rows:**
+- A minimal row outside the chain: an `Interval` rotation by a widened
+  angle passes `transform_rigid`. A widened axis passes too.
+- The decided door refuses a raw shear or scale (as today's
+  `transform_rigid` rows do), and returns `Indeterminate` on a
+  straddle.
+- The transpose inverse is exact (`m · m⁻¹` is the identity at `f64`
+  bit for bit on the half-turns, and encloses it at `Interval`).
+- Re-baseline, saying what moved:
+  - the chain's plain-lane row in `chaintol.rs` (`assert_row`'s
+    `Interval` arm, and the header's "does not carry a widened
+    rotation angle at all");
+  - the symbolic lane's counts on placed documents (seven margins per
+    transform stop being asked);
+  - the K roster's rigidity rows (now asked only at the decided door);
+  - every refusal text that named `transform_rigid_*` from a
+    constructed map.
 - Ev's standing words: "never skip out on a change that would make the
   code better because it would require rebaselining".
 
+**Measure, and put in the PR body** (on `main` before, and after):
+- the chain's plain-lane reach at one and four links (the largest σ
+  that certifies, by the Phase 1 probe's bisection), and its new first
+  refusal;
+- the symbolic lane's chain row (counts and time);
+- MSOLVE's clocking item's widening
+  (`work/msolve/a-box-over-a-solved-clocking-widens-thirty-thousandfold.md`)
+  if the transpose inverse reaches it. Add the measurement there.
+
+**Docs:**
+- `transform.rs`'s module doc ("checked at the door");
+- the "one home of the rule" sentences on `check_rigid` and `Frame`;
+- ASSEMBLY.md A2's parenthetical "(rigidity re-decided, every carrier
+  re-certified)", which becomes "(rigidity carried by the witness or
+  decided at the door, every carrier re-certified)". These are
+  agent-written, not Ev's; the clause's decision does not change.
+
+**Stop rules.**
+- If merging `OrthoFrame` loses a guarantee a caller relies on, stop
+  and report.
+- If a stage 3 branch of INTENT is rewriting `mate/coset.rs` or
+  `mate/solve.rs` when you reach them, do not touch those files.
+  Report, and file the mate-side typing on INTENT's slate.
+
 ## Scope
 
-- **Files:**
-  - `crates/editor-core/src/eval/wire.rs`, if the answer lives there;
-  - the minting site Phase 1 names, within the stop rules;
-  - `demos/tour/src/chaintol.rs` for the pin;
-  - tests; the unit and item files.
+- **Files (Phase 2):** `geom-core`'s linalg (`ortho_frame.rs` becomes
+  the witness's home, plus `mat.rs` and `affine.rs` where they mint
+  rotations); `topo/src/transform.rs`; `editor-core`'s `eval/wire.rs`,
+  `eval/wire/stepped.rs`, `placement.rs`, `mate/solve.rs` and
+  `mate/coset.rs` (within the stop rule); `sweep`'s revolve and
+  `swept.rs`; `step-import`; every caller the compiler names, demos and
+  `pncad-py` included; `docs/ASSEMBLY.md`; `demos/tour/src/chaintol.rs`;
+  tests; the unit and item files, and SHELF's item.
 - **Territory:** run `python3 scripts/work.py territory --base origin/main`
   and announce every seam.
 - **Not in scope:** the symbolic tier's own handling, which already
@@ -91,13 +190,23 @@ a hypothesis.
 
 ## Review
 
-**Single FULL review**, recorded in `work/sym/log.md` at spec time.
-Claims to falsify:
-1. the readout (the enclosure and the cause);
-2. each candidate's cost and reach;
-3. the recommendation;
-4. any re-baseline;
-5. plus `docs/prompts/reviewer-style-lane.md` in full.
+**Dual review, concurrent arm (difficulty H)**, recorded in
+`work/sym/log.md` at spec time, per `docs/DUAL-REVIEW-PROTOCOL.md`. It
+is a new core type that replaces another and changes a door's
+signature across many crates. Claims to falsify:
+1. **Soundness of each mint by construction at every scalar.**
+   - `f64`: rigid up to rounding.
+   - `Interval`: an enclosure of one rigid map per point of the box.
+   - `Sym`: the same, with expressions.
+   - `Dual`: tangent transport.
+   - Can any path build a `RigidMotion` that is not one?
+2. **The decided door** is today's check, unchanged in what it decides,
+   and returns undecided as undecided.
+3. **Nothing `OrthoFrame` promised is lost.**
+4. **Every re-baseline is said and right.**
+5. **The measurements.**
+6. Phase 1's readout still holds (it is part of this PR).
+7. Plus `docs/prompts/reviewer-style-lane.md` in full.
 
 ## Landing
 

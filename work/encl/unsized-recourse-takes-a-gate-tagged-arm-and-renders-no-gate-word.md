@@ -24,3 +24,5 @@ cost: M
 Should `Unsized::recourse` refuse a gate-tagged arm by type? For example, a gate's rejection could reach the table as its own `RefusedArm` (`Zero` or `SignCertain` with the tag), never as `Undecided`. Or should every unsized row read the tag, as `SizedDecision` does?
 
 Separately: should an ending composed from `payload()` carry the reading phrase where the cause is gate-tagged? It could route through the `Indeterminate::ending` family instead.
+
+- 2026-10-13 (ENCL implementer, `encl/no-size-note`): `SizedDecision::recourse` no longer reads the gate's tag. Its note now comes from one classification of the reading on `geom_core::MarginDiag` (by reading, band and pass set), which `Indeterminate::reading`'s word and `MarginDiag::sized_recourse`'s ending both read. "a decided sign this decision cannot use" is now that classification's Past class, the same one under which the ending adds nothing. The "By type" contrast with `SizedDecision` above is therefore moot. The question of whether a `payload()`-composed ending should carry the word still stands, and so does the `Unsized` question.

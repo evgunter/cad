@@ -2580,7 +2580,7 @@ fn run_azimuth_images<T: Decide>(
                 // The branch pin. Default: nearest-branch continuity —
                 // the PR 6 loop-walk rule, exact wherever the previous
                 // edge's exit and this edge's entry share a chart
-                // point.
+                // point, decided as structure ([`nearest_branch`]).
                 //
                 // **Sphere-chart POLE junctions (M5 S13)** carry no
                 // azimuth continuity at all — the chart is singular at
@@ -2597,7 +2597,7 @@ fn run_azimuth_images<T: Decide>(
                 // poles' roles. Exact structure — nothing sampled; the
                 // pole test and its side are named trileans and an
                 // in-band junction escalates (F6).
-                let mut k = (prev - raw).periodic_branch(tau);
+                let mut pole_k = None;
                 // A cone APEX junction carries no azimuth at all, and
                 // unlike a sphere pole no orientation bit recovers it:
                 // the jump there is the whole lift's
@@ -2669,22 +2669,33 @@ fn run_azimuth_images<T: Decide>(
                             // a slit, two meridian edges overlapping, or a
                             // wedge inside rounding. An enclosure
                             // straddling the jump spans both branches,
-                            // `prev` and `prev ± τ`, so the window's width
-                            // encloses τ or more. What makes that sound
-                            // is the property a window reader relies on:
-                            // it reads the window as a region only once
-                            // its period gate has decided the width
-                            // definitely under τ, so on this window it
+                            // `prev` and `prev ± τ`. A joint after it
+                            // inherits the straddle, and its marks
+                            // escalate ([`nearest_branch`]). Where this is
+                            // the walk's last joint, the window's width
+                            // encloses τ or more, and a window reader reads
+                            // it as a region only once its period gate has
+                            // decided the width definitely under τ, so it
                             // declines or escalates and never reads it.
                             let q = (prev - raw) / tau;
-                            k = if advancing {
+                            pole_k = Some(if advancing {
                                 q.floor() + T::one()
                             } else {
                                 T::zero() - (T::zero() - q).floor() - T::one()
-                            };
+                            });
                         }
                     }
                 }
+                let k = match pole_k {
+                    Some(k) => k,
+                    None => nearest_branch(
+                        surface,
+                        face,
+                        vertex_point(body, he_data.start),
+                        prev - raw,
+                        band,
+                    )?,
+                };
                 base.shift_branch(k, tau)
             }
         };
@@ -2708,6 +2719,49 @@ fn run_azimuth_images<T: Decide>(
         prev_exit = Some(exit);
     }
     Ok(images)
+}
+
+/// **The nearest branch, as structure**: the whole number of periods
+/// `k` that lands an image's entry within half a period of the previous
+/// exit, `gap` apart, at the joint's `vertex`. Decided by sign decisions
+/// at the half-period marks, metered at the vertex's own lever
+/// (`pcurves::joint_arm`), with the loop walk's near-pole read where the
+/// marks miss (`pcurves::lever_periods`), so `k` is a literal at every
+/// scalar. The walk answers a sphere pole by orientation and refuses a
+/// cone apex before it gets here; a vertex decided clear of the apex can
+/// still have a lever under the band (`d·sin α` on a narrow cone), which
+/// the near-pole read serves.
+///
+/// # Errors
+///
+/// [`SplitJoinError::Escalated`] where a mark is in band;
+/// [`SplitJoinError::SectionInvariant`] where the gap sits on a mark or
+/// past the branch reach, or the chart is the placeholder.
+fn nearest_branch<T: Decide>(
+    surface: &geom::Surface<T>,
+    face: FaceKey,
+    vertex: geom_core::Point3<T>,
+    gap: T,
+    band: Band,
+) -> Result<T, SplitJoinError> {
+    let chart = crate::pcurves::DescribedChart::of(surface).ok_or(SplitJoinError::SectionInvariant {
+        face,
+        what: "a divided face's chart is the placeholder — it has no lever to decide a branch by",
+    })?;
+    let arm = crate::pcurves::joint_arm(chart, vertex);
+    crate::pcurves::lever_periods("split_window_branch", arm, gap, T::tau(), band)
+        .map(|k| T::from_f64(f64::from(k)))
+        .map_err(|miss| match miss {
+            geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
+            geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach => {
+                SplitJoinError::SectionInvariant {
+                    face,
+                    what: "a run edge's chart entry sits half a period, or past the branch \
+                           reach, from the previous edge's exit — the two images name no \
+                           common branch",
+                }
+            }
+        })
 }
 
 /// `∫ (v − anchor) du` of a harmonic chart image from `t0` to `t1`, and
@@ -4254,6 +4308,13 @@ fn chart_ring_side<T: Decide>(
         let decide_r = |name, margin| decide(name, margin, band);
         let w = vertex_point(body, v) - centre;
         let raw = stable_azimuth(w.dot(axis.cross(u_ref)), w.dot(u_ref), band);
+        // The vertex on the branch of the window's middle, in
+        // `(mid − τ/2, mid + τ/2]`. A vertex inside the window lands on its
+        // own branch. One at the seam of a whole-period window lands on
+        // `hi`, which reads as `lo` would only because such a run carries
+        // its seam rows along both edges: the seam paragraph above. At
+        // `Sym` the crossings read `u_p` numerically, against image ends
+        // of another provenance, never as an identity.
         let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
         let v_p = w.dot(axis);
         let mut crossings = 0usize;
@@ -6405,6 +6466,78 @@ mod segment_curve_tests {
             assert!(
                 curve.running_from(he(1), face).is_ok(),
                 "{label} runs forward as computed"
+            );
+        }
+    }
+}
+
+/// **A run's joint branch is a literal.** Over a box, an entry `k`
+/// periods from the previous exit as polynomials that are not constants,
+/// on a cylinder, at `k` either side of zero: the branch less `k` is the
+/// zero polynomial. And on a narrow cone (`sin α ≈ 0.01`), a continuous joint at a vertex
+/// decided clear of the apex but with its lever `d·sin α` under the band
+/// takes the image itself by the near-pole read, where every mark reads
+/// Zero or in band.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod nearest_branch_rows {
+    use super::*;
+    use geom_core::{Interval, Point3, Real, Sym, Vec3};
+
+    #[test]
+    fn the_nearest_branch_is_a_literal_over_a_box() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        for k in [-1.0, 0.0, 1.0, 2.0] {
+            let (out, counts) =
+                crate::test_support_fixtures::whole_period_gap_over_a_box(k, |a, b| {
+                    let f = Sym::<Interval>::from_f64;
+                    let cylinder = geom::Surface::Cylinder {
+                        origin: Point3::new(f(0.0), f(0.0), f(0.0)),
+                        axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
+                        radius: f(2.0),
+                        u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
+                    };
+                    let vertex = Point3::new(f(2.0), f(0.0), f(0.0));
+                    let got =
+                        nearest_branch(&cylinder, FaceKey::default(), vertex, a - b, band).unwrap();
+                    decide("nearest_branch_row", Margin::of(got - f(k)), band)
+                });
+            assert!(
+                matches!(out, Ok(Sign::Zero)),
+                "k = {k}: the branch is {k} periods: {out:?}"
+            );
+            assert_eq!(
+                counts.symbolic, 1,
+                "k = {k}: the branch less k is the zero polynomial"
+            );
+        }
+    }
+
+    #[test]
+    fn a_narrow_cone_joint_clear_of_the_apex_takes_its_own_image() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let alpha = 0.01f64;
+        let cone = geom::Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        // From the band's escalate edge, where the incidence first decides
+        // the vertex clear of the apex and its lever is a hundredth of
+        // that, to a thousand times it, where every mark decides.
+        for d in [1.0, 5.0, 10.0, 100.0, 1000.0].map(|m| m * band.escalate()) {
+            let vertex = Point3::new(d * alpha.sin(), 0.0, d * alpha.cos());
+            assert_eq!(
+                decide("cone_row_apex", Margin::of(d), band),
+                Ok(Sign::Positive),
+                "d = {d:e}: the vertex is decided clear of the apex"
+            );
+            let got = nearest_branch(&cone, FaceKey::default(), vertex, 0.0, band);
+            assert!(
+                matches!(got, Ok(k) if k == 0.0),
+                "d = {d:e} (lever {:e}): the continuous joint is its own branch: {got:?}",
+                d * alpha.sin()
             );
         }
     }

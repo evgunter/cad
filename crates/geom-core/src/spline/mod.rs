@@ -13,7 +13,9 @@
 //! [`locate`] seam is the one bridge: per-scalar span selection,
 //! sealed, with each instantiation's semantics documented there. The
 //! derivative's coefficient factor and net, at a generic scalar, have
-//! their one home in [`derivative`]. No
+//! their one home in [`derivative`], with the quotient bound every
+//! first-order rational derivative bound reads, on the exact dyadic
+//! pieces of [`pieces`]. No
 //! topology decision exists anywhere in this module (nothing routes
 //! through `k_stats`).
 //!
@@ -54,6 +56,7 @@ pub mod knot_values;
 pub mod knots;
 pub mod locate;
 pub mod net;
+pub mod pieces;
 pub mod projective;
 pub mod range;
 
@@ -62,14 +65,17 @@ pub use blossom::{BlossomError, SpanRow, diagonal_in_span, restrict_bernstein, r
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
-pub use derivative::{derivative_net, span_derivative_scale};
+pub use derivative::{
+    CellAxis, CellBlock, CellQuotients, QUOTIENT_MAX_DEGREE, QuotientPiece, cell_quotients,
+    derivative_net, span_derivative_scale, speed_pieces, stretch_pieces,
+};
 pub use hull::{
     C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,
 };
 pub use knot_values::{KnotSpan, Knots};
 pub use knots::{
-    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
-    knot_difference,
+    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, check_weight_values,
+    derivative_knot_slice, knot_difference, weight_in_regime,
 };
 pub use locate::{SpanLocate, SpanSet, poison_from};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};

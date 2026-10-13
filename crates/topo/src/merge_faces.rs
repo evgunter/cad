@@ -1075,7 +1075,7 @@ const DECLARED_ORIENTATION: SizedDecision = SizedDecision {
     size: "span of the two faces",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The winding decision: its margin is the loop's signed area over its
@@ -1088,7 +1088,7 @@ const LOOP_WINDING: SizedDecision = SizedDecision {
     size: "area a loop encloses over its length",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 impl core::fmt::Display for MergeCoplanarError {
@@ -5392,7 +5392,13 @@ mod winding_arm_tests {
                 "{text}"
             );
             let margin = 2.0 * h / (2.0 + 2.0 * (1.0 + h * h).sqrt());
-            let want = margin / (band.escalate() / band.zero());
+            let Some(want) = band.offer_deciding(margin) else {
+                assert!(
+                    !text.contains("tighten"),
+                    "no offer quotes a tolerance at or below EPS_MIN: {text}"
+                );
+                continue;
+            };
             let offered: f64 = text
                 .split_once("tighten the tolerance below ")
                 .and_then(|(_, tail)| tail.strip_suffix(" m"))

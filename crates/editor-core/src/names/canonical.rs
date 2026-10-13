@@ -19,8 +19,9 @@
 //!   rewrite that makes two of them equal is not one-to-one, which the
 //!   collapse refuses — so a repeat is a fault to refuse, never a
 //!   duplicate to drop;
-//! - a [`RoleSeg::Seam`]'s two sides, and a [`RoleSeg::EdgeCrossing`]'s
-//!   two edges each with its sense, in a name whose seams are
+//! - a [`RoleSeg::EdgeCrossing`]'s run, each line with its sense:
+//!   sorted, in every name;
+//! - a [`RoleSeg::Seam`]'s two sides, in a name whose seams are
 //!   [`Seams::ByName`]: a union has no A and B, so its pair is put in
 //!   name order. A pair boolean's seams are [`Seams::Sided`]: `a` is
 //!   the A operand's entity, and that order is data.
@@ -58,11 +59,11 @@
 //!
 //! A crossing's [`Sense`](super::role::Sense) is read along the same
 //! edge, so the same reordering flips it ([`flip_senses`]): a
-//! `Crossing`'s along its edge, and each of an `EdgeCrossing`'s along
-//! the edge it belongs to.
+//! `Crossing`'s along its edge, and each of an `EdgeCrossing`'s edges
+//! along that edge.
 
-use super::role::{EntityKind, Qualifier, RoleSeg, StableName, name_free_seg};
-use super::seam_pair::{seam_line_pair, seam_vertex_parents};
+use super::role::{EntityKind, Qualifier, RoleSeg, RunLine, StableName, name_free_seg};
+use super::seam_pair::{VertexLines, seam_line_pair, seam_vertex_parents};
 
 /// Whether a name's own [`RoleSeg::Seam`] sides are an operand order
 /// or a name order.
@@ -91,7 +92,8 @@ impl Seams {
     /// a rewrite (the collapse publishes their rows).
     pub(crate) fn of_published(name: &StableName) -> Self {
         let union = name.path.iter().any(|seg| match seg {
-            RoleSeg::Seam { a, .. } | RoleSeg::EdgeCrossing { a, .. } => a.node == name.node,
+            RoleSeg::Seam { a, .. } => a.node == name.node,
+            RoleSeg::EdgeCrossing(run) => run.iter().any(|l| l.line.node == name.node),
             _ => false,
         });
         if union { Self::ByName } else { Self::Sided }
@@ -111,14 +113,16 @@ enum RankRule {
     /// pair came out in the other order. The edge is read the other
     /// way, and the rank from the other end: `of − 1 − rank`.
     Reverse,
-    /// A UNION's seam vertex group whose two parents are both edges.
-    /// The pair emitter ranks it along the A side's edge, so which
-    /// carrier was used depends on operand order and a union has no
-    /// canonical one. Two straight edges cross at most once, so such a
-    /// group needs curved edges, and none is known. The collapse
-    /// refuses rather than publish a rank a member reorder could
-    /// rebind.
+    /// A UNION's seam vertex group whose two parents are both edges,
+    /// which the pair emitter ranks along the A side's edge, so no
+    /// canonical line holds the rank. The collapse refuses rather than
+    /// publish a rank a member reorder could rebind.
     Refuse,
+    /// A run whose ranks the rewrite moved off the line they were
+    /// measured along: its least edge is the image of another line, or,
+    /// in a run with no edge, a seam's pair or the lines' order changed.
+    /// Where the run lies along the new least line no name says.
+    RefuseRun,
 }
 
 /// Why a rank could not be re-read against a canonical line.
@@ -126,6 +130,8 @@ enum RankRule {
 pub(crate) enum Unrankable {
     /// [`RankRule::Refuse`]'s shape carried a rank.
     SidedVertexRank,
+    /// [`RankRule::RefuseRun`]: a run's least line moved.
+    RunLeastLineMoved,
     /// A rank at or beyond its count.
     RankOutsideCount,
 }
@@ -137,6 +143,10 @@ impl Unrankable {
             Self::SidedVertexRank => {
                 "a union's seam vertex group is ranked along one of two edge parents, chosen by \
                  operand side"
+            }
+            Self::RunLeastLineMoved => {
+                "a ranked edge-crossing run's least line is another line once rewritten, so \
+                 nothing says where its vertices lie along it"
             }
             Self::RankOutsideCount => "a seam vertex group's rank lies outside its count",
         }
@@ -161,9 +171,8 @@ impl RankRule {
     /// order (module docs).
     ///
     /// A seam VERTEX group's rank lies along its edge parent
-    /// ([`seam_vertex_parents`]): the one edge parent, or, where both
-    /// are edges, the A side's in a pair boolean's name and none in a
-    /// union's. That edge is oriented by the seam line
+    /// ([`seam_vertex_parents`]): the one edge parent, or a run's least
+    /// edge ([`RankRule::along_run`]). That edge is oriented by the seam line
     /// [`seam_line_pair`] finds for it, where it lies on one — its own
     /// pair, or the pair of the seam it is a piece of, through every
     /// wrapper that carries an entity — which is the orientation the
@@ -181,7 +190,11 @@ impl RankRule {
             return Self::along(was_edge, now_edge, image);
         }
         match (was.kind, seam_vertex_parents(was), seam_vertex_parents(now)) {
-            (EntityKind::Vertex, Some((a, b)), Some((a2, b2))) => {
+            (
+                EntityKind::Vertex,
+                Some(VertexLines::Pair(a, b)),
+                Some(VertexLines::Pair(a2, b2)),
+            ) => {
                 // The edge parent in `now`: the one of kind edge, which a
                 // rewrite does not change, wherever ordering put it.
                 let edge_now = if is_edge(a2) { a2 } else { b2 };
@@ -193,9 +206,47 @@ impl RankRule {
                     (false, false, _) => Ok(Self::Keep),
                 }
             }
+            (
+                EntityKind::Vertex,
+                Some(VertexLines::Run(was_run)),
+                Some(VertexLines::Run(now_run)),
+            ) => Self::along_run(was_run, now_run, image),
+            (EntityKind::Vertex, Some(_), Some(_)) => Ok(Self::Refuse),
             (EntityKind::Vertex | EntityKind::Edge | EntityKind::Face | EntityKind::Body, ..) => {
                 Ok(Self::Keep)
             }
+        }
+    }
+
+    /// The rule for a rank along run `was`'s least edge, the run
+    /// rewritten to `now`: [`RankRule::along`] that edge, where `now`'s
+    /// least edge is its image. A run with no edge ranks along a seam in
+    /// it, so its rule is `Keep` only where the rewrite left every line
+    /// in place with its pair as it was.
+    fn along_run<'n, E>(
+        was: &'n [RunLine],
+        now: &[RunLine],
+        image: Image<'_, 'n, E>,
+    ) -> Result<Self, E> {
+        let least = |run: &[RunLine]| run.iter().position(|l| l.sense.is_some());
+        match (least(was), least(now)) {
+            (Some(w), Some(n)) => {
+                if image(&was[w].line)? != *now[n].line {
+                    return Ok(Self::RefuseRun);
+                }
+                Self::along(&was[w].line, &now[n].line, image)
+            }
+            (None, None) if was.len() == now.len() => {
+                for (w, n) in was.iter().zip(now) {
+                    if image(&w.line)? != *n.line
+                        || Self::along(&w.line, &n.line, image)? != Self::Keep
+                    {
+                        return Ok(Self::RefuseRun);
+                    }
+                }
+                Ok(Self::Keep)
+            }
+            _ => Ok(Self::RefuseRun),
         }
     }
 
@@ -228,6 +279,7 @@ impl RankRule {
                 .map(|rank| Qualifier::OrderAlong { rank, of })
                 .ok_or(Unrankable::RankOutsideCount),
             Self::Refuse => Err(Unrankable::SidedVertexRank),
+            Self::RefuseRun => Err(Unrankable::RunLeastLineMoved),
         }
     }
 }
@@ -293,25 +345,23 @@ fn flip_senses<'n, E>(
                 *sense = sense.flipped();
             }
         }
-        (
-            Some(RoleSeg::EdgeCrossing { a: wa, b: wb, .. }),
-            Some(RoleSeg::EdgeCrossing {
-                a,
-                a_sense,
-                b,
-                b_sense,
-            }),
-        ) => {
-            let (for_a, for_b) = if image(wa)? == **a {
-                (wa, wb)
-            } else {
-                (wb, wa)
-            };
-            if RankRule::along(for_a, a, image)? == RankRule::Reverse {
-                *a_sense = a_sense.flipped();
-            }
-            if RankRule::along(for_b, b, image)? == RankRule::Reverse {
-                *b_sense = b_sense.flipped();
+        (Some(RoleSeg::EdgeCrossing(was_run)), Some(RoleSeg::EdgeCrossing(run))) => {
+            for l in run.iter_mut() {
+                let Some(sense) = l.sense.as_mut() else {
+                    continue;
+                };
+                let mut was_line = None;
+                for w in was_run {
+                    if image(&w.line)? == *l.line {
+                        was_line = Some(&w.line);
+                        break;
+                    }
+                }
+                if let Some(w) = was_line
+                    && RankRule::along(w, &l.line, image)? == RankRule::Reverse
+                {
+                    *sense = sense.flipped();
+                }
             }
         }
         _ => {}
@@ -352,12 +402,16 @@ pub(crate) fn collapsed<'n, E>(
 ///
 /// A name with a rank that cannot be re-read is carried EXACTLY as the
 /// segment rewrite left it — nothing reordered, nothing re-ranked. A
-/// rewrite re-spells a reference; it is not a door. Both refusals are
-/// emission-time facts: the collapse refuses [`RankRule::Refuse`]'s
-/// shape, and no emitter mints a rank at or past its count. A name
-/// carrying either was never published, so it resolved to nothing
-/// before the rewrite and resolves to nothing after it; every other
-/// malformed name crosses a rewrite the same way.
+/// rewrite re-spells a reference; it is not a door. Two of the refusals
+/// are emission-time facts: the collapse refuses [`RankRule::Refuse`]'s
+/// shape, and no emitter mints a rank at or past its count, so a name
+/// carrying either was never published and resolves to nothing before
+/// the rewrite and after it. [`RankRule::RefuseRun`] is not: a pair
+/// boolean publishes a ranked run, and a rewrite whose map does not keep
+/// name order (a split's) can make another of its lines least. That
+/// name is carried out of order and resolves to nothing, though it
+/// resolved before
+/// (`work/emit/a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical.md`).
 ///
 /// # Errors
 ///
@@ -434,17 +488,10 @@ fn segment(seg: RoleSeg, seams: Seams) -> RoleSeg {
     match seg {
         // The name-ordered positions.
         RoleSeg::Seam { a, b } if seams == Seams::ByName && a > b => RoleSeg::Seam { a: b, b: a },
-        RoleSeg::EdgeCrossing {
-            a,
-            a_sense,
-            b,
-            b_sense,
-        } if seams == Seams::ByName && a > b => RoleSeg::EdgeCrossing {
-            a: b,
-            a_sense: b_sense,
-            b: a,
-            b_sense: a_sense,
-        },
+        RoleSeg::EdgeCrossing(mut run) => {
+            run.sort();
+            RoleSeg::EdgeCrossing(run)
+        }
         RoleSeg::Merged(set) => RoleSeg::Merged(sorted_set(set)),
         RoleSeg::BandFace(set) => RoleSeg::BandFace(sorted_set(set)),
         RoleSeg::BandCross { edge, band } => RoleSeg::BandCross {
@@ -468,7 +515,6 @@ fn segment(seg: RoleSeg, seams: Seams) -> RoleSeg {
         // Everything else carries its names, or none, in an order of
         // its own.
         RoleSeg::Seam { .. }
-        | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::Crossing { .. }
         | RoleSeg::Fragment(Qualifier::OrderAlong { .. })
         | RoleSeg::From { .. }
@@ -507,11 +553,7 @@ fn sorted_set(mut set: Vec<StableName>) -> Vec<StableName> {
 fn has_sense(name: &StableName) -> bool {
     matches!(
         name.path.first(),
-        Some(
-            RoleSeg::Crossing { .. }
-                | RoleSeg::EdgeCrossing { .. }
-                | RoleSeg::CrossingVertex { .. }
-        )
+        Some(RoleSeg::Crossing { .. } | RoleSeg::EdgeCrossing(_) | RoleSeg::CrossingVertex { .. })
     )
 }
 
@@ -738,6 +780,106 @@ mod tests {
                 seam(face(9, 1), face(9, 3)),
                 seam(face(9, 2), face(9, 3)),
             ]
+        );
+    }
+
+    fn run_line(line: StableName, sense: Option<crate::names::Sense>) -> RunLine {
+        RunLine {
+            line: NameRef::new(line),
+            sense,
+        }
+    }
+
+    #[test]
+    fn an_edge_crossing_run_is_one_form_in_every_order_each_sense_with_its_line() {
+        use crate::names::Sense;
+        let lines = [
+            run_line(edge(9, 3), Some(Sense::Leaves)),
+            run_line(edge(9, 1), Some(Sense::Outside)),
+            run_line(
+                name(EntityKind::Edge, 9, vec![seam(face(9, 1), face(9, 2))]),
+                None,
+            ),
+        ];
+        for seams in [Seams::Sided, Seams::ByName] {
+            let out = one_form(&lines, seams, |p| {
+                name(EntityKind::Vertex, 9, vec![RoleSeg::EdgeCrossing(p)])
+            });
+            let [RoleSeg::EdgeCrossing(run)] = out.path.as_slice() else {
+                panic!("one run: {out:?}")
+            };
+            assert!(run.windows(2).all(|w| w[0].line < w[1].line), "{run:?}");
+            for l in &lines {
+                assert!(run.contains(l), "{l:?} kept its sense: {run:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_runs_rank_follows_its_least_edge_and_refuses_where_another_line_becomes_least() {
+        use crate::names::Sense;
+        let (x, y) = (face(9, 1), face(9, 2));
+        // The least edge is a union seam edge, so a rewrite that puts its
+        // pair in the other order reverses the rank along it.
+        let on = |a: &StableName, b: &StableName| {
+            name(EntityKind::Edge, 9, vec![seam(a.clone(), b.clone())])
+        };
+        let ranked = |least: StableName, other: StableName| {
+            name(
+                EntityKind::Vertex,
+                9,
+                vec![
+                    RoleSeg::EdgeCrossing(vec![
+                        run_line(least, Some(Sense::Enters)),
+                        run_line(other, Some(Sense::Outside)),
+                    ]),
+                    rank(0, 3),
+                ],
+            )
+        };
+        // A joined edge: a set orders after a seam, so the seam is least.
+        let other = name(
+            EntityKind::Edge,
+            9,
+            vec![RoleSeg::Merged(vec![edge(9, 7), edge(9, 8)])],
+        );
+        let was = ranked(on(&y, &x), other.clone());
+        let out = collapsed(&was, ranked(on(&x, &y), other.clone()), &mut |n| {
+            Ok::<_, ()>(if *n == on(&y, &x) {
+                on(&x, &y)
+            } else {
+                n.clone()
+            })
+        });
+        let Ok(out) = out else { panic!("re-read") };
+        assert_eq!(
+            out.path.last(),
+            Some(&rank(2, 3)),
+            "reversed along the least edge"
+        );
+        let RoleSeg::EdgeCrossing(run) = &out.path[0] else {
+            panic!("a run: {out:?}")
+        };
+        assert_eq!(
+            run[0].sense,
+            Some(Sense::Leaves),
+            "its sense flips with its rank"
+        );
+        // A rewrite under which another line is least has no line to
+        // re-read the rank along: a member edge orders before a seam.
+        let lesser = edge(9, 0);
+        let moved = collapsed(&was, ranked(lesser.clone(), on(&x, &y)), &mut |n| {
+            Ok::<_, ()>(if *n == other {
+                lesser.clone()
+            } else if *n == on(&y, &x) {
+                on(&x, &y)
+            } else {
+                n.clone()
+            })
+        });
+        assert!(
+            matches!(moved, Err(Stop::Unrankable(Unrankable::RunLeastLineMoved))),
+            "the least edge changed"
         );
     }
 

@@ -13,7 +13,7 @@
 # Here the certified volume is a QUADRATURE enclosure (the tilted cut
 # makes curved-cut faces): midpoint ± pad, both FUNCTIONS of ambient ε,
 # pinned at the corpus's declared uncertainty ε = 1e-9. That is why the
-# midpoint differs from the analytic EXPECT value (inside the pad), and
+# midpoint may differ from the analytic EXPECT value (inside the pad), and
 # why the staleness row byte-pins the pair only at ε = 1e-9 and asserts
 # enclosure overlap at other ε.
 KERNEL_SOLIDS=1
@@ -21,8 +21,8 @@ KERNEL_SHELLS=1
 KERNEL_FACES=4
 KERNEL_EDGES=6
 KERNEL_VERTICES=4
-KERNEL_VOLUME_MM3=3926990816.791898
-KERNEL_VOLUME_PAD_MM3=1186.360263657112
+KERNEL_VOLUME_MM3=3926990816.98724
+KERNEL_VOLUME_PAD_MM3=1022.9800442296266
 EXPECT_SOLIDS=1
 EXPECT_SHELLS=1
 EXPECT_FACES=4

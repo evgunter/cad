@@ -53,6 +53,7 @@
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
+mod carrier_net;
 pub mod certify;
 pub mod conic_bend;
 pub(crate) mod descent;
@@ -66,6 +67,7 @@ pub mod extent;
 pub mod fitted_lane;
 #[cfg(test)]
 mod grid_offsets;
+pub(crate) mod harmonic;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
@@ -140,7 +142,7 @@ pub use intersect::{
     sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
-pub use locus::{TangentLocus, TangentLocusError, tangent_locus};
+pub use locus::{TangentLocus, TangentLocusError, tangent_locus, tangent_locus_of_faces};
 pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{
@@ -162,7 +164,7 @@ pub use pcurve_cache::{
     BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage,
     FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, MAX_BRANCH_PERIODS,
     NoChartSup, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck,
-    PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, UncoveredClass,
+    PcurveKind, ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WallTorus,
     chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
     chart_stretch_sup_v, whole_period_count, whole_periods,
 };

@@ -94,7 +94,7 @@ use geom_core::k_stats::{Magnitude, NonzeroSign};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
-use crate::recourse::{AtZero, SizedDecision, SizedPass, StoredDefinite};
+use crate::recourse::{NoSize, SizedDecision, SizedPass, StoredDefinite};
 
 /// Whether the folded lever arm at a point of an edge is positive: the
 /// length the wedge between the edge's faces is metered over, the
@@ -114,7 +114,7 @@ pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
     size: "length or the gap its faces open",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Contradiction,
-    at_zero: Some(AtZero::same(
+    no_size: Some(NoSize::same(
         "an edge of no length, or a face curving to a point as a cone does, leaves no angle to \
          measure",
     )),
@@ -154,7 +154,7 @@ pub const MATERIAL_PAIRING: SizedDecision = SizedDecision {
     size: "length",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The question [`MATERIAL_PAIRING`] decides, of an edge: every door that
@@ -401,9 +401,10 @@ pub(crate) fn wedge_decided<T: Decide>(
 /// from there down to its own, so the arm binds and keeps its own margin:
 /// an exactly zero wedge, and one that is only rounding on a tangent
 /// seam, whose own value would offer a tolerance many decades below the
-/// one that already decides the seam. An arm no smaller tolerance
-/// decides positive — poisoned, decided negative, or a zero on the
-/// negative side — keeps its own too: there is no tolerance to quote
+/// one that already decides the seam. An arm no smaller tolerance a run
+/// admits decides positive — poisoned, decided negative, a zero on the
+/// negative side, or one only a tolerance below `EPS_MIN` decides —
+/// keeps its own too: there is no tolerance to quote
 /// ([`LeverEscalation::re_quotes`]).
 fn at_wedge<T: Decide>(
     escalation: LeverEscalation,
@@ -1412,26 +1413,31 @@ mod tests {
         );
     }
 
-    /// **A gate's rejected Zero ends in the arm's zero note on the
-    /// undecided arm** (`SizedDecision::recourse`): a reader that routes
+    /// **A gate's rejection ends by its reading on either arm**
+    /// (`SizedDecision::recourse`): a reader that routes
     /// the arm gate's rejection as `RefusedArm::Undecided` ends it as the
-    /// Zero arm does, at a build, at rest and at the import door. A zero
-    /// with no size to tighten below, read or proved, takes the note; a
+    /// Zero arm does, at a build, at rest and at the import door. A
+    /// reading that shows no size — a read or proved zero, or an untagged
+    /// in-band margin on the refused side — takes the note at a build and
+    /// at rest; a positive rounding whose tolerance lies below `EPS_MIN`
+    /// takes the floor's sentence instead, at the import door too; a
     /// rejected zero a smaller tolerance decides passing is offered that
-    /// tolerance and no note; and neither an untagged in-band margin nor
-    /// a rejected Negative takes it.
+    /// tolerance; a rejected Negative ends in the lever alone; and at the
+    /// import door no reading takes the note.
     #[test]
-    fn a_gates_rejected_zero_ends_in_the_arms_zero_note() {
+    fn a_gates_rejection_ends_by_its_reading_on_either_arm() {
         use geom_core::sym::with_session;
-        use geom_core::{FileCoincidence, ParamSymbol, Sym, SymBudget, Theorem};
+        use geom_core::{FileCoincidence, ParamSymbol, Sym, SymBudget};
 
         use crate::recourse::{ReadAt, Reading, Refused, RefusedArm};
 
         let b = Band::new(1e-9, 1e-8).unwrap();
         let reject = |margin| decide_positive("dihedral_arm", margin, b).unwrap_err();
         let read = reject(Margin::of(0.0));
-        // `0.1·3/3 − 0.1` rounds to a positive reading in the zero band.
+        // `0.1·3/3 − 0.1` rounds to a positive reading in the zero band,
+        // 1.39e-17 m, whose `|m|/K` lies below `EPS_MIN`.
         let rounded = reject(Margin::of(0.1_f64 * 3.0 / 3.0 - 0.1));
+        let small = reject(Margin::of(5e-10));
         let budget = SymBudget {
             max_terms: 64,
             max_degree: 8,
@@ -1442,8 +1448,8 @@ mod tests {
             decide_positive("dihedral_arm", Margin::of(x * three / three - x), b).unwrap_err()
         });
         assert_eq!(
-            (proved.margin.rejected_sign(), proved.margin.theorem()),
-            (Some(Sign::Zero), Some(Theorem::SymbolicZero)),
+            (proved.margin.rejected_sign(), proved.margin.proven()),
+            (Some(Sign::Zero), true),
             "the proved zero is a gate's rejection: {proved:?}"
         );
         assert_eq!(
@@ -1470,42 +1476,46 @@ mod tests {
                         coincidence distance ε_in = 1e-8 m, so the file does not state it. ";
         let offer = format!(
             "{lever}, or, if this length or the gap its faces open is intended, tighten the \
-             tolerance below 1.3877787807814458e-18 m"
+             tolerance below 5e-11 m"
+        );
+        let floor = format!(
+            "{lever}; {}",
+            geom_core::floor_note("length or the gap its faces open")
         );
         let file = FileCoincidence::new(1e-8);
-        let rows: [(&str, &Indeterminate, [String; 3]); 5] = [
+        let rows: [(&str, &Indeterminate, [String; 3]); 6] = [
             (
                 "a read zero",
                 &read,
-                [noted.clone(), noted.clone(), format!("{unstated}{noted}")],
+                [noted.clone(), noted.clone(), format!("{unstated}{lever}")],
             ),
             (
                 "a proved zero",
                 &proved,
-                [noted.clone(), noted.clone(), format!("{unstated}{noted}")],
+                [noted.clone(), noted.clone(), format!("{unstated}{lever}")],
             ),
             (
                 "a rounded zero",
                 &rounded,
+                [floor.clone(), floor.clone(), format!("{unstated}{floor}")],
+            ),
+            (
+                "a small size",
+                &small,
                 [
                     offer.clone(),
                     offer,
                     format!(
                         "{unstated}{lever}, or, if this length or the gap its faces open is \
                          intended, re-export the file with its uncertainty declared below \
-                         1.3877787807814457e-17 m and tighten the tolerance below \
-                         1.3877787807814458e-18 m"
+                         5e-10 m and tighten the tolerance below 5e-11 m"
                     ),
                 ],
             ),
             (
-                "an untagged in-band margin",
+                "an untagged in-band margin on the refused side",
                 &in_band,
-                [
-                    lever.to_owned(),
-                    lever.to_owned(),
-                    format!("{unstated}{lever}"),
-                ],
+                [noted.clone(), noted, format!("{unstated}{lever}")],
             ),
             (
                 "a rejected Negative",
@@ -1555,6 +1565,13 @@ mod tests {
                 panic!("a point margin: {err:?}");
             };
             assert_eq!(err.rung(), LeverRung::Arm);
+            if b.offer_deciding(extent).is_none() {
+                // The arm offers no tolerance (D4 ¶4), so there is none
+                // to decide the wedge by: the arm keeps its own margin.
+                assert_eq!(err.diag().predicate, Some("dihedral_arm"), "{extent:e}");
+                assert_eq!(m, extent, "{extent:e}");
+                continue;
+            }
             assert_eq!(err.diag().predicate, Some("dihedral_arm_wedge"));
             assert!((m - theta.sin() * extent).abs() <= 1e-6 * m, "{m:e}");
         }
@@ -2191,6 +2208,59 @@ mod tests {
                 Some(Sign::Zero)
             )
         );
+    }
+
+    /// **A cone's apex at the import door ends in the door's sentence and
+    /// the lever, without the arm's zero note** — the accepted cost of
+    /// one message below ε_in: the door cannot tell an apex the file
+    /// states exactly from a rounded zero, so the note that names the
+    /// apex rides only away from the door. The apex arm reads exactly
+    /// 0.0 on the `f64` lane; both routes a reader takes end alike. Red
+    /// if the note returns at the door or leaves the at-rest ending.
+    #[test]
+    fn a_cone_apex_at_the_import_door_keeps_its_lever_and_loses_its_note() {
+        use geom_core::FileCoincidence;
+
+        use crate::recourse::{Reading, RefusedArm};
+
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: std::f64::consts::FRAC_PI_6,
+            u_ref: Vec3::unit_x(),
+        };
+        let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
+        let err = classify_dihedral(&cone, &s1, Point3::origin(), 1.0, band()).unwrap_err();
+        let diag = err.diag();
+        let geom_core::ErrorTextReading::Value(m) = diag.margin.diagnostic_f64_for_error_text()
+        else {
+            panic!("the apex arm is a point reading: {err:?}");
+        };
+        assert_eq!(
+            m.to_bits(),
+            0.0_f64.to_bits(),
+            "the apex arm reads exactly +0.0"
+        );
+        let collapsed = err.collapsed_arm().expect("the apex's arm is decided zero");
+        let note = "leaves no angle to measure";
+        let lever = "Recourse: move the geometry so that edge is clearly longer and no face \
+                     curves tightly there";
+        let file = FileCoincidence::new(1e-6);
+        for arm in [RefusedArm::Undecided(&diag), collapsed.arm()] {
+            let at_rest = DIHEDRAL_ARM.recourse(arm, Reading::AtRest);
+            assert!(
+                at_rest.starts_with(lever) && at_rest.ends_with(note),
+                "{arm:?} at rest: {at_rest}"
+            );
+            assert_eq!(
+                DIHEDRAL_ARM.recourse(arm, file),
+                format!(
+                    "This length or the gap its faces open is below the file's declared \
+                     coincidence distance ε_in = 1e-6 m, so the file does not state it. {lever}"
+                ),
+                "{arm:?} at the import door"
+            );
+        }
     }
 
     /// Two coplanar faces on one tangent plane: material sides agree

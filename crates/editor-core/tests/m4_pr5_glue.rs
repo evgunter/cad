@@ -384,11 +384,19 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
     assert!(
         matches!(
             corner.path.as_slice(),
-            [RoleSeg::EdgeCrossing { a, a_sense, b, b_sense: editor_core::Sense::Inside }]
-                if a.kind == EntityKind::Edge && b.kind == EntityKind::Edge && a_sense.crosses()
+            [RoleSeg::EdgeCrossing(run)] if matches!(
+                run.as_slice(),
+                [x, y] if x.line.kind == EntityKind::Edge
+                    && y.line.kind == EntityKind::Edge
+                    && matches!(
+                        (x.sense, y.sense),
+                        (Some(s), Some(editor_core::Sense::Inside))
+                            | (Some(editor_core::Sense::Inside), Some(s)) if s.crosses()
+                    )
+            )
         ),
-        "the floor corner is the edge crossing of two operand edges, the first \
-         slot's floor edge crossing the second's body and the second's rim \
+        "the floor corner is the edge crossing of two operand edges, one \
+         slot's floor edge crossing the other's body and the other's rim \
          inside the first's: {corner}"
     );
 }

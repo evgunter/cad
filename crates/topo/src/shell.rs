@@ -198,10 +198,7 @@
 //! The pass CLEARS the map first, so it reads none of the operand's
 //! rows; that they were sound is the operand type's promise (above),
 //! and a stale-row operand refuses where it is gated, not here
-//! (`shell9_r2_probes`). A face whose carrier class the pass cannot
-//! derive stops carrying rows rather than refusing
-//! (`UnsupportedCarrier`; not known to be reachable through this
-//! verb). The refusal is [`ShellError::Pcurve`], a kernel finding by
+//! (`shell9_r2_probes`). The refusal is [`ShellError::Pcurve`], a kernel finding by
 //! construction.
 //!
 //! # The record
@@ -3536,6 +3533,19 @@ fn chart_read<T: Decide>(
                 reference = Some(mean);
                 T::zero()
             }
+            // A whole number of periods bringing this run's mean within
+            // half a period of the first run's. The pairs `encloses` exists
+            // for are concentric by construction (its doc), so the inner's
+            // mean lies inside the outer's span and no tie arises. It is
+            // also asked of pairs not known to nest: both orders before a
+            // band seam in the rim pairing, and `pair_rings`' two orders
+            // before it refuses. There two full-period runs' means can sit
+            // half a period apart; a tie then lands the later run on
+            // whichever branch the floor rounds to, a whole period across
+            // the flat picture (moving the centroid with it), and the
+            // nesting decision reads that placement. Only
+            // `shell_rim_nesting`'s radii read the shift, numerically at
+            // `Sym`, never as an identity.
             Some(at) => tau * ((at - mean) / tau + T::from_f64(0.5)).floor(),
         };
         for (&p, u) in run.iter().zip(us) {
@@ -4344,7 +4354,8 @@ enum EdgeArc<T: Real> {
 /// half-edge. A piece holds its arc, and so the region between the arc
 /// and its chord, in a ball about the window's midpoint point, radius a
 /// bound on the carrier's speed times the window's half-width: a
-/// spiric's [`carrier_ball`], or [`spline_speed`] for a spline. A
+/// spiric's [`carrier_ball`], or the spline's
+/// [`geom::NurbsCurve3::speed_upper_bound`] for a spline. A
 /// spline also lies in its control net's ball ([`carrier_ball`]'s),
 /// which is the smaller for a strongly rational or tightly knotted net,
 /// so a spline piece is read in the smaller of the two. A piece splits
@@ -4414,41 +4425,6 @@ impl<T: Decide> ArcPiece<T> {
         };
         (half((t0, mid)), self.carrier.eval(mid), half((mid, t1)))
     }
-}
-
-/// **A bound on a spline's speed**, metres per unit of its parameter.
-/// About a control point `c`, the curve is `A/w` with
-/// `A = Σ Nᵢ wᵢ (Pᵢ − c)`, so `C′ = (A′ − (C − c) w′)/w`. A spline's
-/// derivative is a convex combination of its derivative coefficients
-/// `p·(Xᵢ₊₁ − Xᵢ)/(uᵢ₊ₚ₊₁ − uᵢ₊₁)`, so `|A′|` and `|w′|` are at most
-/// their largest; positive weights put the curve in its control hull,
-/// so `|C − c|` is at most the farthest control point's distance `d`;
-/// and `w` is at least the least weight. Hence
-/// `|C′| ≤ (max |A′ coefficient| + d · max |w′ coefficient|) / min w`.
-/// A coefficient over an empty knot span is skipped: its basis
-/// function's derivative is zero. The skip reads the knots' structure;
-/// every factor is formed in the scalar over the held knots and
-/// weights.
-fn spline_speed<T: Real>(spline: &geom::NurbsCurve3<T>) -> T {
-    let (control, weights) = (spline.control(), spline.weights());
-    let held = spline.knot_values();
-    let (knots, values, p) = (held.structure().knots(), held.values(), spline.degree());
-    let c = control[0];
-    let reach = control
-        .iter()
-        .fold(T::zero(), |r, q| r.max((*q - c).norm()));
-    let least = weights[1..].iter().fold(weights[0], |m, w| m.min(*w));
-    let (mut point_rate, mut weight_rate) = (T::zero(), T::zero());
-    for i in 0..control.len().saturating_sub(1) {
-        if knots[i + p + 1] - knots[i + 1] == 0.0 {
-            continue;
-        }
-        let k = geom_core::spline::span_derivative_scale(p, values[i + 1], values[i + p + 1]);
-        let step = (control[i + 1] - c) * weights[i + 1] - (control[i] - c) * weights[i];
-        point_rate = point_rate.max(step.norm() * k);
-        weight_rate = weight_rate.max((weights[i + 1] - weights[i]).abs() * k);
-    }
-    (point_rate + reach * weight_rate) / least
 }
 
 impl<T: Decide> MovedWall<T> {
@@ -4743,7 +4719,7 @@ fn moved_walls<T: Decide>(
                             )),
                             geom::Curve3::Nurbs(ref spline) => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                spline_speed(spline),
+                                spline.speed_upper_bound().get(),
                                 crate::splitting::containment::carrier_ball(
                                     curve.carrier(),
                                     (t0, t1),
@@ -5267,7 +5243,7 @@ mod tests {
                     curve: EdgeArc::Arc(ArcPiece::along(
                         carrier,
                         match carrier {
-                            geom::Curve3::Nurbs(spline) => spline_speed(spline),
+                            geom::Curve3::Nurbs(spline) => spline.speed_upper_bound().get(),
                             geom::Curve3::Spiric {
                                 major_radius,
                                 minor_radius,
@@ -5337,7 +5313,7 @@ mod tests {
             vec![1.0, 4.0, 0.57],
         )
         .unwrap();
-        let bound = spline_speed(&spline);
+        let bound = spline.speed_upper_bound().get();
         let fastest = (0..=20_000)
             .map(|k| spline.deriv(k as f64 / 20_000.0).norm())
             .fold(0.0_f64, f64::max);
@@ -5358,7 +5334,7 @@ mod tests {
         let geom::Curve3::Nurbs(spline) = &carrier else {
             unreachable!("built a spline")
         };
-        let speed = spline_speed(spline);
+        let speed = spline.speed_upper_bound().get();
         let hull = crate::splitting::containment::carrier_ball(&carrier, (0.0, 1.0));
         let piece = ArcPiece::along(&carrier, speed, hull, (0.0, 1.0), true);
         let (centre, radius) = piece.ball();
@@ -5795,7 +5771,7 @@ mod tests {
             )
             .unwrap();
             let c = geom::NurbsCurve3::new(knots, control(1.0), vec![S::one(); 5]).unwrap();
-            vec![spline_speed(&c)]
+            vec![c.speed_upper_bound().get()]
         });
         assert_eq!(
             knot,
@@ -5819,7 +5795,7 @@ mod tests {
                 vec![one, one, w, one, one],
             )
             .unwrap();
-            vec![spline_speed(&c)]
+            vec![c.speed_upper_bound().get()]
         });
         assert_eq!(
             weight,

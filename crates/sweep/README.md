@@ -35,6 +35,7 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 | Assembly front doors, `Blended` result type, octant charts | `crates/sweep/src/blend/build.rs` |
 | In-place composition surgery: the door, the plans, the ring check, the description pass, the one `kef` door; the closed-rim walks (ladder rims, annulus rims across seams) | `crates/sweep/src/blend/surgery.rs` |
 | Predicate 2's reach: every band against every face of the body that is not a support of its chain, in any shell, before any mutation | `crates/sweep/src/blend/reach.rs` |
+| The carve that takes a feature wholly inside a convex ruled band's material: the grouping into features, and the walk that removes one | `crates/sweep/src/blend/consume.rs` |
 | The open bands: the plane–plane band with its trihedral corners, the ruled band with its transverse cut-off | `crates/sweep/src/blend/open/planar.rs`, `crates/sweep/src/blend/open/ruled.rs` |
 | Birth records (`BlendNaming`) the document layer turns into names | `crates/sweep/src/blend/naming.rs` |
 
@@ -47,9 +48,12 @@ a support of the chain, in any shell, and reads each face as clear of
 it, wholly inside it, or crossing it. A feature wholly inside the reach
 goes with that material, as a feature wholly inside a Boolean's tool goes
 with the tool: the carve that consumes it takes its faces, edges and
-rings and logs the verdict, so that a later reader of one of its names
-resolves `Vanished` with the blend's verdict as the cause. Neither that
-carve nor the log is built yet, so today such a request refuses
+rings, and the verdict is logged in the blend node's verdict log (under
+`fillet3_face_clearance` and `fillet3_ring_clearance`), so that a later
+reader of one of its names resolves `Vanished` with the blend's verdict
+as the cause (`PredicateFlip`). The carve is built at a convex ruled
+band's cut-off (below); a request that reads inside anywhere else — the
+planar band, a concave fill, the chamfer — refuses
 `BlendError::WhollyInside`. A face crossing the
 reach would need the band trimmed by it, which the surgery has no step
 for, and refuses. The supports' own
@@ -67,9 +71,27 @@ whatever order they are read: a crossing anywhere refuses as a crossing,
 then a bound refuses `BlendError::FaceClearance` (or the end-face
 meter's `RingClearance`) with `bounded: true`, and only a request whose
 every face and end-face cycle not clear is read wholly inside refuses
-`WhollyInside`. A face that touches the region's boundary is never
-read inside, so a through-feature's wall, which meets the window's end
-plane, reads as a bound today, whatever its rings read at the cap.
+`WhollyInside` (a tie on the margin names the least entity, so the
+refusal is the same in every read order). The cell walk never reads
+inside a face that touches the region's boundary, so on an exact core a
+through-feature's wall, which meets the window's end plane, reads as a
+bound whatever its rings read at the cap. A convex ruled band's reach
+reads such a wall through its caps instead: a face on a surface ruled
+near the spine (a cylinder's axis, a plane's direction nearest it),
+every edge of which is an edge of a cap cycle read inside the sliver or
+a line between two of their vertices, lies inside the prism the band
+removes when the cycles' least depth, projected along the spine,
+exceeds how far the face's rulings and lines stray from the spine over
+its extent (`reach::prism_inside`). The prism's slice in a cap's plane
+is the sliver the cap meter reads, so the two readings agree on what
+dies by construction. A request whose verdict is then inside groups the
+faces read inside into features, joined by the edges they share, and
+the carve takes each whole or refuses `WhollyInside`
+(`blend/consume.rs`). What it takes is a through-feature between the
+band's two caps: an annulus of faces, each bounded by one cycle, whose
+edges join each other or one cycle read inside on each cap. A blind
+feature, whose floor is neither, refuses as a bound. The faces, edges
+and vertices it takes are recorded as retired (`BlendNaming::dead`).
 
 Each reach is an intersection of 1-Lipschitz bounds: per link, the
 cross-section between the supports, the sector the ball's arc subtends
@@ -95,7 +117,7 @@ the other chain is metered by what survives that chain's band, the other
 band's new surface is metered as a face (but a concave band's surface
 against a convex band's reach, whose removed material the concave region
 overlapped), and two chains that meet at a vertex are left to the corner
-predicate, or at a turn to the isosceles verdict and the mitre, where the
+predicate, or at a turn to the turn's verdict and the mitre, where the
 bands meet by construction.
 
 Consumers: an island standing in a filleted cavity, on one shell and as
@@ -305,11 +327,12 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   chamfer: its chord is the gap times a ratio the corner fixes, at least
   sin φ of the near band's face angle but unbounded as the turn flattens
   toward a T, where a gap in band can carry a definite chord. Both Zero
-  builds the mitre on L; both definite builds the overrun on the side
-  the sign picks; anything else escalates, with a recourse that makes
-  the feet meet (equal, or for a chamfer supplementary, face angles),
-  moves them clearly apart (a larger setback, a more asymmetric corner),
-  or requests L too for the patch. A Zero verdict is a coincidence
+  builds the mitre on L; both definite builds a chamfer's overrun on the
+  side the sign picks, and refuses a fillet's (`TURN_OVERRUN`, naming
+  the far band); anything else escalates, with a recourse that makes the
+  feet meet (equal, or for a chamfer supplementary, face angles), for a
+  chamfer moves them clearly apart (a larger setback, a more asymmetric
+  corner), or requests L too for the patch. A Zero verdict is a coincidence
   decided from values, the two feet being one point, so the verdict
   records it (`BatteryVerdict::coincidences`, D10), and
   `Blended::coincidences` carries the rows to the document's coincidence
@@ -325,7 +348,11 @@ link. The planar band carves locally, as the ruled band does: the end
 face's rim edges split at the feet, the end curve `mef`'d across it, one
 trimline per support; at a turn, L split at its foot, a strut out to the
 trimlines' crossing on the shared face, and the mitre `mef`'d across one
-band, the triangle it cuts off folded into the other.
+band, the triangle it cuts off folded into the other. At an overrun L is
+split at the far band's foot, the far band's cut-off `mev`'d from there
+out to the mitre's end on the near band's face, and the mitre `mef`'d
+across the near band, the quadrilateral it cuts off (the triangle and
+the overrun) folded into the far one.
 
 The battery's other Zero verdicts are coincidences decided from values
 too, and record the same way: a junction chain G1 reads tangent is a
@@ -342,9 +369,13 @@ rather than on a rim edge (a band running into a wall or a step, and the
 inner corner of an L-shaped rim, where the shared face's sector is
 reflex); two cut-offs at the two ends of one rim whose feet on it cross
 or coincide, metered before any mutation by `fillet3_cut_off_feet`
-(feet apart only within the band escalate); an overrun's far foot past
-L's far end, or inside a face, as for any cut-off; an end vertex
-of valence other than three. A vertex whose three edges do not round
+(feet apart only within the band escalate); a fillet's overrun at a
+turn; an overrun's far foot past L's far end, as for any cut-off; an
+overrun whose near requested edge ends before band `k`'s trimline on the
+shared face reaches it, the other foot of `k`'s sliver landing inside a
+face (a short near edge at an obtuse shared-face angle, which refuses
+where the overrun itself fits); an end vertex of valence other than
+three. A vertex whose three edges do not round
 one way refuses `UnsupportedCorner { MixedConvexity }` whatever the
 request names there: an edge cut off where its unrequested edges round
 the other way, a turn whose two edges round opposite ways, or one whose
@@ -357,15 +388,14 @@ A turn adds two roles, keyed by the vertex the bands end at — a
 trivalent vertex has at most one turn, and the request fixes its edges:
 `Mitre { vertex }` for the edge where the bands meet, and
 `TurnFoot { vertex }` for the point where L ends, one name whether the
-trihedron is isosceles or not. In the non-isosceles case the extra
-curve is that band's `EndArc` and its end `FootVertex`; both resolve
+feet coincide or not. Where they stand apart the extra curve is that
+band's `EndArc` and its end `FootVertex`; both resolve
 `Vanished` when the feet coincide, and an edit that carries the corner
 across a coincidence moves them to the other band. Where the feet
 coincide the turn foot has four edges, so blending L in a later call
 refuses. At an overrun the turn foot is trivalent and L's later band
-ends in band `k`'s face: after a fillet that face is curved and refuses
-as one; after a chamfer it builds only where L's foot lands on the
-overrun edge, which takes a much smaller second setback. Every such
+ends in band `k`'s face, a plane: it builds only where L's foot lands on
+the overrun edge, which takes a much smaller second setback. Every such
 refusal's recourse is to request L in the same call, which builds the
 patch.
 
@@ -404,10 +434,10 @@ the band's tangent contact with a curved support, the arcs as its
 transverse intersection with the cap, on either material side. On
 either side the cap loses the sliver between the arc and the old
 vertex, cut away on the convex side and covered by the fill on the
-concave side; a feature of the cap wholly inside the sliver goes with
-it, as predicate 2 reads any feature wholly inside a band's reach (a
-carve not built yet: today it refuses, above), and
-every other edge of the cap stays where it
+concave side; on the convex side a through-feature between the two
+caps, wholly inside the material the band removes, goes with it, its
+cycles leaving the caps and its faces the body (predicate 2, above; a
+blind bore refuses), and every other edge of the cap stays where it
 was — the edges of its other cycles (a bore's ring, or the outer cycle
 where the cut runs in a ring) and those of the cut cycle other than
 the two rims it shortens (a notch in the outline). Each is metered
@@ -437,7 +467,14 @@ outside, its rims running on past the feet). A cycle other than the cut
 one that misses the arc and has a point inside lies wholly inside, as
 predicate 2's verdict reads it; anything else, and every chord end, is
 a bound, `RingClearance` with `bounded: true`
-(`crates/sweep/tests/band_ruled_cap_ring.rs`). A
+(`crates/sweep/tests/band_ruled_cap_ring.rs`). A bore wholly inside the
+D-rod's sliver, or a keyhole crease's, goes with it at
+`ΔV = −2·A·L + π·a²·L`
+(`band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_the_closed_form`,
+`review_band_ruled_ring_probes::a_bore_in_a_keyhole_creases_removed_sliver_goes_with_it_at_the_closed_form`),
+and its wall's name, carried by the fillet before a radius edit that
+puts it inside, resolves `Vanished` on the face-clearance flip after
+(`editor-core` `edit_ruled_carve`). A
 curved end face refuses typed.
 Consumer: the rod with a flat milled along it (`cylinder ∖ box`), both
 creases in one call, at the prism closed form `ΔV = A_section · L`
