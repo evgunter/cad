@@ -749,7 +749,7 @@ the section is empty when the two counts above meet at 250.
 | `geom-brep/edge_nurbs.rs` | `plane_nurbs_transversality` |
 | `geom-brep/pcurve_cache.rs` | `pcurve_chart_polar_affine`, `pcurve_chart_polar_winding` (the polar twins of the azimuth pair one row up) |
 | `geom-brep/props/curved.rs` | `props_band_coplanar` (retired since, with the sphere's iso flux arm: the name reaches no funnel site) |
-| `topo/pcurves.rs` | `pcurve_chart_u_closed`, `pcurve_iso_arc_direction`, `pcurve_iso_seam_column` |
+| `topo/pcurves.rs` | `pcurve_chart_u_closed`, `pcurve_iso_arc_direction`, `pcurve_iso_seam_column` (the last two now decide at `probe_pick`, the site of the `pcurve_iso_line_rim` row above, on the same comparand; that row covers `pcurve_iso_line_rim` alone, and these two still want their own) |
 | `topo/census.rs` | `pm_census_bound_end`, `pm_census_bound_vertex` |
 | `topo/boolean/carrier_eq.rs` | `carrier_sphere_center`, `carrier_sphere_radius`, `carrier_cyl_axis_parallel`, `carrier_cyl_axis_offset`, `carrier_cyl_radius` (a `[(&'static str, Margin<T>)]` table — carried, so no literal at the funnel site) |
 | `topo/boolean/contact_verify.rs` | `contact_tangent_on_1`, `contact_tangent_on_2`, `contact_tangent_off_1`, `contact_tangent_off_2`, `contact_tangent_opposed`, `contact_tangent_parallel`, `contact_tangent_second_order` |

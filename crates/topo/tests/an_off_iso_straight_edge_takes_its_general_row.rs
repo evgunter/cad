@@ -108,10 +108,12 @@ enum Kind {
 }
 
 fn kind<T: AtRestPolicy + geom_core::Bounds>(image: &Pcurve<T>) -> Kind {
-    let mid = |x: T| x.lo();
+    // Every value read here is exact at each scalar, so its lower
+    // endpoint is the value.
+    let lo = |x: T| x.lo();
     match image {
-        Pcurve::IsoLine { p0, pl } if mid(pl.y) == 0.0 => Kind::Row(mid(p0.y)),
-        Pcurve::IsoLine { p0, pl } if mid(pl.x) == 0.0 => Kind::Column(mid(p0.x)),
+        Pcurve::IsoLine { p0, pl } if lo(pl.y) == 0.0 => Kind::Row(lo(p0.y)),
+        Pcurve::IsoLine { p0, pl } if lo(pl.x) == 0.0 => Kind::Column(lo(p0.x)),
         Pcurve::General(_) => Kind::General,
         other => panic!("not an image the schedule derives here: {other:?}"),
     }
@@ -225,4 +227,107 @@ fn an_escalated_candidate_outranks_the_general_image() {
         matches!(got, Err(PcurveMintError::Escalated { .. })),
         "a row in the band escalates rather than deriving its General image: {got:?}"
     );
+}
+
+/// **An Intersection seam on an interior column takes its exact
+/// column.** The bored block with two square holes, its top cap
+/// re-charted onto the bilinear patch `(u, v) ↦ (3u, 2v, 2)`, every
+/// edge described as the intersection of its two faces' surfaces. Each
+/// hole's four rim edges are straight (`Line` carriers) and lie on the
+/// chart's INTERIOR rows and columns, which no closed-form candidate
+/// reaches: the carrier's end feet measure them. A rim along `y` is an
+/// interior column, and derives the exact `IsoLine` at its `u` (where
+/// it took `General` before the measured columns were offered to a
+/// line); a rim along `x` is an interior row. Each image certifies.
+#[test]
+fn an_intersection_seam_on_an_interior_column_takes_its_exact_column() {
+    let tol = Tol::witness();
+    let centres = [0.75, 2.25];
+    let mut body = topo::test_support::holed_block::<f64>(3.0, &centres, tol);
+    topo::test_support::describe_as_intersections(&mut body, tol);
+    let top = body
+        .faces()
+        .find(|(_, f)| {
+            !f.rings.is_empty()
+                && matches!(
+                    body.get_surface(f.surface),
+                    Some(Surface::Plane { normal, .. }) if normal.z > 0.5
+                )
+        })
+        .map(|(k, _)| k)
+        .expect("the top cap holds the holes");
+    let unit = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let patch = NurbsSurface::new(
+        unit(),
+        unit(),
+        vec![
+            Point3::new(0.0, 0.0, 2.0),
+            Point3::new(0.0, 2.0, 2.0),
+            Point3::new(3.0, 0.0, 2.0),
+            Point3::new(3.0, 2.0, 2.0),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    // Lifts RechartStrandsDescriptions: the cap on a chart wider than
+    // its holes is the row's premise.
+    body.set_face_surface_unvouched_for_tests(
+        top,
+        FaceSurface::New {
+            surface: Surface::Nurbs(Arc::new(patch)),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let wall = body
+        .get_surface(body.get_face(top).unwrap().surface)
+        .unwrap()
+        .clone();
+    let rings = body.get_face(top).unwrap().rings.clone();
+    let rims: Vec<HalfEdgeKey> = body
+        .half_edges()
+        .filter(|(_, he)| rings.contains(&he.parent_loop))
+        .map(|(k, _)| k)
+        .collect();
+    // A hole of side 1 about `x = c` spans `u ∈ [(c − ½)/3, (c + ½)/3]`.
+    let columns: Vec<f64> = centres
+        .iter()
+        .flat_map(|c| [(c - 0.5) / 3.0, (c + 0.5) / 3.0])
+        .collect();
+    let (mut on_columns, mut on_rows) = (Vec::new(), 0);
+    for h in rims {
+        // The derivation, not a stored row: `pcurve_of` answers a
+        // cached image first.
+        let mut b = body.clone();
+        b.detach_pcurve(h);
+        let image = topo::pcurve_of(&b, h, band()).unwrap();
+        match kind(&image) {
+            Kind::Column(u) => on_columns.push(u),
+            Kind::Row(v) => {
+                assert!([0.25, 0.75].contains(&v), "{h:?}: a rim row at v = {v}");
+                on_rows += 1;
+            }
+            Kind::General => panic!("{h:?}: a straight rim on an interior iso takes General"),
+        }
+        let curve = b
+            .get_curve_geom(b.get_edge(b.get_half_edge(h).unwrap().edge).unwrap().curve)
+            .and_then(topo::CurveGeom::certified)
+            .unwrap();
+        let (t0, t1) = curve.params();
+        geom_brep::PcurveCache::certify(image, t0, t1, curve.carrier(), &wall, band())
+            .unwrap_or_else(|e| panic!("{h:?}: the exact image certifies: {e:?}"));
+    }
+    on_columns.sort_by(f64::total_cmp);
+    assert_eq!(on_rows, 4, "each hole's two rims along x are rows");
+    assert_eq!(
+        on_columns.len(),
+        4,
+        "each hole's two rims along y are columns"
+    );
+    for (got, want) in on_columns.iter().zip(&columns) {
+        assert!(
+            (got - want).abs() <= 1e-12,
+            "the column the feet measure: {got} against {want}"
+        );
+    }
 }

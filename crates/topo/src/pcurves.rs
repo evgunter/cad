@@ -1137,10 +1137,11 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 ///   columns and rows and their two directions, each judged a quarter
 ///   span in ([`probe_pick`]), definite or escalated; then over the
 ///   row, and for a line the column, whose moving map the carrier's
-///   end feet measure (a sub-edge, a cap rim an offset moved). An
-///   Intersection circle is offered to the arc rim. Any other locus or
-///   carrier — an INTERIOR column is the executed case (#498), an
-///   off-iso straight edge another — takes U2's `General`
+///   end feet measure (a sub-edge, a cap rim an offset moved, and for
+///   a line an interior column). An Intersection circle is offered to
+///   the arc rim. Any other locus or carrier — a SPLINE on an interior
+///   column is the executed case (#498), an off-iso straight edge
+///   another — takes U2's `General`
 ///   curve-in-UV arm at the honest Fitted grade, derived from the
 ///   wall's own foot schedule at degree 1: it certifies where the foot
 ///   path is straight to ε and refuses at the hull
@@ -1349,11 +1350,16 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // quantity reaches ε (D4 ¶1).
         //
         // A measured ROW is offered to every carrier the row space
-        // admits in its direction. A measured COLUMN only to a line: a
-        // spline's seam class compares the image against the chart's
-        // own boundary net, and a partial column is not a control-net
-        // copy of it, so the certifier would have to refuse it
-        // structurally. A line's class reads no net.
+        // admits in its direction. A measured COLUMN only to a line,
+        // and the `filter` below is that decision: a spline's seam
+        // class compares the image against the chart's own boundary
+        // net over ONE spline space, and a partial or interior column
+        // is not a control-net copy of it and cannot be made one. So
+        // the certifier would refuse it structurally, and the mint
+        // would fail with text about a boundary for a locus that is
+        // not one — the defect the wall–wall seam arm was once
+        // reverted for. A spline's interior column takes `General`
+        // below (#498). A line's class reads no net.
         if deferred.is_none()
             && (row_space.forward || row_space.backward)
             && let (Some(f0), Some(f1)) = (
@@ -1403,10 +1409,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             }
         }
         // ---- Nothing exact holds. Store the image as it is. ----
-        // A `General` curve in UV at the honest Fitted grade (U2): an
-        // INTERIOR column has no boundary-row closed form and never
-        // will, and a DIAGONAL locus — an off-iso straight edge among
-        // them — has none either. Its image is the chart image the edge
+        // A `General` curve in UV at the honest Fitted grade (U2): a
+        // SPLINE on an interior column has no exact class (the measured
+        // column above is a line's alone), and a DIAGONAL locus — an
+        // off-iso straight edge among them — has none either. Its image is the chart image the edge
         // certificate itself derives (`edge_nurbs::chart_image`, at
         // `PXN_IMAGE_DEGREE`), so it certifies wherever the foot path
         // is straight to ε. A closed-form carrier reaches here only

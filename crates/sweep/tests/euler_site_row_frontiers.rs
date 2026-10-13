@@ -438,7 +438,11 @@ fn a_kill_re_describing_a_certified_member_leaves_its_spline_wall_as_found() {
             if !on_spline(&body, h) {
                 continue;
             }
-            let derived = topo::pcurve_of(&body, h, band());
+            // The derivation, not the row the kill left stored:
+            // `pcurve_of` answers a cached image first.
+            let mut fresh = body.clone();
+            fresh.detach_pcurve(h);
+            let derived = topo::pcurve_of(&fresh, h, band());
             let Ok(Pcurve::IsoLine { pl, .. }) = derived else {
                 panic!("{edge:?}: the member's wall image is an iso line: {derived:?}")
             };
