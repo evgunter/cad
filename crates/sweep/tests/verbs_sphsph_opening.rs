@@ -32,7 +32,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
+use geom_core::{Point2, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
@@ -61,7 +61,12 @@ fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> AtRestBody<f64> {
         dir: Vec2::new(0.0, 1.0),
     };
     let ball = revolve(&vp, axis, Revolution::Full, tol).unwrap().body;
-    let ball = topo::transform_rigid(&ball, &Affine3::translation(centre), tol).unwrap();
+    let ball = topo::transform_rigid(
+        &ball,
+        &geom_core::RigidMotion::translation(centre).unwrap(),
+        tol,
+    )
+    .unwrap();
     finished("the ball", ball, tol)
 }
 
@@ -76,8 +81,9 @@ fn ball_at_tol(r: f64, centre: Vec3<f64>, tol: Tol) -> AtRestBody<f64> {
 ///   tolerance decides it negative, and the pair meets);
 /// - a zero-band depth short of tangency is a decided zero, refused as
 ///   the pair meeting with the tolerance its margin gives (the lever
-///   alone where that lies at or below `EPS_MIN`, D4 ¶4), and a clear
-///   depth past it is the boundaries crossing, which builds.
+///   and the floor's sentence where that lies at or below `EPS_MIN`,
+///   D4 ¶4), and a clear depth past it is the boundaries crossing,
+///   which builds.
 #[test]
 fn a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it() {
     let tol = Tol::witness();
@@ -131,9 +137,16 @@ fn a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it() {
         .diagnostic_f64_for_error_text()
         .value()
         .unwrap();
-    let ending = band
-        .offer_deciding(m)
-        .map_or_else(|| LEVER.to_owned(), |_| offer(m));
+    let ending = geom_core::MarginDiag::value(m).sized_recourse(
+        band,
+        geom_core::SizedWords {
+            lever: LEVER.trim_start_matches("Recourse: "),
+            size: "clearance",
+            passes: geom_core::SizedPass::Positive,
+            no_size: None,
+            unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+        },
+    );
     assert!(err.to_string().ends_with(&ending), "{err}");
     assert_sound_and_meshed(
         "crossing boundaries build",

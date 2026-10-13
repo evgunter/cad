@@ -324,6 +324,13 @@ pub struct BooleanNaming {
     /// copies are one place on the operand, and an operand edge ending at
     /// one ends at all of them. A path that never classifies has none.
     pub null_copies: Vec<(super::Operand, VertexKey, VertexKey)>,
+    /// The zip's splits of a pinch per cone (`zip::split_cones`),
+    /// `(split, new)` in the order made, in result keys before the zip's
+    /// fusions: `new` is a copy of `split` on its point, holding one cone
+    /// of the result's boundary there, so it is the operand vertex
+    /// `split` is ([`Settler::settle_cones`]). A path that never zips has
+    /// none.
+    pub cone_splits: Vec<(VertexKey, VertexKey)>,
     /// The output stage's joins in the order made, result keys: each
     /// row's vertex and `gone` edge are dead, and its `kept` edge holds
     /// their interiors (maximal edges, `docs/DESIGN.md`'s merge stage).
@@ -356,6 +363,7 @@ impl BooleanNaming {
         Settler {
             body,
             fusions: &self.vertex_merges,
+            splits: &self.cone_splits,
             rows: &self.substitutions,
         }
     }
@@ -404,6 +412,9 @@ impl BooleanNaming {
 pub struct Settler<'a, T: Real> {
     body: &'a Body<T>,
     fusions: &'a Fusions,
+    /// The zip's splits per cone, `(split, new)`
+    /// ([`BooleanNaming::cone_splits`]).
+    splits: &'a [(VertexKey, VertexKey)],
     /// The output stage's substitutions: the merge's, then the join's.
     rows: &'a crate::lineage::Substitutions,
 }
@@ -427,6 +438,31 @@ impl<T: Real> Settler<'_, T> {
         self.rows
             .chase(start, |c| holds(self.body, c))
             .map_err(|reached| SettleError::Dead { vertex, reached })
+    }
+
+    /// The live cells `vertex`'s point lies in, one per cone of the
+    /// result's boundary there: `vertex` and each copy the zip's splits
+    /// per cone made of it, through splits of those copies, each
+    /// settled ([`Self::settle`]), `vertex`'s first. A vertex no split
+    /// touched settles on one cell. An edge that ended at `vertex`
+    /// before the split ends at one of these after it.
+    ///
+    /// # Errors
+    ///
+    /// [`SettleError`], as [`Self::settle`].
+    pub fn settle_cones(&self, vertex: VertexKey) -> Result<Vec<Cell>, SettleError> {
+        let mut copies = vec![vertex];
+        let mut i = 0;
+        while let Some(&at) = copies.get(i) {
+            copies.extend(
+                self.splits
+                    .iter()
+                    .filter(|&&(split, _)| split == at)
+                    .map(|&(_, new)| new),
+            );
+            i += 1;
+        }
+        copies.into_iter().map(|v| self.settle(v)).collect()
     }
 }
 
@@ -747,6 +783,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         body.movefac(shell)?;
     }
     let vertex_merges = desc.vertex_merges();
+    let cone_splits = cones.splits().to_vec();
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let (merged, edge_joins) = finish_output(
         &mut body,
@@ -807,6 +844,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         covered,
         edge_classes,
         null_copies,
+        cone_splits,
         edge_joins,
     };
     Ok(BooleanResult::Body(BooleanBody {
@@ -5963,6 +6001,11 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
             };
             let q = r.center - Point3::origin();
             let map = geom_core::Affine3::from_parts(linear, q - linear * q);
+            // Built from bare unit-by-convention directions, so its
+            // rigidity is decided at the door rather than carried
+            // (`work/cleave/the-sphere-re-cut-rotation-is-decided-at-the-door-not-minted`).
+            let map = geom_core::RigidMotion::check_rigid(&map, band)
+                .map_err(|_| corrupt("re-cut rotation is not decided rigid"))?;
             let turned = crate::transform::transform_rigid(&ball, &map, tol)
                 .map_err(|_| corrupt("re-cut rotation failed to re-certify"))?;
             rotated.push(turned);
