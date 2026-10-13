@@ -1540,10 +1540,12 @@ otherwise it refuses. It glues what its verdicts decide Zero where an
 arm exists for the carrier pair (D1's frontier), keeping one fixed
 operand's description for a merged face, and refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
-whose one census number lies in band, and no in-band shell, a shell of
-a solid of several shells whose role is certified in band; a solid's
-only shell is its outer shell and poses no role question, and how thin
-a result is gets judged by its pairs alone. The door's
+whose one census number lies in band. A solid's only shell is its outer
+shell and poses no role question; a shell's role among several is read
+off a ray aimed from outside the shell at one of its faces, and off the
+certified sign of its volume only where none of its faces offers an
+aim. A ray's reading lies in band only where a pair does, so how thin a
+result is gets judged by its pairs alone. The door's
 finished-body gate decides this on the result alone and refuses it as
 the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
 the geometry), never silently; a definite finding there is a kernel
