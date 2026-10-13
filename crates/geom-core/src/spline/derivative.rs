@@ -794,23 +794,17 @@ impl<T: Real> Homogeneous<T> {
     fn second_raised(&self) -> Option<SecondRaised<T>> {
         let g = self.second.as_ref()?;
         let (a, w) = (&self.a, &self.w);
-        // `−X·W·Y` for a vector grid `X` and scalar grid `Y`.
-        let xwy =
-            |x: &Grid<T, 3>, y: &Grid<T, 1>| product(x, &product(w, y, weight_times)?, by_weight);
-        // `A·Y·Z` for scalar grids `Y`, `Z`.
-        let ayz =
-            |y: &Grid<T, 1>, z: &Grid<T, 1>| product(a, &product(y, z, weight_times)?, by_weight);
         let diagonal = |d: &Grid<T, 3>, dw: &Grid<T, 1>, xy: Option<&(Grid<T, 3>, Grid<T, 1>)>| {
-            let cross = ayz(dw, dw)?.minus(&xwy(d, dw)?)?.times(2.0)?;
+            let cross = doubled_cross(a, w, d, dw)?;
             let (m, w3) = second_numerator(a, w, xy.map(|(x, y)| (x, y)), cross)?;
             Raised::of(&m, w3)
         };
         let uu = diagonal(&self.au, &self.wu, g.uu.as_ref())?;
         let vv = diagonal(&self.av, &self.wv, g.vv.as_ref())?;
-        let cross = ayz(&self.wu, &self.wv)?
+        let cross = a_yz(a, &self.wu, &self.wv)?
             .times(2.0)?
-            .minus(&xwy(&self.au, &self.wv)?)?
-            .minus(&xwy(&self.av, &self.wu)?)?;
+            .minus(&x_wy(&self.au, w, &self.wv)?)?
+            .minus(&x_wy(&self.av, w, &self.wu)?)?;
         let (m, w3) = second_numerator(a, w, Some((&g.uv.0, &g.uv.1)), cross)?;
         let uv = Raised::of(&m, w3)?;
         Some(SecondRaised { uu, uv, vv })
@@ -825,20 +819,14 @@ impl<T: Real> Homogeneous<T> {
     /// [`Self::quotients`] before it is cut.
     fn first_raised(&self, area: bool) -> Option<FirstRaised<T>> {
         let first = |d: &Grid<T, 3>, dw: &Grid<T, 1>| -> Option<Grid<T, 3>> {
-            product(d, &self.w, |x, w| (Vector(x) * w[0]).0)?.minus(&product(
-                &self.a,
-                dw,
-                |x, w| (Vector(x) * w[0]).0,
-            )?)
+            product(d, &self.w, by_weight)?.minus(&product(&self.a, dw, by_weight)?)
         };
-        let w2 = product(&self.w, &self.w, |x, y| [x[0] * y[0]])?;
+        let w2 = product(&self.w, &self.w, weight_times)?;
         let u = Raised::of(&first(&self.au, &self.wu)?, w2.clone())?;
         let v = Raised::of(&first(&self.av, &self.wv)?, w2.clone())?;
         let area = if area {
-            let w3 = product(&w2, &self.w, |x, y| [x[0] * y[0]])?;
-            let scaled = |w: &Grid<T, 1>, x: &Grid<T, 3>| {
-                product(w, x, |w, x| scale_by(Vector(x), Vector(w)).0)
-            };
+            let w3 = product(&w2, &self.w, weight_times)?;
+            let scaled = |w: &Grid<T, 1>, x: &Grid<T, 3>| product(w, x, weighted);
             let m = scaled(&self.w, &product(&self.au, &self.av, cross)?)?
                 .minus(&scaled(&self.wv, &product(&self.au, &self.a, cross)?)?)?
                 .minus(&scaled(&self.wu, &product(&self.a, &self.av, cross)?)?)?;
@@ -960,16 +948,7 @@ pub fn speed_pieces<T: Real, const D: usize>(
     let kv = knots.structure();
     let mut out = Vec::new();
     for span in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
-        let axis = Axis::of(CellAxis::Span(span, knots.values()))?;
-        let p = axis.p();
-        if p == 0 {
-            return None;
-        }
-        let pts: Vec<Vector<T, D>> = points
-            .get(span.window())?
-            .iter()
-            .map(|x| Vector(*x))
-            .collect();
+        let (axis, p, pts) = span_window(knots, span, points)?;
         match weights {
             None => {
                 let row = axis.row(&axis.derive(&pts)?, 1)?;
@@ -983,24 +962,7 @@ pub fn speed_pieces<T: Real, const D: usize>(
                 }
             }
             Some(ws) => {
-                let ws: Vec<Vector<T, 1>> = normalised(ws.get(span.window())?)?
-                    .0
-                    .into_iter()
-                    .map(|w| Vector([w]))
-                    .collect();
-                let c = *pts.first()?;
-                let a: Vec<Vector<T, D>> = pts
-                    .iter()
-                    .zip(&ws)
-                    .map(|(x, w)| scale_by(*x - c, *w))
-                    .collect();
-                let (da, dw) = axis.derive_pairs(&pts, &ws, c)?;
-                let rows = (
-                    axis.row(&a, 0)?,
-                    axis.row(&ws, 0)?,
-                    axis.row(&da, 1)?,
-                    axis.row(&dw, 1)?,
-                );
+                let rows = HomogeneousSpan::of(&axis, &pts, ws.get(span.window())?)?.rows;
                 let count = piece_count(p, splits);
                 let (wp, wq) = (piece_weights(p, count)?, piece_weights(p - 1, count)?);
                 for (bp, bq) in wp
@@ -1011,9 +973,8 @@ pub fn speed_pieces<T: Real, const D: usize>(
                     let w = Grid::column(restrict(bp, &rows.1)?)?;
                     let da = Grid::column(restrict(bq, &rows.2)?)?;
                     let dw = Grid::column(restrict(bq, &rows.3)?)?;
-                    let n = product(&da, &w, |x, w| scale_by(Vector(x), Vector(w)).0)?
-                        .minus(&product(&a, &dw, |x, w| scale_by(Vector(x), Vector(w)).0)?)?;
-                    out.push(quotient(&n, &product(&w, &w, |x, y| [x[0] * y[0]])?)?);
+                    let n = product(&da, &w, by_weight)?.minus(&product(&a, &dw, by_weight)?)?;
+                    out.push(quotient(&n, &product(&w, &w, weight_times)?)?);
                 }
             }
         }
@@ -1027,9 +988,103 @@ fn by_weight<T: Real, const D: usize>(x: [T; D], w: [T; 1]) -> [T; D] {
     x.map(|c| c * w[0])
 }
 
+/// One nonempty span's resolved axis, degree and control window: the
+/// preamble of every curve quotient. `None` on a degree below one or an
+/// index past `points`.
+#[allow(clippy::type_complexity)]
+fn span_window<'k, T: Real, const D: usize>(
+    knots: &'k Knots<T>,
+    span: Span<'k>,
+    points: &[[T; D]],
+) -> Option<(Axis<'k, T>, usize, Vec<Vector<T, D>>)> {
+    let axis = Axis::of(CellAxis::Span(span, knots.values()))?;
+    let p = axis.p();
+    (p > 0).then_some(())?;
+    let pts = points
+        .get(span.window())?
+        .iter()
+        .map(|x| Vector(*x))
+        .collect();
+    Some((axis, p, pts))
+}
+
+/// One span's homogeneous setup, which every rational curve quotient
+/// reads: the weights over their greatest, `A = w·(P − c)` in the frame
+/// of the span's first point, the pair-form derivative windows of `A`
+/// and `w` ([`Axis::derive_pairs`]), and the Bernstein rows of all four.
+struct HomogeneousSpan<T, const D: usize> {
+    da: Vec<Vector<T, D>>,
+    dw: Vec<Vector<T, 1>>,
+    rows: RowSet<T, D>,
+}
+
+/// The Bernstein rows of `A`, `W`, `A′` and `W′` on one span.
+type RowSet<T, const D: usize> = (
+    Vec<Vector<T, D>>,
+    Vec<Vector<T, 1>>,
+    Vec<Vector<T, D>>,
+    Vec<Vector<T, 1>>,
+);
+
+impl<T: Real, const D: usize> HomogeneousSpan<T, D> {
+    fn of(axis: &Axis<'_, T>, pts: &[Vector<T, D>], ws: &[T]) -> Option<Self> {
+        let w: Vec<Vector<T, 1>> = normalised(ws)?.0.into_iter().map(|w| Vector([w])).collect();
+        let c = *pts.first()?;
+        let a = pts
+            .iter()
+            .zip(&w)
+            .map(|(x, w)| scale_by(*x - c, *w))
+            .collect::<Vec<_>>();
+        let (da, dw) = axis.derive_pairs(pts, &w, c)?;
+        let rows = (
+            axis.row(&a, 0)?,
+            axis.row(&w, 0)?,
+            axis.row(&da, 1)?,
+            axis.row(&dw, 1)?,
+        );
+        Some(Self { da, dw, rows })
+    }
+}
+
 /// `w·v` for two scalar rows.
 fn weight_times<T: Real>(w: [T; 1], v: [T; 1]) -> [T; 1] {
     [w[0] * v[0]]
+}
+
+/// [`by_weight`] with the weight row first.
+fn weighted<T: Real, const D: usize>(w: [T; 1], x: [T; D]) -> [T; D] {
+    by_weight(x, w)
+}
+
+/// `A·Y·Z` for scalar grids `Y`, `Z`.
+fn a_yz<T: Real, const D: usize>(
+    a: &Grid<T, D>,
+    y: &Grid<T, 1>,
+    z: &Grid<T, 1>,
+) -> Option<Grid<T, D>> {
+    product(a, &product(y, z, weight_times)?, by_weight)
+}
+
+/// `X·W·Y` for a grid `X` and scalar grids `W`, `Y`.
+fn x_wy<T: Real, const D: usize>(
+    x: &Grid<T, D>,
+    w: &Grid<T, 1>,
+    y: &Grid<T, 1>,
+) -> Option<Grid<T, D>> {
+    product(x, &product(w, y, weight_times)?, by_weight)
+}
+
+/// `2·(A·W′² − A′·W·W′)`: the doubled cross term of a pure second
+/// derivative's numerator `M = A″·W² − A·W″·W − 2·A′·W·W′ + 2·A·W′²`
+/// (module docs, "The second order"), the curve's and each surface
+/// direction's.
+fn doubled_cross<T: Real, const D: usize>(
+    a: &Grid<T, D>,
+    w: &Grid<T, 1>,
+    da: &Grid<T, D>,
+    dw: &Grid<T, 1>,
+) -> Option<Grid<T, D>> {
+    a_yz(a, dw, dw)?.minus(&x_wy(da, w, dw)?)?.times(2.0)
 }
 
 /// The second-order numerator over `W³` (module docs, "The second
@@ -1051,7 +1106,7 @@ fn second_numerator<T: Real, const D: usize>(
     let w3 = product(&w2, w, weight_times)?;
     let m = match xy {
         Some((x, y)) => product(x, &w2, by_weight)?
-            .minus(&product(a, &product(y, w, weight_times)?, by_weight)?)?
+            .minus(&a_yz(a, y, w)?)?
             .plus(&cross)?,
         None => cross,
     };
@@ -1074,42 +1129,17 @@ pub fn accel_pieces<T: Real, const D: usize>(
     let kv = knots.structure();
     let mut out = Vec::new();
     for span in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
-        let axis = Axis::of(CellAxis::Span(span, knots.values()))?;
-        let p = axis.p();
-        if p == 0 {
-            return None;
-        }
-        let pts: Vec<Vector<T, D>> = points
-            .get(span.window())?
-            .iter()
-            .map(|x| Vector(*x))
-            .collect();
-        let ws: Vec<Vector<T, 1>> = normalised(weights.get(span.window())?)?
-            .0
-            .into_iter()
-            .map(|w| Vector([w]))
-            .collect();
-        let c = *pts.first()?;
-        let a: Vec<Vector<T, D>> = pts
-            .iter()
-            .zip(&ws)
-            .map(|(x, w)| scale_by(*x - c, *w))
-            .collect();
-        let (da, dw) = axis.derive_pairs(&pts, &ws, c)?;
+        let (axis, p, pts) = span_window(knots, span, points)?;
+        let h = HomogeneousSpan::of(&axis, &pts, weights.get(span.window())?)?;
         let second = if p >= 2 {
             Some((
-                axis.row(&axis.derive_at(2, &da)?, 2)?,
-                axis.row(&axis.derive_at(2, &dw)?, 2)?,
+                axis.row(&axis.derive_at(2, &h.da)?, 2)?,
+                axis.row(&axis.derive_at(2, &h.dw)?, 2)?,
             ))
         } else {
             None
         };
-        let rows = (
-            axis.row(&a, 0)?,
-            axis.row(&ws, 0)?,
-            axis.row(&da, 1)?,
-            axis.row(&dw, 1)?,
-        );
+        let rows = h.rows;
         let count = piece_count(p, splits);
         let blocks = |deg: usize| -> Option<Vec<Vec<f64>>> {
             Some(
@@ -1129,11 +1159,7 @@ pub fn accel_pieces<T: Real, const D: usize>(
             let w = on1(&b0, &rows.1)?;
             let da = on(&b1, &rows.2)?;
             let dw = on1(&b1, &rows.3)?;
-            // `−2·A′·W·W′ + 2·A·W′²`: the doubled cross term of
-            // `M = A″·W² − A·W″·W − 2·A′·W·W′ + 2·A·W′²`.
-            let cross = product(&a, &product(&dw, &dw, weight_times)?, by_weight)?
-                .minus(&product(&da, &product(&w, &dw, weight_times)?, by_weight)?)?
-                .times(2.0)?;
+            let cross = doubled_cross(&a, &w, &da, &dw)?;
             let xy = match &second {
                 Some((dda, ddw)) => Some((on(&b2, dda)?, on1(&b2, ddw)?)),
                 None => None,
