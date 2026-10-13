@@ -97,12 +97,14 @@
 //! refuses the face.
 
 use geom_core::Bounds;
+use std::borrow::Cow;
 use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, max_bound, norm_sup};
 use geom_core::spline::net::{TensorChannels, TensorCoeffs, TensorNet};
+use geom_core::spline::weight_scale::unit_scale_exact;
 use geom_core::spline::{
     C1Break, CellAxis, CellBlock, Derived, KnotVector, QUOTIENT_MAX_DEGREE, QuotientPiece, Span,
     cell_second_quotients, polynomial_area_pieces,
@@ -307,6 +309,30 @@ pub struct PatchCell {
 /// weight not bitwise `1.0`) — the arm selection, on f64 STRUCTURE.
 pub fn is_rational(n: &NurbsSurface<f64>) -> bool {
     n.weights().iter().any(|w| *w != 1.0)
+}
+
+/// `n` with its weights at unit scale
+/// ([`geom_core::spline::weight_scale::unit_scale_exact`]), or `n`
+/// itself where that rescale is a no-op or would drop a bit. The
+/// rescaled net describes the same surface; what it buys is range for
+/// the weight powers the enclosures form (`w²` here, up to `w⁴` in
+/// [`crate::offset_fit`]'s composite). Which arm reads a net is decided
+/// on the DESCRIBED weights ([`is_rational`]), before this runs.
+pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface<f64>> {
+    let Some((_, scaled)) = unit_scale_exact(n.weights()) else {
+        return Cow::Borrowed(n);
+    };
+    match NurbsSurface::new(
+        n.knots_u().clone(),
+        n.knots_v().clone(),
+        n.control().to_vec(),
+        scaled,
+    ) {
+        Ok(rescaled) => Cow::Owned(rescaled),
+        Err(e) => unreachable!(
+            "the door refused an exact power-of-two rescale of weights it admitted: {e}"
+        ),
+    }
 }
 
 /// **The per-cell certified bounds** on a described NURBS patch's
@@ -771,6 +797,10 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     {
         return Err(PatchBoundError::NonPositiveWeight);
     }
+    // The weights at unit scale: the same surface, with range for the
+    // weight powers (`W³` here) at either end of the `f64` range.
+    let scaled = unit_scaled_weights(n);
+    let n = &*scaled;
     let (kv_u, kv_v) = (n.knots_u(), n.knots_v());
     // The second order is read at three times each degree.
     if 3 * kv_u.degree().max(kv_v.degree()) > QUOTIENT_MAX_DEGREE {
@@ -927,9 +957,10 @@ fn on_window<X>(su: Span<'_>, sv: Span<'_>, at: impl Fn(usize, usize) -> X) -> V
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used)]
-mod tests {
+#[allow(clippy::expect_used, clippy::panic)]
+pub(crate) mod tests {
     use super::*;
+    use geom_core::spline::weight_scale::pow2_scaled;
 
     /// **The degree ceilings are the statement's, and each arm meets its
     /// own.** An integral bidegree `(19, 2)` Bézier certifies: its area
@@ -1009,6 +1040,65 @@ mod tests {
             "p = 29 floors: {:?}",
             floors(29)
         );
+    }
+
+    /// `n` with every weight multiplied by `2^k`.
+    pub(crate) fn weights_times_pow2(n: &NurbsSurface<f64>, k: i32) -> NurbsSurface<f64> {
+        NurbsSurface::new(
+            n.knots_u().clone(),
+            n.knots_v().clone(),
+            n.control().to_vec(),
+            n.weights().iter().map(|&w| pow2_scaled(w, k)).collect(),
+        )
+        .expect("an exact power-of-two scale of door-valid weights")
+    }
+
+    /// The rational quarter cylinder, weights `1, 1, s, s, 1, 1`.
+    fn quarter_cylinder() -> NurbsSurface<f64> {
+        let s = core::f64::consts::FRAC_PI_4.cos();
+        let kv2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("kv2");
+        let kv1 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("kv1");
+        let control = vec![
+            geom_core::Point3::new(1.0, 0.0, 0.0),
+            geom_core::Point3::new(1.0, 0.0, 1.0),
+            geom_core::Point3::new(1.0, 1.0, 0.0),
+            geom_core::Point3::new(1.0, 1.0, 1.0),
+            geom_core::Point3::new(0.0, 1.0, 0.0),
+            geom_core::Point3::new(0.0, 1.0, 1.0),
+        ];
+        NurbsSurface::new(kv2, kv1, control, vec![1.0, 1.0, s, s, 1.0, 1.0]).expect("door")
+    }
+
+    /// **One power of two on every weight moves no cell**, at either
+    /// end of the `f64` range. At `2⁻³⁰⁰` the `w²` the cross-product
+    /// sup divides by underflows to zero, at `2³⁰⁰` it overflows, and
+    /// at `2⁻¹⁰⁷⁰` the weights themselves are subnormal — on the
+    /// dyadic net, whose weights keep every bit there. Each scale
+    /// describes the same surface, so every cell is the unit face's to
+    /// the bit.
+    #[test]
+    fn a_uniform_weight_scale_moves_no_cell() {
+        let cylinder = quarter_cylinder();
+        let dyadic = NurbsSurface::new(
+            cylinder.knots_u().clone(),
+            cylinder.knots_v().clone(),
+            cylinder.control().to_vec(),
+            vec![1.0, 1.0, 0.75, 0.75, 1.0, 1.0],
+        )
+        .expect("door");
+        for (name, unit, scales) in [
+            ("cylinder", &cylinder, &[-1000, -300, -1, 1, 300, 1000][..]),
+            ("dyadic", &dyadic, &[-1070][..]),
+        ] {
+            let want = format!("{:?}", patch_cells(unit).expect("the unit face's cells"));
+            for &k in scales {
+                let scaled = weights_times_pow2(unit, k);
+                let got = patch_cells(&scaled).unwrap_or_else(|e| {
+                    panic!("{name} at 2^{k}: a uniformly scaled face refused: {e}")
+                });
+                assert_eq!(format!("{got:?}"), want, "{name} at 2^{k}: the cells moved");
+            }
+        }
     }
 
     /// Every patch-bound refusal names what the caller changes in the
@@ -1181,21 +1271,6 @@ mod tests {
         .to_vec();
         let weights = vec![1.0, 2.5, 0.7, 1.6, 1.0, 0.5];
         NurbsSurface::new(ku, kv, control, weights).expect("valid")
-    }
-
-    /// The quarter cylinder (`r = h = 1`): a rational arc in `u`, a
-    /// ruling in `v`, its normal turning through a right angle.
-    fn quarter_cylinder() -> NurbsSurface<f64> {
-        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("valid");
-        let w = core::f64::consts::FRAC_1_SQRT_2;
-        let mut control = Vec::new();
-        for (x, y) in [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0)] {
-            for z in [0.0, 1.0] {
-                control.push(geom_core::Point3::new(x, y, z));
-            }
-        }
-        NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).expect("valid")
     }
 
     /// **The area floor reads each cell's own normal.** Each cell's
