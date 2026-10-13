@@ -127,9 +127,13 @@ pub(crate) enum LoopWinding<W> {
 pub(crate) enum Unwound {
     /// A NURBS edge, whose region a chord winding says nothing about.
     Spline,
-    /// A spiric edge at a scalar that does not certify
-    /// ([`crate::props::AtRestPolicy::quad_lane`]): its bulge is read
-    /// only through the certified enclosure.
+    /// A spiric edge whose bulge has no certified enclosure: at a
+    /// scalar that does not certify
+    /// ([`crate::props::AtRestPolicy::quad_lane`]), or over a span the
+    /// enclosure does not read ([`spiric_segment_term`]'s `None`: a
+    /// descending span, or one with no certified positive `f`). Its
+    /// bulge is read only through the certified enclosure, never as its
+    /// chord.
     Uncertified,
 }
 
@@ -613,6 +617,19 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             conic_segment_term((c, *span), *fwd)
                 .or_else(|| spiric_segment_term((c, *span), *fwd, pieces))
         };
+        // A spiric with no enclosure over its span would be summed as
+        // its chord: refuse it rather than wind it so.
+        let unenclosed = |c: &(Curve3<Interval>, (Interval, Interval), bool)| {
+            matches!(c.0, Curve3::Spiric { .. }) && term(c, SPIRIC_PIECES[0]).is_none()
+        };
+        if lifted
+            .iter()
+            .filter_map(|(_, c)| c.as_ref())
+            .chain(closing.as_ref())
+            .any(unenclosed)
+        {
+            return Err(Unwound::Uncertified);
+        }
         let Some((&finest, coarser)) = SPIRIC_PIECES.split_last() else {
             unreachable!("the piece counts are a non-empty constant")
         };

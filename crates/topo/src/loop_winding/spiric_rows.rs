@@ -224,3 +224,42 @@ fn a_loop_on_an_oval_winds_one_way_round_and_the_other() {
         );
     }
 }
+
+/// **A spiric arc the enclosure does not read is never wound as its
+/// chord**: the open run along the donut's oval from `0.2` to `0.9` and
+/// back by its chord winds, but the same arc stored with its span
+/// descending (no certified enclosure, [`super::spiric_segment_term`]'s
+/// `None`) has no winding ([`Unwound::Uncertified`]) rather than the
+/// chord's.
+#[test]
+fn a_spiric_arc_with_no_enclosure_has_no_winding() {
+    let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+    let carrier = oval(
+        Point3::origin(),
+        Vec3::unit_y(),
+        Vec3::unit_x(),
+        (2.0, 0.5),
+        0.3,
+    );
+    let (a, b) = (carrier.eval(0.2), carrier.eval(0.9));
+    let wound = |span: (f64, f64), forward: bool| {
+        Body::<f64>::spiric_winding(
+            &[(a, Some(((&carrier, span), forward)))],
+            b,
+            None,
+            true,
+            Vec3::unit_x(),
+            band,
+        )
+    };
+    assert!(
+        matches!(wound((0.2, 0.9), true), Ok(Ok(_))),
+        "the ascending arc winds: {:?}",
+        wound((0.2, 0.9), true)
+    );
+    assert!(
+        matches!(wound((0.9, 0.2), false), Err(Unwound::Uncertified)),
+        "the descending arc: {:?}",
+        wound((0.9, 0.2), false)
+    );
+}
