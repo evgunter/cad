@@ -5549,7 +5549,7 @@ pub fn chart_stretch_sup<T: Real>(
         // were harmless only because the iso lane's own rational gate
         // refused before any rational chart reached this function.
         // That gate is gone, so the arm has to be real —
-        // `nurbs_stretch_bounds` reads the rational pair-term bound
+        // `nurbs_stretch_bounds` reads the rational quotient bound
         // (`NurbsSurface::stretch_sup`) for exactly this.
         //
         // The catch-all is SPLIT: an approximating surface's arms are
@@ -5618,9 +5618,8 @@ fn chart_arms_at<T: Real>(
 
 /// `(sup |S_u|, sup |S_v|)` bounds for a NURBS chart — **rational
 /// nets included** — read off the chart's own statement,
-/// [`geom::NurbsSurface::stretch_sup`] (the pair-term bound per
-/// nonempty cell; at unit weights the polynomial control-difference
-/// bound). One door for the whole file: [`chart_stretch_inf`]'s sup
+/// [`geom::NurbsSurface::stretch_sup`] (the quotient bound on the
+/// dyadic pieces of each nonempty cell). One door for the whole file: [`chart_stretch_inf`]'s sup
 /// components read the same call, so `chart_stretch_sup(s).0` and
 /// `chart_stretch_inf(s).sup_u` are one computation by construction
 /// (`chart_stretch_inf`'s spline arm calls this function).
@@ -5658,29 +5657,26 @@ pub struct ChartStretchInf<T> {
 /// [`chart_stretch_sup`] is explicitly not, for the claims it is
 /// explicitly unsafe for.
 ///
-/// # The floors, read along a direction
+/// # The floors, read per piece
 ///
 /// A derivative's norm is not bounded below by its smallest control
 /// difference (a net whose columns cancel has combinations of every
-/// norm down to zero), so the inf is read **along a direction**: for
-/// the unit `d = c/‖c‖`, `‖S_u‖ ≥ S_u·d`, and
-/// [`geom::NurbsSurface::stretch_floor`] lower-bounds `S_u·c` over the
-/// whole chart: per nonempty cell, the least projection of the
-/// rational pair terms at the cell's active points, over the cell's
-/// greatest weight (its least when that projection is negative). The
-/// proof is `geom_core::spline::derivative`'s; at unit weights the pair
-/// terms are the polynomial derivative-net entries. `c` is the sum of
-/// the polynomial net (`net_direction`). A **zero-crossing net** — a
-/// wall with a fold — has some term on the far side of `d`, or no
-/// direction at all, and gets exactly zero. That zero is the honest
-/// answer and the caller must refuse on it: no positive bound is
-/// invented for a net whose derivative genuinely vanishes.
+/// norm down to zero), so the inf is read **along a direction, per
+/// piece**: on each exact dyadic piece of each nonempty cell, `S_u` is
+/// a convex combination of its coefficient ratios `a_k/b_k`
+/// (`N_u/W²` raised to one degree), so for the unit `d` of the piece's
+/// `Σ a_k`, `‖S_u‖ ≥ S_u·d ≥ min_k (a_k·d)/b_k`
+/// ([`geom::NurbsSurface::stretch_floor`]; the proof is
+/// `geom_core::spline::derivative`'s). Each piece picks its own `d`, so
+/// a chart that turns — a rational half-cylinder — reads positive where
+/// one direction for the whole chart would read zero. A **zero-crossing
+/// net** — a wall with a fold — has some ratio on the far side of its
+/// piece's `d`, or no direction at all, and gets exactly zero. That zero
+/// is the honest answer and the caller must refuse on it: no positive
+/// bound is invented for a net whose derivative genuinely vanishes.
 ///
-/// `area_inf` is the same read of the area element along `c_u × c_v`
-/// ([`geom::NurbsSurface::area_floor`]): `W²·(S_u × S_v)` is a convex
-/// combination of the crosses of a `u` and a `v` term, both read at one
-/// active point of the cell, so the least projected cross over the
-/// cell's squared weight (chosen by its sign, as above) floors it. A chart
+/// `area_inf` is the same read of the area element
+/// `S_u × S_v = M̃/W³` ([`geom::NurbsSurface::area_floor`]). A chart
 /// whose two derivative directions can align somewhere gets zero here
 /// even though both per-axis infs are healthy — which is exactly the
 /// case the per-axis pair alone cannot see.
@@ -5760,81 +5756,29 @@ pub fn chart_stretch_inf<T: Real>(surface: &Surface<T>) -> ChartStretchInf<T> {
     }
 }
 
-/// A floor of `S·c` read as a floor of `‖S‖`: `floor/‖c‖`, clamped to
-/// `[0, cap]`. A negative floor (a net straddling the origin) clamps to
-/// zero, and a poison one — a direction whose entries cancel outright
-/// (`‖c‖ = 0`), or a refused floor — is exactly zero. The cap is a sup
-/// of the same quantity, so an ill-conditioned quotient can never leak
-/// an inflated arm.
-fn floor_along<T: Real>(floor: T, c: Vec3<T>, cap: T) -> T {
-    let raw = floor / c.norm();
-    if raw.is_poison() {
+/// A signed floor of a norm, clamped to `[0, cap]`: a negative floor (a
+/// piece straddling its own direction) clamps to zero, and a poison one
+/// — a piece whose numerator cancels outright, or a refused statement —
+/// is exactly zero. The cap is a sup of the same quantity, so a reading
+/// can never leak an inflated arm.
+fn clamped_floor<T: Real>(floor: T, cap: T) -> T {
+    if floor.is_poison() {
         T::zero()
     } else {
-        raw.max(T::zero()).min(cap)
+        floor.max(T::zero()).min(cap)
     }
-}
-
-/// The direction the inf side reads `S_u` along (`S_v` with
-/// `along_v`): the sum of the polynomial derivative-net entries
-/// ([`geom_core::spline::derivative_net`] of each column), summed pair
-/// by pair. Any direction gives a sound floor; this is the net's own
-/// mean, the direction a chart that does not fold moves in. A column
-/// whose net refuses (a non-positive knot difference, which validation
-/// rules out) leaves no direction, and the floor read along it is zero.
-fn net_direction<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec3<T> {
-    let (nu, nv) = s.control_counts();
-    let ctl = s.control();
-    let (n_out, n_in) = if along_v { (nv, nu) } else { (nu, nv) };
-    let knots = if along_v {
-        s.knot_values_v()
-    } else {
-        s.knot_values_u()
-    };
-    let nets: Option<Vec<Vec<Vec3<T>>>> = (0..n_in)
-        .map(|j| {
-            let column: Vec<geom_core::Point3<T>> = (0..n_out)
-                .map(|i| {
-                    if along_v {
-                        ctl[j * nv + i]
-                    } else {
-                        ctl[i * nv + j]
-                    }
-                })
-                .collect();
-            geom_core::spline::derivative_net(
-                &column,
-                knots.structure().knots(),
-                knots.values(),
-                knots.degree(),
-                0,
-            )
-        })
-        .collect();
-    let Some(nets) = nets else {
-        return Vec3::zero();
-    };
-    let mut c = Vec3::zero();
-    for i in 0..n_out.saturating_sub(1) {
-        for net in &nets {
-            c = c + net[i];
-        }
-    }
-    c
 }
 
 /// [`chart_stretch_inf`]'s spline arm — the derivation lives there.
 fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
     let (sup_u, sup_v) = nurbs_stretch_bounds(s);
     let (sup_u, sup_v) = (sup_u.get(), sup_v.get());
-    let (c_u, c_v) = (net_direction(s, false), net_direction(s, true));
-    let normal = c_u.cross(c_v);
     ChartStretchInf {
-        inf_u: floor_along(s.stretch_floor(true, c_u), c_u, sup_u),
-        inf_v: floor_along(s.stretch_floor(false, c_v), c_v, sup_v),
+        inf_u: clamped_floor(s.stretch_floor(true), sup_u),
+        inf_v: clamped_floor(s.stretch_floor(false), sup_v),
         sup_u,
         sup_v,
-        area_inf: floor_along(s.area_floor(normal), normal, sup_u * sup_v),
+        area_inf: clamped_floor(s.area_floor(), sup_u * sup_v),
     }
 }
 

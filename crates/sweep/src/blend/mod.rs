@@ -158,7 +158,8 @@ use topo::{DihedralReading, EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
-    BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, Turn, run_battery, run_battery_for,
+    BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, Overrun, Turn, TurnRunOut,
+    run_battery, run_battery_for,
 };
 pub use build::{Blended, Chamfered, Filleted, chamfer_edges, fillet_edges};
 pub use naming::{BlendNaming, RimSide};
@@ -524,7 +525,7 @@ impl BlendDecision {
                 size,
                 passes,
                 stored: StoredDefinite::Lever,
-                at_zero: None,
+                no_size: None,
             }
             .recourse(arm, Reading::Build),
             None => LeverOnly { lever }.recourse(arm, Reading::Build),
@@ -1116,15 +1117,16 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end chains at trivalent vertices of o
 /// `fillet3_turn_overrun_chord`, and their straddle
 /// `fillet3_turn_feet`): in band, the two bands' feet on the third
 /// edge are neither one point nor clearly apart, so the way out is one
-/// point, or the corner patch, which the third edge requested alongside
-/// builds. A chamfer's foot stands `d / sin φ` down the third edge, so
-/// its feet also meet at supplementary face angles. Feet clearly apart
-/// are no way out: the overrun refuses ([`battery::TURN_OVERRUN`]).
-/// Held to it by
+/// point, clearly apart, or the corner patch, which the third edge
+/// requested alongside builds. A chamfer's foot stands `d / sin φ` down
+/// the third edge, so its feet also meet at supplementary face angles.
+/// Feet clearly apart are a way out for a chamfer alone, whose overrun
+/// builds; a fillet's refuses ([`battery::TURN_OVERRUN`]). Held to it by
 /// `blend_recourse_followability::the_turn_recourse_builds_at_each_end_it_names`.
 pub const FILLET3_TURN_RECOURSE: &str = "make the two bands' feet on the vertex's third edge meet \
-     (equal face angles beside that edge, or for a chamfer supplementary ones), or request that \
-     edge too, which builds the corner patch";
+     (equal face angles beside that edge, or for a chamfer supplementary ones), for a chamfer move \
+     them clearly apart (a larger setback, or a more asymmetric corner), or request that edge too, \
+     which builds the corner patch";
 /// The lever of `fillet3_cap_transverse`: its in-band arm is the one
 /// refusal, between the two kinds it builds, so the way out is either
 /// kind, plainly.

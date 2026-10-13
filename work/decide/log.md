@@ -992,3 +992,10 @@ from `main`.
 - 2026-10-12 — DECIDE-10 re-routed to Ev the way the protocol asks: the 25× fork had been put to Ev in chat only. Two designers weighed it (blinding on `analysis/design-fork/decide-10-read-shut-cost`) and converged after one round: provenance labels, no shut walk, the top-rung check kept, S8/S12/S13 each fixed at its own cause. The question is in the item's "Question" and on its `[ev]` PR. The DECIDE-10 draft stays stopped until Ev answers.
 - 2026-10-12 — Ev answered DECIDE-10's `[ev]` question: the label kind is deleted (the item's "Question, and Ev's answer"). The draft PR 4095 closes unmerged; DECIDE-10 is re-specced as the deletion.
 - 2026-10-12 — DECIDE-10 re-specced on Ev's answer (`docs/DECIDE-10-SPEC.md`): delete the label kind. Branch `decide/10-delete-the-kind`, from `main`. Draft PR 4095 closes unmerged; its Phase 1 record and shape rows carry over. Cost M → H. **Review tier: dual, concurrent arm (difficulty H).** Every kind being E12's claim is a soundness argument, carried by a type change across geom-core, topo, editor-core, k-lint and the tests. DECIDE-9's zero-product rule retires by Ev's ruling.
+
+- 2026-10-13 — **Seam note from NURBS: PR 4944 merged** (`89f044e92e`).
+  - `SymCounts` gains `checks_expanded` and `checks_frozen`, and the digest prints them as `chk=expanded/total`.
+  - `Session::free` names the free indeterminates the session minted, and `any_indet` is the one shared walker.
+  - The digest bodies are now built inside the session, and the door is receipted on its own. The sym-session lines moved, e.g. arc `chk=103/110`, strip `104/116`, `disp=0` unchanged.
+  - A guard red-lines the digest when coverage falls below 4/5 at ≥ 20 checks.
+  - Touched: `geom-core/src/sym.rs`, `sym/discharge_pins.rs`, `sym11_witness_kind_rows.rs`, `mass_props_are_thread_count_invariant.rs` and the three `thread-count-digest/eps-*.txt`. — (NURBS orchestrator)

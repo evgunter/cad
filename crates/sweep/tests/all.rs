@@ -309,6 +309,10 @@ mod band_reads_three_ways;
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
+#[path = "band_turn_overrun_chamfer.rs"]
+mod band_turn_overrun_chamfer;
+#[path = "band_turn_overrun_oracles.rs"]
+mod band_turn_overrun_oracles;
 #[path = "band_turn_overrun_probe.rs"]
 mod band_turn_overrun_probe;
 #[path = "band_turn_overrun_verdict.rs"]
@@ -355,6 +359,8 @@ mod blend_tworims;
 mod blend_value_decided_rows;
 #[path = "bool5r1_probes.rs"]
 mod bool5r1_probes;
+#[path = "census_reads_conic_records.rs"]
+mod census_reads_conic_records;
 #[path = "cert5_offgrid_knot_rational.rs"]
 mod cert5_offgrid_knot_rational;
 #[path = "cert8_r1_probes.rs"]

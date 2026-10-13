@@ -931,3 +931,19 @@ which carries no `gated_to!` marker and so runs only when a diff seeds
 geom-core. The line's disposition is Selection, inheriting `Unclear`'s.
 Before merging a blend PR that adds a `Bounds` site, run
 `cargo nextest run -p geom-core -E 'test(bounds_census)'`.
+
+## 2026-10-13 — a chamfer's non-isosceles turn builds its overrun (PR 4926, overrun step 2)
+
+Where both readings are definite, a chamfer turn builds the mitre plus the
+far band's cut-off at the near band's face of L, clipped at the mitre's end
+q down to the far foot p_k; every vertex trivalent, the far band's
+`EndArc`/`FootVertex` named. The "move the feet clearly apart" recourse is
+back for the chamfer. Tour wall 3 builds (`bracket.png` re-baselined). The
+fillet still refuses `TURN_OVERRUN` (step 3). Cost H: a concurrent dual (DR
+row `PR-4926`), both APPROVE-WITH-FIXES, tally 0; both built the overrun
+right against oracles of their own (a clipped cube; Boolean slabs), now
+rows. Both showed by mutant that arm (c)'s whole-sliver meter at a turn
+makes no refusal the reach does not, and one that it refuses a boss clear
+of the overrun: filed as `a-turns-overrun-meters-the-whole-cut-off-sliver`
+(the fix revises the README's ratified clause, so it is Ev's). The
+short-near-edge spurious `FOOT_INSIDE_A_FACE` is now executed on its item.

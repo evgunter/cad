@@ -470,7 +470,7 @@ pub(super) const R3_SCALE: SizedDecision = SizedDecision {
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The chart lane's floor is finer than the wall's parameters resolve:
@@ -482,7 +482,7 @@ pub(super) const CHART_SCALE: SizedDecision = SizedDecision {
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The chart lane's floor spans no finite parameter width: the wall is
@@ -493,7 +493,7 @@ const CHART_TOO_SLOW: SizedDecision = SizedDecision {
     size: "scale",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 impl core::fmt::Display for FloorRefusal {

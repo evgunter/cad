@@ -30,12 +30,9 @@
 //!   assembled from control-net hulls: the rational surface's point box
 //!   is the *Cartesian* control hull over a span cell (positive weights
 //!   ⇒ convex combination), and the derivative box comes from the
-//!   homogeneous derivative net through the quotient rule
-//!   `S_u = (A_u − S·w_u)/w`, over each cell cut to the rectangle's
-//!   part of it, all in certification arithmetic. (`geom_core::spline::
-//!   hull` deliberately has no rational derivative path; this is that
-//!   path, assembled at the consumer from the primitives it does have,
-//!   which is where the surface-shaped bookkeeping belongs.)
+//!   quotient bound `S_u = N_u/W²` (`geom_core::spline::derivative`),
+//!   over each cell cut to the rectangle's part of it, all in
+//!   certification arithmetic.
 //!
 //! # Soundness posture
 //!
@@ -77,7 +74,8 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
-    KnotVector, ParamRange, RingRefinement, Span, TensorNet, span_derivative_scale,
+    CellAxis, CellBlock, CellQuotients, KnotVector, ParamRange, RingRefinement, Span, TensorNet,
+    cell_quotients, span_derivative_scale,
 };
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
@@ -584,8 +582,8 @@ impl UvWindow {
 /// shrinks it. The point box uses the Cartesian net directly (positive
 /// weights make `S` a convex combination of the local control points,
 /// which is exactly the rational hull property); the derivative box
-/// goes through the homogeneous quotient rule over each cell's net cut
-/// to the rectangle ([`CellNet::cut`]), so it shrinks with the
+/// is the hull of the quotient bound's coefficient ratios over each
+/// cell's net cut to the rectangle ([`CellNet::cut`]), so it shrinks with the
 /// rectangle below a span cell too.
 ///
 /// The cells are the surface's own, or a [`CellGrid`]'s: the same
@@ -711,16 +709,14 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         }
     }
 
-    /// A certified box for `∂S/∂u` (or `∂S/∂v`) over the rectangle, via
-    /// the quotient rule `S_d = (A_d − S·w_d)/w` evaluated entirely on
-    /// hulls, per span cell, with `S` in that cell's point box
-    /// ([`CellNet::quotient_numerator`] gives the numerator's form).
-    /// Each cell is also cut to the part of the rectangle inside it
-    /// ([`CellNet::cut`]) and the two boxes met, so the box shrinks with
-    /// the rectangle below a span cell and is never wider than the whole
-    /// cell's. Refused
-    /// when the weight hull touches zero (interval arithmetic refuses
-    /// the divisor) or the net is malformed. The boundary pass reads a
+    /// A certified box for `∂S/∂u` (or `∂S/∂v`) over the rectangle: per
+    /// span cell, the hull of the quotient `S_d = N_d/W²`'s coefficient
+    /// ratios ([`CellNet::derivative_box`]). Each cell is also cut to the
+    /// part of the rectangle inside it ([`CellNet::cut`]) and the two
+    /// boxes met, so the box shrinks with the rectangle below a span
+    /// cell and is never wider than the whole cell's. Refused when a
+    /// weight-power coefficient touches zero (interval arithmetic
+    /// refuses the divisor) or the net is malformed. The boundary pass reads a
     /// directional partial off
     /// it; the chart readings take norms from the same cut
     /// ([`NurbsBoxes::speed_sup`]).
@@ -989,11 +985,15 @@ impl CellGrid {
 
 /// One span cell's control block in certification arithmetic, cut to
 /// a sub-rectangle or whole: the Cartesian points and weights,
-/// `(pu + 1) × (pv + 1)` row-major, and the derivative scale
-/// `degree / (knot span)` of each adjacent pair along `u` and along `v`.
-/// The points may sit in a translated frame; every reading of a block
-/// is a difference of two of its points or of a point with `S` in its
-/// own point box, so the frame drops out.
+/// `(pu + 1) × (pv + 1)` row-major, and the block's first-order
+/// quotients `S_u = N_u/W²` and `S_v = N_v/W²`
+/// ([`geom_core::spline::cell_quotients`]), read in a frame `c` at its
+/// first point: off the points and weights for the surface's own cells,
+/// off the homogeneous channels `(w·(P − c), w)` for a grid's or a cut's.
+/// Every reading is a coefficient ratio of `N_u` or `N_v` over `W²`;
+/// `N_d` is translation-free (`A ↦ A + t·W` leaves `A_d·W − A·W_d`
+/// fixed) and carried by a rotation to its image, so a rigid map moves a
+/// reading by its rounding width alone.
 #[derive(Debug)]
 struct CellNet {
     nv: usize,
@@ -1005,8 +1005,10 @@ struct CellNet {
     /// rather than multiplying a quotient by `w` again, which widens.
     /// `None` for the surface's own cells, whose points are exact.
     hom: Option<Vec<[Interval; 4]>>,
-    scale_u: Vec<Interval>,
-    scale_v: Vec<Interval>,
+    /// `S_u` and `S_v` on each of the block's [`BLOCK_PIECE_SPLITS`]²
+    /// dyadic pieces, `None` where the statement refused (every reading
+    /// then refuses).
+    quotients: Option<Vec<CellQuotients<Interval>>>,
 }
 
 impl CellNet {
@@ -1057,50 +1059,42 @@ impl CellNet {
                 });
             }
         }
-        Some(Self {
+        let mut net = Self {
             nv: pv + 1,
             pts,
             wts: ws,
             hom,
-            scale_u: pair_scales(spu)?,
-            scale_v: pair_scales(spv)?,
-        })
+            quotients: None,
+        };
+        let (c, h) = net.translated()?;
+        let (held_u, held_v) = (held(spu), held(spv));
+        let axes = (CellAxis::Span(spu, &held_u), CellAxis::Span(spv, &held_v));
+        net.quotients = if net.hom.is_some() {
+            quotients_of(&h, axes)
+        } else {
+            // Exact points: the pair form reads equal points with equal
+            // weights as an exact zero, which differencing their
+            // translated channels would not.
+            cell_quotients(
+                axes,
+                CellBlock::Points {
+                    points: &net.pts,
+                    weights: &net.wts,
+                    origin: c,
+                },
+                (BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS),
+                false,
+            )
+        };
+        Some(net)
     }
 
-    /// This cell block cut to `wu × wv`: along each axis whose window
-    /// falls strictly inside the cell's span with positive width, the
-    /// block is replaced by the Bézier block of the same polynomial
-    /// piece over the window's part of the span, so its hulls enclose
-    /// that part alone. `None` when no axis is cut (the window covers
-    /// the span whole, or meets it in at most a point), or when a read
-    /// leaves the window, which its invariants rule out: the whole block
-    /// is the caller's answer either way, and a sound one.
-    ///
-    /// The cut is blossoming, `b_k = f(a, …, a, b, …, b)` with `k` of the
-    /// `b`s ([`bezier_on`]), on the homogeneous net `(w·(P − c), w)`, and
-    /// the Cartesian block is read back as the quotient. `c` is the
-    /// block's first point's lower bracket end, translating the net so
-    /// the products are formed on differences; the cut block's points are
-    /// in that frame.
-    ///
-    /// The cut block's boxes are not always narrower than the whole
-    /// block's. The recurrence's rounding can outgrow what the cut saves:
-    /// on a window a few ulps wide the `degree / (b − a)` scale
-    /// amplifies every ulp the blossom adds. So the caller meets the two
-    /// ([`NurbsBoxes::deriv_box`]).
-    fn cut(&self, (span_u, span_v): (Span<'_>, Span<'_>), w: UvWindow) -> Option<Self> {
-        let (cut_u, cut_v) = (inside(span_u, w.u), inside(span_v, w.v));
-        if cut_u.is_none() && cut_v.is_none() {
-            return None;
-        }
-        let nv = self.nv;
-        let nu = self.pts.len() / nv;
-        let (mut scale_u, mut scale_v) = (self.scale_u.clone(), self.scale_v.clone());
-        let origin = self.pts.first()?.map(Interval::lo);
-        // Four channels per control point: `w·(P − c)` and `w`, from the
-        // homogeneous channels where the block holds them.
-        let c = origin.map(Interval::point);
-        let mut h: Vec<[Interval; 4]> = match &self.hom {
+    /// The block's homogeneous channels in the frame of its first
+    /// point's lower bracket end `c`: `(w·(P − c), w)`, from the
+    /// homogeneous channels where the block holds them, and `c`.
+    fn translated(&self) -> Option<([Interval; 3], Vec<[Interval; 4]>)> {
+        let c = self.pts.first()?.map(Interval::lo).map(Interval::point);
+        let h = match &self.hom {
             Some(hom) => hom
                 .iter()
                 .map(|h| {
@@ -1118,6 +1112,35 @@ impl CellNet {
                 })
                 .collect(),
         };
+        Some((c, h))
+    }
+
+    /// This cell block cut to `wu × wv`: along each axis whose window
+    /// falls strictly inside the cell's span with positive width, the
+    /// block is replaced by the Bézier block of the same polynomial
+    /// piece over the window's part of the span, so its readings
+    /// enclose that part alone. `None` when no axis is cut (the window
+    /// covers the span whole, or meets it in at most a point), or when
+    /// a read leaves the window, which its invariants rule out: the
+    /// whole block is the caller's answer either way, and a sound one.
+    ///
+    /// The cut is blossoming, `b_k = f(a, …, a, b, …, b)` with `k` of the
+    /// `b`s ([`bezier_on`]), on the homogeneous net `(w·(P − c), w)`; an
+    /// axis left uncut stays the span's window.
+    ///
+    /// The cut block's readings are not always narrower than the whole
+    /// block's. The recurrence's rounding can outgrow what the cut saves:
+    /// on a window a few ulps wide the `degree / (b − a)` scale
+    /// amplifies every ulp the blossom adds. So the caller meets the two
+    /// ([`NurbsBoxes::deriv_box`]).
+    fn cut(&self, (span_u, span_v): (Span<'_>, Span<'_>), w: UvWindow) -> Option<Self> {
+        let (cut_u, cut_v) = (inside(span_u, w.u), inside(span_v, w.v));
+        if cut_u.is_none() && cut_v.is_none() {
+            return None;
+        }
+        let nv = self.nv;
+        let nu = self.pts.len() / nv;
+        let mut h = self.translated()?.1;
         if let Some(cut) = cut_u {
             for j in 0..nv {
                 let line: Vec<[Interval; 4]> = (0..nu).map(|i| h[i * nv + j]).collect();
@@ -1125,7 +1148,6 @@ impl CellNet {
                     h[i * nv + j] = c;
                 }
             }
-            scale_u = bezier_scales(span_u.degree(), cut);
         }
         if let Some(cut) = cut_v {
             for i in 0..nu {
@@ -1133,8 +1155,15 @@ impl CellNet {
                 let cut_line = bezier_on(line, span_v, cut)?;
                 h[i * nv..(i + 1) * nv].copy_from_slice(&cut_line);
             }
-            scale_v = bezier_scales(span_v.degree(), cut);
         }
+        let (held_u, held_v) = (held(span_u), held(span_v));
+        let quotients = quotients_of(
+            &h,
+            (
+                cut_axis(span_u, cut_u, &held_u),
+                cut_axis(span_v, cut_v, &held_v),
+            ),
+        );
         Some(Self {
             nv,
             pts: h
@@ -1143,170 +1172,52 @@ impl CellNet {
                 .collect(),
             wts: h.iter().map(|c| c[3]).collect(),
             hom: None,
-            scale_u,
-            scale_v,
+            quotients,
         })
     }
 
-    /// The box for `S_d` over the block's region: the quotient numerator
-    /// over the block's own point box, divided by its weight hull. Both
-    /// are read in the block's own frame, the only frame a cut block's
-    /// points are good for.
-    fn derivative_box(&self, along_u: bool) -> Box3 {
-        let (num, w) = self.quotient_numerator(along_u, self.point_box());
-        Box3 {
-            x: num.x / w,
-            y: num.y / w,
-            z: num.z / w,
-        }
-    }
-
-    /// The hull of the block's Cartesian points: a box for `S` over the
-    /// block's region (positive weights make `S` a convex combination of
-    /// them, the rational hull property), in the block's frame. That is
-    /// the absolute frame for [`CellNet::of_cell`]; for a [`CellNet::cut`]
-    /// block it is a box for `S − c`, good only as the `S` of that
-    /// block's own pair terms.
-    fn point_box(&self) -> Box3 {
-        let mut out: Option<Box3> = None;
-        for p in &self.pts {
-            let b = Box3 {
-                x: p[0],
-                y: p[1],
-                z: p[2],
-            };
-            out = Some(match out {
-                None => b,
-                Some(acc) => acc.hull(b),
-            });
-        }
-        out.unwrap_or_else(refused_box)
-    }
-
-    /// The quotient rule's numerator `A_d − S·w_d` and the weight hull
-    /// over the block, `(numerator hull, w hull)`, with `S` ranging over
-    /// `sbox`, which is in the block's frame ([`CellNet::point_box`]):
-    /// the hull of every [`PairTerm`] at `sbox`.
-    fn quotient_numerator(&self, along_u: bool, sbox: Box3) -> (Box3, Interval) {
-        let Some(terms) = self.pair_terms(along_u) else {
-            return (refused_box(), Interval::refused());
-        };
-        let num = terms
-            .iter()
-            .map(|t| {
-                let [x, y, z] = t.at([sbox.x, sbox.y, sbox.z]);
-                Box3 { x, y, z }
-            })
-            .reduce(Box3::hull);
-        (
-            num.unwrap_or_else(refused_box),
-            self.weight_hull().unwrap_or_else(Interval::refused),
+    /// The coefficient ratios `a_k/b_k` of `S_u` (`along_u`) or `S_v`
+    /// on every piece; `None` where the statement refused.
+    fn ratios(&self, along_u: bool) -> Option<Vec<[Interval; 3]>> {
+        Some(
+            self.quotients
+                .as_ref()?
+                .iter()
+                .flat_map(|q| {
+                    let q = if along_u { &q.u } else { &q.v };
+                    q.numer()
+                        .iter()
+                        .zip(q.denom())
+                        .map(|(a, b)| a.map(|x| x / *b))
+                })
+                .collect(),
         )
     }
 
-    /// The numerator's terms, one per adjacent pair of the net in
-    /// direction `d`. `None` when a read leaves the net, which the
-    /// block's own construction rules out.
-    ///
-    /// The numerator is a convex combination, under the degree-`p−1`
-    /// basis, of these terms with `S` the surface point itself, so its
-    /// hull is theirs with `S` anywhere `S` can be. No term holds an
-    /// absolute coordinate: every point enters as a difference with
-    /// another, so a translation moves a reading by its rounding width
-    /// alone, and a net constant along `d` (equal points, equal weights)
-    /// reads an exact zero.
-    fn pair_terms(&self, along_u: bool) -> Option<Vec<PairTerm>> {
-        let nv = self.nv;
-        let nu = self.pts.len() / nv;
-        let mut pairs = Vec::new();
-        if along_u {
-            for (k, &s) in self.scale_u.iter().enumerate() {
-                for j in 0..nv {
-                    pairs.push((k * nv + j, (k + 1) * nv + j, s));
-                }
-            }
-        } else {
-            for i in 0..nu {
-                for (k, &s) in self.scale_v.iter().enumerate() {
-                    pairs.push((i * nv + k, i * nv + k + 1, s));
-                }
-            }
-        }
-        pairs
-            .into_iter()
-            .map(|(i0, i1, scale)| {
-                let (p0, p1) = (*self.pts.get(i0)?, *self.pts.get(i1)?);
-                let (w0, w1) = (*self.wts.get(i0)?, *self.wts.get(i1)?);
-                Some(PairTerm::new(scale, (p0, w0), (p1, w1)))
+    /// The box for `S_d` over the block's region: the hull of its pieces'
+    /// coefficient ratios `a_k/b_k`, of which `S_d` is a convex
+    /// combination on each piece (`geom_core::spline::derivative`'s
+    /// module docs).
+    fn derivative_box(&self, along_u: bool) -> Box3 {
+        self.ratios(along_u)
+            .and_then(|r| {
+                r.into_iter()
+                    .map(|[x, y, z]| Box3 { x, y, z })
+                    .reduce(Box3::hull)
             })
-            .collect()
+            .unwrap_or_else(refused_box)
     }
 
-    /// The hull of the block's weights, which holds the weight function
-    /// over the block's region; `None` for an empty block.
-    fn weight_hull(&self) -> Option<Interval> {
-        self.wts.iter().copied().reduce(Interval::hull)
-    }
-
-    /// The weight hull and its lower end, the divisor every chart norm
-    /// reads; `None` unless the hull is certified positive.
-    fn weight_floor(&self) -> Option<(Interval, Interval)> {
-        let w = self.weight_hull()?;
-        (w.is_certified() && w.lo() > 0.0).then(|| (w, Interval::point(w.lo())))
-    }
-
-    /// The block's first point `c` and the offsets `P_j − c` that
-    /// `S − c` must range over for `terms`: only the zero offset when no
-    /// term reads `S` at all (every weight step an exact zero, as on a
-    /// polynomial net, and every point certified, so no refusal is
-    /// skipped).
-    fn s_offsets(&self, terms: &[&[PairTerm]]) -> Option<([Interval; 3], Vec<[Interval; 3]>)> {
-        let c = *self.pts.first()?;
-        let flat = terms.iter().flat_map(|t| t.iter()).all(|t| {
-            let dw = t.weight_step();
-            dw.is_certified() && dw.lo() == 0.0 && dw.hi() == 0.0
-        }) && self.pts.iter().flatten().all(|x| x.is_certified());
-        if flat {
-            return Some((c, vec![[Interval::point(0.0); 3]]));
-        }
-        let qs: Vec<[Interval; 3]> = self
-            .pts
-            .iter()
-            .map(|p| core::array::from_fn(|k| p[k] - c[k]))
-            .collect();
-        Some((c, qs))
-    }
-
-    /// An upper bound on `‖S_d‖` over the block's region, read from the
-    /// norms of the quotient numerator's vector terms over the weight
-    /// function's lower bound, rounded outward; `NaN` when the weight
-    /// hull is not positive or a read refuses.
-    ///
-    /// Each [`PairTerm`] is affine in `S`, and `S` lies in the convex
-    /// hull of the block's points, so a term's norm, being convex in
-    /// `S`, is largest at one of those points: `max ‖term(P_j)‖` over
-    /// the pairs and the points is the numerator's norm bound with no
-    /// box in it, and a rigid map carries every `term(P_j)` to its image.
-    /// In real arithmetic it is never above the norm of the box
-    /// [`CellNet::derivative_box`] reads, which holds every `term(P_j)`.
-    /// The terms are divided by the weight's lower bound before any norm
-    /// squares them, so a subnormal weight's products are not squared
-    /// away, and the maximum is read through [`pair_norm_sup`].
+    /// An upper bound on `‖S_d‖` over the block's region: the largest
+    /// `‖a_k/b_k‖`, rounded outward ([`norm_sup`]); `NaN` when refused.
+    /// The norm is convex, so its max over a piece's ratio hull is at a
+    /// ratio, and a rigid map carries every ratio to its image. In real
+    /// arithmetic it is never above the norm of the box
+    /// [`CellNet::derivative_box`] reads, which holds every ratio.
     fn derivative_norm_sup(&self, along_u: bool) -> f64 {
-        let Some((terms, (_, floor))) = self.pair_terms(along_u).zip(self.weight_floor()) else {
-            return f64::NAN;
-        };
-        let Some((c, qs)) = self.s_offsets(&[&terms]) else {
-            return f64::NAN;
-        };
-        // Divided after scaling: `scale / floor` alone overflows on a
-        // subnormal weight, where the scaled term over it does not.
-        let ts: Vec<Affine> = terms.iter().map(|t| about(t, c).per(floor)).collect();
-        let zero = [Affine {
-            k: [Interval::point(0.0); 3],
-            g: Interval::point(0.0),
-        }];
-        pair_norm_sup(&qs, &ts, &zero)
+        self.ratios(along_u)
+            .and_then(|r| r.iter().map(norm_sup).reduce(max_bound))
+            .unwrap_or(f64::NAN)
     }
 
     /// The chart probe's two readings along the chart direction
@@ -1315,272 +1226,93 @@ impl CellNet {
     /// enclosure and the second an upper bound rounded outward (`NaN`
     /// when refused).
     ///
-    /// `S_u·ex + S_v·ey` is `(ex·N_u + ey·N_v)/w`, and since each
-    /// numerator's basis sums to one, `ex·N_u + ey·N_v` is a convex
-    /// combination of `ex·a(S) + ey·b(S)` over every `u` pair term `a`
-    /// and `v` pair term `b`. Each is affine in `S`, so `n·` of it is
-    /// extreme, and its norm largest, at one of the block's points: both
-    /// readings are read from the vectors `ex·a(P_j) + ey·b(P_j)` alone,
-    /// and a rigid map that carries `n` with the wall moves them by
-    /// their rounding width.
+    /// On each piece `S_u` and `S_v` are quotients over the one weight
+    /// power `W²` at one degree, so `S_u·ex + S_v·ey` is the quotient of
+    /// `ex·N_u + ey·N_v` over `W²`: a convex combination of the ratios
+    /// `(ex·a_k + ey·a′_k)/b_k`, whose `n·` hull encloses it and whose
+    /// largest norm bounds it.
     fn transverse_readings(&self, n: [Interval; 3], ex: Interval, ey: Interval) -> (Interval, f64) {
-        let (Some(tu), Some(tv), Some((w, floor))) = (
-            self.pair_terms(true),
-            self.pair_terms(false),
-            self.weight_floor(),
-        ) else {
+        let Some(pieces) = self.quotients.as_ref() else {
             return (Interval::refused(), f64::NAN);
         };
-        let Some((c, qs)) = self.s_offsets(&[&tu, &tv]) else {
-            return (Interval::refused(), f64::NAN);
-        };
-        let side = |terms: &[PairTerm], e: Interval| -> Vec<Affine> {
-            terms.iter().map(|t| about(t, c).times(e)).collect()
-        };
-        let (au, bv) = (side(&tu, ex), side(&tv, ey));
-        // Each term's `n·` is affine in the scalar `d = n·(S − c)`:
-        // `n·k − g·d`. At one `S` the pairs' range is the sum of each
-        // side's, so its top, `maxᵢ(n·aᵢ) + maxⱼ(n·bⱼ)`, is convex in `d`
-        // and its bottom concave: over the block's points both are
-        // extreme at the ends of the hull of their `d`, where they are
-        // read.
-        let dots = |a: &[Affine]| -> Vec<(Interval, Interval)> {
-            a.iter().map(|t| (dot(&n, &t.k), t.g)).collect()
-        };
-        let (du, dv) = (dots(&au), dots(&bv));
-        let along = qs
+        let mut ratios: Vec<[Interval; 3]> = Vec::new();
+        for q in pieces {
+            if q.u.denom().len() != q.v.denom().len() {
+                return (Interval::refused(), f64::NAN);
+            }
+            ratios.extend(
+                q.u.numer()
+                    .iter()
+                    .zip(q.v.numer())
+                    .zip(q.u.denom())
+                    .map(|((a, b), w)| core::array::from_fn(|k| (a[k] * ex + b[k] * ey) / *w)),
+            );
+        }
+        let along = ratios
             .iter()
-            .map(|q| dot(&n, q))
+            .map(|r| dot(&n, r))
             .reduce(Interval::hull)
-            .filter(|d| d.is_certified())
-            .and_then(|d| {
-                [d.lo(), d.hi()]
-                    .into_iter()
-                    .filter_map(|end| {
-                        let d = Interval::point(end);
-                        let range = |ts: &[(Interval, Interval)]| {
-                            ts.iter().map(|&(k, g)| k - g * d).reduce(Interval::hull)
-                        };
-                        range(&du).zip(range(&dv)).map(|(a, b)| a + b)
-                    })
-                    .reduce(Interval::hull)
-            });
-        let (au, bv): (Vec<Affine>, Vec<Affine>) = (
-            au.iter().map(|a| a.per(floor)).collect(),
-            bv.iter().map(|b| b.per(floor)).collect(),
-        );
-        let sup = pair_norm_sup(&qs, &au, &bv);
-        (along.map_or_else(Interval::refused, |a| a / w), sup)
-    }
-}
-
-/// One adjacent pair's term of the quotient numerator `A_d − S·w_d`:
-/// the rational speed bound's own term,
-/// [`geom_core::spline::RationalPairTerm`], so this enclosure and
-/// `NurbsSurface::stretch_sup` read one formula.
-type PairTerm = geom_core::spline::RationalPairTerm<Interval, 3>;
-
-/// The term as an [`Affine`] in the offset `S − c`
-/// ([`geom_core::spline::RationalPairTerm::about`]).
-fn about(t: &PairTerm, c: [Interval; 3]) -> Affine {
-    let (k, g) = t.about(c);
-    Affine { k, g }
-}
-
-/// A vector affine in the offset `q = S − c`: `k − g·q`.
-#[derive(Clone, Copy, Debug)]
-struct Affine {
-    k: [Interval; 3],
-    g: Interval,
-}
-
-impl Affine {
-    fn at(&self, q: [Interval; 3]) -> [Interval; 3] {
-        core::array::from_fn(|i| self.k[i] - self.g * q[i])
-    }
-
-    fn times(&self, e: Interval) -> Self {
-        Self {
-            k: self.k.map(|x| x * e),
-            g: self.g * e,
-        }
-    }
-
-    fn per(&self, floor: Interval) -> Self {
-        Self {
-            k: self.k.map(|x| x / floor),
-            g: self.g / floor,
-        }
-    }
-}
-
-/// `max ‖x(q) + y(q)‖` over the terms `x` of `xs`, `y` of `ys` and
-/// the offsets `q`, rounded outward; `NaN` when a read refuses.
-///
-/// Every pair is screened in `f64` first ([`Centred::of_affine`], then
-/// [`screen_bound`]: an upper bound on the sum's norm from centres and
-/// radii), and only the best-screened pair, and then each pair whose
-/// screen is above the maximum read so far, is read in certification
-/// arithmetic. A pair skipped has a real norm at most that maximum, so
-/// the result is at most the full enumeration's and below it only by
-/// rounding. A screen that is `+∞` or `NaN` (an unbounded or
-/// unformable radius or centre) rules nothing out, so such a pair is
-/// read. Every input is asked for its refusal first, as the full
-/// enumeration's `norm_sup` would ask every pair.
-fn pair_norm_sup(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine]) -> f64 {
-    let certified = |a: &Affine| a.g.is_certified() && a.k.iter().all(|c| c.is_certified());
-    if !(xs.iter().all(certified)
-        && ys.iter().all(certified)
-        && qs.iter().flatten().all(|c| c.is_certified()))
-    {
-        return f64::NAN;
-    }
-    let xa: Vec<(Centred, Centred)> = xs.iter().map(Centred::affine_parts).collect();
-    let ya: Vec<(Centred, Centred)> = ys.iter().map(Centred::affine_parts).collect();
-    let at = |parts: &[(Centred, Centred)], q: &Centred| -> Vec<Centred> {
-        parts
+            .unwrap_or_else(Interval::refused);
+        let sup = ratios
             .iter()
-            .map(|(k, g)| Centred::of_affine(k, g, q))
-            .collect()
-    };
-    let per_q: Vec<(Vec<Centred>, Vec<Centred>)> = qs
+            .map(norm_sup)
+            .reduce(max_bound)
+            .unwrap_or(f64::NAN);
+        (along, sup)
+    }
+}
+
+/// The block reading's piece schedule per direction (D9: structure,
+/// never a decision): every block, whole or cut, is read on this many
+/// exact dyadic pieces along each axis, as `geom::NurbsSurface`'s
+/// stretch bounds read a cell. With one piece a polynomial wall's
+/// derivative box keeps its degree-elevated hull, which on
+/// `m5_pr7_ssi`'s bent-path flat wall reads the slope across the
+/// `v = 0` side at two thirds of its true least (`5.3e-9` against
+/// `8e-9`, inside the band at `ε = 1e-9`); two pieces read it exactly
+/// (`tests::a_block_is_read_on_its_pieces` re-takes the two-piece
+/// reading; the one-piece `5.3e-9` is this measurement's alone).
+const BLOCK_PIECE_SPLITS: usize = 2;
+
+/// The first-order quotients of a homogeneous block `h` along `axes`,
+/// on the block's pieces; `None` where the statement refuses.
+fn quotients_of(
+    h: &[[Interval; 4]],
+    axes: (CellAxis<'_, Interval>, CellAxis<'_, Interval>),
+) -> Option<Vec<CellQuotients<Interval>>> {
+    let a: Vec<[Interval; 3]> = h.iter().map(|c| [c[0], c[1], c[2]]).collect();
+    let w: Vec<Interval> = h.iter().map(|c| c[3]).collect();
+    cell_quotients(
+        axes,
+        CellBlock::Homogeneous { a: &a, w: &w },
+        (BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS),
+        false,
+    )
+}
+
+/// The axis of a block cut to `cut` along `span`: a Bézier block of the
+/// span's degree over the cut, or the span's own window when uncut.
+fn cut_axis<'a>(
+    span: Span<'a>,
+    cut: Option<(f64, f64)>,
+    held: &'a [Interval],
+) -> CellAxis<'a, Interval> {
+    match cut {
+        Some((a, b)) => CellAxis::Bezier {
+            degree: span.degree(),
+            scale: span_derivative_scale(span.degree(), Interval::point(a), Interval::point(b)),
+        },
+        None => CellAxis::Span(span, held),
+    }
+}
+
+/// A span's knot vector held as points.
+fn held(span: Span<'_>) -> Vec<Interval> {
+    span.knots()
+        .knots()
         .iter()
-        .map(|q| {
-            let q = Centred::of(q);
-            (at(&xa, &q), at(&ya, &q))
-        })
-        .collect();
-    let screens: Vec<(f64, (usize, usize, usize))> = per_q
-        .iter()
-        .enumerate()
-        .flat_map(|(p, (cx, cy))| {
-            cx.iter().enumerate().flat_map(move |(i, a)| {
-                cy.iter()
-                    .enumerate()
-                    .map(move |(j, b)| (screen_bound(a, b), (p, i, j)))
-            })
-        })
-        .collect();
-    let norm = |(p, i, j): (usize, usize, usize)| {
-        let (x, y) = (xs[i].at(qs[p]), ys[j].at(qs[p]));
-        norm_sup(&core::array::from_fn(|k| x[k] + y[k]))
-    };
-    let Some(&(_, best)) = screens.iter().max_by(|a, b| a.0.total_cmp(&b.0)) else {
-        return f64::NAN;
-    };
-    let mut sup = norm(best);
-    for &(bound, pair) in &screens {
-        // A `NaN` screen or maximum rules nothing out.
-        let ruled_out = bound <= sup;
-        if !ruled_out && pair != best {
-            sup = max_bound(sup, norm(pair));
-        }
-    }
-    sup
-}
-
-/// An enclosure as an `f64` centre and a radius rounded up: every
-/// point of it is within the radius of the centre on each axis. A
-/// radius that overflowed reads `+∞` and one that cannot be formed
-/// reads `NaN`; [`screen_bound`] screens nothing out on either.
-#[derive(Clone, Copy)]
-struct Centred {
-    mid: [f64; 3],
-    rad: f64,
-}
-
-impl Centred {
-    /// A certified interval vector's centre and radius.
-    fn of(v: &[Interval; 3]) -> Self {
-        let mid = v.map(|c| 0.5 * c.lo() + 0.5 * c.hi());
-        let rad = (0..3)
-            .map(|k| max_bound(v[k].hi() - mid[k], mid[k] - v[k].lo()).next_up())
-            .fold(0.0, max_bound);
-        Self { mid, rad }
-    }
-
-    /// An affine term's `k` and `g` (the scalar in the first axis).
-    fn affine_parts(a: &Affine) -> (Self, Self) {
-        (Self::of(&a.k), Self::of(&[a.g, a.g, a.g]))
-    }
-
-    /// `k − g·q` from the parts' centres and radii, in `f64`. A point of
-    /// the image is within `r_k + |g_c|·r_q + r_g·(|q_c| + r_q)` of
-    /// `k_c − g_c·q_c` on each axis, and computing that centre rounds
-    /// it by at most `3u·(|k_c| + |g_c·q_c|)`; the radius is that sum
-    /// with `4ε` for the centre's rounding, enlarged by `1 + 8ε` for
-    /// its own and by the smallest normal for any subnormal step. A zero
-    /// factor is an exact zero ([`times_or_zero`]), so an unbounded offset beside
-    /// a term that does not read it adds nothing rather than `0·∞`.
-    fn of_affine(k: &Self, g: &Self, q: &Self) -> Self {
-        let (gm, gr) = (g.mid[0], g.rad);
-        let mid: [f64; 3] = core::array::from_fn(|i| k.mid[i] - times_or_zero(gm, q.mid[i]));
-        let rad = (0..3)
-            .map(|i| {
-                let qa = q.mid[i].abs();
-                k.rad
-                    + times_or_zero(gm.abs(), q.rad)
-                    + times_or_zero(gr, qa + q.rad)
-                    + 4.0 * f64::EPSILON * (k.mid[i].abs() + times_or_zero(gm.abs(), qa))
-            })
-            .fold(0.0, max_bound);
-        Self {
-            mid,
-            rad: rad * (1.0 + 8.0 * f64::EPSILON) + f64::MIN_POSITIVE,
-        }
-    }
-}
-
-/// `a·b` with a zero factor an exact zero: a bound times a factor that
-/// is exactly zero contributes nothing, whatever the bound.
-fn times_or_zero(a: f64, b: f64) -> f64 {
-    if a == 0.0 || b == 0.0 { 0.0 } else { a * b }
-}
-
-/// An upper bound on `‖x + y‖` over `x` and `y` in the two boxes,
-/// computed in `f64`: `(‖m‖ + √3·(r_x + r_y))·(1 + 32ε)`, with `m` the
-/// rounded sum of the centres. The roundings it covers — the sum of the
-/// centres (`u` relative), the three-term norm away from underflow (at
-/// most `4u`), the radius sum and its product with `√3`, and the final
-/// sum and product — total well under `32ε`. `+∞`, which screens
-/// nothing out, wherever that argument does not hold: a `NaN` or
-/// infinite centre or radius, or a norm below `1e-150` (squares near
-/// the subnormal range, which can read `0` for a centre that is not)
-/// unless the centre sum is exactly zero, or a norm above `1e150`.
-fn screen_bound(a: &Centred, b: &Centred) -> f64 {
-    const SQRT_3_UP: f64 = 1.732_050_807_568_877_4;
-    const SLACK: f64 = 1.0 + 32.0 * f64::EPSILON;
-    let m: [f64; 3] = core::array::from_fn(|k| a.mid[k] + b.mid[k]);
-    let n = m.iter().map(|c| c.powi(2)).sum::<f64>().sqrt();
-    let rad = a.rad + b.rad;
-    let zero = m.iter().all(|&c| c == 0.0);
-    if !(n.is_finite() && rad.is_finite()) || (!zero && n < 1e-150) || n > 1e150 {
-        return f64::INFINITY;
-    }
-    (n + SQRT_3_UP * rad) * SLACK
-}
-
-/// The derivative scale `degree / (t_{i+degree+1} − t_{i+1})` of each
-/// adjacent pair in a span's window, the B-spline derivative's
-/// coefficient factor (The NURBS Book Eq. 3.4).
-fn pair_scales(span: Span<'_>) -> Option<Vec<Interval>> {
-    let (p, t) = (span.degree(), span.knots().knots());
-    span.first_derived_window()
-        .map(|i| {
-            let (&lo, &hi) = t.get(i + 1).zip(t.get(i + p + 1))?;
-            Some(span_derivative_scale(
-                p,
-                Interval::point(lo),
-                Interval::point(hi),
-            ))
-        })
+        .map(|&k| Interval::point(k))
         .collect()
-}
-
-/// The derivative scale of a Bézier block over `[a, b]`: `degree / (b − a)`
-/// for every pair.
-fn bezier_scales(degree: usize, (a, b): (f64, f64)) -> Vec<Interval> {
-    vec![span_derivative_scale(degree, Interval::point(a), Interval::point(b)); degree]
 }
 
 /// The part of `span`'s knot interval inside `w`, when it is a
@@ -2078,336 +1810,6 @@ mod tests {
         }
     }
 
-    /// **The screened pair norm is the full enumeration's.** Random
-    /// affine terms and offsets, some with enclosures a tenth wide so the
-    /// screen's radius terms carry weight, some with near-tied terms: the
-    /// screened maximum is never above the enumeration's `norm_sup` over
-    /// every pair (it reads a subset) and never below it by more than
-    /// rounding (what it skips is bounded by what it read). One refused
-    /// coordinate anywhere refuses the read, as the enumeration does.
-    #[test]
-    fn the_screened_pair_norm_is_the_full_enumerations() {
-        use test_utils::fuzz;
-        let mut rng = fuzz::start("enclose::screened_pair_norm");
-        let iv = |rng: &mut fuzz::Rng, scale: f64, wide: bool| {
-            let c = rng.range(-scale, scale);
-            let r = if wide {
-                rng.range(0.0, 0.1 * scale)
-            } else {
-                0.0
-            };
-            Interval::from_bounds(c - r, c + r)
-        };
-        for case in 0..fuzz::scaled(400) {
-            let wide = case % 2 == 0;
-            let tie = case % 3 == 0;
-            let affine = |rng: &mut fuzz::Rng| Affine {
-                k: core::array::from_fn(|_| iv(rng, 3.0, wide)),
-                g: iv(rng, if tie { 1e-3 } else { 2.0 }, wide),
-            };
-            let (nx, ny, nq) = (1 + rng.below(12), 1 + rng.below(12), 1 + rng.below(16));
-            let xs: Vec<Affine> = (0..nx).map(|_| affine(&mut rng)).collect();
-            let ys: Vec<Affine> = (0..ny).map(|_| affine(&mut rng)).collect();
-            let qs: Vec<[Interval; 3]> = (0..nq)
-                .map(|_| core::array::from_fn(|_| iv(&mut rng, 0.5, wide)))
-                .collect();
-            let got = pair_norm_sup(&qs, &xs, &ys);
-            let mut all = f64::NEG_INFINITY;
-            for q in &qs {
-                for x in &xs {
-                    for y in &ys {
-                        let (a, b) = (x.at(*q), y.at(*q));
-                        all = all.max(norm_sup(&core::array::from_fn(|k| a[k] + b[k])));
-                    }
-                }
-            }
-            assert!(
-                got <= all && got >= all * (1.0 - 64.0 * f64::EPSILON),
-                "case {case} (wide {wide}, tied {tie}, {nx}×{ny} terms at {nq} points): \
-                 screened {got} against the enumeration's {all} — {}",
-                fuzz::replay()
-            );
-            let mut refused = xs.clone();
-            refused[0].k[1] = Interval::refused();
-            assert!(
-                pair_norm_sup(&qs, &refused, &ys).is_nan(),
-                "case {case}: a refused coordinate must refuse the read — {}",
-                fuzz::replay()
-            );
-        }
-    }
-
-    /// The full enumeration [`pair_norm_sup`] screens: `norm_sup` of every
-    /// pair at every offset, folded keeping `NaN`.
-    fn enumerated_pair_norm(qs: &[[Interval; 3]], xs: &[Affine], ys: &[Affine]) -> f64 {
-        let mut all: Option<f64> = None;
-        for q in qs {
-            for x in xs {
-                for y in ys {
-                    let (a, b) = (x.at(*q), y.at(*q));
-                    let m = norm_sup(&core::array::from_fn(|k| a[k] + b[k]));
-                    all = Some(all.map_or(m, |s| max_bound(s, m)));
-                }
-            }
-        }
-        all.unwrap_or(f64::NAN)
-    }
-
-    /// **An unbounded or unformable radius screens nothing out.** Written
-    /// down, not searched: offsets spanning the whole finite range (whose
-    /// radius overflows to `+∞`) beside terms that do not read them
-    /// (`g` exactly zero, where `0·∞` would be `NaN` and a `NaN`-dropping
-    /// fold would shrink the radius to nothing); the same with terms that
-    /// do read them; offsets near overflow; and terms whose own enclosure
-    /// is unbounded. On each the screened read must be the enumeration's:
-    /// both refused, or the screened one at most the enumeration's and
-    /// below it only by rounding.
-    #[test]
-    fn an_unbounded_radius_screens_nothing_out() {
-        let iv = Interval::from_bounds;
-        let pt = Interval::point;
-        let zero = Affine {
-            k: [pt(0.0); 3],
-            g: pt(0.0),
-        };
-        let big = f64::MAX;
-        let whole = [[iv(-big, big); 3]];
-        let near = [[iv(-big / 4.0, big / 4.0); 3], [pt(0.0); 3]];
-        let wide_k = Affine {
-            k: [iv(-10.0, 10.0), pt(0.0), pt(0.0)],
-            g: pt(0.0),
-        };
-        let unit_k = Affine {
-            k: [pt(1.0), pt(0.0), pt(0.0)],
-            g: pt(0.0),
-        };
-        let reads_q = Affine {
-            k: [pt(1.0), pt(0.0), pt(0.0)],
-            g: pt(1e-300),
-        };
-        let unbounded_k = Affine {
-            k: [iv(-big, big), pt(0.0), pt(0.0)],
-            g: pt(0.0),
-        };
-        type Case<'a> = (&'a str, &'a [[Interval; 3]], Vec<Affine>);
-        let cases: [Case<'_>; 5] = [
-            (
-                "whole-range offsets, terms that do not read them",
-                &whole,
-                vec![wide_k, unit_k],
-            ),
-            ("the same, the wide term last", &whole, vec![unit_k, wide_k]),
-            (
-                "whole-range offsets, a term that reads them",
-                &whole,
-                vec![unit_k, reads_q],
-            ),
-            (
-                "offsets near overflow",
-                &near,
-                vec![unit_k, wide_k, reads_q],
-            ),
-            ("an unbounded term", &near, vec![unit_k, unbounded_k]),
-        ];
-        for (name, qs, xs) in cases {
-            let got = pair_norm_sup(qs, &xs, &[zero]);
-            let all = enumerated_pair_norm(qs, &xs, &[zero]);
-            assert!(
-                (got.is_nan() && all.is_nan())
-                    || (got <= all && got >= all * (1.0 - 64.0 * f64::EPSILON)),
-                "{name}: screened {got} against the enumeration's {all}"
-            );
-        }
-    }
-
-    /// `a + b` exactly, as an unevaluated sum.
-    fn two_sum(a: f64, b: f64) -> (f64, f64) {
-        let s = a + b;
-        let v = s - a;
-        (s, (a - (s - v)) + (b - v))
-    }
-
-    /// `a·b` exactly, as an unevaluated sum.
-    fn two_prod(a: f64, b: f64) -> (f64, f64) {
-        let p = a * b;
-        (p, a.mul_add(b, -p))
-    }
-
-    /// The sign of `Σ terms` read in double-double, with anything within
-    /// `1e-28` of the largest term's magnitude called zero: far below
-    /// the one-ulp misses the checks below are built to see.
-    fn dd_sign(terms: &[f64]) -> core::cmp::Ordering {
-        let (mut hi, mut lo) = (0.0_f64, 0.0_f64);
-        for &t in terms {
-            let (s, e) = two_sum(hi, t);
-            hi = s;
-            lo += e;
-        }
-        let total = hi + lo;
-        let scale = terms.iter().fold(0.0_f64, |m, t| m.max(t.abs()));
-        if total.abs() <= 1e-28 * scale {
-            core::cmp::Ordering::Equal
-        } else {
-            total.total_cmp(&0.0)
-        }
-    }
-
-    /// **The `f64` screen's centres, radii and bound hold against exact
-    /// arithmetic.** Random enclosures over magnitudes from `1e-100` to
-    /// `1e100`, with near-tie cases (the bound's own rounding the only
-    /// margin):
-    ///
-    /// * [`Centred::of`]: both ends of every axis lie within the radius
-    ///   of the centre, checked exactly;
-    /// * [`Centred::of_affine`]: every corner `k − g·q` of the three
-    ///   enclosures (the extremes of a bilinear form), formed exactly
-    ///   with a fused multiply, lies within its radius of its centre;
-    /// * [`screen_bound`]: its square is at least the exact squared norm
-    ///   of the far corner of the two boxes' sum, `Σ(|m_k| + r)²`, with
-    ///   the centres' sum formed exactly.
-    ///
-    /// What a pure-`f64` row can and cannot see: dropping the screen's
-    /// `1 + 32ε`, `Centred::of`'s rounding up, or the screen's refusal
-    /// of a nonzero centre whose norm underflows to `0` goes red here
-    /// (the mutations were run). [`Centred::of_affine`]'s `1 + 8ε` and its
-    /// smallest-normal term sit beside a `4ε` centre term that already
-    /// covers the rounding they guard on every normal-range input, so
-    /// dropping either one alone stays green: they guard against the
-    /// radius sum's own rounding, which this row cannot isolate.
-    #[test]
-    fn the_screen_holds_against_exact_arithmetic() {
-        use core::cmp::Ordering::Less;
-        use test_utils::fuzz;
-        let mut rng = fuzz::start("enclose::screen_exact");
-        let mag = |rng: &mut fuzz::Rng| {
-            let m = 10f64.powf(rng.range(-100.0, 100.0));
-            if rng.below(2) == 0 { m } else { -m }
-        };
-        for case in 0..fuzz::scaled(4000) {
-            let tie = case % 3 == 0;
-            // Components whose squares underflow to zero: a norm that
-            // reads `0` for a centre that is not.
-            let tiny = case % 7 == 0;
-            let scale = 10f64.powf(rng.range(-100.0, 100.0));
-            let side = |rng: &mut fuzz::Rng| {
-                if tiny {
-                    return Interval::point(rng.range(-1.0, 1.0) * 1e-165);
-                }
-                let c = if tie {
-                    scale * rng.range(0.5, 1.0)
-                } else {
-                    mag(rng)
-                };
-                match case % 4 {
-                    0 => Interval::point(c),
-                    1 => Interval::from_bounds(c - c.abs() * 1e-17, c + c.abs() * 1e-17),
-                    // Ends of unrelated magnitude, where `hi − mid` rounds.
-                    2 => {
-                        let d = mag(rng);
-                        Interval::from_bounds(c.min(d), c.max(d))
-                    }
-                    _ => {
-                        let r = c.abs() * rng.range(0.0, 0.5);
-                        Interval::from_bounds(c - r, c + r)
-                    }
-                }
-            };
-            let k: [Interval; 3] = core::array::from_fn(|_| side(&mut rng));
-            let g = if tiny {
-                Interval::point(0.0)
-            } else {
-                side(&mut rng)
-            };
-            let q: [Interval; 3] = core::array::from_fn(|_| side(&mut rng));
-            if !(k.iter().chain(&q).all(|c| c.is_certified()) && g.is_certified()) {
-                continue;
-            }
-            let (ck, cg, cq) = (Centred::of(&k), Centred::of(&[g, g, g]), Centred::of(&q));
-            for (v, c) in [(&k, &ck), (&q, &cq)] {
-                for (i, (vi, mid)) in v.iter().zip(c.mid).enumerate() {
-                    for end in [vi.lo(), vi.hi()] {
-                        let (d, e) = two_sum(end, -mid);
-                        assert!(
-                            dd_sign(&[c.rad, -d.abs(), -e * d.signum()]) != Less,
-                            "case {case}: end {end} of axis {i} is outside {:?} ± {} — {}",
-                            c.mid,
-                            c.rad,
-                            fuzz::replay()
-                        );
-                    }
-                }
-            }
-            let img = Centred::of_affine(&ck, &cg, &cq);
-            for i in 0..3 {
-                for kv in [k[i].lo(), k[i].hi()] {
-                    for gv in [g.lo(), g.hi()] {
-                        for qv in [q[i].lo(), q[i].hi()] {
-                            let (p, pe) = two_prod(gv, qv);
-                            let (d, de) = two_sum(kv, -p);
-                            let (d2, de2) = two_sum(d, -img.mid[i]);
-                            let lo_part = de - pe + de2;
-                            let sign = if d2 + lo_part < 0.0 { -1.0 } else { 1.0 };
-                            assert!(
-                                dd_sign(&[img.rad, -sign * d2, -sign * de, sign * pe, -sign * de2])
-                                    != Less,
-                                "case {case}: corner k {kv} − g {gv}·q {qv} on axis {i} is \
-                                 outside {} ± {} — {}",
-                                img.mid[i],
-                                img.rad,
-                                fuzz::replay()
-                            );
-                        }
-                    }
-                }
-            }
-            let other = if tiny {
-                Centred {
-                    mid: [0.0; 3],
-                    rad: 0.0,
-                }
-            } else {
-                Centred::of(&core::array::from_fn(|_| side(&mut rng)))
-            };
-            let bound = screen_bound(&img, &other);
-            if !bound.is_finite() {
-                continue;
-            }
-            // Scaled up by an exact power of two so no square below
-            // underflows: the comparison is homogeneous.
-            let top = img
-                .mid
-                .iter()
-                .chain(&other.mid)
-                .chain([&img.rad, &other.rad, &bound])
-                .fold(0.0_f64, |m, x| m.max(x.abs()));
-            let up = if top > 0.0 && top < 1.0 {
-                2f64.powi(-(top.log2().floor() as i32))
-            } else {
-                1.0
-            };
-            let (b2, b2e) = two_prod(bound * up, bound * up);
-            let (r, re) = two_sum(img.rad * up, other.rad * up);
-            let mut terms = vec![b2, b2e];
-            for i in 0..3 {
-                let (m, me) = two_sum(img.mid[i] * up, other.mid[i] * up);
-                let (a, ae) = two_sum(m.abs(), r);
-                let ae = ae + me * m.signum() + re;
-                let (s, se) = two_prod(a, a);
-                terms.extend([-s, -se, -2.0 * a * ae]);
-            }
-            assert!(
-                dd_sign(&terms) != Less,
-                "case {case}: the screen {bound} is below the far corner of {:?} ± {} \
-                 plus {:?} ± {} — {}",
-                img.mid,
-                img.rad,
-                other.mid,
-                other.rad,
-                fuzz::replay()
-            );
-        }
-    }
-
     /// A net of degree `pu × pv` over the given clamped knots: a curved
     /// sheet, with weights `1 + spread·((3i + 2j) mod 5 − 2)/2`, so
     /// `spread` near 0 is nearly polynomial and larger is strongly
@@ -2483,36 +1885,53 @@ mod tests {
         ]
     }
 
-    /// **The quotient numerator box holds the true numerator, with no
-    /// quotient slack in between.** `S_d = (A_d − S·w_d)/w`, so the
-    /// numerator at a parameter is `S_d·w`, read here from `ders` and
-    /// from the weight function evaluated as a polynomial net. Each
-    /// span cell's numerator box, assembled over that cell's own point
-    /// box, must contain it at a dense grid of the cell's parameters
-    /// (ends included, where the numerator is a single pair's term),
-    /// and so must the box assembled with `S` pinned to the sample's
-    /// own point. The slack is the f64 rounding of `ders` and of the
-    /// product.
+    /// **A block is read on its pieces.** The flat wall `z = 1e-6·x` of
+    /// `m5_pr7_ssi`'s bent chart path (`x` quadratic in `u`, its `v`
+    /// slope `α·x_v` running from `−1.6e-8` to `−8e-9` across the
+    /// `v = 0` side): over the strip `v ∈ [0, 10⁻³]` the box's `z` is the
+    /// true range to rounding. Read as one piece the strip keeps the
+    /// degree-elevated hull of `x_v`'s `u` coefficients and its upper end
+    /// sits at `−5.3e-9`, which the boundary pass reads as a slope inside
+    /// the band at `ε = 1e-9`.
     #[test]
-    fn the_quotient_numerator_box_holds_the_sampled_numerator() {
+    fn a_block_is_read_on_its_pieces() {
+        let (alpha, width, kappa, mu) = (1e-6, 0.01, 0.8, 0.2);
+        let (lin, square, hump) = ([-0.5, 0.0, 0.5], [0.25, -0.25, 0.25], [0.0, 2.0, 0.0]);
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let mut control = Vec::new();
+        for i in 0..3 {
+            for (j, h) in hump.iter().enumerate() {
+                let x = width * (lin[i] - kappa * square[i] * h - mu * h);
+                control.push(Point3::new(x, 0.25 * j as f64, alpha * x));
+            }
+        }
+        let s = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).unwrap();
+        let z = NurbsBoxes::new(&s)
+            .deriv_box(win((0.0, 1.0, 0.0, 1e-3)), false)
+            .z;
+        // The true range: `α·width·4·(1 − 2v)·(−κ(u − ½)² − μ)` at
+        // `v ∈ [0, 10⁻³]`.
+        let (lo, hi) = (-1.6e-8, -7.984e-9);
+        assert!(
+            z.lo() <= lo && hi <= z.hi() && z.lo() >= lo - 1e-22 && z.hi() <= hi + 1e-20,
+            "the strip's z box [{:e}, {:e}] against the true [{lo:e}, {hi:e}]",
+            z.lo(),
+            z.hi()
+        );
+    }
+
+    /// **Each cell's derivative box holds the true derivative.** The box
+    /// is the hull of the cell's coefficient ratios `a_k/b_k`, of which
+    /// `S_d` is a convex combination; it must contain `S_d` read from
+    /// `ders` at a dense grid of the cell's parameters (ends included).
+    /// The slack is the f64 rounding of `ders`.
+    #[test]
+    fn each_cells_derivative_box_holds_the_sampled_derivative() {
         let mut nets = varied_nets();
         nets.push(("rational wall", rational_wall(0.0)));
         nets.push(("two-span patch", multiplicity_2_patch()));
         let n = 16;
         for (name, s) in &nets {
-            // The weight function as a polynomial net: `x` carries `w`.
-            let wnet: Vec<Point3<f64>> = s
-                .weights()
-                .iter()
-                .map(|w| Point3::new(*w, 0.0, 0.0))
-                .collect();
-            let wsurf = NurbsSurface::new(
-                s.knots_u().clone(),
-                s.knots_v().clone(),
-                wnet,
-                vec![1.0; s.weights().len()],
-            )
-            .expect("the weight net");
             let (ku, kv) = (s.knots_u(), s.knots_v());
             for su in ku.first_span()..=ku.last_span() {
                 for sv in kv.first_span()..=kv.last_span() {
@@ -2523,7 +1942,7 @@ mod tests {
                     let (va, vb) = (kv.knots()[sv], kv.knots()[sv + 1]);
                     let net = CellNet::of_cell(win).expect("the cell's block");
                     for along_u in [true, false] {
-                        let (num, _) = net.quotient_numerator(along_u, net.point_box());
+                        let b = net.derivative_box(along_u);
                         // A cell's far end belongs to the next span (`ders`
                         // reads the span starting there), so it is sampled
                         // only where it is the domain's end.
@@ -2534,27 +1953,16 @@ mod tests {
                                 let u = ua + (ub - ua) * f64::from(i) / f64::from(n);
                                 let v = va + (vb - va) * f64::from(j) / f64::from(n);
                                 let jet = s.ders(u, v);
-                                let w = wsurf.eval(u, v).x;
                                 let d = if along_u { jet.du } else { jet.dv };
-                                // The same form with `S` pinned to this
-                                // parameter's own point: no point-box slack
-                                // is left for a wrong pair term to hide in.
-                                let (thin, _) = net.quotient_numerator(
-                                    along_u,
-                                    Box3::between(jet.point, jet.point),
-                                );
-                                for (which, b) in [("cell box", num), ("S pinned", thin)] {
-                                    for (c, x) in [(b.x, d.x * w), (b.y, d.y * w), (b.z, d.z * w)] {
-                                        let slack = 32.0 * f64::EPSILON * x.abs().max(1.0);
-                                        assert!(
-                                            c.lo() - slack <= x && x <= c.hi() + slack,
-                                            "{name}: numerator ({which}, along_u = {along_u}) \
-                                             {x} at ({u}, {v}) outside [{}, {}] on cell \
-                                             ({su}, {sv})",
-                                            c.lo(),
-                                            c.hi()
-                                        );
-                                    }
+                                for (c, x) in [(b.x, d.x), (b.y, d.y), (b.z, d.z)] {
+                                    let slack = 32.0 * f64::EPSILON * x.abs().max(1.0);
+                                    assert!(
+                                        c.lo() - slack <= x && x <= c.hi() + slack,
+                                        "{name}: S_d (along_u = {along_u}) {x} at ({u}, {v}) \
+                                         outside [{}, {}] on cell ({su}, {sv})",
+                                        c.lo(),
+                                        c.hi()
+                                    );
                                 }
                             }
                         }
