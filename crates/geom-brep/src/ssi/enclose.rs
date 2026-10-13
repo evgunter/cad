@@ -1230,12 +1230,7 @@ impl CellNet {
             .map(|(i0, i1, scale)| {
                 let (p0, p1) = (*self.pts.get(i0)?, *self.pts.get(i1)?);
                 let (w0, w1) = (*self.wts.get(i0)?, *self.wts.get(i1)?);
-                Some(PairTerm {
-                    scale,
-                    lever: core::array::from_fn(|k| w1 * (p1[k] - p0[k])),
-                    dw: w1 - w0,
-                    p0,
-                })
+                Some(PairTerm::new(scale, (p0, w0), (p1, w1)))
             })
             .collect()
     }
@@ -1271,7 +1266,7 @@ impl CellNet {
             terms: self
                 .pair_terms(along_u)?
                 .iter()
-                .map(|t| t.about(c))
+                .map(|t| about(t, c))
                 .collect(),
             offsets,
             weight: self.weight_hull()?,
@@ -1347,30 +1342,17 @@ impl CellNet {
     }
 }
 
-/// One adjacent pair's term of the quotient numerator `A_d − S·w_d`,
-/// `k·(w₁·(P₁ − P₀) + (w₁ − w₀)·(P₀ − S))` as a function of `S`: the
-/// scale `k`, the lever `w₁·(P₁ − P₀)`, the weight step `w₁ − w₀` and
-/// `P₀`.
-#[derive(Clone, Copy, Debug)]
-struct PairTerm {
-    scale: Interval,
-    lever: [Interval; 3],
-    dw: Interval,
-    p0: [Interval; 3],
-}
+/// One adjacent pair's term of the quotient numerator `A_d − S·w_d`:
+/// the rational speed bound's own term,
+/// [`geom_core::spline::RationalPairTerm`], so this enclosure and
+/// `NurbsSurface::stretch_sup` read one formula.
+type PairTerm = geom_core::spline::RationalPairTerm<Interval, 3>;
 
-impl PairTerm {
-    /// The term as a function of the offset `S − c`:
-    /// `k·(lever + dw·(P₀ − c)) − k·dw·(S − c)`. Every point still enters
-    /// as a difference with another.
-    fn about(&self, c: [Interval; 3]) -> Affine {
-        Affine {
-            k: core::array::from_fn(|i| {
-                (self.lever[i] + self.dw * (self.p0[i] - c[i])) * self.scale
-            }),
-            g: self.dw * self.scale,
-        }
-    }
+/// The term as an [`Affine`] in the offset `S − c`
+/// ([`geom_core::spline::RationalPairTerm::about`]).
+fn about(t: &PairTerm, c: [Interval; 3]) -> Affine {
+    let (k, g) = t.about(c);
+    Affine { k, g }
 }
 
 /// The derivative scale `degree / (t_{i+degree+1} − t_{i+1})` of each
