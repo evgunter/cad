@@ -926,6 +926,8 @@ mod review_fillet_h5_r1_probes;
 
 #[path = "blend_carries_records.rs"]
 mod blend_carries_records;
+#[path = "review_4996_blend_cap.rs"]
+mod review_4996_blend_cap;
 #[path = "blend_per_shell.rs"]
 mod blend_per_shell;
 #[path = "blend_per_shell_carry.rs"]
