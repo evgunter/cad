@@ -3296,6 +3296,7 @@ fn radial_amplitude<T: Real>(form: &Harmonic3<T>, axis: Vec3<T>) -> T {
     if sum_mutant("radial-amplitude") {
         return radial(form.a).norm() + radial(form.b).norm() + radial(form.l).norm();
     }
+    if r2("ra-sum") { return radial(form.a).norm() + radial(form.b).norm() + radial(form.l).norm(); }
     harmonic_sup(radial(form.a), radial(form.b)) + radial(form.l).norm()
 }
 
@@ -4326,6 +4327,15 @@ fn class_circle<T: Decide>(
                 );
                 return;
             }
+            if r2("cc-sum") {
+                let b_r = b - axis * b.dot(axis);
+                terms.add(EnvelopeTerm::Radius, norm_gap(rho, rho_sq, a_r) + (b_r - turn).norm() + harmonic_sup_scalar(a.dot(axis), b.dot(axis)));
+                return;
+            }
+            if r2("cc-max") {
+                terms.add(EnvelopeTerm::Radius, (a_r * f - a).norm().max((turn * f - b).norm()));
+                return;
+            }
             terms.add(
                 EnvelopeTerm::Radius,
                 harmonic_sup(a_r * f - a, turn * f - b),
@@ -4356,6 +4366,10 @@ fn class_circle<T: Decide>(
 /// refuse each are in `radial_pair_rows`. `option_env!` because
 /// `scripts/gates/no-ambient-env.sh` forbids a runtime read in
 /// `crates/*/src`.
+fn r2(name: &str) -> bool {
+    option_env!("R2_MUT") == Some(name)
+}
+
 #[cfg(test)]
 fn sum_mutant(name: &str) -> bool {
     option_env!("PCERT_RADIAL_PAIR_MUTANT") == Some(name)
@@ -4391,7 +4405,20 @@ fn incidence<T: Decide>(
             match derivation {
                 Derivation::CylinderMoving { beta } => {
                     terms.add(Centre, w_r.norm());
+                    if r2("cyl-old") {
+                        match beta {
+                            Winding::Pos | Winding::Neg => {
+                                terms.add(Radius, norm_gap(radius, radius.powi(2), a_r));
+                                terms.add(Orientation, (b_r - axis.cross(a_r) * beta.value()).norm());
+                            }
+                            Winding::Zero => {
+                                terms.add(Radius, radius);
+                                terms.add(Drift, harmonic_sup(a_r, b_r));
+                            }
+                        }
+                    } else {
                     class_circle(terms, beta, (radius, radius.powi(2)), (a_r, b_r), axis);
+                    }
                 }
                 _ => {
                     terms.add(Radius, norm_gap(radius, radius.powi(2), w_r));
@@ -4480,7 +4507,7 @@ fn incidence<T: Decide>(
                     }
                     terms.add(
                         Radius,
-                        harmonic_sup(a * k, ja * (T::one() + k) * sigma.value() - b),
+                        if r2("sm-max") { (a * k).norm().max((ja * (T::one() + k) * sigma.value() - b).norm()) } else { harmonic_sup(a * k, ja * (T::one() + k) * sigma.value() - b) },
                     );
                 }
                 Derivation::SphereMeridian { pole: true, sigma } => {
@@ -4497,7 +4524,7 @@ fn incidence<T: Decide>(
                     }
                     terms.add(
                         Orientation,
-                        harmonic_sup_scalar(bb, aa * sigma.value() + b_r.norm()),
+                        if r2("ps-max") { bb.abs().max((aa * sigma.value() + b_r.norm()).abs()) } else { harmonic_sup_scalar(bb, aa * sigma.value() + b_r.norm()) },
                     );
                 }
                 _ => unreachable!("incidence: the sphere arm matched its own derivations"),
@@ -4544,7 +4571,7 @@ fn incidence<T: Decide>(
                             }
                             terms.add(
                                 Radius,
-                                (h * kappa).abs() + harmonic_sup(a_r * f - a, turn * f - b),
+                                if r2("tp-noh") { T::zero() } else { (h * kappa).abs() } + harmonic_sup(a_r * f - a, turn * f - b),
                             );
                         }
                         Winding::Zero => {
@@ -4571,7 +4598,7 @@ fn incidence<T: Decide>(
                     // `a*` and `b*`, the image's `cos t` and `sin t`
                     // coefficients up to the factor `r/n`.
                     let n = n_sq.sqrt();
-                    let f = T::one() + (minor_sq - n_sq) / ((minor_radius + n) * n);
+                    let f = if r2("tm-nof") { T::one() } else { T::one() + (minor_sq - n_sq) / ((minor_radius + n) * n) };
                     let a_star = w_r * (aw / wr_sq) + axis * aa;
                     let b_star = (axis * aw - w_r * aa) / wr_sq.sqrt() * sigma.value();
                     #[cfg(test)]
