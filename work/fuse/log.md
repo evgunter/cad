@@ -816,3 +816,11 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Ruled:** trace one pose so the row lands with its owner (CONTACTHOLD for the carry, FUSE for the mint). File it at P1, with a P3 for the missing 3′ assertions. The lane also adds a line to the stale-citation rows of other programs.
   - **The trace overturns the P1 ruling.** All 229 come from tests that fold through bare kernel ops without `BooleanInputs` records. Their allowances are documented, or a carried sibling asserts 3′ and passes. Re-folding `standing_pyramids…` with the records carried passes strict 3′ on 60/60 steps. No defect, and no P1.
   - **Filed instead, P3 with `design: true`:** a result's tier-3′ currency is relative to the records passed in, so the `BooleanBody` contract can overstate it. Fixes to weigh: say so in the doc, refuse or flag the input, or make the type carry the relativity.
+- 2026-10-13 — PR 4939 (the join lever) merges at a1900fc0, from head afbb1b1e on green CI.
+  - **What:** the join levers a vertex's reading over the larger of its two edges' extents (`min` → `max`), and `EDGE_JOIN_SITE`'s comment is corrected.
+  - **Test:** a ci row pins the refusal boundary, at `Kε` on a line edge and at `10ε` on a cap arc.
+  - **Closes:** the sliver-arc row. Reverting `max` → `min` keeps every test green: the change fixes what the reading means, not any outcome, as ruled.
+- 2026-10-13 — Dispatched: `census-curved-record-lanes-read-circles-only` (P1/H) to a fresh lane, on branch `fuse/census-reads-every-curved-edge`.
+  - **Why this one:** an ellipse or spiric edge can hold a record through the public API (a tilted cylinder section).
+  - **The two spline P1s** stay behind the operand gate.
+  - **Brief:** reproduce first; one reading over `Curve3` rather than per-kind copies of the circle's; no candidate missed silently.

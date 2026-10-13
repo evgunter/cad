@@ -50,3 +50,8 @@ each term at the hull points with `S′` from the pair-term statement.
 Route both sites through it, so the first- and second-order rational
 bounds each have one recipe. The goldens that pin `m_sup` and the
 chord counts move with it (re-baseline them, stating the reason).
+
+## Note (2026-10-13)
+
+- **A third first-order inf recipe** reads the same cells: `geom-brep` `offset_meters` `cell_normal` / `patch_regularity` floors ‖S_u × S_v‖ by interval products of `patch_bound`'s refined cell enclosures. It moves with this row.
+- **The second-order statement follows the 2026-10-13 quotient ruling** (`work/nurbs/log.md`). `S_uu` and `S_uv` have the same numerator over a power of `W` form, so the quotient bound covers them. Build A's pair-term WIP (`nurbs/second-order-pair-term`, `f22f608d`) is not merged. Its rows and mutants carry over.
