@@ -2,8 +2,10 @@
 id: review-4781-touch-pairs-is-red-at-1e-6-and-1e-12-on-main
 kind: issue
 title: contacthold: review_4781_r1_probes::review_4781_touch_pairs_every_op is red at eps 1e-6 and 1e-12 on main
-status: open
+status: review
 opened: 2026-10-12
+branch: contacthold/review-4781-eps-rows
+pr: 4986
 ---
 
 
