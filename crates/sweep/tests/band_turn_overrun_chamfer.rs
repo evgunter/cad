@@ -627,31 +627,24 @@ fn bossed(a: f64, b: f64) -> (Body<f64>, [EdgeKey; 2]) {
 /// along the near band's trimline, its incircle of radius `≈ 0.1·d`
 /// about `(1.1·d, 0.1·d)` in the wall's `(along L, across)` frame. A
 /// boss standing on the wall there has its ring past the near band's
-/// trimline, so that band's own meters pass it. Two meters refuse it:
-/// the far band's cut-off sliver (arm (c), `RingClearance` at the
-/// leaning wall, a bound reading) answers first, and the reach
-/// (`FaceClearance`) refuses it without arm (c). Either is a refusal of
-/// the right feature; the row holds that one of them answers. The same
+/// trimline, so that band's own meters pass it. The far band's overrun
+/// sliver reads the ring inside its triangle, an inside reading no carve
+/// takes (the sliver carries no crease), and the reach refuses the
+/// boss's side as a bound (`FaceClearance`), which outranks it. The same
 /// boss moved clear of the sliver, to `(2·d, 0.1·d)`, builds at the
 /// half-spaces' volume.
 #[test]
 fn a_boss_in_the_overrun_refuses_and_one_clear_of_the_sliver_builds() {
     let (inside, edges) = bossed(1.1 * D, 0.1 * D);
     match chamfer_edges(&at_rest(&inside, tol()), &edges, D, tol()) {
-        Err(e) => match e.error {
-            sweep::blend::BlendError::RingClearance { face, .. } => {
-                let surface = inside
-                    .get_face(face)
-                    .and_then(|x| inside.get_surface(x.surface));
-                assert!(
-                    matches!(surface, Some(Surface::Plane { normal, .. })
-                        if (normal.x - normal.z).abs() < 1e-12 && normal.y.abs() < 1e-12),
-                    "the sliver's refusal names the leaning wall, got {surface:?}"
-                );
-            }
-            sweep::blend::BlendError::FaceClearance { .. } => {}
-            other => panic!("a boss in the overrun refuses at a clearance meter, got {other}"),
-        },
+        Err(e) => assert!(
+            matches!(
+                e.error,
+                sweep::blend::BlendError::FaceClearance { bounded: true, .. }
+            ),
+            "a boss in the overrun refuses as a bound at its side, got {:?}",
+            e.error
+        ),
         Ok(out) => panic!(
             "a boss in the overrun must refuse, built one whose tier 3 reads {:?}",
             validate_geometric(&out.body, tol())
@@ -666,6 +659,59 @@ fn a_boss_in_the_overrun_refuses_and_one_clear_of_the_sliver_builds() {
         (removed - want).abs() < 1e-10,
         "a boss clear of the overrun: ΔV {removed} against {want}"
     );
+}
+
+/// **A slot through the overrun is never consumed.** At the bracket's
+/// `y = 0` corner a square slot of half-side `0.003` runs along the top
+/// edge's band, at the overrun's incentre `(1.1·d, 0.1·d)` in the
+/// leaning wall's `(along L, across)` frame, out through the square
+/// end `x = 2`. Its ring there lies inside that cut-off's triangle, and
+/// its ring on the leaning wall (lines, as a support's rings must be)
+/// inside the triangle the far band's
+/// overrun sliver is read through. That triangle is a bound larger than
+/// the overrun, not the far band's removed slice, so its crease is none
+/// and a cycle inside it is never a ring the carve takes: the slot's
+/// walls, read through the one ring at `x = 2`, refuse as a bound.
+/// Given the far band's crease there, the carve takes the slot.
+#[test]
+fn a_slot_through_the_overrun_is_never_consumed() {
+    let (body, edges) = leaning_turn(-1.0);
+    let r2 = core::f64::consts::FRAC_1_SQRT_2;
+    let (y, z, h) = (-0.1 * D, 1.0 - 1.1 * D * r2, 0.003);
+    let pin = sweep::test_support::prism_on(
+        sweep::test_support::sketch_from_axes(
+            Point3::new(-1.5, y, z),
+            geom_core::Vec3::new(0.0, 1.0, 0.0),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+            tol(),
+        ),
+        sweep::test_support::corners(&[(-h, -h), (h, -h), (h, h), (-h, h)]),
+        4.0,
+        tol(),
+    );
+    let bored = realized(BooleanOp::Subtract, &body, &pin, tol());
+    validate_geometric(&bored, tol()).expect("the slotted corner is tier-3 valid");
+    let corner = [-1.0, 0.0, 1.0];
+    let edges = edges.map(|e| {
+        let [a, b] = ends(&body, e).map(|v| point_at(&body, v));
+        let far = if norm(sub(a, corner)) < 1e-12 { b } else { a };
+        edge(&bored, corner, far)
+    });
+    match chamfer_edges(&at_rest(&bored, tol()), &edges, D, tol()) {
+        Err(e) => assert!(
+            matches!(
+                e.error,
+                sweep::blend::BlendError::FaceClearance { bounded: true, .. }
+            ),
+            "the slot refuses as a bound at its wall, which the prism reading cannot take \
+             through a ring on the overrun's sliver, got {:?}",
+            e.error
+        ),
+        Ok(out) => panic!(
+            "a slot through the overrun must refuse, built one whose tier 3 reads {:?}",
+            validate_geometric(&out.body, tol())
+        ),
+    }
 }
 
 /// **L blended in a later call** ends at the overrun's turn foot, a

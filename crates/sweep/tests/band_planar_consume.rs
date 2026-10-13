@@ -669,3 +669,394 @@ fn a_hole_whose_mouth_lies_inside_a_concave_sliver_refuses_as_a_bound() {
         );
     }
 }
+
+/// The parallelogram `V = (0, 0)`, `(1, 0)`, `(1, 0) + e`, `e`, with
+/// `e = (cos θ, sin θ)`, with the profile `hole` through it, extruded
+/// `1` along `z`: the edge at `V` is a convex plane–plane crease of
+/// interior angle `θ`.
+fn dihedral<T: Decide + AtRestPolicy>(theta: f64, hole: ProfileLoop<T>) -> topo::AtRestBody<T> {
+    let (c, s) = (theta.cos(), theta.sin());
+    let outline = poly::<T>(&[(0.0, 0.0), (1.0, 0.0), (1.0 + c, s), (c, s)]);
+    finished(
+        "dihedral",
+        extruded(
+            SketchPlane::xy(),
+            vec![outline, hole],
+            T::from_f64(1.0),
+            tol(),
+        ),
+        tol(),
+    )
+}
+
+/// The section `verb` at size `D` removes from a convex dihedral of
+/// interior angle `theta`: the chamfer's triangle `D²·sin θ / 2`, the
+/// fillet's kite less its sector `D²·(cot(θ/2) − (π − θ)/2)`.
+fn section_at(verb: Verb, theta: f64) -> f64 {
+    match verb {
+        Verb::Chamfer => D * D * theta.sin() / 2.0,
+        Verb::Fillet => D * D * (1.0 / (theta / 2.0).tan() - (PI - theta) / 2.0),
+    }
+}
+
+/// [`dihedral`]'s crease at `V`.
+fn crease_at_v<T: Real + Bounds>(body: &Body<T>) -> EdgeKey {
+    let at = |p: Point3<T>| mid(p.x).abs() < 1e-12 && mid(p.y).abs() < 1e-12;
+    query::all_edges(body)
+        .into_iter()
+        .find(|&e| {
+            let he = body.get_edge(e).expect("an edge").he_plus;
+            let p = |v| {
+                *body
+                    .get_point(body.get_vertex(v).expect("v").point)
+                    .expect("p")
+            };
+            at(p(body.get_half_edge(he).expect("a half").start))
+                && at(p(body.half_edge_end(he).expect("an end")))
+        })
+        .expect("the crease at V")
+}
+
+/// **A bore wholly inside the sliver of a dihedral other than a right
+/// one goes with it**, under both verbs, at `ΔV = −(A(θ) − π·a²)`
+/// ([`section_at`]). At 60° the chamfer's triangle is equilateral, the
+/// bore at its incentre `D/√3` along the bisector; at 120° at the
+/// triangle's incentre too; the fillet's bores lie on the bisector
+/// between `V` and the arc, which is nearest `V` at `D` (60°) and
+/// `≈ 0.0155` (120°).
+#[test]
+fn a_bore_inside_the_sliver_of_a_non_right_dihedral_goes_at_the_closed_form() {
+    let s3 = 3f64.sqrt();
+    let incentre = |theta: f64| {
+        let side = 2.0 * D * (theta / 2.0).sin();
+        let r_in = section_at(Verb::Chamfer, theta) / ((2.0 * D + side) / 2.0);
+        r_in / (theta / 2.0).sin()
+    };
+    for (what, theta, verb, t, a) in [
+        ("60° chamfer", PI / 3.0, Verb::Chamfer, D / s3, 0.01),
+        ("60° fillet", PI / 3.0, Verb::Fillet, 0.05, 0.01),
+        (
+            "120° chamfer",
+            2.0 * PI / 3.0,
+            Verb::Chamfer,
+            incentre(2.0 * PI / 3.0),
+            0.006,
+        ),
+        ("120° fillet", 2.0 * PI / 3.0, Verb::Fillet, 0.008, 0.003),
+    ] {
+        let half = theta / 2.0;
+        let body = dihedral::<f64>(theta, round(t * half.cos(), t * half.sin(), a));
+        let walls = curved_walls(&body);
+        assert_eq!(walls.len(), 2, "{what}: the bore's two half-walls");
+        let removed = section_at(verb, theta) - PI * a * a;
+        assert_consumed(
+            verb,
+            &body,
+            &[crease_at_v(&body)],
+            D,
+            &walls,
+            (removed, 1.0),
+            what,
+        );
+    }
+}
+
+/// **A hair either side of the end curve at a dihedral other than a
+/// right one.** At 45°, 60°, 120° and 135° the chamfer's triangle is
+/// `V, D·(1, 0), D·e`: a bore of radius `0.004` on the bisector whose
+/// near side is `1e-4` inside the chord goes, at `ΔV = −(A(θ) − π·a²)`;
+/// one `1e-4` across it, or centred on it, refuses `RingClearance` as a
+/// measurement; and one `1e-4` off the support `y = 0`, a third of the
+/// way from `V` to its foot, goes. At 60° and 120° the fillet's bore a
+/// hair past the arc (on the bisector, the ball's centre `D/sin(θ/2)`
+/// from `V`) goes and one a hair short refuses measured.
+#[test]
+fn a_bore_a_hair_across_the_end_curve_of_a_non_right_dihedral_crosses_and_one_inside_goes() {
+    let (a, hair) = (0.004, 1e-4);
+    let measured = |what: &str, got: Result<Blended<f64>, BlendError>| {
+        assert!(
+            matches!(
+                got,
+                Err(BlendError::RingClearance {
+                    bounded: false,
+                    chain: Convexity::Convex,
+                    ..
+                })
+            ),
+            "{what}: a measured RingClearance at the cap, got {:?}",
+            got.map(|_| ())
+        );
+    };
+    let carve = |theta: f64, verb: Verb, (x, y): (f64, f64)| {
+        let body = dihedral::<f64>(theta, round(x, y, a));
+        blend(verb, &body, &[crease_at_v(&body)], D)
+    };
+    let consumed = |theta: f64, verb: Verb, at: (f64, f64), what: &str| {
+        let body = dihedral::<f64>(theta, round(at.0, at.1, a));
+        let walls = curved_walls(&body);
+        let removed = section_at(verb, theta) - PI * a * a;
+        assert_consumed(
+            verb,
+            &body,
+            &[crease_at_v(&body)],
+            D,
+            &walls,
+            (removed, 1.0),
+            what,
+        );
+    };
+    for deg in [45.0f64, 60.0, 120.0, 135.0] {
+        let th = deg.to_radians();
+        let (c, s) = ((th / 2.0).cos(), (th / 2.0).sin());
+        // On the bisector, `dist` from the chord towards `V`.
+        let chord = |dist: f64| {
+            let t = D * c - dist;
+            (t * c, t * s)
+        };
+        consumed(
+            th,
+            Verb::Chamfer,
+            chord(a + hair),
+            &format!("{deg}°: a hair inside the chord"),
+        );
+        for (what, dist) in [("a hair across the chord", a - hair), ("on the chord", 0.0)] {
+            measured(
+                &format!("{deg}°: {what}"),
+                carve(th, Verb::Chamfer, chord(dist)),
+            );
+        }
+        consumed(
+            th,
+            Verb::Chamfer,
+            (D / 3.0 + a, a + hair),
+            &format!("{deg}°: a hair off the support"),
+        );
+        if deg == 60.0 || deg == 120.0 {
+            // On the bisector, `dist` from the arc towards `V`.
+            let ball = D / s;
+            let arc = |dist: f64| {
+                let t = ball - D - dist;
+                (t * c, t * s)
+            };
+            consumed(
+                th,
+                Verb::Fillet,
+                arc(a + hair),
+                &format!("{deg}°: a hair past the arc"),
+            );
+            measured(
+                &format!("{deg}°: a hair short of the arc"),
+                carve(th, Verb::Fillet, arc(a - hair)),
+            );
+        }
+    }
+}
+
+/// In the leaning prism's `(y, z)`: the point `dist` from the
+/// chamfer's chord towards the old vertex `(0, 1)`, on the chord's
+/// normal through its midpoint.
+fn past_the_chord_yz(dist: f64) -> (f64, f64) {
+    let m = (D / 2.0, 1.0 - D / 2.0);
+    (m.0 - dist / 2f64.sqrt(), m.1 + dist / 2f64.sqrt())
+}
+
+/// **A hair either side of the chord at an oblique cap.** At leans `±1`
+/// and `0.3` a bore along the edge whose near side is `1e-4` inside the
+/// chord goes, at `ΔV = −(D²/2 − π·a²)·2`; one `1e-4` across it refuses
+/// `RingClearance` as a measurement. At an oblique cap the triangle in
+/// the cap's plane is not isosceles, so `Ω`'s floor across the corner
+/// runs past the chord: only the triangle's own sides witness the ring's
+/// points beyond it outside, which is what makes the crossing measured.
+#[test]
+fn a_bore_a_hair_across_the_chord_at_an_oblique_cap_crosses_and_one_inside_goes() {
+    let (a, hair) = (0.004, 1e-4);
+    for s in [1.0, -1.0, 0.3] {
+        let p = past_the_chord_yz(a + hair);
+        let body = bored(s, p, p, a, Vec3::new(0.0, 1.0, 0.0));
+        let walls = curved_walls(&body);
+        let removed = (section(Verb::Chamfer, D) - PI * a * a) * 2.0;
+        let what = format!("lean {s}: a hair inside the chord");
+        assert_consumed(
+            Verb::Chamfer,
+            &body,
+            &[front(&body)],
+            D,
+            &walls,
+            (removed, 1.0),
+            &what,
+        );
+        let p = past_the_chord_yz(a - hair);
+        let body = bored(s, p, p, a, Vec3::new(0.0, 1.0, 0.0));
+        let got = Verb::Chamfer
+            .run_finished(&body, &[front(&body)])
+            .map(|_| ());
+        assert!(
+            matches!(
+                got,
+                Err(BlendError::RingClearance {
+                    bounded: false,
+                    chain: Convexity::Convex,
+                    ..
+                })
+            ),
+            "lean {s}: a hair across the chord, a measured RingClearance, got {got:?}"
+        );
+    }
+}
+
+/// **A tilted bore that leaves the chamfer's prism refuses**, in every
+/// pose: its ring at the wall `x = 0` lies `0.015` inside the chord, and
+/// its far ring at `x = 2` lies wholly past the chord in kept material
+/// (the wall crosses the chamfer's plane mid-length, read as a measured
+/// `FaceClearance`), across the chord (a measured `RingClearance` at the
+/// far cap), or below the triangle beside the support `y = 0`'s rim
+/// (`FaceClearance` measured). The first pose under the fillet lies in
+/// the kept ball at both caps (`≈ 0.086` and `0.051` from the ball's
+/// centre, radius `D`): clear of the band, it is kept, and the band
+/// takes its section alone, `ΔV = −A·2`, leaving genus 1.
+#[test]
+fn a_tilted_bore_leaving_the_chamfers_prism_refuses() {
+    let a = 0.003;
+    let inside = past_the_chord_yz(0.015);
+    let kept = past_the_chord_yz(-0.02);
+    for (what, far, ring) in [
+        ("its far ring past the chord", kept, false),
+        (
+            "its far ring across the chord",
+            past_the_chord_yz(0.0),
+            true,
+        ),
+        (
+            "its far ring below the triangle",
+            (0.01, 1.0 - D - 0.02),
+            false,
+        ),
+    ] {
+        let body = bored(0.0, inside, far, a, Vec3::new(0.0, 1.0, 0.0));
+        let got = Verb::Chamfer
+            .run_finished(&body, &[front(&body)])
+            .map(|_| ());
+        let pinned = if ring {
+            matches!(got, Err(BlendError::RingClearance { bounded: false, .. }))
+        } else {
+            matches!(got, Err(BlendError::FaceClearance { bounded: false, .. }))
+        };
+        assert!(pinned, "{what}: a measured crossing, got {got:?}");
+    }
+    let body = bored(0.0, inside, kept, a, Vec3::new(0.0, 1.0, 0.0));
+    let out = Verb::Fillet
+        .run_finished(&body, &[front(&body)])
+        .unwrap_or_else(|e| panic!("the fillet keeps the bore in its ball, got {e}"));
+    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("the kept bore: tier 3, {e:?}"));
+    let ((v0, p0), (v1, p1)) = (volume_enclosure(&body), volume_enclosure(&out.body));
+    let want = section(Verb::Fillet, D) * 2.0;
+    assert!(
+        ((v0 - v1) - want).abs() < 1e-10 + p0 + p1,
+        "the kept bore: ΔV {} vs the band's section alone {want}",
+        v0 - v1
+    );
+    let c = topo::readback::euler_counts(&out.body);
+    assert_eq!(c.genus(), Ok(1), "the fillet keeps the bore");
+}
+
+/// **A bore in kept material just past a support's plane, in `Ω` but
+/// outside the chamfer's triangle, is never consumed.** A C-section:
+/// the lower jaw `[0, 1]²`, the upper jaw `[0, 1] × [1.005, 1.2]`
+/// joined to it at `x ≤ 0.2`, so the lower jaw's top `y = 1` is the
+/// slot's floor; and the section transposed (`x ↔ y`), so each of the
+/// crease's two supports in turn is the one kept material lies just
+/// past. The crease at `(1, 1)` is blended at `D`. A bore of radius
+/// `0.003` at `(0.97, 1.01)` (transposed `(1.01, 0.97)`) runs through
+/// the upper jaw, on `V`'s side of the chord and of the other rim, so
+/// inside `Ω` about the chord's midpoint. It lies outside the material
+/// the band removes, so the request builds keeping both its walls at
+/// `ΔV = −A`, or refuses as a bound: it never consumes the bore and
+/// never measures a crossing in kept material. On a convex body the
+/// rims bound the end face itself; here the cycle lies past one, so each
+/// of the triangle's two rim sides is what reads it outside.
+#[test]
+fn a_bore_past_a_rim_in_kept_material_is_never_consumed() {
+    let c: &[(f64, f64)] = &[
+        (0.0, 0.0),
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (0.2, 1.0),
+        (0.2, 1.005),
+        (1.0, 1.005),
+        (1.0, 1.2),
+        (0.0, 1.2),
+    ];
+    let transposed: Vec<(f64, f64)> = c.iter().rev().map(|&(x, y)| (y, x)).collect();
+    for (what, outline, (x, y)) in [
+        ("C", c.to_vec(), (0.97, 1.01)),
+        ("transposed C", transposed, (1.01, 0.97)),
+    ] {
+        let body = finished(
+            what,
+            extruded(
+                SketchPlane::xy(),
+                vec![poly(&outline), round(x, y, 0.003)],
+                1.0,
+                tol(),
+            ),
+            tol(),
+        );
+        validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("{what}: source tier 3 {e:?}"));
+        let walls = curved_walls(&body);
+        assert_eq!(walls.len(), 2, "{what}: the bore's two half-walls");
+        let e = edge(&body, [1.0, 1.0, 0.0], [1.0, 1.0, 1.0]);
+        for verb in VERBS {
+            match blend(verb, &body, &[e], D) {
+                Ok(out) => {
+                    validate_geometric(&out.body, tol())
+                        .unwrap_or_else(|err| panic!("{what} {verb:?}: tier 3 {err:?}"));
+                    assert!(
+                        walls.iter().all(|w| out.body.get_face(*w).is_some()),
+                        "{what} {verb:?}: the bore in kept material survives"
+                    );
+                    let dv = volume_enclosure(&body).0 - volume_enclosure(&out.body).0;
+                    let want = section(verb, D);
+                    assert!(
+                        (dv - want).abs() < 1e-9,
+                        "{what} {verb:?}: ΔV {dv} vs the band's section alone {want}"
+                    );
+                }
+                Err(err) => assert!(
+                    matches!(
+                        err,
+                        BlendError::RingClearance { bounded: true, .. }
+                            | BlendError::FaceClearance { bounded: true, .. }
+                    ),
+                    "{what} {verb:?}: kept material refuses only as a bound, got {err:?}"
+                ),
+            }
+        }
+    }
+}
+
+/// **A hair either side of the chord at the certified scalar**: a bore
+/// whose near side is `1e-4` across the chamfer's chord refuses
+/// `RingClearance` as a measurement, and one `1e-4` inside it goes.
+#[test]
+fn a_bore_a_hair_across_the_chord_at_interval_crosses_and_one_inside_goes() {
+    let (a, hair) = (0.004, 1e-4);
+    let at = |dist: f64| {
+        let (x, y) = past_the_chord(dist);
+        square::<Interval>(1.0, round(x, y, a))
+    };
+    let body = at(a - hair);
+    let got = blend(Verb::Chamfer, &body, &[crease(&body, 1.0)], iv(D)).map(|_| ());
+    assert!(
+        matches!(got, Err(BlendError::RingClearance { bounded: false, .. })),
+        "Interval: a hair across the chord, a measured RingClearance, got {got:?}"
+    );
+    let body = at(a + hair);
+    let walls = curved_walls(&body);
+    let out = blend(Verb::Chamfer, &body, &[crease(&body, 1.0)], iv(D))
+        .unwrap_or_else(|e| panic!("Interval: a hair inside the chord goes, got {e}"));
+    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("Interval: tier 3, {e:?}"));
+    assert!(
+        walls.iter().all(|w| out.body.get_face(*w).is_none()),
+        "Interval: the bore's walls go"
+    );
+}

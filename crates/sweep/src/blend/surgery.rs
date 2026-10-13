@@ -2866,6 +2866,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                                 cap: s.cap,
                                 ring: lp,
                                 depth: deep,
+                                convex: s.convex(),
                             },
                             refusal,
                         ),

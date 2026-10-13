@@ -268,8 +268,11 @@ impl<T: Decide + Bounds> EndCut<T> {
 /// An edge that misses `Ω` misses `S`; the converse does not hold, and
 /// that is the meter's conservative direction. So `Ω` answers only
 /// "clear": a cycle wholly inside `S`, or crossing its boundary, is read
-/// against that boundary itself ([`SliverBoundary`] on a round end, the
-/// triangle on a chord end).
+/// against that boundary itself ([`Exact`]). That reading certifies
+/// inside or crossing, never outside, so a cycle not clear of `Ω` that
+/// it certifies neither way is a bound — on a chord end too, where the
+/// exact triangle could certify it outside (work item
+/// `a-chord-ends-triangle-could-read-a-cycle-outside`).
 ///
 /// Two of its terms are pinned by no assembly row, only by the piece
 /// meters' unit row: the arc's term of a floor, which binds only when a
@@ -292,14 +295,35 @@ pub(in crate::blend) struct CapSliver<T: Real> {
     /// Each direction `dₖ`, with the least `(p − center)·dₖ` over the
     /// sliver.
     floors: Vec<(Vec3<T>, T)>,
-    /// `S`'s own boundary, on a round end: what the reading against `S`
-    /// itself takes ([`Self::ring_inside`], [`Self::reaches_in`]), since
-    /// `Ω` contains `S` and so can answer only "clear".
-    boundary: Option<SliverBoundary<T>>,
-    /// `S` itself on a chord end whose rims are lines: the triangle of
-    /// the old vertex and the two feet, as its three sides, each a point
-    /// on it and the unit normal into `S` in the end plane.
-    triangle: Option<[(Point3<T>, Vec3<T>); 3]>,
+    /// What the reading against `S` itself takes
+    /// ([`Self::ring_inside`], [`Self::reaches_in`]).
+    exact: Exact<T>,
+}
+
+/// **`S` itself, as the reading against it takes it**: one per end's
+/// shape.
+enum Exact<T: Real> {
+    /// A round end: the sliver's own boundary, read with `E`.
+    Round(SliverBoundary<T>),
+    /// A chord end whose rims are lines: the triangle of the old vertex
+    /// and the two feet, as its three sides, each a point on it and the
+    /// unit normal into `S` in the end plane ([`Exact::triangle`]).
+    Triangle([(Point3<T>, Vec3<T>); 3]),
+    /// Neither: `Ω` alone, which reads nothing inside `S`.
+    Unread,
+}
+
+impl<T: Real> Exact<T> {
+    /// The triangle `v, foot_a, foot_b`, which runs counter-clockwise
+    /// about `n = (foot_a − v) × (foot_b − v)`: each side's inward
+    /// normal is `n × (its run)`.
+    fn triangle(v: Point3<T>, foot_a: Point3<T>, foot_b: Point3<T>) -> Self {
+        let n = (foot_a - v).cross(foot_b - v);
+        Self::Triangle(
+            [(v, foot_a), (foot_a, foot_b), (foot_b, v)]
+                .map(|(from, to)| (from, n.cross(to - from).normalize())),
+        )
+    }
 }
 
 /// **How a cycle of an end face not clear of `Ω` reads against `S`**
@@ -609,16 +633,20 @@ impl<T: Decide + Bounds> CapSliver<T> {
     /// distance inside each of the wedge's two lines, and the segment's
     /// clearance from each rim piece ([`apart`]).
     ///
-    /// On a chord end `S` is the triangle ([`Self::triangle`]), and the
+    /// On a chord end `S` is the triangle ([`Exact::Triangle`]), and the
     /// reading is `p`'s least distance inside its three sides.
     fn inside_point(&self, p: Point3<T>) -> Option<T> {
-        if let Some(sides) = &self.triangle {
-            return sides
-                .iter()
-                .map(|(o, m)| (p - *o).dot(*m))
-                .reduce(|a, b| a.min(b));
-        }
-        let (b, section) = (self.boundary.as_ref()?, self.inside?);
+        let b = match &self.exact {
+            Exact::Round(b) => b,
+            Exact::Triangle(sides) => {
+                return sides
+                    .iter()
+                    .map(|(o, m)| (p - *o).dot(*m))
+                    .reduce(|a, b| a.min(b));
+            }
+            Exact::Unread => return None,
+        };
+        let section = self.inside?;
         let q = p - self.center;
         let [ua, ub] = b.feet.map(|f| f - self.center);
         let mut least = (section.minor * (section.scaled(q) - T::one()))
@@ -635,6 +663,11 @@ impl<T: Decide + Bounds> CapSliver<T> {
         Some(least)
     }
 
+    /// **Whether `S` is read as its exact triangle**, which is convex.
+    pub(in crate::blend) fn convex(&self) -> bool {
+        matches!(self.exact, Exact::Triangle(_))
+    }
+
     /// **How surely the point `p` of the end plane lies outside `S`**:
     /// positive when it certainly does — outside `Ω` ([`Self::beyond`]),
     /// or inside the section, which `S` lies outside of
@@ -643,7 +676,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
     fn outside_point(&self, p: Point3<T>) -> T {
         let q = p - self.center;
         let beyond = self.beyond(q);
-        if let Some(sides) = &self.triangle {
+        if let Exact::Triangle(sides) = &self.exact {
             return sides
                 .iter()
                 .map(|(o, m)| T::zero() - (p - *o).dot(*m))
@@ -732,17 +765,21 @@ impl<T: Decide + Bounds> CapSliver<T> {
     /// inside each side, its least reach along the side's inward normal
     /// ([`piece_along`]) positive; the least of those is its depth.
     fn ring_inside(&self, pieces: &[Piece<'_, T>]) -> Option<T> {
-        if let Some(sides) = &self.triangle {
-            let mut least: Option<T> = None;
-            for &(carrier, window) in pieces {
-                for (o, m) in sides {
-                    let (low, _) = piece_along(carrier, window, *o, *m)?;
-                    least = Some(least.map_or(low, |l| l.min(low)));
+        let b = match &self.exact {
+            Exact::Round(b) => b,
+            Exact::Triangle(sides) => {
+                let mut least: Option<T> = None;
+                for &(carrier, window) in pieces {
+                    for (o, m) in sides {
+                        let (low, _) = piece_along(carrier, window, *o, *m)?;
+                        least = Some(least.map_or(low, |l| l.min(low)));
+                    }
                 }
+                return least;
             }
-            return least;
-        }
-        let (b, section) = (self.boundary.as_ref()?, self.inside?);
+            Exact::Unread => return None,
+        };
+        let section = self.inside?;
         let (first, (t0, _)) = *pieces.first()?;
         let mut least = self.inside_point(first.eval(t0))?;
         for &(carrier, window) in pieces {
@@ -883,21 +920,18 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 *floor = floor.min(low);
             }
         }
-        let boundary = round.map(|(_, _, _, _, axis)| SliverBoundary {
-            feet: [foot_a, foot_b],
-            axis,
-            rims: pieces.map(|(carrier, window)| (carrier.clone(), window)),
-        });
         // A chord end whose rims are lines cuts off the triangle
-        // `V, foot_a, foot_b`, which runs counter-clockwise about
-        // `n = (foot_a − V) × (foot_b − V)`: each side's inward normal
-        // is `n × (its run)`.
+        // `V, foot_a, foot_b`.
         let lines = pieces.iter().all(|(c, _)| matches!(c, Curve3::Line { .. }));
-        let triangle = (round.is_none() && lines).then(|| {
-            let n = (foot_a - pv).cross(foot_b - pv);
-            [(pv, foot_a), (foot_a, foot_b), (foot_b, pv)]
-                .map(|(from, to)| (from, n.cross(to - from).normalize()))
-        });
+        let exact = match round {
+            Some((_, _, _, _, axis)) => Exact::Round(SliverBoundary {
+                feet: [foot_a, foot_b],
+                axis,
+                rims: pieces.map(|(carrier, window)| (carrier.clone(), window)),
+            }),
+            None if lines => Exact::triangle(pv, foot_a, foot_b),
+            None => Exact::Unread,
+        };
         Ok(Self {
             cap,
             rims: [rim_a, rim_b],
@@ -905,8 +939,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
             inside: round.map(|(_, _, frame, _, _)| frame),
             reach,
             floors,
-            boundary,
-            triangle,
+            exact,
         })
     }
 }
@@ -1240,7 +1273,7 @@ mod line_meter_fuzz;
 
 #[cfg(test)]
 mod tests {
-    use super::{CapSliver, CycleReading, SectionFrame, SliverBoundary};
+    use super::{CapSliver, CycleReading, Exact, SectionFrame, SliverBoundary};
     use geom::Curve3;
     use geom_core::{Band, Bounds, Interval, Point3, Real, Tol, Vec3};
     use topo::{EdgeKey, FaceKey};
@@ -1276,8 +1309,7 @@ mod tests {
                     .iter()
                     .map(|&((x, y), floor)| (v(x, y), f(floor)))
                     .collect(),
-                boundary: None,
-                triangle: None,
+                exact: Exact::Unread,
             }
         }
 
@@ -1502,7 +1534,7 @@ mod tests {
             }),
             reach: 2f64.sqrt(),
             floors: Vec::new(),
-            boundary: Some(SliverBoundary {
+            exact: Exact::Round(SliverBoundary {
                 feet: [p(0.0, -1.0), p(-1.0, 0.0)],
                 axis: Vec3::new(0.0, 0.0, -1.0),
                 rims: [
@@ -1510,7 +1542,6 @@ mod tests {
                     rim(p(-1.0, 0.0), v(0.0, -1.0)),
                 ],
             }),
-            triangle: None,
         }
     }
 
@@ -1599,13 +1630,7 @@ mod tests {
     /// `V`, on `V`'s side of the chord.
     fn chord_triangle() -> CapSliver<f64> {
         let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
-        let rim = |o: Point3<f64>, d: Vec3<f64>| (Curve3::Line { origin: o, dir: d }, (0.0, 1.0));
-        let (v, fa, fb) = (p(-1.0, -1.0), p(0.0, -1.0), p(-1.0, 0.0));
-        let n = (fa - v).cross(fb - v);
         let toward = Vec3::new(-1.0, -1.0, 0.0) / 2f64.sqrt();
-        let pieces = [rim(fa, v - fa), rim(fb, v - fb)];
-        let lines = pieces.iter().all(|(c, _)| matches!(c, Curve3::Line { .. }));
-        assert!(lines, "the fixture's rims are lines");
         CapSliver {
             cap: FaceKey::default(),
             rims: [EdgeKey::default(); 2],
@@ -1613,11 +1638,7 @@ mod tests {
             inside: None,
             reach: 0.5 * 2f64.sqrt(),
             floors: vec![(toward, 0.0)],
-            boundary: None,
-            triangle: Some(
-                [(v, fa), (fa, fb), (fb, v)]
-                    .map(|(from, to)| (from, n.cross(to - from).normalize())),
-            ),
+            exact: Exact::triangle(p(-1.0, -1.0), p(0.0, -1.0), p(-1.0, 0.0)),
         }
     }
 

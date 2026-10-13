@@ -2033,7 +2033,15 @@ fn boundary_reading<T: Decide>(
 /// planes, being a convex combination of boundary points that do. The
 /// reading is that excess.
 ///
-/// Where `S⊥` is `convex` (the chamfer's triangle) neither term is owed:
+/// No row pins the factor `|n·τ|`, because no crossing can need it at
+/// a cap leaned less than about 88°: a fillet's wall that dips `δ⊥`
+/// into the kept ball over a lateral run `c` between two rings needs
+/// `c²/8r > δ⊥`, while reading it inside with the factor dropped needs
+/// `δ⊥/|n·τ| > ~2c`, so both hold only for `|n·τ| < c/16r`, which the
+/// sliver bounds below about `0.025`. On a convex `S⊥` it scales only
+/// the margin.
+///
+/// Where `S⊥` is `convex` (a chord end's triangle) neither term is owed:
 /// a line's points and a face's are convex combinations of boundary
 /// points whose projections lie at least the least depth inside `S⊥`,
 /// and the distance from a convex set's boundary is concave inside it,
@@ -2136,13 +2144,15 @@ pub(crate) struct Unclear<T> {
 /// **A cycle of a convex straight band's cap read wholly inside its
 /// sliver**: the crease whose band removes it, the cap, the cycle, and
 /// its depth (negative; its size a lower bound on the cycle's distance
-/// from the sliver's boundary in the cap's plane).
+/// from the sliver's boundary in the cap's plane), and whether the
+/// sliver was read as its exact triangle, so convex.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CapRing<T> {
     pub(crate) crease: EdgeKey,
     pub(crate) cap: FaceKey,
     pub(crate) ring: LoopKey,
     pub(crate) depth: T,
+    pub(crate) convex: bool,
 }
 
 /// **What a request whose verdict is inside consumes**: the cap cycles
@@ -2511,7 +2521,11 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                     .filter(|r| r.crease == edge)
                     .copied()
                     .collect();
-                let convex = kind == BlendKind::Chamfer;
+                // The prism's slice in a cap's plane is an affine image
+                // of `S⊥` (projection along `τ`), so `S⊥` is convex
+                // exactly when that slice is; a ring read through the
+                // exact triangle certifies it for its cap.
+                let convex = mine.iter().all(|r| r.convex);
                 let reading = prism_inside(body, face, &surface, fbox, tau, &mine, convex)?;
                 if let Some(excess) = reading.filter(|x| sure(*x, band)) {
                     let deep = T::zero() - excess;
