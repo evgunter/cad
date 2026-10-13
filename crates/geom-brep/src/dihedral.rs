@@ -1422,8 +1422,10 @@ mod tests {
     /// at rest; a positive rounding whose tolerance lies below `EPS_MIN`
     /// takes the floor's sentence instead, at the import door too; a
     /// rejected zero a smaller tolerance decides passing is offered that
-    /// tolerance; a rejected Negative ends in the lever alone; and at the
-    /// import door no reading takes the note.
+    /// tolerance; a rejected Negative, wholly on the refused side, takes
+    /// the note as an in-band one does, at the import door too, where it
+    /// lies past ε_in; and at the import door no reading within ε_in
+    /// takes the note.
     #[test]
     fn a_gates_rejection_ends_by_its_reading_on_either_arm() {
         use geom_core::sym::with_session;
@@ -1515,12 +1517,12 @@ mod tests {
             (
                 "an untagged in-band margin on the refused side",
                 &in_band,
-                [noted.clone(), noted, format!("{unstated}{lever}")],
+                [noted.clone(), noted.clone(), format!("{unstated}{lever}")],
             ),
             (
                 "a rejected Negative",
                 &negative,
-                [lever.to_owned(), lever.to_owned(), lever.to_owned()],
+                [noted.clone(), noted.clone(), noted],
             ),
         ];
         for (what, cause, want) in rows {

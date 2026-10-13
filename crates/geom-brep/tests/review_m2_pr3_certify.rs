@@ -532,8 +532,8 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
 /// its last two control points coincide — has a speed floor of exactly
 /// zero, and one that turns back on itself a floor below zero: neither
 /// has a metre scale for its stored interval. Each carries the meter's
-/// own verdict and ends in its lever, the stall with what a vanishing
-/// floor means, and never in the poisoned-margin note; a poisoned net
+/// own verdict and ends alike, in its lever and what a vanishing floor
+/// means, and never in the poisoned-margin note; a poisoned net
 /// keeps the note, under the meter's own check.
 #[test]
 fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
@@ -608,14 +608,10 @@ fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
         );
         let text = err.render(Reading::Build);
         assert!(!text.contains("unreadable"), "{name}: {text}");
-        let want = if zero {
-            format!(
-                "{LEVER}; a vanishing speed floor means the spline stalls or turns back, or that \
-                 the floor has reached its limit, which is worth reporting"
-            )
-        } else {
-            LEVER.to_owned()
-        };
+        let want = format!(
+            "{LEVER}; a vanishing speed floor means the spline stalls or turns back, or that the \
+             floor has reached its limit, which is worth reporting"
+        );
         assert!(text.ends_with(&want), "{name}: {text}");
     }
     // A net whose control points all coincide has no chord to project

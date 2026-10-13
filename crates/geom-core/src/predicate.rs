@@ -1263,10 +1263,10 @@ enum Shows {
     /// A size on a side the decision passes, decided passing by every
     /// tolerance a run admits below this one.
     Offer(f64),
-    /// No size: an exact zero, a point on the refused side inside the
-    /// band, an enclosure reaching no side the decision passes, or a zero
-    /// the symbolic tier proved. What a decision's note on a zero
-    /// verdict asserts is established here and nowhere else.
+    /// No size: an exact zero, a reading reaching no side the decision
+    /// passes, in band or past it, or a zero the symbolic tier proved.
+    /// What a decision's note on a zero verdict asserts is established
+    /// here and nowhere else.
     NoSize,
     /// A nonzero size wholly on a side the decision passes, its nearer
     /// end away from zero, that only a tolerance at or below [`EPS_MIN`]
@@ -1275,7 +1275,8 @@ enum Shows {
     /// An enclosure touching or straddling zero that does not show no
     /// size: its sign is not resolved.
     Unresolved,
-    /// Past the band: decided at this tolerance already.
+    /// Past the band on a side the decision passes: decided at this
+    /// tolerance already.
     Past,
     /// Poisoned.
     Unreadable,
@@ -1354,6 +1355,42 @@ pub struct SizedWords<'a> {
     /// ([`UNREADABLE_MARGIN_NOTE`] at a build,
     /// [`UNREADABLE_STORED_MARGIN_NOTE`] over stored geometry).
     pub unreadable: &'a str,
+}
+
+impl SizedWords<'_> {
+    /// **The ending of a sign-certain refusal that keeps no reading**
+    /// (D4 ¶1 (iv)): a verdict decided on a sign the decision refuses
+    /// lies wholly on the refused side, which [`MarginDiag::shows`]
+    /// classes as no size wherever the reading lies, so it ends as a
+    /// reading of that class does ([`MarginDiag::sized_recourse`]).
+    #[must_use]
+    pub fn sign_certain_recourse(self) -> String {
+        Shows::NoSize.ending(self)
+    }
+}
+
+impl Shows {
+    /// The ending a reading of this class gives a sized decision
+    /// ([`MarginDiag::sized_recourse`]).
+    fn ending(self, words: SizedWords<'_>) -> String {
+        let SizedWords {
+            lever,
+            size,
+            no_size,
+            unreadable,
+            ..
+        } = words;
+        match self {
+            Self::Offer(v) => format!(
+                "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
+                 {v:e} m"
+            ),
+            Self::NoSize => lever_recourse(lever, no_size),
+            Self::Floor => lever_recourse(lever, Some(&floor_note(size))),
+            Self::Unresolved | Self::Past => lever_recourse(lever, None),
+            Self::Unreadable => lever_recourse(lever, Some(unreadable)),
+        }
+    }
 }
 
 /// **The file's declared coincidence distance ε_in** (D4 ¶1, D7), as the
@@ -1684,10 +1721,11 @@ impl MarginDiag {
             Reading::Enclosure { lo, hi, .. } => (lo, hi),
             Reading::Invalid => return Shows::Unreadable,
         };
+        let reaches = passes.reaches(lo, hi);
         if self.placement(band) == Placement::Past {
-            return Shows::Past;
+            return if reaches.0 { Shows::Past } else { Shows::NoSize };
         }
-        match passes.reaches(lo, hi) {
+        match reaches {
             _ if self.proven() => Shows::NoSize,
             (false, _) => Shows::NoSize,
             // Touching or straddling zero, its sign is not resolved, even
@@ -1749,14 +1787,15 @@ impl MarginDiag {
     /// - where a tolerance a run admits decides the margin passing, "or,
     ///   if this {size} is intended, tighten the tolerance below `|m|/K`",
     ///   `K` the band's multiplier, `m` the end nearer zero;
-    /// - where the margin shows no size, [`SizedWords::no_size`];
+    /// - where the margin shows no size — in band or past it, wholly on
+    ///   a side the decision refuses — [`SizedWords::no_size`];
     /// - where only a tolerance at or below [`EPS_MIN`] decides it,
     ///   [`floor_note`];
     /// - where it is poisoned, [`SizedWords::unreadable`]
     ///   ([`MarginDiag::unreadable_note`]);
-    /// - nothing, where it lies past the band (decided at this tolerance
-    ///   already) or is an enclosure whose sign is unresolved, which the
-    ///   payload prints.
+    /// - nothing, where it lies past the band on a side the decision
+    ///   passes (decided at this tolerance already) or is an enclosure
+    ///   whose sign is unresolved, which the payload prints.
     ///
     /// The choice is made here, from the number, and only a sentence
     /// leaves. Because the sentence is chosen from the number, reading
@@ -1765,23 +1804,7 @@ impl MarginDiag {
     /// `scripts/gates/reporting-margin-door.sh`.
     #[must_use]
     pub fn sized_recourse(self, band: Band, words: SizedWords<'_>) -> String {
-        let SizedWords {
-            lever,
-            size,
-            passes,
-            no_size,
-            unreadable,
-        } = words;
-        match self.shows(band, passes) {
-            Shows::Offer(v) => format!(
-                "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
-                 {v:e} m"
-            ),
-            Shows::NoSize => lever_recourse(lever, no_size),
-            Shows::Floor => lever_recourse(lever, Some(&floor_note(size))),
-            Shows::Unresolved | Shows::Past => lever_recourse(lever, None),
-            Shows::Unreadable => lever_recourse(lever, self.unreadable_note(unreadable)),
-        }
+        self.shows(band, words.passes).ending(words)
     }
 
     /// **The sized recourse read at the import door** (D4 ¶1, D7): a size
@@ -2453,14 +2476,15 @@ impl Indeterminate {
     /// may intend, which no subdivision unproves. Every other reading
     /// says what it is; what a tolerance does for it is the ending's.
     fn reading(&self) -> (Option<&'static str>, KindLever) {
+        const DECIDED: &str = "a decided sign this decision cannot use";
         let (margin, band) = (self.margin, self.band);
         let undecided_value =
             margin.kind() == MarginKind::Value || margin.placement(band) == Placement::ZeroBand;
         match margin.shows(band, self.passes()) {
-            Shows::Past => (
-                Some("a decided sign this decision cannot use"),
-                KindLever::Door,
-            ),
+            Shows::Past => (Some(DECIDED), KindLever::Door),
+            Shows::NoSize if margin.placement(band) == Placement::Past => {
+                (Some(DECIDED), KindLever::Door)
+            }
             Shows::Unreadable => (None, KindLever::Inputs),
             Shows::NoSize if margin.proven() => (
                 Some("a zero the symbolic tier proved, which no tolerance makes a size"),
@@ -2829,8 +2853,9 @@ mod tests {
     /// unresolved; a reading with no point on an accepted side, an exact
     /// zero and a proved zero show no size; a size on an accepted side
     /// that only a tolerance at or below ε_min decides is the floor's;
-    /// past the band, and poison, are their own. Red if any row moves
-    /// class.
+    /// past the band, a reading wholly on a refused side still shows no
+    /// size, and one on a passing side, and poison, are their own. Red if
+    /// any row moves class.
     #[test]
     fn each_reading_shows_one_class() {
         use SizedPass::{AnySign, Negative, NonNegative, NonZero, Positive};
@@ -2855,7 +2880,12 @@ mod tests {
             (Positive, v(2e-12), Shows::Floor),
             (Positive, e(2e-12, 3e-12), Shows::Floor),
             (Positive, v(5e-8), Shows::Past),
-            (Positive, v(-5e-8), Shows::Past),
+            (Positive, v(-5e-8), Shows::NoSize),
+            (Positive, e(-5e-8, -2e-8), Shows::NoSize),
+            (NonNegative, e(-5e-8, -2e-8), Shows::NoSize),
+            (Negative, v(5e-8), Shows::NoSize),
+            (Negative, v(-5e-8), Shows::Past),
+            (NonZero, v(-5e-8), Shows::Past),
             (Positive, v(5e-10).as_proven(), Shows::NoSize),
             (NonNegative, v(-5e-10), Shows::NoSize),
             (Negative, e(-5e-9, -2e-9), Shows::Offer(2e-10)),
@@ -2875,6 +2905,33 @@ mod tests {
         ];
         for (pass, margin, want) in rows {
             assert_eq!(margin.shows(band, pass), want, "{pass:?} over {margin:e}");
+        }
+    }
+
+    /// **A sign-certain refusal ends as its in-band sibling does** (D4 ¶1
+    /// (iv)): a reading past the band wholly on a side the decision
+    /// refuses, an in-band one there, and a refusal that keeps no reading
+    /// ([`SizedWords::sign_certain_recourse`]) end alike, in the lever
+    /// and the decision's note. Red if past the band ends otherwise.
+    #[test]
+    fn a_sign_certain_refusal_ends_as_its_in_band_sibling() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let words = SizedWords {
+            lever: "L",
+            size: "length",
+            passes: SizedPass::Positive,
+            no_size: Some("N"),
+            unreadable: "U",
+        };
+        let want = "Recourse: L; N";
+        assert_eq!(words.sign_certain_recourse(), want, "no reading kept");
+        for margin in [
+            MarginDiag::value(-5e-10),
+            MarginDiag::value(-5e-8),
+            MarginDiag::value(-1.0),
+            MarginDiag::enclosure(-5e-8, -2e-8),
+        ] {
+            assert_eq!(margin.sized_recourse(band, words), want, "{margin:e}");
         }
     }
 
