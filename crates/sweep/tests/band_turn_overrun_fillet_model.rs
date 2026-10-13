@@ -621,7 +621,7 @@ fn features_about_the_arc_build_clear_and_refuse_where_they_straddle() {
             true,
         ),
         ("straddling the arc's middle", polar(202.5, 0.1), false),
-        ("straddling the arc", polar(210.96, D + 0.002), false),
+        ("straddling the arc", polar(200.0, D + 0.002), false),
         (
             "straddling the arc lower down",
             polar(196.70, D + 0.0015),
@@ -632,7 +632,10 @@ fn features_about_the_arc_build_clear_and_refuse_where_they_straddle() {
     ];
     let mut bad = Vec::new();
     for (what, at, builds) in rows {
-        assert!(at[0] + at[2] > 0.0, "{what}: the centre is on the body");
+        assert!(
+            (at[0] + at[2]) / 2f64.sqrt() > 0.005,
+            "{what}: the pin stands on the face, clear of L"
+        );
         for (kind, boss, depth) in [("boss", true, 0.0), ("hole", false, 0.002)] {
             let (body, edges) = pinned(at, [0.0, 1.0, 0.0], boss, depth);
             match (build(&body, &edges, D, what), builds) {
