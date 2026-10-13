@@ -803,3 +803,14 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Rejected by both:** a curvature-only lever, and dropping the vertex reading, which guards a locus crossing.
   - **Row:** re-priced P3 / E, `design: false`.
   - **No fork-log row:** the population is `[ev]` forks only (protocol rule 1).
+- 2026-10-13 — The carry-class re-measure on main 0d2117d0 comes in.
+  - **Coverage:** a temporary probe ran tier 3′ on every boolean result in ci (about 18k results), plus the Lcvx and pinched-operand review batteries. It found 0 `StaleContactDeclaration`.
+  - **Closing, five rows:**
+    - kissing-corner (P1);
+    - subtract-through-pinch (P1);
+    - records-no-longer-confirm (P2);
+    - two-pinch-union (P2);
+    - dip-inside-rest (P3).
+  - **Re-scoped:** the carried-vf-at-a-pinch P3, to 4820's names.
+  - **New finding:** 229 results that carry records still ship an *undeclared* contact, in 7 tests. They are green only because none of those tests asserts 3′.
+  - **Ruled:** trace one pose so the row lands with its owner (CONTACTHOLD for the carry, FUSE for the mint). File it at P1, with a P3 for the missing 3′ assertions. The lane also adds a line to the stale-citation rows of other programs.
