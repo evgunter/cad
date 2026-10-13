@@ -1012,7 +1012,7 @@ pub fn spiric_f_range<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
 /// oval whose `ρ = R + r·cos v` lies in `[rho_lo, rho_hi]` and whose
 /// `|sin v| ≤ sin_max`**, as `(S, A)` with `|C′| ≤ S` and `|C″| ≤ A`
 /// there — the one spelling of both bounds, over a whole period
-/// (`ρ ∈ [R − r, R + r]`, `sin_max = 1`: [`spiric_curvature_sup`]) or
+/// (`ρ ∈ [R − r, R + r]`, `sin_max = 1`: [`spiric_period_rate_bounds`]) or
 /// over one piece of an arc (`topo`'s spiric crossing row, whose pieces
 /// read their own window).
 ///
@@ -1042,16 +1042,23 @@ pub fn spiric_rate_bounds<T: Real>(
     (speed, accel)
 }
 
+/// [`spiric_rate_bounds`] over a whole period of the spiric `(R, r,
+/// d)`: `ρ ∈ [R − r, R + r]`, `sin_max = 1`. Generic, so a certified
+/// reader carries its enclosures.
+pub fn spiric_period_rate_bounds<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
+    spiric_rate_bounds(minor, offset, (major - minor, major + minor), T::one())
+}
+
 /// A closed-form `sup‖C″‖` for the spiric `(R, r, d)`, in metres per
-/// radian squared — [`spiric_rate_bounds`] over a whole period, read by
-/// the mesh chord sizing and by STEP export's node-count schedule.
-/// Plain `f64`: a sizing quantity, conservative by the bound's own slack
+/// radian squared — [`spiric_period_rate_bounds`]' second, read by the
+/// mesh chord sizing and by STEP export's node-count schedule. Plain
+/// `f64`: a sizing quantity, conservative by the bound's own slack
 /// rather than by rounding. Off-regime data (`f_min` poison or zero)
 /// yields a non-finite answer, which every caller reads as a refusal
 /// rather than a step.
 #[must_use]
 pub fn spiric_curvature_sup(major: f64, minor: f64, offset: f64) -> f64 {
-    spiric_rate_bounds(minor, offset, (major - minor, major + minor), 1.0).1
+    spiric_period_rate_bounds(major, minor, offset).1
 }
 
 /// The spiric's radial pair from `c = cos v`: `ρ = R + r·c` and

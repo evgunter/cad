@@ -121,21 +121,19 @@ pub enum NamingError {
     /// bug as [`Self::Emission`], carrying the vertex the chase was asked
     /// about and how it failed.
     Settle(SettleError),
-    /// A boolean's seam VERTEX left half-decided by the edges around
-    /// it: one line of one operand's edges (one edge, or several
-    /// running flush on one straight line), no edge and no single face
-    /// of the other operand, and nothing else naming the missing parent.
-    /// A union raises it for the same shape read off its finished body:
-    /// one member line and no seam meeting several faces of other
-    /// members (`emit_union::Flush::meeting`).
+    /// A pair boolean's seam VERTEX left half-decided by the edges
+    /// around it: every edge at it descends from one edge of operand A,
+    /// no edge of operand B and no seam reaches it, and nothing else
+    /// (an operand vertex, a contact row) names the missing B parent.
     ///
     /// **Not an emission inconsistency**, and the test is the same one
     /// [`Self::Band`] applies: nothing about the result body is wrong
-    /// here. Ordinary declared unions reach it — a member stacked on a
-    /// face that a second declared contact has merged puts a seam
-    /// vertex on a merged wall with mixed parentage — and what such an
-    /// author needs is that the emitter has no rule for this shape, not
-    /// an instruction to file a kernel bug.
+    /// here. A declared union reached it — a member stacked on a face
+    /// that a second declared contact had merged put such a vertex on
+    /// the merged wall — and what such an author needs is that the
+    /// emitter has no rule for this shape, not an instruction to file a
+    /// kernel bug. Maximal edges join that witness's vertex away, and no
+    /// document reaches it now.
     ///
     /// **It is raised from a NAMED shape, not from a catch-all.** The
     /// vertex pass's `_` arm is the preimage of every case nobody has
@@ -431,9 +429,8 @@ impl crate::spoken::Say for NamingError {
             // and the vertex is where a rule would be applied.
             Self::SeamVertexParentage { vertex } => write!(
                 f,
-                "{UNRULED_FRAMING}: seam vertex {vertex:?} lies on one side's edges along one \
-                 line, and on no edge or single face of the other side, so its parentage is \
-                 half-decided"
+                "{UNRULED_FRAMING}: seam vertex {vertex:?} lies on one edge of operand A and on \
+                 no edge or face of operand B, so its parentage is half-decided"
             ),
             // The node rides in the sentence, not only in the payload:
             // the two keys are an OPERAND body's, so a reader handed

@@ -5934,8 +5934,9 @@ mod tests {
                     finding: crate::PcurveMintError::Certify {
                         half_edge: spline_half,
                         error: geom_brep::PcurveCertifyError::IsoUnsupported {
-                            what: "the carrier's start point lies on neither chart boundary — \
-                                   not a boundary iso of this face's chart",
+                            what: "no boundary row of this chart, in either u direction, \
+                                   holds the circle at the interior probe — not an arc rim \
+                                   spanning the chart's u domain",
                         },
                     },
                 },

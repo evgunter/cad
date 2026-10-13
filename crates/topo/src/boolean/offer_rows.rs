@@ -2350,6 +2350,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchConesOnSeparateKeys
         | BooleanErrorKind::PinchRaysInAFace
+        | BooleanErrorKind::CrossingsAlongAContactLine
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::PartnerAlongFace
         | BooleanErrorKind::NestingUnread
@@ -2363,6 +2364,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermFrameCylinderPinch
         | BooleanErrorKind::JoinDesync
         | BooleanErrorKind::LineageRow
+        | BooleanErrorKind::SplitLineage
         | BooleanErrorKind::EdgeUndescribed
         | BooleanErrorKind::JoinCarrierUnsupported
         | BooleanErrorKind::TornComponent
