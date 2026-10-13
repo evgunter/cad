@@ -460,7 +460,8 @@ impl ConicRootFault {
 ///    insertion (if in-span) leaves a same-side ON contact for the
 ///    sector classification (the established graze net); in-band ⇒
 ///    typed escalation (F6).
-/// 2. Each root, translated into `[t₀, t₀ + τ)`, is classified
+/// 2. Each root, re-centred on the span's midpoint (retried on `t₀`
+///    where that reading is indeterminate), is classified
 ///    against the span by `split_conic_crossing_root` — the two
 ///    margins `(t − t₀)·meter` and `(t₁ − t)·meter` (meters at the
 ///    conservative minor-semi-axis meter): both Positive ⇒ a genuine
@@ -674,6 +675,11 @@ fn span_roots<T: Decide>(
         }
         Ok((true, t))
     };
+    // The midpoint anchor is sound at every scalar by `ring_path::branch`'s
+    // window re-centring argument: `verdict_at` decides a root at either
+    // end of a closed edge's full-period span alike (not interior), and
+    // reads it only against the span's ends, never as an identity. The
+    // `t₀` retry below serves its straddle.
     for c in candidates.into_iter().flatten() {
         let centred = mid + (c - mid).reduce_periodic_centred(tau);
         let (interior, t) = match verdict_at(centred) {
