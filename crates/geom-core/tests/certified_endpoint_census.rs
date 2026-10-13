@@ -296,7 +296,21 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          non-finite mean, so a refused input still yields a finite centre and the \
          reach about it reports the trouble",
     ),
-    ("crates/geom-brep/src/pcurve_cache.rs", 2, 2, ""),
+    (
+        "crates/geom-brep/src/pcurve_cache.rs",
+        5,
+        2,
+        "the remaining 3 are `T: Bounds` reads of an edge interval's evaluation \
+         bracket (blind spot 1), not a certification bracket. The fitted door's \
+         domain gate (`fitted_lane`) branches on them, the interval's outer ends \
+         against the image's stored `f64` knot domain: it is reached only through \
+         `run_fitted_checks`, whose check 2 has already decided `t1 - t0` through \
+         `decide`, which refuses an uncertified parameter, so a refused bracket \
+         stops at check 2 before this gate (at `f64` its NaN fails the gate). The \
+         general image's schedule ends for a closed-form carrier \
+         (`general_image_lane`) take no branch: they size an evidence schedule \
+         that `run_fitted_checks` re-checks with the original parameters",
+    ),
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/props/quad.rs",
