@@ -180,3 +180,12 @@ The row's judge read the oracle's distance. The oracle now also returns
 It was not the far-frame rounding at `r ≈ 70.9`: the oracle is
 double-double on the stored carrier.
 
+
+**The seeds above no longer replay their poses.** The row draws every
+pose's values before its judge now, so a seed replays its poses
+whatever the judge or the door does; when these seeds were found it
+drew the arc after the judge's `continue`, so any change to the judge
+reshuffled the stream from there on (seed `11` at effort 10 went green
+under the pre-fix door with the judge alone changed). Moving the draw
+reshuffles it once more, so the seeds above are not replays of their
+poses on this branch. `GAP_WITNESSES` is what pins those poses.

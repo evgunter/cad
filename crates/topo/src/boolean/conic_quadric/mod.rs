@@ -33,9 +33,10 @@
 //!   extremes under the `bool_conic_quadric_first_*` rows. The arm is
 //!   REQUIRED, for two poses the ladder cannot answer truthfully: a
 //!   CONSTANT residual (`F·(1 + t²)²`, which the ladder cannot read; the
-//!   extremes answer on-surface or miss), and a TANGENCY, which the
-//!   extremes put in the zero band and escalate, where the ladder can
-//!   certify a miss
+//!   extremes answer on-surface or miss), and a TANGENCY, whose extreme
+//!   reads in the zero band and answers `Uncertain` (escalating only where
+//!   an end of that extreme's error interval lies in the gap), where the
+//!   ladder can certify a miss
 //!   (`work/germ/the-half-angle-ladder-certifies-in-band-configurations.md`).
 //!   Its poses:
 //!   - a circle square to a wall's axis, or within `2√(r·zero)` of

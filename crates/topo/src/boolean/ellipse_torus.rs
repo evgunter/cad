@@ -457,7 +457,8 @@ mod torus_rows {
     /// - every certified root lies on the torus (its true distance inside
     ///   the zero band) and, as arc length, within the zero band of a true
     ///   crossing;
-    /// - a `Miss` has no true crossing and comes no nearer than the band.
+    /// - a `Miss` has no true crossing and comes no nearer than `Kε` in
+    ///   the residual the band classifies.
     ///
     /// The counts per answer are printed. The 40-digit check of the same
     /// families is [`dump_for_the_mpmath_oracle`]; the slack meter's
@@ -503,7 +504,7 @@ mod torus_rows {
                         CircleRoots::Miss => {
                             misses += 1;
                             assert!(
-                                truth.roots.is_empty() && truth.residual_depth > eps,
+                                truth.roots.is_empty() && truth.residual_depth >= 10.0 * eps,
                                 "{label}: a Miss {} from the torus, crossings {:?}",
                                 truth.residual_depth,
                                 truth.roots

@@ -837,9 +837,7 @@ pub(super) fn constant_residual_roots<T: Decide>(
     row: &'static str,
     band: Band,
 ) -> Result<FirstHarmonicRoots<T>, Indeterminate> {
-    let lo = decide(row, Margin::of(value - spread), band)?;
-    let hi = decide(row, Margin::of(value + spread), band)?;
-    Ok(match (lo, hi) {
+    Ok(match span_signs(row, value, spread, band)? {
         (Sign::Positive, _) | (_, Sign::Negative) => FirstHarmonicRoots::Miss,
         (Sign::Zero, Sign::Zero) => FirstHarmonicRoots::OnSurface,
         _ => FirstHarmonicRoots::Uncertain,
@@ -1016,17 +1014,36 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     ]))
 }
 
-/// The sign of an extreme read as `value` with error at most `noise`:
-/// both ends of `[value − noise, value + noise]` are decided, an end in
-/// the escalation gap escalates, and ends that disagree read `Zero`.
+/// The signs of both ends of `[value − spread, value + spread]`, each
+/// decided under `row`: the one reading of a value known only to within
+/// `spread`.
+///
+/// # Errors
+///
+/// The band's escalation when either end lies in its gap.
+pub(super) fn span_signs<T: Decide>(
+    row: &'static str,
+    value: T,
+    spread: T,
+    band: Band,
+) -> Result<(Sign, Sign), Indeterminate> {
+    let below = decide(row, Margin::of(value - spread), band)?;
+    let above = decide(row, Margin::of(value + spread), band)?;
+    Ok((below, above))
+}
+
+/// The sign of an extreme read as `value` with error at most `noise`
+/// ([`span_signs`]): ends that disagree read `Zero`. `noise` must bound
+/// the whole error, rounding included, and a caller's charge may hold no
+/// slack beyond that (the conic × quadric door's true error reaches
+/// 0.99999999 of it), so no term of it can be trimmed.
 fn extreme_sign<T: Decide>(
     row: &'static str,
     value: T,
     noise: T,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
-    let below = decide(row, Margin::of(value - noise), band)?;
-    let above = decide(row, Margin::of(value + noise), band)?;
+    let (below, above) = span_signs(row, value, noise, band)?;
     Ok(if below == above { below } else { Sign::Zero })
 }
 

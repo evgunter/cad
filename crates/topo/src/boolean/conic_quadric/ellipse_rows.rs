@@ -417,8 +417,8 @@ mod fuzz_rows {
     /// - a certified count is the true count of crossings, which the
     ///   exact oracle ([`exact::truth`]) places round the turn, a graze
     ///   pair however close included;
-    /// - a `Miss` is never certified for a carrier that comes within the
-    ///   zero band of the surface, or crosses it.
+    /// - a `Miss` is never certified for a carrier that comes within `Kε`
+    ///   of the surface in the residual the band classifies, or crosses it.
     ///
     /// At ε = 1e-6 the ladder alone certified roots up to 1.9e-5 m of arc
     /// off, 15 zero bands off the wall. The `Uncertain` count is printed.
@@ -515,7 +515,7 @@ mod fuzz_rows {
                     CircleRoots::Miss => {
                         misses += 1;
                         assert!(
-                            truth.roots.is_empty() && truth.residual_depth > eps,
+                            truth.roots.is_empty() && truth.residual_depth >= 10.0 * eps,
                             "{label}: a Miss {} from the surface, true crossings {:?}",
                             truth.residual_depth,
                             truth.roots

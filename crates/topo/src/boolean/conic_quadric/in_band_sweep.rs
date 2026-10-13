@@ -10,6 +10,10 @@
 //!   escalated or `Uncertain`, never a `Miss` or a certified count (D1's
 //!   trilean), and `OnSurface` only where it lies on the wall to within
 //!   the band all round;
+//! - a circle within the band of square to the wall's axis, which the
+//!   first-harmonic arm takes, whose extreme is aimed at the zero band's
+//!   or the gap's edge, is answered only where its residual clears `Kε`,
+//!   and then truly;
 //! - a circle of radius 1500 against a unit wall, whose harmonics' noise
 //!   reads in the band's escalation gap at the default band, has each
 //!   certified root within the zero band of a true one, and no `Miss` on
@@ -115,6 +119,28 @@ fn noise_reading(c: &geom::Curve3<f64>, r: f64) -> f64 {
         .noise_reading()
 }
 
+/// Whether the band permits `got`, the door's answer on an arc of the
+/// circle `c` against the wall of radius `r`, of the pose whose truth is
+/// `truth` (module docs): `Uncertain` or an escalation always, `OnSurface`
+/// where the circle lies within `Kε` of the wall all round, and a `Miss`
+/// or a count only on a pose clear of `Kε` in the residual, and true.
+fn permitted(
+    got: &Result<CircleRoots<f64>, BooleanError>,
+    truth: &exact::Truth,
+    c: &geom::Curve3<f64>,
+    r: f64,
+    eps: f64,
+) -> bool {
+    let clear = truth.residual_depth >= 10.0 * eps;
+    match got {
+        Ok(CircleRoots::Uncertain) | Err(_) => true,
+        Ok(CircleRoots::OnSurface) => farthest(c, r) <= 10.0 * eps,
+        Ok(CircleRoots::Miss) => clear && truth.roots.is_empty(),
+        Ok(CircleRoots::Certified { count, .. }) => clear && *count == truth.roots.len(),
+        Ok(CircleRoots::AtApex) => false,
+    }
+}
+
 /// **No in-band pose is answered** (module docs). Each pose crosses,
 /// grazes or clears the wall by a depth drawn inside the zero band,
 /// inside its escalation gap, or zero (an exact tangency), at a tilt
@@ -141,16 +167,14 @@ fn no_pose_inside_the_band_is_answered() {
                 _ => 0.0,
             };
             let c = tangent_circle(r, rho, depth, g, b);
+            let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
             let truth = exact::truth(&c, &wall(r));
             if truth.residual_depth >= 10.0 * eps {
                 continue;
             }
-            let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
             let got = conic_quadric_roots(&c, m - h, m + h, &wall(r), band);
-            match got {
-                Ok(CircleRoots::Uncertain) | Err(_) => continue,
-                Ok(CircleRoots::OnSurface) if farthest(&c, r) <= 10.0 * eps => continue,
-                _ => {}
+            if permitted(&got, &truth, &c, r, eps) {
+                continue;
             }
             wrong.push(format!(
                 "ε {eps:e}, depth {depth:e} (true {:.3e}, residual {:.3e}, {} true roots): \
@@ -340,9 +364,7 @@ fn the_sweeps_gap_witnesses_are_judged_in_the_residual() {
         past += usize::from(!in_band);
         for (t0, t1) in [(-1.0, 1.0), (-3.0, 3.0), (2.0, 4.0)] {
             let got = conic_quadric_roots(&c, t0, t1, &wall(r), band);
-            let answered = !matches!(got, Ok(CircleRoots::Uncertain) | Err(_));
-            let true_miss = matches!(got, Ok(CircleRoots::Miss)) && truth.roots.is_empty();
-            if answered && (in_band || !true_miss) {
+            if !permitted(&got, &truth, &c, r, eps) {
                 wrong.push(format!(
                     "witness {i} on [{t0}, {t1}], residual {:e}: {got:?}",
                     truth.residual_depth
@@ -355,6 +377,78 @@ fn the_sweeps_gap_witnesses_are_judged_in_the_residual() {
         wrong.is_empty(),
         "{} gap witnesses answered:\n{}",
         wrong.len(),
+        wrong.join("\n")
+    );
+}
+
+/// **A first-harmonic extreme at the band's edges is answered truly or
+/// not at all** (module docs). Each pose is a circle tilted off square to
+/// the wall by `α`, `(ρ·sin α)²/4r = A₂` drawn up to `ε`, so the door
+/// drops a second harmonic of up to the zero band and reads the rest on
+/// its extremes; one extreme is the point `θ = 0` of [`tangent_circle`],
+/// placed so the residual there is aimed at `±Kε`, at `±ε`, or at
+/// `±(Kε ± 2A₂)`, where an extreme read bare of `A₂` lands on the far
+/// side of the gap's edge from the true one. Every answer is judged
+/// against the exact oracle by [`permitted`].
+#[test]
+fn a_first_harmonic_extreme_at_the_bands_edges_is_answered_truly_or_not_at_all() {
+    let mut rng = fuzz::start("conic_quadric_first_harmonic_edge_sweep");
+    let n = fuzz::scaled(170);
+    let aims: [fn(f64, f64) -> f64; 8] = [
+        |eps, _| 10.0 * eps,
+        |eps, _| -10.0 * eps,
+        |eps, _| eps,
+        |eps, _| -eps,
+        |eps, a2| 10.0 * eps + 2.0 * a2,
+        |eps, a2| 10.0 * eps - 2.0 * a2,
+        |eps, a2| -10.0 * eps - 2.0 * a2,
+        |eps, a2| -10.0 * eps + 2.0 * a2,
+    ];
+    let (mut answered, mut posed) = (0, 0);
+    let mut wrong = Vec::new();
+    for eps in EPS_ROWS {
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        for aim in aims {
+            for _ in 0..n {
+                let r = rng.log_uniform(1e-3, 1e3);
+                let rho = rng.log_uniform(1e-3, 2e3);
+                let a2 = rng.range(0.0, eps);
+                let tilt = (2.0 * (r * a2).sqrt() / rho).min(1.0).asin();
+                let tilt = if rng.below(2) == 0 { tilt } else { -tilt };
+                // The centre inward or outward of `θ = 0`, which is then
+                // the circle's farthest or nearest point from the axis.
+                let flip = if rng.below(2) == 0 { 0.0 } else { PI };
+                let (g, b) = if rng.below(2) == 0 {
+                    (0.0, flip + tilt)
+                } else {
+                    (tilt, flip)
+                };
+                let target = aim(eps, a2) + rng.range(-0.01, 0.01) * eps;
+                // The depth `d` whose residual `d + d²/2r` is `target`.
+                let depth = 2.0 * target / (1.0 + (1.0 + 2.0 * target / r).sqrt());
+                let c = tangent_circle(r, rho, depth, g, b);
+                let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
+                let truth = exact::truth(&c, &wall(r));
+                let got = conic_quadric_roots(&c, m - h, m + h, &wall(r), band);
+                posed += 1;
+                answered += usize::from(!matches!(got, Ok(CircleRoots::Uncertain) | Err(_)));
+                if !permitted(&got, &truth, &c, r, eps) {
+                    wrong.push(format!(
+                        "ε {eps:e}, aimed {target:e}, A₂ {a2:e} (residual {:.6e}, {} true \
+                         roots): {got:?}\n  {c:?} wall r {r}",
+                        truth.residual_depth,
+                        truth.roots.len()
+                    ));
+                }
+            }
+        }
+    }
+    println!("{answered} of {posed} poses answered");
+    assert!(
+        wrong.is_empty(),
+        "{} first-harmonic poses answered wrongly ({}):\n{}",
+        wrong.len(),
+        fuzz::replay(),
         wrong.join("\n")
     );
 }
@@ -585,11 +679,11 @@ fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
                 _ => 0.0,
             };
             let c = graze(on, normal, tangent, (rho, depth, rng.range(0.0, TAU)));
+            let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
             let truth = exact::truth(&c, &torus);
             if truth.residual_depth >= 10.0 * eps {
                 continue;
             }
-            let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
             let got = circle_torus_roots(&c, m - h, m + h, &torus, band);
             let true_answer = match &got {
                 Ok(CircleRoots::Uncertain | CircleRoots::AtApex) | Err(_) => continue,
