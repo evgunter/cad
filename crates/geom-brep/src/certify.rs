@@ -5712,16 +5712,16 @@ mod tests {
                     (Ending::Sized(sized), Some(far))
                         if !(sized.passes.passes_zero() && matches!(arm, RefusedArm::Zero(_))) =>
                     {
-                        let (lies, states) = if far <= narrow.eps_in() {
-                            ("is below", "does not state")
+                        let (lies, tells) = if far <= narrow.eps_in() {
+                            ("is below", "cannot tell")
                         } else {
-                            ("may lie below", "may not state")
+                            ("may lie below", "may not tell")
                         };
                         assert_eq!(
                             narrow_door,
                             format!(
                                 "This {} {lies} the file's declared coincidence distance ε_in = \
-                                 {:e} m, so the file {states} it. Recourse: {}",
+                                 {:e} m, so the file {tells} it from zero. Recourse: {}",
                                 sized.size,
                                 narrow.eps_in(),
                                 sized.lever
