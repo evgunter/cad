@@ -2350,6 +2350,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PinchConesOnSeparateKeys
         | BooleanErrorKind::PinchRaysInAFace
         | BooleanErrorKind::VertexReadTwice
+        | BooleanErrorKind::PartnerAlongFace
         | BooleanErrorKind::NestingUnread
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported

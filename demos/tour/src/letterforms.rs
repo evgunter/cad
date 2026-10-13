@@ -31,12 +31,12 @@ use crate::booleans::{check, expect_seamed, finished, try_intersect};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p3, polygon, validated};
-use pncad::geom_core::{OrthoFrame, Tol};
+use pncad::geom_core::{RigidMotion, Tol};
 
 /// One letterform prism: `outline` on `frame`, extruded `depth` along
 /// the frame's normal.
 fn letter<S: Scalar>(
-    frame: OrthoFrame<S>,
+    frame: RigidMotion<S>,
     outline: &[(f64, f64)],
     depth: f64,
     tol: Tol,
@@ -99,17 +99,17 @@ const C: [(f64, f64); 8] = [
 ];
 
 fn h_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
-    let body = letter(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)), &H, 3.0, tol);
+    let body = letter(RigidMotion::axes_xy(p3(0.0, 0.0, 0.0)), &H, 3.0, tol);
     finished("the H prism", body, tol)
 }
 
 fn t_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
-    let body = letter(OrthoFrame::axes_yz(p3(0.0, 0.0, 0.0)), &T, 2.0, tol);
+    let body = letter(RigidMotion::axes_yz(p3(0.0, 0.0, 0.0)), &T, 2.0, tol);
     finished("the T prism", body, tol)
 }
 
 fn c_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
-    let body = letter(OrthoFrame::axes_zx(p3(0.0, 0.0, 0.0)), &C, 3.0, tol);
+    let body = letter(RigidMotion::axes_zx(p3(0.0, 0.0, 0.0)), &C, 3.0, tol);
     finished("the C prism", body, tol)
 }
 

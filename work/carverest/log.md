@@ -24,3 +24,4 @@ PR's state sync.
 `material-jet-readings-take-plus-minus-order` and
 `certify-residual-predicates-still-name-a-slot` moved here with PR
 4189's state sync. The slate is 17 points.
+- 2026-10-13 — Seam note from ENCL: PR 4766 has merged. It covers the sweep slice of the undecided-wording sweep (sweep crate endings by decision kind), and geom-core now has `Indeterminate::lever_ending` as the one lever-only-at-build ending. Lever-only decisions (angles, cos/sin, winding, form selection, gauges, walks) end through it. Do not compose `lever_recourse` + the unreadable note by hand. (ENCL orchestrator)

@@ -363,6 +363,27 @@ pub trait Real:
     /// the diagnostic; this method never replaces one.
     fn is_poison(self) -> bool;
 
+    /// **Is every value this scalar carries a finite number?** At a
+    /// point scalar, whether the value is finite (`x − x` is not the
+    /// poison, [`is_finite_length`]); at the interval scalar, whether
+    /// both endpoints are finite and the enclosure is not poison — an
+    /// exact fact about the representation, as [`Self::is_poison`] is,
+    /// not a margin read against a band. The value channel answers at
+    /// the dual and symbolic scalars.
+    ///
+    /// It is [`is_finite_length`] with the enclosure's case decided
+    /// rather than waved through. That predicate keeps waving it
+    /// through on purpose (an overflowed norm still ENCLOSES the true
+    /// length); this one is for a value that must itself be finite to
+    /// be what its type claims — a rigid motion's angle and
+    /// translation (`linalg::RigidMotion`'s mints and decided door).
+    ///
+    /// Required, with no default: `is_finite_length` is the waving
+    /// answer at an enclosure, so a scalar that inherited it would
+    /// pass an unbounded enclosure silently. Each scalar states its
+    /// own reading.
+    fn is_bounded(self) -> bool;
+
     /// **The registered-identity door's hook** (M10-9; ERROR-DESIGN
     /// E12's "kept in reserve — discharge by provenance"): a
     /// constructor generic over `T: Real` states that the two values
@@ -824,7 +845,7 @@ pub trait Real:
 ///   datum door, the evaluation layer's `unit()`, and every one of
 ///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites (the
 ///   roll offset and the ladder's rungs reach it through
-///   [`OrthoFrame::from_aim`](crate::OrthoFrame::from_aim));
+///   [`RigidMotion::from_aim`](crate::RigidMotion::from_aim));
 /// - `sweep`'s `revolve::axis::AxisFrame::build`;
 /// - `topo`'s `sector_shape`, which asks it of each bounding chord
 ///   separately because its arm is their `min` and [`Real::min`]
@@ -1826,6 +1847,11 @@ impl Real for f64 {
     /// `f64`'s one poison value is NaN.
     fn is_poison(self) -> bool {
         self.is_nan()
+    }
+
+    /// A point: the value is a finite number.
+    fn is_bounded(self) -> bool {
+        self.is_finite()
     }
 
     /// **The witness at a point** ([`Real::register_equal`]): `f64`

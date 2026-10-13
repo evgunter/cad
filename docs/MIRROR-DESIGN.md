@@ -79,8 +79,9 @@ uniformly, with the residual sites documented.
 ## P2 — Mirror gets its own door; `transform_rigid` stays rigid
 
 `transform_rigid`'s contract, name, seven-row K-ledger
-(`transform_rigid_det_plus_one` among them), typed `NotRigid`
-refusal, and its sense-invariance proof (the M5 S10 audit — "there
+(`transform_rigid_det_plus_one` among them, asked at the
+`RigidMotion` witness's decided door), that door's typed `NotRigid`
+refusal (`RigidMotionError::NotRigid`), and its sense-invariance proof (the M5 S10 audit — "there
 is no such branch to write here today") are all written around
 det = +1, and two suites pin the det = −1 refusal. Widening it
 invalidates a documented audit result. **Recommendation**: a sibling

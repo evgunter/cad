@@ -8,7 +8,7 @@
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom_core::Tol;
-use geom_core::{OrthoFrame, Point2, Point3, Vec2, Vec3};
+use geom_core::{Point2, Point3, RigidMotion, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -164,7 +164,7 @@ pub fn boss_plate() -> Body<f64> {
 /// A (counter-hole variant) × Z, the issue-#93 acceptance body: four
 /// boundary vertices on one carrier line with one of them 1 ulp off it.
 pub fn az_intersect() -> Body<f64> {
-    let xy = |z: f64| SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, z)));
+    let xy = |z: f64| SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(0.0, 0.0, z)));
     let a_outline = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(0.625, 0.0),
@@ -207,7 +207,7 @@ pub fn az_intersect() -> Body<f64> {
     ]);
     let z = extrude(
         &Profile::new(
-            SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::new(-0.0625, 0.0, 0.0))),
+            SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(-0.0625, 0.0, 0.0))),
             vec![z_poly],
         )
         .validate(Tol::witness())
