@@ -239,17 +239,17 @@ pub(super) fn carrier<T: Decide>(
 /// a tangency's — comes out poison and is dropped with the rest, at
 /// every scalar.
 ///
-/// **The `16·slack` bound has no row, and cannot have one.** A polished
-/// parameter is read, never trusted: the reading decides the point's
-/// gap at it, so a step the bound drops or keeps can lose a foot but
-/// never invent one. And it binds only where it could matter least: a
-/// step moves the point at most `(hi/lo)·|C(t) − q|`, so on a carrier
-/// whose speeds stay within a factor of 16 it never binds, and on the
-/// seeds these lanes give a thin ellipse (`param_near`'s, or a search
-/// leaf's middle) the foot is reached with or without it — measured on
-/// 12000 points within half an ε of ellipses of aspect 20 to 1000, none
-/// lost either way. It is a backstop against a far seed, which no lane
-/// hands it.
+/// **The `16·slack` bound has no row, and needs none.** A polished
+/// parameter is read, never trusted: the reading decides the point's gap
+/// at it, so a step the bound drops or keeps can lose a foot but never
+/// invent one. In [`polish_foot`] the guarded quantity `|C′|·|dt|` is
+/// `|(C − q)·C′|/|C′|`, at most the iterate's own gap, while `slack` is
+/// the gap at the seed: the bound binds only once the gap has grown past
+/// sixteen times the seed's, which is Gauss–Newton diverging. In
+/// [`polish_pair`] the 2×2 step has no such bound — near a tangency its
+/// system is ill-conditioned and the step can be any length — so there
+/// the bound is what keeps a near-singular step from leaving the pair's
+/// pieces; the reading that follows decides whatever it lands on.
 fn step_kept<T: Decide>(moved: T, bound: T) -> bool {
     crate::splitting::order::exact_band().is_ok_and(|exact| {
         surely(
@@ -277,8 +277,9 @@ fn polish_foot<T: Decide>(r: &Read<T>, q: Point3<T>, mut t: T, slack: T) -> T {
 }
 
 /// Gauss–Newton from `(s, t)` toward where `a` and `b` meet, kept as
-/// [`polish_foot`]'s steps are; at a tangency the step is singular, and
-/// the feet that follow it in [`meet_at`] still land.
+/// [`polish_foot`]'s steps are ([`step_kept`] says what the bound does
+/// here); at a tangency the step is singular, and the feet that follow
+/// it in [`meet_at`] still land.
 fn polish_pair<T: Decide>(a: &Read<T>, b: &Read<T>, (mut s, mut t): (T, T), slack: T) -> (T, T) {
     let bound = slack * T::from_f64(16.0);
     for _ in 0..POLISH_STEPS {

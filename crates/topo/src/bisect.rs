@@ -11,8 +11,10 @@
 //! alike: a piece's [`reach`] and the [`tangency_floor`].
 //!
 //! The core owns the budget and not a depth: what "too deep" means is
-//! each walk's. `spiric_arc` caps a piece at the depth past which `f64`
-//! cannot halve its window, and answers there as at the budget;
+//! each walk's. `spiric_arc` caps a piece at depth 60, set past the
+//! roughly 52 halvings after which `f64` can no longer split a window of
+//! a few radians, so that the arithmetic runs out before the cap binds;
+//! it answers there as at the budget;
 //! `census::curved` counts a piece's cuts only to halve the pair's
 //! shallower side first, and stops on a length (the floor, the band);
 //! `circle_roots` stops on a decided width in metres. A cap the core

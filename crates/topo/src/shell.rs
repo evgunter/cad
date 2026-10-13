@@ -4366,7 +4366,7 @@ enum EdgeArc<T: Real> {
 struct ArcPiece<T: Real> {
     carrier: geom::Curve3<T>,
     /// The carrier's speed bound, metres per unit of its parameter.
-    speed: T,
+    speed: geom_core::SupSpeed<T>,
     /// For a spline, the ball holding its whole control net.
     hull: Option<(geom_core::Point3<T>, T)>,
     /// From the start vertex's parameter to the end vertex's.
@@ -4379,7 +4379,7 @@ impl<T: Decide> ArcPiece<T> {
     /// half-edge and backward along a minus one.
     fn along(
         carrier: &geom::Curve3<T>,
-        speed: T,
+        speed: geom_core::SupSpeed<T>,
         hull: Option<(geom_core::Point3<T>, T)>,
         (t0, t1): (T, T),
         plus: bool,
@@ -4396,7 +4396,7 @@ impl<T: Decide> ArcPiece<T> {
     fn ball(&self) -> (geom_core::Point3<T>, T) {
         let (t0, t1) = self.window;
         let centre = self.carrier.mid_point(t0, t1);
-        let radius = crate::bisect::reach(geom_core::SupSpeed::new(self.speed), (t0, t1));
+        let radius = crate::bisect::reach(self.speed, (t0, t1));
         let Some((hull_centre, hull_radius)) = self.hull else {
             return (centre, radius);
         };
@@ -4703,14 +4703,14 @@ fn moved_walls<T: Decide>(
                             } => conic(center, axis, u_ref, major, minor),
                             geom::Curve3::Spiric { .. } => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                crate::carrier_speed::speed_range(curve.carrier()).1.get(),
+                                crate::carrier_speed::speed_range(curve.carrier()).1,
                                 None,
                                 (t0, t1),
                                 edge.he_plus == he,
                             )),
                             geom::Curve3::Nurbs(_) => EdgeArc::Arc(ArcPiece::along(
                                 curve.carrier(),
-                                crate::carrier_speed::speed_range(curve.carrier()).1.get(),
+                                crate::carrier_speed::speed_range(curve.carrier()).1,
                                 crate::splitting::containment::carrier_ball(
                                     curve.carrier(),
                                     (t0, t1),
@@ -5233,7 +5233,7 @@ mod tests {
                     end,
                     curve: EdgeArc::Arc(ArcPiece::along(
                         carrier,
-                        crate::carrier_speed::speed_range(carrier).1.get(),
+                        crate::carrier_speed::speed_range(carrier).1,
                         crate::splitting::containment::carrier_ball(carrier, params)
                             .filter(|_| matches!(carrier, geom::Curve3::Nurbs(_))),
                         params,
@@ -5312,14 +5312,14 @@ mod tests {
         let geom::Curve3::Nurbs(spline) = &carrier else {
             unreachable!("built a spline")
         };
-        let speed = spline.speed_upper_bound().get();
+        let speed = spline.speed_upper_bound();
         let hull = crate::splitting::containment::carrier_ball(&carrier, (0.0, 1.0));
         let piece = ArcPiece::along(&carrier, speed, hull, (0.0, 1.0), true);
         let (centre, radius) = piece.ball();
         assert!(
-            speed * 0.5 > 50.0,
+            speed.get() * 0.5 > 50.0,
             "the speed ball is wide, radius {}",
-            speed * 0.5
+            speed.get() * 0.5
         );
         assert!(
             (radius - 2.0_f64.sqrt()).abs() < 1e-12 && (centre.y - 1.0).abs() < 1e-12,

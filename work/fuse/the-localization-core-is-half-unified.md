@@ -62,4 +62,4 @@ The walk-shaped sweep that found the first five cites could not see duplicated a
 - **The depth idioms stay per walk**, for the reason now written at `bisect`'s module doc.
 - **The `16·slack` guard is not pinned**, for the reason now written at `step_kept`.
 
-Every replacement is bit-identical, shown at `f64` and `Interval` on 60000 random spirics and circles.
+Every replacement is bit-identical by its arithmetic: the same `spiric_rate_bounds` call, `|r|` for a positive radius, and `(|Δt|·hi)·½` for `hi·|Δt|·½` with an exact halving.
