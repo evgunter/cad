@@ -8,6 +8,7 @@ priority: P3
 cost: E
 closed: 2026-10-13
 branch: pcert/arc-rim-row-pick
+pr: 4988
 ---
 
 
