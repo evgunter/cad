@@ -781,3 +781,8 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - **Pit-and-spike vertex-on-face row:** fixed on main by `Descendants::holder` (PR 4650); it closes.
     - **Edge-face/face-face row:** no path, since no carried record kind holds a face cell and `cell_rows` is edge-edge only. It closes, cross-referenced to WIRE's carried-kind row, which takes the obligation.
     - **Joined/merge-killed vertex row:** the code path is real but unreached. Build it: `holder(face, q)` as the one door, with the dead vertex's point read from the operand body. No geometry goes on lineage rows, so it is not a fork. A witness or unit row plus a mutant is required.
+- 2026-10-13 — `records-read-the-piece` is superseded by CONTACTHOLD's PR 4820, "the one carry".
+  - **What 4820 did:** it rebuilt the same code. `Descendants::holder` is deleted. A divided face is read by the census's confirm, `place_found` and `records::landings`, and carried records go through `operand_fate`.
+  - **What PR 4893 was:** the point-based `holder(face, rest)` with an `at_rest` guard. It had been reviewed (both lanes plus a delta check) and was ready to merge when the conflict showed.
+  - **Ruled (orchestrator):** take main's carry wholesale and drop 4893's code, since a second, point-based door beside the confirm would be the defect the unit closes. 4893 shrinks to the tracker plus its dead-vertex rows ported onto main's carry. A ported row that fails on main is filed on CONTACTHOLD's slate as a witness.
+  - **Kept as a finding:** `share_points` classes are a transitive closure. A class of three or more keys can span past the zero band; there were 36 such classes per eps in the ci suites, though none reached it.
