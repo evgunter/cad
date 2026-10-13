@@ -56,3 +56,12 @@
   - **Reasons:** the tree continues the existing cell fold as one mechanism, and it meets the piece clause literally (dyadic pieces, no rounded window-end ratios).
   - A asks for this to be read as convergence.
 - **CROSSOVER.** Each designer moved to the other's previous position (B to exact restriction, A to the tree). Per protocol (Ev, 2026-09-30), round 2 follows: each designer gets the other's REVISED report and is asked what moved it and whether its own earlier argument is answered.
+
+## Reconciliation round 2
+
+- **B, 22:56Z.**
+  - **The question beneath both** (sure, from the code): the memo's lifetime. `limb_three` calls `n.boxes()` once per rung, and `ChartedNurbs::boxes` builds a fresh `NurbsBoxes` each time. So the whole-cell memo (5001), and any tree hung off it, dies every rung, and every rung re-forms the products.
+  - **Window geometry** (sure): one window per pcurve span; windows nest across rungs and never repeat exactly. A window-keyed cache would never hit; tree reuse needs a memo that outlives the rung.
+  - **Final:** move the per-cell raised-quotient cache to the operand (`ChartedNurbs`), lifetime of the surface; read windows by exact restriction (leaning, likely); build no tree unless a measurement after the cache move calls for one.
+  - **On A's points:** per-axis levels and no cap answer the strip and cliff objections (sure); the k=2 excess bound is right (likely); the piece clause does not decide (likely).
+  - **Order:** cache move, then products-once with restriction, then measure; the tree only if still above 2×.
