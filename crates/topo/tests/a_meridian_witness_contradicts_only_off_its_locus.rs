@@ -2,9 +2,10 @@
 //! bound is far wider than the band: a sphere centred on a torus's
 //! spine is tangent to it along a whole MERIDIAN circle
 //! (`geom_brep::tangent_certificate_lane`'s docs). The sag there is
-//! tenths of a metre, so the gate can neither verify nor, on the exact
-//! locus, contradict: every reading is definite and the refusal rests
-//! on the sag alone, so the certificate does not reach the span. A
+//! tenths of a metre over the whole circle, past the band even on the
+//! table's finest schedule, so the gate can neither verify nor, on the
+//! exact locus, contradict: every reading is definite and the refusal
+//! rests on the sag alone, so the certificate does not reach the span. A
 //! witness lifted definitely off the locus is a measured miss whatever
 //! the sag, and contradicts.
 
@@ -47,13 +48,16 @@ fn meridian(lift: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
 
 fn read(lift: f64) -> Result<topo::contact::ContactVerdict, ContactRefusal> {
     let (torus, sphere, circle) = meridian(lift);
-    let quarter = core::f64::consts::FRAC_PI_2;
-    let sag = geom_brep::tangent_span_bounds(&torus, &sphere, &circle, 0.0, quarter)
+    let whole = core::f64::consts::TAU;
+    // The table's finest schedule: sixty-four spans to each of the
+    // nine-sample schedule's.
+    let sag = geom_brep::tangent_span_bounds(&torus, &sphere, &circle, 0.0, whole / 64.0)
         .unwrap()
         .residual_sag;
     assert!(
         sag > 10.0 * band().escalate(),
-        "the fixture's premise: a span bound far wider than the band ({sag:e})"
+        "the fixture's premise: a span bound wider than the band on the finest schedule \
+         ({sag:e})"
     );
     tangent_locus_relation(
         &torus,
@@ -62,7 +66,7 @@ fn read(lift: f64) -> Result<topo::contact::ContactVerdict, ContactRefusal> {
         false,
         &circle,
         0.0,
-        quarter,
+        whole,
         true,
         band(),
     )

@@ -79,6 +79,17 @@ fn the_touch_between_samples_charges_both_surfaces_sags() {
     // nine-sample schedule's. Between its two sags, every sample within
     // ε, the span line escalates on the sum and the max would pass.
     let finest = geom_brep::tangent_span_bounds(&ball, &bore, &halfway, 0.0, tau / 64.0).unwrap();
+    // The window scales with ε; a unit circle's samples round by about
+    // an ulp of 1, so under that the row has no window to stand in.
+    let window = finest.gap_sag - finest.residual_sag;
+    if window < 8.0 * f64::EPSILON {
+        println!(
+            "SKIPPED at ε = {eps:e}: the finest schedule's window between its sags, \
+             {window:e}, is under the samples' rounding; the span line's sum is not \
+             read at this ε"
+        );
+        return;
+    }
     let delta = eps - 0.5 * (finest.residual_sag + finest.gap_sag);
     assert!(delta + finest.residual_sag <= eps, "{finest:?}");
     assert!(delta + finest.gap_sag > eps, "{finest:?}");
