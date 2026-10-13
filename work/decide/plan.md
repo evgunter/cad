@@ -7,13 +7,13 @@ Opened 2026-09-20 by SYM's priority-seam cut
 
 ## The slate
 
-At DECIDE-9's close (2026-10-02), the budget counts `open` and `spec` rows only (`work/README.md`, Track size). The two P1 rows below are gated (the declared tangency is parked on ROUND's fillet row, the revolve carriers deferred under E6) and do not count; DECIDE-9 added the read-above-its-node P2.
+At DECIDE-9's close (2026-10-02), the budget counts `open` and `spec` rows only (`work/README.md`, Track size). The two P1 rows below are gated (the declared tangency is parked on ROUND's fillet row, the revolve carriers deferred under E6) and do not count; DECIDE-9 added the read-above-its-node P2, which DECIDE-10 closed; DECIDE-10 added A0's point-scalar fold P2.
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P1 | `declared-tangency-needs-the-registered-identity-door` | H | a constructor-declared tangency (Fillet's carrier_line_circle) is a live consumer for the registered-identity door M10-8 left unbuilt |
 | P1 | `revolve-carriers-state-only-the-rim` | H | the revolve latitude carriers register the rim identity but cannot state the span one: the builder is never handed the far endpoint |
-| P2 | `the-read-at-its-node-relabels-a-cancellation-above-it` | — | the read answers at its min/max node, so a cancellation above it (max(x+Z,3) − max(x,3)) reads sign_gated, a theorem with the read shut |
+| P2 | `a0-folds-a-rounded-constant-decision-at-a-point-scalar` | — | A0's exact constant fold at Select/min/max takes the other arm from a point scalar's rounded comparison; its reach includes the coincidence replay's `Sym<f64>`, unshown |
 | P2 | `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` | H | rule G costs the link's carrier_on_surface_2 four theorems at one attempt per rung (88 -> 84, eight more through the door); with the kept-atom ladder the predicate reads 88/0/8/12, the eight to the door on the coefficient ring and two numeric on the term budget |
 | P2 | `the-exact-quotient-re-keys-a-root-the-split-met` | H | DECIDE-4's exact quotient re-keys a root to sqrt(Q), so it no longer meets the split spelling sqrt(N)/sqrt(D): a canonical factorisation of a root's argument is the remedy |
 
@@ -56,6 +56,13 @@ measured documents, and filed as
 `the-read-at-its-node-relabels-a-cancellation-above-it`.
 `the-decision-read-answers-theorems-the-must-carry-stations-would-prove`
 closed with it.
+DECIDE-10 merged 2026-10-13 (#4929), on Ev's ruling of 2026-10-12: the
+label kind is deleted, so a symbolic discharge answers zero and nothing
+about how. `the-read-at-its-node-relabels-a-cancellation-above-it`
+closed with it, and so did `form-mul-carries-the-gate-of-a-factor-a-zero-annihilates`,
+since the flag it named is gone. It filed A0's point-scalar fold (P2),
+`door_zero`'s first-attempt gap (P3) and the freeze keyed by its node
+(S13, P3).
 `a0-leaves-max-and-min-of-constants-opaque` closed with DECIDE-3 and
 `coefficient-ring-width-is-not-monotone-in-reach` (SYM's) with SYM-9.
 
