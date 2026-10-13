@@ -2,7 +2,8 @@
 id: param-span-reversed-at-a-build-tells-two-stories
 kind: issue
 title: geom-brep: a reversed ParamSpan at a build ends in the lever alone past the band and in the lever plus the defect note inside it
-status: dispatched
+status: review
+pr: 5023
 opened: 2026-10-13
 priority: P3
 cost: E
