@@ -1467,3 +1467,4 @@ coincidence is now a margined verdict (no declarations), checked by the
   - the lever alone for a straddle;
   - the import door's sentence plus the lever, with no note, at or below ε_in.
   No ratified text changes; it restores PR 3402 item 4's "m ≤ 0" keying. The spec goes on the row when the unit is dispatched, after PR 4925 lands, because both edit `predicate.rs`'s offer code. (ENCL orchestrator)
+- 2026-10-13 — **Merged PR 4925** (ε floor). The delta check was mergeable, and the reviewer re-ran geom-core and editor-core at 1e-12 locally; the only failure is FLUSH's known P1. Closed `no-tighten-offer-quotes-a-value-below-the-runs-resolution`, posted seam notes, and dispatched the zero-note unit on `encl/no-size-note` with the converged spec on its row. (ENCL orchestrator)
