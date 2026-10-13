@@ -11,7 +11,9 @@
 //! the file as HARNESS BREAKAGE — deliberately, so that a sweep-format
 //! drift cannot score a population silently CLEAN — so from that commit
 //! on every driver CSV was refused at its first sample row and the E6
-//! driver population was linted zero times, at every ε.
+//! driver population was linted zero times, at every ε. (DECIDE-10
+//! later renamed the variant `Symbolic`, serialized as `symbolic`; the
+//! old tokens are now refused, and the rows below pin that too.)
 //!
 //! Nobody saw it, because the CI row that reports the lint's status
 //! could not fail (a `PIPESTATUS` capture taken after the variable it

@@ -49,13 +49,50 @@ as with it on.
 ## Reach
 
 Only point scalars (`f64`, `Probe`), and only where the construction's
-rounding moves a constant decision across zero — a comparison of
-literals that cancel catastrophically. The constant decisions the
-measured documents mint (axis-direction frames through
-`Vec3::orthonormal_basis`, `a0-leaves-max-and-min-of-constants-opaque`)
-are exact in `f64`. At `Interval` the claim holds: the construction's
-comparison is a certified sign of the same real. No document is known
-to reach it; the K replay at `Sym<Probe>` is where it would show.
+rounding moves a constant decision across zero. That takes a comparison
+of literals that cancel catastrophically: one rounded subtraction of two
+`f64` constants keeps its exact sign, so it needs a chain of at least
+two operations. The constant decisions the measured documents mint
+(axis-direction frames through `Vec3::orthonormal_basis`,
+`a0-leaves-max-and-min-of-constants-opaque`) are exact in `f64`. At
+`Interval` the claim holds, because the construction's comparison is a
+certified sign of the same real.
+
+Two lanes run A0 at a point scalar:
+
+- **The K replay at `Sym<Probe>`** (`editor_core::drive`). A false fold
+  there reaches K telemetry as a `symbolic` sample.
+- **The coincidence door's replay at `Sym<f64>`**
+  (`crates/editor-core/src/coincide/replay.rs:67` for the lane,
+  `:86-89` for the session at `SymRules::shipped()`, so A0 is on). This
+  one is a verdict path. A row the replay proves becomes
+  `Proof::Structural(Rung::MarginIdentity)` or
+  `Proof::Structural(Rung::CarrierVerdict)` (`replay.rs:151,157`,
+  `coincide.rs`'s `prove`). A proven row is one the
+  `unproven-coincidence` check does not report, and that check is
+  `CheckKind::Certified` (`crates/editor-core/src/checks.rs:135`). The
+  replay is a deferring session, so its branches are the build's, but
+  the margin forms the rungs ask for are built afterwards by walks
+  under `shipped()`, and A0 takes the exact constant's arm there. So a
+  false fold would certify a coincidence across the family that holds
+  only where the construction took the other arm.
+
+**Not shown reachable.** The replay makes every continuous document
+variable a symbol (`EvalOptions::symbols`), so a constant decision form
+there comes only from literals in kernel code or from a computed value
+re-entered as a constant. The first kind are exact in the documents
+measured. The second is already a known source of false proofs, with
+its own rows (`scripts/gates/from-f64-sites.tsv`'s `launders(…)` and
+`stored-carrier-data(…)` classes). No document or small probe through
+`prove` is known to reach the fold. Reaching it needs a kernel
+computation that compares cancelling literals inside a decision the
+replay asks a rung about.
+
+**Priority.** It stays P2, as an interval and error-propagation defect.
+The coincidence reach is why it is not lowered to P3 as latent
+unsoundness: if reached, it is a false certified verdict and not only
+telemetry. It is not raised to P0, because no document is shown to
+reach it.
 
 ## What a fix would have to do
 

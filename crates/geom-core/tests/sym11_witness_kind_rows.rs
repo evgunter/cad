@@ -419,6 +419,31 @@ fn sym11_the_decision_read_declines_at_sym_probe() {
     }
 }
 
+/// **One session decides at one witness kind, in every profile.** The
+/// read above declines at a point because the session knows its
+/// witness; a session that decided first at `Interval` and then at
+/// `f64` would keep `Exact` and let the read answer at a point. That is
+/// a hard `assert!` (`sym.rs`'s `note_witness`), not a `debug_assert!`:
+/// `benches/` builds with debug assertions off, and this row is the
+/// assertion's own plant.
+#[test]
+#[should_panic(expected = "two witness kinds")]
+fn sym11_one_session_at_two_witness_kinds_panics() {
+    use geom_core::Interval;
+    let band = Band::linear(Tol::witness()).unwrap();
+    let _ = with_session_rules(budget(), SymRules::shipped(), || {
+        let xi = Sym::param_over(
+            ParamSymbol::new(test_utils::symbol_id("xi")),
+            Interval::from_bounds(1.0, 2.0),
+            1.0,
+            2.0,
+        );
+        let _ = geom_core::k_stats::decide("sym11_two_kinds", Margin::of(xi - xi), band);
+        let x = Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id("x")), 0.5);
+        let _ = geom_core::k_stats::decide("sym11_two_kinds", Margin::of(x - x), band);
+    });
+}
+
 /// **A zero the registry did not need is not a contradicted
 /// registration** (DECIDE-10's fix pass, R1's MINOR-2). With one true,
 /// unrelated registration in the session the registry is non-empty, so

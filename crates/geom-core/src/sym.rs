@@ -4546,12 +4546,16 @@ fn count_theorem_disputed() {
 /// Notes the witness kind of the scalar a decision is taken at
 /// ([`Session::witness`]). A session decides at one scalar, so a second
 /// kind is a session reused across lanes, and the early forms it built
-/// under the first kind would answer for the second: asserted.
+/// under the first kind would answer for the second: asserted in every
+/// profile, because with the assertion off a mixed session would keep
+/// the first kind and could run the decision read at a point. The
+/// check is one comparison of two one-byte kinds per decision, beside
+/// the session borrow the decision takes anyway.
 fn note_witness(witness: crate::real::Witness) {
     SESSION.with(|s| {
         if let Some(sess) = s.borrow_mut().as_mut() {
             let seen = *sess.witness.get_or_insert(witness);
-            debug_assert_eq!(
+            assert_eq!(
                 seen, witness,
                 "one symbolic session decided at two witness kinds"
             );

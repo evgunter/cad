@@ -531,9 +531,9 @@ fn r2_a_symbolic_zero_retags_rather_than_double_counting() {
 /// **THE RE-TAG IS ADDRESSED TO ITS OWN SAMPLE**, and this row is what
 /// says so.
 ///
-/// It was an EXPECTED-DEFECT row. `retag_symbolic_zero` rewrote whatever
-/// sat LAST in the thread-local sink, and the base scalar of the
-/// driver's own replay lane (`Sym<Interval>`) records nothing at all —
+/// It was an EXPECTED-DEFECT row. The re-tag's first spelling, before
+/// `k_stats::retag_at`, rewrote whatever sat LAST in the thread-local
+/// sink, and the base scalar of the driver's own replay lane (`Sym<Interval>`) records nothing at all —
 /// so a sample pushed by an earlier `Probe` decision on the same thread
 /// was re-labelled by a decision that had nothing to do with it,
 /// including an `Indeterminate` sample, which is exactly the population

@@ -631,7 +631,8 @@ const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,ou
 /// ZERO times while the CI row still reported success. The tool was
 /// right to refuse a token it did not know — that refusal is
 /// deliberate, review MIN-2 — and being right is not the same as being
-/// noticed.
+/// noticed. (DECIDE-10 later renamed that variant `Symbolic`, serialized
+/// as `symbolic`, and this list and its pin moved with it.)
 ///
 /// `tests::the_accepted_outcomes_are_exactly_the_recorders` pins this
 /// list against `SampleOutcome::ALL` variant by variant, so the next

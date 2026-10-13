@@ -208,7 +208,10 @@ fn decide_3_the_links_carrier_on_surface_2_rendered() {
             println!("== {name} blocked #{shown}: {:?}", s.outcome);
             if let Some(f) = &s.early_form {
                 println!("   early [{}]", census(f));
-                println!("   {}", &f[..f.len().min(600)]);
+                // The first 600 characters: a rendered form carries
+                // multi-byte glyphs, so a byte bound can split one.
+                let cut = f.char_indices().nth(600).map_or(f.len(), |(i, _)| i);
+                println!("   {}", &f[..cut]);
             }
             if let Some(f) = &s.form {
                 println!("   plain [{}]", census(f));
