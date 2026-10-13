@@ -2444,6 +2444,61 @@ fn cc_frame() -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
     (Point3::new(1.0, 2.0, 3.0), axis, u_ref)
 }
 
+/// **A cone's seam off square to its axis serves its circles in their
+/// planes.** The cone of [`cc_frame`] with its `u_ref` leaning `1e-6`
+/// along the axis (nothing checks a cone's `u_ref ⊥ axis`): the coaxial
+/// cylinder's two circles and the axis-normal plane's circle each carry
+/// a seam square to their axis, and lie on both surfaces. Read as
+/// stored, the seam lifted each circle's points `1e-6` of its radius
+/// along the axis, off the cone and off the plane.
+#[test]
+fn a_cones_tilted_seam_serves_its_circles_in_their_planes() {
+    use geom_brep::intersect::{ConeCylinderSection, cone_cylinder_section};
+    let (apex, axis, u_ref) = cc_frame();
+    let cone = cone_43(apex, axis, u_ref + axis * 1e-6);
+    let cyl = Surface::Cylinder {
+        origin: apex,
+        axis,
+        radius: 0.5,
+        u_ref,
+    };
+    let ConeCylinderSection::CoaxialCircles { c1, c2 } =
+        cone_cylinder_section(&cone, &cyl, 1.0, band()).unwrap();
+    let plane = Surface::Plane {
+        origin: apex + axis * 0.8,
+        normal: axis,
+        u_ref,
+    };
+    let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
+    let PlaneConeSection::AxisNormalCircle(c3) = s else {
+        panic!("the axis-normal circle, got {s:?}");
+    };
+    for (which, c, other) in [
+        ("cylinder c1", &c1, &cyl),
+        ("cylinder c2", &c2, &cyl),
+        ("plane", &c3, &plane),
+    ] {
+        let Curve3::Circle { u_ref: c_u, .. } = *c else {
+            panic!("{which}: carrier is a circle");
+        };
+        assert!(
+            c_u.dot(axis).abs() < 1e-15,
+            "{which}: the seam leans {:e} along the axis",
+            c_u.dot(axis)
+        );
+        for k in 0..17 {
+            let p = c.eval(0.37 * k as f64);
+            assert!(
+                implicit_residual(&cone, p).abs() < 1e-13
+                    && implicit_residual(other, p).abs() < 1e-13,
+                "{which}: sample {k} stands {:e} off the cone, {:e} off its partner",
+                implicit_residual(&cone, p),
+                implicit_residual(other, p)
+            );
+        }
+    }
+}
+
 /// **The closed form.** A COAXIAL cylinder cuts each nappe in one exact
 /// circle: radius the CYLINDER's `R`, centres `apex ± a·R·cot α`,
 /// carrier axis the cone's axis, `u_ref` the cone's own seam. The

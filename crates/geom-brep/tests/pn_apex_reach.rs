@@ -84,11 +84,21 @@ impl Pose {
         )
     }
 
-    /// The unit generator at azimuth `u`.
+    /// The unit generator at azimuth `u` from a frame built off the axis
+    /// alone: the cone is its apex, axis and half-angle, and its stored
+    /// `u_ref` (whose tilt off the axis nothing checks) never enters the
+    /// oracle.
     fn generator(&self, u: f64) -> Vec3<f64> {
-        let v_ref = self.axis.cross(self.u_ref);
+        let a = self.axis;
+        let across = if a.x.abs() < 0.5 {
+            Vec3::unit_x()
+        } else {
+            Vec3::unit_y()
+        };
+        let e1 = a.cross(across).normalize();
+        let e2 = a.cross(e1);
         let (su, cu) = u.sin_cos();
-        self.axis * self.alpha.cos() + (self.u_ref * cu + v_ref * su) * self.alpha.sin()
+        a * self.alpha.cos() + (e1 * cu + e2 * su) * self.alpha.sin()
     }
 
     /// The plane's slope to the generator at azimuth `u`, `g(u)·n`.
@@ -735,6 +745,82 @@ fn true_apex_lines_still_serve() {
     }
 }
 
+/// **Two fuzz-found poses** (seeds `0xba10fe80e6ee4af9` and
+/// `0x5a26154859e91c73`), copied from their draws. Each cone's seam stands off square to its axis
+/// (`u_ref·axis` −7.9e-14 and −3.8e-12), its plane `D·extent` −11.3·ε
+/// and −9.3·ε off the apex's tangent column and −0.47·ε and −0.17·ε off
+/// the apex. Read off the tilted seam, an oracle's generators lean off
+/// the cone by `τ·sin α`, which moves their slopes to the plane by
+/// `τ·sin α·|a·n|` at most, a part of these `D` that put each ellipse's
+/// reach 2% and 26% past the cut's. Each is served the ellipse, on both
+/// surfaces, reaching where the frame-free oracle says.
+#[test]
+fn the_two_fuzz_poses_serve_the_ellipse_their_tilted_seams_cut() {
+    let k = Tol::witness().k();
+    let rows = [
+        (
+            "0xba10fe80e6ee4af9",
+            Pose {
+                apex: Point3::new(23.762795332329038, 20.963398914069703, 8.915513514291348),
+                axis: Vec3::new(0.9719882127425585, -0.1082347229581276, 0.20862444496200339),
+                u_ref: Vec3::new(
+                    0.07222624563157891,
+                    -0.7071433255933591,
+                    -0.7033716560330899,
+                ),
+                alpha: 0.6514115937405218,
+                normal: Vec3::new(0.4940378047976908, 0.36015717345544745, 0.791336501015378),
+                gap: -4.09628312702132e-12,
+            },
+            73.16333515552087,
+            8.720852666426868e-12,
+            2.94385,
+        ),
+        (
+            "0x5a26154859e91c73",
+            Pose {
+                apex: Point3::new(3.2101647197163223, -2.8721838502192716, 0.250322800061545),
+                axis: Vec3::new(0.723075735720933, 0.5098849052708943, -0.4660245313162418),
+                u_ref: Vec3::new(0.0858156235023383, -0.7357264881960796, -0.6718200751165216),
+                alpha: 0.4783335924238275,
+                normal: Vec3::new(
+                    -0.018609649589998997,
+                    0.9970615769217243,
+                    0.07430943929610964,
+                ),
+                gap: -2.3195229060182773e-13,
+            },
+            16.7410924109384,
+            1.3721426466420017e-12,
+            0.0676848,
+        ),
+    ];
+    for (seed, pose, extent, e, cut) in rows {
+        let reach = pose.reach().expect("an ellipse");
+        // The fuzzer's slack: each side reads a slope to a generator at
+        // f64, and the ellipse's reach is `|gap|/slope`.
+        let rel = 1e-5 + 64.0 * f64::EPSILON * (1.0 + cut / pose.gap.abs());
+        assert!(
+            (reach - cut).abs() < rel * cut,
+            "{seed}: the oracle's reach is {reach}, the cut's {cut}"
+        );
+        let got = pose.served(extent, Band::new(e, k * e).unwrap());
+        let Ok(PlaneConeSection::TiltedEllipse(c)) = &got else {
+            panic!("{seed}: the {reach} m ellipse is the section, got {got:?}");
+        };
+        let (on_plane, on_cone, far) = pose.residuals(c);
+        assert!(
+            on_plane < k * e && on_cone < k * e,
+            "{seed}: the served ellipse stands {on_plane:e} off the plane, {on_cone:e} off \
+             the cone"
+        );
+        assert!(
+            (far - reach).abs() < rel * reach + k * e,
+            "{seed}: the served ellipse reaches {far}, the oracle {reach}"
+        );
+    }
+}
+
 /// The cone's half-angle and the plane's lean off its axis for one fuzz
 /// draw, `e` the draw's ε and `extent` its extent, from one of two
 /// families.
@@ -808,19 +894,23 @@ fn apex_outcomes_agree_with_the_oracle() {
             Vec3::new(g.range(-1.0, 1.0), g.range(-1.0, 1.0), g.range(-1.0, 1.0)).normalize()
         };
         let axis = unit(&mut g);
-        // Across the axis by a cross product, which leaves it square to
-        // the axis to rounding however near `side` lies to it: the
-        // oracle walks the generators off `u_ref`, and a skew of `σ`
-        // moves its slopes by `σ·sin α`, the whole of a small `D`.
-        let u_ref = axis.cross(unit(&mut g)).normalize();
+        // A seam tilted off square to the axis by up to `1e-10` (no check
+        // holds a cone's `u_ref ⊥ axis`), whose tilt the arm must not
+        // read into the section.
+        let tilt = if g.below(2) == 0 {
+            0.0
+        } else {
+            g.range(-1.0, 1.0) * 10f64.powf(g.range(-16.0, -10.0))
+        };
+        let seam = axis.cross(unit(&mut g)).normalize();
+        let u_ref = seam + axis * tilt;
         let extent = scale * g.range(0.5, 4.0);
         let (alpha, theta) = apex_draw(&mut g, e, extent);
         if !(0.0..=core::f64::consts::FRAC_PI_2).contains(&theta) {
             continue;
         }
         let azimuth = g.range(0.0, core::f64::consts::TAU);
-        let v_ref = axis.cross(u_ref);
-        let radial = u_ref * azimuth.cos() + v_ref * azimuth.sin();
+        let radial = seam * azimuth.cos() + axis.cross(seam) * azimuth.sin();
         // Half the draws face the normal down the axis (`axis·normal < 0`).
         let facing = if g.below(2) == 0 { 1.0 } else { -1.0 };
         let normal = (axis * theta.cos() + radial * theta.sin()).normalize() * facing;
@@ -844,8 +934,8 @@ fn apex_outcomes_agree_with_the_oracle() {
         let got = pose.served(extent, band);
         let label = || {
             format!(
-                "ε {e:e}, α {alpha}, θ {theta}, extent {extent}, gap {:.3}·ε, reach {:?}, \
-                 starts {:?}",
+                "ε {e:e}, α {alpha}, θ {theta}, extent {extent}, gap {:.3}·ε, tilt {tilt:e}, \
+                 reach {:?}, starts {:?}",
                 gap / e,
                 pose.reach(),
                 pose.starts()

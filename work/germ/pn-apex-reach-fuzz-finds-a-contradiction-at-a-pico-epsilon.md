@@ -2,8 +2,13 @@
 id: pn-apex-reach-fuzz-finds-a-contradiction-at-a-pico-epsilon
 kind: issue
 title: The plane×cone apex reach fuzzer finds a contradiction with the oracle at ε ≈ 8.7e-12
-status: open
+status: closed
 opened: 2026-10-10
+closed: 2026-10-13
+priority: P1
+cost: M
+branch: germ/pn-apex-reach-pico-eps
+refs: [pn-pair-bound-rounding-assumes-an-orthonormal-cone-frame]
 ---
 
 
@@ -48,3 +53,39 @@ first: conic 2.884e-16 off the plane, 2.845e-16 off the cone, reaching 6.768e-2:
 The lane's reach (0.0677) falls short of the oracle's (0.0856) by about 21% at a pose by the band
 edge. That is the same shape as the first seed. The fuzzer reds unrelated PRs at random, so this
 is a live red on the default suite.
+
+## Measured and fixed (`germ/pn-apex-reach-pico-eps`)
+
+**The oracle was wrong; the lane's reach was right.** Both seeds
+replay on the tree before PR 4592 (which replaced
+`pn_apex_point_reach.rs` with `pn_apex_reach.rs` and re-cut the draws,
+so neither seed reproduces on main). Each draw's cone had a seam off
+square to its axis: the fuzzer built `u_ref` by projecting a random
+`side` off the axis, and `side` fell `3.9e-3` and `1.8e-5` from the
+axis, so the projection's rounding left `u_ref·axis = −7.9e-14` and
+`−3.8e-12`. The oracle walked its generators off that `u_ref`
+(`Pose::generator`), leaning them off the cone by `τ·sin α`, which
+moved their slopes to the plane by a part of these `D`
+(`1.3e-12`, `7.6e-13`). The served ellipses lie on both surfaces to
+`3e-15` and `3e-16`. At those slopes, a point `0.06` short along the far
+generator would stand `8e-14` off the plane. Re-squared, the oracle's
+reach is `2.94385` (served `2.943636`) and `0.067685` (served
+`0.067684`).
+
+PR 4592's fuzzer draws `u_ref` by a cross product, which hides the
+skew from its oracle rather than making the oracle frame-free. A cone's
+`u_ref ⊥ axis` is checked nowhere (`Surface::representability_margins`
+margins no cone frame). The arm, though, reads it at the line pair and
+at both circle carriers, which is the sibling item
+`pn-pair-bound-rounding-assumes-an-orthonormal-cone-frame`, fixed in
+the same PR:
+
+- `pn_apex_reach.rs` `Pose::generator` builds its frame off the axis
+  alone, so no oracle reads a stored seam;
+- the fuzzer draws half its seams tilted by up to `1e-10`, so the arm's
+  reading of the seam is under test (the pre-fix arm reds it on every
+  run, 31–48 contradictions);
+- the two seeds are pinned as
+  `pn_apex_reach::the_two_fuzz_poses_serve_the_ellipse_their_tilted_seams_cut`,
+  red against the frame-reading oracle with the item's own numbers
+  (`3.0044913412023497`, `0.08555884434047788`).

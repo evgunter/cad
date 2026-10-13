@@ -181,7 +181,15 @@ fn a_pair_over_a_span_agrees_with_the_oracle() {
         let band = Band::new(e, k * e).unwrap();
         let extent = 10f64.powf(g.range(-0.5, 1.0));
         let axis = unit(&mut g);
-        let u_ref = axis.cross(unit(&mut g)).normalize();
+        // Half the seams tilt off square to the axis, by up to `1e-10`
+        // (no check holds a cone's `u_ref ⊥ axis`).
+        let seam = axis.cross(unit(&mut g)).normalize();
+        let tilt = if g.below(2) == 0 {
+            0.0
+        } else {
+            g.range(-1.0, 1.0) * 10f64.powf(g.range(-16.0, -10.0))
+        };
+        let u_ref = seam + axis * tilt;
         let thin = 10f64.powf(g.range((11.0 * e / extent).log10(), -1.3));
         let alpha = match g.below(6) {
             0 | 1 => thin.asin(),
@@ -198,7 +206,7 @@ fn a_pair_over_a_span_agrees_with_the_oracle() {
             continue;
         }
         let azimuth = g.range(0.0, core::f64::consts::TAU);
-        let radial = u_ref * azimuth.cos() + axis.cross(u_ref) * azimuth.sin();
+        let radial = seam * azimuth.cos() + axis.cross(seam) * azimuth.sin();
         let facing = if g.below(2) == 0 { 1.0 } else { -1.0 };
         let gap = match g.below(8) {
             0 => g.range(-1.0, 1.0) * 1e-16,
@@ -494,6 +502,36 @@ fn a_plane_square_to_a_flat_cones_axis_reads_its_traces_rounding() {
         assert!(
             worst <= e,
             "served a pair {:.4}·ε off the section",
+            worst / e
+        );
+    }
+}
+
+/// **A seam off square to the axis does not turn the pair.** A flat
+/// cone (`α = 1.56698`) whose `u_ref` leans `−7.6e-15` along its axis,
+/// cut through its apex by a plane leaning `s = 0.0168` off the axis
+/// toward `axis × u_ref`, where the lean turns the lines' azimuth most:
+/// `τ·|a·n|/s`. Read off the seam as stored, that turn moved the served
+/// pair `2.7·ε` off the section over a span out to `6` from the apex at
+/// `ε = 1e-12`. The pair is served, within ε of the section.
+#[test]
+fn a_seam_off_square_to_the_axis_does_not_turn_the_pair() {
+    let e = 1e-12;
+    let band = Band::new(e, Tol::witness().k() * e).unwrap();
+    let alpha = 1.56698_f64;
+    let axis = Vec3::unit_z();
+    let c = cone(axis, Vec3::new(1.0, 0.0, -7.6e-15), alpha);
+    let p = plane(axis, Vec3::unit_y(), 0.0168_f64.asin(), 0.0);
+    for (lo, hi) in [(0.0, 6.0), (-6.0, 6.0), (-6.0, -1.0)] {
+        let (lo, hi) = (lo * alpha.cos(), hi * alpha.cos());
+        let got = plane_cone_section(&p, &c, &window(lo, hi, 6.0), band);
+        let Ok(PlaneConeSection::ApexLinePair { l1, l2 }) = &got else {
+            panic!("[{lo:e}, {hi:e}]: the pair, got {got:?}");
+        };
+        let worst = cut_of(&c, &p).miss(&lines(l1, l2), (lo / alpha.cos(), hi / alpha.cos()));
+        assert!(
+            worst <= e,
+            "[{lo:e}, {hi:e}]: served a pair {:.4}·ε off the section",
             worst / e
         );
     }
