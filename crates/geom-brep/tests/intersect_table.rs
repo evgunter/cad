@@ -2472,7 +2472,7 @@ fn a_cones_tilted_seam_serves_its_circles_in_their_planes() {
     for (which, stored_axis, seam) in [
         ("tilt 1e-6", axis, leaning(1e-6)),
         ("tilt 0.9", axis, leaning(0.9)),
-        ("tilt 0.99", axis, leaning(0.99)),
+        ("tilt 0.995", axis, leaning(0.995)),
         ("tilt -0.999999", axis, leaning(-0.999_999)),
         ("axis 1.5 long, tilt 0.9", axis * 1.5, leaning(0.9)),
     ] {
