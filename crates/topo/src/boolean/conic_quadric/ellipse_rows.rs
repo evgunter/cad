@@ -515,9 +515,9 @@ mod fuzz_rows {
                     CircleRoots::Miss => {
                         misses += 1;
                         assert!(
-                            truth.roots.is_empty() && truth.depth > eps,
+                            truth.roots.is_empty() && truth.residual_depth > eps,
                             "{label}: a Miss {} from the surface, true crossings {:?}",
-                            truth.depth,
+                            truth.residual_depth,
                             truth.roots
                         );
                     }

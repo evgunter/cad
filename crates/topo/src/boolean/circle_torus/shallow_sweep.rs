@@ -266,7 +266,7 @@ fn no_certified_root_of_a_shallow_crossing_is_placed_past_the_band() {
         let truth = exact::truth(&pose.carrier(), &pose.torus());
         for eps in [1e-6, 1e-9, 1e-12] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
-            if truth.depth < 10.0 * eps {
+            if truth.residual_depth < 10.0 * eps {
                 continue;
             }
             for (lane, got) in [

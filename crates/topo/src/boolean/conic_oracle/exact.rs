@@ -245,9 +245,15 @@ pub(in crate::boolean) struct Truth {
     /// Each crossing's parameter, in `[0, 2π)`, ascending.
     pub(in crate::boolean) roots: Vec<f64>,
     /// The least `|d|` of the true signed distance over `F`'s extremes
-    /// along the carrier (`∞` with none): a pose is outside a band `K·ε`
-    /// deep when this is at least `K·ε`.
+    /// along the carrier (`∞` with none).
     pub(in crate::boolean) depth: f64,
+    /// The least `|d + d²/2r|` over the same extremes, `r` the radius
+    /// the surface's linearized residual divides by (a sphere's or a
+    /// wall's, a torus's tube): the true value there of the residual
+    /// `geom_brep::implicit_residual` classifies against the band, which
+    /// agrees with `d` only to first order. A pose is outside a band
+    /// `K·ε` deep when this is at least `K·ε`.
+    pub(in crate::boolean) residual_depth: f64,
 }
 
 /// The true crossings of `carrier`, a circle or an ellipse, with `surface`,
@@ -375,25 +381,26 @@ pub(in crate::boolean) fn truth(
     // `F`'s extremes in `θ`: `dF/dθ ∝ G′(1 + t²) − 2k·t·G`, read about
     // every anchor, so an extreme at one anchor's pole is found at
     // another's.
+    // The signed distance and the linearized residual `d + d²/2r`.
     let distance = |q: &[Poly; 3], t: Dd| {
         let den = Dd::of(1.0).add(t.mul(t));
         let p: V3 = core::array::from_fn(|i| p_eval(&q[i], t).div(den));
         let s = dot(p, p);
-        match form {
-            Form::Sphere { r } => s.sqrt().sub(r),
+        let (d, r) = match form {
+            Form::Sphere { r } => (s.sqrt().sub(r), r),
             Form::Wall { axis, r } => {
                 let h = dot(p, axis);
-                s.sub(h.mul(h)).sqrt().sub(r)
+                (s.sub(h.mul(h)).sqrt().sub(r), r)
             }
             Form::Torus { axis, big, small } => {
                 let h = dot(p, axis);
                 let rho = s.sub(h.mul(h)).sqrt().sub(big);
-                rho.mul(rho).add(h.mul(h)).sqrt().sub(small)
+                (rho.mul(rho).add(h.mul(h)).sqrt().sub(small), small)
             }
-        }
-        .to_f64()
+        };
+        (d.to_f64(), d.add(d.mul(d).div(r.scale(2.0))).to_f64())
     };
-    let depth = (0..4)
+    let (depth, residual_depth) = (0..4)
         .flat_map(|k| {
             let q = q_tilde(k);
             let (g, _) = g_of(&q);
@@ -403,9 +410,15 @@ pub(in crate::boolean) fn truth(
             );
             sign_change_roots(&slope)
                 .into_iter()
-                .map(|t| distance(&q, t).abs())
+                .map(|t| distance(&q, t))
                 .collect::<Vec<_>>()
         })
-        .fold(f64::INFINITY, f64::min);
-    Truth { roots, depth }
+        .fold((f64::INFINITY, f64::INFINITY), |(d, f), (dt, ft)| {
+            (d.min(dt.abs()), f.min(ft.abs()))
+        });
+    Truth {
+        roots,
+        depth,
+        residual_depth,
+    }
 }

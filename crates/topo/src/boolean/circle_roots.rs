@@ -30,10 +30,14 @@
 //! - **coaxial** — the swing `A₁` in the zero band: the residual is
 //!   constant to within `A₁` plus that error, and
 //!   [`constant_residual_roots`] decides it.
-//! - **extreme**, on `lo` and `hi` — definitely one-signed is a miss,
-//!   definitely straddling is two roots, and either extreme in the zero
-//!   band is a tangency, which is not a crossing at any order this lane
-//!   sees and answers [`CircleRoots::Uncertain`].
+//! - **extreme**, on `lo` and `hi`, each read as the interval its error
+//!   bound spans, both ends decided — definitely one-signed is a miss,
+//!   definitely straddling is two roots, an end in the escalation gap
+//!   escalates, and an extreme otherwise not definite is a tangency,
+//!   which is not a crossing at any order this lane sees and answers
+//!   [`CircleRoots::Uncertain`]. The noise meter bounds the error by the
+//!   zero band, not by the gap's far edge, so an extreme read bare could
+//!   clear `Kε` while its true value sits in the gap.
 //! - **root slack** — at either root the extremes' errors move the
 //!   residual by `δR = (hi·δlo − lo·δhi)/(hi − lo)` — the NEAR extreme's
 //!   error, plus only a share `|near|/(hi − lo)` of the far one's — so
@@ -975,11 +979,11 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     if let Ok(Sign::Zero) = decide(rows.coaxial, Margin::of(a1), band) {
         return constant_residual_roots(c0, a1 + noise, rows.extreme, band);
     }
-    let lo = decide(rows.extreme, Margin::of(lo_value), band)?;
+    let lo = extreme_sign(rows.extreme, lo_value, lo_noise, band)?;
     if lo == Sign::Positive {
         return Ok(FirstHarmonicRoots::Miss);
     }
-    let hi = decide(rows.extreme, Margin::of(hi_value), band)?;
+    let hi = extreme_sign(rows.extreme, hi_value, hi_noise, band)?;
     if hi == Sign::Negative {
         return Ok(FirstHarmonicRoots::Miss);
     }
@@ -1010,6 +1014,20 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
         near_mid(phi - half_chord),
         near_mid(phi + half_chord),
     ]))
+}
+
+/// The sign of an extreme read as `value` with error at most `noise`:
+/// both ends of `[value − noise, value + noise]` are decided, an end in
+/// the escalation gap escalates, and ends that disagree read `Zero`.
+fn extreme_sign<T: Decide>(
+    row: &'static str,
+    value: T,
+    noise: T,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let below = decide(row, Margin::of(value - noise), band)?;
+    let above = decide(row, Margin::of(value + noise), band)?;
+    Ok(if below == above { below } else { Sign::Zero })
 }
 
 #[cfg(test)]

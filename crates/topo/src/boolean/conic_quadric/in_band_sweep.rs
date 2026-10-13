@@ -140,7 +140,7 @@ fn no_pose_inside_the_band_is_answered() {
             };
             let c = tangent_circle(r, rho, depth, g, b);
             let truth = exact::truth(&c, &wall(r));
-            if truth.depth >= 10.0 * eps {
+            if truth.residual_depth >= 10.0 * eps {
                 continue;
             }
             let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
@@ -151,8 +151,10 @@ fn no_pose_inside_the_band_is_answered() {
                 _ => {}
             }
             wrong.push(format!(
-                "ε {eps:e}, depth {depth:e} (true {:.3e}, {} true roots): {got:?}\n  {c:?} wall r {r}",
+                "ε {eps:e}, depth {depth:e} (true {:.3e}, residual {:.3e}, {} true roots): \
+                 {got:?}\n  {c:?} wall r {r}",
                 truth.depth,
+                truth.residual_depth,
                 truth.roots.len()
             ));
         }
@@ -162,6 +164,195 @@ fn no_pose_inside_the_band_is_answered() {
         "{} in-band poses answered ({}):\n{}",
         wrong.len(),
         fuzz::replay(),
+        wrong.join("\n")
+    );
+}
+
+/// A circle `(centre, axis, ρ, û)` against the wall of radius `r`.
+type Pose = ([f64; 3], [f64; 3], f64, [f64; 3], f64);
+
+/// Poses [`no_pose_inside_the_band_is_answered`] drew whose true distance
+/// from the wall is in the gap at `ε = 1e-6`, each answered `Miss`.
+/// The first six take the first-harmonic arm, whose extremes read past
+/// `Kε` only bare of the second harmonic their noise carries; the last
+/// three take the ladder from outside the wall, where the residual
+/// `d + d²/2r` reads past `Kε` though `d` does not.
+const GAP_WITNESSES: [Pose; 9] = [
+    (
+        [
+            70.86155278926769,
+            0.00027419437321786835,
+            0.0006195764874900972,
+        ],
+        [0.052157748280677596, 0.4041414718003223, 0.9132082128766467],
+        0.012990167364053808,
+        [
+            0.9986388582937725,
+            -0.021107839917183423,
+            -0.047695804844253176,
+        ],
+        70.8745352665677,
+    ),
+    (
+        [
+            95.58358796773345,
+            0.00420888096162203,
+            0.0002245026191379071,
+        ],
+        [0.29292297857725236, 0.9547787475595925, 0.05092810451967077],
+        0.014388984566334313,
+        [
+            0.956136040854768,
+            -0.29250715658348014,
+            -0.015602394880815457,
+        ],
+        95.59735547353998,
+    ),
+    (
+        [
+            29.925057056160696,
+            -0.006476549623384285,
+            -0.0016731588685498797,
+        ],
+        [
+            0.6552300908306994,
+            -0.7314161569562029,
+            -0.18895484490589987,
+        ],
+        0.01020890535743639,
+        [0.7554293666981668, 0.6344019654043148, 0.16389209322340462],
+        29.932778434349324,
+    ),
+    (
+        [
+            3.9496123832118526,
+            -0.0005186744695551243,
+            0.0032386832317805856,
+        ],
+        [
+            -0.3082326362143074,
+            -0.15043530224655058,
+            0.9393411849857152,
+        ],
+        0.010641160947759434,
+        [
+            -0.951311012220703,
+            0.04874228217216605,
+            -0.30435431318821576,
+        ],
+        3.939479577920323,
+    ),
+    (
+        [
+            37.549801162461165,
+            -0.00619725708532496,
+            0.0007373802793424104,
+        ],
+        [0.5389020362142505, -0.8364681398597229, 0.09952711371154073],
+        0.011580901655802736,
+        [0.8423684439508254, 0.5351273389166341, -0.06367209577096598],
+        37.559566442640616,
+    ),
+    (
+        [
+            38.15427008431802,
+            0.0013396930029388537,
+            -0.011719068108253254,
+        ],
+        [-0.6994357793627936, 0.0811734178467544, -0.7100707477302792],
+        0.016864156776229062,
+        [
+            -0.7146954530057972,
+            -0.07944026023448876,
+            0.6949098175351354,
+        ],
+        38.14220817189306,
+    ),
+    (
+        [
+            -0.24244944920625458,
+            0.08343253614355985,
+            -1.0225101464360302,
+        ],
+        [-0.949015772808044, -0.02563613020061992, 0.3141844232133222],
+        1.0810235207384276,
+        [0.3152285884267972, -0.07717920520967814, 0.9458722468291643],
+        0.0983100695346417,
+    ),
+    (
+        [4.86690321316172, 1.8795845186086484, 1.6381272602194554],
+        [0.4579462547744164, -0.6701744206284314, -0.5840817354389981],
+        5.444417636256535,
+        [
+            -0.888979880389925,
+            -0.3452315094440496,
+            -0.30088199871194976,
+        ],
+        0.02691547462631648,
+    ),
+    (
+        [
+            0.23351335985187624,
+            -0.11229949652659002,
+            0.07776952755777634,
+        ],
+        [
+            -0.9476475130634834,
+            -0.26251507614313174,
+            0.18179666053632812,
+        ],
+        0.14414532810344757,
+        [
+            -0.31931832234401325,
+            0.7790713580810401,
+            -0.5395216659534338,
+        ],
+        0.1874751157386494,
+    ),
+];
+
+/// **The sweep's gap witnesses are judged in the residual** (an edge
+/// table of [`GAP_WITNESSES`], so no search): each lies within `Kε` of
+/// the wall at `ε = 1e-6`, and is answered only where its true residual
+/// is at least `Kε` — then truly — on three arcs.
+#[test]
+fn the_sweeps_gap_witnesses_are_judged_in_the_residual() {
+    let eps = 1e-6;
+    let band = Band::new(eps, 10.0 * eps).unwrap();
+    let mut wrong = Vec::new();
+    let mut past = 0;
+    for (i, (center, axis, radius, u_ref, r)) in GAP_WITNESSES.into_iter().enumerate() {
+        let c = geom::Curve3::Circle {
+            center: Point3::new(center[0], center[1], center[2]),
+            axis: Vec3::new(axis[0], axis[1], axis[2]),
+            radius,
+            u_ref: Vec3::new(u_ref[0], u_ref[1], u_ref[2]),
+        };
+        let truth = exact::truth(&c, &wall(r));
+        assert!(
+            truth.depth < 10.0 * eps,
+            "witness {i}: true distance {:e}",
+            truth.depth
+        );
+        let in_band = truth.residual_depth < 10.0 * eps;
+        past += usize::from(!in_band);
+        for (t0, t1) in [(-1.0, 1.0), (-3.0, 3.0), (2.0, 4.0)] {
+            let got = conic_quadric_roots(&c, t0, t1, &wall(r), band);
+            let answered = !matches!(got, Ok(CircleRoots::Uncertain) | Err(_));
+            let true_miss = matches!(got, Ok(CircleRoots::Miss)) && truth.roots.is_empty();
+            if answered && (in_band || !true_miss) {
+                wrong.push(format!(
+                    "witness {i} on [{t0}, {t1}], residual {:e}: {got:?}",
+                    truth.residual_depth
+                ));
+            }
+        }
+    }
+    assert_eq!(past, 3, "the ladder witnesses' residual reads past Kε");
+    assert!(
+        wrong.is_empty(),
+        "{} gap witnesses answered:\n{}",
+        wrong.len(),
         wrong.join("\n")
     );
 }
@@ -393,7 +584,7 @@ fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
             };
             let c = graze(on, normal, tangent, (rho, depth, rng.range(0.0, TAU)));
             let truth = exact::truth(&c, &torus);
-            if truth.depth >= 10.0 * eps {
+            if truth.residual_depth >= 10.0 * eps {
                 continue;
             }
             let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
@@ -404,7 +595,7 @@ fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
                 Ok(CircleRoots::Certified { count, .. }) => *count == truth.roots.len(),
                 Ok(CircleRoots::OnSurface) => false,
             };
-            if truth.depth < eps || !true_answer {
+            if truth.residual_depth < eps || !true_answer {
                 wrong.push(format!(
                     "ε {eps:e}, depth {depth:e} (true {:.3e}, {} true roots): {got:?}\n  \
                      {c:?} torus R 1 r {small}",

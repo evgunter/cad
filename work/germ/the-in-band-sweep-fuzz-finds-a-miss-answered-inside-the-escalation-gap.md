@@ -2,7 +2,8 @@
 id: the-in-band-sweep-fuzz-finds-a-miss-answered-inside-the-escalation-gap
 kind: issue
 title: GERM's in-band sweep fuzz finds a circle clear of a wall by 9.991ε answered Miss inside the escalation gap at ε = 1e-6
-status: open
+status: review
+branch: germ/in-band-sweep-gap-miss
 opened: 2026-10-11
 priority: P1
 ---
@@ -140,3 +141,41 @@ true roots:
 PR 4886 does not touch `conic_quadric`. Its changes to
 `certified_subdivision` act only on a bracketed root, and a `Miss` has
 none; the reviewers saw the same reds on main.
+
+## Root cause (GERM, 2026-10-13)
+
+Two causes, one on each side. All nine seeds above reproduce on main
+at `0ddfd40980`, and each is pinned as a row of `GAP_WITNESSES`
+(`crates/topo/src/boolean/conic_quadric/in_band_sweep.rs`,
+`the_sweeps_gap_witnesses_are_judged_in_the_residual`).
+
+**The door (six seeds: `0x71b4eb0ade4c1576`, `0x9433bbf2eb0a13c0`,
+`0xe8586f5f5e218549`, `0x50cc8da379c68fde`, `0x67e238e4dd9155cf`,
+`11`).** Each takes the first-harmonic arm. `first_harmonic_arm`
+(`crates/topo/src/boolean/conic_quadric/mod.rs`) drops the second
+harmonic `A₂` and charges it to the extremes' noise. But
+`first_harmonic_roots_in_band`
+(`crates/topo/src/boolean/circle_roots.rs`) decided the extremes on
+`Margin::of(lo)` / `Margin::of(hi)` bare. Its noise meter only checks
+that the error is within the zero band, and that is no bound on where
+the extreme sits relative to the gap's far edge `Kε`. On the first seed
+`hi = −1.0088e-5` and `A₂ = 0.099ε`, while the true extreme is
+`−9.991e-6`. On the second, `A₂ = 0.54ε` (hence its deeper 9.68ε).
+Fixed by `extreme_sign`, which decides each extreme as the interval
+its error bound spans: both ends decided, and an end in the gap
+escalates.
+
+**The judge (three seeds: `0xedc36ace8b877740`, `0x883d9762675a3ba8`,
+`18`, true distance 9.9995ε to 9.9998ε).** Each takes the ladder from
+OUTSIDE the wall. The door classifies the linearized residual
+`(ρ² − r²)/2r = d + d²/2r`, which `crates/geom-brep/src/implicit.rs`'s
+module docs state is what classifies against the linear ε, agreeing
+with the distance `d` only to first order. Outside the wall it
+overstates `d` by `d²/2r`: up to 0.0019ε at `r = 0.027`. So these poses
+truly lie past `Kε` in the band's own metric, and their `Miss` is right.
+The row's judge read the oracle's distance. The oracle now also returns
+`residual_depth` (`crates/topo/src/boolean/conic_oracle/exact.rs`,
+`Truth::residual_depth`), and the judges that gate on the band read it.
+It was not the far-frame rounding at `r ≈ 70.9`: the oracle is
+double-double on the stored carrier.
+
