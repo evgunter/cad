@@ -2,11 +2,12 @@
 id: focal-section-vertex-azimuth-is-read-off-a-cancelling-sum
 kind: issue
 title: chart_pcurve reads a cone ellipse's vertex azimuth off r0 + ra, a sum that cancels to (1 − e)·ra near a parabola, so the image's error grows like u·A/k² where u·A/k is reachable
-status: open
+status: dispatched
 opened: 2026-10-12
 priority: P2
 cost: M
 refs: [conic-section-just-past-its-band-fails-certification-downstream]
+branch: pcert/focal-section-vertex-azimuth
 ---
 
 
