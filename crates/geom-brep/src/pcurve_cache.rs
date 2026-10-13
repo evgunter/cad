@@ -2123,7 +2123,9 @@ pub enum EnvelopeStatement {
     /// ê₂‖` and the axis by `‖axis − n̂‖`, each levered by what
     /// multiplies it in the map: the radius, the torus's `R + r` and
     /// `r`, and on a cylinder's axis and both of a cone's channels the
-    /// image's own `sup |v|`. Then `|S(P) − C| ≤ |S(P) − Ŝ(P)| + |Ŝ(P) −
+    /// image's own `sup |v|`. On the sphere and the torus's tube the
+    /// radial and axial defects ride `cos v` and `sin v`, a unit pair,
+    /// so they are read at their norm. Then `|S(P) − C| ≤ |S(P) − Ŝ(P)| + |Ŝ(P) −
     /// C|`, the second bounded by the arms above on `Ŝ`. On a literal
     /// unit frame the twin is the frame itself and the term is the zero
     /// form.
@@ -4292,6 +4294,8 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
             let (d_axis, d_radial) = defect(axis, u_ref);
             (d_axis * c_a.abs() + d_radial * s_a.abs()) * v_reach
         }
+        // `r·(cos v·Δrad + sin v·Δaxis)`: `(cos v, sin v)` is a unit
+        // pair, so the two defects read at their norm (Cauchy–Schwarz).
         Surface::Sphere {
             radius,
             axis,
@@ -4299,7 +4303,10 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
             ..
         } => {
             let (d_axis, d_radial) = defect(axis, u_ref);
-            (d_radial + d_axis) * radius
+            let defect = harmonic_sup_scalar(d_radial, d_axis);
+            #[cfg(test)]
+            let defect = mutants::frame(d_radial, d_axis).unwrap_or(defect);
+            defect * radius
         }
         Surface::Torus {
             axis,
@@ -4308,8 +4315,13 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
             u_ref,
             ..
         } => {
+            // `(R + r·cos v)·Δrad + r·sin v·Δaxis`: the tube's share is
+            // the sphere's, `r` levering the two defects at their norm.
             let (d_axis, d_radial) = defect(axis, u_ref);
-            d_radial * (major_radius + minor_radius) + d_axis * minor_radius
+            let tube = harmonic_sup_scalar(d_radial, d_axis);
+            #[cfg(test)]
+            let tube = mutants::frame(d_radial, d_axis).unwrap_or(tube);
+            d_radial * major_radius + tube * minor_radius
         }
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             unreachable!("frame_defect: check 4's periodic arm reads an analytic periodic chart")

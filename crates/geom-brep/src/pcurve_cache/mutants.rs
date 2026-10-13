@@ -19,7 +19,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 13] = [
+pub(super) const SITES: [&str; 14] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -33,6 +33,7 @@ pub(super) const SITES: [&str; 13] = [
     "fidelity-cone",
     "cone-drift",
     "radial-amplitude",
+    "frame",
 ];
 
 fn on(site: &str) -> bool {
@@ -147,6 +148,12 @@ pub(super) fn cone_drift<T: Real>(d_sin: T, d_cos: T) -> Option<T> {
 /// The cylinder class selector: the radial pair's coefficients added.
 pub(super) fn radial_amplitude<T: Real>(a_r: Vec3<T>, b_r: Vec3<T>, l_r: Vec3<T>) -> Option<T> {
     on("radial-amplitude").then(|| a_r.norm() + b_r.norm() + l_r.norm())
+}
+
+/// The sphere's and the torus tube's frame defects: radial and axial
+/// added.
+pub(super) fn frame<T: Real>(d_radial: T, d_axis: T) -> Option<T> {
+    on("frame").then(|| d_radial + d_axis)
 }
 
 /// The variable names a site this crate or topo's `chord_join` hooks.
