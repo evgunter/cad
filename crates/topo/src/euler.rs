@@ -1316,8 +1316,8 @@ pub enum EulerOpError {
     /// whether the half's ends meet escalated, or they meet and the
     /// joint decision there missed: a mark at the vertex escalated, or
     /// the gap reads on a mark and meets no orbit point at the vertex's
-    /// lever, or the periods lie past the branch reach. Raised in the plan phase, so
-    /// the body is untouched.
+    /// lever, or the periods lie past the branch reach. Raised in the
+    /// plan phase, so the body is untouched.
     KillTurnUndecided {
         /// The killed half-edge whose turn was not decided.
         half_edge: HalfEdgeKey,

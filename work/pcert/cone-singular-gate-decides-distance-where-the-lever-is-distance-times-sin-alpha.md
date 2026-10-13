@@ -48,7 +48,7 @@ with room nothing moves: the read is asked only where a mark missed.
 read (a decided discontinuity refuses as decided), so they stay two.
 
 Rows:
-- `pcurves::stretch_meter::a_narrow_cone_joint_clear_of_the_apex_takes_its_own_image`
+- `pcurves::stretch_meter::a_narrow_cone_loop_joint_clear_of_the_apex_takes_its_own_image`
   is the item's configuration;
 - `cone_apex_sector_joints::a_split_near_a_narrow_apex_passes_its_joint`
   restates the old escalation row: the joint now decides, and the
