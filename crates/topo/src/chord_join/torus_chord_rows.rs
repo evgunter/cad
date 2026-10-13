@@ -35,15 +35,9 @@ fn loops(
     cut: &geom::Surface<f64>,
     wall: &geom::Surface<f64>,
     lever: f64,
-) -> ([SectionConic<f64>; 2], LoopSplit<f64>) {
+) -> ([SectionCurve<f64>; 2], LoopSplit<f64>) {
     let f = FaceKey::default();
-    match section_case(
-        (f, geom::SurfaceKind::Plane),
-        band(),
-        cut,
-        wall,
-        SectionReach::Torus(lever),
-    ) {
+    match section_case(f, band(), cut, wall, SectionReach::Torus(lever)) {
         Ok(SectionCase::Loops { loops, split }) => (loops, split),
         Ok(_) => panic!("a two-loop section"),
         Err(e) => panic!("the torus arm refused {e:?}"),
@@ -52,27 +46,17 @@ fn loops(
 
 /// The loop the chord between `sites` takes.
 fn pick(
-    (loops, split): &([SectionConic<f64>; 2], LoopSplit<f64>),
+    (loops, split): &([SectionCurve<f64>; 2], LoopSplit<f64>),
     sites: [Point3<f64>; 2],
-) -> Result<SectionConic<f64>, SplitJoinError> {
-    let [a, b] = loops;
-    section_loop(
-        FaceKey::default(),
-        [clone(a), clone(b)],
-        *split,
-        sites,
-        band(),
-    )
+) -> Result<SectionCurve<f64>, SplitJoinError> {
+    section_loop(FaceKey::default(), loops.clone(), *split, sites, band())
 }
 
-fn clone(c: &SectionConic<f64>) -> SectionConic<f64> {
-    SectionConic {
-        center: c.center,
-        normal: c.normal,
-        major: c.major,
-        sa: c.sa,
-        sb: c.sb,
-        carrier: c.carrier.clone(),
+/// The circle a loop of a meridian or concentric section is.
+fn circle(c: SectionCurve<f64>) -> SectionConic<f64> {
+    match c {
+        SectionCurve::Conic(c) => c,
+        SectionCurve::Oval(o) => panic!("a circle's loop came back an oval: {:?}", o.carrier),
     }
 }
 
@@ -90,7 +74,7 @@ fn a_chord_whose_sites_lie_on_c2_is_an_arc_of_c2() {
         let two = loops(&plane(Point3::origin(), n), &d, 3.0);
         for z in [2.0, -2.0] {
             let on = |t: f64| Point3::new(0.0, 0.5 * t.sin(), z + 0.5 * t.cos());
-            let got = pick(&two, [on(0.3), on(2.1)]).unwrap();
+            let got = circle(pick(&two, [on(0.3), on(2.1)]).unwrap());
             assert!(
                 (got.center - Point3::new(0.0, 0.0, z)).norm() < 1e-12,
                 "normal {n:?}: the chord's sites on the circle about z = {z} took the one about \
@@ -104,7 +88,7 @@ fn a_chord_whose_sites_lie_on_c2_is_an_arc_of_c2() {
     let two = loops(&plane(Point3::new(0.0, h, 0.0), Vec3::unit_y()), &d, 3.0);
     for radius in [2.0 + w, 2.0 - w] {
         let on = |t: f64| Point3::new(radius * t.cos(), h, radius * t.sin());
-        let got = pick(&two, [on(0.4), on(-2.5)]).unwrap();
+        let got = circle(pick(&two, [on(0.4), on(-2.5)]).unwrap());
         assert!(
             (got.sa - radius).abs() < 1e-12,
             "the chord's sites on the circle of radius {radius} took radius {}",
@@ -123,11 +107,11 @@ fn a_chords_sites_on_two_loops_or_neither_are_refused() {
     let d = torus(2.0, 0.5);
     let two = loops(&plane(Point3::origin(), Vec3::unit_x()), &d, 3.0);
     let (c1, c2) = (Point3::new(0.0, 0.5, 2.0), Point3::new(0.0, 0.5, -2.0));
-    let invariant = |got: Result<SectionConic<f64>, SplitJoinError>, what: &str| {
+    let invariant = |got: Result<SectionCurve<f64>, SplitJoinError>, what: &str| {
         assert!(
             matches!(got, Err(SplitJoinError::SectionInvariant { .. })),
             "{what}: {:?}",
-            got.map(|c| c.center)
+            got.map(|c| c.carrier().clone())
         );
     };
     invariant(pick(&two, [c1, c2]), "a site on each circle");
@@ -148,13 +132,13 @@ fn a_chords_sites_on_two_loops_or_neither_are_refused() {
 
 /// The largest distance off `cut` and off `wall`'s torus of points
 /// round `c`.
-fn off_both(c: &SectionConic<f64>, cut: &geom::Surface<f64>, (big_r, r): (f64, f64)) -> (f64, f64) {
+fn off_both(c: &SectionCurve<f64>, cut: &geom::Surface<f64>, (big_r, r): (f64, f64)) -> (f64, f64) {
     let geom::Surface::Plane { origin, normal, .. } = *cut else {
         unreachable!()
     };
     (0..720)
         .map(|k| {
-            c.carrier
+            c.carrier()
                 .eval(f64::from(k) * core::f64::consts::TAU / 720.0)
         })
         .map(|p| {
@@ -188,7 +172,7 @@ fn off_both(c: &SectionConic<f64>, cut: &geom::Surface<f64>, (big_r, r): (f64, f
 fn the_minted_circles_stand_within_the_band_at_the_thinnest_reach() {
     let b = band();
     let reach = 0.112;
-    let within_band = |two: &[SectionConic<f64>; 2],
+    let within_band = |two: &[SectionCurve<f64>; 2],
                        cut: &geom::Surface<f64>,
                        (big_r, r): (f64, f64),
                        what: &str| {
@@ -198,19 +182,13 @@ fn the_minted_circles_stand_within_the_band_at_the_thinnest_reach() {
                 plane_off <= b.zero() && torus_off <= b.zero(),
                 "R = {big_r}, r = {r}, {what}: a circle of radius {} stands {plane_off:e} off \
                  the cut and {torus_off:e} off the torus, against the band's {:e}",
-                c.sa,
+                c.lever(),
                 b.zero()
             );
         }
     };
     let case = |cut: &geom::Surface<f64>, wall: &geom::Surface<f64>| {
-        section_case(
-            (FaceKey::default(), geom::SurfaceKind::Plane),
-            b,
-            cut,
-            wall,
-            SectionReach::Torus(reach),
-        )
+        section_case(FaceKey::default(), b, cut, wall, SectionReach::Torus(reach))
     };
     for (big_r, r) in [(1.1, 0.052), (2.0, 0.5)] {
         let wall = torus(big_r, r);
@@ -265,5 +243,83 @@ fn the_minted_circles_stand_within_the_band_at_the_thinnest_reach() {
             !matches!(case(&square(tilt), &wall), Ok(SectionCase::Loops { .. })),
             "R = {big_r}, r = {r}: a tilt {tilt:e} off square, in band only at R, is served circles"
         );
+    }
+}
+
+/// **A chord on a spiric oval is an arc of it on its own parameter, the
+/// one its departure leaves along**: the plane `x = 0.3` against the
+/// donut cuts two ovals, one each side of the axis's trace. For sites
+/// on either oval at pairs of minor angles, short arcs and long ones and
+/// arcs across the parameter's seam, with the departure along the oval
+/// either way: the chord's loop is that oval, its arc starts at the
+/// first site and ends at the second, and its midpoint is the oval's
+/// own point half way along the parameter the departure runs into (the
+/// closed form, `Curve3::Spiric`). Red against the mutant "the arc's
+/// parameter read as the angle about the plane's foot", which lies
+/// outside both ovals.
+#[test]
+fn a_chord_on_an_oval_is_an_arc_on_its_own_parameter() {
+    let d = torus(2.0, 0.5);
+    let cut = plane(Point3::new(0.3, 0.0, 0.0), Vec3::unit_x());
+    let two = loops(&cut, &d, 3.0);
+    let geom_brep::PlaneTorusSection::SpiricOvals { s1, s2 } =
+        geom_brep::plane_torus_section(&cut, &d, 3.0, band()).unwrap()
+    else {
+        panic!("x = 0.3 cuts two ovals");
+    };
+    let tau = core::f64::consts::TAU;
+    for (name, oval) in [("s1", s1), ("s2", s2)] {
+        for (v1, v2) in [
+            (0.2, 0.9),
+            (0.9, 0.2),
+            (-2.5, 2.8),
+            (2.8, -2.5),
+            (1.0, 4.0),
+            (-0.3, 3.0),
+        ] {
+            let (p1, p2) = (oval.eval(v1), oval.eval(v2));
+            let curve = pick(&two, [p1, p2]).unwrap();
+            assert!(
+                matches!(&curve, SectionCurve::Oval(o) if format!("{:?}", o.carrier) == format!("{oval:?}")),
+                "{name}, {v1} → {v2}: the chord's loop is its own oval"
+            );
+            for along in [1.0, -1.0] {
+                let leave = Departure {
+                    dir: oval.deriv(v1).normalize() * along,
+                    datum: Datum::Germ,
+                };
+                let what = format!("{name}, {v1} → {v2}, along {along}");
+                let ccw = arc_leaving(FaceKey::default(), band(), &curve, &d, p1, leave).unwrap();
+                assert_eq!(
+                    ccw,
+                    along > 0.0,
+                    "{what}: the arc leaves along its departure"
+                );
+                let (carrier, t0, t1) = oriented_arc(
+                    &curve,
+                    FaceKey::default(),
+                    curve.param(p1),
+                    ArcEnd::At(curve.param(p2)),
+                    ccw,
+                )
+                .unwrap();
+                assert!(t1 > t0, "{what}: the arc runs forward");
+                assert!(
+                    (carrier.eval(t0) - p1).norm() < 1e-12,
+                    "{what}: starts at p1"
+                );
+                assert!((carrier.eval(t1) - p2).norm() < 1e-12, "{what}: ends at p2");
+                let forward = (v2 - v1).rem_euclid(tau);
+                let mid = if ccw {
+                    v1 + forward / 2.0
+                } else {
+                    v1 - (tau - forward) / 2.0
+                };
+                assert!(
+                    (carrier.mid_point(t0, t1) - oval.eval(mid)).norm() < 1e-12,
+                    "{what}: the arc's midpoint is the oval's at {mid}"
+                );
+            }
+        }
     }
 }

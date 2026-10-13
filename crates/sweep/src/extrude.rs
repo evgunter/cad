@@ -520,7 +520,11 @@ impl fmt::Display for ExtrudeError {
             ),
             Self::ExtrusionEscalated { source } => write!(
                 f,
-                "whether the extrusion leaves the sketch plane is too close to call: {source}"
+                "{}",
+                source.undecided(
+                    "whether the extrusion leaves the sketch plane",
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
             Self::CosurfaceEscalated {
                 loop_index,
@@ -528,8 +532,14 @@ impl fmt::Display for ExtrudeError {
                 source,
             } => write!(
                 f,
-                "whether the walls meeting at loop {loop_index} vertex {vertex_index} share \
-                 one surface is too close to call: {source}"
+                "{}",
+                source.undecided(
+                    format_args!(
+                        "whether the walls meeting at loop {loop_index} vertex {vertex_index} \
+                         share one surface"
+                    ),
+                    source.lever_ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
             Self::SliverJoin {
                 loop_index,
@@ -1696,6 +1706,37 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// **An extrude escalation ends by its decision's kind.** The
+    /// extrusion's components are lengths, and offer the tolerance a
+    /// value gives; the cosurface distance selects whether two walls
+    /// merge, and ends in the lever alone.
+    #[test]
+    fn an_extrude_escalation_ends_by_its_decisions_kind() {
+        use crate::swept::undecided_fixtures::{LEVER, SIZED, expected, readings};
+        for name in ["extrusion_normal_component", "extrusion_obliquity"] {
+            for (source, text) in readings(name).into_iter().zip(expected(
+                "whether the extrusion leaves the sketch plane",
+                SIZED,
+            )) {
+                assert_eq!(
+                    ExtrudeError::ExtrusionEscalated { source }.to_string(),
+                    text
+                );
+            }
+        }
+        for (source, text) in readings("side_planes_cosurface").into_iter().zip(expected(
+            "whether the walls meeting at loop 0 vertex 4 share one surface",
+            LEVER,
+        )) {
+            let err = ExtrudeError::CosurfaceEscalated {
+                loop_index: 0,
+                vertex_index: 4,
+                source,
+            };
+            assert_eq!(err.to_string(), text);
+        }
+    }
 
     /// **A smooth strut or cap rim's must-carry escalation says which question
     /// escalated**: a first-order station is the sliver, neither corner
