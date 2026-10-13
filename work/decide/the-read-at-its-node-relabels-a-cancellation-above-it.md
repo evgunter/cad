@@ -2,11 +2,12 @@
 id: the-read-at-its-node-relabels-a-cancellation-above-it
 kind: issue
 title: The decision read answers at its node, ahead of a cancellation its parent would make: max(x + Z, 3) − max(x, 3) is sign_gated, a theorem with the read shut
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P2
 refs: [DECIDE-9, the-decision-read-answers-theorems-the-must-carry-stations-would-prove]
 cost: M
+closed: 2026-10-13
 ---
 
 
@@ -180,3 +181,5 @@ family (`m10_what_the_read_buys_on_the_tilted_caps`: the end cap and
 `FlipZ` refuse at `newell_plane_residual` with the read shut, the
 start cap reads the same either way), and the registry on the link,
 the bracket and the pad (`m10_9_what_the_registry_buys`).
+
+Closed by DECIDE-10 (PR #4929), 2026-10-13.
