@@ -357,8 +357,9 @@ pub enum Pcurve<T: Real> {
         breaks: KnotVector,
     },
     /// The **exact chart image of a [`geom::Curve3::Spiric`]** on the
-    /// two charts a spiric lies on — the plane of its own cutting
-    /// section and the torus it sections. Data-free: `major`, `minor`
+    /// charts a spiric lies on — the plane of its own cutting section,
+    /// and the two tori that hold the section: the one it sections and
+    /// that torus's mirror through the cutting plane. Data-free: `major`, `minor`
     /// and `offset` are the CARRIER's own three scalars, copied so the
     /// image evaluates from `t` alone like every other variant, and
     /// there is no fitted net anywhere.
@@ -369,8 +370,8 @@ pub enum Pcurve<T: Real> {
     /// single spelling of the radicand): on the CAP the chart image is
     /// the affine chart's coordinates of `c + n·d + m·f(t) + a·r·sin t`
     /// with `n·d` folded into the constant term, and on the WALL the
-    /// chart azimuth is `u₀ + σ·atan2(f(t), d)` while the minor angle
-    /// IS the parameter. `f > 0` everywhere in the two-oval regime
+    /// chart azimuth is `u₀ + σμ·atan2(f(t), d)` while the minor angle
+    /// IS the parameter (`σ` the axis sign, `μ` the [`WallTorus`]'s). `f > 0` everywhere in the two-oval regime
     /// `|d| < R − r`, so `atan2(f, d) ∈ (0, π)` is smooth in `t`, never
     /// crosses `atan2`'s cut and never winds — which is why the
     /// azimuth channel needs no branch datum beyond its constant.
@@ -389,8 +390,8 @@ pub enum Pcurve<T: Real> {
         minor: T,
         /// The carrier's signed plane stand-off `d` (metres).
         offset: T,
-        /// Which of the two charts this image is on, with its own
-        /// chart-space coefficients.
+        /// Which chart kind this image is on (and, on a torus, which
+        /// of the two tori), with its own chart-space coefficients.
         image: SpiricImage<T>,
     },
     /// The **exact chart image of a focal section**: a conic on a
@@ -526,10 +527,10 @@ impl<T: Real> FocalImage<T> {
 }
 
 /// Which chart a [`Pcurve::Spiric`] image lives on, and its chart-space
-/// coefficients — the two charts a `Curve3::Spiric` lies on and no
-/// others (a spiric lies on no cylinder, cone or sphere, and
-/// [`PcurveCache::certify`] admits the variant on `Plane` and `Torus`
-/// charts only).
+/// coefficients — the cutting plane and the two tori that hold a
+/// `Curve3::Spiric`, and no others (a spiric lies on no cylinder, cone
+/// or sphere, and [`PcurveCache::certify`] admits the variant on
+/// `Plane` and `Torus` charts only).
 #[derive(Clone, Copy, Debug)]
 pub enum SpiricImage<T: Real> {
     /// The **plane cap**: `P(t) = p0 + pm·f(t) + pa·sin t`, with
@@ -551,34 +552,78 @@ pub enum SpiricImage<T: Real> {
         /// The `sin t` coefficient.
         pa: Vec2<T>,
     },
-    /// The **torus wall**: `u(t) = u0 + sense·atan2(f(t), d)`,
-    /// `v(t) = v0 + sense·t`.
+    /// The **torus wall**: `u(t) = u0 + μ·sense·atan2(f(t), d)`,
+    /// `v(t) = v0 + sense·t`, with `μ` = [`WallTorus::mu`] of `torus`.
     ///
     /// Derived from the chart formula
-    /// `S(u, v) = c + e(u)·(R + r cos v) + a·(r sin v)`: the carrier's
-    /// point `c + n·d + m·f + a·(r sin t)` has radial part `n·d + m·f`,
-    /// whose azimuth about the chart axis is `φ_n + atan2(f, d)` when
-    /// `chart.axis = a` (the +90° direction from `n` is `a × n = m`)
-    /// and `φ_n − atan2(f, d)` when `chart.axis = −a`, where also
-    /// `a·(r sin t) = −a′·(r sin(−t))` gives `v = −t`. So ONE sign
-    /// rides both channels — `sense = ±1`, decided at the mint by
-    /// `pcurve_spiric_chart_axis` — and the only derived numbers in
-    /// the whole image are `u0` (one `atan2` of the plane normal in
-    /// the chart frame) and `v0` (`0` at the mint, `k·τ` after the
-    /// loop walk's branch shift). That is what makes the wall's
+    /// `S(u, v) = c′ + e(u)·(R + r cos v) + A·(r sin v)`. Two tori hold
+    /// the oval (`spiric_off_own_chart`'s docs): the carrier's own,
+    /// `c′ = c` ([`WallTorus::Own`], `μ = +1`), and its MIRROR through
+    /// the cutting plane, `c′ = c + 2d·n` ([`WallTorus::Mirror`],
+    /// `μ = −1`). About either, the carrier's point
+    /// `c + n·d + m·f + a·(r sin t)` has radial part `μ·n·d + m·f` of
+    /// length `R + r cos t`, and height `a·(r sin t)`. With `A = σ·a`
+    /// (`σ = sense = ±1`, decided at the mint by
+    /// `pcurve_spiric_chart_axis`) the height gives `v = σ·t`, and the
+    /// +90° direction from `μ·n` is `A × μn = σμ·m`, so the radial part
+    /// has azimuth `φ_{μn} + σμ·atan2(f, d)`. So ONE sign `σ` rides
+    /// both channels, the azimuth's opposed on the mirror, and the only
+    /// derived numbers in the whole image are `u0` (one `atan2` of
+    /// `μ·n` in the chart frame) and `v0` (`0` at the mint, `k·τ` after
+    /// the loop walk's branch shift). That is what makes the wall's
     /// between-samples statement an identity rather than a bound:
     /// [`EnvelopeStatement::SpiricIdentity`].
     Wall {
         /// The chart azimuth at `f = d`'s angle zero — the azimuth of
-        /// the cutting plane's own normal in the chart frame.
+        /// `μ·n` in the chart frame.
         u0: T,
         /// The minor-angle constant: `0` at the mint, `k·τ` after a
         /// branch shift.
         v0: T,
-        /// `+1` when the chart axis agrees with the carrier's, `−1`
-        /// when it opposes; exactly `±1` on every minted image.
+        /// `σ`: `+1` when the chart axis agrees with the carrier's,
+        /// `−1` when it opposes; exactly `±1` on every minted image.
         sense: T,
+        /// Which of the two tori that hold the oval the image maps
+        /// through.
+        torus: WallTorus,
     },
+}
+
+/// Which of the two tori that hold a spiric oval a
+/// [`SpiricImage::Wall`] maps through: a tag, so a wall image names
+/// exactly one of them and its azimuth sign is `σ·μ` by construction
+/// rather than a second stored number.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WallTorus {
+    /// The carrier's own torus, centred at the carrier's centre `c`.
+    Own,
+    /// The carrier's torus mirrored through the cutting plane, centred
+    /// at `c + 2d·n`.
+    Mirror,
+}
+
+impl WallTorus {
+    /// `μ`: `+1` on the own torus, `−1` on the mirror — the azimuth
+    /// channel's sign relative to the minor-angle channel's.
+    #[must_use]
+    pub fn mu<T: Real>(self) -> T {
+        match self {
+            Self::Own => T::one(),
+            Self::Mirror => T::zero() - T::one(),
+        }
+    }
+
+    /// The torus's centre for a spiric of centre `c`, plane normal `n`
+    /// and offset `d`: `c` or `c + n·(d + d)`. The ONE spelling both
+    /// the mint and check 1 read, so check 1's centre comparand is
+    /// bit-zero on a chart the mint was handed with this centre.
+    #[must_use]
+    pub fn center<T: Real>(self, c: Point3<T>, n: Vec3<T>, d: T) -> Point3<T> {
+        match self {
+            Self::Own => c,
+            Self::Mirror => c + n * (d + d),
+        }
+    }
 }
 
 /// The chart parameter `g(t) ∈ [0, 1]` of an [`Pcurve::IsoArc`]
@@ -751,17 +796,22 @@ impl<T: Real> Pcurve<T> {
     ///
     /// # The one variant this is NOT total over
     ///
-    /// [`SpiricImage::Wall`] rides ONE `sense` on two channels, so a
-    /// linear part that negates the second channel alone has no wall
-    /// image to land on: the `v` channel would follow and the `u`
-    /// channel would not. This door keeps the arm TOTAL for the maps a
-    /// wall image does take — the two whole-period branch translations,
-    /// whose linear part is the identity — and it is
-    /// [`Pcurve::mirror_v`] that refuses, because that is the door
-    /// whose contract the reflection breaks. A caller that hands this
-    /// function a reflection and a wall image gets the translation's
-    /// answer, which is why the reflection has its own door and its
-    /// own refusal rather than a comment.
+    /// [`SpiricImage::Wall`] rides ONE `sense` on two channels (the
+    /// azimuth's opposed on the mirror torus, by its [`WallTorus`] tag
+    /// rather than by a stored number), so a linear part that negates
+    /// the second channel alone has no wall image to land on: the `v`
+    /// channel would follow and the `u` channel would not. No torus row
+    /// takes a `v` reflection — `(u, v) ↦ (u, −v)` is orientation-
+    /// reversing on a torus chart, and the torus whose frame realises
+    /// it (axis negated) maps the image to `(−u, −v)`, not `(u, −v)`.
+    /// This door keeps the arm TOTAL for the maps a wall image does
+    /// take — the two whole-period branch translations, whose linear
+    /// part is the identity — and it is [`Pcurve::mirror_v`] that
+    /// refuses, because that is the door whose contract the reflection
+    /// breaks. A caller that hands this function a reflection and a
+    /// wall image gets the translation's answer, which is why the
+    /// reflection has its own door and its own refusal rather than a
+    /// comment.
     #[must_use]
     pub fn map_affine(
         &self,
@@ -802,7 +852,8 @@ impl<T: Real> Pcurve<T> {
             //
             // The WALL image is not a general affine object and this
             // arm does not pretend otherwise. Its two channels ride
-            // ONE sign (variant docs), so a linear part that negates
+            // ONE `sense` (variant docs; the `WallTorus` tag fixes the
+            // azimuth's sign relative to it), so a linear part that negates
             // the second channel alone has no wall image to land on:
             // the `v` channel would follow and the `u` channel would
             // not. What a torus chart's rows DO take is the two
@@ -830,12 +881,18 @@ impl<T: Real> Pcurve<T> {
                         pm: vector(*pm),
                         pa: vector(*pa),
                     },
-                    SpiricImage::Wall { u0, v0, sense } => {
+                    SpiricImage::Wall {
+                        u0,
+                        v0,
+                        sense,
+                        torus,
+                    } => {
                         let p = point(Point2::new(*u0, *v0));
                         SpiricImage::Wall {
                             u0: p.x,
                             v0: p.y,
                             sense: *sense,
+                            torus: *torus,
                         }
                     }
                 },
@@ -907,13 +964,18 @@ impl<T: Real> Pcurve<T> {
     /// # The variant that has no reflection
     ///
     /// [`SpiricImage::Wall`] is the one image whose reflected locus is
-    /// not representable: `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t`
-    /// ride ONE sign, and the reflection wants `u` fixed while `v`
-    /// negates, which needs two. So this door answers `None` for it
-    /// rather than a wrong locus — measured before it was written:
-    /// the arm that silently kept `sense` returned an image whose `v`
-    /// was wrong by the entire span while `mirror_v ∘ mirror_v` still
-    /// held, so an involution row could not see it.
+    /// not representable: `u = u₀ + σμ·atan2(f, d)`, `v = v₀ + σ·t`
+    /// ride ONE sign `σ`, and the reflection wants `u` fixed while `v`
+    /// negates. Nor is the reflected locus a wall image on any torus:
+    /// `(u, v) ↦ (u, −v)` reverses the chart's orientation, the torus
+    /// whose frame realises a reversal (axis negated) takes the image
+    /// to `(−u, −v)`, and re-tagging [`WallTorus`] would mint a
+    /// certified-shaped row naming the OTHER torus while holding on
+    /// neither. So this door answers `None` for it rather than a wrong
+    /// locus — measured before it was written: the arm that silently
+    /// kept `sense` returned an image whose `v` was wrong by the entire
+    /// span while `mirror_v ∘ mirror_v` still held, so an involution
+    /// row could not see it.
     ///
     /// `None` is unreachable through every door in the tree:
     /// `topo::revert` mirrors the rows of PLANE faces only and puts a
@@ -981,8 +1043,14 @@ impl<T: SpanLocate> Pcurve<T> {
                     SpiricImage::Cap { p0, pm, pa } => {
                         Point2::new(p0.x + pm.x * f + pa.x * s, p0.y + pm.y * f + pa.y * s)
                     }
-                    SpiricImage::Wall { u0, v0, sense } => {
-                        Point2::new(*u0 + *sense * f.atan2(*offset), *v0 + *sense * t)
+                    SpiricImage::Wall {
+                        u0,
+                        v0,
+                        sense,
+                        torus,
+                    } => {
+                        let u_sense = *sense * torus.mu::<T>();
+                        Point2::new(*u0 + u_sense * f.atan2(*offset), *v0 + *sense * t)
                     }
                 }
             }
@@ -1105,9 +1173,15 @@ impl<T: SpanLocate> Pcurve<T> {
                             v_max: p0.y + dv_hi,
                         }
                     }
-                    SpiricImage::Wall { u0, v0, sense } => {
+                    SpiricImage::Wall {
+                        u0,
+                        v0,
+                        sense,
+                        torus,
+                    } => {
+                        let u_sense = *sense * torus.mu::<T>();
                         let (a_lo, a_hi) = (f_min.atan2(*offset), f_max.atan2(*offset));
-                        let (u_a, u_b) = (*u0 + *sense * a_lo, *u0 + *sense * a_hi);
+                        let (u_a, u_b) = (*u0 + u_sense * a_lo, *u0 + u_sense * a_hi);
                         let (v_a, v_b) = (*v0 + *sense * t0, *v0 + *sense * t1);
                         ChartWindow {
                             u_min: u_a.min(u_b),
@@ -1482,10 +1556,6 @@ pub enum UncoveredClass {
     /// A line, ellipse or spiric offered a fitted-grade image: no such
     /// class exists, its images are closed-form or iso.
     NoFittedClass,
-    /// A spiric on its torus's mirror through the cutting plane, which
-    /// holds the oval while the wall image maps only through the
-    /// carrier's own torus.
-    MirrorTorusSpiric,
 }
 
 impl UncoveredClass {
@@ -1493,11 +1563,6 @@ impl UncoveredClass {
     pub fn describe(self) -> &'static str {
         match self {
             Self::NoFittedClass => "a line, ellipse or spiric has no fitted-grade image class",
-            Self::MirrorTorusSpiric => {
-                "the chart is the mirror of the spiric's torus through its cutting plane, \
-                 which holds the oval, and the wall image maps only through the carrier's \
-                 own torus"
-            }
         }
     }
 
@@ -1508,7 +1573,6 @@ impl UncoveredClass {
                 "Recourse: state the edge's image in its closed-form or iso class rather \
                  than as a Fitted or General one"
             }
-            Self::MirrorTorusSpiric => "Recourse: re-state the spiric about the chart's own torus",
         }
     }
 }
@@ -2200,9 +2264,11 @@ pub enum EnvelopeStatement {
     /// stores `major`, `minor`, `offset` and `sense`; check 1 compares
     /// the first three against the CARRIER's own fields and `sense`
     /// against `±1`, AND compares the CHART's centre, axis, `R` and
-    /// `r` against the carrier's — because the identity is a statement
-    /// about the map, so a chart that is not the carrier's own torus
-    /// is not an input this statement covers. All eight comparands are
+    /// `r` against the torus its [`WallTorus`] tag names — the
+    /// carrier's own or its mirror through the cutting plane — because
+    /// the identity is a statement about the map, so a chart that is
+    /// not that torus is not an input this statement covers. All eight
+    /// comparands are
     /// **banded**, not bit-equal: each is a metre margin whose
     /// `Sign::Zero` window is `|Δ| ≤ ε` (the C6 bit-equal read needs
     /// `T: Bounds`, and this is a `T: Decide` door). Whatever the band
@@ -2212,12 +2278,12 @@ pub enum EnvelopeStatement {
     ///
     /// Under those equalities `S(P(t)) − C(t)` is identically zero in
     /// exact arithmetic for every `t`: the chart formula
-    /// `S(u, v) = c + e(u)·(R + r cos v) + a·(r sin v)` evaluated at
-    /// `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t` reproduces
+    /// `S(u, v) = c′ + e(u)·(R + r cos v) + A·(r sin v)` evaluated at
+    /// `u = u₀ + σμ·atan2(f, d)`, `v = v₀ + σ·t` reproduces
     /// `c + n·d + m·f + a·(r sin t)` term for term, because
-    /// `e(φ_n + atan2(f, d))·ρ = n·d + m·f` is the polar
-    /// decomposition of that radial part and `sin(v₀ + σt) = σ·sin t`
-    /// for `v₀ ∈ τℤ`.
+    /// `e(φ_{μn} + σμ·atan2(f, d))·ρ = μ·n·d + m·f` is the polar
+    /// decomposition of that radial part about `c′ = c + (1 − μ)·d·n`
+    /// and `A·sin(v₀ + σt) = a·sin t` for `v₀ ∈ τℤ` and `A = σ·a`.
     ///
     /// So the only numbers the identity does NOT fix are the two
     /// derived constants `u₀` and `v₀`, and neither can hide between
@@ -2231,10 +2297,13 @@ pub enum EnvelopeStatement {
     /// worst displacement as always.
     ///
     /// **What the envelope actually holds, per scalar.** At a POINT
-    /// scalar it is exactly `0` on every minted image, because check
-    /// 1's admitted drift is computed from differences that are
-    /// bit-zero when the image carries the carrier's own numbers and
-    /// the chart is the carrier's own torus. At a
+    /// scalar it is exactly `0` on every minted image whose chart
+    /// centre is spelled as check 1 spells it ([`WallTorus::center`]:
+    /// `c` itself on the own torus, `c + n·(d + d)` on the mirror),
+    /// because check 1's admitted drift is computed from differences
+    /// that are then bit-zero. A producer that spells the mirror's
+    /// centre another way (`c + 2d·n`, say) pays that spelling's
+    /// rounding here, inside the band, as admitted drift. At a
     /// BRACKETED scalar it is the bracket's own width metered at the
     /// chart's arms, and not because anything moved: interval
     /// arithmetic cannot cancel a variable against itself, so
@@ -5174,15 +5243,19 @@ fn focal_section_envelope<T: Real>(
 ///    `pcurve_spiric_minor`, `pcurve_spiric_offset`, each a metre
 ///    comparand required Zero), a wall's `sense` is a unit sign
 ///    (`pcurve_spiric_sense`, levered at the chart's azimuth arm),
-///    and — for a wall — the CHART is the carrier's own torus
+///    and — for a wall — the CHART is the torus its [`WallTorus`] tag
+///    names, the carrier's own or its mirror through the cutting plane
 ///    (`pcurve_spiric_chart_center`, `_chart_major`, `_chart_minor`,
-///    `_chart_tilt`), which is the premise the identity maps through.
+///    `_chart_tilt`; a chart that is the OTHER of the two tori is
+///    read by `pcurve_spiric_chart_other` and refused as a mismatched
+///    image), which is the premise the identity maps through.
 ///    Every one of those gates is BANDED, not bit-equal: `Sign::Zero`
 ///    admits `|Δ| ≤ ε` and escalates above it. Whatever they admit
 ///    inside the band is measured, not discarded — it is carried into
 ///    check 4 as the envelope's own term, and it is exactly zero on
-///    every minted image, whose scalars and chart are bit-for-bit the
-///    carrier's own.
+///    every minted image whose scalars are bit-for-bit the carrier's
+///    and whose chart centre is spelled as [`WallTorus::center`]
+///    spells it.
 /// 2. **Interval**: `t₁ − t₀` definitely forward, metered through the
 ///    carrier's rate (the minor radius — a spiric's speed floor, its
 ///    variant docs). On the torus the two angular channels are gated
@@ -5247,8 +5320,9 @@ fn run_spiric_checks<T: Decide>(
         }
     };
     // The image kind IS the chart kind, exhaustively: a spiric lies on
-    // its own cutting plane and on its own torus, and on no other
-    // analytic chart at all.
+    // its own cutting plane and on the two tori that hold it (its own
+    // and that torus's mirror through the plane; which one is check 1's
+    // gate below), and on no other analytic chart at all.
     match (image, surface) {
         (SpiricImage::Cap { .. }, Surface::Plane { .. })
         | (SpiricImage::Wall { .. }, Surface::Torus { .. }) => {}
@@ -5275,100 +5349,15 @@ fn run_spiric_checks<T: Decide>(
         }
     }
     let reach = t0.abs().max(t1.abs());
-    // **The wall's own premise: the chart IS the carrier's torus.**
-    // The image's scalars being the carrier's says nothing about the
-    // SURFACE the identity maps through, and the identity is a
-    // statement about that map — so a chart whose centre, axis or
-    // radii have drifted from the carrier's would otherwise store
-    // "zero, by an algebraic identity" over a real displacement. Four
-    // banded comparands, the harmonic torus arm's posture one lane
-    // over, each an audit row; the residues ride into check 4 exactly
-    // as the image's do, and each is bit-zero when the chart is the
-    // carrier's own torus.
-    //
-    // The CAP arm needs none of this: its check-4 coefficients `k₀`,
-    // `k₁`, `k₂` are built FROM the chart, so a drifted plane shows up
-    // in the envelope as a number rather than as an unstated premise.
-    let chart_drift = match (*image, surface) {
-        (
-            SpiricImage::Wall { .. },
-            &Surface::Torus {
-                center: s_center,
-                axis: s_axis,
-                major_radius: s_major,
-                minor_radius: s_minor,
-                ..
-            },
-        ) => {
-            let d_center = s_center - c_c;
-            // The axis is gated for PARALLELISM only — a sine of unit
-            // vectors, levered at the chart's own outer reach. Which
-            // of the two directions it takes is `sense`'s decision at
-            // the mint, and a wrong sign is a whole-span displacement
-            // the schedule sees at every sample.
-            let sin_tilt = s_axis.cross(a_c).norm();
-            let arm = s_major + s_minor;
-            let gates = [
-                ("pcurve_spiric_chart_center", Margin::norm3(d_center)),
-                ("pcurve_spiric_chart_major", Margin::of(s_major - r_major)),
-                ("pcurve_spiric_chart_minor", Margin::of(s_minor - r_minor)),
-                ("pcurve_spiric_chart_tilt", Margin::levered(sin_tilt, arm)),
-            ];
-            for (i, (name, margin)) in gates.into_iter().enumerate() {
-                match decide(name, margin, band).map_err(winding_escalated)? {
-                    Sign::Zero => {}
-                    Sign::Positive | Sign::Negative => {
-                        // Not the carrier's own torus. The one other
-                        // torus holding the oval is its MIRROR through
-                        // the cutting plane (centre moved `2·offset`
-                        // along `n`; `spiric_off_own_chart`'s docs):
-                        // only a CENTRE that fails can be it, and the
-                        // gates after it, not yet decided, must hold.
-                        let mut on_mirror = i == 0;
-                        if on_mirror {
-                            let mirror = s_center - (c_c + n_c * (c_offset + c_offset));
-                            for (name, margin) in gates
-                                .into_iter()
-                                .skip(1)
-                                .chain([("pcurve_spiric_chart_mirror", Margin::norm3(mirror))])
-                            {
-                                if decide(name, margin, band).map_err(winding_escalated)?
-                                    != Sign::Zero
-                                {
-                                    on_mirror = false;
-                                    break;
-                                }
-                            }
-                        }
-                        let verdict = spiric_off_own_chart(
-                            on_mirror,
-                            "the chart torus is neither the carrier's own nor its mirror \
-                             through the cutting plane, and a spiric oval lies on no other \
-                             torus",
-                        );
-                        return Err(verdict.refusal(surface, carrier));
-                    }
-                }
-            }
-            // Each residue at its own arm, in metres: a moved centre
-            // moves every point by its own length; a wrong `R` moves
-            // the radial channel by `|ΔR|`; a wrong `r` moves BOTH the
-            // radial and the axial channel, so it pays twice; a frame
-            // rotated by `θ` moves a point at radius `≤ R + r` by
-            // `(R + r)·θ`, and `θ ≤ (π/2)·sin θ` on `[0, π/2]`.
-            d_center.norm()
-                + (s_major - r_major).abs()
-                + (s_minor - r_minor).abs() * T::from_f64(2.0)
-                + arm * sin_tilt * T::pi() * T::from_f64(0.5)
-        }
-        _ => T::zero(),
-    };
     // The wall's sense is a unit sign: a DIMENSIONLESS residue, so it
     // is metered by MULTIPLYING the chart's own lever arm
     // (`Margin::levered` — the door whose docs name "a sine or cosine
     // of unit vectors" — not `over_lever`, which divides a measure by
     // a lever and is for an area over a radius). Spec §1's table says
     // levered, and PR-1a's sibling of the identical shape levers too.
+    // The azimuth channel's sign is `μ·sense` with `μ` the exact
+    // `±1` of the image's `WallTorus` tag, so this one residue is the
+    // residue of both channels.
     let sense_drift = match *image {
         SpiricImage::Wall { sense, .. } => {
             let residue = sense.abs() - T::one();
@@ -5389,6 +5378,105 @@ fn run_spiric_checks<T: Decide>(
             }
         }
         SpiricImage::Cap { .. } => T::zero(),
+    };
+    // **The wall's own premise: the chart IS the torus its tag
+    // names** — the carrier's own or its mirror through the cutting
+    // plane (centre moved `2·offset` along `n`; `spiric_off_own_chart`'s
+    // docs), each centre spelled by `WallTorus::center`. The image's scalars
+    // being the carrier's says nothing about the SURFACE the identity
+    // maps through, and the identity is a statement about that map —
+    // so a chart whose centre, axis or radii have drifted from that
+    // torus would otherwise store "zero, by an algebraic identity"
+    // over a real displacement. Four banded comparands, the harmonic
+    // torus arm's posture one lane over, each an audit row; the
+    // residues ride into check 4 exactly as the image's do, and each
+    // is bit-zero when the chart is the named torus.
+    //
+    // The CAP arm needs none of this: its check-4 coefficients `k₀`,
+    // `k₁`, `k₂` are built FROM the chart, so a drifted plane shows up
+    // in the envelope as a number rather than as an unstated premise.
+    let chart_drift = match (*image, surface) {
+        (
+            SpiricImage::Wall { torus, .. },
+            &Surface::Torus {
+                center: s_center,
+                axis: s_axis,
+                major_radius: s_major,
+                minor_radius: s_minor,
+                ..
+            },
+        ) => {
+            let arm = s_major + s_minor;
+            let torus_center = |t: WallTorus| t.center(c_c, n_c, c_offset);
+            // The axis is gated for PARALLELISM only — a sine of unit
+            // vectors, levered at the chart's own outer reach. Which
+            // of the two directions it takes is `sense`'s decision at
+            // the mint, and a wrong sign is a whole-span displacement
+            // the schedule sees at every sample.
+            let sin_tilt = s_axis.cross(a_c).norm();
+            let d_center = s_center - torus_center(torus);
+            let gates = [
+                ("pcurve_spiric_chart_center", Margin::norm3(d_center)),
+                ("pcurve_spiric_chart_major", Margin::of(s_major - r_major)),
+                ("pcurve_spiric_chart_minor", Margin::of(s_minor - r_minor)),
+                ("pcurve_spiric_chart_tilt", Margin::levered(sin_tilt, arm)),
+            ];
+            for (i, (name, margin)) in gates.into_iter().enumerate() {
+                match decide(name, margin, band).map_err(winding_escalated)? {
+                    Sign::Zero => {}
+                    Sign::Positive | Sign::Negative => {
+                        // Not the named torus. Only a CENTRE that fails
+                        // can leave the chart the OTHER torus that holds
+                        // the oval, and the gates after it, not yet
+                        // decided, must hold for that.
+                        let mut other = i == 0;
+                        if other {
+                            let d_other = s_center
+                                - torus_center(match torus {
+                                    WallTorus::Own => WallTorus::Mirror,
+                                    WallTorus::Mirror => WallTorus::Own,
+                                });
+                            for (name, margin) in gates
+                                .into_iter()
+                                .skip(1)
+                                .chain([("pcurve_spiric_chart_other", Margin::norm3(d_other))])
+                            {
+                                if decide(name, margin, band).map_err(winding_escalated)?
+                                    != Sign::Zero
+                                {
+                                    other = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if other {
+                            return Err(PcurveCertifyError::ImageMismatch {
+                                image: PcurveKind::Spiric,
+                                why: "the wall image names one of the two tori that hold the \
+                                      oval, and the chart is the other",
+                            });
+                        }
+                        return Err(spiric_off_own_chart(
+                            "the chart torus is neither the carrier's own nor its mirror \
+                             through the cutting plane, and a spiric oval lies on no other \
+                             torus",
+                        )
+                        .refusal(surface, carrier));
+                    }
+                }
+            }
+            // Each residue at its own arm, in metres: a moved centre
+            // moves every point by its own length; a wrong `R` moves
+            // the radial channel by `|ΔR|`; a wrong `r` moves BOTH the
+            // radial and the axial channel, so it pays twice; a frame
+            // rotated by `θ` moves a point at radius `≤ R + r` by
+            // `(R + r)·θ`, and `θ ≤ (π/2)·sin θ` on `[0, π/2]`.
+            d_center.norm()
+                + (s_major - r_major).abs()
+                + (s_minor - r_minor).abs() * T::from_f64(2.0)
+                + arm * sin_tilt * T::pi() * T::from_f64(0.5)
+        }
+        _ => T::zero(),
     };
 
     let mut max_residual = T::zero();
@@ -5421,7 +5509,7 @@ fn run_spiric_checks<T: Decide>(
         // and it needs the same one-period headroom every periodic
         // chart's second channel needs.
         //
-        // The AZIMUTH does not: `u(t) = u0 + sense·atan2(f(t), d)`
+        // The AZIMUTH does not: `u(t) = u0 + μ·sense·atan2(f(t), d)`
         // with `f > 0` over the whole two-oval regime, so
         // `atan2(f, d) ∈ (0, π)` and the channel's TOTAL swing — over
         // the whole period, let alone a span — is under `π < τ`. A
@@ -5516,13 +5604,13 @@ fn run_spiric_checks<T: Decide>(
             // *`sense`, BOTH channels.* A residue `η` in `|sense|`
             // moves the minor angle by at most `η·reach` at
             // `|∂S/∂v| = r`, AND it moves the azimuth: the channel is
-            // `u₀ + sense·atan2(f, d)` and `atan2(f, d) ∈ (0, π)` over
-            // the whole two-oval regime, so `|δu| ≤ η·π` at the
-            // chart's outer arm. The `u` half is what the over-strict
-            // `over_lever` gate used to mask — with the door metering
-            // the way its dimension asks, the band admits `η` up to
-            // `ε/(R + r)` and this term is what keeps the certificate
-            // honest over that window.
+            // `u₀ + μ·sense·atan2(f, d)` (`μ = ±1` exactly, the tag's)
+            // and `atan2(f, d) ∈ (0, π)` over the whole two-oval
+            // regime, so `|δu| ≤ η·π` at the chart's outer arm. The
+            // `u` half is what the over-strict `over_lever` gate used
+            // to mask — with the door metering the way its dimension
+            // asks, the band admits `η` up to `ε/(R + r)` and this term
+            // is what keeps the certificate honest over that window.
             //
             // *The chart's own drift* rides in from check 1, already
             // in metres.
@@ -8353,8 +8441,9 @@ fn grazes<T: Real>(
     }
 }
 
-/// The exact chart image of a [`geom::Curve3::Spiric`] — the two charts
-/// a spiric lies on, and a typed refusal for every other.
+/// The exact chart image of a [`geom::Curve3::Spiric`] — on its cutting
+/// plane and on the two tori that hold it, and a typed refusal for every
+/// other chart.
 ///
 /// **Plane cap.** The chart is affine, so the carrier's own
 /// combination `C(t) = (c + n·d) + m·f(t) + (a·r)·sin t` maps through
@@ -8362,23 +8451,25 @@ fn grazes<T: Real>(
 /// point map, `m` and `a·r` through its linear part
 /// ([`SpiricImage::Cap`]'s docs).
 ///
-/// **Torus wall.** One sign rides both channels, decided by
-/// `pcurve_spiric_chart_axis` — the cosine of the chart axis against
-/// the carrier's, levered at the chart's major radius. `+1` when they
-/// agree: the +90° direction from the cutting plane's normal `n` is
-/// `axis × n = m`, so the radial part `n·d + m·f` has chart azimuth
-/// `u₀ + atan2(f, d)` and the chart height `a·(r sin t)` gives `v = t`.
-/// `−1` when they oppose: the same two readings flip together.
-/// Zero refuses — a torus whose axis is perpendicular to the carrier's
-/// is not the torus this spiric sections ([`spiric_off_own_chart`]). `u₀` is one `atan2` of `n` in
-/// the chart frame, `v₀` is zero at the mint and gains `k·τ` only from
-/// the loop walk's branch shift.
+/// **Torus wall.** Two decisions ([`SpiricImage::Wall`]'s derivation).
+/// `sense = σ`, the cosine of the chart axis against the carrier's
+/// levered at the chart's major radius (`pcurve_spiric_chart_axis`):
+/// `+1` when they agree, `−1` when they oppose, and Zero refuses — a
+/// torus whose axis is perpendicular to the carrier's holds no oval of
+/// it ([`spiric_off_own_chart`]). `torus`, which of the two tori
+/// holding the oval the chart is: [`WallTorus::Own`] when its centre is
+/// the carrier's (`pcurve_spiric_mint_center`), else
+/// [`WallTorus::Mirror`] — check 1 then gates the centre against
+/// [`WallTorus::center`] of the tag, so a chart that is neither torus
+/// refuses there. `u₀` is one `atan2` of `μ·n` in the chart frame;
+/// `v₀` is zero at the mint and gains `k·τ` only from the loop walk's
+/// branch shift.
 ///
-/// Nothing here is a class decision beyond the sign: the image is
+/// Nothing here is a class decision beyond the sign and the tag: the image is
 /// built, and [`PcurveCache::certify`] then measures it against the
-/// chart and the carrier. A spiric handed a torus that is not its own
-/// mints an image whose residual schedule refuses loudly, which is the
-/// module's standing posture.
+/// chart and the carrier. A spiric handed a torus that is neither of
+/// its two mints an image whose check 1 refuses it as off the chart,
+/// which is the module's standing posture.
 ///
 /// # Errors
 ///
@@ -8425,13 +8516,14 @@ fn spiric_chart_pcurve<T: Decide>(
             }))
         }
         Surface::Torus {
+            center: chart_center,
             axis: chart_axis,
             major_radius: chart_major,
             u_ref: chart_u,
             ..
         } => {
             let cv = chart_axis.cross(chart_u);
-            let sense = match decide(
+            let sigma = match decide(
                 "pcurve_spiric_chart_axis",
                 // A COSINE of unit vectors: dimensionless, so it is
                 // metered by multiplying the chart's own lever arm
@@ -8447,22 +8539,32 @@ fn spiric_chart_pcurve<T: Decide>(
                 Sign::Negative => T::zero() - T::one(),
                 Sign::Zero => {
                     let verdict = spiric_off_own_chart(
-                        false,
                         "the chart torus's axis is perpendicular to the carrier's, and a \
                          spiric oval lies only on tori parallel to its own",
                     );
                     return Err(verdict.refusal(surface, carrier));
                 }
             };
+            let torus = match decide(
+                "pcurve_spiric_mint_center",
+                Margin::norm3(chart_center - WallTorus::Own.center(center, n, offset)),
+                band,
+            )
+            .map_err(winding_escalated)?
+            {
+                Sign::Zero => WallTorus::Own,
+                Sign::Positive | Sign::Negative => WallTorus::Mirror,
+            };
+            let toward = n * torus.mu::<T>();
             Ok(spiric(SpiricImage::Wall {
-                u0: stable_azimuth(n.dot(cv), n.dot(chart_u), band),
+                u0: stable_azimuth(toward.dot(cv), toward.dot(chart_u), band),
                 v0: T::zero(),
-                sense,
+                sense: sigma,
+                torus,
             }))
         }
         Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } => {
             let verdict = spiric_off_own_chart(
-                false,
                 "a spiric oval is an irreducible quartic, and every planar curve on a \
                  cylinder, cone or sphere is a conic",
             );
@@ -8524,8 +8626,7 @@ fn cone_conic_incidence<T: Decide>(
     )
 }
 
-/// A spiric met with a chart that is neither its own torus nor its own
-/// cutting plane: off the chart.
+/// A spiric met with a chart that holds no oval of it: off the chart.
 ///
 /// A spiric's offset is nonzero ([`geom::Curve3::spiric`] refuses a
 /// plane through the axis, whose ovals are `Circle`s), so its oval is
@@ -8536,14 +8637,11 @@ fn cone_conic_incidence<T: Decide>(
 /// quartic too, and matching the two equations coefficient by
 /// coefficient in the plane's frame forces a parallel axis, the same
 /// `R` and `r`, and a centre either the carrier's or its MIRROR through
-/// the plane (`center + 2·offset·n`) — the caller says whether the
-/// chart is that mirror (`on_mirror`).
-fn spiric_off_own_chart(on_mirror: bool, why: &'static str) -> NoImage {
-    if on_mirror {
-        NoImage::Uncovered(UncoveredClass::MirrorTorusSpiric)
-    } else {
-        NoImage::OffChart(why)
-    }
+/// the plane (`center + 2·offset·n`). So the oval lies on its cutting
+/// plane and on those two tori, each of which [`SpiricImage`] images,
+/// and on no other analytic chart.
+fn spiric_off_own_chart(why: &'static str) -> NoImage {
+    NoImage::OffChart(why)
 }
 
 // Check 4's per-arm lemma, swept, in a module of its own so the per-file
@@ -9608,13 +9706,10 @@ mod tests {
         use geom::{CurveKind, SurfaceKind};
         // Exhaustive by construction: a new class fails to compile here
         // until it has a row.
-        let classes = [
-            UncoveredClass::NoFittedClass,
-            UncoveredClass::MirrorTorusSpiric,
-        ];
+        let classes = [UncoveredClass::NoFittedClass];
         for class in classes {
             match class {
-                UncoveredClass::NoFittedClass | UncoveredClass::MirrorTorusSpiric => {}
+                UncoveredClass::NoFittedClass => {}
             }
         }
         let mut recourses: Vec<&str> = classes.iter().map(|c| c.recourse()).collect();

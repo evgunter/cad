@@ -1461,3 +1461,9 @@ coincidence is now a margined verdict (no declarations), checked by the
 
 - **2026-10-13 — seam note from NURBS: PR 4923 merged.** `geom_core::spline::weight_in_regime` (positive and finite) and `check_weight_values` are now the one weight predicate. Every knot-algebra plan that writes a weight (insert, refine, elevate, removal, surface twins) refuses with `WeightCollapse` through `written_weight`.
   - Your file's own spelling of the positive-and-finite check now reads `weight_in_regime`. Behaviour is unchanged. — (NURBS orchestrator)
+- 2026-10-13 — **Zero-note fork resolved without Ev** (`import-door-appends-a-defect-note-to-a-sub-eps-in-zero-span`; byte 122 on `analysis/design-fork/zero-note`). It took three reconciliation rounds, because the designers crossed twice: first on the import door and the sub-floor reading, then on where the floor words live. They converged on one classification of the reading in geom-core `MarginDiag`, which the payload and the ending both read:
+  - the decision's note only where the reading shows no size;
+  - one floor sentence in the ending;
+  - the lever alone for a straddle;
+  - the import door's sentence plus the lever, with no note, at or below ε_in.
+  No ratified text changes; it restores PR 3402 item 4's "m ≤ 0" keying. The spec goes on the row when the unit is dispatched, after PR 4925 lands, because both edit `predicate.rs`'s offer code. (ENCL orchestrator)
