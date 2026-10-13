@@ -745,11 +745,9 @@ pub struct BooleanInputs {
     ///
     /// **Not carried by the façade.** It is the union fold's channel
     /// (`editor_core`'s n-ary union hands each step the pass's
-    /// verdicts, read through member lineage); a caller of a pair
-    /// boolean who set it would promise verdicts no pass decided.
-    /// Nothing enforces that yet: a Rust caller of
-    /// [`crate::boolean_op_with`] can set it, and its pairs glue
-    /// unmeasured (`work/intent/boolean-given-pairs-glue-unmeasured-for-any-rust-caller.md`).
+    /// verdicts, read through member lineage), and a pair in it is
+    /// minted only from a verdict a boolean decided
+    /// ([`GlueVerdict::given_at`]).
     pub given: Option<Vec<GivenPair>>,
     /// Operand A's own contact records, carried into the result.
     pub records_a: OperandRecords,
@@ -758,16 +756,91 @@ pub struct BooleanInputs {
 }
 
 /// **One carrier pair decided before the operation**: a face of each
-/// operand and the relation its decision found, which must glue
-/// ([`crate::Relation::glued_class`]).
+/// operand and the class its decision glued it under. The one way to
+/// make one is [`GlueVerdict::given_at`], so a given pair is always
+/// one a boolean decided, never one a caller states:
+///
+/// ```compile_fail,E0451
+/// fn forge(a: topo::FaceKey, b: topo::FaceKey) -> topo::GivenPair {
+///     topo::GivenPair { a, b, class: topo::GlueClass::Rest }
+/// }
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GivenPair {
+    a: FaceKey,
+    b: FaceKey,
+    class: GlueClass,
+}
+
+/// **A face pair a boolean glued on its own decision**: a face of
+/// each operand, in that operation's operand keys, and the relation
+/// its margin decided, which glues. Only the kernel mints one
+/// ([`BooleanBody::verdicts`]), from the face-pair rows of the
+/// operation's own coincidences: it is what an n-ary union's pairwise
+/// judgement hands its fold steps (DM4).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GlueVerdict {
+    a: FaceKey,
+    b: FaceKey,
+    relation: crate::Relation,
+    class: GlueClass,
+}
+
+impl GlueVerdict {
     /// The A-operand face.
-    pub a: FaceKey,
+    pub fn a(self) -> FaceKey {
+        self.a
+    }
+
     /// The B-operand face.
-    pub b: FaceKey,
+    pub fn b(self) -> FaceKey {
+        self.b
+    }
+
     /// The decided relation.
-    pub relation: crate::Relation,
+    pub fn relation(self) -> crate::Relation {
+        self.relation
+    }
+
+    /// **This verdict, given to a fold step** whose B operand is the
+    /// judged B operand and whose A operand holds `a` as a face that
+    /// descends from the judged A face: the step reads the A side
+    /// through its lineage and keeps the B face and the decision.
+    pub fn given_at(self, a: FaceKey) -> GivenPair {
+        GivenPair {
+            a,
+            b: self.b,
+            class: self.class,
+        }
+    }
+
+    /// The verdicts `rows` record: each row relating an A-operand face
+    /// and a B-operand face under a relation that glues, in row order.
+    pub(crate) fn of_rows(rows: &[crate::Coincidence]) -> Vec<Self> {
+        rows.iter()
+            .filter_map(|row| {
+                let [
+                    crate::RowCell::Input {
+                        input: Operand::A,
+                        cell: crate::Cell::Face(a),
+                    },
+                    crate::RowCell::Input {
+                        input: Operand::B,
+                        cell: crate::Cell::Face(b),
+                    },
+                ] = row.cells
+                else {
+                    return None;
+                };
+                Some(Self {
+                    a,
+                    b,
+                    relation: row.relation,
+                    class: row.relation.glued_class()?,
+                })
+            })
+            .collect()
+    }
 }
 
 /// **The pairs one boolean glues**, and the records it carries: the
@@ -815,12 +888,7 @@ impl Glue {
 
     /// The glue `inputs` states: its given pairs under their classes,
     /// or none, to be decided ([`glue::decided_declarations`]).
-    ///
-    /// # Errors
-    ///
-    /// [`BooleanError::InvalidInput`] where a given relation does not
-    /// glue.
-    pub(crate) fn of(inputs: &BooleanInputs) -> Result<Self, BooleanError> {
+    pub(crate) fn of(inputs: &BooleanInputs) -> Self {
         let BooleanInputs {
             given,
             records_a,
@@ -831,25 +899,17 @@ impl Glue {
             Some(given) => (
                 given
                     .iter()
-                    .map(|g| {
-                        g.relation
-                            .glued_class()
-                            .map(|class| GluedPair::new(g.a, g.b, class))
-                            .ok_or(BooleanError::InvalidInput {
-                                operand: Operand::A,
-                                what: "a given pair's relation does not glue",
-                            })
-                    })
-                    .collect::<Result<_, _>>()?,
+                    .map(|g| GluedPair::new(g.a, g.b, g.class))
+                    .collect(),
                 Verdicts::Given,
             ),
         };
-        Ok(Self {
+        Self {
             pairs,
             records_a: records_a.clone(),
             records_b: records_b.clone(),
             verdicts,
-        })
+        }
     }
 }
 
@@ -2399,8 +2459,7 @@ pub enum BooleanError {
     },
     /// A boolean's input ([`BooleanInputs`]) references an entity that
     /// does not resolve in its operand (stale/foreign key, or a
-    /// non-planar given face), or gives a pair a relation that does not
-    /// glue — a caller bug, refused before any
+    /// non-planar given face) — a caller bug, refused before any
     /// classification runs (M4 PR 5).
     InvalidInput {
         /// The operand whose key failed.

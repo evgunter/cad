@@ -2974,11 +2974,14 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 },
             )
             .map_err(NodeErrorKind::Naming)?;
-            let verdicts = pair_verdicts(p, q, &out.coincidences);
             match out.record {
-                verbs::VerbRecord::Boolean { naming, .. } => {
-                    Ok(Some(((naming, out.body), rows, verdicts)))
-                }
+                verbs::VerbRecord::Boolean {
+                    naming, verdicts, ..
+                } => Ok(Some((
+                    (naming, out.body),
+                    rows,
+                    pair_verdicts(p, q, &verdicts),
+                ))),
                 _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: verb.foreign_record,
                 })),
@@ -3045,6 +3048,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     kind,
                     contacts,
                     naming,
+                    verdicts: _,
                 } = out.record
                 else {
                     return Err(NodeErrorKind::Naming(names::NamingError::Emission {
@@ -3345,46 +3349,26 @@ fn judge_pairwise_contact<T: Decide>(
     Ok(Some((links, rows, verdicts)))
 }
 
-/// **One carrier pair a union's pairwise judgement glued**: a face of
-/// each of two members, by member index, and the relation it decided.
+/// **One carrier pair a union's pairwise judgement glued**: the
+/// kernel's verdict and the two members it judged, by member index.
 /// The fold reads it through lineage ([`given_pairs`]) and decides
 /// the pair nowhere else.
 #[derive(Clone, Copy, Debug)]
 struct PairVerdict {
-    /// The listed-first member's face: `(member index, face)`.
-    a: (usize, topo::FaceKey),
-    /// The other member's face.
-    b: (usize, topo::FaceKey),
-    /// The relation the judgement decided.
-    relation: topo::Relation,
+    /// The listed-first member, the judgement's operand A.
+    p: usize,
+    /// The other member, its operand B.
+    q: usize,
+    /// The verdict, in the two members' keys.
+    verdict: topo::GlueVerdict,
 }
 
 /// The carrier pairs the judgement of members `p` (operand A) and `q`
-/// (operand B) glued, read off its rows: each face pair of the two
-/// operands a row relates as one carrier or a tangency.
-fn pair_verdicts(p: usize, q: usize, rows: &[topo::Coincidence]) -> Vec<PairVerdict> {
-    rows.iter()
-        .filter_map(|row| {
-            let [
-                topo::RowCell::Input {
-                    input: topo::Operand::A,
-                    cell: topo::Cell::Face(fa),
-                },
-                topo::RowCell::Input {
-                    input: topo::Operand::B,
-                    cell: topo::Cell::Face(fb),
-                },
-            ] = row.cells
-            else {
-                return None;
-            };
-            row.relation.glued_class()?;
-            Some(PairVerdict {
-                a: (p, fa),
-                b: (q, fb),
-                relation: row.relation,
-            })
-        })
+/// (operand B) glued: the kernel's verdicts ([`topo::GlueVerdict`]).
+fn pair_verdicts(p: usize, q: usize, verdicts: &[topo::GlueVerdict]) -> Vec<PairVerdict> {
+    verdicts
+        .iter()
+        .map(|&verdict| PairVerdict { p, q, verdict })
         .collect()
 }
 
@@ -3406,20 +3390,20 @@ fn given_pairs<T: Decide>(
     acc: &topo::Body<T>,
 ) -> Result<Vec<topo::GivenPair>, NodeErrorKind> {
     let bug = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
-    let mut given: std::collections::BTreeMap<(topo::FaceKey, topo::FaceKey), topo::Relation> =
+    let mut given: std::collections::BTreeMap<(topo::FaceKey, topo::FaceKey), topo::GlueVerdict> =
         std::collections::BTreeMap::new();
     for (f, _) in acc.faces() {
         let parents = fold.member_faces(f).ok_or(bug(UNION_FACE_NO_LINEAGE))?;
-        for v in verdicts.iter().filter(|v| v.b.0 == member) {
-            if !parents.contains(&v.a) {
+        for v in verdicts.iter().filter(|v| v.q == member) {
+            if !parents.contains(&(v.p, v.verdict.a())) {
                 continue;
             }
-            match given.entry((f, v.b.1)) {
+            match given.entry((f, v.verdict.b())) {
                 std::collections::btree_map::Entry::Vacant(slot) => {
-                    slot.insert(v.relation);
+                    slot.insert(v.verdict);
                 }
                 std::collections::btree_map::Entry::Occupied(held) => {
-                    if *held.get() != v.relation {
+                    if held.get().relation() != v.verdict.relation() {
                         return Err(bug(UNION_VERDICTS_DISAGREE));
                     }
                 }
@@ -3428,7 +3412,7 @@ fn given_pairs<T: Decide>(
     }
     Ok(given
         .into_iter()
-        .map(|((a, b), relation)| topo::GivenPair { a, b, relation })
+        .map(|((a, _), verdict)| verdict.given_at(a))
         .collect())
 }
 
