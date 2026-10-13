@@ -13,8 +13,8 @@
 //! `m10_9_no_registrant_lies_on_any_measured_document`, which replays
 //! the same five documents and now reads the dispute column too. This
 //! file is the ceiling-plus-δ half, a second whole-box replay of each.
-//! It runs on the per-PR fast set: since #3774 its replays stop early
-//! and it costs under the slow set's 1 s bar (0.86 s hosted).
+//! It runs in the slow set: the bracket replays whole past its ceiling
+//! and the pad reaches its extrude, about 20 s in a release build.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -36,9 +36,10 @@ use crate::m10_9_pins_interval::measured_studies;
 /// The plate and the annulus refuse nowhere the bisection reaches, and
 /// replay whole at [`PAST_NO_CEILING`]. The link stops at the
 /// extrude's attachment gate (`carrier_matches_mapped_source`). The
-/// bracket and the pad stop at the replayed profile's validation
-/// (`arc_span`, `line_span`), so theirs is the validation prefix's
-/// receipt, and nothing in that prefix reaches the door. How each value
+/// bracket's and the pad's over-band span readings (`arc_span`,
+/// `line_span`) are settled by the segments' ends, which lie on the
+/// other carrier, so the bracket replays whole and the pad stops at
+/// its extrude's pcurve certification (`pcurve_envelope`). How each value
 /// moved since SYM-11 (2026-09-21), merge by merge, is attributed in
 /// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
 ///
@@ -58,20 +59,33 @@ use crate::m10_9_pins_interval::measured_studies;
 /// but not in form, so a document that reads one edge's wedge in both
 /// orientations builds two hash-consed forms where it built one.
 ///
+/// Settling an in-band span reading on the segments' ends takes the
+/// bracket and the pad past validation, which adds the extrude's
+/// stages to their counts: bracket `[626, 464, 830]` → `[1453, 1008,
+/// 1869]`, pad `[340, 277, 314]` → `[1319, 1159, 2916]`. The
+/// attribution of those values, merge by merge, is in
+/// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
+///
 /// Check 4 reading one vector at its norm where it summed its parts
-/// moves only `frozen` again, each site measured by reverting it alone:
-/// the turning cylinder's pair against its class circle +72, +52, +36,
-/// +52, +36, and the cylinder class selector's radial circle at its
-/// exact sup (`radial_amplitude`) +16, +24, +8, +24, +8; together
-/// 641 → 729, 828 → 904, 498 → 542, 830 → 906, 314 → 358. The fidelity
-/// channels' norm and the retired `Tilt` and `Orientation` slots move
-/// no column here.
+/// moves only `frozen` again. On the plate, the annulus and the link,
+/// each site measured by reverting it alone: the turning cylinder's
+/// pair against its class circle +72, +52, +36, and the cylinder class
+/// selector's radial circle at its exact sup (`radial_amplitude`) +16,
+/// +24, +8; together 641 → 729, 828 → 904, 498 → 542. On the bracket
+/// and the pad, which the settlement above carries past validation,
+/// the two together move the bracket's `frozen` 1869 → 1975 and the
+/// pad's 2916 → 2985. The pad's replay past the ceiling refuses at
+/// check 4 with no term over the band alone, so the refusal decides
+/// every term of the envelope, 9 where there were 11, and its
+/// `symbolic` reads 1319 → 1317.
+/// The fidelity channels' norm and the retired `Tilt` and
+/// `Orientation` slots move no column here.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [1048, 654, 729]),
     ("r1_annulus", [566, 399, 904]),
     ("r2_link", [356, 259, 542]),
-    ("r2_filleted_bracket", [626, 464, 906]),
-    ("r2_rounded_pad", [340, 277, 358]),
+    ("r2_filleted_bracket", [1453, 1008, 1975]),
+    ("r2_rounded_pad", [1317, 1159, 2985]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
@@ -127,11 +141,8 @@ fn replay_on_a_thread(
 /// [`PAST_THE_CEILING`] is the measurement, identical at ε = 1e-6,
 /// 1e-9 and 1e-12.
 ///
-/// **What runs it: the per-PR fast set**, at the default ε on every PR
-/// whose test scope includes `editor-core` (a change to it or to a crate
-/// it depends on), and every night at every ε row. It
-/// costs 0.86 s hosted, under `.config/nextest.toml`'s 1 s slow-set bar,
-/// so it is not in the slow set.
+/// **What runs it: the slow set** (`.config/nextest.toml`), on every PR
+/// whose diff touches `editor-core`, and every night at every ε row.
 #[test]
 fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
     let tol = Tol::witness();

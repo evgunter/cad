@@ -68,6 +68,8 @@
 //! is the value, so this lane's numbers are what they were, up to the
 //! ring's outward rounding of the pad itself.
 
+use core::cell::OnceCell;
+
 use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
@@ -593,6 +595,47 @@ impl UvWindow {
 pub(crate) struct NurbsBoxes<'a, T: CertifiedBounds> {
     surface: &'a NurbsSurface<T>,
     grid: Option<&'a CellGrid>,
+    /// Each span cell's whole net, row-major by `(su, sv)` over the cell
+    /// knots' span indices, built on its first read: a function of the
+    /// cell alone, which every rectangle touching the cell reads whole.
+    nets: CellNets,
+}
+
+/// [`NurbsBoxes`]'s whole-cell nets, `v`-span count wide.
+struct CellNets {
+    nv: usize,
+    cells: Vec<OnceCell<Option<CellNet>>>,
+}
+
+impl CellNets {
+    fn over((ku, kv): (&KnotVector, &KnotVector)) -> Self {
+        let (nu, nv) = (ku.knots().len(), kv.knots().len());
+        Self {
+            nv,
+            cells: (0..nu * nv).map(|_| OnceCell::new()).collect(),
+        }
+    }
+
+    /// Cell `(su, sv)`'s net, built by `build` on the first read.
+    fn get(
+        &self,
+        (su, sv): (usize, usize),
+        build: impl FnOnce() -> Option<CellNet>,
+    ) -> Option<&CellNet> {
+        if sv >= self.nv {
+            return None;
+        }
+        self.cells
+            .get(su * self.nv + sv)?
+            .get_or_init(build)
+            .as_ref()
+    }
+
+    /// How many cells' nets have been built.
+    #[cfg(test)]
+    fn built(&self) -> usize {
+        self.cells.iter().filter(|c| c.get().is_some()).count()
+    }
 }
 
 impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
@@ -601,6 +644,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         Self {
             surface,
             grid: None,
+            nets: CellNets::over((surface.knots_u(), surface.knots_v())),
         }
     }
 
@@ -610,6 +654,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         Self {
             surface,
             grid: Some(grid),
+            nets: CellNets::over((&grid.ku, &grid.kv)),
         }
     }
 
@@ -624,16 +669,16 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// The control block of the cell at spans `(su, sv)`, with its two
     /// spans; `None` for an empty span (it covers no parameters) or a
     /// read that leaves the net.
-    fn cell(&self, su: usize, sv: usize) -> Option<(CellNet, (Span<'a>, Span<'a>))> {
+    fn cell(&self, su: usize, sv: usize) -> Option<(&CellNet, (Span<'a>, Span<'a>))> {
         let (ku, kv) = self.cell_knots();
         let spans = (ku.span(su)?, kv.span(sv)?);
-        let net = match self.grid {
+        let net = self.nets.get((su, sv), || match self.grid {
             Some(g) => CellNet::of_spans(spans, kv.control_count(), |k| {
                 let (p, w, h) = g.entry(k)?;
                 Some((p, w, Some(h)))
             }),
             None => CellNet::of_cell(self.surface.window(su, sv)?),
-        }?;
+        })?;
         Some((net, spans))
     }
 
@@ -817,7 +862,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                     continue;
                 }
                 let (whole, spans) = self.cell(su, sv)?;
-                let r = read(&whole);
+                let r = read(whole);
                 let r = match cut.then(|| whole.cut(spans, range.clamped)).flatten() {
                     Some(net) => meet(r, read(&net)),
                     None => r,
@@ -1408,6 +1453,37 @@ mod tests {
             }
         }
         NurbsSurface::new(ku, kv, control, weights).expect("valid patch")
+    }
+
+    /// **A span cell's whole net is built once per [`NurbsBoxes`]**,
+    /// however many reads touch it: the point box, both derivative
+    /// boxes and a second pass all read the one build, and read it
+    /// alike.
+    #[test]
+    fn a_cells_whole_net_is_built_once_however_often_it_is_read() {
+        let s = multiplicity_2_patch();
+        let boxes = NurbsBoxes::new(&s);
+        let w = win((0.2, 0.8, 0.0, 1.0));
+        assert_eq!(boxes.nets.built(), 0, "a net was built before any read");
+        let first = format!("{:?}", boxes.rect_box(w));
+        assert_eq!(
+            boxes.nets.built(),
+            2,
+            "the window touches the patch's two nonempty cells, each built once"
+        );
+        let _ = (boxes.deriv_box(w, true), boxes.deriv_box(w, false));
+        assert_eq!(
+            format!("{:?}", boxes.rect_box(w)),
+            first,
+            "a second read of the window boxed it differently"
+        );
+        assert_eq!(boxes.nets.built(), 2, "a later read built a net again");
+        let (a, _) = boxes.cell(2, 1).expect("the first cell");
+        let (b, _) = boxes.cell(2, 1).expect("the first cell");
+        assert!(
+            core::ptr::eq(a, b),
+            "a second read of cell (2, 1) rebuilt its net"
+        );
     }
 
     /// **A window with a NaN or inverted end names no region: it mints
