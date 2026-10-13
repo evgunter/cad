@@ -1146,3 +1146,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Merging main** (which now has 4906) conflicted in the slow set. **My slip:** my resolve script's assertion failed, yet the chained commit still went through with main's file alone. It was caught before any push, and the next commit re-added the PR's three entries (a set diff against main is verified).
   - Local verify running in /home/user/v4910 (scratchpad/v4910/summary.txt). Row drafted (scratchpad/dr4910/row.md).
   - 4886's fix pass is still running mutants and the effort-6 hunt. r4927a/b are alive (drafts at 02:36 and 02:44).
+- 2026-10-13 — **r4927b (B) in: APPROVE-WITH-FIXES, 0 MAJOR** (saved scratchpad/dr4927/r4927b.md).
+  - **0 wrong bodies.** The check used its own boundary oracle, because the kernel's `mesh::tessellate` and `point_in_solid` both refuse spiric-trimmed bodies: about 3.7M points over roughly 600 bodies per ε.
+  - **MINORs:** the pinched-oval refusal covers the fat torus at every stand-off, not just near the equator, and the filed residue understates it. The winding term folds `Indeterminate` into 'unbuilt lane'.
+  - **Style:** `spiric_segment_term` duplicates `geom_brep::props::spiric::spiric_vector_area`, a certified enclosure.
+  - Waiting on r4927a.
