@@ -4,6 +4,7 @@ kind: issue
 title: The bisection localizations share a walk but not their spellings: the tangency floor, a piece's reach, the budget and the stop reason each live in more than one place
 status: closed
 branch: fuse/the-localization-core-2
+pr: 5030
 refs: [4980]
 closed: 2026-10-13
 opened: 2026-10-13
@@ -52,7 +53,7 @@ Its review found more copies of the same class. They are this row's scope now:
 
 The walk-shaped sweep that found the first five cites could not see duplicated arithmetic, which is how these escaped. Sweep the constants and the formulas (`spiric_rate_bounds(`, `f_min`, `* h`, `speed *`), not only the stacks.
 
-## 2026-10-13, closed: branch `fuse/the-localization-core-2`
+## 2026-10-13, closed: PR 5030
 
 - **`containment::spiric_speed` is gone.** `carrier_ball`'s spiric arm reads `bisect::reach` of `carrier_speed::speed_range`. `shell`'s two `ArcPiece` speeds (spiric, and spline) read `speed_range`, and `ArcPiece::ball` reads `bisect::reach`.
 - **`offset_axial::param_speeds` reads `speed_range`** on the circle and the spiric, and its doc no longer claims the spelling. Its `None` for an ellipse turned out to be a dimension gap, filed on `work/offset/an-ellipse-edges-offset-window-decides-radians-as-metres.md`.
