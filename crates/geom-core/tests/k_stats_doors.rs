@@ -505,8 +505,8 @@ fn a_rejection_at_the_escalation_edge_reads_past_the_band() {
 /// tolerance is offered (D4 ¶1 (i)) and the text says the zero stays
 /// rejected — at both scalars, for both one-sided gates. The same zero
 /// on the passing side keeps its offer where one lies above `EPS_MIN`,
-/// and says once that no tolerance a run admits decides it where none
-/// does.
+/// and ends saying no tolerance a run admits decides it where none does
+/// (the whole sentence, said once, is `predicate`'s floor row).
 #[test]
 fn a_zero_on_the_rejected_side_offers_no_tolerance() {
     let b = band();
@@ -524,7 +524,7 @@ fn a_zero_on_the_rejected_side_offers_no_tolerance() {
         let text = refusal.unwrap_err().to_string();
         assert!(!text.contains("tighten"), "{text}");
         assert!(
-            text.contains("no size on a sign this decision passes, at any smaller tolerance"),
+            text.contains("a reading with no size on the side this decision accepts"),
             "{text}"
         );
     }
@@ -537,10 +537,9 @@ fn a_zero_on_the_rejected_side_offers_no_tolerance() {
         "{text}"
     );
     if b.offer_deciding(small).is_none() {
-        assert_eq!(
-            text.matches(&geom_core::floor_note("size")).count(),
-            1,
-            "a zero only a tolerance below EPS_MIN moves says so, once: {text}"
+        assert!(
+            text.ends_with(&geom_core::floor_note("size")),
+            "a zero only a tolerance below EPS_MIN moves says so: {text}"
         );
     }
 }

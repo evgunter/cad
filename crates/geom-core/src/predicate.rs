@@ -1288,12 +1288,12 @@ enum Shows {
     /// the symbolic tier proved. What a decision's note on a zero
     /// verdict asserts is established here and nowhere else.
     NoSize,
-    /// A reading wholly on signs the decision passes that no tolerance
-    /// above [`EPS_MIN`] decides: a size at or below the floor, or one
-    /// reaching a zero the decision passes, whose nearer end is zero.
+    /// A nonzero size wholly on a side the decision passes, its nearer
+    /// end away from zero, that only a tolerance at or below [`EPS_MIN`]
+    /// decides.
     Floor,
-    /// An enclosure reaching both a sign the decision passes and one it
-    /// does not: its sign is not resolved.
+    /// An enclosure touching or straddling zero that does not show no
+    /// size: its sign is not resolved.
     Unresolved,
     /// Past the band: decided at this tolerance already.
     Past,
@@ -1714,17 +1714,13 @@ impl MarginDiag {
         match passes.reaches(lo, hi) {
             _ if self.theorem().is_some() => Shows::NoSize,
             (false, _) => Shows::NoSize,
+            // Touching or straddling zero, its sign is not resolved, even
+            // where zero passes: a finer reading, not a tolerance, decides.
+            (true, _) if lo <= 0.0 && hi >= 0.0 => Shows::Unresolved,
             (true, true) => Shows::Unresolved,
-            // Wholly passing: decided below its end nearer zero, which is
-            // zero itself where the reading reaches a zero it passes.
-            (true, false) => {
-                let near = if lo <= 0.0 && hi >= 0.0 {
-                    0.0
-                } else {
-                    lo.abs().min(hi.abs())
-                };
-                band.offer_deciding(near).map_or(Shows::Floor, Shows::Offer)
-            }
+            (true, false) => band
+                .offer_deciding(lo.abs().min(hi.abs()))
+                .map_or(Shows::Floor, Shows::Offer),
         }
     }
 
@@ -1861,11 +1857,6 @@ impl MarginDiag {
                  {eps_in:e} m, so the file may not state it."
             ),
         };
-        // The door says what is true of the number whatever the file
-        // stores: the offer, or the floor's sentence (no tolerance a run
-        // admits decides the size, so re-exporting cannot keep it either),
-        // and never a decision's note, which claims what the stored data
-        // is — a claim the door cannot check below ε_in (D4 ¶1 (i), (iii)).
         match self.shows(band, passes) {
             Shows::Offer(below) => format!(
                 "{unstated} Recourse: {lever}, or, if this {size} is intended, re-export the file \
@@ -2448,7 +2439,7 @@ impl Indeterminate {
                 KindLever::Door,
             ),
             Shows::NoSize => (
-                Some("no size on a sign this decision passes, at any smaller tolerance"),
+                Some("a reading with no size on the side this decision accepts"),
                 KindLever::Door,
             ),
             Shows::Offer(_) | Shows::Floor | Shows::Unresolved if undecided_value => {
@@ -2849,14 +2840,14 @@ mod tests {
             (AnySign, v(-2e-12), Shows::Floor),
             (AnySign, MarginDiag::INVALID, Shows::Unreadable),
             // A set that passes zero reads zero as passing, as `admits`
-            // does: a reading reaching a refused sign beside it is
-            // unresolved, and one wholly passing with zero its nearer end
-            // is decided by no tolerance a run admits.
+            // does, so a reading at or across zero shows some size; its
+            // sign is still unresolved, and no floor speaks for it.
             (NonNegative, e(-2e-9, 0.0), Shows::Unresolved),
-            (NonNegative, e(0.0, 3e-9), Shows::Floor),
-            (NonNegative, v(0.0), Shows::Floor),
-            (AnySign, e(-2e-9, 3e-9), Shows::Floor),
-            (AnySign, v(-0.0), Shows::Floor),
+            (NonNegative, e(0.0, 3e-9), Shows::Unresolved),
+            (NonNegative, v(0.0), Shows::Unresolved),
+            (AnySign, e(-2e-9, 3e-9), Shows::Unresolved),
+            (AnySign, e(-2e-12, 3e-12), Shows::Unresolved),
+            (AnySign, v(-0.0), Shows::Unresolved),
         ];
         for (pass, margin, want) in rows {
             assert_eq!(margin.shows(band, pass), want, "{pass:?} over {margin:e}");
@@ -3072,8 +3063,8 @@ mod tests {
         assert_eq!(
             tagged,
             format!(
-                "margin 0e0 lies within the zero band (±1e-9) — no size on a sign this decision \
-                 passes, at any smaller tolerance; Recourse: {COINCIDENCE_RECOURSE}"
+                "margin 0e0 lies within the zero band (±1e-9) — a reading with no size on the side \
+                 this decision accepts; Recourse: {COINCIDENCE_RECOURSE}"
             )
         );
     }

@@ -5384,9 +5384,8 @@ mod tests {
     ///   lever, and the tolerance below `m/K` only where the margin lies
     ///   on the side the decision accepts; a margin at zero or on the
     ///   refused side shows no size and adds the decision's note where it
-    ///   has one, whichever arm routed it; an enclosure reaching a refused
-    ///   sign too names the lever alone, and one wholly on passing signs
-    ///   but reaching zero the floor's sentence; a margin that could not be read keeps the lever
+    ///   has one, whichever arm routed it; an enclosure touching or
+    ///   straddling zero names the lever alone; a margin that could not be read keeps the lever
     ///   and says what it may mean;
     /// - an exact residual (the endpoints, the chart image) ends in the
     ///   kernel-defect ending, the file's too at rest, and its definite
@@ -5478,11 +5477,9 @@ mod tests {
                 no_span,
             ),
             (
-                // Wholly on signs the winding bound passes, zero included,
-                // so no tolerance a run admits decides it.
+                // Touching zero, its sign unresolved: the lever alone.
                 undecided(CertCheck::ParamWinding, MarginDiag::enclosure(0.0, 4.0e-9)),
-                "Recourse: move the geometry so this arc stays clearly short of a full turn; no \
-                 tolerance a run admits decides this arc",
+                "Recourse: move the geometry so this arc stays clearly short of a full turn",
             ),
             (
                 recourse(
