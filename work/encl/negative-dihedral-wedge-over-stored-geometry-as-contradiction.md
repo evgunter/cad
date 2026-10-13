@@ -18,3 +18,11 @@ cost: E
 ## Question
 
 Which `StoredDefinite` does the arm's negative wedge belong to? Pin the answer with a row at rest.
+
+## Evidence
+
+- 2026-10-13 (ENCL implementer, `encl/definite-arm-one-story`): `DIHEDRAL_ARM`'s `no_size` note is not true of a definitely negative reading.
+  - The note reads "an edge of no length, or a face curving to a point as a cone does, leaves no angle to measure".
+  - The margin is `sin θ · arm` (`wedge_decided`, `crates/geom-brep/src/dihedral.rs`). `sin θ` is a norm quotient, so it is never negative. The arm is `min(extent, curvature arms)` (`folded_lever_arm`). The extent is a chord or diameter, and a cone's arm is a norm (`curvature_lever_arm`, `crates/geom-brep/src/implicit.rs`). So a definitely negative reading needs a stored radius or minor radius below zero. That is a breach of the `radius > 0` convention (`Surface::representability_margins`, `crates/geom/src/surfaces.rs`), not an edge of no length or a cone apex.
+  - Since that branch, the note rides on such a reading at a build: on the sign-certain arm (`CertifyError::ArmCollapsed` with `Refused::Negative`, through `SizedDecision::recourse`). It also rides on the gate's rejected Negative routed as undecided, at a build, at rest and at the import door past ε_in (`dihedral::tests::a_gates_rejection_ends_by_its_reading_on_either_arm`, row "a rejected Negative", which pins it). One classification (`MarginDiag::shows`) now classes a reading past the band, wholly on the refused side, as `NoSize`.
+  - The same evidence bears on this row's question. A negative arm is a stored description that breaks its own convention, which no move of the geometry reaches. That reads as `StoredDefinite::Contradiction`. Whichever way it is answered, the note needs a clause for that reading, or the reading needs its own ending.
