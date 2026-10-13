@@ -39,7 +39,7 @@ use std::collections::BTreeMap;
 use geom::SurfaceKind;
 use geom::{NetState, Surface};
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
-use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Tol};
+use geom_core::{Band, BandError, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
@@ -1183,10 +1183,10 @@ impl core::fmt::Display for MergeCoplanarError {
                 OutlineVerdict::UnsupportedWinding { r#loop } => write!(
                     f,
                     "no loop of the merged face {face:?} winds counterclockwise about its \
-                     outward normal, and loop {loop:?} rides a NURBS or spiric edge, whose \
-                     winding the kernel does not read, so which loop is the outline is not \
-                     known. Recourse: bound the merged faces with line, \
-                     circle or ellipse edges, whose winding the kernel reads"
+                     outward normal, and the kernel does not read loop {loop:?}'s winding (a \
+                     NURBS edge, or spiric edges pinched near a torus's inner equator), so \
+                     which loop is the outline is not known. Recourse: bound the merged faces \
+                     with line, circle, ellipse or spiric edges, whose winding the kernel reads"
                 ),
                 OutlineVerdict::AllNegative => write!(
                     f,
@@ -1713,7 +1713,7 @@ impl DeclaredSurfaceEq {
     }
 }
 
-impl<T: Decide> Body<T> {
+impl<T: crate::props::AtRestPolicy> Body<T> {
     /// Merges every maximal run of adjacent same-plane faces (module
     /// docs: structural or declared coincidence only), killing shared
     /// edges (`kef`; intra-face duplicates via `kemr`, whose new ring
@@ -3030,7 +3030,7 @@ impl<T: Decide> Body<T> {
         let winding = self.planar_loop_winding_decided(l, normal, band);
         match winding {
             LoopWinding::Empty => Ok(LoopWinding::Empty),
-            LoopWinding::Unsupported => Ok(LoopWinding::Unsupported),
+            LoopWinding::Unsupported(why) => Ok(LoopWinding::Unsupported(why)),
             LoopWinding::Wound(Ok(decided)) => Ok(LoopWinding::Wound(decided)),
             LoopWinding::Wound(Err(diag)) => Err(MergeCoplanarError::Escalated {
                 decision: MergeDecision::LoopWinding,
@@ -3120,7 +3120,7 @@ impl<T: Decide> Body<T> {
                     ..
                 })
                 | LoopWinding::Empty => {}
-                LoopWinding::Unsupported => {
+                LoopWinding::Unsupported(_) => {
                     unsupported.get_or_insert(l);
                 }
             }
@@ -4734,6 +4734,7 @@ mod winding_arm_tests {
     use super::*;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use crate::loop_winding::RunClosing::{self, Straight};
+    use crate::loop_winding::Unwound;
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
     use geom_core::{Point3, Sign, Vec3};
 
@@ -4837,7 +4838,7 @@ mod winding_arm_tests {
     ) -> Result<LoopWinding<Sign>, MergeCoplanarError> {
         r.map(|w| match w {
             LoopWinding::Empty => LoopWinding::Empty,
-            LoopWinding::Unsupported => LoopWinding::Unsupported,
+            LoopWinding::Unsupported(why) => LoopWinding::Unsupported(why),
             LoopWinding::Wound(d) => LoopWinding::Wound(d.sign),
         })
     }
@@ -5298,7 +5299,7 @@ mod winding_arm_tests {
         fit_a_nurbs_quarter(&mut t, tol);
         assert_eq!(
             signed(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol))),
-            Ok(LoopWinding::Unsupported),
+            Ok(LoopWinding::Unsupported(Unwound::Spline)),
             "one fitted carrier and the whole cycle stops being answerable"
         );
         // ...and as a merged face's only loop it is named, not taken
@@ -5746,7 +5747,7 @@ mod winding_arm_tests {
         };
         let run_margin =
             |t: &Tri, (h1, h2)| match t.body.planar_run_winding_decided((h1, h2), Straight, n, b) {
-                Ok(Some(Ok(d))) => d,
+                Ok(Ok(Ok(d))) => d,
                 other => panic!("the run winds: {other:?}"),
             };
 
@@ -5781,7 +5782,7 @@ mod winding_arm_tests {
         fit_a_nurbs_quarter(&mut t, tol);
         assert_eq!(
             t.body.planar_run_winding_decided(run, Straight, n, b),
-            Ok(None),
+            Ok(Err(Unwound::Spline)),
             "a NURBS edge on the run is not wound by its chord"
         );
 
@@ -5825,7 +5826,7 @@ mod winding_arm_tests {
         };
         let second = body.get_half_edge(first).unwrap().next;
         let run = |h1, h2| match body.planar_run_winding_decided((h1, h2), Straight, n, b) {
-            Ok(Some(Ok(d))) => d,
+            Ok(Ok(Ok(d))) => d,
             other => panic!("the run winds: {other:?}"),
         };
         for half in [first, second] {
@@ -5889,7 +5890,7 @@ mod winding_arm_tests {
                 n,
                 b,
             ) {
-                Ok(Some(Ok(d))) => d,
+                Ok(Ok(Ok(d))) => d,
                 other => panic!("the closed run winds: {other:?}"),
             }
         };
@@ -5957,7 +5958,7 @@ mod winding_arm_tests {
             "the run ends at the null half's far vertex, not at `d` itself"
         );
         match t.body.planar_run_winding_decided((h1, h2), Straight, n, b) {
-            Ok(Some(Ok(d))) => assert_eq!(d, whole, "the bracketed run is the triangle"),
+            Ok(Ok(Ok(d))) => assert_eq!(d, whole, "the bracketed run is the triangle"),
             other => panic!("the run winds: {other:?}"),
         }
     }

@@ -1764,7 +1764,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 J::SectionUnarmed {
                     face,
                     divided: geom::SurfaceKind::Plane,
-                    wall: geom::SurfaceKind::Torus,
+                    wall: geom::SurfaceKind::Nurbs,
                 },
             ),
             (
