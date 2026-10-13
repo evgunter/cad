@@ -180,7 +180,8 @@ fn samples(p: &Pose) -> Vec<(Point3<f64>, bool, bool)> {
     let lo = Point3::new(la.x.min(lb.x), la.y.min(lb.y), la.z.min(lb.z));
     let hi = Point3::new(ha.x.max(hb.x), ha.y.max(hb.y), ha.z.max(hb.z));
     let span = (hi - lo).norm();
-    let d = 1e-5 * span;
+    // Steady past the band's escalation width, at any ε.
+    let d = (1e-5 * span).max(band().escalate());
     let mut s: u64 = 0x9e37_79b9_7f4a_7c15;
     let mut next = || {
         s ^= s << 13;

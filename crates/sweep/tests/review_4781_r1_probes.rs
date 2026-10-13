@@ -417,7 +417,9 @@ fn coarse_at(a: Shape, b: Shape, eps: f64) -> bool {
         .iter()
         .map(|&sh| {
             let (lo, hi) = sh.bbox();
-            (0..3).map(|i| 0.5 * (hi[i] - lo[i])).fold(f64::MAX, f64::min)
+            (0..3)
+                .map(|i| 0.5 * (hi[i] - lo[i]))
+                .fold(f64::MAX, f64::min)
         })
         .fold(f64::MAX, f64::min);
     feature < 1e4 * eps
