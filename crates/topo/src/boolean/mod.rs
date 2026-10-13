@@ -585,10 +585,19 @@ pub(crate) struct EdgeSplit {
 /// ([`crate::lineage::EdgeDivisions`]): a split mints its child, so the
 /// rows cannot cycle, and the walk from a piece back to the operand edge
 /// it lies on ([`Self::root`]) ends.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub(crate) struct EdgeSplits {
     rows: Vec<EdgeSplit>,
     divisions: [crate::lineage::EdgeDivisions; 2],
+}
+
+impl Default for EdgeSplits {
+    fn default() -> Self {
+        Self {
+            rows: Vec::new(),
+            divisions: [Operand::A, Operand::B].map(crate::lineage::EdgeDivisions::new),
+        }
+    }
 }
 
 impl EdgeSplits {
@@ -2969,9 +2978,13 @@ pub enum BooleanError {
         /// Which lockstep invariant broke.
         what: &'static str,
     },
-    /// An operand edge's `SplitEdge` provenance never reached a root
-    /// (`Body::split_root`): a kernel defect, since `Body::split_edge`
-    /// records each child's parent as it mints the child.
+    /// An operand edge's `SplitEdge` provenance never reached a root:
+    /// the walk back from an edge a germ runs along (`Body::split_root`),
+    /// or the chain a discarded face's boundary edge records
+    /// (`discard::discard_row`), came back to an edge it had passed. A
+    /// kernel defect: `Body::split_edge` records each child's parent as
+    /// it mints the child, so each record names an older key, and a
+    /// graft forwards the records injectively onto keys it mints.
     SplitLineage(crate::SplitLineageCycle),
     /// A lineage list refused a row where a stage added it: a vertex
     /// fusion, a substitution or a face division that maps a cell to
@@ -4153,8 +4166,8 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::SplitLineage(cycle) => write!(
                 f,
-                "the Boolean read an operand edge's {cycle}, so no body is returned. \
-                 {KERNEL_DEFECT_ENDING}"
+                "the Boolean's split records of an operand edge are corrupt, so no body \
+                 is returned: {cycle}. {KERNEL_DEFECT_ENDING}"
             ),
             Self::LineageRow { rows, defect, key } => write!(
                 f,
@@ -5314,7 +5327,7 @@ impl<T: Real> Default for NullEdges<T> {
     fn default() -> Self {
         Self {
             records: Vec::new(),
-            copies: Default::default(),
+            copies: [Operand::A, Operand::B].map(crate::lineage::VertexCopies::new),
         }
     }
 }

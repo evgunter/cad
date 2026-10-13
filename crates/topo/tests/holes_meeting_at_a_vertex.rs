@@ -603,8 +603,9 @@ fn every_root_of_the_ring_builds_in_every_op() {
 /// **The zip records each split per cone** (`BooleanNaming::cone_splits`):
 /// the plate less the union of three wedges meets the union's vertex at
 /// `MEET` with several cones, and the zip splits it, so some member
-/// order records splits. Each row's `new` is another vertex than `split`,
-/// and both settle on live vertices at `split`'s point, `MEET`. The plate
+/// order records splits. A row's copy and the vertex it copies both
+/// settle on live vertices at that vertex's point, `MEET` (that the copy
+/// is another vertex, the list refuses at the push). The plate
 /// less one wedge meets no vertex in several cones, and records none.
 #[test]
 fn the_plate_less_the_wedges_union_records_its_splits_per_cone() {
@@ -626,7 +627,6 @@ fn the_plate_less_the_wedges_union_records_its_splits_per_cone() {
             other => panic!("{what}: {v:?} settles on {other:?}"),
         };
         for &(new, from) in r.naming.cone_splits.rows() {
-            assert_ne!(from, new, "{what}: a split's copy is a new vertex");
             assert!(point(new) == c, "{what}: the copy lies at MEET");
             assert!(point(from) == c, "{what}: the split vertex lies at MEET");
         }

@@ -442,9 +442,10 @@ impl<T: Real> Settler<'_, T> {
 
     /// The live cells `vertex`'s point lies in, one per cone of the
     /// result's boundary there: `vertex` and each copy the zip's splits
-    /// per cone made of it, through splits of those copies
-    /// ([`crate::lineage::ConeCopies::with_copies`], finite), each
-    /// settled ([`Self::settle`]), `vertex`'s first. A vertex no split
+    /// per cone made of it, through splits of those copies (its
+    /// [`crate::lineage::Descent`] over the splits, finite since the
+    /// copies form a tree), each settled ([`Self::settle`]), in key
+    /// order. A vertex no split
     /// touched settles on one cell. An edge that ended at `vertex`
     /// before the split ends at one of these after it.
     ///
@@ -452,9 +453,8 @@ impl<T: Real> Settler<'_, T> {
     ///
     /// [`SettleError`], as [`Self::settle`].
     pub fn settle_cones(&self, vertex: VertexKey) -> Result<Vec<Cell>, SettleError> {
-        self.splits
-            .with_copies(vertex)
-            .into_iter()
+        crate::lineage::Descent::of(vertex, self.splits.rows())
+            .cells()
             .map(|v| self.settle(v))
             .collect()
     }
@@ -2906,7 +2906,11 @@ impl Descendants {
     }
 
     /// `v` and every vertex null edges join it to, transitively, in
-    /// `side`'s clone keys.
+    /// `side`'s clone keys. Not a [`crate::lineage::Descent`]: a null
+    /// edge's two ends are a pair, not a row from one to the other, so
+    /// the walk follows each row both ways and stops at a vertex it has
+    /// met (the null-copy closure's other spellings are
+    /// `emit/crossing-sense-carries-five-copies-of-the-null-copy-closure`).
     fn copies_of(&self, side: Operand, v: VertexKey) -> Vec<VertexKey> {
         let rows = &self.copies[usize::from(side == Operand::B)];
         let mut out = vec![v];
