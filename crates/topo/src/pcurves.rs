@@ -1126,8 +1126,10 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 /// answers about the wrong locus.
 /// - A cap–wall rim over a CIRCLE carrier maps to the same boundary
 ///   line through the chart's own rational-quadratic parameter
-///   ([`Pcurve::IsoArc`], M8-3). Both mapped description forms the
-///   kernel mints for a circle reach it — see the arm's own note.
+///   ([`Pcurve::IsoArc`], M8-3), its boundary row and `u` direction
+///   picked together at the interior probe ([`probe_pick`]). Both mapped
+///   description forms the kernel mints for a circle reach it — see the
+///   arm's own note.
 /// - An [`geom_brep::EdgeDescription::Intersection`] over a spline or
 ///   line carrier, and a LINE carrier in any other form, that lies on a
 ///   boundary column maps as that column: the same iso line the
@@ -1182,10 +1184,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     // selection is structure (a two-way pick), the CHECK is the full
     // iso-lane certification that follows every derivation.
     //
-    // `None` is "no candidate is definitely it", NOT a refusal: a
-    // caller may have a wider candidate to offer (the wall-seam arm
-    // measures one when the chart is wider than the face it trims), so
-    // the refusal text lives at the call sites.
+    // `None` is "no candidate is definitely it", NOT a refusal: the
+    // wall-seam arm, its one user, then offers the start's measured
+    // foot, so the refusal text lives at the call sites.
     let side_pick = |eval_at: &dyn Fn(T) -> geom_core::Point3<T>,
                      cands: &[T]|
      -> Result<Option<T>, PcurveMintError> {
@@ -1205,12 +1206,6 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         }
         Ok(None)
     };
-    let no_boundary = || {
-        refuse(
-            "the carrier's start point lies on neither chart boundary — not a boundary \
-             iso of this face's chart",
-        )
-    };
     // The ARC-RIM class: a circle on one of the chart's boundary rows,
     // its image the row on the chart's own rational-quadratic parameter
     // (`Pcurve::IsoArc`). An IsoUnsupported refusal says this carrier
@@ -1224,37 +1219,27 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
         let breaks = uniform_breaks(spans)
             .ok_or_else(|| refuse("an arc rim whose chart has no usable sub-arc structure"))?;
-        let v = side_pick(&|cand| surface.eval(cu0, cand), &[cv0, cv1])?.ok_or_else(no_boundary)?;
-        // **The u-DIRECTION pick (#327).** M8-3's arm assumed the
-        // rim's increasing carrier parameter runs with the chart's
-        // increasing `u` — true by construction for a wall the
-        // kernel BUILT, and false in general for one it IMPORTED:
-        // a promoted rim circle's `axis` is derived from the
-        // file's own NURBS winding, and a cylinder wall's two rims
-        // routinely wind oppositely in the file, so exactly one of
-        // them runs against the chart. Assuming `+u` there does not
-        // refuse — it mints a chart image that traverses the wall
-        // BACKWARDS, and the loop walk reports it as a chart
-        // discontinuity or a double-period closure, naming a
-        // symptom two steps from the cause.
-        //
-        // The pick is the `side_pick` idiom on the other axis: the
-        // two candidate images (`u: 0 → 1` and `u: 1 → 0`),
-        // evaluated at a fixed interior probe of the arc and
-        // metered against the carrier there. The start point
-        // cannot decide it — on a FULL-PERIOD rim the chart's two
-        // u-boundaries are the same 3-D point — so the probe sits
-        // at a quarter of the arc, where the two candidates are a
-        // half-period apart. A selection, checked: the full
-        // arc-rim certification still follows.
-        let image = |p0x: T, sign: T| Pcurve::IsoArc {
+        // **The row and the u DIRECTION are one pick.** A rim the
+        // kernel built runs with the chart's increasing `u`; one it
+        // imported need not (#327: a promoted rim circle's `axis` comes
+        // from the file's own winding, and a cylinder wall's two rims
+        // routinely wind oppositely). A rim against `u` starts at the
+        // `u₁` corner, so neither the start nor a fixed corner can name
+        // its row, and on a FULL-PERIOD rim the two `u` boundaries are
+        // one 3-D point. So the four images — each boundary row, each
+        // direction — are judged together at a quarter of the arc,
+        // where the directions are a half-period apart. A selection,
+        // checked: the full arc-rim certification still follows.
+        let image = |v: T, p0x: T, sign: T| Pcurve::IsoArc {
             p0: Point2::new(p0x, v),
             pd: Vec2::new(sign, T::zero()),
             t0,
             angle: span,
             breaks: breaks.clone(),
         };
-        let candidates = [(cu0, cu1 - cu0), (cu1, cu0 - cu1)].map(|(p0x, sign)| image(p0x, sign));
+        let candidates = [cv0, cv1].into_iter().flat_map(|v| {
+            [(cu0, cu1 - cu0), (cu1, cu0 - cu1)].map(|(p0x, sign)| image(v, p0x, sign))
+        });
         match probe_pick(
             "pcurve_iso_arc_direction",
             &carrier,
@@ -1266,8 +1251,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             Ok(Some(cand)) => Ok(cand),
             Err(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
             Ok(None) => Err(refuse(
-                "an arc rim whose chart image runs in neither u direction — the \
-                 rim does not lie on this chart's boundary column",
+                "an arc rim whose chart image is neither boundary row in either u \
+                 direction — the rim does not span this chart's u domain along one",
             )),
         }
     };

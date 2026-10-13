@@ -82,3 +82,15 @@ whole-domain images and refuses a half-rim `IsoUnsupported`; the
 `breaks` re-cut this item names is still owed. The wall-seam arm's
 column positioning is unchanged too (filed separately as
 `work/pcert/the-wall-seam-arm-positions-its-column-off-the-start-foot.md`).
+
+`pcert/arc-rim-row-pick` changed how the arc-rim arm picks its row,
+not its map. Before, the arm picked the row by the carrier's START at
+the chart's `u₀` corner, so the second half of a split rim (which
+starts inside the `u` domain) refused for lying on no boundary
+(`"the carrier's start point lies on neither chart boundary …"`). Now
+the row and the direction are one pick at the interior probe, and both
+halves refuse for the map this item names: `IsoUnsupported { what: "an
+arc rim whose chart image is neither boundary row in either u direction
+— the rim does not span this chart's u domain along one" }`. `sweep`'s
+`an_arc_rim_picks_the_row_it_lies_on::a_half_rim_is_refused_for_its_map_not_its_row`
+pins it; a fix here reds that row.
