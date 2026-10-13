@@ -6,7 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, RigidMotion, Tol, UnitVec3, Vec3};
 use sweep::test_support::revolved_about_y;
 
 fn tol() -> Tol {
@@ -31,7 +31,8 @@ fn about_y((inner, outer): (f64, f64), (lo, hi): (f64, f64), x: f64) -> topo::Bo
         (Point2::new(inner, hi), 0.0),
     ];
     let body = revolved_about_y(profile, sweep::Revolution::Full, tol());
-    topo::transform_rigid(&body, &Affine3::translation(Vec3::new(x, 0.0, 0.0)), tol()).unwrap()
+    let place = RigidMotion::translation(Vec3::new(x, 0.0, 0.0)).unwrap();
+    topo::transform_rigid(&body, &place, tol()).unwrap()
 }
 
 /// Every op in both operand orders, each answer's offer key.
@@ -106,8 +107,12 @@ fn a_frustum_through_a_plate_with_a_hole_of_its_top_radius_builds() {
 fn crossing_washers_with_radii_in_band_are_no_rim() {
     let a = about_y((0.3, 1.0), (0.0, 0.1), 0.0);
     let w = about_y((0.3 + 5.5 * band().zero(), 0.8), (-0.05, 0.05), 0.0);
-    let turn = Affine3::translation(Vec3::new(0.4, 0.05, 0.1))
-        * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), 0.5);
+    let turn = RigidMotion::translation(Vec3::new(0.4, 0.05, 0.1))
+        .unwrap()
+        .compose(
+            RigidMotion::rotation_about_axis(Point3::origin(), UnitVec3::exact_x(), 0.5).unwrap(),
+        )
+        .unwrap();
     let w = topo::transform_rigid(&w, &turn, tol()).unwrap();
     let got = answers(a, w);
     assert!(
