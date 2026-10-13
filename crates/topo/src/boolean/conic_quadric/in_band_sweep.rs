@@ -5,9 +5,11 @@
 //! ([`crate::boolean::conic_oracle::exact`]):
 //!
 //! - a circle tangent to the wall, or crossing or clearing it by less
-//!   than `Kε`, at any tilt, is escalated or `Uncertain`, never a `Miss`
-//!   or a certified count (D1's trilean), and `OnSurface` only where it
-//!   lies on the wall to within the band all round;
+//!   than `Kε` in the residual the band classifies (`d + d²/2r` at a
+//!   distance `d`, `geom_brep::implicit_residual`), at any tilt, is
+//!   escalated or `Uncertain`, never a `Miss` or a certified count (D1's
+//!   trilean), and `OnSurface` only where it lies on the wall to within
+//!   the band all round;
 //! - a circle of radius 1500 against a unit wall, whose harmonics' noise
 //!   reads in the band's escalation gap at the default band, has each
 //!   certified root within the zero band of a true one, and no `Miss` on
