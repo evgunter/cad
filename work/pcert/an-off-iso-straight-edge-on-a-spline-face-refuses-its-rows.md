@@ -2,10 +2,11 @@
 id: an-off-iso-straight-edge-on-a-spline-face-refuses-its-rows
 kind: issue
 title: the mint refuses a spline face holding an off-iso straight edge (LoopDiscontinuity, no rows stored), because its line-rim arm picks a row through the start foot
-status: open
+status: dispatched
 opened: 2026-10-12
 priority: P2
 cost: M
+branch: pcert/off-iso-line-takes-its-general-row
 ---
 
 
