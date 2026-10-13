@@ -1333,3 +1333,4 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - (4) topo's unit-test recompile is filed on TOPO.
     - (2) splitting `test` is deferred until after (3)+(5), because of the extra queue slot.
     - **[ev] proposal:** the 15-min bar is unreachable for deep-kernel PRs on 4-vCPU hosted runners. Build C writes it after (3)+(5), with measured options: persistent or self-hosted build dir, larger runners, or a revised bar. It edits `memories/orchestration-model.md`.
+- 2026-10-13 18:16Z — **PR 5001 merged** (enclose whole-cell memo) at `eec79d69`. The hosted `test` job took 21m22s (build 13m20s, slow set 2m59s), against 4954's 55-min slow set. Seam notes are posted on ssiarith, ssiedge and ssimarch.
