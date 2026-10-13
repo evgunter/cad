@@ -300,7 +300,12 @@ fn a_side_holding_two_fragments_lands_the_record_on_the_one_holding_the_corner()
     let shift = geom_core::Affine3::translation(Vec3::new(-1.5, 1.5, 0.0));
     let cube = common::finished(
         "the shifted tilted cube",
-        topo::transform_rigid(&tilted_cube(), &shift, tol()).expect("a rigid move"),
+        topo::transform_rigid(
+            &tilted_cube(),
+            &geom_core::test_support::rigid(&shift, tol()),
+            tol(),
+        )
+        .expect("a rigid move"),
         tol(),
     );
     let base = union_of(&cube, &u);

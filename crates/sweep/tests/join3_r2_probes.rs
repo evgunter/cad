@@ -589,7 +589,12 @@ fn j3r2_snowman_battery() {
         ] {
             let spin =
                 Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), angle);
-            let b = topo::transform_rigid(&snow_ball(r2, d), &spin, tol()).unwrap();
+            let b = topo::transform_rigid(
+                &snow_ball(r2, d),
+                &geom_core::test_support::rigid(&spin, tol()),
+                tol(),
+            )
+            .unwrap();
             let tag = format!("snow r1={r1} r2={r2} d={d} spin={angle}");
             run_ops(&tag, &a, &b, va, vb, Some(lens));
         }
