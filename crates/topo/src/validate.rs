@@ -1131,15 +1131,17 @@ pub enum ValidationError {
     /// Tier 3: a **definitely-transverse** edge carries a chart image
     /// whose authority record is a declaration
     /// ([`geom_brep::EdgeAuthority::Declared`]) at rest — the
-    /// prefer-intrinsic rule with teeth (D2). Enforced only when the dihedral pass classified **every**
-    /// interior sample definitely Transverse: definitely-smooth edges
-    /// keep their conventional descriptions (the D2 conventional
-    /// split), `Seam` edges are exempt by kind, and escalated dihedrals
-    /// already report [`ValidationError::SliverDihedral`] — so
-    /// ε-tightening can escalate an edge but never flips a valid body
-    /// to invalid through this check. (A mixed transverse/smooth sample
-    /// set — a tangency-crossing edge — is neither definitely
-    /// transverse nor definitely smooth as a whole, so it takes
+    /// prefer-intrinsic rule with teeth (D2). Enforced only when the
+    /// dihedral pass classified **every** interior sample definitely
+    /// Transverse: definitely-smooth edges, a seam between two faces of
+    /// one surface among them, keep their conventional descriptions
+    /// (the D2 conventional split); NURBS- and `Approx`-adjacent edges
+    /// are exempt by kind; and escalated dihedrals already report
+    /// [`ValidationError::SliverDihedral`] — so ε-tightening can
+    /// escalate an edge but never flips a valid body to invalid through
+    /// this check. (A mixed transverse/smooth sample set — a
+    /// tangency-crossing edge — is neither definitely transverse nor
+    /// definitely smooth as a whole, so it takes
     /// `ContactMark::Unmarked` and NEITHER must-carry attaches: an
     /// exemption by the predicate, like every other one here.)
     TransverseNotIntrinsic {
@@ -6904,12 +6906,14 @@ pub(crate) fn tier3_local_checks_marked<
         // and check 4's second-order walk.
         let samples: Vec<_> = geom_brep::interior_stations(curve.carrier(), t0, t1).collect();
         // Check 4: dihedral — plus the prefer-intrinsic enforcement
-        // (D2; ratified 2026-07-19): reusing the SAME per-sample
-        // classifications (never classifying twice), an edge whose
-        // every interior sample is definitely Transverse must not rest
-        // on a declared conventional description. `Seam` is exempt by
-        // kind, definitely-smooth keeps its conventional image (the D2
-        // conventional split), an escalation reports `SliverDihedral`
+        // (D2; ratified 2026-07-19): an edge whose every interior
+        // sample is definitely Transverse carries `Intersection` at
+        // rest. Reusing the SAME per-sample classifications (never
+        // classifying twice), this check refuses a declared
+        // conventional description there. A definitely-smooth edge,
+        // a seam between two faces of one surface among them, keeps
+        // its conventional image (the D2 conventional split), an
+        // escalation reports `SliverDihedral`
         // and exempts the edge (ε-tightening escalates, it never flips
         // valid → invalid), and a mixed sample set is enforced as
         // neither.

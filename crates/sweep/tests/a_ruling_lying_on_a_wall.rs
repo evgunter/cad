@@ -550,11 +550,14 @@ fn a_rim_across_a_walls_ellipse_builds_every_op_in_both_orders() {
 /// `(0, ±1)` (`π/2`, `3π/2`), near them, and away from them.
 const TURNS: [f64; 9] = [0.0, 0.4, 1.3, 1.5, PI / 2.0, 2.0, 2.9, PI, 1.5 * PI];
 
-/// The carrier kind of each curved edge of `body` lying across a wall
-/// (both its faces on a cylinder), after checking that each rests as a
-/// derived image in one of its two faces' charts: nothing in these
-/// scenes declared a rim, so a describer that stamps a declaration on
-/// one, or leaves it citing a surface it no longer bounds, reds here.
+/// The carrier kind of each edge of `body` lying across a wall: both
+/// its faces on a cylinder, the two faces on different members' walls
+/// (a member's own seam ruling bounds two faces of one surface). Each
+/// edge of both kinds is first checked to rest in one of its two faces'
+/// charts, and each lying across a wall to be derived: nothing in these
+/// scenes declared a rim or a ruling, so a describer that stamps a
+/// declaration on one, or leaves it citing a surface it no longer
+/// bounds, reds here.
 fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<CurveKind> {
     let mut kinds = Vec::new();
     for (key, edge) in body.edges() {
@@ -581,10 +584,11 @@ fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<CurveKind> {
             ch.surface == sp || ch.surface == sm,
             "{label}: {key:?} rests in one of its faces' charts"
         );
-        if c.carrier().is_curved() {
+        if sp != sm {
             assert!(
                 !c.authority().is_declared(),
-                "{label}: {key:?} is derived, not declared: {:?}",
+                "{label}: {key:?} ({:?}) is derived, not declared: {:?}",
+                c.carrier().kind(),
                 c.authority()
             );
             kinds.push(c.carrier().kind());
@@ -608,10 +612,11 @@ fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<CurveKind> {
 ///   a declaration stamped on the rim, which nothing stated, would have
 ///   to follow a move that is no rigid shift of it, and refuse.
 /// - **Half rod first** keeps the half rod's wall whole: its top rim and
-///   its flat face's rulings over `z ∈ [1, 2]` lie across it, the rulings
-///   restated as lines. Its flat face does not move: a ruling of the face
-///   continues across the wall above it, so the corner between them has
-///   no one place to go, and the door refuses that.
+///   its flat face's two rulings over `z ∈ [1, 2]` lie across it, the
+///   rulings restated as derived lines. Its flat face does not move: a
+///   ruling of the face continues across the wall above it, so the
+///   corner between them has no one place to go, and the door refuses
+///   that.
 #[test]
 fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
     let tol = Tol::witness();
@@ -635,9 +640,9 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
         .unwrap(),
         tol,
     );
-    for (op, res, moves) in [
-        ("rod ∪ half", topo::union(&rod, &half, tol), true),
-        ("half ∪ rod", topo::union(&half, &rod, tol), false),
+    for (op, res, rulings, moves) in [
+        ("rod ∪ half", topo::union(&rod, &half, tol), 0, true),
+        ("half ∪ rod", topo::union(&half, &rod, tol), 2, false),
     ] {
         let Ok(BooleanResult::Body(bb)) = res else {
             panic!("{op}: builds: {res:?}");
@@ -655,18 +660,30 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
             kinds.contains(&CurveKind::Circle),
             "{op}: a rim lies across the kept wall: {kinds:?}"
         );
+        assert_eq!(
+            kinds.iter().filter(|&&k| k == CurveKind::Line).count(),
+            rulings,
+            "{op}: the flat face's rulings lying across the kept wall: {kinds:?}"
+        );
         if !moves {
             continue;
         }
-        let flat = bb
+        // The plane `y = 0`, read within a tolerance on its stored data.
+        let on_flat = |k| match bb.body.get_surface(k) {
+            Some(Surface::Plane { origin, normal, .. }) => {
+                normal.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-12 && origin.y.abs() <= 1e-12
+            }
+            _ => false,
+        };
+        let flat: Vec<_> = bb
             .body
             .faces()
-            .find(|(_, f)| {
-                matches!(bb.body.get_surface(f.surface), Some(Surface::Plane { normal, .. })
-                    if normal.y.abs() == 1.0)
-            })
+            .filter(|(_, f)| on_flat(f.surface))
             .map(|(k, _)| k)
-            .expect("the flat face");
+            .collect();
+        let [flat] = flat[..] else {
+            panic!("{op}: one face on the plane y = 0: {flat:?}");
+        };
         for d in [0.05, -0.05] {
             let mut moved = bb.body.clone().into_body();
             topo::replace_face_offset(&mut moved, flat, d, tol)

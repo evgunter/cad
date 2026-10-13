@@ -84,10 +84,12 @@ is the backstop only for a constructor that does not.
 - The text it replaced came from `b846df1f10` (2026-07-20, "ratified
   2026-07-19 with Ev"). That text enforced the rule on the conventional
   `MappedCurve`, which was then the declared form, and exempted only
-  escalated dihedrals, `Seam` edges and NURBS/`Approx`-adjacent edges.
+  escalated dihedrals and `Seam` edges. The NURBS/`Approx`-adjacent
+  exemption came later, in `4eda8abec4` (2026-08-28, a currency pass).
 - PR 4856 rewrites the sentence to what the ratified text and the check
-  both say: a declared conventional description on a definitely-transverse
-  edge is what the check refuses. It also fixes `TransverseNotIntrinsic`'s
+  both say, without deciding the derived case: the check refuses (among
+  other things) a declared conventional description on a
+  definitely-transverse edge. It also fixes `TransverseNotIntrinsic`'s
   doc, which still named `MappedCurve`.
 
 **Still open here:** since the collapse, every *derived* chart on a
