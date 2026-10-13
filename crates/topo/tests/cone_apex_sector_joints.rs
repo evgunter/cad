@@ -101,14 +101,20 @@ fn ruling_at<T: Real + AtRestPolicy + Bounds>(body: &Body<T>, slant: f64) -> (to
     (key, t0 + (t1 - t0) * T::from_f64(slant / SL))
 }
 
-/// **A split whose joint the decider cannot decide refuses** (the
-/// split writes no element nothing decided). On a cone of half-angle
-/// 0.1 the ruling's point at slant `1.5·K·ε` is off the apex by more
-/// than the band (`singular_at` reads `Off`), but its distance from the
-/// axis is `0.15·K·ε`, so the half-period marks of the joint's zero gap
-/// sit at `π·0.15·K·ε`, inside the band: the decision escalates, and
-/// `split_edge` refuses with the body untouched. A split well clear of
-/// the apex decides the identity.
+/// **A split near a narrow apex decides its own image at the joint.**
+/// On a cone of half-angle 0.1 the ruling's point at slant `1.5·K·ε`
+/// is off the apex by more than the band (`singular_at` reads `Off`),
+/// but its distance from the axis is `0.15·K·ε`, so the half-period
+/// marks of the joint's zero gap sit at `π·0.15·K·ε`, inside the band,
+/// and the marks escalate. The zero gap meets the image's own orbit
+/// point at that lever (the near-pole read, `lever_periods`), so the
+/// joint decides the identity; it no longer refuses as
+/// `SplitJointUndecided`. What refuses there now is the child row's
+/// own certification: its chart winding is read at the child's lever,
+/// which is as short (`pcurve_chart_winding`, filed in
+/// `work/pcert/chart-winding-escalates-on-the-first-candidate-at-a-band-sized-lever`),
+/// with the body untouched. Well clear of the apex the split decides
+/// the identity and the body reads clean.
 fn split_near_the_apex<T: Real + AtRestPolicy + Bounds>(lane: &str) {
     let tol = Tol::witness();
     let near = 1.5 * tol.k() * tol.eps();
@@ -117,8 +123,18 @@ fn split_near_the_apex<T: Real + AtRestPolicy + Bounds>(lane: &str) {
     let (edge, t) = ruling_at(&body, near);
     let refused = body.split_edge(edge, t, tol);
     assert!(
-        matches!(refused, Err(topo::EulerOpError::SplitJointUndecided { .. })),
-        "{lane}: the split near the apex refuses at its joint: {refused:?}"
+        matches!(
+            refused,
+            Err(topo::EulerOpError::PcurveSplit {
+                error: geom_brep::PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::ChartWinding,
+                    ..
+                },
+                ..
+            })
+        ),
+        "{lane}: the split near the apex passes its joint and refuses at the child's winding: \
+         {refused:?}"
     );
     assert_eq!(
         body.edges().count(),
@@ -143,7 +159,7 @@ fn split_near_the_apex<T: Real + AtRestPolicy + Bounds>(lane: &str) {
 }
 
 #[test]
-fn a_split_whose_joint_escalates_refuses() {
+fn a_split_near_a_narrow_apex_passes_its_joint() {
     split_near_the_apex::<f64>("f64");
     split_near_the_apex::<geom_core::Interval>("Interval");
 }

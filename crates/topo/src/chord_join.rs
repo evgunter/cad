@@ -2749,7 +2749,7 @@ fn nearest_branch<T: Decide>(
         what: "a divided face's chart is the placeholder — it has no lever to decide a branch by",
     })?;
     let arm = crate::pcurves::joint_arm(chart, vertex);
-    crate::pcurves::lever_periods("split_window_branch", arm, gap, T::tau(), band)
+    crate::pcurves::lever_periods("split_window_branch", arm, gap, T::tau(), false, band)
         .map(|k| T::from_f64(f64::from(k)))
         .map_err(|miss| match miss {
             geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
