@@ -61,3 +61,17 @@ kind: an open chain's integral now differs from the closed region's by
 The anchor keeps the lever at the face's own height rather than its
 distance from the chart origin, so the term is no larger than the old
 `½(u₁ + u₀)·Δv` lever on a face of comparable extent.
+
+## The junction decide is two-sided (FLUX, PR 4839's verification)
+
+`quad::loop_windings` now closes a junction only when the gap's UPPER
+bound is within the slack (`props_quad_junction_closed`), refuses it only
+when the LOWER bound is definitely beyond (`props_quad_junction_open`),
+and escalates otherwise; each edge's end is read through its own end
+vertex's trig bracket (`TrimEdgeQ::trig1`). Carrying the start's bracket
+through the span had widened a steep conic's far end by its tilt, up to
+20ε at ε = 1e-12, and put 108 real junctions beyond the slack. With the
+end's own bracket none is, at any of the three ε, on the geom-brep, topo
+and sweep suites, so no face moved from measuring to escalating. The
+residue this row is about — the unpadded connector across a gap the
+decide admits, now up to `S + ε` — is unchanged.

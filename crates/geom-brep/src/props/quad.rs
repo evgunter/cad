@@ -1076,23 +1076,39 @@ fn excess(gap: f64, slack: f64) -> f64 {
 }
 
 /// Each carrier's end lies within the run's ε of the vertex it ends
-/// at, so two meet there within `2ε`: in the chart metric, `3ε`.
+/// at, so two meet there within `2ε`: in the chart metric, `3ε`. The
+/// corpus needs it: on the geom-brep, topo and sweep suites at
+/// ε = 1e-12, 3428 junctions of real faces read up to `1.99ε` beyond
+/// their end slack alone.
 const VERTEX_SLACK: f64 = 3.0;
 
 /// **Every junction of every loop closes on the cylinder, and the
 /// loops wind it as a face's boundary does** (`props_quad_junction_closed`,
-/// [`PropsError::ChartLoopOpen`], [`PropsError::LoopsWindChart`]).
+/// `props_quad_junction_open`, [`PropsError::ChartLoopOpen`],
+/// [`PropsError::LoopsWindChart`]).
 ///
 /// At each junction the edge before ends where the edge after starts:
 /// their chart points differ by a whole number `m` of turns in the
 /// azimuth and by nothing in the level. The gap left once `m` turns
-/// are taken off, `R·|Δu − 2πm| + |Δv|`, is decided by its [`excess`]
-/// over the two ends' [`end_slack`] and [`VERTEX_SLACK`]: an excess that
-/// is definitely positive is a loop that does not close, whatever its
-/// turns, and one within the band escalates. `du` is a global 1-form on the
-/// cylinder, so a closed loop's `∮ du` is `2π` times the sum of its
-/// junctions' `m` — the loop's turns, an integer once every junction
-/// is decided closed.
+/// are taken off, `G = R·|Δu − 2πm| + |Δv|`, is an enclosure, each end
+/// read through its own vertex's trig bracket ([`chart_end`]), and the
+/// slack `S` is the two ends' [`end_slack`] plus [`VERTEX_SLACK`]·ε.
+/// What is decided, exactly, with the band `(ε, Kε)`:
+///
+/// - **closed** when the [`excess`] of `G`'s upper bound over `S` is
+///   under `ε` (`props_quad_junction_closed` Zero) — every gap the
+///   enclosure admits is within `S + ε`;
+/// - **open** ([`PropsError::ChartLoopOpen`]) when that excess is
+///   beyond `Kε` and so is the excess of `G`'s lower bound
+///   (`props_quad_junction_open`, through the funnel's positive gate) —
+///   no gap the enclosure admits is within `S + Kε`;
+/// - **escalated** otherwise: an upper excess in `[ε, Kε]`, or a lower
+///   excess not definitely beyond `Kε`. A junction the enclosure cannot
+///   decide is never measured.
+///
+/// `du` is a global 1-form on the cylinder, so a closed loop's `∮ du`
+/// is `2π` times the sum of its junctions' `m` — the loop's turns, an
+/// integer once every junction is decided closed.
 ///
 /// A face's boundary is simple closed curves on the cylinder, so each
 /// loop winds it once at most, and the face's loops wind it zero times
