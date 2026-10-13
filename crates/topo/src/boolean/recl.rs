@@ -618,9 +618,11 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 ///   is genuinely crossed iff its two halves' outer keys transition.
 /// - several real edges of one solid ⇒ a **contact line** that solid
 ///   holds: each of its edges against each of the other solid's by the
-///   edge-edge rule. Two crossings on the ray, a contact line lying in a
-///   face of the other solid, and one whose ray holds a bisector, refuse
-///   typed (unbuilt).
+///   edge-edge rule. Two crossings on the ray refuse typed
+///   ([`BooleanError::CrossingsAlongAContactLine`]). A contact line lying
+///   in a face of the other solid, and one whose ray holds a bisector,
+///   are arms not yet built, which refuse `ClassificationInvariant`
+///   until they are.
 ///
 /// A group is every mention the first one reads on its ray; three or
 /// more must read so pairwise too, or the event refuses.
@@ -803,9 +805,12 @@ pub(super) fn recl_edges<T: Decide>(
                 [] => None,
                 [g] => Some(g),
                 _ => {
-                    return Err(BooleanError::ClassificationInvariant {
-                        what: "an edge crosses two wedges about a contact line on one ray \
-                               (unbuilt)",
+                    let vertex = |body: &Body<T>, secs: &[BoolSector<T>]| {
+                        proven(&body.half_edges, secs[0].he, EntityId::HalfEdge).start
+                    };
+                    return Err(BooleanError::CrossingsAlongAContactLine {
+                        a_vertex: vertex(a_body, a_sectors),
+                        b_vertex: vertex(b_body, b_sectors),
                     });
                 }
             }
