@@ -1223,3 +1223,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Worktree and target removed.
   - **(b):** the torus spec does **not** retire yet. The c5 item still carries U-H1, held by D10, and the spec is its home. The item's `pr: 4927` / branch front matter is now stale; refresh it with the next GERM PR that touches `work/`.
   - **Dispatched the ring-path far-frame item**: session_01BSMsJZ6mG5kL2NbMRNpAV5, branch germ/ring-path-far-frames.
+- 2026-10-13 17:17 — Check-in. All three lanes are working: 4964's fix pass is measuring mutants (A is now red on 15/15 seeds after the tightened judges); 4966's fix pass ported #4993's compile fix and is running cone subsets at each ε; the far-frame lane is reproducing the item's count. Nothing to merge. Re-armed for 18:17.
