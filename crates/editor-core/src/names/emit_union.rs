@@ -768,9 +768,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     ///
     /// [`NamingError::Emission`] where a finished edge at `v` is neither a
     /// member edge's piece nor a seam, where one member edge and no seam
-    /// meet no face, or as [`Flush::sense_against`];
-    /// [`NamingError::SeamVertexParentage`] where one member edge and no
-    /// seam meet several faces (a missing rule, as at a pair boolean).
+    /// meet no face or several, or as [`Flush::sense_against`].
     fn meeting(
         &self,
         v: topo::VertexKey,
@@ -853,10 +851,18 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             let (face, others) = match (faces.next(), faces.next()) {
                 (Some(one), None) => one,
                 // One line meeting several faces of other members and no
-                // seam: N2 spells no one face for its `Crossing`, the
-                // pair boolean's missing rule too
-                // (`work/emit/a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces.md`).
-                (Some(_), Some(_)) => return Err(NamingError::SeamVertexParentage { vertex: v }),
+                // seam. Faces of other members meet at a point only along
+                // their edges through it, and with planar faces the region
+                // kept about the line either keeps a piece of such an edge
+                // at the point, holds one of the faces there, or pinches
+                // into two vertices, each one line meeting one face. No
+                // manifold union reaches this shape.
+                (Some(_), Some(_)) => {
+                    return Err(bug(
+                        "one member edge meets several faces of other members and no seam at a \
+                         union vertex",
+                    ));
+                }
                 (None, _) => {
                     return Err(bug(
                         "one member edge meets no face at a union vertex no seam reaches",
