@@ -32,7 +32,7 @@ use crate::germ_plane_torus_chord::{
 use crate::germ_plane_torus_frame::{SIX, corner_bar, one_face_torus, seamed_torus, six, torus};
 use core::f64::consts::PI;
 use geom_core::{Point3, Vec3};
-use topo::{AtRestBody, BooleanError};
+use topo::{AtRestBody, BooleanError, BooleanOp};
 
 /// `∫ √(ρ² − x²) dx` from `0` to `x`, `|x| ≤ ρ`.
 fn under_circle(rho: f64, x: f64) -> f64 {
@@ -409,6 +409,84 @@ fn oval_arcs(b: &topo::Body<f64>, (w, z): (f64, f64)) -> usize {
     n
 }
 
+/// **The material beside each oval arc of `b` is the op's** — read off
+/// the B-rep's own orientation, at any ε and without `point_in_solid`.
+/// Each oval arc's midpoint lies in the corner bar's box
+/// `[−w, w]² × [−z, z]`, between the corners it runs from and to (the
+/// oval's other arc between them runs outside the box). On each plane
+/// face the arc bounds, a point `q` beside its midpoint, to the left of
+/// the half-edge's traversal about the face's outward normal `n` (the
+/// face's interior), is stepped off the plane both ways by `h`: the op
+/// keeps `q − hn` and not `q + hn`, by the analytic memberships (`x` the
+/// first member's). `q` lies `δ` from the arc, so the torus (`(R, r)`
+/// about `y`), which the arc lies on, is about `δ·s` from it, `s` the
+/// sine between the torus and the step's direction: `h` is half that,
+/// and a reading the memberships leave undecided is not counted. The
+/// sides read, and those where the op keeps the wrong one.
+fn oval_arcs_bound_the_ops_material(
+    what: &str,
+    b: &topo::Body<f64>,
+    (op, x, y): (topo::BooleanOp, &Solid, &Solid),
+    (big_r, r): (f64, f64),
+    (w, z): (f64, f64),
+) -> (usize, Vec<Point3<f64>>) {
+    let (mut read, mut wrong) = (0, Vec::new());
+    for (_, edge) in b.edges() {
+        let Some(c) = b.get_curve_geom(edge.curve).and_then(|c| c.certified()) else {
+            continue;
+        };
+        if !matches!(c.carrier(), geom::Curve3::Spiric { .. }) {
+            continue;
+        }
+        let (t0, t1) = c.params();
+        let tm = 0.5 * (t0 + t1);
+        let m = c.carrier().eval(tm);
+        // The distances from the midpoint to the box's faces: the least
+        // is the plane the arc lies on, the next how far the face runs
+        // beside the arc there.
+        let mut room = [w - m.x.abs(), w - m.y.abs(), z - m.z.abs()];
+        assert!(
+            room.iter().all(|&d| d >= -1e-6),
+            "{what}: an oval arc's midpoint {m:?} off the corner bar"
+        );
+        room.sort_by(f64::total_cmp);
+        let delta = 0.25 * room[1];
+        let tangent = c.carrier().deriv(tm).normalize();
+        let radial = Vec3::new(m.x, 0.0, m.z).normalize();
+        let tube = m - (Point3::origin() + radial * big_r);
+        assert!(
+            (tube.norm() - r).abs() <= 1e-6,
+            "{what}: an oval arc's midpoint {m:?} off the torus"
+        );
+        let wall = tube.normalize();
+        for (he, along) in [(edge.he_plus, tangent), (edge.he_minus, -tangent)] {
+            let face = b
+                .get_loop(b.get_half_edge(he).unwrap().parent_loop)
+                .unwrap()
+                .face;
+            let Some(n) = topo::face_normal::face_outward_normal(b, face) else {
+                continue;
+            };
+            let n = n.vec().normalize();
+            let step = n.cross(along);
+            let q = m + step * delta;
+            let h = 0.5 * delta * wall.dot(step).abs();
+            let keeps = |p: Point3<f64>| match ((x.inside)(p), (y.inside)(p)) {
+                (Some(a), Some(c)) => Some(kept(op, a, c)),
+                _ => None,
+            };
+            let (Some(inner), Some(outer)) = (keeps(q - n * h), keeps(q + n * h)) else {
+                continue;
+            };
+            if !(inner && !outer) {
+                wrong.push(m);
+            }
+            read += 1;
+        }
+    }
+    (read, wrong)
+}
+
 /// The fat torus `(1, 0.6)` and its one-face and seamed spellings, each
 /// named.
 fn fat_tori() -> Vec<(String, AtRestBody<f64>)> {
@@ -545,6 +623,37 @@ fn the_fat_corner_bars_lens_is_the_true_body_or_a_typed_refusal() {
                     arcs >= 8,
                     "{what}, {label}: {arcs} oval arcs on the end squares and the sides `x = ±w`"
                 );
+                let (x, y) = if swap { (&bar, &t) } else { (&t, &bar) };
+                let beside = |(op, x, y)| {
+                    oval_arcs_bound_the_ops_material(
+                        &format!("{what}, {label}"),
+                        b,
+                        (op, x, y),
+                        (big_r, r),
+                        end(big_r, r, w),
+                    )
+                };
+                let (sides, wrong) = beside((op, x, y));
+                assert!(
+                    sides >= 8 && wrong.is_empty(),
+                    "{what}, {label}: of the material read beside {sides} oval arcs' faces, the \
+                     op keeps the wrong side beside {wrong:?}"
+                );
+                // The reading tells material from void: read as the op
+                // that keeps the other side of these faces, the body is
+                // wrong beside every arc.
+                let other = match op {
+                    BooleanOp::Union => (BooleanOp::Intersect, x, y),
+                    BooleanOp::Intersect => (BooleanOp::Union, x, y),
+                    BooleanOp::Subtract => (BooleanOp::Subtract, y, x),
+                };
+                let (sides, wrong) = beside(other);
+                assert_eq!(
+                    wrong.len(),
+                    sides,
+                    "{what}, {label}: read as {:?}, the body is wrong beside every arc",
+                    other.0
+                );
                 for q in lens_points(big_r, r, w) {
                     let (x, y) = if swap { (&bar, &t) } else { (&t, &bar) };
                     let (Some(a), Some(c)) = ((x.inside)(q), (y.inside)(q)) else {
@@ -573,32 +682,31 @@ fn the_fat_corner_bars_lens_is_the_true_body_or_a_typed_refusal() {
     }
 }
 
-/// **A plane parallel to the axis just short of the inner equator keeps
-/// a typed refusal where its ovals' islands cannot be wound**: the
-/// half-space `x ≥ 1.5 − 1e-3` against the donut cuts two ovals pinched
-/// near the inner equator, each an island in the plane face. The winding
-/// sum's quadrature cannot bound its error under that run's area there,
-/// so the ring lane refuses the island typed rather than read a sign it
-/// cannot decide
-/// (`work/germ/a-planar-island-on-a-pinched-oval-refuses-its-winding.md`).
+/// **A plane parallel to the axis just short of the inner equator builds
+/// its true bodies**: the half-space `x ≥ x₀` against the donut `1e-3`
+/// and `1e-6` short of its inner equator, and against the fat tori
+/// `(1, 0.9)` and `(1, 0.95)` `0.01` from the axis, cuts two ovals
+/// pinched toward a point at the inner equator, each an island in the
+/// plane face, which the planar ring lane winds through the spiric
+/// enclosure (`topo`'s `loop_winding`). Every op builds, held to the
+/// truth.
 #[test]
-fn a_plane_near_the_inner_equator_refuses_its_islands_typed() {
-    let t = torus(2.0, 0.5);
-    let p = crate::germ_plane_torus_frame::half_space(
-        Point3::new(1.5 - 1e-3, 0.0, 0.0),
-        Vec3::unit_x(),
-    );
-    for (label, r) in six(&t, &p) {
-        assert!(
-            matches!(
-                r,
-                Err(BooleanError::Join(topo::SplitJoinError::RingIslandUnread {
-                    kind: geom::SurfaceKind::Plane,
-                    ..
-                }))
-            ),
-            "{label}: {:?}",
-            r.map(|r| r.body().map(|b| b.kind))
+fn a_plane_near_the_inner_equator_builds_its_true_bodies() {
+    for (big_r, r, x0) in [
+        (2.0, 0.5, 1.5 - 1e-3),
+        (2.0, 0.5, 1.5 - 1e-6),
+        (1.0, 0.9, 0.01),
+        (1.0, 0.95, 0.01),
+    ] {
+        let t = ring(torus(big_r, r), (big_r, r));
+        let p = half(Point3::new(x0, 0.0, 0.0), Vec3::unit_x());
+        let meet = torus_in_box((big_r, r), (x0, 9.0), (-9.0, 9.0), (-9.0, 9.0));
+        answers(
+            &format!("({big_r}, {r}), x ≥ {x0}"),
+            (&t, &p),
+            meet,
+            about_the_tube(big_r, r),
+            ("BBBBBB", false),
         );
     }
 }

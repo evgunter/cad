@@ -157,7 +157,7 @@ use crate::chord_join::{
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::face_normal::face_outward_normal;
-use crate::loop_winding::{RunClosing, RunMissesEnd};
+use crate::loop_winding::{RunClosing, RunMissesEnd, Unwound};
 use crate::null::NullFacePair;
 use crate::ring_path::LoopSplit;
 use crate::validate::{decide, decide_positive};
@@ -3611,7 +3611,7 @@ fn loose_partners<T: Decide>(
 /// anti-correlation theorem), and each solid's partition is decided
 /// against its own geometry — the zip's antiparallelism assertion is
 /// the runtime witness.
-fn choose_roles<T: Decide>(
+fn choose_roles<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     (ea, ra): (HalfEdgeKey, HalfEdgeKey),
     loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
@@ -3742,7 +3742,7 @@ enum RoleLane<T: geom_core::Real> {
     QuadricRing { face: FaceKey },
 }
 
-impl<T: Decide> RoleLane<T> {
+impl<T: crate::props::AtRestPolicy> RoleLane<T> {
     /// The order the segment's curve is computed in: the decided one, or
     /// the match's own on the ring lane, where either order names the
     /// germs' one arc.
@@ -3820,18 +3820,17 @@ fn ring_order<T: Decide>(
 /// traversal carries the other sign. `Indeterminate` escalates. Zero is
 /// a degenerate area-free run and a loud desync (the ring lane only
 /// closes full island cycles — slit-growing joins are mekr-lane
-/// merges). A run the sum does not wind refuses: a spline edge, which
-/// the operand gate keeps out, loudly; spiric ovals whose quadrature
-/// cannot bound its error under the run's area (an oval whose plane
-/// nears the torus's inner equator), typed
-/// ([`SplitJoinError::RingIslandUnread`]).
+/// merges). A run the sum does not wind refuses by the reason it names
+/// ([`crate::loop_winding::Unwound`]): a spline edge, which the operand
+/// gate keeps out, loudly; a spiric at a scalar that does not certify,
+/// typed ([`SplitJoinError::RingIslandUnread`]).
 ///
 /// A wall face ([`IslandClosing::Wall`]) asks the same question on its
 /// own chart, [`crate::chord_join::chart_island_winding`], with the run
 /// closed along the plane this solid's chords lie in; a sphere, cone or
 /// torus face ([`IslandClosing::Quadric`]) asks it without a chart,
 /// [`crate::chord_join::path_island_winding`], closed by the curve.
-fn ring_run_ccw<T: Decide>(
+fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
     (h1, h2): (HalfEdgeKey, HalfEdgeKey),
@@ -3864,36 +3863,19 @@ fn ring_run_ccw<T: Decide>(
     let wound = body
         .planar_run_winding_decided((h1, h2), RunClosing::of(closing.as_ref()), normal, band)
         .map_err(|RunMissesEnd| desync("ring-run arc did not close"))?
-        .ok_or_else(|| {
-            // The operand gate refuses a spline carrier and no section
-            // lane mints one, so a run carrying one is the gate's
-            // invariant broken. Otherwise the run is on spiric ovals the
-            // sum cannot wind.
-            let spline = |c: Option<&geom::Curve3<T>>| matches!(c, Some(geom::Curve3::Nurbs(_)));
-            let edge_spline = |he: HalfEdgeKey| {
-                spline(
-                    body.get_half_edge(he)
-                        .and_then(|h| body.get_edge(h.edge))
-                        .and_then(|e| body.get_curve_geom(e.curve))
-                        .and_then(|c| c.certified())
-                        .map(|c| c.carrier()),
-                )
-            };
-            let carries_spline = body
-                .loop_cycle(h1)
-                .is_some_and(|cycle| cycle.into_iter().any(edge_spline))
-                || spline(closing.as_ref().map(|c| &c.carrier));
-            BooleanError::Join(if carries_spline {
-                SplitJoinError::SectionInvariant {
+        .map_err(|why| {
+            BooleanError::Join(match why {
+                // The operand gate refuses a spline carrier and no section
+                // lane mints one.
+                Unwound::Spline => SplitJoinError::SectionInvariant {
                     face,
                     what: "the ring lane reached a spline run edge (the operand gates refuse the \
                            kind)",
-                }
-            } else {
-                SplitJoinError::RingIslandUnread {
+                },
+                Unwound::Uncertified => SplitJoinError::RingIslandUnread {
                     face,
                     kind: geom::SurfaceKind::Plane,
-                }
+                },
             })
         })?;
     ring_winding_order(wound.map(|decided| decided.sign))

@@ -357,8 +357,8 @@ pub enum SplitJoinError {
     /// A ring whose island the ring lane does not read: on a curved face
     /// it winds an island, and re-homes a ring, on a cylinder wall's
     /// chart and on a sphere, a cone or a torus by a path's parity; on a
-    /// plane, a run on spiric ovals whose quadrature cannot bound its
-    /// error under the run's area (`crate::loop_winding`). Valid input
+    /// plane, a run on spiric ovals at a scalar that does not certify
+    /// (`crate::loop_winding::Unwound::Uncertified`). Valid input
     /// whose lane is not yet built (D2 addendum row 2), refused typed.
     RingIslandUnread {
         /// The face carrying the ring.
@@ -1008,8 +1008,6 @@ impl<T: Real> SectionConic<T> {
 pub(crate) struct SectionOval<T: Real> {
     /// The carrier.
     carrier: geom::Curve3<T>,
-    /// The torus's axis, which lies in the section plane.
-    axis: Vec3<T>,
     /// The oval's own extent: the larger of its half-widths across the
     /// plane, `r` along the axis and `(f_max − f_min)/2` along the trace
     /// (`geom::spiric_f_range`). At `offset = 0` it is the meridian
@@ -1077,7 +1075,14 @@ impl<T: Real> SectionCurve<T> {
     fn in_plane(&self) -> Vec3<T> {
         match self {
             Self::Conic(c) => c.major,
-            Self::Oval(o) => o.axis,
+            Self::Oval(o) => match o.carrier {
+                geom::Curve3::Spiric { axis, .. } => axis,
+                _ => unreachable!(
+                    "{:?} is the spiric an oval is built of, and a spiric's axis lies in its \
+                     plane",
+                    o.carrier
+                ),
+            },
         }
     }
 }
@@ -1398,7 +1403,6 @@ fn section_case<T: Decide>(
             geom_brep::PlaneTorusSection::SpiricOvals { s1, s2 } => {
                 let oval = |s: &geom::Curve3<T>| match *s {
                     geom::Curve3::Spiric {
-                        axis,
                         major_radius,
                         minor_radius,
                         offset,
@@ -1408,7 +1412,6 @@ fn section_case<T: Decide>(
                             geom::spiric_f_range(major_radius, minor_radius, offset);
                         Ok(SectionCurve::Oval(SectionOval {
                             carrier: s.clone(),
-                            axis,
                             extent: minor_radius.max((f_max - f_min) * T::from_f64(0.5)),
                         }))
                     }

@@ -7227,7 +7227,8 @@ pub(crate) fn tier3_local_checks_marked<
             };
             // Line, Circle, Ellipse and Spiric carriers (banner); an
             // empty ring and a loop the sum does not wind (a NURBS edge,
-            // or ovals pinched past its quadrature) are not asked. Tier 3 runs on a body tier 1 cleared.
+            // or a spiric at a scalar that does not certify) are not
+            // asked. Tier 3 runs on a body tier 1 cleared.
             let Some(winding) = body.planar_loop_winding(l, outward, band) else {
                 continue;
             };

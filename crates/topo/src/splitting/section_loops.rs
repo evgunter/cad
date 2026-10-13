@@ -118,7 +118,7 @@ pub(super) enum SenseFault {
 /// # Errors
 ///
 /// [`SenseFault`].
-pub(super) fn loop_sense<T: Decide>(
+pub(super) fn loop_sense<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     l: LoopKey,
     normal: Vec3<T>,

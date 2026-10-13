@@ -1,6 +1,6 @@
 //! **A spiric arc's term in the winding sum** ([`super::spiric_segment_term`]):
 //! its bulge over its chord against the area a dense polygon of the arc
-//! cuts off, and the bound on the rule's error.
+//! cuts off, and the winding of loops on whole ovals.
 
 use super::*;
 use core::f64::consts::{PI, TAU};
@@ -70,29 +70,49 @@ fn carriers() -> Vec<(String, Curve3<f64>)> {
     out
 }
 
+/// `carrier`'s arc `(t0, t1)` lifted to the interval scalar.
+fn lifted(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> (Curve3<Interval>, (Interval, Interval)) {
+    (
+        carrier.map_scalar(Interval::from_certified),
+        (Interval::from_certified(t0), Interval::from_certified(t1)),
+    )
+}
+
 /// **A spiric arc's bulge is the area it cuts off its chord**: arcs
 /// short and long, across the seam at `0` and the inner point at `π`, the
-/// whole oval, forward and back, on every carrier; against the area a
-/// dense polygon of the arc cuts off. The rule's error bound is far under
-/// either's rounding, and the length bounds the polygon's.
+/// whole oval, forward and back, on every carrier; the certified
+/// enclosure at 1024 pieces holds the area a dense polygon of the arc
+/// cuts off, to the polygon's own error, and is under `1e-11` m² wide;
+/// the length bounds the polygon's.
 #[test]
 fn a_spiric_arcs_bulge_is_the_area_it_cuts_off_its_chord() {
+    use geom_core::Bounds;
     for (name, carrier) in carriers() {
         for (t0, t1) in [(0.2, 0.9), (-1.0, 2.5), (2.0, 4.0), (-PI, PI), (0.0, TAU)] {
             for forward in [true, false] {
-                let (bulge, length, error) =
-                    spiric_segment_term((&carrier, (t0, t1)), forward).expect("a spiric's term");
+                let (c, span) = lifted(&carrier, (t0, t1));
+                let (bulge, length) =
+                    spiric_segment_term((&c, span), forward, 1024).expect("a spiric's term");
                 let span = if forward { (t0, t1) } else { (t1, t0) };
                 let want = polygon_bulge(&carrier, span);
                 let scale = want.norm().max(1e-3);
-                assert!(
-                    (bulge - want).norm() <= 1e-8 * scale,
-                    "{name}, {t0}..{t1}, forward {forward}: {bulge:?} against {want:?}"
-                );
-                assert!(
-                    error <= 1e-15 * scale,
-                    "{name}, {t0}..{t1}: error bound {error:e}"
-                );
+                for (k, (got, want)) in [(bulge.x, want.x), (bulge.y, want.y), (bulge.z, want.z)]
+                    .into_iter()
+                    .enumerate()
+                {
+                    assert!(
+                        got.lo() - 1e-8 * scale <= want && want <= got.hi() + 1e-8 * scale,
+                        "{name}, {t0}..{t1}, forward {forward}: component {k} [{}, {}] \
+                         against {want}",
+                        got.lo(),
+                        got.hi()
+                    );
+                    assert!(
+                        got.hi() - got.lo() <= 1e-11,
+                        "{name}, {t0}..{t1}: component {k} {} wide",
+                        got.hi() - got.lo()
+                    );
+                }
                 let walked: f64 = (0..1000)
                     .map(|k| {
                         let t = |k: i32| t0 + (t1 - t0) * f64::from(k) / 1000.0;
@@ -100,36 +120,12 @@ fn a_spiric_arcs_bulge_is_the_area_it_cuts_off_its_chord() {
                     })
                     .sum();
                 assert!(
-                    length >= walked,
-                    "{name}, {t0}..{t1}: length {length} under {walked}"
+                    length.lo() >= walked,
+                    "{name}, {t0}..{t1}: length {} under {walked}",
+                    length.lo()
                 );
             }
         }
-    }
-}
-
-/// **An oval whose plane nears the inner equator bounds the rule's error
-/// by the bulge itself**: there `f` nears zero at `t = π`, and the
-/// strip it is analytic in thins past the pieces' width, so the bound
-/// grows as large as the area it bounds, which the winding then reads
-/// as undecided, never as a sign.
-#[test]
-fn an_oval_near_the_inner_equator_bounds_its_error_by_its_bulge() {
-    let (big_r, r) = (2.0, 0.5);
-    for gap in [1e-3, 1e-6, 1e-9] {
-        let carrier = oval(
-            Point3::origin(),
-            Vec3::unit_y(),
-            Vec3::unit_x(),
-            (big_r, r),
-            big_r - r - gap,
-        );
-        let (bulge, _, error) = spiric_segment_term((&carrier, (0.0, TAU)), true).unwrap();
-        assert!(
-            error >= bulge.norm(),
-            "a gap of {gap}: error {error:e} under the bulge {:e}",
-            bulge.norm()
-        );
     }
 }
 
@@ -207,32 +203,24 @@ fn oval_faces(d: f64) -> (Body<f64>, [LoopKey; 2]) {
     (body, loops)
 }
 
-/// **A loop on a whole oval winds, one way round and the other; one
-/// whose rule cannot bound its error under its area has no winding**:
-/// the oval of `x = 0.3` on the donut bounds two faces, whose loops wind
-/// opposite ways about the plane's normal. The oval of a plane `1e-3`
-/// short of the inner equator leaves the rule's error bound over its
-/// area ([`an_oval_near_the_inner_equator_bounds_its_error_by_its_bulge`]),
-/// and the sum reports no winding rather than a sign.
+/// **A loop on a whole oval winds, one way round and the other, at
+/// every stand-off from the inner equator**: the oval of `x = d` on the
+/// donut bounds two faces, whose loops wind opposite ways about the
+/// plane's normal, for `d = 0.3` and for planes `1e-3` to `1e-9` short of
+/// the inner equator, where the oval pinches toward a point at `t = π`.
 #[test]
-fn a_loop_on_an_oval_winds_and_one_near_the_inner_equator_has_none() {
+fn a_loop_on_an_oval_winds_one_way_round_and_the_other() {
     let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
-    let (body, loops) = oval_faces(0.3);
-    let wound = loops.map(|l| body.planar_loop_winding(l, Vec3::unit_x(), band));
-    assert!(
-        matches!(
-            wound,
-            [Some(Ok(Sign::Positive)), Some(Ok(Sign::Negative))]
-                | [Some(Ok(Sign::Negative)), Some(Ok(Sign::Positive))]
-        ),
-        "the two loops of one oval: {wound:?}"
-    );
-    let (body, loops) = oval_faces(1.5 - 1e-3);
-    for l in loops {
-        assert_eq!(
-            body.planar_loop_winding(l, Vec3::unit_x(), band),
-            None,
-            "a loop whose rule cannot bound its error"
+    for d in [0.3, 1.5 - 1e-3, 1.5 - 1e-6, 1.5 - 1e-9] {
+        let (body, loops) = oval_faces(d);
+        let wound = loops.map(|l| body.planar_loop_winding(l, Vec3::unit_x(), band));
+        assert!(
+            matches!(
+                wound,
+                [Some(Ok(Sign::Positive)), Some(Ok(Sign::Negative))]
+                    | [Some(Ok(Sign::Negative)), Some(Ok(Sign::Positive))]
+            ),
+            "x = {d}: the two loops of one oval: {wound:?}"
         );
     }
 }

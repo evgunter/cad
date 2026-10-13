@@ -146,7 +146,8 @@ every pose:
   that stood at F3: the notched half donut (`3π²/8`), the vase's brick
   in its torus band and TANG's tube in `pi_seam_and_kiss`.
 - **M3 and P4** stood at F3 until U-T4: their box faces `z = 1.2` cut
-  two spiric ovals. They build since (§1.3).
+  two spiric ovals. They build since (§1.3). Past U-T4's chord, ops
+  stop at three doors past the join, each filed (§1.3).
 - **The interior-loop guard** stops the lily (both orders, ∪): past the
   join, the certificate has no arm for the stem's tube wall against
   the arch's, two tori with parallel axes apart (filed on ORBIT,
@@ -427,18 +428,24 @@ bodies, measured in §0.1:
     path's lead of no length from such a ring is read as the point it
     is, and passed over where it is decided off the arc);
   - **the plane face's**, for S1's ovals, each an island in the plane
-    face: its winding sum takes a spiric term, an elliptic integral by
-    a quadrature whose error is bounded and moves the area toward zero
-    (`topo`'s `loop_winding`). An oval pinched near the inner equator
-    leaves the bound over the area, and the island refuses typed
-    (`work/germ/a-planar-island-on-a-pinched-oval-refuses-its-winding.md`).
+    face: its winding sum takes a spiric term, an elliptic integral
+    read through `geom_brep`'s certified enclosure of the arc's vector
+    area (`props::spiric`, the spiric face lane's own term), summed at
+    the interval scalar and refined until the sign is decided (`topo`'s
+    `loop_winding`). Ovals pinched toward the inner equator, `1e-6`
+    short of it on the donut and `0.01` from the axis on the fat tori
+    `(1, 0.9)` and `(1, 0.95)`, wind and build.
 
   Past the join, a result's torus face bounded by ovals is no chart
-  rectangle, and two doors behind it stop some ops: `point_in_solid`'s
+  rectangle, and three doors behind it stop some ops: `point_in_solid`'s
   `PartialTorusFace` in the shells' sort
-  (`work/inside/point-in-solid-refuses-an-l-shaped-torus-face.md`), and
-  the volume's `RingOnCurvedFace` on a torus face holding a ring
-  (`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`).
+  (`work/inside/point-in-solid-refuses-an-l-shaped-torus-face.md`); the
+  volume's `RingOnCurvedFace` on a torus face holding a ring
+  (`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`);
+  and the spiric face lane's `QuadratureBudget`
+  (`VolumeUnmeasured`), measured at ε `1e-12` on `P ∖ T` of the corner
+  bar of half-width `0.05` on the fat torus and its spellings
+  (`work/fluxtail/a-thin-corner-bars-spiric-cap-exhausts-the-quadrature-budget-at-1e-12.md`).
 
 ### 1.4 The corner bar's lens
 

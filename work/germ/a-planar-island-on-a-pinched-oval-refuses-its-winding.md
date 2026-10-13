@@ -2,8 +2,9 @@
 id: a-planar-island-on-a-pinched-oval-refuses-its-winding
 kind: issue
 title: A plane face's island on a spiric oval pinched near the inner equator refuses RingIslandUnread: the winding's quadrature cannot bound its error there
-status: open
+status: closed
 opened: 2026-10-12
+closed: 2026-10-13
 ---
 
 
@@ -38,3 +39,20 @@ window's strip, which a generic scalar cannot size at run time without
 a schedule fixed in advance: a geometric grading toward `t = π`, say),
 or a closed form of the error near the pinch, decides these islands'
 windings, and the row above builds its true bodies.
+
+## Closed (U-T4's fix pass, 2026-10-13)
+
+The winding no longer takes the spiric's bulge by its own quadrature:
+`loop_winding` sums a cycle carrying a spiric at the interval scalar
+over `geom_brep`'s certified enclosure (`props::spiric`'s
+`spiric_vector_area`), refined by piece count until the sign is
+decided. Measured on the fix pass: the half-space `x ≥ x₀` builds its
+true body in all six ops on the donut at `x₀ = 1.5 − 1e-3` and
+`1.5 − 1e-6`, and on the fat tori `(1, 0.9)` at `x₀ = 0.01, 0.02,
+0.04, 0.06, 0.08` and `(1, 0.95)` at `0.01, 0.02, 0.04` (past its inner
+equator, `x₀ ≥ 0.06`, the frame routes the pose to the general rung, a
+different door). The row is
+`germ_plane_torus_spiric::a_plane_near_the_inner_equator_builds_its_true_bodies`;
+`loop_winding::spiric_rows::a_loop_on_an_oval_winds_one_way_round_and_the_other`
+winds whole-oval loops `1e-3`, `1e-6` and `1e-9` short of the inner
+equator.

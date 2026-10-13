@@ -1270,7 +1270,7 @@ fn below_chord_u_ref<T: Decide>(
 ///
 /// [`SplitFinishError::SectionWindingUndecided`];
 /// [`SplitFinishError::Corrupt`] on a torn loop.
-fn section_sense<T: Decide>(
+fn section_sense<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
     l: crate::entity::LoopKey,

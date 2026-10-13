@@ -518,7 +518,9 @@ pub(crate) struct Oval<T: Real> {
     minor: T,
     offset: T,
     span: (T, T),
-    own: ArcLoop<T>,
+    /// The side of its plane's two loops the oval's own lies on; `None`
+    /// only where a row strips it to show what it guards.
+    own: Option<ArcLoop<T>>,
 }
 
 /// An arc of a loop on a sphere, cone or torus face, over its
@@ -625,7 +627,7 @@ impl<T: Decide> LoopArc<T> {
                 normal: o.u_ref,
                 span: o.span,
                 speed: o.minor,
-                own: Some(o.own),
+                own: o.own,
             }),
             Self::Line { .. } | Self::Crest { .. } => None,
         }
@@ -821,13 +823,13 @@ impl<T: Decide> Quadric<T> {
             minor: minor_radius,
             offset,
             span: (t0.min(t1), t0.max(t1)),
-            own: ArcLoop {
+            own: Some(ArcLoop {
                 split: LoopSplit::Side {
                     origin: center,
                     dir: axis.cross(u_ref),
                 },
                 positive: true,
-            },
+            }),
         }))
     }
 
@@ -1650,7 +1652,7 @@ mod tests {
     #[test]
     fn a_torus_path_crosses_an_island_by_the_oracle_parity() {
         use super::torus_islands::{crest_islands, islands, spiric_islands, torus};
-        let mut far = 0usize;
+        let (mut far, mut far_oval) = (0usize, 0usize);
         for f in frames() {
             for mirror in [false, true] {
                 let surface = torus(f, mirror);
@@ -1683,12 +1685,18 @@ mod tests {
                                         LoopArc::Conic(conic) => {
                                             LoopArc::Conic(Conic { own: None, ..conic })
                                         }
+                                        LoopArc::Oval(oval) => {
+                                            LoopArc::Oval(Oval { own: None, ..oval })
+                                        }
                                         other => other,
                                     })
                                     .collect();
                                 if path_parity(&path, &blind, None, band()).unwrap() == Some(!want)
                                 {
                                     far += 1;
+                                    if arcs.iter().any(|a| matches!(a, LoopArc::Oval(_))) {
+                                        far_oval += 1;
+                                    }
                                 }
                             }
                         }
@@ -1701,8 +1709,9 @@ mod tests {
             }
         }
         assert!(
-            far > 1000,
-            "the rows cross the islands' planes on their other loops: {far} paths would miscount"
+            far > 1000 && far_oval > 1000,
+            "the rows cross the islands' planes on their other loops: {far} paths would \
+             miscount, {far_oval} of them across an oval's"
         );
     }
 

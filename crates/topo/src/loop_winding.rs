@@ -36,11 +36,16 @@
 //! winding says nothing about a fitted carrier's region. A closed form
 //! exists for a NON-rational B-spline (`geom_brep`'s
 //! `props::loop_vector_area` integrates it exactly per knot span); a
-//! rational spline has none, and neither has the spiric, whose bulge is
-//! an elliptic integral taken by a quadrature with a bounded error
-//! ([`spiric_segment_term`]): the error moves the area toward zero, and
-//! a boundary whose area does not clear it
-//! (**`bool_ring_run_winding_spiric_rule`**) has no winding here either.
+//! rational spline has none.
+//!
+//! Neither has the spiric, whose bulge is an elliptic integral. Its home
+//! is `geom_brep`'s `props::spiric`, the spiric face lane's certified
+//! enclosure of the arc's vector area, refinable by its piece count: a
+//! cycle carrying a spiric is summed at the interval scalar over that
+//! enclosure, refined until the sign is decided, and escalates where the
+//! finest count leaves it in the band ([`Body::spiric_winding`]). A
+//! scalar that does not certify (a dual) has no lift to that scalar, so
+//! there the cycle has no winding ([`Unwound::Uncertified`]).
 //!
 //! For the conic carriers the enclosed vector area decomposes EXACTLY,
 //! per edge — a substitution, not an approximation:
@@ -87,7 +92,9 @@
 //! chart normal", the opposite statement on a reversed face.
 
 use geom::Curve3;
-use geom_core::{Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+use geom_brep::props::spiric;
+use geom_core::interval::Interval;
+use geom_core::{Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EntityId, HalfEdgeKey, LoopKey, VertexKey};
@@ -109,13 +116,26 @@ pub(crate) struct RunMissesEnd;
 pub(crate) enum LoopWinding<W> {
     /// An empty loop: a lone vertex, which bounds no area.
     Empty,
-    /// A cycle carrying a NURBS edge, or spiric edges whose quadrature
-    /// cannot bound its error under the area, which the kernel does not
-    /// wind (module docs).
-    Unsupported,
+    /// A cycle the kernel does not wind (module docs), and why.
+    Unsupported(Unwound),
     /// The winding of a cycle the kernel reads.
     Wound(W),
 }
+
+/// **Why a cycle has no winding here** (module docs).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Unwound {
+    /// A NURBS edge, whose region a chord winding says nothing about.
+    Spline,
+    /// A spiric edge at a scalar that does not certify
+    /// ([`crate::props::AtRestPolicy::quad_lane`]): its bulge is read
+    /// only through the certified enclosure.
+    Uncertified,
+}
+
+/// A winding as the sum reads it: the decided sign, its escalation, or
+/// why the cycle has none.
+pub(crate) type Winding = Result<Result<Decided, Indeterminate>, Unwound>;
 
 /// **The conic term of one traversed edge** ([`ConicFrame`],
 /// [`chord_bulge`]): `(axis · sa·sb · (Δ − sin Δ), |Δ|·max(|sa|, |sb|))`, the vector area between the
@@ -152,105 +172,52 @@ pub(crate) fn conic_segment_term<T: Real>(
     ))
 }
 
-/// The 16-point Gauss–Legendre rule on `[−1, 1]`: its positive nodes and
-/// their weights (the rule is symmetric).
-const GAUSS16: [(f64, f64); 8] = [
-    (0.095_012_509_837_637_44, 0.189_450_610_455_068_5),
-    (0.281_603_550_779_258_9, 0.182_603_415_044_923_6),
-    (0.458_016_777_657_227_4, 0.169_156_519_395_002_5),
-    (0.617_876_244_402_643_7, 0.149_595_988_816_576_7),
-    (0.755_404_408_355_003, 0.124_628_971_255_533_9),
-    (0.865_631_202_387_831_7, 0.095_158_511_682_492_8),
-    (0.944_575_023_073_232_6, 0.062_253_523_938_647_9),
-    (0.989_400_934_991_649_9, 0.027_152_459_411_754_1),
-];
+/// The piece counts a spiric bulge's enclosure is taken at, coarse to
+/// fine: each refines the last where the winding it reads is undecided.
+const SPIRIC_PIECES: [usize; 4] = [16, 128, 1024, 8192];
 
-/// The pieces [`spiric_segment_term`]'s rule splits a span into.
-const SPIRIC_PIECES: u32 = 512;
-
-/// **A spiric arc's term** — [`conic_segment_term`]'s for a
-/// `Curve3::Spiric`, with a third member: a bound on the bulge's error.
-///
-/// With `P(t) = c + u·d + m·f(t) + a·r·sin t` (`m = a × u`, `m × a = u`,
-/// `f = √((R + r·cos t)² − d²)`), the arc's twice-area over its chord is
-///
-/// ```text
-///   ∫ (P − P(t_a)) × P′ dt = (c + u·d − P(t_a)) × (P(t_b) − P(t_a))
-///                          + u·r·(2J − [f·sin t]_{t_a}^{t_b}),
-///   J = ∫ f(t)·cos t dt
-/// ```
-///
-/// over the traversal `t_a → t_b` (`q × q′ = u·r·(f·cos t − f′·sin t)`
-/// for `q = m·f + a·r·sin t`, and the `f′` half integrates by parts).
-/// `J` is an elliptic integral, taken by the 16-point Gauss–Legendre
-/// rule over [`SPIRIC_PIECES`] equal pieces. Its remainder is bounded
-/// from the integrand's analytic strip: off the real axis by `|Im t| ≤
-/// δ = min(1, f_min²/(10·r·(R + r)))`, `f_min² = (R − r)² − d²`, the
-/// radicand moves by at most `r·η·(2(R + r) + r·η) ≤ 5δ·r·(R + r) ≤
-/// f_min²/2` (`η = cosh δ − 1 + sinh δ ≤ 1.72δ`, and `r < R`), so `f` is
-/// analytic there and `|f·cos t| ≤ M = 2(R + r)` (`|w| ≤ 1.5(R + r)²`,
-/// `cosh 1 < 1.55`). A piece of width `h` maps that strip
-/// to one of half-width `s = 2δ/h` about `[−1, 1]`, which holds the
-/// Bernstein ellipse `ϱ = s + √(s² + 1)`, and the rule's error on the
-/// piece is at most `(64/15)·M·ϱ^{−32}/(ϱ² − 1)·h/2` (Trefethen, ATAP
-/// Thm 19.3). The bulge's error is `2r` times the pieces' sum. A strip
-/// thin against the pieces (an oval whose plane nears the inner
-/// equator) leaves a bound the size of the bulge, and the sum then has
-/// no winding to report rather than a wrong one.
-///
-/// The length is `|Δ|` times the speed's supremum over a period,
-/// `r·√(1 + d²/f_min²)` ([`geom::spiric_rate_bounds`]): an upper bound,
-/// as an ellipse's is. `None` for any other carrier.
-pub(crate) fn spiric_segment_term<T: Real>(
-    (carrier, (t0, t1)): (&Curve3<T>, (T, T)),
+/// **A spiric arc's term**, at the interval scalar —
+/// [`conic_segment_term`]'s for a `Curve3::Spiric`: its bulge over its
+/// chord and an upper bound on its length. The bulge is twice the
+/// arc's vector area about its carrier's start point, which no chord
+/// through that point changes: `geom_brep`'s certified enclosure
+/// ([`spiric::spiric_vector_area`], the face lane's own term) at
+/// `pieces`. The length is [`spiric::spiric_length_bound`]. `None` for
+/// any other carrier, and for a span whose rate window has no certified
+/// positive `f`.
+fn spiric_segment_term(
+    (carrier, (t0, t1)): (&Curve3<Interval>, (Interval, Interval)),
     forward: bool,
-) -> Option<(Vec3<T>, T, T)> {
+    pieces: usize,
+) -> Option<(Vec3<Interval>, Interval)> {
     let Curve3::Spiric {
         center,
         axis,
         u_ref,
-        major_radius: big_r,
-        minor_radius: r,
-        offset: d,
+        major_radius,
+        minor_radius,
+        offset,
     } = *carrier
     else {
         return None;
     };
-    let (ta, tb) = if forward { (t0, t1) } else { (t1, t0) };
-    let f = |t: T| ((big_r + r * t.cos()).powi(2) - d.powi(2)).sqrt();
-    let at = |t: T| {
-        let (s, _) = t.sin_cos();
-        center + u_ref * d + axis.cross(u_ref) * f(t) + axis * (r * s)
+    let rv = |v: Vec3<Interval>| [v.x, v.y, v.z];
+    let edge = spiric::SpiricEdgeQ {
+        centre: rv(center - carrier.eval(t0)),
+        axis: rv(axis),
+        normal: rv(u_ref),
+        major: major_radius,
+        minor: minor_radius,
+        offset,
+        t0,
+        t1,
+        forward,
+        wall: None,
     };
-    let half = T::from_f64(0.5);
-    let pieces = T::from_f64(f64::from(SPIRIC_PIECES));
-    let h = (tb - ta) / pieces;
-    let mut j = T::zero();
-    for k in 0..SPIRIC_PIECES {
-        let mid = ta + h * (T::from_f64(f64::from(k)) + half);
-        for (x, w) in GAUSS16 {
-            for x in [x, -x] {
-                let t = mid + h * half * T::from_f64(x);
-                j = j + f(t) * t.cos() * h * half * T::from_f64(w);
-            }
-        }
-    }
-    let (pa, pb) = (at(ta), at(tb));
-    let ends = f(tb) * tb.sin() - f(ta) * ta.sin();
-    let bulge =
-        (center + u_ref * d - pa).cross(pb - pa) + u_ref * (r * (T::from_f64(2.0) * j - ends));
-    let f_min2 = (big_r - r).powi(2) - d.powi(2);
-    let delta = T::one().min(f_min2 / (T::from_f64(10.0) * r * (big_r + r)));
-    let s = T::from_f64(2.0) * delta / h.abs();
-    let rho = s + (s.powi(2) + T::one()).sqrt();
-    let per_piece = T::from_f64(64.0 / 15.0) * T::from_f64(2.0) * (big_r + r)
-        / rho.powi(32)
-        / (rho.powi(2) - T::one())
-        * h.abs()
-        * half;
-    let error = T::from_f64(2.0) * r * per_piece * pieces;
-    let (speed, _) = geom::spiric_rate_bounds(r, d, (big_r - r, big_r + r), T::one());
-    Some((bulge, (tb - ta).abs() * speed, error))
+    let length = spiric::spiric_length_bound(&edge)?;
+    let [x, y, z] = spiric::spiric_vector_area(&edge, pieces);
+    let area = Vec3::new(x, y, z);
+    Some((area + area, Interval::from_certified(length)))
 }
 
 /// **A conic carrier's frame** — the one reading of a circle or an
@@ -379,7 +346,7 @@ enum Closing<'a, T: Real> {
 /// is its chord).
 type Step<'a, T> = (Point3<T>, Option<Traversed<'a, T>>);
 
-impl<T: Decide> Body<T> {
+impl<T: crate::props::AtRestPolicy> Body<T> {
     /// The signed winding of cycle loop `l` around `normal` (module
     /// docs): `Positive` is counterclockwise about the normal
     /// (interior-left), `Negative` clockwise, `Zero` no signed area,
@@ -387,8 +354,7 @@ impl<T: Decide> Body<T> {
     ///
     /// `None` — no predicate is asked — for an empty loop (a
     /// lone-vertex ring bounds no area) and for a cycle the sum does not
-    /// wind (a NURBS edge, or spiric edges whose quadrature cannot bound
-    /// its error under the area: the honest remainder). There is no
+    /// wind ([`Unwound`]: the honest remainder). There is no
     /// narrower reach to ask for: the assigner, the checker and the
     /// join's ring lane answer on the one carrier set, which is what
     /// keeps them from disagreeing about which loops have a winding.
@@ -399,7 +365,7 @@ impl<T: Decide> Body<T> {
         band: geom_core::Band,
     ) -> Option<Result<Sign, Indeterminate>> {
         match self.planar_loop_winding_decided(l, normal, band) {
-            LoopWinding::Empty | LoopWinding::Unsupported => None,
+            LoopWinding::Empty | LoopWinding::Unsupported(_) => None,
             LoopWinding::Wound(w) => Some(w.map(|d| d.sign)),
         }
     }
@@ -431,8 +397,8 @@ impl<T: Decide> Body<T> {
             unreachable!("a cycle walk ends where it closes")
         };
         match self.winding_of_halves(&cycle, Closing::Cycle, normal, band) {
-            Some(w) => LoopWinding::Wound(w),
-            None => LoopWinding::Unsupported,
+            Ok(w) => LoopWinding::Wound(w),
+            Err(why) => LoopWinding::Unsupported(why),
         }
     }
 
@@ -442,7 +408,7 @@ impl<T: Decide> Body<T> {
     /// join's ring lane walls off as an island's new face
     /// (`boolean::join::ring_run_ccw`). The sum, the carrier set and the
     /// claim are [`Body::planar_loop_winding_decided`]'s; the closing
-    /// curve is the one thing a run adds. `Ok(None)` for a run the sum
+    /// curve is the one thing a run adds. `Ok(Err(_))` for a run the sum
     /// does not wind, as for a cycle; [`RunMissesEnd`]
     /// when `next` comes back to `h1` without reaching `h2`.
     ///
@@ -457,7 +423,7 @@ impl<T: Decide> Body<T> {
         closing: RunClosing<'_, T>,
         normal: Vec3<T>,
         band: geom_core::Band,
-    ) -> Result<Option<Result<Decided, Indeterminate>>, RunMissesEnd> {
+    ) -> Result<Winding, RunMissesEnd> {
         crate::live::proven(&self.half_edges, h1, EntityId::HalfEdge);
         let run = self
             .winding_walk(h1, EntityId::HalfEdge(h1), "next", |he, _| he == h2)
@@ -510,9 +476,9 @@ impl<T: Decide> Body<T> {
     }
 
     /// **The winding sum** (module docs) over `halves` in order, closed
-    /// as `closing` says — the one statement of it. `None` when a
-    /// half carries a NURBS edge, or the spiric edges' quadrature cannot
-    /// bound its error under the area.
+    /// as `closing` says — the one statement of it. A cycle carrying a
+    /// spiric is summed at the interval scalar
+    /// ([`Body::spiric_winding`]); every other at `T`.
     ///
     /// A null-edge scaffold is wound as its chord: it states no carrier,
     /// and `Body::mev_null` mints its far vertex on a copy of its near
@@ -525,20 +491,18 @@ impl<T: Decide> Body<T> {
         closing: Closing<'_, T>,
         normal: Vec3<T>,
         band: geom_core::Band,
-    ) -> Option<Result<Decided, Indeterminate>> {
+    ) -> Winding {
         let mut walked: Vec<Step<'_, T>> = Vec::with_capacity(halves.len());
-        // Whether some carrier is curved, and whether one is a spiric:
-        // the facts about the carrier set the sum reads (the correction
-        // block below, and the spiric rule's error folded into it).
-        let (mut any_conic, mut any_spiric) = (false, false);
+        let mut any_spiric = false;
         let mut kind = |carrier: &Curve3<T>| {
             match carrier {
-                geom::Curve3::Line { .. } => {}
-                geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => any_conic = true,
+                geom::Curve3::Line { .. }
+                | geom::Curve3::Circle { .. }
+                | geom::Curve3::Ellipse { .. } => {}
                 geom::Curve3::Spiric { .. } => any_spiric = true,
-                geom::Curve3::Nurbs(_) => return None,
+                geom::Curve3::Nurbs(_) => return Err(Unwound::Spline),
             }
-            Some(())
+            Ok(())
         };
         let closing_curve = match closing {
             Closing::Run(RunClosing::Curve(carrier, params)) => Some(((carrier, params), true)),
@@ -573,13 +537,13 @@ impl<T: Decide> Body<T> {
                 curve.map(|c| ((c.carrier(), c.params()), claim.plus)),
             ));
         }
-        let (Some(&(p0, _)), Some(&last)) = (walked.first(), halves.last()) else {
+        let Some(&last) = halves.last() else {
             unreachable!("a walk holds its first half")
         };
         // Where the last half ends: the first half's start on a cycle,
         // the run's own end on an open run.
         let end = match closing {
-            Closing::Cycle => p0,
+            Closing::Cycle => walked[0].0,
             Closing::Run(_) => {
                 let next = crate::live::proven(&self.half_edges, last, EntityId::HalfEdge).next;
                 let end = linked(
@@ -592,77 +556,151 @@ impl<T: Decide> Body<T> {
                 self.winding_point(end.start, EntityId::HalfEdge(next), "start")
             }
         };
-        // Each curved edge's bulge, length and the bound on its bulge's
-        // error (none for a conic, whose bulge is closed form).
-        let term = |(c, fwd): Traversed<'_, T>| {
-            conic_segment_term(c, fwd)
-                .map(|(bulge, len)| (bulge, len, T::zero()))
-                .or_else(|| spiric_segment_term(c, fwd))
-        };
-        let conic = |step: &Step<'_, T>| step.1.and_then(term);
         let open = matches!(closing, Closing::Run(_));
-        let mut newell = Vec3::new(T::zero(), T::zero(), T::zero());
-        // The F4 metering lever: the boundary's own length, accumulated
-        // with the area — a chord per straight edge, an arc length per
-        // conic, the closing curve included.
-        let mut perimeter = T::zero();
-        for (i, step) in walked.iter().enumerate() {
-            let p = step.0;
-            let next = walked.get(i + 1).map_or(end, |w| w.0);
-            if i + 1 < walked.len() || open {
-                newell = newell + (p - p0).cross(next - p0);
-            }
-            perimeter = perimeter
-                + match conic(step) {
-                    Some((_, len, _)) => len,
-                    None => (next - p).norm(),
-                };
-        }
-        let closing_term = closing_curve.and_then(term);
-        if open {
-            perimeter = perimeter
-                + match closing_term {
-                    Some((_, len, _)) => len,
-                    None => (end - p0).norm(),
-                };
-        }
-        // The curved correction (module docs), added only when some
-        // carrier is curved: a line-only cycle keeps the chord sum.
-        // Summed on its own and added once, so the chord sum is never
-        // re-associated.
-        let mut error = T::zero();
-        if any_conic || any_spiric {
-            let mut bulge = Vec3::new(T::zero(), T::zero(), T::zero());
-            for (b, _, e) in walked.iter().filter_map(conic).chain(closing_term) {
-                bulge = bulge + b;
-                error = error + e;
-            }
-            newell = newell + bulge;
-        }
-        let mut area = normal.dot(newell);
-        // A spiric rule's error moves the area toward zero by as much as
-        // it could be off. Where the area does not definitely clear it
-        // (**`bool_ring_run_winding_spiric_rule`**, the clearance over
-        // the perimeter, as the winding itself), the sum has no winding
-        // to report.
         if any_spiric {
-            let error = error * normal.norm();
-            let clear = crate::validate::decide(
-                "bool_ring_run_winding_spiric_rule",
-                Margin::over_lever(area.abs() - error, perimeter),
-                band,
-            );
-            if !matches!(clear, Ok(Sign::Positive)) {
-                return None;
-            }
-            area = area - area.max(-error).min(error);
+            return Self::spiric_winding(&walked, end, closing_curve, open, normal, band);
         }
-        Some(crate::validate::decide_reported(
+        let points: Vec<_> = walked
+            .iter()
+            .map(|&(p, c)| (p, c.and_then(|(c, fwd)| conic_segment_term(c, fwd))))
+            .collect();
+        let closing_term = closing_curve.and_then(|(c, fwd)| conic_segment_term(c, fwd));
+        let (area, perimeter) = winding_sum(&points, end, closing_term, open, normal);
+        Ok(crate::validate::decide_reported(
             WINDING_PREDICATE,
             Margin::over_lever(area, perimeter),
             band,
         ))
     }
+
+    /// [`Body::winding_of_halves`] for a cycle carrying a spiric, whose
+    /// bulge has no closed form: the sum at the interval scalar, every
+    /// point and carrier lifted by the scalar's certified lane, a
+    /// spiric's bulge its certified enclosure ([`spiric_segment_term`])
+    /// at [`SPIRIC_PIECES`]' counts in turn, until the winding is decided
+    /// (**`planar_winding_spiric_refine`**: the same margin, read where
+    /// a finer enclosure may yet decide it). An enclosure still undecided
+    /// at the finest count escalates. A scalar with no certified lane (a
+    /// dual) has no winding here.
+    fn spiric_winding(
+        walked: &[Step<'_, T>],
+        end: Point3<T>,
+        closing: Option<Traversed<'_, T>>,
+        open: bool,
+        normal: Vec3<T>,
+        band: geom_core::Band,
+    ) -> Winding {
+        let lane = T::quad_lane().ok_or(Unwound::Uncertified)?;
+        let point = |p: Point3<T>| Point3::new(lane.lift(p.x), lane.lift(p.y), lane.lift(p.z));
+        let curve = |((c, (t0, t1)), fwd): Traversed<'_, T>| {
+            (
+                c.map_scalar(|x| lane.lift(x)),
+                (lane.lift(t0), lane.lift(t1)),
+                fwd,
+            )
+        };
+        let lifted: Vec<_> = walked
+            .iter()
+            .map(|&(p, c)| (point(p), c.map(curve)))
+            .collect();
+        let closing = closing.map(curve);
+        let normal = Vec3::new(
+            lane.lift(normal.x),
+            lane.lift(normal.y),
+            lane.lift(normal.z),
+        );
+        let term = |(c, span, fwd): &(Curve3<Interval>, (Interval, Interval), bool), pieces| {
+            conic_segment_term((c, *span), *fwd)
+                .or_else(|| spiric_segment_term((c, *span), *fwd, pieces))
+        };
+        let Some((&finest, coarser)) = SPIRIC_PIECES.split_last() else {
+            unreachable!("the piece counts are a non-empty constant")
+        };
+        let margin = |pieces| {
+            let points: Vec<_> = lifted
+                .iter()
+                .map(|(p, c)| (*p, c.as_ref().and_then(|c| term(c, pieces))))
+                .collect();
+            let closing_term = closing.as_ref().and_then(|c| term(c, pieces));
+            let (area, perimeter) = winding_sum(&points, point(end), closing_term, open, normal);
+            Margin::over_lever(area, perimeter)
+        };
+        for &pieces in coarser {
+            let read = margin(pieces);
+            if crate::validate::decide("planar_winding_spiric_refine", read, band).is_ok() {
+                return Ok(crate::validate::decide_reported(
+                    WINDING_PREDICATE,
+                    read,
+                    band,
+                ));
+            }
+        }
+        Ok(crate::validate::decide_reported(
+            WINDING_PREDICATE,
+            margin(finest),
+            band,
+        ))
+    }
+}
+
+/// A curved edge's term in the winding sum: its bulge over its chord
+/// and its length.
+type Term<S> = (Vec3<S>, S);
+
+/// **The winding sum's area and perimeter** (module docs), at any
+/// scalar: `points` each traversed half's start and its curved term (a
+/// conic's or a spiric's bulge and length; `None` for a chord), `end`
+/// where the last half ends, `closing` an open run's closing curve's
+/// term (`None` for a cycle, or a straight closing). The area is the
+/// Newell sum's component along `normal`, the bulges added once after
+/// it, so a line-only cycle keeps the chord sum.
+fn winding_sum<S: Real>(
+    points: &[(Point3<S>, Option<Term<S>>)],
+    end: Point3<S>,
+    closing: Option<Term<S>>,
+    open: bool,
+    normal: Vec3<S>,
+) -> (S, S) {
+    let Some(&(p0, _)) = points.first() else {
+        unreachable!("a walk holds its first half")
+    };
+    let mut newell = Vec3::new(S::zero(), S::zero(), S::zero());
+    // The F4 metering lever: the boundary's own length, accumulated
+    // with the area — a chord per straight edge, an arc length per
+    // curve, the closing curve included.
+    let mut perimeter = S::zero();
+    for (i, &(p, term)) in points.iter().enumerate() {
+        let next = points.get(i + 1).map_or(end, |w| w.0);
+        if i + 1 < points.len() || open {
+            newell = newell + (p - p0).cross(next - p0);
+        }
+        perimeter = perimeter
+            + match term {
+                Some((_, len)) => len,
+                None => (next - p).norm(),
+            };
+    }
+    if open {
+        perimeter = perimeter
+            + match closing {
+                Some((_, len)) => len,
+                None => (end - p0).norm(),
+            };
+    }
+    // The curved correction, summed on its own and added once, so the
+    // chord sum is never re-associated.
+    let mut bulges = points
+        .iter()
+        .filter_map(|&(_, t)| t)
+        .chain(closing)
+        .peekable();
+    if bulges.peek().is_some() {
+        let bulge = bulges.fold(Vec3::new(S::zero(), S::zero(), S::zero()), |acc, (b, _)| {
+            acc + b
+        });
+        newell = newell + bulge;
+    }
+    (normal.dot(newell), perimeter)
 }
 
 #[cfg(test)]
