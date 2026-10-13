@@ -774,7 +774,7 @@ pub struct GivenPair {
 /// operation's own decisions ([`glue::decided_declarations`]) or the
 /// pairs it was given ([`BooleanInputs::given`]), in arena keys, each
 /// pair under the class its relation makes it.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Glue {
     /// Cross-operand glued face pairs, each with its class:
     /// classification treats a `Rest` or continuation pair's carriers as
@@ -789,6 +789,59 @@ pub(crate) struct Glue {
     /// Whether the operation decides its own coincidences or is given
     /// them ([`Verdicts`]).
     pub(crate) verdicts: Verdicts,
+    /// The pairs the glue door read in band and left unglued, each with
+    /// the reading it could not decide ([`InBandPair`]).
+    pub(crate) in_band: Vec<InBandPair>,
+}
+
+/// **A pair the glue door read in band** over both faces and left
+/// unglued: its faces and what the carrier ladder could not decide
+/// there, which a corner meeting the pair quotes where it binds
+/// ([`unglued_corner`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct InBandPair {
+    /// The A-operand face.
+    pub(crate) a: FaceKey,
+    /// The B-operand face.
+    pub(crate) b: FaceKey,
+    /// The undecided reading.
+    pub(crate) reading: DoorReading,
+}
+
+/// What the glue door could not decide of an undeclared pair: a rung of
+/// the plane ladder in band, or a coincidence measure undecided with the
+/// orientation already decided.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum DoorReading {
+    /// [`carrier_eq::CarrierEqError::Escalated`].
+    Rung {
+        rung: PlaneRung,
+        diag: Indeterminate,
+    },
+    /// [`carrier_eq::CarrierEqError::Undecided`].
+    Coincidence {
+        coincidence: carrier_eq::CoincidenceMeasure,
+        relation: CarrierRelation,
+    },
+}
+
+impl DoorReading {
+    /// The reading of an undeclared pair's refusal; `None` for the
+    /// refusals only a declared reading gives.
+    pub(crate) fn of(refusal: carrier_eq::CarrierEqError) -> Option<Self> {
+        match refusal {
+            carrier_eq::CarrierEqError::Escalated { rung, diag } => Some(Self::Rung { rung, diag }),
+            carrier_eq::CarrierEqError::Undecided {
+                coincidence,
+                relation,
+            } => Some(Self::Coincidence {
+                coincidence,
+                relation,
+            }),
+            carrier_eq::CarrierEqError::Unsettled { .. }
+            | carrier_eq::CarrierEqError::Contradicted { .. } => None,
+        }
+    }
 }
 
 /// **Where a boolean's coincidence verdicts come from.** An operation
@@ -849,6 +902,7 @@ impl Glue {
             records_a: records_a.clone(),
             records_b: records_b.clone(),
             verdicts,
+            in_band: Vec::new(),
         })
     }
 }
@@ -904,6 +958,9 @@ pub(crate) struct GluedPairs<T: Real> {
     /// declared pair has one: the production constructor
     /// ([`Self::build`]) refuses a pair whose extent does not read.
     extent: std::collections::BTreeMap<(FaceKey, FaceKey), carrier_pair::PairExtent<T>>,
+    /// What the glue door read of each pair it left in band,
+    /// `(A face, B face)` ([`Glue::in_band`]).
+    in_band: std::collections::BTreeMap<(FaceKey, FaceKey), DoorReading>,
 }
 
 impl<T: Real> Default for GluedPairs<T> {
@@ -913,6 +970,7 @@ impl<T: Real> Default for GluedPairs<T> {
             verified: VerifiedGlue::default(),
             one_sided: std::collections::BTreeMap::new(),
             extent: std::collections::BTreeMap::new(),
+            in_band: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -972,6 +1030,49 @@ pub(crate) fn unglued_coincidence(
             terminal_sliver: false,
         },
     )
+}
+
+/// **An unglued pair a corner reads one carrier, refused on the reading
+/// that binds it**: the one whose clearing the operation waits on.
+/// `corner` is the corner's own refusal, on its standing off two
+/// carriers it lies on, which no tolerance clears. Two readings can be
+/// cleared:
+///
+/// - `bounds`, the sector's bounds' reading off the other carrier
+///   ([`sectors::BoolSector::bounds_off`]): a smaller tolerance reads the
+///   sector off it, and the corner with it ([`Coincide::Sectors`]);
+/// - the glue door's in-band reading over both faces
+///   ([`GluedPairs::door_refusal`]): one that decides Zero glues the
+///   pair.
+///
+/// Of those that offer a tolerance, the refusal quotes the one that
+/// binds first ([`MarginDiag::binds_before`]), so its offer clears
+/// both. Where neither offers one, the sector lies on the other carrier
+/// at every tolerance and only a glue clears the pair: the door's
+/// reading, where the door read the pair in band, else `corner`.
+pub(crate) fn unglued_corner<T: Real>(
+    declared: &GluedPairs<T>,
+    pair: (Operand, FaceKey, Operand, FaceKey),
+    senses: Option<CarrierRelation>,
+    corner: BooleanError,
+    bounds: Option<Indeterminate>,
+) -> BooleanError {
+    let offers = |diag: Option<Indeterminate>| diag.filter(Indeterminate::offers_tolerance);
+    let door = declared.door_refusal(pair, senses);
+    let bounds_bind = match (offers(bounds), offers(door.as_ref().map(|(d, _)| *d))) {
+        (Some(b), Some(d)) => b.margin.binds_before(d.margin),
+        (Some(_), None) => true,
+        (None, _) => false,
+    };
+    match (bounds, door) {
+        (Some(diag), _) if bounds_bind => {
+            let admitted = senses.and_then(GlueClass::of_senses);
+            let read = declared.read(&[pair], Coincide::Sectors, admitted.as_slice());
+            BooleanError::coincidence(Coincide::Sectors, read, diag)
+        }
+        (_, Some((_, door))) => door,
+        _ => corner,
+    }
 }
 
 /// An undecided coincidence measure between `pair` as the Boolean
@@ -1344,7 +1445,43 @@ impl<T: Real> GluedPairs<T> {
             verified,
             one_sided,
             extent: std::collections::BTreeMap::new(),
+            in_band: decls
+                .in_band
+                .iter()
+                .map(|p| ((p.a, p.b), p.reading))
+                .collect(),
         }
+    }
+
+    /// **The glue door's refusal of a pair it read in band**, in its
+    /// words at the pair's door ([`PlaneDoor::OnPair`]), with the
+    /// reading it quotes; `None` where the door decided the pair or
+    /// never read it. `senses` is the orientation the caller read of
+    /// the two faces, which a rung's door admits a class by.
+    fn door_refusal(
+        &self,
+        pair: (Operand, FaceKey, Operand, FaceKey),
+        senses: Option<CarrierRelation>,
+    ) -> Option<(Indeterminate, BooleanError)> {
+        let (o1, f1, o2, f2) = pair;
+        let reading = *self.in_band.get(&Self::key(o1, f1, o2, f2)?)?;
+        Some(match reading {
+            DoorReading::Rung { rung, diag } => (
+                diag,
+                BooleanError::plane_identity(rung, self.on_pair_door(pair, senses), diag),
+            ),
+            DoorReading::Coincidence {
+                coincidence,
+                relation,
+            } => (
+                coincidence.reported(),
+                undecided_coincidence(
+                    coincidence,
+                    [(o1, f1), (o2, f2)],
+                    self.carriers_read(pair, relation),
+                ),
+            ),
+        })
     }
 
     /// `(f1, f2)` as the `(A face, B face)` key, for a cross-operand

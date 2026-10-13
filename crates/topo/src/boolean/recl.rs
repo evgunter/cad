@@ -79,8 +79,8 @@ fn carrier_of<T: Decide>(
 /// or a pair the glue door decided one carrier and declared) reads as
 /// the declaration door read it at rest, over both faces; any other
 /// pair over the sectors `on` names about the corner, where a
-/// coincidence decided Zero is one the door did not glue and refuses
-/// ([`super::unglued_coincidence`]).
+/// coincidence decided Zero is one the door did not glue and refuses on
+/// the reading that binds it ([`super::unglued_corner`]).
 ///
 /// C8: a CURVED sector pair descends the ladder only as a glued
 /// one-carrier pair; an unglued on-carrier curved pair keeps the typed
@@ -156,16 +156,29 @@ pub(super) fn require_same<T: Decide>(
             what: "geometrically-ON sector pair with definitely-distinct carriers",
         }),
         Ok((rel, ..)) if declared_one_carrier => Ok(rel),
-        Ok((rel, _, margin)) => Err(super::unglued_coincidence(
-            // A reading with no margin is one carrier by structure (one key,
-            // or bit-identical descriptions), which the glue door glues
-            // wherever the two faces meet, as they do at this corner.
-            margin.ok_or(BooleanError::ClassificationInvariant {
-                what: "a corner pair one carrier by structure the glue door left unglued",
-            })?,
-            declared.carriers_read(pair, rel),
-            band,
-        )),
+        Ok((rel, _, margin)) => {
+            let corner = super::unglued_coincidence(
+                // A reading with no margin is one carrier by structure (one key,
+                // or bit-identical descriptions), which the glue door glues
+                // wherever the two faces meet, as they do at this corner.
+                margin.ok_or(BooleanError::ClassificationInvariant {
+                    what: "a corner pair one carrier by structure the glue door left unglued",
+                })?,
+                declared.carriers_read(pair, rel),
+                band,
+            );
+            let bounds = match &c2 {
+                CarrierDesc::Plane { normal, .. } => s1.bounds_off(*normal, band).err(),
+                _ => None,
+            };
+            Err(super::unglued_corner(
+                declared,
+                pair,
+                super::plane_eq::senses(s1.normal.vec(), s2.normal.vec(), arm, band),
+                corner,
+                bounds,
+            ))
+        }
         Err(PlaneEqError::Escalated { rung, diag }) => Err(BooleanError::plane_identity(
             rung,
             declared.on_pair_door(
@@ -250,12 +263,7 @@ fn unglued_tilt<T: Decide>(
     if !matches!(tilted, Ok(Sign::Positive)) {
         return defect;
     }
-    let steeper = s1
-        .start_reach
-        .departure(s1.start, *n2)
-        .abs()
-        .max(s1.end_reach.departure(s1.end, *n2).abs());
-    match crate::validate::decide_nonzero("bool_sector_coplanar", Margin::of(steeper), band) {
+    match s1.bounds_off(*n2, band) {
         Err(diag) => BooleanError::coincidence(
             Coincide::Sectors,
             declared.read(&[(o1, f1, o2, f2)], Coincide::Sectors, &[]),

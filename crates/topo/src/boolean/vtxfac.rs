@@ -858,17 +858,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 Coincide::Sectors,
                 &admitted,
             );
-            let nv = n_pierced.vec();
-            let steeper = s
-                .start_reach
-                .departure(s.start, nv)
-                .abs()
-                .max(s.end_reach.departure(s.end, nv).abs());
-            return match crate::validate::decide_nonzero(
-                "bool_sector_coplanar",
-                Margin::of(steeper),
-                band,
-            ) {
+            return match s.bounds_off(n_pierced.vec(), band) {
                 Err(diag) => Err(BooleanError::coincidence(Coincide::Sectors, read, diag)),
                 Ok(_) => Err(BooleanError::ClassificationInvariant {
                     what: "a sector bound read On departs definitely from the plane",
@@ -1022,7 +1012,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             // One plane at the sector's arm, for a pair the glue door
             // did not glue over the faces.
             Ok((rel, _, margin)) => {
-                return Err(super::unglued_coincidence(
+                let corner = super::unglued_coincidence(
                     // A reading with no margin is one carrier by structure (one key,
                     // or bit-identical descriptions), which the glue door glues
                     // wherever the two faces meet, as they do at this corner.
@@ -1031,6 +1021,13 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     })?,
                     declared.carriers_read(pair, rel),
                     band,
+                );
+                return Err(super::unglued_corner(
+                    declared,
+                    pair,
+                    super::plane_eq::senses(s.normal.vec(), n_pierced.vec(), s.arm, band),
+                    corner,
+                    s.bounds_off(n_pierced.vec(), band).err(),
                 ));
             }
             // In band, unreachable here: `bool_sector_coplanar` read
