@@ -1225,3 +1225,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Dispatched the ring-path far-frame item**: session_01BSMsJZ6mG5kL2NbMRNpAV5, branch germ/ring-path-far-frames.
 - 2026-10-13 17:17 — Check-in. All three lanes are working: 4964's fix pass is measuring mutants (A is now red on 15/15 seeds after the tightened judges); 4966's fix pass ported #4993's compile fix and is running cone subsets at each ε; the far-frame lane is reproducing the item's count. Nothing to merge. Re-armed for 18:17.
 - 2026-10-13 18:18 — Check-in. All three lanes are in verification: 4964's fix pass merged main and is running topo; 4966's fix pass merged main cleanly and is re-running its rows before the push; the far-frame lane merged main and is running the ring-lane sweep rows at three ε. Nothing to merge. Re-armed for 19:18.
+- 2026-10-13 19:25 — Check-in.
+  - **PR 5012** opened by the far-frame lane, head `4e47394f04`.
+    - Main reads 442 of 92 654 cone paths wrong and 5 270 of 598 847 torus paths wrong in the far frame; 0 wrong after the change.
+    - It adds a uniform `charge(m, slack)` across 13 readings, with a per-reading mutant table, and files `torus-circle-arc-classifies-far-frame-carriers-uncharged`.
+    - Graded M. Arm byte 118, mod 3 = 1 → **SEQUENTIAL**. One local Opus review, r5012, on the frozen head; brief sha256 `6ed44f86b40d`.
+  - 4966's fix pass pushed `5f4644d21e`; its hosted test is running and the PR body is not yet updated. 4964's fix pass has not pushed yet.
+  - Next lane: wait for 4966's TiltedEllipse filing (a served ellipse 1e7·ε off flat cones, on main), then dispatch it. Re-armed for 20:19.
