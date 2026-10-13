@@ -341,8 +341,7 @@ fn poses() -> Vec<(String, Slab, f64, bool, f64)> {
 }
 
 /// **Every pose, every op, printed against the oracle** (R2 of PR 4704).
-/// `sameside-flush` (the slab's `y` running past the round) refuses
-/// every op `CurvedBooleanUnsupported`. Run:
+/// Run:
 /// `cargo test -p sweep --test all review_4704_every_pose -- --ignored --nocapture`
 #[test]
 #[ignore = "measurement: prints each pose's outcome; run with --ignored --nocapture"]
@@ -364,16 +363,13 @@ fn review_4704_every_pose() {
 /// the other order around the rim; `inner-*` put the slab above `z = 1`,
 /// sharing the round's bottom plane with the same orientation, so the
 /// half-turn's lumped flank reads In for ∪ and ∩ where the PR's poses
-/// read it In for ∪ alone. Each was a `ClassificationInvariant` (odd
-/// crossing count) or a `bool_wedge_reflex` escalation on the merge base.
+/// read it In for ∪ alone; `sameside-*` put the slab on the round's own
+/// side of the rim line, `sameside-flush` running past the round's ends.
 #[test]
 fn the_rims_half_turn_postures_answer_against_the_oracle() {
     let mut bad = Vec::new();
     for (name, slab, beta, mirror, meet) in poses() {
-        if !(name.contains("flush") || name.contains("corner"))
-            || name.starts_with("sameside")
-            || name.starts_with("tilt")
-        {
+        if !(name.contains("flush") || name.contains("corner")) || name.starts_with("tilt") {
             continue;
         }
         for line in pose(slab, beta, mirror, meet) {

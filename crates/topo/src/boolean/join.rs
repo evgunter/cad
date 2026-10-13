@@ -895,6 +895,10 @@ pub(super) struct Connected {
     pub completed: Vec<CompletedPolygonPair>,
     pub a_fragments: crate::lineage::FaceDivisions,
     pub b_fragments: crate::lineage::FaceDivisions,
+    /// Each operand's faces the join killed, `(killed face, face holding
+    /// its region)` in that operand's clone keys, A's then B's
+    /// (`ChordJoiner::take_absorbed`).
+    pub absorbed: [crate::lineage::Substitutions<FaceKey>; 2],
     /// Each operand's chords along its own edges, `(edge, chord)` in
     /// that operand's clone keys, A's then B's: every chord a segment
     /// whose locus on that operand is an edge minted runs along that
@@ -1409,6 +1413,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         completed,
         a_fragments: sa.joiner.take_fragments(),
         b_fragments: sb.joiner.take_fragments(),
+        absorbed: [sa.joiner.take_absorbed(), sb.joiner.take_absorbed()],
         along: [sa.along, sb.along],
     })
 }

@@ -3,7 +3,7 @@
 //! edges turn at a trivalent vertex whose third edge is unrequested,
 //! each band is cut off by the other's support and the two meet along
 //! their intersection — a line for a chamfer, a planar ellipse for a
-//! fillet. Where the trihedron is isosceles about the third edge the
+//! fillet. Where the two bands' feet on the third edge coincide the
 //! mitre runs from the trimlines' crossing on the shared face down to
 //! that edge, which ends there at a valence-4 vertex.
 //!
@@ -19,7 +19,7 @@ use core::f64::consts::PI;
 
 use geom_core::k_stats::Bracket;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Sign, Vec3};
-use sweep::blend::battery::TURN_NOT_ISOSCELES;
+use sweep::blend::battery::TURN_OVERRUN;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
     BlendDecision, BlendError, CornerConfig, FILLET3_CORNER_RECOURSE, run_battery_for,
@@ -34,6 +34,8 @@ use topo::{AtRestBody, Body, EdgeKey, mass_properties, validate_geometric};
 use crate::band_planar_cut_off::{
     D, Verb, carve, edge, midpoint_tol, pad_ceiling, the_box, tol, volume, volume_enclosure,
 };
+use crate::band_turn_overrun_probe as probe;
+use crate::band_turn_overrun_verdict::far_band;
 use crate::common::cavity::{brick, cavity_corner, cut, edges_with_corners, rod, vented_cavity};
 use crate::common::operands::{leaning_turn, parallelepiped};
 
@@ -199,34 +201,40 @@ fn an_extruded_pentagon_cap_rim_turns_at_every_vertex() {
     }
 }
 
-/// **A turn that is not isosceles refuses typed** (`leaning_turn`): the
-/// leaning wall's dihedral is not the end face's, so one band reaches
-/// past the mitre — the overrun, which is not built. Near equality the
-/// verdict is in band and escalates on `fillet3_turn_isosceles`, whose
-/// margin is the face angles' cosines apart, `s/√(1 + s²)`, levered at
-/// the longer edge, `2 − s`; the lean is read off the run's band.
+/// **A turn whose feet stand apart refuses typed** (`leaning_turn`):
+/// the leaning wall's dihedral is not the end face's, so one band's
+/// foot on the lateral edge is further and that band runs on past the
+/// mitre — the overrun, which is not built. The refusal names the far
+/// band: at a lean of `0.5` the end face's for both verbs (its right
+/// dihedral has the larger sine and the smaller angle); at `−0.5` the
+/// end face's for the chamfer (the larger sine) and the leaning wall's
+/// for the fillet (the smaller angle).
 #[test]
-fn a_turn_whose_faces_are_not_symmetric_refuses_typed() {
-    let (body, turn) = leaning_turn(0.5);
-    for verb in [Verb::Chamfer, Verb::Fillet] {
-        match verb.run(&body, &turn) {
-            Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-                assert_eq!(detail, TURN_NOT_ISOSCELES, "{verb:?}");
+fn a_turn_whose_feet_stand_apart_refuses_naming_its_far_band() {
+    for (s, far) in [(0.5, [0, 0]), (-0.5, [0, 1])] {
+        let (body, turn) = leaning_turn(s);
+        for (verb, far) in [Verb::Chamfer, Verb::Fillet].into_iter().zip(far) {
+            let closed = match verb {
+                Verb::Chamfer => probe::Verb::Chamfer,
+                Verb::Fillet => probe::Verb::Fillet,
+            };
+            assert_eq!(
+                far_band(&body, turn, closed),
+                far,
+                "{verb:?} at {s}: the closed forms' far band"
+            );
+            match verb.run(&body, &turn) {
+                Err(BlendError::UnsupportedRunOut { at, detail }) => {
+                    assert_eq!(detail, TURN_OVERRUN, "{verb:?} at {s}");
+                    assert_eq!(
+                        at,
+                        topo::EntityId::Edge(turn[far]),
+                        "{verb:?} at {s}: the far band"
+                    );
+                }
+                other => panic!("{verb:?} at {s}: the overrun refuses as a run-out, got {other:?}"),
             }
-            other => panic!("{verb:?}: the overrun refuses as a run-out, got {other:?}"),
         }
-    }
-    let band = Band::linear(tol()).expect("the run's band");
-    let s = (band.zero() * band.escalate()).sqrt() / 2.0;
-    let (body, turn) = leaning_turn(s);
-    match Verb::Chamfer.run(&body, &turn) {
-        Err(BlendError::Escalated {
-            decision, source, ..
-        }) => {
-            assert_eq!(decision, BlendDecision::TurnIsosceles);
-            assert_eq!(source.predicate, Some("fillet3_turn_isosceles"));
-        }
-        other => panic!("s = {s}: the sliver band escalates, got {other:?}"),
     }
 }
 
@@ -359,7 +367,7 @@ fn an_isosceles_turn_is_recorded_as_a_value_decided_coincidence() {
                 turn.requested.map(cell),
                 "{kind:?}: the row names the turn's two requested edges"
             );
-            assert_eq!(row.relation, topo::Relation::EqualAngles, "{kind:?}");
+            assert_eq!(row.relation, topo::Relation::CommonFoot, "{kind:?}");
             assert_eq!(row.site, topo::DecisionSite::BatteryTurn, "{kind:?}");
             let reading = row
                 .margin
@@ -435,11 +443,11 @@ fn the_mitre_carves_at_the_certified_scalar() {
             .finish()
             .verdicts
             .into_iter()
-            .filter(|v| v.predicate == "fillet3_turn_isosceles")
+            .filter(|v| v.predicate.starts_with("fillet3_turn_"))
             .collect();
         assert!(
-            !turns.is_empty() && turns.iter().all(|v| v.sign == Sign::Zero),
-            "{verb:?}: the turn is isosceles at Interval: {turns:?}"
+            turns.len() == 2 && turns.iter().all(|v| v.sign == Sign::Zero),
+            "{verb:?}: the turn's gap and chord read Zero at Interval: {turns:?}"
         );
         validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("{verb:?}: tier 3, {e:?}"));
         assert_naming_totality(&body, &out, &edges, "two adjacent top edges at Interval");
@@ -645,7 +653,7 @@ fn frustum(s: f64) -> Body<f64> {
 
 /// The half-space `(x − q)·n ≤ 0` within a slab ten wide: a prism on
 /// its plane, extruded along `−n`.
-fn half_space(q: Point3<f64>, n: Vec3<f64>) -> Body<f64> {
+pub(crate) fn half_space(q: Point3<f64>, n: Vec3<f64>) -> Body<f64> {
     let n = n.normalize();
     let seed = if n.x.abs() < 0.9 {
         Vec3::new(1.0, 0.0, 0.0)
@@ -785,65 +793,97 @@ fn concave_mitres_beside_an_island_refuse_where_their_bands_reach_it() {
     }
 }
 
-/// **A sheared box's supplementary corners refuse; its isosceles ones
-/// build** (`common::operands::parallelepiped`, lean `s = 0.3`). At
-/// `(s, s, 1)` the two top edges make one angle with the lateral edge,
-/// and the turn mitres: tier 3, naming total, and the chamfer at the
-/// volume of the box less its two chamfer half-spaces. At `(2 + s, s,
-/// 1)` they make supplementary angles, and both verbs refuse it as not
-/// isosceles, which is all the refusal claims: a chamfer's two feet on
-/// the lateral edge coincide there, so no band reaches past the other,
-/// and that chamfer is the overrun's design, not built here.
+/// **A sheared box's corners** (`common::operands::parallelepiped`,
+/// lean `s = 0.3`). At `(s, s, 1)` the two top edges make one angle
+/// with the lateral edge, and both verbs mitre: tier 3, naming total,
+/// and the chamfer at the volume of the box less its two chamfer
+/// half-spaces. At `(2 + s, s, 1)` they make supplementary angles: a
+/// chamfer's foot stands `d / sin φ` down the lateral edge, so its two
+/// feet are one point and it mitres too, at its own half-spaces'
+/// volume, the coincidence recorded as at any mitre. A fillet's feet
+/// stand apart there, so it overruns and refuses, naming the far band.
 #[test]
-fn a_sheared_box_mitres_its_isosceles_corners_and_refuses_its_supplementary_ones() {
+fn a_sheared_box_chamfer_mitres_both_corners_and_its_fillet_overruns_the_supplementary_one() {
     let s = 0.3;
     let body = parallelepiped(s);
     validate_geometric(&body, tol()).expect("the sheared box is tier-3 valid");
-    let v = [s, s, 1.0];
-    let iso = [
-        edge(&body, v, [2.0 + s, s, 1.0]),
-        edge(&body, v, [s, 1.5 + s, 1.0]),
-    ];
     let k = (1.0 + s * s).sqrt();
     let top = Vec3::new(0.0, 0.0, 1.0);
-    let p = Point3::new(s, s, 1.0);
-    let oracle = [
-        (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, -1.0, s) / k),
-        (Vec3::new(1.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, s) / k),
-    ]
-    .iter()
-    .fold(body.clone(), |cut, &(m, n)| {
-        realized(
-            BooleanOp::Intersect,
-            &cut,
-            &half_space(p + m * D, top + n),
-            tol(),
-        )
-    });
     let v0 = volume(&body);
-    let w = [2.0 + s, s, 1.0];
-    let supplementary = [
-        edge(&body, w, [s, s, 1.0]),
-        edge(&body, w, [2.0 + s, 1.5 + s, 1.0]),
+    // Each corner's two edges, and the box less the two chamfer
+    // half-spaces there: each through the point a setback in from its
+    // edge on the top, its normal the two supports' outward normals
+    // summed (equal setbacks).
+    let (v, w) = ([s, s, 1.0], [2.0 + s, s, 1.0]);
+    let front = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, -1.0, s) / k);
+    let corners = [
+        (
+            "isosceles",
+            v,
+            [
+                edge(&body, v, [2.0 + s, s, 1.0]),
+                edge(&body, v, [s, 1.5 + s, 1.0]),
+            ],
+            [
+                front,
+                (Vec3::new(1.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, s) / k),
+            ],
+        ),
+        (
+            "supplementary",
+            w,
+            [
+                edge(&body, w, [s, s, 1.0]),
+                edge(&body, w, [2.0 + s, 1.5 + s, 1.0]),
+            ],
+            [
+                front,
+                (Vec3::new(-1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, -s) / k),
+            ],
+        ),
     ];
-    for verb in [Verb::Chamfer, Verb::Fillet] {
-        let out = verb
-            .run(&body, &iso)
-            .unwrap_or_else(|e| panic!("{verb:?}: the isosceles corner mitres, got {e}"));
-        validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{verb:?}: tier 3, {e:?}"));
-        assert_naming_totality(&body, &out, &iso, "the sheared box's isosceles corner");
-        if let Verb::Chamfer = verb {
-            let (removed, want) = (v0 - volume(&out.body), v0 - volume(&oracle));
-            assert!(
-                (removed - want).abs() < 1e-9,
-                "chamfer: ΔV {removed} against the half-spaces' {want}"
-            );
-        }
-        match verb.run(&body, &supplementary) {
-            Err(BlendError::UnsupportedRunOut { detail, .. }) => {
-                assert_eq!(detail, TURN_NOT_ISOSCELES, "{verb:?}");
+    for (what, at, edges, halves) in corners {
+        let p = Point3::new(at[0], at[1], at[2]);
+        let oracle = halves.iter().fold(body.clone(), |cut, &(m, n)| {
+            realized(
+                BooleanOp::Intersect,
+                &cut,
+                &half_space(p + m * D, top + n),
+                tol(),
+            )
+        });
+        let out = Verb::Chamfer
+            .run(&body, &edges)
+            .unwrap_or_else(|e| panic!("chamfer at the {what} corner: mitres, got {e}"));
+        validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("chamfer at the {what} corner: tier 3, {e:?}"));
+        assert_naming_totality(&body, &out, &edges, what);
+        let (removed, want) = (v0 - volume(&out.body), v0 - volume(&oracle));
+        assert!(
+            (removed - want).abs() < 1e-9,
+            "chamfer at the {what} corner: ΔV {removed} against the half-spaces' {want}"
+        );
+        assert!(
+            out.coincidences
+                .iter()
+                .any(|r| r.relation == topo::Relation::CommonFoot),
+            "chamfer at the {what} corner: the feet's coincidence is recorded"
+        );
+        let fillet = Verb::Fillet.run(&body, &edges);
+        match (what, fillet) {
+            ("isosceles", Ok(out)) => {
+                validate_geometric(&out.body, tol())
+                    .unwrap_or_else(|e| panic!("fillet at the {what} corner: tier 3, {e:?}"));
+                assert_naming_totality(&body, &out, &edges, what);
             }
-            other => panic!("{verb:?}: the supplementary corner refuses, got {other:?}"),
+            ("supplementary", Err(BlendError::UnsupportedRunOut { at, detail })) => {
+                assert_eq!(detail, TURN_OVERRUN);
+                assert!(
+                    edges.iter().any(|e| at == topo::EntityId::Edge(*e)),
+                    "the fillet's overrun names a requested edge, got {at:?}"
+                );
+            }
+            (_, other) => panic!("fillet at the {what} corner: got {:?}", other.map(|_| ())),
         }
     }
 }
@@ -1031,9 +1071,9 @@ fn the_turn_foot_lies_on_both_trimlines_within_the_band() {
 /// which moves as `cos φ / sin³φ` in `cos φ`: turn the second edge on
 /// by `ε`, the face angles' cosines then differing by half the zero
 /// band over the edge's lever, and the feet stand about twice the band
-/// apart. The verdict reads the feet too, so that turn escalates rather
-/// than building a mitre whose end misses both trimlines; the symmetric
-/// spike builds.
+/// apart. The verdict reads the feet, not the angles, so that turn
+/// escalates on their gap rather than building a mitre whose end misses
+/// both trimlines; the symmetric spike builds.
 #[test]
 fn an_acute_turn_symmetric_only_by_its_angles_escalates() {
     let band = Band::linear(tol()).expect("the run's band");
@@ -1069,10 +1109,10 @@ fn an_acute_turn_symmetric_only_by_its_angles_escalates() {
         Err(BlendError::Escalated {
             decision, source, ..
         }) => {
-            assert_eq!(decision, BlendDecision::TurnIsosceles);
+            assert_eq!(decision, BlendDecision::TurnFeetGap);
             let reading = source.margin.diagnostic_f64_for_error_text().value();
             assert!(
-                reading.is_some_and(|m| m > band.zero()),
+                reading.is_some_and(|m| m.abs() > band.zero()),
                 "the feet's gap is what is in band, got {reading:?}"
             );
         }
