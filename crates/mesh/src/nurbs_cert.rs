@@ -54,56 +54,19 @@
 //!
 //! # The rational arm (M8-5)
 //!
-//! A RATIONAL face is `S = A/w` with `A = ΣΣ Nᵢ Nⱼ wᵢⱼ Pᵢⱼ` and
-//! `w = ΣΣ Nᵢ Nⱼ wᵢⱼ` — both POLYNOMIAL tensor-product B-splines, so
-//! every ingredient below is the same control-hull convexity fact as
-//! the integral arm, taken on the homogeneous nets. The quotient rule
-//! (exactly `NurbsSurface::ders_in_span`'s corrections) gives, for any
-//! constant `c` (write `Ã = A − c·w`, so `S − c = Ã/w` and the
-//! derivatives of `S` are unchanged):
-//!
-//! ```text
-//! S_u  = (Ã_u  − (S − c)·w_u) / w                        (v symmetric)
-//! S_uu = (Ã_uu − 2·S_u·w_u − (S − c)·w_uu) / w           (v symmetric)
-//! S_uv = (Ã_uv − S_u·w_v − S_v·w_u − (S − c)·w_uv) / w
-//! ```
-//!
-//! Taking sups componentwise over one knot-span cell:
-//!
-//! - `sup|Ã_kl|` — hull of the recentred homogeneous derivative
-//!   coefficients active on the cell
-//!   ([`geom_core::spline::SplineCoeffs::derivative_coeffs`]
-//!   iterated, exactly as the integral arm; recentring commutes with
-//!   knot differencing, `d(A − c·w) = dA − c·dw`);
-//! - `sup|S^c − c^c| ≤ max_active |P^c − c^c|` — the rational value
-//!   hull: strictly positive weights make the rational basis a
-//!   nonnegative partition of unity over the active net (the licence,
-//!   checked; refused typed otherwise);
-//! - `sup|S_u|` — the same recurrence one order down;
-//! - `sup|w_kl|` — the weight spline's own derivative hulls.
-//!
-//! **The divisor is the cell's weight hull, argued not assumed.** On
-//! the cell, `w ∈ [w_min, w_max]` of the active weights (convex
-//! combination), and the recurrence is evaluated SIGNED in certification arithmetic —
-//! the true minus signs, divided by the whole hull, which is where the
-//! quotient rule's cancellations survive. The interval division
-//! refuses if positivity was never proven.
-//!
-//! **Recentring keeps the cross terms cell-sized**: with the cell's
-//! control centroid as `c`, `sup|S − c|` is a cell-of-control-net
-//! fact, not a whole-patch one, so `(S − c)·w_dd` and `S_d·w_d` do not
-//! inflate with the patch's distance from the origin (the M8-2
-//! template's trick, lifted to two parameters). The whole-domain bound
-//! is the max over cells of the per-cell sups, after the FIXED
-//! [`patch_bound::RATIONAL_CERT_SPLITS`] refinement (schedule docs
-//! there) — which is taken in certification arithmetic, so the sups bound the
-//! DESCRIBED face and not the refined-`f64` one.
-//!
-//! A degree-1 direction's `Ã_dd`, `w_dd` are exactly zero, but its
-//! CROSS terms survive — a rational degree-1 direction genuinely
-//! curves in parameter (a Möbius-reparameterized ruling), so its
-//! second partials are NOT the integral arm's exact zero. The
-//! recurrences above carry that automatically.
+//! A RATIONAL face's second partials are quotients `M/W³` with
+//! polynomial numerators, and the sups are read from
+//! [`patch_bound`]'s rational arm (its module docs, "The rational
+//! arm"): on each exact dyadic piece of a span cell, numerator and
+//! denominator raised to one degree, the partial is a convex
+//! combination of the coefficient ratios `m_k/b_k`, so its signed
+//! enclosure is their coordinate range. The pieces are cut from the
+//! DESCRIBED face in certification arithmetic, so the sups bound it
+//! and not a rounded neighbour. A degree-1 direction's second partial
+//! is not the integral arm's exact zero — a rational degree-1
+//! direction genuinely curves in parameter (a Möbius-reparameterized
+//! ruling) — and the quotient's numerator carries that: its doubled
+//! cross term alone survives.
 //!
 //! The certificate consumer is unchanged: the Q/4 Taylor bound only
 //! needs C¹ with an a.e. second-derivative bound, and the C¹ gate
@@ -111,13 +74,11 @@
 //! `w > 0` gives exactly that for `S = A/w`.
 //!
 //! **Conservatism** (the speed meter's posture): the answer is a
-//! bound, not an estimate. Ordinary rational walls measure within a
-//! small factor of the true sup (the falsifier rows print the
-//! ratios), but extreme weight ratios (1e-2..1e2 and beyond) can
-//! leave the bound orders above the truth — the product terms lose
-//! the sign correlation a steep ramp lives in. The cost is only grid
-//! density, and a δ fine enough to overflow the 2²⁴ cap refuses
-//! typed ([`crate::sizing::ceil_count`]) — never a wrong mesh.
+//! bound, not an estimate. Its slack is the spread of the coefficient
+//! ratios over a piece, which extreme weight ratios widen (the
+//! falsifier rows print the ratios). The cost is only grid density,
+//! and a δ fine enough to overflow the 2²⁴ cap refuses typed
+//! ([`crate::sizing::ceil_count`]) — never a wrong mesh.
 //!
 //! # Grid sizing (heuristic; the certificate is the guarantee)
 //!
@@ -164,7 +125,7 @@
 //! Covered: described, per direction either degree ≥ 2 with interior
 //! multiplicities ≤ p − 1 (C¹) or degree 1 single-span — integral
 //! faces through the direct hull arm, rational faces (any weight not
-//! bitwise 1, all strictly positive) through the quotient-rule arm
+//! bitwise 1, all strictly positive) through the quotient arm
 //! above (M8-5; the loft/sweep wall class plus the arc-walled bodies
 //! M8-2 made buildable). Refused typed
 //! ([`TessellateError::UnsupportedNurbsFace`]): illegal rational
@@ -543,13 +504,13 @@ fn cell_component(sq: Interval) -> f64 {
 /// Since TESS-SPAN this is the SHIPPED lane's sizing input (through
 /// [`nurbs_cell_grid`]); `crate::budget`'s meter reads it too, for the
 /// span-sizing prediction it checks the lane against. Nothing here can
-/// loosen a certificate: every cell's bound is the same hull assembly
-/// over a SUBSET of the whole-patch coefficient window.
+/// loosen a certificate: every cell's bound is the same statement
+/// [`face_bound`] folds, read over a subset of the patch.
 ///
 /// Granularity differs by arm, because each arm reports at the
 /// granularity its own certified assembly already works in: the
 /// integral arm's cells are the raw knot spans, the rational arm's are
-/// the cells of the fixed [`patch_bound::RATIONAL_CERT_SPLITS`] refinement. The
+/// the [`patch_bound::RATIONAL_CERT_SPLITS`] pieces of each span cell. The
 /// budget row carries the cell count, so a reader is never guessing
 /// which.
 ///
@@ -1935,7 +1896,7 @@ pub(crate) mod tests {
     /// CONSCIOUS FLIP (M8-5): `rational_face_refuses_typed` re-derived
     /// as the positive row. The refusal's premise — "a rational second
     /// derivative is not a control-hull convexity fact" — was answered
-    /// by the quotient-rule assembly over the HOMOGENEOUS nets (module
+    /// by the quotient statement over the HOMOGENEOUS nets (module
     /// docs), so the pin is now the bound's honesty: on adversarial
     /// rational patches, dense-sampled true second partials are
     /// DOMINATED by the certified sups, and the sups are real (> 0),

@@ -20,44 +20,31 @@
 //!
 //! ## The derivation
 //!
-//! On a cell, `S_u` and `S_v` each lie componentwise in the signed
-//! hull of their active derived coefficients ([`crate::patch_bound`]).
-//! Interval-multiplying those three-component enclosures gives an
-//! enclosure `M ⊇ { S_u(u,v) × S_v(u,v) : (u,v) ∈ cell }`. THREE
-//! sound lower bounds on `‖m‖` are assembled and the largest wins —
-//! the speed meter's chord join, lifted and extended:
+//! `S_u × S_v` is a quotient `M̃/W³` with a polynomial numerator
+//! ([`geom_core::spline::derivative`], "The surface statement"); on an
+//! integral patch `W ≡ 1`. On each of the cell's exact pieces, both
+//! raised to one degree, `(S_u × S_v)·d ≥ min_k (m̃_k·d)/b_k` for any
+//! unit `d`, so its norm is at least that. The direction is the piece's
+//! own (`Σ_k m̃_k`, normalized): structure, and the bound is sound for
+//! whatever direction it picks. That reading is
+//! [`PatchCell::m_inf`]: the same statement, at the same pieces, that
+//! [`PatchCell::m_sup`] reads from above, so the area has one recipe
+//! per side and no interval product of cell enclosures enters the
+//! floor.
 //!
-//! - **Componentwise mignitude**: `‖m‖ = √(Σ_c m_c²) ≥ √(Σ_c mig(M_c)²)`,
-//!   where `mig(I)` is the smallest `|x|` for `x ∈ I` (zero when `I`
-//!   straddles). Tight when no component's enclosure straddles zero;
-//!   collapses to zero when they all do.
-//! - **Fixed-direction projection**: for ANY unit `d̂`,
-//!   `‖m‖ ≥ d̂·m ≥ lo(Σ_c d̂_c·M_c)`. The direction is the normalized
-//!   midpoint of `M` — structure, chosen deterministically, and the
-//!   bound is sound for whatever direction it picks (`d̂` is unit only
-//!   to rounding, so the projection is divided by a certified upper
-//!   bound on `‖d̂‖`). This is the assembly that survives a cell where
-//!   every component straddles but the vector does not.
-//! - **The Gram determinant**: Lagrange's identity
-//!   `‖S_u × S_v‖² = EG − F²`, evaluated on the first fundamental
-//!   form's own enclosures. `E` and `G` are DEPENDENT squares — no
-//!   cancellation to lose — so on a near-orthogonal chart (`F ≈ 0`)
-//!   this is far tighter than either cross-product assembly, whose
-//!   three components each carry the full width of two factors.
-//!
-//! The SUP side is none of these: it is [`PatchCell::m_sup`], read from
-//! the norms of coefficient vectors (D4 ¶2), so a rigid map moves it
-//! only by rounding.
+//! The SUP side is [`PatchCell::m_sup`], read as the same quotient's
+//! largest coefficient norm over its denominator (D4 ¶2), so a rigid map
+//! moves it only by rounding.
 //!
 //! ## Conservatism direction, stated
 //!
-//! `floor ≤ inf_cell ‖S_u × S_v‖`, always: the interval product is an
-//! enclosure of a superset, both assemblies bound from below, and the
-//! ring rounds outward. So the meter can **refuse a regular patch it
-//! failed to certify; it can never accept a degenerate one**. It
-//! collapses to exactly zero — the loud answer — as soon as a cell is
-//! coarse enough that the normal turns through a right angle inside
-//! it, which is why the rational arm's fixed refinement
+//! `floor ≤ inf_cell ‖S_u × S_v‖`, always: each coefficient ratio is
+//! taken in outward-rounded interval arithmetic and read from below,
+//! and a ratio that does not certify answers `0.0`. So the meter can
+//! **refuse a regular patch it failed to certify; it can never accept a
+//! degenerate one**. It collapses to zero — the loud answer — as soon
+//! as a piece is coarse enough that the normal turns through a right
+//! angle inside it, which is why the rational arm's fixed refinement
 //! ([`crate::patch_bound::RATIONAL_CERT_SPLITS`]) matters here more
 //! than it does for a sup bound.
 //!
@@ -67,11 +54,11 @@
 //! quantity — the chart's metric stretch, `inf ‖S_u‖` and
 //! `inf ‖S_v‖` over a region — for the same structural reason: a
 //! sup-side bound cannot tell a consumer that a chart does not fold.
-//! The shape both need is: *signed componentwise coefficient
-//! enclosures over a cell → a fixed-direction projection whose lower
-//! endpoint is the bound, joined with a componentwise-mignitude
-//! assembly*. [`cell_normal`] is that shape at the cross product;
-//! #528's consumer would instantiate it at the two speeds (which
+//! The shape both need is: *a quantity's quotient on exact pieces →
+//! the least coefficient ratio projected on the piece's own
+//! direction* ([`geom_core::spline::QuotientPiece::inf_norm`]).
+//! [`PatchCell::m_inf`] is that shape at the cross product; #528's
+//! consumer would instantiate it at the two speeds (which
 //! [`PatchRegularity::speed_u`] already carries the sup-side twin of).
 //! Naming it is the whole obligation here — #528's consumer is not
 //! built, and building it without a caller would guess its region
@@ -147,7 +134,7 @@
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
+use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq};
 use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
 use crate::dihedral::decide_reported;
@@ -436,93 +423,33 @@ pub fn mig(i: Interval) -> f64 {
 /// upper bound is the cell's own [`PatchCell::m_sup`].
 #[derive(Clone, Copy, Debug)]
 pub struct CellNormal {
-    /// Componentwise enclosure of `m = S_u × S_v` on the cell.
+    /// Componentwise enclosure of `m = S_u × S_v` on the cell, the
+    /// cross product of its signed enclosures — the numerator meter 2
+    /// normalizes.
     pub m: [Interval; 3],
     /// Certified LOWER bound on `‖m‖` over the cell, in
     /// [`PatchRegularity::floor`]'s units (m² per unit parameter
-    /// area) — the regularity floor. Exactly `0.0` when neither
-    /// assembly could separate the cell's normal from zero.
+    /// area) — the regularity floor, [`PatchCell::m_inf`]. `0.0` when
+    /// the area quotient could not separate the cell's normal from
+    /// zero.
     pub floor: f64,
 }
 
-/// Meter 1, per cell: the three-assembly join (module docs).
+/// Meter 1, per cell (module docs): the area quotient's floor.
 ///
-/// **Reads the cell's signed enclosures inf-side**, and they enclose
-/// the DESCRIBED patch on both arms ([`PatchCell`], "What the enclosure
-/// encloses"), so an inf-side read needs no caveat about which patch it
-/// is about. What it still inherits is the refinement's WIDTH: the
-/// enclosures carry the insertion's outward rounding, which subtracts
-/// from a floor rather than being ignored by it. Every claim here is a
-/// magnitude claim at ε scale, decades above that width.
+/// It reads the DESCRIBED patch on both arms ([`PatchCell`], "What the
+/// enclosure encloses"), so an inf-side read needs no caveat about
+/// which patch it is about. A cell whose `m_inf` is not a finite
+/// non-negative number reads the conservative `0.0`.
 pub fn cell_normal(cell: &PatchCell) -> CellNormal {
-    let m = cross(&cell.s_u, &cell.s_v);
-    // Assembly A: componentwise mignitude.
-    let sq = Interval::point(mig(m[0])).sqr()
-        + Interval::point(mig(m[1])).sqr()
-        + Interval::point(mig(m[2])).sqr();
-    // A refused enclosure separates nothing from zero, and `0.0` is
-    // the floor's conservative answer — asked by name, because a
-    // refusal here carries real endpoints.
-    let root_a = sq.sqrt();
-    let a = if !root_a.is_certified() {
-        0.0
-    } else {
-        root_a.lo()
-    };
-    // Assembly B: projection onto the enclosure's midpoint direction.
-    // The direction is STRUCTURE (any direction is sound, and that is
-    // why this midpoint needs no refusal of its own); the division by
-    // a certified upper bound on `‖d̂‖` is what keeps the projection a
-    // bound when `d̂` is unit only to rounding.
-    let mid = |i: Interval| (i.lo() + i.hi()) * 0.5;
-    let dv = [mid(m[0]), mid(m[1]), mid(m[2])];
-    let dn = norm_sup(&dv.map(Interval::point));
-    let b = if dn > 0.0 && dn.is_finite() {
-        let proj = Interval::point(dv[0]) * m[0]
-            + Interval::point(dv[1]) * m[1]
-            + Interval::point(dv[2]) * m[2];
-        // The quotient stays IN INTERVAL ARITHMETIC and `.lo()` is read once, so
-        // the outward rounding of the division is interval arithmetic's rather
-        // than this function's: a bare `lo / dn` would be a
-        // correctly-rounded f64 quotient, which is not a lower bound
-        // on the real one. `dn` is a certified UPPER bound on `‖d̂‖`,
-        // so dividing by it is the sound side.
-        //
-        // The quotient's refusal is asked by name: `f64::max(NaN, 0.0)`
-        // used to absorb a NaN quotient, and a refused quotient
-        // now carries real endpoints instead.
-        let q = proj / Interval::point(dn);
-        if !q.is_certified() {
-            0.0
-        } else {
-            q.lo().max(0.0)
-        }
+    let floor = if cell.m_inf >= 0.0 && cell.m_inf.is_finite() {
+        cell.m_inf
     } else {
         0.0
     };
-    // Assembly C: the Gram determinant, `‖m‖² = EG − F²` (Lagrange's
-    // identity). On a chart whose parameter
-    // directions are near-orthogonal it is dramatically tighter than
-    // either cross-product assembly — `E` and `G` are DEPENDENT
-    // squares with no cancellation to lose, while the cross product's
-    // three components each carry the full width of two factors. On
-    // the sphere-band fixture it is the assembly that moves the
-    // certified curvature range from tens to fractions.
-    //
-    // The difference does not cancel in interval arithmetic, so its
-    // enclosure may reach below zero; Lagrange's identity is the
-    // outside fact that clamps it.
-    let gram = norm_sq(&cell.s_u) * norm_sq(&cell.s_v) - dot(&cell.s_u, &cell.s_v).sqr();
-    let root_c = gram.clamped_to(0.0, f64::INFINITY).sqrt();
-    let c = if !root_c.is_certified() {
-        0.0
-    } else {
-        root_c.lo()
-    };
-    let floor = if a > b { a } else { b };
     CellNormal {
-        m,
-        floor: if floor > c { floor } else { c },
+        m: cross(&cell.s_u, &cell.s_v),
+        floor,
     }
 }
 
@@ -599,9 +526,9 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
     let mut speed_v = SupSpeed::new(0.0f64);
     for cell in cells {
         let n = cell_normal(cell);
-        // `cell_normal` never answers a NaN floor — its assemblies
-        // clamp at zero, which is the conservative reading of a
-        // refused cell — so a plain `<` is the whole fold. The sup
+        // `cell_normal` never answers a NaN floor — it reads a refused
+        // cell's as zero, the conservative reading — so a plain `<` is
+        // the whole fold. The sup
         // CAN be NaN, and `max_bound` carries it to the end.
         if n.floor < floor {
             floor = n.floor;
@@ -1277,6 +1204,7 @@ mod tests {
             s_u_sup: 1.0,
             s_v_sup: 1.0,
             m_sup: 1.0,
+            m_inf: 1.0,
         };
         let refused = PatchCell {
             u: (1.0, 2.0),
@@ -1287,6 +1215,7 @@ mod tests {
             ],
             s_u_sup: f64::NAN,
             m_sup: f64::NAN,
+            m_inf: 0.0,
             ..healthy
         };
         for (order, cells) in [

@@ -881,9 +881,9 @@ on the kind).
 claim is `sup_(u,v) ‖S_fit − (S + d·n)‖ ≤ ε_precision`, pointwise in the
 base's own chart parameters. Meters (`offset_meters.rs`, read off
 `patch_bound.rs`'s per-cell control-hull enclosures): the *regularity
-floor*, a certified lower bound on `‖S_u × S_v‖` (three assemblies, the
-largest wins: componentwise mignitude, fixed-direction projection, and
-the Gram determinant `EG − F²`), classified by `offset_normal_floor` with
+floor*, a certified lower bound on `‖S_u × S_v‖` (the area quotient's
+least coefficient ratio along each piece's own direction, the
+`PatchCell::m_inf` its sup is the companion of), classified by `offset_normal_floor` with
 the patch's faster chart speed as lever (read from the norms of
 coefficient vectors, D4 ¶2, as the floor's companion `sup‖S_u × S_v‖`
 is), deliberately not `|d|`, since

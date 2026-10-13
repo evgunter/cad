@@ -30,61 +30,47 @@
 //! [`norm_sq`](geom_core::interval::norm_sq), whose
 //! `√hi` is a sup bound on the norm.
 //!
-//! **The signed reading is the only one**, and it is a reading of the
-//! quotient rule itself: the true `−` signs, divided by the whole
-//! weight hull. The cancellations that survive that are real — on a
-//! quarter cylinder they are worth an order of magnitude on
-//! `sup‖S_uv‖` — so a consumer wanting a magnitude takes `norm_sq`
-//! of a signed enclosure and never a magnitude recurrence.
+//! **The signed reading is the only one**: a consumer wanting a
+//! magnitude takes `norm_sq` of a signed enclosure and never a
+//! magnitude recurrence.
 //!
 //! # The rational arm
 //!
-//! A RATIONAL patch is `S = A/w` with `A = ΣΣ Nᵢ Nⱼ wᵢⱼ Pᵢⱼ` and
-//! `w = ΣΣ Nᵢ Nⱼ wᵢⱼ` — both POLYNOMIAL tensor-product B-splines, so
-//! every ingredient is the same control-hull fact taken on the
-//! homogeneous nets. With `Ã = A − c·w` for a cell-local centre `c`
-//! (so `S − c = Ã/w`, and knot differencing is linear:
-//! `d(A − c·w) = dA − c·dw`), the quotient rule — exactly
-//! `NurbsSurface::ders_in_span`'s corrections — reads
+//! A RATIONAL patch's partials are quotients with polynomial
+//! numerators — `S_u = Ã_u/W²` and `S_u × S_v = M̃/W³` at the first
+//! order, `S_uu`, `S_uv`, `S_vv` as `M/W³` at the second — and the
+//! arm reads every one of them from one statement,
+//! [`geom_core::spline::cell_second_quotients`]
+//! ([`geom_core::spline::derivative`], "The surface statement" and
+//! "The second order"): on each exact dyadic piece of a span cell,
+//! numerator and denominator are raised to one degree, and the
+//! quantity is a convex combination of the coefficient ratios
+//! `m_k/b_k`. So per piece:
 //!
-//! ```text
-//! S_u  = (Ã_u  − (S − c)·w_u) / w                        (v symmetric)
-//! S_uu = (Ã_uu − 2·S_u·w_u − (S − c)·w_uu) / w           (v symmetric)
-//! S_uv = (Ã_uv − S_u·w_v − S_v·w_u − (S − c)·w_uv) / w
-//! ```
+//! - each coordinate lies between its least and greatest ratio — the
+//!   signed enclosures [`PatchCell::s_u`] … [`PatchCell::s_vv`]
+//!   ([`QuotientPiece::coordinate_range`]);
+//! - the norm is at most the largest `‖m_k‖/b_k` —
+//!   [`PatchCell::s_u_sup`], [`PatchCell::s_v_sup`],
+//!   [`PatchCell::m_sup`];
+//! - the area's norm is at least the least ratio projected on the
+//!   piece's own direction — [`PatchCell::m_inf`].
 //!
-//! **The divisor is the cell's weight hull, argued not assumed.** On
-//! the cell `w` is a convex combination of the active weights, so
-//! `w ∈ [w_min, w_max]`; interval arithmetic's division refuses a zero-touching
-//! divisor, so a net whose positivity was never proven is refused
-//! rather than answering.
-//!
-//! **Recentring keeps the cross terms cell-sized**: with the cell's
-//! control centroid as `c`, `sup|S − c|` is a cell-of-control-net
-//! fact rather than a whole-patch one, so `(S − c)·w_dd` does not
-//! inflate with the patch's distance from the origin.
-//!
-//! A degree-1 direction's `Ã_dd` and `w_dd` are exactly zero, but its
-//! CROSS terms survive — a rational degree-1 direction genuinely
-//! curves in parameter — and the recurrences carry that.
-//!
-//! **The refinement the arm performs first is itself part of the
-//! enclosure.** The homogeneous nets are refined IN INTERVAL ARITHMETIC from ring
-//! points of the described net
-//! ([`geom_core::spline::net::TensorNet::refine_u`]), each Boehm ratio
-//! an outward-rounded quotient of the knots it is made of, so what the
-//! cells enclose is the described patch and not a rounded neighbour of
-//! it. There is no refined `f64` surface on this arm: the cell extents
-//! come from the refined knot vectors, which are exact (the inserted
-//! knots are the `f64`s the schedule chose), and a refined control
-//! point is interval arithmetic quotient `A / w`.
+//! The cells are those pieces, [`RATIONAL_CERT_SPLITS`] per span
+//! direction rounded down to a count exact at the second order's
+//! degree `3p` ([`geom_core::spline::pieces::piece_count`]). Each
+//! piece is cut from the described net in interval arithmetic,
+//! restriction being exact in ℝ, so what the cells enclose is the
+//! described patch; there is no refined net on this arm. A
+//! direction of degree above 18 puts the second order over
+//! [`geom_core::spline::QUOTIENT_MAX_DEGREE`], and the arm refuses
+//! ([`PatchBoundError::RefinementFailed`]).
 //!
 //! # Conservatism
 //!
-//! The answer is a bound, not an estimate. Ordinary walls measure
-//! within a small factor of the true sup; extreme weight ratios can
-//! leave it orders above, because the product terms lose the sign
-//! correlation a steep ramp lives in. The cost is only how finely a
+//! The answer is a bound, not an estimate. Its slack is the spread of
+//! the coefficient ratios over a piece, which shrinks with the piece;
+//! extreme weight ratios widen it. The cost is only how finely a
 //! consumer must subdivide; the bound is never wrong.
 //!
 //! # Refusal (fail-loud, D4 ¶2)
@@ -99,34 +85,23 @@ use std::ops::RangeInclusive;
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, max_bound, norm_sup};
-use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::net::{TensorChannels, TensorCoeffs, TensorNet};
 use geom_core::spline::pieces::piece_count;
 use geom_core::spline::{
-    C1Break, CellAxis, CellBlock, Derived, KnotVector, QuotientPiece, cell_second_quotients,
+    C1Break, CellAxis, CellBlock, Derived, KnotVector, QuotientPiece, Span, cell_quotients,
+    cell_second_quotients,
 };
 
-/// The fixed refinement schedule of the RATIONAL arm: every nonempty
-/// span of every direction splits into this many equal pieces before
-/// the per-cell assembly. A CONSTANT (D9: structure, never a
-/// data-dependent iteration), and this arm's own: `geom::curves`'
-/// rational speed meter refines by a count of the same value, but that
-/// count prices one curve bound against the refusal frontier its own
-/// tests pin, while this one prices the per-cell partial hulls every
-/// [`patch_cells`] consumer reads (against the insertion rounding
-/// below), and `mesh::chords`' rational carrier `sup‖C″‖` bound
-/// through [`rational_split_points`]. Neither follows the other. Knot
-/// insertion is evaluation-invariant in ℝ, so it changes no geometry;
-/// it only shrinks every hull the bound is assembled from, which is
-/// what keeps the `sup‖S − c‖·sup|w_dd|` cross terms cell-sized.
-///
-/// **The schedule is not free of the arithmetic, which is why it is
-/// applied in certification arithmetic.** Each insertion the count buys is one more
-/// affine combination, and the count therefore also sets how much
-/// outward rounding the refined net carries. That width grows with the
-/// NUMBER of insertions rather than by a factor per insertion, which is
-/// what makes 16 affordable ([`geom_core::spline::CurvePlan::apply_certified`]
-/// argues the form that buys it).
+/// The fixed piece count of the RATIONAL arm: every nonempty span of
+/// every direction is read on this many exact dyadic pieces (rounded
+/// down to a count exact at the second order's degree, module docs). A
+/// CONSTANT (D9: structure, never a data-dependent iteration), and this
+/// arm's own: `geom::curves`' rational meters count their pieces by
+/// their own constant, which prices one curve bound against the
+/// refusal frontier its own tests pin, while this one prices the
+/// per-cell partial readings every [`patch_cells`] consumer reads.
+/// Cutting is exact in ℝ, so it changes no geometry; it only narrows
+/// each piece's spread of coefficient ratios.
 pub const RATIONAL_CERT_SPLITS: usize = 16;
 
 /// A typed refusal of the patch-bound assembly (fail-loud). Each
@@ -232,13 +207,14 @@ impl core::error::Error for PatchBoundError {}
 ///
 /// # What the enclosure encloses
 ///
-/// **The DESCRIBED patch, on both arms, with no carve-out.** Refinement
-/// is part of the enclosure: where an arm inserts knots it inserts them
-/// into certification enclosures of the described homogeneous net
+/// **The DESCRIBED patch, on both arms, with no carve-out.** Where
+/// the integral arm refines it inserts knots into certification
+/// enclosures of the described net
 /// ([`geom_core::spline::net::TensorNet::refine_u`]), each Boehm ratio
 /// an outward-rounded quotient of the knots it is made of, so the
 /// insertion widens like every later step instead of rounding the net
-/// to a nearby one.
+/// to a nearby one; the rational arm cuts its pieces from the described
+/// net the same way (module docs, "The rational arm").
 ///
 /// That makes a STRUCTURAL predicate sound to read off these cells. A
 /// component whose true value is identically zero comes back as an
@@ -252,12 +228,12 @@ impl core::error::Error for PatchBoundError {}
 /// reparameterization and genuinely curves in parameter, as the module
 /// header says of the cross terms.
 ///
-/// What it costs is width, and the width is the honest one. On that
-/// same ruled face the zero `S_vv` is reported as dust at the scale the
-/// insertion contributed rather than as an exact zero, because that is
-/// all an enclosure of the refinement can say. A consumer sizing a grid
-/// pays that in the last decades of a bound; a consumer asking whether
-/// zero is in there gets the right answer.
+/// What it costs is width, and the width is the honest one: an
+/// enclosure says what the arithmetic it was formed in can say. On
+/// that ruled face the quotient's coefficients of `S_vv` are exact
+/// zeros, so the zero reads as one; a reading formed through more
+/// arithmetic would carry its rounding as dust around zero. A consumer
+/// asking whether zero is in there gets the right answer either way.
 #[derive(Clone, Copy, Debug)]
 pub struct PatchCell {
     /// The cell's `u` extent, `[lo, hi]`.
@@ -280,10 +256,8 @@ pub struct PatchCell {
     /// Euclidean norms of coefficient VECTORS (D4 ¶2), so a rigid map
     /// moves it only by rounding: on the integral arm the derived
     /// control vectors active on the cell; on the rational arm the
-    /// quotient rule `S_u = (Ã_u − (S − c)·w_u)/w` taken over norms,
-    /// `(sup‖Ã_u‖ + sup‖S − c‖·sup|w_u|)/inf w`, each `sup‖·‖` the
-    /// largest norm of one active coefficient vector. `NaN` when
-    /// refused.
+    /// largest `‖ã_k‖/b_k` of the quotient `Ã_u/W²` on the piece
+    /// (module docs, "The rational arm"). `NaN` when refused.
     pub s_u_sup: f64,
     /// Certified upper bound on `‖S_v‖` over the cell, read as
     /// [`Self::s_u_sup`] is.
@@ -291,11 +265,17 @@ pub struct PatchCell {
     /// Certified upper bound on `‖S_u × S_v‖` over the cell, read from
     /// coefficient vectors as [`Self::s_u_sup`] is: on the integral arm
     /// the cross product of the two hulls of active derived control
-    /// vectors, bounded about their centres; on the rational arm the same over
-    /// `S_u × S_v = (Ã_u × Ã_v − w_v·Ã_u × (S − c) − w_u·(S − c) × Ã_v)/w²`,
-    /// the `(S − c) × (S − c)` term being identically zero. `NaN` when
+    /// vectors, bounded about their centres; on the rational arm the
+    /// largest `‖m̃_k‖/b_k` of the area quotient `M̃/W³`. `NaN` when
     /// refused.
     pub m_sup: f64,
+    /// Certified LOWER bound on `‖S_u × S_v‖` over the cell: the area
+    /// quotient's own floor ([`QuotientPiece::inf_norm`], read from
+    /// below), on the rational arm over `W³` and on the integral arm
+    /// over unit weights, one piece per span cell. `0.0` — the floor's
+    /// conservative answer — when the reading does not certify or
+    /// separates nothing from zero.
+    pub m_inf: f64,
 }
 
 /// Whether a patch is rational under the kernel's definition (any
@@ -395,13 +375,6 @@ pub fn check_direction(kv: &KnotVector) -> Result<(), PatchBoundError> {
         C1Break::Degree1Crease => PatchBoundError::Degree1Crease,
         C1Break::Crease => PatchBoundError::Crease,
     })
-}
-
-/// The interior split points of the fixed rational refinement
-/// schedule for one knot vector: [`equal_split_points`] at
-/// [`RATIONAL_CERT_SPLITS`] pieces per nonempty span.
-pub fn rational_split_points(kv: &KnotVector) -> Vec<f64> {
-    equal_split_points(kv, RATIONAL_CERT_SPLITS)
 }
 
 /// A coefficient net as certification enclosures — the shared tensor assembly,
@@ -537,12 +510,13 @@ struct CellWindows {
 }
 
 /// Assembles a cell from the five signed componentwise enclosures
-/// (`S_u, S_v, S_uu, S_uv, S_vv`, in that order) and the upper bounds
-/// on `‖S_u‖`, `‖S_v‖` and `‖S_u × S_v‖`.
+/// (`S_u, S_v, S_uu, S_uv, S_vv`, in that order), the upper bounds
+/// on `‖S_u‖`, `‖S_v‖` and `‖S_u × S_v‖`, and the lower bound on
+/// `‖S_u × S_v‖`.
 fn cell_from(
     uv: ((f64, f64), (f64, f64)),
     signed: [[Interval; 3]; 5],
-    [s_u_sup, s_v_sup, m_sup]: [f64; 3],
+    [s_u_sup, s_v_sup, m_sup, m_inf]: [f64; 4],
 ) -> PatchCell {
     PatchCell {
         u: uv.0,
@@ -555,6 +529,7 @@ fn cell_from(
         s_u_sup,
         s_v_sup,
         m_sup,
+        m_inf,
     }
 }
 
@@ -738,10 +713,11 @@ fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>
                 &window_vectors(&w.u_d1, &w.v_val, |c, i, j| nets[c].d10.get(i, j)),
                 &window_vectors(&w.u_val, &w.v_d1, |c, i, j| nets[c].d01.get(i, j)),
             );
+            let m_inf = integral_area_floor(base_nets, span_u, span_v)?;
             cells.push(cell_from(
                 (span_extent(kv_u, su), span_extent(kv_v, sv)),
                 [s_u, s_v, s_uu, s_uv, s_vv],
-                [s_u_sup, s_v_sup, m_sup],
+                [s_u_sup, s_v_sup, m_sup, m_inf],
             ));
         }
     }
@@ -814,6 +790,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                         certified_sup(&first.u),
                         certified_sup(&first.v),
                         first.area.as_ref().map_or(f64::NAN, certified_sup),
+                        first.area.as_ref().map_or(0.0, certified_inf),
                     ],
                 ));
             }
@@ -851,6 +828,63 @@ fn signed_box(q: &QuotientPiece<Interval, 3>) -> [Interval; 3] {
 fn certified_sup(q: &QuotientPiece<Interval, 3>) -> f64 {
     let s = q.sup_norm();
     if s.is_certified() { s.hi() } else { f64::NAN }
+}
+
+/// The quotient's norm inf over its piece, read from below; `0.0` when
+/// it does not certify or does not separate the piece from zero.
+fn certified_inf(q: &QuotientPiece<Interval, 3>) -> f64 {
+    let s = q.inf_norm();
+    if s.is_certified() {
+        s.lo().max(0.0)
+    } else {
+        0.0
+    }
+}
+
+/// The integral arm's [`PatchCell::m_inf`] on the span cell
+/// `span_u × span_v`: the area quotient over unit weights, one piece
+/// ([`cell_quotients`] at splits `(1, 1)`), so both arms read the floor
+/// by one statement.
+///
+/// # Errors
+///
+/// [`PatchBoundError::RefinementFailed`] when the statement refuses
+/// the block (a degree above its ceiling).
+fn integral_area_floor(
+    nets: &TensorChannels<'_, 3>,
+    span_u: Span<'_>,
+    span_v: Span<'_>,
+) -> Result<f64, PatchBoundError> {
+    let held = |kv: &KnotVector| -> Vec<Interval> {
+        kv.knots().iter().map(|k| Interval::point(*k)).collect()
+    };
+    let (held_u, held_v) = (held(nets.knots_u()), held(nets.knots_v()));
+    let channels = nets.channels();
+    let mut points = Vec::new();
+    for iu in span_u.window() {
+        for iv in span_v.window() {
+            points.push(core::array::from_fn(|c| channels[c].net().get(iu, iv)));
+        }
+    }
+    let weights = vec![Interval::point(1.0); points.len()];
+    let pieces = cell_quotients(
+        (
+            CellAxis::Span(span_u, &held_u),
+            CellAxis::Span(span_v, &held_v),
+        ),
+        CellBlock::Points {
+            origin: points[0],
+            points: &points,
+            weights: &weights,
+        },
+        (1, 1),
+        true,
+    )
+    .ok_or(PatchBoundError::RefinementFailed)?;
+    Ok(pieces
+        .iter()
+        .map(|q| q.area.as_ref().map_or(0.0, certified_inf))
+        .fold(f64::INFINITY, f64::min))
 }
 
 #[cfg(test)]

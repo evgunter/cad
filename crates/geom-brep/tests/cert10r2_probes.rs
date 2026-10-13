@@ -33,6 +33,10 @@ fn contains(iv: Interval, x: f64) -> bool {
     iv.lo() <= x && x <= iv.hi()
 }
 
+/// One partial's sampled f64 value, its interval jet and its cell
+/// enclosure, named.
+type Reading<'a> = (&'a str, [f64; 3], [Interval; 3], [Interval; 3]);
+
 /// The least magnitude `iv` admits: a value certainly at least this
 /// far from zero.
 fn least(iv: Interval) -> f64 {
@@ -78,7 +82,7 @@ fn assert_cells_enclose(name: &str, s: &NurbsSurface<f64>, cells: &[PatchCell], 
                     <Interval as geom_core::Real>::from_f64(u),
                     <Interval as geom_core::Real>::from_f64(v),
                 );
-                let per: [(&str, [f64; 3], [Interval; 3], [Interval; 3]); 5] = [
+                let per: [Reading<'_>; 5] = [
                     ("s_u", jet.du.to_array(), held.du.to_array(), c.s_u),
                     ("s_v", jet.dv.to_array(), held.dv.to_array(), c.s_v),
                     ("s_uu", jet.duu.to_array(), held.duu.to_array(), c.s_uu),
