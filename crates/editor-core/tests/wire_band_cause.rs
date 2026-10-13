@@ -5,8 +5,8 @@
 //! overflowing to infinity at an ε within a factor K of `f64::MAX`,
 //! and K·ε rounding back down onto ε at a subnormal one. A run reaches
 //! the first through `Band::linear`; the second needs an ε below the
-//! floor `EPS_MIN`, which the run's validator refuses (the collapse
-//! row pins that). The repairs are opposite, so a refusal that says
+//! floor `EPS_MIN`, which the run's validator refuses (geom-core's
+//! `an_eps_below_the_floor_is_refused_at_every_door`). The repairs are opposite, so a refusal that says
 //! only "the band could not be built" sends the reader the wrong way
 //! half the time, and `SelectRefusal::Band` / `NamingError::Band` carry
 //! the constructor's own diagnostic instead.
@@ -37,22 +37,15 @@ use editor_core::{
     ProfileDoc, RecipeNodeId, SelectRefusal, Selector, evaluate, select_where,
 };
 use fixture::{desc, insert, xy_frame};
-use geom_core::tolerance::{DEFAULT_K, Tolerance, ToleranceError};
+use geom_core::tolerance::{DEFAULT_K, Tolerance};
 use geom_core::{Band, BandError, BandField, Tol};
 
 /// The env var naming which row a child runs.
 const PROBE_ROW: &str = "WIRE_BAND_CAUSE_ROW";
 
-/// **The collapse row's ε**: the smallest positive `f64`, i.e.
-/// 1·2⁻¹⁰⁷⁴, below the floor, so `Tolerance::validate` refuses it.
+/// **The collapse arm's rendered threshold**: the smallest positive
+/// `f64`, at which a K near 1 collapses the band.
 const COLLAPSE_EPS: f64 = 5e-324;
-
-/// **The collapse row's K.** Writing ε = n·2⁻¹⁰⁷⁴, the band collapses
-/// exactly when fl(K·n) == n — so at n = 1 every K strictly below 1.5
-/// collapses it and 1.5 is the first that does not. 1.25 is a plain
-/// interior witness rather than a boundary one; the default K = 10
-/// does NOT collapse this ε, which is why the row configures K too.
-const COLLAPSE_K: f64 = 1.25;
 
 /// **The overflow row's ε**: large enough that K·ε overflows at the
 /// DEFAULT K, still finite and above `EPS_MIN`.
@@ -65,25 +58,7 @@ fn child_band_row() {
     let Ok(row) = std::env::var(PROBE_ROW) else {
         return;
     };
-    match row.as_str() {
-        // The collapse arm needs a subnormal ε, below the floor: the
-        // run's own validator refuses it, so no run reaches the arm
-        // through `Band::linear`. Admitting such an ε reddens here.
-        "collapse" => {
-            assert_eq!(
-                Tolerance::init(Tolerance {
-                    eps: COLLAPSE_EPS,
-                    k: COLLAPSE_K,
-                }),
-                Err(ToleranceError::BelowFloor {
-                    value: COLLAPSE_EPS
-                }),
-            );
-            return;
-        }
-        "overflow" => {}
-        other => panic!("unknown row {other:?}"),
-    }
+    assert_eq!(row, "overflow", "unknown row");
 
     // DOOR 1 — the premise. `init` validates before it commits, so a
     // pair this call accepts is a pair the run's own validator
@@ -225,6 +200,5 @@ fn spawn_row(row: &str) {
 
 #[test]
 fn band_refusals_name_which_band_failure_they_caught() {
-    spawn_row("collapse");
     spawn_row("overflow");
 }

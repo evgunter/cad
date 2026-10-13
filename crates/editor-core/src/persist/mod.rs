@@ -504,11 +504,8 @@ impl Staged for PersistError {
             Self::ToleranceInvalid { value } => {
                 write!(
                     f,
-                    "recorded ε {value:e} is not a valid tolerance: one is a finite length of \
-                     at least {:e} m, the length f64 resolves at the edge of the {:e} m session \
-                     box",
-                    geom_core::tolerance::EPS_MIN,
-                    geom_core::tolerance::SESSION_BOX_EXTENT
+                    "recorded ε {value:e} is not admissible: {}",
+                    geom_core::tolerance::EpsFloor
                 )
             }
         }
@@ -639,6 +636,8 @@ fn reconcile_epsilon(eps: f64) -> Result<(), PersistError> {
                 })
             }
         }
+        // Unreachable past the snapshot check, which refuses an
+        // inadmissible ε as `SnapshotError::EpsilonInvalid` first.
         Err(_) => Err(PersistError::ToleranceInvalid { value: eps }),
     }
 }

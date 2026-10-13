@@ -1563,7 +1563,7 @@ mod tests {
                 panic!("a point margin: {err:?}");
             };
             assert_eq!(err.rung(), LeverRung::Arm);
-            if b.tolerance_deciding(extent) <= geom_core::tolerance::EPS_MIN {
+            if b.offer_deciding(extent).is_none() {
                 // The arm offers no tolerance (D4 ¶4), so there is none
                 // to decide the wedge by: the arm keeps its own margin.
                 assert_eq!(err.diag().predicate, Some("dihedral_arm"), "{extent:e}");

@@ -5312,15 +5312,15 @@ mod tests {
             let text = err.to_string();
             let lever = "Recourse: make the edges at the corner where the two faces meet span \
                          clearly more than the tolerance";
-            let offered = arm / (e / z);
-            let ending = if offered > geom_core::tolerance::EPS_MIN {
-                format!(
-                    "{lever}, or, if this length of the corner's shorter edge is intended, \
-                     tighten the tolerance below {offered:e} m"
-                )
-            } else {
-                lever.to_owned()
-            };
+            let ending = b.offer_deciding(arm).map_or_else(
+                || lever.to_owned(),
+                |offered| {
+                    format!(
+                        "{lever}, or, if this length of the corner's shorter edge is intended, \
+                         tighten the tolerance below {offered:e} m"
+                    )
+                },
+            );
             assert!(
                 text.starts_with(
                     "whether two parallel directions at a corner point the same way or opposite \
@@ -6069,23 +6069,22 @@ mod tests {
         .expect_err("a zero-band extent refuses the arm gate");
         let text = err.to_string();
         // The arm re-quotes the rise it meters only where it offers a
-        // tolerance to decide both, above `EPS_MIN` (D4 ¶4); else it
-        // keeps its own margin. Either way the offer is withheld at or
-        // below `EPS_MIN`.
-        let floor = geom_core::tolerance::EPS_MIN;
-        let quoted = if short / (e / z) > floor {
+        // tolerance to decide both (D4 ¶4's floor withholds one); else it
+        // keeps its own margin. Either way the offer obeys the floor.
+        let quoted = if b.offer_deciding(short).is_some() {
             departure(short)
         } else {
             short
         };
-        let ending = if quoted / (e / z) > floor {
-            format!(
-                "if this edge's length or rise is intended, tighten the tolerance below {:e} m",
-                quoted / (e / z)
-            )
-        } else {
-            "span clearly more than the tolerance".to_owned()
-        };
+        let ending = b.offer_deciding(quoted).map_or_else(
+            || "span clearly more than the tolerance".to_owned(),
+            |offered| {
+                format!(
+                    "if this edge's length or rise is intended, tighten the tolerance below \
+                     {offered:e} m"
+                )
+            },
+        );
         assert!(
             matches!(
                 err,

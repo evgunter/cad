@@ -4912,7 +4912,7 @@ mod declaration_order_rows {
                 .diagnostic_f64_for_error_text()
                 .value()
                 .expect("a point margin");
-            let offers = band.tolerance_deciding(m) > geom_core::tolerance::EPS_MIN;
+            let offers = band.offer_deciding(m).is_some();
             let text = got.expect_err("it refuses").to_string();
             assert!(
                 text.starts_with("how two corners of the two solids overlap where they meet is ")

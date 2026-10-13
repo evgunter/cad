@@ -34,7 +34,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::tolerance::EPS_MIN;
 use geom_core::{Band, Indeterminate, MarginDiag, MissingRecourse, Tol};
 use std::collections::BTreeSet;
 use sweep::blend::{BlendDecision, BlendError, BlendSite};
@@ -446,21 +445,20 @@ fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
             "{what}: {err:?}"
         );
         let text = err.to_string();
-        let offered = arm / k;
         assert!(
             !text.contains(geom_core::UNREADABLE_MARGIN_NOTE),
             "{what}: a short link is the caller's geometry: {text}"
         );
-        if offered <= EPS_MIN {
+        let Some(offered) = b.offer_deciding(arm) else {
             assert!(
                 text.ends_with(&format!(
                     "Recourse: {}",
                     sweep::blend::FILLET3_CHAIN_RECOURSE
                 )),
-                "{what}: no offer quotes a tolerance below EPS_MIN: {text}"
+                "{what}: no offer quotes a tolerance at or below EPS_MIN: {text}"
             );
             continue;
-        }
+        };
         assert!(
             text.ends_with(&format!(
                 "Recourse: {}, or, if this link length is intended, tighten the tolerance \

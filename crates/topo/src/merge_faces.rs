@@ -5392,14 +5392,13 @@ mod winding_arm_tests {
                 "{text}"
             );
             let margin = 2.0 * h / (2.0 + 2.0 * (1.0 + h * h).sqrt());
-            let want = margin / (band.escalate() / band.zero());
-            if want <= geom_core::tolerance::EPS_MIN {
+            let Some(want) = band.offer_deciding(margin) else {
                 assert!(
                     !text.contains("tighten"),
-                    "no offer quotes a tolerance at or below EPS_MIN ({want:e}): {text}"
+                    "no offer quotes a tolerance at or below EPS_MIN: {text}"
                 );
                 continue;
-            }
+            };
             let offered: f64 = text
                 .split_once("tighten the tolerance below ")
                 .and_then(|(_, tail)| tail.strip_suffix(" m"))

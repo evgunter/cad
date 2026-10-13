@@ -28,6 +28,11 @@
 //!
 //! # Initialization protocol
 //!
+//! Every door below admits only an ε that is finite and at least
+//! [`EPS_MIN`], the floor the [session box](SESSION_BOX_EXTENT) sets
+//! (D4 ¶4, [`eps_admissible`]); a smaller one is refused typed
+//! ([`ToleranceError::BelowFloor`], [`ToleranceEnvErrorKind::BelowFloor`]).
+//!
 //! - [`Tolerance::init`] installs an explicit value, exactly once, with
 //!   typed errors ([`ToleranceError`]) for invalid values or double
 //!   initialization. There is no API to change the value afterwards —
@@ -104,14 +109,23 @@ pub fn eps_admissible(eps: f64) -> bool {
     eps.is_finite() && eps >= EPS_MIN
 }
 
-/// Why an ε below [`EPS_MIN`] is refused, after the refused value.
-fn write_below_floor(f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(
-        f,
-        "is below the smallest admissible eps, {EPS_MIN:e} m: f64 resolves no finer \
-         length at the edge of the {SESSION_BOX_EXTENT:e} m session box (D4 ¶4), so a \
-         smaller tolerance decides nothing a coordinate can state"
-    )
+/// **What an admissible ε is, and why** — the one sentence every
+/// refusal of a sub-floor or non-finite ε renders after its own head
+/// ("… is not admissible: {EpsFloor}"): a finite length of at least
+/// [`EPS_MIN`], the length f64 resolves at the edge of the
+/// [session box](SESSION_BOX_EXTENT).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EpsFloor;
+
+impl fmt::Display for EpsFloor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "a tolerance is a finite length of at least {EPS_MIN:e} m, the length f64 \
+             resolves at the edge of the {SESSION_BOX_EXTENT:e} m session box (D4 ¶4); a \
+             smaller one decides nothing a coordinate can state"
+        )
+    }
 }
 
 /// Environment variable consulted for the ambiguity multiplier K on
@@ -240,11 +254,13 @@ impl fmt::Display for ToleranceError {
         match self {
             Self::InvalidValue { value } => write!(
                 f,
-                "invalid tolerance: eps = {value:e} (must be finite and > 0)"
+                "invalid tolerance: eps = {value:e} is not admissible: {EpsFloor}"
             ),
             Self::BelowFloor { value } => {
-                write!(f, "invalid tolerance: eps = {value:e} m ")?;
-                write_below_floor(f)
+                write!(
+                    f,
+                    "invalid tolerance: eps = {value:e} m is not admissible: {EpsFloor}"
+                )
             }
             Self::InvalidK { value } => write!(
                 f,
@@ -306,21 +322,24 @@ impl fmt::Display for ToleranceEnvError {
                  the compiled default was used instead",
                 self.var, self.raw
             ),
-            ToleranceEnvErrorKind::Invalid { value } => write!(
+            ToleranceEnvErrorKind::Invalid { value } if self.var == ENV_K => write!(
                 f,
-                "tolerance env var {} = {:?} (= {value:e}) must be finite and > 0; \
+                "tolerance env var {} = {:?} (= {value:e}) must be finite and > 1; \
                  the compiled default was used instead",
                 self.var, self.raw
             ),
-            ToleranceEnvErrorKind::BelowFloor { value } => {
-                write!(
-                    f,
-                    "tolerance env var {} = {:?} (= {value:e} m) ",
-                    self.var, self.raw
-                )?;
-                write_below_floor(f)?;
-                write!(f, "; the compiled default was used instead")
-            }
+            ToleranceEnvErrorKind::Invalid { value } => write!(
+                f,
+                "tolerance env var {} = {:?} (= {value:e}) is not admissible: {EpsFloor}; \
+                 the compiled default was used instead",
+                self.var, self.raw
+            ),
+            ToleranceEnvErrorKind::BelowFloor { value } => write!(
+                f,
+                "tolerance env var {} = {:?} (= {value:e} m) is not admissible: {EpsFloor}; \
+                 the compiled default was used instead",
+                self.var, self.raw
+            ),
         }
     }
 }

@@ -32,7 +32,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use geom_core::tolerance::EPS_MIN;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
@@ -132,11 +131,9 @@ fn a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it() {
         .diagnostic_f64_for_error_text()
         .value()
         .unwrap();
-    let ending = if m / k > EPS_MIN {
-        offer(m)
-    } else {
-        LEVER.to_owned()
-    };
+    let ending = band
+        .offer_deciding(m)
+        .map_or_else(|| LEVER.to_owned(), |_| offer(m));
     assert!(err.to_string().ends_with(&ending), "{err}");
     assert_sound_and_meshed(
         "crossing boundaries build",

@@ -21,6 +21,6 @@ Four sized decisions in geom-brep's SSI end their recourse with "the model's siz
 
 - Three of the four fire on geometry that may already be inside the 1 km box. For `R3_SCALE` at ε near ε_min, a coordinate near 1 km is inside the box and still resolves nothing finer than its own spacing. "Within the range" would then send the user nowhere, and the honest lever may be the origin, or the tolerance.
 - `CHART_TOO_SLOW` is about a face too *small*. The box has no lower bound, so no size range answers it.
-- D4 ¶4's rejection at construction is not built (`work/encl/geometry-outside-the-session-box-is-not-rejected-at-construction.md`). Until it is, nothing upstream refuses what these levers ask the user to avoid.
+- D4 ¶4's rejection at construction is not built (`work/scalar/no-door-rejects-geometry-past-eps-f64-resolution.md`). Until it is, nothing upstream refuses what these levers ask the user to avoid.
 
 `crates/geom-brep/tests/m5_pr7_ssi.rs` pins the `CHART_*` wording ("Recourse: bring the spline face within the model's size range") and moves with any rewording.

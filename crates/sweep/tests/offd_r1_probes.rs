@@ -446,34 +446,60 @@ fn a_side_wall_replacement_re_anchors_the_rim_arcs() {
 /// reproduces exactly.
 #[test]
 fn the_fitted_obstruction_holds_on_a_curved_fit() {
-    // One rim is planned before the seam; what each rim does is the
-    // next row's.
-    for (name, mut body, curved) in [
+    for (name, body, curved) in [
         ("planar prism", prism(), false),
         ("twisted loft", twisted_loft(0.3), true),
     ] {
-        let wall = body
-            .faces()
-            .find(|(_, f)| {
-                matches!(
-                    body.get_surface(f.surface),
-                    Some(geom::Surface::Nurbs(n)) if !n.is_placeholder()
-                )
-            })
-            .map(|(k, _)| k)
-            .unwrap_or_else(|| panic!("{name}: no spline wall"));
-        let e = topo::replace_face_offset(&mut body, wall, 5e-10, Tol::witness())
-            .expect_err("the fitted boundary refuses");
-        match e {
-            ref e if !curved => common::approx::assert_seam_verdict(name, false, 5e-10, e),
-            ReplaceFaceError::EdgeSection {
-                kind: geom::SurfaceKind::Approx,
-                other_kind: geom::SurfaceKind::Plane,
-                ref verdict,
-                ..
-            } => assert_refused_rim_verdict(name, verdict),
-            other => panic!("{name}: expected a refused section, got {other}"),
-        }
+        fitted_obstruction_holds(name, body, curved);
+    }
+}
+
+/// **The curved fit reaches the floor itself**: the run committed at
+/// ε = `EPS_MIN`, the smallest a run admits (D4 ¶4), the twisted loft's
+/// offset still fits and refuses on its rim. The bracket the docs above
+/// measure (1e-13 certifies) is sampled at the floor, which no CI ε row
+/// reaches. It commits its own tolerance, so it runs under nextest's
+/// one process per test.
+#[test]
+fn the_curved_fit_reaches_the_floor() {
+    geom_core::Tolerance::init(geom_core::Tolerance::with_eps(
+        geom_core::tolerance::EPS_MIN,
+    ))
+    .expect("first commit in this process (nextest runs one test per process)");
+    assert_eq!(
+        Tol::witness().eps(),
+        geom_core::tolerance::EPS_MIN,
+        "the run is at the floor"
+    );
+    fitted_obstruction_holds("twisted loft at EPS_MIN", twisted_loft(0.3), true);
+}
+
+/// The fitted boundary of `body`'s first spline wall, offset by
+/// `d = 5e-10` at the run's ε, refuses on an edge's own section: a seam
+/// on a planar fixture, the top rim on a curved one. One rim is planned
+/// before the seam; what each rim does is the next row's.
+fn fitted_obstruction_holds(name: &str, mut body: Body<f64>, curved: bool) {
+    let wall = body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Nurbs(n)) if !n.is_placeholder()
+            )
+        })
+        .map(|(k, _)| k)
+        .unwrap_or_else(|| panic!("{name}: no spline wall"));
+    let e = topo::replace_face_offset(&mut body, wall, 5e-10, Tol::witness())
+        .expect_err("the fitted boundary refuses");
+    match e {
+        ref e if !curved => common::approx::assert_seam_verdict(name, false, 5e-10, e),
+        ReplaceFaceError::EdgeSection {
+            kind: geom::SurfaceKind::Approx,
+            other_kind: geom::SurfaceKind::Plane,
+            ref verdict,
+            ..
+        } => assert_refused_rim_verdict(name, verdict),
+        other => panic!("{name}: expected a refused section, got {other}"),
     }
 }
 

@@ -482,7 +482,7 @@ fn fixed_sub_epsilon_cone_arm_escalates() {
 /// withheld (D4 ¶4), as at CI's 1e-12 row.
 fn sub_eps_arm_quotes() -> &'static str {
     let b = band();
-    if b.tolerance_deciding(0.5 * eps()) > geom_core::tolerance::EPS_MIN {
+    if b.offer_deciding(0.5 * eps()).is_some() {
         "dihedral_arm_wedge"
     } else {
         "dihedral_arm"

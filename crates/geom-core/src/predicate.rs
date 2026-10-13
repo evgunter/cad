@@ -304,8 +304,9 @@ impl fmt::Display for BandError {
             Self::InvalidValue { field, value } => write!(
                 f,
                 "the band's {} threshold is {value:e}, and must be finite and positive. \
-                 Recourse: set a finite, positive tolerance, from which a derived band \
-                 takes both thresholds; a band built directly wants finite, positive ones",
+                 Recourse: for a band derived from the tolerance, set a smaller tolerance or \
+                 name a longer lever arm, so that its thresholds stay finite; a band built \
+                 directly wants finite, positive ones",
                 field.name()
             ),
             Self::InvalidLeverArm { value } => write!(
@@ -326,6 +327,12 @@ impl fmt::Display for BandError {
 }
 
 impl std::error::Error for BandError {}
+
+/// `v` as an offer: kept where it lies above [`EPS_MIN`], the smallest ε a
+/// run admits, and withheld at or below it (D4 ¶4).
+fn above_floor(v: f64) -> Option<f64> {
+    (v > EPS_MIN).then_some(v)
+}
 
 /// The two thresholds a margin is classified against: `zero` (the
 /// coincidence threshold — ε for a linear margin, or the derived angle ε/r
@@ -392,6 +399,17 @@ impl Band {
     #[must_use]
     pub fn tolerance_deciding(self, margin: f64) -> f64 {
         margin.abs() / (self.escalate / self.zero)
+    }
+
+    /// **The tolerance a refusal of `margin` offers to tighten below**,
+    /// or `None` where it offers none because that tolerance
+    /// ([`Band::tolerance_deciding`]) is no larger than [`EPS_MIN`]: "below
+    /// it" would ask for an ε no run admits (D4 ¶4). The one home of the
+    /// floor rule for a point margin a decision passes on; readers that
+    /// predict an ending ask this rather than restating the comparison.
+    #[must_use]
+    pub fn offer_deciding(self, margin: f64) -> Option<f64> {
+        above_floor(self.tolerance_deciding(margin))
     }
 
     /// The band for **linear** margins (meters): (ε, K·ε) from the run's
@@ -1647,7 +1665,7 @@ impl MarginDiag {
     /// larger than [`EPS_MIN`]: no run's ε lies below it (D4 ¶4), so no
     /// offer quotes one.
     fn tightens_below(self, band: Band, passes: SizedPass) -> Option<f64> {
-        self.tightens_toward(band, passes).filter(|&v| v > EPS_MIN)
+        self.tightens_toward(band, passes).and_then(above_floor)
     }
 
     /// The tolerance below which a smaller one decides this reading
@@ -2351,8 +2369,9 @@ impl Indeterminate {
     /// Subdivision keeps a decided sign, a decided nonzero sign is
     /// sign-certain, and a zero on the side a gate rejects stays there
     /// at every smaller tolerance, so no tolerance arm rides with either
-    /// (D4 ¶1 (i)); nor with a zero only a tolerance below [`EPS_MIN`]
-    /// would move (D4 ¶4). A margin the symbolic tier proved zero is no size the
+    /// (D4 ¶1 (i)); nor with a zero only a tolerance at or below
+    /// [`EPS_MIN`] would move, where "tighten below" would ask for an ε no
+    /// run admits (D4 ¶4). A margin the symbolic tier proved zero is no size the
     /// user may intend, so none rides with it either, and no subdivision
     /// unproves it. An undecided enclosure and an unreadable margin say
     /// theirs in the lever.
@@ -2385,8 +2404,8 @@ impl Indeterminate {
             {
                 (
                     Some(
-                        "a decided zero no tolerance a run admits moves onto a side this \
-                         decision passes",
+                        "a decided zero no tolerance above the smallest a run admits moves \
+                         onto a side this decision passes",
                     ),
                     KindLever::Door,
                 )
@@ -2422,7 +2441,8 @@ impl Indeterminate {
     }
 
     /// Whether [`Indeterminate::ending`] offers a tolerance: a smaller
-    /// one decides the margin onto a sign the refused decision passes.
+    /// one a run admits, above [`EPS_MIN`] (D4 ¶4), decides the margin
+    /// onto a sign the refused decision passes.
     /// For a door that re-quotes an escalation at a reading it meters,
     /// which only an escalation with a tolerance to offer can be.
     #[must_use]
@@ -2842,16 +2862,32 @@ mod tests {
             otherwise: Some("n"),
             unreadable: "u",
         };
+        // The largest margin whose deciding tolerance in `band` is
+        // exactly ε_min, found by ulp search.
+        let exact_floor = |band: Band| {
+            let mut m = EPS_MIN * (band.escalate() / band.zero());
+            while band.tolerance_deciding(m) < EPS_MIN {
+                m = m.next_up();
+            }
+            while band.tolerance_deciding(m) > EPS_MIN {
+                m = m.next_down();
+            }
+            assert_eq!(band.tolerance_deciding(m), EPS_MIN, "{m:e}");
+            m
+        };
         let band = band_1e9();
         let k = band.escalate() / band.zero();
-        let mut at_floor = EPS_MIN * k;
-        while band.tolerance_deciding(at_floor) < EPS_MIN {
-            at_floor = at_floor.next_up();
-        }
-        while band.tolerance_deciding(at_floor) > EPS_MIN {
-            at_floor = at_floor.next_down();
-        }
-        assert_eq!(band.tolerance_deciding(at_floor), EPS_MIN, "{at_floor:e}");
+        let at_floor = exact_floor(band);
+        assert_eq!(
+            band.offer_deciding(at_floor),
+            None,
+            "the exact floor is withheld"
+        );
+        assert_eq!(
+            band.offer_deciding(at_floor.next_up()),
+            Some(band.tolerance_deciding(at_floor.next_up())),
+            "one ulp above it is offered"
+        );
         let above = at_floor.next_up();
         let file = FileCoincidence::new(1e-8);
         let head = "This length is below the file's declared coincidence distance ε_in = 1e-8 m, \
@@ -2901,11 +2937,21 @@ mod tests {
             !escalated(3.0 * EPS_MIN).offers_tolerance(),
             "|m|/K < ε_min"
         );
+        let word = "a decided zero no tolerance above the smallest a run admits moves onto a side";
         let zero = escalated(EPS_MIN).to_string();
-        assert!(
-            zero.contains("a decided zero no tolerance a run admits moves onto a side"),
-            "a zero only a tolerance below ε_min moves says so: {zero}"
-        );
+        assert!(zero.contains(word), "{zero}");
+        // At the exact floor ε = ε_min itself decides the margin, and the
+        // word stays true: no tolerance ABOVE it does, and the offer, which
+        // would ask for one below it, is withheld.
+        let wide = Band::new(4.0 * k * EPS_MIN, 8.0 * k * EPS_MIN).unwrap();
+        let m = exact_floor(wide);
+        let exact = Indeterminate {
+            band: wide,
+            ..escalated(m)
+        };
+        assert!(m <= wide.zero() && !exact.offers_tolerance(), "{m:e}");
+        let said = exact.to_string();
+        assert!(said.contains(word) && !said.contains("tighten"), "{said}");
         assert!(
             escalated(1.5 * k * EPS_MIN).offers_tolerance(),
             "|m|/K > ε_min"
@@ -3371,14 +3417,16 @@ mod tests {
         assert_eq!(
             Band::new(-1e-9, 1e-8).unwrap_err().to_string(),
             "the band's zero threshold is -1e-9, and must be finite and positive. Recourse: \
-             set a finite, positive tolerance, from which a derived band takes both \
-             thresholds; a band built directly wants finite, positive ones"
+             for a band derived from the tolerance, set a smaller tolerance or name a longer \
+             lever arm, so that its thresholds stay finite; a band built directly wants \
+             finite, positive ones"
         );
         assert_eq!(
             Band::new(1e-9, f64::INFINITY).unwrap_err().to_string(),
             "the band's escalate threshold is inf, and must be finite and positive. Recourse: \
-             set a finite, positive tolerance, from which a derived band takes both \
-             thresholds; a band built directly wants finite, positive ones"
+             for a band derived from the tolerance, set a smaller tolerance or name a longer \
+             lever arm, so that its thresholds stay finite; a band built directly wants \
+             finite, positive ones"
         );
         assert_eq!(
             Band::new(1e-8, 1e-9).unwrap_err().to_string(),

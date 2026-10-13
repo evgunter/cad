@@ -497,7 +497,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// per node — so a SetTolerance result is never silently
     /// evaluated at the old ε.
     SetTolerance {
-        /// The new modeling tolerance (finite, strictly positive).
+        /// The new modeling tolerance, admissible per
+        /// [`geom_core::tolerance::eps_admissible`].
         eps: f64,
     },
     /// Attach (or replace) one BLACK-BOX metadata value on a face or
@@ -4065,13 +4066,8 @@ impl EditError {
                 tail.recourse(f, format_args!("clear only an attribute the name carries"))
             }
             Self::InvalidTolerance { value } => {
-                use geom_core::tolerance::{EPS_MIN, SESSION_BOX_EXTENT};
-                write!(
-                    f,
-                    "tolerance {value:e} is not an admissible ε: one is a finite length of at \
-                     least {EPS_MIN:e} m, the length f64 resolves at the edge of the \
-                     {SESSION_BOX_EXTENT:e} m session box"
-                )?;
+                use geom_core::tolerance::{EPS_MIN, EpsFloor};
+                write!(f, "tolerance {value:e} is not admissible: {EpsFloor}")?;
                 tail.recourse(
                     f,
                     format_args!(
