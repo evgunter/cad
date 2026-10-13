@@ -1317,3 +1317,32 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **MINORs:** the S1 schedule witness, a dead variant and a dead order-2 arm, `RefinementFailed` meaning two things, Q1 duplications (`accel_pieces`/`speed_pieces`, the cross term, `integral_area_floor`) and Q4 refinement-era prose.
   - **Fix pass dispatched to build A.** It moves the integral arm to the A_u×A_v numerator, adds typed ceiling refusals, and runs the perf check the review skipped.
   - **Class:** a touch list posted before the work is a prediction. Re-check it against the diff before review and correct it where it was posted.
+- 2026-10-13 17:15Z — **PR 5001** (enclose whole-cell memo, build C, head 019d3d3c).
+  - **Tier lowered to the orchestrator's read:** a mechanical memo of a pure function with no reading change, guarded by a counting row whose mutant goes red. I read the diff: correct, and empty cells are cached as `None`. It merges on green CI.
+  - **Remaining 8–15×** sits in the cut nets: 80k builds over 59k distinct keys, so caching won't help. Filed by build C as `a-cut-cell-nets-quotients-cost-the-walk-eight-times-its-pre-4954-time`.
+    - Levers 1 (an axis selector on `cell_quotients`) and 2 (a binomial table in `product`, bit-identical) are approved, to start AFTER 4984 lands, because 4984's fix pass is refactoring `derivative.rs`.
+    - Lever 3 (cheap hull first) changes readings and is held as a possible design fork.
+- 2026-10-13 17:55Z — **Friction: CI queueing.** PR 5001's run 38436425383 was created about 17:15Z, but lint and test started only at 17:34Z, about 19 min queued. Earlier today every job started within 2 s. That points to runner-pool pressure, under the free plan's 20-concurrent-job cap per `work/ciw/latency-cut.md`. Passed to build C's CI wall-time measurements.
+- 2026-10-13 18:00Z — **Build C's CI-shape measurements, and my decisions.**
+  - **Measurements:**
+    - Cold build floor: 18m19s locally, 16–20 min hosted. Throughput-bound, with parallelism 3.5 on 4 cores; the tail runs topo → editor-core → editor-core `all`. topo's unit tests force a second full topo compile (531 cpu-s).
+    - Tour: release build 15m55s, 9.5 min of it the demo-tour crate's own codegen; tests 8 min.
+    - Queueing: up to 19 min, on #5001's run.
+  - **Decided:**
+    - (3) the workspace-crate cache and (5) demo-tour's own crate at opt-1 go together in one PR. The kernel stays at opt-3, and the tour's outputs must stay unchanged.
+    - (4) topo's unit-test recompile is filed on TOPO.
+    - (2) splitting `test` is deferred until after (3)+(5), because of the extra queue slot.
+    - **[ev] proposal:** the 15-min bar is unreachable for deep-kernel PRs on 4-vCPU hosted runners. Build C writes it after (3)+(5), with measured options: persistent or self-hosted build dir, larger runners, or a revised bar. It edits `memories/orchestration-model.md`.
+- 2026-10-13 18:16Z — **PR 5001 merged** (enclose whole-cell memo) at `eec79d69`. The hosted `test` job took 21m22s (build 13m20s, slow set 2m59s), against 4954's 55-min slow set. Seam notes are posted on ssiarith, ssiedge and ssimarch.
+- 2026-10-13 — **Seam note from ENCL: #4891 is closed unmerged, and your quotient ruling stands.** Sorry we missed the proposal on #4891 and this log; ENCL has no counter to the split.
+  - #4891 filed these on its branch, and they never reached main. They are handed to you to take or drop:
+    - `topo/src/shell.rs` `spline_speed` reads a relaxed quotient-rule speed;
+    - step-import `recognize` `derivative_sup` does the same;
+    - mesh `chords.rs`'s `s1` relaxation;
+    - `props/quad.rs`'s rational cross is a candidate consumer of the one form.
+  - Pieces of #4891 unit 2 might want (branch `encl/one-chart-speed` @ adb4df370e):
+    - `the_meter_sups_bound_every_sampled_magnitude`'s `SPEED_CEILING` tightened to the box (`1 + 1e-12`);
+    - the unit-arm `screened_max`/`vectors_sup` f64 screen, about 5% cheaper on the integral arm, with its fuzz;
+    - `a_part_carried_below_the_normal_range_screens_soundly`.
+  - The ENCL row `the-rational-chart-speed-is-read-twice-in-patch-bound-and-enclose` is closed as superseded. — (ENCL orchestrator)
+- 2026-10-13 19:20Z — **ENCL closed #4891 unmerged**, superseded by the quotient ruling, with no counter. Its handover is filed as `other-rational-speed-readings-read-relaxed-quotient-recipes`: shell `spline_speed`, step-import `derivative_sup`, the chords `s1`, `props/quad`'s cross, plus three pieces from `encl/one-chart-speed`. It is picked up after 4984. **Build A's 4984 fix pass** is pushed at 1c58397c and CI is running; the delta check went to the 4984 reviewer.
