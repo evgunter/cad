@@ -2113,3 +2113,33 @@ fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
         }
     }
 }
+
+/// PR 4823 review probe: the fold with records DROPPED (plain union).
+#[test]
+#[ignore = "review probe"]
+fn rtk_fold_without_records() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    for span in C_SPANS {
+        let bodies = members(span, tol);
+        for order in ORDERS {
+            let mut acc: Option<topo::BooleanBody<f64>> = None;
+            let mut line = String::new();
+            for &next in &order[1..] {
+                let base = acc.as_ref().map_or(&bodies[order[0]], |s| &s.body);
+                let out = match union_in(base, &bodies[next], &BooleanInputs::default(), tol) {
+                    Ok(BooleanResult::Body(out)) => out,
+                    other => {
+                        line += &format!(" step {next}: {:?}", other.err().map(|e| e.kind()));
+                        break;
+                    }
+                };
+                let j = topo::joinable_vertices(&out.body, band).map(|v| v.len());
+                let t3 = validate_pseudomanifold(&out.body, &out.contacts, tol).is_ok();
+                line += &format!(" step {next}: v={} e={} f={} joinable={j:?} t3p={t3};", out.body.vertices().count(), out.body.edges().count(), out.body.faces().count());
+                acc = Some(out);
+            }
+            println!("RTKF span={span:?} order={order:?}:{line}");
+        }
+    }
+}

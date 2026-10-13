@@ -7,3 +7,4 @@ PR 4823 review probes (frozen head 79953ad30c, base 34097ca6d6).
 - crates/editor-core/tests/intent_s2_c_world.rs, appended rtk_product_points.
 - mutants.patch: RTK_MUT=free_none|free_all|no_point_classes (env-gated, applied to a copy of head).
 Same probe source was appended to base for the diffs.
+- crates/topo/tests/union_flush_onto_edge_contact.rs, appended rtk_fold_without_records (plain unions, records dropped).
