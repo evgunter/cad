@@ -8,6 +8,7 @@ closed: 2026-10-13
 priority: P1
 cost: M
 branch: germ/pn-apex-reach-pico-eps
+pr: 4966
 refs: [pn-pair-bound-rounding-assumes-an-orthonormal-cone-frame]
 ---
 

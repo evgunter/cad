@@ -6,6 +6,7 @@ status: closed
 opened: 2026-10-12
 closed: 2026-10-13
 branch: germ/pn-apex-reach-pico-eps
+pr: 4966
 refs: [pn-apex-reach-fuzz-finds-a-contradiction-at-a-pico-epsilon]
 priority: P2
 cost: M
