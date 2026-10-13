@@ -2,10 +2,12 @@
 id: rational-inf-floor-reach-refines-before-reading
 kind: issue
 title: The rational inf floors refuse nets whose weights spread past about 1.7× in a cell; a tighter floor would recover reach
-status: open
+status: closed
 opened: 2026-10-13
 priority: P2
 cost: M
+branch: nurbs/quotient-bound
+closed: 2026-10-13
 ---
 
 ## What
@@ -56,3 +58,23 @@ data point on reach.
 ## Ruling (2026-10-13, orchestrator, designers convergent)
 
 Both rows close into ONE statement: the Bernstein quotient (coefficient-ratio) bound on dyadic pieces, in `geom_core::spline::derivative`. Each derivative quantity is written as a numerator over a power of `W`, both raised to one degree. Then `inf (·)·d ≥ min_k (a_k·d)/b_k` and `sup ‖·‖ ≤ max_k ‖a_k‖/b_k`, read on exact dyadic Bézier pieces, never on refined knot vectors. The full ruling is in `work/nurbs/log.md`, 2026-10-13 03:00Z.
+
+## Closed (2026-10-13)
+
+Neither shape above: the ruling (`work/nurbs/log.md`, 2026-10-13
+03:00Z) put one Bernstein quotient bound in
+`crates/geom-core/src/spline/derivative.rs` (`QuotientPiece`), read on
+exact dyadic Bézier pieces of each cell. `N_u/W²` and `M̃/W³` are
+raised to one degree, and each piece floors along its own direction.
+
+- `NurbsSurface::stretch_floor` and `area_floor` are norm floors, and
+  `pcurve_cache::chart_stretch_inf` reads them clamped;
+  `net_direction` and `floor_along` are gone.
+- The surface piece constant is 2 per direction
+  (`crates/geom/src/surfaces/nurbs.rs` `STRETCH_PIECE_SPLITS`, the
+  measurement stated there). On the written nets every floor reads at
+  least `0.88` of the sampled truth at spreads `1.6×` to `16×`.
+- `sweep/tests/r2_probe_cert8.rs`
+  `probe_rational_charts_enter_at_wide_spreads` has the three rational
+  nets enter at `4×` and `8×`. `probe_a_folding_chart_refuses` replaces
+  the `1.8×` refusal row with a net whose true floor is zero.

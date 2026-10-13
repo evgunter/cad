@@ -23,9 +23,9 @@
 //! **The Tangent lane reuses the jet machinery, it does not restate
 //! it.** `tangent_jet`, `tangent_certificate_lane`,
 //! `tangent_span_bounds` and the certification schedule's own
-//! `sample_param` all come from `geom_brep` — the demanded set IS the
-//! certifiable set, which is C3's order-k boundary as a fact about
-//! the code rather than a promise about it. Outside the lane, this
+//! stations (`schedule_param`) all come from `geom_brep` — the
+//! demanded set IS the certifiable set, which is C3's order-k boundary
+//! as a fact about the code rather than a promise about it. Outside the lane, this
 //! refuses [`ContactRefusal::NotCertifiable`]: an order-k > 1 contact
 //! has no record type, so it gets no verdict either.
 //!
@@ -42,9 +42,10 @@
 //! **The residue is that margin and NOTHING else**, which is a claim
 //! about code and is enforced by its shape: the pair's separation
 //! along the shared normal (the touch), the witness's residual on each
-//! surface (each in band, or decided on the surface at a sample whose
-//! span bound is wider than the band) and the opposed-senses test
-//! return `Escalated` whether or not a declaration is in hand, and so
+//! surface (in band at a sample, or a span bound still in band on the
+//! finest schedule; one still beyond it is `NotCertifiable`) and the
+//! opposed-senses test return `Escalated` whether or not a declaration
+//! is in hand, and so
 //! does the first-order parallelism test — those are C4's
 //! must-verify-DEFINITE list, and a list you may bridge is not a
 //! must-verify list. Only the second-order arm consults `declared`.
@@ -71,7 +72,7 @@
 
 use geom::Curve3;
 use geom_brep::{
-    CERT_SAMPLES, implicit_outward_normal, sample_param, tangent_certificate_lane, tangent_jet,
+    CERT_SAMPLES, implicit_outward_normal, schedule_param, tangent_certificate_lane, tangent_jet,
     tangent_span_bounds,
 };
 use geom_core::k_stats::Magnitude;
@@ -214,8 +215,9 @@ pub(crate) fn rest_pair_reading<T: Decide>(
 /// **The Tangent verify door** — C4's `Tangent` table run over the
 /// jet schedule.
 ///
-/// Per sample on the certification schedule (the same 9 parameters,
-/// through `geom_brep::sample_param`):
+/// Per sample on the certification schedule (`geom_brep::schedule_param`:
+/// the nine stations, and the finer schedules a span past ε is read
+/// again on, [`tangent_table`]):
 ///
 /// - **must-verify-DEFINITE**: the two surfaces touch, their
 ///   separation along the shared normal within ε (`touching`, and the
@@ -233,9 +235,11 @@ pub(crate) fn rest_pair_reading<T: Decide>(
 ///   — in-band `κ_rel`, and exact zeros at isolated neutral points
 ///   (module docs, the #175 clause);
 /// - **escalates**: an in-band margin on ANY must-verify arm (the
-///   touch at a sample or across a span, a residual, opposition,
-///   first-order parallelism), declared or not, and the second-order
-///   residue when undeclared.
+///   touch at a sample, a residual, opposition, first-order
+///   parallelism), declared or not, the second-order residue when
+///   undeclared, and a span bound still in band on the finest schedule;
+/// - **is not certifiable**: a span bound still beyond the band on the
+///   finest schedule, every other reading decided.
 ///
 /// The span bounds between samples come from the same
 /// `tangent_span_bounds` the edge certifier uses, so the hull
@@ -358,6 +362,7 @@ pub(crate) fn tangent_locus_reading<T: Decide>(
         Claim::Contact,
         band,
     )
+    .map_err(ContactRefusal::from)
 }
 
 /// **The boolean glue door's tangency**: the C4 `Tangent` table along
@@ -382,7 +387,7 @@ pub(crate) fn tangency_reading<T: Decide>(
     t0: T,
     t1: T,
     band: Band,
-) -> Result<geom_core::MarginDiag, ContactRefusal> {
+) -> Result<geom_core::MarginDiag, TableRefusal> {
     tangent_table(
         s1,
         sense1,
@@ -409,6 +414,14 @@ enum Claim {
 
 /// The C4 `Tangent` table along `carrier` under `claim`, with the
 /// touch's margin.
+///
+/// A pass whose only unsettled reading is a span bound ([`Unsettled::Sag`])
+/// is read again on a schedule twice as fine, its sag a quarter as
+/// large, up to [`REFINE_HALVINGS`] times; the passes it supersedes
+/// keep their verdicts and drop their escalations
+/// (`k_stats::splice_superseded`). Past that the bound refuses: an
+/// in-band one escalates on its reading, and one beyond the band is
+/// the certificate not reaching the span ([`TableRefusal::SagUnreached`]).
 #[allow(clippy::too_many_arguments)]
 fn tangent_table<T: Decide>(
     s1: &geom::Surface<T>,
@@ -421,21 +434,17 @@ fn tangent_table<T: Decide>(
     declared: bool,
     claim: Claim,
     band: Band,
-) -> Result<(ContactVerdict, geom_core::MarginDiag), ContactRefusal> {
+) -> Result<(ContactVerdict, geom_core::MarginDiag), TableRefusal> {
     // The lane gate FIRST: the demanded set is the certifiable set,
     // so a configuration whose span bounds do not exist gets no
     // per-sample verdict either — refusing here is the order-k
     // boundary, not a missing feature.
     if !tangent_certificate_lane(carrier, s1, s2) {
-        return Err(ContactRefusal::NotCertifiable {
+        return Err(TableRefusal::Refused(ContactRefusal::NotCertifiable {
             what: "the (carrier kind, surface-kind pair) triple is outside the jet \
                    certificate's span-bound lane (the order-k boundary)",
-        });
+        }));
     }
-    let bounds =
-        tangent_span_bounds(s1, s2, carrier, t0, t1).ok_or(ContactRefusal::NotCertifiable {
-            what: "the jet schedule's span bounds are unavailable for this configuration",
-        })?;
     // The locus's honest spatial extent, capping every lever arm the
     // schedule uses — the same `edge_extent` cap the edge certifier
     // applies (`certify.rs`'s tangent arm), shared rather than
@@ -444,11 +453,112 @@ fn tangent_table<T: Decide>(
     // configuration is consumed over.
     let chord = carrier.eval(t0).distance(carrier.eval(t1));
     let extent = geom_brep::edge_extent(carrier, t0, t1, chord);
+    let mut halvings = 0;
+    loop {
+        let samples = (CERT_SAMPLES - 1) * (1 << halvings) + 1;
+        // Both arms of the span bounds read the carrier and the step and
+        // never where the span stands on it, so the schedule's first
+        // span bounds every one.
+        let span_end = schedule_param(t0, t1, CERT_SAMPLES - 1, samples);
+        let bounds = tangent_span_bounds(s1, s2, carrier, t0, span_end).ok_or(
+            TableRefusal::Refused(ContactRefusal::NotCertifiable {
+                what: "the jet schedule's span bounds are unavailable for this configuration",
+            }),
+        )?;
+        let mut sag_logs = Vec::new();
+        let (pass, log) = geom_core::k_stats::detached(|| {
+            tangent_pass(
+                (s1, sense1),
+                (s2, sense2),
+                (carrier, t0, t1, samples),
+                &bounds,
+                extent,
+                (declared, claim),
+                band,
+                &mut sag_logs,
+            )
+        });
+        // The span bounds' own runs: what a sag-only answer rests on,
+        // and nothing a refusal or a finer pass does.
+        let settles = matches!(pass, Err(Unsettled::Sag(_))) && halvings == REFINE_HALVINGS;
+        for sag_log in sag_logs {
+            if settles {
+                geom_core::k_stats::splice(sag_log);
+            } else {
+                geom_core::k_stats::splice_superseded(sag_log);
+            }
+        }
+        match pass {
+            Err(Unsettled::Sag(_)) if halvings < REFINE_HALVINGS => {
+                geom_core::k_stats::splice_superseded(log);
+                halvings += 1;
+            }
+            Err(Unsettled::Sag(reading)) => {
+                geom_core::k_stats::splice(log);
+                return Err(reading.map_or(TableRefusal::SagUnreached, |diag| {
+                    TableRefusal::Refused(ContactRefusal::Escalated { diag })
+                }));
+            }
+            Err(Unsettled::Refused(refusal)) => {
+                geom_core::k_stats::splice(log);
+                return Err(TableRefusal::Refused(refusal));
+            }
+            Ok(read) => {
+                geom_core::k_stats::splice(log);
+                return Ok(read);
+            }
+        }
+    }
+}
+
+/// How many times [`tangent_table`] halves its schedule's step before a
+/// span bound refuses: sixty-four spans to each of the nine-sample
+/// schedule's, the sag down by 4096.
+pub const REFINE_HALVINGS: u32 = 6;
+
+/// Why a pass of the table did not settle.
+enum Unsettled {
+    /// A refusal no finer schedule changes.
+    Refused(ContactRefusal),
+    /// Every sample decided, and a span bound between them not within
+    /// ε: its reading where it was in band, `None` where beyond.
+    Sag(Option<Indeterminate>),
+}
+
+impl From<ContactRefusal> for Unsettled {
+    fn from(refusal: ContactRefusal) -> Self {
+        Self::Refused(refusal)
+    }
+}
+
+/// One pass of [`tangent_table`] on a uniform `samples`-point schedule
+/// over `[t0, t1]`, `bounds` its span bounds.
+#[allow(clippy::too_many_arguments)]
+fn tangent_pass<T: Decide>(
+    (s1, sense1): (&geom::Surface<T>, bool),
+    (s2, sense2): (&geom::Surface<T>, bool),
+    (carrier, t0, t1, samples): (&Curve3<T>, T, T, u32),
+    bounds: &geom_brep::TangentSpanBounds<T>,
+    extent: T,
+    (declared, claim): (bool, Claim),
+    band: Band,
+    sag_logs: &mut Vec<geom_core::k_stats::Detached>,
+) -> Result<(ContactVerdict, geom_core::MarginDiag), Unsettled> {
     let mut bridged = false;
     let mut gap_max = T::zero();
     let mut aligned = None;
-    for i in 0..CERT_SAMPLES {
-        let t = sample_param(t0, t1, i);
+    // A span bound left unsettled is the pass's answer only where every
+    // other reading on every sample decides: a later contradiction or
+    // escalation answers instead. An in-band bound's reading stands
+    // before one beyond the band.
+    let mut sag: Option<Option<Indeterminate>> = None;
+    let mut unsettled = |reading: Option<Indeterminate>| {
+        if !matches!(sag, Some(Some(_))) {
+            sag = Some(reading.or(sag.flatten()));
+        }
+    };
+    for i in 0..samples {
+        let t = schedule_param(t0, t1, i, samples);
         let (p, tau) = carrier.ders1(t);
         let (r1, r2) = (
             geom_brep::implicit_residual(s1, p),
@@ -474,16 +584,16 @@ fn tangent_table<T: Decide>(
         ) {
             Ok(Sign::Negative) => {
                 if aligned.replace(false) == Some(true) {
-                    return Err(sides_mixed(band));
+                    return Err(sides_mixed(band).into());
                 }
             }
             Ok(Sign::Positive) if claim == Claim::Tangency => {
                 if aligned.replace(true) == Some(false) {
-                    return Err(sides_mixed(band));
+                    return Err(sides_mixed(band).into());
                 }
             }
             Ok(Sign::Positive) => {
-                return Err(ContactRefusal::Contradicted {
+                return Err(Unsettled::Refused(ContactRefusal::Contradicted {
                     diag: Indeterminate {
                         margin: geom_core::MarginDiag::INVALID,
                         band,
@@ -491,13 +601,13 @@ fn tangent_table<T: Decide>(
                         terminal_sliver: false,
                     },
                     steer: None,
-                });
+                }));
             }
             // A definite zero means the normals are perpendicular:
             // definite normal INDEPENDENCE, C4's first contradiction
             // trigger.
             Ok(Sign::Zero) => {
-                return Err(ContactRefusal::Contradicted {
+                return Err(Unsettled::Refused(ContactRefusal::Contradicted {
                     diag: Indeterminate {
                         margin: geom_core::MarginDiag::INVALID,
                         band,
@@ -505,12 +615,12 @@ fn tangent_table<T: Decide>(
                         terminal_sliver: false,
                     },
                     steer: None,
-                });
+                }));
             }
             // MUST-VERIFY-DEFINITE, same reasoning as the residual
             // arm: opposed senses are on C4's first list, not its
             // third.
-            Err(diag) => return Err(ContactRefusal::Escalated { diag }),
+            Err(diag) => return Err(Unsettled::Refused(ContactRefusal::Escalated { diag })),
         }
         // (2) The touch, before the witness: the pair's separation
         // along the shared normal ([`touching`]), its orientation σ the
@@ -524,7 +634,19 @@ fn tangent_table<T: Decide>(
             ("contact_tangent_on_1", "contact_tangent_off_1", r1),
             ("contact_tangent_on_2", "contact_tangent_off_2", r2),
         ] {
-            on_surface([name, miss], r, bounds.residual_sag, band)?;
+            let (read, log) = geom_core::k_stats::detached(|| {
+                on_surface([name, miss], r, bounds.residual_sag, band)
+            });
+            match read {
+                Err(Unsettled::Sag(reading)) => {
+                    sag_logs.push(log);
+                    unsettled(reading);
+                }
+                read => {
+                    geom_core::k_stats::splice(log);
+                    read?;
+                }
+            }
         }
         let jet = tangent_jet(s1, s2, p, tau);
         // (3) and (4) are decided TOGETHER because C7's first-order
@@ -562,7 +684,27 @@ fn tangent_table<T: Decide>(
         // first-order reading refuses on its own: a definite defect
         // contradicts, and an in-band one is the escalation returned.
         // Only a verified first order leaves the outcome resting on it.
-        if second_order.is_err() && !matches!(first_order, Ok(Sign::Zero)) {
+        // Undeclared, with `κ_rel` decided at the sample and only its
+        // drift bound between samples keeping the margin from deciding,
+        // the second order is the schedule's to settle, as the
+        // witness's sag is (its run kept with the sag's).
+        let deferred = !declared
+            && !matches!(second_order, Ok(Sign::Positive))
+            && matches!(first_order, Ok(Sign::Zero))
+            && {
+                let (at, log) = geom_core::k_stats::detached(|| {
+                    crate::validate::decide(
+                        "contact_tangent_second_order_at",
+                        Margin::sagitta(jet.kappa_rel.abs(), arm),
+                        band,
+                    )
+                });
+                geom_core::k_stats::splice_superseded(log);
+                matches!(at, Ok(Sign::Positive))
+            };
+        if deferred {
+            sag_logs.push(second_order_log);
+        } else if second_order.is_err() && !matches!(first_order, Ok(Sign::Zero)) {
             geom_core::k_stats::splice_superseded(second_order_log);
         } else {
             geom_core::k_stats::splice(second_order_log);
@@ -570,7 +712,7 @@ fn tangent_table<T: Decide>(
         geom_core::k_stats::splice(first_order_log);
         match first_order {
             Ok(Sign::Positive | Sign::Negative) => {
-                return Err(ContactRefusal::Contradicted {
+                return Err(Unsettled::Refused(ContactRefusal::Contradicted {
                     diag: Indeterminate {
                         margin: geom_core::MarginDiag::INVALID,
                         band,
@@ -578,13 +720,13 @@ fn tangent_table<T: Decide>(
                         terminal_sliver: false,
                     },
                     steer: None,
-                });
+                }));
             }
             Ok(Sign::Zero) => {}
             // First-order tangency is must-verify-DEFINITE (C4's first
             // list): an in-band angular defect escalates, declared or
             // not.
-            Err(diag) => return Err(ContactRefusal::Escalated { diag }),
+            Err(diag) => return Err(Unsettled::Refused(ContactRefusal::Escalated { diag })),
         }
         // (4) The second-order margin — THE bridged residue, and the
         // ONLY one (module docs, the #175 clause). Definitely positive
@@ -601,7 +743,7 @@ fn tangent_table<T: Decide>(
                 match crate::validate::decide("contact_tangent_overlap", crescent, band) {
                     Ok(Sign::Negative) => {}
                     Ok(Sign::Positive | Sign::Zero) => {
-                        return Err(ContactRefusal::Contradicted {
+                        return Err(Unsettled::Refused(ContactRefusal::Contradicted {
                             diag: Indeterminate {
                                 margin: geom_core::MarginDiag::INVALID,
                                 band,
@@ -609,49 +751,50 @@ fn tangent_table<T: Decide>(
                                 terminal_sliver: false,
                             },
                             steer: None,
-                        });
+                        }));
                     }
-                    Err(diag) => return Err(ContactRefusal::Escalated { diag }),
+                    Err(diag) => {
+                        return Err(Unsettled::Refused(ContactRefusal::Escalated { diag }));
+                    }
                 }
             }
             Ok(Sign::Positive) => {}
             residue => {
-                if !declared {
-                    return Err(ContactRefusal::Escalated {
+                if deferred {
+                    unsettled(residue.err());
+                } else if !declared {
+                    return Err(Unsettled::Refused(ContactRefusal::Escalated {
                         diag: residue.err().unwrap_or(Indeterminate {
                             margin: geom_core::MarginDiag::INVALID,
                             band,
                             predicate: Some("contact_tangent_second_order"),
                             terminal_sliver: false,
                         }),
-                    });
+                    }));
+                } else {
+                    bridged = true;
                 }
-                bridged = true;
             }
         }
     }
-    // The touch between samples: the worst sampled separation plus its
-    // certified sag (`TangentSpanBounds::gap_sag`), the edge
-    // certifier's `tangent_gap_hull_sup` statement. Every sample decided
-    // on the surfaces, so a refusal here rests on the sag and carries
-    // this reading.
-    let touch = match geom_core::k_stats::decide_magnitude_reported(
-        "contact_tangent_touch",
-        Margin::of(gap_max + bounds.gap_sag),
-        band,
-    ) {
-        Ok((Magnitude::Zero, margin)) => margin,
-        Ok((Magnitude::Positive, margin)) => {
-            return Err(ContactRefusal::Escalated {
-                diag: Indeterminate {
-                    margin,
-                    band,
-                    predicate: Some("contact_tangent_touch"),
-                    terminal_sliver: false,
-                },
-            });
+    let (touch, log) = geom_core::k_stats::detached(|| span_touch(gap_max, bounds.gap_sag, band));
+    let touch = match touch {
+        Ok(touch) => {
+            geom_core::k_stats::splice(log);
+            Some(touch)
         }
-        Err(diag) => return Err(ContactRefusal::Escalated { diag }),
+        Err(Unsettled::Sag(reading)) => {
+            sag_logs.push(log);
+            unsettled(reading);
+            None
+        }
+        Err(refused) => {
+            geom_core::k_stats::splice(log);
+            return Err(refused);
+        }
+    };
+    let (Some(touch), None) = (touch, sag) else {
+        return Err(Unsettled::Sag(sag.flatten()));
     };
     let verdict = if bridged {
         ContactVerdict::Bridged
@@ -723,6 +866,28 @@ fn touching<T: Decide>(
     }
 }
 
+/// **The touch between samples**: the worst sampled separation
+/// `gap_max` plus its certified sag (`TangentSpanBounds::gap_sag`), the
+/// edge certifier's `tangent_gap_hull_sup` statement
+/// (`contact_tangent_touch`). Every sample decided touching, so a span
+/// not within ε is the sag's to settle ([`Unsettled::Sag`]), carrying
+/// the reading where it is in band.
+fn span_touch<T: Decide>(
+    gap_max: T,
+    gap_sag: T,
+    band: Band,
+) -> Result<geom_core::MarginDiag, Unsettled> {
+    match geom_core::k_stats::decide_magnitude_reported(
+        "contact_tangent_touch",
+        Margin::of(gap_max + gap_sag),
+        band,
+    ) {
+        Ok((Magnitude::Zero, margin)) => Ok(margin),
+        Ok((Magnitude::Positive, _)) => Err(Unsettled::Sag(None)),
+        Err(diag) => Err(Unsettled::Sag(Some(diag))),
+    }
+}
+
 /// **The witness on a surface, read across the spans a sample bounds**:
 /// `r` the sample's implicit residual and `sag` the span bound
 /// (`TangentSpanBounds::residual_sag`). A span's interior stands within
@@ -737,10 +902,11 @@ fn touching<T: Decide>(
 ///   been read touching there ([`touching`]), so the miss is the
 ///   witness's, a bad cache, and no gap could help: no `Fit` steer. The
 ///   refusal carries the `off` reading;
-/// - escalated between. An in-band far side is its own escalation. A
-///   far side decided beyond the band beside a sample decided on the
-///   surface rests on the sag, so the refusal carries the `on` reading
-///   and its margin; an in-band sample carries its own.
+/// - escalated on an in-band sample (`off`), which no finer schedule
+///   moves;
+/// - the sag's to settle with the sample decided on the surface
+///   ([`Unsettled::Sag`]), carrying the far side's reading where it is
+///   in band.
 ///
 /// MUST-VERIFY-DEFINITE (C4): "the witness within ε of each surface".
 /// The in-band residual is not the bridged residue — that list holds
@@ -750,33 +916,64 @@ fn on_surface<T: Decide>(
     r: T,
     sag: T,
     band: Band,
-) -> Result<(), ContactRefusal> {
-    let reading = |predicate, margin| Indeterminate {
-        margin,
-        band,
-        predicate: Some(predicate),
-        terminal_sliver: false,
-    };
-    let far = geom_core::k_stats::decide_magnitude_reported(on, Margin::of(r.abs() + sag), band);
-    let far_margin = match far {
-        Ok((Magnitude::Zero, _)) => return Ok(()),
-        Ok((Magnitude::Positive, margin)) => margin,
-        Err(diag) => return Err(ContactRefusal::Escalated { diag }),
-    };
+) -> Result<(), Unsettled> {
+    let far =
+        match geom_core::k_stats::decide_magnitude_reported(on, Margin::of(r.abs() + sag), band) {
+            Ok((Magnitude::Zero, _)) => return Ok(()),
+            Ok((Magnitude::Positive, _)) => None,
+            Err(diag) => Some(diag),
+        };
     match crate::validate::decide_reported(off, Margin::of(r), band) {
         Ok(geom_core::Decided {
             sign: Sign::Positive | Sign::Negative,
             margin,
-        }) => Err(ContactRefusal::Contradicted {
-            diag: reading(off, margin),
+        }) => Err(Unsettled::Refused(ContactRefusal::Contradicted {
+            diag: Indeterminate {
+                margin,
+                band,
+                predicate: Some(off),
+                terminal_sliver: false,
+            },
             steer: None,
-        }),
+        })),
         Ok(geom_core::Decided {
             sign: Sign::Zero, ..
-        }) => Err(ContactRefusal::Escalated {
-            diag: reading(on, far_margin),
-        }),
-        Err(diag) => Err(ContactRefusal::Escalated { diag }),
+        }) => Err(Unsettled::Sag(far)),
+        Err(diag) => Err(Unsettled::Refused(ContactRefusal::Escalated { diag })),
+    }
+}
+
+/// Why the C4 `Tangent` table refused a span.
+#[derive(Clone, Debug)]
+pub(crate) enum TableRefusal {
+    /// A refusal of the contact's own vocabulary.
+    Refused(ContactRefusal),
+    /// The pair is in the lane and every reading decided, and only a
+    /// span bound between samples (the witness's sag, the touch's, the
+    /// drift of `κ_rel`) stands beyond the band on the finest schedule
+    /// [`tangent_table`] reads: the certificate does not reach the span.
+    SagUnreached,
+}
+
+impl From<ContactRefusal> for TableRefusal {
+    fn from(refusal: ContactRefusal) -> Self {
+        Self::Refused(refusal)
+    }
+}
+
+/// A span bound the certificate does not reach is `NotCertifiable` to a
+/// contact's reader.
+impl From<TableRefusal> for ContactRefusal {
+    fn from(refusal: TableRefusal) -> Self {
+        match refusal {
+            TableRefusal::Refused(refusal) => refusal,
+            TableRefusal::SagUnreached => Self::NotCertifiable {
+                what: "the jet schedule's span bounds do not reach: every sample is decided, \
+                       and a bound between them (the witness's or the touch's sag, or the \
+                       drift of the relative curvature) stands beyond the band on the finest \
+                       schedule",
+            },
+        }
     }
 }
 
@@ -964,10 +1161,13 @@ mod tests {
         assert_eq!(fit_steer(Contradiction::PlanesNotParallel), None);
     }
 
-    /// The on-surface gate's three verdicts, each on its own side of
-    /// the `|r| ± sag` bracket: the verify side carries the sag, the
-    /// contradiction side reads the sample alone. Each row a padding
-    /// error could flip is named for the error that flips it.
+    /// The on-surface gate's verdicts, each on its own side of the
+    /// `|r| ± sag` bracket: the verify side carries the sag, the
+    /// contradiction and the escalation read the sample alone, and a
+    /// sample decided on the surface under a sag past ε leaves the span
+    /// to a finer schedule, carrying the far side's reading where it is
+    /// in band. Each row a padding error could flip is named for the
+    /// error that flips it.
     #[test]
     fn on_surface_pads_each_verdict_in_its_own_direction() {
         let b = band();
@@ -977,6 +1177,8 @@ mod tests {
             On,
             Escalated,
             Contradicted,
+            SagInBand,
+            SagBeyond,
         }
         for (r, sag, want, why) in [
             (0.0, 0.0, Want::On, "an exact sample, no sag"),
@@ -984,13 +1186,13 @@ mod tests {
             (
                 0.6 * eps,
                 0.6 * eps,
-                Want::Escalated,
+                Want::SagInBand,
                 "each within ε, the sum in band",
             ),
             (
                 0.0,
                 big,
-                Want::Escalated,
+                Want::SagBeyond,
                 "on at the sample, a sag beyond K·ε between",
             ),
             (
@@ -1008,27 +1210,159 @@ mod tests {
             (
                 0.6 * eps,
                 big,
+                Want::SagBeyond,
+                "a sample within ε under a large sag",
+            ),
+            (
+                3.0 * eps,
+                big,
                 Want::Escalated,
                 "an in-band sample under a large sag",
+            ),
+            (
+                3.0 * eps,
+                0.0,
+                Want::Escalated,
+                "an in-band sample under no sag",
             ),
         ] {
             let got = match on_surface(["probe_on", "probe_off"], r, sag, b) {
                 Ok(()) => Want::On,
-                Err(ContactRefusal::Escalated { diag }) => {
-                    // The sample decided on the surface: the sag is the cause.
-                    if r == 0.0 {
-                        assert_eq!(diag.predicate, Some("probe_on"), "{why}");
-                    }
+                Err(Unsettled::Refused(ContactRefusal::Escalated { diag })) => {
+                    assert_eq!(diag.predicate, Some("probe_off"), "{why}: the sample's own");
+                    assert!(!diag.margin.is_invalid(), "{why}: the in-band reading");
                     Want::Escalated
                 }
-                Err(ContactRefusal::Contradicted { diag, .. }) => {
+                Err(Unsettled::Refused(ContactRefusal::Contradicted { diag, .. })) => {
                     assert_eq!(diag.predicate, Some("probe_off"), "{why}");
                     assert!(!diag.margin.is_invalid(), "{why}: the measured margin");
                     Want::Contradicted
                 }
-                Err(other) => panic!("{why}: {other:?}"),
+                Err(Unsettled::Sag(Some(diag))) => {
+                    assert_eq!(diag.predicate, Some("probe_on"), "{why}: the far side's");
+                    Want::SagInBand
+                }
+                Err(Unsettled::Sag(None)) => Want::SagBeyond,
+                Err(Unsettled::Refused(other)) => panic!("{why}: {other:?}"),
             };
             assert_eq!(got, want, "{why}: r = {r:e}, sag = {sag:e}");
+        }
+    }
+
+    /// The span's touch: the worst sampled separation plus the gap sag
+    /// is verified within ε, and past ε it is the sag's to settle,
+    /// carrying the reading where it is in band and none beyond, which
+    /// is never an escalation of the geometry's.
+    #[test]
+    fn the_span_touch_leaves_a_sag_past_eps_to_the_schedule() {
+        let b = band();
+        let eps = b.zero();
+        let read = |gap_max: f64, gap_sag: f64| span_touch(gap_max, gap_sag, b);
+        assert!(read(0.5 * eps, 0.4 * eps).is_ok(), "the sum within ε");
+        match read(0.5 * eps, 0.6 * eps) {
+            Err(Unsettled::Sag(Some(diag))) => {
+                assert_eq!(diag.predicate, Some("contact_tangent_touch"));
+            }
+            other => panic!("the sum in band: {:?}", other.err().map(|_| ())),
+        }
+        assert!(
+            matches!(
+                read(0.5 * eps, 2.0 * b.escalate()),
+                Err(Unsettled::Sag(None))
+            ),
+            "a sag beyond K·ε"
+        );
+    }
+
+    /// **A finer schedule settles a sag just past ε, and only the
+    /// certificate's reach refuses past the finest.** Two tubes of one
+    /// minor radius whose spines kiss at `(1, 0, 0)` share the meridian
+    /// circle there, the G1 tube chain's junction: every sample lies on
+    /// both tori, and the circle arm's span bound is the whole story.
+    /// Over a span whose nine-sample sag stands at four times K·ε, the
+    /// table halves its step until the sag is within ε and verifies.
+    /// Over the arc between the poles about the outer equator no schedule
+    /// it reads gets there, every other reading decided, and the span
+    /// is not certifiable. The whole circle passes through the
+    /// meridian's poles, where the two tubes osculate (`κ_rel` exactly
+    /// zero at a sample), and that second-order reading answers, as an
+    /// escalation, whatever the span bound reads.
+    #[test]
+    fn a_finer_schedule_settles_a_sag_the_nine_samples_leave_past_eps() {
+        // The rows are about the schedule against the fixture's own
+        // bounds, so they read one band at every eps row: at a coarser
+        // one the finest schedule's bounds end inside it and escalate.
+        let b = Band::linear_at(Tol::witness(), 1e-9).unwrap();
+        let torus = |x: f64| Surface::Torus {
+            center: Point3::new(x, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: 1.0,
+            minor_radius: 0.1,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (near, far) = (torus(0.0), torus(2.0));
+        let meridian = geom::Curve3::Circle {
+            center: Point3::new(1.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            radius: 0.1,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let tau = core::f64::consts::TAU;
+        let whole = geom_brep::tangent_span_bounds(&near, &far, &meridian, 0.0, tau)
+            .unwrap()
+            .residual_sag;
+        // The sag goes as the step squared.
+        let short = tau * (4.0 * b.escalate() / whole).sqrt();
+        let nine = geom_brep::tangent_span_bounds(&near, &far, &meridian, 0.0, short)
+            .unwrap()
+            .residual_sag;
+        assert!(
+            nine > b.escalate(),
+            "the nine-sample sag stands past the band: {nine:e}"
+        );
+        let read = |t1: f64| tangency_reading(&near, true, &far, true, &meridian, 0.0, t1, b);
+        if let Err(e) = read(short) {
+            panic!("the finer schedule verifies the short span: {e:?}");
+        }
+        // The arc about the outer equator, a quarter radian short of each
+        // pole.
+        let arc = core::f64::consts::PI - 0.5;
+        let finest = geom_brep::tangent_span_bounds(
+            &near,
+            &far,
+            &meridian,
+            0.0,
+            arc / f64::from(1u32 << REFINE_HALVINGS),
+        )
+        .unwrap()
+        .residual_sag;
+        assert!(
+            finest > b.escalate(),
+            "the finest schedule's sag stands past the band: {finest:e}"
+        );
+        let span = tangency_reading(&near, true, &far, true, &meridian, -0.5 * arc, 0.5 * arc, b);
+        assert!(
+            matches!(span, Err(TableRefusal::SagUnreached)),
+            "the arc about the equator is past the finest schedule: {span:?}"
+        );
+        // The lane's other `NotCertifiable` is the contact's own refusal,
+        // not the span bound's: a carrier outside the lane.
+        let outside = geom::Curve3::Line {
+            origin: Point3::new(1.1, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        };
+        assert!(
+            matches!(
+                tangency_reading(&near, true, &far, true, &outside, 0.0, 0.1, b),
+                Err(TableRefusal::Refused(ContactRefusal::NotCertifiable { .. }))
+            ),
+            "a line on two tori is outside the lane"
+        );
+        match read(tau) {
+            Err(TableRefusal::Refused(ContactRefusal::Escalated { diag })) => {
+                assert_eq!(diag.predicate, Some("contact_tangent_second_order"));
+            }
+            other => panic!("the whole circle osculates at the poles: {other:?}"),
         }
     }
 
@@ -1279,7 +1613,7 @@ mod tests {
                     1.0,
                     b
                 ),
-                Err(ContactRefusal::Contradicted { .. })
+                Err(TableRefusal::Refused(ContactRefusal::Contradicted { .. }))
             ),
             "discs a gap apart: the line is off one of them"
         );
@@ -1295,7 +1629,7 @@ mod tests {
                     1.0,
                     b
                 ),
-                Err(ContactRefusal::Contradicted { .. })
+                Err(TableRefusal::Refused(ContactRefusal::Contradicted { .. }))
             ),
             "overlapping discs: the line is off one of them"
         );

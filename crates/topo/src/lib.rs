@@ -131,6 +131,7 @@
 //! ```
 
 pub mod attach;
+pub(crate) mod bisect;
 pub mod body;
 pub mod boolean;
 pub(crate) mod carrier_speed;
@@ -711,11 +712,6 @@ pub mod test_support {
             "Coincidence(EdgeOnPlane)",
             true,
             "ball_beside_a_slab_in_band_subtract",
-        ),
-        (
-            "Coincidence(EdgeOnCurvedFace)",
-            true,
-            "brick_below_a_tube_union",
         ),
     ];
 

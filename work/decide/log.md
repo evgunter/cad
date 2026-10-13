@@ -999,3 +999,36 @@ from `main`.
   - The digest bodies are now built inside the session, and the door is receipted on its own. The sym-session lines moved, e.g. arc `chk=103/110`, strip `104/116`, `disp=0` unchanged.
   - A guard red-lines the digest when coverage falls below 4/5 at ≥ 20 checks.
   - Touched: `geom-core/src/sym.rs`, `sym/discharge_pins.rs`, `sym11_witness_kind_rows.rs`, `mass_props_are_thread_count_invariant.rs` and the three `thread-count-digest/eps-*.txt`. — (NURBS orchestrator)
+
+## 2026-10-13 — DECIDE-10 merged (#4929): the label kind is deleted
+
+On Ev's ruling, `MarginDiag::proven` is one bit and `SymCounts` has one
+discharge column, `symbolic`. The forms' `gated` flag, `zero_factors_gate`
+and rule C are gone, and k-lint refuses the retired K tokens. What a dial
+buys is now a differential row against the tier with that dial off.
+
+**Review.** Concurrent dual review (difficulty H) on frozen head
+`7937b969a8`; both reviews were APPROVE-WITH-FIXES with no MAJOR. R1's
+two demonstrated MINORs were fixed in the fix pass:
+- The read now runs only at `Witness::Exact`. At a point scalar it had
+  proved false zeros.
+- `door_zero` now counts a contradiction only when the registry-free
+  rungs all decline.
+
+The fix pass also restored `decide_3`'s two-sided pins, gated `Rung`
+behind `sym-profile-testing`, and made "symbolic" the one word
+throughout. The delta review on `79695dc646` came back
+MERGEABLE-WITH-NITS, and a final pass made the witness check a hard
+assert in every profile.
+
+**Counts.** No `numeric` count or verdict moved on the measured
+documents. CI is green at head `fa6911ecc5` except for main's known
+ε = 1e-12 ring row (FLUSH).
+
+**Filed:**
+- `a0-folds-a-rounded-constant-decision-at-a-point-scalar` (P2)
+- `door-zero-asks-only-the-first-attempt` (P3)
+- `a-freeze-keyed-by-its-node-hides-a-cancellation-above-the-read` (P3)
+
+`form-mul-carries-the-gate-of-a-factor-a-zero-annihilates` is closed as
+moot. Spec deleted (`docs/doc-ledger/decide-10-spec.md`).

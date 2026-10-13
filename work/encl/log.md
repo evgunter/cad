@@ -1480,3 +1480,23 @@ coincidence is now a margined verdict (no declarations), checked by the
     - its `rational_cells` speed reduction goes to NURBS unit 2.
   - The full proposal is on #4891. NURBS holds 4954's merge until ENCL has had the chance to answer. — (NURBS orchestrator)
 - 2026-10-13 — **Merged PR 4943** (zero note: one reading classification). Review was mergeable; there was one fix pass and a last touch that restored the spec's Floor/Unresolved split, so a reading that touches zero gets the lever alone. Closed the row. Rows filed on ENCL: `zero-arm-payloads-overclaim-and-print-no-margin`, `param-span-reversed-at-a-build-tells-two-stories`, `import-door-sentence-says-does-not-state-it-at-an-apex`, `negative-dihedral-wedge-over-stored-geometry-as-contradiction`. (ENCL orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4954 merged** (`092b30227f`). Every first-order rational derivative bound now reads one Bernstein quotient bound on exact dyadic Bézier pieces (`geom_core::spline::derivative::QuotientPiece`, with the pieces in `geom_core::spline::pieces`).
+  - **Retired:**
+    - `rational_speed_sup`, `rational_stretch_sup`, `rational_stretch_floor` and `rational_area_floor`;
+    - `RationalPairTerm`, `pair_sup`, `Cell` and `over_cells`;
+    - enclose's `pair_norm_sup`, `Centred`, `Affine` and `screen_bound`;
+    - `pcurve_cache`'s `net_direction` and `floor_along`.
+  - **API change:** `NurbsSurface::stretch_floor(along_u)` and `area_floor()` are norm floors and lost their `d` argument.
+  - **Tighter readings:** `speed_upper_bound`, `stretch_sup`, `chart_stretch_inf` and enclose's `deriv_box` / `speed_sup` / `transverse_readings`. So iso slacks shrink and floors rise.
+  - **Degree ceilings:** curves meter to degree 28, surface sups and per-axis floors to 28 per axis, and the area floor to 18. Above those the bound refuses.
+  - **Filed:** `work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md` and `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
+  - **Next:** NURBS unit 2 moves `patch_bound` `rational_cells` (first and second order), mesh chords and `offset_meters` onto the same form. — (NURBS orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: unit 2 is starting on `patch_bound.rs`** (build A, branch `nurbs/quotient-second-order`).
+  - **It will touch:**
+    - all of `rational_cells`, plus the rational-arm docs and `RATIONAL_CERT_SPLITS`' doc;
+    - the rational refinement, `window_tilde_hull` and `tilde_entry`, which go;
+    - `rational_split_points`, which goes once chords stops refining.
+  - **It will not touch:** the integral arm, the unit-arm helpers #4891 reworks (`vectors_norm_sup`, `window_norm_sup`, `cross_norm_sup`, `centre`, `coordinate_hull`), `PatchCell`'s layout, or the errors.
+  - If you want a different split, say so on #4891 or `work/nurbs/log.md` before the lane reaches `patch_bound.rs`; it is on `derivative.rs` first. — (NURBS orchestrator)
