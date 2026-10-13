@@ -293,11 +293,20 @@ fn off_tangent() -> f64 {
     1e4 * tol().get().eps
 }
 
+/// Whether [`p3_a_nested_touch_just_off_tangent`]'s outward crossing is
+/// within two orders of f64 headroom: the discs' walls cross at
+/// θ ≈ √d, so a pierce's placement carries the wall's rounding,
+/// `2·2⁻⁵²`, levered by 1/θ, and that is past ε/100.
+fn pierce_past_headroom(d: f64) -> bool {
+    100.0 * 2.0 * f64::EPSILON / d.sqrt() > tol().get().eps
+}
+
 /// Near-tangent just outside the band: the nested aligned touch with the
 /// thin disc moved `d` ([`off_tangent`]) inward (clear, every op at its closed form) and
 /// outward (crossing in a thin lens, every body tier-3 clean and the four
-/// volumes consistent with the operands'; at ε 1e-12 every outward op
-/// refuses `CurvedPierceUnsupported`).
+/// volumes consistent with the operands'; where the crossing is past f64
+/// headroom ([`pierce_past_headroom`]) an outward op may refuse
+/// `CurvedPierceUnsupported`).
 #[test]
 fn p3_a_nested_touch_just_off_tangent() {
     let pi = std::f64::consts::PI;
@@ -315,9 +324,7 @@ fn p3_a_nested_touch_just_off_tangent() {
     );
     all_answer("p3 inward", &got);
     let b = ext("thin", vec![circle(1.0 + d, 0.0, 1.0)], 0.0, 1.0);
-    // At ε 1e-12 every op refuses typed: the thin disc's edges cross
-    // the fat disc's wall where no closed form reads the pierce.
-    let fine = tol().get().eps == 1e-12;
+    let fine = pierce_past_headroom(d);
     let volume = |name: &str, got: Result<topo::BooleanResult<f64>, topo::BooleanError>| match got {
         Ok(topo::BooleanResult::Body(r)) => {
             assert_eq!(
@@ -337,15 +344,9 @@ fn p3_a_nested_touch_just_off_tangent() {
     let a_b = volume("A ∖ B", topo::subtract(&a, &b, tol()));
     let b_a = volume("B ∖ A", topo::subtract(&b, &a, tol()));
     let meet = volume("∩", topo::intersect(&a, &b, tol()));
-    if fine {
-        assert!(
-            [union, a_b, b_a, meet].iter().all(Option::is_none),
-            "p3 outward at ε 1e-12: every op refuses, {union:?} {a_b:?} {b_a:?} {meet:?}"
-        );
-        return;
-    }
     let (Some(union), Some(a_b), Some(b_a), Some(meet)) = (union, a_b, b_a, meet) else {
-        unreachable!("an op refused, and only at ε 1e-12 does one")
+        assert!(fine, "an op refused short of f64 headroom");
+        return;
     };
     for (what, got, want) in [
         ("∪ + ∩ = A + B", union + meet, 5.0 * pi),
