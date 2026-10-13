@@ -3533,6 +3533,19 @@ fn chart_read<T: Decide>(
                 reference = Some(mean);
                 T::zero()
             }
+            // A whole number of periods bringing this run's mean within
+            // half a period of the first run's. The pairs `encloses` exists
+            // for are concentric by construction (its doc), so the inner's
+            // mean lies inside the outer's span and no tie arises. It is
+            // also asked of pairs not known to nest: both orders before a
+            // band seam in the rim pairing, and `pair_rings`' two orders
+            // before it refuses. There two full-period runs' means can sit
+            // half a period apart; a tie then lands the later run on
+            // whichever branch the floor rounds to, a whole period across
+            // the flat picture (moving the centroid with it), and the
+            // nesting decision reads that placement. Only
+            // `shell_rim_nesting`'s radii read the shift, numerically at
+            // `Sym`, never as an identity.
             Some(at) => tau * ((at - mean) / tau + T::from_f64(0.5)).floor(),
         };
         for (&p, u) in run.iter().zip(us) {
