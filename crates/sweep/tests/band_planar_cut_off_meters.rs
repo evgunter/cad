@@ -20,7 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{ErrorTextReading, Point2, Point3, Vec3};
-use sweep::blend::{BlendDecision, BlendError, BlendSite};
+use sweep::blend::{BlendDecision, BlendError, BlendSite, Convexity};
 use sweep::test_support::{block, pocket_die, prism, prism_on, realized, sketch_from_axes};
 use topo::{Body, ContactRecords, EntityId, validate_geometric, validate_pseudomanifold};
 
@@ -48,9 +48,14 @@ fn pin(origin: Point3<f64>, r: f64, h: f64) -> Body<f64> {
 /// cut-off's old vertex; the concave row drills the pocketed die's end
 /// wall beside a floor edge's old vertex, where the band's fill would
 /// cover the hole's mouth. Both inputs are tier-3 valid, and each hole
-/// lies inside the sliver triangle of side `d`, so the end face would
-/// lose part of the hole's ring: both refuse `RingClearance` at that
-/// end face.
+/// lies inside the sliver triangle of side `d`. The fillet's arc crosses
+/// each hole's ring, which refuses `RingClearance` at the end face as a
+/// measurement. The chamfer's chord does not: each ring lies wholly
+/// inside the triangle it cuts off, but neither hole is a through-feature
+/// between two caps — the convex one is blind, the concave one runs into
+/// the die behind the wall the fill covers — so the reach reads its
+/// wall, which meets the end face's plane, as a bound:
+/// `FaceClearance { bounded: true }`.
 #[test]
 fn a_hole_in_the_end_face_sliver_refuses_on_either_side() {
     let convex = realized(
@@ -65,18 +70,43 @@ fn a_hole_in_the_end_face_sliver_refuses_on_either_side() {
         &pin(Point3::new(-0.1, 0.28, 0.53), 0.01, 0.45),
         tol(),
     );
-    for (what, body, a, b) in [
-        ("convex", &convex, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
-        ("concave", &concave, [0.25, 0.25, 0.5], [0.75, 0.25, 0.5]),
+    for (what, body, a, b, convexity) in [
+        (
+            "convex",
+            &convex,
+            [0.0, 0.0, 1.0],
+            [2.0, 0.0, 1.0],
+            Convexity::Convex,
+        ),
+        (
+            "concave",
+            &concave,
+            [0.25, 0.25, 0.5],
+            [0.75, 0.25, 0.5],
+            Convexity::Concave,
+        ),
     ] {
         validate_geometric(body, tol())
             .unwrap_or_else(|e| panic!("{what}: the drilled input is tier-3 valid, got {e:?}"));
         let e = edge(body, a, b);
         for verb in [Verb::Chamfer, Verb::Fillet] {
-            match verb.run(body, &[e]) {
-                Err(BlendError::RingClearance { .. }) => {}
-                Err(other) => panic!("{what} ({verb:?}): refuses at the sliver, got {other}"),
-                Ok(out) => panic!(
+            match (verb, verb.run(body, &[e])) {
+                (
+                    Verb::Chamfer,
+                    Err(BlendError::FaceClearance {
+                        bounded: true,
+                        chain,
+                        ..
+                    }),
+                ) if chain == convexity => {}
+                (Verb::Chamfer, Err(other)) => {
+                    panic!("{what} (Chamfer): a bound at the hole's wall, got {other}")
+                }
+                (Verb::Fillet, Err(BlendError::RingClearance { bounded: false, .. })) => {}
+                (_, Err(other)) => {
+                    panic!("{what} ({verb:?}): refuses at the sliver, got {other}")
+                }
+                (_, Ok(out)) => panic!(
                     "{what} ({verb:?}): a hole in the sliver must refuse, built one whose tier 3 \
                      reads {:?}",
                     validate_geometric(&out.body, tol())

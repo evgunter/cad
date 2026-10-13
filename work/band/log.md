@@ -947,3 +947,36 @@ makes no refusal the reach does not, and one that it refuses a boss clear
 of the overrun: filed as `a-turns-overrun-meters-the-whole-cut-off-sliver`
 (the fix revises the README's ratified clause, so it is Ev's). The
 short-near-edge spurious `FOOT_INSIDE_A_FACE` is now executed on its item.
+
+## 2026-10-13 — the bore ruling's step 4: the planar band and the chamfer consume a through-feature wholly inside their sliver (PR 4957)
+
+The planar band hands its crease to the cap meter, so step 3's prism
+reading and carve take a through-feature wholly inside the material a
+convex plane–plane cut-off removes. A chord end's sliver is read as its
+exact triangle, so the chamfer's convex section takes no slack (keyed on the
+sliver, not the verb). The concave fill split to its own fork,
+`a-concave-fill-and-a-whole-shell-inside-a-bands-region` (`[ev]` PR 4963);
+a void inside a convex band's material is owed and still refuses
+`WhollyInside`. Cost H: a concurrent dual (DR row `PR-4957`), both
+APPROVE-WITH-FIXES, tally 0. Each found one of the triangle's terms unpinned
+(the outside witness; the two rim sides), killed only by its own probe; both
+are rows now. Filed `a-chord-ends-triangle-could-read-a-cycle-outside` (a
+missed loosening). The overrun's sliver, built through the same chord end,
+keeps crease `None`, pinned by a slot row. Merged with main brought in after
+PR 4992 fixed PR 4197's `transform_rigid` break on main.
+
+## 2026-10-13 — a fillet's non-isosceles turn builds its overrun (PR 4962, overrun step 3; the item closes)
+
+A fillet whose feet on the unrequested edge L stand definitely apart
+builds the overrun, at convex and concave corners: the far band's ordinary
+cut-off at the near band's face, in the section any cut-off picks, its arc
+windowed from p_k to the mitre's end q (G1 at both). `TURN_OVERRUN` is
+gone. Near a box corner, on the side whose far face is oblique, the end
+ellipse escalates past the turn's band (to ≈0.0256° at r = d); the turn
+recourse now hands on to that recourse, walked to a build. Cost H: a
+concurrent dual (DR row `PR-4962`), both APPROVE-WITH-FIXES, tally 0; both
+built the right bodies against oracles of their own (a planes-solved
+quadrature with membership grids; a Monte Carlo opening), now rows. The two
+residues (`an-overruns-sliver-refuses-a-short-near-edge`,
+`a-turns-overrun-meters-the-whole-cut-off-sliver`) are verb-neutral and
+carry the fillet's evidence; the round sliver over-refused nothing probed.

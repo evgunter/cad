@@ -25,7 +25,7 @@ and so do the four `conic_quadric::in_band_sweep` rows (the review).
 That is consistent with the PR 4600 measurement that a graze's in-band
 stretch of arc (about `√(Kερ)`) is far wider than the band's arc: the
 walk refuses first, because no split share reads a definite sign, or
-runs into `SUBDIVISION_BUDGET`. So the row may be unreachable before the
+runs into the walk's piece budget (`crate::bisect::PIECE_BUDGET`). So the row may be unreachable before the
 other guards, or reachable only where nothing in the tree poses.
 
 ## What would close it
