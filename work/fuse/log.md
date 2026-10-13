@@ -794,3 +794,12 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
 - 2026-10-13 — Two things are dispatched.
   - **`fuse/carry-rows-after-4820`, a tracker re-measure:** the lane re-runs every carry-class row (several were parked behind INTENT stage 4, now open) against main after 4820, then closes, re-scopes or moves each to CONTACTHOLD.
   - **The sliver-arc fork:** `a-sliver-arc-beside-a-joinable-vertex-refuses-the-boolean` (P1, design) goes to an Opus and a Fable designer, concurrently, with the same problem statement and no candidates.
+- 2026-10-13 — The sliver-arc designer pair report, and both agree: **not a fork; the premise fails.**
+  - **Why:** a few-ε arc's own certification, with the same margin and band over its own extent, refuses it at mint, split and seam. Measured on three pose families: the join's in-band window is empty on certified input, and "main built the body" was never observed.
+  - **Ruled (orchestrator), as both recommend:**
+    - lever the vertex reading over the joined edge's extent (lower bound: the longer edge's, `min` → `max`);
+    - correct `EDGE_JOIN_SITE`'s comment;
+    - land the boundary as a ci row.
+  - **Rejected by both:** a curvature-only lever, and dropping the vertex reading, which guards a locus crossing.
+  - **Row:** re-priced P3 / E, `design: false`.
+  - **No fork-log row:** the population is `[ev]` forks only (protocol rule 1).
