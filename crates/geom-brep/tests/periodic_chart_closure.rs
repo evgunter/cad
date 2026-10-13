@@ -342,3 +342,207 @@ fn a_loop_of_many_rulings_turns_by_their_own_turns() {
         "the zig-zag alone at the interval scalar"
     );
 }
+
+/// A rim arc of `radius` at height `z` whose centre sits `off` from the
+/// axis and whose axis tips `tilt` toward `+x`, from `u0` to `u1` about
+/// its own centre.
+fn off_arc<T: geom_core::Decide>(
+    radius: f64,
+    off: [f64; 2],
+    tilt: f64,
+    z: f64,
+    (u0, u1): (f64, f64),
+) -> LoopEdge<T> {
+    let (s, c) = tilt.sin_cos();
+    edge(
+        Curve3::Circle {
+            center: p3(off[0], off[1], z),
+            axis: v3(s, 0.0, c),
+            radius: T::from_f64(radius),
+            u_ref: v3(c, 0.0, -s),
+        },
+        u0,
+        u1,
+        0,
+        0,
+    )
+}
+
+fn segment<T: geom_core::Decide>(a: [f64; 3], b: [f64; 3]) -> LoopEdge<T> {
+    let d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    let len = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+    edge(
+        Curve3::Line {
+            origin: p3(a[0], a[1], a[2]),
+            dir: v3(d[0] / len, d[1] / len, d[2] / len),
+        },
+        0.0,
+        len,
+        0,
+        0,
+    )
+}
+
+fn cylinder_of<T: geom_core::Decide>(radius: f64) -> Surface<T> {
+    Surface::Cylinder {
+        origin: p3(0.0, 0.0, 0.0),
+        axis: v3(0.0, 0.0, 1.0),
+        radius: T::from_f64(radius),
+        u_ref: v3(1.0, 0.0, 0.0),
+    }
+}
+
+/// `n` arcs of one rim over `[t0, t0 + n·step]`, consecutive ones meeting
+/// `gap` metres apart in azimuth (alternating sides), each centred `off`
+/// metres from the axis toward (`toward = 1`) or away from (`−1`) its
+/// middle, traversed forward or back.
+fn arc_chain<T: geom_core::Decide>(
+    radius: f64,
+    n: usize,
+    step: f64,
+    z: f64,
+    (gap, off, toward): (f64, f64, f64),
+    forward: bool,
+) -> Vec<LoopEdge<T>> {
+    let half = 0.5 * gap / radius;
+    let mut arcs: Vec<LoopEdge<T>> = (0..n)
+        .map(|i| {
+            let (t0, t1) = (i as f64 * step, (i + 1) as f64 * step);
+            let s = if i % 2 == 0 { 1.0 } else { -1.0 };
+            let a = if i == 0 { t0 } else { t0 + s * half };
+            let b = if i == n - 1 { t1 } else { t1 + s * half };
+            let tm = 0.5 * (t0 + t1);
+            let c = [toward * off * tm.cos(), toward * off * tm.sin()];
+            let ends = if forward { (a, b) } else { (b, a) };
+            off_arc::<T>(radius, c, 0.0, z, ends)
+        })
+        .collect();
+    if !forward {
+        arcs.reverse();
+    }
+    arcs
+}
+
+/// **Rims whose carriers sit within the band of the axis, in many arcs,
+/// measure** at `f64` and at the interval scalar. Each arc's stored turn
+/// is about its own centre, up to `0.9ε` off the axis, which turns its
+/// ends about the axis by up to `2·off/R` more or less than the stored
+/// turn, arc by arc. A loop's turns read each rim's turn about the axis
+/// between its own ends, so a band of two rims, a rectangle and a whole
+/// wall cut along a seam ruling, their rims in up to 200 arcs whose
+/// junctions sit within the slack (gaps up to `3.5ε` on the axis, less
+/// twice the centres' offset off it), close and turn as they bound. Read
+/// off the stored turns alone, they left up to `≈ 9.4ε` from a whole
+/// turn.
+#[test]
+fn rims_in_many_arcs_off_the_axis_measure() {
+    fn band_face<T: geom_core::Decide>(
+        radius: f64,
+        n: usize,
+        gap: f64,
+        off: f64,
+    ) -> Result<(), PropsError> {
+        let lower = arc_chain::<T>(radius, n, TAU / n as f64, 0.0, (gap, off, 1.0), true);
+        let upper = vec![off_arc::<T>(radius, [0.0, 0.0], 0.0, 1.0, (TAU, 0.0))];
+        curved_face_loops(&cylinder_of::<T>(radius), &[&lower, &upper], true, band()).map(|_| ())
+    }
+    fn rect_face<T: geom_core::Decide>(
+        radius: f64,
+        n: usize,
+        gap: f64,
+        off: f64,
+    ) -> Result<(), PropsError> {
+        let span = 5.0;
+        let at = |u: f64, z: f64| [radius * u.cos(), radius * u.sin(), z];
+        let mut l = arc_chain::<T>(radius, n, span / n as f64, 0.0, (gap, off, 1.0), true);
+        l.push(segment::<T>(at(span, 0.0), at(span, 1.0)));
+        l.push(off_arc::<T>(radius, [0.0, 0.0], 0.0, 1.0, (span, 0.0)));
+        l.push(segment::<T>(at(0.0, 1.0), at(0.0, 0.0)));
+        curved_face_loops(&cylinder_of::<T>(radius), &[&l], true, band()).map(|_| ())
+    }
+    let e = eps();
+    for radius in [1.0, 0.01] {
+        for n in [4usize, 50, 200] {
+            for gap in [0.0, 1.0, 2.0, 3.0, 3.5] {
+                for off in [0.0, 0.5, 0.9] {
+                    // Two arcs' centres off the axis on either side of a
+                    // junction move its ends apart by up to `2·off`: past
+                    // the slack and `ε`, the junction is not closed, and
+                    // escalating it is right.
+                    if gap + 2.0 * off >= 4.0 {
+                        continue;
+                    }
+                    let (gap, off) = (gap * e, off * e);
+                    let what = format!("R = {radius}, {n} arcs, gap {gap:e}, off {off:e}");
+                    assert_eq!(
+                        band_face::<f64>(radius, n, gap, off),
+                        Ok(()),
+                        "band, {what}, f64"
+                    );
+                    assert_eq!(
+                        band_face::<geom_core::Interval>(radius, n, gap, off),
+                        Ok(()),
+                        "band, {what}, interval"
+                    );
+                    assert_eq!(
+                        rect_face::<f64>(radius, n, gap, off),
+                        Ok(()),
+                        "rectangle, {what}, f64"
+                    );
+                    assert_eq!(
+                        rect_face::<geom_core::Interval>(radius, n, gap, off),
+                        Ok(()),
+                        "rectangle, {what}, interval"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// **A whole wall cut along a seam ruling, both rims in arcs off the
+/// axis, measures** at `f64` and at the interval scalar: the lower rim's
+/// arcs centred toward their middles and the upper's away, so both
+/// chains' stored turns overshoot their ends' turns about the axis the
+/// same way round the loop, and with the arcs' axes tipped `0.9ε/R` as
+/// well. Read off the stored turns alone, `n = 50` at `0.99ε` was `0.57ε`
+/// from refusing as winding.
+#[test]
+fn a_seam_cut_wall_with_arcs_off_the_axis_measures() {
+    fn wall<T: geom_core::Decide>(n: usize, off: f64, tilt: f64) -> Result<(), PropsError> {
+        let radius = 1.0;
+        let step = TAU / n as f64;
+        let at = |u: f64, z: f64| [radius * u.cos(), radius * u.sin(), z];
+        let arc = |i: usize, z: f64, toward: f64, forward: bool| {
+            let (t0, t1) = (i as f64 * step, (i + 1) as f64 * step);
+            let tm = 0.5 * (t0 + t1);
+            let c = [toward * off * tm.cos(), toward * off * tm.sin()];
+            off_arc::<T>(
+                radius,
+                c,
+                tilt,
+                z,
+                if forward { (t0, t1) } else { (t1, t0) },
+            )
+        };
+        let mut l: Vec<LoopEdge<T>> = (0..n).map(|i| arc(i, 0.0, 1.0, true)).collect();
+        l.push(segment::<T>(at(0.0, 0.0), at(0.0, 1.0)));
+        l.extend((0..n).rev().map(|i| arc(i, 1.0, -1.0, false)));
+        l.push(segment::<T>(at(0.0, 1.0), at(0.0, 0.0)));
+        curved_face_loops(&cylinder_of::<T>(radius), &[&l], true, band()).map(|_| ())
+    }
+    let e = eps();
+    for n in [2usize, 4, 8, 50] {
+        for off in [0.0, 0.5, 0.9, 0.99] {
+            for tilt in [0.0, 0.9 * e] {
+                let what = format!("{n} arcs, off {off}ε, tilt {tilt:e}");
+                assert_eq!(wall::<f64>(n, off * e, tilt), Ok(()), "{what}, f64");
+                assert_eq!(
+                    wall::<geom_core::Interval>(n, off * e, tilt),
+                    Ok(()),
+                    "{what}, interval"
+                );
+            }
+        }
+    }
+}

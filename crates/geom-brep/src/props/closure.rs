@@ -211,21 +211,29 @@ pub(super) struct ChartLoop<T, const N: usize> {
 ///
 /// A loop's total angle about a direction is `W = sweep + Σ turn`: its
 /// edges' sweeps and the short turns across its junctions. The caller's
-/// sweep is each edge's turn between its own two ends — a rim's from
-/// the stored span both its ends are evaluated at, and every other
-/// edge's (a ruling, a meridian's azimuth, a parallel's tube angle) the
-/// short turn between its ends, never a nominal zero: a ruling certified
-/// axial may still turn by `ε/R`, and a loop may hold any number of
-/// them. So `W` is the total turn of a closed path — edges, then the
-/// short way across each junction — a whole number of turns up to
-/// rounding. [`loop_turns`] reads the whole number `k` at half-turn
-/// thresholds, and the residual is then decided
-/// (`props_chart_loop_whole`): `|W − k·τ|` metered at the loop's
-/// largest junction radius, against [`VERTEX_SLACK`]`·ε` for the loop.
-/// Every turn in `W` is read off the edges' own ends, so the residual is
-/// rounding alone, whatever the junction gaps and however many edges; a
-/// residual past the slack is a sweep that disagrees with its edge's
-/// ends ([`PropsError::LoopsWindChart`]), and in the band it escalates.
+/// sweep is each edge's turn about the surface's own axis (or core
+/// circle) between that edge's own two ends, never a nominal:
+///
+/// - a rim's (a meridian's) stored turn is about its own centre, which
+///   the parse admits up to `ε` off the axis (the core circle); its ends
+///   then sit up to `≈ 2ε/R` farther or less far round the axis than
+///   that turn says, arc by arc, and that does not cancel across
+///   carriers. So the caller carries the stored turn to the axis at each
+///   end (`curved::about_axis`, and the tube's analogue);
+/// - an edge that nominally turns nothing in a coordinate (a ruling, a
+///   meridian's azimuth, a parallel's tube angle) is read as the short
+///   turn between its ends: a ruling certified axial may still turn by
+///   `ε/R`, and a loop may hold any number of them.
+///
+/// So `W` is exactly the total turn of a closed path — each edge about
+/// the axis, then the short way across each junction — and a whole
+/// number of turns up to rounding, whatever the junction gaps and
+/// however many edges. [`loop_turns`] reads the whole number `k` at
+/// half-turn thresholds, and the residual is then decided
+/// (`props_chart_loop_whole`): `|W − k·τ|` metered at the loop's largest
+/// junction radius, against [`VERTEX_SLACK`]`·ε` for the loop. A residual
+/// past it is a sweep that disagrees with its edge's ends
+/// ([`PropsError::LoopsWindChart`]), and in the band it escalates.
 ///
 /// The thresholds are metered at that radius too; they are clear by `π`
 /// times any radius.
