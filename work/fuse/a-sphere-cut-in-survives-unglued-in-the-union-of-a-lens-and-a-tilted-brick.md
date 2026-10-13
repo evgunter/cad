@@ -35,12 +35,13 @@ the lens rim, through the circle, to the pole (0, 1, 0).
 
 ## Why it matters
 
-Naming refuses these results with an emission bug. The surviving cut is
-no edge of the lens (`BooleanNaming::chart_cuts`), and both of its faces
-descend to one lens face. The vertex where the circle crosses it refuses
-with
-`Emission("a crossing's edge has no piece the boolean classified at the crossing")`
-(read, not traced: what name the cut's pieces took on the way).
+Naming refuses these results. The surviving cut is no edge of the lens
+(`BooleanNaming::chart_cuts`), and both of its faces descend to one
+lens face. No name reads it, so `emit_topo` refuses it as
+`Emission("a chart cut survives in the result")`. Before that guard,
+it refused at the vertex where the circle crosses it on one main
+(`Emission("a crossing's edge has no piece the boolean classified at the crossing")`)
+and `SharedRim { face, other: face, .. }` on the next.
 `emit_sphere_cut_in_cap::a_sphere_cut_in_names_the_lens_entities_it_divides`
 pins that refusal under this row's path (`CUT_LEFT`). If the join
 glues the cut, those orders reach the conventional vertex as the cap

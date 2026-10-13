@@ -72,8 +72,8 @@ brick minus the lens refuse only
 stage glued the cut away, and its edge-derived name is
 `work/fuse/a-conventional-vertex-mints-no-edge-derived-name`'s to
 build. The union and the lens minus the brick keep the cut as two edges
-between two pieces of one face, and refuse at the vertex where the
-circle crosses it. Filed as
+between two pieces of one face. `emit_topo` refuses that edge
+explicitly (`Emission("a chart cut survives in the result")`). Filed as
 `work/fuse/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick`.
 All six are pinned in
 `a_sphere_cut_in_names_the_lens_entities_it_divides`.

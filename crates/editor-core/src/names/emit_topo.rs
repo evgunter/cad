@@ -1517,10 +1517,11 @@ fn name_boolean_edges<T: Decide>(
             // only where the other operand filled the gap between them
             // and was consumed: they are its seam, in name order.
             (OpSide::A(f0), OpSide::A(f1)) | (OpSide::B(f0), OpSide::B(f1))
-                if matches!(
-                    rim_between(d0.of(a, b).0.body, f0, f1)?,
-                    Rim::NotOne(RimShare::NotAdjacent)
-                ) =>
+                if f0 != f1
+                    && matches!(
+                        rim_between(d0.of(a, b).0.body, f0, f1)?,
+                        Rim::NotOne(RimShare::NotAdjacent)
+                    ) =>
             {
                 let (n0, n1) = (operand_face_name(d0)?, operand_face_name(d1)?);
                 let side = Some(d0.operand());
@@ -1646,6 +1647,11 @@ fn name_boolean_edges<T: Decide>(
             op.table.name_of(&ent(0, EntityKey::Edge(k))).is_some() && !joined_faces.contains(&e);
         if resolves {
             groups.entry(root).or_default().push(e);
+        } else if naming.chart_cuts[usize::from(root.operand() == topo::Operand::B)].contains(&k) {
+            // The output stage glues a chart cut away with the two
+            // pieces of the face it divided; one left is a body the
+            // emitter cannot read.
+            return Err(bug("a chart cut survives in the result"));
         } else {
             // Where a both-merged chord reads through to, checked
             // geometrically there (`chord_kind`).

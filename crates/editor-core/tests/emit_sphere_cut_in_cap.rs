@@ -167,7 +167,7 @@ fn a_sphere_cut_in_names_the_lens_entities_it_divides() {
         let e = format!("{:?}", failure(&ev, out).expect("refuses"));
         if want == CUT_LEFT {
             assert!(
-                e.contains("a crossing's edge has no piece the boolean classified"),
+                e.contains("a chart cut survives in the result"),
                 "{what}: refused other than at the cut ({CUT_LEFT}): {e}"
             );
         } else {
