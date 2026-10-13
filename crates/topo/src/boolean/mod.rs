@@ -1755,6 +1755,9 @@ pub struct BooleanReduction<T: Real> {
     pub contacts: ReductionContacts,
     /// Every null edge minted, both operands, insertion order.
     pub null_edges: Vec<BoolNullEdgeRecord<T>>,
+    /// Each operand's null-edge copies, checked as each null edge was
+    /// recorded ([`NullEdges::extend`]).
+    pub(crate) copies: [crate::lineage::VertexCopies; 2],
     /// The cross-body correspondence pairs.
     pub null_pairs: Vec<NullEdgePairRecord>,
     /// Pierced-face ring insertions.
@@ -2984,8 +2987,10 @@ pub enum BooleanError {
         /// What failed to resolve.
         what: &'static str,
     },
-    /// The F7 output stage (`merge_coplanar_faces`) refused.
-    Merge(MergeCoplanarError),
+    /// The F7 output stage (`merge_coplanar_faces`) refused, nested
+    /// whole: never its re-description of a kept boundary, which refuses
+    /// as the Boolean's own description does ([`BooleanMerge`]).
+    Merge(BooleanMerge),
     /// The result did not pass the door's at-rest gate (tier 3,
     /// [`crate::AtRestPolicy::gate_at_rest_kept`]; tiers 1 and 2 and
     /// the scaffold fence where the scalar runs none), loudly — no body
@@ -4669,7 +4674,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         ));
     }
 
-    let mut null_edges = Vec::new();
+    let mut null_edges = NullEdges::default();
     let mut null_pairs = Vec::new();
     let mut pierce_rings = Vec::new();
     let mut ring_ties = Vec::new();
@@ -4765,9 +4770,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             rings.insert(plans[group[0]].0, ring);
         }
         for (i, (edges, _)) in minted.into_iter().enumerate() {
-            null_edges.extend(edges);
+            null_edges.extend(edges)?;
             if let Some(ring) = rings.remove(&i) {
-                null_edges.extend(ring.edges);
+                null_edges.extend(ring.edges)?;
                 null_pairs.extend(ring.pairs);
                 pierce_rings.push(ring.ring);
             }
@@ -4964,8 +4969,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let hangs = insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
     let hung = hung_points(&hangs, &contacts.vv, [&a, &b])?;
     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
-    null_edges.extend(out.edges);
+    null_edges.extend(out.edges)?;
     null_pairs.extend(out.pairs);
+    let NullEdges {
+        records: null_edges,
+        copies,
+    } = null_edges;
     let held = border_held(held, &covered, &null_edges, &a, &b)?;
     let rest_contacts = decls
         .pairs
@@ -5006,6 +5015,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         b: carved_b,
         contacts: ReductionContacts { ee, ..contacts },
         null_edges,
+        copies,
         null_pairs,
         pierce_rings,
         ring_ties,
@@ -5166,6 +5176,48 @@ struct Touch<T: Real> {
     face: FaceKey,
     /// Each pair's partner side and rows, in pair order.
     pairs: Vec<vtxfac::PairRead<T>>,
+}
+
+/// The reduction's null edges as it records them, both operands, in
+/// insertion order, with each operand's copies: every end of a null
+/// edge other than the vertex it was minted at, which the null edge
+/// minted ([`crate::null::mev_null_run`]).
+struct NullEdges<T: Real> {
+    records: Vec<BoolNullEdgeRecord<T>>,
+    copies: [crate::lineage::VertexCopies; 2],
+}
+
+impl<T: Real> Default for NullEdges<T> {
+    fn default() -> Self {
+        Self {
+            records: Vec::new(),
+            copies: Default::default(),
+        }
+    }
+}
+
+impl<T: Real> NullEdges<T> {
+    /// Records `minted`, each copy checked as it is added.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::LineageRow`] where a copy is not one the null edge
+    /// minted: an earlier record names it.
+    fn extend(
+        &mut self,
+        minted: impl IntoIterator<Item = BoolNullEdgeRecord<T>>,
+    ) -> Result<(), BooleanError> {
+        for r in minted {
+            let copies = &mut self.copies[usize::from(r.operand == Operand::B)];
+            for end in [r.attr.below_end, r.attr.above_end] {
+                if end != r.at_vertex {
+                    copies.push((end, r.at_vertex))?;
+                }
+            }
+            self.records.push(r);
+        }
+        Ok(())
+    }
 }
 
 /// The two vertices each null edge joins, `(operand, below end, above
@@ -6417,6 +6469,48 @@ mod join_lift {
             match error {
                 SplitJoinError::LineageRow(refusal) => refusal.into(),
                 other => Self::Join(BooleanJoin(other)),
+            }
+        }
+    }
+}
+
+pub use merge_lift::BooleanMerge;
+
+/// The one conversion of a merge-door refusal into the Boolean's, held
+/// by the type: [`BooleanMerge`]'s field is private to this module, so
+/// [`BooleanError::Merge`] is built only here, and never around the
+/// door's re-description of a kept boundary.
+mod merge_lift {
+    use super::{BooleanError, MergeCoplanarError};
+
+    /// A merge-door refusal the Boolean nests whole: any
+    /// [`MergeCoplanarError`] but a kept boundary left undescribed.
+    #[derive(Debug)]
+    pub struct BooleanMerge(MergeCoplanarError);
+
+    impl BooleanMerge {
+        /// The merge door's own refusal.
+        #[must_use]
+        pub fn error(&self) -> &MergeCoplanarError {
+            &self.0
+        }
+    }
+
+    impl core::fmt::Display for BooleanMerge {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            self.0.fmt(f)
+        }
+    }
+
+    /// Nested whole ([`BooleanError::Merge`]), except the door's
+    /// re-description of its kept faces' boundaries, which refuses as the
+    /// Boolean's own description pass does (`ops::of_describe`), so one
+    /// undescribed edge reaches a caller one way.
+    impl From<MergeCoplanarError> for BooleanError {
+        fn from(error: MergeCoplanarError) -> Self {
+            match error.kept_boundary() {
+                Some(described) => super::ops::of_describe(described),
+                None => Self::Merge(BooleanMerge(error)),
             }
         }
     }

@@ -356,6 +356,8 @@ pub enum LineageRows {
     Substitutions,
     /// A face division list ([`FaceDivisions`]).
     FaceDivisions,
+    /// A Boolean's null-edge copy list (`VertexCopies`).
+    NullEdgeCopies,
 }
 
 impl LineageRows {
@@ -366,12 +368,14 @@ impl LineageRows {
             Self::Fusions => "vertex fusion",
             Self::Substitutions => "substitution",
             Self::FaceDivisions => "face division",
+            Self::NullEdgeCopies => "null-edge copy",
         }
     }
 }
 
 /// What is wrong with a lineage row a list refused at append
-/// ([`Substitutions::push`], [`FaceDivisions::push`], `Fusions::push`).
+/// ([`Substitutions::push`], [`FaceDivisions::push`], `Fusions::push`,
+/// `VertexCopies::push`).
 ///
 /// **Not carried by the façade.** Where the kernel raises it
 /// ([`crate::BooleanError::LineageRow`],
@@ -387,8 +391,8 @@ pub enum RowDefect {
     SelfRow,
     /// The row names a cell an earlier row of the list retired.
     NamesRetired,
-    /// A division row's new cell is named by an earlier row: a minted
-    /// cell is new to the list.
+    /// A row's minted cell (a division's new face, a null edge's copy)
+    /// is named by an earlier row: a minted cell is new to the list.
     NotFresh,
 }
 
@@ -577,30 +581,89 @@ impl<'a, K: LineageKey> IntoIterator for &'a Substitutions<K> {
     }
 }
 
-/// **A face division list**: rows `(new face, divided-from face)` in
-/// the order the faces were minted. [`Self::push`] refuses a row whose
-/// two faces are one, or whose new face an earlier row names.
+/// **Rows `(minted cell, cell it was minted from)`, each minted cell
+/// new to the list**: the one check [`FaceDivisions`] and
+/// [`VertexCopies`] make where a row is added. A row whose two cells
+/// are one, or whose minted cell an earlier row names, is refused.
 ///
-/// **The invariant: a minted face is new to the list.** A division
-/// mints its new face (`mef`, `mfkrh`), and an arena never hands out a
-/// key it handed out before: a slot it reuses carries a new version,
-/// so the new key equals no key an earlier row holds. That is what
-/// makes the check hold where the rows are written, and it is all the
-/// list needs to be acyclic: in a cycle each row's divided-from face is
-/// the next row's new face, which no row before that one may name, so
-/// each row would have to come before the one ahead of it all the way
-/// round. A reader's chase to the face a face descends from
-/// ([`Self::root`]) therefore ends. An arena that reused a bare key
-/// would break the invariant, and [`Self::push`] would refuse the row
+/// **The invariant: a minted cell is new to the list.** A mint hands
+/// out a fresh key, and an arena never hands out a key it handed out
+/// before: a slot it reuses carries a new version, so the new key
+/// equals no key an earlier row holds. That is what makes the check
+/// hold where the rows are written, and it is all the list needs to be
+/// acyclic: in a cycle each row's minted-from cell is the next row's
+/// minted cell, which no row before that one may name, so each row
+/// would have to come before the one ahead of it all the way round. A
+/// reader's chase to the cell a cell descends from ([`Self::root`])
+/// therefore ends. An arena that reused a bare key would break the
+/// invariant, and [`Self::push`] would refuse the row
 /// ([`RowDefect::NotFresh`]) rather than let the list cycle.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct FaceDivisions {
-    rows: Vec<(FaceKey, FaceKey)>,
-    /// Each new face → the face it was divided from.
-    from: std::collections::BTreeMap<FaceKey, FaceKey>,
-    /// Every face a row names, new or divided-from.
-    named: BTreeSet<FaceKey>,
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Minted<K> {
+    rows: Vec<(K, K)>,
+    /// Each minted cell → the cell it was minted from.
+    from: BTreeMap<K, K>,
+    /// Every cell a row names, minted or minted-from.
+    named: BTreeSet<K>,
 }
+
+impl<K> Default for Minted<K> {
+    fn default() -> Self {
+        Self {
+            rows: Vec::new(),
+            from: BTreeMap::new(),
+            named: BTreeSet::new(),
+        }
+    }
+}
+
+impl<K: Ord + Copy> Minted<K> {
+    /// Appends `(new, from)`, a refusal naming `list` and `new`'s cell
+    /// where it is refused; the list is left as it was.
+    fn push(
+        &mut self,
+        (new, from): (K, K),
+        list: LineageRows,
+        cell: impl FnOnce(K) -> Cell,
+    ) -> Result<(), RowRefusal> {
+        let defect = if new == from {
+            RowDefect::SelfRow
+        } else if self.named.contains(&new) {
+            RowDefect::NotFresh
+        } else {
+            self.named.extend([new, from]);
+            self.from.insert(new, from);
+            self.rows.push((new, from));
+            return Ok(());
+        };
+        Err(RowRefusal {
+            rows: list,
+            defect,
+            key: cell(new),
+        })
+    }
+
+    fn from(&self, cell: K) -> Option<K> {
+        self.from.get(&cell).copied()
+    }
+
+    /// Total, since the list cannot cycle.
+    fn root(&self, cell: K) -> K {
+        let mut at = cell;
+        while let Some(from) = self.from(at) {
+            at = from;
+        }
+        at
+    }
+}
+
+/// **A face division list**: rows `(new face, divided-from face)` in
+/// the order the faces were minted. A division mints its new face
+/// (`mef`, `mfkrh`), so [`Self::push`] refuses a row whose two faces
+/// are one, or whose new face an earlier row names: the list cannot
+/// cycle (`Minted`'s invariant).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FaceDivisions(Minted<FaceKey>);
 
 impl FaceDivisions {
     /// Appends the division `(new, from)`.
@@ -610,24 +673,8 @@ impl FaceDivisions {
     /// [`RowDefect::SelfRow`] where `new` is `from`, and
     /// [`RowDefect::NotFresh`] where an earlier row names `new`; the
     /// list is left as it was.
-    pub(crate) fn push(&mut self, (new, from): (FaceKey, FaceKey)) -> Result<(), RowRefusal> {
-        let refuse = |defect| {
-            Err(RowRefusal {
-                rows: LineageRows::FaceDivisions,
-                defect,
-                key: Cell::Face(new),
-            })
-        };
-        if new == from {
-            return refuse(RowDefect::SelfRow);
-        }
-        if self.named.contains(&new) {
-            return refuse(RowDefect::NotFresh);
-        }
-        self.named.extend([new, from]);
-        self.from.insert(new, from);
-        self.rows.push((new, from));
-        Ok(())
+    pub(crate) fn push(&mut self, row: (FaceKey, FaceKey)) -> Result<(), RowRefusal> {
+        self.0.push(row, LineageRows::FaceDivisions, Cell::Face)
     }
 
     /// The list of `rows`, each added in turn as [`Self::push`] adds it:
@@ -648,13 +695,13 @@ impl FaceDivisions {
     /// The rows, in the order they were added.
     #[must_use]
     pub fn rows(&self) -> &[(FaceKey, FaceKey)] {
-        &self.rows
+        &self.0.rows
     }
 
     /// The face `face` was divided from, where a row divided it off one.
     #[must_use]
     pub fn from(&self, face: FaceKey) -> Option<FaceKey> {
-        self.from.get(&face).copied()
+        self.0.from(face)
     }
 
     /// The face `face` descends from through every division: itself
@@ -662,11 +709,39 @@ impl FaceDivisions {
     /// cycle.
     #[must_use]
     pub fn root(&self, face: FaceKey) -> FaceKey {
-        let mut at = face;
-        while let Some(from) = self.from(at) {
-            at = from;
-        }
-        at
+        self.0.root(face)
+    }
+}
+
+/// **A null-edge copy list**: rows `(copy, vertex it copies)`, one per
+/// end of a null edge other than the vertex it was minted at, in the
+/// order the null edges were minted. A null edge mints its copy
+/// (`mev`), so [`Self::push`] refuses a row whose two vertices are one,
+/// or whose copy an earlier row names: the list cannot cycle
+/// (`Minted`'s invariant).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct VertexCopies(Minted<crate::entity::VertexKey>);
+
+impl VertexCopies {
+    /// Appends the copy `(copy, of)`.
+    ///
+    /// # Errors
+    ///
+    /// [`RowDefect::SelfRow`] where `copy` is `of`, and
+    /// [`RowDefect::NotFresh`] where an earlier row names `copy`; the
+    /// list is left as it was.
+    pub(crate) fn push(
+        &mut self,
+        row: (crate::entity::VertexKey, crate::entity::VertexKey),
+    ) -> Result<(), RowRefusal> {
+        self.0.push(row, LineageRows::NullEdgeCopies, Cell::Vertex)
+    }
+
+    /// The vertex `v` is a copy of through every copy: `v` itself where
+    /// no row copied it. Total, since the list cannot cycle.
+    #[must_use]
+    pub(crate) fn root(&self, v: crate::entity::VertexKey) -> crate::entity::VertexKey {
+        self.0.root(v)
     }
 }
 
@@ -913,6 +988,37 @@ mod tests {
         assert_ne!(reused, parent, "the reused slot carries a new version");
         list.push((reused, piece))
             .expect("a key minted into a reused slot is new to the list");
+    }
+
+    /// **A null-edge copy list refuses a copy it already names, where the
+    /// copy is recorded.** A copy recorded again, or a copy of the vertex
+    /// a copy of it was minted at, would close a cycle the chase back to
+    /// the original could not leave; the list refuses it at the push and
+    /// stays as it was, so [`VertexCopies::root`] is total. Red if the
+    /// push takes the row.
+    #[test]
+    fn a_null_edge_copy_list_refuses_a_copy_it_already_names() {
+        use crate::entity::VertexKey;
+        let mut arena: SlotMap<VertexKey, ()> = SlotMap::with_key();
+        let v: Vec<VertexKey> = (0..4).map(|_| arena.insert(())).collect();
+        let mut list = VertexCopies::default();
+        list.push((v[1], v[0])).unwrap();
+        let refused = |key, defect| {
+            Err(RowRefusal {
+                rows: LineageRows::NullEdgeCopies,
+                defect,
+                key: Cell::Vertex(key),
+            })
+        };
+        assert_eq!(list.push((v[0], v[1])), refused(v[0], RowDefect::NotFresh));
+        assert_eq!(list.push((v[1], v[2])), refused(v[1], RowDefect::NotFresh));
+        assert_eq!(list.push((v[2], v[2])), refused(v[2], RowDefect::SelfRow));
+        list.push((v[2], v[1])).unwrap();
+        list.push((v[3], v[0])).unwrap();
+        assert_eq!(
+            v.iter().map(|&k| list.root(k)).collect::<Vec<_>>(),
+            [v[0]; 4]
+        );
     }
 
     /// **A refused row reads the same in every lane that carries it.**

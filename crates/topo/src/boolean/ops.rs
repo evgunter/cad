@@ -2343,9 +2343,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
             );
         }
     });
-    let merged = body
-        .merge_coplanar_faces_unjoined(declared, tol)
-        .map_err(of_merge)?;
+    let merged = body.merge_coplanar_faces_unjoined(declared, tol)?;
     desc.absorb_merge(&merged)?;
     describe_minted_edges(body, seam_edges, &merged, band, tol)?;
     let edge_joins = join_stage(body, desc, band, tol)?;
@@ -2508,17 +2506,6 @@ fn of_attachment(
     match crate::merge_faces::edge_on_faces_reading(carrier, &cause) {
         Some(diag) => DescribeRefusal::off_face(edge, diag),
         None => DescribeRefusal::refused(edge, failure, cause, carrier == geom::CurveKind::Nurbs),
-    }
-}
-
-/// The boolean's refusal for a merge-door refusal: the door's
-/// re-description of its kept faces' boundaries refuses as the
-/// boolean's own description pass does ([`of_describe`]), and every
-/// other refusal is the output stage's.
-pub(super) fn of_merge(refusal: crate::merge_faces::MergeCoplanarError) -> BooleanError {
-    match refusal.kept_boundary() {
-        Some(described) => of_describe(described),
-        None => BooleanError::Merge(refusal),
     }
 }
 
@@ -3194,11 +3181,7 @@ pub(super) fn ledger<T: Decide>(
             Incidence::of(&red.a, scaffold[0]),
             Incidence::of(&red.b, scaffold[1]),
         ],
-        null_copies: red
-            .null_edges
-            .iter()
-            .map(|r| (r.operand, r.at_vertex, [r.attr.below_end, r.attr.above_end]))
-            .collect(),
+        copies: red.copies.clone(),
     })
 }
 
@@ -3267,10 +3250,6 @@ fn decide_one(
     Cites::decided(super::reduce::index(k))
 }
 
-/// One null edge's copies: its operand, the vertex it was minted at,
-/// and its two ends.
-type NullCopy = (Operand, VertexKey, [VertexKey; 2]);
-
 /// **Everything a result's records are carried from**: the reduction's
 /// own records, each operand's carried records and ring ties
 /// ([`ledger`]), every decision a record may cite, in decision order,
@@ -3293,8 +3272,8 @@ pub(super) struct Ledger {
     /// Each operand clone's faces around each vertex and edge, before
     /// the finish discards any.
     incidence: [Incidence; 2],
-    /// The reduction's null edges' copies.
-    null_copies: Vec<NullCopy>,
+    /// Each operand's null-edge copies.
+    copies: [crate::lineage::VertexCopies; 2],
 }
 
 /// **The faces around each cell of an operand's clone**, read before
@@ -3377,29 +3356,11 @@ fn split_pieces(
 /// The vertex `v` of operand `side`'s clone is a copy of: where a null
 /// edge minted `v` at another vertex, that vertex, read back through
 /// every null edge that hangs at a copy; `v` itself where none did. A
-/// decision's cells name the op's input, which holds no copy.
-///
-/// # Errors
-///
-/// [`BooleanError::JoinDesync`] where the copies' null edges close a
-/// cycle, so no vertex is the original.
-fn uncopied(
-    null_copies: &[NullCopy],
-    side: Operand,
-    mut v: VertexKey,
-) -> Result<VertexKey, BooleanError> {
-    for _ in 0..=null_copies.len() {
-        let minted = null_copies
-            .iter()
-            .find(|&&(operand, at, ends)| operand == side && at != v && ends.contains(&v));
-        match minted {
-            Some(&(_, at, _)) => v = at,
-            None => return Ok(v),
-        }
-    }
-    Err(BooleanError::JoinDesync {
-        what: "a vertex's null-edge copies close a cycle with no original",
-    })
+/// decision's cells name the op's input, which holds no copy. Total:
+/// the copies were checked as each was recorded, so they cannot cycle
+/// ([`crate::lineage::VertexCopies`]).
+fn uncopied(copies: &[crate::lineage::VertexCopies; 2], side: Operand, v: VertexKey) -> VertexKey {
+    copies[usize::from(side == Operand::B)].root(v)
 }
 
 /// One operand's own records re-entering an op, in its keys: the cell
@@ -3716,8 +3677,8 @@ fn carried<T: Decide + AtRestPolicy>(
                 }
                 let fresh = decide_one(
                     pending,
-                    (side, Cell::Vertex(uncopied(&ledger.null_copies, side, u)?)),
-                    (side, Cell::Vertex(uncopied(&ledger.null_copies, side, w)?)),
+                    (side, Cell::Vertex(uncopied(&ledger.copies, side, u))),
+                    (side, Cell::Vertex(uncopied(&ledger.copies, side, w))),
                     margin,
                 );
                 cites = cites.union(&fresh);
@@ -8760,8 +8721,9 @@ mod tests {
 
     /// **The door's refusal comes back to the boolean as the boolean's
     /// own**: every refusal the describer can raise, worded by the merge
-    /// door and handed through `of_merge`, is the very `BooleanError`
-    /// the boolean's own description pass raises for it.
+    /// door and handed through `BooleanError`'s
+    /// `From<MergeCoplanarError>`, is the very `BooleanError` the
+    /// boolean's own description pass raises for it.
     #[test]
     fn a_kept_boundary_refusal_comes_back_as_the_booleans_own() {
         use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
@@ -8776,7 +8738,7 @@ mod tests {
             predicate: Some("dihedral_arm"),
             terminal_sliver: false,
         };
-        let text = super::of_merge(crate::merge_faces::MergeCoplanarError::of_kept_boundary(
+        let text = BooleanError::from(crate::merge_faces::MergeCoplanarError::of_kept_boundary(
             &[(kept, strut)],
             DescribeRefusal::undecided(strut, DihedralReading::Bend, diag),
         ))
@@ -8832,7 +8794,7 @@ mod tests {
                 described.clone(),
             );
             assert_eq!(
-                format!("{:?}", super::of_merge(worded)),
+                format!("{:?}", BooleanError::from(worded)),
                 format!("{:?}", super::of_describe(described.clone())),
                 "{described:?} passes through as the boolean's own"
             );
@@ -8908,7 +8870,7 @@ mod tests {
             let merged = MergeCoplanarError::of_kept_boundary(&[(face, edge)], refusal.clone());
             let own = super::of_describe(refusal);
             assert_eq!(
-                format!("{:?}", super::of_merge(merged.clone())),
+                format!("{:?}", BooleanError::from(merged.clone())),
                 format!("{own:?}"),
                 "the merge door's refusal comes back as the boolean's own"
             );

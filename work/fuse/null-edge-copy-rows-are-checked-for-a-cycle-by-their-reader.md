@@ -29,3 +29,16 @@ What is owed: record the copies in a list that refuses a non-fresh copy
 at append (the `FaceDivisions` shape, over vertices), so `uncopied` is
 total and its `JoinDesync` arm goes. Measure first that every writer
 mints the copy it records.
+
+## Closed
+
+Measured: every writer (`insert.rs`'s `mint_plans` run, `vtxfac.rs`'s
+ring struts) records the vertex `mev_null_run` just minted; a probe
+over the ci suites found no record whose copy an earlier record names.
+The reduction now collects its null edges through `NullEdges::extend`,
+which pushes each copy onto its operand's `crate::lineage::VertexCopies`
+(the `FaceDivisions` check, over vertices, through one `Minted` core)
+and refuses a non-fresh copy as `BooleanError::LineageRow`.
+`uncopied` is the list's `root`: total, no `JoinDesync`. The edge- and
+cone-split rows have the same shape with unbounded readers:
+`split-rows-are-chased-with-no-cycle-check`.

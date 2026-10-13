@@ -3155,7 +3155,7 @@ pub(in crate::boolean) mod tests {
                  parallel, and the merge never glues a lie. {CONTRADICTED}"
             )
         );
-        let wrapped = BooleanError::Merge(err).to_string();
+        let wrapped = BooleanError::from(err).to_string();
         let problems = short_of_the_guard(&wrapped, &[]);
         assert!(problems.is_empty(), "{problems:?}: {wrapped}");
     }
@@ -3425,7 +3425,7 @@ pub(in crate::boolean) mod tests {
                 let offer = (!definite && sign > 0.0).then_some(reach);
                 assert_eq!(offered_below(&text), offer_at(offer), "{label}: {text}");
                 assert_eq!(
-                    BooleanError::Merge(err).to_string(),
+                    BooleanError::from(err).to_string(),
                     format!("coplanar-merge output stage refused: {text}"),
                     "{label}: the Boolean's merge stage forwards the sentence"
                 );
