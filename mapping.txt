@@ -1,0 +1,3 @@
+concave-fill fork: byte 101, A = Fable, B = Opus, protocol 26db1af89e
+Opus designer = local agent (a75bf8…), Fable designer = local agent (a65a5a…), dispatched 09:36; byte 101 odd → A = Fable, B = Opus
+First reports: A (Fable) S1-decided + I1 (shell door) + support-mouth first; B (Opus) S1-decided + I2 void-only/island refuses (A2) + build protrusions in F. Agree S; split on island; both add missed shapes (B: protrusions of the solid in F; A: support-mouth features).
