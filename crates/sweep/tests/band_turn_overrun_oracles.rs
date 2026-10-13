@@ -594,11 +594,14 @@ fn the_bracket_corner_matches_a_hand_integrated_closed_form() {
 
 /// **Leaning prisms over leans, setbacks and scales**, both request
 /// orders, against the slab oracle: every one builds, every vertex
-/// trivalent, the vertex set and volume the oracle's.
+/// trivalent, the vertex set and volume the oracle's. The small scale
+/// is `10⁷` zero widths (`0.01` at the default band), so its shortest
+/// edges stand the same count of band widths long at every eps row.
 #[test]
 fn leaning_prisms_match_the_slab_oracle_over_leans_setbacks_and_scales() {
     let mut failures = Vec::new();
-    for k in [1.0, 0.01, 100.0] {
+    let small = 1e7 * geom_core::Band::linear(tol()).expect("the run's band").zero();
+    for k in [1.0, small, 100.0] {
         for s in [-2.0, -1.0, -0.5, 0.25, 0.5, 1.0, 1.5] {
             let p = leaning(s, 1.0, k);
             for d in [0.05, 0.1, 0.3] {
