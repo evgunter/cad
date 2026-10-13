@@ -60,8 +60,8 @@
 //! meters too (arm (c)); a feature standing in it is refused here
 //! first-hand, since its own faces lie in the band's material. At an
 //! overrun arm (c) reads the far band's whole sliver on the near band's
-//! support, a bound larger than the overrun, so it also refuses some
-//! features the overrun clears
+//! support, a bound larger than the overrun, so a chamfer's also
+//! refuses some features the overrun clears
 //! (`work/band/a-turns-overrun-meters-the-whole-cut-off-sliver.md`).
 //! A face at another link's end bounds nothing here and is metered like
 //! any other; a circular link's window has no ends. A support of

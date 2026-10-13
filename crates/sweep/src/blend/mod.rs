@@ -1113,8 +1113,8 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`
 /// and `band_planar_cut_off`, which build each end it names.
 pub const FILLET3_CORNER_RECOURSE: &str = "end chains at trivalent vertices of one convexity \
-     between planes, whatever is requested: all three edges, two whose feet on the third edge meet \
-     or stand clearly apart, or one cut off in a plane end face, in one call";
+     between planes, whatever is requested: all three edges, two whose feet on the third meet or \
+     stand clearly apart, or one cut off in a plane end face, in one call";
 /// The lever of a turn's two readings (`fillet3_turn_feet_gap`,
 /// `fillet3_turn_overrun_chord`, and their straddle
 /// `fillet3_turn_feet`): in band, the two bands' feet on the third
@@ -1131,9 +1131,8 @@ pub const FILLET3_CORNER_RECOURSE: &str = "end chains at trivalent vertices of o
 /// `blend_recourse_followability::the_turn_recourse_builds_at_each_end_it_names`.
 pub const FILLET3_TURN_RECOURSE: &str = "make the two bands' feet on the vertex's third edge meet \
      (equal face angles beside that edge, or for a chamfer supplementary ones), move them clearly \
-     apart (a larger setback, or a more asymmetric corner; a fillet's far band may then end in an \
-     ellipse too near a circle, whose own recourse follows), or request that edge too, which \
-     builds the corner patch";
+     apart (a larger setback, or a more asymmetric corner, after which a round band's end ellipse \
+     may escalate with its own recourse), or request that edge too, which builds the corner patch";
 /// The lever of `fillet3_cap_transverse`: its in-band arm is the one
 /// refusal, between the two kinds it builds, so the way out is either
 /// kind, plainly.

@@ -489,8 +489,8 @@ definite. `TURN_OVERRUN` is gone.
   Fⱼ clipped at q", same carrier) and the probe's G1 finding left no
   choice open.
 - **Recourse.** `FILLET3_TURN_RECOURSE`'s middle leg names both verbs,
-  and says a fillet's far band may then end in an ellipse too near a
-  circle, whose own recourse follows. Its followability row runs the
+  and says a round band's end ellipse may then escalate with its own
+  recourse (the chamfer's text never says "fillet"). Its followability row runs the
   fillet's legs at a `60°` corner skewed into the turn's band, and at a
   box corner leaning its wall, where a larger setback or a slightly more
   asymmetric corner escalates `CapEllipse` and that recourse's legs
