@@ -2111,6 +2111,107 @@ mod pair_contact_tests {
         assert!(wrong_rows.is_empty(), "{}", wrong_rows.join("\n"));
     }
 
+    /// Arcs whose carriers cross inside both, as (centre, radius, start,
+    /// sweep), their radii orders of magnitude apart: r = 62.76 against
+    /// 1.28e-7, crossing 2.43 inside the first and 46ε at ε = 1e-9
+    /// inside the second's ends, and r = 80.44 against 0.0317, crossing
+    /// 20ε at ε = 1e-12 inside the first's end and 0.157 inside the
+    /// second.
+    #[allow(clippy::type_complexity)]
+    const UNEQUAL_RADII: [(&str, [((f64, f64), f64, f64, f64); 2]); 2] = [
+        (
+            "r = 62.76 x 1.28e-7",
+            [
+                (
+                    (-106.677_448_867_187_27, 59.130_528_391_886_16),
+                    62.755_865_313_469_435,
+                    0.986_377_959_232_007_9,
+                    4.084_286_531_899_824,
+                ),
+                (
+                    (-86.959_987_196_933_17, -0.447_322_568_277_620_46),
+                    1.284_420_198_932_770_8e-7,
+                    3.022_777_867_117_959_3,
+                    -3.855_885_774_703_99,
+                ),
+            ],
+        ),
+        (
+            "r = 80.44 x 0.0317",
+            [
+                (
+                    (6.744_101_644_309_793, 79.705_363_072_029_3),
+                    80.443_149_988_593_5,
+                    5.633_354_791_777_812,
+                    -0.902_846_282_788_287_3,
+                ),
+                (
+                    (8.183_130_461_020_52, -0.750_331_493_417_868_4),
+                    0.031_696_690_544_870_94,
+                    2.274_954_781_868_850_7,
+                    4.970_712_391_069_452,
+                ),
+            ],
+        ),
+    ];
+
+    /// What each [`UNEQUAL_RADII`] pair reads, both ways round: its
+    /// contact count, the predicate it escalated on, or the predicate
+    /// that refused to build an arc.
+    fn unequal_radii_reads<T: Decide>() -> Vec<(String, Read)> {
+        let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("band: {e}"));
+        let build = |(c, r, start, sweep): ((f64, f64), f64, f64, f64)| {
+            let at = |t: f64| (c.0 + r * t.cos(), c.1 + r * t.sin());
+            let carrier = Arc2 {
+                centre: pt(c),
+                radius: T::from_f64(r),
+                sweep: T::from_f64(sweep),
+            };
+            build_seg(
+                pt(at(start)),
+                pt(at(start + sweep)),
+                Segment::Arc(carrier),
+                Consistency::Decide,
+                band,
+            )
+            .map_err(|e| Some(e.predicate()))
+        };
+        let mut reads = Vec::new();
+        for (name, [first, second]) in UNEQUAL_RADII {
+            for (order, (p, q)) in [("", (first, second)), (", reversed", (second, first))] {
+                let read = build(p).and_then(|p| {
+                    let q = build(q)?;
+                    match pair_contacts(&p, &q, band) {
+                        Ok(PairOutcome::Contacts(contacts)) => Ok(contacts.len()),
+                        Ok(PairOutcome::Overlap) => Ok(1),
+                        Err(source) => Err(source.predicate),
+                    }
+                });
+                reads.push((format!("{name}{order}"), read));
+            }
+        }
+        reads
+    }
+
+    /// **Arcs that cross read a contact at any ratio of their radii**,
+    /// at `f64` and at `Interval` ([`UNEQUAL_RADII`]): never no contact.
+    #[test]
+    fn arcs_crossing_at_unequal_radii_never_read_no_contact() {
+        let wrong_reads: Vec<String> = [
+            ("f64", unequal_radii_reads::<f64>()),
+            ("Interval", unequal_radii_reads::<Interval>()),
+        ]
+        .into_iter()
+        .flat_map(|(scalar, reads)| {
+            reads
+                .into_iter()
+                .filter(|(_, read)| *read == Ok(0))
+                .map(move |(name, _)| format!("{scalar}: {name}: read no contact"))
+        })
+        .collect();
+        assert!(wrong_reads.is_empty(), "{}", wrong_reads.join("\n"));
+    }
+
     fn wrong<N: std::fmt::Display>(scalar: &str, rows: Vec<(N, Read, Read)>) -> Vec<String> {
         rows.into_iter()
             .filter(|(_, want, got)| want != got)
