@@ -2,12 +2,13 @@
 id: a-subnormal-weight-face-now-passes-the-meters-refinement
 kind: issue
 title: A subnormal-weight face now passes the meters' refinement, and offset_fit's composite reads its weight underflow as an unbounded cell
-status: review
+status: closed
 pr: 4872
 opened: 2026-10-01
 priority: P3
 branch: encl/subnormal-weight-face
 cost: E
+closed: 2026-10-13
 ---
 
 
