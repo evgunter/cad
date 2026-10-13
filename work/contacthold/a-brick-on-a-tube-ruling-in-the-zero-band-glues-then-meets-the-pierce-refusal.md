@@ -20,8 +20,8 @@ tangent and glues it, and then every op in both orders refuses
 witness lane has a locus for never meets that refusal. The same happens on
 PR 4918's base.
 
-Measured on PR 4918 after merging main (2026-10-13, ε = 10⁻⁹): ∪, ∖ and
-∩, both orders, all `CurvedPierceUnsupported`. ∪ used to refuse
+Measured on PR 4918 after merging main (2026-10-13, ε = 10⁻⁶, 10⁻⁹ and
+10⁻¹²): ∪, ∖ and ∩, both orders, all `CurvedPierceUnsupported`. ∪ used to refuse
 `TangentSlitArmUnbuilt`; PR 4921 retired that arm, and ∪ now meets the
 pierce refusal like the other two. With the gap at 1.5·ε to 8·ε the door
 escalates `Coincidence(TangentLocus)` on `pc_parallel_gap`, and at 20·ε
