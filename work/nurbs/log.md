@@ -1141,3 +1141,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - The `pcurve_cache` overlap with PCERT's spiric work merged clean.
   - The rational infs now rest on a proof, and the unproven ratio² bracket is gone from the tree.
   - Seam notes posted to PCERT/PCTAIL, KNOT, CHART and TCOST/TINT. — (NURBS orchestrator)
+
+- **2026-10-13 02:38Z — design fork dispatched: the rational lower-bound statement and its reach.**
+  - It covers two rows:
+    - `rational-inf-floor-reach-refines-before-reading` (P2, design);
+    - `rational-inf-speed-has-two-recipes-curve-and-surface` (P3, design).
+  - Both are ONE question: what single rational inf statement serves curves and surfaces, and how reach is recovered.
+  - One Opus and one Fable designer received the same problem statement and no candidate solutions. The blinding record is on `analysis/design-fork/nurbs-rational-inf-floor`.
+  - A log row is owed only if the fork goes to Ev.
+- **Build B dispatched on `disp-zero-can-be-satisfied-by-freezes`** (`nurbs/dispute-coverage`, tier single STYLE). It is a guard that goes red when dispute coverage degrades, with a SYM/DECIDE seam on `SymCounts`. — (NURBS orchestrator)
