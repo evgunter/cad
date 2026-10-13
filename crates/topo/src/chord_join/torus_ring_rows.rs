@@ -13,7 +13,7 @@ use super::*;
 use crate::MevSite;
 use crate::ring_path::cone_islands::{Frame, band, frames, plane, scales};
 use crate::ring_path::torus_islands::{
-    Island, IslandEdge, crest_islands, islands, meridian, on_torus, parallel, torus,
+    Island, IslandEdge, crest_islands, islands, meridian, on_torus, parallel, spiric_islands, torus,
 };
 
 fn tol() -> Tol {
@@ -335,6 +335,33 @@ fn bystanders(f: Frame, island: &Island) -> (Point3<f64>, Point3<f64>) {
     (find(true), find(false))
 }
 
+/// `island` walled off in `face` from corner `r`: its run, closed by
+/// its last edge, and the face's rings re-homed. The island's face.
+fn wall_off(
+    body: &mut Body<f64>,
+    (face, key): (FaceKey, SurfaceKey),
+    island: &Island,
+    r: usize,
+) -> Result<FaceKey, SplitJoinError> {
+    let (run, closing) = run_from(body, (face, key), island, r);
+    let after = body.get_half_edge(run.1).unwrap().next;
+    let site = MefSite::Chords {
+        he1: run.0,
+        he2: after,
+    };
+    let back = IslandEdge {
+        params: (closing.params.1, closing.params.0),
+        ..closing
+    };
+    let spec = edge_spec(body, key, &back);
+    let made = body
+        .mef(site, spec, FaceSurface::Shared { key, sense: true }, tol())
+        .unwrap();
+    let remainder = body.get_half_edge(after).unwrap().parent_loop;
+    ChordJoiner::new(band()).rehome_rings(body, face, made.face, remainder)?;
+    Ok(made.face)
+}
+
 /// **A bystander ring of a torus face moves into the island a run walls
 /// off when it lies inside it, and stays when it does not**: the island
 /// is walled off by its closing chord, and ring re-homing reads each
@@ -358,30 +385,10 @@ fn re_homes_as_the_oracle(islands: fn(Frame) -> Vec<(&'static str, Island)>) {
                     let (mut body, face, key) = sheet(f, surface.clone(), true);
                     let ring_in = empty_ring(&mut body, face, p_in);
                     let ring_out = empty_ring(&mut body, face, p_out);
-                    let (run, closing) = run_from(&mut body, (face, key), &island, r);
-                    let after = body.get_half_edge(run.1).unwrap().next;
-                    let site = MefSite::Chords {
-                        he1: run.0,
-                        he2: after,
-                    };
-                    let back = IslandEdge {
-                        params: (closing.params.1, closing.params.0),
-                        ..closing
-                    };
-                    let spec = edge_spec(&mut body, key, &back);
-                    let made = body
-                        .mef(site, spec, FaceSurface::Shared { key, sense: true }, tol())
-                        .unwrap();
-                    let remainder = body.get_half_edge(after).unwrap().parent_loop;
-                    ChordJoiner::new(band())
-                        .rehome_rings(&mut body, face, made.face, remainder)
+                    let made = wall_off(&mut body, (face, key), &island, r)
                         .unwrap_or_else(|e| panic!("{label}: {e:?}"));
                     let face_of = |ring| body.get_loop(ring).unwrap().face;
-                    assert_eq!(
-                        face_of(ring_in),
-                        made.face,
-                        "{label}: the inside ring moves"
-                    );
+                    assert_eq!(face_of(ring_in), made, "{label}: the inside ring moves");
                     assert_eq!(face_of(ring_out), face, "{label}: the outside ring stays");
                 }
             }
@@ -389,44 +396,57 @@ fn re_homes_as_the_oracle(islands: fn(Frame) -> Vec<(&'static str, Island)>) {
     }
 }
 
-/// **A run closed by a spiric oval is a ring the lane does not read
-/// yet**, typed: the oval of the axis-parallel plane `x = 0.3` (the
-/// plane × torus chord's spiric arm is not built), as the closing chord
-/// of the outer island's run. The run's own arcs are read first, and
-/// read.
+/// **A run on a spiric oval winds its island and re-homes its rings as
+/// the oracle says**: strips between two planes parallel to the axis,
+/// on the tube's outer side on either side of the axis's trace and on
+/// its inner side, one whose planes stand either side of the axis, and
+/// one bounded by an oval and a meridian
+/// ([`crate::ring_path::torus_islands::spiric_islands`]), each oval's
+/// own loop told from the one across the trace. From every corner, so
+/// with an oval in the run and as the closing chord, in both directions,
+/// at both senses, with the torus's axis either way, in three frames at
+/// two scales; every decided path agrees, and a bystander ring moves
+/// into the island exactly when it lies inside.
 #[test]
-fn a_spiric_closing_chord_is_a_ring_the_lane_does_not_read() {
-    let f = frames()[0];
-    let surface = torus(f, false);
-    let island = islands(f).remove(0).1;
-    let (mut body, face, key) = sheet(f, surface.clone(), true);
-    let (run, _) = run_from(&mut body, (face, key), &island, 0);
-    let cut = plane(f.at(0.3, 0.0, 0.0), f.x);
-    let geom_brep::PlaneTorusSection::SpiricOvals { s1, .. } =
-        geom_brep::plane_torus_section(&cut, &surface, 3.0, band()).unwrap()
-    else {
-        panic!("the plane x = 0.3 cuts two spiric ovals");
-    };
-    let spec = EdgeCurveSpec {
-        description: geom_brep::EdgeDescriptionSpec::Intersection {
-            pair: geom_brep::SurfacePair::new(key, body.add_surface(cut)),
-            witness: s1.mid_point(0.0, 1.0),
-        },
-        carrier: s1,
-        param_start: 0.0,
-        param_end: 1.0,
-    };
-    let got = path_island_winding(&body, face, run, Some(&spec), band());
-    assert!(
-        matches!(
-            got,
-            Err(SplitJoinError::RingIslandUnread {
-                kind: geom::SurfaceKind::Torus,
-                ..
-            })
-        ),
-        "{got:?}"
-    );
+fn a_run_on_a_spiric_oval_winds_its_island_as_the_oracle_does() {
+    winds_as_the_oracle(spiric_islands);
+    re_homes_as_the_oracle(spiric_islands);
+}
+
+/// **A ring standing on the run's planes, off its arcs, stays where it
+/// is**: the strip between the planes `x = 0.2` and `x = 1` on one side
+/// of the axis's trace walled off, and a ring at each corner of the same
+/// strip across the trace, which lies on an oval's plane on the loop
+/// across the trace and on a parallel's plane, on that parallel's circle
+/// out of the run's span: the shape of a bar through a torus's hole,
+/// whose two pierce islands stand on one face's planes. Each path from
+/// the ring starts there, with a lead of no length on both planes, which
+/// is read as the point it is and passed over. From every corner of the
+/// run, with the torus's axis either way, in three frames at two scales.
+#[test]
+fn a_ring_on_the_runs_planes_off_its_arcs_stays() {
+    use crate::ring_path::torus_islands::oval_strip;
+    for f in scaled_frames() {
+        for mirror in [false, true] {
+            let surface = torus(f, mirror);
+            let island = oval_strip(f, (0.2, 1.0), true, (-0.5, 0.8));
+            let across = oval_strip(f, (0.2, 1.0), false, (-0.5, 0.8));
+            for &p in &across.corners {
+                for r in 0..island.edges.len() {
+                    let label = format!("mirror {mirror}, ring at {p:?}, from {r}");
+                    let (mut body, face, key) = sheet(f, surface.clone(), true);
+                    let ring = empty_ring(&mut body, face, p);
+                    wall_off(&mut body, (face, key), &island, r)
+                        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                    assert_eq!(
+                        body.get_loop(ring).unwrap().face,
+                        face,
+                        "{label}: the ring stays"
+                    );
+                }
+            }
+        }
+    }
 }
 
 /// **A run on the tube's top or bottom circle winds its island and

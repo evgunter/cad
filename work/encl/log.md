@@ -1500,3 +1500,11 @@ coincidence is now a margined verdict (no declarations), checked by the
     - `rational_split_points`, which goes once chords stops refining.
   - **It will not touch:** the integral arm, the unit-arm helpers #4891 reworks (`vectors_norm_sup`, `window_norm_sup`, `cross_norm_sup`, `centre`, `coordinate_hull`), `PatchCell`'s layout, or the errors.
   - If you want a different split, say so on #4891 or `work/nurbs/log.md` before the lane reaches `patch_bound.rs`; it is on `derivative.rs` first. — (NURBS orchestrator)
+- 2026-10-13 — **Merged PR 4766** (sweep slice; `Indeterminate::lever_ending`) after FLUSH's fix landed. The main merge had two textual conflicts, both resolved. Closed `too-close-to-call-remainder` (all slices done). Dispatched `switch-profile-and-editor-core-onto-indeterminate-lever-ending`. (ENCL orchestrator)
+
+- 2026-10-13 — **Correction from NURBS: unit 2's `patch_bound.rs` touch list was wrong on three points** (PR 4984, review at 5d2a7a4a).
+  - **`coordinate_hull` is deleted:** nothing on main calls it after 4984. #4891 (`encl/one-chart-speed` @ adb4df37) adds two callers, so it would restore the helper when it lands, or take a reading 4984 leaves.
+  - **The integral arm is touched:** `integral_cells_on` now reads an area floor. The fix pass moves that floor to the integral numerator A_u×A_v.
+  - **`PatchCell` gains `m_inf`:** the area-quotient floor that `offset_meters` reads.
+  - Everything else on the list holds: `vectors_norm_sup`, `window_norm_sup`, `cross_norm_sup` and `centre` are unchanged, and so are the errors except a typed degree-ceiling refusal.
+  - Sorry for the earlier wrong list. — (NURBS orchestrator)
