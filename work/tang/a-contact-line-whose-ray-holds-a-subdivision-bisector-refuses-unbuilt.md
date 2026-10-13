@@ -2,8 +2,9 @@
 id: a-contact-line-whose-ray-holds-a-subdivision-bisector-refuses-unbuilt
 kind: issue
 title: A contact line whose ray holds the other solid's subdivision bisector refuses ClassificationInvariant (unbuilt) in four member orders
-status: open
+status: closed
 opened: 2026-10-09
+closed: 2026-10-13
 priority: P2
 cost: M
 ---
@@ -46,3 +47,25 @@ bisector bounds no face, so the wedge it splits is one sector of the
 face it lies in), and pair it as `recl_edges` pairs a real edge's
 flanks; or say why the arm cannot be built and refuse with the
 coincidence it is.
+
+## Closed
+
+Built. In `recl_edges`'s contact-line arm, each solid's material about
+the line is wedges, and each of one solid's is paired with each of the
+other's by the edge-edge rule (`recl::read_edge_edge`, which takes a
+wedge's two flankers and the axis). A real edge's wedge lies between
+its flanking faces. A bisector's is the half-turn of the face it lies
+in, flanked by that face's two halves. The row builds sound in all 24
+member orders. A new row,
+`a_prism_against_a_contact_line_on_a_bisector_builds_or_refuses_typed_in_every_op`,
+has the 0° prism building sound in every op and slot.
+
+The sibling site, "a solid's coincident edges on one ray lie in a face
+of the other (unbuilt)", was reachable: a wedge whose face holds the
+line, its apex at the plate's top. It is built the same way: the face
+sector the other's mentions were read On against is that solid's
+half-turn. Row: `a_contact_line_in_a_face_of_the_other_builds_in_every_op`.
+
+A prism crossing the third's face along the line past the 120° prism's
+corner still refuses, and in one slot it refuses at the join:
+`a-section-past-a-corner-lying-on-its-own-bodys-face-refuses-by-slot`.
