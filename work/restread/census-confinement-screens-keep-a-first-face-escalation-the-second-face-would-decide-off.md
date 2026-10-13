@@ -22,5 +22,5 @@ report where a decided reading would have dropped it, and which face
 is listed first decides whether it does.
 
 Not measured on a fixture; read from the code. The rule is
-`census::curved::in_both`'s: read both faces, keep the escalations only
+`census::in_both`'s: read both faces, keep the escalations only
 where neither decides off.

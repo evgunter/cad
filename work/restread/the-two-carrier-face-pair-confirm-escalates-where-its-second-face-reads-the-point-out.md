@@ -19,7 +19,7 @@ decidedly stale, yet the confirm answers escalated.
 Same defect as PR 4956's review finding 2 on the point-touch lane
 (`census::point::face_face` / `edge_face` closures): there it is fixed by
 reading both cells and keeping the escalations only when neither
-decides out (`census::curved::in_both`, which `curved_interiors_meet`
+decides out (`census::in_both`, which `curved_interiors_meet`
 also uses per candidate). The fix here is that helper over the two
 `face_holds` readings, the `Some(None)` refusal pushed inside the
 reading. Found by PR 4956's §5 sweep for conjunctions of cell readings
@@ -30,7 +30,7 @@ Closed by CONTACTHOLD's `contacthold/one-tangent-interiors-reading`:
 the confirm no longer places one point. It reads the line through both
 faces with the op's own reading, `boolean::line_through_both_faces`,
 whose stations each read both faces and settle on either deciding out
-(the `census::curved::in_both` rule), so a station the second face
+(the `census::in_both` rule), so a station the second face
 decides out reads out whatever the first left unread. The same rule in
 the op is witnessed by `review_4831_probes::p10_the_sliver_family`,
 whose fat-disc-first rows escalated on exactly that shape and now answer.

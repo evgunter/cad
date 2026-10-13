@@ -13178,10 +13178,9 @@ mod two_carrier_records {
             ];
             let r = rig(&outline, (-1.0, 5.0), (-0.5, 0.5));
             let b = Band::linear(Tol::witness()).unwrap();
-            let Ok(crate::boolean::RestTangent::Line { carrier, overlap }) =
-                crate::boolean::tangent_pair_at_rest(&r.body, r.wall, r.top, b)
-            else {
-                panic!("the sheet and the plate derive their tangent line");
+            let line = crate::boolean::tangent_pair_at_rest(&r.body, r.wall, r.top, b);
+            let Ok(crate::boolean::RestTangent::Line { carrier, overlap }) = line else {
+                unreachable!("the sheet and the plate derive their tangent line");
             };
             let held = core::cell::Cell::new(0);
             let read = crate::boolean::line_through_both_faces(

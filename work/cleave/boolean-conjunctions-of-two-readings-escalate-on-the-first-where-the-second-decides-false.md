@@ -29,7 +29,7 @@ depends on which reading is written first.
   (`sectors.rs`).
 
 Not measured on a fixture; read from the code. The fix is the rule
-`census::curved::in_both` states: read both, a decided `false` on
+`census::in_both` states: read both, a decided `false` on
 either side drops the other's escalation.
 
 ## More candidates (unverified)
