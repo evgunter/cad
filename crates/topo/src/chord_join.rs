@@ -4308,6 +4308,13 @@ fn chart_ring_side<T: Decide>(
         let decide_r = |name, margin| decide(name, margin, band);
         let w = vertex_point(body, v) - centre;
         let raw = stable_azimuth(w.dot(axis.cross(u_ref)), w.dot(u_ref), band);
+        // The vertex on the branch of the window's middle, in
+        // `(mid − τ/2, mid + τ/2]`. A vertex inside the window lands on its
+        // own branch. One at the seam of a whole-period window lands on
+        // `hi`, which reads as `lo` would only because such a run carries
+        // its seam rows along both edges: the seam paragraph above. At
+        // `Sym` the crossings read `u_p` numerically, against image ends
+        // of another provenance, never as an identity.
         let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
         let v_p = w.dot(axis);
         let mut crossings = 0usize;
