@@ -1140,3 +1140,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - r4927a and r4927b are alive (58 target writes in 15 min; drafts at 01:39 and 01:18).
   - Re-armed for 02:55.
 - 2026-10-13 03:00 — The 4906 fix pass is done (head `cf2e6d9f`; hosted red only on the known `coincidence_door` row). Local verify is running in /home/user/v4906 (head + main, `a793610b4b`; scratchpad/v4906/summary.txt). The row is drafted (scratchpad/dr4906/row.md). 4886 and 4910 fix passes and the r4927 pair are still running.
+- 2026-10-13 03:25 — **PR 4906 merged** (`46ff70015b`). Local verify on head + main: fmt, plus topo `join|torus|one_site|wrap` (281) and the touched sweep rows (42), green at three ε. Row `PR-4906.md` last: sequential, M, byte 227, tallied 0, major false.
