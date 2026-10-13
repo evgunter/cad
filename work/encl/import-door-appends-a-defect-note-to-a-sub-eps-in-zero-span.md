@@ -50,3 +50,17 @@ Decide it with D4 ¶1 (i)'s one-recourse-per-decision rule in view. Pin the answ
   `refusal_concision_at_rest` holds the at-rest badges.
 
 - 2026-10-12 (ENCL orchestrator): PR 4855 (merge `5903a8c5a2`) widened this row's reach. `SizedDecision::recourse`'s Undecided arm now takes `at_zero` for a gate's rejected Zero, so on the Interval lane a rejected-Zero enclosure that straddles zero inside the zero band takes the note on every Undecided-routed reader of `DIHEDRAL_ARM` and offset_meters, not only on the Zero arm. The note's premise ('an edge of no length…') is no more established by a straddling enclosure there than here. Also, `passes.passes_zero()`'s early return guards only the Zero arm (recourse.rs about L437). A decision that passes zero and has `at_zero` would end differently by route. None exists today: every `at_zero: Some` decision is Positive.
+
+## 2026-10-13: the ε floor widens what the notes speak for (ENCL, PR 4925 review)
+
+PR 4925 gives ε a floor, `geom_core::tolerance::EPS_MIN` ≈ 2.2e-13 m (D4 ¶4), and `MarginDiag::tightens_below` withholds any offer at or below it. A decision's `at_zero` note was written for a zero verdict with no size to tighten below. It now also ends every nonzero zero-band margin whose |m|/K ≤ EPS_MIN.
+
+At a run with ε < K·EPS_MIN (2.2e-12 at K = 10, so CI's 1e-12 row), every zero-band margin satisfies |m| ≤ ε < K·EPS_MIN. Every zero-band offer therefore vanishes, and each note speaks for any sub-floor size, not only an exact or proved zero.
+
+Notes whose wording claims a defect or a non-mintable shape, and so want this audit:
+- `CertCheck::ParamSpan`, the "kernel defect or a damaged file" note this row is about (`crates/geom-brep/src/certify.rs`).
+- `CertCheck::ParamSpanMeter` (`certify.rs`, `SpanMeterCollapsed`).
+- `DIHEDRAL_ARM` (`crates/geom-brep/src/dihedral.rs`). Its `a_gates_rejected_zero_ends_in_the_arms_zero_note` row now ends a rounded 1.39e-17 m zero in the note.
+- `offset_meters`' `Meter::NormalFloor` (`crates/geom-brep/src/offset_meters.rs`, read in `topo/src/validate.rs`).
+
+PR 4925 changes no note's wording. The audit is this row's.
