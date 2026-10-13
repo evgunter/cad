@@ -3516,6 +3516,13 @@ impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
     }
 }
 
+impl<T: Decide> QuadLane<T> {
+    /// A value of the walk's scalar as the interval holding it.
+    pub(crate) fn lift(self, x: T) -> Interval {
+        (self.lift)(x)
+    }
+}
+
 /// **The shell's op door**, as a value the passes take rather than a
 /// trait a scalar implements.
 ///
