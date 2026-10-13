@@ -7,6 +7,7 @@ opened: 2026-10-11
 priority: P2
 cost: M
 branch: flush/corner-names-glue
+pr: 5008
 ---
 
 
