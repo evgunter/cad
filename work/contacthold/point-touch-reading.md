@@ -6,6 +6,7 @@ opened: 2026-10-13
 status: review
 priority: P1
 branch: contacthold/point-touch-reading
+pr: 4956
 refs: [a-carried-edge-face-record-the-census-cannot-read-refuses-every-later-op, an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane]
 ---
 
