@@ -279,7 +279,8 @@ fn a_pip_with_its_seam_in_the_cubes_top_stops_at_the_role_read() {
         assert!(
             matches!(
                 e,
-                topo::BooleanError::Join(topo::SplitJoinError::SectionLoopUndecided { .. })
+                topo::BooleanError::Join(ref j)
+                    if matches!(j.error(), topo::SplitJoinError::SectionLoopUndecided { .. })
             ),
             "{op:?}: expected the undecided section loop, got {e:?}"
         );

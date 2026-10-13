@@ -320,9 +320,8 @@ fn a_ring_inside_a_sphere_island_moves_and_stops_at_the_role_read() {
         assert!(
             matches!(
                 out,
-                Err(BooleanError::Join(
-                    topo::SplitJoinError::SectionLoopUndecided { .. }
-                ))
+                Err(BooleanError::Join(ref j))
+                    if matches!(j.error(), topo::SplitJoinError::SectionLoopUndecided { .. })
             ),
             "the well, {op}: wanted the role read's refusal, got {:?}",
             out.map(|_| "a body")

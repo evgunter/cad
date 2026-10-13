@@ -2834,9 +2834,10 @@ pub enum BooleanError {
         /// The typed pcurve-pass refusal, nested whole.
         source: crate::pcurves::PcurveMintError,
     },
-    /// The joining stage's chord machinery refused (PR 5; nested
-    /// whole — includes `UnpairedLooseEnds` and `SectionLoopMixed`).
-    Join(SplitJoinError),
+    /// The joining stage's chord machinery refused, nested whole
+    /// (`UnpairedLooseEnds`, `SectionLoopMixed`, …): never a lineage row,
+    /// which is [`Self::LineageRow`] ([`BooleanJoin`]).
+    Join(BooleanJoin),
     /// The output stage's join could not decide whether a valence-2
     /// vertex is a regular point of its edges' carrier: a reading in
     /// the margin band (D4 ¶3).
@@ -6379,16 +6380,44 @@ fn validate_declarations<T: Decide>(
     Ok(())
 }
 
-impl BooleanError {
-    /// The chord join's refusal as the Boolean's: nested whole
-    /// ([`Self::Join`]), except a lineage row the join's division list
-    /// refused, which is the Boolean's own [`Self::LineageRow`], so one
-    /// lineage refusal reaches a caller one way.
-    #[must_use]
-    pub fn of_join(error: SplitJoinError) -> Self {
-        match error {
-            SplitJoinError::LineageRow(refusal) => refusal.into(),
-            other => Self::Join(other),
+pub use join_lift::BooleanJoin;
+
+/// The one conversion of a chord-join refusal into the Boolean's, held
+/// by the type: [`BooleanJoin`]'s field is private to this module, so
+/// [`BooleanError::Join`] is built only here, and never around a
+/// lineage row.
+mod join_lift {
+    use super::{BooleanError, SplitJoinError};
+
+    /// A chord-join refusal the Boolean nests whole: any
+    /// [`SplitJoinError`] but a lineage row.
+    #[derive(Debug)]
+    pub struct BooleanJoin(SplitJoinError);
+
+    impl BooleanJoin {
+        /// The join's own refusal.
+        #[must_use]
+        pub fn error(&self) -> &SplitJoinError {
+            &self.0
+        }
+    }
+
+    impl core::fmt::Display for BooleanJoin {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            self.0.fmt(f)
+        }
+    }
+
+    /// Nested whole ([`BooleanError::Join`]), except a lineage row the
+    /// join's division list refused, which is the Boolean's own
+    /// [`BooleanError::LineageRow`], so one lineage refusal reaches a
+    /// caller one way.
+    impl From<SplitJoinError> for BooleanError {
+        fn from(error: SplitJoinError) -> Self {
+            match error {
+                SplitJoinError::LineageRow(refusal) => refusal.into(),
+                other => Self::Join(BooleanJoin(other)),
+            }
         }
     }
 }

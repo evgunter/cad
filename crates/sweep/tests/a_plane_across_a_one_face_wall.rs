@@ -312,7 +312,8 @@ fn every_op_refuses(what: &str, a: Body<f64>, b: Body<f64>, count: usize) {
         assert!(
             matches!(
                 r,
-                Err(BooleanError::Join(SplitJoinError::SingleSiteSectionLoop { count: c })) if c == count
+                Err(BooleanError::Join(ref j))
+                    if matches!(j.error(), SplitJoinError::SingleSiteSectionLoop { count: c } if *c == count)
             ),
             "{what}: {op}: {:?}",
             r.map(|_| "a body")

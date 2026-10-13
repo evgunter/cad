@@ -518,9 +518,8 @@ fn a_section_circle_along_an_equator_edge_refuses_typed() {
             assert!(
                 matches!(
                     got,
-                    Err(topo::BooleanError::Join(
-                        topo::SplitJoinError::SingleSiteSectionLoop { .. }
-                    ))
+                    Err(topo::BooleanError::Join(ref j))
+                        if matches!(j.error(), topo::SplitJoinError::SingleSiteSectionLoop { .. })
                 ),
                 "{name}, P2, {label}: {:?}",
                 got.map(|r| r.body().map(|b| b.kind))

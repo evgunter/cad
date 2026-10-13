@@ -289,9 +289,13 @@ fn the_die_pips_shape_stops_typed_at_its_section_roles() {
     let a = finished("the slab", a, Tol::witness());
     let b = finished("the ball", ball(), Tol::witness());
     let err = topo::boolean::subtract(&a, &b, Tol::witness()).unwrap_err();
-    let topo::BooleanError::Join(topo::SplitJoinError::SectionLoopUndecided { .. }) = &err else {
+    let topo::BooleanError::Join(j) = &err else {
         panic!("expected the undecided section loop, got {err:?}");
     };
+    assert!(
+        matches!(j.error(), topo::SplitJoinError::SectionLoopUndecided { .. }),
+        "expected the undecided section loop, got {err:?}"
+    );
     // The retired claims must be GONE from the surfaced text: revert is
     // wired, the gate is not wholesale, and the sphere class is no
     // longer refused as a class.

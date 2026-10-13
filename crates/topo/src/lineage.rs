@@ -918,7 +918,7 @@ mod tests {
     /// **A refused row reads the same in every lane that carries it.**
     /// One sentence for the row ([`RowRefusal`]'s `Display`), inside
     /// the Boolean's refusal, the chord join's, and the join's lifted
-    /// into the Boolean's ([`crate::BooleanError::of_join`], which hands
+    /// into the Boolean's (`BooleanError`'s `From<SplitJoinError>`, which hands
     /// it over as the Boolean's own [`crate::BooleanError::LineageRow`]).
     /// Red if a lane spells the row again, or the lift nests it.
     #[test]
@@ -939,7 +939,7 @@ mod tests {
                 Cell::Face(f[0])
             )
         );
-        let lifted = BooleanError::of_join(SplitJoinError::LineageRow(refusal));
+        let lifted = BooleanError::from(SplitJoinError::LineageRow(refusal));
         assert!(
             matches!(
                 lifted,

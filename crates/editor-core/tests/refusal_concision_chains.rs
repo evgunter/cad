@@ -1796,7 +1796,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
     let boolean_join = join_arms().map(|(n, e)| {
         row(
             &format!("Boolean/Join/{n}"),
-            NodeErrorKind::Boolean(topo::BooleanError::Join(e)),
+            NodeErrorKind::Boolean(topo::BooleanError::from(e)),
         )
     });
     let shell = ShellKey::default();

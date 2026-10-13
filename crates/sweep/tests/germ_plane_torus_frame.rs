@@ -252,16 +252,30 @@ pub(crate) fn torus_door(
             diag,
         }) if diag.predicate == Some("positive_volume_exact") => return Ok(TorusDoor::Escalated),
         Err(e) if names_the_torus(&e) => {}
-        Err(BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
-            divided: geom::SurfaceKind::Plane,
-            wall: geom::SurfaceKind::Torus,
-            ..
-        })) => return Ok(TorusDoor::PlanarChord),
-        Err(BooleanError::Join(topo::SplitJoinError::SectionUnarmed {
-            divided: geom::SurfaceKind::Torus,
-            wall: geom::SurfaceKind::Torus,
-            ..
-        })) => return Ok(TorusDoor::WallSection),
+        Err(BooleanError::Join(ref j))
+            if matches!(
+                j.error(),
+                topo::SplitJoinError::SectionUnarmed {
+                    divided: geom::SurfaceKind::Plane,
+                    wall: geom::SurfaceKind::Torus,
+                    ..
+                }
+            ) =>
+        {
+            return Ok(TorusDoor::PlanarChord);
+        }
+        Err(BooleanError::Join(ref j))
+            if matches!(
+                j.error(),
+                topo::SplitJoinError::SectionUnarmed {
+                    divided: geom::SurfaceKind::Torus,
+                    wall: geom::SurfaceKind::Torus,
+                    ..
+                }
+            ) =>
+        {
+            return Ok(TorusDoor::WallSection);
+        }
         other => {
             return Err(format!(
                 "the op: {:?}",

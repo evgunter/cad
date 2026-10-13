@@ -541,9 +541,15 @@ fn a_boolean_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round() 
                             true,
                             near,
                         ),
-                        Err(BooleanError::Join(SplitJoinError::SingleSiteSectionLoop {
-                            count: 1,
-                        })) if single_site => Ok(()),
+                        Err(BooleanError::Join(j))
+                            if single_site
+                                && matches!(
+                                    j.error(),
+                                    SplitJoinError::SingleSiteSectionLoop { count: 1 }
+                                ) =>
+                        {
+                            Ok(())
+                        }
                         Err(BooleanError::VolumeUnmeasured { .. }) => Ok(()),
                         Err(e) if near && in_band(&e) => Ok(()),
                         Err(e) => Err(format!("the boolean: {e:?}")),

@@ -378,11 +378,12 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
             assert!(
                 matches!(
                     &r,
-                    Err(topo::BooleanError::Join(topo::SplitJoinError::Euler(
-                        topo::EulerOpError::Certification {
+                    Err(topo::BooleanError::Join(j)) if matches!(
+                        j.error(),
+                        topo::SplitJoinError::Euler(topo::EulerOpError::Certification {
                             error: topo::CertifyError::Escalated { .. }
-                        }
-                    )))
+                        })
+                    )
                 ),
                 "{op}: at ε = {}, the join's certification escalates, got {:?}",
                 tol.eps(),

@@ -2853,7 +2853,7 @@ pub(in crate::boolean) mod tests {
                 source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
             };
             let split = crate::SplitError::Join(join()).to_string();
-            let boolean = BooleanError::Join(join()).to_string();
+            let boolean = BooleanError::from(join()).to_string();
             for text in [&split, &boolean] {
                 let problems = short_of_the_guard(text, &[]);
                 assert!(problems.is_empty(), "{predicate}: {problems:?}: {text}");

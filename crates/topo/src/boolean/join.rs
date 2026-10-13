@@ -370,7 +370,7 @@ impl SolidJoin {
     ) -> Result<JoinPlan, BooleanError> {
         self.joiner
             .plan(body, halves, SegmentEdge::Locus(segment))
-            .map_err(BooleanError::of_join)
+            .map_err(BooleanError::from)
     }
 
     /// The segment's curve in `lane`, from the site of the plan's first
@@ -384,11 +384,8 @@ impl SolidJoin {
         lane: JoinLane<'_, T>,
         leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
-        let curve = self
-            .joiner
-            .segment_curve(body, plan, lane, leave)
-            .map_err(BooleanError::of_join)?;
-        curve.ok_or(BooleanError::Join(SplitJoinError::SectionInvariant {
+        let curve = self.joiner.segment_curve(body, plan, lane, leave)?;
+        curve.ok_or(BooleanError::from(SplitJoinError::SectionInvariant {
             face: plan.face(),
             what: "both chords of a matched segment are its own edge (a loop holding both \
                    halves of that edge)",
@@ -470,10 +467,7 @@ impl SolidJoin {
             reordered = self.plan(body, roles, segment)?;
             &reordered
         };
-        let minted = self
-            .joiner
-            .join(body, plan, curve, tol)
-            .map_err(BooleanError::of_join)?;
+        let minted = self.joiner.join(body, plan, curve, tol)?;
         if let Some(edge) = segment {
             self.along
                 .extend(minted.into_iter().map(|chord| (edge, chord)));
@@ -1037,7 +1031,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             };
             let face = match crate::chord_join::he_face(body, he) {
                 Ok(face) => face,
-                Err(e) => return BooleanError::of_join(e),
+                Err(e) => return BooleanError::from(e),
             };
             match body
                 .get_face(face)
@@ -1170,12 +1164,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             ),
             GermLane::ring_closures,
         );
-        sa.joiner
-            .place_pending(&mut red.a, (ea, ra))
-            .map_err(BooleanError::of_join)?;
-        sb.joiner
-            .place_pending(&mut red.b, (eb, rb))
-            .map_err(BooleanError::of_join)?;
+        sa.joiner.place_pending(&mut red.a, (ea, ra))?;
+        sb.joiner.place_pending(&mut red.b, (eb, rb))?;
         let a_lane = choose_roles(&red.a, (ea, ra), &a_loose, seg_a, a_closure, band)
             .map_err(|e| pinch_ray_refusal(e, red, Operand::A, (ea, ra)))?;
         let b_lane = choose_roles(&red.b, (eb, rb), &b_loose, seg_b, b_closure, band)
@@ -1342,7 +1332,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     if single_site != 0 {
-        return Err(BooleanError::Join(SplitJoinError::SingleSiteSectionLoop {
+        return Err(BooleanError::from(SplitJoinError::SingleSiteSectionLoop {
             count: single_site,
         }));
     }
@@ -1401,14 +1391,14 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         .map(|r| r.a.iter().filter(|(_, u)| !u).count())
         .sum();
     if leftovers != 0 {
-        return Err(BooleanError::Join(SplitJoinError::UnpairedLooseEnds {
+        return Err(BooleanError::from(SplitJoinError::UnpairedLooseEnds {
             count: leftovers,
         }));
     }
     // A pierce ring deferred at a pinch is placed by the join that
     // reaches it; one still pending after every join has run never was.
-    sa.joiner.finish(&red.a).map_err(BooleanError::of_join)?;
-    sb.joiner.finish(&red.b).map_err(BooleanError::of_join)?;
+    sa.joiner.finish(&red.a)?;
+    sb.joiner.finish(&red.b)?;
     Ok(Connected {
         completed,
         a_fragments: sa.joiner.take_fragments(),
@@ -3697,7 +3687,7 @@ fn choose_roles<T: Decide>(
         let sites = |order| {
             JoinPlan::of(body, order, SegmentEdge::Locus(segment), band)
                 .map(|plan| plan.sites())
-                .map_err(BooleanError::of_join)
+                .map_err(BooleanError::from)
         };
         let across = match (sites((x, y))?, sites((y, x))?) {
             ((Some(a), None), (None, Some(b))) if a == b => true,
@@ -3839,25 +3829,23 @@ fn ring_run_ccw<T: Decide>(
     let (normal, curve) = match closing {
         IslandClosing::Wall(section) => {
             let wound =
-                crate::chord_join::chart_island_winding(body, face, (h1, h2), section, band)
-                    .map_err(BooleanError::of_join)?;
+                crate::chord_join::chart_island_winding(body, face, (h1, h2), section, band)?;
             return ring_winding_order(wound);
         }
         IslandClosing::Quadric(curve) => {
-            let closing = curve.run_closing(h1, face).map_err(BooleanError::of_join)?;
+            let closing = curve.run_closing(h1, face)?;
             let wound = crate::chord_join::path_island_winding(
                 body,
                 face,
                 (h1, h2),
                 closing.as_ref(),
                 band,
-            )
-            .map_err(BooleanError::of_join)?;
+            )?;
             return ring_winding_order(wound);
         }
         IslandClosing::Planar(normal, curve) => (normal, curve),
     };
-    let closing = curve.run_closing(h1, face).map_err(BooleanError::of_join)?;
+    let closing = curve.run_closing(h1, face)?;
     let wound = body
         .planar_run_winding_decided((h1, h2), RunClosing::of(closing.as_ref()), normal, band)
         .map_err(|RunMissesEnd| desync("ring-run arc did not close"))?
@@ -3865,7 +3853,7 @@ fn ring_run_ccw<T: Decide>(
         // section lane mints one on a plane, so a run carrying one is
         // the gate's invariant broken: the chord joiner's own reading
         // of the same edge.
-        .ok_or(BooleanError::Join(SplitJoinError::SectionInvariant {
+        .ok_or(BooleanError::from(SplitJoinError::SectionInvariant {
             face,
             what: "the ring lane reached a spiric or spline run edge (the operand gates refuse \
                    the kinds)",
@@ -4055,14 +4043,8 @@ fn cut_pair<T: Decide>(
     b_edge: EdgeKey,
     tol: Tol,
 ) -> Result<(), BooleanError> {
-    let a_out = sa
-        .joiner
-        .cut_core(&mut red.a, a_edge, tol)
-        .map_err(BooleanError::of_join)?;
-    let b_out = sb
-        .joiner
-        .cut_core(&mut red.b, b_edge, tol)
-        .map_err(BooleanError::of_join)?;
+    let a_out = sa.joiner.cut_core(&mut red.a, a_edge, tol)?;
+    let b_out = sb.joiner.cut_core(&mut red.b, b_edge, tol)?;
     match (a_out, b_out) {
         (CutOutcome::Merged, CutOutcome::Merged) => Ok(()),
         (
@@ -4177,7 +4159,7 @@ fn loop_roles(
     };
     match (o, r) {
         (Reading::Side(o), Reading::Side(r)) if o == r => {
-            Err(BooleanError::Join(SplitJoinError::SectionLoopMixed {
+            Err(BooleanError::from(SplitJoinError::SectionLoopMixed {
                 face,
             }))
         }
@@ -4189,7 +4171,7 @@ fn loop_roles(
         (Reading::Undecided(o), Reading::Undecided(r)) => Err(match o.kept.then(r.kept).ranked() {
             crate::ray_walk::Ranked::Blocked(e) => BooleanError::Containment(e),
             crate::ray_walk::Ranked::InBand(_) | crate::ray_walk::Ranked::Neither => {
-                BooleanError::Join(SplitJoinError::SectionLoopUndecided { face })
+                BooleanError::from(SplitJoinError::SectionLoopUndecided { face })
             }
         }),
     }
@@ -4276,7 +4258,7 @@ mod loop_roles_rows {
             assert!(
                 matches!(
                     err,
-                    BooleanError::Join(SplitJoinError::SectionLoopMixed { face: f }) if f == face
+                    BooleanError::Join(ref j) if matches!(j.error(), SplitJoinError::SectionLoopMixed { face: f } if *f == face)
                 ),
                 "both {s:?}: {err:?}"
             );
@@ -4285,7 +4267,7 @@ mod loop_roles_rows {
         assert!(
             matches!(
                 err,
-                BooleanError::Join(SplitJoinError::SectionLoopUndecided { face: f }) if f == face
+                BooleanError::Join(ref j) if matches!(j.error(), SplitJoinError::SectionLoopUndecided { face: f } if *f == face)
             ),
             "neither decides: {err:?}"
         );
