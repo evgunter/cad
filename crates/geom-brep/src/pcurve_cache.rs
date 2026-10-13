@@ -7593,7 +7593,15 @@ fn derive_class<T: Decide>(
                     // that is no section of this cone yields a `β`
                     // the schedule and envelope refuse in metres.
                     let ecc = (T::zero() - r0.dot(ra)) / ra.dot(ra);
-                    let beta = ecc / (T::one() + (T::one() - ecc.powi(2)).sqrt());
+                    // On a section `√(1 − ecc²)` is the projection's axis
+                    // ratio `|rb|/|ra|` (`ra ⟂ rb`: the major axis lies in
+                    // the plane of the cone's axis, `e_v` normal to it),
+                    // read so without the root's `1/k` gain on `ecc`'s
+                    // rounding near a parabola. Off the cone the two part
+                    // at first order (a centre `δ` along `e_u` parts them
+                    // by `δ/(A·k)`); either way the envelope measures the
+                    // image against the carrier.
+                    let beta = ecc / (T::one() + rb.norm() / ra.norm());
                     let orient = ra.cross(rb).dot(axis);
                     let sense = match decide(
                         "pcurve_chart_orientation",
