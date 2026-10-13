@@ -1266,3 +1266,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - MINORs: no row guards the in-span charge's `slack/arm` units; the factor 4 in `resolution` is guarded only by the unit row.
   - No MAJOR, so no second review. Fix pass dispatched: session_01MwGM3c7HPed697AGsRRu79 (7 items).
   - Row at merge: sequential, M, byte 118, tallied 0, major false.
+- 2026-10-13 23:20 — **PR 4966 merged** (`6138d76c7a`). Both pn items close: the apex reach fuzz and the orthonormal-frame P2.
+  - Main merged at merge time (`d541be1bae`). editor-core's three frozen ledgers conflicted between main's check-4 changes and this PR's `square_frame`. I re-measured them on the merge: each moves by exactly this PR's own delta on top of main's. Updated and documented, green at three ε.
+  - geom + geom-brep 1760 green at three ε on that merge, as were the cone, section and pcurve rows.
+  - Row `PR-4966.md` last: holdout, M, byte 159, coding byte 191 → A = r4966b, tallied 0, major false.
+  - Worktrees and targets removed.
+  - The TiltedEllipse lane (session_019MVgQmqRijZNgdo3U6o2ke) is on 4966's branch; it merges main itself now that 4966 has landed.
