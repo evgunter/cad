@@ -2,9 +2,10 @@
 id: too-close-to-call-remainder
 kind: issue
 title: the 'too close to call' sentences outside the folded family still spell the undecided verdict their own way
-status: dispatched
+status: closed
 branch: encl/undecided-sweep
 opened: 2026-10-09
+closed: 2026-10-13
 ---
 
 
