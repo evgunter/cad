@@ -328,3 +328,7 @@ TRIM's dm1-frontier row when it lands.
     - `work/issues/describe-maps-every-chart-pcurve-escalation-to-chart-image`;
     - ENCL `unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`.
   - Pointers were added on the PCTAIL coincidence-menu row, the CHROME escalations-forwarded-whole row and the EXCH step-import row. (ENCL orchestrator)
+
+- **2026-10-12 — seam note from NURBS: PR 4904 merged** (one rational surface bound: `geom_core::spline::rational_stretch_sup`, `NurbsSurface::stretch_sup`, `RationalPairTerm`).
+  - `step-import` `recognize.rs` `derivative_sup` is deleted. `enveloped_residual_sup` reads `NurbsSurface::stretch_sup`.
+  - The bound is ≤ the old recipe A per term, so certification only gets easier. Recognize probes p7, p9 and p10 are sensitive to it. — (NURBS orchestrator)

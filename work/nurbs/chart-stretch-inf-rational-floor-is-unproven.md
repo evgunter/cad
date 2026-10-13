@@ -20,7 +20,7 @@ unproven floor is a soundness question, not a reach one.
 (Interval / error propagation class.)
 
 The sup side moved to the pair-term bound
-(`geom_core::spline::rational_span_speed_sup`, the rational-bound
+(`geom_core::spline::rational_speed_sup`, the rational-bound
 design ruled 2026-10-12, PR `nurbs/one-rational-speed-bound`); the inf
 side still reads the factor.
 
