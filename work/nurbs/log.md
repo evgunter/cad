@@ -1261,3 +1261,7 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Back-to-back digest on the merged tree:** I built local merge 94f5d3eb (d7ae1e3f + 4944's 0281ec6d) and resolved the conflicts in all three `eps-*.txt` sym-session blocks to 4944's lines exactly. `mass_props_are_thread_count_invariant` passes at 1e-9, 1e-6 and 1e-12, 4/4 each, with sweep compiled fresh.
   - With bodies built in-session, 4954's `frozen` growth (×4.9 / ×3.6) is absent, and 4944's 4/5 guard holds.
   - **Plan:** 4944 merges first. 4954 then merges main, takes main's digest lines, re-runs the digest, and corrects its PR body. It re-earns CI, because the digest goldens are test data.
+- 2026-10-13 09:50Z — **PR 4944 merged** (dispute coverage) at `89f044e92e` on head 0281ec6d.
+  - The only red was step 9's FLUSH 1e-12 `coincidence_door` ring P1, which reproduces on main a5229515. Build B's PR comment names it.
+  - Seam notes are posted on sym, decide, tcost and tint.
+  - Build D was told to bring main into 4954 and take main's digest lines.
