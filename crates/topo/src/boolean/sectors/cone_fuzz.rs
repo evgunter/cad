@@ -915,9 +915,12 @@ fn check_pair(
 
 /// [`check_pair`]'s reading of `probes` against `cone` and `partner`
 /// as two partners of one solid, against the exact reading of their
-/// union. A refusal the layering calls an invariant, or a nesting it
-/// found no direction to read ([`BooleanError::NestingUnread`]), is
-/// wrong: both partners here are drawn clear of the band.
+/// union. A refusal the layering calls an invariant is wrong. So is a
+/// nesting it found no direction to read ([`BooleanError::NestingUnread`]),
+/// unless the partner is thinner than the band can read: its centre
+/// lies within ten escalation bands of its boundary (the readings lever
+/// up to its arm, and its best direction may lie deeper than its
+/// centre), where that refusal is its true reading and is counted.
 #[allow(clippy::too_many_arguments)]
 fn check_partners(
     what: &str,
@@ -942,6 +945,12 @@ fn check_partners(
     let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
     let vertex = VertexKey::from(key(7000));
     let others = [bool_sectors(cone), bool_sectors(partner)];
+    // How far the partner's own centre lies inside it: the least
+    // deviation that puts the mean of its far points on its boundary.
+    let centre = [0, 1, 2]
+        .map(|i| partner.iter().map(|s| s.start_far[i]).sum::<f64>())
+        .map(|x| x / partner.len() as f64);
+    let thin = least_flip(partner, centre);
     let mut wrong = Vec::new();
     for (k, &far) in probes.iter().enumerate() {
         let probe = probe_sector(far);
@@ -976,11 +985,20 @@ fn check_partners(
                 counts.unread += 1;
                 continue;
             }
+            Err(BooleanError::NestingUnread { .. }) if thin <= 10.0 * band.escalate() => {
+                *counts
+                    .refused
+                    .entry("NestingUnread, an island thinner than the band".to_owned())
+                    .or_default() += 1;
+                continue;
+            }
             Err(
                 e @ (BooleanError::ClassificationInvariant { .. }
                 | BooleanError::NestingUnread { .. }),
             ) => {
-                wrong.push(format!("{what}, pair probe {k} {far:?}: {e:?}"));
+                wrong.push(format!(
+                    "{what}, pair probe {k} {far:?}: {e:?} (the partner {thin:.3e} m thick)"
+                ));
                 continue;
             }
             Err(e) => {
