@@ -115,3 +115,12 @@ alone, which is what `RefusedArm::Straddle` gives:
 The ending is still decided by the margin there, not by a typed
 `Escalation`. Carrying the type to those two errors is this row's
 repair.
+
+## More sites of the same shape (ENCL, from the sweep of `switch-profile-and-editor-core-onto-indeterminate-lever-ending`)
+
+These compose the lever by hand after an `Indeterminate`'s payload, so a poisoned margin also ends in the lever with no note:
+- `splitting/mod.rs` `SplitReduceError::SectionGermsEscalated`, both readings: `"… ({diag.payload()}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}"`.
+- `chord_join.rs` `SplitJoinError::Section { source: SectionError::Carrier(EllipseInvalid::Escalated(diag)) }`: `"… is undecided for the section through a curved face: {payload}. Recourse: {JOIN_RECOURSE}"`.
+
+This one is rendering-neutral:
+- `boolean/refusal_routes.rs` `Ending::recourse`'s `Self::Lever(lever)` arm composes `LeverOnly { lever }.recourse(RefusedArm::Undecided(diag), Reading::Build)`. That is `diag.lever_ending(lever)` spelled through the table.

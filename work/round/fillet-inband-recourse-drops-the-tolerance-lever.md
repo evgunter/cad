@@ -88,3 +88,11 @@ said the six constants stay where they live, so the choice is owed here.
 - The contrast: `crates/profile/src/validate.rs`'s
   `FILLET_STORED_FORM_INBAND_RECOURSE`, whose tail is "and so does
   lowering the tolerance".
+
+## The same arms drop the unreadable-margin note (ENCL, from the sweep of `switch-profile-and-editor-core-onto-indeterminate-lever-ending`)
+
+`PathError::Escalated`'s fillet arm ends in `geom_core::lever_recourse(recourse, None)`, and so does its stored-form arm (`FILLET_STORED_FORM_INBAND_RECOURSE`), both in `crates/profile/src/path.rs`. `None` drops `UNREADABLE_MARGIN_NOTE`, so a poisoned margin ends in the gate's sentence alone.
+
+Whichever repair above is taken, the poisoned arm wants the note:
+- at a lever-only gate, through `Indeterminate::lever_ending`;
+- at a linear-band gate, through `ending(..)`.

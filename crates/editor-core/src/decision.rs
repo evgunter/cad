@@ -13,7 +13,6 @@
 //! (`profile::decision_subject`). This function only consults them, so
 //! a predicate is given words in one place, where it is decided.
 
-use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
 use geom_core::{COINCIDENCE_RECOURSE, Indeterminate};
 
 /// The words for `predicate`, from whichever owner holds them; `None`
@@ -43,7 +42,7 @@ pub(crate) enum Ending {
     Sized,
     /// No size the user chose — an angle, a direction's gauge, a curve
     /// parameter: the lever alone, noted where the margin could not be
-    /// read ([`LeverOnly`]).
+    /// read ([`Indeterminate::lever_ending`]).
     Lever,
 }
 
@@ -119,10 +118,7 @@ impl Decision {
 /// ([`geom_core::MissingRecourse`]).
 pub(crate) fn ending(predicate: &str, source: &Indeterminate) -> String {
     match Decision::named(predicate).map(Decision::ending) {
-        Some(Ending::Lever) => LeverOnly {
-            lever: COINCIDENCE_RECOURSE,
-        }
-        .recourse(RefusedArm::Undecided(source), Reading::Build),
+        Some(Ending::Lever) => source.lever_ending(COINCIDENCE_RECOURSE),
         Some(Ending::Sized) => source.ending(COINCIDENCE_RECOURSE),
         None => format!(
             "{} — {}",

@@ -1050,7 +1050,7 @@ impl fmt::Display for EscalationEnding<'_> {
         let source = self.0;
         let row = source.predicate.and_then(decision_ending);
         match row.map(|row| row.kind) {
-            Some(EndingKind::Lever(lever)) => f.write_str(&lever_ending(source, lever)),
+            Some(EndingKind::Lever(lever)) => f.write_str(&source.lever_ending(lever)),
             Some(EndingKind::Sized) => f.write_str(&source.ending(COINCIDENCE_RECOURSE)),
             None => write!(
                 f,
@@ -1060,16 +1060,6 @@ impl fmt::Display for EscalationEnding<'_> {
             ),
         }
     }
-}
-
-/// `lever` alone, noted where `source`'s margin could not be read.
-fn lever_ending(source: &Indeterminate, lever: &str) -> String {
-    geom_core::lever_recourse(
-        lever,
-        source
-            .margin
-            .unreadable_note(geom_core::UNREADABLE_MARGIN_NOTE),
-    )
 }
 
 /// The subject a door states for an escalation whose name has no words
