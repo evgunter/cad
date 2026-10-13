@@ -836,6 +836,12 @@ fn swept<T: Real>(from: T, to: T, turn: T) -> T {
 /// guarantee stated one ulp too wide is not a guarantee. Correcting
 /// the claim is the fix; adding an angle branch to evaluation code to
 /// widen it would not be (Q1).
+///
+/// Sound at every scalar by `topo::ring_path::branch`'s window
+/// re-centring argument, and the fit gate above is an `f64` identity.
+/// Profile geometry reaches `Sym` only through the pinned `f64` lift
+/// (`editor-core`'s `eval::wire`), so no symbolic identity reads the
+/// floor here.
 pub(crate) fn signed_swept<T: Real>(from: T, to: T, turn: T) -> T {
     ((to - from) * turn).reduce_periodic_centred(T::tau())
 }

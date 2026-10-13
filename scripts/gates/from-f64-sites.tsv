@@ -130,6 +130,7 @@ crates/topo/src/chart_region.rs	1	constant	f64::from(k)	a decided whole-period c
 crates/topo/src/chord_join.rs	1	constant	f64::from(k)	a decided whole-period count
 crates/topo/src/joint.rs	1	constant	f64::from(self.u)	the element's integer period count
 crates/topo/src/joint.rs	1	constant	f64::from(self.v)	the element's integer polar-branch count
+crates/topo/src/offset_axial.rs	1	constant	f64::from(k)	a decided whole-period count
 crates/topo/src/offset_derive.rs	1	constant	<fn>	certified_speed: an f64 carrier's stored net lifted to Interval (map_scalar) to read its certified speed bound
 crates/topo/src/pcurves.rs	1	constant	2.0 * band.zero()	the band's zero width, a tolerance
 crates/topo/src/pcurves.rs	1	constant	f64::from(k)	a whole-period count

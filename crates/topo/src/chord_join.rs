@@ -4308,6 +4308,9 @@ fn chart_ring_side<T: Decide>(
         let decide_r = |name, margin| decide(name, margin, band);
         let w = vertex_point(body, v) - centre;
         let raw = stable_azimuth(w.dot(axis.cross(u_ref)), w.dot(u_ref), band);
+        // The vertex on the branch of the window's middle: sound at every
+        // scalar by `ring_path::branch`'s window re-centring argument (at
+        // `Sym` the crossings read it numerically, never as an identity).
         let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
         let v_p = w.dot(axis);
         let mut crossings = 0usize;

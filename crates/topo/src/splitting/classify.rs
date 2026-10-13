@@ -674,6 +674,10 @@ fn span_roots<T: Decide>(
         }
         Ok((true, t))
     };
+    // The midpoint anchor is sound at every scalar by `ring_path::branch`'s
+    // window re-centring argument (at `Sym` `verdict_at` reads it
+    // numerically, never as an identity); the `t₀` retry above is what
+    // serves its straddle.
     for c in candidates.into_iter().flatten() {
         let centred = mid + (c - mid).reduce_periodic_centred(tau);
         let (interior, t) = match verdict_at(centred) {

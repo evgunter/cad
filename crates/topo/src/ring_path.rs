@@ -453,6 +453,17 @@ impl<T: Real> CircleArc<T> {
 /// middle is in doubt, and that one is at least half a turn less half
 /// the span outside the span on either branch, which the in-span reading
 /// then decides, or puts in its band where the span nears a whole turn.
+///
+/// **The window re-centring argument**, which every site that re-centres
+/// a parameter on a window's middle cites. It holds at every scalar:
+/// - at `f64`, a parameter exactly half a turn out (suites reach it)
+///   lands on whichever branch the floor rounds to, exterior on both;
+/// - at `Interval`, an enclosure straddling the half turn spans both
+///   branches, and the in-span reading escalates or declines on it;
+/// - at `Sym`, the `floor` is an opaque atom, so the in-span reading is
+///   numeric, never a theorem. No identity reads the pick: the parameter
+///   is compared with span ends of another provenance, so a literal
+///   branch would decide nothing the floor does not.
 fn branch<T: Real>(t: T, (lo, hi): (T, T)) -> T {
     let mid = (lo + hi) * T::from_f64(0.5);
     let tau = T::tau();

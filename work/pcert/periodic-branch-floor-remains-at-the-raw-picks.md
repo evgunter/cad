@@ -2,12 +2,13 @@
 id: periodic-branch-floor-remains-at-the-raw-picks
 kind: issue
 title: a whole-period branch is still picked by floor at fourteen sites the structural sweep did not name, and reduce_periodic carries the same atom
-status: dispatched
+status: closed
 branch: pcert/periodic-branch-raw-picks
 opened: 2026-10-12
+closed: 2026-10-13
 priority: P2
 cost: M
-refs: [periodic-branch-floor-remains-at-three-sites, loop-walk-branch-is-an-opaque-floor-atom]
+refs: [periodic-branch-floor-remains-at-three-sites, loop-walk-branch-is-an-opaque-floor-atom, the-period-jump-has-no-ruling, props-torus-lift-and-gauss-bonnet-fan-pick-a-branch-by-floor]
 ---
 
 
@@ -83,3 +84,38 @@ the open question here. Its sites:
 None of them has been measured over a parameter box. The fix, where one is
 owed, is the one the three named sites took: decide the branch as
 structure with `whole_periods`.
+
+## Closed
+
+Closed by `pcert/periodic-branch-raw-picks`. The count is **13
+production picks**: `topo::splitting::classify`'s second
+`reduce_periodic_centred` is inside a test (the anchor-widening row that
+re-derives both anchors inline), not production code.
+
+Measured first, with a scratch probe over the topo, sweep, step-import,
+mesh, editor-core, geom-brep and profile suites (11257 tests):
+- no pick is reached at `Sym<Interval>`;
+- most are hit at exact f64 half-period ties in ordinary suites
+  (`circle_roots`' `near_mid` 67k times, the pole's strict branch 80k,
+  `ring_path::branch` 28k);
+- the `Interval` straddles at `circle_roots`' `near_mid` and the
+  Gauss–Bonnet fan are load-bearing.
+
+So a branch is decided as structure only where an identity reads it:
+- **Decided as structure:** `topo::offset_axial::keep_turn`, by
+  `geom_brep::whole_period_count`, levered at the carrier's speed ceiling.
+  `offset_axial_edge_turn` reads `kept − read` as zero or whole turns. A
+  read half a turn out refuses `TogetherAxialEdge`, and one in the mark's
+  band escalates. Rows: `offset_axial::keep_turn_rows`.
+- **Sound as-is, argued at the site:**
+  - `topo::ring_path::branch` carries the window re-centring argument;
+  - `chord_join`'s ring re-homing, `circle_torus`, `circle_roots` ×2,
+    `classify`'s midpoint anchor, `shell`'s run shift,
+    `profile::sugar::signed_swept` and `projected::off_period` cite it,
+    each with its own line.
+- **Moved:**
+  - FLUX's two `props::curved` sites, the torus lift and the Gauss–Bonnet
+    fan: `work/flux/props-torus-lift-and-gauss-bonnet-fan-pick-a-branch-by-floor.md`;
+  - the pole's strict branch and `reduce_periodic`, a design question:
+    `the-period-jump-has-no-ruling`.
+

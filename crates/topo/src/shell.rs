@@ -3536,6 +3536,10 @@ fn chart_read<T: Decide>(
                 reference = Some(mean);
                 T::zero()
             }
+            // A whole number of periods by `ring_path::branch`'s window
+            // re-centring argument: a nested pair's means sit within half
+            // a period (above), and only `shell_rim_nesting`'s radii read
+            // the shift, numerically at `Sym`, never as an identity.
             Some(at) => tau * ((at - mean) / tau + T::from_f64(0.5)).floor(),
         };
         for (&p, u) in run.iter().zip(us) {

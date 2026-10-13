@@ -720,7 +720,10 @@ pub(super) fn certified_subdivision<T: Decide>(
             // Reported within `π` of the arc's midpoint, so a caller
             // compares it with `[t0, t1]` directly: the first cut's ends
             // are moved along their pieces, so the last piece runs past
-            // the half-turn.
+            // the half-turn. Sound at every scalar by `ring_path::branch`'s
+            // window re-centring argument; `rows.side` reads the residual,
+            // which is periodic, and at `Sym` the caller's span reading is
+            // numeric, never an identity.
             let mid = (t0 + t1) / two;
             let root = mid + ((lo + hi) / two - mid).reduce_periodic_centred(T::tau());
             match decide(rows.side, Margin::of(residual(root)), band) {
@@ -968,6 +971,13 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     // zero (module docs).
     let past = |near: T| two * (near.abs() / swing).sqrt().asin();
     let half_chord = (lo_value + hi_value).select_le_zero(past(hi_value), T::pi() - past(lo_value));
+    // The roots on the branch of the span's middle: sound at every scalar
+    // by `ring_path::branch`'s window re-centring argument (at `Sym` the
+    // caller's span reading is numeric, never an identity). The
+    // `Interval` straddle is load-bearing here: a slit dome's containment
+    // rows reach it with an enclosure a whole turn wide, spanning both
+    // branches, and still answer (`crates/sweep/tests/pole_slit_window.rs`);
+    // a structural pick would have to refuse there.
     let mid = (t0 + t1) / two;
     let near_mid = |raw: T| mid + (raw - mid).reduce_periodic_centred(T::tau());
     Ok(FirstHarmonicRoots::Certified([
