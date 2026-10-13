@@ -735,7 +735,10 @@ pub fn speed_pieces<T: Real, const D: usize>(
                 );
                 let count = piece_count(p, splits);
                 let (wp, wq) = (piece_weights(p, count)?, piece_weights(p - 1, count)?);
-                for (bp, bq) in wp.chunks_exact((p + 1).pow(2)).zip(wq.chunks_exact(p.pow(2))) {
+                for (bp, bq) in wp
+                    .chunks_exact((p + 1).pow(2))
+                    .zip(wq.chunks_exact(p.pow(2)))
+                {
                     let a = Grid::column(restrict(bp, &rows.0)?)?;
                     let w = Grid::column(restrict(bp, &rows.1)?)?;
                     let da = Grid::column(restrict(bq, &rows.2)?)?;

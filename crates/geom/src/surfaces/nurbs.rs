@@ -1936,6 +1936,9 @@ mod memo_tests {
         let _ = with_session(budget, || s.stretch_floor(true));
         assert!(s.floors.get().is_none(), "a session's read filled the memo");
         let _ = s.stretch_floor(false);
-        assert!(s.floors.get().is_some(), "a read outside a session left the memo empty");
+        assert!(
+            s.floors.get().is_some(),
+            "a read outside a session left the memo empty"
+        );
     }
 }
