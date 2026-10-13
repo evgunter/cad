@@ -80,11 +80,7 @@
 ## Run locally (debug unless noted; contended box)
 - `nextest --profile ci -p geom-core -p topo -p editor-core` on the head: 6755 passed, 0 failed.
 - Mutants via `R2_MUT`:
-  - `open`: 15 red;
-  - `fold`: 5 red;
-  - `tr`: 2 red;
-  - `cmp`, `ang`, `anc`: 1 red each;
-  - `inv`: 0 committed rows red (only my probe).
+  `open` 15 red, `fold` 5, `tr` 2, `cmp`/`ang`/`anc` 1 each, `inv` 0 committed rows (only my probe).
 - Reach, by bisection in log σ (40 steps), release, row `r2_reach_probe`, one leaf over the whole box. Mine beside the PR's:
 
 | links | merge-base, mine | head, mine | PR before → after |
@@ -95,9 +91,4 @@
 - At σ = 0.01 on the head: `carrier_endpoint_start` `[0, 8.9988e-5]` on `EdgeKey(1v1)`, 8 refused at one link and 35 at four (matches the PR).
 - Symbolic, one link: `symbolic_zero` 2008 → 1978, `frozen` 2804 → 2626, `numeric` 1353 on both, CERTIFIES. That is exact to the PR. My times (0.25 / 0.28 s) were taken under load, so I don't compare them.
 
-**Probe commit:** `e692e0b34` on `sym/17-review-r2`:
-- the `#[ignore]`d `chaintol::r2_reach_probe`;
-- `rigid_motion.rs`'s `R2_MUT` mutant switch, off by default;
-- the `r2_probes` module.
-
-Not for merge.
+**Probe commit:** `e692e0b34` on `sym/17-review-r2` (`#[ignore]`d `chaintol::r2_reach_probe`, `rigid_motion.rs`'s `R2_MUT` mutant switch, off by default, and its `r2_probes` module). Not for merge.
