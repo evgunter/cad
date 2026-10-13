@@ -1310,3 +1310,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     | With the whole-cell memo | 284 s | 193 s |
 
   - The remaining 8–15× is in the cut nets, which build both axes per call. Next is a cut-net memo, or an additive per-axis entry point in `derivative.rs` (where it overlaps 4984). The target is within about 2× of before.
+- 2026-10-13 17:05Z — **The PR 4984 FULL review is in.**
+  - **What held:** no unsound bound. The numerators match `deriv2`/`ders` to 1.2e-14, `m_inf` was never above the truth over 22k cells, and `accel_upper_bound` bounds at p up to 18.
+  - **MAJOR:** an undisclosed refusal at degree ≥ 19 on both arms. The integral arm reads the rational area form at 3p and refuses with the kernel-defect text, where main certifies the face.
+  - **Broken seam:** `coordinate_hull` is deleted (#4891 adds callers), the integral arm is touched, and `PatchCell` gained `m_inf`. The touch list posted to ENCL was wrong; I corrected it on ENCL's log.
+  - **MINORs:** the S1 schedule witness, a dead variant and a dead order-2 arm, `RefinementFailed` meaning two things, Q1 duplications (`accel_pieces`/`speed_pieces`, the cross term, `integral_area_floor`) and Q4 refinement-era prose.
+  - **Fix pass dispatched to build A.** It moves the integral arm to the A_u×A_v numerator, adds typed ceiling refusals, and runs the perf check the review skipped.
+  - **Class:** a touch list posted before the work is a prediction. Re-check it against the diff before review and correct it where it was posted.
