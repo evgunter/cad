@@ -12658,10 +12658,14 @@ mod two_carrier_records {
         assert!(
             matches!(
                 placed(2.0),
-                Ok(crate::boolean::CurvedPlacement::Trim(Some(FaceContainment::Out)))
+                Ok(crate::boolean::CurvedPlacement::Trim(Some(
+                    FaceContainment::Out
+                )))
             ) && matches!(
                 placed(1.0),
-                Ok(crate::boolean::CurvedPlacement::Trim(Some(FaceContainment::In)))
+                Ok(crate::boolean::CurvedPlacement::Trim(Some(
+                    FaceContainment::In
+                )))
             ),
             "the ruling is over the notch at x = 2 and in the face at x = 1"
         );

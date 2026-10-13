@@ -2,8 +2,9 @@
 id: the-two-carrier-face-pair-confirm-escalates-where-its-second-face-reads-the-point-out
 kind: issue
 title: The census's tangent-line face-pair confirm returns on the first face's escalation, so a midpoint the second face decides out reads escalated, not stale
-status: open
+status: closed
 opened: 2026-10-13
+closed: 2026-10-13
 priority: P2
 ---
 
@@ -24,3 +25,12 @@ also uses per candidate). The fix here is that helper over the two
 reading. Found by PR 4956's §5 sweep for conjunctions of cell readings
 that short-circuit; it needs a fixture whose tangent line's midpoint is
 in band of one face's boundary and out of the other.
+
+Closed by CONTACTHOLD's `contacthold/one-tangent-interiors-reading`:
+the confirm no longer places one point. It reads the line through both
+faces with the op's own reading, `boolean::line_through_both_faces`,
+whose stations each read both faces and settle on either deciding out
+(the `census::curved::in_both` rule), so a station the second face
+decides out reads out whatever the first left unread. The same rule in
+the op is witnessed by `review_4831_probes::p10_the_sliver_family`,
+whose fat-disc-first rows escalated on exactly that shape and now answer.

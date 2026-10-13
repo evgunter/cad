@@ -2,7 +2,8 @@
 id: the-tangent-interiors-schedule-escalates-on-a-sample-it-places-in-band-of-a-corner
 kind: issue
 title: The glue door's tangent-interiors schedule escalates on a sample it places in band of a face corner
-status: open
+status: review
+branch: contacthold/one-tangent-interiors-reading
 opened: 2026-10-13
 ---
 
