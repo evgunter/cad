@@ -680,6 +680,7 @@ mod tests {
     /// it a hundredfold leaves every first- and second-order vertex,
     /// weight rate and least weight of the first cell bit-identical.
     #[test]
+    #[allow(clippy::unwrap_used)]
     fn a_cell_reads_only_its_own_points() {
         use super::{RationalCellTerms, SecondPartial};
         use crate::spline::KnotVector;
