@@ -1402,7 +1402,7 @@ fn radical_chord<T: Real>(r1: T, r2: T, d: T) -> (T, T) {
     let (lens, near, far) = (sum - d, d - diff, d + diff);
     let two_d = d + d;
     let a = r1 - lens * near / two_d;
-    let h2 = lens * near * (far * (sum + d)) / (two_d * two_d);
+    let h2 = lens * near * (far * (sum + d)) / two_d.powi(2);
     (a, h2)
 }
 
