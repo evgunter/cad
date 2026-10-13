@@ -2684,8 +2684,7 @@ pub fn mint_pcurves_of<T: AtRestPolicy>(
 /// refusal, or a panic on a torn record, leaves the body as found.
 ///
 /// A face whose rows are not owed ([`not_owed`]: a pair the chart can
-/// hold but no route covers yet — a spline carrier on an analytic
-/// chart, a mirror-torus spiric, a line, ellipse or spiric offered a
+/// hold but no route covers yet — a line, ellipse or spiric offered a
 /// fitted image — or a fitted face at a scalar with no fitted door; the
 /// at-rest pass excuses exactly these, by the same predicate)
 /// contributes the rows it held, carried ([`carry_rows`]), so the mint
@@ -4613,7 +4612,7 @@ fn chart_edge<T: Decide>(
             matches!(chart, Surface::Plane { .. })
                 && matches!(walked.carrier, geom::Curve3::Line { .. })
         }
-        // A spiric image is curved on BOTH charts it lives on — the
+        // A spiric image is curved on EVERY chart it lives on — the
         // cap's `pm·f(t) + pa·sin t` and the wall's `atan2(f, d)`
         // azimuth — so it takes the envelope door below, which the
         // `_` arm there already answers from `eval` over the span
@@ -6300,7 +6299,7 @@ mod derive_without_a_door {
 #[allow(clippy::unwrap_used, clippy::float_cmp, clippy::panic)]
 mod polar_shift_tests {
     use super::shift_polar_branch;
-    use geom_brep::{Pcurve, SpiricImage};
+    use geom_brep::{Pcurve, SpiricImage, WallTorus};
     use geom_core::{Point2, Vec2};
 
     /// **The meridional branch shift, at its own door.** A body cannot
@@ -6322,13 +6321,20 @@ mod polar_shift_tests {
                 u0: 0.25,
                 v0: 0.5,
                 sense: -1.0,
+                torus: WallTorus::Mirror,
             },
         };
         let Pcurve::Spiric {
             major,
             minor,
             offset,
-            image: SpiricImage::Wall { u0, v0, sense },
+            image:
+                SpiricImage::Wall {
+                    u0,
+                    v0,
+                    sense,
+                    torus,
+                },
         } = shift_polar_branch(&wall, 3.0, period)
         else {
             panic!("the wall arm keeps its variant and its image kind");
@@ -6336,6 +6342,7 @@ mod polar_shift_tests {
         assert_eq!(v0, 0.5 + 3.0 * period, "v0 takes the whole-period shift");
         assert_eq!(u0, 0.25, "the azimuth constant is the other door's");
         assert_eq!(sense, -1.0, "the sign is not a branch");
+        assert_eq!(torus, WallTorus::Mirror, "nor is the torus");
         assert_eq!((major, minor, offset), (0.09375, 0.0703125, 0.0078125));
 
         // A cap lives on a plane chart, where no joint decides a

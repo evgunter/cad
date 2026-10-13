@@ -32,8 +32,8 @@
 //! lane's `torus_chart`, same antiderivatives). A rim at lifted level
 //! `V` turning `Δu` gives `−F(V)·Δu` exactly; a meridian gives
 //! nothing. A spiric's lifted image is exact
-//! (`SpiricImage::Wall`: `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t`,
-//! `v₀ = k·τ`), so `sin v = σ sin t`, `cos v = cos t` and
+//! (`SpiricImage::Wall` on the carrier's own torus:
+//! `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t`, `v₀ = k·τ`), so `sin v = σ sin t`, `cos v = cos t` and
 //! `u′ = −σ·d·r·sin t/(ρ·f)`, and its terms are
 //!
 //! ```text
@@ -318,8 +318,12 @@ pub struct SpiricEdgeQ {
     pub wall: Option<WallImageQ>,
 }
 
-/// A spiric's lifted image on its torus wall
-/// (`SpiricImage::Wall`): `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t`.
+/// A spiric's lifted image on its OWN torus wall
+/// (`SpiricImage::Wall` tagged `WallTorus::Own`):
+/// `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t`. A wall on the mirror torus
+/// (`WallTorus::Mirror`, azimuth sign `−σ`) has no terms here yet, and
+/// `topo`'s quad lane refuses it typed before building one
+/// (FLUX's `the-spiric-wall-quadrature-lane-reads-only-the-own-torus`).
 #[derive(Clone, Copy, Debug)]
 pub struct WallImageQ {
     /// `σ = ±1`.
