@@ -1197,3 +1197,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - d4927 draft so far has no MAJOR. It has one candidate MINOR, fail-silent: a descending-span spiric arc falls back to its chord in the winding. That is reachable only on an invariant breach.
   - Its oracle found 0 wrong definite signs out of 1 777. Its 78 bodies match its own mpmath oracle.
   - The four holdout reviewers are all writing. Re-armed for 13:07.
+- 2026-10-13 13:10 — Check-in. All five reviews are still running: d4927 wrote at 13:08, and its item-3 sweep of 456 op-results has 0 wrong; r4964a at 12:33, r4964b at 12:01, r4966a at 12:33, r4966b at 12:56. Nothing to merge. Re-armed for 14:09.
