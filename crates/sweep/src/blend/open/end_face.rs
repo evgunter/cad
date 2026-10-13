@@ -523,7 +523,16 @@ impl<T: Bounds> CapSliver<T> {
                 .iter()
                 .map(move |&(d, floor)| (floor - q0.dot(d), zero - e.dot(d)))
         };
-        let g = |s: T| self.beyond(q0 + e * s.max(zero).min(len));
+        // `G` along the segment, each term reading `s` once. Read at the
+        // point `q0 + e·s`, every coordinate carries `s`, and at
+        // `Interval` a candidate's spread then lowers even a term flat
+        // along the segment by about the spread itself.
+        let g = |s: T| {
+            let s = s.max(zero).min(len);
+            let rho = ((s + b).powi(2) + d2).sqrt();
+            let v = minor.map_or(rho - self.reach, |m| (rho - self.reach).max(m - rho));
+            affine().fold(v, |v, (a, k)| v.max(a + k * s))
+        };
         // A quotient whose divisor's bracket meets zero is skipped: at
         // `f64` that is a divisor that vanishes (below), and at `Interval`
         // the candidate would spread over the segment and read `G` over
@@ -1516,6 +1525,130 @@ mod tests {
         assert!(
             iv.lo() <= -0.15 && iv.lo() > -0.15 - 1e-10,
             "Interval reads {iv:?}, not −0.15"
+        );
+    }
+
+    /// The least of `G` over `a → b`: the least of a dense run of samples,
+    /// refined by ternary search about it. Never below the true least.
+    fn sampled_least(region: &Region, a: (f64, f64), b: (f64, f64)) -> f64 {
+        let at = |t: f64| region.g((a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t));
+        const N: u32 = 2000;
+        let (best, n) = (0..=N)
+            .map(|n| (at(f64::from(n) / f64::from(N)), n))
+            .fold((f64::INFINITY, 0), |l, r| if r.0 < l.0 { r } else { l });
+        let (mut lo, mut hi) = (
+            f64::from(n.saturating_sub(1)) / f64::from(N),
+            f64::from((n + 1).min(N)) / f64::from(N),
+        );
+        for _ in 0..100 {
+            let (m1, m2) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
+            if at(m1) < at(m2) {
+                hi = m2;
+            } else {
+                lo = m1;
+            }
+        }
+        best.min(at(0.5 * (lo + hi)))
+    }
+
+    /// **The meter's two claims on `a → b`**: at `f64` it reads the least
+    /// `G` to the samples' slack; at `Interval` its enclosure's low end lies
+    /// at or below that least and within rounding of the `f64` reading, the
+    /// enclosure carrying the gain rather than the whole segment's spread.
+    pub(super) fn check(region: &Region, a: (f64, f64), b: (f64, f64), case: impl Fn() -> String) {
+        let least = sampled_least(region, a, b);
+        // `G` is 1-Lipschitz, so the samples' least is within half a
+        // spacing of the true one; rounding grows with the distance from
+        // the centre.
+        let scale = (b.0 - a.0).hypot(b.1 - a.1);
+        let slack = scale / 4000.0 + 1e-14 * (1.0 + a.0.hypot(a.1) + scale);
+        let (m, iv) = region.meter(a, b);
+        let what = || {
+            format!(
+                "{}: {a:?} → {b:?}, reach {}, section {:?}, floors {:?}",
+                case(),
+                region.reach,
+                region.section,
+                region.floors,
+            )
+        };
+        assert!(
+            m <= least + slack && m >= least - slack,
+            "f64 reads {m}, the least G is {least}: {}",
+            what()
+        );
+        assert!(
+            iv.lo() <= least + slack && iv.lo() >= m - 1e-12 * (1.0 + a.0.hypot(a.1) + scale),
+            "Interval reads {iv:?}, f64 {m}, the least G is {least}: {}",
+            what()
+        );
+    }
+
+    /// **A segment `~5·10³` from the centre at its ends, run along one
+    /// floor's line, whose least is that floor's flat term**, met near the
+    /// foot by a second floor crossing the minor disc's term where the two
+    /// differ by little (`a′² ≈ d2`): that crossing's quotient of two
+    /// differences reads at `Interval` as a run `10⁻⁷` long. Found by the
+    /// line-meter fuzzer at `CAD_FUZZ_SEED=0xa9b25b00fc22acb2`, case 80.
+    #[test]
+    fn a_far_segment_reads_a_floor_crossing_the_minor_disc_to_rounding() {
+        let (a, b) = (
+            (2778.682165969168, -3803.6929153369833),
+            (-3120.380308781379, 4271.024536003959),
+        );
+        let region = Region {
+            section: Some((0.0, 0.3739873428335117, 0.3739873428335117)),
+            reach: 1.168384052714115,
+            floors: vec![
+                (
+                    (0.8074717451340941, 0.5899062474750547),
+                    -0.11487650578226152,
+                ),
+                (
+                    (-0.9665909248993477, 0.256323982300181),
+                    0.33182995179051883,
+                ),
+            ],
+        };
+        check(&region, a, b, || "the far crossing".into());
+    }
+
+    /// **Two opposite floors whose terms run all but parallel along the
+    /// segment**: their crossing is ill-conditioned (`~10⁻¹¹` here) where
+    /// `G` is flat, so only a reading that spreads a term over the
+    /// candidate's whole box, rather than along the segment, loses it.
+    /// Found by the line-meter fuzzer at `CAD_FUZZ_SEED=0x1281277f8dfa215d`,
+    /// case 30.
+    #[test]
+    fn two_floors_parallel_along_a_segment_read_their_crossing_to_rounding() {
+        let region = Region {
+            section: Some((0.0, 0.25299113746373153, 0.25299113746373153)),
+            reach: 0.7804898663095933,
+            floors: vec![
+                (
+                    (0.7972795443729409, -0.6036102452116562),
+                    -0.3595462882329724,
+                ),
+                (
+                    (-0.7972795443729409, 0.6036102452116562),
+                    0.3588416431553506,
+                ),
+                (
+                    (0.9816386005106127, 0.19075025029489656),
+                    0.11024723871746345,
+                ),
+                (
+                    (-0.9005322168633404, 0.434789289646373),
+                    0.021858290386058923,
+                ),
+                ((0.818640532000699, 0.5743062592081098), -0.0035775011289499),
+            ],
+        };
+        check(
+            &region,
+            (-0.8131924792185901, -0.4784468841887551),
+            (0.9976382564163786, 1.9133917489300676),
+            || "the parallel floors".into(),
         );
     }
 

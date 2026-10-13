@@ -4884,6 +4884,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "shared_vertex_crossings",
             "shell_witness_exhausted",
             "spheres_meet",
+            "split_lineage",
             "torn_component",
             "underflowed_sector_chord",
             "unjoined_operand",
