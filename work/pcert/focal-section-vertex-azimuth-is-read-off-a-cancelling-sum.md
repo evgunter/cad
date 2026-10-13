@@ -79,6 +79,9 @@ Rows in `geom-brep/tests/pcurve_cone_section.rs`:
 to `Interval`), and
 `a_near_circular_section_off_its_plane_misses_by_its_offset_not_twice`
 (a centre `δ` off the major-axis plane: `δ` minted, `2δ` read off the
-sum). Minted AT `Interval` the image's `β` encloses like `u/k²`, which
-is filed as
-`cone-section-interval-mint-encloses-beta-like-one-over-k-squared`.
+sum), and `a_skew_section_minted_at_interval_reads_a_tight_vertex_azimuth`
+(minted AT `Interval`, `u0` encloses to about 4e-15 where the sum
+widened it like `u/k²`; at `f = 0.9999` that mint now certifies). Minted
+AT `Interval` the image's `β` still encloses like `u/k`, which the
+envelope levers by about `1/k`; that is filed as
+`cone-section-interval-mint-escalates-on-a-beta-enclosure-of-u-over-k-levered-near-a-parabola`.

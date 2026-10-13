@@ -289,8 +289,9 @@ fn skew_section(alpha: f64, s: f64, f: f64) -> Result<(Curve3<f64>, Surface<f64>
 }
 
 /// `image` with its vertex azimuth read off the cancelling sum
-/// `r0 + ra` — the radial projection of the carrier's point at `t = 0`
-/// — instead of off `ra`.
+/// `r0 + ra` instead of off `ra`: the kernel's old arithmetic replayed
+/// (`radial(center − apex) + radial(e_u·major)`, turned by the nappe's
+/// sign), with `atan2` for `stable_azimuth`, which agrees with it mod τ.
 fn read_off_the_sum(
     image: &Pcurve<f64>,
     carrier: &Curve3<f64>,
@@ -311,8 +312,9 @@ fn read_off_the_sum(
     else {
         unreachable!()
     };
-    let w = center + e_u * major - apex;
-    let start = (w - axis * w.dot(axis)) * w.dot(axis).signum();
+    let radial = |v: Vec3<f64>| v - axis * v.dot(axis);
+    let w = center - apex;
+    let start = (radial(w) + radial(e_u * major)) * w.dot(axis).signum();
     let u0 = start.dot(axis.cross(u_ref)).atan2(start.dot(u_ref));
     Pcurve::FocalSection(FocalImage { u0, ..focal })
 }
@@ -343,10 +345,10 @@ fn whole_turn_miss(image: &Pcurve<f64>, carrier: &Curve3<f64>, surface: &Surface
 /// only near that ε: at 1e-6 the arm's own band refuses it, and at 1e-12
 /// the carrier's rounding (`u·A ≈ 7e-12`) is past the chart's incidence
 /// band; the row says so, and is required to reach its verdicts at the
-/// default ε. (Minted AT `Interval` the
-/// image's `β` and slant carry an enclosure that grows like `u/k²`, so
+/// default ε. (Minted AT `Interval` the image's `β` encloses like
+/// `u/k`, and the envelope levers it by about `1/k` near `|β| → 1`, so
 /// its own envelope escalates here:
-/// `cone-section-interval-mint-encloses-beta-like-one-over-k-squared`.)
+/// `cone-section-interval-mint-escalates-on-a-beta-enclosure-of-u-over-k-levered-near-a-parabola`.)
 #[test]
 fn a_skew_section_near_the_parabola_certifies() {
     let at_default = eps() == geom_core::tolerance::DEFAULT_EPS;
@@ -490,5 +492,52 @@ fn a_near_circular_section_off_its_plane_misses_by_its_offset_not_twice() {
     assert!(
         minted < 1.5 * off && summed > 1.5 * off,
         "minted {minted:e}, read off the sum {summed:e}, centre off by {off:e}"
+    );
+}
+
+/// **Minted AT `Interval`, the vertex azimuth is tight.** Read off the
+/// cancelling sum, `u0`'s enclosure widened like `u/k²` (1.6e-13 at
+/// `f = 0.99`, 1.3e-11 at 0.9999, 1.3e-9 at 0.999999 on this pose), and
+/// at `f = 0.9999` the Interval mint escalated; read off `ra` it is
+/// about 4e-15 throughout and that mint certifies. Each `f` the arm
+/// reaches at this ε is asserted, and the default ε must reach
+/// `f = 0.9999`. (At 0.999999 the mint still escalates, through `β`:
+/// `cone-section-interval-mint-escalates-on-a-beta-enclosure-of-u-over-k-levered-near-a-parabola`.)
+#[test]
+fn a_skew_section_minted_at_interval_reads_a_tight_vertex_azimuth() {
+    let lift = <Interval as Real>::from_f64;
+    let at_default = eps() == geom_core::tolerance::DEFAULT_EPS;
+    let mut certified = false;
+    for f in [0.99, 0.9999, 0.999_999] {
+        let reached = skew_section(0.5_f64.atan(), 0.1, f).and_then(|(c, s, _)| {
+            let (lc, ls) = (c.map_scalar(lift), s.map_scalar(lift));
+            let image =
+                chart_pcurve(&lc, &ls, band()).map_err(|e| format!("the chart answers {e}"))?;
+            Ok((lc, ls, image))
+        });
+        let (lc, ls, image) = match reached {
+            Ok(found) => found,
+            Err(why) => {
+                println!("SKIPPED f {f} at ε {:e}: {why}", eps());
+                continue;
+            }
+        };
+        let Pcurve::FocalSection(focal) = &image else {
+            unreachable!()
+        };
+        let width = focal.u0.hi() - focal.u0.lo();
+        assert!(width < 100.0 * f64::EPSILON, "f {f}: u0 width {width:e}");
+        if f == 0.9999 {
+            let cache =
+                PcurveCache::certify(image.clone(), lift(-1.0), lift(1.0), &lc, &ls, band())
+                    .unwrap_or_else(|e| panic!("f {f}: {e}"));
+            let envelope = cache.certificate().envelope.hi();
+            assert!(envelope < 0.5 * eps(), "f {f}: envelope {envelope:e}");
+            certified = true;
+        }
+    }
+    assert!(
+        certified || !at_default,
+        "f 0.9999 is unreached at the default ε"
     );
 }
