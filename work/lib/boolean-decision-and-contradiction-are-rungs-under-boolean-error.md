@@ -106,3 +106,12 @@ pair), carried twice by `BooleanError::VertexReadTwice { reads, .. }`
 (`crates/topo/src/boolean/mod.rs`). The sweep went red on main when it
 merged; its disposition is this row.
 
+
+## One more rung (TANG, PR 4413)
+
+PR 4413 adds `AlongFace` (how a touching vertex's partner meets the
+pierced face: curved, a face on it, beside a flush touch, or a sector
+pair in one plane), carried by `BooleanError::PartnerAlongFace
+{ along, .. }` (`crates/topo/src/boolean/mod.rs`). It is
+`SectorRead`'s shape, a sibling refusal's discriminant under the same
+carrier, so its disposition is this row.

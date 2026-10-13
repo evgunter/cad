@@ -176,6 +176,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # carrier, the same row.
     "SectorRead": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                    "boolean-error.md"),
+    # `BooleanError::PartnerAlongFace`'s discriminant (PR 4413): the
+    # same carrier, the same row.
+    "AlongFace": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                  "boolean-error.md"),
     # `BooleanError`'s `DeclarationRead`: the glue a read pair held.
     "GlueClass": ("argued", "non-carriage with its falsifier, beside the declaration "
                   "in crates/topo/src/contact.rs"),

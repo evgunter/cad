@@ -272,9 +272,7 @@ fn fold_at_half_pi(op: SymOp, arg: &Form) -> Option<Form> {
         SymOp::Sin => s,
         _ => c,
     };
-    let mut out = Form::poly(Poly::constant(Rat::new(v, 1, 0)?));
-    out.gated = arg.gated;
-    Some(out)
+    Some(Form::poly(Poly::constant(Rat::new(v, 1, 0)?)))
 }
 
 /// Mints (or finds) the `sqrt` atom over `arg`, recorded in the session
@@ -349,14 +347,13 @@ pub(super) fn fold(op: SymOp, arg: &Form, sess: &mut Session) -> Option<Form> {
         return Some(f);
     }
     let closed = closed_forms(arg, sess)?;
-    let mut out = Form::quotient(
+    let out = Form::quotient(
         match op {
             SymOp::Sin => closed.sin.clone(),
             _ => closed.cos.clone(),
         },
         closed.den.clone(),
     );
-    out.gated = closed.gated;
     // Each quotient is held to the budget on its own, exactly as the
     // two separate folds were.
     within(sess.budget, &out).then_some(out)
@@ -371,7 +368,6 @@ pub(super) struct Closed {
     cos: Poly,
     sin: Poly,
     den: Poly,
-    gated: bool,
 }
 
 fn closed_forms(arg: &Form, sess: &mut Session) -> Option<Rc<Closed>> {
@@ -391,7 +387,6 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
     // φ = atan X, X = N / Dx: cos φ = Dx / (Dx·S), sin φ = N / (Dx·S)
     // with S = sqrt(1 + X²).
     let s = sqrt_atom(one.add(&x.mul(&x, budget)?, budget)?, sess);
-    let mut gated = x.gated || s.gated;
     // The shared denominator stays ONE polynomial even when the root
     // is a quotient: `C/(D·S)` with `S = Sn/Sd` is `C·Sd/(D·Sn)`, so a
     // root with a denominator multiplies the numerators instead of
@@ -406,7 +401,6 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
     for _ in 0..m {
         let lifted = den.add(&cn)?;
         let c2 = sqrt_atom(Form::quotient(lifted.clone(), scaled(&den, 2)?), sess);
-        gated |= c2.gated;
         cn = lifted.mul(&c2.den, budget)?;
         sn = sn.mul(&c2.den, budget)?;
         den = scaled(&den.mul(&c2.num, budget)?, 2)?;
@@ -428,12 +422,6 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
         cos: ck,
         sin: sk,
         den: dk,
-        // Every form consumed, not only the argument's: rule G can
-        // return a GATED root (its side condition's certified source),
-        // and a closed form built over one is conditional on that read
-        // exactly as the root is. Inert while rule C's dial is off,
-        // and one dial from laundering a read into a theorem.
-        gated,
     })
 }
 

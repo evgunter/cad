@@ -283,6 +283,15 @@ pub enum BooleanDecision {
     /// reading in the zero band, reachable only where the band's ratio
     /// is 2 or less, refuses rather than read the wrong side.
     BisectorSide,
+    /// Whether the faces two corners of one solid leave an edge of the
+    /// other's corner in part around it, where that edge lies on both
+    /// corners' boundaries (`vtxfac::along_partners`,
+    /// `bool_partner_half_plane`): the chord between two such
+    /// half-planes' directions levered at the farthest reach, a
+    /// magnitude. A definitely positive chord passes, and the edge is
+    /// on the solid's boundary; a zero is the corners flush along it,
+    /// which refuses with its decided margin, as the in-band arm does.
+    PartnerFaces,
     /// Whether the two faces at a seam edge of the result cross there or
     /// touch tangentially (`dihedral_wedge`, as the result's seam
     /// re-description reads it): every definite verdict passes (a crease
@@ -760,7 +769,7 @@ const fn proximity(passes: SizedPass) -> SizedDecision {
         size: "gap",
         passes,
         stored: StoredDefinite::Lever,
-        at_zero: None,
+        no_size: None,
     }
 }
 
@@ -827,7 +836,7 @@ const TANGENT_SIDE: SizedDecision = SizedDecision {
     size: "difference in bend",
     passes: SizedPass::AnySign,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Whether the faces at a seam edge cross or touch tangentially
@@ -840,7 +849,7 @@ const SEAM_WEDGE: SizedDecision = SizedDecision {
     size: "fold across the seam",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Whether a shell of the result bounds material or a cavity
@@ -851,7 +860,7 @@ const RESULT_SHELL: SizedDecision = SizedDecision {
     size: "thickness",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Whether the faces touching along a seam curve apart or share their
@@ -865,7 +874,7 @@ const SEAM_JET: SizedDecision = SizedDecision {
     size: "curvature difference across the seam",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// **The sense of two directions read parallel at a corner**: a
@@ -880,7 +889,7 @@ pub(crate) const CORNER_SENSE: SizedDecision = SizedDecision {
     size: "length of the corner's shorter edge",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The membership tie on plane flanks ([`Coincide::FlankSense`]): either
@@ -891,6 +900,22 @@ pub(crate) const CORNER_SENSE: SizedDecision = SizedDecision {
 const FLANK_SENSE: SizedDecision = SizedDecision {
     passes: SizedPass::Negative,
     ..CORNER_SENSE
+};
+
+/// Whether two corners of one solid that meet along an edge of the
+/// other part around it ([`BooleanDecision::PartnerFaces`]): the chord
+/// between their faces' half-planes there levered at the farthest
+/// reach, a magnitude, so a definitely positive one alone passes. Both
+/// corners are one solid's, so moving the parts reaches the reading
+/// only by taking the other solid's corner off that point; reshaping
+/// the one solid parts its corners.
+const PARTNER_FACES: SizedDecision = SizedDecision {
+    lever: "move the parts so that edge's corner lands clear of them, or reshape that solid so \
+            they clearly part",
+    size: "gap between their faces",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    no_size: None,
 };
 
 /// The one move that lengthens the arm a corner's reading is metered
@@ -996,7 +1021,7 @@ const SPHERE_AGAINST_PLANE: SizedDecision = SizedDecision {
     size: "gap",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Two spheres of the two solids ([`SphereQuestion::Apart`],
@@ -1011,7 +1036,7 @@ pub(crate) const SPHERES: SizedDecision = SizedDecision {
     size: "clearance",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The lever of [`SphereQuestion::CutIn`]: the circle's place on the
@@ -1177,7 +1202,7 @@ pub(crate) const PIERCE_CURVATURE: SizedDecision = SizedDecision {
     size: "departure beyond the bend",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Whether an arc that leaves a corner along a plane face bends off it
@@ -1191,7 +1216,7 @@ pub(crate) const CONIC_BEND: SizedDecision = SizedDecision {
     size: "lift beyond the residue",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// Whether two neighbouring faces of one operand lie on one plane, as
@@ -1205,7 +1230,7 @@ pub(crate) const NEIGHBOUR_OFFSET: SizedDecision = SizedDecision {
     size: "offset between the two faces' planes",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// The maximal-faces gate's ending for an offset in band: the lever,
@@ -1291,7 +1316,7 @@ const fn sized(lever: &'static str, size: &'static str, passes: SizedPass) -> En
         size,
         passes,
         stored: StoredDefinite::Lever,
-        at_zero: None,
+        no_size: None,
     })
 }
 
@@ -1406,6 +1431,9 @@ impl BooleanDecision {
                 "whether two parallel directions at a corner point the same way or opposite ways"
             }
             Self::BisectorSide => "which side of a face a corner's bisector leaves on",
+            Self::PartnerFaces => {
+                "whether two corners of one solid part around an edge of the other"
+            }
             Self::SeamWedge => {
                 "whether the two faces at a seam edge cross there or touch tangentially"
             }
@@ -1599,6 +1627,7 @@ impl BooleanDecision {
             // measured margin; a longer arm lengthens every reading of the
             // corner.
             Self::BisectorSide => Ending::Lever(CORNER_EDGES),
+            Self::PartnerFaces => Ending::Sized(PARTNER_FACES),
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
             Self::SeamJet => Ending::Sized(SEAM_JET),
             Self::EdgeOnFaces => Ending::Lever(crate::merge_faces::EDGE_ON_FACES_LEVER),
@@ -1913,6 +1942,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::ConicBend => vec![BooleanDecision::ConicBend],
                 BooleanDecisionKind::DirectionSense => vec![BooleanDecision::DirectionSense],
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
+                BooleanDecisionKind::PartnerFaces => vec![BooleanDecision::PartnerFaces],
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
                 BooleanDecisionKind::EdgeOnFaces => vec![BooleanDecision::EdgeOnFaces],
@@ -2160,6 +2190,14 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::BisectorSide => (
                 "which side of a face a corner's bisector leaves on",
                 Ending::Lever(LONGER),
+            ),
+            BooleanDecision::PartnerFaces => (
+                "whether two corners of one solid part around an edge of the other",
+                Ending::Sized(
+                    "Recourse: move the parts so that edge's corner lands clear of them, or \
+                     reshape that solid so they clearly part",
+                    SizedPass::Positive,
+                ),
             ),
             BooleanDecision::LeverArm(LeverArm::SectorSide) => (
                 "whether an edge at a corner is long enough to read which side of a face it \

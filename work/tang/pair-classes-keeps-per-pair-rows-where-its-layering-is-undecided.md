@@ -2,8 +2,10 @@
 id: pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided
 kind: issue
 title: A vertex in pairs alone whose layering leaves an edge undecided, or whose outermost cones disagree, keeps each pair's rows, silently
-status: open
+status: closed
+closed: 2026-10-12
 opened: 2026-10-08
+branch: tang/pair-classes-undecided-layering
 priority: P2
 cost: M
 refs: [pair-classes-falls-back-to-per-pair-rows-beside-a-partner-that-reads-none]
@@ -85,3 +87,59 @@ agree. Outermost cones that disagree are a met and a joined cone side
 by side, whose material between them a reading of both would decide.
 Refuse typed for what no reading decides, as beside a partner that
 reads nothing, and report any cell main built that would then refuse.
+
+## Another witness (2026-10-09, TANG, the partner-along-the-face lane's sweep)
+
+Pairs alone beside two partners nested along a shared ray. The arch
+(`meeting::corners(60.0, 0.5, 0.4)`) less a void whose edge lies on the
+arch's edge to its first corner (the void over `mix(arch, [[1, 0, 0],
+[0.5, 0.3, 0.2], [0.5, 0.2, 0.3]], 0.7)`), against pyramids over it
+(`corners(50.0, 0.7, 0.5)`), in the void (`nest(void, 0.7)`) and beside
+it (`corners(240.0, 0.7, 0.5)`), every op, both orders, at every pose,
+ε = 1e-9: every cell builds, and its naming rows at `MEET`, read
+against the analytic germ (the harness of
+`crates/topo/tests/a_vertex_read_again_classes_every_edge.rs`), are
+doubled: 18, 12 and 12 edges per pose read both `In` and `Out`, as
+"over, at rest, x − y: A's edge at MEET reads [In, Out], the germ Out".
+None is wrong or missing.
+
+Inferred from the code, not instrumented: `layered_alone`'s `inside`
+holds a partner inside another only where every edge of it reads held,
+strictly, so a void sharing a ray with its arch reads inside nothing;
+both read outermost, met and joined disagree, and each pair's rows
+stand. The touch lane (`touch_classes`) reads the same nest right: the
+lying pyramid with a void on its ray along the top builds every row
+right against the germ (rows of that file, "a void on its ray").
+
+## Closed (2026-10-12)
+
+- **Outermost cones that disagree are now decided.** Each measured
+  case was a cone nested in another that the old containment test
+  missed: a met cone in a void touching it along a ray, or an island
+  whose every edge lies on the void's faces. The second shape is a
+  notched block with a tip touching the notch's three faces.
+
+  A cone now lies inside another where every edge of it is held by the
+  other or lies on the other's boundary, and some of it is held. That
+  is an edge, or, where every edge is on the other's faces, a
+  direction strictly inside it (`vtxfac::interior`).
+- **An edge on two or more partners' boundaries** reads
+  `vtxfac::along_partners`. It is `On` where a half-plane one partner
+  alone leaves the edge in is decidedly apart from every other's.
+  Otherwise it refuses `Escalated` with
+  `BooleanDecision::PartnerFaces` (flush or in band).
+- **The rest refuse.** The interior direction is the first held among
+  the link mean, its opposite, and directions off each face's middle at
+  a fivefold-shrinking step. The steps stop where the band takes them:
+  at the first step at which no candidate reads decidedly off its own
+  face. Where none held by then, the corner is thinner than ε_input
+  wherever probed, and it refuses `BooleanError::NestingUnread`.
+  Disagreement after that, no outermost cone, or an edge some partner's
+  rows miss are `ClassificationInvariant`s. The reasons are that every
+  pair reads the vertex's one orbit, and that cones which touch but
+  never cross nest or lie apart.
+
+The flush refusal is filed as
+`pair-classes-refuses-partners-flush-along-an-edge`. The sweep filed
+`a-touching-vertex-refuses-an-edge-on-two-partners-boundaries` and
+`a-lone-unread-partner-leaves-its-vertex-edges-unclassed`.

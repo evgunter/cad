@@ -78,7 +78,7 @@ pub enum FreezeCause {
 pub enum Walk {
     /// Every atom opaque, rule A0 only.
     Plain,
-    /// Rules A/B per node, rule C's and rule D's folds.
+    /// Rules A/B per node, rule D's folds and the decision read.
     Early,
     /// The early walk with the registered-identity door applied.
     Door,
@@ -548,9 +548,6 @@ pub struct ReadProfile {
     pub prepass_enclose: Duration,
     /// Reads whose decision form's digest this session had already
     /// read — what a per-session memo keyed by the digest would hit.
-    /// The digest carries the `gated` bit, which does not move the
-    /// read, so a memo keyed without it could hit more: this is a
-    /// floor.
     pub repeats: u64,
     /// The read time of those repeats.
     pub repeat_time: Duration,

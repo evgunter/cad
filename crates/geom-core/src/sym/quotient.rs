@@ -62,8 +62,8 @@
 //!
 //! **Why the side conditions are free.** `g` divides `D`, so `g = 0`
 //! implies `D = 0`; in both steps the only condition is `D ≠ 0` at the
-//! point. A denominator has FIVE sources and the argument has to cover
-//! all five — it is NOT "only what the value channel divided by", and
+//! point. A denominator has FOUR sources and the argument has to cover
+//! all four — it is NOT "only what the value channel divided by", and
 //! saying that is the mistake this paragraph replaces.
 //!
 //! **(i) The numerators of the `Inv` nodes above the form.**
@@ -93,12 +93,7 @@
 //! itself a denominator already in the DAG, so a power of something
 //! (i) or (ii) covers.
 //!
-//! **(iv) Rule C's polynomial square root** (`signed::fold`, dial-off
-//! in the shipped set): the new denominator `d` satisfies `d² = D` for
-//! the old `D`, and the site refuses a zero `d` outright, so `d = 0`
-//! iff `D = 0` — again a power of something already covered.
-//!
-//! **(v) Rule G's split denominators** (`root`'s canonical form): the
+//! **(iv) Rule G's split denominators** (`root`'s canonical form): the
 //! `sqrt(D')` atom, the `|R|` atom (`R² = D'`) or the exact rational
 //! root that `sqrt(N/D) = sqrt(N)/sqrt(D)` leaves below, for `D'` the
 //! primitive part of a `D` the split proved positive — zero iff `D` is,
@@ -359,14 +354,12 @@ fn cancelled(f: &Form) -> Option<Form> {
             num: Poly::constant(r),
             den: Poly::one(),
             poisoned: false,
-            gated: f.gated,
         });
     }
     Some(Form {
         num,
         den,
         poisoned: false,
-        gated: f.gated,
     })
 }
 
@@ -515,7 +508,7 @@ mod scalar_rows {
         let (out, counts) = with_session_rules(budget(), rules, || {
             crate::k_stats::decide("sym5_rule_e_row", Margin::of(build()), band())
         });
-        matches!(out, Ok(Sign::Zero)) && counts.symbolic_zero == 1
+        matches!(out, Ok(Sign::Zero)) && counts.symbolic == 1
     }
 
     fn p(name: &str, v: f64) -> Sym<f64> {

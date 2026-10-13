@@ -202,7 +202,7 @@ fn an_x_bar_sunk_into_either_cap_answers_its_closed_form() {
 
 /// The rigid motion taking the cube `[0, l]³`'s corner at the origin to
 /// `p`, its main diagonal to `diag`, spun `spin` about it.
-fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> AtRestBody<f64> {
+pub(crate) fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let u1 = Vec3::new(1.0, 1.0, 1.0).normalize();
     let u2 = Vec3::new(1.0, -1.0, 0.0).normalize();

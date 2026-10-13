@@ -296,14 +296,11 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    contact records: none, for a body that touches nothing, where the
    census must find no coincidence at all. Every door that returns or
    consumes one pays that gate once, at the door that built it.
-   The Boolean door's result meets tier 3 without the census's search
-   for touches nothing records: its contact records, each citing the
-   coincidence that backs it, ride beside it (`BooleanBody::contacts`),
-   and the search over them is parked on CONTACT's cross-solid curved
-   lane (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
-   Every door that mints a record reads it with the census's record
-   confirm, and refuses typed a record no reading covers, so a body
-   carries only records read where they were made.
+   The Boolean door's result meets tier 3 without the census: its
+   contact records, each citing the coincidence that backs it, ride
+   beside it (`BooleanBody::contacts`), and the
+   census over them is parked on CONTACT's cross-solid curved lane
+   (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
    Construction state (tier 1, or tier 2 without geometric
    certification) is what Euler operators hand back, and becomes a
    finished body only through the at-rest gate.
@@ -706,19 +703,33 @@ EdgeDescription =
                                              -- `pair` is the set {S₁, S₂}, unordered
   | TangentIntersection { pair, witness }    -- tangential contact locus; same
                                              -- shape, margin one order up
-  | Chart(ChartCurve)                        -- a curve the surface UNDER-determines:
+  | OnPair              { pair }             -- a curve two distinct surfaces
+                                             -- UNDER-determine: the carrier is the
+                                             -- defining data, lying on both
+                                             -- (smooth joins the must-carry rule
+                                             -- reads under-determined)
+  | Chart(ChartCurve)                        -- a curve ONE surface's chart defines:
                                              -- (surface, Pcurve) with a `wrap` flag
-                                             -- (iso-lines, seams, user splits)
+                                             -- (iso-lines, seams, same-surface splits)
   | Scaffold(MappedCurve)                    -- construction-time pushforward of a
                                              -- lower-dim entity; never at rest
 ```
 
 The intrinsic variants describe loci determined by their surfaces; the
-conventional form carries the defining data for loci the surfaces
-*under*-determine (parameterization seams — infinite-order contact, the
-seam's position pure convention; face splits at smooth profile joins,
-where at a G2 join even `TangentIntersection` fails its margin, and
-rightly; user splits). One (surface, `Pcurve`) form covers all of them
+conventional forms carry the defining data for loci the surfaces
+*under*-determine. A locus on two distinct surfaces that they do not
+select — a face split at a smooth profile join, where at a G2 join even
+`TangentIntersection` fails its margin, and rightly, or a tangent piece
+shorter than the second order resolves — is `OnPair { pair }`: the
+carrier is the defining data, its certificate is incidence on both
+surfaces, and no door chooses a chart, since a chart key there records
+nothing about the locus and each face's pcurve is its own derived
+cache. Whether the pair is smooth along it is not the certificate's
+claim; tier 3's must-carry predicate admits the arm exactly where it
+reads the join under-determined. A locus one chart defines
+(parameterization seams — infinite-order contact, the seam's position
+pure convention; iso-lines; splits whose two faces share one surface)
+is `Chart`: one (surface, `Pcurve`) form covers all of them
 (PCURVE-UNIFY-DESIGN); the exact classes stay as certification lanes,
 not variants. A `MappedCurve` survives as the `Scaffold` payload and as
 the `EdgeAuthority` record — one authoritative source, never two peer
@@ -757,7 +768,11 @@ generalize the same way (three surfaces / endpoint of a locus, with a
 witness). A locus in the ambiguous band — a dihedral within a few
 derived angular thresholds of tangent, certifiable as neither — fails
 loudly at construction exactly as at import; a conventional description
-is not an escape hatch from ill-conditioned geometry.
+is not an escape hatch from ill-conditioned geometry. An edge whose
+stations read definitely transverse at some and definitely smooth at
+others is such a locus: the dihedral is continuous along it, so the two
+readings bracket an in-band point the schedule did not sample, and it
+refuses typed, naming the two stations.
 
 **Prefer-intrinsic rule, tier-3-enforced.** Wherever an intrinsic
 description is certifiable, it *is* the stored description — including

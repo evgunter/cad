@@ -2,7 +2,8 @@
 id: a-ring-serving-two-pierces-does-not-evaluate-at-1e-12-on-main
 kind: issue
 title: coincidence_door's ring-serving-two-pierces row does not evaluate at the 1e-12 row on main
-status: open
+status: closed
+closed: 2026-10-13
 opened: 2026-10-12
 priority: P1
 cost: E
@@ -29,4 +30,14 @@ offset is inside the band, so an evaluation that refuses there may be the
 honest posture and want pinning per ε rather than fixing. The failure's
 `failure(ev, node)` text is `None`, so the refusal's cause is unread; read
 it before deciding.
+
+## Closed (2026-10-13, by TANG's fix PR on branch `tang/flush-ring-row-1e-12`)
+
+The fixture was at fault, not the kernel. At ε 1e-12 the blocks' union (`ring_pinch`'s Union node) refuses `Escalated { Coincidence(Sectors, Moot) }`: the 1e-13 gap reads as ≈1.67e-12, which is in the escalate band [1e-12, 1e-11]. `common` and `cut` are then `Poisoned` through it. The "evaluated: None" came from the test helper, because `blocks::failure` maps `Poisoned` to `None`.
+
+The row never passed at 1e-12: it fails identically at its introducing commit, e564d25b2 (PR 4728).
+
+The fix is `pierce_gap()` = min(1e-13, ε/100). It leaves the default and 1e-6 rows building the same fixture. The test's `rows` now names a poisoned node's root failure.
+
+Possible follow-up for FLUSH: `blocks::failure` returns `None` for `Poisoned` in every caller.
 

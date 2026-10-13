@@ -307,9 +307,9 @@ fn r1_the_segment_bosss_per_predicate_split_at_the_nominal() {
             "== NOMINAL {label} ({:.1}s): refusal {refusal:?}\n   {counts:?}",
             t.elapsed().as_secs_f64()
         );
-        for (name, [th, g, reg, num]) in by {
-            if th + g + reg + num > 0 && (num > 0 || th > 0 || reg > 0) {
-                println!("   {name:<36} {th}/{g}/{reg}/{num}");
+        for (name, [sym, num]) in by {
+            if sym + num > 0 {
+                println!("   {name:<36} {sym}/{num}");
             }
         }
     }

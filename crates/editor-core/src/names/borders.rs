@@ -11,9 +11,10 @@
 //! one face across a chord that cut it, or two of a corner's faces
 //! across an edge between them. Each piece edge is chased to the
 //! stretch a discard recorded along it, through the edge's split
-//! lineage and the lineage the discards themselves carry for edges that
-//! died with them, and so to its obstacle. A face discarded where a
-//! coincident kept face holds part of its region borders that face
+//! lineage (kept across the steps that killed its ancestors) and the
+//! edges a later step's join made it of, and so to its obstacle;
+//! discards one edge reaches are one obstacle. A face discarded where
+//! a coincident kept face holds part of its region borders that face
 //! where the held part ends (`topo::DiscardRow::held`). An obstacle that borders two
 //! or more pieces DIVIDES the face; a piece's qualifier is the set of
 //! walls — the faces across its edges — along which it meets a divider,
@@ -50,7 +51,11 @@ struct Discard {
     /// the parent across one of them — a fragment of the same face
     /// across a chord, or of another of a corner's faces across the edge
     /// between them — is region of the parent joined to this one there.
-    bounds: Vec<EdgeKey>,
+    /// Each is the edge in its operand's clone keys, with the boolean
+    /// that recorded it and the operand: B's died before the graft, so
+    /// the result has no key for them, and only two discards of one
+    /// operand in one boolean can share one.
+    bounds: Vec<(usize, topo::Operand, EdgeKey)>,
 }
 
 /// The discards of one boolean, or of each step of a union's fold.
@@ -59,9 +64,16 @@ pub(crate) struct Obstacles<K> {
     /// Parent key → the discards descending from it (what the caller's
     /// `parents_of` named each a fragment of).
     by_parent: BTreeMap<K, Vec<usize>>,
-    /// Edge → the edge it was split from, for edges that died with a
-    /// discarded face and so left the result's own provenance.
-    dead_split: BTreeMap<EdgeKey, EdgeKey>,
+    /// Edge → the edge it was split from, as each recorded result's
+    /// provenance and each discard's chains state it, so an edge a later
+    /// step killed — with a discarded face, or by joining it into
+    /// another — still leads to its parent.
+    split_from: BTreeMap<EdgeKey, EdgeKey>,
+    /// Edge → the edges an output stage's join made it out of, besides
+    /// itself.
+    joined_from: BTreeMap<EdgeKey, Vec<EdgeKey>>,
+    /// The booleans recorded so far.
+    records: usize,
 }
 
 /// The emission error this module refuses with.
@@ -74,7 +86,9 @@ impl<K: Ord + Clone> Obstacles<K> {
         Self {
             discards: Vec::new(),
             by_parent: BTreeMap::new(),
-            dead_split: BTreeMap::new(),
+            split_from: BTreeMap::new(),
+            joined_from: BTreeMap::new(),
+            records: 0,
         }
     }
 
@@ -110,6 +124,26 @@ impl<K: Ord + Clone> Obstacles<K> {
                 by_ends.entry((s.min(t), s.max(t))).or_default().push(k);
             }
             any_by_ends.entry((s.min(t), s.max(t))).or_default().push(k);
+        }
+        // An earlier step's seam this step's output stage joined into
+        // another edge lies along the joined edge, whichever of the two
+        // the join kept.
+        for d in &mut self.discards {
+            let joined: Vec<EdgeKey> = d
+                .seams
+                .iter()
+                .map(|&e| naming.joined_edge(e))
+                .filter(|j| !d.seams.contains(j))
+                .collect();
+            d.seams.extend(joined);
+        }
+        for j in &naming.edge_joins {
+            self.joined_from.entry(j.kept).or_default().push(j.gone);
+        }
+        for (k, _) in body.edges() {
+            if let Some(Provenance::SplitEdge { edge }) = body.edge_provenance_of(k) {
+                self.split_from.insert(k, *edge);
+            }
         }
         let earlier: BTreeSet<EdgeKey> = self
             .discards
@@ -154,30 +188,39 @@ impl<K: Ord + Clone> Obstacles<K> {
                 (&row.bordered, &by_ends, true),
                 (&row.held, &any_by_ends, false),
             ] {
+                // An end the zip split per cone lies at each of its
+                // copies, so the stretch is read between every pair of
+                // copies, and every edge found is kept, not the first:
+                // each lies along the stretch's locus, where the discard's
+                // region meets it, so each is where its obstacle borders
+                // a piece (N2). `topo`'s `boolean_discards::bordered_edges`
+                // reads it alike.
                 for &(u, w) in stretches {
-                    let (u, w) = (settler.settle(u)?, settler.settle(w)?);
-                    let between = match (u, w) {
-                        (Cell::Vertex(u), Cell::Vertex(w)) => edges.get(&(u.min(w), u.max(w))),
-                        // An end the join deleted lies inside the joined
-                        // edge, and one the merge pruned inside the merged
-                        // face: neither ends an edge, so the stretch is
-                        // read through the joins or lies along none.
-                        (Cell::Edge(_) | Cell::Face(_), _) | (_, Cell::Edge(_) | Cell::Face(_)) => {
-                            None
+                    let (us, ws) = (settler.settle_cones(u)?, settler.settle_cones(w)?);
+                    for (&u, &w) in us.iter().flat_map(|u| ws.iter().map(move |w| (u, w))) {
+                        let between = match (u, w) {
+                            (Cell::Vertex(u), Cell::Vertex(w)) => edges.get(&(u.min(w), u.max(w))),
+                            // An end the join deleted lies inside the
+                            // joined edge, and one the merge pruned inside
+                            // the merged face: neither ends an edge, so the
+                            // stretch is read through the joins or lies
+                            // along none.
+                            (Cell::Edge(_) | Cell::Face(_), _)
+                            | (_, Cell::Edge(_) | Cell::Face(_)) => None,
+                        };
+                        if let Some(es) = between {
+                            seams.extend(es.iter().copied());
+                        } else if let Some(e) = naming.stretch_through_joins(body, (u, w))
+                            && (!seam_only || seam_edges.contains(&e))
+                        {
+                            seams.push(e);
                         }
-                    };
-                    if let Some(es) = between {
-                        seams.extend(es.iter().copied());
-                    } else if let Some(e) = naming.stretch_through_joins(body, (u, w))
-                        && (!seam_only || seam_edges.contains(&e))
-                    {
-                        seams.push(e);
                     }
                 }
             }
             for chain in &chains {
                 for w in chain.windows(2) {
-                    self.dead_split.insert(w[0], w[1]);
+                    self.split_from.insert(w[0], w[1]);
                 }
             }
             let touches = chains
@@ -193,13 +236,19 @@ impl<K: Ord + Clone> Obstacles<K> {
                     .or_default()
                     .push(self.discards.len());
             }
-            let bounds = chains.iter().filter_map(|c| c.first().copied()).collect();
+            let bounds = row
+                .boundary_chains
+                .iter()
+                .filter_map(|c| c.first().copied())
+                .map(|k| (self.records, row.operand, k))
+                .collect();
             self.discards.push(Discard {
                 seams,
                 touches,
                 bounds,
             });
         }
+        self.records += 1;
         Ok(())
     }
 
@@ -338,7 +387,7 @@ impl<K: Ord + Clone> Obstacles<K> {
         // Two discards that both bounded an edge which died with them
         // are one connected part of the parent's lost region (N2's
         // obstacle).
-        let mut bound_of: BTreeMap<EdgeKey, Vec<usize>> = BTreeMap::new();
+        let mut bound_of: BTreeMap<(usize, topo::Operand, EdgeKey), Vec<usize>> = BTreeMap::new();
         for &i in &mine {
             for &k in &self.discards[i].bounds {
                 bound_of.entry(k).or_default().push(i);
@@ -356,41 +405,66 @@ impl<K: Ord + Clone> Obstacles<K> {
                 }
             }
         }
-        // Each boundary edge's obstacle, and the wall across it.
-        let bound = self.dead_split.len() + body.edges().count() + 1;
-        let obstacle = |mut e: EdgeKey| -> Result<Option<usize>, NamingError> {
-            for _ in 0..bound {
-                if let Some(ds) = seam_of.get(&e) {
-                    return Ok(Some(link.root(ds[0])));
+        // Each boundary edge's discards, and the wall across it. An edge
+        // reaches a discard along its split lineage, the first recorded
+        // seam on it, and through every edge a join made it of, so an
+        // edge the join made of two seams meets the discards of both,
+        // and they are one obstacle: both border it on its far side.
+        let reached = |e: EdgeKey| -> Result<BTreeSet<usize>, NamingError> {
+            let mut out = BTreeSet::new();
+            let mut seen = BTreeSet::new();
+            let mut todo = vec![e];
+            'chain: while let Some(mut e) = todo.pop() {
+                let mut chain = BTreeSet::new();
+                loop {
+                    if !chain.insert(e) {
+                        return Err(bug("a piece edge's split lineage is cyclic"));
+                    }
+                    if !seen.insert(e) {
+                        continue 'chain;
+                    }
+                    todo.extend(self.joined_from.get(&e).into_iter().flatten());
+                    if let Some(ds) = seam_of.get(&e) {
+                        out.extend(ds.iter().copied());
+                        continue 'chain;
+                    }
+                    e = match body.edge_provenance_of(e) {
+                        Some(Provenance::SplitEdge { edge }) => *edge,
+                        Some(_) => continue 'chain,
+                        None => match self.split_from.get(&e) {
+                            Some(&up) => up,
+                            None => continue 'chain,
+                        },
+                    };
                 }
-                e = match body.edge_provenance_of(e) {
-                    Some(Provenance::SplitEdge { edge }) => *edge,
-                    Some(_) => return Ok(None),
-                    None => match self.dead_split.get(&e) {
-                        Some(&up) => up,
-                        None => return Ok(None),
-                    },
-                };
             }
-            Err(bug("a piece edge's split lineage is cyclic"))
+            Ok(out)
         };
-        let mut met: Vec<(usize, usize, FaceKey)> = Vec::new();
+        let mut sides: Vec<(BTreeSet<usize>, usize, FaceKey)> = Vec::new();
         for (p, hes) in boundaries.iter().enumerate() {
             for &he in hes {
                 let edge = body
                     .get_half_edge(he)
                     .ok_or_else(|| bug("a piece's half-edge is dangling"))?
                     .edge;
-                let Some(o) = obstacle(edge)? else {
+                let ds = reached(edge)?;
+                let Some(&first) = ds.first() else {
                     continue;
                 };
+                for &d in &ds {
+                    link.join(first, d);
+                }
                 let across = body
                     .mate(he)
                     .and_then(|m| body.face_of_half_edge(m))
                     .ok_or_else(|| bug("a piece edge has no face across it"))?;
-                met.push((o, p, across));
+                sides.push((ds, p, across));
             }
         }
+        let met: Vec<(usize, usize, FaceKey)> = sides
+            .into_iter()
+            .filter_map(|(ds, p, across)| Some((link.root(*ds.first()?), p, across)))
+            .collect();
         let mut touched: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
         for &(o, p, _) in &met {
             touched.entry(o).or_default().insert(p);
