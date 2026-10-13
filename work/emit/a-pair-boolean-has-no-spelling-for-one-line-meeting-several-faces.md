@@ -44,5 +44,36 @@ What names it. Options seen:
 - the old seam-junction spelling, kept for this shape only.
 
 The shape needs a witness first: a line through a point where several
-faces of the other operand meet and none of its edges remains, which
-takes a declared merge consuming the other operand's edges there.
+faces of the other operand meet and none of its edges remains.
+
+## Reaching it
+
+Conjecture, unproven: it takes a declared merge consuming the other
+operand's edges there. Nothing below rules out an undeclared reach.
+
+**Why an ordinary pair is hard.** Several faces of one operand meet at
+a point only along that operand's edge `e` through the point. For `e`
+to be gone at the vertex while its faces reach the vertex, `e` must lie
+on the discarded side of the line operand on both sides of the point.
+Near the point the line operand is a wedge about its edge. A convex
+wedge (under π) holds a line through its apex on one side at most, so
+`e` survives on the other side and the vertex is the two edges' run,
+`(1, 1)`. Only a wedge over π, a reflex edge in the sense of the op
+(kept material over π about `e`'s line), can hold `e` on the discarded
+side both ways, and the faces of `e` must still reach the point between
+its walls.
+
+**The review's attempt (PR 4958).** A tilted box whose x-edge crosses
+the reflex edge of a 90° V-notch prism, all four ops at tilts of 20°,
+30° and 45°: 12 runs. All evaluate, and none reaches the refusal. The
+box's edge is convex, so by the argument above each run keeps a piece
+of the other operand's edge at the point.
+
+## The union raises it too
+
+A union reading the same shape off its finished body
+(`emit_union::Flush::meeting`: one member line, no seam, several faces
+of other members) raised `NamingError::Emission` ("one member edge meets
+other than one face …"). It now raises the same typed
+`SeamVertexParentage`. One member line meeting no face stays an
+emission bug. No test reaches either.
