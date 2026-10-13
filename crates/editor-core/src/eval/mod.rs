@@ -6339,13 +6339,15 @@ fn extrude_side_tag(side: crate::node::ExtrudeSide) -> u8 {
     }
 }
 
-fn sense_tag(sense: crate::names::Sense) -> u8 {
+/// A crossing sense's key tag: a run line with no sense (a seam) is 0.
+fn sense_tag(sense: Option<crate::names::Sense>) -> u8 {
     use crate::names::Sense;
     match sense {
-        Sense::Enters => 1,
-        Sense::Leaves => 2,
-        Sense::Outside => 3,
-        Sense::Inside => 4,
+        None => 0,
+        Some(Sense::Enters) => 1,
+        Some(Sense::Leaves) => 2,
+        Some(Sense::Outside) => 3,
+        Some(Sense::Inside) => 4,
     }
 }
 
@@ -6597,13 +6599,13 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::Crossing { edge, face, sense } => {
             h.name(edge);
             h.name(face);
-            h.write_tag(sense_tag(*sense));
+            h.write_tag(sense_tag(Some(*sense)));
         }
         RoleSeg::EdgeCrossing(run) => {
             h.write_u64(run.len() as u64);
             for l in run {
                 h.name(&l.line);
-                h.write_tag(l.sense.map_or(0, sense_tag));
+                h.write_tag(sense_tag(l.sense));
             }
         }
         RoleSeg::Merged(names) => {
@@ -6633,7 +6635,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::CrossingVertex { side, edge, sense } => {
             h.write_tag(half(*side));
             h.name(edge);
-            h.write_tag(sense_tag(*sense));
+            h.write_tag(sense_tag(Some(*sense)));
         }
         RoleSeg::OnToolVertex { side, of } => {
             h.write_tag(half(*side));

@@ -1228,3 +1228,62 @@ fn two_legs_on_the_plate_are_their_touch_in_every_member_order() {
         }
     }
 }
+
+/// **The plate less the wedges' union, and the wedges' union less the
+/// plate, name the point where the legs meet alike in every member order
+/// of the union** (`work/wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it.md`):
+/// each subtract names it from the union's names, which are order-free,
+/// so they are too. Three and four wedges, every order; the union's and
+/// the subtracts' own ids, which the member order moves, are masked.
+#[test]
+fn a_subtract_against_the_wedges_union_names_their_meeting_alike_in_every_member_order() {
+    for (label, holes) in [
+        ("three wedges", three_wedges as fn() -> Vec<Hole>),
+        ("four wedges", four_wedges),
+    ] {
+        let n = holes().len();
+        let mut first: Option<[Vec<String>; 2]> = None;
+        for order in orders(n) {
+            let (doc, m) = tilted_holes(
+                ProfileDoc::empty_derived("union_pinch", Tol::witness()),
+                &holes(),
+            );
+            let plate = m[0];
+            let wedges: Vec<RecipeNodeId> = order.iter().map(|&i| m[i + 1]).collect();
+            let (doc, u) = crate::fixture::union_over(doc, &wedges);
+            let (doc, p_u) = insert(doc, pair_node(BooleanOp::Subtract, plate, u));
+            let (doc, u_p) = insert(doc, pair_node(BooleanOp::Subtract, u, plate));
+            let ev = run(&doc);
+            let mut masks: Vec<(String, &str)> = Vec::new();
+            for (id, tag) in [(u, "U"), (p_u, "P-U"), (u_p, "U-P")] {
+                masks.push((format!("{id:?}"), tag));
+                masks.push((format!("{:?}", crate::fixture::out(&doc, id)), tag));
+            }
+            let named = |id: RecipeNodeId, what: &str| -> Vec<String> {
+                if let Some(e) = failure(&ev, id) {
+                    panic!("{label} {what}, member order {order:?}: refused: {e:?}");
+                }
+                names_at(&ev, id, top())
+                    .into_iter()
+                    .map(|n| {
+                        masks
+                            .iter()
+                            .fold(n, |n, (id, tag)| n.replace(id.as_str(), tag))
+                    })
+                    .collect()
+            };
+            let both = [named(p_u, "P − U"), named(u_p, "U − P")];
+            for (names, what) in both.iter().zip(["P − U", "U − P"]) {
+                assert_eq!(
+                    names.len(),
+                    1,
+                    "{label} {what}, member order {order:?}: the meeting point's names: {names:?}"
+                );
+            }
+            match &first {
+                None => first = Some(both),
+                Some(f) => assert_eq!(&both, f, "{label}, member order {order:?}"),
+            }
+        }
+    }
+}

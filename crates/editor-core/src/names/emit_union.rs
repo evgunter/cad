@@ -836,7 +836,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                         .face_names
                         .get(f)
                         .ok_or(bug("a face at a union's crossing has no parent name"))?;
-                    faces.insert(name, self.members_of(f));
+                    faces
+                        .entry(name)
+                        .or_insert_with(BTreeSet::new)
+                        .extend(self.members_of(f));
                 }
             }
             let mut faces = faces.into_iter();
@@ -856,26 +859,22 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 }],
             }));
         }
-        let mut members: Vec<(&MemberEntity, BTreeSet<VarId>)> =
-            cited.iter().map(|l| (l, BTreeSet::from([l.0]))).collect();
-        let seam_members: BTreeSet<VarId> = seams.values().flatten().copied().collect();
-        let mut run = Vec::with_capacity(members.len() + seams.len());
-        for i in 0..members.len() {
-            let line = members[i].0;
-            let others: BTreeSet<VarId> = members
-                .iter()
-                .enumerate()
-                .filter(|&(j, _)| j != i)
-                .flat_map(|(_, (_, m))| m.iter().copied())
-                .chain(seam_members.iter().copied())
-                .filter(|&m| m != line.0)
-                .collect();
+        // Every member an entry belongs to; each edge is read against
+        // those other than its own.
+        let entries: BTreeSet<VarId> = cited
+            .iter()
+            .map(|l| l.0)
+            .chain(seams.values().flatten().copied())
+            .collect();
+        let mut run = Vec::with_capacity(cited.len() + seams.len());
+        for line in &cited {
+            let mut others = entries.clone();
+            others.remove(&line.0);
             run.push(RunLine {
                 line: edge_line(&NameRef::new(entity_name(self.union, line))),
                 sense: Some(self.sense_against(v, line, &others, links)?),
             });
         }
-        members.clear();
         run.extend(seams.into_keys().map(|base| RunLine {
             line: edge_line(&NameRef::new(base.clone())),
             sense: None,
@@ -1578,8 +1577,8 @@ fn rank_along_seam<T: geom_core::Decide>(
 
 /// A member edge at a union vertex has a side no pairwise judgement of
 /// its member with the members its name reads it against classified.
-const UNCLASSIFIED_SIDE: &str = "a union's crossing edge has a side no pairwise judgement \
-     classified against the members its name cites";
+const UNCLASSIFIED_SIDE: &str = "a member edge in a union vertex's name has a side no \
+     pairwise judgement classified against the members the name cites";
 
 /// Several vertices share one name once they cite member edges whole,
 /// and that name is not a single seam line (a junction's run, say), so
@@ -1687,9 +1686,15 @@ impl<T: geom_core::Real> Links<T> {
     /// result `body`.
     ///
     /// A classified piece is placed at the result vertex its operand key
-    /// settles on; one whose vertex the result does not hold (discarded
-    /// material, or a point an output stage joined away) is at no vertex
-    /// of the judgement and is not kept.
+    /// settles on ([`topo::Settler::settle`]). A key that lies at no
+    /// vertex of the result holds no piece of it: one the result never
+    /// received (a B key the graft left out, discarded material whose
+    /// vertex died with no row), or one settled inside an edge or a face.
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::Settle`] where a key's rows lead to a cell the
+    /// result does not hold: a corrupt record, not an absent key.
     pub(crate) fn judged(
         &mut self,
         a: usize,
@@ -1733,8 +1738,18 @@ impl<T: geom_core::Real> Links<T> {
                 topo::OperandKeys::Absent => None,
             };
             let Some(key) = key else { continue };
-            let Ok(topo::Cell::Vertex(v)) = settler.settle(key) else {
-                continue;
+            let v = match settler.settle(key) {
+                Ok(topo::Cell::Vertex(v)) => v,
+                Ok(topo::Cell::Edge(_) | topo::Cell::Face(_)) => continue,
+                // No fusion and no row moved the key: it is a vertex the
+                // result never held.
+                Err(topo::SettleError::Dead { vertex, reached })
+                    if reached == topo::Cell::Vertex(vertex)
+                        && naming.vertex_merges.survivor(vertex) == vertex =>
+                {
+                    continue;
+                }
+                Err(e) => return Err(e.into()),
             };
             self.classes.push(PairClass {
                 member,

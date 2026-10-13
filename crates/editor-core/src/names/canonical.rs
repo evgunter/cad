@@ -113,14 +113,16 @@ enum RankRule {
     /// pair came out in the other order. The edge is read the other
     /// way, and the rank from the other end: `of − 1 − rank`.
     Reverse,
-    /// A rank no canonical line holds: a UNION's seam vertex group
-    /// whose two parents are both edges, which the pair emitter ranks
-    /// along the A side's edge, or a run whose ranks the rewrite moved
-    /// off the line they were measured along (its least edge is the
-    /// image of another line, or, in a run with no edge, a seam's pair or
-    /// the lines' order changed). The collapse refuses rather than
+    /// A UNION's seam vertex group whose two parents are both edges,
+    /// which the pair emitter ranks along the A side's edge, so no
+    /// canonical line holds the rank. The collapse refuses rather than
     /// publish a rank a member reorder could rebind.
     Refuse,
+    /// A run whose ranks the rewrite moved off the line they were
+    /// measured along: its least edge is the image of another line, or,
+    /// in a run with no edge, a seam's pair or the lines' order changed.
+    /// Where the run lies along the new least line no name says.
+    RefuseRun,
 }
 
 /// Why a rank could not be re-read against a canonical line.
@@ -128,6 +130,8 @@ enum RankRule {
 pub(crate) enum Unrankable {
     /// [`RankRule::Refuse`]'s shape carried a rank.
     SidedVertexRank,
+    /// [`RankRule::RefuseRun`]: a run's least line moved.
+    RunLeastLineMoved,
     /// A rank at or beyond its count.
     RankOutsideCount,
 }
@@ -139,6 +143,10 @@ impl Unrankable {
             Self::SidedVertexRank => {
                 "a union's seam vertex group is ranked along one of two edge parents, chosen by \
                  operand side"
+            }
+            Self::RunLeastLineMoved => {
+                "a ranked edge-crossing run's least line is another line once rewritten, so \
+                 nothing says where its vertices lie along it"
             }
             Self::RankOutsideCount => "a seam vertex group's rank lies outside its count",
         }
@@ -224,7 +232,7 @@ impl RankRule {
         match (least(was), least(now)) {
             (Some(w), Some(n)) => {
                 if image(&was[w].line)? != *now[n].line {
-                    return Ok(Self::Refuse);
+                    return Ok(Self::RefuseRun);
                 }
                 Self::along(&was[w].line, &now[n].line, image)
             }
@@ -233,12 +241,12 @@ impl RankRule {
                     if image(&w.line)? != *n.line
                         || Self::along(&w.line, &n.line, image)? != Self::Keep
                     {
-                        return Ok(Self::Refuse);
+                        return Ok(Self::RefuseRun);
                     }
                 }
                 Ok(Self::Keep)
             }
-            _ => Ok(Self::Refuse),
+            _ => Ok(Self::RefuseRun),
         }
     }
 
@@ -271,6 +279,7 @@ impl RankRule {
                 .map(|rank| Qualifier::OrderAlong { rank, of })
                 .ok_or(Unrankable::RankOutsideCount),
             Self::Refuse => Err(Unrankable::SidedVertexRank),
+            Self::RefuseRun => Err(Unrankable::RunLeastLineMoved),
         }
     }
 }
@@ -393,12 +402,16 @@ pub(crate) fn collapsed<'n, E>(
 ///
 /// A name with a rank that cannot be re-read is carried EXACTLY as the
 /// segment rewrite left it — nothing reordered, nothing re-ranked. A
-/// rewrite re-spells a reference; it is not a door. Both refusals are
-/// emission-time facts: the collapse refuses [`RankRule::Refuse`]'s
-/// shape, and no emitter mints a rank at or past its count. A name
-/// carrying either was never published, so it resolved to nothing
-/// before the rewrite and resolves to nothing after it; every other
-/// malformed name crosses a rewrite the same way.
+/// rewrite re-spells a reference; it is not a door. Two of the refusals
+/// are emission-time facts: the collapse refuses [`RankRule::Refuse`]'s
+/// shape, and no emitter mints a rank at or past its count, so a name
+/// carrying either was never published and resolves to nothing before
+/// the rewrite and after it. [`RankRule::RefuseRun`] is not: a pair
+/// boolean publishes a ranked run, and a rewrite whose map does not keep
+/// name order (a split's) can make another of its lines least. That
+/// name is carried out of order and resolves to nothing, though it
+/// resolved before
+/// (`work/emit/a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical.md`).
 ///
 /// # Errors
 ///
@@ -865,7 +878,7 @@ mod tests {
             })
         });
         assert!(
-            matches!(moved, Err(Stop::Unrankable(Unrankable::SidedVertexRank))),
+            matches!(moved, Err(Stop::Unrankable(Unrankable::RunLeastLineMoved))),
             "the least edge changed"
         );
     }
