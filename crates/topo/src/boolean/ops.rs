@@ -129,8 +129,8 @@ use super::voids;
 use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
 use super::{
     BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
-    EeContact, EfContact, FfContact, Glue, GluedPair, Operand, OperandRecords, ReductionContacts,
-    SelfCheck, SweepStrategy, VeContact, VfContact, VvContact,
+    EeContact, EfContact, FfContact, Glue, GlueVerdict, GluedPair, Operand, OperandRecords,
+    ReductionContacts, SelfCheck, SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
@@ -202,6 +202,9 @@ pub struct BooleanBody<T: Real> {
     /// The coincidences the op decided from values, in decision order
     /// and operand keys ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
+    /// The face pairs those coincidences glue, in their order
+    /// ([`GlueVerdict`]).
+    pub verdicts: Vec<GlueVerdict>,
 }
 
 /// How one operand's keys relate to the result body's keys.
@@ -598,7 +601,7 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
-    let result = Glue::of(inputs).and_then(|glue| boolean_door(op, a, b, &glue, strategy, tol));
+    let result = boolean_door(op, a, b, &Glue::of(inputs), strategy, tol);
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     result
@@ -718,6 +721,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     ];
     let ledger = ledger(&red, decls, [&scaffold[0], &scaffold[1]])?;
     let hung = red.hung.clone();
+    let tangent_lines = red.tangent_lines.clone();
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The hung points in result keys: A's clone is the result's own, B's
     // comes through the graft. The graft maps the points B's kept part
@@ -846,6 +850,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         kind: BooleanResultKind::Seamed,
         contacts,
         naming,
+        verdicts: GlueVerdict::of_rows(&coincidences, &tangent_lines),
         coincidences,
     }))
 }
@@ -6631,6 +6636,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 kind,
                 contacts,
                 naming,
+                verdicts: GlueVerdict::of_rows(&coincidences, &red.tangent_lines),
                 coincidences,
             }))
         }
@@ -6728,6 +6734,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         kind,
         contacts,
         naming,
+        verdicts: GlueVerdict::of_rows(&coincidences, &red.tangent_lines),
         coincidences,
     }))
 }

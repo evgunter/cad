@@ -70,7 +70,7 @@ pub(crate) struct PairVerb<T: Decide> {
     pub(crate) foreign_record: &'static str,
 }
 
-/// The boolean's record, out of its channel arm: the three non-body
+/// The boolean's record, out of its channel arm: three non-body
 /// halves of the kernel's `BooleanBody`, each the kernel's own type.
 pub(crate) struct BooleanRecord {
     /// How the result body came to be.
@@ -100,6 +100,7 @@ fn boolean_record<T: geom_core::Real>(record: VerbRecord<T>) -> Option<BooleanRe
             kind,
             contacts,
             naming,
+            verdicts: _,
         } => Some(BooleanRecord {
             kind,
             contacts,

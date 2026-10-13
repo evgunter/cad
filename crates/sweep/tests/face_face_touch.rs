@@ -352,6 +352,79 @@ fn a_cap_circles_point_touch_is_read_and_lands_on_the_piece_holding_it() {
     );
 }
 
+/// **A step handed its tangency records the touch as the op that
+/// decided it does**: the rod and the plate united with the pair
+/// boolean's own tangency given ([`topo::BooleanInputs::given`], a union
+/// fold step's channel) carry the same face–face record, citing a row
+/// that restates the given decision on its margin.
+#[test]
+fn a_given_tangency_through_both_interiors_records_the_face_face_touch() {
+    let plate = finished(
+        "plate",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.25, 0.5);
+    let decided = match topo::union(&plate, &rod, tol()) {
+        Ok(BooleanResult::Body(u)) => u,
+        other => panic!("plate ∪ rod: {:?}", other.map(|_| ())),
+    };
+    assert_eq!(
+        decided.verdicts.len(),
+        1,
+        "plate ∪ rod: one verdict, the tangency"
+    );
+    let verdict = decided.verdicts[0];
+    let given: Vec<topo::GivenPair> = vec![verdict.given_at(verdict.a())];
+    let decision = *decided
+        .coincidences
+        .iter()
+        .find(|row| row.relation == topo::Relation::SurfaceTangent)
+        .unwrap();
+    let stepped = match topo::boolean_op_with(
+        topo::BooleanOp::Union,
+        &plate,
+        &rod,
+        &topo::BooleanInputs {
+            given: Some(given.clone()),
+            ..topo::BooleanInputs::default()
+        },
+        topo::SweepStrategy::Realized,
+        tol(),
+    ) {
+        Ok(BooleanResult::Body(u)) => u,
+        other => panic!("plate ∪ rod, given: {:?}", other.map(|_| ())),
+    };
+    assert_eq!(
+        stepped.contacts.face_face().collect::<Vec<_>>(),
+        decided.contacts.face_face().collect::<Vec<_>>(),
+        "plate ∪ rod, given: the face–face record the decided union carries"
+    );
+    let cites: Vec<_> = stepped
+        .contacts
+        .rows()
+        .iter()
+        .find(|r| matches!(r.kind(), topo::ContactKind::FaceFace(..)))
+        .unwrap()
+        .cites
+        .iter()
+        .collect();
+    let [topo::Backing::Decided(k)] = cites[..] else {
+        panic!("plate ∪ rod, given: the face–face record cites {cites:?}");
+    };
+    let row = stepped.coincidences[k as usize];
+    assert_eq!(
+        (row.cells, row.relation, row.site, row.margin),
+        (
+            decision.cells,
+            decision.relation,
+            decision.site,
+            decision.margin
+        ),
+        "plate ∪ rod, given: the cited row restates the given decision"
+    );
+}
+
 /// **A carried edge–face or face–face row is validated at the door**,
 /// as its siblings are: a key that does not resolve, a face–face row
 /// naming one face twice, and an edge–face row whose edge bounds its

@@ -4384,9 +4384,7 @@ mod declaration_order_rows {
             pairs: class
                 .map(|class| vec![GluedPair::new(prism.side_faces[3], wall, class)])
                 .unwrap_or_default(),
-            records_a: Default::default(),
-            records_b: Default::default(),
-            verdicts: Default::default(),
+            ..Glue::none()
         };
         let declared = GluedPairs::<f64>::without_struts(&decls, Default::default());
         let mut acc = ContactAcc::default();
@@ -4549,9 +4547,7 @@ mod declaration_order_rows {
             pairs: class
                 .map(|class| vec![GluedPair::new(xw, yw, class)])
                 .unwrap_or_default(),
-            records_a: Default::default(),
-            records_b: Default::default(),
-            verdicts: Default::default(),
+            ..Glue::none()
         };
         let one = if one_carrier {
             [(xw, yw)].into_iter().collect()

@@ -6464,8 +6464,8 @@ fn confirm_edge_face<T: Decide>(
 ///   both faces' extents along it, and the `Tangent` table where those
 ///   meet, material sides included
 ///   ([`crate::boolean::tangent_pair_at_rest`]). Extents definitely
-///   apart are stale. Where they meet, the line is placed in both faces
-///   at the middle of that span by each face's containment door: in
+///   apart, or meeting at one point, are stale. Where they meet along a
+///   span, the line is placed in both faces at the middle of that span by each face's containment door: in
 ///   both, the faces' interiors meet there and the record is confirmed;
 ///   off either, it is stale. A trim the line enters only elsewhere is
 ///   read stale rather than blessed. Refused typed where no line derives.

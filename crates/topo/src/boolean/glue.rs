@@ -128,7 +128,7 @@ fn tangency<T: Decide>(
 
 /// Whether two carriers' kinds are the witness lane's line pairs: a
 /// plane and a cylinder, or two cylinders.
-pub(crate) fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
+fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
     use geom::SurfaceKind::{Cylinder, Plane};
     matches!(
         kinds,
