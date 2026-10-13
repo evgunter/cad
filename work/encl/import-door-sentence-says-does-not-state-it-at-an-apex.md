@@ -2,10 +2,11 @@
 id: import-door-sentence-says-does-not-state-it-at-an-apex
 kind: issue
 title: geom-core: the import door's 'the file does not state it' is false of a cone apex the file states exactly
-status: open
+status: dispatched
 opened: 2026-10-13
 priority: P3
 cost: E
+branch: encl/import-door-apex-sentence
 ---
 
 
@@ -18,3 +19,7 @@ cost: E
 ## Question
 
 Can the door's sentence be worded so that it is true of an exact stored zero too (for example "is below … so the file cannot tell it from zero"), without forking the message below ε_input (D4 ¶1 (i), (iii))?
+
+## Ruled (ENCL orchestrator, 2026-10-13)
+
+Yes. Word the one sentence so it is true of every reading that reaches it, an exact stored zero included. The sentence should say what the file cannot do, which is tell this size from zero at its declared ε_in, not claim the file left the size unstated. Keep it one sentence below ε_in, with no fork by class (D4 ¶1 (i), (iii)). Pin the cone-apex row and an in-band nonzero row whole.

@@ -745,19 +745,21 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     )?;
 
     // ---- The ring carry-through honesty check (module docs). ----
-    // A convex ruled band's cap carries its crease: a cycle wholly
-    // inside that sliver goes with it (`reach::CapRing`).
+    // A convex band's cap carries its crease: a cycle wholly inside that
+    // sliver goes with it (`reach::CapRing`).
+    let crease_of =
+        |l: &AdmittedOpen<'_, T>| (l.convexity() == Convexity::Convex).then(|| l.edge());
     let slivers: Vec<CapMeter<'_, T>> = ruled_plans
         .iter()
         .flat_map(|p| {
             let l = p.link();
-            let crease = (l.convexity() == Convexity::Convex).then(|| l.edge());
+            let crease = crease_of(&l);
             p.slivers().map(move |s| (s, l.convexity(), crease))
         })
         .chain(
             cut_offs
                 .iter()
-                .map(|c| (&c.end.sliver, c.link.convexity(), None)),
+                .map(|c| (&c.end.sliver, c.link.convexity(), crease_of(&c.link))),
         )
         .chain(turns.iter().filter_map(|t| {
             let far = t.turn.overrun()?.far;
@@ -772,7 +774,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // and the reach's make one verdict (`reach::Unclear`).
     let consumed = super::reach::band_reach(source, &verdict.chains, radius, kind, band, unclear)?;
     // ---- A request whose verdict is inside takes each feature wholly
-    // inside a convex ruled band's material, whole, or refuses
+    // inside a convex straight band's material, whole, or refuses
     // (`consume::plan`). ----
     let features = match &consumed {
         Some(consumed) => super::consume::plan(source, consumed)?,
@@ -2684,7 +2686,7 @@ pub fn ring_clearance_for_tests<T: Decide + Bounds>(
 }
 
 /// One cut-off end face's sliver for the end-face meter: the sliver,
-/// its chain's convexity, and the crease of a convex ruled band, whose
+/// its chain's convexity, and the crease of a convex band, whose
 /// cap gives up a cycle wholly inside the sliver to the carve.
 type CapMeter<'a, T> = (&'a CapSliver<T>, Convexity, Option<EdgeKey>);
 
@@ -2870,6 +2872,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                                 cap: s.cap,
                                 ring: lp,
                                 depth: deep,
+                                convex: s.convex(),
                             },
                             refusal,
                         ),

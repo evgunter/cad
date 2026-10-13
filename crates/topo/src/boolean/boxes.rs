@@ -30,9 +30,9 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **four** of the eleven doors that read a box from
-//! here; at four of the other seven, box NON-overlap is the answer being
-//! sought, so a bigger box is a REFUSAL, and at the other three it is
+//! PRUNES. That is **four** of the twelve doors that read a box from
+//! here; at four of the other eight, box NON-overlap is the answer being
+//! sought, so a bigger box is a REFUSAL, and at the other four it is
 //! more exact work AND can be a refusal:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
@@ -109,9 +109,17 @@
 //!   for an edge with no bound (a spline or a spiric), which is not
 //!   clear, so there a bigger box REFUSES a touch the edge stays clear
 //!   of: the crossing layer keeps its typed door.
+//! - the held-pierce read (`vtxfac::faces_holding_pierce`, its curved
+//!   faces' boxes built in `boolean/mod.rs`) PRUNES: a curved face whose
+//!   box clears a pierce point is not asked whether it holds it, and any
+//!   other is decided on its carrier's residual and its trim through
+//!   `Decide`. A bigger box costs that read, never an answer — except
+//!   for a face on the point's carrier whose trim the chart door cannot
+//!   read, which is not cleared, so there a bigger box REFUSES
+//!   (`HeldPierceUnbuilt`) a point the face stays clear of.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The eleven are not
+//! about a door, and the door has to be named. The twelve are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
 //! a new door cannot land unargued. **It pins WHERE the doors are
@@ -3578,9 +3586,10 @@ pub(crate) mod tests {
         // hands it. `boolean/torn_hop_rows.rs`' four are not
         // doors either: its torn-body witnesses call `face_box` and
         // `edge_box` to show a torn link panics.
-        const PINNED: [(&str, usize); 10] = [
+        const PINNED: [(&str, usize); 11] = [
             ("boolean/carrier_touch.rs", 1),
             ("boolean/glue.rs", 2),
+            ("boolean/mod.rs", 1),
             ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
