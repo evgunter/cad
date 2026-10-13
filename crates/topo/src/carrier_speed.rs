@@ -53,8 +53,8 @@ pub(crate) fn speed_range<T: SpanLocate>(carrier: &geom::Curve3<T>) -> (InfSpeed
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         } => {
             let c = Conic {

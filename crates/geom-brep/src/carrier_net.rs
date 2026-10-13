@@ -99,8 +99,8 @@ fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>) -> Option<Harmonic> {
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         } => {
             let (axis, u_ref) = (lift_v(*axis), lift_v(*u_ref));
@@ -408,8 +408,8 @@ mod tests {
                 Curve3::Ellipse {
                     center,
                     axis,
-                    major: 1.2,
-                    minor: 0.4,
+                    semi_u: 1.2,
+                    semi_v: 0.4,
                     u_ref,
                 },
             ),

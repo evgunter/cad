@@ -270,8 +270,8 @@ fn ellipse() -> Curve3<f64> {
     Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, 0.4),
         axis: Vec3::new(-k / s, 0.0, 1.0 / s),
-        major: s,
-        minor: 1.0,
+        semi_u: s,
+        semi_v: 1.0,
         u_ref: Vec3::new(1.0 / s, 0.0, k / s),
     }
 }
@@ -290,8 +290,8 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
             let Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             } = ellipse()
             else {
@@ -300,8 +300,8 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
             Curve3::Ellipse {
                 center: center + Vec3::new(0.0, 0.0, 1e-3),
                 axis,
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref,
             }
         }),

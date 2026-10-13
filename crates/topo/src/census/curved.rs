@@ -625,8 +625,8 @@ mod tests {
         Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::unit_z(),
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         }
     }

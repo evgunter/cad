@@ -336,7 +336,7 @@ fn read_off_the_sum(
         &Pcurve::FocalSection(focal),
         &Curve3::Ellipse {
             center,
-            major,
+            semi_u: major,
             u_ref: e_u,
             ..
         },
@@ -489,8 +489,8 @@ fn skew_near_circle(alpha: f64, h: f64, phi: f64, off: f64) -> (Curve3<f64>, Sur
     let carrier = Curve3::Ellipse {
         center: m.transform_point(center + Vec3::unit_y() * off),
         axis: m.transform_vec(u_ref.cross(Vec3::unit_y())),
-        major: 0.5 * (p1 - p2).norm(),
-        minor: (ta * ta * cz * cz - cx * cx).sqrt(),
+        semi_u: 0.5 * (p1 - p2).norm(),
+        semi_v: (ta * ta * cz * cz - cx * cx).sqrt(),
         u_ref: m.transform_vec(u_ref),
     };
     let surface = Surface::Cone {

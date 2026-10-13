@@ -219,8 +219,8 @@ fn cylinder_meridian_a_radial_circle_reads_once() {
     let carrier = Curve3::Ellipse {
         center: Point3::new(r, 0.0, 1.0),
         axis: u_ref.cross(Vec3::unit_y()),
-        major: a.norm(),
-        minor: d,
+        semi_u: a.norm(),
+        semi_v: d,
         u_ref,
     };
     let image = chart_pcurve(&carrier, &cyl, band()).unwrap();
