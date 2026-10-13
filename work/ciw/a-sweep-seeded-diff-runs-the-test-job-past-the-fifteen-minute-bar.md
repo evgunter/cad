@@ -4,6 +4,8 @@ kind: issue
 title: A diff that seeds sweep runs the per-PR test job for over 21 minutes, past the 15-minute bar
 status: open
 opened: 2026-10-11
+needs_ev: true
+refs: [5001, 5011]
 ---
 
 ## Measured
