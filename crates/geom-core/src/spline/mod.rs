@@ -71,8 +71,8 @@ pub use hull::{
 };
 pub use knot_values::{KnotSpan, Knots};
 pub use knots::{
-    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, derivative_knot_slice,
-    knot_difference,
+    KnotMirrorError, KnotVector, KnotVectorIssue, Span, SplineError, check_weight_values,
+    derivative_knot_slice, knot_difference, weight_in_regime,
 };
 pub use locate::{SpanLocate, SpanSet, poison_from};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
