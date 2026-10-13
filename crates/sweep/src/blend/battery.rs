@@ -1909,7 +1909,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
                         if !turns.iter().any(|t| t.vertex == v) =>
                     {
                         let [l1, l2] = &*links;
-                        turns.push(turn_at(body, v, [l1, l2], third, band, kind)?);
+                        turns.push(turn_at(body, v, [l1, l2], third, r, band, kind)?);
                     }
                     Some(EndVerdict::Turn(..)) | None => {}
                 }
@@ -2066,14 +2066,6 @@ pub enum EndSection<T: Real> {
     Ellipse(Curve3<T>),
 }
 
-/// The refusal for a fillet turn whose two bands' feet on its third edge
-/// stand definitely apart: the band reaching further, whose requested
-/// edge the refusal's `at` names, runs on past the mitre onto the other
-/// band's face of that edge, and a fillet's overrun is not built.
-pub const TURN_OVERRUN: &str = "at a turn, one fillet band's foot lies further down the third \
-     edge, so that band would run past the mitre onto the other band's face of it, an overrun not \
-     built";
-
 /// **A turn predicate 6 admitted**: two of a trivalent vertex's three
 /// edges requested, the third, `edge`, not, and the two bands' feet on
 /// it decided one point or definitely apart ([`turn_at`]). The two
@@ -2116,25 +2108,30 @@ pub enum TurnRunOut<T: Real> {
     /// verdict decided ([`topo::Relation::CommonFoot`], the gap and the
     /// chord both decided Zero).
     Mitre(topo::Coincidence),
-    /// The feet stand definitely apart, both readings on one side: a
-    /// chamfer's OVERRUN.
+    /// The feet stand definitely apart, both readings on one side: the
+    /// OVERRUN.
     Overrun(Overrun<T>),
 }
 
-/// **A chamfer turn's overrun**: the mitre lands first on the near
-/// band's face of the third edge, at `end` on that band's trimline, and
-/// the far band `far` is cut off past it by that face, from `end` down
-/// to its own foot ([`Turn::foot`]) — band `far`'s cut-off at that face,
-/// clipped at `end`. The verdict builds every chord it decides
-/// definite, so a just-definite overrun leaves an edge from `end` to the
-/// far foot barely longer than the band's `escalate` width.
+/// **A turn's overrun**: the mitre lands first on the near band's face
+/// of the third edge, at `end` on that band's trimline, and the far band
+/// `far` is cut off past it by that face, from `end` down to its own
+/// foot ([`Turn::foot`]) — band `far`'s cut-off at that face, clipped at
+/// `end`. A fillet's cut-off arc is tangent to the mitre at `end` and to
+/// the third edge at the far foot (the crate README's turn clause). A
+/// just-definite overrun leaves an edge from `end` to the far foot, a
+/// chord or an arc, barely longer than the band's `escalate` width.
 #[derive(Clone, Debug)]
 pub struct Overrun<T: Real> {
     /// The far band, as an index into [`Turn::requested`].
     pub far: usize,
     /// The mitre's end `q`, on the near band's trimline on its face of
-    /// the third edge: the far band's plane met with that trimline.
+    /// the third edge: the mitre's plane met with that trimline.
     pub end: Point3<T>,
+    /// The far band's section by the near band's face of the third
+    /// edge: a chamfer's chord, a fillet's circle or ellipse as
+    /// `fillet3_cap_transverse` picks it for any cut-off.
+    pub section: EndSection<T>,
 }
 
 impl<T: Real> Overrun<T> {
@@ -2197,21 +2194,22 @@ impl<T: Real> Turn<T> {
 /// a T, so neither reading alone decides (the turn clause in
 /// `crates/sweep/README.md`). Both Zero builds the mitre and records
 /// the coincidence; both definite is the overrun on the side the sign
-/// picks, which a chamfer builds and a fillet refuses
-/// ([`TURN_OVERRUN`]); anything else escalates.
+/// picks, the far band's section by the near face picked as any
+/// cut-off's ([`cap_transverse`]); anything else escalates.
 ///
 /// # Errors
 ///
-/// [`BlendError::UnsupportedRunOut`] at the far band's requested edge
-/// for a fillet's overrun; [`BlendError::Escalated`] in band;
-/// [`BlendError::BodyNotIntact`] when the two links share no support or
-/// a vertex does not read; [`BlendError::UnsupportedGeometry`] when a
-/// trimline is not a line or a band is neither a plane nor a cylinder.
-fn turn_at<T: Decide>(
+/// [`BlendError::Escalated`] in band, or from [`cap_transverse`] at a
+/// fillet's overrun; [`BlendError::BodyNotIntact`] when the two links
+/// share no support or a vertex or a face does not read;
+/// [`BlendError::UnsupportedGeometry`] when a trimline is not a line or
+/// a band is neither a plane nor a cylinder.
+fn turn_at<T: Decide + Bounds>(
     body: &Body<T>,
     vertex: VertexKey,
     links: [&Link<T>; 2],
     third: EdgeKey,
+    radius: T,
     band: Band,
     kind: BlendKind,
 ) -> Result<Turn<T>, BlendError> {
@@ -2238,17 +2236,18 @@ fn turn_at<T: Decide>(
             )),
         ),
         TurnVerdict::Overrun { far } => {
-            if matches!(kind, BlendKind::Fillet) {
-                return Err(super::surgery::unbuilt_run_out(
-                    EntityId::Edge(links[far].edge),
-                    TURN_OVERRUN,
-                ));
-            }
+            // The far band's cut-off at the near band's face of `third`.
+            let near = others[1 - far];
+            let normal = outward(body, near, point_at(body, vertex)?).ok_or_else(|| {
+                not_intact(EntityId::Face(near), "an overrun's end face's stored plane")
+            })?;
+            let section = cut_off_section(vertex, links[far], normal, radius, kind, band)?;
             (
                 feet[far],
                 TurnRunOut::Overrun(Overrun {
                     far,
                     end: ends[far],
+                    section,
                 }),
             )
         }
@@ -2833,20 +2832,45 @@ fn corner_at<T: Decide + Bounds>(
         }
         // A plane band's section by the end face is a chord at any
         // angle; a cylinder band's is the kind the picker decides.
-        (1, Some(normal)) => match kind {
-            BlendKind::Chamfer => Ok(Some(EndVerdict::Section(EndSection::Chord))),
-            BlendKind::Fillet => {
-                let Surface::Cylinder { axis, .. } = link.blend.surface else {
-                    return Err(indeterminate());
-                };
-                cap_transverse(vertex, normal, axis, radius, link.arm_len, band)
-                    .map(|s| Some(EndVerdict::Section(s)))
-            }
-        },
+        (1, Some(normal)) => cut_off_section(vertex, link, normal, radius, kind, band)
+            .map(|s| Some(EndVerdict::Section(s))),
         _ => Err(not_intact(
             EntityId::Vertex(vertex),
             "a chain end's edge fan does not carry the requested link that reaches it",
         )),
+    }
+}
+
+/// **A plane–plane band's section by a plane end face** of normal
+/// `normal`, at a chain's cut-off and at a turn's overrun alike: a
+/// chamfer's chord at any angle, a fillet's circle or ellipse as
+/// [`cap_transverse`] picks it about the band's axis, levered at the
+/// link's arm.
+///
+/// # Errors
+///
+/// [`cap_transverse`]'s; [`BlendError::UnsupportedCorner`]
+/// (`Indeterminate`) where a fillet's band is not a cylinder, the
+/// verdict disagreeing with itself.
+fn cut_off_section<T: Decide + Bounds>(
+    vertex: VertexKey,
+    link: &Link<T>,
+    normal: Vec3<T>,
+    radius: T,
+    kind: BlendKind,
+    band: Band,
+) -> Result<EndSection<T>, BlendError> {
+    match kind {
+        BlendKind::Chamfer => Ok(EndSection::Chord),
+        BlendKind::Fillet => {
+            let Surface::Cylinder { axis, .. } = link.blend.surface else {
+                return Err(super::surgery::unbuilt_corner_config(
+                    vertex,
+                    CornerConfig::Indeterminate,
+                ));
+            };
+            cap_transverse(vertex, normal, axis, radius, link.arm_len, band)
+        }
     }
 }
 
