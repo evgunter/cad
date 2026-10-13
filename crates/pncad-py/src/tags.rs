@@ -1625,7 +1625,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::ContinuationContradicted => "continuation_contradicted",
         BooleanErrorKind::UnsupportedDeclarationClass => "unsupported_declaration_class",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
-        BooleanErrorKind::TangentSlitArmUnbuilt => "tangent_slit_arm_unbuilt",
         BooleanErrorKind::InvalidInput => "invalid_input",
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",

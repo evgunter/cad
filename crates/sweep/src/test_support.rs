@@ -1312,10 +1312,21 @@ pub fn assert_naming_totality<T: Real>(
             );
         }
     }
+    for f in &rec.dead.faces {
+        assert!(
+            source.get_face(*f).is_some(),
+            "{what}: a retirement names a source face, got {f:?}"
+        );
+        assert!(
+            out.body.get_face(*f).is_none(),
+            "{what}: a retired face does not survive: {f:?}"
+        );
+    }
     for (k, _) in source.faces() {
         assert!(
-            out.body.get_face(k).is_some(),
-            "{what}: source face {k:?} vanished — a support shrinks, it does not die"
+            out.body.get_face(k).is_some() || rec.dead.faces.contains(&k),
+            "{what}: source face {k:?} vanished with no retirement recorded — a support \
+             shrinks, it does not die"
         );
     }
     banded.sort_unstable();

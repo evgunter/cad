@@ -319,6 +319,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
     );
     // The retired set, as a lookup: a key the fillet RETIRED can never
     // be a survivor, whatever its arena says.
+    let retired_f: BTreeSet<FaceKey> = rec.dead.faces.iter().copied().collect();
     let retired_e: BTreeSet<EdgeKey> = rec.dead.edges.iter().copied().collect();
     let retired_v: BTreeSet<VertexKey> = rec.dead.vertices.iter().copied().collect();
     for (kind, key) in rows {
@@ -334,10 +335,8 @@ pub(super) fn name_blend<T: geom_core::Real>(
                 let dead = match key {
                     EntityKey::Edge(k) => retired_e.contains(&k),
                     EntityKey::Vertex(k) => retired_v.contains(&k),
-                    // `Retired` carries no face channel — its doc
-                    // (`sweep::blend::naming::Retired`) states why —
-                    // so a face key here is a real survivor.
-                    EntityKey::Face(_) | EntityKey::Body => false,
+                    EntityKey::Face(k) => retired_f.contains(&k),
+                    EntityKey::Body => false,
                 };
                 if dead {
                     return Err(NamingError::Emission {

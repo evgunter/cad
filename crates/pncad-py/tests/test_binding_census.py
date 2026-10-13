@@ -2624,6 +2624,7 @@ NOT_BOUND = {
     "RevolveAxis": SHAPE,
     "RolePath": SHAPE,
     "RoleSeg": SHAPE,
+    "RunLine": SHAPE,
     "ASSERT_BOUND": SHAPE,
     "SEL_DATUM_DISTANCE": SHAPE,
     # A crossing's sense: a field of a `RoleSeg`, the inside of a name,

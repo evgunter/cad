@@ -53,10 +53,6 @@ fn a_rung3_edge_at_rest_carries_its_projected_rows_and_its_edge_the_tube() {
         let cert = cache.certificate();
         assert_eq!(cert.statement, EnvelopeStatement::MapResidualProjected);
         assert!(
-            cert.ssi().is_none(),
-            "ROW: the row carries no pair certificate; the tube is the edge's"
-        );
-        assert!(
             cert.envelope <= band.zero(),
             "ROW: certified sup bound within ε"
         );

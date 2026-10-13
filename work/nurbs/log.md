@@ -1127,3 +1127,64 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - `net_direction` (a fourth derivative-net walk) routed through `derivative_net`, or filed;
     - doc fixes.
   - The f64 one-ulp overshoot of the floors predates this PR. It is documented, not fixed. — (NURBS orchestrator)
+
+- **2026-10-13 02:19Z — friction: CI test-job wall time.**
+  - The PR test jobs on this program's spline PRs (4892, 4904, 4928) ran for 30–45 min each. The bar is 15 min.
+  - These diffs seed geom-core, geom, geom-brep, topo, sweep and step-import, so the "slow set of the touched crates" step pulls in nearly the whole slow suite.
+  - I have not measured which step dominates. If the next spline PR repeats it, I'll pull the job timings and file a row for CIW. — (NURBS orchestrator)
+
+- **2026-10-13 02:45Z — PR 4928 merges** (`202610195d4f41247c8d6d324df37bfd3d2f83d9` → main `03a0fec33c`).
+  - gate ok was green.
+  - **The back-to-back digest rule applied.** FLUX #4839 re-cut the thread-count digest on main at 01:26Z, after 4928's base.
+    - I built main + 4928 in a fresh worktree; the merge commit was confirmed with 2 parents, and it compiled fresh.
+    - The digest passed 2/2 at 1e-9, 1e-6 and 1e-12.
+  - The `pcurve_cache` overlap with PCERT's spiric work merged clean.
+  - The rational infs now rest on a proof, and the unproven ratio² bracket is gone from the tree.
+  - Seam notes posted to PCERT/PCTAIL, KNOT, CHART and TCOST/TINT. — (NURBS orchestrator)
+
+- **2026-10-13 02:38Z — design fork dispatched: the rational lower-bound statement and its reach.**
+  - It covers two rows:
+    - `rational-inf-floor-reach-refines-before-reading` (P2, design);
+    - `rational-inf-speed-has-two-recipes-curve-and-surface` (P3, design).
+  - Both are ONE question: what single rational inf statement serves curves and surfaces, and how reach is recovered.
+  - One Opus and one Fable designer received the same problem statement and no candidate solutions. The blinding record is on `analysis/design-fork/nurbs-rational-inf-floor`.
+  - A log row is owed only if the fork goes to Ev.
+- **Build B dispatched on `disp-zero-can-be-satisfied-by-freezes`** (`nurbs/dispute-coverage`, tier single STYLE). It is a guard that goes red when dispute coverage degrades, with a SYM/DECIDE seam on `SymCounts`. — (NURBS orchestrator)
+
+- **2026-10-13 02:57Z — build A paused on `nurbs/second-order-pair-term`** (WIP at `f22f608d`, no PR).
+  - **Why paused:** the open inf-floor design fork may replace the pair-term statement on both sides, including second order. Building a second-order pair-term would then be built only to be replaced.
+  - **Where it stands:**
+    - The proven second-order statement is `W·C″ = Σ N·k²(b_{j+1}−b_j)(C) − 2W′C′`, with the surface twins.
+    - 12 of 12 mutants go red.
+    - patch_bound and chords both read it. The rational sups and m_sup are tighter, so the offset goldens fell.
+    - The digest is unchanged.
+  - It resumes or redirects once the fork is ruled. — (NURBS orchestrator)
+
+- **2026-10-13 03:00Z — RULING: one Bernstein quotient bound for every rational derivative bound** (fork `nurbs-rational-inf-floor`; designers A and B convergent; no Ev needed).
+  - **Why no Ev:** no DESIGN or README text governs this, and the sup half revises MY 2026-10-12 17:45Z ruling. Both designers confirmed that.
+  - **The statement.** It lives in `geom_core::spline::derivative`.
+    - On an exact dyadic Bézier piece of a span or cell, each quantity is a numerator over a power of the weight: `C′ = N/W²`, `S_u = N_u/W²`, `S_u×S_v = M̃/W³`. Second order has the same form.
+    - Raise the numerator and the weight power to one degree.
+    - Then `inf (·)·d ≥ min_k (a_k·d)/b_k` and `sup ‖·‖ ≤ max_k ‖a_k‖/b_k`.
+    - It has no weight range, no sign split and no hull. It needs only positive weights.
+  - **Pieces:**
+    - curves keep their piece count;
+    - surfaces get a D9 per-direction constant, measured on the chart rows, at least 2;
+    - pieces come from exact restriction weights, never refined knots.
+  - **Ruled details:**
+    1. **Per-piece direction: yes.** The doors return norm floors (`inf ‖S_u‖`, `inf ‖S_u×S_v‖`) like the curve. `net_direction` and `floor_along` retire.
+       - Why: A measured a rational half-cylinder reading 0 under one global direction and 2.0 with per-piece directions. B leaned the same way. The doors keep their names.
+    2. **`RationalPairTerm`:** SSI `enclose` moves to the quotient form if its rigid-map carriage transfers (a rotation plus a weight-scaled translation of the numerator coefficients). Otherwise it stays, scoped to enclose only, with a row filed. No bound door may read it.
+    3. **Second order** follows the same statement. Build A's pair-term WIP is not merged; it is redirected onto the quotient form, and its rows and mutants carry over.
+    4. **`offset_meters`** is the third inf recipe. It goes with the second-order unit, where its cells also live.
+    5. **Degree ceiling:** the statement states and pins its own f64 ceiling, from exact binomials. Interval is outward.
+  - **Rejected:** knot refinement then pair-term (four times the pieces for the reach, Interval-only widening); the M̃ numerator over `w_max³` (loses a factor of `w_min/w_max` per weight power); keeping two recipes.
+  - **Build plan:**
+    1. **Unit 1 (build A, FULL):** the statement plus the first-order readers. That covers the curve sup and inf (the piece assembly's divisor and both arms in one call), surface `stretch_sup` / `stretch_floor` / `area_floor`, and `chart_stretch_inf` with per-piece directions. It also handles the enclose disposition and memoising `chart_stretch_inf`.
+    2. **Unit 2 (build A):** second order plus `offset_meters`, on the quotient form.
+  - The witness rule binds both. — (NURBS orchestrator)
+- **2026-10-13 03:00Z — dispatch.**
+  - **Unit 1** goes to a fresh lane, build D (session_01GNJrUW7PtMDWKbGraZXaWP), on `nurbs/quotient-bound` from main `fc37c7b698dcb15bc3b26bdc683b93061bb56312`. Tier: FULL.
+    - Fresh, because build A sits at about 550k of context, and unit 1 is the program's widest change since the speed bound.
+  - **Build A** stands by for unit 2 (second order and `offset_meters`) after unit 1 merges.
+  - **Designers A and B** archived. — (NURBS orchestrator)

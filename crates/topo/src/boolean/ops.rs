@@ -19,12 +19,10 @@
 //!   is the whole answer (disjoint ∖, nested ∩, …).
 //! - [`Assembly`](BooleanResultKind::Assembly): components of both
 //!   operands without a seam, each piece a solid — the disjoint union
-//!   (∪ of separated bodies), including assemblies touching at declared
-//!   vertex and edge contacts (the carried
+//!   (∪ of separated bodies), including assemblies touching at vertex,
+//!   edge and face contacts (the carried
 //!   [`ContactRecords`] say where; genuinely 3′, certified by PR 6's
-//!   validator). A tangent line contact through a face's interior is
-//!   a face–face touch the reduction does not yet record, so the union
-//!   refuses it ([`BooleanError::TangentSlitArmUnbuilt`]).
+//!   validator), a tangent line through two faces' interiors among them.
 //! - [`Voided`](BooleanResultKind::Voided): **legitimate voids** —
 //!   A∖B with B strictly inside A yields the outer shell plus the
 //!   reverted inner shell, a tier-2-legal multi-shell body. The
@@ -131,8 +129,8 @@ use super::voids;
 use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
 use super::{
     BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
-    EeContact, Glue, GluedPair, Operand, OperandRecords, ReductionContacts, SelfCheck,
-    SweepStrategy, VeContact, VfContact, VvContact,
+    EeContact, EfContact, FfContact, Glue, GluedPair, Operand, OperandRecords, ReductionContacts,
+    SelfCheck, SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
@@ -159,7 +157,8 @@ pub enum BooleanResultKind {
     /// The result is operand B's material.
     OperandB,
     /// A multi-shell combination of components from both operands
-    /// without a seam (disjoint, or touching at vertices and edges).
+    /// without a seam (disjoint, or touching, each touch a contact
+    /// record).
     Assembly,
     /// A∖B with B inside A: outer shell + reverted inner void shell.
     Voided,
@@ -3152,6 +3151,7 @@ pub(super) fn ledger<T: Decide>(
         pending,
         splits: red.edge_splits.clone(),
         recorded: red.coincidences.clone(),
+        glued: red.glued.clone(),
         incidence: [
             Incidence::of(&red.a, scaffold[0]),
             Incidence::of(&red.b, scaffold[1]),
@@ -3167,7 +3167,14 @@ pub(super) fn ledger<T: Decide>(
 /// One operand's carried records as input cell pairs, each citing the
 /// operand's record it is.
 fn carried_rows(records: &OperandRecords, side: Operand) -> Vec<([Cell; 2], Cites)> {
-    let OperandRecords { vv, vf, ve, ee } = records;
+    let OperandRecords {
+        vv,
+        vf,
+        ve,
+        ee,
+        ef,
+        ff,
+    } = records;
     let input = u32::from(side == Operand::B);
     let cite = |record| Cites::one(Backing::Carried { input, record });
     vv.iter()
@@ -3192,6 +3199,18 @@ fn carried_rows(records: &OperandRecords, side: Operand) -> Vec<([Cell; 2], Cite
         .chain(ee.iter().map(|c| {
             (
                 [Cell::Edge(c.contact.a), Cell::Edge(c.contact.b)],
+                cite(c.record),
+            )
+        }))
+        .chain(ef.iter().map(|c| {
+            (
+                [Cell::Edge(c.contact.edge), Cell::Face(c.contact.face)],
+                cite(c.record),
+            )
+        }))
+        .chain(ff.iter().map(|c| {
+            (
+                [Cell::Face(c.contact.a), Cell::Face(c.contact.b)],
                 cite(c.record),
             )
         }))
@@ -3230,6 +3249,9 @@ pub(super) struct Ledger {
     splits: Vec<super::EdgeSplit>,
     /// The coincidences the op recorded before its records were carried.
     recorded: Vec<crate::Coincidence>,
+    /// Each pending row the op recorded already, with its index in
+    /// `recorded` ([`super::BooleanReduction::glued`]).
+    glued: Vec<(u32, u32)>,
     /// Each operand clone's faces around each vertex and edge, before
     /// the finish discards any.
     incidence: [Incidence; 2],
@@ -3352,43 +3374,59 @@ pub(super) struct Rows {
     vf: Vec<Cited<VfContact>>,
     ve: Vec<Cited<VeContact>>,
     ee: Vec<Cited<EeContact>>,
+    ef: Vec<Cited<EfContact>>,
+    ff: Vec<Cited<FfContact>>,
 }
 
 impl Rows {
-    /// Adds a landing in clone keys, filed by its two cells' kinds, or
-    /// where its pair is already here adds its citations.
-    ///
-    /// # Errors
-    ///
-    /// [`BooleanError::JoinDesync`] for a pair no carried kind holds.
-    fn push(&mut self, x: Cell, y: Cell, cites: Cites) -> Result<(), BooleanError> {
+    /// Adds a landing in clone keys, filed by its two cells' kinds, a
+    /// pair of one kind in key order, or where its pair is already here
+    /// adds its citations.
+    fn push(&mut self, x: Cell, y: Cell, cites: Cites) {
         fn add<R: PartialEq>(list: &mut Vec<Cited<R>>, record: R, cites: Cites) {
             match list.iter_mut().find(|r| r.record == record) {
                 Some(r) => r.cites = r.cites.union(&cites),
                 None => list.push(Cited::new(record, cites)),
             }
         }
+        fn ordered<K: Ord>(a: K, b: K) -> (K, K) {
+            if a <= b { (a, b) } else { (b, a) }
+        }
         match (x, y) {
-            (Cell::Vertex(a), Cell::Vertex(b)) => add(&mut self.vv, VvContact { a, b }, cites),
+            (Cell::Vertex(a), Cell::Vertex(b)) => {
+                let (a, b) = ordered(a, b);
+                add(&mut self.vv, VvContact { a, b }, cites);
+            }
             (Cell::Vertex(vertex), Cell::Edge(edge)) | (Cell::Edge(edge), Cell::Vertex(vertex)) => {
                 add(&mut self.ve, VeContact { vertex, edge }, cites);
             }
             (Cell::Vertex(vertex), Cell::Face(face)) | (Cell::Face(face), Cell::Vertex(vertex)) => {
                 add(&mut self.vf, VfContact { vertex, face }, cites);
             }
-            (Cell::Edge(a), Cell::Edge(b)) => add(&mut self.ee, EeContact { a, b }, cites),
-            _ => {
-                return Err(BooleanError::JoinDesync {
-                    what: "a carried record landed on an edge-face or face-face pair",
-                });
+            (Cell::Edge(a), Cell::Edge(b)) => {
+                let (a, b) = ordered(a, b);
+                add(&mut self.ee, EeContact { a, b }, cites);
+            }
+            (Cell::Edge(edge), Cell::Face(face)) | (Cell::Face(face), Cell::Edge(edge)) => {
+                add(&mut self.ef, EfContact { edge, face }, cites);
+            }
+            (Cell::Face(a), Cell::Face(b)) => {
+                let (a, b) = ordered(a, b);
+                add(&mut self.ff, FfContact { a, b }, cites);
             }
         }
-        Ok(())
     }
 
     #[cfg(test)]
     pub(super) fn of(carried: &OperandRecords, side: Operand) -> Self {
-        let OperandRecords { vv, vf, ve, ee } = carried;
+        let OperandRecords {
+            vv,
+            vf,
+            ve,
+            ee,
+            ef,
+            ff,
+        } = carried;
         let input = u32::from(side == Operand::B);
         let cite = |record| Cites::one(Backing::Carried { input, record });
         Self {
@@ -3405,6 +3443,14 @@ impl Rows {
                 .map(|c| Cited::new(c.contact, cite(c.record)))
                 .collect(),
             ee: ee
+                .iter()
+                .map(|c| Cited::new(c.contact, cite(c.record)))
+                .collect(),
+            ef: ef
+                .iter()
+                .map(|c| Cited::new(c.contact, cite(c.record)))
+                .collect(),
+            ff: ff
                 .iter()
                 .map(|c| Cited::new(c.contact, cite(c.record)))
                 .collect(),
@@ -3638,7 +3684,7 @@ fn carried<T: Decide + AtRestPolicy>(
                 );
                 cites = cites.union(&fresh);
             }
-            out[s].push(x, y, cites)?;
+            out[s].push(x, y, cites);
         }
     }
     Ok(out)
@@ -3937,15 +3983,29 @@ fn cite_rows(
         .collect();
     used.sort_unstable();
     used.dedup();
+    // A row the op recorded already (a tangency the glue door decided)
+    // is cited where it stands: one decision, one row.
     let mut coincidences = ledger.recorded.clone();
-    let base = coincidences.len();
+    let mut at = Vec::with_capacity(used.len());
     for &k in &used {
         let row = pending[k as usize];
         let Some(margin) = row.margin else {
             unreachable!("only a decided row is emitted")
         };
+        let cells = row.cells.map(|end| input_cell(end, &ledger.splits));
+        if let Some(&(_, c)) = ledger.glued.iter().find(|&&(p, _)| p == k) {
+            let recorded = &coincidences[c as usize];
+            if recorded.cells != cells || recorded.relation != row.relation {
+                return Err(BooleanError::JoinDesync {
+                    what: "a decision the op recorded already names other cells than its row",
+                });
+            }
+            at.push(c);
+            continue;
+        }
+        at.push(super::reduce::index(coincidences.len()));
         coincidences.push(crate::Coincidence {
-            cells: row.cells.map(|end| input_cell(end, &ledger.splits)),
+            cells,
             relation: row.relation,
             site: crate::DecisionSite::VertexFusion,
             margin,
@@ -3953,11 +4013,7 @@ fn cite_rows(
         });
     }
     let records = records
-        .renumbered(|k| {
-            used.binary_search(&k)
-                .ok()
-                .map(|rank| super::reduce::index(base + rank))
-        })
+        .renumbered(|k| used.binary_search(&k).ok().map(|rank| at[rank]))
         .map_err(|_| BooleanError::ClassificationInvariant {
             what: "a contact record surviving into the result cites no decision",
         })?;
@@ -4231,6 +4287,21 @@ fn carry_rows<T: Decide + AtRestPolicy>(
         cell_rows.extend(rows.ee.iter().map(|c| {
             (
                 ([(side, Cell::Edge(c.a)), (side, Cell::Edge(c.b))], &c.cites),
+                None,
+            )
+        }));
+        cell_rows.extend(rows.ef.iter().map(|c| {
+            (
+                (
+                    [(side, Cell::Edge(c.edge)), (side, Cell::Face(c.face))],
+                    &c.cites,
+                ),
+                None,
+            )
+        }));
+        cell_rows.extend(rows.ff.iter().map(|c| {
+            (
+                ([(side, Cell::Face(c.a)), (side, Cell::Face(c.b))], &c.cites),
                 None,
             )
         }));
@@ -7708,6 +7779,7 @@ mod tests {
             )],
             b_on_a: vec![],
             ee: vec![],
+            ff: vec![],
         };
         // Without the descendant row: the record drops (pre-D5 loss).
         let out = found(
@@ -7747,6 +7819,7 @@ mod tests {
             a_on_b: vec![],
             b_on_a: vec![],
             ee: vec![],
+            ff: vec![],
         };
         let mut desc = Descendants::default();
         desc.vertices.push((dead_vertex, live_vertex)).unwrap();
@@ -8078,6 +8151,7 @@ mod tests {
                 crate::Cites::decided(0),
             )],
             ee: vec![],
+            ff: vec![],
         };
         let remap = |c: &ReductionContacts| {
             found(&body, c, [&KeyView::Direct; 2], &desc)
