@@ -77,16 +77,16 @@ impl TorusConvention {
         let margin = verdict.margin();
         match (self, verdict) {
             (Self::Tube, Refused::Zero(_)) => format!(
-                "{whose} tube radius does not classify above zero at this tolerance ({margin:e} m)"
+                "{whose} tube radius is not shown above zero at this tolerance ({margin:e} m)"
             ),
             (Self::Tube, Refused::Negative { .. }) => format!("{whose} tube radius is negative"),
             (Self::Ring, Refused::Zero(_)) => format!(
                 "{whose} tube radius is not shown smaller than its ring radius at this tolerance \
                  (difference {margin:e} m)"
             ),
-            (Self::Ring, Refused::Negative { .. }) => format!(
-                "{whose} tube radius is larger than its ring radius (a spindle torus)"
-            ),
+            (Self::Ring, Refused::Negative { .. }) => {
+                format!("{whose} tube radius is larger than its ring radius (a spindle torus)")
+            }
         }
     }
 }
@@ -110,7 +110,7 @@ mod tests {
         });
         assert_eq!(
             TorusConvention::Tube.refused("a torus face's", zero),
-            "a torus face's tube radius does not classify above zero at this tolerance (5e-10 m)"
+            "a torus face's tube radius is not shown above zero at this tolerance (5e-10 m)"
         );
         assert_eq!(
             TorusConvention::Ring.refused("a torus face's", zero),

@@ -469,8 +469,9 @@ pub enum CertifyError {
         /// door's words on a definite miss.
         margin: MarginDiag,
     },
-    /// `Intersection` only: the tangent planes coincide at a sample —
-    /// the transversality precondition fails, so the locus is not an
+    /// `Intersection` only: the levered angle between the tangent planes
+    /// did not classify positive at a sample — the transversality
+    /// precondition fails, so the locus is not an
     /// `Intersection` (a tangential contact is `TangentIntersection`
     /// territory; a seam is `Seam`).
     NotTransverse {
@@ -498,8 +499,8 @@ pub enum CertifyError {
     },
     /// `TangentIntersection` only: the second-order margin (relative
     /// transverse normal curvature, metered at the folded lever arm)
-    /// is exactly zero at a sample — the surfaces under-determine the
-    /// locus there (a G2 conventional join's zero-side margin, or an
+    /// did not classify positive at a sample — the surfaces
+    /// under-determine the locus there (a G2 conventional join's zero-side margin, or an
     /// osculating patch), so the intrinsic tangent description is not
     /// certifiable; the honest description is conventional
     /// (`MappedCurve`), exactly D2's G2-join split. The **definite**
@@ -608,7 +609,7 @@ impl core::fmt::Display for CertifyError {
                 verdict: Refused::Zero(Classified { margin, .. }),
             } => write!(
                 f,
-                "the forward gate refuses the stored parameter interval at this tolerance \
+                "the stored parameter interval is not shown to run forward at this tolerance \
                  (span {margin:e} m)"
             ),
             Self::IntervalNotForward {
@@ -620,9 +621,9 @@ impl core::fmt::Display for CertifyError {
             ),
             Self::SpanMeterCollapsed { verdict } => write!(
                 f,
-                "the spline carrier's knot domain, metered at its certified speed floor, does \
-                 not classify above zero at this tolerance ({:e} m), so its stored interval has \
-                 no certified metre scale",
+                "the spline carrier's knot domain, metered at its certified speed floor, is not \
+                 shown above zero at this tolerance ({:e} m), so its stored interval has no \
+                 certified metre scale",
                 verdict.margin()
             ),
             Self::ArmCollapsed { sample, verdict } => write!(
@@ -690,8 +691,8 @@ impl core::fmt::Display for CertifyError {
             } => write!(
                 f,
                 "the certified lower bound on how far the faces curve apart along the edge \
-                 does not classify above zero at this tolerance ({:e} m), so the certificate \
-                 cannot prove they fix where the edge runs, which its description says they do",
+                 is not shown above zero at this tolerance ({:e} m), so the certificate cannot \
+                 prove they fix where the edge runs, which its description says they do",
                 verdict.margin()
             ),
             Self::TubeNotSeparated {
@@ -6141,18 +6142,18 @@ mod tests {
         let rows = [
             (
                 forward(sized),
-                "the forward gate refuses the stored parameter interval at this tolerance (span \
-                 5e-10 m)",
+                "the stored parameter interval is not shown to run forward at this tolerance \
+                 (span 5e-10 m)",
             ),
             (
                 forward(across),
-                "the forward gate refuses the stored parameter interval at this tolerance (span \
-                 [-2e-10, 3e-10] m)",
+                "the stored parameter interval is not shown to run forward at this tolerance \
+                 (span [-2e-10, 3e-10] m)",
             ),
             (
                 meter(sized),
-                "the spline carrier's knot domain, metered at its certified speed floor, does not \
-                 classify above zero at this tolerance (5e-10 m), so its stored interval has no \
+                "the spline carrier's knot domain, metered at its certified speed floor, is not \
+                 shown above zero at this tolerance (5e-10 m), so its stored interval has no \
                  certified metre scale",
             ),
             (
@@ -6172,8 +6173,8 @@ mod tests {
             ),
             (
                 tube(sized),
-                "the certified lower bound on how far the faces curve apart along the edge does \
-                 not classify above zero at this tolerance (5e-10 m), so the certificate cannot \
+                "the certified lower bound on how far the faces curve apart along the edge is \
+                 not shown above zero at this tolerance (5e-10 m), so the certificate cannot \
                  prove they fix where the edge runs, which its description says they do",
             ),
         ];
