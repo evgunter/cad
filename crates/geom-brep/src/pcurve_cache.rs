@@ -10337,3 +10337,6 @@ mod iso_arc_poison {
         assert!(g.value.is_nan() && g.deriv.is_nan(), "{g:?}");
     }
 }
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::expect_used)]
+mod r1_probe;
