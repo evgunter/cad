@@ -673,4 +673,61 @@ mod tests {
         }
         assert_eq!(asked, DEGREES.len() * KNOTS.len() * KNOTS.len());
     }
+
+    /// **A cell reads only its own points.** On a biquadratic patch
+    /// with two nonempty `u` spans, the last `u` row of control points
+    /// and weights is active on the second span's cells alone: moving
+    /// it a hundredfold leaves every first- and second-order vertex,
+    /// weight rate and least weight of the first cell bit-identical.
+    #[test]
+    fn a_cell_reads_only_its_own_points() {
+        use super::{RationalCellTerms, SecondPartial};
+        use crate::spline::KnotVector;
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let net = |far: f64| -> (Vec<[f64; 3]>, Vec<f64>) {
+            let mut points = Vec::new();
+            let mut weights = Vec::new();
+            for i in 0..nu {
+                for j in 0..nv {
+                    #[allow(clippy::cast_precision_loss)]
+                    let (x, y) = (i as f64, j as f64);
+                    let last = i + 1 == nu;
+                    points.push([x * if last { far } else { 1.0 }, y, 0.3 * x * y]);
+                    weights.push(if last { far } else { 1.0 + 0.2 * (x + y) });
+                }
+            }
+            (points, weights)
+        };
+        let held = |k: &KnotVector| k.knots().to_vec();
+        let (hu, hv) = (held(&ku), held(&kv));
+        let first = |far: f64| {
+            let (points, weights) = net(far);
+            let cell = (
+                ku.span(ku.first_span()).unwrap(),
+                kv.span(kv.first_span()).unwrap(),
+            );
+            let t = RationalCellTerms::new(cell, (&hu, &hv), &points, &weights, nv).unwrap();
+            let bits = |vs: Vec<[f64; 3]>| -> Vec<u64> {
+                vs.iter().flat_map(|v| v.map(f64::to_bits)).collect()
+            };
+            (
+                bits(t.first_vertices(true).collect()),
+                bits(t.first_vertices(false).collect()),
+                [SecondPartial::Uu, SecondPartial::Uv, SecondPartial::Vv]
+                    .map(|w| bits(t.second_vertices(w))),
+                t.weight_rates(true)
+                    .chain(t.weight_rates(false))
+                    .map(f64::to_bits)
+                    .collect::<Vec<_>>(),
+                t.least_weight().to_bits(),
+            )
+        };
+        assert_eq!(
+            first(1.0),
+            first(100.0),
+            "the first cell read the last u row"
+        );
+    }
 }
