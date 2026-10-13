@@ -191,3 +191,57 @@ fn a_two_turn_pair_winds_as_no_boundary_on_every_closed_form() {
         "torus"
     );
 }
+
+/// **Four whole rims of one cylinder bound no single face**
+/// ([`PropsError::LoopsWindChart`]), at `f64` and at the interval
+/// scalar. Wound `+ + − −` or `+ − − +` up the axis, each turns once and
+/// together they turn zero times, but a face is one connected region
+/// and has at most two winding loops on its boundary: read as one face
+/// the first measures `8π`, the middle band twice, and the second `0`.
+#[test]
+fn four_winding_rims_bound_no_single_face() {
+    fn rims<T: geom_core::Real>(senses: [bool; 4]) -> Vec<Vec<LoopEdge<T>>> {
+        senses
+            .iter()
+            .enumerate()
+            .map(|(i, &up)| {
+                let (a, b) = if up { (0.0, TAU) } else { (TAU, 0.0) };
+                vec![edge(
+                    Curve3::Circle {
+                        center: p3(0.0, 0.0, i as f64),
+                        axis: v3(0.0, 0.0, 1.0),
+                        radius: T::one(),
+                        u_ref: v3(1.0, 0.0, 0.0),
+                    },
+                    a,
+                    b,
+                    0,
+                    0,
+                )]
+            })
+            .collect()
+    }
+    fn measure<T: geom_core::Decide>(senses: [bool; 4]) -> Result<(), PropsError> {
+        let loops = rims::<T>(senses);
+        let refs: Vec<&[LoopEdge<T>]> = loops.iter().map(Vec::as_slice).collect();
+        let s = Surface::Cylinder {
+            origin: p3(0.0, 0.0, 0.0),
+            axis: v3(0.0, 0.0, 1.0),
+            radius: T::one(),
+            u_ref: v3(1.0, 0.0, 0.0),
+        };
+        curved_face_loops(&s, &refs, true, band()).map(|_| ())
+    }
+    for senses in [[true, true, false, false], [true, false, false, true]] {
+        assert_eq!(
+            measure::<f64>(senses),
+            Err(PropsError::LoopsWindChart),
+            "{senses:?} at f64"
+        );
+        assert_eq!(
+            measure::<geom_core::Interval>(senses),
+            Err(PropsError::LoopsWindChart),
+            "{senses:?} at the interval scalar"
+        );
+    }
+}

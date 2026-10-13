@@ -81,9 +81,7 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::{Band, Bounds, Decide, Margin, Sign};
 
-use super::closure::{
-    JunctionExcess, VERTEX_SLACK, excess, require_boundary_windings, require_junction_closed,
-};
+use super::closure::{IntervalJunction, interval_loop_turns, require_boundary_windings};
 use super::quad::{
     AbsEnclosure, FaceCutBounds, QUAD_INIT_PIECES, QUAD_MAX_ROUNDS, QUAD_TARGET_LEN_FACTOR, RVec3,
     RoundOutcome, RoundWindow, classify_len, lo_or_refuse, mean_boundary_displacement, mid, pt,
@@ -579,45 +577,31 @@ fn face_bounds(
 /// — the periodic-chart closure decision ([`super::closure`]) on the
 /// loop's lifted images ([`WallChartQ::ends`]).
 ///
-/// At each junction the gap, less whole turns `m` in each angle, is
-/// metered at `R + r` in the azimuth for the closed decision and at
-/// `R − r` for the open one — a point's distance from the axis lies
-/// between them — and at `r` in the tube angle; the slack is the two
-/// images' envelopes and [`VERTEX_SLACK`]`·ε`. A wall carries one loop,
-/// so its turns, the sums of the `m`, must be zero.
+/// At each junction the azimuth's gap is metered at the junction's own
+/// distance from the axis, `ρ = R + r·cos v`, enclosed over the after
+/// edge's start, and the tube angle's at `r`; the slack is the two
+/// images' envelopes. A wall carries one loop, so its turns must be
+/// zero.
 fn wall_windings<T: Decide>(chart: &WallChartQ, band: Band) -> Result<(), PropsError> {
     if chart.ends.is_empty() {
         return Err(PropsError::QuadratureUnsupported {
             what: "a spiric torus wall handed no loop to decide closed",
         });
     }
-    let tau = Interval::hull(
-        pt(core::f64::consts::TAU),
-        pt(core::f64::consts::TAU.next_up()),
-    );
     let (big, r) = (chart.major, chart.minor);
-    let mut turns = [0i64; 2];
-    for (e, next) in chart.ends.iter().zip(chart.ends.iter().cycle().skip(1)) {
-        let d = [e.end.0 - next.start.0, e.end.1 - next.start.1];
-        let m = d.map(|x| (mid(x) / core::f64::consts::TAU).round());
-        let [off_u, off_v] = [0, 1].map(|c| (d[c] - pt(m[c]) * tau).abs_enclosure());
-        let slack = certified_hi(e.env + next.env) + VERTEX_SLACK * band.zero();
-        require_junction_closed(
-            JunctionExcess {
-                hi: Margin::of(excess(certified_hi((big + r) * off_u + r * off_v), slack))
-                    .lift::<T>(),
-                lo: Margin::of(excess(lo_or_refuse((big - r) * off_u + r * off_v), slack))
-                    .lift::<T>(),
-            },
-            band,
-        )?;
-        // `m` is finite here: a refused enclosure reads `NaN` in the gap
-        // and escalates above. The cast saturates.
-        #[allow(clippy::cast_possible_truncation)]
-        for c in 0..2 {
-            turns[c] = turns[c].saturating_add(m[c] as i64);
-        }
-    }
+    let junctions = chart
+        .ends
+        .iter()
+        .zip(chart.ends.iter().cycle().skip(1))
+        .map(|(e, next)| {
+            let (cos_v, _) = trig_of(next.start.1);
+            IntervalJunction {
+                delta: [e.end.0 - next.start.0, e.end.1 - next.start.1],
+                lever: [big + r * cos_v, r],
+                slack: certified_hi(e.env + next.env),
+            }
+        });
+    let turns = interval_loop_turns::<T, 2>(junctions, [true, true], band)?;
     require_boundary_windings(&[turns])
 }
 
@@ -1281,6 +1265,143 @@ mod tests {
             end,
             env: w.env,
         })
+    }
+
+    /// **A junction's azimuth gap is metered at the junction's own
+    /// distance from the axis** ([`wall_windings`]). On fat tori (`R = 1`,
+    /// `r = 0.5` and `0.6`), a whole oval from `t = π` closed by a meridian
+    /// back meets it at the inner equator, `ρ = R − r`. The meridian set
+    /// off in `u` by `δ` with `ρ·δ = 2ε` is within the vertex slack and
+    /// measures, at `f64` and at the interval scalar; read at `R + r` the
+    /// same gap is `6ε` and `8ε`, past it. Set off by `ρ·δ = 20ε` it is
+    /// open ([`PropsError::ChartLoopOpen`]).
+    #[test]
+    fn an_inner_equator_junction_is_metered_at_its_own_radius() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let eps = tol.eps();
+        for r in [0.5, 0.6] {
+            let rho = 1.0 - r;
+            let face = |gap: f64| {
+                let (e, _) = framed(
+                    (1.0, r, 0.05),
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                    [0.0; 3],
+                    [0.0; 3],
+                    (PI, 3.0 * PI),
+                    true,
+                );
+                let arc = SpiricEdgeQ {
+                    wall: Some(WallImageQ {
+                        sense: 1.0,
+                        v0: Interval::zero(),
+                        env: Interval::zero(),
+                    }),
+                    ..e
+                };
+                let oval = spiric_wall_ends(&arc, Interval::zero()).unwrap();
+                let du = pt(gap / rho);
+                let back = ChartEndsQ {
+                    start: (oval.end.0 + du, oval.end.1),
+                    end: (oval.end.0 + du, oval.start.1),
+                    env: Interval::zero(),
+                };
+                SpiricFaceQ {
+                    closed_va: [Interval::zero(); 3],
+                    spirics: vec![arc],
+                    lever: [Interval::zero(); 3],
+                    perimeter: 20.0,
+                    wall: Some(WallChartQ {
+                        major: pt(1.0),
+                        minor: pt(r),
+                        rims: vec![],
+                        meridians: vec![MeridianQ {
+                            dv: oval.start.1 - oval.end.1,
+                            env: Interval::zero(),
+                        }],
+                        ends: vec![oval, back],
+                    }),
+                }
+            };
+            let near = face(2.0 * eps);
+            let at_f64 = spiric_face_rounds::<f64>(&near, eps, band, RoundWindow::SCHEDULE);
+            assert!(at_f64.is_ok(), "r = {r}, f64: {at_f64:?}");
+            let at_iv = spiric_face_rounds::<Interval>(&near, eps, band, RoundWindow::SCHEDULE);
+            assert!(at_iv.is_ok(), "r = {r}, interval: {at_iv:?}");
+            let far =
+                spiric_face_rounds::<f64>(&face(20.0 * eps), eps, band, RoundWindow::SCHEDULE);
+            assert!(
+                matches!(far, Err(PropsError::ChartLoopOpen)),
+                "r = {r}, 20ε: {far:?}"
+            );
+        }
+    }
+
+    /// **A junction its gap's bounds cannot decide is never measured**:
+    /// the meridian back's start held as a bracket `20ε/ρ` wide in `u`
+    /// about the oval's end, so the gap's lower bound is within the slack
+    /// and its upper bound past it. The closed decision reads the upper
+    /// bound and the open one the lower, so neither holds: it escalates,
+    /// at `f64` and at the interval scalar.
+    #[test]
+    fn a_junction_its_bounds_cannot_decide_is_never_measured() {
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let eps = tol.eps();
+        let (e, _) = framed(
+            (1.2, 0.275, 0.05),
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            [0.0; 3],
+            [0.0; 3],
+            (0.0, 2.0 * PI),
+            true,
+        );
+        let arc = SpiricEdgeQ {
+            wall: Some(WallImageQ {
+                sense: 1.0,
+                v0: Interval::zero(),
+                env: Interval::zero(),
+            }),
+            ..e
+        };
+        let oval = spiric_wall_ends(&arc, Interval::zero()).unwrap();
+        // At `v = 0` the junction sits at `ρ = R + r`.
+        let half = 10.0 * eps / 1.475;
+        let wide = oval.end.0 + Interval::from_bounds(-half, half);
+        let face = SpiricFaceQ {
+            closed_va: [Interval::zero(); 3],
+            spirics: vec![arc],
+            lever: [Interval::zero(); 3],
+            perimeter: 20.0,
+            wall: Some(WallChartQ {
+                major: pt(1.2),
+                minor: pt(0.275),
+                rims: vec![],
+                meridians: vec![MeridianQ {
+                    dv: oval.start.1 - oval.end.1,
+                    env: Interval::zero(),
+                }],
+                ends: vec![
+                    oval,
+                    ChartEndsQ {
+                        start: (wide, oval.end.1),
+                        end: (oval.start.0, oval.start.1),
+                        env: Interval::zero(),
+                    },
+                ],
+            }),
+        };
+        for got in [
+            spiric_face_rounds::<f64>(&face, eps, band, RoundWindow::SCHEDULE),
+            spiric_face_rounds::<Interval>(&face, eps, band, RoundWindow::SCHEDULE),
+        ] {
+            assert!(
+                matches!(got, Err(PropsError::Escalated { .. })),
+                "an undecidable junction escalates: {got:?}"
+            );
+        }
     }
 
     /// **The closure decision refuses an open loop and a winding one,

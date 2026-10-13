@@ -112,9 +112,13 @@
 //! face measures and encodes its side as a rectangle does. [`boundary_material_sign_loops`] reads
 //! each kind's side off the quantity its flux integrates.
 //!
-//! Closure: every lane on a cylinder or torus chart decides it one way,
-//! per junction on the chart with integer windings (`closure`); the
-//! sphere's Gauss–Bonnet and the cone's vector area on every junction
+//! Closure: every lane on a cylinder or torus chart decides it one way
+//! (`closure`): each junction's chart gap, less whole periods, against a
+//! stated slack, then whole-number windings held to a face boundary's
+//! integer facts. The windings are read two ways by what the lane holds:
+//! an interval lane sums the whole periods its junctions are nearest, a
+//! closed form reads its loop's total angle at half-turn thresholds. The
+//! sphere's Gauss–Bonnet and the cone's vector area decide every junction
 //! in space (`props_loop_closed`). No lane reads the loop-local vertex **tags**
 //! ([`LoopEdge`]).
 

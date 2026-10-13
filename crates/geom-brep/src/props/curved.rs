@@ -3078,7 +3078,10 @@ fn sphere_loops<T: Decide>(
 /// (`props_loop_closed`, the cone's closure decide on
 /// the same gap, refused here as [`PropsError::SphereLoop`]:
 /// Gauss–Bonnet reads a closed curve, so closure is checked rather
-/// than trusted from the vertex tags); and no
+/// than trusted from the vertex tags). It is decided in space, not as
+/// the periodic-chart closure ([`closure`]): the sphere has no global
+/// chart whose periods a loop can wind, since its azimuth is undefined
+/// at the poles, and Gauss–Bonnet needs only the curve closed; and no
 /// junction is a cusp ([`require_cusp_free`]). Gauss–Bonnet reads a
 /// SIMPLE loop, and simplicity is not decided here: a loop that
 /// crosses itself, or visits a vertex twice (two whole circles joined
@@ -3463,7 +3466,10 @@ fn pole_against_arc<T: Decide>(
 ///   circulation.
 ///
 /// The sum is a whole turn up to rounding and is decided by its sign,
-/// levered by `R` (`props_sphere_pole_winding`).
+/// levered by `R` (`props_sphere_pole_winding`). It is a winding about a
+/// point, which side of the loop the pole is on, and not a loop's turns
+/// about a periodic direction: [`closure`]'s face-boundary facts have no
+/// sphere analogue to check.
 fn pole_side<T: Decide>(
     center: Point3<T>,
     radius: T,

@@ -75,3 +75,27 @@ end's own bracket none is, at any of the three ε, on the geom-brep, topo
 and sweep suites, so no face moved from measuring to escalating. The
 residue this row is about — the unpadded connector across a gap the
 decide admits, now up to `S + ε` — is unchanged.
+
+## Since `flux/periodic-closure-one-decide` (PR 4938)
+
+The residue is no longer the quadrature's alone. Every lane on a
+periodic chart now admits a junction through one decision
+(`geom_brep::props::closure`): a gap less whole periods is closed when
+its excess over the junction's stated slack is under `ε`. That slack is
+the ends' own certified slack plus `VERTEX_SLACK·ε = 3ε`, so a junction
+open by up to `S + ε` in the chart metric is integrated as closed, with
+no pad for its connector, in:
+
+- the cylinder quadrature (`quad::loop_windings`, as before);
+- the cylinder closed form (`curved::cylinder_windings`): `S = 3ε`, the
+  connector term `−(v − v_a)·turn` per junction;
+- the torus closed form (`curved::torus_chart_loop`): `S = 3ε`, the
+  connectors `−(F(v) − F(v_m))·turn` and `−(G(v) − G(v_m))·turn`;
+- the spiric wall (`spiric::wall_windings`): `S` the two images'
+  envelopes plus `3ε`, its Green form integrating each image as handed.
+
+The closed forms' junction gaps are not padded either: their sums read
+each edge's own span, and the short turn across a junction enters only
+the winding count. The fix shape above (a junction's connector and its
+sliver pad, on thin chart ends) applies to each lane, and the closed
+forms have thin ends already.

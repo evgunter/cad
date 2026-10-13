@@ -381,6 +381,15 @@ pub(super) fn pt(x: f64) -> Interval {
     Interval::point(x)
 }
 
+/// `τ` as a bracket: it lies between the `f64` nearest it, which rounds
+/// below, and that value's successor.
+pub(super) fn tau_bracket() -> Interval {
+    Interval::hull(
+        pt(core::f64::consts::TAU),
+        pt(core::f64::consts::TAU.next_up()),
+    )
+}
+
 /// Enclosure of `cos s` for an EXACT step `s`, |s| ≤ 1.5, by the
 /// degree-8 alternating-series pair
 /// `1 − s²/2 + s⁴/24 − s⁶/720 ≤ cos s ≤ … + s⁸/40320` (truncations of
@@ -1068,19 +1077,10 @@ fn end_slack(e: &TrimEdgeQ, end: bool, radius: Interval) -> f64 {
 /// closure decision ([`super::closure`]) on the quadrature's chart
 /// images.
 ///
-/// At each junction the edge before ends where the edge after starts:
-/// their chart points differ by a whole number `m` of turns in the
-/// azimuth and by nothing in the level. The gap left once `m` turns
-/// are taken off, `G = R·|Δu − 2πm| + |Δv|`, is an enclosure, each end
-/// read through its own vertex's trig bracket ([`chart_end`]), and the
-/// slack `S` is the two ends' [`end_slack`] plus
-/// [`VERTEX_SLACK`](super::closure::VERTEX_SLACK)`·ε`. The closed
-/// decision reads the [`excess`](super::closure::excess) of `G`'s upper bound over `S`, the
-/// open one that of its lower bound.
-///
-/// `du` is a global 1-form on the cylinder, so a closed loop's `∮ du`
-/// is `2π` times the sum of its junctions' `m` — the loop's turns, an
-/// integer once every junction is decided closed.
+/// Each junction's gap is read off the two ends' chart images, each
+/// through its own vertex's trig bracket ([`chart_end`]): the azimuth
+/// metered at the radius, the level bare, and the slack the two ends'
+/// [`end_slack`] ([`super::closure::interval_loop_turns`]).
 ///
 /// Returns, per loop, whether it winds.
 fn loop_windings<T: Decide>(
@@ -1088,39 +1088,22 @@ fn loop_windings<T: Decide>(
     radius: Interval,
     band: Band,
 ) -> Result<Vec<bool>, PropsError> {
-    // τ lies between the `f64` nearest it, which rounds below, and that
-    // value's successor.
-    let tau = Interval::hull(
-        pt(core::f64::consts::TAU),
-        pt(core::f64::consts::TAU.next_up()),
-    );
     let mut windings = Vec::with_capacity(loops.len());
     for edges in loops {
-        let mut turns = 0i64;
-        for (e, next) in edges.iter().zip(edges.iter().cycle().skip(1)) {
-            let (u1, v1) = chart_end(e, true);
-            let (u0, v0) = chart_end(next, false);
-            let du = u1 - u0;
-            let m = (mid(du) / core::f64::consts::TAU).round();
-            let gap = radius * (du - pt(m) * tau).abs_enclosure() + (v1 - v0).abs_enclosure();
-            let slack = end_slack(e, true, radius)
-                + end_slack(next, false, radius)
-                + super::closure::VERTEX_SLACK * band.zero();
-            super::closure::require_junction_closed(
-                super::closure::JunctionExcess {
-                    hi: Margin::of(super::closure::excess(certified_hi(gap), slack)).lift::<T>(),
-                    lo: Margin::of(super::closure::excess(lo_or_refuse(gap), slack)).lift::<T>(),
-                },
-                band,
-            )?;
-            // `m` is finite here: a refused enclosure reads `NaN` in the
-            // gap and escalates above. The cast saturates.
-            #[allow(clippy::cast_possible_truncation)]
-            {
-                turns = turns.saturating_add(m as i64);
-            }
-        }
-        windings.push([turns]);
+        let junctions = edges
+            .iter()
+            .zip(edges.iter().cycle().skip(1))
+            .map(|(e, next)| {
+                let (u1, v1) = chart_end(e, true);
+                let (u0, v0) = chart_end(next, false);
+                super::closure::IntervalJunction {
+                    delta: [u1 - u0, v1 - v0],
+                    lever: [radius, pt(1.0)],
+                    slack: end_slack(e, true, radius) + end_slack(next, false, radius),
+                }
+            });
+        let [k, _] = super::closure::interval_loop_turns::<T, 2>(junctions, [true, false], band)?;
+        windings.push([k]);
     }
     super::closure::require_boundary_windings(&windings)?;
     Ok(windings.iter().map(|&[k]| k != 0).collect())
@@ -6097,6 +6080,28 @@ mod tests {
                 assert!(
                     matches!(got, Err(PropsError::LoopsWindChart)),
                     "{what} at {scalar}: {got:?}"
+                );
+            }
+        }
+    }
+
+    /// **Four whole rims bound no single face**
+    /// ([`PropsError::LoopsWindChart`]): wound `+ + − −` or `+ − − +` up
+    /// the axis, each turns once and together they turn zero times, but a
+    /// connected face has at most two winding loops.
+    #[test]
+    fn four_winding_rims_bound_no_single_face() {
+        for senses in [[true, true, false, false], [true, false, false, true]] {
+            let rims: Vec<TrimEdgeQ> = senses
+                .iter()
+                .enumerate()
+                .map(|(i, &up)| turning(1.0, i as f64, up))
+                .collect();
+            let loops: Vec<&[TrimEdgeQ]> = rims.iter().map(core::slice::from_ref).collect();
+            for (scalar, got) in at_both_scalars(&loops) {
+                assert!(
+                    matches!(got, Err(PropsError::LoopsWindChart)),
+                    "{senses:?} at {scalar}: {got:?}"
                 );
             }
         }
