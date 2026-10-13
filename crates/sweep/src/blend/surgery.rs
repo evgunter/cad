@@ -2903,10 +2903,11 @@ fn ring_clearance_pass<T: Decide + Bounds>(
 /// through the station and its foot: the line of the strip's side
 /// there, which meets the strip on that side alone, on whichever cycle
 /// carries it. On the near band's face at an overrun the foot is the
-/// mitre's end, off the third edge, and the strip runs on along that
-/// edge to the far band's foot: the third edge still bounds it there,
-/// and the overrun beyond the trimline is arm (c)'s, the far band's
-/// sliver. A line or circle edge is read exactly ([`piece_along`]);
+/// mitre's end `q`, off the third edge, so the strip's side there is
+/// the line through the station and `q`, and the rectangle is built
+/// from `q`; the overrun between that side and the third edge is no part
+/// of the strip but the far band's cut-off, whose material the reach
+/// meters. A line or circle edge is read exactly ([`piece_along`]);
 /// any other carrier through [`boxed_reach`], a certified bound.
 fn strip_clearance<T: Decide + Bounds>(
     body: &Body<T>,

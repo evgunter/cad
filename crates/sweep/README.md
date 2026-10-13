@@ -348,8 +348,12 @@ inner corner of an L-shaped rim, where the shared face's sector is
 reflex); two cut-offs at the two ends of one rim whose feet on it cross
 or coincide, metered before any mutation by `fillet3_cut_off_feet`
 (feet apart only within the band escalate); a fillet's overrun at a
-turn; an overrun's far foot past L's far end, or inside a face, as for
-any cut-off; an end vertex of valence other than three. A vertex whose three edges do not round
+turn; an overrun's far foot past L's far end, as for any cut-off; an
+overrun whose near requested edge ends before band `k`'s trimline on the
+shared face reaches it, the other foot of `k`'s sliver landing inside a
+face (a short near edge at an obtuse shared-face angle, which refuses
+where the overrun itself fits); an end vertex of valence other than
+three. A vertex whose three edges do not round
 one way refuses `UnsupportedCorner { MixedConvexity }` whatever the
 request names there: an edge cut off where its unrequested edges round
 the other way, a turn whose two edges round opposite ways, or one whose
@@ -368,9 +372,8 @@ band's `EndArc` and its end `FootVertex`; both resolve
 across a coincidence moves them to the other band. Where the feet
 coincide the turn foot has four edges, so blending L in a later call
 refuses. At an overrun the turn foot is trivalent and L's later band
-ends in band `k`'s face: after a fillet that face is curved and refuses
-as one; after a chamfer it builds only where L's foot lands on the
-overrun edge, which takes a much smaller second setback. Every such
+ends in band `k`'s face, a plane: it builds only where L's foot lands on
+the overrun edge, which takes a much smaller second setback. Every such
 refusal's recourse is to request L in the same call, which builds the
 patch.
 

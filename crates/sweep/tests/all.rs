@@ -309,6 +309,8 @@ mod band_ruled_cap_ring;
 mod band_ruled_d_hole;
 #[path = "band_turn_overrun_chamfer.rs"]
 mod band_turn_overrun_chamfer;
+#[path = "band_turn_overrun_oracles.rs"]
+mod band_turn_overrun_oracles;
 #[path = "band_turn_overrun_probe.rs"]
 mod band_turn_overrun_probe;
 #[path = "band_turn_overrun_verdict.rs"]

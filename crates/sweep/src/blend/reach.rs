@@ -54,12 +54,15 @@
 //! a plane the reach is capped by, so it lies on the reach's boundary
 //! (a curved one is the battery's refusal, and the reach fails loud on
 //! it), or a support of a corner patch's links. What the band takes of
-//! such a face is the cut-off's sliver, metered by the surgery's ring
-//! pass (arm (c)): at an overrun, the far band's whole sliver on the
-//! near band's support, the overrun's footprint and the part of it the
-//! near band's own strip covers. A face at another
-//! link's end bounds nothing here and is metered like any other; a
-//! circular link's window has no ends. A support of
+//! such a face is the cut-off's sliver, which the surgery's ring pass
+//! meters too (arm (c)); a feature standing in it is refused here
+//! first-hand, since its own faces lie in the band's material. At an
+//! overrun arm (c) reads the far band's whole sliver on the near band's
+//! support, a bound larger than the overrun, so it also refuses some
+//! features the overrun clears
+//! (`work/band/a-turns-overrun-meters-the-whole-cut-off-sliver.md`).
+//! A face at another link's end bounds nothing here and is metered like
+//! any other; a circular link's window has no ends. A support of
 //! another chain of the request is metered by what survives that
 //! chain's band: a cell inside the strip the band replaces is clear.
 //! The other band's surface is metered too, except a concave band's

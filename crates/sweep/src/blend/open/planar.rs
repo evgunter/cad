@@ -471,7 +471,11 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide + Bounds>(
     };
     let sliver = match turn.overrun() {
         None => None,
-        Some(o) => Some(cut_off_plan(body, links[o.far], vertex, EndSection::Chord)?.end.sliver),
+        Some(o) => Some(
+            cut_off_plan(body, links[o.far], vertex, EndSection::Chord)?
+                .end
+                .sliver,
+        ),
     };
     Ok(TurnPlan {
         turn,

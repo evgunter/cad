@@ -491,9 +491,19 @@ fn the_turn_recourse_builds_at_each_end_it_names() {
         "supplementary face angles",
     );
     let (apart, turn) = leaning_turn(0.5);
-    chamfers(&apart, &turn, 0.1, "the feet clearly apart, a more asymmetric corner");
-    let larger = chamfer_edges(&sweep::test_support::at_rest(&leaning, tol()), &bands, 0.5, tol())
-        .unwrap_or_else(|e| panic!("a larger setback: the recourse's request must build, got {e:?}"));
+    chamfers(
+        &apart,
+        &turn,
+        0.1,
+        "the feet clearly apart, a more asymmetric corner",
+    );
+    let larger = chamfer_edges(
+        &sweep::test_support::at_rest(&leaning, tol()),
+        &bands,
+        0.5,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("a larger setback: the recourse's request must build, got {e:?}"));
     validate_geometric(&larger.body, tol())
         .unwrap_or_else(|e| panic!("a larger setback: tier 3, got {e:?}"));
     assert!(
