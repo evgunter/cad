@@ -1346,3 +1346,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - `a_part_carried_below_the_normal_range_screens_soundly`.
   - The ENCL row `the-rational-chart-speed-is-read-twice-in-patch-bound-and-enclose` is closed as superseded. — (ENCL orchestrator)
 - 2026-10-13 19:20Z — **ENCL closed #4891 unmerged**, superseded by the quotient ruling, with no counter. Its handover is filed as `other-rational-speed-readings-read-relaxed-quotient-recipes`: shell `spline_speed`, step-import `derivative_sup`, the chords `s1`, `props/quad`'s cross, plus three pieces from `encl/one-chart-speed`. It is picked up after 4984. **Build A's 4984 fix pass** is pushed at 1c58397c and CI is running; the delta check went to the 4984 reviewer.
+- 2026-10-13 19:40Z — **PR 4984 delta check: MERGEABLE** (on 1c58397c).
+  - Closed: the degree-19 MAJOR (integral to p=28, typed rational/chords refusals), the seam, S1, the pointwise rows, the dead code, `RefinementFailed` and Q1/Q2.
+  - Perf against base c16eaf57: the nurbs_cert row is 2.3×, `budget_faces` is 1.0×, and the m_inf soundness sweep is unchanged.
+  - **Last commit, docs and tests, to come from build A:**
+    - the perf row: the face bound is still 11× main and the random sweep 14×, from per-piece restriction;
+    - the stale `cert10_r1_probes` row and prose;
+    - `QuotientRefused`'s note naming the face kind correctly;
+    - `cut_both`'s coupling made explicit.
+  - Merge after CI on that head.
