@@ -1193,3 +1193,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Dispatched r4964a/b on `c260b84e` (brief sha256 `cdb29cc38a1a`) and r4966a/b on `5c565c0a` (brief `4f4b1d29bb92`), all local Opus, concurrent. Protocol `24b76fff0e`.
   - 4927: hosted `test` is running on `ecd87aa28b`; d4927 is still out.
   - Next lane, the ring-path far-frame item, waits for 4927 to land, since both touch `ring_path.rs`. Re-armed for 12:06.
+- 2026-10-13 12:10 — Check-in. 4927's hosted CI on `ecd87aa28b`: the default-ε step is **green** (the earlier red did not recur). The 1e-6/1e-12 step reds only on the known `coincidence_door` row (1 of 13 721); the slow set is 331/331.
+  - d4927 draft so far has no MAJOR. It has one candidate MINOR, fail-silent: a descending-span spiric arc falls back to its chord in the winding. That is reachable only on an invariant breach.
+  - Its oracle found 0 wrong definite signs out of 1 777. Its 78 bodies match its own mpmath oracle.
+  - The four holdout reviewers are all writing. Re-armed for 13:07.
