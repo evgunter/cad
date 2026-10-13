@@ -2072,7 +2072,7 @@ pub enum EndSection<T: Real> {
 /// band's face of that edge, and a fillet's overrun is not built.
 pub const TURN_OVERRUN: &str = "at a turn, one fillet band's foot lies further down the third \
      edge, so that band would run past the mitre onto the other band's face of it, an overrun not \
-     built for a fillet";
+     built";
 
 /// **A turn predicate 6 admitted**: two of a trivalent vertex's three
 /// edges requested, the third, `edge`, not, and the two bands' feet on
