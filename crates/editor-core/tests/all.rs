@@ -227,6 +227,8 @@ mod resolve_piece_ladder;
 mod resolve_upstream_scope;
 #[path = "revalue_corpus.rs"]
 mod revalue_corpus;
+#[path = "review_4982_probes.rs"]
+mod review_4982_probes;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 
@@ -794,5 +796,3 @@ mod run_wall_offers;
 mod union_flush_fuses;
 #[path = "union_member_orders_decide_alike.rs"]
 mod union_member_orders_decide_alike;
-#[path = "review_4982_probes.rs"]
-mod review_4982_probes;

@@ -77,12 +77,12 @@ fn outcome(doc: &ProfileDoc, members: &[RecipeNodeId]) -> Result<Outcome, String
             topo::ContactKind::FaceFace(..) => {
                 o.ff += 1;
                 let ok = c.cites.iter().all(|b| match b {
-                    topo::Backing::Decided(k) => value.coincidences.get(k as usize).is_some_and(
-                        |row| {
+                    topo::Backing::Decided(k) => {
+                        value.coincidences.get(k as usize).is_some_and(|row| {
                             row.relation == topo::Relation::SurfaceTangent
                                 && row.site == topo::DecisionSite::TangentWitness
-                        },
-                    ),
+                        })
+                    }
                     _ => false,
                 }) && c.cites.iter().count() > 0;
                 o.ff_cites_pass_tangent.push(ok);
@@ -306,6 +306,13 @@ fn probe_reach_flip() {
         "reachflip",
         &doc,
         &names,
-        &[&[0, 2], &[0, 1], &[0, 1, 2], &[1, 0, 2], &[2, 0, 1], &[0, 2, 1]],
+        &[
+            &[0, 2],
+            &[0, 1],
+            &[0, 1, 2],
+            &[1, 0, 2],
+            &[2, 0, 1],
+            &[0, 2, 1],
+        ],
     );
 }
