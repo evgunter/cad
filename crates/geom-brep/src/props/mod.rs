@@ -582,7 +582,7 @@ pub const FACE_EXTENT: SizedDecision = SizedDecision {
     passes: SizedPass::Positive,
     // The stored description a lever edits IS the face's own extent.
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// **The one recourse a spent quadrature budget names** (D4 ¶1 (i)'s

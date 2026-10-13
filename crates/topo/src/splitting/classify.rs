@@ -374,7 +374,7 @@ impl CrossingDecision {
             size,
             passes: SizedPass::AnySign,
             stored: StoredDefinite::Lever,
-            at_zero: None,
+            no_size: None,
         }
     }
 
