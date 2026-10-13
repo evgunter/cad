@@ -2546,8 +2546,11 @@ const SEPARATION: SizedDecision = SizedDecision {
 /// is the shared ending that names the file too.
 const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 
-/// The recourse for a tolerance that forms no usable band.
-const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
+/// The recourse for a tolerance that forms no usable band. A run's ε
+/// is finite and at least `EPS_MIN` (D4 ¶4), so the one way it fails to
+/// form a band is K·ε overflowing: the repair is a smaller ε.
+const TOLERANCE: &str = "Recourse: set a smaller tolerance, so that K times it stays finite; a \
+                         run admits none below the floor its session box sets";
 
 /// The recourse for a curve whose parameter range its image on a
 /// spline face cannot be expressed on — the lane's own.
@@ -3132,8 +3135,13 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 DEFECT.into(),
                 true,
             ),
-            P::ChartPeriodJump => reading(
-                "a face's stored boundary images do not meet on its chart",
+            P::ChartLoopOpen => reading(
+                "a face's stored boundary does not close on its surface",
+                DEFECT.into(),
+                true,
+            ),
+            P::LoopsWindChart => reading(
+                "a face's stored boundary loops wind around its surface as no boundary does",
                 DEFECT.into(),
                 true,
             ),

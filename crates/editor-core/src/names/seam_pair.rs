@@ -16,7 +16,7 @@
 //! which ranks lie on a seam line.
 
 use super::role::{EntityKind, Qualifier};
-use super::role::{RoleSeg, StableName, name_free_seg};
+use super::role::{RoleSeg, RunLine, StableName, name_free_seg};
 
 /// What a name's HEAD segment means to a walk looking for a seam pair.
 /// ONE exhaustive match over [`RoleSeg`]: a new segment variant is a
@@ -27,6 +27,8 @@ enum Head<'a> {
     /// its edge and the face or edge it meets, which is the pair a rank
     /// along its edge is measured against.
     Seam(&'a StableName, &'a StableName),
+    /// A vertex where several lines meet: its run.
+    Run(&'a [RunLine]),
     /// The same entity carried through one op, or a piece of it: the
     /// argument is its name one level down.
     Through(&'a StableName),
@@ -41,8 +43,8 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         RoleSeg::Seam { a, b }
         | RoleSeg::Crossing {
             edge: a, face: b, ..
-        }
-        | RoleSeg::EdgeCrossing { a, b, .. } => Head::Seam(a, b),
+        } => Head::Seam(a, b),
+        RoleSeg::EdgeCrossing(run) => Head::Run(run),
         // An entity carried in from an input, a split's fragment, a
         // pattern's or part's instance: the same entity (or a piece of
         // it) under one more op. A member's seam keeps the orientation
@@ -96,35 +98,54 @@ fn head(seg: &RoleSeg) -> Head<'_> {
 /// sided line: it is answered `None` — the union's collapse, which never
 /// swaps an equal pair, agrees.
 pub(super) fn seam_line_pair(name: &StableName) -> Option<(&StableName, &StableName)> {
-    seam_through(name, EntityKind::Edge).filter(|(a, b)| a != b)
+    seam_through(name).filter(|(a, b)| a != b)
 }
 
 /// The two sides `(a, b)` of the seam an EDGE name lies on, if any,
 /// found as [`seam_line_pair`] finds them, an equal pair included.
 pub(super) fn seam_edge_sides(name: &StableName) -> Option<(&StableName, &StableName)> {
-    seam_through(name, EntityKind::Edge)
+    seam_through(name)
 }
 
-/// The two parents `(a, b)` of a seam VERTEX name, if it is one: a
-/// vertex minted as `Seam { a, b }`, `EdgeCrossing { a, b, .. }` or
-/// `Crossing { edge: a, face: b, .. }`, or a pass-through of one, found
-/// the way [`seam_line_pair`] finds an edge's pair. A junction (a run
-/// of lines) answers its first line; it carries no rank.
-pub(super) fn seam_vertex_parents(name: &StableName) -> Option<(&StableName, &StableName)> {
-    seam_through(name, EntityKind::Vertex)
-}
-
-/// The `Seam` a `kind` name is minted as, through the wrappers [`head`]
-/// lists as `Through`: the one walk both answers above take.
-fn seam_through(name: &StableName, kind: EntityKind) -> Option<(&StableName, &StableName)> {
+/// The lines a seam VERTEX name is minted on, if it is one: a vertex
+/// minted as `Seam { a, b }` or `Crossing { edge: a, face: b, .. }` is
+/// the pair, an `EdgeCrossing` its run, read through a pass-through of
+/// one the way [`seam_line_pair`] finds an edge's pair. A junction (a
+/// run of `Seam` segments) answers its first line; it carries no rank.
+pub(super) fn seam_vertex_parents(name: &StableName) -> Option<VertexLines<'_>> {
     let mut at = name;
     loop {
-        if at.kind != kind {
+        if at.kind != EntityKind::Vertex {
+            return None;
+        }
+        match head(at.path.first()?) {
+            Head::Seam(a, b) => return Some(VertexLines::Pair(a, b)),
+            Head::Run(run) => return Some(VertexLines::Run(run)),
+            Head::Merged(_) | Head::Stop => return None,
+            Head::Through(inner) => at = inner,
+        }
+    }
+}
+
+/// What a seam vertex is minted on ([`seam_vertex_parents`]).
+pub(super) enum VertexLines<'a> {
+    /// A seam's two sides, or a crossing's edge and face.
+    Pair(&'a StableName, &'a StableName),
+    /// An `EdgeCrossing`'s run.
+    Run(&'a [RunLine]),
+}
+
+/// The `Seam` an EDGE name is minted as, through the wrappers [`head`]
+/// lists as `Through`.
+fn seam_through(name: &StableName) -> Option<(&StableName, &StableName)> {
+    let mut at = name;
+    loop {
+        if at.kind != EntityKind::Edge {
             return None;
         }
         match head(at.path.first()?) {
             Head::Seam(a, b) => return Some((a, b)),
-            Head::Merged(_) | Head::Stop => return None,
+            Head::Run(_) | Head::Merged(_) | Head::Stop => return None,
             Head::Through(inner) => at = inner,
         }
     }
@@ -150,7 +171,7 @@ pub(crate) fn face_descends_from(n: &StableName, x: &StableName) -> bool {
         match n.path.first().map(head) {
             Some(Head::Through(p)) => names.push(p),
             Some(Head::Merged(cs)) => names.extend(cs.iter().rev()),
-            Some(Head::Seam(..) | Head::Stop) | None => {}
+            Some(Head::Seam(..) | Head::Run(_) | Head::Stop) | None => {}
         }
     }
     false

@@ -2207,3 +2207,39 @@ Then Ev ruled to leave the seam sense out while ranking is the easier route. Two
 with one seam run rank along a straight seam they share. The two rows are
 now build rows, with `design` and `needs_ev` cleared; the fork-log row was renumbered to 124
 at merge.
+
+## 2026-10-13 — PRs 4916 and 4922: the 4881 ruling built
+
+**PR 4916: a corner held as several result vertices is a
+`Fragment(Borders)` at each copy.**
+- All 36 formerly tied groups separate.
+- The wall reading is now one rule (`borders::walls`), shared by faces and corners. An empty wall set refuses on both paths.
+- The obstacle linking now joins two discards that both bounded an edge which died with them. That is N2's "connected part of the parent's region".
+
+Closed `a-corner-held-as-several-result-vertices-ties`. Filed
+`a-face-whose-discarded-fragments-share-a-chord-has-no-fixture`.
+
+**PR 4922: a non-corner vertex is the run of lines through it.**
+- `EdgeCrossing(Vec<RunLine>)`; seams in a run carry no sense.
+- The union reads every non-corner vertex from the finished body (`Flush::meeting`). Senses come from the pairwise judgements.
+- The junction, the four silent fallbacks and the fold-carried senses are retired.
+
+What moved:
+- Two wedges + plate: 3 names → 1 in every order.
+- The cut-seam fixtures publish one table in every order.
+- `KNOWN_ABSENT`: r1three 480 → 0, cross 140 → 28 (a face residue, filed).
+- The corpus moved spelling only.
+
+Closed `a-meeting-of-three-members-at-one-point-has-no-order-free-sense` and
+`a-crossing-of-a-union-seam-is-spelled-by-member-order`. WIRE's
+`a-pinch-vertex-is-named-by-the-fold-step-that-mints-it` was closed, then
+reopened in the fold with new evidence: P − U's own junction carries an
+order-dependent face piece, and four wedges P − U refuses in one order, as
+on main.
+
+Filed:
+- `a-merged-face-pieces-borders-in-a-union-depend-on-member-order`;
+- `a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical`;
+- `a-pair-boolean-names-an-edge-bearing-meeting-as-a-seam-junction` (a conversion was built and reverted: it fired only in union fold steps and added a refusal);
+- `a-unions-flush-reading-is-straight-only`;
+- `a-unions-member-lookups-skip-a-non-unique-row-silently`.
