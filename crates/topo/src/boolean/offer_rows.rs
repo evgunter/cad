@@ -807,11 +807,14 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
 
 // The join's regularity readings share one refusal. The pole distance
 // is rostered at its door below; the pair's wedge is reachable from
-// operands, and is not rostered: `classify_dihedral` is levered by the
-// shorter of the vertex's two edges, so a few-ε arc beside an
-// otherwise joinable vertex reads the wedge in the band and refuses
-// the whole boolean (`JoinUndecided`), where the boolean built before
-// the curved join (`work/fuse/a-sliver-arc-beside-a-joinable-vertex-refuses-the-boolean`).
+// operands, and is not rostered. `classify_dihedral` is levered by the
+// extent of the edge the join makes (the larger of the vertex's two
+// edges'), so the wedge reads in the band only where the pair itself
+// nearly turns tangent at the vertex: a vertex near a crossing of the
+// locus. A few-ε arc is not the way in: its own certification refuses
+// it at mint (`Certification` `Escalated { Transversality }`), so no
+// certified edge beside the vertex is that short
+// (`crates/sweep/tests/join_lever_is_the_joined_edge.rs`).
 const EDGE_JOIN_SITE: Door = Door::Site(
     "a valence-2 vertex's distance from its chart's pole is read inside the join's predicate, \
      on a vertex an output stage leaves between two edges of one carrier, which no pair of \

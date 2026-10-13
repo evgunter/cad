@@ -2,10 +2,11 @@
 id: a-two-pinch-union-ships-a-pinch-its-records-do-not-declare
 kind: issue
 title: A union that welds two pinches ships a touching its contact records do not declare, so the tier-3′ pass refuses it UndeclaredContact
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
+closed: 2026-10-13
 ---
 
 
@@ -42,3 +43,15 @@ Waits on `intent-stage4-is-built`, not on the whole program: an unrecorded self-
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E does not reach this. The unrecorded touching is at a pinch, an edge or vertex contact, and E records only the face pairs its glue door decides (`crates/topo/src/boolean/glue.rs:40`). The census still raises `UndeclaredContact` for it (`crates/topo/src/census.rs:1388`). Not re-measured on E. The fix stands: find the touching the census names and record it where the door makes it.
+
+## 2026-10-13, closed: fixed (FUSE, carry-rows-after-4820)
+
+Measured on main `0d2117d0` with a temporary probe (never committed)
+in `boolean_op_with` that ran `validate_pseudomanifold(body, contacts)`
+on every body the door ships, over the topo, sweep and editor-core `ci`
+suites (8,390 tests, about 18,000 results). Across all of it there is no
+`StaleContactDeclaration`.
+
+`union_pinch_member_order::two_pinches_build_one_body_in_every_member_order`:
+222/222 results pass tier 3′. I did not bisect which PR fixed it; the
+pinch-record PRs since 4207 and PR 4820's one carry both reach it.

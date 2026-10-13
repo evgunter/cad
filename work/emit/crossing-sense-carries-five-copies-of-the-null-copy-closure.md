@@ -59,3 +59,9 @@ back to the original once more, beside `NullCopies::of`, `with_copies`,
 finds a cycle. One closure, built once per reduction and read by all
 of them, retires the copies.
 
+## 2026-10-13: names retired by PR 4820 (FUSE)
+
+PR 4820 retired `ee_lineage`. An operand's carried edge-edge rows
+are now placed by `boolean::ops::carried` (`operand_fate`, then
+`records::landings`). `ops::uncopied` survives, and its caller is now
+`carried`'s minted-meeting decision.
