@@ -112,8 +112,10 @@ fn not_at_the_copy((sa, sb, x0): (f64, f64, f64)) -> Vec<String> {
     ] {
         let at_the_copy = matches!(
             &r,
-            Err(BooleanError::Join(SplitJoinError::SectionInvariant { what, .. }))
-                if what.starts_with(NO_ELLIPSE_COPY)
+            Err(BooleanError::Join(j)) if matches!(
+                j.error(),
+                SplitJoinError::SectionInvariant { what, .. } if what.starts_with(NO_ELLIPSE_COPY)
+            )
         );
         if !at_the_copy {
             let line = outcome(r, want, tol);
