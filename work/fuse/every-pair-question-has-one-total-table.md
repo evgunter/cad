@@ -2,10 +2,12 @@
 id: every-pair-question-has-one-total-table
 kind: unit
 title: Audit every geometric pair question (point/curve/surface against each other) for one total kind-pair table with one method per pair and no runtime fallback, and propose the general principle for DESIGN.md
-status: open
+status: closed
 opened: 2026-10-14
 priority: P2
 cost: M
+design: true
+closed: 2026-10-14
 refs: [two-curve-curve-meeting-finders, 5027]
 ---
 
@@ -74,3 +76,7 @@ Tests, `*_rows.rs` and `*_probes.rs` were excluded. These were skimmed only: `sw
 | Face separation / clearance | kind-agnostic (boxes, interval subdivision) | no pair table | not a kind-pair question; `editor-core` clearance refuses Nurbs/Approx typed | none |
 
 Single-kind wildcards that return a value rather than refuse (for example `pcurve_cache` `chart_image_harmonic` `_ => 0`, `param_rate_gate` `_ => 1`, `mesh` `circle_radius` NaN, `sectors`/`merge_faces` `_ => Curved`) are not pair tables. They fall under the same rule's spirit: an exhaustive match whose unlisted kind refuses typed. Only the `offset_axial` pair, which feeds a decision, is filed here. The rest are left for the principle's ratification to decide whether they are in scope.
+
+## Resolution
+
+Ev accepted the agreed D3 paragraph, the D4 line and the Layering edits on PR 5083 (2026-10-14), and preferred derivation over pinning by test. D3 says so: readings compose (pose, then the outcomes that take it), and a reading that is asked at kind level dispatches through its own kind-level description, so the description is derived from what the reading does. The audit's gap rows (#5078) owe that shape: a pose reading per pair, and `route` as the carrier reading's dispatch rather than a table beside it.

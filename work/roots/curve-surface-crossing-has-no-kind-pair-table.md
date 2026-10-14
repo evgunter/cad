@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-14
 ---
 
-Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`), which tests every geometric pair question against C5's rule: one total kind-pair table, one method per pair, no runtime fallback (`crates/geom-brep/README.md`, C5).
+Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #5078). The rule it tests is D3's "One reading per question" (`docs/DESIGN.md`, D3): every decision about carriers is a reading (of one carrier against a point, of a carrier pair's pose, or of a pair outcome that takes the pose); each reading is one exhaustive match with one method per arm and no fallback, and every consumer reads it. C5 (`crates/geom-brep/README.md`) is that rule's instance for surface and curve pairs.
 
 ## What
 
@@ -31,9 +31,11 @@ Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`), 
 
 ## Owed
 
-One total `(CurveKind, SurfaceKind)` crossing table:
-- closed forms where they exist;
-- the certified walk for spiric and spline;
-- each consumer reads it.
+Re-aimed to D3 "One reading per question". A curve's crossings of a surface are a pair *outcome*. One crossings reading, one exhaustive match over `(CurveKind, SurfaceKind)`, which each consumer reads. Where the crossing depends on the pair's pose (a curve lying in the surface, a tangent touch), it takes the pose reading's answer and decides no pose of its own.
+
+- Closed forms where they exist. The certified walk for spiric and spline is those arms' one method, fixed at write time, not a method reached because a closed form declined.
+- The wildcards (`wall_crossing` `_ => Unsettled`, `line_wall_roots_of` `_ => Uncertain`) become listed arms with typed refusals naming what they lack. `conic_quadric_roots`' `_ => {}` answers a default value (no roots), which D3 forbids.
+- The ladders: a stage before the method is allowed only if it is total in kind, decides the same question soundly at the same band, and cannot change the verdict by which stage decided (a box cull before exact roots). Enclosures may meet that bar. `carrier_touch::off_face` after roots, the dip-bound clearance then roots, and harmonic-else-sampled are fallbacks.
+- A consumer that serves fewer pairs (`census::point::edge_face`) matches on the reading's answer and refuses the rest typed.
 
 `carrier_cross`'s curve×plane parts and the census edge-face cut (`Uncrossable`) are in `fuse/the-curve-pair-reader`'s callers and are left to it. This row is the rest.

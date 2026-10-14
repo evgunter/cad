@@ -55,3 +55,23 @@ rounding) where two rounded products would do.
   faster, so a smaller count may meet the same sizing, but the count
   moves cell granularity, the census and the offset goldens, so it is
   a measurement before it is a change.
+
+## The integral arm (2026-10-13)
+
+PR 4984 also gave the integral arm an area floor, `A_u × A_v` over one
+per span cell (`polynomial_area_pieces`), which only `offset_meters`
+reads. Against `a71403e3` (main before 4984), `--test-threads 1`,
+opt-level 1:
+
+| row | before 4984 | after |
+|---|---|---|
+| `offset_fit::the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre` | 2.16–2.33 s | 2.89–3.09 s |
+| `offset_fit::a_round_whose_bound_rose_takes_the_both_directions_step` | 11.9–12.2 s | 13.7 s |
+
+That is with `nurbs/remaining-rational-readings`' one-piece shortcut,
+which skips the identity cut. Callgrind on the bumpy row puts the floor
+at 24% of the run: the `A_u × A_v` product (12.7%) and the per-cell
+B-spline-to-Bernstein rows (`Axis::row` → `span_row`, about 7%). Both
+are `derivative.rs` internals (build C's ground). The tessellation path
+(`patch_cells` in `nurbs_cert`) forms the floor too, on raw knot spans,
+though it never reads it.
