@@ -2643,7 +2643,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "circle_torus.rs",
-        "circle_torus_roots",
+        "-",
         "BooleanDecision::ArcTorusRoots",
         1,
     ),

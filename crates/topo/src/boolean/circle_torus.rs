@@ -166,6 +166,9 @@ const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
     },
 };
 
+/// The decision this door's root finders escalate as.
+const DECISION: BooleanDecision = BooleanDecision::ArcTorusRoots;
+
 /// The general arm's root-slack row (module docs, "The root slack").
 const ROOT_SLACK: &str = "bool_circle_torus_sub_root_slack";
 
@@ -270,7 +273,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
                         "bool_circle_torus_coaxial_residual",
                         band,
                     ),
-                    BooleanDecision::ArcTorusRoots,
+                    DECISION,
                 )?
                 .map(Roots::widen))
             }
@@ -293,7 +296,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
                     minor_radius,
                     band,
                 ),
-                BooleanDecision::ArcTorusRoots,
+                DECISION,
             ),
             // A negative length is not an answer; an in-band one is a
             // near-coaxial pose neither arm can stand behind.
@@ -382,7 +385,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
             },
             f_per_metre_hi: T::one(),
         },
-        BooleanDecision::ArcTorusRoots,
+        DECISION,
         band,
     )
 }
