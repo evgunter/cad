@@ -43,3 +43,26 @@ predicate, with one bound and one cycle refusal. `split_root` becomes
 the case that looks up its own body, and the other three become calls
 to it. Priced M: `discard.rs` wants the whole chain, not the root, so
 the walk has to yield the chain or visit each hop.
+
+## The copies the walks read beside the records (`fuse/split-hop-lineage-at-append`, 2026-10-14)
+
+Two naming tables copy `SplitEdge` records out of a body before a kill
+drops them: `SplitNaming::joined_lineage` (written by
+`SplitNaming::record_joins`, `crates/topo/src/splitting/finish.rs`) and
+`DiscardRow::boundary_chains` (`crates/topo/src/boolean/discard.rs`).
+Neither is a list of mints, since both are written in kill order and a
+join can kill a child before its parent; each is as acyclic as the
+records it copies, and the argument is stated once, on
+`Provenance::SplitEdge` (`crates/topo/src/provenance.rs`). So the
+cycle refusals left in the readers belong to this row, and the one walk
+it asks for should take the copies as another record lookup:
+
+- `emit_topo::chase_edge_to_table` (~`emit_topo.rs:99`), which steps
+  through the chains' hops (`KilledSplits`) and refuses
+  `SplitLineageCycle` past its hop bound;
+- `emit_topo::chase_split_lineage` (~`emit_topo.rs:191`), which steps
+  through `joined_lineage` where a half holds no record, and refuses
+  `SplitLineageCycle` past its edge-count bound;
+- `borders.rs`'s `Obstacles::up_lineage` (~`borders.rs:280`), which
+  reads `split_from` (each body's records merged with the chains' hops)
+  and refuses `bug("a piece edge's split lineage is cyclic")`.

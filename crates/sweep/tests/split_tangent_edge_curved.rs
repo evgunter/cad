@@ -575,17 +575,26 @@ fn cone_tangent(r0: f64, slope: f64, u: (f64, f64), s: f64) -> SplitPlane<f64> {
     )
 }
 
-/// **A split records each edge its join killed with the edge the cut
-/// split it from** (`SplitNaming::joined_lineage`): the cone graze cuts
-/// the frustum's edges where the plane touches them, and the side the
-/// frustum lands on joins those pieces back. Each recorded row is an
-/// edge a join on that side killed (an `edge_joins` row's `gone`, no
-/// longer live), with the edge its `SplitEdge` record named before the
-/// kill. Red if the split stops recording the rows, or records an edge
-/// no join killed.
+/// **A split records each edge its join killed with the edge it was
+/// split from** (`SplitNaming::joined_lineage`): the cone graze cuts the
+/// frustum's rims where the plane touches them, and the side the
+/// frustum lands on joins those pieces back. The rows are pinned whole,
+/// in arena keys, at each azimuth class of [`THETAS`]: none where the
+/// ruling is the seam's or opposite it, two where the join kills both
+/// rims' cut pieces, one where it kills one rim's original edge (which
+/// holds no record) and the other's cut piece. Red if the split drops a
+/// row, adds one, or records a parent other than the killed edge's
+/// record. On this fixture every row's parent is also the edge the join
+/// kept; the topo pin `a_child_killed_before_its_parent_is_recorded_with_it`
+/// holds rows where the two differ.
 #[test]
 fn a_cone_graze_records_each_rejoined_piece_with_the_edge_it_was_split_from() {
-    let mut rows = 0;
+    let both: &[&str] = &[
+        "EdgeKey(3v3) ← EdgeKey(9v1)",
+        "EdgeKey(8v3) ← EdgeKey(10v1)",
+    ];
+    let one: &[&str] = &["EdgeKey(3v3) ← EdgeKey(4v1)"];
+    let want: [&[&str]; 10] = [&[], both, &[], one, both, both, both, both, one, one];
     for (name, body, r0, slope) in [
         (
             "narrowing",
@@ -600,7 +609,7 @@ fn a_cone_graze_records_each_rejoined_piece_with_the_edge_it_was_split_from() {
             0.5,
         ),
     ] {
-        for t in THETAS {
+        for (t, want) in THETAS.into_iter().zip(want) {
             for s in [1.0, -1.0] {
                 let label = format!("{name}, θ = {t}, s = {s}");
                 let r = split(
@@ -609,24 +618,16 @@ fn a_cone_graze_records_each_rejoined_piece_with_the_edge_it_was_split_from() {
                     Tol::witness(),
                 )
                 .unwrap_or_else(|e| panic!("{label}: {e:?}"));
-                let live = |e| {
-                    [&r.above, &r.below]
-                        .into_iter()
-                        .any(|p| matches!(p, SplitPart::Body(b) if b.get_edge(e).is_some()))
-                };
-                for &(gone, from) in r.naming.joined_lineage.rows() {
-                    assert!(
-                        r.naming.edge_joins.iter().any(|(_, j)| j.gone == gone),
-                        "{label}: no join killed {gone:?}"
-                    );
-                    assert!(!live(gone), "{label}: the killed {gone:?} is still live");
-                    assert_ne!(gone, from, "{label}: a row names one edge twice");
-                    rows += 1;
-                }
+                let got: Vec<String> = r
+                    .naming
+                    .joined_lineage
+                    .iter()
+                    .map(|(gone, from)| format!("{gone:?} ← {from:?}"))
+                    .collect();
+                assert_eq!(got, want, "{label}: the joined-away rows");
             }
         }
     }
-    assert!(rows > 0, "some graze rejoins a piece the cut split");
 }
 
 /// A cone frustum grazed from outside along a ruling, narrowing and

@@ -64,11 +64,14 @@ struct Side<'a, T: Decide> {
 /// the same records and reads the caller's graft rows only to decide
 /// where to stop, so the argument covers it too.
 ///
-/// **The kills' hops are not covered by it.** `killed` comes from
-/// `BooleanNaming::discards`' boundary chains ([`KilledSplits`]), a
-/// public naming table nothing checks where the kernel writes it, so a
-/// cycle through those hops is writable and this walk's bound is what
-/// refuses it (`work/fuse/join-desync-is-the-catch-all-for-cyclic-lineage-records.md`).
+/// **The kills' hops are copies of the same records.** `killed` comes
+/// from `BooleanNaming::discards`' boundary chains ([`KilledSplits`]),
+/// which copy the clone's `SplitEdge` records before the kills drop
+/// them, so the argument covers them too (`topo::Provenance::SplitEdge`
+/// says why a copy is as sound as its records). The bound and the
+/// refusal are the provenance walk's, which nothing checks where
+/// `Body::split_edge` writes it
+/// (`work/origin/the-split-edge-lineage-walk-has-four-homes.md`).
 ///
 /// Where the lineage stops at a key the table does not name and a kill
 /// took ([`KilledSplits`]), the walk steps to that key's parent and goes
@@ -147,7 +150,9 @@ impl KilledSplits {
 ///
 /// [`NamingError::SplitLineage`] on a cycling lineage; the halves'
 /// records are restrictions of one acyclic record set, so their union
-/// is acyclic by the same writer-access argument.
+/// is acyclic by the same writer-access argument, and so is its union
+/// with the split's copy of the records its joins killed
+/// (`SplitNaming::joined_lineage`).
 fn chase_split_edge_to_table<T: Decide>(
     sides: &[Side<'_, T>],
     table: &NameTable,
@@ -368,8 +373,7 @@ fn split_joined_readings<T: Decide>(
     target_table: &NameTable,
 ) -> Result<BTreeMap<EdgeKey, Joined>, NamingError> {
     let bug = |what| NamingError::Emission { what };
-    let lineage: BTreeMap<EdgeKey, EdgeKey> =
-        naming.joined_lineage.rows().iter().copied().collect();
+    let lineage = &naming.joined_lineage;
     // Keys are unique across the two halves (restrictions of one
     // arena), and each side's joins keep their order, so one chase
     // over both sides' rows is each side's.
@@ -399,7 +403,7 @@ fn split_joined_readings<T: Decide>(
         let mut roots = BTreeSet::new();
         let mut chords = 0usize;
         for &c in &cover {
-            let root = chase_split_lineage(sides, target_table, &lineage, c)?;
+            let root = chase_split_lineage(sides, target_table, lineage, c)?;
             if named(root) {
                 roots.insert(root);
             } else {

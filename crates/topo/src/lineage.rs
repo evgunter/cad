@@ -372,9 +372,6 @@ pub enum LineageRows {
     /// One operand's null-edge copy list in a Boolean (`NullEdgeCopies`),
     /// the operand naming the clone as above.
     NullEdgeCopies(crate::boolean::Operand),
-    /// A split's list of the edges its joins killed, each with the edge
-    /// it was split from (`SplitNaming::joined_lineage`).
-    JoinedEdgeDivisions,
     /// A zip's cone copy list ([`ConeCopies`]): one row per copy it made
     /// of a pinch vertex, one per cone.
     ConeCopies,
@@ -390,7 +387,6 @@ impl LineageRows {
             Self::Substitutions => "substitution",
             Self::FaceDivisions => "face division",
             Self::EdgeDivisions(None) => "edge division",
-            Self::JoinedEdgeDivisions => "joined-away edge division",
             Self::EdgeDivisions(Some(A)) => "first operand's edge division",
             Self::EdgeDivisions(Some(B)) => "second operand's edge division",
             Self::NullEdgeCopies(A) => "first operand's null-edge copy",
@@ -1044,7 +1040,6 @@ mod tests {
         let split = crate::splitting::SplitNaming::default();
         assert_eq!(split.face_fragments.tag(), LineageRows::FaceDivisions);
         assert_eq!(split.edge_pieces.tag(), LineageRows::EdgeDivisions(None));
-        assert_eq!(split.joined_lineage.tag(), LineageRows::JoinedEdgeDivisions);
         let mut vertices: SlotMap<crate::entity::VertexKey, ()> = SlotMap::with_key();
         let v = vertices.insert(());
         assert_eq!(

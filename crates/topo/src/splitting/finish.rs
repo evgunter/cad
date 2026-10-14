@@ -318,16 +318,15 @@ pub struct SplitNaming {
     /// row's `vertex` and `gone` edge are dead there, and `kept` holds
     /// them (`docs/DESIGN.md`, maximal edges).
     pub edge_joins: Vec<(PlaneSide, crate::boolean::EdgeJoin)>,
-    /// `(killed edge, the edge it was split from)` for each edge a
-    /// side's join killed that the cut had split off another
-    /// (`Provenance::SplitEdge`), recorded before the kill: a kill
-    /// takes its edge's birth record with it, and this is the lineage a
-    /// joined edge's cover is read through to the operand edges it lies
-    /// along. Each row was checked as it was added
-    /// ([`crate::lineage::LineageRows::JoinedEdgeDivisions`]): a split
-    /// mints the child its record names, and a join kills each edge
-    /// once.
-    pub joined_lineage: crate::lineage::SplitEdgeDivisions,
+    /// Killed edge → the edge it was split from, for each edge a side's
+    /// join killed that held a `SplitEdge` record: a kill takes its
+    /// edge's birth record with it, and this is the lineage a joined
+    /// edge's cover is read through to the operand edges it lies along.
+    /// A copy of the records as they stood before the kills, not a list
+    /// of mints: a join can kill a child before its parent
+    /// ([`crate::provenance::Provenance::SplitEdge`] says why a copy is
+    /// as acyclic as the records).
+    pub joined_lineage: std::collections::BTreeMap<crate::entity::EdgeKey, crate::entity::EdgeKey>,
 }
 
 impl SplitNaming {
@@ -338,17 +337,13 @@ impl SplitNaming {
         side: PlaneSide,
         split_from: &std::collections::BTreeMap<crate::entity::EdgeKey, crate::entity::EdgeKey>,
         joins: Vec<crate::boolean::EdgeJoin>,
-    ) -> Result<(), SplitFinishError> {
-        for row in joins
-            .iter()
-            .filter_map(|j| split_from.get(&j.gone).map(|&from| (j.gone, from)))
-        {
-            self.joined_lineage
-                .push(row)
-                .map_err(SplitFinishError::LineageRow)?;
-        }
+    ) {
+        self.joined_lineage.extend(
+            joins
+                .iter()
+                .filter_map(|j| split_from.get(&j.gone).map(|&from| (j.gone, from))),
+        );
         self.edge_joins.extend(joins.into_iter().map(|j| (side, j)));
-        Ok(())
     }
 }
 
@@ -365,9 +360,7 @@ impl Default for SplitNaming {
             ),
             vertex_pairs: Default::default(),
             edge_joins: Default::default(),
-            joined_lineage: crate::lineage::SplitEdgeDivisions::new(
-                crate::lineage::LineageRows::JoinedEdgeDivisions,
-            ),
+            joined_lineage: Default::default(),
         }
     }
 }
@@ -503,9 +496,6 @@ pub enum SplitFinishError {
         /// Why the join refused, typed and keyless.
         refusal: crate::boolean::JoinRefusal,
     },
-    /// The joined-away edges' lineage list refused a row where a side's
-    /// join added it ([`SplitNaming::joined_lineage`]): a kernel defect.
-    LineageRow(crate::lineage::RowRefusal),
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -631,12 +621,6 @@ impl core::fmt::Display for SplitFinishError {
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::KnifeEdge(k) => write!(f, "{k}"),
-            Self::LineageRow(refusal) => write!(
-                f,
-                "{}. {}",
-                refusal.refused_by("split"),
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
             Self::EdgeJoin { side, refusal } => {
                 write!(
                     f,
@@ -721,9 +705,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             })
             .collect::<Result<_, _>>()?,
         edge_joins: Vec::new(),
-        joined_lineage: crate::lineage::SplitEdgeDivisions::new(
-            crate::lineage::LineageRows::JoinedEdgeDivisions,
-        ),
+        joined_lineage: Default::default(),
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
@@ -2103,13 +2085,9 @@ mod joined_lineage_rows {
         let joins = vec![join(e1, e13), join(e14, e15), join(e13, e15)];
         let split_from = BTreeMap::from([(e13, e1), (e14, e13), (e15, e13)]);
         let mut naming = SplitNaming::default();
-        naming
-            .record_joins(PlaneSide::Above, &split_from, joins.clone())
-            .unwrap();
-        let rows: BTreeMap<EdgeKey, EdgeKey> =
-            naming.joined_lineage.rows().iter().copied().collect();
+        naming.record_joins(PlaneSide::Above, &split_from, joins.clone());
         assert_eq!(
-            rows,
+            naming.joined_lineage,
             BTreeMap::from([(e14, e13), (e13, e1)]),
             "each killed child, with the edge its record names"
         );
