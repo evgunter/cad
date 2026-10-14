@@ -592,6 +592,8 @@ jobs:
       CARGO_PROFILE_TEST_STRIP: debuginfo
       CARGO_PROFILE_DEV_OPT_LEVEL: "1"
       CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+      # Must stay equal to the test job's env block: rust-cache keys on
+      # CARGO_* variables.
       CARGO_PROFILE_DEV_LTO: "off"
       CARGO_PROFILE_TEST_LTO: "off"
     steps:
