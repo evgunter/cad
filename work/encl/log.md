@@ -1580,3 +1580,4 @@ coincidence is now a margined verdict (no declarations), checked by the
   - Posted to the PR, with options (a) Ev rules or (b) another designer round. Waiting on Ev.
   - Filed exch `step-import-reads-a-negative-surface-radius-unchecked-before-edge-certification` and topotail `flipped-face-sense-for-tests-is-not-feature-gated`.
   (ENCL orchestrator)
+- 2026-10-14 — At Ev's request, the import-validation question is split out of `[ev]` PR 5134 as exch `can-an-import-reach-a-state-only-a-kernel-bug-otherwise-reaches`. PR 5134 waits on it. (ENCL orchestrator)
