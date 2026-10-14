@@ -36,9 +36,19 @@ Stage (b)'s first part settles what stage (a)'s review found, and builds step 2:
 - **The root finders have one shape** (`geom_brep::roots`): `Roots<T, N, C>` holds decided answers only (a miss, ON, a certified count), and every refusal is typed in the `Err` (`Unsettled`, or `RootRefusal` where a finder escalates). `TrigRoots`, `QuarticRoots` and topo's `CircleRoots` and `FirstHarmonicRoots` are its instances; `Roots::widen` is the one bridge. `circle_roots::rounding_charge` is retired, and `half_angle_roots` takes a `DegreeTwo`, so a residual past degree two is unrepresentable.
 - **One span type and one point-on-span reading**: `geom_brep::curve_pair::{Span, Contact}`.
 
-Its second part is step 3, the meeting reading.
+Its second part builds step 3 and the rows of step 5:
 
-**Stage (c) owes** the callers. These four readings still decide the point-on-span question themselves and move onto `Span::contact`:
+- **The table, the pose and the entry point**: `geom_brep::curve_pair::{method, pose, meet}`. Line, circle and ellipse pairs are read in closed form, and pairs with a spiric or spline side by the walk (`curve_pair/walk.rs`).
+- **The rows**: `curve_pair::meet_oracle` (the walk as differential oracle, plus draws built to meet) and the cleave pin `a_near_tangent_coplanar_pair_is_placed_on_both_circles`.
+- **Filed**: `two-coplanar-ellipses-have-no-meeting-method`.
+
+**Stage (c) owes** the callers (step 4):
+- `carrier_cross::meetings` becomes a caller of `meet`;
+- then the census confirm (`census::curved::reads_meet`, and through it `records::landings`);
+- then the census edge-face cut (`restread/the-census-edge-face-cut-crosses-chords-and-conics-only`);
+- the near-concentric census row re-baselines to the decided answer that `meet` gives (`near_concentric_arcs_are_decided` pins it in `geom-brep`).
+
+These four readings still decide the point-on-span question themselves, and move onto `Span::contact`:
 - `carrier_cross::strictly_inside`;
 - `census::curved::interior_at` and `clear_of_end`;
 - the census line lane's `on_edge_interior`;

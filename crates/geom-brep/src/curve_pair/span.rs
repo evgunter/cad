@@ -64,6 +64,33 @@ pub enum Contact<T> {
     End,
 }
 
+/// A [`Contact`] that places the point on the span: what a meeting
+/// holds on each side.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Hit<T> {
+    /// [`Contact::On`].
+    On {
+        /// The parameter, on the branch about the span's middle.
+        t: T,
+        /// The carrier reading's margin.
+        margin: MarginDiag,
+    },
+    /// [`Contact::End`].
+    End,
+}
+
+impl<T> Contact<T> {
+    /// The contact as a [`Hit`], or `None` where it places the point off
+    /// the span.
+    pub fn hit(self) -> Option<Hit<T>> {
+        match self {
+            Self::On { t, margin } => Some(Hit::On { t, margin }),
+            Self::End => Some(Hit::End),
+            Self::Off | Self::Carrier => None,
+        }
+    }
+}
+
 /// One end of a span against a point on its carrier.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum EndSide {
