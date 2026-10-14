@@ -7,7 +7,7 @@ opened: 2026-10-13
 priority: P3
 cost: M
 design: true
-needs_ev: true
+needs_ev: false
 refs: [periodic-branch-floor-remains-at-the-raw-picks, periodic-branch-floor-remains-at-three-sites]
 ---
 
@@ -101,6 +101,8 @@ Under any answer, the `Interval` straddle at `boxes` must keep answering
 or become a typed refusal that its rows re-pin, as PR 4875's slit did.
 
 ## The answer
+
+Ruled by Ev (PR 4975, 2026-10-14): as recommended, with no half-turn cap on an arc side ("i don't want 'an arc side sweeps at most half a turn to its corner'"; then "sounds good!"). Group 1 is PCERT's to implement; group 2 is doc sentences; group 3 is PATHS' (`an-arc-side-sweeping-half-a-turn-or-more-to-its-corner-is-refused-as-behind`).
 
 No one convention: the three groups are three different quantities,
 and one principle covers them. **A periodic reduction or branch pick

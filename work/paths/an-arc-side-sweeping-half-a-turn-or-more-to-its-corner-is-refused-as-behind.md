@@ -40,6 +40,6 @@ refuse only a zero sweep (the corner on the anchor), as a ray refuses a
 corner at its start; the S8 ladder chooses between two admitted
 corners. The setback folds about the leg's middle (`m + centred(d − m)`,
 `m = extent/2`), its branch a `whole_period_count` literal at the leg's
-radius. This is the answer the period-jump `[ev]` PR puts to Ev for
-group 3, so it waits on that ruling; the alternative there is to ratify
-an "at most half a turn" cap in PATHS-DESIGN.
+radius. Ev ruled this the answer (PR 4975, 2026-10-14): no half-turn cap;
+on a circular side "behind" does not exist, and the only corner the
+gates refuse is one on the anchor.
