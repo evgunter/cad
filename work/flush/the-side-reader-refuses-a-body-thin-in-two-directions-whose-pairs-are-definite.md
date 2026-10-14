@@ -1,79 +1,89 @@
 ---
 id: the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite
 kind: issue
-title: The side reader refuses a body thin in two directions whose pairs are all definite: no aimed ray reads it and its volume lies in band
+title: The side reader refuses a body thin in two directions whose pairs are all definite (check 7 as a thinness gate on needles)
 status: open
 opened: 2026-10-14
 priority: P1
 cost: M
 needs_ev: true
+branch: flush/shell-role-reader
+pr: 5119
+refs: [4990]
 ---
 
+Found by both reviews of PR 5119 (the shell-role reader, D10
+"Booleans" as ratified on PR 4990), at the frozen head `e672e97ac`.
+D10's premise "a ray's reading lies in band only where a pair does" is
+false for one class of body, so check 7 refuses solids whose every face
+pair is definite (> Kε): a thinness gate, which D1 says it is not.
 
-Found by PR 5119's reviews (FLUSH `flush/shell-role-reader`, R1 and R2).
-A design fork owns the answer; this row holds the evidence.
+## Measured
 
-## The class
+- At rest, `brick (0,1)×(0,w)×(0,w)` refuses `OrientationUndecided {
+  Volume }` for w = 10.5, 12, 15, 19, 21 and 30ε at ε 1e-9 and 1e-6, and
+  passes at 25 and 40ε. For w ≲ 2Kε no planar face offers an aim
+  (`planar_interior_point` wants a point more than Kε inside its
+  boundary); at 21ε every ray is set aside on a crossing within Kε of a
+  loop boundary (`point_in_loop`); the volume fallback then holds V/A
+  ≈ w/4 against the band.
+- Through a public boolean, `brick ∩ brick` leaving a needle 2–3Kε
+  across refuses at the door in 8 of 18 poses that main builds, typed
+  `ResultInvalid`.
+- The sweep needles in `fillet_h6_cap_rim` and
+  `review_blend_k_rk_probes` refuse `OrientationUndecided { Volume(None)
+  }`; they used to require "must validate at rest".
+- At ε 1e-12 a revolve-door torus (R 1e-10, r 2e-11, tube 4Kε across)
+  refuses: every 60° aim is set aside on a point-in-face margin within
+  Kε of a face boundary, and V/A is Kε less one ulp.
+- Main passes all of these at rest through the sliver hand-off PR 5119
+  retires, which reads no orientation, so main passes their inside-out
+  copies silently too.
 
-A body thin in two directions: a needle `w × w` across. Every pair of
-its cells is `w` apart, definite above `Kε`, yet the side-at-infinity
-reader (`crates/topo/src/side_reader.rs`) reads no side of it, so check 7
-refuses its orientation:
-- below about `20ε` no face is wide enough to offer an aim (a point
-  certified more than `Kε` inside a planar face);
-- above it every aimed ray lands within `Kε` of a face's boundary (its
-  crossing is set aside, `SetAsideWhy::Crossing`, `point_in_loop_boundary`
-  in band), or crosses a sharp corner in band (`SetAsideWhy::Corner`);
-- the volume over area, `≈ w/4`, lies in band, so the fallback refuses
-  too.
-The reader reads rays set aside only where the ratified letter allows
-(the volume only where no face offers an aim); whether the volume may
-answer after rays are set aside is the fork's other question.
+Probes: `flush/shell-role-review-r1` at `0731fe3f7`,
+`flush/shell-role-review-r2` at `c5d6fa21b`
+(`crates/topo/tests/r2_shell_role_probes.rs`), and the designers'
+`flush/needle-design-x` at `feb5b660e` and `flush/needle-design-y` at
+`bfec39bf9`.
 
-## Measured (branch `flush/shell-role-reader`, ε 1e-9 and 1e-6)
+## The fork
 
-**At rest.** `brick (0,1)×(0,w)×(0,w)` (review R2's `r2_needles`):
+Two designers converged in round 2 (fork-log row 142): a ray that
+decides each edge it passes once for both faces it bounds and reads the
+role as the sign of its count of crossings reads every planar needle
+with definite pairs (measured: all 20 needle cases, both orientations,
+ε 1e-9 and 1e-6); the volume's sign certified by its interval enclosure
+alone, never held against the band, reads the needles and the torus
+(measured: width/|V| ≈ 5e-16 on axis needles, 1.7e-14 on the torus).
+The enclosure of an oblique needle carries an absolute floor of about
+1e-16 from the re-derivation's fan about one corner of the body (width
+1.28·V at 10.5ε, ε 1e-9; straddles zero on two boolean needle results
+at ε 1e-12). The question is on PR 5119.
 
-| w | right side out | inside out |
-|---|---|---|
-| 10.5ε, 12ε, 15ε, 19ε | `OrientationUndecided`, volume in band, no face offers an aim | the same, volume negative |
-| 21ε | refuses, all six rays set aside (crossings in band of a boundary) | the same |
-| 25ε | passes | `NegativeVolume` |
-| 30ε | refuses, every ray set aside | the same; at ε 1e-6 the ray aimed at 4v1 is set aside at the corner of 1v1 and 5v1 |
-| 40ε | passes | `NegativeVolume` |
+## Measured on the fix pass (`flush/shell-role-reader`, after `e672e97ac`)
 
-The refusal is not monotone in `w`: 25ε reads and 30ε does not.
-
-**At a boolean's door.** `brick ∩ brick` leaving a needle (review R1's
-`r1_a_needle_result_at_the_door`, three poses): at 1.2Kε and 1.5Kε the
-door refuses earlier (`Containment`); at 2Kε every pose escalates
-`SolidSide` (no face offers an aim, the volume in band); at 3Kε the axis
-pose escalates at ε 1e-9 and the oblique pose at ε 1e-6, the others
-build; at 5Kε all build.
-
-**Sweep's needles.** `fillet_h6_cap_rim` (above the crossover, K = 3) and
-`review_blend_k_rk_probes` (the all-transverse rims): each extrudes a
-needle a few `Kε` across, which refuses at rest
-`OrientationUndecided { Volume { margin: None, aimed: 0, set_aside: [] } }`
-— no face offers an aim, and its volume straddles zero by its own
-rounding.
-
-**A face boundary.** `shell7_r2_probes::p3b` at ε 1e-12: the
-revolve-door torus `R = 1e-10, r = 2e-11` (20ε thick) refuses at rest
-`OrientationUndecided(Volume)`. Its two torus faces (one per arc of the
-profile) aim at the same point, `(−8e-11, 0, 0)`: the inner equator,
-which is their shared boundary, where the aim's default minor-window
-middle (`v = π`) falls. Each ray's crossing there is set aside in band
-(`bool_ray_torus_split`, a quadratic factor's discriminant of the
-ray × torus quartic, 8.0e-12 < Kε); review R2 reads the same point with
-a ray along the face's normal. Its volume over area lies in band too.
-
-## Pins
-
-`crates/topo/tests/shell_role_reader.rs` (`a_needle_refuses_its_orientation_at_rest`,
-`an_inside_out_needles_corner_is_set_aside_not_a_pair`,
-`a_boolean_leaving_a_needle_escalates_its_side`),
-`crates/sweep/tests/fillet_h6_cap_rim.rs`,
-`crates/sweep/tests/review_blend_k_rk_probes.rs` and
-`crates/sweep/tests/shell7_r2_probes.rs` pin today's refusal, so the
-fork's answer shows where it moves.
+The fix pass changes no reading of this class; it changes how the
+refusals are typed and what they say.
+- **At the door** a needle no aimed ray reads, its volume in band, is now
+  `Escalated { SolidSide { solid, aimed, corners, others } }`, not
+  `ResultInvalid` (D10: in band at the door). `brick ∩ brick` leaving a
+  needle 2Kε across escalates `SolidSide` at every pose of review R1's
+  three, at ε 1e-9 and 1e-6; at 3Kε the axis pose escalates at ε 1e-9 and
+  the oblique pose at ε 1e-6, the others build.
+- **At rest** the refusal names what did not read: how many faces offered
+  an aim and each ray set aside, and why (`SetAside`). Every ray of the
+  21ε needle is a crossing in band of a face's boundary; at ε 1e-6 the
+  inside-out 30ε needle's ray at face 4v1 is set aside at the corner of
+  1v1 and 5v1 (once refused as their pair).
+- **The torus** (`shell7_r2_probes::p3b`, ε 1e-12): both its faces aim
+  at the same point, `(−8e-11, 0, 0)`, the inner equator, which is their
+  shared boundary (the default minor-window middle, `v = π`); each
+  crossing there is set aside in band (`bool_ray_torus_split`, 8.0e-12).
+- **Pins** that move when the fork's answer lands:
+  `crates/topo/tests/shell_role_reader.rs`
+  (`a_needle_refuses_its_orientation_at_rest`,
+  `an_inside_out_needles_corner_is_set_aside_not_a_pair`,
+  `a_boolean_leaving_a_needle_escalates_its_side`),
+  `crates/sweep/tests/fillet_h6_cap_rim.rs`,
+  `crates/sweep/tests/review_blend_k_rk_probes.rs` and
+  `crates/sweep/tests/shell7_r2_probes.rs`.
