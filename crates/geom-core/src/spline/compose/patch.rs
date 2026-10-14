@@ -485,8 +485,8 @@ fn mul_block(
             let r = i + k;
             // `at` carries the `lo(r)` convention with the table, so
             // this lookup cannot disagree with the fold's keying.
-            // Non-negative, as every binomial quotient: two corners, bit
-            // for bit the general product ([`Interval::mul_nonneg`]).
+            // Non-negative, as every binomial quotient:
+            // [`Interval::mul_nonneg`].
             let w = wu.at(r, i);
             for (t, p) in prod.iter().enumerate() {
                 out[r * out_v + t] = out[r * out_v + t] + p.mul_nonneg(w);

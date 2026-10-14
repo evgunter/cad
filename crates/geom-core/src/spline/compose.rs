@@ -553,9 +553,7 @@ fn bern_mul_row_into(a: &[Interval], b: &[Interval], w: &BernWeights, out: &mut 
         let mut acc = Interval::zero();
         for (t, wt) in w.row(k).iter().enumerate() {
             let i = lo + t;
-            // A binomial quotient is non-negative, so its product reads
-            // the two corners the signs select ([`Interval::mul_nonneg`]),
-            // bit for bit the general product's four.
+            // A binomial quotient is non-negative: [`Interval::mul_nonneg`].
             acc = acc + (a[i] * b[k - i]).mul_nonneg(*wt);
         }
         out.push(acc);
@@ -1949,6 +1947,59 @@ mod tests {
     /// weight has to preserve.
     pub(super) fn same_bits(x: Interval, y: Interval) -> bool {
         x.lo().to_bits() == y.lo().to_bits() && x.hi().to_bits() == y.hi().to_bits()
+    }
+
+    /// **The production weights, read two corners, are the general
+    /// product.** Every weight [`bern_weights`] serves for degrees
+    /// `0 ..= 27` (every pair whose rows are exact, up to `da + db =`
+    /// [`BINOM_EXACT_MAX`]) times operands drawn to provoke ties —
+    /// intervals over dyadic values with few significant bits (whose
+    /// products are often exact), random doubles, values near the
+    /// 2Prod floor and zeros, both signs — [`Interval::mul_nonneg`]
+    /// against `x * w`, bit for bit.
+    #[test]
+    fn every_production_weight_reads_two_corners_as_the_general_product() {
+        let mut s: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut next = || {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            s
+        };
+        let draw = |n: &mut dyn FnMut() -> u64| -> f64 {
+            let r = n();
+            let sign = if r & 1 == 0 { 1.0 } else { -1.0 };
+            let m = ((r >> 8) % 64) as f64;
+            let e = ((r >> 20) % 40) as i32 - 20;
+            match (r >> 40) % 4 {
+                0 => sign * m * 2f64.powi(e),
+                1 => sign * f64::from_bits((r >> 2) & 0x3FEF_FFFF_FFFF_FFFF),
+                2 => sign * m * 2f64.powi(-1060),
+                _ => 0.0,
+            }
+        };
+        let (mut n, mut shortcut) = (0usize, 0usize);
+        for da in 0..=BINOM_EXACT_MAX / 2 {
+            for db in 0..=BINOM_EXACT_MAX / 2 {
+                let table = bern_weights(da, db);
+                for k in 0..table.row_count() {
+                    for &w in table.row(k) {
+                        for _ in 0..4 {
+                            let (x0, x1) = (draw(&mut next), draw(&mut next));
+                            let x = Interval::from_bounds(x0.min(x1), x0.max(x1));
+                            let (got, want) = (x.mul_nonneg(w), x * w);
+                            assert!(same_bits(got, want), "({da}, {db}, {k}): {x:?} * {w:?}");
+                            n += 1;
+                            shortcut += usize::from(w.lo() < w.hi());
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            shortcut > n / 2,
+            "the weights reach the shortcut: {shortcut} of {n} products"
+        );
     }
 
     #[test]
