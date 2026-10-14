@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-13
 priority: P3
 cost: E
+needs_ev: true
 ---
 
 
@@ -39,3 +40,7 @@ A row on such a body: the rim derives its image, the mint stores it,
 and the loop walk closes over it. If the `v₀`-first order makes the
 walk refuse where the `v₁` row would close, the pick wants the loop's
 own context (the neighbouring rows), not a fixed order.
+
+## The question for Ev
+
+PR 5137 fixed the seam's pick by giving each half the row on its own side, which stores two images for one seam edge. Its review and both designers on the branch-offset fork judged this the wrong home for the branch. C4 says a row is a function of the edge and the chart alone, and that a seam has one image and two joint elements; the kill-sum argument rests on that. The converged answer gives every closed channel its own period, so a spline net decided closed in v gets a v deck (`chart_v_period`, `Deck.v` in knot lengths, `kv` decided at the joint). The seam then keeps one image, and the arc-rim and `iso_schedule` picks take the first row that holds. That extends C4, so it waits for Ev on the same `[ev]` PR. PR 5137 is held until it is answered.

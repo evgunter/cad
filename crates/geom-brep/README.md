@@ -458,10 +458,15 @@ a sphere's twin bit) that carries its image onto the end of the
 half-edge before it in its loop, or a reset marker at a pole or apex
 (and on a spline chart where the net's own `u` stretch is not decided
 past the band).
+On a periodic channel the image is placed over the edge's span in the
+chart's principal window, so where a carrier's parameter happens to
+start moves neither the stored image nor any joint element.
 A loop's lift is derived by summing elements from its `first`, so no
 stored byte depends on which half-edge is `first`. A seam edge has both
 half-edges on one surface with one image and two joint elements, so no
-coarser key works. Its parameter *is* the carrier's
+coarser key works; this holds on every closed channel, each with its
+own period (τ in azimuth, a torus's τ in its second angle, the knot
+domain's length on a spline net decided closed in that direction). Its parameter *is* the carrier's
 `he_plus`-forward parameter; traversal sense per face is derived, never
 stored. `PcurveCache::certify` is the only constructor. The certified
 statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement over the whole
@@ -512,9 +517,13 @@ UV-space tolerance appears in any certified statement; the chart's
 stretch is the lever arm. A row certifies against its carrier and chart alone, on one branch (a τ jump
 is unrepresentable in `Harmonic`'s `α + β·t`, and the projected
 image's sector condition refuses one); no caller's window enters
-it. The face's rows lift its loops, and `topo::pcurves` certifies the
+it. A row certifies modulo the chart's deck: a whole-period renaming of
+a certified image is the same row and certifies, read as a renaming,
+never decided. The face's rows lift its loops, and `topo::pcurves` certifies the
 loop: at each joint the walk decides the deck element (the whole number
-of periods, and on a sphere the involution twin) as an integer, with
+of periods on each periodic channel, and on a sphere the involution
+twin) as an integer, by the two marks either side of the gap's own
+estimate, nearest first, however many periods that is, with
 half the step to the next point of the joint's orbit as room: half a
 period on a cylinder, cone or torus, and a quarter period on a sphere,
 whose twin sits half a period over in azimuth. Where two points as far

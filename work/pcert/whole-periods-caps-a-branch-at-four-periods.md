@@ -7,6 +7,7 @@ opened: 2026-10-02
 priority: P3
 cost: E
 refs: [loop-walk-branch-is-an-opaque-floor-atom]
+needs_ev: true
 ---
 
 
@@ -37,3 +38,12 @@ producer), and no row exercises a real one; the corruption table in
 What would close this: either a statement in C4 that a row's branch
 lies within `MAX_BRANCH_PERIODS` of its derivation's, or a branch read
 off the row's own winding when a producer that needs it lands.
+
+## The question for Ev
+
+PR 5126 found the cap reached by valid input: a circle carrier may be stated any number of periods off the azimuth its points sit at. Its two reviews then found the same cap refusing downstream. Check 4 is reached through `chart_boundary`'s lifted images, and through the public `certify` on the attach path. The torus point-in-solid walk, `offset_axial::keep_turn` and `chart_region::period_fold` have the same shape. Two designers converged on removing the cap everywhere:
+- check 4 certifies modulo the chart's deck (a renaming, not a decision), which reverses PR 3812's refusal of a whole-period-shifted image;
+- every walk reads a joint's element from the two marks about the gap's own estimate;
+- the harmonic derivation places an image over the edge's span in the chart's principal window.
+
+That adds clauses to C4, so it waits for Ev on the `[ev]` PR that sets this flag. PR 5126 is held until it is answered.
