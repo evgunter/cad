@@ -421,6 +421,38 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "NodeUnbuilt (unplaced)",
+            BooleanError::NodeUnbuilt {
+                a_face: face,
+                b_face: face,
+                why: topo::NodeWhy::Unplaced(topo::Operand::B),
+            },
+        ),
+        (
+            "NodeUnbuilt (a germ on the node)",
+            BooleanError::NodeUnbuilt {
+                a_face: face,
+                b_face: face,
+                why: topo::NodeWhy::GermOnNode,
+            },
+        ),
+        (
+            "NodeUnbuilt (a rod against a bore)",
+            BooleanError::NodeUnbuilt {
+                a_face: face,
+                b_face: face,
+                why: topo::NodeWhy::OppositeSenses,
+            },
+        ),
+        (
+            "NodeUnbuilt (nearly parallel)",
+            BooleanError::NodeUnbuilt {
+                a_face: face,
+                b_face: face,
+                why: topo::NodeWhy::NearlyParallel,
+            },
+        ),
+        (
             "NonFiniteSectorChord",
             BooleanError::NonFiniteSectorChord {
                 vertex: VertexKey::default(),

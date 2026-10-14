@@ -365,3 +365,215 @@ fn a_rod_against_a_bore_refuses_its_node_typed() {
         }
     }
 }
+
+/// **Two crossing bores at a slant, one of them turned inside its brick**:
+/// `A` is `[−2, 2]³` bored about `z`, `B` the brick
+/// `[−1.5, 1.5] × [−3, 3] × [−1.5, 1.5]` bored along `y` turned about `x`
+/// to make `θ` with `z`, so B's bore leaves its brick through the sides.
+/// Every operation builds, both operand orders, and the re-posed twin:
+///
+/// - `∪` and `∩` are one solid with one valence-4 vertex at each node,
+///   and pass 3′ on their own records;
+/// - `A∖B` is **one solid pinched to itself at both nodes** — the pieces
+///   in B's bore join the frame round it through the bore's exits — each
+///   node two valence-2 vertices of one shell, one per cone, the pinch's
+///   two sides touching within the shell (D1: a piece that touches itself
+///   stays one solid), and it passes 3′ on its own records;
+/// - `B∖A` is four solids touching at the nodes, its 3′ the census
+///   lane's frontier alone.
+///
+/// At ε 1e-6 the 3° slant's sector side falls in the band and every
+/// operation there refuses `CurvedSectorSideUnsupported`, typed.
+///
+/// The volumes close under inclusion–exclusion (`∪ + ∩ = V_A + V_B`,
+/// `A∖B = V_A − ∩`, `B∖A = V_B − ∩`) within the certified brackets, and
+/// each sits within half a percent of its mesh's enclosed volume. The
+/// mesh is held to volume alone here: at a pinch the two cones' faces are
+/// tangent at the node, and a coarse mesh closes one chord beside it on
+/// both, an edge four triangles hold that the body has no counterpart of.
+#[test]
+fn slanted_bores_build_every_operation_one_difference_pinched_to_itself() {
+    let tol = Tol::witness();
+    let measure = |b: &topo::AtRestBody<f64>| {
+        let m = topo::mass_properties(b, tol).unwrap();
+        (m.volume, m.volume_pad)
+    };
+    let a0 = bored(
+        [(-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0)],
+        spin(&cyl(1.0, 3.0), Vec3::new(0.0, 0.0, 1.0), PHI),
+    );
+    let tilted = |deg: f64| {
+        let phi = PI / 2.0 - deg.to_radians();
+        bored(
+            [(-1.5, 1.5), (-3.0, 3.0), (-1.5, 1.5)],
+            spin(&rod_y(8.0), Vec3::new(1.0, 0.0, 0.0), phi),
+        )
+    };
+    let mut poses = Vec::new();
+    for deg in [60.0_f64, 35.0, 150.0, 12.0, 3.0] {
+        poses.push((
+            format!("{deg}°"),
+            a0.clone(),
+            tilted(deg),
+            [1.0, -1.0].map(|x| Point3::new(x, 0.0, 0.0)),
+        ));
+    }
+    let r = geom_core::Affine3::rotation_about_axis(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 2.0, 3.0).normalize(),
+        0.7,
+    );
+    let place =
+        geom_core::Affine3::from_parts(r.linear, r.translation + Vec3::new(0.3, -0.45, 0.6));
+    poses.push((
+        "35°, re-posed".to_string(),
+        repose(&a0),
+        repose(&tilted(35.0)),
+        [1.0, -1.0].map(|x| place.transform_point(Point3::new(x, 0.0, 0.0))),
+    ));
+    for (what, a, b, nodes) in poses {
+        let (a, b) = (finished("A", a, tol), finished("B", b, tol));
+        let (va, vb) = (measure(&a), measure(&b));
+        for (order, x, y, (vx, vy), self_pinched) in [
+            ("A, B", &a, &b, (va, vb), true),
+            ("B, A", &b, &a, (vb, va), false),
+        ] {
+            let cut = |op: &str| format!("{what} ({order}), {op}");
+            // At the coarse ε the shallowest slant's sector side, a
+            // second-order reading at the node's tangency, falls in the
+            // band: every operation refuses that, typed.
+            let coarse = geom_core::Band::linear(tol).unwrap().zero() >= 1e-6;
+            if coarse && what.starts_with("3°") {
+                for (op, r) in [
+                    ("∩", topo::intersect(x, y, tol)),
+                    ("∪", topo::union(x, y, tol)),
+                    ("∖", topo::subtract(x, y, tol)),
+                ] {
+                    assert!(
+                        matches!(
+                            r,
+                            Err(topo::BooleanError::CurvedSectorSideUnsupported { .. })
+                        ),
+                        "{}: the sector side's typed refusal at this ε, got {r:?}",
+                        cut(op)
+                    );
+                }
+                continue;
+            }
+            let i = built(topo::intersect(x, y, tol), nodes, &cut("∩"));
+            let u = built(topo::union(x, y, tol), nodes, &cut("∪"));
+            let d = built(topo::subtract(x, y, tol), nodes, &cut("∖"));
+            let (vi, vu, vd) = (measure(&i.body), measure(&u.body), measure(&d.body));
+            let close = |got: f64, want: f64, pad: f64, op: &str| {
+                assert!(
+                    (got - want).abs() <= pad + 1e-9,
+                    "{}: volume {got}, want {want} ± {pad}",
+                    cut(op)
+                );
+            };
+            close(vu.0 + vi.0, vx.0 + vy.0, vu.1 + vi.1 + vx.1 + vy.1, "∪ + ∩");
+            close(vd.0, vx.0 - vi.0, vd.1 + vx.1 + vi.1, "∖");
+            for (got, op) in [(&i, "∩"), (&u, "∪"), (&d, "∖")] {
+                let mesh = mesh::tessellate(&got.body, 2e-3, tol).expect("the result tessellates");
+                let meshed = mesh::validate::signed_volume(&mesh);
+                let v = measure(&got.body).0;
+                assert!(
+                    (meshed - v).abs() <= 5e-3 * v,
+                    "{}: the mesh encloses {meshed}, the body {v}",
+                    cut(op)
+                );
+            }
+            for (got, op) in [(&i, "∩"), (&u, "∪")] {
+                assert_eq!(got.solids, 1, "{}: one solid", cut(op));
+                assert_eq!(
+                    got.at_nodes,
+                    [vec![4], vec![4]],
+                    "{}: valence 4 at each node",
+                    cut(op)
+                );
+                assert!(
+                    got.three_prime.is_ok(),
+                    "{}: 3′ {:?}",
+                    cut(op),
+                    got.three_prime
+                );
+            }
+            assert_eq!(
+                d.at_nodes,
+                [vec![2, 2], vec![2, 2]],
+                "{}: each node two valence-2 vertices, one per cone",
+                cut("∖")
+            );
+            if self_pinched {
+                assert_eq!(
+                    (d.solids, d.body.shells().count()),
+                    (1, 1),
+                    "{}: one solid, one shell, pinched to itself",
+                    cut("∖")
+                );
+                assert!(
+                    d.three_prime.is_ok(),
+                    "{}: 3′ {:?}",
+                    cut("∖"),
+                    d.three_prime
+                );
+            } else {
+                assert_eq!(d.solids, 4, "{}: four solids", cut("∖"));
+                assert!(
+                    d.three_prime
+                        .as_ref()
+                        .err()
+                        .is_some_and(|errs| only_curved_within_reach(&d.body, errs)),
+                    "{}: the census lane's frontier alone: {:?}",
+                    cut("∖"),
+                    d.three_prime
+                );
+            }
+        }
+    }
+}
+
+/// **A pair that is no node's keeps its own route**: a pin of radius 0.9
+/// in a unit bore, tilted `α` about `x`, its wall nearly parallel to the
+/// bore's and never meeting it. The node pass reads every wall pair whose
+/// boxes overlap, so a reading that refuses for such a pair (here the
+/// parallelism, in band) must pre-empt nothing: at every `α` and every
+/// operation the boolean answers what its own route does — the body, or
+/// at the witness band and `α = 3e-10` the fallback extent's refusal —
+/// and never the node reading's escalation.
+#[test]
+fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
+    let tol = Tol::witness();
+    let witness = geom_core::Band::linear(tol).unwrap().zero() == 1e-9;
+    let hole = bored(
+        [(-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0)],
+        spin(&cyl(1.0, 3.0), Vec3::new(0.0, 0.0, 1.0), PHI),
+    );
+    for alpha in [0.0_f64, 1e-11, 3e-10, 3e-9] {
+        let pin = spin(
+            &spin(&cyl(0.9, 3.0), Vec3::new(0.0, 0.0, 1.0), PHI),
+            Vec3::new(1.0, 0.0, 0.0),
+            alpha,
+        );
+        let (a, b) = (
+            finished("the bore", hole.clone(), tol),
+            finished("the pin", pin, tol),
+        );
+        for (op, r) in [
+            ("∪", topo::union(&a, &b, tol)),
+            ("∩", topo::intersect(&a, &b, tol)),
+            ("bore ∖ pin", topo::subtract(&a, &b, tol)),
+            ("pin ∖ bore", topo::subtract(&b, &a, tol)),
+        ] {
+            let what = format!("α = {alpha:e}, {op}");
+            if witness && alpha == 3e-10 {
+                assert!(
+                    matches!(r, Err(topo::BooleanError::FallbackExtentUnsupported { .. })),
+                    "{what}: the fallback extent's refusal, got {r:?}"
+                );
+            } else {
+                assert!(r.is_ok(), "{what}: builds, got {r:?}");
+            }
+        }
+    }
+}

@@ -1635,9 +1635,9 @@ fn ring_struts<T: Decide>(
 /// them on A's side ([`NewVertexSide`] Above), and B's ring, minted as
 /// the pierce's ring ([`mint_ring`]), spans the same sectors In. A rod
 /// against a bore makes A's Out sectors and B's In sectors different
-/// ones, which no pierce ring pairs, and refuses. Both rings hang their struts by one tree
-/// ([`ring_struts`]), A's facing each germ with the other half of its
-/// strut from B's, as a held pierce's strut does
+/// ones, which no pierce ring pairs, and refuses. Both rings hang their
+/// struts by one tree ([`ring_struts`]), A's facing each germ with the
+/// other half of its strut from B's, as a held pierce's strut does
 /// ([`faces_holding_pierce`]). `arm` meters the germs' order.
 ///
 /// The germs ride their arcs' ellipses: `e₁`'s the split's positive
@@ -1661,21 +1661,17 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<RingOut<T>, BooleanError> {
-    let normal = match crate::face_normal::face_outward_normal_at(b, faces.1, node, band) {
-        Ok(Some(n)) => n.vec(),
-        Ok(None) => {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "a node's B face has no outward normal",
-            });
-        }
-        Err(refusal) => {
-            return Err(BooleanError::of_pierced_normal(
-                refusal,
-                Operand::B,
-                faces.1,
-            ));
+    // Each face's outward normal at the node, which it lies on.
+    let outward = |operand, body: &Body<T>, face| -> Result<Vec3<T>, BooleanError> {
+        match crate::face_normal::face_outward_normal_at(body, face, node, band) {
+            Ok(Some(n)) => Ok(n.vec()),
+            Ok(None) => Err(BooleanError::ClassificationInvariant {
+                what: "a node's face has no outward normal",
+            }),
+            Err(refusal) => Err(BooleanError::of_pierced_normal(refusal, operand, face)),
         }
     };
+    let normal = outward(Operand::B, b, faces.1)?;
     let cells = (
         faces,
         (super::Locus::InFace(faces.0), super::Locus::InFace(faces.1)),
@@ -1691,21 +1687,14 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     // wall's sense is its outward normal against the radial `node − p`,
     // which the walls, tangent at the node, are both square to: `±r`.
     let sense = |operand, body: &Body<T>, face| -> Result<bool, BooleanError> {
-        let n = match crate::face_normal::face_outward_normal_at(body, face, node, band) {
-            Ok(Some(n)) => n.vec(),
-            Ok(None) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "a node's face has no outward normal",
-                });
-            }
-            Err(refusal) => return Err(BooleanError::of_pierced_normal(refusal, operand, face)),
-        };
+        let n = outward(operand, body, face)?;
         match decide("bool_node_wall_sense", Margin::of(n.dot(radial)), band) {
             Ok(Sign::Positive) => Ok(true),
             Ok(Sign::Negative) => Ok(false),
             // The normal of a wall of radius `r` read against its own
-            // radius at the node is `±r`, which the radius guard decided
-            // definite before any section was read.
+            // radius at the node is `±r`, which the section table decided
+            // definite on this band before the ellipses were returned
+            // (`geom`'s `ellipse_minor_positive`, the minor semi-axis `r`).
             Ok(Sign::Zero) => Err(BooleanError::ClassificationInvariant {
                 what: "a node's wall reads its outward normal square to its radius",
             }),
@@ -1771,7 +1760,8 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
         Ok(Sign::Negative) => true,
         // The arcs cross square, `g₁ ⟂ g₂` in the tangent plane whose
         // normal this reads, so the margin is `±r`: definite wherever the
-        // radius guard decided the walls' radius.
+        // section table decided the ellipses' minor semi-axis `r`
+        // (`geom`'s `ellipse_minor_positive`) on this band.
         Ok(Sign::Zero) => {
             return Err(BooleanError::ClassificationInvariant {
                 what: "a node's two arcs leave it along one line",

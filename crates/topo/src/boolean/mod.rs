@@ -4217,7 +4217,7 @@ impl core::fmt::Display for BooleanError {
                          inside a face of both walls or outside one of them",
                     ),
                     NodeWhy::GermOnNode => (
-                        "where they cross at a point an edge of the other part meets",
+                        "where they cross, which an edge of the other part meets",
                         "move or turn the parts so that no edge of either part meets a wall \
                          at a crossing point",
                     ),

@@ -1633,10 +1633,9 @@ fn crossing_germs_have_their_reading<T: Decide>(
     band: Band,
 ) -> Result<(), BooleanError> {
     let wall = |body: &Body<T>, f: FaceKey| {
-        matches!(
-            body.get_face(f).and_then(|fd| body.get_surface(fd.surface)),
-            Some(geom::Surface::Cylinder { .. })
-        )
+        body.get_face(f)
+            .and_then(|fd| body.get_surface(fd.surface))
+            .is_some_and(super::node::is_wall)
     };
     let mut read = std::collections::BTreeSet::new();
     for germ in red.null_edges_of(Operand::A).flat_map(|r| r.germs) {
@@ -3655,7 +3654,33 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
         Err(geom_brep::SectionError::RadiusEscalated { radius, diag }) => {
             Err(refused(FrameError::RadiusEscalated { radius, diag }))
         }
-        _ => Ok(None),
+        // Decided: not the crossing family. The parallel-axes loci (the
+        // table's own parallelism reading the other way on this margin),
+        // unequal radii, skew axes, and a radius or minor semi-axis
+        // decided not positive.
+        Ok(
+            geom_brep::EqualCylinderSection::ParallelLines { .. }
+            | geom_brep::EqualCylinderSection::TangentLine(_)
+            | geom_brep::EqualCylinderSection::Empty,
+        )
+        | Err(
+            geom_brep::SectionError::UnequalRadii
+            | geom_brep::SectionError::RoutesToGeneralRung { .. }
+            | geom_brep::SectionError::DegenerateOperand { .. }
+            | geom_brep::SectionError::Carrier(geom::EllipseInvalid::MinorNotPositive),
+        ) => Ok(None),
+        // Refusals two cylinders read apart cannot raise: the kinds
+        // were matched above, the coaxial pose answered parallel, no
+        // torus question is asked, and no extent is handed to this pair.
+        Err(
+            geom_brep::SectionError::WrongLane { .. }
+            | geom_brep::SectionError::BeyondOperandExtent { .. }
+            | geom_brep::SectionError::CoincidentSurfaces
+            | geom_brep::SectionError::DegenerateTorus
+            | geom_brep::SectionError::Spiric(_),
+        ) => Err(BooleanError::JoinDesync {
+            what: "two cylinder walls read apart refused as no cylinder pair can",
+        }),
     }
 }
 

@@ -70,9 +70,10 @@ pub(super) fn is_wall<T: Decide>(s: &geom::Surface<T>) -> bool {
 ///
 /// [`BooleanError::NodeUnbuilt`] for a node on the boundary of a face
 /// that holds it, or that a face's trim cannot place, unless the other
-/// face holds it definitely outside; the reading's refusals, so that a
-/// pair whose nodes cannot be read is never skipped; the containment
-/// door's refusals; [`super::vtxfac::mint_node`]'s.
+/// face holds it definitely outside; the containment door's refusals;
+/// [`super::vtxfac::mint_node`]'s. A pair whose reading refuses is
+/// skipped here, not silently: a germ riding one of its ellipses refuses
+/// the reading's refusal at the join's guard.
 pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
     (a, b): (&mut Body<T>, &mut Body<T>),
     (a_operand, b_operand): (&Body<T>, &Body<T>),
@@ -82,8 +83,13 @@ pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<Vec<super::vtxfac::RingOut<T>>, BooleanError> {
     let mut out = Vec::new();
     for &(fa, fb) in walls {
-        let Some(section) =
-            super::join::crossing_cylinder_reading((a_operand, fa), (b_operand, fb), band)?
+        // A refused reading mints no node here and pre-empts nothing: the
+        // pair keeps the route its germs take, and a germ that rides an
+        // ellipse of it reads it again before the join and refuses there
+        // with this refusal (`join::crossing_germs_have_their_reading`),
+        // so no node of a pair the boolean builds goes unminted.
+        let Ok(Some(section)) =
+            super::join::crossing_cylinder_reading((a_operand, fa), (b_operand, fb), band)
         else {
             continue;
         };
