@@ -176,7 +176,7 @@ pub(crate) fn read_sections<T: Decide>(
         error: offset.value.error + skew(offset.normal, plane, at),
     }
     .quotient(sine);
-    if resolved(VERTEX_SECTION_RESOLUTION, reading.error, band).is_ok() {
+    if crate::validate::resolved(VERTEX_SECTION_RESOLUTION, reading.error, band).is_ok() {
         return decide_reported(VERTEX_SECTION_SIDE, Margin::of(reading.value), band)
             .map_err(VertexRefusal::Undecided);
     }
@@ -187,32 +187,6 @@ pub(crate) fn read_sections<T: Decide>(
     match decide_reported(VERTEX_SECTION_CLEAR, Margin::of(inward), band) {
         Ok(off) if off.sign != Sign::Zero => Ok(off),
         _ => Ok(on_plane),
-    }
-}
-
-/// **Whether a reading's own rounding leaves it the input's**: the
-/// rounding, `K` times over, decided Zero under `name`, so it lies within
-/// the `ε/K` share of the band that K's noise headroom presumes
-/// (DESIGN.md Q1). An in-band reading resolved so is the input's, and
-/// escalates with its lever; past it, the rounding can account for the
-/// reading, and no lever is offered. The one rule every reading the
-/// split and the join type as the input's is admitted by.
-///
-/// # Errors
-///
-/// The rounding `K` times over, as the band read it, where it is past
-/// that share.
-pub(crate) fn resolved<T: Decide>(
-    name: &'static str,
-    rounding: T,
-    band: Band,
-) -> Result<(), geom_core::MarginDiag> {
-    let k = T::from_f64(band.escalate() / band.zero());
-    match decide_reported(name, Margin::levered(k, rounding), band) {
-        Ok(Decided {
-            sign: Sign::Zero, ..
-        }) => Ok(()),
-        Ok(Decided { margin, .. }) | Err(Indeterminate { margin, .. }) => Err(margin),
     }
 }
 

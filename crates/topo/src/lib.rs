@@ -1016,11 +1016,11 @@ pub use splitting::{
     ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation, KnifeEdge, KnifeEdgeSite,
     LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
     PointInLoopError, Section, SectionEdge, SectionEndReading, SectionError, SectionGermFault,
-    SectionGermReading, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading,
-    SplitContacts, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
-    SplitReduceError, SplitReduction, SplitResult, TangencyReadings, Uncrossable,
-    UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
-    vertex_sides,
+    SectionGermReading, SectionPinMiss, SectionPolygon, SectionRegion, SectorEntry,
+    SectorEntryKind, SectorReading, SplitContacts, SplitError, SplitFinishError, SplitJoinError,
+    SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, TangencyReadings,
+    Uncrossable, UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split,
+    split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{

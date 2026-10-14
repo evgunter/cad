@@ -1757,9 +1757,22 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 "SectionUnresolved",
                 J::SectionUnresolved {
                     face,
-                    check: geom_brep::CertCheck::EndpointStart,
-                    diag: diag(),
-                    resolution: geom_core::MarginDiag::value(4.6e-9),
+                    miss: topo::SectionPinMiss::Undecided {
+                        check: geom_brep::CertCheck::EndpointStart,
+                        diag: diag(),
+                        resolution: geom_core::MarginDiag::value(4.6e-9),
+                    },
+                },
+            ),
+            (
+                "SectionUnresolved(Past)",
+                J::SectionUnresolved {
+                    face,
+                    miss: topo::SectionPinMiss::Past {
+                        check: geom_brep::CertCheck::EndpointEnd,
+                        sample: 8,
+                        margin: geom_core::MarginDiag::value(3.5e-10),
+                    },
                 },
             ),
             // The two section refusals a plane-inclusive pair can reach

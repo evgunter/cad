@@ -7708,9 +7708,11 @@ mod of_join_rows {
         assert!(joins(end(SectionEndReading::SquareToAxis)));
         assert!(joins(SplitJoinError::SectionUnresolved {
             face,
-            check: geom_brep::CertCheck::EndpointEnd,
-            diag: diag(),
-            resolution: MarginDiag::value(2e-9),
+            miss: crate::chord_join::SectionPinMiss::Undecided {
+                check: geom_brep::CertCheck::EndpointEnd,
+                diag: diag(),
+                resolution: MarginDiag::value(2e-9),
+            },
         }));
     }
 }

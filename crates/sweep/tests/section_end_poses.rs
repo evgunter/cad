@@ -32,7 +32,7 @@
 use geom_brep::CertCheck;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use topo::splitting::{SplitError, split};
-use topo::{AtRestBody, Body, BooleanError, SectionEndReading, SplitJoinError};
+use topo::{AtRestBody, Body, BooleanError, SectionEndReading, SectionPinMiss, SplitJoinError};
 
 fn finished(body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
     AtRestBody::validate(body, tol).expect("a valid operand")
@@ -316,22 +316,40 @@ fn axial_split(
     split(cyl, &plane, tol)
 }
 
-/// The words a section's unresolved end pin ends in: its cause, then
-/// D4 ¶1 (i)'s last resort, and no lever.
-const UNRESOLVED: &str =
-    "The section curve's own rounding over this edge can account for this miss.";
+/// Planes `θ` = 1e-6 … 1e-5 off the axis, spelled as [`AXIAL`]: at
+/// ε = 1e-12 each misses a chord's end past the band, by less than the
+/// carrier resolves it to.
+const AXIAL_PAST: [(f64, u8, f64, f64); 8] = [
+    (0.3, 0, 3e-6, 0.5),
+    (0.3, 3, 1e-6, 0.5),
+    (0.3, 7, 3e-6, 0.5),
+    (0.7, 1, 1e-6, 0.3),
+    (0.7, 4, 3e-6, 0.3),
+    (0.7, 7, 1e-5, 0.3),
+    (0.95, 1, 1e-6, 0.3),
+    (0.95, 4, 1e-6, 0.3),
+];
 
-/// **The section's own rounding is never offered as the input's.** At
-/// every ε row, no plane nearly along the axis refuses as a reading of
-/// the input; at ε = 1e-12 each refuses with an end pin on a carrier
-/// that cannot resolve it, a kernel limitation in exactly its words: no
-/// lever and no defect.
+/// The cause an in-band end pin on an unresolved carrier states, then
+/// D4 ¶1 (i)'s last resort, and no lever.
+const UNRESOLVED: &str = "The section curve's own rounding over this edge is too coarse to read this miss as the model's.";
+
+/// The cause a definite end miss within the carrier's resolution states.
+const WITHIN: &str = "The section curve's own rounding over this edge can account for this miss.";
+
+/// **The section's own rounding is never offered as the input's, nor
+/// called a defect.** At every ε row, no plane nearly along the axis
+/// refuses as a reading of the input. At ε = 1e-12 each [`AXIAL`] pose
+/// refuses with an in-band end pin on a carrier that cannot resolve it,
+/// and each [`AXIAL_PAST`] pose with a definite end miss the carrier's
+/// rounding covers: each a kernel limitation, in exactly its words.
 #[test]
 fn a_section_ends_own_rounding_is_a_kernel_limitation() {
     let tol = Tol::witness();
     let cyl = cylinder(tol);
     let mut wrong = Vec::new();
-    for pose in AXIAL {
+    let limit = geom_core::KERNEL_LIMIT_RECOURSE;
+    for pose in AXIAL.into_iter().chain(AXIAL_PAST) {
         let got = axial_split(&cyl, pose, tol);
         if (tol.eps() - 1e-12).abs() > 1e-15 {
             if let Err(SplitError::Join(e @ SplitJoinError::SectionEndEscalated { .. })) = got {
@@ -339,25 +357,192 @@ fn a_section_ends_own_rounding_is_a_kernel_limitation() {
             }
             continue;
         }
-        match &got {
+        let past = AXIAL_PAST.contains(&pose);
+        let want = match &got {
+            Err(SplitError::Join(SplitJoinError::SectionUnresolved {
+                miss:
+                    SectionPinMiss::Undecided {
+                        check: CertCheck::EndpointStart | CertCheck::EndpointEnd,
+                        diag,
+                        ..
+                    },
+                ..
+            })) if !past => Some(
+                diag.undecided(
+                    "whether a section curve's end meets its vertex",
+                    format!("{UNRESOLVED} {limit}"),
+                )
+                .to_string(),
+            ),
+            Err(SplitError::Join(SplitJoinError::SectionUnresolved {
+                miss:
+                    SectionPinMiss::Past {
+                        check: check @ (CertCheck::EndpointStart | CertCheck::EndpointEnd),
+                        sample,
+                        margin,
+                    },
+                ..
+            })) if past => Some(format!(
+                "a section curve's end misses its vertex: {check} at sample {sample} is \
+                 {margin:e}, definitely past the tolerance. {WITHIN} {limit}"
+            )),
+            _ => None,
+        };
+        match (want, &got) {
+            (Some(want), Err(SplitError::Join(e))) if e.to_string() == want => {}
+            (_, got) => wrong.push(format!("{pose:?}: {:?}", got.as_ref().err())),
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// **Where the part sits does not move the reading.** The seam vertex
+/// `ε` off a plane tilted `1e-2` off square, on the unit cylinder moved
+/// `x0` along `x`: at ε = 1e-12, `x0` = 0, 30 m and 1 km, and at
+/// ε = 1e-9, 30 km, each refuses as the vertex on the plane, with its
+/// lever, and the lever builds.
+#[test]
+fn a_section_end_reads_the_same_wherever_the_part_sits() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let at: &[f64] = if (eps - 1e-12).abs() <= 1e-15 {
+        &[0.0, 30.0, 1e3]
+    } else if (eps - 1e-9).abs() <= 1e-12 {
+        &[3e4]
+    } else {
+        println!("SKIPPED at this ε: the rows are ε = 1e-12 and 1e-9");
+        return;
+    };
+    let t = if (eps - 1e-12).abs() <= 1e-15 {
+        1e-2
+    } else {
+        1e-3
+    };
+    let mut wrong = Vec::new();
+    for &x0 in at {
+        let cyl = finished(
+            sweep::test_support::prism(
+                vec![
+                    (Point2::new(x0 + 1.0, 0.0), 1.0),
+                    (Point2::new(x0 - 1.0, 0.0), 1.0),
+                ],
+                1.0,
+                tol,
+            ),
+            tol,
+        );
+        let cut = |d: f64| {
+            let normal = Vec3::new(t, 0.0, 1.0);
+            let plane = topo::test_support::split_plane(
+                Point3::new(x0 + 1.0, 0.0, d),
+                normal / normal.norm(),
+                tol,
+            );
+            split(&cyl, &plane, tol)
+        };
+        match cut(eps) {
             Err(SplitError::Join(
-                e @ SplitJoinError::SectionUnresolved {
-                    check: CertCheck::EndpointStart | CertCheck::EndpointEnd,
-                    diag,
+                e @ SplitJoinError::SectionEndEscalated {
+                    reading: SectionEndReading::OnPlane,
                     ..
                 },
-            )) => {
-                let want = diag
-                    .undecided(
-                        "whether a section curve's end meets its vertex",
-                        format!("{UNRESOLVED} {}", geom_core::KERNEL_LIMIT_RECOURSE),
-                    )
-                    .to_string();
-                if e.to_string() != want {
-                    wrong.push(format!("{pose:?}: reads otherwise: {e}"));
+            )) if e.to_string().ends_with(ON_PLANE_LEVER) => {}
+            other => wrong.push(format!("x0 {x0}: {:?}", other.err())),
+        }
+        for d in [0.0, CLEARLY_OFF * eps, -CLEARLY_OFF * eps] {
+            if let Err(e) = cut(d) {
+                wrong.push(format!("x0 {x0} moved to d{d:e}: {e:?}"));
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// `(ε, h)`: the ring torus `R = 2`, `r = 0.5` about `y` against a block
+/// whose face `y = h` is turned `ε/(R + r)` about `z`, read square to the
+/// axis, refuses at its row.
+const TORUS_SQUARE: [(f64, f64); 5] = [
+    (1e-9, 0.0),
+    (1e-9, 0.2),
+    (1e-6, 0.0),
+    (1e-6, 0.2),
+    (1e-12, 0.2),
+];
+
+/// **A torus cut square to its axis is read square.** At each ε row the
+/// concentric circles the table stands in for the face refuse in every
+/// op and order as [`SectionEndReading::SquareToAxis`], with its
+/// question and lever. The face moved square builds; turned clearly off
+/// square it cuts the spiric quartic, which the kernel does not build
+/// yet (`GermSectionSpiric`).
+#[test]
+fn a_torus_section_read_square_refuses_as_the_inputs_and_its_lever_builds() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let torus = finished(
+        sweep::test_support::revolved_about_y(
+            vec![(Point2::new(2.0, -0.5), 1.0), (Point2::new(2.0, 0.5), 1.0)],
+            sweep::Revolution::Full,
+            tol,
+        ),
+        tol,
+    );
+    let block = |h: f64, t: f64| {
+        let rect = [(-4.0, -4.0), (4.0, -4.0), (4.0, h), (-4.0, h)]
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
+            .to_vec();
+        let upright = sweep::test_support::prism_at(rect, -4.0, 8.0, tol);
+        let turned = topo::transform_rigid(
+            &upright,
+            &geom_core::test_support::rigid(
+                &Affine3::rotation_about_axis(Point3::new(0.0, h, 0.0), Vec3::unit_z(), t),
+                tol,
+            ),
+            tol,
+        )
+        .unwrap();
+        finished(turned, tol)
+    };
+    let mut wrong = Vec::new();
+    for (_, h) in rows(&TORUS_SQUARE, |r| r.0, eps) {
+        let t = eps / 2.5;
+        let other = block(h, t);
+        for (order, a, b) in [("ab", &torus, &other), ("ba", &other, &torus)] {
+            for (op, f) in OPS {
+                let tag = format!("h{h} {order} {op}");
+                match f(a, b, tol) {
+                    Err(e @ BooleanError::Join(_))
+                        if matches!(
+                            &e,
+                            BooleanError::Join(j) if matches!(j.error(),
+                            SplitJoinError::SectionEndEscalated {
+                                reading: SectionEndReading::SquareToAxis,
+                                ..
+                            })
+                        ) =>
+                    {
+                        let text = e.to_string();
+                        if !text.contains(SQUARE) || !text.ends_with(SQUARE_LEVER) {
+                            wrong.push(format!("{tag}: reads otherwise: {text}"));
+                        }
+                    }
+                    got => wrong.push(format!("{tag}: got {:?}", got.err())),
                 }
             }
-            other => wrong.push(format!("{pose:?}: {:?}", other.as_ref().err())),
+        }
+        for t in [0.0, CLEARLY_TILTED, -CLEARLY_TILTED] {
+            let other = block(h, t);
+            for (order, a, b) in [("ab", &torus, &other), ("ba", &other, &torus)] {
+                for (op, f) in OPS {
+                    match (t == 0.0, f(a, b, tol)) {
+                        (true, Ok(_)) | (false, Err(BooleanError::GermSectionSpiric { .. })) => {}
+                        (_, got) => wrong.push(format!(
+                            "h{h} moved to t{t:e} {order} {op}: {:?}",
+                            got.err()
+                        )),
+                    }
+                }
+            }
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));

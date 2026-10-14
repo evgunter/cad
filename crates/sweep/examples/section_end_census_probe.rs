@@ -36,18 +36,26 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
+fn unresolved(miss: topo::SectionPinMiss) -> String {
+    match miss {
+        topo::SectionPinMiss::Undecided {
+            check,
+            diag,
+            resolution,
+        } => format!("UNRESOLVED {check:?} {:?} {resolution:?}", diag.margin),
+        topo::SectionPinMiss::Past { check, margin, .. } => {
+            format!("UNRESOLVED-PAST {check:?} {margin:?}")
+        }
+    }
+}
+
 fn outcome(r: Result<topo::SplitResult<f64>, SplitError>) -> String {
     match r {
         Ok(_) => "ok".to_owned(),
         Err(SplitError::Join(SplitJoinError::SectionEndEscalated { reading, diag, .. })) => {
             format!("END {reading:?} {:?}", diag.margin)
         }
-        Err(SplitError::Join(SplitJoinError::SectionUnresolved {
-            check,
-            diag,
-            resolution,
-            ..
-        })) => format!("UNRESOLVED {check:?} {:?} {resolution:?}", diag.margin),
+        Err(SplitError::Join(SplitJoinError::SectionUnresolved { miss, .. })) => unresolved(miss),
         Err(SplitError::Join(SplitJoinError::Euler(EulerOpError::Certification { error }))) => {
             match error {
                 geom_brep::CertifyError::Escalated { check, cause, .. } => {
@@ -110,12 +118,7 @@ fn boolean(tag: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) {
                     SplitJoinError::SectionEndEscalated { reading, diag, .. } => {
                         format!("END {reading:?} {:?}", diag.margin)
                     }
-                    SplitJoinError::SectionUnresolved {
-                        check,
-                        diag,
-                        resolution,
-                        ..
-                    } => format!("UNRESOLVED {check:?} {:?} {resolution:?}", diag.margin),
+                    SplitJoinError::SectionUnresolved { miss, .. } => unresolved(*miss),
                     other => {
                         let text = format!("{other:?}");
                         format!("REFUSED join {}", text.chars().take(90).collect::<String>())
@@ -273,6 +276,56 @@ fn main() {
                     &format!("seamvertex a{a} d{d:e}"),
                     &cyl,
                     &rotated(&block, [1.0, 0.0, d], a),
+                );
+            }
+        }
+    }
+    if wants("torus") {
+        // The ring torus `R = 2`, `r = 0.5` about `y`, against a block
+        // whose one face is read square to the axis (`y = h`, turned `t`
+        // about `z`) or through it (`z = d`, turned `t` about `x`): the
+        // concentric and the meridian circles the table stands in.
+        let torus = finished(sweep::test_support::revolved_about_y(
+            vec![(Point2::new(2.0, -0.5), 1.0), (Point2::new(2.0, 0.5), 1.0)],
+            sweep::Revolution::Full,
+            tol(),
+        ));
+        let rect = |x0: f64, y0: f64, x1: f64, y1: f64| {
+            [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+                .map(|(x, y)| (Point2::new(x, y), 0.0))
+                .to_vec()
+        };
+        let turned = |body: Body<f64>, about: Point3<f64>, axis: Vec3<f64>, t: f64| {
+            finished(
+                topo::transform_rigid(
+                    &body,
+                    &geom_core::test_support::rigid(
+                        &Affine3::rotation_about_axis(about, axis, t),
+                        tol(),
+                    ),
+                    tol(),
+                )
+                .unwrap(),
+            )
+        };
+        let lever = e / 2.5;
+        for t in [0.0, 0.5 * lever, lever, 2.0 * lever, 1e-6, 1e-2] {
+            for h in [0.0, 0.2, 0.2 + e] {
+                let block =
+                    sweep::test_support::prism_at(rect(-4.0, -4.0, 4.0, h), -4.0, 8.0, tol());
+                boolean(
+                    &format!("torus-square t{t:e} h{h:e}"),
+                    &torus,
+                    &turned(block, Point3::new(0.0, h, 0.0), Vec3::new(0.0, 0.0, 1.0), t),
+                );
+            }
+            for d in [0.0, e, 2.0 * e] {
+                let block =
+                    sweep::test_support::prism_at(rect(-4.0, -4.0, 4.0, 4.0), d - 4.0, 4.0, tol());
+                boolean(
+                    &format!("torus-through t{t:e} d{d:e}"),
+                    &torus,
+                    &turned(block, Point3::new(0.0, 0.0, d), Vec3::new(1.0, 0.0, 0.0), t),
                 );
             }
         }

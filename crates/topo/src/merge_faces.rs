@@ -733,11 +733,15 @@ pub(crate) fn edge_on_plane_refusal(diag: &Indeterminate) -> String {
 /// between vertices an earlier reading placed: its carrier's residual
 /// against a surface it lies on, or its chart image's, read in band, on a
 /// line carrier. A line is the chord between those vertices, so its miss
-/// is their offset plus a rounding, which escalating tells truly. A
-/// circle, ellipse, spiric or spline is a construction from the surfaces,
-/// whose own error can be amplified into the band (an ellipse nearly along
-/// a cylinder's axis carries its semi-major axis's rounding), so it keeps
-/// the gate's refusal, as does every other check and a definite miss.
+/// is their offset plus a few ulp of coordinates, within the share of
+/// the band K's headroom presumes (`crate::validate::resolved`'s
+/// premise). A circle, ellipse, spiric or spline is a construction from
+/// the surfaces, whose own error can be amplified into the band (an
+/// ellipse nearly along a cylinder's axis carries its semi-major axis's
+/// rounding): at these doors it keeps the gate's refusal, as does every
+/// other check and a definite miss. The join reads a section conic's
+/// pins against its carrier's resolution instead
+/// (`chord_join::section_pin_refusal`).
 pub(crate) fn edge_on_faces_reading(
     carrier: geom::CurveKind,
     refusal: &EulerOpError,
