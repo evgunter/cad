@@ -337,8 +337,7 @@ impl<T: Decide> Body<T> {
             &spec.carrier,
             (spec.param_start, spec.param_end),
             band,
-        )
-        .map_err(|diag| EulerOpError::RestCoincidenceUndecided { edge, diag })?;
+        );
         let description = geom_brep::must_carry_description(
             geom_brep::SmoothJoin {
                 surfaces: [(ka, surface(ka)), (kb, surface(kb))],

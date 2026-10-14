@@ -407,15 +407,6 @@ pub enum SplitJoinError {
         /// `None` where every station reads a corner.
         mixed: Option<geom_brep::MixedStations>,
     },
-    /// Whether a curved face and a split plane tangent to it along a
-    /// ruling lie on one surface is in band ([`crate::rest_locus`]), so
-    /// where the ruling's conventional description rests cannot be said.
-    TangentChordRestUndecided {
-        /// The curved face the ruling divides.
-        face: FaceKey,
-        /// The undecided coincidence's diagnostic.
-        diag: Indeterminate,
-    },
     /// A curved face crossed more than twice could not have its
     /// crossings paired along its section conic, or along each ruling
     /// of a two-ruling section, which is the only pairing that keeps
@@ -652,15 +643,6 @@ impl core::fmt::Display for SplitJoinError {
                 "a cut reads tangent to a curved face along a ruling but a corner at every \
                  station along it, so what that ruling is cannot be said. Recourse: \
                  {JOIN_RECOURSE}"
-            ),
-            Self::TangentChordRestUndecided { diag, .. } => write!(
-                f,
-                "{}",
-                diag.undecided(
-                    "whether a curved face and the cut tangent to it along a ruling lie on one \
-                     surface",
-                    diag.ending(JOIN_RECOURSE)
-                )
             ),
             Self::SectionCrossings { case, band, .. } => write!(
                 f,
@@ -1931,8 +1913,7 @@ fn chord_spec<T: Decide>(
                 &carrier,
                 (s1, s2),
                 band,
-            )
-            .map_err(|diag| SplitJoinError::TangentChordRestUndecided { face, diag })?;
+            );
             let description = geom_brep::must_carry_description(
                 geom_brep::SmoothJoin {
                     surfaces: [(wall_key, &wall), (plane_key, plane)],

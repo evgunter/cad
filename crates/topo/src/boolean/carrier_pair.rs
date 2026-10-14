@@ -587,21 +587,32 @@ fn chart_carrier<T: Decide>(surface: &geom::Surface<T>) -> Option<CarrierDesc<T>
 ///   where the face exists yet; a chord minted before its section face
 ///   names only the face it divides). The faces, not the edge alone:
 ///   two planes meeting smoothly over a short edge are still two
-///   surfaces where their faces spread. A coincidence decided Zero is
-///   one carrier, and incidence on both of one carrier is incidence on
-///   one, which determines nothing: the edge rests in the chart of the
-///   pair's first key. Definitely distinct carriers are the pair, and
-///   so is a kind outside the ladder's inventory (a cone, a spline),
-///   which has no coincidence to read.
+///   surfaces where their faces spread. A coincidence decided **Zero**
+///   is one carrier, and incidence on both of one carrier is incidence
+///   on one, which determines nothing: the edge rests in the chart of
+///   the pair's first key.
+/// - Definitely **distinct** carriers are the pair, and so is a kind
+///   outside the ladder's inventory (a cone, a spline), which has no
+///   coincidence to read.
+/// - A coincidence **in band**, a rung that cannot decide, or a region
+///   that does not read is the pair too, and that is an answer, not a
+///   guess (D4 forbids guessing): the pair's certificate is incidence
+///   on both surfaces, which holds whether or not they are one carrier,
+///   so the description is true under both readings and needs no
+///   decision. D2's same-surface clause covers surfaces decided one.
+///
+/// **What a reader must not do with a pair.** An `OnPair` here may lie
+/// between two near-coincident surfaces — two planes `ε` apart — whose
+/// intersection is ill-conditioned or absent. The stored carrier is the
+/// pair's defining data: no reader derives the edge's geometry from the
+/// pair's section. A door that moves or re-anchors such an edge carries
+/// or re-sections its CARRIER and re-asks the rule over it
+/// ([`geom_brep::reask_pair`]); a door that would re-derive a section
+/// from the moved surfaces refuses typed where that section does not
+/// certify.
 ///
 /// Each side's surface is `body`'s at its key, a link of the edge being
 /// described.
-///
-/// # Errors
-///
-/// The ladder's undecided reading — a coincidence in band, or a rung
-/// that could not decide — as the diagnostic that stopped it, or a
-/// region that does not read (`"rest_locus_extent"`).
 ///
 /// # Panics
 ///
@@ -613,10 +624,10 @@ pub fn rest_locus<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     band: Band,
-) -> Result<geom_brep::RestLocus, geom_core::Indeterminate> {
+) -> geom_brep::RestLocus {
     let [(ka, fa), (kb, fb)] = sides;
     if ka == kb {
-        return Ok(geom_brep::RestLocus::Chart(ka));
+        return geom_brep::RestLocus::Chart(ka);
     }
     let pair = geom_brep::SurfacePair::new(ka, kb);
     let surface = |k: crate::SurfaceKey| {
@@ -624,7 +635,7 @@ pub fn rest_locus<T: Decide>(
             .unwrap_or_else(|| unreachable!("{k:?} is a surface the described edge lies on"))
     };
     let (Some(ca), Some(cb)) = (chart_carrier(surface(ka)), chart_carrier(surface(kb))) else {
-        return Ok(geom_brep::RestLocus::Pair(pair));
+        return geom_brep::RestLocus::Pair(pair);
     };
     let on = |f: Option<FaceKey>| {
         f.map_or_else(Vec::new, |f| {
@@ -642,12 +653,7 @@ pub fn rest_locus<T: Decide>(
         .chain(on_a.iter().chain(&on_b).map(|&p| ExtentBall::point(p)))
         .collect();
     let Some(reach) = ExtentBall::enclosing(&parts).and_then(ExtentBall::readable) else {
-        return Err(geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::INVALID,
-            band,
-            predicate: Some("rest_locus_extent"),
-            terminal_sliver: false,
-        });
+        return geom_brep::RestLocus::Pair(pair);
     };
     let extent = super::ConsumedExtent {
         reach,
@@ -655,14 +661,8 @@ pub fn rest_locus<T: Decide>(
     };
     match super::carrier_eq::carrier_eq(&ca, &cb, PlaneIdentity::NONE, &extent, band) {
         Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite) => {
-            Ok(geom_brep::RestLocus::Chart(pair.keys()[0]))
+            geom_brep::RestLocus::Chart(pair.keys()[0])
         }
-        Ok(CarrierRelation::Distinct) => Ok(geom_brep::RestLocus::Pair(pair)),
-        Err(
-            CarrierEqError::Escalated { diag, .. }
-            | CarrierEqError::Unsettled { diag }
-            | CarrierEqError::Contradicted { diag, .. },
-        ) => Err(diag),
-        Err(CarrierEqError::Undecided { coincidence, .. }) => Err(coincidence.reported()),
+        Ok(CarrierRelation::Distinct) | Err(_) => geom_brep::RestLocus::Pair(pair),
     }
 }

@@ -805,11 +805,6 @@ fn require_chord_adjacent<T: Real>(
     require_description_adjacent(None, &spec.description, [Slot::Kept(old), after])
 }
 
-/// The lever of an edge at rest whose two faces' surfaces read in band
-/// of one carrier ([`EulerOpError::RestCoincidenceUndecided`]).
-pub(crate) const REST_COINCIDENCE_LEVER: &str =
-    "move the geometry so the edge's two faces lie clearly on one surface or clearly on two";
-
 /// The lever of an edge at rest whose faces' join reads in band or mixed
 /// along it ([`EulerOpError::RestJoinUndecided`],
 /// [`EulerOpError::RestJoinMixed`]).
@@ -1293,15 +1288,6 @@ pub enum EulerOpError {
         /// `None` where every station reads a corner.
         mixed: Option<geom_brep::MixedStations>,
     },
-    /// [`Body::describe_at_rest`]: whether the edge's two faces lie on
-    /// one surface — two records of one carrier
-    /// ([`crate::rest_locus`]) — is in band.
-    RestCoincidenceUndecided {
-        /// The edge being described.
-        edge: EdgeKey,
-        /// The undecided coincidence's diagnostic.
-        diag: geom_core::Indeterminate,
-    },
     /// [`Body::describe_at_rest`] of an edge between two distinct
     /// surfaces: a station of the must-carry rule over it is in band
     /// ([`geom_brep::reask_pair`]), certifiable as neither the pair nor
@@ -1660,12 +1646,6 @@ impl EulerOpError {
                  Recourse: {}",
                 crate::split::SMOOTH_PIECE_LEVER
             ),
-            Self::RestCoincidenceUndecided { diag, .. } => diag
-                .undecided(
-                    "whether an edge's two faces lie on one surface or on two",
-                    diag.ending(REST_COINCIDENCE_LEVER),
-                )
-                .to_string(),
             Self::RestJoinUndecided { diag, .. } => diag
                 .undecided(
                     "whether the faces along an edge at rest meet smoothly or at a corner",
@@ -1982,15 +1962,6 @@ pub(crate) fn every_euler_op_error_once()
                 transverse: 3,
                 smooth: 4,
             }),
-        },
-        EulerOpError::RestCoincidenceUndecided {
-            edge: ek,
-            diag: geom_core::Indeterminate {
-                margin: geom_core::MarginDiag::value(5e-9),
-                band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("carrier_cyl_radius"),
-                terminal_sliver: false,
-            },
         },
         EulerOpError::RestJoinUndecided {
             edge: ek,

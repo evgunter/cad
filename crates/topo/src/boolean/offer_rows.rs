@@ -2783,7 +2783,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
-    ("ops.rs", "of_describe", "Coincide::Carriers", 1),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
     ("ops.rs", "escalated", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),

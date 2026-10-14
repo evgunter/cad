@@ -5425,11 +5425,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             &curve,
             (t0, t1),
             band,
-        )
-        .map_err(|_| BlendError::SurgeryInvariant {
-            at: EntityId::Edge(edge),
-            detail: "a contact edge's fillet and support read in band of one carrier",
-        })?;
+        );
         must_carry_description(
             SmoothJoin {
                 surfaces: [(s1, surf1), (s2, surf2)],

@@ -607,14 +607,6 @@ fn adopt_edges(
                     (spec.t0, spec.t1),
                     band,
                 )
-                .map_err(|diag| StepImportError::Assembly {
-                    id: edge_id,
-                    source: topo::EulerOpError::RestCoincidenceUndecided {
-                        edge: edge_key,
-                        diag,
-                    },
-                    file,
-                })?
                 .spec()
             };
             candidates.push((

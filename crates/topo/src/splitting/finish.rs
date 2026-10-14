@@ -1169,13 +1169,7 @@ fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         &spec.carrier,
                         (spec.param_start, spec.param_end),
                         band,
-                    )
-                    .map_err(|diag| {
-                        SplitFinishError::Euler(EulerOpError::RestCoincidenceUndecided {
-                            edge,
-                            diag,
-                        })
-                    })?;
+                    );
                     let intrinsic =
                         matches!(demanded, geom_brep::MustCarryDescription::Intrinsic(_));
                     let coherent = existing.as_ref().is_some_and(|c| match *c.description() {

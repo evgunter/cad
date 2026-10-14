@@ -1798,10 +1798,6 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "TangentChordRestUndecided",
-                J::TangentChordRestUndecided { face, diag: diag() },
-            ),
-            (
                 "SectionCrossings",
                 J::SectionCrossings {
                     face,

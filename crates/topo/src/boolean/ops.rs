@@ -2536,11 +2536,6 @@ pub(super) fn of_describe(refusal: DescribeRefusal) -> BooleanError {
             diag,
         },
         DescribeRefusal::Mixed { edge, stations } => BooleanError::MixedSeam { edge, stations },
-        DescribeRefusal::Coincidence { diag, .. } => BooleanError::coincidence(
-            super::Coincide::Carriers,
-            super::DeclarationRead::Moot,
-            diag,
-        ),
     }
 }
 
@@ -2721,8 +2716,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         c.carrier(),
                         c.params(),
                         band,
-                    )
-                    .map_err(|diag| DescribeRefusal::Coincidence { edge, diag })?;
+                    );
                     let failure = match rest {
                         geom_brep::RestLocus::Chart(_) => EdgeDescribeFailure::Chart,
                         geom_brep::RestLocus::Pair(_) => EdgeDescribeFailure::Pair,

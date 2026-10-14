@@ -1280,11 +1280,10 @@ impl<T: Decide> Body<T> {
     /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge` does not
     /// resolve; [`EulerOpError::NullScaffoldCurve`] on an edge whose curve
     /// carries no certified geometry to re-state;
-    /// [`EulerOpError::RestCoincidenceUndecided`] where whether its faces
-    /// lie on one surface is in band; [`EulerOpError::RestJoinUndecided`]
-    /// and [`EulerOpError::RestJoinMixed`] where the rule over a pair is
-    /// in band or mixed; and whatever [`Body::set_edge_curve`] raises on
-    /// the re-attachment.
+    /// [`EulerOpError::RestJoinUndecided`] and
+    /// [`EulerOpError::RestJoinMixed`] where the rule over a pair is in
+    /// band or mixed; and whatever [`Body::set_edge_curve`] raises on the
+    /// re-attachment.
     pub fn describe_at_rest(&mut self, edge: EdgeKey, tol: Tol) -> Result<(), EulerOpError>
     where
         T: crate::props::AtRestPolicy,
@@ -1310,8 +1309,7 @@ impl<T: Decide> Body<T> {
             &restated.carrier,
             (restated.param_start, restated.param_end),
             band,
-        )
-        .map_err(|diag| EulerOpError::RestCoincidenceUndecided { edge, diag })?;
+        );
         let spec = match (&restated.description, rest) {
             (&EdgeDescriptionSpec::Scaffold(mc), geom_brep::RestLocus::Pair(pair)) => {
                 let description = self
