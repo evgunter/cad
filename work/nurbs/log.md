@@ -1486,3 +1486,8 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - 2026-10-14 10:24Z — **Correction:** I wrote at 08:11 that #5104's TIER=all run had passed the slow set. It did not: at TIER=all the slow-set step is **skipped**, because its seed list is empty. The slow-set evidence for lto=off is the lane's local three-ε run, which matches main's nightly reds exactly.
   - **Finding:** a ci.yml diff runs every row except the slow set. Noted for CIW.
   - In the same hosted job, 1e-6 and 1e-12 ran the whole suite at 13972/13972. So the default-ε red points to a seed-varying row, not to lto=off.
+- 2026-10-14 11:27Z — **#5104 merged** (2e59df73, STYLE). The CI test and cache-prime builds now run with `lto = "off"`. Local saving: −5 min build, −3.75 min job. The hosted saving is to be measured by the build-time lane.
+  - The CIW items (TIER=all skips the slow set; a FAIL line past the 5000-line log tail can't be named, re-run returns 403) are going in via #5120.
+  - **#5059 FULL review: approve with fixes.** **M1 (pre-existing on main, the subject of the closed ssiarith item):** `rect_box`'s rounded `um ± hu` can miss the window's own corner. Witness: z = 1000x − 500 on u ∈ [½, ½ + 3·2⁻⁵³]; random search finds 15,856 of 400k corners missed on a slope-1000 line. Build C fixes it in #5059 with outward `[u0 − um, u1 − um]` plus a red-under-mutant row.
+  - `compensated.rs` was re-derived against JMP17 with no miss, and 2500 adversarial cells were checked against exact rationals. The midpoint costs +22% per `rect_box`.
+  - **#5123 (step 3)** is in FULL review. **#5114 (exact-scale)** waits on CI.
