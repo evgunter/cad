@@ -84,10 +84,17 @@ so its walls are cited, as in the other 17 orders and as N2 reads it.
 
 **Pinned.** `crates/editor-core/tests/union_pinch_member_order.rs`,
 `a_prism_bridging_two_wedges_is_named_alike_in_every_member_order_that_builds`
-(slow set). With the plate, 18 of the 24 orders build. The 6 that fold
-the bridge after the plate refuse `CrossingsAlongAContactLine`
+(slow set; its fast subset
+`a_bridge_folded_after_both_wedges_seams_their_walls` runs per PR). With
+the plate, 18 of the 24 orders build. The 6 that fold the bridge last
+refuse `CrossingsAlongAContactLine`
 (`work/tang/an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt.md`),
 and the test says so if that ever changes. Alone, all 6 orders build.
+Two bridges filling the gap over two stretches of the line (z 0.2–0.4,
+and 0.6–1.5 or 0.6–1.81) build and name alike in all 24 orders: once
+one bridge is folded, the walls share a rim along its stretch, and the
+other's chord off that rim is their seam too, where it used to refuse
+`Emission` in 12 orders.
 Every order that builds is tier-3 valid, holds one body, and publishes
 one table, compared row by row by where each row's entities stand. The
 edge between the walls on the line is one `Seam` of `a`'s and `b`'s
