@@ -1098,7 +1098,11 @@ refused one the band does not decide positive. No door was found to
 mint one (profile, STEP, fillet each refuse it at the band), but the
 margin chain does not exclude it, so `face_box_rule` now falls back to
 the boundary hull (sound for any ruled face) where the axis is a
-direction and the lever does not decide.
+direction and the lever does not decide. The review's fix pass splices
+the lever's escalation superseded on that fallback, clips the slab to the
+hull on every coordinate (one home for the ruled containment), and
+filed `cleave/separating-axis-reads-swallow-their-unit-escalations`.
+
 ## 2026-10-14 — a bar inside a concave band's fill is absorbed (PR 5099, step 2)
 
 A bar between two end walls wholly inside the material a concave band's
