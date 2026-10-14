@@ -570,3 +570,70 @@ fn a_thin_ellipse_in_the_circles_plane_crosses_it_there() {
         }
     }
 }
+
+/// **A touch past one span whose in-band run reaches into both meets at
+/// the span's end** (the oracle's counterexample, seed 3 at effort 40,
+/// draw 6159). Two circles in one plane `5·10⁻⁸` apart, their radii's gap
+/// as near: the touch at `−π/2` lies `0.0026` rad past the second span's
+/// end, but round it they stay within `2·10⁻¹⁰` of each other for a fifth
+/// of a radian, so the second span's end meets the first.
+#[test]
+fn a_touch_past_a_span_meets_at_its_end() {
+    let axis = [0.6740110957474658, -0.7358278013826933, 0.06531837047578558];
+    let u = Vec3::new(0.7387212213069966, 0.6713711321490372, -0.05959664510372472);
+    let mk = |c: [f64; 3], radius: f64| Curve3::Circle {
+        center: Point3::from_array(c),
+        axis: Vec3::from_array(axis),
+        radius,
+        u_ref: u,
+    };
+    let a = mk(
+        [0.8401501109250811, 0.9273190696785121, 1.472118831061076],
+        2.2967052369001464,
+    );
+    let b = mk(
+        [0.8401501109250811, 0.9273190741477213, 1.4721188814078372],
+        2.296705287626492,
+    );
+    let (sa, sb) = (
+        (1.4046786871774843, 5.893025302260511),
+        (0.40467868717748434, 4.709841330271556),
+    );
+    let got = meets((&a, sa), (&b, sb));
+    let m = got.unwrap_or_else(|e| panic!("{e:?}"));
+    assert!(
+        m.points
+            .iter()
+            .any(|p| matches!((p.on_a, p.on_b), (Hit::On { .. }, Hit::End))),
+        "the second span's end meets the first: {m:?}"
+    );
+    on_both("past a span", &m, &a, &b);
+}
+
+/// **Two near-concentric circles in slightly slanted planes read as one
+/// reading whichever arm holds them**: as two circles, and with the
+/// second stored as an ellipse of equal semi-axes, the radii's gap and
+/// the slant out of one plane are charged alike, so both read one curve
+/// or both refuse.
+#[test]
+fn a_circle_reads_as_an_equal_ellipse_does() {
+    let a = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    for (gap, tilt) in [(2e-10, 1e-10), (7e-10, 5e-10), (3e-10, 6e-10)] {
+        let (s, c) = f64::sin_cos(tilt);
+        let r = 1.0 + gap;
+        let b = circle([0.0, 0.0, 0.0], [0.0, -s, c], r);
+        let e = ellipse([0.0, 0.0, 0.0], [0.0, -s, c], [1.0, 0.0, 0.0], r, r);
+        let (sa, sb) = ((0.3, 2.9), (0.5, 3.1));
+        let shape = |got: Result<Meetings<f64>, super::MeetRefusal<f64>>| match got {
+            Ok(m) => format!("shared {:?}", m.shared),
+            Err(r) => format!("{:?}", r.fault)
+                .split('(')
+                .next()
+                .unwrap()
+                .to_owned(),
+        };
+        let as_circle = shape(meets((&a, sa), (&b, sb)));
+        let as_ellipse = shape(meets((&e, sb), (&a, sa)));
+        assert_eq!(as_circle, as_ellipse, "gap {gap:e}, tilt {tilt:e}");
+    }
+}
