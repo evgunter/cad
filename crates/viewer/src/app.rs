@@ -4027,11 +4027,27 @@ mod properties_pane_tests {
             Self::gained(&quiet, hovered)
         }
 
+        /// Where each text run reading exactly `text` was painted on a
+        /// quiet frame, in paint order.
+        fn each(&mut self, text: &str) -> Vec<egui::Pos2> {
+            self.quiet()
+                .into_iter()
+                .filter(|(run, _)| run == text)
+                .map(|(_, rect)| rect.center())
+                .collect()
+        }
+
         /// Click the one run reading `text`, then draw a frame with
         /// the pointer still on it.
         fn click(&mut self, text: &str) {
             let painted = self.frame(Vec::new());
             let at = Self::only(&painted, text);
+            self.click_at(at);
+        }
+
+        /// Click at `at`, then draw a frame with the pointer still on
+        /// it.
+        fn click_at(&mut self, at: egui::Pos2) {
             let press = |pressed| egui::Event::PointerButton {
                 pos: at,
                 button: egui::PointerButton::Primary,
@@ -4788,6 +4804,128 @@ mod properties_pane_tests {
             .map(|axis| pane.row(frame_datum(), SlotId::Origin(*axis)))
             .collect();
         assert_eq!(now, before);
+    }
+
+    /// A session over two instances of one part, and the two instance
+    /// ids in document order: placed in the world through one union
+    /// when `fused`, each placed on its own otherwise. Also the union's
+    /// id, when there is one.
+    ///
+    /// The part is never resolved: the display admission is a question
+    /// about the recipe's edges, so the rows fail to evaluate and the
+    /// tree draws them, with their checkboxes, all the same.
+    fn two_instances(
+        fused: bool,
+    ) -> (
+        crate::session::DocSession,
+        [RecipeNodeId; 2],
+        Option<RecipeNodeId>,
+    ) {
+        use pncad::document::{
+            Bodies, ContentPin, DocRef, DocumentId, Node, Placement, ProfileDoc,
+        };
+        let tol = pncad::tolerance::witness();
+        let part = DocRef {
+            id: DocumentId::derive("shown-part"),
+            pin: ContentPin::of_bytes(b"shown-part"),
+        };
+        let mut doc = ProfileDoc::empty(DocumentId::derive("shown-asm"), tol);
+        let insert = |doc: &mut ProfileDoc, node| crate::test_support::insert_into(doc, node, tol);
+        let a = insert(&mut doc, Node::instantiate_part(part));
+        let b = insert(&mut doc, Node::instantiate_part(part));
+        let union = if fused {
+            let union = insert(
+                &mut doc,
+                Node::Union {
+                    members: Bodies::Spelled(vec![a.into(), b.into()]),
+                },
+            );
+            insert(&mut doc, Node::place_in_world(union, Placement::IDENTITY));
+            Some(union)
+        } else {
+            for instance in [a, b] {
+                insert(
+                    &mut doc,
+                    Node::place_in_world(instance, Placement::IDENTITY),
+                );
+            }
+            None
+        };
+        let mut session = crate::session::DocSession::inline(doc, tol);
+        session.pump();
+        (session, [a, b], union)
+    }
+
+    /// **A fused instance's tree checkbox is drawn, cannot be flipped,
+    /// and says on hover what `SetInstanceHidden` would refuse with**
+    /// — the whole app, the real feature tree, each row read for its
+    /// own instance.
+    ///
+    /// The runtime value that makes it false is a checkbox gated on
+    /// anything weaker than the op's admission (the row's kind, which
+    /// a fused instance passes): hovered, it would say nothing, and
+    /// clicked it would push an op the session then refuses.
+    #[test]
+    fn a_fused_instances_tree_checkbox_is_disabled_with_the_refusal_it_would_get() {
+        let (session, ids, union) = two_instances(true);
+        let union = union.expect("the fused fixture has a union");
+        let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
+        let at = pane.each("shown");
+        assert_eq!(at.len(), 2, "one checkbox per instance row: {at:?}");
+        for (id, at) in ids.into_iter().zip(at) {
+            let said = pane
+                .app
+                .session
+                .instance_hidden_refusal(id)
+                .expect("SetInstanceHidden refuses a fused instance")
+                .to_string();
+            let quiet = pane.quiet();
+            assert_eq!(
+                Driven::gained(&quiet, pane.hovered(at)),
+                vec![said.clone()],
+                "the hover is the op's own sentence"
+            );
+            // Planted, not only compared with the one home: the words
+            // a reader gets, naming this row's instance.
+            let other = ids.into_iter().find(|&other| other != id).expect("two");
+            assert_eq!(
+                said,
+                format!(
+                    "InstantiatePart {}'s geometry is fused into Union {} together with \
+                     InstantiatePart {} — a display operation cannot address it separately",
+                    test_utils::refusal::tag(id.0.digest()),
+                    test_utils::refusal::tag(union.0.digest()),
+                    test_utils::refusal::tag(other.0.digest())
+                )
+            );
+            pane.click_at(at);
+            pane.quiet();
+            assert!(
+                pane.app.session.display().hidden().is_empty(),
+                "a refused checkbox hides nothing"
+            );
+            assert_eq!(status(&pane), None, "and pushes nothing the op refused");
+        }
+    }
+
+    /// **The same drive over two unfused instances: live, silent, and
+    /// the click hides its own row's instance** — the row that keeps
+    /// the one above from passing because the harness missed the
+    /// checkbox.
+    #[test]
+    fn an_addressable_instances_tree_checkbox_is_live_and_says_nothing() {
+        let (session, [a, _], _) = two_instances(false);
+        let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
+        let at = pane.each("shown");
+        assert_eq!(at.len(), 2, "one checkbox per instance row: {at:?}");
+        let quiet = pane.quiet();
+        assert!(Driven::gained(&quiet, pane.hovered(at[0])).is_empty());
+        pane.click_at(at[0]);
+        pane.quiet();
+        assert_eq!(
+            pane.app.session.display().hidden(),
+            &std::collections::BTreeSet::from([a])
+        );
     }
 
     /// Every text the app painted once its "Add feature" section is

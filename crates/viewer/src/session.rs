@@ -2146,6 +2146,22 @@ impl DocSession {
             .map(Refusal::SlotUnit)
     }
 
+    /// **What `SessionOp::SetInstanceHidden` would answer for
+    /// `instance`, or `None` where it would accept** — asked ahead of
+    /// the click by the control that pushes the op.
+    ///
+    /// It is the whole of that op's admission: its door runs
+    /// [`crate::display::display_check`] against the committed
+    /// document, and neither drag's table in `perform` refuses it. So
+    /// a row drawn from the LANDED document (the feature tree's) reads
+    /// the refusal for a node deleted, or fused by a boolean, since
+    /// the last landing.
+    pub fn instance_hidden_refusal(&self, instance: RecipeNodeId) -> Option<Refusal> {
+        crate::display::display_check(self.committed_doc(), instance)
+            .err()
+            .map(|fault| Refusal::Display(fault.into()))
+    }
+
     fn set_slot_expression(&mut self, node: RecipeNodeId, slot: SlotId, text: &str) -> OpOutcome {
         let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
             Ok(expr) => expr,
@@ -3714,6 +3730,56 @@ mod tests {
         assert!(
             session.committed_doc().ids().is_empty(),
             "neither frame landed"
+        );
+    }
+
+    /// **The hide admission is asked of the document the op reads, not
+    /// of the one the tree is drawn from**: an instance deleted since
+    /// the last landing still has a tree row, and the answer for it is
+    /// the refusal `SetInstanceHidden` gives.
+    #[test]
+    fn a_deleted_instance_not_yet_landed_is_refused_its_hide() {
+        use pncad::document::{ContentPin, DocRef, DocumentId, ProfileDoc};
+
+        use super::{DocSession, SessionOp};
+        let tol = Tol::witness();
+        let mut doc = ProfileDoc::empty(DocumentId::derive("hide-asm"), tol);
+        let instance = crate::test_support::insert_into(
+            &mut doc,
+            Node::instantiate_part(DocRef {
+                id: DocumentId::derive("hide-part"),
+                pin: ContentPin::of_bytes(b"hide-part"),
+            }),
+            tol,
+        );
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        assert!(session.instance_hidden_refusal(instance).is_none());
+        let deleted = session.perform(SessionOp::DeleteNode { node: instance });
+        assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+        assert!(
+            session.tree_rows().iter().any(|row| row.id == instance),
+            "the tree still draws the landed document's row"
+        );
+        let said = session
+            .instance_hidden_refusal(instance)
+            .expect("the committed document holds no such node")
+            .to_string();
+        let got = session
+            .perform(SessionOp::SetInstanceHidden {
+                instance,
+                hidden: true,
+            })
+            .refusal
+            .expect("the op refuses a deleted instance")
+            .to_string();
+        assert_eq!(said, got);
+        assert_eq!(
+            said,
+            format!(
+                "node {} is not in the document",
+                test_utils::refusal::tag(instance.0.digest())
+            )
         );
     }
 }
