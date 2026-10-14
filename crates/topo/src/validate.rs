@@ -8632,19 +8632,18 @@ fn segments_meet<T: Decide>(
             // ends are asked too, as on a line; there the circles may
             // stand apart or nested by up to the band, where the chord
             // does not exist and its ends are the foot.
-            let u = (c2 - c1).normalize();
-            let v = normal.cross(u);
-            let a = circles.radical();
+            let placed = circles.at(c1, c2);
+            let v = normal.cross(placed.direction());
             let half_chord = if tangent {
                 circles.half_chord_squared().max(T::zero()).sqrt()
             } else {
                 circles.half_chord()
             };
-            let foot = c1 + u * a;
+            let [left, right] = placed.chord_ends(v, half_chord);
             let candidates = if tangent {
-                vec![foot, foot + v * half_chord, foot - v * half_chord]
+                vec![placed.foot(), left, right]
             } else {
-                vec![foot + v * half_chord, foot - v * half_chord]
+                vec![left, right]
             };
             meet_at(existence, &candidates, first, second, band)
         }

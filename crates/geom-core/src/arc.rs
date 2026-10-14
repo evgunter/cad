@@ -9,11 +9,11 @@
 //! [`Arc2::point_from`], takes the start point as an argument.
 //!
 //! Two carriers in one plane, how they sit and where they cross, are
-//! [`Circles`] and [`Circles2`].
+//! [`Circles`] and [`CirclesAt`].
 
 mod pair;
 
-pub use pair::{Circles, Circles2};
+pub use pair::{Circles, Circles2, CirclesAt};
 
 use crate::linalg::{Point2, Vec2};
 use crate::real::SymRegistration;

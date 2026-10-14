@@ -3,13 +3,13 @@
 //! one set of fields.
 //!
 //! [`Circles`] forms the centre distance `d`, `r₁ + r₂` and `r₁ − r₂`
-//! once. The identity, external and internal margins are read from
-//! those fields, and so are the four factors of the half-chord's square,
-//! so a caller that decides the margins and then places the crossings
-//! takes factors that are its decided margins bit for bit. [`Circles2`]
-//! holds the two centres beside it and places the foot and the
-//! crossings in the plane; a caller on a plane in space places them in
-//! its own frame from [`Circles::radical`] and [`Circles::half_chord`].
+//! once. The identity, external, internal and nesting margins are read
+//! from those fields, and so are the four factors of the half-chord's
+//! square, so a caller that decides the margins and then places the
+//! crossings takes factors that are its decided margins, or their
+//! negations, bit for bit. [`CirclesAt`] holds the two centres beside
+//! it and places the foot and the chord's ends from them, in the plane
+//! ([`Circles2`]) or on a plane in space.
 //!
 //! The textbook placement, `a = (d² + r₁² − r₂²)/2d` and
 //! `h = √(r₁² − a²)`, is two differences of squares. Where the radii
@@ -21,6 +21,8 @@
 //! each factor rounds at the inputs' own scale, and the crossings sit on
 //! both circles to a few ulps of the largest of `d`, the radii and the
 //! centres' coordinates.
+
+use core::ops::{Add, Div, Mul, Sub};
 
 use crate::Real;
 use crate::linalg::{Point2, Vec2};
@@ -128,37 +130,76 @@ impl<T: Real> Circles<T> {
     }
 }
 
-/// [`Circles`] with its two centres, placing the radical foot and the
-/// crossings in the plane.
+/// [`Circles`] at its two centres, of any point type whose displacement
+/// scales by `T`: [`Circles2`] in the plane, `Point3` for two circles
+/// on a plane in space. It places the radical foot, and the ends of a
+/// chord through it along a normal the caller names in its plane.
 #[derive(Clone, Copy, Debug)]
-pub struct Circles2<T: Real> {
-    c1: Point2<T>,
-    c2: Point2<T>,
+pub struct CirclesAt<T: Real, P> {
+    c1: P,
+    c2: P,
     pair: Circles<T>,
+}
+
+/// Two circles in the plane, by centre and radius.
+pub type Circles2<T> = CirclesAt<T, Point2<T>>;
+
+impl<T: Real> Circles<T> {
+    /// This pair at its centres `c1` and `c2`, which stand [`Self::d`]
+    /// apart.
+    #[must_use]
+    pub fn at<P>(self, c1: P, c2: P) -> CirclesAt<T, P> {
+        CirclesAt { c1, c2, pair: self }
+    }
+}
+
+impl<T: Real, P> CirclesAt<T, P> {
+    /// The margins and the scalar placement.
+    #[must_use]
+    pub fn pair(self) -> Circles<T> {
+        self.pair
+    }
+}
+
+impl<T: Real, P, V> CirclesAt<T, P>
+where
+    P: Copy + Sub<Output = V> + Add<V, Output = P> + Sub<V, Output = P>,
+    V: Mul<T, Output = V> + Div<T, Output = V>,
+{
+    /// The unit direction of the line of centres, `û = (c₂ − c₁)/d`.
+    /// `d` must be definitely positive.
+    #[must_use]
+    pub fn direction(self) -> V {
+        (self.c2 - self.c1) / self.pair.d
+    }
+
+    /// The radical foot, `c₁ + û·a` on the line of centres: an internal
+    /// tangency's contact point. `d` must be definitely positive.
+    #[must_use]
+    pub fn foot(self) -> P {
+        self.c1 + self.direction() * self.pair.radical()
+    }
+
+    /// The ends of the chord of half-length `h` through the radical
+    /// foot along `n`, the unit normal to the line of centres in the
+    /// circles' plane: `foot + n·h` first. With `h` the
+    /// [`Circles::half_chord`] of a decided secant they are its two
+    /// crossings.
+    #[must_use]
+    pub fn chord_ends(self, n: V, h: T) -> [P; 2]
+    where
+        V: Copy,
+    {
+        let foot = self.foot();
+        [foot + n * h, foot - n * h]
+    }
 }
 
 impl<T: Real> Circles2<T> {
     /// The circles `(centre, radius)`; `d` is `c1.distance(c2)`.
     #[must_use]
     pub fn new((c1, r1): (Point2<T>, T), (c2, r2): (Point2<T>, T)) -> Self {
-        Self {
-            c1,
-            c2,
-            pair: Circles::new(c1.distance(c2), r1, r2),
-        }
-    }
-
-    /// The margins and the scalar placement.
-    #[must_use]
-    pub fn pair(self) -> Circles<T> {
-        self.pair
-    }
-
-    /// The radical foot, `c₁ + û·a` on the line of centres: an internal
-    /// tangency's contact point. `d` must be definitely positive.
-    #[must_use]
-    pub fn foot(self) -> Point2<T> {
-        self.c1 + ((self.c2 - self.c1) / self.pair.d) * self.pair.radical()
+        Circles::new(c1.distance(c2), r1, r2).at(c1, c2)
     }
 
     /// The two crossings of a proper secant, either side of the radical
@@ -168,11 +209,7 @@ impl<T: Real> Circles2<T> {
     /// secant.
     #[must_use]
     pub fn crossings(self) -> [Point2<T>; 2] {
-        let a = self.pair.radical();
-        let h = self.pair.half_chord();
-        let u = (self.c2 - self.c1) / self.pair.d;
-        let n = Vec2::new(-u.y, u.x);
-        let foot = self.c1 + u * a;
-        [foot + n * h, foot - n * h]
+        let u = self.direction();
+        self.chord_ends(Vec2::new(-u.y, u.x), self.pair.half_chord())
     }
 }
