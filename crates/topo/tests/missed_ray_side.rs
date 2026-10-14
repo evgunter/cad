@@ -1,7 +1,7 @@
 //! **A body thin everywhere is sided far away from it.** A ray from a
 //! point that crosses no face leaves the point on the at-infinity side,
 //! read off a ray aimed at a planar face from beyond the body, off its
-//! closest crossing (`solid_contain::side_at_infinity`). The selection's
+//! closest crossing (`side_reader::side_at_infinity`). The selection's
 //! signed volume, whose margin `V/A` is `t/(2 + 4t)` for a slab `t`
 //! thick, in band for every slab from `10ε` (the thinnest the prism door
 //! builds, its span margin) to `20ε`, would not read it.

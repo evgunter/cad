@@ -3155,7 +3155,7 @@ pub(crate) fn classify_shells_through<T: Decide>(
 ///
 /// A solid's only shell is its outer shell by arity, and is read no
 /// further. Any other shell is read off rays aimed at its faces from
-/// beyond it ([`crate::boolean::solid_contain::side_at_infinity`]), and
+/// beyond it ([`crate::side_reader::side_at_infinity`]), and
 /// off the sign of its volume, walked through `quad`
 /// ([`shell_volume_role`]), only where no face of it offers an aim that
 /// reads.

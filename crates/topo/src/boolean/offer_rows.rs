@@ -1594,7 +1594,7 @@ fn bent_neighbours(margin: f64) -> Result<(), BooleanError> {
 
 /// A unit brick's top and the floor of a brick standing `gap` above it,
 /// read as one selection by the reader of the side at infinity
-/// ([`super::super::solid_contain::side_at_infinity`]): a ray aimed at
+/// ([`crate::side_reader::side_at_infinity`]): a ray aimed at
 /// the top at 60° meets the floor first and the top `2·gap` further on.
 /// An in-band pair is refused as the result gate refuses it.
 fn aimed_pair(gap: f64) -> Result<(), BooleanError> {

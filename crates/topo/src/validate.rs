@@ -5952,7 +5952,7 @@ fn plus_v_round(certified: Certified, last: &core::cell::Cell<OpenRound>) -> Opt
 
 /// **Check 7's verdict on `solid`, whose faces are `faces`**: the side
 /// at infinity they leave, read by the reader of a shell's role
-/// ([`crate::boolean::solid_contain::side_at_infinity`]) — aimed rays
+/// ([`crate::side_reader::side_at_infinity`]) — aimed rays
 /// first, and the volume walk's `walked` verdict only where no face
 /// offers an aim that reads. `Out` passes, `In` is inside out
 /// ([`ValidationError::NegativeVolume`]), and a solid no reading decides
