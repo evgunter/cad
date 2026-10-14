@@ -971,3 +971,13 @@ Signed (CLEAVE orchestrator).
   - `boolean-join-resolves-germ-face-surfaces-in-three-closures` and `an-in-band-axis-parallelism-offers-a-proximity-lever`, together on `cleave/join-face-surface-one-home`;
   - `carrier-cross-one-curve-reads-tilt-apart-and-conic-helper-copies-conic-of` on `cleave/carrier-cross-one-curve`.
 - 2026-10-14 — Ev asked on [ev] PR 4795: 'how is the top of a convex wedge represented?', then 'what happens if we glue a plane to its tip?'. Answered: a convex top is one edge, and a tip touching a face is one edge in edge-on-face contact (two solids by D1/3901 unless joined elsewhere). The second question showed the D1 sentence was too broad, because a face's own 180° side is no wedge. Narrowed it in 7e245eea9b to 'two material wedges, each bounded by two faces at an angle', adding that 'an edge touching a face from outside its wedge stays one edge, in contact with that face'. PR 4858's second fix pass (`efa3830bc7`) brings it in line with Ev's 4812 ruling: an unresolved reading keeps the offset's verdict, so nothing new refuses. Its CI is red only on the two filed main reds. Short re-review resumed. Filed: P1 `a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body` (a pre-existing invalid Ok body) and P3 `the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways`.
+- 2026-10-14 — PR 4861 review: CHANGES. The design holds: the parameter miss falls about 1000×, no old-convention reader survives in the kernel, and the re-baselines are justified. But at 1e-12 the at-rest gate refuses 64 of the 162 claimed-building poses with `UnrepresentableCurveDatum`. Tier 3's frame margin reads ε − δ·A, and the unnormalized turned seam worsens it, while the pins only assert that split returned Ok. The public `Pose::u_ref` readback now returns the minor direction for re-seamed chords, and the FLUX pose credit is wrong (it already builds on main). Fix pass sent:
+  - normalize the seam;
+  - validate the pins at rest;
+  - derive the major direction at readback;
+  - give 'larger semi-axis' and the quarter turn one home at the curve;
+  - rename the remaining `major`/`minor` names;
+  - pin the tie-break;
+  - correct the PR body;
+  - close restfront's minor-over-major row;
+  - file the tier-3 frame-margin residue on its owner (Ev's 4812 interim).
