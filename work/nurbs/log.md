@@ -1464,3 +1464,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Interval bounds match up to degree 9 and are tighter from degree 12.
   - Minors (stale "exact dyadic piece" prose, the restrict callers in the body) go into the push that merges main. The lost W²/W³ halving-sharing (~8% of the face bound) gets filed.
 - 2026-10-14 06:32Z — **Mechanism of the missed lily items:** `work.py incoming` lists main's commits touching `work/nurbs/` *that this branch lacks*. I merge main into the tracker branch at most check-ins, before running it, so items other lanes file are absorbed silently and it reports 0. Fix in practice: run `git log origin/main --since=<last check-in> -- work/nurbs/` and skip commits authored by this program.
+- 2026-10-14 08:20Z — **Step 2 merged: #5081 at 8096a51b** (FULL approve, after a main merge plus prose fixes).
+  - Against main: shelling 237 → 120 s, r1 167 → 71 s, face bound 0.87 → 0.47 s, curve meters 8.1 → 4.3 s.
+  - Also merged: #5102 (lily table re-baselined to #4984's tighter chord bounds; certified deviation ≤ 2.35e-4 against 1e-3; closes the lily P0/P1), #5105 (CIW build-time findings; the SSIARITH fuzz issue), #5108 (base reds triaged onto their owners' slates, no duplicates). Build A's sweep (demos tour/wild and the workspace slow set at default ε, fresh targets) shows no other reds.
+  - **Step 3 measured slower than step 2** with the converged cut: shelling 208 s, r1 133–150 s. Restricting the raised grids costs an O(n³) blossom pyramid at n = 7.
+    - Two bit-identical savings (hoisting the ratio, restricting W² once) bring it to 173/96 s.
+    - Ruling: (A), the textbook O(n²) two-split restriction. It stays within the converged design. Land it only if it matches step 2 on time and margins. Otherwise (B), step 2's cut, goes back to the two designers as a postscript round. No cache; no landing a regression.
+  - **Build A** is on `interval-scale-exact` (`Real::scale_pow2`, the face-bound remainder). **The build-time lane's #5104** (lto off, −3.75 min, every row green at TIER=all) needs a main merge, then STYLE review.
