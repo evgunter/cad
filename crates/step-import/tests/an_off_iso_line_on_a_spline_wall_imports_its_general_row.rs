@@ -210,3 +210,23 @@ fn the_tetrahedron_imports_and_its_diagonal_takes_a_general_row() {
         "tier 3 re-certifies the imported body"
     );
 }
+
+/// Review 5097 r2 probe: which rung the diagonal adopts at now.
+#[test]
+fn review_5097_r2_the_diagonal_adopts_at() {
+    let StepImport::Solid { body, .. } =
+        import_step(&tetra_step(), &ImportOptions::default(), Tol::witness()).unwrap()
+    else {
+        panic!()
+    };
+    for (_, e) in body.edges() {
+        let c = body.get_curve_geom(e.curve).and_then(topo::CurveGeom::certified).unwrap();
+        if matches!(c.carrier(), geom::Curve3::Line { .. }) {
+            println!(
+                "line edge: declared={} desc={:?}",
+                c.authority().is_declared(),
+                c.description()
+            );
+        }
+    }
+}
