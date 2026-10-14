@@ -230,15 +230,24 @@ pub fn restrict_segment(
     if row.len() == 1 || (a == s0 && b == s1) {
         return row.to_vec();
     }
-    super::KnotVector::bezier(row.len() - 1, (s0, s1))
-        .ok()
-        .and_then(|kv| {
-            kv.span_at(s0)?
-                .with_window(row)?
-                .restrict((Interval::point(a), Interval::point(b)))
-                .ok()
-        })
-        .unwrap_or_else(|| vec![Interval::refused(); row.len()])
+    // `KnotVector::bezier(p, (s0, s1))` refuses only a non-finite end
+    // here. On it every level ratio of the span is `(u − s0)/(s1 − s0)`
+    // (`slice_ratio`: `t_i = s0` and `t_{i+p+1−r} = s1` for every entry
+    // `j ≥ r` a level writes), so the ratio at each cut end is formed
+    // once, the same expression, and the pyramid runs on it.
+    if !(s0.is_finite() && s1.is_finite()) {
+        return vec![Interval::refused(); row.len()];
+    }
+    let p = row.len() - 1;
+    let (Ok(a), Ok(b)) = (
+        admit(Interval::point(a), 0, (s0, s1)),
+        admit(Interval::point(b), p - 1, (s0, s1)),
+    ) else {
+        return vec![Interval::refused(); row.len()];
+    };
+    let below = Interval::point(s0);
+    let width = Interval::point(s1) - below;
+    pyramid(row, ((a - below) / width, (b - below) / width), |_, _, u| u)
 }
 
 /// `u` met with the closure `[lo, hi]` (module docs' argument contract):
@@ -540,6 +549,52 @@ mod tests {
             i.iter().all(|c| !c.is_certified()),
             "Interval short held: {i:?}"
         );
+    }
+
+    /// **A segment cut is the Bézier span's restriction, to the bit.**
+    /// `restrict_segment` forms each cut end's ratio once rather than at
+    /// every entry of every level; on `KnotVector::bezier(p, (s0, s1))`
+    /// every ratio is that one expression, so the rows agree bit for bit
+    /// (and in certification) with [`SpanRow::restrict`] there: drawn
+    /// widened rows of degree 1–8, non-dyadic segments at several
+    /// magnitudes, cuts anywhere inside them. Red under the ratio formed
+    /// any other way (`(u − s0)·(1/(s1 − s0))`).
+    #[test]
+    fn a_segment_cut_is_the_bezier_spans_restriction_to_the_bit() {
+        let mut rng = test_utils::fuzz::start("restrict-segment-hoisted-ratio");
+        for _ in 0..test_utils::fuzz::scaled(400) {
+            let p = 1 + rng.below(8);
+            let row: Vec<Interval> = (0..=p)
+                .map(|_| {
+                    let c = rng.range(-3.0, 3.0);
+                    let w = rng.range(0.0, 1e-9);
+                    Interval::from_bounds(c - w, c + w)
+                })
+                .collect();
+            let scale = [1e-3, 1.0, 37.0, 1e4][rng.below(4)];
+            let s0 = rng.range(-1.0, 1.0) * scale;
+            let s1 = s0 + rng.range(0.01, 2.0) * scale;
+            let (x, y) = (rng.range(s0, s1), rng.range(s0, s1));
+            let (a, b) = (x.min(y), x.max(y));
+            let got = restrict_segment(&row, (s0, s1), (a, b));
+            let kv = KnotVector::bezier(p, (s0, s1)).unwrap();
+            let want = kv
+                .span_at(s0)
+                .unwrap()
+                .with_window(&row)
+                .unwrap()
+                .restrict((Interval::point(a), Interval::point(b)))
+                .unwrap();
+            for (g, w) in got.iter().zip(&want) {
+                assert!(
+                    g.lo().to_bits() == w.lo().to_bits()
+                        && g.hi().to_bits() == w.hi().to_bits()
+                        && g.is_certified() == w.is_certified(),
+                    "degree {p} on [{s0}, {s1}] cut to [{a}, {b}]: {g:?} against {w:?}; {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
     }
 
     /// **A cut out of order refuses its row** (carried from `compose`'s
