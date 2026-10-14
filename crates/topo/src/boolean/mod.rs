@@ -190,7 +190,7 @@ pub use reduce::{SweepStrategy, SweepTrace};
 pub use shell_witness::ShellOrientation;
 pub use zip::Fusions;
 #[cfg(feature = "sweep-testing")]
-pub use zip::{swap_split_roles, take_shared_points};
+pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // LIB-SEL2 (SELECT-DESIGN §3b; #304 review MINOR-1): THE flush-pair
 // verify door — descriptions, oriented sources and the verification
 // arm in one function, shared by verify-at-use and the detector's
@@ -2062,9 +2062,6 @@ pub struct BooleanReduction<T: Real> {
     /// Every operand edge piece the sector passes classified beside a
     /// vertex ([`EdgePieceClass`]), sorted.
     pub edge_classes: Vec<EdgePieceClass>,
-    /// Each point where the insertion hung runs at a turned run's copy
-    /// ([`HungPoint`]).
-    pub(crate) hung: Vec<HungPoint>,
     /// The coincidences the declaration door decided from values whose
     /// faces the sweep found meeting ([`glue::touched`]), in operand
     /// keys ([`crate::coincidence`]).
@@ -2768,20 +2765,6 @@ pub enum BooleanError {
         operand: Operand,
         /// The pierced face, a key of the other operand's working copy.
         face: FaceKey,
-    },
-    /// A pinch the result would hold with its cones on separate point
-    /// keys: an operand's own pinch, which an earlier op left on several
-    /// keys, met where the insertion hung runs at a copy of their own
-    /// pair's (`insert::hang_at_shared`), and whose keys no seam links, so the
-    /// census cannot read the point
-    /// (`work/flush/a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys.md`).
-    /// Read after the zips off point keys alone
-    /// (`zip::refuse_split_hung_points`).
-    PinchConesOnSeparateKeys {
-        /// The operand whose vertex the insertion hung runs at.
-        operand: Operand,
-        /// That vertex: a key of the operand's working copy.
-        vertex: VertexKey,
     },
     /// A vertex of `operand` is read by two sector passes where the
     /// first read cannot be taken with the second: it pierces two faces
@@ -3545,8 +3528,6 @@ pub enum BooleanErrorKind {
     PairingMismatch,
     /// [`BooleanError::SharedVertexCrossings`].
     SharedVertexCrossings,
-    /// [`BooleanError::PinchConesOnSeparateKeys`].
-    PinchConesOnSeparateKeys,
     /// [`BooleanError::PinchRaysInAFace`].
     PinchRaysInAFace,
     /// [`BooleanError::CrossingsAlongAContactLine`].
@@ -3798,7 +3779,6 @@ impl BooleanError {
             Self::InvalidInput { .. } => BooleanErrorKind::InvalidInput,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
-            Self::PinchConesOnSeparateKeys { .. } => BooleanErrorKind::PinchConesOnSeparateKeys,
             Self::PinchRaysInAFace { .. } => BooleanErrorKind::PinchRaysInAFace,
             Self::CrossingsAlongAContactLine { .. } => BooleanErrorKind::CrossingsAlongAContactLine,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
@@ -4347,14 +4327,6 @@ impl core::fmt::Display for BooleanError {
                  Boolean cannot yet join. Recourse: apply the operation to the pieces \
                  before they are joined to each other, or move one solid so its edges \
                  leave the line"
-            ),
-            Self::PinchConesOnSeparateKeys { operand, .. } => write!(
-                f,
-                "a corner of the {} solid meets a point where the other solid holds \
-                 several corners that only touch each other, and the result would keep \
-                 them apart in a way its checks cannot read. There is no way through this \
-                 in the kernel yet",
-                operand_word(*operand)
             ),
             Self::VertexReadTwice {
                 operand,
@@ -5485,8 +5457,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .collect();
     #[cfg(any(test, feature = "test-support"))]
     insert::reverse_when_asked(&mut plans, &mut orbits);
-    let hangs = insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
-    let hung = hung_points(&hangs, &contacts.vv, [&a, &b])?;
+    insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
     null_edges.extend(out.edges)?;
     null_pairs.extend(out.pairs);
@@ -5548,7 +5519,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         coincident,
         edge_splits,
         edge_classes,
-        hung,
         coincidences,
         glued,
         pending,
@@ -5617,59 +5587,6 @@ fn touch_rows<T: Real>(
             }),
         })
         .collect()
-}
-
-/// A point where the insertion hung runs at a turned run's copy
-/// ([`BooleanReduction`]'s `hung`).
-#[derive(Clone, Debug)]
-pub(crate) struct HungPoint {
-    /// The hung vertex and the pairs that meet there.
-    pub(super) hang: insert::Hang,
-    /// Per operand, clone keys: the point keys of every vertex the
-    /// vertex-vertex contacts tie to the hung vertex.
-    pub(super) keys: [Vec<crate::geometry::PointKey>; 2],
-}
-
-/// Each of `hangs` with the point keys `vv` ties to its vertex: the
-/// contact graph's component through it ([`zip::Roots`]), read in the
-/// clones `bodies`.
-fn hung_points<T: Real>(
-    hangs: &[insert::Hang],
-    vv: &[Cited<VvContact>],
-    bodies: [&Body<T>; 2],
-) -> Result<Vec<HungPoint>, BooleanError> {
-    let mut contacts = zip::Roots::new();
-    for c in vv {
-        contacts.union((Operand::A, c.a), (Operand::B, c.b));
-    }
-    let mut out = Vec::with_capacity(hangs.len());
-    for &hang in hangs {
-        let root = contacts.find((hang.operand, hang.vertex));
-        let mut at: [Vec<VertexKey>; 2] = [Vec::new(), Vec::new()];
-        at[usize::from(hang.operand == Operand::B)].push(hang.vertex);
-        for c in vv
-            .iter()
-            .filter(|c| contacts.find((Operand::A, c.a)) == root)
-        {
-            at[0].push(c.a);
-            at[1].push(c.b);
-        }
-        let mut keys: [Vec<crate::geometry::PointKey>; 2] = [Vec::new(), Vec::new()];
-        for s in 0..2 {
-            for &v in &at[s] {
-                let d = bodies[s]
-                    .get_vertex(v)
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "a vertex a contact names does not resolve in its clone",
-                    })?;
-                if !keys[s].contains(&d.point) {
-                    keys[s].push(d.point);
-                }
-            }
-        }
-        out.push(HungPoint { hang, keys });
-    }
-    Ok(out)
 }
 
 /// A vertex that touches a face and pairs ([`vtxfac::touch_classes`]).
@@ -7847,10 +7764,6 @@ mod tests {
                 vertex: VertexKey::default(),
                 partners: [VertexKey::default(); 2],
             },
-            BooleanError::PinchConesOnSeparateKeys {
-                operand: Operand::A,
-                vertex: VertexKey::default(),
-            },
             BooleanError::PinchRaysInAFace {
                 operand: Operand::A,
                 face,
@@ -8091,7 +8004,6 @@ mod tests {
                 BooleanErrorKind::InvalidInput => "InvalidInput",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
-                BooleanErrorKind::PinchConesOnSeparateKeys => "PinchConesOnSeparateKeys",
                 BooleanErrorKind::PinchRaysInAFace => "PinchRaysInAFace",
                 BooleanErrorKind::CrossingsAlongAContactLine => "CrossingsAlongAContactLine",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",

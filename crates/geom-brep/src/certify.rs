@@ -884,8 +884,8 @@ impl CertCheck {
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
                 no_size: Some(NoSize::same(
-                    "a vanishing speed floor means the spline stalls or turns back, or that the \
-                     floor has reached its limit, which is worth reporting",
+                    "if it does neither, the speed floor has reached its limit, which is worth \
+                     reporting",
                 )),
             }),
             Self::ParamWinding => Ending::Sized(SizedDecision {
@@ -5378,9 +5378,11 @@ mod tests {
     /// construction mints one, a kernel defect at a build and a kernel or
     /// file defect over stored geometry, and an enclosure across zero,
     /// which shows neither a size nor its absence, the lever alone; a
-    /// reversed span and the winding
-    /// bound's only refusal are stored contradictions (the lever at a
-    /// build, the file's defect ending over stored geometry). The
+    /// span reversed past the band ends at a build exactly as one
+    /// reversed in band does (D4 ¶1 (iv)); it and the winding bound's
+    /// only refusal are stored contradictions (the file's defect ending
+    /// over stored geometry), the winding bound's the lever alone at a
+    /// build. The
     /// tangent tube's Zero is band-decided and its Negative the
     /// certificate's limit, the lever alone everywhere; the plane × NURBS
     /// tube's Zero quotes `m/K` where its clearance is positive. No
@@ -5427,7 +5429,7 @@ mod tests {
             let rows = [
                 (forward(zero(5e-10)), tightened(span, "length", "5e-11")),
                 (forward(zero(0.0)), no_span.clone()),
-                (forward(zero(-5e-10)), no_span),
+                (forward(zero(-5e-10)), no_span.clone()),
                 // An enclosure across zero shows no size, nor that there
                 // is none: the lever alone, its payload printing it.
                 (
@@ -5439,7 +5441,13 @@ mod tests {
                     },
                     span.to_owned(),
                 ),
-                (forward(negative(-1e-3)), definite(span)),
+                (
+                    forward(negative(-1e-3)),
+                    match reading {
+                        Reading::Build => no_span,
+                        Reading::AtRest => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
+                    },
+                ),
                 (CertifyError::WindingExceeded, definite(winding)),
                 (
                     separated(zero(5e-10)),
@@ -5451,6 +5459,13 @@ mod tests {
                 (tube(zero(0.0)), cross.to_owned()),
                 (tube(negative(-5e-9)), definite(cross)),
             ];
+            if reading == Reading::Build {
+                assert_eq!(
+                    forward(negative(-1e-3)).ending(reading),
+                    forward(zero(-5e-10)).ending(reading),
+                    "a span reversed past the band ends as one reversed in band"
+                );
+            }
             for (error, want) in rows {
                 let got = error.ending(reading).unwrap();
                 assert_eq!(got, want, "{reading:?}: {error:?}");
@@ -6306,8 +6321,8 @@ mod tests {
             text,
             "at sample 4 the edge is not shown long enough, for how its faces curve, to measure \
              their angle (margin 0e0 m). Recourse: move the geometry so that edge is clearly \
-             longer and no face curves tightly there; an edge of no length, or a face curving to \
-             a point as a cone does, leaves no angle to measure",
+             longer and no face curves tightly there; an edge of no length or a cone's point \
+             leaves no angle to measure; a radius below zero is a defect",
         );
     }
 
@@ -6449,7 +6464,7 @@ mod tests {
         }
         for (error, note) in [
             (forward(zero(none)), "an edge of no length"),
-            (meter(zero(none)), "a vanishing speed floor"),
+            (meter(zero(none)), "the speed floor has reached its limit"),
             (arm(zero(none)), "an edge of no length"),
         ] {
             let text = error.render(Reading::Build);

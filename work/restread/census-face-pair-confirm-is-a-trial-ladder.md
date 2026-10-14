@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-14
 ---
 
-Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`), which tests every geometric pair question against C5's rule: one total kind-pair table, one method per pair, no runtime fallback (`crates/geom-brep/README.md`, C5).
+Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #5078). The rule it tests is D3's "One reading per question" (`docs/DESIGN.md`, D3): every decision about carriers is a reading (of one carrier against a point, of a carrier pair's pose, or of a pair outcome that takes the pose); each reading is one exhaustive match with one method per arm and no fallback, and every consumer reads it. C5 (`crates/geom-brep/README.md`) is that rule's instance for surface and curve pairs.
 
 ## What
 
@@ -20,4 +20,9 @@ The order is a runtime trial ladder: which reader answers depends on which earli
 
 ## Owed
 
-Dispatch on the face pair's kinds to the one reader that owns that pair, so a pair no reader owns refuses typed at the dispatch. `restread/the-two-carrier-face-pair-confirm-escalates-where-its-second-face-reads-the-point-out` is a symptom on the same door.
+Re-aimed to D3 "One reading per question". The earlier target, "dispatch on the face pair's kinds to the one reader", is not the ratified shape: a consumer never matches on kinds to choose a method.
+
+- The confirm reads the face pair's one pose reading (coincident ±, point touch, line tangent and the rest), plus the outcome reading that takes it where the record's witness is an outcome. It matches on that answer, and a pose it does not confirm refuses typed.
+- The ladder, where `OutsideInventory` and `Distinct` from `carrier_pair_relation` send the pair on to `point::face_face` and then `tangent_pair_at_rest`, is a method reached because another declined: a fallback D3 forbids. The two planes' `confirm_patch` is the pose reading's coincident answer, not a first rung.
+
+`restread/the-two-carrier-face-pair-confirm-escalates-where-its-second-face-reads-the-point-out` is a symptom on the same door.

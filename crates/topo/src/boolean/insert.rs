@@ -1075,15 +1075,14 @@ fn holds_whole<T: Decide>(
 /// piece. Two crossing pairs that share both their
 /// vertices refuse
 /// [`BooleanError::NonManifoldResult`]: the result would hold a
-/// shared-entity wedge fan there. Returns the shared vertices where a
-/// run hangs at a copy of its own plan's ([`hang_at_shared`]).
+/// shared-entity wedge fan there.
 pub(super) fn reconcile_shared<T: Decide>(
     plans: &mut [NullPlan<T>],
     sectors: &[Orbits<'_, T>],
     a_body: &Body<T>,
     b_body: &Body<T>,
     band: Band,
-) -> Result<Vec<Hang>, BooleanError> {
+) -> Result<(), BooleanError> {
     // Two crossing pairs that share both their vertices: each operand
     // holds two vertices at the point, and the result's would be one
     // vertex whose orbit passes the pinch line twice.
@@ -1113,16 +1112,6 @@ pub(super) fn reconcile_shared<T: Decide>(
     })
 }
 
-/// A shared vertex where [`hang_at_shared`] hung runs of a plan at a
-/// copy of its own, with the pairs that meet there: what a refusal
-/// at that point names (`zip::refuse_split_hung_points`).
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Hang {
-    pub(crate) operand: Operand,
-    pub(crate) vertex: VertexKey,
-    pub(crate) partners: [VertexKey; 2],
-}
-
 /// **A run turned round a shared vertex holds what lay outside it.**
 /// [`reconcile_pass`] turns a run onto its complement to clear another
 /// pair's cuts, and the runs of its own pair that lay outside it then
@@ -1138,12 +1127,11 @@ pub(crate) struct Hang {
 /// vertex, among its struts ([`mint_plans`]). A turned run and a run of
 /// its plan that held it would cover the walk between them, and refuse
 /// [`BooleanError::SharedVertexCrossings`]: a backstop no known pose
-/// reaches. Returns each vertex where a run was hung.
+/// reaches.
 fn hang_at_shared<T: Decide>(
     plans: &mut [NullPlan<T>],
     sectors: &[Orbits<'_, T>],
-) -> Result<Vec<Hang>, BooleanError> {
-    let mut hangs = Vec::new();
+) -> Result<(), BooleanError> {
     for slot in 0..2 {
         for i in 0..plans.len() {
             let Some(at) = shared_at(plans, sectors, slot, i) else {
@@ -1154,34 +1142,27 @@ fn hang_at_shared<T: Decide>(
                 .iter()
                 .map(|r| is_strut(at.secs, r.from.0, r.to.0))
                 .collect::<Result<Vec<bool>, BooleanError>>()?;
-            let hang = Hang {
-                operand: at.operand,
-                vertex: at.vertex,
-                partners: [at.partner, ends(plans[at.others[0]].contact, slot).1],
-            };
+            let partners = [at.partner, ends(plans[at.others[0]].contact, slot).1];
             let arcs: Vec<[usize; 2]> = runs.iter().map(|r| r.walk).collect();
             debug_assert_eq!(plans[i].walk_len, 2 * runs.len(), "two germs per run");
             let holders =
                 arc_holders(plans[i].walk_len, &arcs).map_err(|refusal| match refusal {
                     ArcRefusal::Cover => BooleanError::SharedVertexCrossings {
-                        operand: hang.operand,
-                        vertex: hang.vertex,
-                        partners: hang.partners,
+                        operand: at.operand,
+                        vertex: at.vertex,
+                        partners,
                     },
                     ArcRefusal::Crossing => BooleanError::ClassificationInvariant {
                         what: "two runs of one plan cross in its walk after the reconcile",
                     },
                 })?;
             let held = held_by(&holders, &strut);
-            if held.iter().any(Option::is_some) {
-                hangs.push(hang);
-            }
             for (r, held) in plans[i].runs.iter_mut().zip(held) {
                 r[slot].held = held;
             }
         }
     }
-    Ok(hangs)
+    Ok(())
 }
 
 /// Contact `c`'s two vertices as solid `slot` reads it: its own, then
