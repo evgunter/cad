@@ -244,6 +244,8 @@ mod s81_one_rim_level_rule;
 mod sketch_segment_restriction;
 #[path = "span_meter_dim_twins.rs"]
 mod span_meter_dim_twins;
+#[path = "spline_pair_any_carrier.rs"]
+mod spline_pair_any_carrier;
 #[path = "ssi_limb3_one_arc.rs"]
 mod ssi_limb3_one_arc;
 #[path = "stored_span_winding_bound.rs"]

@@ -113,7 +113,7 @@
 //! constructing op from the cache this schedule sees. S2 stays
 //! discharged; nothing about the witness contract moves at rung 3.
 
-use geom::{NurbsCurve2, NurbsCurve3};
+use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::algebra::{dehomogenize, domain_grid_points, range_grid_points};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
@@ -486,28 +486,38 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
     }
 }
 
-/// Limb 1 + limb 2 against one **analytic** operand.
+/// Limb 1 + limb 2 against one **analytic** operand. The carrier
+/// enters limb 2 through the carrier-enclosure door
+/// ([`crate::carrier_net::carrier_net`]) over its span
+/// ([`crate::carrier_net::carrier_span`]).
 fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
+    carrier: &Curve3<T>,
+    params: (T, T),
     surface: &Surface<T>,
     band: Band,
     at: &mut Refused,
 ) -> Result<(T, T), SsiError> {
+    let ((t0, t1), (h0, h1)) = crate::carrier_net::carrier_span(carrier, params);
     // Limb 2's hull: the implicit form composed with the described
-    // carrier cut in the ring at `cert_grid` and at `cuts`, in metres.
-    let grid = cert_grid(carrier.knots());
+    // carrier cut in the ring at its grid and at `cuts`, in metres.
+    let grid = match carrier {
+        Curve3::Nurbs(net) => cert_grid(net.knots()),
+        _ => range_grid_points(t0, t1, SSI_CERT_SPANS, &[]),
+    };
     let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
         let (form, per_meter) =
             composite_form(surface).map_err(|what| SsiError::UnsupportedCertificate { what })?;
-        let coords = carrier.certified_coords();
         let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
         breaks.sort_by(f64::total_cmp);
         breaks.dedup();
-        let data = CurveCertData::new(carrier.knots(), carrier.weight_channel(), &coords)
+        let net = crate::carrier_net::carrier_net(carrier, (t0, t1), &breaks)
+            .map_err(SsiError::CarrierEnclosure)?;
+        let (ck, cw, cc) = net.operand();
+        let data = CurveCertData::new(ck, cw, cc)
             .map_err(|_| SsiError::UnsupportedCertificate {
                 what: "the fitted carrier's enclosure data is malformed",
             })?
-            .with_breaks(&breaks);
+            .with_breaks(net.cuts());
         let composite = compose::implicit_composite(&data, &form).map_err(|_| {
             SsiError::UnsupportedCertificate {
                 what: "the implicit composite refused the fitted carrier",
@@ -533,11 +543,9 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         })
     };
     // ---- limb 1: the fixed schedule ----
-    // The schedule on the carrier's held domain (its ends held, its
+    // The schedule on the carrier's held span (its ends held, its
     // interior stations chosen points); the value channel names a
     // refused sample.
-    let (t0, t1) = carrier.domain();
-    let (h0, h1) = carrier.knot_values().domain();
     let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
@@ -569,24 +577,20 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
 /// Limb 1 + limb 2 against a **NURBS** operand, using the traced
 /// pcurve as the parameter map (module docs).
 fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
+    carrier: &Curve3<T>,
+    params: (T, T),
     pcurve: &NurbsCurve2<T>,
     surface: &NurbsSurface<T>,
     band: Band,
     at: &mut Refused,
 ) -> Result<(T, T), SsiError> {
     // Limb 2's hull: `S(P(t)) − C(t)` enclosed as one composite, cut
-    // at `cuts` besides the chart breaks, in metres.
-    let chart = chart_breaks(carrier.knots(), pcurve.knots());
-    let (coords, pcoords, scoords) = (
-        carrier.certified_coords(),
-        pcurve.certified_coords(),
-        surface.certified_coords(),
-    );
+    // at `cuts` besides the round's grid, in metres.
+    let grid = chart_grid(carrier, pcurve.knots());
+    let (pcoords, scoords) = (pcurve.certified_coords(), surface.certified_coords());
     let hull = |cuts: &[f64]| -> Result<Hull, SsiError> {
-        let extra: Vec<f64> = chart.iter().chain(cuts).copied().collect();
-        chart_round(
-            (carrier.knots(), carrier.weight_channel(), &coords),
+        carrier_chart_round(
+            carrier,
             (pcurve.knots(), pcurve.weight_channel(), &pcoords),
             (
                 surface.knots_u(),
@@ -594,15 +598,15 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 surface.weight_channel(),
                 &scoords,
             ),
-            &extra,
+            &grid,
+            cuts,
         )
     };
     // ---- limb 1: the fixed schedule, through certified foot points --
-    // The schedule on the carrier's held domain (its ends held, its
+    // The schedule on the carrier's held span (its ends held, its
     // interior stations chosen points; the pcurve shares the carrier's
     // parameter); the value channel names a refused sample.
-    let (t0, t1) = carrier.domain();
-    let (h0, h1) = carrier.knot_values().domain();
+    let ((t0, t1), (h0, h1)) = crate::carrier_net::carrier_span(carrier, params);
     let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
@@ -643,6 +647,39 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // composite and the bound stays honest.
     let sup = hull_limb(&CHART_HULL, subdivide(hull, band)?, band, at)?;
     Ok((worst, sup))
+}
+
+/// The breaks a chart round cuts `carrier` at besides its own `cuts`,
+/// against a pcurve on `image`: a spline's [`chart_breaks`]; any other
+/// carrier the image's interior knots and the image domain's
+/// [`SSI_CERT_SPANS`] grid clear of them.
+pub(crate) fn chart_grid<T: Real>(carrier: &Curve3<T>, image: &KnotVector) -> Vec<f64> {
+    if let Curve3::Nurbs(net) = carrier {
+        return chart_breaks(net.knots(), image);
+    }
+    let (lo, hi) = image.domain();
+    let knots: Vec<f64> = image.interior_knots().map(|(k, _)| k).collect();
+    let mut grid = range_grid_points(lo, hi, SSI_CERT_SPANS, &knots);
+    grid.extend(knots);
+    grid
+}
+
+/// One round of limb 2 against a spline chart for any carrier: its net
+/// from the carrier-enclosure door ([`crate::carrier_net::carrier_net`])
+/// over the pcurve's domain, cut at `grid` and `cuts`, composed with the
+/// pcurve into the chart ([`chart_round`]). The one round of the SSI
+/// door's NURBS operand and of the fitted row's chart.
+pub(crate) fn carrier_chart_round<T: geom_core::CertifiedBounds>(
+    carrier: &Curve3<T>,
+    pimage: CurveOperand<'_>,
+    schart: ChartOperand<'_>,
+    grid: &[f64],
+    cuts: &[f64],
+) -> Result<Hull, SsiError> {
+    let breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
+    let net = crate::carrier_net::carrier_net(carrier, pimage.0.domain(), &breaks)
+        .map_err(SsiError::CarrierEnclosure)?;
+    chart_round(net.operand(), pimage, schart, net.cuts())
 }
 
 /// A curve operand of limb 2's composite as certification data: its
@@ -1566,6 +1603,12 @@ fn probe_tube_pair<T: Decide + Bounds + CertifiedEnclosure>(
 pub(crate) const NURBS_LIMBS_NEED_PCURVE: &str = "a NURBS operand's limbs need the traced pcurve \
      (the ℝ⁴ trace supplies it; the ℝ³ trace has none)";
 
+/// [`certify_branch`]'s routing boundary for a closed-form carrier
+/// between two analytic operands, whose tube is the ℝ³ box chain.
+pub(crate) const BOX_CHAIN_NEEDS_SPLINE: &str = "the ℝ³ uniqueness tube of two analytic \
+     operands is a chain of a spline carrier's control-net hulls; a closed-form carrier on \
+     such a pair is rung 1 or 2, zero by construction";
+
 /// [`certify_branch`]'s routing boundary for a NURBS operand whose
 /// analytic partner is not a plane.
 pub(crate) const CHART_TUBE_NEEDS_PLANE: &str = "the chart uniqueness tube is written for a PLANE \
@@ -1899,7 +1942,11 @@ pub(crate) fn certify_located(
     limbs: Limbs,
 ) -> Result<SsiCertificate<f64>, Located> {
     let mut refused = Refused::default();
-    certify_branch(carrier, lane, extent, band, limbs, &mut refused).map_err(|error| {
+    let (params, carrier) = (
+        carrier.domain(),
+        Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+    );
+    certify_branch(&carrier, params, lane, extent, band, limbs, &mut refused).map_err(|error| {
         let at = match refused.refusal {
             Some(refusal) if !refused.spans.is_empty() => Some(Box::new(Spans {
                 refusal,
@@ -1937,8 +1984,16 @@ pub(crate) fn certify_located(
 /// A limb-1 or limb-2 refusal is located on the carrier in `at`
 /// ([`Refused`]), with its refused residual, for
 /// [`super::refine::refine_by_certificate`].
+///
+/// The carrier is of any kind, `params` its edge's interval: a spline
+/// spans its own knot domain, any other carrier `params`
+/// ([`crate::carrier_net::carrier_span`]), and limbs 1–2 read it through
+/// the carrier-enclosure door. The ℝ³ tube of two analytic operands
+/// reads a spline's control net ([`box_chain`]) and refuses any other
+/// carrier ([`BOX_CHAIN_NEEDS_SPLINE`]).
 pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
+    carrier: &Curve3<T>,
+    params: (T, T),
     lane: Lane<'_, T>,
     extent: T,
     band: Band,
@@ -1991,14 +2046,14 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     };
     for &(op, pc) in asked {
         let (l1, l2) = match op {
-            SsiOperand::Analytic(s) => analytic_limbs(carrier, s, band, at)?,
+            SsiOperand::Analytic(s) => analytic_limbs(carrier, params, s, band, at)?,
             SsiOperand::Nurbs(s) => {
                 let Some(p) = pc else {
                     return Err(SsiError::UnsupportedCertificate {
                         what: NURBS_LIMBS_NEED_PCURVE,
                     });
                 };
-                nurbs_limbs(carrier, p, s.surface(), band, at)?
+                nurbs_limbs(carrier, params, p, s.surface(), band, at)?
             }
         };
         on_locus = on_locus.max(l1);
@@ -2008,7 +2063,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // the f64 lane a point, not an enclosure of the exact end, which the
     // end checks then read within ε of
     // (`work/ssiarith/limb3-carrier-ends-read-at-f64-points.md`).
-    let (t0, t1) = carrier.knot_values().domain();
+    let (_, (t0, t1)) = crate::carrier_net::carrier_span(carrier, params);
     let ends = [t0, t1].map(|t| {
         let p = carrier.eval(t);
         Box3 {
@@ -2022,7 +2077,12 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     let widest = Bounds::hi(extent);
     let three = match (a, b) {
         (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
-            let chain = box_chain(carrier);
+            let Curve3::Nurbs(net) = carrier else {
+                return Err(SsiError::UnsupportedCertificate {
+                    what: BOX_CHAIN_NEEDS_SPLINE,
+                });
+            };
+            let chain = box_chain(net);
             limb_three((widest, extent), band, |radius| {
                 Ok(probe_tube_analytic(
                     &chain,
@@ -3377,7 +3437,8 @@ mod tests {
         .unwrap();
         let band = Band::new(1e-9, 1e-8).unwrap();
         let got = certify_branch(
-            &carrier,
+            &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+            carrier.domain(),
             Lane::AtRest {
                 a: &SsiOperand::Analytic(&plane),
                 b: &SsiOperand::Analytic(&torus),

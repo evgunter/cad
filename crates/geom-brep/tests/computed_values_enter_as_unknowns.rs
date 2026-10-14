@@ -35,8 +35,15 @@ fn the_plane_nurbs_lanes_computed_values_are_unknowns() {
         let carrier =
             segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)).map_scalar(lift);
         let (limbs, decisions) = record(|| {
-            plane_nurbs_limbs::<S>(&carrier, &plane, &wall, S::one(), band())
-                .expect("the true locus certifies at Sym")
+            plane_nurbs_limbs::<S>(
+                &geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
+                carrier.knot_values().domain(),
+                &plane,
+                &wall,
+                S::one(),
+                band(),
+            )
+            .expect("the true locus certifies at Sym")
         });
         let revalued = |predicate: &str| -> Vec<Option<f64>> {
             decisions

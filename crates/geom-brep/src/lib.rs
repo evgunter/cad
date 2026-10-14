@@ -90,6 +90,7 @@ pub mod ssi;
 pub mod tangent;
 pub mod torus_convention;
 
+pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
     IntersectionDraft, NurbsLane, edge_extent, folded_parallelism, sample_param, schedule_param,

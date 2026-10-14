@@ -1513,7 +1513,7 @@ impl<T: Decide> EdgeCurve<T> {
 ///
 /// ```compile_fail,E0308
 /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
-/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// use geom::{Curve3, NurbsSurface, Surface};
 /// use geom_core::{Band, Point3};
 /// fn forge(
 ///     spec: EdgeCurveSpec<f64>,
@@ -1523,9 +1523,10 @@ impl<T: Decide> EdgeCurve<T> {
 /// ) {
 ///     // Honest limbs for some other pair, with the two limbs a door
 ///     // records zeroed.
-///     let forged = |c: &NurbsCurve3<f64>, p: &Surface<f64>, w: &NurbsSurface<f64>, e: f64, b: Band|
+///     let forged = |c: &Curve3<f64>, t: (f64, f64), p: &Surface<f64>, w: &NurbsSurface<f64>,
+///                   e: f64, b: Band|
 ///      -> Result<PlaneNurbsLimbs<f64>, PlaneNurbsRefusal> {
-///         let mut limbs = geom_brep::plane_nurbs_limbs(c, p, w, e, b)?;
+///         let mut limbs = geom_brep::plane_nurbs_limbs(c, t, p, w, e, b)?;
 ///         limbs.on_locus_max = 0.0;
 ///         limbs.hull_sup = 0.0;
 ///         Ok(limbs)
@@ -1547,7 +1548,7 @@ impl<T: Decide> EdgeCurve<T> {
 ///
 /// ```
 /// use geom_brep::{EdgeCurve, EdgeCurveSpec, NurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
-/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// use geom::{Curve3, NurbsSurface, Surface};
 /// use geom_core::{Band, Point3};
 /// fn forge(
 ///     spec: EdgeCurveSpec<f64>,
@@ -1557,9 +1558,10 @@ impl<T: Decide> EdgeCurve<T> {
 /// ) {
 ///     // Honest limbs for some other pair, with the two limbs a door
 ///     // records zeroed.
-///     let forged = |c: &NurbsCurve3<f64>, p: &Surface<f64>, w: &NurbsSurface<f64>, e: f64, b: Band|
+///     let forged = |c: &Curve3<f64>, t: (f64, f64), p: &Surface<f64>, w: &NurbsSurface<f64>,
+///                   e: f64, b: Band|
 ///      -> Result<PlaneNurbsLimbs<f64>, PlaneNurbsRefusal> {
-///         let mut limbs = geom_brep::plane_nurbs_limbs(c, p, w, e, b)?;
+///         let mut limbs = geom_brep::plane_nurbs_limbs(c, t, p, w, e, b)?;
 ///         limbs.on_locus_max = 0.0;
 ///         limbs.hull_sup = 0.0;
 ///         Ok(limbs)
@@ -1575,7 +1577,8 @@ pub struct NurbsLane<T: Real> {
     /// [`crate::plane_nurbs_limbs`] at `T`.
     limbs:
         fn(
-            &geom::NurbsCurve3<T>,
+            &Curve3<T>,
+            (T, T),
             &Surface<T>,
             &geom::NurbsSurface<T>,
             T,
@@ -1585,7 +1588,8 @@ pub struct NurbsLane<T: Real> {
     /// [`crate::nurbs_pair_limbs`] at `T`.
     pair_limbs:
         fn(
-            &geom::NurbsCurve3<T>,
+            &Curve3<T>,
+            (T, T),
             &geom::NurbsSurface<T>,
             &geom::NurbsSurface<T>,
             T,
@@ -1635,29 +1639,32 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
 }
 
 impl<T: Real> NurbsLane<T> {
-    /// The lane's limbs for a declared carrier on a plane × NURBS pair.
+    /// The lane's limbs for a declared carrier of any kind on a plane ×
+    /// NURBS pair, over the edge's interval `params`.
     fn limbs(
         self,
-        carrier: &geom::NurbsCurve3<T>,
+        carrier: &Curve3<T>,
+        params: (T, T),
         plane: &Surface<T>,
         wall: &geom::NurbsSurface<T>,
         extent: T,
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
-        (self.limbs)(carrier, plane, wall, extent, band)
+        (self.limbs)(carrier, params, plane, wall, extent, band)
     }
 
-    /// The lane's limbs for a declared carrier between two spline charts
-    /// ([`crate::nurbs_pair_limbs`]).
+    /// The lane's limbs for a declared carrier of any kind between two
+    /// spline charts ([`crate::nurbs_pair_limbs`]), over `params`.
     fn pair_limbs(
         self,
-        carrier: &geom::NurbsCurve3<T>,
+        carrier: &Curve3<T>,
+        params: (T, T),
         a: &geom::NurbsSurface<T>,
         b: &geom::NurbsSurface<T>,
         extent: T,
         band: Band,
     ) -> Result<crate::edge_nurbs::PlaneNurbsLimbs<T>, crate::edge_nurbs::PlaneNurbsRefusal> {
-        (self.pair_limbs)(carrier, a, b, extent, band)
+        (self.pair_limbs)(carrier, params, a, b, extent, band)
     }
 
     /// The between-samples certificate of a rung-3 carrier between two
@@ -3239,8 +3246,10 @@ fn run_checks<T: Decide>(
         tube_separation(tangent_kappa_min, bounds.kappa_drift, tangent_arm_min, band)?;
     }
 
-    // ---- Intersection, plane × NURBS only (M7-8): the whole
-    // declare-and-check certificate — the closed-form plane residual,
+    // ---- Intersection, plane × NURBS only (M7-8), over a carrier of
+    // any kind: the whole declare-and-check certificate (C2's three
+    // limbs, limbs 1–2 reading the carrier through the
+    // carrier-enclosure door) — the closed-form plane residual,
     // the certified foot residual on the wall, the between-samples
     // sup bound, the per-sample transversality and the uniqueness
     // tube. The lane refuses typed WITH its measured bound; a
@@ -3250,15 +3259,6 @@ fn run_checks<T: Decide>(
         plane, wall, lane, ..
     } = &resolved
     {
-        let Curve3::Nurbs(ref carrier) = spec.carrier else {
-            return Err(CertifyError::PlaneNurbs(
-                crate::edge_nurbs::PlaneNurbsRefusal::Unsupported {
-                    what: "the declared carrier of a plane × NURBS Intersection must be a \
-                           spline: the certificate's limbs are hull statements about a \
-                           control net",
-                },
-            ));
-        };
         // `plane_nurbs_pair` admits only a wall with a chart.
         let Some(wall) = wall.spline_chart() else {
             return Err(CertifyError::Unimplemented);
@@ -3267,30 +3267,22 @@ fn run_checks<T: Decide>(
         // `band`; they enter the certificate's worst residual and are
         // not decided again.
         let limbs = lane
-            .limbs(carrier, plane, wall, extent, band)
+            .limbs(&spec.carrier, (t0, t1), plane, wall, extent, band)
             .map_err(from_plane_nurbs)?;
         max_residual = max_residual
             .max(limbs.on_locus_max.abs())
             .max(limbs.hull_sup.abs());
     }
 
-    // ---- Intersection, NURBS × NURBS: the same lane's certificate
-    // against both charts, its tube the two-chart one. ----
+    // ---- Intersection, NURBS × NURBS, over a carrier of any kind:
+    // the same lane's certificate against both charts, its tube the
+    // two-chart one. ----
     if let Resolved::PairNurbs { a, b, lane, .. } = &resolved {
-        let Curve3::Nurbs(ref carrier) = spec.carrier else {
-            return Err(CertifyError::PlaneNurbs(
-                crate::edge_nurbs::PlaneNurbsRefusal::Unsupported {
-                    what: "the declared carrier of a NURBS × NURBS Intersection must be a \
-                           spline: the certificate's limbs are hull statements about a \
-                           control net",
-                },
-            ));
-        };
         let (Some(a), Some(b)) = (a.spline_chart(), b.spline_chart()) else {
             return Err(CertifyError::Unimplemented);
         };
         let limbs = lane
-            .pair_limbs(carrier, a, b, extent, band)
+            .pair_limbs(&spec.carrier, (t0, t1), a, b, extent, band)
             .map_err(from_plane_nurbs)?;
         max_residual = max_residual
             .max(limbs.on_locus_max.abs())
@@ -3519,7 +3511,10 @@ mod wiring_rows {
     fn holds_the_certified_nurbs_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = NurbsLane::<T>::certified();
-        if !std::ptr::fn_addr_eq(lane.limbs, plane_nurbs_limbs::<T> as fn(_, _, _, _, _) -> _) {
+        if !std::ptr::fn_addr_eq(
+            lane.limbs,
+            plane_nurbs_limbs::<T> as fn(_, _, _, _, _, _) -> _,
+        ) {
             return Err("limbs is not `edge_nurbs::plane_nurbs_limbs`");
         }
         if !std::ptr::fn_addr_eq(lane.foot, NurbsLane::<T>::seeded_foot as fn(_, _, _) -> _) {
@@ -3533,7 +3528,7 @@ mod wiring_rows {
         }
         if !std::ptr::fn_addr_eq(
             lane.pair_limbs,
-            crate::edge_nurbs::nurbs_pair_limbs::<T> as fn(_, _, _, _, _) -> _,
+            crate::edge_nurbs::nurbs_pair_limbs::<T> as fn(_, _, _, _, _, _) -> _,
         ) {
             return Err("pair_limbs is not `edge_nurbs::nurbs_pair_limbs`");
         }
