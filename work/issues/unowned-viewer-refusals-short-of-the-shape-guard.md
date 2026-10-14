@@ -35,22 +35,16 @@ on that ground.
    `fuse/face-lineage-at-append` retired it: face division rows are
    checked where they are added, so no reader meets a cycle.)
 3. **A reversed interval ends on a short-edge lever.**
-   `CertifyError::IntervalNotForward` with a definite `Negative`
-   verdict, read at a build, renders "the stored parameter interval runs
-   backwards … Recourse: move the geometry so this edge is not
-   vanishingly short" (`Transform/Certify` in the chain test). The
-   `ParamSpan` decision's own comment (`CertCheck::ending`) says no
-   kernel construction mints a reversed interval. So the lever looks
-   wrong for this arm: a definitely reversed interval is not a short
-   edge. This is unmeasured beyond that one rendering; the routing is
-   `geom_brep::certify`'s `recourse` table.
+   `param-span-lever-says-vanishingly-short-of-a-reversed-span` closes
+   it: `CertCheck::ParamSpan`'s lever (`CertCheck::ending`) now names
+   the goal, "move the geometry so this edge runs forward over a clear
+   length", which is true of a span at zero and of a reversed one, and
+   at a build the decision's note calls either a kernel defect.
 
 ## Repair shape
 
 For 1 and 2, rewrite at the source to the standard and drop the entry;
-the must-fire check turns a stale entry red. For 3, read the raise
-sites of `IntervalNotForward` and decide whether a definite reversal at
-a build should end in `KERNEL_DEFECT_ENDING`.
+the must-fire check turns a stale entry red.
 
 ## Escalations that offer a declaration the door cannot take (CHROME triage)
 

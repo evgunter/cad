@@ -5406,6 +5406,7 @@ mod tests {
                     passes: geom_core::SizedPass::NonZero,
                     no_size: None,
                     unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+                    refused: geom_core::RefusedReading::AsShown,
                 },
             );
             assert!(
@@ -5704,8 +5705,8 @@ mod tests {
                                 geom::Curve3::Ellipse {
                                     center: base + big_n * along_n,
                                     axis: u.cross(t),
-                                    major: along_n,
-                                    minor: along_t,
+                                    semi_u: along_n,
+                                    semi_v: along_t,
                                     u_ref: u,
                                 }
                             };
@@ -6172,6 +6173,7 @@ mod tests {
                 passes: geom_core::SizedPass::Positive,
                 no_size: None,
                 unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+                refused: geom_core::RefusedReading::AsShown,
             },
         );
         assert!(

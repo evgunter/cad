@@ -3199,7 +3199,14 @@ impl<T: Decide> Track<T> {
     /// `p`'s offset from the start along the carrier, in `[0, period)`
     /// on a periodic one, where `p` lies on the carrier (its distance
     /// from the carrier's point at its recovered parameter decided
-    /// zero through `predicate`); `None` off it.
+    /// zero through `predicate`); `None` off it. A point at the start
+    /// reads `0` or a hair under `period`, by rounding, and
+    /// [`Self::stretches`] is invariant under which: it hands back each
+    /// stretch with its copy a period back, and an open arc whose ends
+    /// coincide reads a whole period from either end, whichever side of
+    /// the jump its far end lands on. A closed arc's whole turn is
+    /// `arc.closed`, which `stretches` answers from whatever its offsets
+    /// read.
     ///
     /// # Errors
     ///
@@ -3716,12 +3723,12 @@ pub(super) fn param_along<T: Decide>(
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let w = p - *center;
-            let (x, y) = (w.dot(*u_ref) / *major, w.dot(axis.cross(*u_ref)) / *minor);
+            let (x, y) = (w.dot(*u_ref) / *semi_u, w.dot(axis.cross(*u_ref)) / *semi_v);
             let (s, c) = near.sin_cos();
             Some(near + (y * c - x * s).atan2(x * c + y * s))
         }

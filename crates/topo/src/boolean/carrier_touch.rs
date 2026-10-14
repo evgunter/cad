@@ -77,7 +77,10 @@ pub(super) fn off_face<T: Decide + Bounds>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let (Some(rho), Some((speed, bend))) = (reach(surface), speed_bound(carrier)) else {
+    let (Some(rho), Some((speed, bend))) = (
+        reach(surface),
+        geom_brep::carrier_speed::speed_and_curvature_hi(carrier),
+    ) else {
         return Ok(false);
     };
     let Some(clusters) = clusters(surface, carrier, (speed, bend), rho, (t0, t1), band) else {
@@ -101,7 +104,7 @@ pub(super) fn off_face<T: Decide + Bounds>(
 
 /// The carrier's reach, ρ in the module docs; `None` for a kind with no
 /// distance here.
-fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
+pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
     match *surface {
         geom::Surface::Sphere { radius, .. } | geom::Surface::Cylinder { radius, .. } => {
             Some(radius)
@@ -116,17 +119,6 @@ fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<T> {
         | geom::Surface::Nurbs(_)
         | geom::Surface::Approx(_) => None,
     }
-}
-
-/// Bounds on the curve's speed, metres per unit of its parameter
-/// ([`geom_brep::carrier_speed::speed_hi`]), and on its curvature
-/// ([`geom_brep::carrier_speed::curvature_hi`]); `None` past the speed's
-/// kinds (a spiric, a spline).
-fn speed_bound<T: Decide>(carrier: &geom::Curve3<T>) -> Option<(T, T)> {
-    Some((
-        geom_brep::carrier_speed::speed_hi(carrier)?,
-        geom_brep::carrier_speed::curvature_hi(carrier)?,
-    ))
 }
 
 /// A point's signed distance from the carrier, its foot on it, and the
@@ -375,13 +367,13 @@ fn edge_clear_of_ball<T: Decide + Bounds>(
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             ..
         } => {
             // The annulus between the semi-axis magnitudes, whichever is
             // stored first.
-            let (lo, hi) = (major.abs().min(minor.abs()), major.abs().max(minor.abs()));
+            let (hi, lo) = geom::Curve3::semi_axes_by_size(semi_u, semi_v);
             let (h, rho) = split(center, axis);
             let g = (rho - hi).max(lo - rho).max(T::zero());
             (g.powi(2) + h.powi(2)).sqrt()

@@ -366,6 +366,8 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::Tangent { aligned: false } => "turns back tangent into",
         topo::Relation::SurfaceTangent => "is tangent along a locus to",
         topo::Relation::Coaxial => "shares an axis with",
+        topo::Relation::SameRadius => "shares a radius with",
+        topo::Relation::AxesMeet => "has an axis meeting the axis of",
         topo::Relation::CoRuled => "is ruled along one direction with",
     }
 }
@@ -377,6 +379,9 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
         topo::DecisionSite::CarrierLadder => "a pair of carriers its margins read as one",
         topo::DecisionSite::TangentWitness => "a tangency verified along its locus",
         topo::DecisionSite::CoaxialSphere => "a sphere's centre read on a cylinder's axis",
+        topo::DecisionSite::CrossingCylinders => {
+            "two cylinders read as one radius with meeting axes"
+        }
         topo::DecisionSite::SplitOn => "a split's on-plane verdict where its pieces touch",
         topo::DecisionSite::BatteryTurn => "a blend turn's two feet read as one point",
         topo::DecisionSite::BatteryJoint => "a blend chain's joint read as tangent",

@@ -6978,10 +6978,11 @@ class Coincidence:
     plane a split cuts with is `(read, None)`; and a profile's own piece
     is `(profile, piece)`, the profile's `NodeId`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `common_foot`,
-    `tangent`, `cusp`, `surface_tangent`, `coaxial` or `co_ruled`; `site`
-    is `plane_ladder`, `carrier_ladder`, `tangent_witness`,
-    `coaxial_sphere`, `split_on`, `battery_turn`, `battery_joint`,
-    `battery_support_axis`, `profile_junction`, `vertex_fusion` or
+    `tangent`, `cusp`, `surface_tangent`, `coaxial`, `same_radius`,
+    `axes_meet` or `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
+    `tangent_witness`, `coaxial_sphere`, `crossing_cylinders`, `split_on`,
+    `battery_turn`, `battery_joint`, `battery_support_axis`,
+    `profile_junction`, `vertex_fusion` or
     `census_at_rest`. A `profile_junction` row is `tangent` or `cusp`
     between two carriers and `same_oriented` where its two pieces
     continue one carrier; a `tangent_witness` row is `surface_tangent`,

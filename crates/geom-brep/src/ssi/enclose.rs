@@ -76,8 +76,8 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
-    CellAxis, CellBlock, CellQuotients, KnotVector, ParamRange, RingRefinement, Span, TensorNet,
-    cell_quotients, span_derivative_scale,
+    CellAxis, CellBlock, CellQuotients, KnotVector, Knots, ParamRange, RingRefinement, Span,
+    TensorNet, basis::basis_funs_in, cell_quotients, span_derivative_scale,
 };
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
@@ -600,6 +600,12 @@ pub(crate) struct NurbsBoxes<'a, T: CertifiedBounds> {
     /// knots' span indices, built on its first read: a function of the
     /// cell alone, which every rectangle touching the cell reads whole.
     nets: CellNets,
+    /// The surface's knot values lifted to certification arithmetic,
+    /// for [`Self::rect_box`]'s midpoint, on the first read.
+    knots: OnceCell<(Knots<Interval>, Knots<Interval>)>,
+    /// The same knot values as `f64`s where every one is a point, for
+    /// the midpoint's double-word reading ([`super::compensated`]).
+    point_knots: OnceCell<Option<(Vec<f64>, Vec<f64>)>>,
 }
 
 /// [`NurbsBoxes`]'s whole-cell nets, `v`-span count wide.
@@ -651,6 +657,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
             surface,
             grid: None,
             nets: CellNets::over((surface.knots_u(), surface.knots_v())),
+            knots: OnceCell::new(),
+            point_knots: OnceCell::new(),
         }
     }
 
@@ -661,6 +669,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
             surface,
             grid: Some(grid),
             nets: CellNets::over((&grid.ku, &grid.kv)),
+            knots: OnceCell::new(),
+            point_knots: OnceCell::new(),
         }
     }
 
@@ -896,29 +906,141 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         let (u0, u1, v0, v1) = (w.u.start(), w.u.end(), w.v.start(), w.v.end());
         let um = 0.5 * (u0 + u1);
         let vm = 0.5 * (v0 + v1);
-        let hu = 0.5 * (u1 - u0);
-        let hv = 0.5 * (v1 - v0);
         // The midpoint evaluation is the only EVALUATION in this
-        // module, and it happens at the caller's scalar and then
-        // crosses the seam — so a widened control net widens the box
-        // rather than being silently collapsed.
-        // `eval_in_span` at the midpoint's own span rather than `eval`:
-        // the parameter is a thin `f64` structure value, so its span is
-        // unique and no `SpanLocate` hull is needed.
+        // module, and it is an ENCLOSURE on every lane: the window's
+        // net and knots crossed at the seam ([`Interval::from_certified`])
+        // and evaluated in certification arithmetic, so a widened
+        // control net widens the box rather than being silently
+        // collapsed, and an `f64` net's point is not read as a rounded
+        // `f64` evaluation that may sit off the surface.
         // Clamped into a finite domain, so the midpoint is a number.
         let Some(win) = self.surface.window_at(um, vm) else {
             unreachable!("a clamped window's midpoint is a number")
         };
-        let c = win.eval_in_span(T::from_f64(um), T::from_f64(vm));
+        let c = self.enclosed_point(win, um, vm);
         let du = self.cell_deriv_box(w, true);
         let dv = self.cell_deriv_box(w, false);
-        let ru = Interval::from_bounds(-hu, hu);
-        let rv = Interval::from_bounds(-hv, hv);
+        // The window's offsets from its midpoint, each end's difference
+        // rounded outward: `um` is itself rounded, and `±(u1 − u0)/2`
+        // formed in `f64` can fall short of an end by an ulp, which
+        // leaves `S` at the window's own corner outside its box.
+        let offsets = |lo: f64, mid: f64, hi: f64| {
+            let mid = Interval::point(mid);
+            Interval::hull(Interval::point(lo) - mid, Interval::point(hi) - mid)
+        };
+        let ru = offsets(u0, um, u1);
+        let rv = offsets(v0, vm, v1);
         Box3 {
-            x: Interval::from_certified(c.x) + du.x * ru + dv.x * rv,
-            y: Interval::from_certified(c.y) + du.y * ru + dv.y * rv,
-            z: Interval::from_certified(c.z) + du.z * ru + dv.z * rv,
+            x: c.x + du.x * ru + dv.x * rv,
+            y: c.y + du.y * ru + dv.y * rv,
+            z: c.z + du.z * ru + dv.z * rv,
         }
+    }
+
+    /// An enclosure of `S(u, v)` in `win`: [`SurfaceWindow::eval_in_span`]'s
+    /// sum, term for term in its order, over the window's net and knot
+    /// values crossed into certification arithmetic. At `Interval` it
+    /// is that evaluation's own bounds; at `f64` it encloses the stored
+    /// net's exact point, which the lane's own evaluation only rounds
+    /// to.
+    fn enclosed_point(&self, win: SurfaceWindow<'_, T>, u: f64, v: f64) -> Point3<Interval> {
+        let (ku, kv) = self.knots.get_or_init(|| {
+            let lift = |x: T| Interval::from_certified(x);
+            (
+                self.surface.knot_values_u().lift(lift),
+                self.surface.knot_values_v().lift(lift),
+            )
+        });
+        let (Some(su), Some(sv)) = (ku.span(win.span_u().index()), kv.span(win.span_v().index()))
+        else {
+            unreachable!("the window's spans are spans of the surface's own knots")
+        };
+        let bu = basis_funs_in(su, Interval::point(u));
+        let bv = basis_funs_in(sv, Interval::point(v));
+        let (control, weights) = (self.surface.control(), self.surface.weights());
+        // Read twice, about the origin and about the window's corner
+        // control point `o` (a point), and met: both enclose the one
+        // exact point. `S − o = Σ bw·(P − o) / Σ bw` in ℝ, and each
+        // `P − o` is a difference of nearby numbers, so that sum's
+        // rounding scales with the window's extent rather than with its
+        // distance from the origin, at the cost of one rounding at `o`'s
+        // scale when it is added back; about the origin there is no
+        // such rounding, which is the tighter where `|S|` is small next
+        // to `|o|`.
+        let corner = control[win.row(0)];
+        let o = [corner.x, corner.y, corner.z].map(|c| Interval::point(Bounds::lo(c)));
+        let zero = Interval::point(0.0);
+        let (mut at, mut about, mut w) = ([zero; 3], [zero; 3], zero);
+        for (i, bui) in bu.iter().enumerate() {
+            let row = win.row(i);
+            for (j, bvj) in bv.iter().enumerate() {
+                let idx = row + j;
+                let cw = (*bui * *bvj) * Interval::from_certified(weights[idx]);
+                let pt = control[idx];
+                let p = [pt.x, pt.y, pt.z].map(Interval::from_certified);
+                for c in 0..3 {
+                    at[c] = at[c] + cw * p[c];
+                    about[c] = about[c] + cw * (p[c] - o[c]);
+                }
+                w = w + cw;
+            }
+        }
+        let [x, y, z] = core::array::from_fn(|c| (at[c] / w).meet(o[c] + about[c] / w));
+        // Where every input is a point, the double-word reading too: a
+        // few ulps of the point (or `u²` of its terms where they
+        // cancel), where the interval sums are as wide as their terms'
+        // rounding.
+        match self.point_reading(win, (u, v)) {
+            Some([dx, dy, dz]) => Point3::new(x.meet(dx), y.meet(dy), z.meet(dz)),
+            None => Point3::new(x, y, z),
+        }
+    }
+
+    /// [`super::compensated::nurbs_point`] on `win` at `(u, v)`, where
+    /// the window's net and weights and the surface's knots are all
+    /// points; `None` elsewhere, or where its bound is not trusted.
+    fn point_reading(
+        &self,
+        win: SurfaceWindow<'_, T>,
+        (u, v): (f64, f64),
+    ) -> Option<[Interval; 3]> {
+        let point = |x: T| (Bounds::lo(x) == Bounds::hi(x)).then(|| Bounds::lo(x));
+        let (ku, kv) = self
+            .point_knots
+            .get_or_init(|| {
+                let all = |k: &Knots<T>| {
+                    k.values()
+                        .iter()
+                        .map(|&x| point(x))
+                        .collect::<Option<Vec<f64>>>()
+                };
+                Some((
+                    all(self.surface.knot_values_u())?,
+                    all(self.surface.knot_values_v())?,
+                ))
+            })
+            .as_ref()?;
+        let (su, sv) = (win.span_u(), win.span_v());
+        let (control, weights) = (self.surface.control(), self.surface.weights());
+        let window = (0..=su.degree())
+            .flat_map(|i| (0..=sv.degree()).map(move |j| win.row(i) + j))
+            .map(|idx| {
+                let p = control[idx];
+                Some((
+                    [point(p.x)?, point(p.y)?, point(p.z)?],
+                    point(weights[idx])?,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        super::compensated::nurbs_point(
+            &super::compensated::PointCell {
+                knots: (ku, kv),
+                spans: (su.index(), sv.index()),
+                degrees: (su.degree(), sv.degree()),
+                window: &window,
+            },
+            (u, v),
+        )
     }
 }
 
@@ -1730,10 +1852,37 @@ pub(super) mod tests {
     }
 
     /// Whether a rigid map moved a seated reading `a` to `b` by its
-    /// rounding width alone: a few hundred ulps of the coordinates'
-    /// `reach`, relative, times the window's `scale`.
-    fn within_rounding(a: f64, b: f64, reach: f64, scale: f64) -> bool {
-        (a - b).abs() <= 256.0 * f64::EPSILON * (1.0 + reach) * scale * a.abs().max(b.abs())
+    /// rounding width alone: some ulps of the coordinates' `reach`,
+    /// relative to the reading's `magnitude`, times the window's
+    /// `scale` — 256 for a speed or pad, 32 for a margin (its measured
+    /// worst, 9.44 at `CAD_FUZZ_EFFORT=64`, with about three times
+    /// over).
+    ///
+    /// The magnitude is what the reading's rounding is relative to. A
+    /// speed or pad rounds relative to itself
+    /// ([`Magnitude::Own`]). A transverse margin does not:
+    /// it is `mig(n·d_k) / stretch`, where each `d_k` is no longer than
+    /// the stretch, so every coefficient it reads, and the rounding of
+    /// each, sits at the stretch's scale, and the margin is that
+    /// rounding divided by the stretch. It rounds at magnitude `1`, the
+    /// most it can read, whatever small value it lands on
+    /// ([`Magnitude::Unit`]).
+    fn within_rounding(a: f64, b: f64, reach: f64, scale: f64, magnitude: Magnitude) -> bool {
+        let (ulps, m) = match magnitude {
+            Magnitude::Own => (256.0, a.abs().max(b.abs())),
+            Magnitude::Unit => (32.0, 1.0),
+        };
+        (a - b).abs() <= ulps * f64::EPSILON * (1.0 + reach) * scale * m
+    }
+
+    /// What a reading's rounding is relative to ([`within_rounding`]).
+    #[derive(Clone, Copy, Debug)]
+    enum Magnitude {
+        /// The reading itself: a speed, a pad.
+        Own,
+        /// One: a margin, a fraction of the stretch its coefficients
+        /// are no longer than.
+        Unit,
     }
 
     /// A rigid map of the rotation row's kind: a rotation by `angle`
@@ -1756,7 +1905,13 @@ pub(super) mod tests {
     /// only the rounding of the image's coordinates enters: a few hundred
     /// ulps of the coordinates' reach, relative, scaled up on a window by
     /// the cut's `1 / width` (a cut net's differences are divided by the
-    /// window's width, and its coordinates round at the reach). A norm
+    /// window's width, and its coordinates round at the reach). Relative
+    /// to what is [`within_rounding`]'s magnitude: a speed or pad to
+    /// itself, a margin to one, since a small margin is a cancellation
+    /// among coefficients at the stretch's scale (sampled over 4000 maps,
+    /// the worst margin moved 8.1 of these units at magnitude one and 257
+    /// at its own 0.0027; 9.44 at magnitude one is the worst measured, at
+    /// `CAD_FUZZ_EFFORT=64`). A norm
     /// read off a
     /// per-coordinate box would move by up to √3 instead (5.88 to 8.20
     /// over 32 maps of the 1.8 / 0.7 wall's `u` speed).
@@ -1801,17 +1956,17 @@ pub(super) mod tests {
                     .iter()
                     .zip(&image.speeds)
                     .chain(at.pads.iter().zip(&image.pads))
-                    .map(|(&a, &b)| (a, b, 1.0))
+                    .map(|(&a, &b)| (a, b, 1.0, Magnitude::Own))
                     .chain(
                         at.margins
                             .iter()
                             .zip(&image.margins)
                             .zip(window_scale)
-                            .map(|((&a, &b), k)| (a, b, k)),
+                            .map(|((&a, &b), k)| (a, b, k, Magnitude::Unit)),
                     );
-                for (a, b, scale) in pairs {
+                for (a, b, scale, magnitude) in pairs {
                     assert!(
-                        within_rounding(a, b, reach, scale),
+                        within_rounding(a, b, reach, scale, magnitude),
                         "{name}: a rigid map about {axis:?} through {pivot:?} by {angle} moved \
                          a chart reading {a} to {b}: seated {at:?}, mapped {image:?} — {}",
                         fuzz::replay()
@@ -1825,6 +1980,86 @@ pub(super) mod tests {
                     fuzz::replay()
                 );
             }
+        }
+    }
+
+    /// **The fuzzer's recorded maps, as fixed rows.** Four seeds of
+    /// [`a_rigidly_mapped_wall_reads_the_seated_chart_speeds_floors_and_tube`]
+    /// went red on the two-span patch's second-window margin, which sits
+    /// at 0.0027 of its stretch: each map moved it by about 4e-15, past
+    /// a few hundred ulps of 0.0027 and within a few dozen of one
+    /// (`work/ssiarith/rigid-map-chart-readings-fuzz-reds-past-its-rounding-bound.md`).
+    /// Each map, written down: every speed and pad stays within its
+    /// rounding at its own value, every margin within its rounding at
+    /// one, and every floor decides as seated.
+    #[test]
+    fn the_recorded_rigid_maps_move_a_small_margin_by_its_stretchs_rounding() {
+        // (seed, axis, pivot, angle), as each failure printed them.
+        let maps = [
+            (
+                "0x8371abdecebb95f9 (effort 8)",
+                Vec3::new(0.8892767327884497, -0.3111456490169011, 0.529547310454898),
+                Point3::new(-0.7856759962338078, 0.5412358116783427, 1.931254384335574),
+                3.30562505731778,
+            ),
+            (
+                "0x166d62361818555e",
+                Vec3::new(
+                    -0.9254990197806239,
+                    -0.1674496796624283,
+                    -0.38154305676260414,
+                ),
+                Point3::new(
+                    1.1971011302698784,
+                    -0.13768816972372022,
+                    -0.5807137925187895,
+                ),
+                0.5675790275065047,
+            ),
+            (
+                "0xdfa19917eaceb89e",
+                Vec3::new(0.2896241433614475, -0.1361927893414525, 0.6967084815427922),
+                Point3::new(0.40140272923285636, 0.4976481229205518, -0.6405201135113732),
+                3.6398997930903314,
+            ),
+            (
+                "0x1d0a3b646ab0444b",
+                Vec3::new(-0.15680770128407673, 0.9181613401775988, 0.3246244410860559),
+                Point3::new(0.4461639737775851, 0.612123104391344, -0.458107698741939),
+                2.91710539156148,
+            ),
+        ];
+        let wall = multiplicity_2_patch();
+        let n0 = Vec3::new(0.2, -0.5, 0.84).normalize();
+        let at = chart_readings(&wall, n0);
+        let window_scale = MARGIN_WINDOWS.map(|(u0, u1, v0, v1)| 1.0 / (u1 - u0).min(v1 - v0));
+        for (seed, axis, pivot, angle) in maps {
+            let (map, reach) = rigid_map(axis, pivot, angle);
+            let image = chart_readings(
+                &wall.map_points(|p| map.transform_point(p)),
+                map.linear * n0,
+            );
+            for (&a, &b) in at
+                .speeds
+                .iter()
+                .zip(&image.speeds)
+                .chain(at.pads.iter().zip(&image.pads))
+            {
+                assert!(
+                    within_rounding(a, b, reach, 1.0, Magnitude::Own),
+                    "{seed}: a speed or pad moved {a} to {b}"
+                );
+            }
+            for ((&a, &b), k) in at.margins.iter().zip(&image.margins).zip(window_scale) {
+                assert!(
+                    within_rounding(a, b, reach, k, Magnitude::Unit),
+                    "{seed}: a margin moved {a} to {b}"
+                );
+            }
+            assert_eq!(
+                image.floors, at.floors,
+                "{seed}: a floor decides differently"
+            );
         }
     }
 
@@ -1886,7 +2121,7 @@ pub(super) mod tests {
             let moved: Vec<bool> = seated
                 .iter()
                 .zip(&image)
-                .map(|(&a, &b)| !within_rounding(a, b, reach, 1.0))
+                .map(|(&a, &b)| !within_rounding(a, b, reach, 1.0, Magnitude::Own))
                 .collect();
             assert_eq!(
                 moved,
