@@ -1414,3 +1414,6 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Its guard is one build per cell per operand across 20 rungs.
   - **Times, against main:** shell 286 → 234 s, r1 183 → 164 s. The remainder is the per-window cut, which step 3 handles. Step 2 has started.
   - Tier: my read, after CI.
+- 2026-10-14 00:16Z — **Correction:** the digest red (`tilted_cut_upper` pads) is NOT 4984's. It passes at 2639b944 and at a71403e3 (pre-4984), and fails on main HEAD. Build A is bisecting the merges after #4938 (#4964, #4952, #4863, #5033, #5022, #5025); the result goes to the owning program, not re-cut by NURBS.
+  - **The saddle pin IS 4984's**, and the re-baseline is sound: the integral wall's floor rose from 1.97616 to 1.97751, against a sampled least ‖S_u×S_v‖ of 1.97754. The fix ships now, on its own PR.
+  - **Reds at 1e-6 under triage** (base red, or flipped by 4984?): `cone_operand_rows`, `r1_lane0_e2e` (TubeNotOneArc), topo `three_solids_on_one_line`.
