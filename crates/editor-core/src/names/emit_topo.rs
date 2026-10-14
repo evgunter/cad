@@ -3201,7 +3201,9 @@ impl<T: Decide> Track<T> {
     /// `p`'s offset from the start along the carrier, in `[0, period)`
     /// on a periodic one, where `p` lies on the carrier (its distance
     /// from the carrier's point at its recovered parameter decided
-    /// zero through `predicate`); `None` off it.
+    /// zero through `predicate`); `None` off it. The start reads `0`,
+    /// never `period`: a whole turn is the arc's `closed`, which
+    /// [`Self::stretches`] reads before any offset.
     fn offset(
         &self,
         p: Point3<T>,

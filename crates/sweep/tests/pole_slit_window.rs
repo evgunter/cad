@@ -8,21 +8,19 @@
 //! runs the surviving meridian up into the pole and straight back down
 //! it — a slit, the pole a valence-1 strut tip (tier 2 names it; tier 1
 //! holds). Killed from its minus half, the surviving face's walk crosses
-//! the slit mid-walk, where the azimuth walk's strictly-next pole branch
-//! sits exactly on its jump: at `f64` it lands a whole period on, and at
-//! `Interval` the enclosure straddles it and spans both branches.
+//! the slit mid-walk: it enters the pole along the meridian and leaves
+//! along the same one, so the face wraps the pole and the strictly-next
+//! branch is the previous one a whole turn on, a literal at every scalar.
 //!
 //! The window row holds the interval walk against the `f64` window on
-//! every slit. Where the walk closes before the slit, the interval window
-//! encloses the replay's. Where it crosses the slit mid-walk, the next
-//! joint inherits the straddle: its gap spans a whole period, no
-//! half-period mark decides, and the walk escalates
-//! (`split_window_branch`) rather than pick a branch. A pick that kept
-//! one branch of the straddle would hand back a window excluding the
-//! replay's. The containment row
+//! every slit: the interval window encloses the replay's, each end a
+//! point-width enclosure, where the walk closes before the slit and where
+//! it crosses it mid-walk alike. A pick that read the slit's coincident
+//! azimuths as numbers would straddle the jump there, spanning both
+//! branches, and escalate at the joint after it. The containment row
 //! asks points of the dome at both scalars; the slit face's rims wrap
 //! the axis, so the door reads its latitude window and not the azimuth
-//! one, and a pick that refused the straddle instead would turn every
+//! one, and a pick that refused the slit instead would turn every
 //! verdict into a partial-sphere refusal. A point outside the dome whose
 //! rays meet nothing is answered off a ray aimed at its base: the slit's
 //! cusp leaves the at-infinity volume uncertified.
@@ -165,7 +163,7 @@ fn window<T: Decide>(slit: &Body<T>) -> Result<Option<(T, T)>, SplitJoinError> {
 }
 
 #[test]
-fn the_interval_walk_escalates_where_the_slit_straddles_its_branch() {
+fn the_interval_walk_encloses_the_f64_window_on_every_slit() {
     let replay = slits::<f64>();
     let certified = slits::<Interval>();
     assert_eq!(
@@ -173,37 +171,23 @@ fn the_interval_walk_escalates_where_the_slit_straddles_its_branch() {
         certified.len(),
         "one slit per kill in each lane"
     );
-    let mut escalated = Vec::new();
     for (i, (r, c)) in replay.iter().zip(&certified).enumerate() {
         let (r_lo, r_hi) = window(r)
             .expect("the f64 walk")
             .expect("the slit face's loop is a cycle");
-        match window(c) {
-            Ok(Some((c_lo, c_hi))) => {
-                for (end, want, got) in [("lo", r_lo, c_lo), ("hi", r_hi, c_hi)] {
-                    assert!(
-                        got.lo() <= want && want <= got.hi(),
-                        "slit {i}: the interval window's {end} [{:e}, {:e}] does not \
-                         enclose the f64 window's {want} (f64 window ({r_lo}, {r_hi}))",
-                        got.lo(),
-                        got.hi()
-                    );
-                }
-            }
-            Err(SplitJoinError::Escalated { diag, .. })
-                if diag.predicate == Some("split_window_branch") =>
-            {
-                escalated.push(i);
-            }
-            other => panic!("slit {i}: the interval walk: {other:?}"),
+        let (c_lo, c_hi) = window(c)
+            .unwrap_or_else(|e| panic!("slit {i}: the interval walk: {e:?}"))
+            .expect("the slit face's loop is a cycle");
+        for (end, want, got) in [("lo", r_lo, c_lo), ("hi", r_hi, c_hi)] {
+            assert!(
+                got.lo() <= want && want <= got.hi() && got.hi() - got.lo() < 1e-9,
+                "slit {i}: the interval window's {end} [{:e}, {:e}] is not a tight \
+                 enclosure of the f64 window's {want} (f64 window ({r_lo}, {r_hi}))",
+                got.lo(),
+                got.hi()
+            );
         }
     }
-    assert_eq!(
-        escalated,
-        [1, 3],
-        "the walks killed from the minus half cross the slit mid-walk and escalate; \
-         the others close before it"
-    );
 }
 
 /// The unit ball about `(0.5, 1, 0.5)`'s `y` axis at radius 0.3, whose

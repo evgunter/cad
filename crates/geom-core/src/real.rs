@@ -719,6 +719,12 @@ pub trait Real:
     /// need a topology-grade statement about the seam go through the
     /// predicate layer, like every other decision.
     ///
+    /// **A coincidence reads zero.** `self ≡ 0` reduces to `0`, never to
+    /// `period`: a reduction owes nothing at its jump, and a whole turn
+    /// is never read off the numbers. A caller whose span IS a whole turn
+    /// says so from structure it holds (a closed carrier, a self-loop, a
+    /// decided full span), not from this value.
+    ///
     /// **What is promised across periods**: nothing bitwise. `2π` is not
     /// representable, so `θ + k·fl(τ)` is a *different real parameter*
     /// than `θ + k·τ`; reduced evaluations of `θ` and `θ + k·fl(τ)`

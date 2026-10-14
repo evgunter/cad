@@ -515,7 +515,10 @@ fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
     }
 }
 
-/// The locus parameter of a point on (or decided at) the locus.
+/// The locus parameter of a point on (or decided at) the locus. On a
+/// rim it is in `[0, τ)`, and the seam reads `0`, never `τ`: a riding
+/// arc's whole turn is its own parameter span `t1 − t0`, which its span
+/// carries as a length rather than as a second read.
 fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
     match locus {
         Locus::Line { origin, dir } => (p - origin).dot(dir),
