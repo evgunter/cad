@@ -228,9 +228,10 @@ fn every_served_tilted_ellipse_stands_on_the_cut() {
 /// `(1e-12, 1e-11)`, so the row reads the same at every ε row. Its
 /// envelope is within a few `u` of the ellipse's size.
 ///
-/// Before the fix, the image's whole-turn miss on this family was about
-/// `u·A/cos²α`: 7.2e-12 at `f = 0.5` and a section about 30 across, past
-/// that band.
+/// Before the fix the image missed by about `u·A/cos²α` (the item's
+/// frustum: 7.2e-12 at `f = 0.5`, `A = 33`). With the arm's old
+/// `K = c² − sin²α` every pose here refuses on that band, `MapResidual`
+/// at `f = 0.5` and `ChartIncidence` at 0.8 and 0.9.
 #[test]
 fn a_flat_cones_section_images_and_certifies_at_its_own_resolution() {
     let band = geom_core::Band::new(1e-12, 1e-11).unwrap();
