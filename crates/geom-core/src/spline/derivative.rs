@@ -369,9 +369,13 @@ impl<T: Real, const D: usize> Vector<T, D> {
         }
     }
 
-    /// Half the vector: an exact scaling by a power of two.
-    fn half(self) -> Self {
-        self * T::from_f64(0.5)
+    /// The vector times the exact power of two `k`, skipped at one.
+    fn scaled(self, k: f64) -> Self {
+        if k == 1.0 {
+            self
+        } else {
+            self * T::from_f64(k)
+        }
     }
 
     /// The vector over the exact integer `k`, skipped at one.
@@ -488,15 +492,38 @@ impl<T: Real, const D: usize> Grid<T, D> {
 
     /// The grid halved along `u` (`along_u`) or `v` at the parameter's
     /// midpoint, by de Casteljau: the two halves' Bernstein grids, lower
-    /// first.
+    /// first. Each line is summed unscaled and every output scaled once
+    /// by its exact power `2⁻ʳ`, which reads every halving step's sums
+    /// to the bit wherever no step leaves the normal range: a sum's
+    /// rounding commutes with a power-of-two scale.
     fn halved(&self, along_u: bool) -> Option<(Self, Self)> {
-        if along_u {
-            let (lo, hi): (Vec<_>, Vec<_>) = self.columns()?.iter().map(|c| halved_row(c)).unzip();
-            Some((Self::from_columns(&lo)?, Self::from_columns(&hi)?))
-        } else {
-            let (lo, hi): (Vec<_>, Vec<_>) = self.c.chunks_exact(self.nv).map(halved_row).unzip();
-            Some((Self::from_rows(&lo)?, Self::from_rows(&hi)?))
+        let (nu, nv) = (self.nu(), self.nv);
+        let (n, lines) = if along_u { (nu, nv) } else { (nv, nu) };
+        let at = |line: usize, k: usize| {
+            if along_u {
+                k * nv + line
+            } else {
+                line * nv + k
+            }
+        };
+        let (mut lo, mut hi) = (self.c.clone(), self.c.clone());
+        let mut tri = Vec::with_capacity(n);
+        for line in 0..lines {
+            tri.clear();
+            tri.extend((0..n).map(|k| self.c[at(line, k)]));
+            let mut scale = 1.0;
+            for r in 0..n {
+                if r > 0 {
+                    for i in 0..n - r {
+                        tri[i] = tri[i] + tri[i + 1];
+                    }
+                    scale *= 0.5;
+                }
+                *lo.get_mut(at(line, r))? = tri[0].scaled(scale);
+                *hi.get_mut(at(line, n - 1 - r))? = tri[n - 1 - r].scaled(scale);
+            }
         }
+        Some((Self { nv, c: lo }, Self { nv, c: hi }))
     }
 
     /// The grid raised to the degrees `(du, dv)` by elevation: its
@@ -513,28 +540,6 @@ impl<T: Real, const D: usize> Grid<T, D> {
     fn arrays(&self) -> Vec<[T; D]> {
         self.c.iter().map(|v| v.0).collect()
     }
-}
-
-/// A Bernstein row halved at its parameter's midpoint by de Casteljau:
-/// `(lower, upper)`, each the half's own row at the same degree. Every
-/// step is a sum and an exact halving.
-fn halved_row<T: Real, const D: usize>(
-    row: &[Vector<T, D>],
-) -> (Vec<Vector<T, D>>, Vec<Vector<T, D>>) {
-    let n = row.len();
-    let mut tri = row.to_vec();
-    let (mut lo, mut hi) = (Vec::with_capacity(n), Vec::with_capacity(n));
-    for r in 0..n {
-        if r > 0 {
-            for i in 0..n - r {
-                tri[i] = (tri[i] + tri[i + 1]).half();
-            }
-        }
-        lo.push(tri[0]);
-        hi.push(tri[n - 1 - r]);
-    }
-    hi.reverse();
-    (lo, hi)
 }
 
 /// The largest power of two at most `splits`, never zero: how many
@@ -1502,6 +1507,66 @@ mod tests {
     ];
     const DEGREES: [usize; 5] = [1, 2, 3, 5, 7];
 
+    /// Per-step de Casteljau at ½, each step a sum and a halving: the
+    /// reference [`super::Grid::halved`]'s unscaled sums are read against.
+    fn halved_by_steps(
+        g: &super::Grid<Interval, 3>,
+        along_u: bool,
+    ) -> (super::Grid<Interval, 3>, super::Grid<Interval, 3>) {
+        let half = |x: super::Vector<Interval, 3>| x * Interval::from_f64(0.5);
+        let row = |r: &[super::Vector<Interval, 3>]| {
+            let n = r.len();
+            let mut tri = r.to_vec();
+            let (mut lo, mut hi) = (vec![tri[0]], vec![tri[n - 1]]);
+            for step in 1..n {
+                for i in 0..n - step {
+                    tri[i] = half(tri[i] + tri[i + 1]);
+                }
+                lo.push(tri[0]);
+                hi.push(tri[n - 1 - step]);
+            }
+            hi.reverse();
+            (lo, hi)
+        };
+        if along_u {
+            let (lo, hi): (Vec<_>, Vec<_>) =
+                g.columns().expect("columns").iter().map(|c| row(c)).unzip();
+            (
+                super::Grid::from_columns(&lo).expect("a grid"),
+                super::Grid::from_columns(&hi).expect("a grid"),
+            )
+        } else {
+            let (lo, hi): (Vec<_>, Vec<_>) = g.c.chunks_exact(g.nv).map(row).unzip();
+            (
+                super::Grid::from_rows(&lo).expect("a grid"),
+                super::Grid::from_rows(&hi).expect("a grid"),
+            )
+        }
+    }
+
+    /// **Halving sums unscaled and scales once, reading every step's
+    /// value to the bit**: at the interval scalar, in the normal range,
+    /// each half of a random grid along either axis is the per-step de
+    /// Casteljau's own.
+    #[test]
+    fn halving_reads_each_steps_sums_to_the_bit() {
+        let mut rng = test_utils::fuzz::start("derivative::halving_steps");
+        for case in 0..test_utils::fuzz::scaled(40) {
+            let deg = (rng.below(9), rng.below(9));
+            let g = grid::<3>(&mut rng, deg);
+            for along_u in [true, false] {
+                let (lo, hi) = g.halved(along_u).expect("halves");
+                let (want_lo, want_hi) = halved_by_steps(&g, along_u);
+                assert_eq!(
+                    (grid_bits(&lo), grid_bits(&hi)),
+                    (grid_bits(&want_lo), grid_bits(&want_hi)),
+                    "case {case}: degree {deg:?}, along_u {along_u} — {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
+    }
+
     /// **A cell is halved into the pieces its schedule asks for at any
     /// degree.** A degree-5 cell's second order sits at degree 15, past
     /// the exact-weight tables' reach at 16 pieces (degree 12), where it
@@ -1520,8 +1585,14 @@ mod tests {
         let w: Vec<f64> = (0..n).map(|k| 1.0 + 0.25 * ((k * 7) % 5) as f64).collect();
         let a: Vec<[f64; 3]> = a.iter().zip(&w).map(|(x, w)| x.map(|c| c * w)).collect();
         let axes = (
-            super::CellAxis::Bezier { degree: p, scale: p as f64 },
-            super::CellAxis::Bezier { degree: q, scale: q as f64 },
+            super::CellAxis::Bezier {
+                degree: p,
+                scale: p as f64,
+            },
+            super::CellAxis::Bezier {
+                degree: q,
+                scale: q as f64,
+            },
         );
         let (counts, pieces) = super::cell_second_quotients(
             axes,
@@ -1532,7 +1603,9 @@ mod tests {
         assert_eq!(counts, (16, 16), "the pieces per axis");
         assert_eq!(pieces.len(), 256, "the pieces read");
         assert!(
-            pieces.iter().all(|(_, s)| s.uu.denom().iter().all(|&b| b > 0.0)),
+            pieces
+                .iter()
+                .all(|(_, s)| s.uu.denom().iter().all(|&b| b > 0.0)),
             "a piece's W³ coefficient is not positive"
         );
     }
