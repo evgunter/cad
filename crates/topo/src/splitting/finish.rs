@@ -468,6 +468,19 @@ pub enum SplitFinishError {
         /// The validator's findings.
         errors: Vec<crate::validate::ValidationError>,
     },
+    /// A side, sorted into its solids, fails the scalar's at-rest gate
+    /// ([`crate::AtRestPolicy::gate_at_rest`]: [`crate::validate_geometric`]
+    /// at a certifying scalar), the gate the Boolean's result passes: a
+    /// split never returns a body its validator refuses. Each finding
+    /// carries its own ending, as the Boolean's
+    /// [`crate::BooleanError::ResultInvalid`] carries it. `side` is in
+    /// the caller's orientation.
+    ResultNotAtRest {
+        /// The side whose body failed.
+        side: PlaneSide,
+        /// The validator's findings.
+        errors: Vec<crate::validate::ValidationError>,
+    },
     /// The join a side ends with ([`crate::Body::join_edges`]) refused
     /// on that side's body.
     EdgeJoin {
@@ -608,6 +621,22 @@ impl core::fmt::Display for SplitFinishError {
                     side.word()
                 )
             }
+            Self::ResultNotAtRest { side, errors } => match errors.as_slice() {
+                [first, ..] => write!(
+                    f,
+                    "the piece on the {} side of the plane did not pass the at-rest gate, so \
+                     no body is returned ({} finding(s)); the first: {first}",
+                    side.word(),
+                    errors.len(),
+                ),
+                [] => write!(
+                    f,
+                    "the piece on the {} side of the plane did not pass the at-rest gate, so \
+                     no body is returned. {}",
+                    side.word(),
+                    geom_core::KERNEL_DEFECT_ENDING
+                ),
+            },
             Self::ResultInvalid { side, errors } => match errors.as_slice() {
                 [first, ..] => write!(
                     f,

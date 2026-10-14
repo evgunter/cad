@@ -78,3 +78,11 @@ first at the props walk. At 1e-6 the intrinsic route (c = 8) refuses typed inste
 tier-3 valid. Gating the sides at tier 3 would turn these rows into typed refusals. The reviewer's
 probe is `probe_band_edge_offsets` on branch `tang/split-chord-review-probes`
 (`crates/sweep/tests/tang_split_chord_review_probes.rs`).
+
+## Note from `a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body` (2026-10-14)
+
+Branch `cleave/seam-split-invalid-ok` gates each side at the scalar's at-rest
+gate (`AtRestPolicy::gate_at_rest`), refusing `SplitFinishError::ResultNotAtRest`,
+so the poses above that tier 3 refuses now refuse at the split, typed. What
+this row keeps is the type: the sides are still plain `Body` values, so a
+consumer pays tier 3 a second time.
