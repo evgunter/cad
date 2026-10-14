@@ -504,7 +504,8 @@ pub trait Real:
     /// product against a point folds corners and certifies each one
     /// through a 2Prod witness. A power of two only moves an exponent,
     /// so [`crate::Interval`] overrides it with `[lo·k, hi·k]`, unpadded
-    /// wherever both results are normal, and the general product
+    /// wherever both results are strictly above the smallest normal
+    /// (a product just under it rounds up onto it), and the general product
     /// everywhere else — a result in the subnormal range, an overflow,
     /// a poisoned operand, or a `k` that is not a positive normal power
     /// of two. A `k` that is not one is never wrong, only not faster.

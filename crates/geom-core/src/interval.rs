@@ -709,7 +709,8 @@ impl Real for Interval {
         Self(self.0.powi(n))
     }
 
-    /// `[lo·k, hi·k]` unpadded where both results are normal and `k` is
+    /// `[lo·k, hi·k]` unpadded where both results are strictly above the
+    /// smallest normal and `k` is
     /// a positive normal power of two; the general product everywhere
     /// else ([`DInterval::scale_pow2`] states each case). Bit for bit
     /// the general product wherever that product is itself exact, and

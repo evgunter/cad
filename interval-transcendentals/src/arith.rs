@@ -55,13 +55,15 @@ impl Mul for DInterval {
 
 impl DInterval {
     /// **`self · k` for `k` a positive normal power of two**, exact
-    /// wherever the result is normal, without the general product's
-    /// corner fold or its exactness witnesses.
+    /// wherever the result is above the smallest normal, without the
+    /// general product's corner fold or its exactness witnesses.
     ///
     /// Scaling a finite `x` by a power of two only moves its exponent,
-    /// so `x·k` is exact whenever the result is normal, and the
-    /// shortcut returns `[lo·k, hi·k]` unpadded when both endpoints land
-    /// there (or are zero). Against the general product
+    /// so `x·k` is exact whenever the exact result is normal, and the
+    /// shortcut returns `[lo·k, hi·k]` unpadded when both ROUNDED
+    /// endpoints land strictly above the smallest normal (or are zero):
+    /// an exact product just under it rounds up onto it
+    /// ([`exact_scale`] reads the boundary). Against the general product
     /// `self * DInterval::point(k)`:
     ///
     /// - at `|x·k| >= TWO_PROD_VALID_MIN` that product certifies the
@@ -94,13 +96,21 @@ fn is_normal_pow2(k: f64) -> bool {
 
 /// `x·k` when it is exact for `k` a power of two: an exact zero (as
 /// `+0.0`, which is what [`mul_lo`]/[`mul_hi`] return for a zero
-/// factor), or a finite normal product.
+/// factor), or a finite product STRICTLY above the smallest normal.
+///
+/// The test reads the rounded product, so the boundary is strict: an
+/// exact product at or above the smallest normal is representable,
+/// but one just below it (`MIN_POSITIVE − 2⁻¹⁰⁷⁵`) rounds UP onto
+/// `MIN_POSITIVE`, so a rounded product of exactly `MIN_POSITIVE` may
+/// not be exact. Anything rounding strictly above it was normal before
+/// rounding, hence exact. The one exact product given up, `±MIN_POSITIVE`
+/// itself, takes the general product.
 fn exact_scale(x: f64, k: f64) -> Option<f64> {
     if x == 0.0 {
         return Some(0.0);
     }
     let r = x * k;
-    (r.is_finite() && r.abs() >= f64::MIN_POSITIVE).then_some(r)
+    (r.is_finite() && r.abs() > f64::MIN_POSITIVE).then_some(r)
 }
 
 /// A directed corner operation: the lower and the upper bound of one
@@ -416,7 +426,7 @@ mod tests {
             (-3.0, 0.375),
             (1e-300, 1e300),
             (-f64::MAX / 4.0, -1e-200),
-            (4.0 * least, 4.0 * least),
+            (8.0 * least, 8.0 * least),
         ] {
             let x = DInterval::from_bounds(lo, hi);
             for k in [0.5, 0.25, 2.0] {
@@ -449,6 +459,33 @@ mod tests {
         ] {
             let x = DInterval::from_bounds(lo, hi);
             let y = x.scale_pow2(0.5);
+            assert!(
+                y.lo * 2.0 <= lo && y.hi * 2.0 >= hi,
+                "[{lo:e}, {hi:e}] halved reads [{:e}, {:e}]",
+                y.lo,
+                y.hi
+            );
+        }
+    }
+
+    /// **A product that rounds UP onto the smallest normal is not
+    /// exact.** `0x001F_FFFF_FFFF_FFFF` is `MIN_POSITIVE · (2 − 2⁻⁵²)`;
+    /// halved it is `MIN_POSITIVE − 2⁻¹⁰⁷⁵`, which is not representable
+    /// and rounds up to `MIN_POSITIVE` itself. A test on the rounded
+    /// product's magnitude that admits `MIN_POSITIVE` takes the
+    /// shortcut there and returns a lower bound above the true value
+    /// (an upper bound below it, on the negative mirror). The result,
+    /// doubled back (exact here), must still bracket the operand.
+    #[test]
+    fn a_product_rounding_up_onto_the_smallest_normal_still_encloses() {
+        let x = f64::from_bits(0x001F_FFFF_FFFF_FFFF);
+        assert_eq!(
+            x * 0.5,
+            f64::MIN_POSITIVE,
+            "the case rounds onto the smallest normal"
+        );
+        for (lo, hi) in [(x, x), (-x, -x)] {
+            let y = DInterval::from_bounds(lo, hi).scale_pow2(0.5);
             assert!(
                 y.lo * 2.0 <= lo && y.hi * 2.0 >= hi,
                 "[{lo:e}, {hi:e}] halved reads [{:e}, {:e}]",
