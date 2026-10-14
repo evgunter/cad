@@ -124,6 +124,8 @@ mod band_apart_partners_on_a_steep_ellipse;
 mod band_subdivided_side_walls;
 #[path = "bisector_lane_stubs.rs"]
 mod bisector_lane_stubs;
+#[path = "bisector_nodes.rs"]
+mod bisector_nodes;
 #[path = "bool1_fix_pass.rs"]
 mod bool1_fix_pass;
 #[path = "bool1_r1_probes.rs"]
@@ -305,6 +307,8 @@ mod axis_lap;
 mod band_annulus_host_boundary;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
+#[path = "band_concave_bar.rs"]
+mod band_concave_bar;
 #[path = "band_planar_consume.rs"]
 mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]
