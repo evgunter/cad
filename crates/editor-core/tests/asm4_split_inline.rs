@@ -1890,7 +1890,8 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
     }
 }
 
-/// Every pair of `old`'s ids keeps its order through `map`.
+/// Whether `map` keeps the order of every pair of the ids it maps
+/// (keys ascend, so their images must).
 fn keeps_id_order(map: &editor_core::StepMap) -> bool {
     let images: Vec<_> = map.values().collect();
     images.windows(2).all(|w| w[0] < w[1])
@@ -2034,4 +2035,97 @@ fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
         ),
         "the host spells the run with its least line and its rank as the part did"
     );
+}
+
+/// **Across two profiles the order is not kept, and a name it would
+/// break refuses the inline.** The part's first profile has a step
+/// re-minted after the second profile was inserted, so the two
+/// profiles' ids interleave. The host mints the first profile's ids
+/// before the second's, so each profile keeps its own order and the
+/// re-minted step falls below the second profile's steps
+/// (`refactor::in_id_order` says why no dealing can do better). A
+/// name embedding a ranked run whose lines are told apart by those two
+/// steps would change the run's least line, so the inline refuses it,
+/// typed, rather than carry a reference that no longer resolves.
+#[test]
+fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
+    let (doc, [_, p2, _], _) = reshaped_component("asm4-two", 2, false);
+    let order = doc.ids();
+    let (p1, e1) = (order[PROFILE_POSITION], order[BODY_POSITION]);
+    let program = match doc.node(p1) {
+        Some(Node::Profile(p)) => p.clone(),
+        other => panic!("a profile, got {other:?}"),
+    };
+    let mut ids = program.kept_in_place();
+    ids[0][1] = None;
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetProgram {
+            node: p1,
+            loops: program
+                .loops
+                .iter()
+                .map(editor_core::LoopProgram::authored)
+                .collect(),
+            ids,
+            fresh: Vec::new(),
+        },
+    );
+    let (first, second) = (flat_ids(&doc, p1), flat_ids(&doc, p2));
+    let late = first[1];
+    assert!(
+        second.iter().all(|&s| s < late) && second.iter().any(|&s| s > first[0]),
+        "the two profiles' ids interleave: {first:?}, {second:?}"
+    );
+    let inline_into = |part: ProfileDoc, label: &str| {
+        let mut store = PartStore::default();
+        let doc_ref = store.insert(part, Tol::witness());
+        let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+        let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+        let resolver = Arc::new(store) as Arc<dyn editor_core::PartResolver>;
+        inline(&host, instance, &resolver, Tol::witness())
+    };
+
+    let inlined = inline_into(doc.clone(), "asm4-two-host").expect("legal");
+    let within = |ids: &[editor_core::StepId]| -> editor_core::StepMap {
+        ids.iter().map(|s| (*s, inlined.step_map[s])).collect()
+    };
+    assert!(
+        keeps_id_order(&within(&first)) && keeps_id_order(&within(&second)),
+        "each profile keeps its own order: {:?}",
+        inlined.step_map
+    );
+    assert!(
+        inlined.step_map[&late] < inlined.step_map[&second[0]],
+        "across the two profiles the re-minted step falls below the second's: {:?}",
+        inlined.step_map
+    );
+
+    // A face name embedding a ranked run told apart by those two steps
+    // (an appearance is keyed by a face).
+    let crossing = StableName {
+        kind: editor_core::EntityKind::Face,
+        node: e1,
+        path: vec![RoleSeg::CornerFace(editor_core::NameRef::new(ranked_run(
+            e1, e1, late, second[0],
+        )))],
+    };
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetAppearance {
+            name: crossing.clone(),
+            attr: editor_core::Attr::Color(editor_core::Rgba8 {
+                r: 1,
+                g: 2,
+                b: 3,
+                a: 255,
+            }),
+        },
+    );
+    match inline_into(doc, "asm4-two-host") {
+        Err(InlineError::RankedRunReordered { name }) => {
+            assert_eq!(name.name(), &crossing, "the refusal names the run");
+        }
+        other => panic!("expected RankedRunReordered, got {other:?}"),
+    }
 }

@@ -104,9 +104,14 @@ behaviour. `Remapping` answers the hook with an error beside
   (id order); `gauges_first` moves only gauges, which mint no name.
   Reads: an output's id is minted only at its node's insert
   (`Mint::outputs_of_insert`), so outputs follow node order. No other
-  reorder was found, so the pair's internal remaps go through
-  `refactor::remap_carried`, which treats a reordered ranked run as
-  the broken invariant it would be (`unreachable!`).
+  reorder was found among a node's own steps. Across two profiles the
+  order cannot be kept: a profile's ids are minted at its insert, and a
+  `SetProgram` keeps a step only within its own profile, so a step
+  re-minted in an earlier profile after a later one was inserted maps
+  below the later profile's. No emitter compares two profiles' steps in
+  one position of a name, but a name that did refuses the pair typed,
+  `SplitError`/`InlineError::RankedRunReordered`, rather than panic or
+  carry it (`asm4_split_inline::an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two`).
 - **The public door.** `SegRewrite::unrankable` is the typed channel;
   its default carries the name, so `emit_union`'s rewriters are
   unchanged. `canonical::rewritten` answers `Rewritten::Carried` with
@@ -114,8 +119,9 @@ behaviour. `Remapping` answers the hook with an error beside
   `RemapError::RankedRunReordered { vertex }` (the ranked name, which
   may be an embedded one) and carries the two emission-time reasons,
   which resolved to nothing before the remap too. `remap_name` now
-  returns `RemapError` (`Unmapped` is one arm). Its `Display` is 59
-  words with a recourse.
+  returns `RemapError` (`Unmapped` is one arm). Every arm's `Display`
+  is held to the refusal checks (`refactor::remap_error_reads`), the
+  ranked one naming its vertex.
   `refactor::remap_a_ranked_run` is re-pinned as the refusal, the
   order-keeping map's carry, and an embedded run's refusal.
 - ASSEMBLY.md A4 needed no re-wording: it does not describe

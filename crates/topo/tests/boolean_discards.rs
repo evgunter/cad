@@ -356,9 +356,30 @@ fn an_edge_the_carve_kills_records_its_parent() {
                 "{g:?}'s lineage cycles"
             );
         }
+        // The block's own edge, read in the block: its top `+x` edge,
+        // both ends at x = 20, z = 10, one at each y = ±10 (mm).
+        let edge = block
+            .get_edge(up)
+            .unwrap_or_else(|| panic!("{g:?}'s lineage reaches an edge of the block, not {up:?}"));
+        let points: BTreeMap<VertexKey, _> = block.vertex_points().collect();
+        let mut ys: Vec<f64> = [
+            block.get_half_edge(edge.he_plus).unwrap().start,
+            block.half_edge_end(edge.he_plus).unwrap(),
+        ]
+        .into_iter()
+        .map(|v| {
+            let p = points[&v];
+            assert!(
+                (p.x - 20.0 * mm).abs() < 1e-12 && (p.z - 10.0 * mm).abs() < 1e-12,
+                "{g:?}'s lineage reaches {up:?}, which ends at {p:?}, off the block's top +x edge"
+            );
+            p.y
+        })
+        .collect();
+        ys.sort_by(f64::total_cmp);
         assert!(
-            block.edges().any(|(e, _)| e == up),
-            "{g:?}'s lineage reaches an edge of the block, not {up:?}"
+            (ys[0] + 10.0 * mm).abs() < 1e-12 && (ys[1] - 10.0 * mm).abs() < 1e-12,
+            "{g:?}'s lineage reaches {up:?}, which spans y {ys:?}, not the whole top +x edge"
         );
     }
 }
