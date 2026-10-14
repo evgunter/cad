@@ -84,3 +84,8 @@
 2. First order on products-once with halving.
 3. The cut becomes restriction.
 4. Measure: time, rung counts and worst margins against main.
+
+## Postscript (2026-10-14): implementation findings
+
+- **The cut/whole meet stays; it does not become a containment `debug_assert`.** Build C measured step 3's restricted cut on geom-brep's SSI rows: 578,728 meets. In 1,072 of them (0.19%) the cut box falls outside the whole cell's box, by a median 0.14%, p90 77% and max 108% of the whole box's width. This is not rounding: a window's own 2×2 pieces are not inside the union of the whole cell's pieces. Both boxes are sound enclosures of the same window, so their meet is sound, and a containment assertion would be false. The cut is usually much tighter (median 4.6% of the whole box's width).
+- **Restriction's tighter slope exposed a latent soundness bug on main.** `NurbsBoxes::rect_box` evaluates the midpoint over a point window in plain f64 on the f64 lane, so the result is not an enclosure. `edge_runs`' mean-value form decided a wrong sign on a wall touching its edge (`ssi::one_arc` touch row). Main's slope was wide enough to hide it. The fix lands first as its own PR, with step 3 on top.
