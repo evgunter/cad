@@ -920,3 +920,4 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Review:** found it mergeable, with two MINORs: a declared mixed-kind pair gets two refusals, and glue's `Extent` drop is undispositioned.
 - 2026-10-14: PR 5086 (joined_lineage checked at write) is in a fix pass.
   - **Review:** found a MAJOR. `Minted::push`'s freshness check refuses a valid, acyclic, kill-ordered table (a child killed before its parent).
+- 2026-10-14: PR 5090 merges at 70f5d126. It re-aims 11 pair-question gap rows to D3's readings across hone, shell, tang, restread, chart, inside and roots. Two of them (point-to-carrier distance, chart inversion) now name `geom` as the reading's home.
