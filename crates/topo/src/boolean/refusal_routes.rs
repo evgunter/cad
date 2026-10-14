@@ -876,6 +876,14 @@ const RESULT_SHELL: SizedDecision = SizedDecision {
     no_size: None,
 };
 
+/// [`RESULT_SHELL`] at the split door ([`BooleanDecision::render_at_split`]):
+/// the same decision on the same margin, in the split's lever, since the
+/// split has one operand and a plane.
+const SPLIT_RESULT_SHELL: SizedDecision = SizedDecision {
+    lever: "move the split plane or the geometry so each piece it leaves is clearly thick",
+    ..RESULT_SHELL
+};
+
 /// Whether the faces touching along a seam curve apart or share their
 /// curvature ([`BooleanDecision::SeamJet`]): the sagitta their relative
 /// bend subtends over the folded lever arm, a determinate tangency on a
@@ -1670,11 +1678,29 @@ impl BooleanDecision {
             .to_string()
     }
 
+    /// [`Self::render`] at the split door ([`crate::SplitFinishError::ResultEscalated`]):
+    /// [`Self::ShellRole`] ends in the split's own lever, every other
+    /// decision as at the Boolean.
+    #[must_use]
+    pub(crate) fn render_at_split(self, diag: &Indeterminate) -> String {
+        let ending = match self {
+            Self::ShellRole { .. } => Ending::Sized(SPLIT_RESULT_SHELL),
+            _ => self.ending(diag),
+        };
+        diag.undecided(self.subject(), self.counted(ending.recourse(diag)))
+            .to_string()
+    }
+
     /// The one ending the verdict gives at `diag`, with no subject: a
     /// result shell's role read in band also counts the shells beside it
     /// the same tolerance decided.
     pub(crate) fn recourse(self, diag: &Indeterminate) -> String {
-        let ending = self.ending(diag).recourse(diag);
+        self.counted(self.ending(diag).recourse(diag))
+    }
+
+    /// `ending`, after the count of the other in-band shells where this
+    /// is [`Self::ShellRole`].
+    fn counted(self, ending: String) -> String {
         match self {
             Self::ShellRole { others: 0, .. } => ending,
             Self::ShellRole { others: 1, .. } => format!(

@@ -26,14 +26,18 @@
 //!   layer's tangency door. Turning each operand about its OWN axis
 //!   moves the seams off the pinch without moving either SURFACE, and
 //!   that pose does reach the join.
-//! - **The join builds the section between the nodes, not through
-//!   them.** Each germ rides one ellipse, its branch decided where it is
-//!   minted, and the join's bisector lane cuts each wall by that
-//!   ellipse's plane. Along an arc through a node each wall's sector
-//!   changes side of the other solid, so no two germs bound such an
-//!   arc; a node in both faces of a germ's face pair refuses typed at
-//!   the node placement, the door that names the pinch. Branch stubs,
-//!   whose nodes miss a face, build (`bisector_lane_stubs`).
+//! - **The nodes are built, not refused.** Each germ rides one
+//!   ellipse, its branch decided where it is minted, and the join's
+//!   bisector lane cuts each wall by that ellipse's plane. A node in
+//!   both operands' faces is minted in the reduction as a ring in both
+//!   walls, four struts paired across the operands, so every arc of
+//!   the section runs node to node and every boolean of the pair builds
+//!   at its closed form, for two rods and for two bores. A node the
+//!   placement cannot certify inside or outside both faces, or one
+//!   where a rod crosses a bore, refuses typed (`NodeUnbuilt`). Branch
+//!   stubs,
+//!   whose nodes miss a face, build without a ring
+//!   (`bisector_lane_stubs`); the full family is `bisector_nodes`.
 //!
 //! Every row is paired with the same fixture under a `transform_rigid`
 //! off every axis plane. A pose whose direct-extruded and re-posed
@@ -58,7 +62,7 @@ fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
         finished("operand A", a.clone(), tol),
         finished("operand B", b.clone(), tol),
     );
-    topo::union(&a, &b, tol).expect_err("this family has no join arm")
+    topo::union(&a, &b, tol).expect_err("this pose refuses")
 }
 
 /// Asserts that the refusal of the direct pose and of its re-posed twin
@@ -163,67 +167,79 @@ fn the_steinmetz_pair_answers_identically_under_a_rigid_re_pose() {
     );
 }
 
+/// The four operations of a seams-off pose, `[∪, ∩, A∖B, B∖A]`, each
+/// built, as volumes with their certified half-widths.
+fn four(a: &Body<f64>, b: &Body<f64>, what: &str) -> [(f64, f64); 4] {
+    let tol = Tol::witness();
+    let (a, b) = (
+        finished("operand A", a.clone(), tol),
+        finished("operand B", b.clone(), tol),
+    );
+    let built = |r: Result<topo::BooleanResult<f64>, BooleanError>, op: &str| match r {
+        Ok(topo::BooleanResult::Body(body)) => {
+            let m = topo::mass_properties(&body.body, tol).unwrap();
+            (m.volume, m.volume_pad)
+        }
+        other => panic!("{what}, {op}: the family builds, got {other:?}"),
+    };
+    [
+        built(topo::union(&a, &b, tol), "∪"),
+        built(topo::intersect(&a, &b, tol), "∩"),
+        built(topo::subtract(&a, &b, tol), "A∖B"),
+        built(topo::subtract(&b, &a, tol), "B∖A"),
+    ]
+}
+
+/// Asserts a perpendicular pair of half-height `h ≥ 1` against its
+/// closed forms: the intersection is the bicylinder, `16/3`, whole
+/// inside both operands, each of volume `2πh`.
+fn assert_bicylinder_forms(got: [(f64, f64); 4], h: f64, what: &str) {
+    let (v, cap) = (2.0 * PI * h, 16.0 / 3.0);
+    let want = [2.0 * v - cap, cap, v - cap, v - cap];
+    for (op, ((g, pad), w)) in ["∪", "∩", "A∖B", "B∖A"]
+        .into_iter()
+        .zip(got.into_iter().zip(want))
+    {
+        assert!(
+            (g - w).abs() <= pad + 1e-12,
+            "{what}, {op}: volume {g} ± {pad}, want {w} (off by {:e})",
+            g - w
+        );
+    }
+}
+
 /// **The row this unit exists for.** Turn each operand about its own
 /// axis — which changes neither SURFACE, only where its chart seam
 /// falls — and the same two solids reach the JOIN: the crossing layer
 /// finds the seam rulings' four wall crossings, splits both operands,
 /// and the germ pair that comes out is cylinder × cylinder.
 ///
-/// The join then refuses at the door that names the pinch: both nodes
-/// lie inside both walls, so the section crosses itself inside the face
-/// pairs, and the node is not built.
+/// Both nodes lie inside both walls, so each is minted as a ring in
+/// both, and every operation builds at the bicylinder's closed forms,
+/// in the direct pose and its re-posed twin.
 #[test]
-fn seams_off_the_pinch_reach_the_join_and_name_it() {
-    let (a, b) = seams_off_the_pinch(1.2, PI / 4.0);
-    let err = union_err(&a, &b);
-    assert!(
-        matches!(err, BooleanError::GermFrameCylinderPinch { .. }),
-        "expected the node door, got {err:?}"
-    );
-    // The message must name the crossing axes and the equal radii, and
-    // end on what the person can do. The nodes' formula (the UNIT
-    // cross product) is the variant's rustdoc, not the sentence.
-    let text = format!("{err}");
-    for want in [
-        "two cylinder walls of equal radius whose axes cross",
-        "two ellipses that cross each other",
-        "Recourse: reshape the parts",
-    ] {
-        assert!(text.contains(want), "the door must say {want:?}: {text}");
-    }
-    assert_same_door(
-        &err,
-        &union_err(&repose(&a), &repose(&b)),
-        "the re-posed pose must reach the same door",
-    );
+fn seams_off_the_pinch_build_every_operation_at_the_closed_form() {
+    let h = 1.2;
+    let (a, b) = seams_off_the_pinch(h, PI / 4.0);
+    assert_bicylinder_forms(four(&a, &b, "direct"), h, "direct");
+    assert_bicylinder_forms(four(&repose(&a), &repose(&b), "re-posed"), h, "re-posed");
 }
 
 /// **The family, not one pose.** Every intersecting equal-radius pose
-/// this suite can author is run at both scales and every seam angle,
-/// against its own re-posed twin. Two things are asserted at once: the
-/// answers agree pose for pose (the re-pose row, generalized), and
-/// every answer is a TYPED door rather than a wrong body — the family
-/// has no union at this head and none of these rows may quietly grow
-/// one.
-///
-/// Every pose, at every height, reaches the join's pinch door: with
-/// the seams off the pinch the crossings are found and the sector
-/// sides certify, whatever the operand's height.
+/// this suite can author with its seams off the nodes is run at every
+/// height and seam angle, against its own re-posed twin, and every
+/// operation builds at the closed forms: with the seams off the nodes
+/// the crossings are found and the sector sides certify, whatever the
+/// operand's height.
 #[test]
-fn every_pose_of_the_family_answers_typed_and_pose_independently() {
+fn every_pose_of_the_family_builds_at_its_closed_form() {
     for h in [1.05_f64, 1.2, 1.5, 2.0] {
         for deg in [15.0_f64, 30.0, 45.0, 60.0, 75.0] {
             let (a, b) = seams_off_the_pinch(h, deg.to_radians());
-            let err = union_err(&a, &b);
-            assert!(
-                matches!(err, BooleanError::GermFrameCylinderPinch { .. }),
-                "h = {h}, {deg}°: the family must refuse at the pinch door, got {err:?}"
-            );
-            assert_same_door(
-                &err,
-                &union_err(&repose(&a), &repose(&b)),
-                &format!("h = {h}, {deg}°: the re-posed twin must answer identically"),
-            );
+            let what = format!("h = {h}, {deg}°");
+            assert_bicylinder_forms(four(&a, &b, &what), h, &what);
+            let what = format!("{what}, re-posed");
+            assert_bicylinder_forms(four(&repose(&a), &repose(&b), &what), h, &what);
         }
     }
 }
