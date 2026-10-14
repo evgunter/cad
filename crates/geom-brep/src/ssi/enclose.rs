@@ -1730,9 +1730,11 @@ pub(super) mod tests {
     }
 
     /// Whether a rigid map moved a seated reading `a` to `b` by its
-    /// rounding width alone: a few hundred ulps of the coordinates'
-    /// `reach`, relative to the reading's `magnitude`, times the
-    /// window's `scale`.
+    /// rounding width alone: some ulps of the coordinates' `reach`,
+    /// relative to the reading's `magnitude`, times the window's
+    /// `scale` — 256 for a speed or pad, 32 for a margin (its measured
+    /// worst, 9.44 at `CAD_FUZZ_EFFORT=64`, with about three times
+    /// over).
     ///
     /// The magnitude is what the reading's rounding is relative to. A
     /// speed or pad rounds relative to itself
@@ -1744,11 +1746,11 @@ pub(super) mod tests {
     /// most it can read, whatever small value it lands on
     /// ([`Magnitude::Unit`]).
     fn within_rounding(a: f64, b: f64, reach: f64, scale: f64, magnitude: Magnitude) -> bool {
-        let m = match magnitude {
-            Magnitude::Own => a.abs().max(b.abs()),
-            Magnitude::Unit => 1.0,
+        let (ulps, m) = match magnitude {
+            Magnitude::Own => (256.0, a.abs().max(b.abs())),
+            Magnitude::Unit => (32.0, 1.0),
         };
-        (a - b).abs() <= 256.0 * f64::EPSILON * (1.0 + reach) * scale * m
+        (a - b).abs() <= ulps * f64::EPSILON * (1.0 + reach) * scale * m
     }
 
     /// What a reading's rounding is relative to ([`within_rounding`]).
@@ -1784,9 +1786,10 @@ pub(super) mod tests {
     /// window's width, and its coordinates round at the reach). Relative
     /// to what is [`within_rounding`]'s magnitude: a speed or pad to
     /// itself, a margin to one, since a small margin is a cancellation
-    /// among coefficients at the stretch's scale (measured over 4000 maps:
-    /// the worst margin moved 8.1 of these units at magnitude one, and
-    /// 257 at its own 0.0027). A norm
+    /// among coefficients at the stretch's scale (sampled over 4000 maps,
+    /// the worst margin moved 8.1 of these units at magnitude one and 257
+    /// at its own 0.0027; 9.44 at magnitude one is the worst measured, at
+    /// `CAD_FUZZ_EFFORT=64`). A norm
     /// read off a
     /// per-coordinate box would move by up to √3 instead (5.88 to 8.20
     /// over 32 maps of the 1.8 / 0.7 wall's `u` speed).
@@ -1862,12 +1865,11 @@ pub(super) mod tests {
     /// [`a_rigidly_mapped_wall_reads_the_seated_chart_speeds_floors_and_tube`]
     /// went red on the two-span patch's second-window margin, which sits
     /// at 0.0027 of its stretch: each map moved it by about 4e-15, past
-    /// a few hundred ulps of 0.0027 and well within a few hundred of one
+    /// a few hundred ulps of 0.0027 and within a few dozen of one
     /// (`work/ssiarith/rigid-map-chart-readings-fuzz-reds-past-its-rounding-bound.md`).
-    /// Each map, written down: every reading of every wall stays within
-    /// its rounding at its magnitude, and the margin is shown past the
-    /// allowance relative to its own value, so the row still holds the
-    /// case it was found on.
+    /// Each map, written down: every speed and pad stays within its
+    /// rounding at its own value, every margin within its rounding at
+    /// one, and every floor decides as seated.
     #[test]
     fn the_recorded_rigid_maps_move_a_small_margin_by_its_stretchs_rounding() {
         // (seed, axis, pivot, angle), as each failure printed them.
@@ -1932,12 +1934,6 @@ pub(super) mod tests {
                     "{seed}: a margin moved {a} to {b}"
                 );
             }
-            let (a, b) = (at.margins[1], image.margins[1]);
-            assert!(
-                !within_rounding(a, b, reach, window_scale[1], Magnitude::Own),
-                "{seed}: the recorded case moves the small margin {a} to {b} past its own-value \
-                 allowance, or this row no longer holds it"
-            );
             assert_eq!(
                 image.floors, at.floors,
                 "{seed}: a floor decides differently"

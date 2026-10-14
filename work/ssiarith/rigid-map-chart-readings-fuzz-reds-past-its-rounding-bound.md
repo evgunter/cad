@@ -59,13 +59,15 @@ Measured over 4000 random maps on every wall of the row, in units of
 |---|---|---|
 | speeds and pads | own value | 78 |
 | margins | own value | 257, the two-span margin |
-| margins | one | 8.1 |
+| margins | one | 8.1 (9.44 worst measured, at `CAD_FUZZ_EFFORT=64`) |
 
-The allowance is 256 throughout.
+The allowance was 256 throughout. After review it is 256 for speeds and
+pads and 32 for margins: about three times the worst measured margin
+move, and about eight times more sensitive than 256.
 
 **Fix** (`crates/geom-brep/src/ssi/enclose.rs`, test module only):
-`within_rounding` takes a `Magnitude`, `Own` for speeds and pads and
-`Unit` for margins. The test and helper docs say why.
+`within_rounding` takes a `Magnitude`: `Own` for speeds and pads (at 256
+ulps) and `Unit` for margins (at 32). The test and helper docs say why.
 
 **Pinned:** `the_recorded_rigid_maps_move_a_small_margin_by_its_stretchs_rounding`
 holds all four recorded maps as fixed rows:
@@ -75,13 +77,13 @@ holds all four recorded maps as fixed rows:
 - `0xdfa19917eaceb89e` (1e-6);
 - `0x1d0a3b646ab0444b` (1e-12).
 
-Each row checks that every reading stays within its rounding at its
-magnitude, and that the margin is past the own-value allowance, so the
-row still holds the case.
+Each row checks that every speed and pad stays within its rounding at
+its own value, every margin within its rounding at one, and every floor
+decides as seated. Reading the margins at `Own` instead reds it.
 
 **Checked:**
 
 - All four seeds pass the fuzzer.
 - 40 fresh seeds at effort 8 (about 10 000 maps × 7 walls) pass.
 - A production mutant making the margin frame-dependent by `1e-10`
-  relative still reds the fuzzer.
+  relative reds both the fuzzer and the pinned row.
