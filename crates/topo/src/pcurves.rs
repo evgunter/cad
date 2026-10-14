@@ -6100,7 +6100,7 @@ mod stretch_meter {
             half_angle: alpha,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        for d in [2.0, 5.0, 10.0, 100.0, 1000.0].map(|m| m * band().escalate()) {
+        for d in [2.0, 5.0, 10.0, 22.3, 100.0, 1000.0].map(|m| m * band().escalate()) {
             let vertex = Point3::new(d * alpha.sin(), 0.0, d * alpha.cos());
             assert!(
                 matches!(singular_at(chart(&cone), vertex, band()), Singular::Off),
@@ -6134,6 +6134,10 @@ mod stretch_meter {
                 want,
                 "d = {d:e} (lever {lever:e}), gap π"
             );
+            // review 5071 probe: the same 3-D configuration a whole number of turns over.
+            for turns in [1.5, 2.5, -2.5, 3.5] {
+                eprintln!("REVIEW5071 d {d:e} pi*lever {pi_lever:e} gap {turns}τ: {}", read(at_gap(&cone, vertex, d, turns * tau)));
+            }
         }
         let sphere: Surface<f64> = Surface::Sphere {
             center: Point3::new(0.0, 0.0, 0.0),
