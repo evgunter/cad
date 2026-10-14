@@ -37,3 +37,7 @@ the nightly runs it at 1e-12.
 
 Reproduce with
 `CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep -E 'test(a_moved_curved_fitted_cap_builds_where_its_fit_certifies)'`.
+
+## 2026-10-14 — still red at 1e-12 on main (NURBS, fresh target)
+
+Re-run alone with a fresh `CARGO_TARGET_DIR` per commit: red at `a71403e3` and still red on main at `307ed404`. Not moved by NURBS PR 4984 (red on both sides of it). (NURBS build A)

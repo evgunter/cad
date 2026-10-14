@@ -4870,7 +4870,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "partner_along_face",
             "pcurves",
             "pieces",
-            "pinch_cones_on_separate_keys",
             "pinch_rays_in_a_face",
             "point_in_face_refused",
             "point_split_carrier_unsupported",
@@ -5492,6 +5491,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "naming_error_tag",
         values: &[
+            "carrier_unplaced",
             "closed_carrier_unread",
             "conventional_vertex",
             "duplicate",
