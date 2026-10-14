@@ -15,8 +15,7 @@ Step 3's second half, from
 `## Findings (step 3)`). Ev's band ruling makes a blend `S − R` (convex)
 or `S ∪ F` (concave), so a dimple whose mouth lies on a support's strip
 inside the band's extent and whose floor lies inside `R`, or a boss on
-a strip wholly inside `F`, goes with the band. Step 3 (PR this item's
-log names) built the end-wall half only: a cup whose mouth is a cycle
+a strip wholly inside `F`, goes with the band. Step 3 (PR 5161) built the end-wall half only: a cup whose mouth is a cycle
 on a cut-off's cap, read by the cap's three-way sliver meter.
 
 What refuses today, and where:

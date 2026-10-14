@@ -1104,7 +1104,7 @@ voids lie in `F`, which fills them), and the step-2 refusals steps 3 and
 4 inherit are pinned (a bump on the bar, a sealed tube, blind holes in
 the walls). Filed `a-feature-inside-a-turns-overrun-is-not-carved`.
 
-## 2026-10-14 — a cup on one end wall goes with the band (PR STEP3PR, step 3)
+## 2026-10-14 — a cup on one end wall goes with the band (PR 5161, step 3)
 
 The end-wall half of step 3: a blind bore under a convex plane–plane
 band and a pin under a concave one, wholly inside the region, go at
