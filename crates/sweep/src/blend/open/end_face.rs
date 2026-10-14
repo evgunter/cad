@@ -48,9 +48,9 @@ use crate::blend::battery::{EndSection, cap_incidence};
 use crate::blend::naming::BlendNaming;
 use crate::blend::reach::{EDGE_SAMPLES, sure};
 use crate::blend::surgery::{
-    ContactCarrier, Piece, SourceFaces, SplitFragments, chord_site, face_of_half, halves_of,
-    not_intact, op, piece_along, piece_distance, point_of, retire_fragment, split_fragment,
-    split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out,
+    ContactCarrier, Piece, SourceFaces, SplitFragments, chord_site, disagrees, face_of_half,
+    halves_of, op, piece_along, piece_distance, point_of, retire_fragment, split_fragment,
+    split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out, unresolved,
 };
 use crate::blend::{BlendDecision, BlendError, BlendSite, classify};
 
@@ -132,15 +132,22 @@ impl<T: Decide + Bounds> EndCut<T> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
         // classification read the same one.
-        let Some(Surface::Plane {
+        let stored = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+            .ok_or_else(|| {
+                unresolved(
+                    EntityId::Face(face),
+                    "a cut-off's end face's stored surface",
+                )
+            })?;
+        let Surface::Plane {
             origin: po,
             normal: n,
             ..
-        }) = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
+        } = stored
         else {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Face(face),
                 "a cut-off's end face's stored surface is not a plane",
             ));
@@ -524,7 +531,16 @@ impl<T: Bounds> CapSliver<T> {
                 .iter()
                 .map(move |&(d, floor)| (floor - q0.dot(d), zero - e.dot(d)))
         };
-        let g = |s: T| self.beyond(q0 + e * s.max(zero).min(len));
+        // `G` along the segment, each term reading `s` once. Read at the
+        // point `q0 + e·s`, every coordinate carries `s`, and at
+        // `Interval` a candidate's spread then lowers even a term flat
+        // along the segment by about the spread itself.
+        let g = |s: T| {
+            let s = s.max(zero).min(len);
+            let rho = ((s + b).powi(2) + d2).sqrt();
+            let v = minor.map_or(rho - self.reach, |m| (rho - self.reach).max(m - rho));
+            affine().fold(v, |v, (a, k)| v.max(a + k * s))
+        };
         // A quotient whose divisor's bracket meets zero is skipped: at
         // `f64` that is a divisor that vanishes (below), and at `Interval`
         // the candidate would spread over the segment and read `G` over
@@ -826,7 +842,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
         curve: &EndCurve<T>,
     ) -> Result<Self, BlendError> {
         let pv = point_of(body, vertex)
-            .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a cut-off's old vertex"))?;
+            .ok_or_else(|| unresolved(EntityId::Vertex(vertex), "a cut-off's old vertex"))?;
         let [(rim_a, foot_a), (rim_b, foot_b)] = rims;
         // The rims' pieces from their feet to the old vertex.
         let pieces = [
@@ -869,7 +885,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
                     }
                 };
                 let backward = || {
-                    not_intact(
+                    disagrees(
                         EntityId::Vertex(vertex),
                         "a cut-off's round end curve does not run forward from one foot to \
                          the other",
@@ -1053,7 +1069,7 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
         };
         let he_plus = body
             .get_edge(rim)
-            .ok_or_else(|| not_intact(EntityId::Edge(rim), "a shared rim"))?
+            .ok_or_else(|| unresolved(EntityId::Edge(rim), "a shared rim"))?
             .he_plus;
         // The stored window runs along `he_plus`, so the foot of the
         // cut-off at its start must come first.
@@ -1097,7 +1113,7 @@ fn rim_piece<T: Decide + Bounds>(
 ) -> Result<Piece<'_, T>, BlendError> {
     let he_plus = body
         .get_edge(rim)
-        .ok_or_else(|| not_intact(EntityId::Edge(rim), "an end face's rim"))?
+        .ok_or_else(|| unresolved(EntityId::Edge(rim), "an end face's rim"))?
         .he_plus;
     let Some((carrier, (t0, t1))) = stored_piece(body, rim)? else {
         return Err(unbuilt_geometry(
@@ -1111,7 +1127,7 @@ fn rim_piece<T: Decide + Bounds>(
     } else if body.half_edge_end(he_plus) == Some(vertex) {
         Ok((carrier, (t, t1)))
     } else {
-        Err(not_intact(
+        Err(disagrees(
             EntityId::Edge(rim),
             "an end face's rim does not end at the band's old vertex",
         ))
@@ -1140,7 +1156,7 @@ pub(in crate::blend) fn end_rims<T: Decide>(
     face_b: FaceKey,
 ) -> Result<(EdgeKey, EdgeKey, FaceKey), BlendError> {
     cap_incidence(body, vertex, crease, face_a, face_b).ok_or_else(|| {
-        not_intact(
+        disagrees(
             EntityId::Vertex(vertex),
             "a band's end is not the end face the verdict classified: its other two edges do \
              not each join one support to one shared end face",
@@ -1211,7 +1227,7 @@ pub(in crate::blend) fn cut_off<T: Decide + Bounds + topo::AtRestPolicy>(
     // split the rim this end shares with it.
     let (rim_a, rim_b, face) = end_rims(body, v, crease, face_a, face_b)?;
     if face != end.face {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Vertex(v),
             "a cut-off's end face is not the one the plan read",
         ));
@@ -1224,14 +1240,14 @@ pub(in crate::blend) fn cut_off<T: Decide + Bounds + topo::AtRestPolicy>(
     let ends_at_v = |body: &Body<T>, he: HalfEdgeKey| body.half_edge_end(he) == Some(v);
     let (he1, he2, x, y) = chord_site(body, end.face, |row| ends_at_v(body, row.0), 0, 2)?;
     if !((x == a.vertex && y == b.vertex) || (x == b.vertex && y == a.vertex)) {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Vertex(v),
             "an end face's cycle around the old vertex is not flanked by the two feet just split",
         ));
     }
     let (px, py) = (
-        point_of(body, x).ok_or_else(|| not_intact(EntityId::Vertex(x), "a foot"))?,
-        point_of(body, y).ok_or_else(|| not_intact(EntityId::Vertex(y), "a foot"))?,
+        point_of(body, x).ok_or_else(|| unresolved(EntityId::Vertex(x), "a foot"))?,
+        point_of(body, y).ok_or_else(|| unresolved(EntityId::Vertex(y), "a foot"))?,
     );
     let created = body
         .mef(
@@ -1264,7 +1280,7 @@ pub(in crate::blend) fn fold_sliver<T: Decide>(
     tol: Tol,
 ) -> Result<(), BlendError> {
     let (ahp, ahm) = halves_of(body, rims.a.near)
-        .ok_or_else(|| not_intact(EntityId::Edge(rims.a.near), "a split rim's near piece"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(rims.a.near), "a split rim's near piece"))?;
     // The sliver is on whichever side of the near piece is NOT the band.
     let dying = if face_of_half(body, ahp) == Some(band) {
         ahm
@@ -1273,7 +1289,7 @@ pub(in crate::blend) fn fold_sliver<T: Decide>(
     };
     sources.kef_minted(body, dying, "end sliver kef", tol)?;
     let (bhp, bhm) = halves_of(body, rims.b.near)
-        .ok_or_else(|| not_intact(EntityId::Edge(rims.b.near), "a split rim's near piece"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(rims.b.near), "a split rim's near piece"))?;
     let spur = if body.half_edge_end(bhm) == Some(vertex) {
         bhm
     } else {
@@ -1531,6 +1547,130 @@ mod tests {
         assert!(
             iv.lo() <= -0.15 && iv.lo() > -0.15 - 1e-10,
             "Interval reads {iv:?}, not −0.15"
+        );
+    }
+
+    /// The least of `G` over `a → b`: the least of a dense run of samples,
+    /// refined by ternary search about it. Never below the true least.
+    fn sampled_least(region: &Region, a: (f64, f64), b: (f64, f64)) -> f64 {
+        let at = |t: f64| region.g((a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t));
+        const N: u32 = 2000;
+        let (best, n) = (0..=N)
+            .map(|n| (at(f64::from(n) / f64::from(N)), n))
+            .fold((f64::INFINITY, 0), |l, r| if r.0 < l.0 { r } else { l });
+        let (mut lo, mut hi) = (
+            f64::from(n.saturating_sub(1)) / f64::from(N),
+            f64::from((n + 1).min(N)) / f64::from(N),
+        );
+        for _ in 0..100 {
+            let (m1, m2) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
+            if at(m1) < at(m2) {
+                hi = m2;
+            } else {
+                lo = m1;
+            }
+        }
+        best.min(at(0.5 * (lo + hi)))
+    }
+
+    /// **The meter's two claims on `a → b`**: at `f64` it reads the least
+    /// `G` to the samples' slack; at `Interval` its enclosure's low end lies
+    /// at or below that least and within rounding of the `f64` reading, the
+    /// enclosure carrying the gain rather than the whole segment's spread.
+    pub(super) fn check(region: &Region, a: (f64, f64), b: (f64, f64), case: impl Fn() -> String) {
+        let least = sampled_least(region, a, b);
+        // `G` is 1-Lipschitz, so the samples' least is within half a
+        // spacing of the true one; rounding grows with the distance from
+        // the centre.
+        let scale = (b.0 - a.0).hypot(b.1 - a.1);
+        let slack = scale / 4000.0 + 1e-14 * (1.0 + a.0.hypot(a.1) + scale);
+        let (m, iv) = region.meter(a, b);
+        let what = || {
+            format!(
+                "{}: {a:?} → {b:?}, reach {}, section {:?}, floors {:?}",
+                case(),
+                region.reach,
+                region.section,
+                region.floors,
+            )
+        };
+        assert!(
+            m <= least + slack && m >= least - slack,
+            "f64 reads {m}, the least G is {least}: {}",
+            what()
+        );
+        assert!(
+            iv.lo() <= least + slack && iv.lo() >= m - 1e-12 * (1.0 + a.0.hypot(a.1) + scale),
+            "Interval reads {iv:?}, f64 {m}, the least G is {least}: {}",
+            what()
+        );
+    }
+
+    /// **A segment `~5·10³` from the centre at its ends, run along one
+    /// floor's line, whose least is that floor's flat term**, met near the
+    /// foot by a second floor crossing the minor disc's term where the two
+    /// differ by little (`a′² ≈ d2`): that crossing's quotient of two
+    /// differences reads at `Interval` as a run `10⁻⁷` long. Found by the
+    /// line-meter fuzzer at `CAD_FUZZ_SEED=0xa9b25b00fc22acb2`, case 80.
+    #[test]
+    fn a_far_segment_reads_a_floor_crossing_the_minor_disc_to_rounding() {
+        let (a, b) = (
+            (2778.682165969168, -3803.6929153369833),
+            (-3120.380308781379, 4271.024536003959),
+        );
+        let region = Region {
+            section: Some((0.0, 0.3739873428335117, 0.3739873428335117)),
+            reach: 1.168384052714115,
+            floors: vec![
+                (
+                    (0.8074717451340941, 0.5899062474750547),
+                    -0.11487650578226152,
+                ),
+                (
+                    (-0.9665909248993477, 0.256323982300181),
+                    0.33182995179051883,
+                ),
+            ],
+        };
+        check(&region, a, b, || "the far crossing".into());
+    }
+
+    /// **Two opposite floors whose terms run all but parallel along the
+    /// segment**: their crossing is ill-conditioned (`~10⁻¹¹` here) where
+    /// `G` is flat, so only a reading that spreads a term over the
+    /// candidate's whole box, rather than along the segment, loses it.
+    /// Found by the line-meter fuzzer at `CAD_FUZZ_SEED=0x1281277f8dfa215d`,
+    /// case 30.
+    #[test]
+    fn two_floors_parallel_along_a_segment_read_their_crossing_to_rounding() {
+        let region = Region {
+            section: Some((0.0, 0.25299113746373153, 0.25299113746373153)),
+            reach: 0.7804898663095933,
+            floors: vec![
+                (
+                    (0.7972795443729409, -0.6036102452116562),
+                    -0.3595462882329724,
+                ),
+                (
+                    (-0.7972795443729409, 0.6036102452116562),
+                    0.3588416431553506,
+                ),
+                (
+                    (0.9816386005106127, 0.19075025029489656),
+                    0.11024723871746345,
+                ),
+                (
+                    (-0.9005322168633404, 0.434789289646373),
+                    0.021858290386058923,
+                ),
+                ((0.818640532000699, 0.5743062592081098), -0.0035775011289499),
+            ],
+        };
+        check(
+            &region,
+            (-0.8131924792185901, -0.4784468841887551),
+            (0.9976382564163786, 1.9133917489300676),
+            || "the parallel floors".into(),
         );
     }
 

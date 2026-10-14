@@ -872,3 +872,13 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - `the-localization-core-is-half-unified`, re-scoped to `containment::spiric_speed`, `offset_axial::param_speeds`, the test copies, the depth idioms, `feet`'s stop and the `16·slack` guard;
     - `near-concentric-arcs-…`, pinned with its analysis.
   - **Filed:** `issues/geom-brep-keeps-six-subdivision-walks-of-its-own`.
+- 2026-10-13 — The curve-meeting design fork (`two-curve-curve-meeting-finders`) is weighed by an Opus and a Fable designer and sent to Ev as `[ev]` PR 5027 (fork-log row 133).
+  - **Converged after three rounds:** one reader with one point-on-span reading; a total kind-pair table; closed forms in one conic's angle; the walk used as an oracle; no runtime fallback.
+  - **Ev's fork:** the home, `geom-brep` or `geom`.
+  - **Measured on the way:** two silent `carrier_cross` defects, filed on cleave as P1 (#5024, #5026).
+  - **Disclosed slip:** the blinding byte was drawn at PR time, not at dispatch (`analysis/design-fork/curve-meeting-reader`).
+- 2026-10-14 — PR 5022 merges at 24bcccde: split rows are refused at append, and `JoinDesync` sheds its lineage-cycle arms (new `SplitLineage`). Opus found it mergeable, and seven fixes were folded in. Filed `lineage-lists-are-five-newtypes-over-one-core`, now dispatched to the same lane.
+- 2026-10-14 — PR 5030 merges at 1d777ace: the localization core's residue reads its one spelling.
+  - **Closed:** `the-localization-core-is-half-unified` and offset's `param-speeds-is-a-second-per-kind-speed-list`.
+  - **Review:** Fable found it mergeable and confirmed it bit-identical analytically. A fix round followed.
+  - **Merged over three main reds** that reproduce on pure main and are not this PR's: they were hidden from main's per-PR CI by the change filter. Filed P0 on nurbs (lily tessellation and saddle-wall fit, suspect 4984) and on flux (mass-props thread golden, suspect 4938) (#5045).

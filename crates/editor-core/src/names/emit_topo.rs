@@ -2428,29 +2428,23 @@ enum Along {
 struct Fused {
     partners: BTreeMap<VertexKey, Vec<VertexKey>>,
     one_point: Vec<((topo::Operand, VertexKey), (topo::Operand, VertexKey))>,
-    split_from: BTreeMap<VertexKey, VertexKey>,
+    cones: topo::ConeCopies,
 }
 
 impl Fused {
     fn of(naming: &topo::BooleanNaming) -> Self {
         let mut fused = Self::from_rows(naming.vertex_merges.rows(), &naming.null_copies);
-        fused.split_from = naming
-            .cone_splits
-            .iter()
-            .map(|&(split, new)| (new, split))
-            .collect();
+        fused.cones = naming.cone_splits.clone();
         fused
     }
 
     /// The result vertex `k` is a copy of: the vertex a split per cone
     /// copied it from, through every split, or `k` itself. A split's
     /// copy is minted on the result, so it is the operand vertex it
-    /// copies, not a key of either operand.
-    fn origin(&self, mut k: VertexKey) -> VertexKey {
-        while let Some(&from) = self.split_from.get(&k) {
-            k = from;
-        }
-        k
+    /// copies, not a key of either operand. Total: the splits were
+    /// checked as each was made, so they cannot cycle.
+    fn origin(&self, k: VertexKey) -> VertexKey {
+        self.cones.root(k)
     }
 
     /// From the zips' fusions `(dead, kept)` and the null copies, each
@@ -2468,7 +2462,7 @@ impl Fused {
         Self {
             partners: fused_partners(merges),
             one_point,
-            split_from: BTreeMap::new(),
+            cones: topo::ConeCopies::default(),
         }
     }
 }

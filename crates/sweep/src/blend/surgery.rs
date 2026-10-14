@@ -233,7 +233,7 @@ use super::open::planar::{
 };
 use super::open::ruled::{RuledPlan, ruled_phase};
 use super::reach::{CapRing, Unclear};
-use super::{BlendDecision, BlendError, BlendKind, BlendSite, CornerConfig, classify};
+use super::{BlendDecision, BlendError, BlendKind, BlendSite, Breach, CornerConfig, classify};
 use geom_core::Tol;
 
 // ------------------------------------------------------------------
@@ -243,15 +243,31 @@ use geom_core::Tol;
 // ------------------------------------------------------------------
 
 /// **Row 1** — the body or the verdict handed to the surgery does not
-/// hold together where the plan read it: a stored reference that did
-/// not resolve, a cycle that did not close, or a verdict whose keys
-/// disagree with the body's own structure. Invalid input, not a
-/// frontier. The third clause is the one the plan's own tokens use —
-/// a link offered to a corner it does not touch, a chart offered
-/// another vertex's faces — and it is why this constructor is not
-/// only about arena reads.
-pub(super) fn not_intact(at: EntityId, detail: &'static str) -> BlendError {
-    BlendError::BodyNotIntact { at, detail }
+/// hold together where the plan read it. Invalid input, not a frontier.
+/// One constructor per [`Breach`], so a site states which of the three
+/// it met and the refusal renders that, not another: a stored key that
+/// did not resolve ([`unresolved`]), a walk that did not close
+/// ([`unwalked`]), or keys that resolved into a structure the plan's
+/// reading disagrees with ([`disagrees`]). The last is the one the
+/// plan's own tokens use — a link offered to a corner it does not touch,
+/// a chart offered another vertex's faces.
+pub(super) fn unresolved(at: EntityId, detail: &'static str) -> BlendError {
+    let breach = Breach::Unresolved;
+    BlendError::BodyNotIntact { at, breach, detail }
+}
+
+/// **Row 1**, a walk from `at` — a loop's cycle, a vertex's orbit —
+/// that did not close over keys that resolve.
+pub(super) fn unwalked(at: EntityId, detail: &'static str) -> BlendError {
+    let breach = Breach::Unwalked;
+    BlendError::BodyNotIntact { at, breach, detail }
+}
+
+/// **Row 1**, keys that resolved and walk but disagree with the plan's
+/// or the verdict's reading of the body there.
+pub(super) fn disagrees(at: EntityId, detail: &'static str) -> BlendError {
+    let breach = Breach::Disagrees;
+    BlendError::BodyNotIntact { at, breach, detail }
 }
 
 /// **Row 4, announced rather than panicked** — a step of this carve
@@ -620,7 +636,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     let mut turns: Vec<TurnPlan<'_, T>> = Vec::with_capacity(turning.len());
     for (turn, links) in turning {
         let [a, b] = links[..] else {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Vertex(turn.vertex),
                 "a turn the verdict admitted does not end exactly two admitted planar links",
             ));
@@ -633,7 +649,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     for links in ends {
         let v = links.vertex();
         let Some(mut incident) = fan_at(source.edges_of_vertex(v)) else {
-            return Err(not_intact(
+            return Err(unwalked(
                 EntityId::Vertex(v),
                 "a chain end's vertex orbit does not walk",
             ));
@@ -662,7 +678,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             ));
         }
         if here != incident {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Vertex(v),
                 "a chain ends at a trivalent corner the verdict admitted as a corner patch, \
                  whose three edges are not all requested",
@@ -1096,7 +1112,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
 /// The shell a face lies in, read off its back-pointer.
 fn shell_of<T: Real>(source: &Body<T>, face: FaceKey) -> Result<ShellKey, BlendError> {
     source.get_face(face).map(|f| f.shell).ok_or_else(|| {
-        not_intact(
+        unresolved(
             EntityId::Face(face),
             "a link's support face does not resolve",
         )
@@ -1111,7 +1127,7 @@ fn chain_shell<T: Real>(source: &Body<T>, chain: &Chain<T>) -> Result<ShellKey, 
         for f in [l.face_a, l.face_b] {
             let there = shell_of(source, f)?;
             if there != shell {
-                return Err(not_intact(
+                return Err(disagrees(
                     EntityId::Edge(l.edge),
                     "a link's supports in the chain's one shell",
                 ));
@@ -1142,7 +1158,7 @@ fn corner_shell(
     if shells.all(|s| s == first) {
         Ok(())
     } else {
-        Err(not_intact(
+        Err(disagrees(
             EntityId::Vertex(vertex),
             "the chains meeting at a corner in one shell",
         ))
@@ -1229,10 +1245,10 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     // whether its foot is a seam split or a strut.
     if chain.link_count() == 1 {
         let a_planar = is_plane(link0.face_a).ok_or_else(|| {
-            not_intact(EntityId::Face(link0.face_a), "a rim link's first support")
+            unresolved(EntityId::Face(link0.face_a), "a rim link's first support")
         })?;
         let b_planar = is_plane(link0.face_b).ok_or_else(|| {
-            not_intact(EntityId::Face(link0.face_b), "a rim link's second support")
+            unresolved(EntityId::Face(link0.face_b), "a rim link's second support")
         })?;
         let host = if second_support_is_host(a_planar, b_planar) {
             link0.face_b
@@ -1245,12 +1261,12 @@ fn resolve_rim<'a, T: Decide + Bounds>(
             link0.face_a
         };
         let host_half = host_side_half(body, link0, host)
-            .ok_or_else(|| not_intact(EntityId::Edge(link0.edge), "a rim edge"))?;
+            .ok_or_else(|| unresolved(EntityId::Edge(link0.edge), "a rim edge"))?;
         let host_loop = body
             .get_half_edge(host_half)
             .map(|h| h.parent_loop)
             .ok_or_else(|| {
-                not_intact(EntityId::HalfEdge(host_half), "a rim edge's host-side half")
+                unresolved(EntityId::HalfEdge(host_half), "a rim edge's host-side half")
             })?;
         let host_planar = if host == link0.face_a {
             a_planar
@@ -1273,12 +1289,12 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     // is a plane — the annulus's discriminant, not a refusal.
     let split = |link: &Link<T>| -> Result<Option<(FaceKey, FaceKey)>, BlendError> {
         let a_planar = is_plane(link.face_a)
-            .ok_or_else(|| not_intact(EntityId::Face(link.face_a), "a rim link's first support"))?;
+            .ok_or_else(|| unresolved(EntityId::Face(link.face_a), "a rim link's first support"))?;
         // A support that does not RESOLVE is a broken body, not a
         // frontier: the two answers are different rows and the absent
         // one never borrows the refusal of the unbuilt one.
         let b_planar = is_plane(link.face_b).ok_or_else(|| {
-            not_intact(EntityId::Face(link.face_b), "a rim link's second support")
+            unresolved(EntityId::Face(link.face_b), "a rim link's second support")
         })?;
         // WHICH support is the host is the shared rule's answer, not a
         // third spelling of it. What stays here is the question the rule
@@ -1312,12 +1328,12 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         mates.push(s);
     }
     let plane_half = host_side_half(body, link0, plane)
-        .ok_or_else(|| not_intact(EntityId::Edge(link0.edge), "a rim edge"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(link0.edge), "a rim edge"))?;
     let plane_loop = body
         .get_half_edge(plane_half)
         .map(|h| h.parent_loop)
         .ok_or_else(|| {
-            not_intact(
+            unresolved(
                 EntityId::HalfEdge(plane_half),
                 "a rim edge's plane-side half",
             )
@@ -1331,7 +1347,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     let ring = plane_loop;
     let pd = body
         .get_face(plane)
-        .ok_or_else(|| not_intact(EntityId::Face(plane), "a rim's plane support"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(plane), "a rim's plane support"))?;
     if !pd.rings.contains(&ring) {
         if pd.outer == plane_loop {
             return resolve_seam_split_rim(body, chain, HostSide::Struts);
@@ -1340,7 +1356,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         // a loop that is neither the outer cycle nor a ring of that face
         // is a body whose loop set disagrees with its half-edges — Row
         // 1, not a frontier.
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Loop(plane_loop),
             "a rim's plane-side loop is neither that face's outer cycle nor one of its rings",
         ));
@@ -1354,7 +1370,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     for (link, &s) in chain.links().zip(mates.iter()) {
         let sd = body
             .get_face(s)
-            .ok_or_else(|| not_intact(EntityId::Face(s), "a rim's curved support"))?;
+            .ok_or_else(|| unresolved(EntityId::Face(s), "a rim's curved support"))?;
         if !sd.rings.is_empty() {
             return Err(unbuilt_chain(
                 link.edge,
@@ -1363,7 +1379,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         }
         let on_boundary: Vec<EdgeKey> = face_cycle_edges(body, s)
             .ok_or_else(|| {
-                not_intact(
+                unwalked(
                     EntityId::Face(s),
                     "a rim's curved support has no boundary cycle that walks",
                 )
@@ -1383,7 +1399,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     // must drop exactly ONE meridian into the cap (checked while
     // carving — structurally here: valence 3).
     let ring_len = loop_walk(body, ring)
-        .ok_or_else(|| not_intact(EntityId::Loop(ring), "a rim's ring loop"))?
+        .ok_or_else(|| unwalked(EntityId::Loop(ring), "a rim's ring loop"))?
         .len();
     if ring_len != chain.link_count() {
         return Err(unbuilt_chain(
@@ -1483,9 +1499,9 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let surface_of = |f: FaceKey| -> Option<SurfaceKey> { Some(body.get_face(f)?.surface) };
     let pair_of = |l: &Link<T>| -> Result<(SurfaceKey, SurfaceKey), BlendError> {
         let a = surface_of(l.face_a)
-            .ok_or_else(|| not_intact(EntityId::Face(l.face_a), "a rim link's first support"))?;
+            .ok_or_else(|| unresolved(EntityId::Face(l.face_a), "a rim link's first support"))?;
         let b = surface_of(l.face_b)
-            .ok_or_else(|| not_intact(EntityId::Face(l.face_b), "a rim link's second support"))?;
+            .ok_or_else(|| unresolved(EntityId::Face(l.face_b), "a rim link's second support"))?;
         Ok((a, b))
     };
     let (ka, kb) = pair_of(link0)?;
@@ -1512,7 +1528,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let is_plane_surface = |k: SurfaceKey| -> Result<bool, BlendError> {
         let s = body
             .get_surface(k)
-            .ok_or_else(|| not_intact(EntityId::Face(link0.face_a), "a rim support's surface"))?;
+            .ok_or_else(|| unresolved(EntityId::Face(link0.face_a), "a rim support's surface"))?;
         Ok(matches!(s, Surface::Plane { .. }))
     };
     let host_surface = if second_support_is_host(is_plane_surface(ka)?, is_plane_surface(kb)?) {
@@ -1528,7 +1544,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         // link carries the surface already chosen — the links of one
         // seam-split rim do not agree on slot order.
         let a_is_host = surface_of(link.face_a)
-            .ok_or_else(|| not_intact(EntityId::Face(link.face_a), "a rim link's first support"))?
+            .ok_or_else(|| unresolved(EntityId::Face(link.face_a), "a rim link's first support"))?
             == host_surface;
         let (h, m) = if a_is_host {
             (link.face_a, link.face_b)
@@ -1547,7 +1563,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let half_band = |f: FaceKey, link: &Link<T>| -> Result<(), BlendError> {
         let fd = body
             .get_face(f)
-            .ok_or_else(|| not_intact(EntityId::Face(f), "a rim arc's support"))?;
+            .ok_or_else(|| unresolved(EntityId::Face(f), "a rim arc's support"))?;
         if !fd.rings.is_empty() {
             return Err(unbuilt_chain(
                 link.edge,
@@ -1556,7 +1572,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         }
         let carried: Vec<EdgeKey> = face_cycle_edges(body, f)
             .ok_or_else(|| {
-                not_intact(
+                unwalked(
                     EntityId::Face(f),
                     "a rim arc's support has no boundary cycle that walks",
                 )
@@ -1607,7 +1623,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         );
         let mut cycle: Vec<EdgeKey> = face_cycle_edges(body, host)
             .ok_or_else(|| {
-                not_intact(
+                unwalked(
                     EntityId::Face(host),
                     "a rim's host support has no outer cycle that walks",
                 )
@@ -1641,12 +1657,12 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let mut ends = Vec::with_capacity(chain.link_count());
     for (i, link) in chain.links().enumerate() {
         let half = host_side_half(body, link, hosts[i])
-            .ok_or_else(|| not_intact(EntityId::Edge(link.edge), "a rim arc's host-side half"))?;
+            .ok_or_else(|| unresolved(EntityId::Edge(link.edge), "a rim arc's host-side half"))?;
         let (Some(s), Some(e)) = (
             body.get_half_edge(half).map(|h| h.start),
             body.half_edge_end(half),
         ) else {
-            return Err(not_intact(
+            return Err(unresolved(
                 EntityId::HalfEdge(half),
                 "a rim arc's host-side traversal",
             ));
@@ -1670,7 +1686,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     for (i, link) in chain.links().enumerate() {
         let vertex = ends[i].1;
         let mut incident = fan_at(body.edges_of_vertex(vertex))
-            .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
+            .ok_or_else(|| unwalked(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
         incident.sort_unstable();
         let (arcs, seams): (Vec<EdgeKey>, Vec<EdgeKey>) =
             incident.iter().partition(|e| chain_edges.contains(e));
@@ -1703,7 +1719,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         let (mut host_seam, mut mate_seam) = (None, None);
         for seam in seams {
             let (sp, sm) = topo::readback::edge_sides(body, seam)
-                .map_err(|_| not_intact(EntityId::Edge(seam), "a seam meridian's two faces"))?
+                .map_err(|_| unresolved(EntityId::Edge(seam), "a seam meridian's two faces"))?
                 .surfaces();
             // A CO-SURFACE edge is what a chart seam is, and it is what
             // makes the dihedral zero by construction rather than by a
@@ -1905,7 +1921,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
 ) -> Result<Vec<LiveSeams>, BlendError> {
     let surface_of = |f: FaceKey| -> Option<SurfaceKey> { Some(body.get_face(f)?.surface) };
     let host_surface = surface_of(rim.host0())
-        .ok_or_else(|| not_intact(EntityId::Face(rim.host0()), "a rim's host support"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(rim.host0()), "a rim's host support"))?;
     let Some(&mate0) = rim.mates.first() else {
         unreachable!(
             "rim plan: `mates` carries one face per chain link and a chain always \
@@ -1918,7 +1934,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
     // per-side surface homogeneity is the resolvers' own gate, read
     // here rather than re-proven.
     let mate_surface = surface_of(mate0)
-        .ok_or_else(|| not_intact(EntityId::Face(mate0), "a rim's mate support"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(mate0), "a rim's mate support"))?;
     // NOT KNOWN REACHABLE (disclosed narrowing, #935 fix pass): the
     // multi-arc resolver refuses a one-surface support pair at plan
     // time (its `ka == kb` gate), and a one-edge rim between two faces
@@ -1947,7 +1963,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
     let mut live = Vec::with_capacity(ann.crossings.len());
     for c in &ann.crossings {
         let mut incident = fan_at(body.edges_of_vertex(c.vertex))
-            .ok_or_else(|| not_intact(EntityId::Vertex(c.vertex), "a rim vertex's edge orbit"))?;
+            .ok_or_else(|| unwalked(EntityId::Vertex(c.vertex), "a rim vertex's edge orbit"))?;
         incident.sort_unstable();
         let extras: Vec<EdgeKey> = incident
             .into_iter()
@@ -1956,7 +1972,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
         let (mut host_seam, mut mate_seam) = (None, None);
         for e in extras {
             let (sp, sm) = topo::readback::edge_sides(body, e)
-                .map_err(|_| not_intact(EntityId::Edge(e), "a seam meridian's two faces"))?
+                .map_err(|_| unresolved(EntityId::Edge(e), "a seam meridian's two faces"))?
                 .surfaces();
             let slot = if sp == sm && sp == host_surface {
                 &mut host_seam
@@ -2038,7 +2054,7 @@ fn resolve_annulus<T: Decide + Bounds>(
     let vertex = link0.start;
     let sd = body
         .get_face(mate)
-        .ok_or_else(|| not_intact(EntityId::Face(mate), "a rim's second support"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(mate), "a rim's second support"))?;
     if !sd.rings.is_empty() {
         return Err(unbuilt_chain(
             link0.edge,
@@ -2047,14 +2063,14 @@ fn resolve_annulus<T: Decide + Bounds>(
     }
     let ed = body
         .get_edge(link0.edge)
-        .ok_or_else(|| not_intact(EntityId::Edge(link0.edge), "a rim edge"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(link0.edge), "a rim edge"))?;
     let mate_half = if ed.he_plus == host_half {
         ed.he_minus
     } else {
         ed.he_plus
     };
     let mate_loop = loop_of_half(body, mate_half)
-        .ok_or_else(|| not_intact(EntityId::HalfEdge(mate_half), "a rim edge's mate-side half"))?;
+        .ok_or_else(|| unresolved(EntityId::HalfEdge(mate_half), "a rim edge's mate-side half"))?;
     let hostless = host_planar && is_lone_rim(body, host_loop, link0.edge)?;
     let host_foot = if hostless {
         HostFoot::Strut
@@ -2068,7 +2084,7 @@ fn resolve_annulus<T: Decide + Bounds>(
     // with this vertex, so a further incident edge would be left behind
     // by both.
     let mut incident = fan_at(body.edges_of_vertex(vertex))
-        .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
+        .ok_or_else(|| unwalked(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
     incident.sort_unstable();
     let mut expected = vec![link0.edge, mate_seam];
     if let HostFoot::Seam(host_seam) = host_foot {
@@ -2096,7 +2112,7 @@ fn resolve_annulus<T: Decide + Bounds>(
 /// plane wall's circle, which carries no seam.
 fn is_lone_rim<T: Decide>(body: &Body<T>, lp: LoopKey, rim: EdgeKey) -> Result<bool, BlendError> {
     let walk = loop_walk(body, lp)
-        .ok_or_else(|| not_intact(EntityId::Loop(lp), "a rim support's boundary cycle"))?;
+        .ok_or_else(|| unwalked(EntityId::Loop(lp), "a rim support's boundary cycle"))?;
     Ok(matches!(walk[..], [(_, _, e)] if e == rim))
 }
 
@@ -2126,7 +2142,7 @@ fn wall_seam<T: Decide>(
     vertex: VertexKey,
 ) -> Result<EdgeKey, BlendError> {
     let walk = loop_walk(body, lp)
-        .ok_or_else(|| not_intact(EntityId::Loop(lp), "a rim support's boundary cycle"))?;
+        .ok_or_else(|| unwalked(EntityId::Loop(lp), "a rim support's boundary cycle"))?;
     let count = |e: EdgeKey| walk.iter().filter(|(_, _, k)| *k == e).count();
     if count(rim) != 1 {
         return Err(unbuilt_chain(
@@ -2234,7 +2250,7 @@ fn ring_pieces<'b, T: Decide>(
     rims: &[RimPlan<'_, T>],
 ) -> Result<Vec<RingPiece<'b, T>>, BlendError> {
     let walk = loop_walk(body, ring)
-        .ok_or_else(|| not_intact(EntityId::Loop(ring), "a support face's ring"))?;
+        .ok_or_else(|| unwalked(EntityId::Loop(ring), "a support face's ring"))?;
     // Row 0 (`D96`): NO — the non-emptiness is `topo::loop_cycle`'s,
     // and carrying it locally means `loop_walk` returning a split
     // head/tail through six call sites that index and length it. The
@@ -2397,7 +2413,7 @@ pub(super) fn stored_piece<T: Decide>(
 ) -> Result<Option<Piece<'_, T>>, BlendError> {
     let e = body
         .get_edge(edge)
-        .ok_or_else(|| not_intact(EntityId::Edge(edge), "a boundary edge a clearance reads"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(edge), "a boundary edge a clearance reads"))?;
     Ok(body
         .get_curve_geom(e.curve)
         .and_then(|g| g.certified())
@@ -2725,7 +2741,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     for o in opens {
         let l = o.link();
         let mid = edge_midpoint(body, l.edge).ok_or_else(|| {
-            not_intact(
+            unresolved(
                 EntityId::Edge(l.edge),
                 "a link edge's stored carrier, for its midpoint",
             )
@@ -2749,7 +2765,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
             let m = (origin - mid).normalize();
             let fd = body
                 .get_face(face)
-                .ok_or_else(|| not_intact(EntityId::Face(face), "a link's support face"))?;
+                .ok_or_else(|| unresolved(EntityId::Face(face), "a link's support face"))?;
             let metered = |r: &&LoopKey| !l.arm.is_plane_plane() || !carried.contains(r);
             for &ring in fd.rings.iter().filter(metered) {
                 let margins = ring_pieces(body, ring, face, opens, rims)?
@@ -2800,12 +2816,12 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     for &(s, convexity, crease) in slivers {
         let fd = body
             .get_face(s.cap)
-            .ok_or_else(|| not_intact(EntityId::Face(s.cap), "a cut-off's end face"))?;
+            .ok_or_else(|| unresolved(EntityId::Face(s.cap), "a cut-off's end face"))?;
         let decision = BlendDecision::RingClearance;
         for lp in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
             let lone = body
                 .get_loop(lp)
-                .ok_or_else(|| not_intact(EntityId::Loop(lp), "a cut-off end face's cycle"))?;
+                .ok_or_else(|| unresolved(EntityId::Loop(lp), "a cut-off end face's cycle"))?;
             if let topo::LoopBoundary::Empty { .. } = lone.boundary {
                 return Err(unbuilt_geometry(
                     EntityId::Loop(lp),
@@ -2814,7 +2830,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 ));
             }
             let walk = loop_walk(body, lp)
-                .ok_or_else(|| not_intact(EntityId::Loop(lp), "a cut-off end face's cycle"))?;
+                .ok_or_else(|| unwalked(EntityId::Loop(lp), "a cut-off end face's cycle"))?;
             let cut = walk.iter().any(|(_, _, edge)| s.rims.contains(edge));
             let mut pieces = Vec::with_capacity(walk.len());
             let mut least: Option<(T, Sign)> = None;
@@ -2971,19 +2987,19 @@ fn strip_clearance<T: Decide + Bounds>(
     let face = support.face();
     let outer = body
         .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a planar support"))?
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a planar support"))?
         .outer;
     let mut boundary = Vec::new();
     for lp in core::iter::once(outer).chain(support.rings().iter().copied()) {
         let walk = loop_walk(body, lp)
-            .ok_or_else(|| not_intact(EntityId::Loop(lp), "a planar support's cycle"))?;
+            .ok_or_else(|| unwalked(EntityId::Loop(lp), "a planar support's cycle"))?;
         boundary.extend(walk.into_iter().map(|(_, _, edge)| edge));
     }
     for chord in support.chords() {
         let o = point_of(body, chord.from)
-            .ok_or_else(|| not_intact(EntityId::Vertex(chord.from), "a station's point"))?;
+            .ok_or_else(|| unresolved(EntityId::Vertex(chord.from), "a station's point"))?;
         let t = point_of(body, chord.to)
-            .ok_or_else(|| not_intact(EntityId::Vertex(chord.to), "a station's point"))?;
+            .ok_or_else(|| unresolved(EntityId::Vertex(chord.to), "a station's point"))?;
         let [x, y] = chord.feet;
         let d = (t - o).normalize();
         let off = x - o;
@@ -3108,7 +3124,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         };
         let fd = body
             .get_face(face)
-            .ok_or_else(|| not_intact(EntityId::Face(face), "a rim's support"))?;
+            .ok_or_else(|| unresolved(EntityId::Face(face), "a rim's support"))?;
         // The latitude function: `None` the distance from the trim
         // centre, `Some(axis)` the height along the axis.
         let direction = match body.get_surface(fd.surface) {
@@ -3123,7 +3139,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
                      latitudes the support-boundary meter reads",
                 ));
             }
-            None => return Err(not_intact(EntityId::Face(face), "a rim support's surface")),
+            None => return Err(unresolved(EntityId::Face(face), "a rim support's surface")),
         };
         // The latitude function's range over one piece, and whether that
         // range is a bound rather than the piece's own.
@@ -3155,7 +3171,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
             ));
         }
         let outer = face_cycle(body, face).ok_or_else(|| {
-            not_intact(
+            unwalked(
                 EntityId::Face(face),
                 "a rim's support has no outer cycle that walks",
             )
@@ -3168,7 +3184,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         for he in outer {
             let edge = body
                 .get_half_edge(he)
-                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a rim support's boundary"))?
+                .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a rim support's boundary"))?
                 .edge;
             let (carrier, window) = metered_piece(body, edge, face, opens, rims)?;
             outer_pieces.push((edge, carrier, window));
@@ -3286,7 +3302,7 @@ pub(super) fn open_trimline<T: Real>(
 /// A boundary edge read on a face it does not bound — a body whose
 /// loops disagree with its edges, not a frontier.
 fn not_a_support(edge: EdgeKey) -> BlendError {
-    not_intact(
+    disagrees(
         EntityId::Edge(edge),
         "an outer-boundary edge of a face does not have that face as a support",
     )
@@ -3437,9 +3453,9 @@ fn rim_carrier<T: Decide>(
     let e = link.edge;
     let ed = body
         .get_edge(e)
-        .ok_or_else(|| not_intact(EntityId::Edge(e), "a rim edge"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge"))?;
     let host_half = host_side_half(body, link, host)
-        .ok_or_else(|| not_intact(EntityId::Edge(e), "a rim edge's host-side half"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge's host-side half"))?;
     let Some(c) = body.get_curve_geom(ed.curve).and_then(|g| g.certified()) else {
         return Err(unbuilt_geometry(
             EntityId::Edge(e),
@@ -3583,7 +3599,7 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
 ) -> Result<Option<T>, BlendError> {
     let sd = body
         .get_edge(seam)
-        .ok_or_else(|| not_intact(EntityId::Edge(seam), "a support edge the band splits"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(seam), "a support edge the band splits"))?;
     let Some(sc) = body.get_curve_geom(sd.curve).and_then(|g| g.certified()) else {
         return Err(unbuilt_geometry(
             EntityId::Edge(seam),
@@ -3823,7 +3839,7 @@ fn strut_foot<T: Decide + Bounds + topo::AtRestPolicy>(
     site: &'static str,
     tol: Tol,
 ) -> Result<topo::MevCreated, BlendError> {
-    let p = point_of(body, v).ok_or_else(|| not_intact(EntityId::Vertex(v), "a rim vertex"))?;
+    let p = point_of(body, v).ok_or_else(|| unresolved(EntityId::Vertex(v), "a rim vertex"))?;
     let created = body
         .mev(
             MevSite::Fan { he1: he, he2: he },
@@ -3855,14 +3871,14 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     // The rim edges' stored carriers, once.
     let carrier_of = |body: &Body<T>, e: EdgeKey| -> Result<RimCarrier<T>, BlendError> {
         let l = link_of(e)
-            .ok_or_else(|| not_intact(EntityId::Edge(e), "a rim edge's link in the verdict"))?;
+            .ok_or_else(|| disagrees(EntityId::Edge(e), "a rim edge's link in the verdict"))?;
         rim_carrier(body, l, rim.host0())
     };
 
     // ---- (1) The plane walk: the rim ring's cycle, once. Everything
     // downstream keys off its order (D9: the stored anchor's order).
-    let plane_walk = loop_walk(body, ring)
-        .ok_or_else(|| not_intact(EntityId::Loop(ring), "a rim's ring loop"))?;
+    let plane_walk =
+        loop_walk(body, ring).ok_or_else(|| unwalked(EntityId::Loop(ring), "a rim's ring loop"))?;
     let n = plane_walk.len();
 
     // ---- (2) Meridian splits: at each rim vertex exactly one edge
@@ -3876,7 +3892,7 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     let mut remnants: Vec<(VertexKey, EdgeKey, EdgeKey)> = Vec::with_capacity(n);
     for &(_, v, e) in &plane_walk {
         let incident = fan_at(body.edges_of_vertex(v))
-            .ok_or_else(|| not_intact(EntityId::Vertex(v), "a rim vertex's edge orbit"))?;
+            .ok_or_else(|| unwalked(EntityId::Vertex(v), "a rim vertex's edge orbit"))?;
         let meridians: Vec<EdgeKey> = incident
             .into_iter()
             .filter(|k| !chain_edges.contains(k))
@@ -3982,7 +3998,7 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
         let s_half = {
             let ed = body
                 .get_edge(e)
-                .ok_or_else(|| not_intact(EntityId::Edge(e), "a rim edge"))?;
+                .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge"))?;
             if ed.he_plus == he_p {
                 ed.he_minus
             } else {
@@ -3990,10 +4006,10 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
             }
         };
         let lp = loop_of_half(body, s_half)
-            .ok_or_else(|| not_intact(EntityId::HalfEdge(s_half), "a rim edge's cap-side half"))?;
+            .ok_or_else(|| unresolved(EntityId::HalfEdge(s_half), "a rim edge's cap-side half"))?;
         let ((he1, v1), (he2, v2)) =
-            flank(body, lp, |row| row.0 == s_half, 1, 2).ok_or_else(|| {
-                not_intact(
+            flank(body, lp, |row| row.0 == s_half, 1, 2)?.ok_or_else(|| {
+                disagrees(
                     EntityId::Loop(lp),
                     "a half-cap loop does not carry the half-edge whose parent it is",
                 )
@@ -4010,9 +4026,9 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
         }
         let (p1, p2) = (
             point_of(body, v1)
-                .ok_or_else(|| not_intact(EntityId::Vertex(v1), "a meridian split vertex"))?,
+                .ok_or_else(|| unresolved(EntityId::Vertex(v1), "a meridian split vertex"))?,
             point_of(body, v2)
-                .ok_or_else(|| not_intact(EntityId::Vertex(v2), "a meridian split vertex"))?,
+                .ok_or_else(|| unresolved(EntityId::Vertex(v2), "a meridian split vertex"))?,
         );
         let created = body
             .mef(
@@ -4031,7 +4047,7 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
     // ---- (5) Excise: kill each rim edge across its two strips. ----
     for l in rim.chain.links() {
         let half = host_side_half(body, l, rim.host0())
-            .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim edge's plane-side half"))?;
+            .ok_or_else(|| unresolved(EntityId::Edge(l.edge), "a rim edge's plane-side half"))?;
         sources.kef_minted(body, half, "rim kef", tol)?;
         rec.dead.edges.push(l.edge);
     }
@@ -4135,7 +4151,7 @@ fn rim_phase<T: Decide + Bounds + topo::AtRestPolicy>(
             // The upper meridian remnant at this vertex is now a spur
             // ending at the old rim vertex.
             let (shp, shm) = halves_of(body, mr).ok_or_else(|| {
-                not_intact(EntityId::Edge(mr), "a rim vertex's upper meridian remnant")
+                unresolved(EntityId::Edge(mr), "a rim vertex's upper meridian remnant")
             })?;
             let dying = if body.half_edge_end(shm) == Some(*v) {
                 shm
@@ -4214,8 +4230,9 @@ fn trim_chords<T: Decide>(
     body: &Body<T>,
     lp: LoopKey,
     feet: &[(VertexKey, EdgeKey, EdgeKey)],
-) -> Option<(HalfEdgeKey, HalfEdgeKey)> {
-    let walk = loop_walk(body, lp)?;
+) -> Result<(HalfEdgeKey, HalfEdgeKey), BlendError> {
+    let walk = loop_walk(body, lp)
+        .ok_or_else(|| unwalked(EntityId::Loop(lp), "a support cycle a trim chord spans"))?;
     let pick = |rim_side: bool| {
         walk.iter()
             .find(|(_, v, k)| {
@@ -4224,7 +4241,12 @@ fn trim_chords<T: Decide>(
             })
             .map(|(h, _, _)| *h)
     };
-    Some((pick(true)?, pick(false)?))
+    pick(true).zip(pick(false)).ok_or_else(|| {
+        disagrees(
+            EntityId::Loop(lp),
+            "a split seam's rim-side and far-side halves at this support's feet",
+        )
+    })
 }
 
 /// One `mef` for one support's trim: the arc between the two feet, or
@@ -4248,11 +4270,11 @@ fn mef_trim<T: Decide + Bounds + topo::AtRestPolicy>(
         body.get_half_edge(he1).map(|h| h.start),
         body.get_half_edge(he2).map(|h| h.start),
     ) else {
-        return Err(not_intact(EntityId::HalfEdge(he1), "a trim chord's foot"));
+        return Err(unresolved(EntityId::HalfEdge(he1), "a trim chord's foot"));
     };
     let spec = if v1 == v2 {
         let p = point_of(body, v1)
-            .ok_or_else(|| not_intact(EntityId::Vertex(v1), "a rim band's foot"))?;
+            .ok_or_else(|| unresolved(EntityId::Vertex(v1), "a rim band's foot"))?;
         EdgeCurveSpec::self_loop_circle_at(p)
     } else {
         EdgeCurveSpec::arc_of_circle(curve.clone(), window.0, window.1).ok_or_else(|| {
@@ -4308,13 +4330,13 @@ fn lone_host_trim<T: Decide + topo::AtRestPolicy>(
         (hm, hp)
     };
     let host_loop = loop_of_half(body, out)
-        .ok_or_else(|| not_intact(EntityId::Edge(strut), "a hostless strut's loop"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(strut), "a hostless strut's loop"))?;
     let rim_ring = body
         .kemr(back, out)
         .map_err(|e| op("annulus lone host strut kemr", e))?
         .ring;
     let pf = point_of(body, foot)
-        .ok_or_else(|| not_intact(EntityId::Vertex(foot), "a rim band's foot"))?;
+        .ok_or_else(|| unresolved(EntityId::Vertex(foot), "a rim band's foot"))?;
     let trim = body
         .mef(
             MefSite::Lone { r#loop: host_loop },
@@ -4324,13 +4346,13 @@ fn lone_host_trim<T: Decide + topo::AtRestPolicy>(
         )
         .map_err(|e| op("annulus host trim mef", e))?;
     let strip = face_of_half(body, trim.he_minus)
-        .ok_or_else(|| not_intact(EntityId::Edge(trim.edge), "a lone host trim's new face"))?;
+        .ok_or_else(|| unresolved(EntityId::Edge(trim.edge), "a lone host trim's new face"))?;
     body.ring_move(rim_ring, strip)
         .map_err(|e| op("annulus lone host ring move", e))?;
     let pv = body
         .get_half_edge(rim_half)
         .and_then(|h| point_of(body, h.start))
-        .ok_or_else(|| not_intact(EntityId::HalfEdge(rim_half), "a rim vertex"))?;
+        .ok_or_else(|| unresolved(EntityId::HalfEdge(rim_half), "a rim vertex"))?;
     let joined = body
         .mekr(
             MekrSite::Cycles {
@@ -4385,6 +4407,9 @@ impl HostAnchor {
     }
 }
 
+/// The two `(half-edge, start vertex)` rows a chord runs between.
+type Flank = ((HalfEdgeKey, VertexKey), (HalfEdgeKey, VertexKey));
+
 /// **The two half-edges flanking a position in a loop's cycle** — the
 /// run a `mef` moves onto a new face, keyed by the half-edge `at`
 /// picks: the one `back` positions before it (inclusive) and the one
@@ -4407,16 +4432,18 @@ impl HostAnchor {
 /// Read LIVE, once per chord: each `mef` splits the face under it, so
 /// by the last chord the half after it can be an earlier trim rather
 /// than a foot edge — still starting at a foot, which is the property
-/// that has to hold. `None` where the loop does not walk or does not
-/// carry the keyed half-edge.
+/// that has to hold. Refuses where the loop does not walk; `None` where
+/// it walks and does not carry the keyed half-edge.
 pub(super) fn flank<T: Decide>(
     body: &Body<T>,
     lp: LoopKey,
     at: impl Fn(&(HalfEdgeKey, VertexKey, EdgeKey)) -> bool,
     back: usize,
     fwd: usize,
-) -> Option<((HalfEdgeKey, VertexKey), (HalfEdgeKey, VertexKey))> {
-    flank_in(&loop_walk(body, lp)?, at, back, fwd)
+) -> Result<Option<Flank>, BlendError> {
+    let walk = loop_walk(body, lp)
+        .ok_or_else(|| unwalked(EntityId::Loop(lp), "a cycle a chord's flank is read from"))?;
+    Ok(flank_in(&walk, at, back, fwd))
 }
 
 /// [`flank`]'s arithmetic on a walk already read: `None` exactly where
@@ -4426,7 +4453,7 @@ fn flank_in(
     at: impl Fn(&(HalfEdgeKey, VertexKey, EdgeKey)) -> bool,
     back: usize,
     fwd: usize,
-) -> Option<((HalfEdgeKey, VertexKey), (HalfEdgeKey, VertexKey))> {
+) -> Option<Flank> {
     let k = walk.len();
     let pos = walk.iter().position(at)?;
     let (h1, v1, _) = walk[(pos + k - back) % k];
@@ -4453,11 +4480,11 @@ pub(super) fn chord_site<T: Decide>(
 ) -> Result<(HalfEdgeKey, HalfEdgeKey, VertexKey, VertexKey), BlendError> {
     let fd = body
         .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face whose cycle a chord spans"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face whose cycle a chord spans"))?;
     let mut carrying = Vec::with_capacity(1);
     for &lp in core::iter::once(&fd.outer).chain(fd.rings.iter()) {
         let walk = loop_walk(body, lp).ok_or_else(|| {
-            not_intact(
+            unwalked(
                 EntityId::Loop(lp),
                 "a cycle of a face a chord spans does not walk",
             )
@@ -4467,7 +4494,7 @@ pub(super) fn chord_site<T: Decide>(
         }
     }
     let [((he1, v1), (he2, v2))] = carrying[..] else {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Face(face),
             "not exactly one cycle of the face a chord spans carries the half-edge the carve \
              keys on",
@@ -4629,7 +4656,7 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
             .iter()
             .position(|c| c.vertex == v)
             .ok_or_else(|| {
-                not_intact(
+                disagrees(
                     EntityId::Vertex(v),
                     "a rim arc's end among the rim's own crossings",
                 )
@@ -4643,12 +4670,12 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
         let (host_curve, hp0, hp1) = scaled(&rc, ca, sa, rc.plus_on_host);
         let (mate_curve, mp0, mp1) = scaled(&rc, cb, sb, !rc.plus_on_host);
         let half = host_side_half(body, l, host)
-            .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
+            .ok_or_else(|| unresolved(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
         let (Some(s), Some(e)) = (
             body.get_half_edge(half).map(|h| h.start),
             body.half_edge_end(half),
         ) else {
-            return Err(not_intact(
+            return Err(unresolved(
                 EntityId::HalfEdge(half),
                 "a rim arc's host-side traversal",
             ));
@@ -4690,7 +4717,7 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
         .zip(ann.crossings.iter())
     {
         let (Some(t), Some(start)) = (slot, start) else {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Vertex(c.vertex),
                 "a rim crossing no arc's host-side traversal starts at",
             ));
@@ -4779,13 +4806,13 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
             (HostFoot::Strut, HostFoot::Strut) => {
                 let i = starters[ix];
                 let l = rim.chain.links().nth(i).ok_or_else(|| {
-                    not_intact(
+                    disagrees(
                         EntityId::Vertex(c.vertex),
                         "a rim crossing's own starting arc among the chain's links",
                     )
                 })?;
                 let he = host_side_half(body, l, rim.hosts[i]).ok_or_else(|| {
-                    not_intact(EntityId::Edge(l.edge), "a rim arc's host-side half")
+                    unresolved(EntityId::Edge(l.edge), "a rim arc's host-side half")
                 })?;
                 // The foot target this crossing already holds — the
                 // arc that STARTS here, evaluated at its own window
@@ -4832,7 +4859,7 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
         // of a plane: the host cycle is the rim and its one strut, so no
         // chord spans two feet ([`lone_host_trim`]).
         let half = host_side_half(body, l0, rim.hosts[0])
-            .ok_or_else(|| not_intact(EntityId::Edge(l0.edge), "a rim arc's host-side half"))?;
+            .ok_or_else(|| unresolved(EntityId::Edge(l0.edge), "a rim arc's host-side half"))?;
         let (trim, strut) = lone_host_trim(body, half, foot, strut, tol)?;
         host_feet[0] = HostAnchor::Strut { foot, strut };
         vec![trim]
@@ -4840,16 +4867,16 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
         let mut host_trims = Vec::with_capacity(n);
         for (i, l) in rim.chain.links().enumerate() {
             let half = host_side_half(body, l, rim.hosts[i])
-                .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
+                .ok_or_else(|| unresolved(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
             let lp = loop_of_half(body, half)
-                .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side loop"))?;
+                .ok_or_else(|| unresolved(EntityId::Edge(l.edge), "a rim arc's host-side loop"))?;
             // A seam host is picked by the two pieces at its feet; a
             // hostless one has no pieces, so its two halves are the ones
             // FLANKING this arc in the live loop.
             let (he1, he2) = if seam_chord_feet.is_empty() {
                 let ((h1, v1), (h2, v2)) =
-                    flank(body, lp, |row| row.0 == half, 1, 2).ok_or_else(|| {
-                        not_intact(
+                    flank(body, lp, |row| row.0 == half, 1, 2)?.ok_or_else(|| {
+                        disagrees(
                             EntityId::Loop(lp),
                             "this arc's two strut feet around it in the host's loop",
                         )
@@ -4862,19 +4889,14 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
                 // checking is cutting the face blind, and a wrong `mef` site
                 // is a wrong solid rather than a refusal.
                 if !(host_foot_vertices.contains(&v1) && host_foot_vertices.contains(&v2)) {
-                    return Err(not_intact(
+                    return Err(disagrees(
                         EntityId::Loop(lp),
                         "this arc's two strut feet around it in the host's loop",
                     ));
                 }
                 (h1, h2)
             } else {
-                trim_chords(body, lp, &seam_chord_feet).ok_or_else(|| {
-                    not_intact(
-                        EntityId::Loop(lp),
-                        "a split seam's rim-side and far-side halves at this support's feet",
-                    )
-                })?
+                trim_chords(body, lp, &seam_chord_feet)?
             };
             host_trims.push(mef_trim(
                 body,
@@ -4892,23 +4914,18 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     let mut mate_trims = Vec::with_capacity(n);
     for (i, l) in rim.chain.links().enumerate() {
         let hhalf = host_side_half(body, l, rim.hosts[i])
-            .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
+            .ok_or_else(|| unresolved(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
         let ed = body
             .get_edge(l.edge)
-            .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc"))?;
+            .ok_or_else(|| unresolved(EntityId::Edge(l.edge), "a rim arc"))?;
         let mhalf = if ed.he_plus == hhalf {
             ed.he_minus
         } else {
             ed.he_plus
         };
         let lp = loop_of_half(body, mhalf)
-            .ok_or_else(|| not_intact(EntityId::HalfEdge(mhalf), "a rim arc's mate-side loop"))?;
-        let (he1, he2) = trim_chords(body, lp, &mate_chord_feet).ok_or_else(|| {
-            not_intact(
-                EntityId::Loop(lp),
-                "a split seam's rim-side and far-side halves at this support's feet",
-            )
-        })?;
+            .ok_or_else(|| unresolved(EntityId::HalfEdge(mhalf), "a rim arc's mate-side loop"))?;
+        let (he1, he2) = trim_chords(body, lp, &mate_chord_feet)?;
         mate_trims.push(mef_trim(
             body,
             he1,
@@ -4926,7 +4943,7 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
     // sectors (the ladder's excise convention). ----
     for (i, l) in rim.chain.links().enumerate() {
         let dying = host_side_half(body, l, rim.hosts[i])
-            .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
+            .ok_or_else(|| unresolved(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
         sources.kef_minted(body, dying, "annulus rim kef", tol)?;
     }
 
@@ -5008,7 +5025,7 @@ fn rim_phase_annulus<T: Decide + Bounds + topo::AtRestPolicy>(
         )
     };
     if rim.mates.contains(&band_face) || rim.hosts.contains(&band_face) {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Face(band_face),
             "the annulus band merged back into one of its own supports",
         ));
@@ -5253,7 +5270,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BlendError> {
     let sides = topo::readback::edge_sides(body, edge)
-        .map_err(|_| not_intact(EntityId::Edge(edge), "an edge awaiting its description"))?;
+        .map_err(|_| unresolved(EntityId::Edge(edge), "an edge awaiting its description"))?;
     let he_plus = sides.plus.half_edge;
     let (s1, s2) = sides.surfaces();
     let (p0, p1) = {
@@ -5265,7 +5282,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         match (start, end) {
             (Some(a), Some(b)) => (a, b),
             _ => {
-                return Err(not_intact(
+                return Err(unresolved(
                     EntityId::HalfEdge(he_plus),
                     "a described edge's endpoints",
                 ));
@@ -5315,7 +5332,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // the edge runs whichever way its `he_plus` does, so where `p1`
         // reads before `p0` the carrier is run back, the same locus.
         ContactCarrier::Transverse(curve) => {
-            let unread = || not_intact(EntityId::Edge(edge), "a cut-off arc's end parameter");
+            let unread = || disagrees(EntityId::Edge(edge), "a cut-off arc's end parameter");
             let window = |c: &Curve3<T>| {
                 let t0 = c.param_near(p0, T::zero()).ok_or_else(unread)?;
                 Ok::<_, BlendError>((t0, c.param_near(p1, t0).ok_or_else(unread)?))
@@ -5333,7 +5350,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     };
     let description = if is_seam {
         if s1 != s2 {
-            return Err(not_intact(
+            return Err(disagrees(
                 EntityId::Edge(edge),
                 "a slit edge's two sides are not one face's surface, so the band did not \
                  close as an annulus",
@@ -5372,7 +5389,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // smooth premise, refused as the invariant it breaks.
         let witness = curve.mid_point(t0, t1);
         let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
-            return Err(not_intact(
+            return Err(unresolved(
                 EntityId::Edge(edge),
                 "a described edge's two surfaces",
             ));
@@ -5483,7 +5500,7 @@ fn merged_chord_spec<T: Decide>(
 ) -> Result<EdgeCurveSpec<T>, BlendError> {
     let members = body.kev_merged_members(dying).map_err(|e| op(site, e))?;
     let merged = members.iter().find(|m| m.edge == member).ok_or_else(|| {
-        not_intact(
+        disagrees(
             EntityId::Edge(member),
             "the meridian a closure kill's merge re-bases",
         )
@@ -5500,7 +5517,7 @@ mod tests {
     use topo::EdgeKey;
 
     use super::super::battery::Convexity;
-    use super::{BlendError, rim_trim_circles};
+    use super::{BlendError, Breach, rim_trim_circles};
     use crate::blend::arms::plane_sphere_blend;
     use crate::test_support::{L, cube};
 
@@ -5554,6 +5571,95 @@ mod tests {
                 Err(BlendError::BodyNotIntact { at: topo::EntityId::Vertex(at), .. }) if at == v
             ),
             "a corner met by chains of two shells refuses at its vertex"
+        );
+    }
+
+    /// **Each breach is a real refusal, rendered as the cause it met.**
+    /// A support key that resolves to nothing refuses `Unresolved` at
+    /// `chain_shell`; a face whose only cycle is a lone vertex gives
+    /// `chord_site` no walk (`Unwalked`); and a link whose second support
+    /// sits in another shell resolves, walks, and disagrees with the
+    /// chain (`Disagrees`). None is reachable through a public door,
+    /// which keeps every body it hands the blend tier-1 and tier-2
+    /// valid: these are the sites read on a body that is not.
+    #[test]
+    fn each_breach_refuses_and_renders_its_own_cause() {
+        let tail = "so the body is not intact there. There is no way through";
+        let mut body = cube(L, Tol::witness());
+        let first: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let link = crate::test_support::all_links(&body, Tol::witness())
+            .into_iter()
+            .next()
+            .expect("a cube has links");
+
+        let mut stale = link.clone();
+        stale.face_b = topo::FaceKey::default();
+        let Err(e) = super::chain_shell(&body, &open_chain(stale)) else {
+            panic!("a support that does not resolve refuses");
+        };
+        assert!(
+            matches!(
+                e,
+                BlendError::BodyNotIntact {
+                    breach: Breach::Unresolved,
+                    ..
+                }
+            ),
+            "a stale support is Unresolved: {e:?}"
+        );
+        assert!(
+            e.to_string().ends_with(&format!("did not resolve, {tail}")),
+            "{e}"
+        );
+
+        let mut lone = topo::Body::<f64>::new();
+        let seed = lone
+            .mvfs(geom_core::Point3::origin(), true)
+            .expect("mvfs seeds a lone vertex");
+        let Err(e) = super::chord_site(&lone, seed.face, |_| true, 0, 1) else {
+            panic!("a lone-vertex cycle has no chord site");
+        };
+        assert!(
+            matches!(
+                e,
+                BlendError::BodyNotIntact {
+                    breach: Breach::Unwalked,
+                    ..
+                }
+            ),
+            "a cycle that does not walk is Unwalked: {e:?}"
+        );
+        assert!(
+            e.to_string().contains("the walk from ") && e.to_string().ends_with(tail),
+            "{e}"
+        );
+
+        topo::instance::graft_disjoint_all(&mut body, &cube(L * 0.5, Tol::witness()))
+            .expect("the public transplant door accepts a disjoint cube");
+        let mut across = link;
+        across.face_b = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|f| !first.contains(f))
+            .expect("the graft added faces");
+        let Err(e) = super::chain_shell(&body, &open_chain(across)) else {
+            panic!("a link across two shells refuses");
+        };
+        assert!(
+            matches!(
+                e,
+                BlendError::BodyNotIntact {
+                    breach: Breach::Disagrees,
+                    ..
+                }
+            ),
+            "a link across shells is Disagrees: {e:?}"
+        );
+        let text = e.to_string();
+        assert!(
+            text.contains("resolved, but its structure disagrees")
+                && !text.contains("did not resolve"),
+            "{text}"
         );
     }
 

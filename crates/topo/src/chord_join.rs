@@ -2974,9 +2974,23 @@ fn chart_v_du<T: Decide>(
     let Pcurve::Harmonic { p0, pa, pb, pl } = *p else {
         return Ok(None);
     };
+    // `sup |x·cos t + y·sin t| = √(x² + y²)`, spelled as
+    // `geom_brep::harmonic` spells it, whose helpers are crate-private.
+    let pair = |_site: &str, x: T, y: T| {
+        let norm = (x.powi(2) + y.powi(2)).sqrt();
+        #[cfg(test)]
+        let norm = mutants::pair(_site, x, y).unwrap_or(norm);
+        norm
+    };
+    // The gate admits a harmonic azimuth part of amplitude under the
+    // band at the radius, and the integral below reads `du = pl.x·dt`
+    // alone: the part it drops, `∫ (v − anchor)·(pb.x·cos t − pa.x·sin
+    // t) dt`, is at most `sup |v − anchor|·√(pa.x² + pb.x²)·|Δt|`, and
+    // nothing downstream adds it to the winding's slack
+    // (`work/hone/chart-v-du-drops-a-decided-zero-azimuth-harmonic-unbounded.md`).
     match decide(
         "split_chart_azimuth_linear",
-        Margin::levered(pa.x.abs() + pb.x.abs(), radius),
+        Margin::levered(pair("topo-gate", pa.x, pb.x), radius),
         band,
     )
     .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -2990,13 +3004,31 @@ fn chart_v_du<T: Decide>(
             });
         }
     }
-    let v_var = (pa.y.abs() + pb.y.abs() + pl.y.abs()) * (t1 - t0).abs();
+    let v_var = (pair("topo-v-var", pa.y, pb.y) + pl.y.abs()) * (t1 - t0).abs();
     let half = T::from_f64(0.5);
     let dt = t1 - t0;
     let integral = (p0.y - anchor) * dt + pa.y * (t1.sin() - t0.sin())
         - pb.y * (t1.cos() - t0.cos())
         + pl.y * (t1 + t0) * dt * half;
     Ok(Some((pl.x * integral, v_var)))
+}
+
+/// [`chart_v_du`]'s harmonic pairs read as the sum of their
+/// coefficients again, one site at a time: a test build takes the sum
+/// at the site `PCERT_RADIAL_PAIR_MUTANT` names at compile time
+/// ([`mutants::SITES`]; `option_env!` because
+/// `scripts/gates/no-ambient-env.sh` forbids a runtime read). The rows
+/// that refuse each are in `v_du_rows`.
+#[cfg(test)]
+mod mutants {
+    use geom_core::Real;
+
+    pub(super) const SITES: [&str; 2] = ["topo-gate", "topo-v-var"];
+
+    pub(super) fn pair<T: Real>(site: &str, x: T, y: T) -> Option<T> {
+        debug_assert!(SITES.contains(&site), "an unlisted mutant site: {site}");
+        (option_env!("PCERT_RADIAL_PAIR_MUTANT") == Some(site)).then(|| x.abs() + y.abs())
+    }
 }
 
 /// A cylinder face's chart frame: the one destructure the wall-chart
@@ -4611,6 +4643,9 @@ mod torus_chord_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torus_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod v_du_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
