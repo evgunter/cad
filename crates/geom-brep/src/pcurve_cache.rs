@@ -1320,13 +1320,13 @@ pub enum EnvelopeTerm {
     /// - the torus parallel's whole residual: its constant `−w_r +
     ///   e·h·κ` read with its pair (`constant_and_pair`);
     /// - a meridian's constant radial against the cylinder's radius,
-    ///   and a cone ruling's against `|h|·tan α`;
+    ///   and a cone ruling's anchor off its generator;
     /// - a still class's (winding decided Zero) image constant at its
     ///   full length: `ρ`, or the torus's `R + r` plus the tube gap.
     Radius,
     /// A linear term the class has no room for: a cylinder line's
-    /// radial direction, a cone ruling off its generator, any circle
-    /// class's `l`.
+    /// radial direction, a cone ruling's direction off its generator,
+    /// any circle class's `l`.
     Line,
     /// The motion a class admitted by its own decision: a cylinder
     /// meridian's radial pair `σ(a_r, b_r)` (its radial amplitude
@@ -2151,23 +2151,19 @@ pub enum EnvelopeStatement {
     ///   undecided, the D9 tie-break): `(R·ŵ_r − w_r) − a_r·cos t −
     ///   b_r·sin t − l_r·t` ⇒ **radius** `|R − ‖w_r‖|` + **drift**
     ///   `σ(a_r, b_r)` + **line** `‖l_r‖·T`.
-    /// - **Cone, rim** (slant `ρ = |h|·tan α`; `rad(u)·v` flips with the
-    ///   nappe, so the image's radial is `ρ·â_r` on either, at the
-    ///   carrier's height `h`): `−w_r + (a_r·(1 + k) − a)·cos t +
-    ///   (β·e×a_r·(1 + k) − b)·sin t − l·t` ⇒ **centre** `‖w_r‖` +
-    ///   **radius** `σ(a_r·(1 + k) − a, β·e×a_r·(1 + k) − b)` + **line**
-    ///   `‖l‖·T`.
-    /// - **Cone, ruling** (a line; `(h_ref, r_ref)` the height and
-    ///   radial of whichever datum the nappe was read off — the anchor
-    ///   `w` or the direction `l` — and `(h_o, r_o)` the other):
-    ///   `rad(α_d) = n·r̂_ref`, `h_ref·n = |h_ref|`, and the image is
-    ///   `apex + (h₀ + h_s·t)·(e + tan α·rad)`; with `ρ = |h_ref|·tan
-    ///   α`, `ρ·r̂_ref = r_ref + (ρ − ‖r_ref‖)·r̂_ref`, so the other
-    ///   datum's coefficient is `(h_o/h_ref)·r_ref − r_o` plus the
-    ///   radius defect scaled by `|h_o/h_ref|` ⇒ **radius** `|ρ −
-    ///   ‖r_ref‖|·(w_ref + |h_o/h_ref|·w_o)` + **line** (off the
-    ///   generator) `‖h_o·r_ref − h_ref·r_o‖/|h_ref|·w_o`, each weight
-    ///   `w` the slot's — `1` for the anchor, `T` for the direction.
+    /// - **Cone, rim** (slant `v = h·cos α + n·‖a_r‖·sin α`, the rim's
+    ///   projection on its generators, `n` the nappe; `rad(u)·v` flips
+    ///   with the nappe, so the image's radial is `ρ·â_r` on either,
+    ///   `ρ = n·v·sin α`, at height `v·cos α`): `e·(v·cos α − h) − w_r +
+    ///   (a_r·(1 + k) − a)·cos t + (β·e×a_r·(1 + k) − b)·sin t − l·t` ⇒
+    ///   **centre** `‖w_r‖` + **radius** `|v·cos α − h| + σ(a_r·(1 + k) −
+    ///   a, β·e×a_r·(1 + k) − b)` + **line** `‖l‖·T`.
+    /// - **Cone, ruling** (a line; `q` the radial of whichever datum
+    ///   the nappe was read off — the anchor `w` or the direction `l` —
+    ///   signed by it, and `ĝ = cos α·e + sin α·q̂` the generator at
+    ///   `rad(α_d) = q̂`): the image is `apex + ((w + l·t)·ĝ)·ĝ`, so
+    ///   `−(w − (w·ĝ)·ĝ) − (l − (l·ĝ)·ĝ)·t` ⇒ **radius** `‖w − (w·ĝ)·ĝ‖`,
+    ///   the anchor off the generator, + **line** `‖l − (l·ĝ)·ĝ‖·T`.
     /// - **Sphere, parallel** (`ρ = √(r² − h²)` is `r·cos asin(h/r)`):
     ///   the cone rim's form with `ρ`, `k` spelled over `r² − h² −
     ///   a_r·a_r` ⇒ **centre** + **radius** + **line**.
@@ -4377,6 +4373,23 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
     }
 }
 
+/// The unit generator `cos α·e + sin α·q̂` of a cone of half-angle
+/// `α` about `e`, at the azimuth of the radial `q`: the chart's
+/// `S(u, v) = apex + v·ĝ` along the ruling at `rad(u) = q̂`.
+fn ruling_generator<T: Real>(axis: Vec3<T>, half_angle: T, q: Vec3<T>) -> Vec3<T> {
+    let (s_ha, c_ha) = half_angle.sin_cos();
+    axis * c_ha + q * (s_ha / q.norm())
+}
+
+/// A rim's slant: the projection `h·cos α + n·ρ·sin α` of a point at
+/// height `h` and radius `ρ` on the generator through it, `n` the
+/// nappe. On the cone it is the point's `v`; off it, the image misses
+/// the rim by its distance from the cone.
+fn rim_slant<T: Real>(h: T, radius: T, half_angle: T, nappe: Winding) -> T {
+    let (s_ha, c_ha) = half_angle.sin_cos();
+    h * c_ha + radius * s_ha * nappe.value()
+}
+
 /// `|p − ‖q‖|`, spelled `|p² − q·q| / (p + ‖q‖)` so the numerator is a
 /// polynomial in the carrier's and the chart's data and `√(p²) = p` is
 /// never asked of the arithmetic. `p_sq` is `p²` in the caller's own
@@ -4506,35 +4519,25 @@ fn incidence<T: Decide>(
             Derivation::ConeRuling { .. } | Derivation::ConeRim { .. },
         ) => {
             let (s_ha, c_ha) = half_angle.sin_cos();
-            let slope = s_ha / c_ha;
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let w = c - apex;
             let (h, w_r) = (w.dot(axis), radial(w));
             match derivation {
                 Derivation::ConeRuling { anchored, nappe } => {
-                    // The reference datum the nappe was read off, and the
-                    // other one; each with the weight its slot carries
-                    // in the envelope (the constant's 1, the linear
-                    // term's reach).
-                    let anchor = (h, w_r, T::one());
-                    let direction = (l.dot(axis), radial(l), reach);
-                    let ((h_ref, r_ref, w_ref), (h_o, r_o, w_o)) = if anchored {
-                        (anchor, direction)
-                    } else {
-                        (direction, anchor)
-                    };
-                    let h_abs = h_ref * nappe.value();
-                    let rho = h_abs * slope;
-                    let lever = h_o.abs() / h_abs;
-                    terms.add(
-                        Radius,
-                        norm_gap(rho, rho.powi(2), r_ref) * (w_ref + lever * w_o),
-                    );
-                    terms.add(Line, (r_ref * h_o - r_o * h_ref).norm() / h_abs * w_o);
+                    // The image is `apex + ((w + l·t)·ĝ)·ĝ`, so its miss
+                    // is the anchor's and the direction's parts off the
+                    // generator.
+                    let r_ref = if anchored { w_r } else { radial(l) };
+                    let g = ruling_generator(axis, half_angle, r_ref * nappe.value());
+                    let off = |x: Vec3<T>| (x - g * x.dot(g)).norm();
+                    terms.add(Radius, off(w));
+                    terms.add(Line, off(l) * reach);
                 }
                 Derivation::ConeRim { nappe, beta } => {
-                    let rho = h * nappe.value() * slope;
+                    let v0 = rim_slant(h, radial(a).norm(), half_angle, nappe);
+                    let rho = v0 * nappe.value() * s_ha;
                     terms.add(Centre, w_r.norm());
+                    terms.add(Radius, (v0 * c_ha - h).abs());
                     terms.add(Line, l.norm() * reach);
                     class_circle(terms, beta, (rho, rho.powi(2)), (a, b), axis, true);
                 }
@@ -7493,18 +7496,16 @@ fn derive_class<T: Decide>(
             let esc = winding_escalated;
             match *carrier {
                 Curve3::Line { origin, dir } => {
-                    // The RULING class. The `v` channel is exact and
-                    // NAPPE-FREE from the axial data alone: chart
-                    // height is v·cos α, so
-                    // `v(t) = ((L(t) − apex)·axis) / cos α` is affine
-                    // with no branch to pick (cos α > 0, the kernel's
-                    // half-angle range). The azimuth branch IS the
+                    // The RULING class. The azimuth branch IS the
                     // nappe: a point at v < 0 sits at spatial azimuth
                     // u + π (the mirror nappe — the Seam docs' case),
                     // so `u = azimuth(radial · sign v)`, the sign read
                     // from whichever height datum is definite (the
                     // anchor's, else the slope's; a line with neither
                     // is height-constant — no ruling of any cone).
+                    // `v(t)` is the line's projection on that azimuth's
+                    // generator `ĝ`, affine in `t`, so the image misses
+                    // the line by its distance from the generator.
                     let w = origin - apex;
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
                     let (h0, hs) = (w.dot(axis), dir.dot(axis));
@@ -7539,12 +7540,13 @@ fn derive_class<T: Decide>(
                         };
                     let r_dir = r_ref * h_sign.value();
                     let alpha = stable_azimuth(r_dir.dot(cv), r_dir.dot(u_ref), band);
+                    let g = ruling_generator(axis, half_angle, r_dir);
                     Ok((
                         Pcurve::Harmonic {
-                            p0: Point2::new(alpha, h0 / c_ha),
+                            p0: Point2::new(alpha, w.dot(g)),
                             pa: Vec2::new(T::zero(), T::zero()),
                             pb: Vec2::new(T::zero(), T::zero()),
-                            pl: Vec2::new(T::zero(), hs / c_ha),
+                            pl: Vec2::new(T::zero(), dir.dot(g)),
                         },
                         Derivation::ConeRuling {
                             anchored,
@@ -7602,7 +7604,6 @@ fn derive_class<T: Decide>(
                     // (radial(u)·v flips sign) — the same nappe rule
                     // as the ruling arm, decided on the height.
                     let h = (center - apex).dot(axis);
-                    let v0 = h / c_ha;
                     let nappe = match decide("pcurve_cone_chart_nappe", Margin::of(h), band)
                         .map_err(esc)?
                     {
@@ -7625,6 +7626,7 @@ fn derive_class<T: Decide>(
                     // the chart azimuth rate on either nappe (the +π
                     // offset is constant), so β needs no nappe sign.
                     let rho = a_r.norm();
+                    let v0 = rim_slant(h, rho, half_angle, nappe);
                     let beta = Winding::of(
                         decide(
                             "pcurve_chart_orientation",

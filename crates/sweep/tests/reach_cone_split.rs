@@ -446,8 +446,9 @@ fn an_upright_cone_splits_at_every_pose_through_its_apex_faces() {
 /// lane can read them.
 ///
 /// Two ε floors are not this cut's: the `(1.55, 100)` operand does not
-/// revolve below ε = 1e-9
-/// (`a-flat-frustums-revolve-refuses-its-rim-image-at-1e-12`), and at
+/// revolve below ε = 1e-9, its far cap rim's return half missing its
+/// start vertex
+/// (`a-full-revolves-return-half-rim-misses-its-start-by-two-rounded-half-turns`), and at
 /// scale 100 the props lane's bound on the section ellipse's elevation
 /// escalates at ε = 1e-12
 /// (`props-cone-ellipse-elevation-over-reads-a-section-ellipse-by-twenty-fold`).

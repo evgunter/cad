@@ -97,6 +97,8 @@ mod ellipse_signed_semi_axis_gate;
 mod end_samples_read_the_carrier;
 #[path = "exhaust_lane_meters.rs"]
 mod exhaust_lane_meters;
+#[path = "flat_cone_harmonic_images.rs"]
+mod flat_cone_harmonic_images;
 #[path = "flat_cone_tilted_ellipse.rs"]
 mod flat_cone_tilted_ellipse;
 #[path = "germ_pose_gate.rs"]

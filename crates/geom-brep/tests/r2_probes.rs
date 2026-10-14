@@ -14,8 +14,7 @@
 //!    point in the matrix.
 //!
 //! The claim they attack stands: the seam classes this file measures
-//! move, and one of them moves in QUANTITY. See
-//! `certify.rs`'s Chart arm for the disposition.
+//! move in bits. See `certify.rs`'s Chart arm for the disposition.
 //!
 //! Claim-1 attack: the D2 bit-diff row measures a cylinder seam at
 //! r = 2 (0 ULP) and a plane iso (1907 ULP). These probes measure the
@@ -45,18 +44,18 @@ fn band() -> Band {
 }
 
 /// R2's measured rows, pinned at the adoption drift (module docs).
-/// Sphere: a bit move. Cone: a QUANTITY move, `sec α`. Small
-/// cylinder: a bit move in the other direction, the legacy form's own
-/// `d²/(2r)` term.
+/// Sphere and cone: bit moves. Small cylinder: a bit move in the other
+/// direction, the legacy form's own `d²/(2r)` term.
 /// Sphere seam, r = 2: a BIT move, upward — 2.35e9 ULP.
 const R2_SPHERE_ULPS: i64 = 2_349_518_964;
 const R2_SPHERE_LEGACY: f64 = 2.500_000_206_850_927_5e-10;
 const R2_SPHERE_NOW: f64 = 2.500_001_421_523_762_4e-10;
-/// Cone seam, α = 0.5 rad: a QUANTITY move — `sec α` = 1.139494,
-/// asserted as a ratio below, not just as a delta. 6.75e14 ULP.
-const R2_CONE_ULPS: i64 = 674_550_383_640_576;
+/// Cone seam, α = 0.5 rad: a BIT move, downward — 2.38e9 ULP. The
+/// ruling's image projects on the generator, so the meter reads the
+/// perpendicular drift, the legacy quantity.
+const R2_CONE_ULPS: i64 = 2_380_113_261;
 const R2_CONE_LEGACY: f64 = 2.500_001_317_073_952e-10;
-const R2_CONE_NOW: f64 = 2.848_735_691_785_009_3e-10;
+const R2_CONE_NOW: f64 = 2.500_000_086_584_236_4e-10;
 /// Cylinder seam, r = 1e-4: a bit move DOWNWARD — the legacy
 /// normalized implicit form's own `d²/(2r)` term, which at this
 /// radius no longer rounds away. 6.04e9 ULP.
@@ -193,14 +192,11 @@ fn r2_probe_cone_seam_bit_move() {
         (R2_CONE_ULPS, R2_CONE_LEGACY, R2_CONE_NOW),
         "R2 cone-seam row moved: legacy {legacy:e} m, now {now:e} m, delta {delta} ULP"
     );
-    // The cone row is the one that moved in QUANTITY, not in bits, and
-    // the ratio is the geometry: the chart image carries the carrier's
-    // own azimuth and axial height, so `C − S(P)` is purely radial
-    // where `implicit_residual` reads the perpendicular.
-    let sec_alpha = 1.0 / half_angle.cos();
+    // The chart image projects the ruling on its generator, so `C −
+    // S(P)` is the perpendicular `implicit_residual` reads.
     assert!(
-        ((now / legacy) / sec_alpha - 1.0).abs() < 1e-6,
-        "the cone re-baseline is sec α = {sec_alpha}, measured {}",
+        (now / legacy - 1.0).abs() < 1e-6,
+        "the cone meter reads the perpendicular, measured {} of it",
         now / legacy
     );
 }

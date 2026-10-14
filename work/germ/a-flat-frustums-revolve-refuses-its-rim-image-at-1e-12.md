@@ -2,11 +2,12 @@
 id: a-flat-frustums-revolve-refuses-its-rim-image-at-1e-12
 kind: issue
 title: a flat frustum (α ≥ 1.45) a few hundred units across refuses to revolve at ε = 1e-12, certifying a pcurve's envelope or a carrier's endpoint; cause unmeasured
-status: open
+status: review
+branch: germ/flat-frustum-revolve
 opened: 2026-10-14
 priority: P3
 cost: M
-refs: [a-steep-frustum-cut-at-a-shallow-tilt-refuses-at-the-endpoint-gate-at-1e-12, conic-section-just-past-its-band-fails-certification-downstream]
+refs: [a-steep-frustum-cut-at-a-shallow-tilt-refuses-at-the-endpoint-gate-at-1e-12, conic-section-just-past-its-band-fails-certification-downstream, a-full-revolves-return-half-rim-misses-its-start-by-two-rounded-half-turns, focal-section-image-reads-its-slant-off-height-on-a-flat-cone, cone-point-reads-take-the-slant-as-height-over-cos-alpha]
 ---
 
 Found while closing
@@ -51,3 +52,56 @@ Name the edge and its image, measure the envelope's terms against the
 true miss in double-double, and fix whichever is levered by the flat
 aperture (`1/cos α` is 48 at α = 1.55). Or show the refusal is the
 band's honest floor at this extent, and say so on the revolve door.
+
+## Measured (GERM, `germ/flat-frustum-revolve`)
+
+Probe: `crates/sweep/examples/flat_frustum_revolve_probe.rs`.
+
+**The edge is not a rim.** `HalfEdgeKey(14v1)` is the cone wall's seam
+ruling, a `Line` from the top rim `(S/2, S)` to the bottom `(r0, 0)`,
+about `S/cos α` long, anchored at its top end, `S/(2·tan α)` below the
+apex in height. Its image's envelope terms (`Radius`, `Line`; every
+other term zero), against the image's true map residual and the line's
+true distance from the cone (mpmath, 50 digits, on the stored data):
+
+| α, S | `Radius` | `Line` | true map residual | distance from the cone |
+|---|---|---|---|---|
+| 1.45, 100 | 7.2e-13 | 9.7e-13 | 9.8e-14 | 1.2e-14 |
+| 1.5, 30 | 5.8e-13 | 6.2e-13 | 4.9e-14 | 3.5e-15 |
+| 1.5, 100 | 8.0e-13 | 1.1e-12 | 1.5e-13 | 1.0e-14 |
+| 1.55, 10 | 2.7e-12 | 2.8e-12 | 2.8e-14 | 5.9e-16 |
+| 1.55, 30 | 8.1e-12 | 8.2e-12 | 8.5e-14 | 1.8e-15 |
+
+Two defects stack, both levered by the flat aperture:
+
+- **The image** read its slant as height over `cos α`
+  (`crates/geom-brep/src/pcurve_cache.rs` `derive_harmonic`, the
+  `Curve3::Line` cone arm), so it missed the line by its distance from
+  the cone times `1/cos α` exactly (8.3, 14.1, 48.1 in the ratio
+  column above, to three digits).
+- **The envelope** (`incidence`, `Derivation::ConeRuling`) bounded that
+  image's miss by splitting the anchor's radius gap from the
+  direction's misalignment, each divided by the anchor's height
+  `|h_ref| = |w|·cos α`. The two parts cancel in the true residual and
+  not in the bound: 10–100× over the true map residual.
+
+**Fix.** Both cone harmonic images (ruling and rim) take the slant as
+the projection on the generator through the carrier (`ruling_generator`,
+`rim_slant`), so an image misses its carrier by the carrier's distance
+from the cone; the ruling's lemma is restated as `‖w − (w·ĝ)ĝ‖ + ‖l −
+(l·ĝ)ĝ‖·T`, and the rim's gains the axial term `|v·cos α − h|`. The
+table's first five rows now revolve at ε = 1e-12. In a hunt of 300 fresh
+flat frusta at ε = 1e-12, main refuses 15 (13 on this envelope) and the
+fix refuses 3, none on it.
+
+**The sixth row is another door.** `(1.55, 100)` refuses `EndpointEnd`
+on the far cap rim's return half: filed as
+`a-full-revolves-return-half-rim-misses-its-start-by-two-rounded-half-turns`
+with the hunt's other three refusals (the coordinates' own resolution
+near 2000).
+
+**Siblings.** The cone's `FocalSection` image reads its slant the same
+way (`focal-section-image-reads-its-slant-off-height-on-a-flat-cone`,
+on PCERT), and five crates' point reads do
+(`cone-point-reads-take-the-slant-as-height-over-cos-alpha`).
+

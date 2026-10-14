@@ -3226,57 +3226,14 @@ fn run_checks<T: Decide>(
             // `|C(t) − S(P(t))| ≤ ε` (C4 verbatim), on the carrier's
             // own parameter — the same statement, the same predicate
             // name and the same dimension as every stored pcurve
-            // cache's schedule (`pcurve_map_residual`), because it is
-            // the same statement.
-            //
-            // **This is a different QUANTITY from the seam arm's
-            // pre-collapse meter, deliberately, and the change is a
-            // re-baseline rather than a bit move.** The old seam arm
-            // metered `implicit_residual`, the PERPENDICULAR distance
-            // from the carrier to the surface. This meters the
-            // distance to the surface point the pcurve NAMES. On a
-            // cone the chart image carries the carrier's own azimuth
-            // and its own axial height (`v = h / cos α`), so the
-            // displacement between them is purely RADIAL and the two
-            // quantities stand in the exact ratio
-            //
-            //     |C − S(P)| = |perpendicular| · sec α
-            //
-            // — 1.1547 at a 30° half-angle. A sphere and a
-            // small-radius cylinder move for the same reason in their
-            // own geometry.
-            //
-            // Which is right? This one, on three grounds, and the
-            // third is the one that makes the re-baseline safe:
-            //
-            // 1. It is the statement D1 ratified and C4 words, and it
-            //    is the ONLY statement a collapsed description can
-            //    make — `implicit_residual` needs a per-chart implicit
-            //    form, which is the per-class branching the collapse
-            //    exists to remove.
-            // 2. It is the statement every STORED pcurve cache already
-            //    certifies (`pcurve_map_residual` in
-            //    `pcurve_cache::schedule_residuals`). Before the
-            //    collapse an edge could certify as a description and
-            //    refuse as a cache on identical geometry, because the
-            //    two were measuring different things. They now agree
-            //    by construction.
-            // 3. **It is conservative.** `S(P(t))` is a point ON the
-            //    surface, so `|C − S(P)| ≥ dist(C, surface)` always,
-            //    with equality exactly when the pcurve names the foot
-            //    point. The collapse can therefore only REFUSE what
-            //    the old meter accepted; it can never ACCEPT what the
-            //    old meter refused. The direction of the change is
-            //    toward truth, and the bound is `sec α` on a cone.
-            //
-            // The consequence is stated rather than hidden: on a cone
-            // of half-angle α, an edge whose perpendicular drift lies
-            // in `(ε·cos α, ε]` certified before this unit and now
-            // refuses or escalates. `d2_bit_diff` and the cone
-            // re-baseline row measure it; the live minting class
-            // (`sweep::revolve::upgrade`'s `describe_wrap_edge` call)
-            // mints exact wrap edges and is unaffected, which the
-            // whole-body batteries show.
+            // cache's schedule (`pcurve_map_residual`), so an edge
+            // cannot certify as a description and refuse as a cache.
+            // `S(P(t))` is a point ON the surface, so the meter is never
+            // under `dist(C, surface)`, with equality where the image
+            // names the foot point: a cone's ruling and rim images
+            // project on the generator and read the perpendicular; a
+            // sphere's and a small-radius cylinder's read within bits
+            // of the implicit form (`tests/r2_probes.rs`).
             Resolved::Chart {
                 surface, declared, ..
             } => {
@@ -4454,11 +4411,8 @@ mod tests {
     /// over-read. Not the iso arm: that arm moves in the parameter
     /// ANCHOR, not in the drift, and is swept by
     /// [`d2_iso_move_is_unbounded_in_the_anchor_offset`] at zero
-    /// drift. Not the seam meter across CHART KINDS: a cone's
-    /// implicit residual reads the perpendicular distance to the
-    /// generator where `|C − S(P)|` reads the radial chord — a change
-    /// of QUANTITY, `sec α`, measured in `tests/r2_probes.rs` and
-    /// disposed of at the Chart arm.
+    /// drift. Not the seam meter across CHART KINDS, measured in
+    /// `tests/r2_probes.rs`.
     ///
     /// The mapped-line column is the control: the fenced scaffolding
     /// arm's meter is untouched by the collapse, so it must read zero

@@ -1,21 +1,15 @@
 //! **The collapsed conventional meter's disposition** (PCURVE P-1a
-//! fix pass): what `|C(t) − S(P(t))|` measures, how it differs from
-//! the seam arm's pre-collapse `implicit_residual`, and what that
-//! costs at the band edge.
-//!
-//! The change is a **re-baseline, not a bit move**, and these rows
-//! are the argument for it plus the price of it. Both reviewers found
-//! the quantity change independently (R1 on a cone, R2 on a sphere, a
-//! cone and a small-radius cylinder); the rows here state the
-//! disposition rather than the discovery.
+//! fix pass): what `|C(t) − S(P(t))|` measures against the seam arm's
+//! pre-collapse `implicit_residual`, and that the description lane and
+//! the pcurve cache read one magnitude on one edge.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::surf::table;
 use geom::{Curve3, Surface};
 use geom_brep::{
-    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache,
-    PcurveCertifyError, PcurveCheck, chart_pcurve, implicit_residual,
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache, chart_pcurve,
+    implicit_residual,
 };
 use geom_core::{Band, Point3, Vec3};
 
@@ -27,17 +21,6 @@ const ROW_EPS: f64 = 1.0e-9;
 /// Built from `ROW_EPS` above, not from the run's ε, and therefore
 /// deliberately not `shared::tol::band` — see that constant's note.
 ///
-/// **Both edges are pinned, the upper one included.** The ×10 is this
-/// suite's own ratio and NOT the run's K: the rows assert that a cone
-/// seam drifting `0.98 ε` perpendicular escalates, because the
-/// collapsed meter reads the radial chord `d·sec α` = 1.1316 ε, and
-/// "escalates" is the claim that that magnitude is below the upper
-/// edge. A band scaled by `CAD_AMBIGUITY_K` would make the row's
-/// verdict a function of K — at any K below 1.1316 the same fixture is
-/// DEFINITE and the row reads as a meter change that never happened.
-/// The two edges therefore coincide with the run's band only when the
-/// run is at both defaults, and a reader must not take one for the
-/// other.
 fn band() -> Band {
     Band::new(ROW_EPS, 10.0 * ROW_EPS).expect("the rows' own band")
 }
@@ -62,37 +45,22 @@ fn cone_seam(half_angle: f64, d: f64) -> (Surface<f64>, Curve3<f64>, f64, f64) {
     (cone, carrier, 0.5, 2.0)
 }
 
-/// **The price, stated.** An edge whose perpendicular drift is inside
-/// the band — 0.98 ε, which certified before this unit — now
-/// ESCALATES, because the collapsed meter reads the radial chord
-/// `d·sec α` = 1.1316 ε and that is in the ambiguity band.
-///
-/// This row exists so the re-baseline is a decision on the record
-/// rather than a surprise in a consumer. It is deliberately written
-/// as an assertion of the NEW behaviour: if a later change makes this
-/// certify again, that is a meter change and it has to be argued.
+/// **A cone seam reads its perpendicular drift.** The ruling's image
+/// projects on the generator, so the collapsed meter reads the
+/// distance `d` to the cone, and a drift of `0.98 ε` certifies at it.
 #[test]
-fn a_cone_edge_inside_the_legacy_band_now_escalates() {
-    let alpha = core::f64::consts::FRAC_PI_6; // 30°, sec α = 1.1547
+fn a_cone_edge_inside_the_band_certifies_at_its_perpendicular_drift() {
+    let alpha = core::f64::consts::FRAC_PI_6;
     let d = 0.98 * ROW_EPS;
     let (cone, carrier, t0, t1) = cone_seam(alpha, d);
     let (keys, lookup) = table(vec![cone.clone()]);
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
-
-    // The legacy quantity, at the fixture's own construction: the
-    // displacement IS along the outward normal, so the perpendicular
-    // distance is `d` and the pre-collapse meter certified it.
     let legacy = implicit_residual(&cone, carrier.eval(t0)).abs();
     assert!(
         (legacy / d - 1.0).abs() < 1e-6,
         "the fixture's perpendicular drift is {legacy:e}, not {d:e}"
     );
-    assert!(
-        legacy < ROW_EPS,
-        "0.98 eps is inside the band, by construction"
-    );
-
-    let err = EdgeCurve::certify(
+    let read = EdgeCurve::certify(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::wrap(keys[0]),
             carrier,
@@ -104,83 +72,32 @@ fn a_cone_edge_inside_the_legacy_band_now_escalates() {
         &lookup,
         band(),
     )
-    .expect_err("the collapsed meter reads d·sec α, which is outside the band's zero");
-    match err {
-        CertifyError::Escalated {
-            check: CertCheck::ChartResidual,
-            cause,
-            ..
-        } => {
-            let geom_core::ErrorTextReading::Value(v) =
-                cause.margin.diagnostic_f64_for_error_text()
-            else {
-                panic!("an f64 lane classifies a value, not an enclosure: {cause:?}");
-            };
-            let expected = d / alpha.cos();
-            assert!(
-                (v / expected - 1.0).abs() < 1e-6,
-                "the escalating margin is {v:e}, and d·sec α is {expected:e}"
-            );
-        }
-        other => panic!("expected an in-band escalation at the chart meter, got {other:?}"),
-    }
+    .expect("a drift inside the band certifies")
+    .certificate()
+    .max_residual;
+    assert!(
+        (read / d - 1.0).abs() < 1e-6,
+        "the meter reads {read:e}, and the perpendicular drift is {d:e}"
+    );
 }
 
-/// **The argument that makes the price payable.** The collapsed
-/// description lane now states exactly what the pcurve CACHE lane has
-/// always stated on the same geometry, through the same mint.
-///
-/// Before this unit the two disagreed: a cone seam with a drift in
-/// `(ε·cos α, ε]` certified as a DESCRIPTION (perpendicular residual
-/// within ε) while its own cache escalated (`pcurve_map_residual`
-/// reads `d·sec α`). The collapse does not invent a rule — it removes
-/// a place where the kernel said two different things about one edge.
-///
-/// Nothing in this row is code this unit changed: `PcurveCache` and
-/// `chart_pcurve` are untouched.
+/// **The cache lane reads the same magnitude.** The description lane
+/// and the pcurve cache meter one statement through one mint, so on
+/// the same cone seam the cache certifies at the same `d`.
 #[test]
-fn the_cache_lane_already_imposed_the_collapsed_meter() {
+fn the_cache_lane_reads_the_collapsed_meters_magnitude() {
     let alpha = core::f64::consts::FRAC_PI_6;
     let d = 0.98 * ROW_EPS;
     let (cone, carrier, t0, t1) = cone_seam(alpha, d);
     let pcurve = chart_pcurve(&carrier, &cone, band()).expect("the cone ruling mints");
-    let err = PcurveCache::certify(pcurve, t0, t1, &carrier, &cone, band()).expect_err(
-        "the cache lane must already refuse the geometry the description lane now \
-             refuses — if it certifies, the collapse is imposing a NEW rule and the \
-             re-baseline argument is wrong",
+    let read = PcurveCache::certify(pcurve, t0, t1, &carrier, &cone, band())
+        .expect("the cache lane certifies what the description lane certifies")
+        .certificate()
+        .max_residual;
+    assert!(
+        (read / d - 1.0).abs() < 1e-6,
+        "the cache lane reads {read:e}, and the description lane {d:e}"
     );
-    // **The predicate identity IS the argument**, so it is asserted,
-    // not left to `is_err()`. "Both lanes refuse" would be satisfied
-    // by two lanes refusing for unrelated reasons; what makes the
-    // re-baseline a removal of disagreement rather than a new rule is
-    // that the cache lane refuses on the SAME metered statement, at
-    // the SAME magnitude, under the SAME predicate name.
-    match err {
-        PcurveCertifyError::Escalated { check, cause, .. } => {
-            assert_eq!(
-                check,
-                PcurveCheck::MapResidual,
-                "the cache lane's refusal must be the map residual, not another limb"
-            );
-            assert_eq!(
-                cause.predicate,
-                Some("pcurve_map_residual"),
-                "the same predicate the collapsed description arm now meters"
-            );
-            let geom_core::ErrorTextReading::Value(v) =
-                cause.margin.diagnostic_f64_for_error_text()
-            else {
-                panic!("an f64 lane classifies a value: {cause:?}");
-            };
-            let expected = d / alpha.cos();
-            assert!(
-                (v / expected - 1.0).abs() < 1e-6,
-                "the cache lane escalates at {v:e}, and d·sec α is {expected:e} — the \
-                 two lanes must be refusing the SAME magnitude, not merely both refusing"
-            );
-        }
-        other => panic!("expected the cache lane's map-residual escalation, got {other:?}"),
-    }
 }
 
 /// **What the collapsed meter is, positively**: an upper bound on the
@@ -295,12 +212,9 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
 
 /// **The same disposition at the INTERVAL scalar.**
 ///
-/// The meter is generic over `T`, and this fix pass changed what it
-/// MEASURES on the conventional arm, not merely how the bits fall. A
-/// quantity change in a generic meter deserves a row at more than one
-/// scalar: an enclosure lane can widen where an `f64` lane is exact,
-/// and the `sec α` re-baseline is a claim about the GEOMETRY that
-/// should survive the widening — which it does, measured below.
+/// The meter is generic over `T`: an enclosure lane can widen where an
+/// `f64` lane is exact, so what it reads on a seam is a claim worth a
+/// row at both scalars.
 mod at_intervals {
     use crate::shared::interval::iv;
     use crate::shared::surf::table;
@@ -366,14 +280,10 @@ mod at_intervals {
         );
     }
 
-    /// The **cone re-baseline** survives the widening: the collapsed
-    /// meter's enclosure on a cone seam must contain `d·sec α`, the
-    /// radial chord, and must NOT sit at the perpendicular distance `d`
-    /// the pre-collapse arm metered. If an interval lane could still
-    /// certify at `d`, the `sec α` finding would be an `f64` artifact
-    /// rather than the geometry it is.
+    /// A cone seam's enclosure contains its perpendicular drift `d`,
+    /// the ruling's distance from the cone, at the interval scalar too.
     #[test]
-    fn the_cone_rebaseline_survives_the_interval_widening() {
+    fn a_cone_seam_reads_its_perpendicular_drift_at_intervals() {
         let alpha = core::f64::consts::FRAC_PI_6;
         let d = 2.5e-10;
         let (s, c) = alpha.sin_cos();
@@ -401,14 +311,11 @@ mod at_intervals {
             &lookup,
             band(),
         )
-        .expect("a 2.5e-10 drift is inside the band even after the sec α re-baseline");
+        .expect("a 2.5e-10 drift is inside the band");
         let m = certified.certificate().max_residual;
-        let chord = d / c;
         assert!(
-            m.hi() >= chord * (1.0 - 1e-6),
-            "the collapsed meter's enclosure {m:?} must reach the radial chord {chord:e} \
-             — if it stops at the perpendicular distance {d:e}, the sec α re-baseline is \
-             an f64 artifact and the disposition is wrong"
+            m.hi() >= d * (1.0 - 1e-6) && m.lo() <= d * (1.0 + 1e-6),
+            "the enclosure {m:?} must contain the perpendicular drift {d:e}"
         );
     }
 }
