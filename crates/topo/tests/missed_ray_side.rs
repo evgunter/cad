@@ -91,7 +91,7 @@ fn a_thin_slab_reads_out_far_away_and_its_complement_in() {
         );
         sides(
             &format!("reverted slab {m}ε"),
-            &body.revert().unwrap(),
+            &body.revert(geom_core::Tol::witness()).unwrap(),
             &far_points(t),
             SolidContainment::In,
         );
@@ -178,7 +178,7 @@ fn a_thin_walled_hollow_reads_out_far_away_and_in_its_cavity() {
         );
         sides(
             &format!("reverted hollow {m}ε"),
-            &hollow.revert().unwrap(),
+            &hollow.revert(geom_core::Tol::witness()).unwrap(),
             &points,
             SolidContainment::In,
         );
@@ -229,7 +229,7 @@ fn two_thin_slabs_in_one_body_read_their_sides() {
         );
         sides(
             &format!("two reverted slabs {m}ε"),
-            &body.revert().unwrap(),
+            &body.revert(geom_core::Tol::witness()).unwrap(),
             &points,
             SolidContainment::In,
         );
@@ -290,7 +290,7 @@ fn an_inside_out_slab_is_refused_as_an_operand() {
     ];
     for m in WINDOW {
         let t = m * tol.eps();
-        let rev = at_rest(slab(t, tol).revert().unwrap(), tol);
+        let rev = at_rest(slab(t, tol).revert(geom_core::Tol::witness()).unwrap(), tol);
         assert_eq!(
             rev.outcome(),
             AtRestOutcome::Validated,
@@ -324,7 +324,7 @@ fn an_inside_out_slab_is_refused_as_an_operand_at_a_dual() {
         let t = m * tol.eps();
         let rev = kept(
             brick::<Dual64>((0.0, 1.0), (0.0, 1.0), (0.0, t), tol)
-                .revert()
+                .revert(geom_core::Tol::witness())
                 .unwrap(),
         );
         assert_eq!(rev.outcome(), AtRestOutcome::NotRunAtThisScalar);

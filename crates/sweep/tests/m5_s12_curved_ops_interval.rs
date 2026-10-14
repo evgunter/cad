@@ -92,14 +92,14 @@ mod certified {
     fn interval_curved_revert_is_bitwise() {
         for body in [m5_boss(3, 0.0, 1.0), notched()] {
             let original = format!("{body:?}");
-            let rev = body.revert().unwrap();
+            let rev = body.revert(geom_core::Tol::witness()).unwrap();
             assert_eq!(
-                format!("{:?}", rev.revert().unwrap()),
+                format!("{:?}", rev.revert(geom_core::Tol::witness()).unwrap()),
                 original,
                 "involution"
             );
             assert_eq!(
-                format!("{:?}", body.revert().unwrap()),
+                format!("{:?}", body.revert(geom_core::Tol::witness()).unwrap()),
                 format!("{rev:?}"),
                 "determinism"
             );

@@ -157,7 +157,7 @@ fn moves_by_chart(door: &str, offset: impl Fn(&mut Body<f64>, f64)) {
         ("cw", wedge(false), false, -1.0, true, a_d),
         (
             "ccw reverted",
-            wedge(true).revert().unwrap(),
+            wedge(true).revert(geom_core::Tol::witness()).unwrap(),
             false,
             -1.0,
             true,

@@ -81,7 +81,7 @@ fn offset_charts_together_moves_the_charts_in_either_winding() {
         ("the clockwise drum", drum(false), true, grown),
         (
             "the reverted drum",
-            drum(true).revert().unwrap(),
+            drum(true).revert(geom_core::Tol::witness()).unwrap(),
             false,
             -grown,
         ),

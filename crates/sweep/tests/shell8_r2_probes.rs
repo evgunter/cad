@@ -256,7 +256,7 @@ fn r2_a_solid_of_only_cavities_is_refused_at_the_gate() {
             tol(),
         )
         .unwrap()
-        .revert()
+        .revert(geom_core::Tol::witness())
         .unwrap()
     };
     let mut voids = cube(Vec3::new(0.0, 0.0, 0.0));

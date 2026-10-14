@@ -13961,7 +13961,7 @@ mod tests {
                 .collect()
         };
         for (name, body) in [("honest", &honest), ("mutant", &mutant)] {
-            let reverted = body.revert().unwrap();
+            let reverted = body.revert(geom_core::Tol::witness()).unwrap();
             assert_eq!(
                 shape(body),
                 shape(&reverted),
@@ -13976,7 +13976,7 @@ mod tests {
             bowed_square_with_ring(13.0, 14.0, tol),
         ];
         for (name, (body, _)) in ["lune", "past the arc"].into_iter().zip(&bowed) {
-            let reverted = body.revert().unwrap();
+            let reverted = body.revert(geom_core::Tol::witness()).unwrap();
             assert_eq!(
                 shape(body),
                 shape(&reverted),

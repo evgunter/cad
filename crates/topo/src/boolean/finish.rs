@@ -273,13 +273,14 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
 
     // ---- ∖: revert the kept B side (Eq. 15.1's (BinA)⁻¹). ----
     if op == BooleanOp::Subtract {
-        if let Some(source) =
-            kept_coincident_edges(b_pristine, &b_kept, &red.edge_splits, &red.edge_classes)
+        let refused = |source| BooleanError::Revert {
+            operand: Operand::B,
+            source,
+        };
+        if let Some(line) =
+            kept_coincident_line(b_pristine, &b_kept, &red.edge_splits, tol).map_err(refused)?
         {
-            return Err(BooleanError::Revert {
-                operand: Operand::B,
-                source,
-            });
+            return Err(refused(line.refusal()));
         }
         b_kept = b_kept.reverted();
     }
@@ -421,44 +422,43 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
     })
 }
 
-/// The first pair of `input`'s coincident edges ([`Body::revert`]'s
-/// refusal) that ∖ would carry into its result as the pair reverted:
-/// both edges keep a piece in `kept`, the part of `input`'s working
-/// clone ∖ reverts, and the classification read no piece of either on
-/// the other operand's boundary. Where it did, that operand's faces lie
-/// along the line and the join pairs the sheets there with them.
+/// The first line of `input`'s coincident edges
+/// ([`Body::revert`]'s refusal) both of whose edges keep a piece in
+/// `kept`, the part of `input`'s working clone ∖ reverts. The clone is
+/// read through its input: the reduction splits edges where the other
+/// operand's faces cross them, minting each piece's ends on point keys
+/// of its own; and the clone holds coincident edges of its own where the
+/// other operand's coincident edges lie in its faces, which is that
+/// operand's line, not this one's.
 ///
-/// The clone is read through its input: the reduction splits edges
-/// where the other operand's faces cross them, minting each piece's
-/// ends on point keys of its own, so two pieces of coincident edges need
-/// not share their ends; and the clone holds a coincident pair of its
-/// own where the other operand's coincident edges lie in its faces,
-/// which is that operand's line, not this one's.
-fn kept_coincident_edges<T: geom_core::Real>(
+/// # Errors
+///
+/// [`crate::RevertError::Undecided`] and [`crate::RevertError::Band`],
+/// read on `input`.
+fn kept_coincident_line<T: Decide + geom_core::Bounds>(
     input: &Body<T>,
     kept: &Body<T>,
     splits: &super::EdgeSplits,
-    classes: &[super::EdgePieceClass],
-) -> Option<crate::RevertError> {
-    let lines = input.coincident_edges();
-    if lines.is_empty() {
-        return None;
+    tol: Tol,
+) -> Result<Option<crate::revert::CoincidentLine>, crate::RevertError> {
+    let lines = input.coincident_lines(tol)?;
+    if std::env::var("NO_PRECHECK").is_ok() || lines.is_empty() {
+        return Ok(None);
     }
     let roots: BTreeSet<_> = kept
         .edges()
         .map(|(edge, _)| splits.root(Operand::B, edge))
         .collect();
-    let on: BTreeSet<_> = classes
-        .iter()
-        .filter(|c| c.operand == Operand::B && c.class == SideCode::On)
-        .map(|c| c.edge)
-        .collect();
-    lines.into_iter().find(|line| {
-        let crate::RevertError::CoincidentEdges { edges, .. } = line;
-        edges
-            .iter()
-            .all(|edge| roots.contains(edge) && !on.contains(edge))
-    })
+    let found = lines
+        .into_iter()
+        .find(|line| line.edges.iter().all(|edge| roots.contains(edge)));
+    if std::env::var("NO_PRECHECK2").is_ok() {
+        if let Some(l) = found {
+            crate::wedge_probe::PROBE_LINE.with(|p| *p.borrow_mut() = Some(l.ends));
+        }
+        return Ok(None);
+    }
+    Ok(found)
 }
 
 /// The one result key `kept` holds, if it holds exactly one.

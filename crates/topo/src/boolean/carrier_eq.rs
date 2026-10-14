@@ -1780,7 +1780,7 @@ mod tests {
             true,
             Tol::witness(),
         );
-        let reverted = body.revert().unwrap();
+        let reverted = body.revert(geom_core::Tol::witness()).unwrap();
         let mut flipped = body.clone();
         flipped.set_face_sense(face, false).unwrap();
         for (name, other, rung) in [

@@ -126,7 +126,7 @@ pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
                 },
             )],
         };
-        let inserted = topo::insert_void(&mut out.body, out.solid, hole.body, &evidence).map_err(
+        let inserted = topo::insert_void(&mut out.body, out.solid, hole.body, &evidence, tol).map_err(
             |source| RevolveError::VoidInsertion {
                 loop_index: li,
                 source,

@@ -284,7 +284,7 @@ fn a_hollow_part_in_the_concavity_clears() {
             .map(|(s, _)| (s, VoidContainment::Probed(SolidContainment::In)))
             .collect(),
     };
-    insert_void(&mut part, solid, hole, &evidence).unwrap();
+    insert_void(&mut part, solid, hole, &evidence, geom_core::Tol::witness()).unwrap();
     assert_eq!(part.shells().count(), 2);
     let body = assembly(&l.body, &part);
     assert_eq!(
@@ -306,7 +306,7 @@ fn the_per_solid_door_reads_the_container_s_own_sign_at_infinity() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
     let complement = common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness())
-        .revert()
+        .revert(geom_core::Tol::witness())
         .unwrap();
     let far = common::brick::<f64>((50.0, 53.0), (50.0, 53.0), (50.0, 53.0), Tol::witness());
     let body = assembly(&complement, &far);

@@ -524,9 +524,11 @@ fn a_void_under_a_dead_solid_refuses_with_the_destination_unchanged() {
         &topo::VoidEvidence,
     ) -> Result<topo::VoidInserted, topo::VoidInsertError>;
     let doors: [(&str, Door); 2] = [
-        ("insert_void", topo::insert_void),
+        ("insert_void", |d, k, c, e| {
+            topo::insert_void(d, k, c, e, geom_core::Tol::witness())
+        }),
         ("insert_voids", |d, k, c, e| {
-            topo::insert_voids(d, &[k], c, e)
+            topo::insert_voids(d, &[k], c, e, geom_core::Tol::witness())
         }),
     ];
     let tol = Tol::witness();

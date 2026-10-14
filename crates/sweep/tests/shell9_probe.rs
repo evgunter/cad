@@ -49,7 +49,7 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
         graft_recertify_failures(&cavity).is_empty(),
         "the cavity re-certifies edge for edge"
     );
-    let reverted = cavity.revert().unwrap();
+    let reverted = cavity.revert(geom_core::Tol::witness()).unwrap();
     let failures = graft_recertify_failures(&reverted);
     assert!(
         failures.is_empty(),
@@ -76,7 +76,7 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
     // The same insertion `shell` runs, by hand: taken.
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
-    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted))
+    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted), geom_core::Tol::witness())
         .expect("insert_voids takes the reverted cavity");
     assert_eq!(out.shells().count(), 2, "outer + cavity");
 }
@@ -96,7 +96,7 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
     let t = 0.05;
     let body = two_arc_sphere();
     let cavity = door_cavity(&body, t);
-    let reverted = cavity.revert().unwrap();
+    let reverted = cavity.revert(geom_core::Tol::witness()).unwrap();
     assert_eq!(
         topo::validate_geometric(&reverted, tol()),
         Err(vec![topo::ValidationError::NegativeVolume {
@@ -110,7 +110,7 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
     );
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
-    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted))
+    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted), geom_core::Tol::witness())
         .expect("the sphere's graft is taken");
     assert_eq!(
         topo::validate_geometric(&out, tol()),
@@ -132,7 +132,7 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
 fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
     let body = collinear_cap_drum();
     let cavity = door_cavity(&body, 0.05);
-    let reverted = cavity.revert().unwrap();
+    let reverted = cavity.revert(geom_core::Tol::witness()).unwrap();
     let band = geom_core::Band::linear(tol()).expect("band");
     let mut circles = 0;
     for (ek, e) in reverted.edges() {
@@ -208,7 +208,7 @@ fn sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_s
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
     let evidence = void_evidence(&cavity);
-    topo::insert_voids(&mut out, &solids, cavity, &evidence).expect("the graft is taken");
+    topo::insert_voids(&mut out, &solids, cavity, &evidence, geom_core::Tol::witness()).expect("the graft is taken");
     assert_eq!(
         topo::validate_geometric(&out, tol()),
         Ok(()),

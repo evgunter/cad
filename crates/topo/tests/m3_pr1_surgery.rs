@@ -166,7 +166,7 @@ fn revert_involution_and_tiers() {
     describe_as_intersections(&mut cube.body, Tol::witness());
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let original = format!("{:?}", cube.body);
-    let reverted = cube.body.revert().unwrap();
+    let reverted = cube.body.revert(geom_core::Tol::witness()).unwrap();
     // Reverted bodies are tier-2 currency: every structural invariant
     // and certification survives, and the ONLY tier-3 complaint is the
     // +V invariant — the reverted body bounds the complement BY
@@ -182,11 +182,11 @@ fn revert_involution_and_tiers() {
     assert_ne!(format!("{reverted:?}"), original);
     // Involution, bitwise (Debug is shortest-roundtrip on f64 — the
     // D9 dump channel).
-    let back = reverted.revert().unwrap();
+    let back = reverted.revert(geom_core::Tol::witness()).unwrap();
     assert_eq!(format!("{back:?}"), original);
     // Determinism: replaying the revert is byte-identical.
     assert_eq!(
-        format!("{:?}", cube.body.revert().unwrap()),
+        format!("{:?}", cube.body.revert(geom_core::Tol::witness()).unwrap()),
         format!("{reverted:?}")
     );
 }
@@ -198,7 +198,7 @@ fn revert_negates_volume() {
     let mut cube = geometric_cube::<f64>(Tol::witness());
     describe_as_intersections(&mut cube.body, Tol::witness());
     let props = topo::mass_properties(&cube.body, Tol::witness()).unwrap();
-    let rev_props = topo::mass_properties(&cube.body.revert().unwrap(), Tol::witness()).unwrap();
+    let rev_props = topo::mass_properties(&cube.body.revert(geom_core::Tol::witness()).unwrap(), Tol::witness()).unwrap();
     assert_eq!(rev_props.volume.to_bits(), (-props.volume).to_bits());
     assert_eq!(
         rev_props.surface_area.to_bits(),

@@ -2382,7 +2382,7 @@ fn valid_fixtures_never_panic_a_revert_anchor() {
             fixture == "mvfs_state" || (anchored && cycled),
             "{fixture} asks both proofs something"
         );
-        drop(body.revert().unwrap().revert().unwrap());
+        drop(body.revert(geom_core::Tol::witness()).unwrap().revert(geom_core::Tol::witness()).unwrap());
     }
 }
 
@@ -2413,7 +2413,7 @@ fn each_revert_tear(
     tear: RevertTear,
     mut visit: impl FnMut(Body<f64>, Option<Body<f64>>),
 ) {
-    let reverted = body.revert().unwrap();
+    let reverted = body.revert(geom_core::Tol::witness()).unwrap();
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let vertices: Vec<VertexKey> = body.vertices().map(|(k, _)| k).collect();
     let targets = match tear {
@@ -3693,7 +3693,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
     let trial = body.clone();
     let skipped = std::cell::Cell::new(false);
     judge_read(capture, &mut census, "revert", || {
-        let answered = trial.revert().is_ok();
+        let answered = trial.revert(geom_core::Tol::witness()).is_ok();
         skipped.set(!revert_reads_whole(&trial));
         Ok(answered)
     });

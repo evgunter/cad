@@ -105,7 +105,7 @@ fn cavity() -> Body<f64> {
             .map(|(s, _)| (s, VoidContainment::Probed(SolidContainment::In)))
             .collect(),
     };
-    insert_void(&mut dst, solid, hole, &evidence).unwrap();
+    insert_void(&mut dst, solid, hole, &evidence, geom_core::Tol::witness()).unwrap();
     let part = common::brick::<f64>((1.2, 1.8), (1.2, 1.8), (1.2, 1.8), Tol::witness());
     assembly(&dst, &part)
 }

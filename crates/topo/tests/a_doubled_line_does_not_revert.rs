@@ -92,12 +92,15 @@ fn slit_body(pose: &Pose) -> Body<f64> {
     above
 }
 
-/// Asserts `refusal` names the slit: two edges of `body`, both running
-/// between the points of `MEET` and [`OPEN`] at `pose`.
+/// Asserts `refusal` names the slit: the line runs between the points
+/// of `MEET` and [`OPEN`] at `pose`, and both its edges of `body` lie on
+/// it.
 fn names_the_slit(what: &str, body: &Body<f64>, pose: &Pose, refusal: RevertError) {
-    let RevertError::CoincidentEdges { edges, ends } = refusal;
+    let RevertError::CoincidentEdges { edges, ends } = refusal else {
+        panic!("{what}: {refusal:?}, not the coincident edges");
+    };
     let near = |p: Point3<f64>, q: [f64; 3]| p.distance(pose.at(q)) < 1e-9;
-    let [p, q] = ends.map(|k| *body.get_point(k).unwrap());
+    let [p, q] = ends.map(|[x, y, z]| Point3::new(x, y, z));
     assert!(
         (near(p, MEET) && near(q, OPEN)) || (near(p, OPEN) && near(q, MEET)),
         "{what}: the line runs {:?} to {:?}, not the keel",
@@ -133,7 +136,7 @@ fn the_split_slit_body_is_legal_and_refuses_to_revert() {
             "{what}: tier 3′"
         );
         let refusal = body
-            .revert()
+            .revert(geom_core::Tol::witness())
             .err()
             .unwrap_or_else(|| panic!("{what}: the slit body reverted"));
         names_the_slit(what, &body, &pose, refusal);
@@ -210,7 +213,7 @@ fn a_slit_cavity_refuses_before_the_destination_is_written() {
                 .map(|(s, _)| (s, VoidContainment::Probed(topo::SolidContainment::In)))
                 .collect(),
         };
-        let refusal = match insert_void(&mut dst, solid, cavity.clone(), &evidence) {
+        let refusal = match insert_void(&mut dst, solid, cavity.clone(), &evidence, geom_core::Tol::witness()) {
             Err(VoidInsertError::Revert(refusal)) => refusal,
             other => panic!("{what}: {other:?}, not the revert's refusal"),
         };

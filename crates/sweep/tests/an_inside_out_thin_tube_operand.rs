@@ -49,7 +49,7 @@ fn an_inside_out_thin_tube_is_refused_as_an_operand() {
         tol(),
     );
     for r in [0.5, 1.0, 2.0] {
-        let rev = AtRestBody::validate(tube(r, t).revert().unwrap(), tol())
+        let rev = AtRestBody::validate(tube(r, t).revert(geom_core::Tol::witness()).unwrap(), tol())
             .unwrap_or_else(|e| panic!("r {r}: the reverted tube finishes at rest, got {e:?}"));
         for (name, op) in OPS {
             for (a, b, inside_out) in [(&rev, &big, Operand::A), (&big, &rev, Operand::B)] {

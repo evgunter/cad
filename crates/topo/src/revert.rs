@@ -94,10 +94,12 @@
 //! would leave each edge bounding the complement of its own wedge, more
 //! than π each, and the two would overlap. That re-pairing is not built, so
 //! `revert` refuses such a body ([`RevertError::CoincidentEdges`]),
-//! naming the two edges and the points the line runs between. It reads
-//! the pair structurally: two edges whose ends lie on the same two point
-//! keys, both lines (two lines through two points are one) or both on
-//! one stored curve. A single cusp is one edge, so its revert, the knife
+//! naming where the line runs. It reads the line as the census's
+//! edge-edge pass does: two line edges whose interiors overlap along a
+//! positive length, whatever backs their bounds (shared point keys,
+//! records, or one edge's end resting on the other). Two curved edges on
+//! one curve are outside that reader, as they are outside the census's
+//! exact sweeps. A single cusp is one edge, so its revert, the knife
 //! slit, is unaffected.
 //!
 //! Functional style (the plan's assumption, made concrete): `revert`
@@ -117,8 +119,9 @@
 //! What the map deliberately does NOT give is
 //! tier 3: it bounds the complement, so the +V invariant fails
 //! (`NegativeVolume`, pinned by test). That is correct, not a defect:
-//! `revert(B)` is ∖'s transient operand, never an at-rest solid
-//! handed across the API. `sweep`'s `revert_periodic_wrap` measures
+//! the reverted body bounds no solid of its own, so no door hands it
+//! across the API as one; ∖ reverts its operand's kept part and the void
+//! door its cavity, each grafted into a body that bounds a solid. `sweep`'s `revert_periodic_wrap` measures
 //! exactly `NegativeVolume` on the two-arc sphere's cavity and a cone
 //! through its apex (loops that wrap at closure), and on the drums,
 //! the tori and a NURBS loft (loops that do not);
@@ -127,14 +130,14 @@
 //! Serves ch. 15 `setopfinish` (difference reverts `B`'s kept
 //! component) and the `A ∖ B ≡ A ∩ revert(B)` oracle (M3 PR 5).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
-use geom::{Curve3, Surface};
-use geom_core::Real;
+use geom::Surface;
+use geom_core::{Band, BandError, Bounds, Decide, Indeterminate, Point3, Real, Tol};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey};
-use crate::geometry::{CurveKey, PointKey};
+use crate::geometry::CurveKey;
 use crate::live::{OPERATORS_KEEP_LINKS, Proven, dangling_link, link};
 use crate::null::CurveGeom;
 
@@ -147,7 +150,9 @@ impl<T: Real> Body<T> {
     /// # Errors
     ///
     /// [`RevertError::CoincidentEdges`] where two distinct edges lie on
-    /// one line (module docs).
+    /// one line (module docs); [`RevertError::Undecided`] where the band
+    /// cannot tell whether two line edges do; [`RevertError::Band`]
+    /// where `tol` forms no band.
     ///
     /// # Panics
     ///
@@ -156,10 +161,13 @@ impl<T: Real> Body<T> {
     /// body could not keep (D2 row 4): a body no public door leaves.
     /// Every such read precedes construction of the result.
     #[track_caller]
-    pub fn revert(&self) -> Result<Self, RevertError> {
+    pub fn revert(&self, tol: Tol) -> Result<Self, RevertError>
+    where
+        T: Decide + Bounds,
+    {
         let out = self.reverted();
-        match self.coincident_edges().first() {
-            Some(&refusal) => Err(refusal),
+        match self.coincident_lines(tol)?.first() {
+            Some(line) => Err(line.refusal()),
             None => Ok(out),
         }
     }
@@ -352,50 +360,56 @@ impl<T: Real> Body<T> {
         out
     }
 
-    /// Every pair of distinct edges that lie on one curve between the
-    /// same two points, in the order of those points' keys: both ends on
-    /// one point key each,
-    /// and the curves one line or one stored arc (module docs). A link
-    /// that does not resolve reads as no pair; the map's own reads are
-    /// what answer for it.
-    pub(crate) fn coincident_edges(&self) -> Vec<RevertError> {
-        let point_of = |he: HalfEdgeKey| {
-            let start = self.half_edges.get(he)?.start;
-            Some(self.vertices.get(start)?.point)
+    /// Every line where two distinct line edges lie (module docs): each
+    /// collinear overlap as the census reads it
+    /// ([`crate::census::collinear_overlaps`]).
+    ///
+    /// # Errors
+    ///
+    /// [`RevertError::Undecided`] and [`RevertError::Band`], as
+    /// [`Self::revert`].
+    pub(crate) fn coincident_lines(&self, tol: Tol) -> Result<Vec<CoincidentLine>, RevertError>
+    where
+        T: Decide + Bounds,
+    {
+        let band = Band::linear(tol).map_err(RevertError::Band)?;
+        let at = |p: Point3<T>| {
+            let mid = |x: T| 0.5 * (x.lo() + x.hi());
+            [mid(p.x), mid(p.y), mid(p.z)]
         };
-        let mut by_ends: BTreeMap<[PointKey; 2], Vec<(EdgeKey, CurveKey, bool)>> = BTreeMap::new();
-        for (edge, data) in self.edges.iter() {
-            let (Some(p), Some(q)) = (point_of(data.he_plus), point_of(data.he_minus)) else {
-                continue;
-            };
-            let line = matches!(
-                self.get_curve_geom(data.curve),
-                Some(CurveGeom::Certified(c)) if matches!(c.carrier(), Curve3::Line { .. })
-            );
-            by_ends
-                .entry(if p <= q { [p, q] } else { [q, p] })
-                .or_default()
-                .push((edge, data.curve, line));
+        let overlaps = crate::census::collinear_overlaps(self, band)
+            .map_err(|(edges, cause)| RevertError::Undecided { edges, cause })?;
+        Ok(overlaps
+            .into_iter()
+            .map(|o| CoincidentLine {
+                edges: o.edges,
+                ends: o.ends.map(at),
+            })
+            .collect())
+    }
+}
+
+/// **A line where two distinct edges of a body lie**: the two edges, in
+/// arena order, and where their common span begins and ends, read off
+/// the scalar's bracket midpoints.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct CoincidentLine {
+    pub(crate) edges: [EdgeKey; 2],
+    pub(crate) ends: [[f64; 3]; 2],
+}
+
+impl CoincidentLine {
+    /// [`Body::revert`]'s refusal of this line.
+    pub(crate) fn refusal(self) -> RevertError {
+        RevertError::CoincidentEdges {
+            edges: self.edges,
+            ends: self.ends,
         }
-        let mut pairs = Vec::new();
-        for (ends, edges) in by_ends {
-            for (i, &(a, curve_a, line_a)) in edges.iter().enumerate() {
-                for &(b, curve_b, line_b) in &edges[i + 1..] {
-                    if curve_a == curve_b || (line_a && line_b) {
-                        pairs.push(RevertError::CoincidentEdges {
-                            edges: [a, b],
-                            ends,
-                        });
-                    }
-                }
-            }
-        }
-        pairs
     }
 }
 
 /// Why [`Body::revert`] refused (closed enum, D4 ¶3).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RevertError {
     /// **Two distinct edges lie on one line**, so more than two face
     /// sheets meet there and the material decides which of them pair
@@ -407,20 +421,38 @@ pub enum RevertError {
     CoincidentEdges {
         /// The two edges, in arena order.
         edges: [EdgeKey; 2],
-        /// The point keys the line runs between, in key order.
-        ends: [PointKey; 2],
+        /// Where their common span begins and ends.
+        ends: [[f64; 3]; 2],
     },
+    /// The band cannot tell whether two line edges lie on one line.
+    Undecided {
+        /// The two edges, in arena order.
+        edges: [EdgeKey; 2],
+        /// The escalated decision.
+        cause: Indeterminate,
+    },
+    /// The run's tolerance forms no band.
+    Band(BandError),
 }
 
 impl core::fmt::Display for RevertError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let at = |[x, y, z]: &[f64; 3]| format!("({x}, {y}, {z})");
         match self {
-            Self::CoincidentEdges { edges, ends } => write!(
+            Self::CoincidentEdges { ends, .. } => {
+                let [from, to] = ends;
+                let (from, to) = (at(from), at(to));
+                write!(
+                    f,
+                    "two edges lie on one line from {from} to {to}: the complement pairs the \
+                     faces meeting there differently, and that re-pairing is not built"
+                )
+            }
+            Self::Undecided { cause, .. } => write!(
                 f,
-                "the edges {edges:?} lie on one line, between the points {ends:?}: the \
-                 complement pairs the faces meeting there differently, and that re-pairing is \
-                 not built"
+                "whether two edges lie on one line is undecided at this tolerance: {cause}"
             ),
+            Self::Band(e) => write!(f, "the tolerance forms no band: {e}"),
         }
     }
 }
@@ -448,7 +480,7 @@ mod tests {
             before.iter().all(|s| *s),
             "the seed states sense: true and every mef derives it"
         );
-        let reverted = cube.body.revert().unwrap();
+        let reverted = cube.body.revert(geom_core::Tol::witness()).unwrap();
         let after: Vec<bool> = reverted.faces().map(|(_, f)| f.sense).collect();
         assert!(after.iter().all(|s| !*s), "every non-plane face flipped");
         // The surfaces themselves are untouched (the reversal is on the
@@ -458,7 +490,7 @@ mod tests {
             format!("{:?}", cube.body.surfaces().collect::<Vec<_>>()),
         );
         assert_eq!(
-            format!("{:?}", reverted.revert().unwrap()),
+            format!("{:?}", reverted.revert(geom_core::Tol::witness()).unwrap()),
             format!("{:?}", cube.body),
         );
     }
@@ -482,17 +514,17 @@ mod tests {
                 kept += 1;
             }
             assert_eq!(
-                format!("{:?}", reverted.revert().unwrap()),
+                format!("{:?}", reverted.revert(geom_core::Tol::witness()).unwrap()),
                 format!("{body:?}"),
                 "bitwise involution"
             );
             kept
         };
         let cube = declined_cube::<f64>(Tol::witness());
-        assert_eq!(assert_kept(&cube.body, &cube.body.revert().unwrap()), 6);
+        assert_eq!(assert_kept(&cube.body, &cube.body.revert(geom_core::Tol::witness()).unwrap()), 6);
 
         let plane = lone_plane_face();
-        assert_eq!(assert_kept(&plane, &plane.revert().unwrap()), 1);
+        assert_eq!(assert_kept(&plane, &plane.revert(geom_core::Tol::witness()).unwrap()), 1);
     }
 
     /// One plane face bounded by a single line edge (a two-half-edge
@@ -612,7 +644,7 @@ mod tests {
         ];
         for (cause, torn, fragments) in rows {
             let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-                drop(torn.revert().unwrap());
+                drop(torn.revert(geom_core::Tol::witness()).unwrap());
             }));
             for fragment in fragments.iter().map(String::as_str).chain([ROW_FOUR]) {
                 assert!(
@@ -679,7 +711,7 @@ mod tests {
         body.faces.get_mut(seed.face).unwrap().surface = copy;
         body.surfaces.remove(chart).unwrap();
         let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-            drop(body.revert().unwrap());
+            drop(body.revert(geom_core::Tol::witness()).unwrap());
         }));
         for fragment in [
             format!("{}'s chart image's surface names", GeomRef::Curve(curve)),
@@ -766,7 +798,7 @@ mod tests {
             "the image has a v channel (sin t · 1): pb = {pb:?}"
         );
 
-        let reverted = body.revert().unwrap();
+        let reverted = body.revert(geom_core::Tol::witness()).unwrap();
         let mirrored = curve_of(&reverted);
         let Pcurve::Harmonic {
             p0: q0,
@@ -814,7 +846,7 @@ mod tests {
             "the certificate that travelled verbatim is the fresh run's"
         );
         assert_eq!(
-            format!("{:?}", reverted.revert().unwrap()),
+            format!("{:?}", reverted.revert(geom_core::Tol::witness()).unwrap()),
             format!("{body:?}"),
             "bitwise involution"
         );

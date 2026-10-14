@@ -1276,6 +1276,98 @@ fn face_cycles<'a, T: Real>(
 /// that replaced it, and what each arm can and cannot certify is the
 /// module-docs envelope, stated rather than sampled). Total: every
 /// entity lands in exactly one bucket, so there is no refusal path.
+/// Every line edge's census geometry, in arena order. A curved-carrier
+/// edge is outside the exact sweeps; its contact obligations ride the
+/// curved arms and the records naming it — no blanket refusal. Tier 1
+/// guarantees every link resolves; an edge one does not is skipped.
+fn line_edges<T: Real>(body: &Body<T>) -> Vec<EdgeGeo<T>> {
+    body.edges
+        .iter()
+        .filter(|&(key, _)| edge_is_line(body, key))
+        .filter_map(|(key, edge)| {
+            let plus = body.half_edges.get(edge.he_plus)?;
+            let v0 = plus.start;
+            let v1 = body.half_edge_end(edge.he_plus)?;
+            let p0 = *body.points.get(body.vertices.get(v0)?.point)?;
+            let p1 = *body.points.get(body.vertices.get(v1)?.point)?;
+            let sides = crate::readback::edge_sides(body, key).ok()?;
+            let (f_plus, f_minus) = sides.faces();
+            let chord = p1 - p0;
+            Some(EdgeGeo {
+                key,
+                v0,
+                v1,
+                p0,
+                dir: chord.normalize(),
+                len: chord.norm(),
+                f_plus,
+                f_minus,
+            })
+        })
+        .collect()
+}
+
+/// **Two distinct line edges whose interiors overlap along a positive
+/// length**, as the census's edge-edge pass reads them: the pair, and
+/// the overlap's two ends.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CollinearOverlap<T: Real> {
+    /// The two edges, in arena order.
+    pub(crate) edges: [EdgeKey; 2],
+    /// Where the overlap begins and ends.
+    pub(crate) ends: [Point3<T>; 2],
+}
+
+/// Every [`CollinearOverlap`] of `body`'s line edges: the edge-edge
+/// pass's candidates ([`Trees`]' edge class), its parallel screen
+/// ([`parallel_reading`]) and its overlap ([`collinear_overlap`]), with
+/// no backing asked of any. Two edges on one line overlap whatever
+/// backs them, so a structural pair (one point key at each bound), a
+/// recorded pair and a partial overlap read alike.
+///
+/// # Errors
+///
+/// The first pair, in sweep order, a decision could not read, with the
+/// escalation.
+pub(crate) fn collinear_overlaps<T: Decide + Bounds>(
+    body: &Body<T>,
+    band: Band,
+) -> Result<Vec<CollinearOverlap<T>>, ([EdgeKey; 2], Indeterminate)> {
+    let edges = line_edges(body);
+    let pad = sweep_pad(band);
+    let class = Class::build(
+        CensusStrategy::Realized,
+        edges.iter().map(|e| edge_box(body, e.key, pad)).collect(),
+    );
+    let mut found = Vec::new();
+    for (i, ea) in edges.iter().enumerate() {
+        for j in class.later(i) {
+            let eb = candidate(&edges, j);
+            let mut errors = Vec::new();
+            let overlap = match parallel_reading(ea, eb, band, &mut errors) {
+                Some(true) => collinear_overlap(ea, eb, band, &mut errors),
+                _ => None,
+            };
+            if let Some(error) = errors.into_iter().next() {
+                let ValidationError::CensusEscalated { cause } = error else {
+                    unreachable!(
+                        "the parallel screen and the overlap push only their escalations: \
+                         {error:?}"
+                    )
+                };
+                return Err(([ea.key, eb.key], cause));
+            }
+            if let Some(((lo, hi), _)) = overlap {
+                found.push(CollinearOverlap {
+                    edges: [ea.key, eb.key],
+                    ends: [ea.p0 + ea.dir * lo, ea.p0 + ea.dir * hi],
+                });
+            }
+        }
+    }
+    Ok(found)
+}
+
 fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     let resolved: Vec<(VertexKey, PointKey, Point3<T>)> = body
         .vertices
@@ -1295,38 +1387,7 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         .collect();
     let vmap = resolved.iter().map(|&(k, _, p)| (k, p)).collect();
     let vpoint = resolved.iter().map(|&(k, point, _)| (k, point)).collect();
-    let mut edges = Vec::new();
-    for (key, edge) in body.edges.iter() {
-        if !edge_is_line(body, key) {
-            // A curved-carrier edge is outside the exact sweeps; its
-            // contact obligations ride the curved arms and the
-            // records naming it — no blanket refusal.
-            continue;
-        }
-        let ends = || -> Option<EdgeGeo<T>> {
-            let plus = body.half_edges.get(edge.he_plus)?;
-            let v0 = plus.start;
-            let v1 = body.half_edge_end(edge.he_plus)?;
-            let p0 = *body.points.get(body.vertices.get(v0)?.point)?;
-            let p1 = *body.points.get(body.vertices.get(v1)?.point)?;
-            let sides = crate::readback::edge_sides(body, key).ok()?;
-            let (f_plus, f_minus) = sides.faces();
-            let chord = p1 - p0;
-            Some(EdgeGeo {
-                key,
-                v0,
-                v1,
-                p0,
-                dir: chord.normalize(),
-                len: chord.norm(),
-                f_plus,
-                f_minus,
-            })
-        };
-        if let Some(geo) = ends() {
-            edges.push(geo); // tier 1 guarantees resolution; silent else
-        }
-    }
+    let edges = line_edges(body);
     let mut faces = Vec::new();
     let mut curved_faces = Vec::new();
     let mut vertex_faces: std::collections::BTreeMap<VertexKey, BTreeSet<FaceKey>> =
@@ -2701,24 +2762,35 @@ fn pair_edge_edge<T: Decide>(
     eb: &EdgeGeo<T>,
     errors: &mut Vec<ValidationError>,
 ) {
-    let ncross = ea.dir.cross(eb.dir);
-    // sin(angle of the unit dirs) × the shorter edge's own
-    // length: the displacement the angular deviation induces
-    // over the edge (a bare sine was a dimensionless comparand
-    // against the length band — rim-dimensional audit, (c)).
-    let arm = ea.len.min(eb.len);
-    match gap_is_zero(
-        "pm_census_ee_parallel",
-        Margin::levered(ncross.norm(), arm),
-        band,
-        errors,
-    ) {
+    match parallel_reading(ea, eb, band, errors) {
         Some(false) => {
+            let ncross = ea.dir.cross(eb.dir);
             ee_crossing_lane(body, geo, declared, ea, eb, ncross, band, region, errors);
         }
         Some(true) => ee_collinear_lane(ea, eb, geo, declared, band, errors),
         None => {}
     }
+}
+
+/// Whether two line edges are parallel: `Some(true)` parallel,
+/// `Some(false)` not, `None` escalated (pushed). The margin is
+/// sin(angle of the unit dirs) × the shorter edge's own length: the
+/// displacement the angular deviation induces over the edge (a bare
+/// sine was a dimensionless comparand against the length band —
+/// rim-dimensional audit, (c)).
+fn parallel_reading<T: Decide>(
+    ea: &EdgeGeo<T>,
+    eb: &EdgeGeo<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    let arm = ea.len.min(eb.len);
+    gap_is_zero(
+        "pm_census_ee_parallel",
+        Margin::levered(ea.dir.cross(eb.dir).norm(), arm),
+        band,
+        errors,
+    )
 }
 
 /// What the crossing rung answered for one `EdgeEdgeCross`.
