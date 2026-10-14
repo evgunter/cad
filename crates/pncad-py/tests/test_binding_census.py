@@ -1725,7 +1725,7 @@ FAMILIES: dict[str, str] = {
 #:   that changes an ANSWER, bound at LIB-G18a — which is also when
 #:   its memo residue left the `gap` roster, and note the memo was
 #:   never a field of it (`prior` is `evaluate`'s own second argument,
-#:   bound as `prior=`). Its other six fields are stated rather than
+#:   bound as `prior=`). Its other five fields are stated rather than
 #:   waved, each with its reason in the Rust roster: `epoch` is minted
 #:   per run and is not a caller's choice; `parallel` and
 #:   `boolean_sweep` are runtime switches the kernel documents as
@@ -1733,8 +1733,8 @@ FAMILIES: dict[str, str] = {
 #:   determinism cross-check can compare both schedules in one run,
 #:   `boolean_sweep`'s two paths are bit-identical by the BVH
 #:   differential suite's own pin), so no ANSWER is unreachable
-#:   through them. The last three are unreachable for a different
-#:   argument each, and none of the three is "f64 cannot do it":
+#:   through them. The last two are unreachable for a different
+#:   argument each, and neither is "f64 cannot do it":
 #:
 #:   `param_box` (E6) IS reachable at `f64` and from Python — the MC
 #:   lane evaluates under a box and `monte_carlo` is its door — but
@@ -1742,14 +1742,7 @@ FAMILIES: dict[str, str] = {
 #:   admits. What `evaluate` cannot ask for is a box with WIDTH, which
 #:   needs a scalar carrying a bracket. `seed` (E4) is its twin with no
 #:   degenerate form at all: a tangent needs a scalar that carries one,
-#:   and `f64` does not. `profile_lift` (M10-P) is not
-#:   answer-preserving in general — it decides whether profile geometry
-#:   is elaborated at THIS evaluation's parameters instead of the
-#:   nominal `f64` pass's — and what makes it unreachable-without-loss
-#:   *here* is that this door's box is always the nominal one, which is
-#:   the entry above rather than a fact about `f64`: `editor-core`'s MC
-#:   lane sets `Guided` at `f64` precisely because its box is not
-#:   nominal.
+#:   and `f64` does not.
 #:
 #:   All three gain spellings alongside an evaluation door that can
 #:   carry a box with width; no row schedules one, and
@@ -2607,7 +2600,6 @@ NOT_BOUND = {
     "Point2": SHAPE,
     "Point3": SHAPE,
     "ProfileDoc": SHAPE,
-    "ProfileLift": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
     # A refusal's rendering machinery: Python reads a refusal through
     # `str()`, and the stripped sentence is what a Rust carrier renders
@@ -3219,7 +3211,7 @@ NOT_BOUND = {
     # query engine refuses with it too, and the façade does not carry
     # that engine at all), and the binding
     # evaluates at `f64` alone (`src/py/value.rs`), so the SCALAR is
-    # what gates it. That is `profile_lift`'s
+    # what gates it. That is `param_box`'s
     # sentence above arriving on the refusal side: the door starts
     # answering differently exactly when Python gains a non-`f64`
     # evaluation, and it should gain its spelling in the unit that

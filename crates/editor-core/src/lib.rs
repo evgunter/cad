@@ -134,8 +134,6 @@ pub use edit::{
     SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure, regauge_then_mate,
 };
 pub use eval::measure::{Observed, ObservedRefusal};
-#[cfg(any(test, feature = "test-support"))]
-pub use eval::second_pass_at_f64;
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,

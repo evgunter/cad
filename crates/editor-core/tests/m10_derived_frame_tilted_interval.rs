@@ -412,9 +412,8 @@ fn sym5_tilted_derived_guided_budget_ladder() {
 }
 
 /// **SYM-5's pin: the derived boss on a tilted frame certifies where
-/// its authored twin does.** The acceptance row of the unit, under
-/// BOTH `ProfileLift`s, at the widths the twin certifies at on the
-/// symbolic lane.
+/// its authored twin does.** The acceptance row of the unit, at the
+/// widths the twin certifies at on the symbolic lane.
 ///
 /// What carries it is rule E ([`SymRules::common_factor`], the
 /// quotient's common factor): with the rule off — `without_rule_e`,

@@ -74,7 +74,7 @@ fn form(vp: &ValidatedProfile<f64>) -> (Vec<u64>, String) {
 /// validated form on the lane's plane and runs no second pass
 /// (`editor_core::ProfileLane`). Here the second pass is run at `f64`
 /// beside it, through the evaluator's own code
-/// (`editor_core::second_pass_at_f64`), for every profile node of
+/// (`editor_core::eval::second_pass_at_f64`), for every profile node of
 /// every corpus document, and the two agree on every stored scalar's
 /// bits and every decided fact. A node the second pass would refuse
 /// is a refusal here.
@@ -97,8 +97,8 @@ fn the_f64_lane_is_the_second_pass_bit_for_bit() {
             let ValuePayload::Profile(served) = &v.payload else {
                 continue;
             };
-            let second =
-                editor_core::second_pass_at_f64(&doc.doc, &ev, id, tol).unwrap_or_else(|e| {
+            let second = editor_core::eval::second_pass_at_f64(&doc.doc, &ev, id, tol)
+                .unwrap_or_else(|e| {
                     panic!(
                         "{}: profile {id:?}: the second pass at f64 refuses: {e}",
                         doc.name

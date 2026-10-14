@@ -4866,7 +4866,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `PairingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
-///   can carry).
+///   can carry; and `ProfileLane`, the sealed fact that the `f64`
+///   lane is a profile's first pass).
 ///
 ///   **The rest of this family is now CARRIED**, by `crate::analysis`
 ///   (M10-6): the driver and its box,
@@ -4905,7 +4906,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 95] = [
+const NOT_CARRIED: [&str; 96] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4949,6 +4950,7 @@ const NOT_CARRIED: [&str; 95] = [
     "PairingViolation",
     "ParamValue",
     "PredicateDivergence",
+    "ProfileLane",
     "ProfilePayload",
     "Qualifier",
     "RangeField",

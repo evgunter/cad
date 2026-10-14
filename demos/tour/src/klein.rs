@@ -624,20 +624,30 @@ fn lofted_loop<S: Scalar>(
     let band = Band::linear(tol).map_err(LoftError::Band)?;
     let (t0, t1) = spine.domain();
     let (start, tangent) = spine.ders1(t0);
-    let roll = path_start_frame(start, tangent, tol)
-        .expect("the spine's start tangent fixes a frame")
-        .u()
-        .get();
+    let roll = path_start_frame(
+        start.map(S::from_computed),
+        tangent.map(S::from_computed),
+        tol,
+    )
+    .expect("the spine's start tangent fixes a frame")
+    .u()
+    .get();
     let places: Vec<SketchPlane<S>> = (0..STATIONS)
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
             let s = i as f64 / (STATIONS - 1) as f64;
             let (p, d) = spine.ders1((t1 - t0).mul_add(s, t0));
-            let aim = UnitVec3::new(d, "klein_loop_tangent", band)
+            let aim = UnitVec3::new(d.map(S::from_computed), "klein_loop_tangent", band)
                 .expect("the spine has a tangent at every station");
-            let frame = RigidMotion::from_aim_and_reference(p, aim, roll, "klein_loop_roll", band)
-                .expect("the spine plane's normal is off every tangent");
-            SketchPlane::from_frame(frame).embed_computed()
+            let frame = RigidMotion::from_aim_and_reference(
+                p.map(S::from_computed),
+                aim,
+                roll,
+                "klein_loop_roll",
+                band,
+            )
+            .expect("the spine plane's normal is off every tangent");
+            SketchPlane::from_frame(frame)
         })
         .collect();
     let section: Vec<ConstructedLoop<S>> = section.iter().map(|lp| lp.lift_computed()).collect();
@@ -655,12 +665,16 @@ fn swept_loop<S: Scalar>(
 ) -> Result<Body<S>, LoftError> {
     let (t0, _) = spine.domain();
     let (start, tangent) = spine.ders1(t0);
-    let place =
-        path_start_frame(start, tangent, tol).expect("the spine's start tangent fixes a frame");
+    let place = path_start_frame(
+        start.map(S::from_computed),
+        tangent.map(S::from_computed),
+        tol,
+    )
+    .expect("the spine's start tangent fixes a frame");
     let section: Vec<ConstructedLoop<S>> = section.iter().map(|lp| lp.lift_computed()).collect();
     sweep_body::<S>(
         &section,
-        SketchPlane::from_frame(place).embed_computed(),
+        SketchPlane::from_frame(place),
         spine,
         STATIONS,
         V_DEGREE,

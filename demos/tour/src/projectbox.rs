@@ -145,10 +145,16 @@ fn spring<S: Scalar>(
         .fold(f64::NEG_INFINITY, f64::max);
     let path = coil(BOSS_Z.1 + depth);
     let stations = usize::try_from(TURNS * per_turn + 1).expect("a station count");
-    // The wire and its start frame are built in `f64`, so they enter `S`
-    // as the computed values they are.
+    // The wire and the spine are built in `f64`, so they enter `S` as
+    // the computed values they are, and the start frame is minted at
+    // `S` from the spine's.
     let wire: Vec<_> = wire.iter().map(|lp| lp.lift_computed()).collect();
-    let place = SketchPlane::from_frame(start_frame(&path)).embed_computed();
+    let (t0, _) = path.domain();
+    let (p, d) = path.ders1(t0);
+    let place = SketchPlane::from_frame(
+        path_start_frame(p.map(S::from_computed), d.map(S::from_computed), tol)
+            .expect("the coil's start tangent fixes a frame"),
+    );
     sweep_body::<S>(&wire, place, &path, stations, 3, tol).map(|l| l.body)
 }
 

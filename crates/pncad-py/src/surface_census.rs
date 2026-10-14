@@ -628,7 +628,6 @@ fn options_doors() -> Vec<Roster> {
         parallel: _,
         boolean_sweep: _,
         resolver: _,
-        profile_lift: _,
         param_box: _,
         seed: _,
         symbols: _,
@@ -720,18 +719,6 @@ fn options_doors() -> Vec<Roster> {
                     },
                 ),
                 ("resolver", Bound(&["resolver"])),
-                (
-                    "profile_lift",
-                    Spelling::NotBound {
-                        would_be: &["profile_lift"],
-                        reason: "it decides whether profile geometry is elaborated at THIS \
-                                 evaluation's parameters instead of the nominal f64 pass's, \
-                                 and only a non-nominal `param_box` can show that \
-                                 difference — which this door never has. NOT a no-op at f64 \
-                                 in general: `editor-core`'s MC lane sets `Guided` at f64 \
-                                 precisely because its box is not the nominal one",
-                    },
-                ),
                 (
                     "param_box",
                     Spelling::NotBound {

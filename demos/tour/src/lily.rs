@@ -136,15 +136,16 @@
 //! constructor — [`p2`]/`v2`/`p3`/`v3` from `pncad::authoring`. Where
 //! an already-composed `f64` value crosses — a frame this file built,
 //! a turtle's point, a stored carrier — it is `map(S::from_f64)`,
-//! once, on the value; a sketch plane is a frame, and crosses whole
-//! through its own `embed`. Readback runs the other way by the same
+//! once, on the value. A sketch plane is a frame, and a frame crosses
+//! no scalar upward: it is minted at `S`. Readback runs the other way by the same
 //! rule: a stored `Point3<S>` becomes `f64` through `map(S::f)`, once,
 //! where narration begins.
 //!
 //! **The swept and lofted blades are the exception**: their frames
 //! and outlines are built from computed geometry (a spine, a curl), so
-//! they enter `S` as the computed values they are —
-//! `embed_computed` on the plane, `lift_computed` on each loop.
+//! they enter `S` as the computed values they are — the frame's inputs
+//! through `map(S::from_computed)` and minted at `S`, `lift_computed`
+//! on each loop.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -162,7 +163,7 @@ use pncad::sweep::{
 use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand};
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
-use crate::scalar::{Scalar, authored_frame, axis_frame, sketch_frame};
+use crate::scalar::{Scalar, axis_frame, sketch_frame};
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_core::Tol;
@@ -405,7 +406,12 @@ fn lantern<S: Scalar>(
     // flower axis (into the flower), u the in-plane radial — the
     // flower axis turned a quarter turn in the plant's own plane,
     // i.e. crossed with ŷ.
-    let plane = sketch_frame(attach, dir.cross(Vec3::unit_y()), dir, tol).embed_computed();
+    let plane = sketch_frame::<S>(
+        attach.map(S::from_computed),
+        dir.cross(Vec3::unit_y()).map(S::from_computed),
+        dir.map(S::from_computed),
+        tol,
+    );
     revolve(
         &validated(
             plane,
@@ -672,9 +678,14 @@ fn bud<S: Scalar>(
         // is only perpendicular to the BUD's axis, not to this
         // segment's. All three share the ATTACHMENT: the tilt splays
         // their tips, not their bellies.
-        let spine = axis_frame::<f64>(attach, dir * ct + l * st, rad(phi - 0.5 * span), tol);
-        let a = spine.w().get();
-        let plane = sketch_frame(attach, spine.u().get(), a, tol).embed_computed();
+        let attach = attach.map(S::from_computed);
+        let spine = axis_frame::<S>(
+            attach,
+            (dir * ct + l * st).map(S::from_computed),
+            rad(phi - 0.5 * span).map(S::from_computed),
+            tol,
+        );
+        let plane = sketch_frame::<S>(attach, spine.u().get(), spine.w().get(), tol);
         revolve(
             &validated(
                 plane,
@@ -960,9 +971,14 @@ fn leaf<S: Scalar>(
         })
         .collect();
     let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
-    // The outline and the frame are built in `f64`, so they enter `S`
-    // as the computed values they are.
-    let place = SketchPlane::from_frame(authored_frame(base, u, v, tol)).embed_computed();
+    // The outline is built in `f64`, so it enters `S` as the computed
+    // values it is; the frame is minted at `S` from those values.
+    let place = sketch_frame::<S>(
+        base.map(S::from_computed),
+        u.map(S::from_computed),
+        v.map(S::from_computed),
+        tol,
+    );
     let outline: Vec<_> = section
         .outline(tol)
         .iter()
@@ -1333,7 +1349,7 @@ fn loft_plan<S: Scalar>(
     let (d, v, u) = blade_frame(dir, up, tol);
     let r = len / curl;
     let mut sections: Vec<Vec<ConstructedLoop<f64>>> = Vec::with_capacity(stations);
-    let mut places: Vec<SketchPlane<f64>> = Vec::with_capacity(stations);
+    let mut places: Vec<SketchPlane<S>> = Vec::with_capacity(stations);
     for k in 0..stations {
         #[allow(clippy::cast_precision_loss)]
         let s = (k as f64) / ((stations - 1) as f64);
@@ -1350,14 +1366,18 @@ fn loft_plan<S: Scalar>(
         let uu = u * ct + vk * st;
         let vv = vk * ct - u * st;
         sections.push(said(plan.at(s)));
-        places.push(SketchPlane::from_frame(authored_frame(p, uu, vv, tol)));
+        places.push(sketch_frame::<S>(
+            p.map(S::from_computed),
+            uu.map(S::from_computed),
+            vv.map(S::from_computed),
+            tol,
+        ));
     }
     // Built in `f64`, so they enter `S` as the computed values they are.
     let sections: Vec<Vec<_>> = sections
         .iter()
         .map(|s| s.iter().map(|lp| lp.lift_computed()).collect())
         .collect();
-    let places: Vec<SketchPlane<S>> = places.iter().map(|p| p.embed_computed()).collect();
     loft_body::<S>(&sections, &places, BLADE_V_DEGREE, tol)
 }
 
