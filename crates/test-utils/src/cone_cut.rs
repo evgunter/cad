@@ -253,11 +253,11 @@ impl ConeCut {
     }
 
     /// **How far a stored ellipse stands off the cut**: over points of
-    /// `center + u_ref·major·cos θ + (axis × u_ref)·minor·sin θ`, each
+    /// `center + u_ref·semi_u·cos θ + (axis × u_ref)·semi_v·sin θ`, each
     /// evaluated here from the stored fields, the farthest one stands
     /// from the double cone or from the plane, whichever is farther.
     #[must_use]
-    pub fn ellipse_miss(&self, center: P3, axis: P3, major: f64, minor: f64, u_ref: P3) -> f64 {
+    pub fn ellipse_miss(&self, center: P3, axis: P3, semi_u: f64, semi_v: f64, u_ref: P3) -> f64 {
         let (center, u) = (sub(v(center), self.apex), v(u_ref));
         let w = cross(v(axis), u);
         let mut worst = 0.0_f64;
@@ -267,8 +267,8 @@ impl ConeCut {
                 let x = add(
                     center,
                     add(
-                        scale(u, Dd::of(major).mul(c)),
-                        scale(w, Dd::of(minor).mul(s)),
+                        scale(u, Dd::of(semi_u).mul(c)),
+                        scale(w, Dd::of(semi_v).mul(s)),
                     ),
                 );
                 let h = dot(x, self.a);
